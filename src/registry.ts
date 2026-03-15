@@ -2,6 +2,8 @@
  * Core registry: Strategy enum, Arg/CliCommand interfaces, cli() registration.
  */
 
+import type { IPage } from './types.js';
+
 export enum Strategy {
   PUBLIC = 'public',
   COOKIE = 'cookie',
@@ -28,7 +30,7 @@ export interface CliCommand {
   browser?: boolean;
   args: Arg[];
   columns?: string[];
-  func?: (page: any, kwargs: Record<string, any>, debug?: boolean) => Promise<any>;
+  func?: (page: IPage | null, kwargs: Record<string, any>, debug?: boolean) => Promise<any>;
   pipeline?: any[];
   timeoutSeconds?: number;
   source?: string;
@@ -43,7 +45,7 @@ export interface CliOptions {
   browser?: boolean;
   args?: Arg[];
   columns?: string[];
-  func?: (page: any, kwargs: Record<string, any>, debug?: boolean) => Promise<any>;
+  func?: (page: IPage | null, kwargs: Record<string, any>, debug?: boolean) => Promise<any>;
   pipeline?: any[];
   timeoutSeconds?: number;
 }

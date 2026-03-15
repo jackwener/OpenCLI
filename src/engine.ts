@@ -6,6 +6,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import yaml from 'js-yaml';
 import { type CliCommand, type Arg, Strategy, registerCommand } from './registry.js';
+import type { IPage } from './types.js';
 import { executePipeline } from './pipeline.js';
 
 export function discoverClis(...dirs: string[]): void {
@@ -72,7 +73,7 @@ function registerYamlCli(filePath: string, defaultSite: string): void {
 
 export async function executeCommand(
   cmd: CliCommand,
-  page: any,
+  page: IPage | null,
   kwargs: Record<string, any>,
   debug: boolean = false,
 ): Promise<any> {

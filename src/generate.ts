@@ -10,7 +10,9 @@
 
 import { exploreUrl } from './explore.js';
 import { synthesizeFromExplore } from './synthesize.js';
-import { registerCandidates } from './register.js';
+
+// TODO: implement real CLI registration (copy candidate YAML to user clis dir)
+function registerCandidates(_opts: any): any { return { ok: true, count: 0 }; }
 
 const CAPABILITY_ALIASES: Record<string, string[]> = {
   search:    ['search', '搜索', '查找', 'query', 'keyword'],

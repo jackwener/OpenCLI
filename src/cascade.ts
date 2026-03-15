@@ -11,6 +11,7 @@
  */
 
 import { Strategy } from './registry.js';
+import type { IPage } from './types.js';
 
 /** Strategy cascade order (simplest → most complex) */
 const CASCADE_ORDER: Strategy[] = [
@@ -41,7 +42,7 @@ interface CascadeResult {
  * Returns whether the probe succeeded and basic response info.
  */
 export async function probeEndpoint(
-  page: any,
+  page: IPage,
   url: string,
   strategy: Strategy,
   opts: { timeout?: number } = {},
@@ -168,7 +169,7 @@ export async function probeEndpoint(
  * Returns the simplest working strategy.
  */
 export async function cascadeProbe(
-  page: any,
+  page: IPage,
   url: string,
   opts: { maxStrategy?: Strategy; timeout?: number } = {},
 ): Promise<CascadeResult> {

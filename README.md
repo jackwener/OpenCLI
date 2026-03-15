@@ -7,11 +7,10 @@
 
 [![npm](https://img.shields.io/npm/v/@jackwener/opencli)](https://www.npmjs.com/package/@jackwener/opencli)
 
-OpenCLI turns any website into a command-line tool by bridging your Chrome browser through [Playwright MCP](https://github.com/nichochar/playwright-mcp). No passwords stored, no tokens leaked — it just rides your existing browser session.
+A CLI tool that turns **any website** into a command-line interface. **28+ commands** across **16 sites** — bilibili, zhihu, xiaohongshu, twitter, reddit, github, v2ex, hackernews, bbc, weibo, boss, yahoo-finance, reuters, smzdm, ctrip, youtube — powered by browser session reuse and AI-native discovery.
 
 ## ✨ Highlights
 
-- 🌐 **25+ commands, 8 sites** — Bilibili, Zhihu, GitHub, Twitter/X, Reddit, V2EX, Xiaohongshu, Hacker News
 - 🔐 **Account-safe** — Reuses Chrome's logged-in state; your credentials never leave the browser
 - 🤖 **AI Agent ready** — `explore` discovers APIs, `synthesize` generates adapters, `cascade` finds auth strategies
 - 📝 **Declarative YAML** — Most adapters are ~30 lines of YAML pipeline
@@ -86,9 +85,17 @@ Public API commands (`hackernews`, `github search`, `v2ex`) need no browser at a
 | **xiaohongshu** | `search` `notifications` `feed` | 🔐 Browser |
 | **twitter** | `trending` | 🔐 Browser |
 | **reddit** | `hot` | 🔐 Browser |
+| **weibo** | `hot` | 🔐 Browser |
+| **boss** | `search` | 🔐 Browser |
+| **youtube** | `search` | 🔐 Browser |
+| **yahoo-finance** | `quote` | 🔐 Browser |
+| **reuters** | `search` | 🔐 Browser |
+| **smzdm** | `search` | 🔐 Browser |
+| **ctrip** | `search` | 🔐 Browser |
 | **github** | `trending` `search` | 🔐 / 🌐 |
 | **v2ex** | `hot` `latest` `topic` | 🌐 Public |
 | **hackernews** | `top` | 🌐 Public |
+| **bbc** | `news` | 🌐 Public |
 
 ## 🎨 Output Formats
 

@@ -477,7 +477,7 @@ export function renderExploreSummary(result: Record<string, any>): string {
   return lines.join('\n');
 }
 
-async function readPageMetadata(page: any): Promise<{ url: string; title: string }> {
+async function readPageMetadata(page: any /* IPage */): Promise<{ url: string; title: string }> {
   try {
     const result = await page.evaluate(`() => ({ url: window.location.href, title: document.title || '' })`);
     if (result && typeof result === 'object') return { url: String(result.url ?? ''), title: String(result.title ?? '') };

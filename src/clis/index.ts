@@ -20,3 +20,27 @@ import './zhihu/question.js';
 
 // xiaohongshu
 import './xiaohongshu/search.js';
+
+// bbc
+import './bbc/news.js';
+
+// weibo
+import './weibo/hot.js';
+
+// boss
+import './boss/search.js';
+
+// yahoo-finance
+import './yahoo-finance/quote.js';
+
+// reuters
+import './reuters/search.js';
+
+// smzdm
+import './smzdm/search.js';
+
+// ctrip
+import './ctrip/search.js';
+
+// youtube
+import './youtube/search.js';

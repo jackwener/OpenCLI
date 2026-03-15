@@ -18,7 +18,9 @@
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "cli",
@@ -44,6 +46,7 @@
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.13.10",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.0"
   }
 }

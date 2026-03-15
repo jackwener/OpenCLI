@@ -2,6 +2,8 @@
  * Bilibili shared helpers: WBI signing, authenticated fetch, nav data, UID resolution.
  */
 
+import type { IPage } from './types.js';
+
 const MIXIN_KEY_ENC_TAB = [
   46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,
   33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,
@@ -17,7 +19,7 @@ export function payloadData(payload: any): any {
   return payload?.data ?? payload;
 }
 
-async function getNavData(page: any): Promise<any> {
+async function getNavData(page: IPage): Promise<any> {
   return page.evaluate(`
     async () => {
       const res = await fetch('https://api.bilibili.com/x/web-interface/nav', { credentials: 'include' });
@@ -26,7 +28,7 @@ async function getNavData(page: any): Promise<any> {
   `);
 }
 
-async function getWbiKeys(page: any): Promise<{ imgKey: string; subKey: string }> {
+async function getWbiKeys(page: IPage): Promise<{ imgKey: string; subKey: string }> {
   const nav = await getNavData(page);
   const wbiImg = nav?.data?.wbi_img ?? {};
   const imgUrl = wbiImg.img_url ?? '';
@@ -47,7 +49,7 @@ async function md5(text: string): Promise<string> {
 }
 
 export async function wbiSign(
-  page: any,
+  page: IPage,
   params: Record<string, any>,
 ): Promise<Record<string, string>> {
   const { imgKey, subKey } = await getWbiKeys(page);
@@ -65,7 +67,7 @@ export async function wbiSign(
 }
 
 export async function apiGet(
-  page: any,
+  page: IPage,
   path: string,
   opts: { params?: Record<string, any>; signed?: boolean } = {},
 ): Promise<any> {
@@ -81,7 +83,7 @@ export async function apiGet(
   return fetchJson(page, url);
 }
 
-export async function fetchJson(page: any, url: string): Promise<any> {
+export async function fetchJson(page: IPage, url: string): Promise<any> {
   const escapedUrl = url.replace(/"/g, '\\"');
   return page.evaluate(`
     async () => {
@@ -91,14 +93,14 @@ export async function fetchJson(page: any, url: string): Promise<any> {
   `);
 }
 
-export async function getSelfUid(page: any): Promise<string> {
+export async function getSelfUid(page: IPage): Promise<string> {
   const nav = await getNavData(page);
   const mid = nav?.data?.mid;
   if (!mid) throw new Error('Not logged in to Bilibili');
   return String(mid);
 }
 
-export async function resolveUid(page: any, input: string): Promise<string> {
+export async function resolveUid(page: IPage, input: string): Promise<string> {
   if (/^\d+$/.test(input)) return input;
   // Search for user by name
   const payload = await apiGet(page, '/x/web-interface/wbi/search/type', {

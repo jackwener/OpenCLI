@@ -3,6 +3,7 @@
  * opencli — Make any website your CLI. AI-powered.
  */
 
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,10 +21,14 @@ const __dirname = path.dirname(__filename);
 const BUILTIN_CLIS = path.resolve(__dirname, 'clis');
 const USER_CLIS = path.join(os.homedir(), '.opencli', 'clis');
 
+// Read version from package.json (single source of truth)
+const pkgJsonPath = path.resolve(__dirname, '..', 'package.json');
+const PKG_VERSION = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8')).version ?? '0.0.0';
+
 discoverClis(BUILTIN_CLIS, USER_CLIS);
 
 const program = new Command();
-program.name('opencli').description('Make any website your CLI. Zero setup. AI-powered.').version('0.1.0');
+program.name('opencli').description('Make any website your CLI. Zero setup. AI-powered.').version(PKG_VERSION);
 
 // ── Built-in commands ──────────────────────────────────────────────────────
 
@@ -49,10 +54,7 @@ program.command('validate').description('Validate CLI definitions').argument('[t
 program.command('verify').description('Validate + smoke test').argument('[target]').option('--smoke', 'Run smoke tests', false)
   .action(async (target, opts) => { const { verifyClis, renderVerifyReport } = await import('./verify.js'); const r = await verifyClis({ builtinClis: BUILTIN_CLIS, userClis: USER_CLIS, target, smoke: opts.smoke }); console.log(renderVerifyReport(r)); process.exitCode = r.ok ? 0 : 1; });
 
-program.command('explore').description('Explore a website').argument('<url>').option('--site <name>').option('--goal <text>').option('--wait <s>', '', '3')
-  .action(async (url, opts) => { const { exploreUrl, renderExploreSummary } = await import('./explore.js'); console.log(renderExploreSummary(await exploreUrl(url, { BrowserFactory: PlaywrightMCP, site: opts.site, goal: opts.goal, waitSeconds: parseFloat(opts.wait) }))); });
-
-program.command('probe').description('Probe a website: discover APIs, stores, and recommend strategies').argument('<url>').option('--site <name>').option('--goal <text>').option('--wait <s>', '', '3')
+program.command('explore').alias('probe').description('Explore a website: discover APIs, stores, and recommend strategies').argument('<url>').option('--site <name>').option('--goal <text>').option('--wait <s>', '', '3')
   .action(async (url, opts) => { const { exploreUrl, renderExploreSummary } = await import('./explore.js'); console.log(renderExploreSummary(await exploreUrl(url, { BrowserFactory: PlaywrightMCP, site: opts.site, goal: opts.goal, waitSeconds: parseFloat(opts.wait) }))); });
 
 program.command('synthesize').description('Synthesize CLIs from explore').argument('<target>').option('--top <n>', '', '3')

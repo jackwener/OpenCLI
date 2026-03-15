@@ -78,6 +78,30 @@ opencli v2ex topic --id 1024             # 主题详情
 
 # Hacker News (public)
 opencli hackernews top --limit 10        # Top stories
+
+# BBC (public)
+opencli bbc news --limit 10             # BBC News RSS headlines
+
+# 微博 (browser)
+opencli weibo hot --limit 10            # 微博热搜
+
+# BOSS直聘 (browser)
+opencli boss search --query "AI agent"  # 搜索职位
+
+# YouTube (browser)
+opencli youtube search --query "rust"   # 搜索视频
+
+# Yahoo Finance (browser)
+opencli yahoo-finance quote --symbol AAPL  # 股票行情
+
+# Reuters (browser)
+opencli reuters search --query "AI"     # 路透社搜索
+
+# 什么值得买 (browser)
+opencli smzdm search --keyword "耳机"    # 搜索好价
+
+# 携程 (browser)
+opencli ctrip search --query "三亚"      # 搜索目的地
 ```
 
 ### Management Commands

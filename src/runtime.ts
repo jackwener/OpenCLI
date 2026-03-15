@@ -2,6 +2,8 @@
  * Runtime utilities: timeouts and browser session management.
  */
 
+import type { IPage } from './types.js';
+
 export const DEFAULT_BROWSER_CONNECT_TIMEOUT = parseInt(process.env.OPENCLI_BROWSER_CONNECT_TIMEOUT ?? '30', 10);
 export const DEFAULT_BROWSER_COMMAND_TIMEOUT = parseInt(process.env.OPENCLI_BROWSER_COMMAND_TIMEOUT ?? '45', 10);
 export const DEFAULT_BROWSER_EXPLORE_TIMEOUT = parseInt(process.env.OPENCLI_BROWSER_EXPLORE_TIMEOUT ?? '120', 10);
@@ -24,7 +26,7 @@ export async function runWithTimeout<T>(
 
 export async function browserSession<T>(
   BrowserFactory: new () => any,
-  fn: (page: any) => Promise<T>,
+  fn: (page: IPage) => Promise<T>,
 ): Promise<T> {
   const mcp = new BrowserFactory();
   try {

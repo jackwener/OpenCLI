@@ -10,6 +10,10 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { formatSnapshot } from './snapshotFormatter.js';
 
+// Read version from package.json (single source of truth)
+const __browser_dirname = path.dirname(fileURLToPath(import.meta.url));
+const PKG_VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.resolve(__browser_dirname, '..', 'package.json'), 'utf-8')).version; } catch { return '0.0.0'; } })();
+
 const EXTENSION_LOCK_TIMEOUT = parseInt(process.env.OPENCLI_EXTENSION_LOCK_TIMEOUT ?? '120', 10);
 const EXTENSION_LOCK_POLL = parseInt(process.env.OPENCLI_EXTENSION_LOCK_POLL_INTERVAL ?? '1', 10);
 const CONNECT_TIMEOUT = parseInt(process.env.OPENCLI_BROWSER_CONNECT_TIMEOUT ?? '30', 10);
@@ -21,10 +25,12 @@ function jsonRpcRequest(method: string, params: Record<string, any> = {}): strin
   return JSON.stringify({ jsonrpc: '2.0', id: _nextId++, method, params }) + '\n';
 }
 
+import type { IPage } from './types.js';
+
 /**
  * Page abstraction wrapping JSON-RPC calls to Playwright MCP.
  */
-export class Page {
+export class Page implements IPage {
   constructor(private _send: (msg: string) => void, private _recv: () => Promise<any>) {}
 
   async call(method: string, params: Record<string, any> = {}): Promise<any> {
@@ -173,7 +179,7 @@ export class PlaywrightMCP {
       const initMsg = jsonRpcRequest('initialize', {
         protocolVersion: '2024-11-05',
         capabilities: {},
-        clientInfo: { name: 'opencli', version: '0.1.0' },
+        clientInfo: { name: 'opencli', version: PKG_VERSION },
       });
       this._proc.stdin?.write(initMsg);
 
