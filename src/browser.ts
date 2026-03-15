@@ -579,20 +579,16 @@ export class PlaywrightMCP {
         }));
       }, timeout * 1000);
 
-      const mcpArgs: string[] = [mcpPath];
-      if (cdpEndpoint) {
-        mcpArgs.push('--cdp-endpoint', cdpEndpoint);
-      } else {
-        mcpArgs.push('--extension');
-      }
+      const mcpArgs = buildMcpArgs({
+        mcpPath,
+        cdpEndpoint,
+        executablePath: process.env.OPENCLI_BROWSER_EXECUTABLE_PATH,
+      });
       if (process.env.OPENCLI_VERBOSE) {
         console.error(`[opencli] CDP mode: ${cdpEndpoint ? `auto-discovered ${cdpEndpoint}` : 'fallback to --extension'}`);
         if (mode === 'extension') {
           console.error(`[opencli] Extension token: ${extensionToken ? `configured (fingerprint ${tokenFingerprint})` : 'missing'}`);
         }
-      }
-      if (process.env.OPENCLI_BROWSER_EXECUTABLE_PATH) {
-        mcpArgs.push('--executablePath', process.env.OPENCLI_BROWSER_EXECUTABLE_PATH);
       }
       debugLog(`Spawning node ${mcpArgs.join(' ')}`);
 
@@ -822,6 +818,19 @@ function appendLimited(current: string, chunk: string, limit: number): string {
   return next.slice(-limit);
 }
 
+function buildMcpArgs(input: { mcpPath: string; cdpEndpoint?: string | null; executablePath?: string | null }): string[] {
+  const args = [input.mcpPath];
+  if (input.cdpEndpoint) {
+    args.push('--cdp-endpoint', input.cdpEndpoint);
+  } else {
+    args.push('--extension');
+  }
+  if (input.executablePath) {
+    args.push('--executable-path', input.executablePath);
+  }
+  return args;
+}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
@@ -843,6 +852,7 @@ export const __test__ = {
   extractTabEntries,
   diffTabIndexes,
   appendLimited,
+  buildMcpArgs,
   withTimeout,
   isCdpApiAvailable,
 };

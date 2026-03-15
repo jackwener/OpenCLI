@@ -38,6 +38,30 @@ describe('browser helpers', () => {
     expect(__test__.appendLimited('12345', '67890', 8)).toBe('34567890');
   });
 
+  it('builds Playwright MCP args with kebab-case executable path', () => {
+    expect(__test__.buildMcpArgs({
+      mcpPath: '/tmp/cli.js',
+      executablePath: '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
+    })).toEqual([
+      '/tmp/cli.js',
+      '--extension',
+      '--executable-path',
+      '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
+    ]);
+
+    expect(__test__.buildMcpArgs({
+      mcpPath: '/tmp/cli.js',
+      cdpEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
+      executablePath: '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
+    })).toEqual([
+      '/tmp/cli.js',
+      '--cdp-endpoint',
+      'ws://127.0.0.1:9222/devtools/browser/abc',
+      '--executable-path',
+      '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
+    ]);
+  });
+
   it('times out slow promises', async () => {
     await expect(__test__.withTimeout(new Promise(() => {}), 10, 'timeout')).rejects.toThrow('timeout');
   });
