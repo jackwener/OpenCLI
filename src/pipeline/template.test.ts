@@ -75,6 +75,12 @@ describe('evalExpr', () => {
   it('applies length filter', () => {
     expect(evalExpr('item.items | length', { item: { items: [1, 2, 3] } })).toBe(3);
   });
+  it('applies json filter to strings with quotes', () => {
+    expect(evalExpr('args.keyword | json', { args: { keyword: "O'Reilly" } })).toBe('"O\'Reilly"');
+  });
+  it('applies json filter to nullish values', () => {
+    expect(evalExpr('args.keyword | json', { args: {} })).toBe('null');
+  });
 });
 
 describe('render', () => {

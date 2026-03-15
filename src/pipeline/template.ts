@@ -75,7 +75,7 @@ export function evalExpr(expr: string, ctx: RenderContext): any {
  * Apply a named filter to a value.
  * Supported filters:
  *   default(val), join(sep), upper, lower, truncate(n), trim,
- *   replace(old,new), keys, length, first, last
+ *   replace(old,new), keys, length, first, last, json
  */
 function applyFilter(filterExpr: string, value: any): any {
   const match = filterExpr.match(/^(\w+)(?:\((.+)\))?$/);
@@ -117,6 +117,8 @@ function applyFilter(filterExpr: string, value: any): any {
       return Array.isArray(value) ? value[0] : value;
     case 'last':
       return Array.isArray(value) ? value[value.length - 1] : value;
+    case 'json':
+      return JSON.stringify(value ?? null);
     default:
       return value;
   }
