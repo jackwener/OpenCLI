@@ -12,9 +12,6 @@ import './bilibili/history.js';
 import './bilibili/feed.js';
 import './bilibili/user-videos.js';
 
-// github
-import './github/search.js';
-
 // zhihu
 import './zhihu/question.js';
 
