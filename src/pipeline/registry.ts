@@ -11,6 +11,7 @@ import { stepFetch } from './steps/fetch.js';
 import { stepSelect, stepMap, stepFilter, stepSort, stepLimit } from './steps/transform.js';
 import { stepIntercept } from './steps/intercept.js';
 import { stepTap } from './steps/tap.js';
+import { stepDownload } from './steps/download.js';
 
 /** 
  * Step handler: all pipeline steps conform to this generic interface.
@@ -58,3 +59,4 @@ registerStep('sort', stepSort);
 registerStep('limit', stepLimit);
 registerStep('intercept', stepIntercept);
 registerStep('tap', stepTap);
+registerStep('download', stepDownload);

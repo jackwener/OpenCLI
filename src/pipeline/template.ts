@@ -119,6 +119,32 @@ function applyFilter(filterExpr: string, value: any): any {
       return Array.isArray(value) ? value[value.length - 1] : value;
     case 'json':
       return JSON.stringify(value ?? null);
+    case 'slugify':
+      // Convert to URL-safe slug
+      return typeof value === 'string'
+        ? value
+            .toLowerCase()
+            .replace(/[^\p{L}\p{N}]+/gu, '-')
+            .replace(/^-|-$/g, '')
+        : value;
+    case 'sanitize':
+      // Remove invalid filename characters
+      return typeof value === 'string'
+        ? value.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+        : value;
+    case 'ext': {
+      // Extract file extension from URL or path
+      if (typeof value !== 'string') return value;
+      const lastDot = value.lastIndexOf('.');
+      const lastSlash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
+      return lastDot > lastSlash ? value.slice(lastDot) : '';
+    }
+    case 'basename': {
+      // Extract filename from URL or path
+      if (typeof value !== 'string') return value;
+      const parts = value.split(/[/\\]/);
+      return parts[parts.length - 1] || value;
+    }
     default:
       return value;
   }
