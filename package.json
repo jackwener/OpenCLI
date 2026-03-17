@@ -20,6 +20,7 @@
     "clean-yaml": "node -e \"const{readdirSync:r,rmSync:d,existsSync:e,statSync:s}=require('fs'),p=require('path');function w(dir){if(!e(dir))return;for(const f of r(dir)){const fp=p.join(dir,f);s(fp).isDirectory()?w(fp):/\\.ya?ml$/.test(f)&&d(fp)}}w('dist/clis')\"",
     "copy-yaml": "node -e \"const{readdirSync:r,copyFileSync:c,mkdirSync:m,existsSync:e,statSync:s}=require('fs'),p=require('path');function w(src,dst){if(!e(src))return;for(const f of r(src)){const sp=p.join(src,f),dp=p.join(dst,f);s(sp).isDirectory()?w(sp,dp):/\\.ya?ml$/.test(f)&&(m(p.dirname(dp),{recursive:!0}),c(sp,dp))}}w('src/clis','dist/clis')\"",
     "start": "node dist/main.js",
+    "postinstall": "node scripts/postinstall.js || true",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "prepublishOnly": "npm run build",
