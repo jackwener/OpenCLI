@@ -1,4 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
+import type { IPage } from '../../types.js';
 
 const EXPERIENCE_LEVELS: Record<string, string> = {
   internship: '1',
@@ -47,7 +48,8 @@ const REMOTE_TYPES: Record<string, string> = {
 };
 
 function parseCsvArg(value: unknown): string[] {
-  return String(value ?? '')
+  if (value === undefined || value === null || value === '') return [];
+  return String(value)
     .split(',')
     .map(item => item.trim())
     .filter(Boolean);
@@ -64,7 +66,7 @@ function mapFilterValues(input: unknown, mapping: Record<string, string>, label:
   return [...new Set(resolved)];
 }
 
-async function resolveCompanyIds(page: any, input: unknown): Promise<string[]> {
+async function resolveCompanyIds(page: IPage, input: unknown): Promise<string[]> {
   const rawValues = parseCsvArg(input);
   const ids = new Set<string>();
   const names: string[] = [];
@@ -79,11 +81,11 @@ async function resolveCompanyIds(page: any, input: unknown): Promise<string[]> {
   const resolved = await page.evaluate(`(async () => {
     const targets = ${JSON.stringify(names)};
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-    const normalize = (value) => (value || '').toLowerCase().replace(/\\s+/g, ' ').trim();
+    const normalize = (value) => (value || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
     const openAllFilters = async () => {
       const button = [...document.querySelectorAll('button')]
-        .find(b => ((b.innerText || '').trim().replace(/\\s+/g, ' ')) === 'All filters');
+        .find(b => ((b.innerText || '').trim().replace(/\s+/g, ' ')) === 'All filters');
       if (button) {
         button.click();
         await sleep(300);
@@ -94,8 +96,8 @@ async function resolveCompanyIds(page: any, input: unknown): Promise<string[]> {
       const result = {};
       for (const input of document.querySelectorAll('input[name="company-filter-value"]')) {
         const value = input.value;
-        const text = (input.parentElement?.innerText || input.closest('label')?.innerText || '').replace(/\\s+/g, ' ').trim();
-        const label = text.replace(/\\s*Filter by.*$/i, '').trim();
+        const text = (input.parentElement?.innerText || input.closest('label')?.innerText || '').replace(/\s+/g, ' ').trim();
+        const label = text.replace(/\s*Filter by.*$/i, '').trim();
         if (label) result[normalize(label)] = value;
       }
       return result;
@@ -164,7 +166,7 @@ function decodeLinkedinRedirect(url: string): string {
   return url;
 }
 
-async function enrichJobDetails(page: any, jobs: Array<Record<string, any>>): Promise<Array<Record<string, any>>> {
+async function enrichJobDetails(page: IPage, jobs: Array<Record<string, any>>): Promise<Array<Record<string, any>>> {
   const enriched: Array<Record<string, any>> = [];
 
   for (const job of jobs) {
@@ -177,7 +179,7 @@ async function enrichJobDetails(page: any, jobs: Array<Record<string, any>>): Pr
       await page.goto(job.url);
       await page.wait({ text: 'About the job', timeout: 8 });
       await page.evaluate(`(() => {
-        const normalize = (value) => (value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+        const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
         const aboutSection = [...document.querySelectorAll('div, section, article')]
           .find((element) => normalize(element.querySelector('h1, h2, h3, h4')?.textContent || '') === 'about the job');
         const expandButton = [...(aboutSection?.querySelectorAll('button, a[role="button"]') || [])]
@@ -187,7 +189,7 @@ async function enrichJobDetails(page: any, jobs: Array<Record<string, any>>): Pr
       await page.wait(1);
 
       const detail = await page.evaluate(`(() => {
-        const normalize = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+        const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
         const candidates = [...document.querySelectorAll('div, section, article')]
           .map((element) => {
             const heading = normalize(element.querySelector('h1, h2, h3, h4')?.textContent || '');
@@ -197,7 +199,7 @@ async function enrichJobDetails(page: any, jobs: Array<Record<string, any>>): Pr
           .filter((item) => item.text && item.heading.toLowerCase() === 'about the job' && item.text.length > 'About the job'.length)
           .sort((a, b) => a.text.length - b.text.length);
 
-        const description = candidates[0]?.text.replace(/^About the job\\s*/i, '') || '';
+        const description = candidates[0]?.text.replace(/^About the job\s*/i, '') || '';
         const applyLink = [...document.querySelectorAll('a[href]')]
           .map((anchor) => ({
             href: anchor.href || '',
@@ -254,9 +256,7 @@ cli({
     const experienceLevels = mapFilterValues(kwargs.experience_level, EXPERIENCE_LEVELS, 'experience_level');
     const jobTypes = mapFilterValues(kwargs.job_type, JOB_TYPES, 'job_type');
     const remoteTypes = mapFilterValues(kwargs.remote, REMOTE_TYPES, 'remote');
-    const datePostedValues = kwargs.date_posted
-      ? mapFilterValues(kwargs.date_posted, DATE_POSTED, 'date_posted')
-      : [];
+    const datePostedValues = mapFilterValues(kwargs.date_posted, DATE_POSTED, 'date_posted');
 
     if (!keywords) throw new Error('query is required');
 
@@ -264,7 +264,7 @@ cli({
     if (location) searchParams.set('location', location);
 
     await page.goto(`https://www.linkedin.com/jobs/search/?${searchParams.toString()}`);
-    await page.wait(5);
+    await page.wait({ text: 'Jobs', timeout: 10 });
     const companyIds = await resolveCompanyIds(page, kwargs.company);
 
     const data = await page.evaluate(`(async () => {
@@ -350,7 +350,7 @@ cli({
           card.entityUrn,
         ].filter(Boolean);
         for (const source of sources) {
-          const match = String(source).match(/(\\d+)/);
+          const match = String(source).match(/(\d+)/);
           if (match) return match[1];
         }
         return '';
