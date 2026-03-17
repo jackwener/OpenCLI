@@ -1,9 +1,9 @@
 ---
 name: opencli
-description: "OpenCLI — Make any website your CLI. Zero risk, AI-powered, reuse Chrome login. 80+ commands across 19 sites."
+description: "OpenCLI — Make any website your CLI. Zero risk, AI-powered, reuse Chrome login. 83 commands across 19 sites."
 version: 0.7.3
 author: jackwener
-tags: [cli, browser, web, mcp, playwright, bilibili, zhihu, twitter, github, v2ex, hackernews, reddit, xiaohongshu, xueqiu, youtube, boss, coupang, AI, agent]
+tags: [cli, browser, web, mcp, playwright, bilibili, zhihu, twitter, github, v2ex, hackernews, reddit, xiaohongshu, xueqiu, youtube, boss, coupang, ctrip, reuters, smzdm, weibo, yahoo-finance, bbc, linkedin, AI, agent]
 ---
 
 # OpenCLI
@@ -47,110 +47,122 @@ Public API commands (`hackernews`, `github search`, `v2ex`) need no browser.
 
 ```bash
 # Bilibili (browser)
-opencli bilibili hot --limit 10          # B站热门视频
-opencli bilibili search --keyword "rust"  # 搜索视频
-opencli bilibili me                       # 我的信息
-opencli bilibili favorite                 # 我的收藏
-opencli bilibili history --limit 20       # 观看历史
-opencli bilibili feed --limit 10          # 动态时间线
-opencli bilibili user-videos --uid 12345  # 用户投稿
-opencli bilibili subtitle --bvid BV1xxx   # 获取视频字幕 (支持 --lang zh-CN)
-opencli bilibili dynamic --limit 10       # 动态
-opencli bilibili ranking --limit 10       # 排行榜
-opencli bilibili following --limit 20     # 我的关注列表 (支持 --uid 查看他人)
+opencli bilibili dynamic                  # Get Bilibili user dynamic feed
+opencli bilibili favorite                 # 我的默认收藏夹
+opencli bilibili feed                     # 关注的人的动态时间线
+opencli bilibili following                # 获取 Bilibili 用户的关注列表
+opencli bilibili history                  # 我的观看历史
+opencli bilibili hot                      # B站热门视频
+opencli bilibili me                       # My Bilibili profile info
+opencli bilibili ranking                  # Get Bilibili video ranking board
+opencli bilibili search                   # Search Bilibili videos or users
+opencli bilibili subtitle                 # 获取 Bilibili 视频的字幕
+opencli bilibili user-videos              # 查看指定用户的投稿视频
 
 # 知乎 (browser)
-opencli zhihu hot --limit 10             # 知乎热榜
-opencli zhihu search --keyword "AI"      # 搜索
-opencli zhihu question --id 34816524     # 问题详情和回答
+opencli zhihu hot                        # 知乎热榜
+opencli zhihu question                   # 知乎问题详情和回答
+opencli zhihu search                     # 知乎搜索
 
 # 小红书 (browser)
-opencli xiaohongshu search --keyword "美食"  # 搜索笔记
-opencli xiaohongshu notifications             # 通知（mentions/likes/connections）
-opencli xiaohongshu feed --limit 10           # 推荐 Feed
-opencli xiaohongshu me                        # 我的信息
-opencli xiaohongshu user --uid xxx             # 用户主页
+opencli xiaohongshu feed                 # 小红书首页推荐 Feed (via Pinia Store Action)
+opencli xiaohongshu me                   # 我的小红书个人信息
+opencli xiaohongshu notifications        # 小红书通知 (mentions/likes/connections)
+opencli xiaohongshu search               # 搜索小红书笔记
+opencli xiaohongshu user                 # Get user notes from Xiaohongshu
 
 # 雪球 Xueqiu (browser)
-opencli xueqiu hot-stock --limit 10      # 雪球热门股票榜
-opencli xueqiu stock --symbol SH600519   # 查看股票实时行情
-opencli xueqiu watchlist                 # 获取自选股/持仓列表
-opencli xueqiu feed                      # 我的关注 timeline
-opencli xueqiu hot --limit 10            # 雪球热榜
-opencli xueqiu search --keyword "特斯拉"  # 搜索
+opencli xueqiu feed                      # 获取雪球首页时间线（关注用户的动态）
+opencli xueqiu hot                       # 获取雪球热门动态
+opencli xueqiu hot-stock                 # 获取雪球热门股票榜
+opencli xueqiu search                    # 搜索雪球股票（代码或名称）
+opencli xueqiu stock                     # 获取雪球股票实时行情
+opencli xueqiu watchlist                 # 获取雪球自选股列表
 
 # GitHub (public)
-opencli github search --keyword "cli"    # 搜索仓库
+opencli github search                    # Search GitHub repositories
 
-# Twitter/X (browser)
-opencli twitter trending --limit 10      # 热门话题
-opencli twitter bookmarks --limit 20     # 获取收藏的书签推文
-opencli twitter search --keyword "AI"    # 搜索推文
-opencli twitter profile elonmusk         # 用户资料
-opencli twitter timeline --limit 20      # 时间线
-opencli twitter thread 1234567890        # 推文 thread（原文 + 回复）
-opencli twitter article 1891511252174299446 # 推文长文内容
-opencli twitter follow elonmusk          # 关注用户
-opencli twitter unfollow elonmusk        # 取消关注
-opencli twitter bookmark https://x.com/... # 收藏推文
-opencli twitter unbookmark https://x.com/... # 取消收藏
+# Twitter/X (browser & ui)
+opencli twitter article                  # Fetch a Twitter Article (long-form content) and export as Markdown
+opencli twitter bookmark                 # Bookmark a tweet [UI]
+opencli twitter bookmarks                # 获取 Twitter 书签列表
+opencli twitter delete                   # Delete a specific tweet by URL [UI]
+opencli twitter follow                   # Follow a Twitter user [UI]
+opencli twitter followers                # Get accounts following a Twitter/X user
+opencli twitter following                # Get accounts a Twitter/X user is following
+opencli twitter like                     # Like a specific tweet [UI]
+opencli twitter notifications            # Get Twitter/X notifications
+opencli twitter post                     # Post a new tweet/thread [UI]
+opencli twitter profile                  # Fetch a Twitter user profile (bio, stats, etc.)
+opencli twitter reply                    # Reply to a specific tweet [UI]
+opencli twitter search                   # Search Twitter/X for tweets
+opencli twitter thread                   # Get a tweet thread (original + all replies)
+opencli twitter timeline                 # Twitter Home Timeline
+opencli twitter trending                 # Twitter/X trending topics
+opencli twitter unbookmark               # Remove a tweet from bookmarks [UI]
+opencli twitter unfollow                 # Unfollow a Twitter user [UI]
 
-# Reddit (browser)
-opencli reddit hot --limit 10            # 热门帖子
-opencli reddit hot --subreddit programming  # 指定子版块
-opencli reddit frontpage --limit 10      # 首页 /r/all
-opencli reddit popular --limit 10        # /r/popular 热门
-opencli reddit search --query "AI" --sort top --time week  # 搜索（支持排序+时间过滤）
-opencli reddit subreddit --name rust --sort top --time month  # 子版块浏览（支持时间过滤）
-opencli reddit read --post_id 1abc123    # 阅读帖子 + 评论
-opencli reddit user --username spez      # 用户资料（karma、注册时间）
-opencli reddit user-posts --username spez  # 用户发帖历史
-opencli reddit user-comments --username spez  # 用户评论历史
-opencli reddit upvote --post_id xxx --direction up  # 投票（up/down/none）
-opencli reddit save --post_id xxx        # 收藏帖子
-opencli reddit comment --post_id xxx --text "Great!"  # 发表评论
-opencli reddit subscribe --subreddit python  # 订阅子版块
-opencli reddit saved --limit 10          # 我的收藏
-opencli reddit upvoted --limit 10        # 我的赞
+# Reddit (browser & cookie)
+opencli reddit comment                   # Post a comment on a Reddit post
+opencli reddit frontpage                 # Reddit Frontpage / r/all
+opencli reddit hot                       # Reddit 热门帖子
+opencli reddit popular                   # Reddit Popular posts (/r/popular)
+opencli reddit read                      # Read a Reddit post and its comments
+opencli reddit save                      # Save or unsave a Reddit post
+opencli reddit saved                     # Browse your saved Reddit posts
+opencli reddit search                    # Search Reddit Posts
+opencli reddit subreddit                 # Get posts from a specific Subreddit
+opencli reddit subscribe                 # Subscribe or unsubscribe to a subreddit
+opencli reddit upvote                    # Upvote or downvote a Reddit post
+opencli reddit upvoted                   # Browse your upvoted Reddit posts
+opencli reddit user                      # View a Reddit user profile
+opencli reddit user-comments             # View a Reddit user's comment history
+opencli reddit user-posts                # View a Reddit user's submitted posts
 
-# V2EX (public + browser)
-opencli v2ex hot --limit 10              # 热门话题
-opencli v2ex latest --limit 10           # 最新话题
-opencli v2ex topic --id 1024             # 主题详情
-opencli v2ex daily                       # 每日签到 (browser)
-opencli v2ex me                          # 我的信息 (browser)
-opencli v2ex notifications --limit 10    # 通知 (browser)
+# V2EX (public & cookie)
+opencli v2ex daily                       # V2EX 每日签到并领取铜币
+opencli v2ex hot                         # V2EX 热门话题
+opencli v2ex latest                      # V2EX 最新话题
+opencli v2ex me                          # V2EX 获取个人资料 (余额/未读提醒)
+opencli v2ex notifications               # V2EX 获取提醒 (回复/由于)
+opencli v2ex topic                       # V2EX 主题详情和回复
 
 # Hacker News (public)
-opencli hackernews top --limit 10        # Top stories
+opencli hackernews top                   # Hacker News top stories
 
 # BBC (public)
-opencli bbc news --limit 10             # BBC News RSS headlines
+opencli bbc news                        # BBC News headlines (RSS)
 
 # 微博 (browser)
-opencli weibo hot --limit 10            # 微博热搜
+opencli weibo hot                       # 微博热搜
 
 # BOSS直聘 (browser)
-opencli boss search --query "AI agent"  # 搜索职位
-opencli boss detail --securityId xxx    # 职位详情
+opencli boss detail                     # BOSS直聘查看职位详情
+opencli boss search                     # BOSS直聘搜索职位
 
 # YouTube (browser)
-opencli youtube search --query "rust"   # 搜索视频
-opencli youtube video --url "https://www.youtube.com/watch?v=xxx"  # 视频元数据（标题、播放量、描述等）
-opencli youtube transcript --url "https://www.youtube.com/watch?v=xxx"  # 获取视频字幕/转录
-opencli youtube transcript --url "xxx" --lang zh-Hans --mode raw  # 指定语言 + 原始时间戳模式
+opencli youtube search                  # Search YouTube videos
+opencli youtube transcript              # Get YouTube video transcript/subtitles
+opencli youtube video                   # Get YouTube video metadata (title, views, description, etc.)
 
 # Yahoo Finance (browser)
-opencli yahoo-finance quote --symbol AAPL  # 股票行情
+opencli yahoo-finance quote             # Yahoo Finance 股票行情
 
 # Reuters (browser)
-opencli reuters search --query "AI"     # 路透社搜索
+opencli reuters search                  # Reuters 路透社新闻搜索
 
 # 什么值得买 (browser)
-opencli smzdm search --keyword "耳机"    # 搜索好价
+opencli smzdm search                    # 什么值得买搜索好价
 
 # 携程 (browser)
-opencli ctrip search --query "三亚"      # 搜索目的地
+opencli ctrip search                    # 携程旅行搜索
+
+# Coupang (browser)
+opencli coupang search                  # Search Coupang products with logged-in browser session
+opencli coupang add-to-cart             # Add a Coupang product to cart using logged-in browser session
+
+# LinkedIn (header)
+opencli linkedin search                 # Search LinkedIn
 ```
 
 ### Management Commands

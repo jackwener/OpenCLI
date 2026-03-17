@@ -1,7 +1,7 @@
 # OpenCLI
 
 > **把任何网站变成你的命令行工具。**  
-> 零风控 · 复用 Chrome 登录 · AI 自动发现接口 · 80+ 命令 · 19 站点
+> 零风控 · 复用 Chrome 登录 · AI 自动发现接口 · 83 命令 · 19 站点
 
 [English](./README.md)
 
@@ -29,7 +29,7 @@ OpenCLI 将任何网站变成命令行工具 — B站、知乎、小红书、Twi
 
 ## 亮点
 
-- **多站点覆盖** — B站、知乎、小红书、Twitter、Reddit 等 19 个站点，80+ 命令
+- **多站点覆盖** — B站、知乎、小红书、Twitter、Reddit 等 19 个站点，83 个命令
 - **零风控** — 复用 Chrome 登录态，无需存储任何凭证
 - **自修复配置** — `opencli setup` 自动发现 Token；`opencli doctor` 诊断 10+ 工具配置；`--fix` 一键修复
 - **AI 原生** — `explore` 自动发现 API，`synthesize` 生成适配器，`cascade` 探测认证策略
@@ -137,16 +137,16 @@ npm install -g @jackwener/opencli@latest
 
 | 站点 | 命令 | 数量 | 模式 |
 |------|------|:----:|------|
-| **twitter** | `trending` `bookmarks` `profile` `search` `timeline` `thread` `following` `followers` `notifications` `post` `reply` `delete` `like` `article` `follow` `unfollow` `bookmark` `unbookmark` | 18 | 🔐 浏览器 |
-| **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `save` `comment` `subscribe` `saved` `upvoted` | 15 | 🔐 浏览器 |
-| **bilibili** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `dynamic` `ranking` `following` `user-videos` | 11 | 🔐 浏览器 |
-| **v2ex** | `hot` `latest` `topic` `daily` `me` `notifications` | 6 | 🌐 / 🔐 |
-| **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` | 6 | 🔐 浏览器 |
-| **xiaohongshu** | `search` `notifications` `feed` `me` `user` | 5 | 🔐 浏览器 |
-| **youtube** | `search` `video` `transcript` | 3 | 🔐 浏览器 |
-| **zhihu** | `hot` `search` `question` | 3 | 🔐 浏览器 |
-| **boss** | `search` `detail` | 2 | 🔐 浏览器 |
-| **coupang** | `search` `add-to-cart` | 2 | 🔐 浏览器 |
+| **twitter** | `article` `bookmark` `bookmarks` `delete` `follow` `followers` `following` `like` `notifications` `post` `profile` `reply` `search` `thread` `timeline` `trending` `unbookmark` `unfollow` | 18 | 🔐 浏览器 |
+| **reddit** | `comment` `frontpage` `hot` `popular` `read` `save` `saved` `search` `subreddit` `subscribe` `upvote` `upvoted` `user` `user-comments` `user-posts` | 15 | 🔐 浏览器 |
+| **bilibili** | `dynamic` `favorite` `feed` `following` `history` `hot` `me` `ranking` `search` `subtitle` `user-videos` | 11 | 🔐 浏览器 |
+| **v2ex** | `daily` `hot` `latest` `me` `notifications` `topic` | 6 | 🌐 / 🔐 |
+| **xiaohongshu** | `feed` `me` `notifications` `search` `user` | 5 | 🔐 浏览器 |
+| **xueqiu** | `feed` `hot` `hot-stock` `search` `stock` `watchlist` | 6 | 🔐 浏览器 |
+| **youtube** | `search` `transcript` `video` | 3 | 🔐 浏览器 |
+| **zhihu** | `hot` `question` `search` | 3 | 🔐 浏览器 |
+| **boss** | `detail` `search` | 2 | 🔐 浏览器 |
+| **coupang** | `add-to-cart` `search` | 2 | 🔐 浏览器 |
 | **bbc** | `news` | 1 | 🌐 公共 API |
 | **ctrip** | `search` | 1 | 🔐 浏览器 |
 | **github** | `search` | 1 | 🌐 公共 API |

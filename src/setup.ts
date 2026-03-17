@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import chalk from 'chalk';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
+import { exec } from 'node:child_process';
 import {
   type DoctorReport,
   PLAYWRIGHT_TOKEN_ENV,
@@ -67,9 +68,15 @@ export async function runSetup(opts: { cliVersion?: string; token?: string } = {
 
     console.log(`  ${chalk.red('✗')} Browser token scan failed\n`);
     if (!extInstall.installed) {
+      const extensionUrl = 'https://chromewebstore.google.com/detail/playwright-mcp-bridge/mmlmfjhmonkocbjadbfplnigmagldckm';
       console.log(chalk.dim('  Cause: Playwright MCP Bridge extension is not installed'));
-      console.log(chalk.dim('  Fix:   Install from https://chromewebstore.google.com/detail/'));
-      console.log(chalk.dim('         playwright-mcp-bridge/mmlmfjhmonkocbjadbfplnigmagldckm'));
+      console.log(chalk.dim('  Fix:   Opening browser to extension store...'));
+      console.log(chalk.dim(`         (If it doesn't open automatically, visit: ${extensionUrl})`));
+
+      const command = process.platform === 'darwin' ? `open "${extensionUrl}"` :
+                      process.platform === 'win32' ? `start "" "${extensionUrl}"` :
+                      `xdg-open "${extensionUrl}"`;
+      exec(command).on('error', () => {});
     } else {
       console.log(chalk.dim(`  Cause: Extension is installed (${extInstall.browsers.join(', ')}) but token not found in LevelDB`));
       console.log(chalk.dim('  Fix:   1) Open the extension popup and verify the token is generated'));

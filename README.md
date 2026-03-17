@@ -1,7 +1,7 @@
 # OpenCLI
 
 > **Make any website your CLI.**  
-> Zero risk · Reuse Chrome login · AI-powered discovery · 80+ commands · 19 sites
+> Zero risk · Reuse Chrome login · AI-powered discovery · 83 commands · 19 sites
 
 [中文文档](./README.zh-CN.md)
 
@@ -138,16 +138,16 @@ npm install -g @jackwener/opencli@latest
 
 | Site | Commands | Count | Mode |
 |------|----------|:-----:|------|
-| **twitter** | `trending` `bookmarks` `profile` `search` `timeline` `thread` `following` `followers` `notifications` `post` `reply` `delete` `like` `article` `follow` `unfollow` `bookmark` `unbookmark` | 18 | 🔐 Browser |
-| **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `save` `comment` `subscribe` `saved` `upvoted` | 15 | 🔐 Browser |
-| **bilibili** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `dynamic` `ranking` `following` `user-videos` | 11 | 🔐 Browser |
-| **v2ex** | `hot` `latest` `topic` `daily` `me` `notifications` | 6 | 🌐 / 🔐 |
-| **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` | 6 | 🔐 Browser |
-| **xiaohongshu** | `search` `notifications` `feed` `me` `user` | 5 | 🔐 Browser |
-| **youtube** | `search` `video` `transcript` | 3 | 🔐 Browser |
-| **zhihu** | `hot` `search` `question` | 3 | 🔐 Browser |
-| **boss** | `search` `detail` | 2 | 🔐 Browser |
-| **coupang** | `search` `add-to-cart` | 2 | 🔐 Browser |
+| **twitter** | `article` `bookmark` `bookmarks` `delete` `follow` `followers` `following` `like` `notifications` `post` `profile` `reply` `search` `thread` `timeline` `trending` `unbookmark` `unfollow` | 18 | 🔐 Browser |
+| **reddit** | `comment` `frontpage` `hot` `popular` `read` `save` `saved` `search` `subreddit` `subscribe` `upvote` `upvoted` `user` `user-comments` `user-posts` | 15 | 🔐 Browser |
+| **bilibili** | `dynamic` `favorite` `feed` `following` `history` `hot` `me` `ranking` `search` `subtitle` `user-videos` | 11 | 🔐 Browser |
+| **v2ex** | `daily` `hot` `latest` `me` `notifications` `topic` | 6 | 🌐 / 🔐 |
+| **xiaohongshu** | `feed` `me` `notifications` `search` `user` | 5 | 🔐 Browser |
+| **xueqiu** | `feed` `hot` `hot-stock` `search` `stock` `watchlist` | 6 | 🔐 Browser |
+| **youtube** | `search` `transcript` `video` | 3 | 🔐 Browser |
+| **zhihu** | `hot` `question` `search` | 3 | 🔐 Browser |
+| **boss** | `detail` `search` | 2 | 🔐 Browser |
+| **coupang** | `add-to-cart` `search` | 2 | 🔐 Browser |
 | **bbc** | `news` | 1 | 🌐 Public |
 | **ctrip** | `search` | 1 | 🔐 Browser |
 | **github** | `search` | 1 | 🌐 Public |
