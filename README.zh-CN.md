@@ -199,66 +199,121 @@ opencli cascade https://api.example.com/data
 
 ## 远程 Chrome（服务器/无头环境）
 
-在没有显示器的服务器环境中，可以通过 Chrome DevTools Protocol (CDP) 连接到本地电脑上运行的 Chrome 浏览器。
+在服务器（无显示器）环境中，通过 Chrome DevTools Protocol (CDP) 连接到本地电脑上运行的 Chrome。支持两种方式：
 
-### 工作原理
+| 方式 | 需重启 Chrome？ | Chrome 版本 | 端点格式 |
+|------|:-:|:-:|:-:|
+| **A. Chrome 144+ 自动发现** | 否 | ≥ 144 | `ws://` |
+| **B. 经典 `--remote-debugging-port`** | 是 | 任意 | `http://` |
 
-```
-本地电脑                                服务器
-┌──────────────────────────────┐       ┌──────────────────────────────┐
-│ Chrome（已登录目标网站）       │       │ OpenCLI                      │
-│ --remote-debugging-port=9222 │◀─────▶│ OPENCLI_CDP_ENDPOINT=        │
-└──────────────────────────────┘  SSH  │   http://localhost:9222      │
-                                隧道   └──────────────────────────────┘
-```
+---
 
-### 第一步：启动带远程调试的 Chrome（本地电脑）
+### 方式 A：Chrome 144+（无需重启）
 
-**macOS:**
+直接复用**已运行的 Chrome**，不需要任何命令行参数。
+
+**第一步 — 在 Chrome 中开启远程调试**
+
+打开 `chrome://inspect#remote-debugging`，勾选"允许远程调试"。
+
+**第二步 — 获取 WebSocket URL**
+
+读取 Chrome 的 `DevToolsActivePort` 文件获取端口和浏览器 GUID：
+
 ```bash
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9222 \
-  --user-data-dir="$HOME/chrome-debug-profile"
+# macOS (Chrome)
+cat ~/Library/Application\ Support/Google/Chrome/DevToolsActivePort
+
+# macOS (Edge)
+cat ~/Library/Application\ Support/Microsoft\ Edge/DevToolsActivePort
+
+# Linux (Chrome)
+cat ~/.config/google-chrome/DevToolsActivePort
+
+# Linux (Chromium)
+cat ~/.config/chromium/DevToolsActivePort
 ```
 
-**Linux:**
-```bash
-google-chrome --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-debug-profile"
-```
-
-**Windows:**
 ```cmd
+:: Windows (Chrome)
+type "%LOCALAPPDATA%\Google\Chrome\User Data\DevToolsActivePort"
+
+:: Windows (Edge)
+type "%LOCALAPPDATA%\Microsoft\Edge\User Data\DevToolsActivePort"
+```
+
+输出示例：
+```
+61882
+/devtools/browser/9f395fbe-24cb-4075-b58f-dd1c4f6eb172
+```
+
+**第三步 — SSH 隧道 + 运行 OpenCLI**
+
+```bash
+# 本地电脑 — 将端口转发到服务器
+ssh -R 61882:localhost:61882 your-server
+
+# 在服务器上
+export OPENCLI_CDP_ENDPOINT="ws://localhost:61882/devtools/browser/9f395fbe-..."
+opencli doctor                    # 验证连接
+opencli bilibili hot --limit 5    # 测试命令
+```
+
+> **同机快捷方式**：如果 Chrome 和 OpenCLI 在同一台机器上运行，auto-discovery 会自动读取 `DevToolsActivePort`，无需设置环境变量，或设置 `OPENCLI_CDP_ENDPOINT=1` 强制启用。
+
+> **注意**：每次 Chrome 重启或重新启用远程调试后，端口和 GUID 会改变，需要重新读取 `DevToolsActivePort` 并更新环境变量。
+
+---
+
+### 方式 B：经典 `--remote-debugging-port`（任意 Chrome 版本）
+
+需要用命令行参数重启 Chrome，但兼容所有 Chrome 版本，且 HTTP 端点稳定不变。
+
+**第一步 — 启动带远程调试的 Chrome**
+
+```bash
+# macOS
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=9222
+
+# Linux
+google-chrome --remote-debugging-port=9222
+
+# Windows
 "C:\Program Files\Google\Chrome\Application\chrome.exe" ^
-  --remote-debugging-port=9222 ^
-  --user-data-dir="%USERPROFILE%\chrome-debug-profile"
+  --remote-debugging-port=9222
 ```
 
-### 第二步：登录目标网站
+**第二步 — 登录目标网站**
 
-打开 Chrome 并登录你要使用的网站（如 bilibili.com、zhihu.com）。
-
-### 第三步：建立 SSH 隧道（本地电脑）
-
-将调试端口转发到服务器：
+**第三步 — SSH 隧道 + 运行 OpenCLI**
 
 ```bash
+# 本地电脑
 ssh -R 9222:localhost:9222 your-server
-```
 
-### 第四步：在服务器上运行 OpenCLI
-
-```bash
+# 在服务器上
 export OPENCLI_CDP_ENDPOINT="http://localhost:9222"
 opencli doctor                    # 验证连接
 opencli bilibili hot --limit 5    # 测试命令
 ```
 
+---
+
+### 环境变量
+
+| 变量 | 说明 | 示例 |
+|------|------|------|
+| `OPENCLI_CDP_ENDPOINT` | CDP 端点 URL（`ws://` 或 `http://`），或 `1` 强制自动发现 | `ws://localhost:61882/devtools/browser/...` |
+| `CHROME_USER_DATA_DIR` | 自定义 Chrome 用户数据目录（用于 `DevToolsActivePort` 发现） | `/home/user/.config/google-chrome` |
+
 ### 持久化配置
 
-添加到 shell 配置文件（`~/.bashrc` 或 `~/.zshrc`）：
+写入 shell 配置文件（`~/.bashrc` 或 `~/.zshrc`）：
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://localhost:9222"
+export OPENCLI_CDP_ENDPOINT="ws://localhost:61882/devtools/browser/..."
 ```
 
 ## 常见问题排查

@@ -106,6 +106,39 @@ describe('browser helpers', () => {
     }
   });
 
+  it('builds CDP MCP args when cdpEndpoint is provided', () => {
+    const savedCI = process.env.CI;
+    delete process.env.CI;
+    try {
+      // CDP mode: --cdp-endpoint takes priority, no --extension
+      expect(__test__.buildMcpArgs({
+        mcpPath: '/tmp/cli.js',
+        cdpEndpoint: 'ws://localhost:9222/devtools/browser/abc-123',
+      })).toEqual([
+        '/tmp/cli.js',
+        '--cdp-endpoint',
+        'ws://localhost:9222/devtools/browser/abc-123',
+      ]);
+
+      // CDP with executable path — executable path is ignored in CDP mode
+      expect(__test__.buildMcpArgs({
+        mcpPath: '/tmp/cli.js',
+        cdpEndpoint: 'http://localhost:9222',
+        executablePath: '/usr/bin/chromium',
+      })).toEqual([
+        '/tmp/cli.js',
+        '--cdp-endpoint',
+        'http://localhost:9222',
+      ]);
+    } finally {
+      if (savedCI !== undefined) {
+        process.env.CI = savedCI;
+      } else {
+        delete process.env.CI;
+      }
+    }
+  });
+
   it('times out slow promises', async () => {
     await expect(__test__.withTimeoutMs(new Promise(() => {}), 10, 'timeout')).rejects.toThrow('timeout');
   });

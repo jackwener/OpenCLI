@@ -200,66 +200,121 @@ Explore outputs to `.opencli/explore/<site>/` (manifest.json, endpoints.json, ca
 
 ## Remote Chrome (Server/Headless)
 
-For server environments without a display, you can connect OpenCLI to a Chrome browser running on your local machine via Chrome DevTools Protocol (CDP).
+For server environments without a display, connect OpenCLI to a Chrome browser running on your local machine via Chrome DevTools Protocol (CDP). Two methods are available:
 
-### How It Works
+| Method | Chrome restart? | Chrome version | Endpoint format |
+|--------|:-:|:-:|:-:|
+| **A. Chrome 144+ Auto-Discovery** | No | ≥ 144 | `ws://` |
+| **B. Classic `--remote-debugging-port`** | Yes | Any | `http://` |
 
-```
-Local Machine                           Server
-┌──────────────────────────────┐       ┌──────────────────────────────┐
-│ Chrome (logged into sites)   │       │ OpenCLI                      │
-│ --remote-debugging-port=9222 │◀─────▶│ OPENCLI_CDP_ENDPOINT=        │
-└──────────────────────────────┘  SSH  │   http://localhost:9222      │
-                                tunnel └──────────────────────────────┘
-```
+---
 
-### Step 1: Start Chrome with Remote Debugging (Local Machine)
+### Method A: Chrome 144+ (No Restart Required)
 
-**macOS:**
+Use your **already-running Chrome** — no command-line flags needed.
+
+**Step 1 — Enable remote debugging in Chrome**
+
+Navigate to `chrome://inspect#remote-debugging` and check "Allow remote debugging".
+
+**Step 2 — Get the WebSocket URL**
+
+Read Chrome's `DevToolsActivePort` file to get the port and browser GUID:
+
 ```bash
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9222 \
-  --user-data-dir="$HOME/chrome-debug-profile"
+# macOS (Chrome)
+cat ~/Library/Application\ Support/Google/Chrome/DevToolsActivePort
+
+# macOS (Edge)
+cat ~/Library/Application\ Support/Microsoft\ Edge/DevToolsActivePort
+
+# Linux (Chrome)
+cat ~/.config/google-chrome/DevToolsActivePort
+
+# Linux (Chromium)
+cat ~/.config/chromium/DevToolsActivePort
 ```
 
-**Linux:**
-```bash
-google-chrome --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-debug-profile"
-```
-
-**Windows:**
 ```cmd
+:: Windows (Chrome)
+type "%LOCALAPPDATA%\Google\Chrome\User Data\DevToolsActivePort"
+
+:: Windows (Edge)
+type "%LOCALAPPDATA%\Microsoft\Edge\User Data\DevToolsActivePort"
+```
+
+Output:
+```
+61882
+/devtools/browser/9f395fbe-24cb-4075-b58f-dd1c4f6eb172
+```
+
+**Step 3 — SSH tunnel + run OpenCLI**
+
+```bash
+# On your local machine — forward the port to your server
+ssh -R 61882:localhost:61882 your-server
+
+# On the server
+export OPENCLI_CDP_ENDPOINT="ws://localhost:61882/devtools/browser/9f395fbe-..."
+opencli doctor                    # Verify connection
+opencli bilibili hot --limit 5    # Test a command
+```
+
+> **Same-machine shortcut**: If Chrome and OpenCLI run on the same machine, auto-discovery reads `DevToolsActivePort` automatically — no env var needed, or set `OPENCLI_CDP_ENDPOINT=1` to force it.
+
+> **Note**: The port and GUID change every time Chrome restarts or re-enables remote debugging. You'll need to re-read `DevToolsActivePort` and update the env var.
+
+---
+
+### Method B: Classic `--remote-debugging-port` (Any Chrome Version)
+
+Requires restarting Chrome with a flag, but works with any Chrome version and provides a stable HTTP endpoint.
+
+**Step 1 — Start Chrome with remote debugging**
+
+```bash
+# macOS
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=9222
+
+# Linux
+google-chrome --remote-debugging-port=9222
+
+# Windows
 "C:\Program Files\Google\Chrome\Application\chrome.exe" ^
-  --remote-debugging-port=9222 ^
-  --user-data-dir="%USERPROFILE%\chrome-debug-profile"
+  --remote-debugging-port=9222
 ```
 
-### Step 2: Log Into Target Websites
+**Step 2 — Log into target websites** in that Chrome window.
 
-Open Chrome and log into the websites you want to use (e.g., bilibili.com, zhihu.com).
-
-### Step 3: Create SSH Tunnel (Local Machine)
-
-Forward the debugging port to your server:
+**Step 3 — SSH tunnel + run OpenCLI**
 
 ```bash
+# On your local machine
 ssh -R 9222:localhost:9222 your-server
-```
 
-### Step 4: Run OpenCLI on Server
-
-```bash
+# On the server
 export OPENCLI_CDP_ENDPOINT="http://localhost:9222"
 opencli doctor                    # Verify connection
 opencli bilibili hot --limit 5    # Test a command
 ```
+
+---
+
+### Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `OPENCLI_CDP_ENDPOINT` | CDP endpoint URL (`ws://` or `http://`), or `1` to force auto-discovery | `ws://localhost:61882/devtools/browser/...` |
+| `CHROME_USER_DATA_DIR` | Override Chrome user data directory for `DevToolsActivePort` discovery | `/home/user/.config/google-chrome` |
 
 ### Persistent Configuration
 
 Add to your shell profile (`~/.bashrc` or `~/.zshrc`):
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://localhost:9222"
+export OPENCLI_CDP_ENDPOINT="ws://localhost:61882/devtools/browser/..."
 ```
 
 ## Testing
