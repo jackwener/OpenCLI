@@ -196,7 +196,7 @@ function buildRuntimeArgs(input?: {
   headless?: boolean;
   /** Extra browser capabilities to enable (e.g. ['storage'] for browser_storage_state). */
   caps?: string[];
-  /** @internal override for tests only — null disables user data dir */
+  /** @internal override for tests only — null disables user-data-dir */
   userDataDir?: string | null;
   /** @internal override for tests only — null disables session file lookup */
   sessionFile?: string | null;

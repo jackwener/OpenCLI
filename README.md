@@ -35,18 +35,18 @@ Turn ANY Electron application into a CLI tool! Recombine, script, and extend app
 ## Highlights
 
 - **CLI All Electron** — CLI-ify apps like Antigravity Ultra! Now AI can control itself natively using cc/openclaw!
+- **No popup window** — Run `opencli login` once to save your cookies, then add `--headless` to any command — silent background browser, no Chrome window stealing focus.
 - **Account-safe** — Reuses Chrome's logged-in state; your credentials never leave the browser.
 - **AI Agent ready** — `explore` discovers APIs, `synthesize` generates adapters, `cascade` finds auth strategies.
 - **Self-healing setup** — `opencli setup` auto-discovers tokens; `opencli doctor` diagnoses config across 10+ tools; `--fix` repairs them all.
 - **Dynamic Loader** — Simply drop `.ts` or `.yaml` adapters into the `clis/` folder for auto-registration.
-- **Dual-Engine Architecture** — Supports both YAML declarative data pipelines and robust browser runtime TypeScript injections.
 
 ## Prerequisites
 
 - **Node.js**: >= 18.0.0
 - **Chrome** running **and logged into the target site** (e.g. bilibili.com, zhihu.com, xiaohongshu.com).
 
-> **⚠️ Important**: Browser commands reuse your Chrome login session. You must be logged into the target website in Chrome before running commands. If you get empty data or errors, check your login status first.
+> **Tip**: Don't want Chrome popping up every time? Run `opencli login` once after setup — it saves your session cookies. After that, add `--headless` to any command and it runs silently in the background with your full login state.
 
 OpenCLI connects to your browser through the Playwright MCP Bridge extension.
 It prefers an existing local/global `@playwright/mcp` install and falls back to `npx -y @playwright/mcp@latest` automatically when no local MCP server is found.
@@ -119,10 +119,26 @@ Then use directly:
 opencli list                              # See all commands
 opencli list -f yaml                      # List commands as YAML
 opencli hackernews top --limit 5          # Public API, no browser
-opencli bilibili hot --limit 5            # Browser command
+opencli bilibili hot --limit 5            # Browser command (uses Chrome extension)
 opencli zhihu hot -f json                 # JSON output
 opencli zhihu hot -f yaml                 # YAML output
 ```
+
+### No-popup mode (headless + cookies)
+
+By default, browser commands briefly open a Chrome tab. To run silently in the background:
+
+```bash
+# One-time: save your Chrome session cookies to ~/.opencli/session.json
+opencli login
+
+# Now all browser commands run headlessly — no popup, full login state
+opencli --headless bilibili me
+opencli --headless bilibili hot --limit 10
+opencli --headless zhihu hot -f json
+```
+
+> Re-run `opencli login` if your session expires (typically after a few months).
 
 ### Install from source (for developers)
 

@@ -225,7 +225,16 @@ for (const [, cmd] of registry) {
       let result: any;
       if (cmd.browser) {
         const headless = program.opts().headless;
-        result = await browserSession(PlaywrightMCP, async (page) => runWithTimeout(executeCommand(cmd, page, kwargs, actionOpts.verbose), { timeout: cmd.timeoutSeconds ?? DEFAULT_BROWSER_COMMAND_TIMEOUT, label: fullName(cmd) }), { headless });
+        result = await browserSession(PlaywrightMCP, (page) => {
+          return runWithTimeout((async () => {
+            // In headless mode the page starts at about:blank, causing CORS failures for
+            // fetch()-based commands. Navigate to the site's domain first to set the origin.
+            if (headless && cmd.domain) {
+              try { await page.goto(`https://${cmd.domain}`); } catch {}
+            }
+            return executeCommand(cmd, page, kwargs, actionOpts.verbose);
+          })(), { timeout: cmd.timeoutSeconds ?? DEFAULT_BROWSER_COMMAND_TIMEOUT, label: fullName(cmd) });
+        }, { headless });
       } else { result = await executeCommand(cmd, null, kwargs, actionOpts.verbose); }
       if (actionOpts.verbose && (!result || (Array.isArray(result) && result.length === 0))) {
         console.error(chalk.yellow(`[Verbose] Warning: Command returned an empty result. If the website structural API changed or requires authentication, check the network or update the adapter.`));
