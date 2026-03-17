@@ -1,6 +1,8 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 
+// ── Filter value mappings ──────────────────────────────────────────────
+
 const EXPERIENCE_LEVELS: Record<string, string> = {
   internship: '1',
   entry: '2',
@@ -47,6 +49,8 @@ const REMOTE_TYPES: Record<string, string> = {
   remote: '2',
 };
 
+// ── Helpers ────────────────────────────────────────────────────────────
+
 function parseCsvArg(value: unknown): string[] {
   if (value === undefined || value === null || value === '') return [];
   return String(value)
@@ -66,6 +70,77 @@ function mapFilterValues(input: unknown, mapping: Record<string, string>, label:
   return [...new Set(resolved)];
 }
 
+function normalizeWhitespace(value: unknown): string {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function decodeLinkedinRedirect(url: string): string {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    if (parsed.pathname === '/redir/redirect/') {
+      return parsed.searchParams.get('url') || url;
+    }
+  } catch {}
+  return url;
+}
+
+// ── Voyager query builder (runs in Node, NOT inside page.evaluate) ────
+
+interface SearchInput {
+  keywords: string;
+  location: string;
+  limit: number;
+  start: number;
+  companyIds: string[];
+  experienceLevels: string[];
+  jobTypes: string[];
+  datePostedValues: string[];
+  remoteTypes: string[];
+}
+
+function buildVoyagerSearchQuery(input: SearchInput): string {
+  const hasFilters =
+    input.companyIds.length ||
+    input.experienceLevels.length ||
+    input.jobTypes.length ||
+    input.datePostedValues.length ||
+    input.remoteTypes.length;
+
+  const parts = [
+    'origin:' + (hasFilters ? 'JOB_SEARCH_PAGE_JOB_FILTER' : 'JOB_SEARCH_PAGE_OTHER_ENTRY'),
+    'keywords:' + input.keywords,
+  ];
+  if (input.location) {
+    parts.push('locationUnion:(seoLocation:(location:' + input.location + '))');
+  }
+  const filters: string[] = [];
+  if (input.companyIds.length) filters.push('company:List(' + input.companyIds.join(',') + ')');
+  if (input.experienceLevels.length) filters.push('experience:List(' + input.experienceLevels.join(',') + ')');
+  if (input.jobTypes.length) filters.push('jobType:List(' + input.jobTypes.join(',') + ')');
+  if (input.datePostedValues.length) filters.push('timePostedRange:List(' + input.datePostedValues.join(',') + ')');
+  if (input.remoteTypes.length) filters.push('workplaceType:List(' + input.remoteTypes.join(',') + ')');
+  if (filters.length) parts.push('selectedFilters:(' + filters.join(',') + ')');
+  parts.push('spellCorrectionEnabled:true');
+  return '(' + parts.join(',') + ')';
+}
+
+function buildVoyagerUrl(input: SearchInput, offset: number, count: number): string {
+  const params = new URLSearchParams({
+    decorationId: 'com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-220',
+    count: String(count),
+    q: 'jobSearch',
+  });
+  const query = encodeURIComponent(buildVoyagerSearchQuery(input))
+    .replace(/%3A/gi, ':')
+    .replace(/%2C/gi, ',')
+    .replace(/%28/gi, '(')
+    .replace(/%29/gi, ')');
+  return '/voyager/api/voyagerJobsDashJobCards?' + params.toString() + '&query=' + query + '&start=' + offset;
+}
+
+// ── Company ID resolution (requires DOM interaction) ──────────────────
+
 async function resolveCompanyIds(page: IPage, input: unknown): Promise<string[]> {
   const rawValues = parseCsvArg(input);
   const ids = new Set<string>();
@@ -81,59 +156,53 @@ async function resolveCompanyIds(page: IPage, input: unknown): Promise<string[]>
   const resolved = await page.evaluate(`(async () => {
     const targets = ${JSON.stringify(names)};
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-    const normalize = (value) => (value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const normalize = (v) => (v || '').toLowerCase().replace(/\\s+/g, ' ').trim();
 
-    const openAllFilters = async () => {
-      const button = [...document.querySelectorAll('button')]
-        .find(b => ((b.innerText || '').trim().replace(/\s+/g, ' ')) === 'All filters');
-      if (button) {
-        button.click();
-        await sleep(300);
+    // Open "All filters" panel to expose company filter inputs
+    const allBtn = [...document.querySelectorAll('button')]
+      .find(b => ((b.innerText || '').trim().replace(/\\s+/g, ' ')) === 'All filters');
+    if (allBtn) { allBtn.click(); await sleep(300); }
+
+    const getCompanyMap = () => {
+      const map = {};
+      for (const el of document.querySelectorAll('input[name="company-filter-value"]')) {
+        const text = (el.parentElement?.innerText || el.closest('label')?.innerText || '')
+          .replace(/\\s+/g, ' ').trim().replace(/\\s*Filter by.*$/i, '').trim();
+        if (text) map[normalize(text)] = el.value;
       }
+      return map;
     };
 
-    const companyMap = () => {
-      const result = {};
-      for (const input of document.querySelectorAll('input[name="company-filter-value"]')) {
-        const value = input.value;
-        const text = (input.parentElement?.innerText || input.closest('label')?.innerText || '').replace(/\s+/g, ' ').trim();
-        const label = text.replace(/\s*Filter by.*$/i, '').trim();
-        if (label) result[normalize(label)] = value;
-      }
-      return result;
+    const match = (map, name) => {
+      const n = normalize(name);
+      if (map[n]) return map[n];
+      const k = Object.keys(map).find(e => e === n || e.includes(n) || n.includes(e));
+      return k ? map[k] : null;
     };
 
-    const matchCompany = (map, name) => {
-      const normalized = normalize(name);
-      if (map[normalized]) return map[normalized];
-      const key = Object.keys(map).find(entry => entry === normalized || entry.includes(normalized) || normalized.includes(entry));
-      return key ? map[key] : null;
-    };
-
-    await openAllFilters();
     const results = {};
-    let map = companyMap();
+    let map = getCompanyMap();
 
     for (const name of targets) {
-      let found = matchCompany(map, name);
+      let found = match(map, name);
       if (!found) {
-        const input = [...document.querySelectorAll('input')].find(node => node.getAttribute('aria-label') === 'Add a company');
-        if (input) {
-          input.focus();
-          input.value = name;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+        const inp = [...document.querySelectorAll('input')]
+          .find(el => el.getAttribute('aria-label') === 'Add a company');
+        if (inp) {
+          inp.focus();
+          inp.value = name;
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+          inp.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
           await sleep(1200);
-          map = companyMap();
-          found = matchCompany(map, name);
-          input.value = '';
-          input.dispatchEvent(new Event('input', { bubbles: true }));
+          map = getCompanyMap();
+          found = match(map, name);
+          inp.value = '';
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
           await sleep(100);
         }
       }
       results[name] = found || null;
     }
-
     return results;
   })()`);
 
@@ -151,25 +220,90 @@ async function resolveCompanyIds(page: IPage, input: unknown): Promise<string[]>
   return [...ids];
 }
 
-function normalizeWhitespace(value: unknown): string {
-  return String(value ?? '').replace(/\s+/g, ' ').trim();
-}
+// ── Voyager API fetch (runs inside page context for cookie access) ────
 
-function decodeLinkedinRedirect(url: string): string {
-  if (!url) return '';
-  try {
-    const parsed = new URL(url);
-    if (parsed.pathname === '/redir/redirect/') {
-      return parsed.searchParams.get('url') || url;
+async function fetchJobCards(
+  page: IPage,
+  input: SearchInput,
+): Promise<Array<Record<string, any>>> {
+  const MAX_BATCH = 25;
+  const allJobs: Array<Record<string, any>> = [];
+  let offset = input.start;
+
+  while (allJobs.length < input.limit) {
+    const count = Math.min(MAX_BATCH, input.limit - allJobs.length);
+    const apiPath = buildVoyagerUrl(input, offset, count);
+
+    const batch = await page.evaluate(`(async () => {
+      const jsession = document.cookie.split(';').map(p => p.trim())
+        .find(p => p.startsWith('JSESSIONID='))?.slice('JSESSIONID='.length);
+      if (!jsession) return { error: 'LinkedIn JSESSIONID cookie not found. Please sign in to LinkedIn in the browser.' };
+
+      const csrf = jsession.replace(/^"|"$/g, '');
+      const res = await fetch(${JSON.stringify(apiPath)}, {
+        credentials: 'include',
+        headers: { 'csrf-token': csrf, 'x-restli-protocol-version': '2.0.0' },
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        return { error: 'LinkedIn API error: HTTP ' + res.status + ' ' + text.slice(0, 200) };
+      }
+      return res.json();
+    })()`);
+
+    if (!batch || batch.error) {
+      throw new Error(batch?.error || 'LinkedIn search returned an unexpected response');
     }
-  } catch {}
-  return url;
+
+    const elements: any[] = Array.isArray(batch?.elements) ? batch.elements : [];
+    if (elements.length === 0) break;
+
+    for (const element of elements) {
+      const card = element?.jobCardUnion?.jobPostingCard;
+      if (!card) continue;
+
+      // Extract job ID from URN fields
+      const jobId = [card.jobPostingUrn, card.jobPosting?.entityUrn, card.entityUrn]
+        .filter(Boolean)
+        .map(s => String(s).match(/(\d+)/)?.[1])
+        .find(Boolean) ?? '';
+
+      // Extract listed date
+      const listedItem = (card.footerItems || []).find((i: any) => i?.type === 'LISTED_DATE' && i?.timeAt);
+      const listed = listedItem?.timeAt ? new Date(listedItem.timeAt).toISOString().slice(0, 10) : '';
+
+      allJobs.push({
+        title: card.jobPostingTitle || card.title?.text || '',
+        company: card.primaryDescription?.text || '',
+        location: card.secondaryDescription?.text || '',
+        listed,
+        salary: card.tertiaryDescription?.text || '',
+        url: jobId ? 'https://www.linkedin.com/jobs/view/' + jobId : '',
+      });
+    }
+
+    if (elements.length < count) break;
+    offset += elements.length;
+  }
+
+  return allJobs.slice(0, input.limit).map((item, index) => ({
+    rank: input.start + index + 1,
+    ...item,
+  }));
 }
 
-async function enrichJobDetails(page: IPage, jobs: Array<Record<string, any>>): Promise<Array<Record<string, any>>> {
+// ── Job detail enrichment (--details flag) ────────────────────────────
+
+async function enrichJobDetails(
+  page: IPage,
+  jobs: Array<Record<string, any>>,
+): Promise<Array<Record<string, any>>> {
   const enriched: Array<Record<string, any>> = [];
 
-  for (const job of jobs) {
+  for (let i = 0; i < jobs.length; i++) {
+    const job = jobs[i];
+    console.error(`[opencli:linkedin] Fetching details ${i + 1}/${jobs.length}: ${job.title}`);
+
     if (!job.url) {
       enriched.push({ ...job, description: '', apply_url: '' });
       continue;
@@ -178,40 +312,37 @@ async function enrichJobDetails(page: IPage, jobs: Array<Record<string, any>>): 
     try {
       await page.goto(job.url);
       await page.wait({ text: 'About the job', timeout: 8 });
+
+      // Expand "Show more" button if present
       await page.evaluate(`(() => {
-        const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-        const aboutSection = [...document.querySelectorAll('div, section, article')]
-          .find((element) => normalize(element.querySelector('h1, h2, h3, h4')?.textContent || '') === 'about the job');
-        const expandButton = [...(aboutSection?.querySelectorAll('button, a[role="button"]') || [])]
-          .find((element) => /more/.test(normalize(element.textContent || '')) || /more/.test(normalize(element.getAttribute('aria-label') || '')));
-        if (expandButton) expandButton.click();
+        const norm = (v) => (v || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+        const section = [...document.querySelectorAll('div, section, article')]
+          .find(el => norm(el.querySelector('h1,h2,h3,h4')?.textContent || '') === 'about the job');
+        const btn = [...(section?.querySelectorAll('button, a[role="button"]') || [])]
+          .find(el => /more/.test(norm(el.textContent || '')) || /more/.test(norm(el.getAttribute('aria-label') || '')));
+        if (btn) btn.click();
       })()`);
       await page.wait(1);
 
+      // Extract description and apply URL
       const detail = await page.evaluate(`(() => {
-        const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+        const norm = (v) => (v || '').replace(/\\s+/g, ' ').trim();
+        // Find the most specific (shortest) container with "About the job" heading
+        // Shortest = most specific DOM node, avoiding outer wrappers that include unrelated text
         const candidates = [...document.querySelectorAll('div, section, article')]
-          .map((element) => {
-            const heading = normalize(element.querySelector('h1, h2, h3, h4')?.textContent || '');
-            const text = normalize(element.innerText || '');
-            return { heading, text };
-          })
-          .filter((item) => item.text && item.heading.toLowerCase() === 'about the job' && item.text.length > 'About the job'.length)
+          .map(el => ({
+            heading: norm(el.querySelector('h1,h2,h3,h4')?.textContent || ''),
+            text: norm(el.innerText || ''),
+          }))
+          .filter(c => c.text && c.heading.toLowerCase() === 'about the job' && c.text.length > 'About the job'.length)
           .sort((a, b) => a.text.length - b.text.length);
 
-        const description = candidates[0]?.text.replace(/^About the job\s*/i, '') || '';
+        const description = candidates[0]?.text.replace(/^About the job\\s*/i, '') || '';
         const applyLink = [...document.querySelectorAll('a[href]')]
-          .map((anchor) => ({
-            href: anchor.href || '',
-            text: normalize(anchor.textContent || ''),
-            aria: normalize(anchor.getAttribute('aria-label') || ''),
-          }))
-          .find((anchor) => /apply/i.test(anchor.text) || /apply/i.test(anchor.aria));
+          .map(a => ({ href: a.href || '', text: norm(a.textContent || ''), aria: norm(a.getAttribute('aria-label') || '') }))
+          .find(a => /apply/i.test(a.text) || /apply/i.test(a.aria));
 
-        return {
-          description,
-          applyUrl: applyLink?.href || '',
-        };
+        return { description, applyUrl: applyLink?.href || '' };
       })()`);
 
       enriched.push({
@@ -226,6 +357,8 @@ async function enrichJobDetails(page: IPage, jobs: Array<Record<string, any>>): 
 
   return enriched;
 }
+
+// ── CLI registration ──────────────────────────────────────────────────
 
 cli({
   site: 'linkedin',
@@ -253,10 +386,6 @@ cli({
     const includeDetails = Boolean(kwargs.details);
     const location = (kwargs.location ?? '').trim();
     const keywords = String(kwargs.query ?? '').trim();
-    const experienceLevels = mapFilterValues(kwargs.experience_level, EXPERIENCE_LEVELS, 'experience_level');
-    const jobTypes = mapFilterValues(kwargs.job_type, JOB_TYPES, 'job_type');
-    const remoteTypes = mapFilterValues(kwargs.remote, REMOTE_TYPES, 'remote');
-    const datePostedValues = mapFilterValues(kwargs.date_posted, DATE_POSTED, 'date_posted');
 
     if (!keywords) throw new Error('query is required');
 
@@ -267,144 +396,21 @@ cli({
     await page.wait({ text: 'Jobs', timeout: 10 });
     const companyIds = await resolveCompanyIds(page, kwargs.company);
 
-    const data = await page.evaluate(`(async () => {
-      const input = ${JSON.stringify({
-        keywords,
-        location,
-        limit,
-        start,
-        companyIds,
-        experienceLevels,
-        jobTypes,
-        datePostedValues,
-        remoteTypes,
-      })};
-      const maxBatchSize = 25;
-      const jsession = document.cookie
-        .split(';')
-        .map(part => part.trim())
-        .find(part => part.startsWith('JSESSIONID='))
-        ?.slice('JSESSIONID='.length);
+    const input: SearchInput = {
+      keywords,
+      location,
+      limit,
+      start,
+      companyIds,
+      experienceLevels: mapFilterValues(kwargs.experience_level, EXPERIENCE_LEVELS, 'experience_level'),
+      jobTypes: mapFilterValues(kwargs.job_type, JOB_TYPES, 'job_type'),
+      datePostedValues: mapFilterValues(kwargs.date_posted, DATE_POSTED, 'date_posted'),
+      remoteTypes: mapFilterValues(kwargs.remote, REMOTE_TYPES, 'remote'),
+    };
 
-      if (!jsession) {
-        return { error: 'LinkedIn JSESSIONID cookie not found. Please sign in to LinkedIn in the browser.' };
-      }
-
-      const csrf = jsession.replace(/^"|"$/g, '');
-      const headers = {
-        'csrf-token': csrf,
-        'x-restli-protocol-version': '2.0.0',
-      };
-
-      const buildSearchQuery = () => {
-        const parts = [
-          'origin:' + ((
-            input.companyIds.length ||
-            input.experienceLevels.length ||
-            input.jobTypes.length ||
-            input.datePostedValues.length ||
-            input.remoteTypes.length
-          ) ? 'JOB_SEARCH_PAGE_JOB_FILTER' : 'JOB_SEARCH_PAGE_OTHER_ENTRY'),
-          'keywords:' + input.keywords,
-        ];
-        if (input.location) {
-          parts.push('locationUnion:(seoLocation:(location:' + input.location + '))');
-        }
-        const filters = [];
-        if (input.companyIds.length) filters.push('company:List(' + input.companyIds.join(',') + ')');
-        if (input.experienceLevels.length) filters.push('experience:List(' + input.experienceLevels.join(',') + ')');
-        if (input.jobTypes.length) filters.push('jobType:List(' + input.jobTypes.join(',') + ')');
-        if (input.datePostedValues.length) filters.push('timePostedRange:List(' + input.datePostedValues.join(',') + ')');
-        if (input.remoteTypes.length) filters.push('workplaceType:List(' + input.remoteTypes.join(',') + ')');
-        if (filters.length) parts.push('selectedFilters:(' + filters.join(',') + ')');
-        parts.push('spellCorrectionEnabled:true');
-        return '(' + parts.join(',') + ')';
-      };
-
-      const buildUrl = (offset, count) => {
-        const params = new URLSearchParams({
-          decorationId: 'com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-220',
-          count: String(count),
-          q: 'jobSearch',
-        });
-        const query = encodeURIComponent(buildSearchQuery())
-          .replace(/%3A/gi, ':')
-          .replace(/%2C/gi, ',')
-          .replace(/%28/gi, '(')
-          .replace(/%29/gi, ')');
-        return '/voyager/api/voyagerJobsDashJobCards?' +
-          params.toString() +
-          '&query=' + query +
-          '&start=' + offset;
-      };
-
-      const extractListed = (card) => {
-        const listed = (card.footerItems || []).find(item => item?.type === 'LISTED_DATE' && item?.timeAt);
-        return listed?.timeAt ? new Date(listed.timeAt).toISOString().slice(0, 10) : '';
-      };
-
-      const extractJobId = (card) => {
-        const sources = [
-          card.jobPostingUrn,
-          card.jobPosting?.entityUrn,
-          card.entityUrn,
-        ].filter(Boolean);
-        for (const source of sources) {
-          const match = String(source).match(/(\d+)/);
-          if (match) return match[1];
-        }
-        return '';
-      };
-
-      const collected = [];
-      let offset = input.start;
-
-      while (collected.length < input.limit) {
-        const count = Math.min(maxBatchSize, input.limit - collected.length);
-        const res = await fetch(buildUrl(offset, count), {
-          credentials: 'include',
-          headers,
-        });
-
-        if (!res.ok) {
-          const text = await res.text();
-          return { error: 'LinkedIn API error: HTTP ' + res.status + ' ' + text.slice(0, 200) };
-        }
-
-        const payload = await res.json();
-        const elements = Array.isArray(payload?.elements) ? payload.elements : [];
-        if (elements.length === 0) break;
-
-        for (const element of elements) {
-          const card = element?.jobCardUnion?.jobPostingCard;
-          if (!card) continue;
-          const jobId = extractJobId(card);
-          collected.push({
-            title: card.jobPostingTitle || card.title?.text || '',
-            company: card.primaryDescription?.text || '',
-            location: card.secondaryDescription?.text || '',
-            listed: extractListed(card),
-            salary: card.tertiaryDescription?.text || '',
-            url: jobId ? 'https://www.linkedin.com/jobs/view/' + jobId : '',
-          });
-        }
-
-        if (elements.length < count) break;
-        offset += elements.length;
-      }
-
-      return collected.slice(0, input.limit).map((item, index) => ({
-        rank: input.start + index + 1,
-        ...item,
-      }));
-    })()`);
-
-    if (!Array.isArray(data)) {
-      throw new Error(data?.error || 'LinkedIn search returned an unexpected response');
-    }
+    const data = await fetchJobCards(page, input);
 
     if (!includeDetails) return data;
-
     return enrichJobDetails(page, data);
   },
 });
