@@ -1,6 +1,6 @@
 site: tgb
 name: post
-description: 抓取淘股吧帖子正文
+description: 抓取淘股吧帖子正文（极速版）
 domain: tgb.cn
 strategy: cookie
 browser: true
@@ -21,74 +21,74 @@ pipeline:
         });
         const html = await res.text();
         
-        // 提取标题
-        const titleMatch = html.match(/<title>([^<]+)<\/title>/);
-        let title = titleMatch ? titleMatch[1].replace(/_淘股吧$/, '').trim() : '';
+        // 从 gioMsg 提取主题/标题（优先）
+        const subjectMatch = html.match(/id="gioMsg"[^>]*subject\s*=\s*"([^"]+)"/);
+        let title = subjectMatch ? subjectMatch[1].trim() : '';
         
-        // 从 gioMsg 提取信息
-        const gioMatch = html.match(/userName="([^"]+)"/);
-        const author = gioMatch ? gioMatch[1] : '';
-        if (gioMatch && gioMatch[2] && !title) {
-          title = gioMatch[2];
+        // 备选：从 title 标签提取
+        if (!title) {
+          const titleMatch = html.match(/<title>([^<]+)<\/title>/);
+          if (titleMatch) {
+            title = titleMatch[1].replace(/_.*$/, '').trim();
+          }
         }
         
-        // 提取时间、浏览、评论
+        // 从 gioMsg 提取作者信息
+        const gioMatch = html.match(/id="gioMsg"[^>]*userName="([^"]+)"/);
+        const author = gioMatch ? gioMatch[1] : '';
+        
+        // 提取时间 - 在 article-data 中
         const timeMatch = html.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})/);
         const publishTime = timeMatch ? timeMatch[1] : '';
         
+        // 提取浏览数
         const viewMatch = html.match(/浏览\s+(\d+)/);
         const views = viewMatch ? viewMatch[1] : '';
         
+        // 提取评论数
         const commentMatch = html.match(/评论\s+(\d+)/);
         const comments = commentMatch ? commentMatch[1] : '';
         
-        // 提取正文内容 - 在 article-content 中
+        // 提取正文内容 - 在 article-text p_coten 中
         let contentHtml = '';
-        const contentMatch = html.match(/<div class="article-content">([\s\S]*?)<div class="handle-box/);
-        if (contentMatch) {
-          contentHtml = contentMatch[1];
-        }
         
-        // 需要过滤的关键词
-        const skipPatterns = [
-          '打赏Ta',
-          '话题与分类',
-          '主题股票',
-          '主题概念',
-          '声明：',
-          '分享文章',
-          '举报',
-          /^\d+\s+\d+\/\d+\s+\d+\s+\d+/,
-          /^\d+\s+评论$/,
-        ];
-        
-        function shouldSkip(line) {
-          for (const pattern of skipPatterns) {
-            if (pattern instanceof RegExp) {
-              if (pattern.test(line)) return true;
-            } else if (line.includes(pattern)) {
-              return true;
+        // 方法1: 匹配 article-text 到 videoImg
+        const contentMatch1 = html.match(/<div class="article-text[^"]*"[^>]*>([\s\S]*?)<div id="videoImg"/);
+        if (contentMatch1) {
+          contentHtml = contentMatch1[1];
+        } else {
+          // 方法2: 匹配 article-text 到其闭合标签
+          const contentMatch2 = html.match(/<div class="article-text[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<div style="background:/);
+          if (contentMatch2) {
+            contentHtml = contentMatch2[1];
+          } else {
+            // 方法3: 直接查找 article-text 的内容
+            const contentMatch3 = html.match(/<div class="article-text[^"]*"[^>]*>([\s\S]*?)<\/div>/);
+            if (contentMatch3) {
+              contentHtml = contentMatch3[1];
             }
           }
-          return false;
         }
         
-        // 解析正文段落
+        // 清理 HTML 标签，提取纯文本段落
         const paragraphs = [];
         if (contentHtml) {
           // 将 <br> 转换为换行
           const text = contentHtml
             .replace(/<br\s*\/?>/gi, '\n')
-            .replace(/<[^>]+>/g, '')  // 移除其他 HTML 标签
+            .replace(/<a[^>]*>/gi, '')  // 移除链接标签开始
+            .replace(/<\/a>/gi, '')     // 移除链接标签结束
+            .replace(/<[^>]+>/g, '')    // 移除其他 HTML 标签
             .replace(/&nbsp;/g, ' ')
-            .replace(/&amp;/g, '&');
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"');
           
           // 按空行分割段落
-          const blocks = text.split(/\n{2,}/);
-          
-          for (const block of blocks) {
-            const para = block.replace(/\n+/g, ' ').trim();
-            if (shouldSkip(para)) break;
+          const lines = text.split('\n');
+          for (const line of lines) {
+            const para = line.trim();
             if (para && para.length > 0) {
               paragraphs.push(para);
             }
@@ -97,7 +97,7 @@ pipeline:
         
         // 生成 markdown
         const mdLines = [
-          `# ${title}`,
+          `# ${title || '无标题'}`,
           '',
           `> **作者**: ${author || '未知'}`,
           `> **发布时间**: ${publishTime || '未知'}`,
@@ -117,7 +117,7 @@ pipeline:
         }
         
         return {
-          title: title,
+          title: title || '无标题',
           author: author || '未知',
           publish_time: publishTime || '未知',
           views: views,
@@ -128,4 +128,4 @@ pipeline:
         };
       })()
 
-columns: [title, author, publish_time, views, comments]
+columns: [title, author, publish_time, views, comments, paragraphs]
