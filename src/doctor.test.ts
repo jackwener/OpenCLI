@@ -81,7 +81,7 @@ describe('json token helpers', () => {
       },
     }), 'abc123');
     const parsed = JSON.parse(next);
-    expect(parsed.mcp.playwright.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN).toBe('abc123');
+    expect(parsed.mcp.playwright.environment.PLAYWRIGHT_MCP_EXTENSION_TOKEN).toBe('abc123');
   });
 });
 

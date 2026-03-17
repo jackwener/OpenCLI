@@ -147,7 +147,7 @@ function readJsonConfigToken(content: string): string | null {
 function readTokenFromJsonObject(parsed: any): string | null {
   const direct = parsed?.mcpServers?.[PLAYWRIGHT_SERVER_NAME]?.env?.[PLAYWRIGHT_TOKEN_ENV];
   if (typeof direct === 'string' && direct) return direct;
-  const opencode = parsed?.mcp?.[PLAYWRIGHT_SERVER_NAME]?.env?.[PLAYWRIGHT_TOKEN_ENV];
+  const opencode = parsed?.mcp?.[PLAYWRIGHT_SERVER_NAME]?.environment?.[PLAYWRIGHT_TOKEN_ENV];
   if (typeof opencode === 'string' && opencode) return opencode;
   return null;
 }
@@ -168,8 +168,8 @@ export function upsertJsonConfigToken(content: string, token: string): string {
       enabled: true,
       type: 'local',
     };
-    parsed.mcp[PLAYWRIGHT_SERVER_NAME].env = parsed.mcp[PLAYWRIGHT_SERVER_NAME].env ?? {};
-    parsed.mcp[PLAYWRIGHT_SERVER_NAME].env[PLAYWRIGHT_TOKEN_ENV] = token;
+    parsed.mcp[PLAYWRIGHT_SERVER_NAME].environment = parsed.mcp[PLAYWRIGHT_SERVER_NAME].environment ?? {};
+    parsed.mcp[PLAYWRIGHT_SERVER_NAME].environment[PLAYWRIGHT_TOKEN_ENV] = token;
   }
   return `${JSON.stringify(parsed, null, 2)}\n`;
 }
