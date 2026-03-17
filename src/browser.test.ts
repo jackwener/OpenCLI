@@ -62,19 +62,11 @@ describe('browser helpers', () => {
       expect(__test__.buildMcpArgs({
         mcpPath: '/tmp/cli.js',
         executablePath: '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
-      })).toEqual([
-        '/tmp/cli.js',
-        '--extension',
-        '--executable-path',
-        '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
-      ]);
+      })).toEqual({ args: ['/tmp/cli.js', '--extension', '--executable-path', '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe'], headless: false });
 
       expect(__test__.buildMcpArgs({
         mcpPath: '/tmp/cli.js',
-      })).toEqual([
-        '/tmp/cli.js',
-        '--extension',
-      ]);
+      })).toEqual({ args: ['/tmp/cli.js', '--extension'], headless: false });
     } finally {
       if (savedCI !== undefined) {
         process.env.CI = savedCI;
@@ -86,29 +78,69 @@ describe('browser helpers', () => {
 
   it('builds standalone MCP args in CI mode', () => {
     const savedCI = process.env.CI;
+    const savedHeadless = process.env.OPENCLI_HEADLESS;
+    const savedUserDataDir = process.env.OPENCLI_USER_DATA_DIR;
     process.env.CI = 'true';
+    delete process.env.OPENCLI_HEADLESS;
+    delete process.env.OPENCLI_USER_DATA_DIR;
     try {
-      // CI mode: no --extension — browser launches in standalone headed mode
+      // CI mode: no --extension — browser launches in standalone headed mode with persistent user data
+      const defaultDataDir = __test__.defaultUserDataDir();
       expect(__test__.buildMcpArgs({
         mcpPath: '/tmp/cli.js',
-      })).toEqual([
-        '/tmp/cli.js',
-      ]);
+      })).toEqual({ args: ['/tmp/cli.js', '--user-data-dir', defaultDataDir], headless: false });
 
       expect(__test__.buildMcpArgs({
         mcpPath: '/tmp/cli.js',
         executablePath: '/usr/bin/chromium',
-      })).toEqual([
-        '/tmp/cli.js',
-        '--executable-path',
-        '/usr/bin/chromium',
-      ]);
+      })).toEqual({ args: ['/tmp/cli.js', '--executable-path', '/usr/bin/chromium', '--user-data-dir', defaultDataDir], headless: false });
     } finally {
-      if (savedCI !== undefined) {
-        process.env.CI = savedCI;
-      } else {
-        delete process.env.CI;
-      }
+      if (savedCI !== undefined) process.env.CI = savedCI;
+      else delete process.env.CI;
+      if (savedHeadless !== undefined) process.env.OPENCLI_HEADLESS = savedHeadless;
+      else delete process.env.OPENCLI_HEADLESS;
+      if (savedUserDataDir !== undefined) process.env.OPENCLI_USER_DATA_DIR = savedUserDataDir;
+      else delete process.env.OPENCLI_USER_DATA_DIR;
+    }
+  });
+
+  it('builds headless MCP args without session file', () => {
+    const savedCI = process.env.CI;
+    const savedHeadless = process.env.OPENCLI_HEADLESS;
+    delete process.env.CI;
+    delete process.env.OPENCLI_HEADLESS;
+    try {
+      // headless: no --extension, no --user-data-dir; sessionFile: null disables session lookup
+      expect(__test__.buildMcpArgs({
+        mcpPath: '/tmp/cli.js',
+        headless: true,
+        sessionFile: null,
+      })).toEqual({ args: ['/tmp/cli.js', '--headless'], headless: true });
+    } finally {
+      if (savedCI !== undefined) process.env.CI = savedCI;
+      else delete process.env.CI;
+      if (savedHeadless !== undefined) process.env.OPENCLI_HEADLESS = savedHeadless;
+      else delete process.env.OPENCLI_HEADLESS;
+    }
+  });
+
+  it('builds headless MCP args with session file and caps', () => {
+    const savedCI = process.env.CI;
+    const savedHeadless = process.env.OPENCLI_HEADLESS;
+    delete process.env.CI;
+    delete process.env.OPENCLI_HEADLESS;
+    try {
+      expect(__test__.buildMcpArgs({
+        mcpPath: '/tmp/cli.js',
+        headless: true,
+        sessionFile: '/tmp/session.json',
+        caps: ['storage'],
+      })).toEqual({ args: ['/tmp/cli.js', '--headless', '--storage-state', '/tmp/session.json', '--caps', 'storage'], headless: true });
+    } finally {
+      if (savedCI !== undefined) process.env.CI = savedCI;
+      else delete process.env.CI;
+      if (savedHeadless !== undefined) process.env.OPENCLI_HEADLESS = savedHeadless;
+      else delete process.env.OPENCLI_HEADLESS;
     }
   });
 

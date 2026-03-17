@@ -168,4 +168,13 @@ export class Page implements IPage {
     const result = await this.evaluate(generateReadInterceptedJs('__opencli_xhr'));
     return result || [];
   }
+
+  /**
+   * Save the current browser session (cookies + localStorage) to a file.
+   * Requires the 'storage' capability to be enabled (--caps storage).
+   * Used by `opencli login` to persist cookies for headless mode.
+   */
+  async saveStorageState(filename: string): Promise<void> {
+    await this.call('tools/call', { name: 'browser_storage_state', arguments: { filename } });
+  }
 }

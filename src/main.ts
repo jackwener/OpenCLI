@@ -3,6 +3,7 @@
  * opencli — Make any website your CLI. AI-powered.
  */
 
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -47,6 +48,7 @@ if (getCompIdx !== -1) {
 
 const program = new Command();
 program.name('opencli').description('Make any website your CLI. Zero setup. AI-powered.').version(PKG_VERSION);
+program.option('--headless', 'Run browser in headless mode (no visible window)', false);
 
 // ── Built-in commands ──────────────────────────────────────────────────────
 
@@ -99,22 +101,23 @@ program.command('verify').description('Validate + smoke test').argument('[target
   });
 
 program.command('explore').alias('probe').description('Explore a website: discover APIs, stores, and recommend strategies').argument('<url>').option('--site <name>').option('--goal <text>').option('--wait <s>', '', '3').option('--auto', 'Enable interactive fuzzing (simulate clicks to trigger lazy APIs)').option('--click <labels>', 'Comma-separated labels to click before fuzzing (e.g. "字幕,CC,评论")')
-  .action(async (url, opts) => { const { exploreUrl, renderExploreSummary } = await import('./explore.js'); const clickLabels = opts.click ? opts.click.split(',').map((s: string) => s.trim()) : undefined; console.log(renderExploreSummary(await exploreUrl(url, { BrowserFactory: PlaywrightMCP, site: opts.site, goal: opts.goal, waitSeconds: parseFloat(opts.wait), auto: opts.auto, clickLabels }))); });
+  .action(async (url, opts) => { const { exploreUrl, renderExploreSummary } = await import('./explore.js'); const clickLabels = opts.click ? opts.click.split(',').map((s: string) => s.trim()) : undefined; console.log(renderExploreSummary(await exploreUrl(url, { BrowserFactory: PlaywrightMCP, site: opts.site, goal: opts.goal, waitSeconds: parseFloat(opts.wait), auto: opts.auto, clickLabels, headless: program.opts().headless }))); });
 
 program.command('synthesize').description('Synthesize CLIs from explore').argument('<target>').option('--top <n>', '', '3')
   .action(async (target, opts) => { const { synthesizeFromExplore, renderSynthesizeSummary } = await import('./synthesize.js'); console.log(renderSynthesizeSummary(synthesizeFromExplore(target, { top: parseInt(opts.top) }))); });
 
 program.command('generate').description('One-shot: explore → synthesize → register').argument('<url>').option('--goal <text>').option('--site <name>')
-  .action(async (url, opts) => { const { generateCliFromUrl, renderGenerateSummary } = await import('./generate.js'); const r = await generateCliFromUrl({ url, BrowserFactory: PlaywrightMCP, builtinClis: BUILTIN_CLIS, userClis: USER_CLIS, goal: opts.goal, site: opts.site }); console.log(renderGenerateSummary(r)); process.exitCode = r.ok ? 0 : 1; });
+  .action(async (url, opts) => { const { generateCliFromUrl, renderGenerateSummary } = await import('./generate.js'); const r = await generateCliFromUrl({ url, BrowserFactory: PlaywrightMCP, builtinClis: BUILTIN_CLIS, userClis: USER_CLIS, goal: opts.goal, site: opts.site, headless: program.opts().headless }); console.log(renderGenerateSummary(r)); process.exitCode = r.ok ? 0 : 1; });
 
 program.command('cascade').description('Strategy cascade: find simplest working strategy').argument('<url>').option('--site <name>')
   .action(async (url, opts) => {
     const { cascadeProbe, renderCascadeResult } = await import('./cascade.js');
+    const headless = program.opts().headless;
     const result = await browserSession(PlaywrightMCP, async (page) => {
       // Navigate to the site first for cookie context
       try { const siteUrl = new URL(url); await page.goto(`${siteUrl.protocol}//${siteUrl.host}`); await page.wait(2); } catch {}
       return cascadeProbe(page, url);
-    });
+    }, { headless });
     console.log(renderCascadeResult(result));
   });
 
@@ -149,6 +152,19 @@ program.command('setup')
   .action(async (opts) => {
     const { runSetup } = await import('./setup.js');
     await runSetup({ cliVersion: PKG_VERSION, token: opts.token });
+  });
+
+program.command('login')
+  .description('Save browser session cookies for use with --headless (no-popup + cookies mode)')
+  .action(async () => {
+    const { defaultSessionFile } = await import('./browser/discover.js');
+    const sessionFile = defaultSessionFile();
+    fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
+    console.log(`Saving session to: ${sessionFile}`);
+    await browserSession(PlaywrightMCP, async (page) => {
+      await page.saveStorageState(sessionFile);
+      console.log('Session saved. Run commands with --headless to use it (no popup window, with cookies).');
+    }, { caps: ['storage'] });
   });
 
 program.command('completion')
@@ -208,7 +224,8 @@ for (const [, cmd] of registry) {
       if (actionOpts.verbose) process.env.OPENCLI_VERBOSE = '1';
       let result: any;
       if (cmd.browser) {
-        result = await browserSession(PlaywrightMCP, async (page) => runWithTimeout(executeCommand(cmd, page, kwargs, actionOpts.verbose), { timeout: cmd.timeoutSeconds ?? DEFAULT_BROWSER_COMMAND_TIMEOUT, label: fullName(cmd) }));
+        const headless = program.opts().headless;
+        result = await browserSession(PlaywrightMCP, async (page) => runWithTimeout(executeCommand(cmd, page, kwargs, actionOpts.verbose), { timeout: cmd.timeoutSeconds ?? DEFAULT_BROWSER_COMMAND_TIMEOUT, label: fullName(cmd) }), { headless });
       } else { result = await executeCommand(cmd, null, kwargs, actionOpts.verbose); }
       if (actionOpts.verbose && (!result || (Array.isArray(result) && result.length === 0))) {
         console.error(chalk.yellow(`[Verbose] Warning: Command returned an empty result. If the website structural API changed or requires authentication, check the network or update the adapter.`));

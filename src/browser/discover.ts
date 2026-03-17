@@ -111,6 +111,19 @@ export function findMcpServerPath(): string | null {
   return _cachedMcpServerPath;
 }
 
+/** Default persistent browser data dir for CI standalone mode. */
+export function defaultUserDataDir(): string {
+  return path.join(os.homedir(), '.opencli', 'browser-data');
+}
+
+/**
+ * Default path for saved browser session (cookies).
+ * Created by `opencli login`; loaded automatically in headless mode.
+ */
+export function defaultSessionFile(): string {
+  return path.join(os.homedir(), '.opencli', 'session.json');
+}
+
 /**
  * Chrome 144+ auto-discovery: read DevToolsActivePort file to get CDP endpoint.
  *
@@ -177,17 +190,43 @@ export function resolveCdpEndpoint(): { endpoint?: string; requestedCdp: boolean
   return { requestedCdp: false };
 }
 
-function buildRuntimeArgs(input?: { executablePath?: string | null; cdpEndpoint?: string }): string[] {
+function buildRuntimeArgs(input?: {
+  executablePath?: string | null;
+  cdpEndpoint?: string;
+  headless?: boolean;
+  /** Extra browser capabilities to enable (e.g. ['storage'] for browser_storage_state). */
+  caps?: string[];
+  /** @internal override for tests only — null disables user data dir */
+  userDataDir?: string | null;
+  /** @internal override for tests only — null disables session file lookup */
+  sessionFile?: string | null;
+}): { args: string[]; headless: boolean } {
   const args: string[] = [];
+  const headless = input?.headless || !!process.env.OPENCLI_HEADLESS;
 
-  // Priority 1: CDP endpoint (remote Chrome debugging or local Auto-Discovery)
-  if (input?.cdpEndpoint) {
+  if (headless) {
+    // Headless mode: standalone browser, no extension needed
+    args.push('--headless');
+    // Load saved session (cookies) if available — enables "no popup + has cookies" mode.
+    // Run `opencli login` once to save your browser session.
+    let sessionFile: string | null;
+    if (input?.sessionFile !== undefined) {
+      // Explicit override (test-only): trust the value as-is (null = disable)
+      sessionFile = input.sessionFile ?? null;
+    } else {
+      const candidate = process.env.OPENCLI_SESSION_FILE ?? defaultSessionFile();
+      sessionFile = candidate && fs.existsSync(candidate) ? candidate : null;
+    }
+    if (sessionFile) {
+      args.push('--storage-state', sessionFile);
+      args.push('--isolated');
+    }
+  } else if (input?.cdpEndpoint) {
+    // CDP endpoint (remote Chrome debugging or local Auto-Discovery)
     args.push('--cdp-endpoint', input.cdpEndpoint);
-    return args;
-  }
-
-  // Priority 2: Extension mode (local Chrome with MCP Bridge extension)
-  if (!process.env.CI) {
+    return { args, headless: false };
+  } else if (!process.env.CI) {
+    // Local: connect to user's running Chrome via MCP Bridge extension
     args.push('--extension');
   }
 
@@ -196,24 +235,56 @@ function buildRuntimeArgs(input?: { executablePath?: string | null; cdpEndpoint?
   if (input?.executablePath) {
     args.push('--executable-path', input.executablePath);
   }
-  return args;
+  // Persist browser profile in CI standalone mode (skip for extension and headless modes).
+  // OPENCLI_USER_DATA_DIR env var overrides the default; userDataDir param is test-only.
+  const userDataDir = input?.userDataDir ?? process.env.OPENCLI_USER_DATA_DIR ?? (process.env.CI ? defaultUserDataDir() : null);
+  if (userDataDir) {
+    args.push('--user-data-dir', userDataDir);
+  }
+  // Enable additional browser capabilities (e.g. 'storage' for browser_storage_state tool).
+  if (input?.caps?.length) {
+    args.push('--caps', input.caps.join(','));
+  }
+  return { args, headless };
 }
 
-export function buildMcpArgs(input: { mcpPath: string; executablePath?: string | null; cdpEndpoint?: string }): string[] {
-  return [input.mcpPath, ...buildRuntimeArgs(input)];
+export function buildMcpArgs(input: {
+  mcpPath: string;
+  executablePath?: string | null;
+  cdpEndpoint?: string;
+  headless?: boolean;
+  /** Extra browser capabilities to enable (e.g. ['storage'] for browser_storage_state). */
+  caps?: string[];
+  /** @internal override for tests only — null disables user data dir */
+  userDataDir?: string | null;
+  /** @internal override for tests only — null disables session file lookup */
+  sessionFile?: string | null;
+}): { args: string[]; headless: boolean } {
+  const { args: runtimeArgs, headless } = buildRuntimeArgs(input);
+  return { args: [input.mcpPath, ...runtimeArgs], headless };
 }
 
-export function buildMcpLaunchSpec(input: { mcpPath?: string | null; executablePath?: string | null; cdpEndpoint?: string }): {
+export function buildMcpLaunchSpec(input: {
+  mcpPath?: string | null;
+  executablePath?: string | null;
+  cdpEndpoint?: string;
+  headless?: boolean;
+  caps?: string[];
+  userDataDir?: string | null;
+  sessionFile?: string | null;
+}): {
   command: string;
   args: string[];
   usedNpxFallback: boolean;
+  headless: boolean;
 } {
-  const runtimeArgs = buildRuntimeArgs(input);
+  const { args: runtimeArgs, headless } = buildRuntimeArgs(input);
   if (input.mcpPath) {
     return {
       command: 'node',
       args: [input.mcpPath, ...runtimeArgs],
       usedNpxFallback: false,
+      headless,
     };
   }
 
@@ -221,5 +292,6 @@ export function buildMcpLaunchSpec(input: { mcpPath?: string | null; executableP
     command: 'npx',
     args: ['-y', '@playwright/mcp@latest', ...runtimeArgs],
     usedNpxFallback: true,
+    headless,
   };
 }

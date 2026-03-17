@@ -34,17 +34,18 @@ export function withTimeoutMs<T>(promise: Promise<T>, timeoutMs: number, message
 
 /** Interface for browser factory (PlaywrightMCP or test mocks) */
 export interface IBrowserFactory {
-  connect(opts?: { timeout?: number }): Promise<IPage>;
+  connect(opts?: { timeout?: number; headless?: boolean; caps?: string[] }): Promise<IPage>;
   close(): Promise<void>;
 }
 
 export async function browserSession<T>(
   BrowserFactory: new () => IBrowserFactory,
   fn: (page: IPage) => Promise<T>,
+  opts?: { headless?: boolean; caps?: string[] },
 ): Promise<T> {
   const mcp = new BrowserFactory();
   try {
-    const page = await mcp.connect({ timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT });
+    const page = await mcp.connect({ timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT, headless: opts?.headless, caps: opts?.caps });
     return await fn(page);
   } finally {
     await mcp.close().catch(() => {});

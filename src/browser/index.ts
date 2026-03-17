@@ -14,7 +14,7 @@ export { resolveCdpEndpoint } from './discover.js';
 // Test-only helpers — exposed for unit tests
 import { createJsonRpcRequest } from './mcp.js';
 import { extractTabEntries, diffTabIndexes, appendLimited } from './tabs.js';
-import { buildMcpArgs, buildMcpLaunchSpec, findMcpServerPath, resetMcpServerPathCache, setMcpDiscoveryTestHooks } from './discover.js';
+import { buildMcpArgs, buildMcpLaunchSpec, findMcpServerPath, resetMcpServerPathCache, setMcpDiscoveryTestHooks, defaultUserDataDir, defaultSessionFile } from './discover.js';
 import { withTimeoutMs } from '../runtime.js';
 
 export const __test__ = {
@@ -27,5 +27,7 @@ export const __test__ = {
   findMcpServerPath,
   resetMcpServerPathCache,
   setMcpDiscoveryTestHooks,
+  defaultUserDataDir,
+  defaultSessionFile,
   withTimeoutMs,
 };

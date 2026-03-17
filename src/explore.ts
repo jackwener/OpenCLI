@@ -299,6 +299,7 @@ export async function exploreUrl(
     site?: string; goal?: string; authenticated?: boolean;
     outDir?: string; waitSeconds?: number; query?: string;
     clickLabels?: string[]; auto?: boolean;
+    headless?: boolean;
   },
 ): Promise<Record<string, any>> {
   const waitSeconds = opts.waitSeconds ?? 3.0;
@@ -487,7 +488,7 @@ export async function exploreUrl(
 
       return { ...result, out_dir: targetDir };
     })(), { timeout: exploreTimeout, label: `Explore ${url}` });
-  });
+  }, { headless: opts.headless });
 }
 
 export function renderExploreSummary(result: Record<string, any>): string {

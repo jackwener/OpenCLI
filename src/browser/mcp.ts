@@ -98,7 +98,7 @@ export class PlaywrightMCP {
     }
   }
 
-  async connect(opts: { timeout?: number } = {}): Promise<IPage> {
+  async connect(opts: { timeout?: number; headless?: boolean; caps?: string[] } = {}): Promise<IPage> {
     if (this._state === 'connected' && this._page) return this._page;
     if (this._state === 'connecting') throw new Error('Playwright MCP is already connecting');
     if (this._state === 'closing') throw new Error('Playwright MCP is closing');
@@ -110,6 +110,7 @@ export class PlaywrightMCP {
     PlaywrightMCP._activeInsts.add(this);
     this._state = 'connecting';
     const timeout = opts.timeout ?? DEFAULT_BROWSER_CONNECT_TIMEOUT;
+    const headless = opts.headless;
 
     return new Promise<Page>((resolve, reject) => {
       const isDebug = process.env.DEBUG?.includes('opencli:mcp');
@@ -159,10 +160,14 @@ export class PlaywrightMCP {
         mcpPath,
         executablePath: process.env.OPENCLI_BROWSER_EXECUTABLE_PATH,
         cdpEndpoint,
+        headless,
+        caps: opts.caps,
       });
+      const isHeadless = launchSpec.headless;
       if (process.env.OPENCLI_VERBOSE) {
-        console.error(`[opencli] Mode: ${requestedCdp ? 'CDP' : useExtension ? 'extension' : 'standalone'}`);
-        if (useExtension) console.error(`[opencli] Extension token: fingerprint ${tokenFingerprint}`);
+        console.error(`[opencli] Mode: ${isHeadless ? 'headless' : requestedCdp ? 'CDP' : useExtension ? 'extension' : 'standalone'}`);
+        // Extension token is irrelevant in headless mode (--extension is not passed)
+        if (useExtension && !isHeadless) console.error(`[opencli] Extension token: fingerprint ${tokenFingerprint}`);
         if (launchSpec.usedNpxFallback) {
           console.error('[opencli] Playwright MCP not found locally; bootstrapping via npx @playwright/mcp@latest');
         }

@@ -23,4 +23,5 @@ export interface IPage {
   autoScroll(options?: { times?: number; delayMs?: number }): Promise<void>;
   installInterceptor(pattern: string): Promise<void>;
   getInterceptedRequests(): Promise<any[]>;
+  saveStorageState(filename: string): Promise<void>;
 }

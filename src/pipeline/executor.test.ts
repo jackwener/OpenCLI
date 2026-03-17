@@ -26,6 +26,7 @@ function createMockPage(overrides: Partial<IPage> = {}): IPage {
     autoScroll: vi.fn(),
     installInterceptor: vi.fn(),
     getInterceptedRequests: vi.fn().mockResolvedValue([]),
+    saveStorageState: vi.fn(),
     ...overrides,
   };
 }

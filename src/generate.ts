@@ -65,6 +65,7 @@ export async function generateCliFromUrl(opts: any): Promise<any> {
     site: opts.site,
     goal: normalizeGoal(opts.goal) ?? opts.goal,
     waitSeconds: opts.waitSeconds ?? 3,
+    headless: opts.headless,
   });
 
   // Step 2: Synthesize candidates
