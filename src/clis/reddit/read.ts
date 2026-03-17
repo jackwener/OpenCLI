@@ -14,9 +14,10 @@ cli({
   description: 'Read a Reddit post and its comments',
   domain: 'reddit.com',
   strategy: Strategy.COOKIE,
+  browser: true,
   args: [
-    { name: 'post_id', required: true, help: 'Post ID (e.g. 1abc123) or full URL' },
-    { name: 'sort', default: 'best', help: 'Comment sort: best, top, new, controversial, old, qa' },
+    { name: 'post_id', type: 'string', required: true, help: 'Post ID (e.g. 1abc123) or full URL' },
+    { name: 'sort', type: 'string', default: 'best', help: 'Comment sort: best, top, new, controversial, old, qa' },
     { name: 'limit', type: 'int', default: 25, help: 'Number of top-level comments' },
     { name: 'depth', type: 'int', default: 2, help: 'Max reply depth (1=no replies, 2=one level of replies, etc.)' },
     { name: 'replies', type: 'int', default: 5, help: 'Max replies shown per comment at each level (sorted by score)' },
@@ -24,6 +25,8 @@ cli({
   ],
   columns: ['type', 'author', 'score', 'text'],
   func: async (page, kwargs) => {
+    if (!page) throw new Error('Requires browser');
+
     const sort = kwargs.sort ?? 'best';
     const limit = Math.max(1, kwargs.limit ?? 25);
     const maxDepth = Math.max(1, kwargs.depth ?? 2);
@@ -31,40 +34,40 @@ cli({
     const maxLength = Math.max(100, kwargs.max_length ?? 2000);
 
     await page.goto('https://www.reddit.com');
-    await page.wait(2);
+    await page.wait(3);
 
     const data = await page.evaluate(`
       (async function() {
-        var postId = ${JSON.stringify(kwargs.post_id)};
-        var urlMatch = postId.match(/comments\\/([a-z0-9]+)/);
+        let postId = ${JSON.stringify(kwargs.post_id)};
+        const urlMatch = postId.match(/comments\\/([a-z0-9]+)/);
         if (urlMatch) postId = urlMatch[1];
 
-        var sort = ${JSON.stringify(sort)};
-        var limit = ${limit};
-        var maxDepth = ${maxDepth};
-        var maxReplies = ${maxReplies};
-        var maxLength = ${maxLength};
+        const sort = ${JSON.stringify(sort)};
+        const limit = ${limit};
+        const maxDepth = ${maxDepth};
+        const maxReplies = ${maxReplies};
+        const maxLength = ${maxLength};
 
         // Request more from API than top-level limit to get inline replies
         // depth param tells Reddit how deep to inline replies vs "more" stubs
-        var apiLimit = Math.max(limit * 3, 100);
-        var res = await fetch(
+        const apiLimit = Math.max(limit * 3, 100);
+        const res = await fetch(
           '/comments/' + postId + '.json?sort=' + sort + '&limit=' + apiLimit + '&depth=' + (maxDepth + 1) + '&raw_json=1',
           { credentials: 'include' }
         );
         if (!res.ok) return { error: 'Reddit API returned HTTP ' + res.status };
 
-        var data;
+        let data;
         try { data = await res.json(); } catch(e) { return { error: 'Failed to parse response' }; }
         if (!Array.isArray(data) || data.length < 2) return { error: 'Unexpected response format' };
 
-        var results = [];
+        const results = [];
 
         // Post
-        var post = data[0] && data[0].data && data[0].data.children && data[0].data.children[0] && data[0].data.children[0].data;
+        const post = data[0] && data[0].data && data[0].data.children && data[0].data.children[0] && data[0].data.children[0].data;
         if (post) {
-          var body = post.selftext || '';
-          if (body.length > maxLength) body = body.slice(0, maxLength) + '\\n... [truncated]';
+          let body = post.selftext || '';
+          if (body.length > maxLength) body = body.slice(0, maxLength) + '...';
           results.push({
             type: 'POST',
             author: post.author || '[deleted]',
@@ -78,31 +81,30 @@ cli({
         // so --depth 1 means top-level only, --depth 2 means one reply level, etc.
         function walkComment(node, depth) {
           if (!node || node.kind !== 't1') return;
-          var d = node.data;
-          var body = d.body || '';
+          const d = node.data;
+          let body = d.body || '';
           if (body.length > maxLength) body = body.slice(0, maxLength) + '...';
 
           // Indent prefix: apply to every line so multiline bodies stay aligned
-          var indent = '';
-          for (var i = 0; i < depth; i++) indent += '  ';
-          var prefix = depth === 0 ? '' : indent + '> ';
-          var indentedBody = depth === 0
+          const indent = '  '.repeat(depth);
+          const prefix = depth === 0 ? '' : indent + '> ';
+          const indentedBody = depth === 0
             ? body
             : body.split('\\n').map(function(line) { return prefix + line; }).join('\\n');
 
           results.push({
-            type: depth === 0 ? 'L0' : 'L' + depth,
+            type: 'L' + depth,
             author: d.author || '[deleted]',
             score: d.score || 0,
             text: indentedBody,
           });
 
           // Count all available replies (for accurate "more" count)
-          var t1Children = [];
-          var moreCount = 0;
+          const t1Children = [];
+          let moreCount = 0;
           if (d.replies && d.replies.data && d.replies.data.children) {
-            var children = d.replies.data.children;
-            for (var i = 0; i < children.length; i++) {
+            const children = d.replies.data.children;
+            for (let i = 0; i < children.length; i++) {
               if (children[i].kind === 't1') {
                 t1Children.push(children[i]);
               } else if (children[i].kind === 'more') {
@@ -113,15 +115,13 @@ cli({
 
           // At depth cutoff: don't recurse, but show all replies as hidden
           if (depth + 1 >= maxDepth) {
-            var totalHidden = t1Children.length + moreCount;
+            const totalHidden = t1Children.length + moreCount;
             if (totalHidden > 0) {
-              var cutoffIndent = '';
-              for (var j = 0; j <= depth; j++) cutoffIndent += '  ';
               results.push({
                 type: 'L' + (depth + 1),
                 author: '',
                 score: '',
-                text: cutoffIndent + '[+' + totalHidden + ' more replies]',
+                text: '  '.repeat(depth + 1) + '[+' + totalHidden + ' more replies]',
               });
             }
             return;
@@ -129,41 +129,39 @@ cli({
 
           // Sort by score descending, take top N
           t1Children.sort(function(a, b) { return (b.data.score || 0) - (a.data.score || 0); });
-          var toProcess = Math.min(t1Children.length, maxReplies);
-          for (var i = 0; i < toProcess; i++) {
+          const toProcess = Math.min(t1Children.length, maxReplies);
+          for (let i = 0; i < toProcess; i++) {
             walkComment(t1Children[i], depth + 1);
           }
 
           // Show hidden count (skipped replies + "more" stubs)
-          var hidden = t1Children.length - toProcess + moreCount;
+          const hidden = t1Children.length - toProcess + moreCount;
           if (hidden > 0) {
-            var moreIndent = '';
-            for (var j = 0; j <= depth; j++) moreIndent += '  ';
             results.push({
               type: 'L' + (depth + 1),
               author: '',
               score: '',
-              text: moreIndent + '[+' + hidden + ' more replies]',
+              text: '  '.repeat(depth + 1) + '[+' + hidden + ' more replies]',
             });
           }
         }
 
         // Walk top-level comments
-        var topLevel = data[1].data.children || [];
-        var t1TopLevel = [];
-        for (var i = 0; i < topLevel.length; i++) {
+        const topLevel = data[1].data.children || [];
+        const t1TopLevel = [];
+        for (let i = 0; i < topLevel.length; i++) {
           if (topLevel[i].kind === 't1') t1TopLevel.push(topLevel[i]);
         }
 
         // Top-level are already sorted by Reddit (sort param), take top N
-        for (var i = 0; i < Math.min(t1TopLevel.length, limit); i++) {
+        for (let i = 0; i < Math.min(t1TopLevel.length, limit); i++) {
           walkComment(t1TopLevel[i], 0);
         }
 
         // Count remaining
-        var moreTopLevel = topLevel.filter(function(c) { return c.kind === 'more'; })
+        const moreTopLevel = topLevel.filter(function(c) { return c.kind === 'more'; })
           .reduce(function(sum, c) { return sum + (c.data.count || 0); }, 0);
-        var hiddenTopLevel = Math.max(0, t1TopLevel.length - limit) + moreTopLevel;
+        const hiddenTopLevel = Math.max(0, t1TopLevel.length - limit) + moreTopLevel;
         if (hiddenTopLevel > 0) {
           results.push({
             type: '',
