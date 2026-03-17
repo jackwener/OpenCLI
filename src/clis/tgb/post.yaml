@@ -1,0 +1,131 @@
+site: tgb
+name: post
+description: 抓取淘股吧帖子正文
+domain: tgb.cn
+strategy: cookie
+browser: true
+
+args:
+  url:
+    type: str
+    required: true
+    description: 帖子URL
+
+pipeline:
+  - navigate: ${{ args.url }}
+  - evaluate: |
+      (async () => {
+        // fetch 获取 HTML
+        const res = await fetch(window.location.href, {
+          credentials: 'include'
+        });
+        const html = await res.text();
+        
+        // 提取标题
+        const titleMatch = html.match(/<title>([^<]+)<\/title>/);
+        let title = titleMatch ? titleMatch[1].replace(/_淘股吧$/, '').trim() : '';
+        
+        // 从 gioMsg 提取信息
+        const gioMatch = html.match(/userName="([^"]+)"/);
+        const author = gioMatch ? gioMatch[1] : '';
+        if (gioMatch && gioMatch[2] && !title) {
+          title = gioMatch[2];
+        }
+        
+        // 提取时间、浏览、评论
+        const timeMatch = html.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})/);
+        const publishTime = timeMatch ? timeMatch[1] : '';
+        
+        const viewMatch = html.match(/浏览\s+(\d+)/);
+        const views = viewMatch ? viewMatch[1] : '';
+        
+        const commentMatch = html.match(/评论\s+(\d+)/);
+        const comments = commentMatch ? commentMatch[1] : '';
+        
+        // 提取正文内容 - 在 article-content 中
+        let contentHtml = '';
+        const contentMatch = html.match(/<div class="article-content">([\s\S]*?)<div class="handle-box/);
+        if (contentMatch) {
+          contentHtml = contentMatch[1];
+        }
+        
+        // 需要过滤的关键词
+        const skipPatterns = [
+          '打赏Ta',
+          '话题与分类',
+          '主题股票',
+          '主题概念',
+          '声明：',
+          '分享文章',
+          '举报',
+          /^\d+\s+\d+\/\d+\s+\d+\s+\d+/,
+          /^\d+\s+评论$/,
+        ];
+        
+        function shouldSkip(line) {
+          for (const pattern of skipPatterns) {
+            if (pattern instanceof RegExp) {
+              if (pattern.test(line)) return true;
+            } else if (line.includes(pattern)) {
+              return true;
+            }
+          }
+          return false;
+        }
+        
+        // 解析正文段落
+        const paragraphs = [];
+        if (contentHtml) {
+          // 将 <br> 转换为换行
+          const text = contentHtml
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<[^>]+>/g, '')  // 移除其他 HTML 标签
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&');
+          
+          // 按空行分割段落
+          const blocks = text.split(/\n{2,}/);
+          
+          for (const block of blocks) {
+            const para = block.replace(/\n+/g, ' ').trim();
+            if (shouldSkip(para)) break;
+            if (para && para.length > 0) {
+              paragraphs.push(para);
+            }
+          }
+        }
+        
+        // 生成 markdown
+        const mdLines = [
+          `# ${title}`,
+          '',
+          `> **作者**: ${author || '未知'}`,
+          `> **发布时间**: ${publishTime || '未知'}`,
+          `> **浏览**: ${views || '-'} | **评论**: ${comments || '-'}`,
+          `> **原文**: ${window.location.href}`,
+          '',
+          '---',
+          ''
+        ];
+        
+        for (const para of paragraphs) {
+          const clean = para.replace(/\s+/g, ' ').trim();
+          if (clean) {
+            mdLines.push(clean);
+            mdLines.push('');
+          }
+        }
+        
+        return {
+          title: title,
+          author: author || '未知',
+          publish_time: publishTime || '未知',
+          views: views,
+          comments: comments,
+          url: window.location.href,
+          paragraphs: paragraphs.length,
+          markdown: mdLines.join('\n')
+        };
+      })()
+
+columns: [title, author, publish_time, views, comments]

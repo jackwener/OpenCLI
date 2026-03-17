@@ -1,0 +1,151 @@
+site: tgb
+name: post-comments
+description: 抓取淘股吧帖子分页评论
+domain: tgb.cn
+strategy: cookie
+browser: true
+
+args:
+  url:
+    type: str
+    required: true
+    description: 帖子URL（支持自动提取topicID和跳转页码）
+  page:
+    type: int
+    default: 1
+    description: 起始页码，默认1
+  max_pages:
+    type: int
+    default: 1
+    description: 最大抓取页数，默认1
+  limit:
+    type: int
+    default: 50
+    description: 每页最大评论数
+
+pipeline:
+  - navigate: ${{ args.url }}
+  - evaluate: |
+      (async () => {
+        // 从URL提取topicCode
+        const url = window.location.href;
+        const urlMatch = url.match(/\/a\/([a-zA-Z0-9]+)(?:-(\d+))?/);
+        if (!urlMatch) {
+          return { error: '无法从URL提取topicID' };
+        }
+        
+        const topicCode = urlMatch[1];
+        const currentPage = parseInt(urlMatch[2]) || 1;
+        const startPage = ${{ args.page }} || currentPage;
+        const maxPages = ${{ args.max_pages }} || 1;
+        const limitPerPage = ${{ args.limit }} || 50;
+        
+        const allComments = [];
+        let pagesScanned = 0;
+        
+        // 抓取多页评论
+        for (let pageNum = startPage; pageNum < startPage + maxPages; pageNum++) {
+          const pageUrl = `https://www.tgb.cn/a/${topicCode}-${pageNum}?type=Z`;
+          
+          try {
+            const res = await fetch(pageUrl, { 
+              credentials: 'include',
+              headers: {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.9',
+              }
+            });
+            
+            if (!res.ok) {
+              console.error(`Page ${pageNum} fetch failed: ${res.status}`);
+              continue;
+            }
+            
+            const html = await res.text();
+            
+            if (!html.includes('gioMsg_R_')) {
+              console.error(`Page ${pageNum} has no comments`);
+              break;
+            }
+            
+            // 提取所有评论
+            const commentRegex = /<div id="gioMsg_R_(\d+)"[^>]*subject=['"]([^'"]*)['"][^>]*userID=['"]([^'"]*)['"][^>]*userName=['"]([^'"]*)['"]\s*><\/div>/g;
+            let match;
+            const pageComments = [];
+            
+            while ((match = commentRegex.exec(html)) !== null) {
+              const commentId = match[1];
+              const content = match[2]
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&amp;/g, '&')
+                .replace(/&quot;/g, '"')
+                .replace(/&#039;/g, "'");
+              const userId = match[3];
+              const userName = match[4];
+              
+              pageComments.push({
+                comment_id: commentId,
+                user_id: userId,
+                user_name: userName,
+                content: content,
+                page: pageNum,
+                time: '',
+                floor: '',
+                parent_id: ''
+              });
+            }
+            
+            // 提取每条评论的额外信息
+            for (const comment of pageComments) {
+              const commentId = comment.comment_id;
+              const commentMarker = `id="gioMsg_R_${commentId}"`;
+              const idx = html.indexOf(commentMarker);
+              if (idx === -1) continue;
+              
+              // 提取评论块
+              const nextCommentMatch = html.substring(idx + 1).match(/id="gioMsg_R_\d+"/);
+              let blockEnd;
+              if (nextCommentMatch) {
+                blockEnd = idx + 1 + html.substring(idx + 1).indexOf(nextCommentMatch[0]);
+              } else {
+                blockEnd = Math.min(html.length, idx + 5000);
+              }
+              const block = html.substring(idx, blockEnd);
+              
+              // 提取时间
+              const timeMatch = block.match(/<span[^>]*pcyclspan[^>]*>(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})<\/span>/);
+              if (timeMatch) comment.time = timeMatch[1];
+              
+              // 提取楼层
+              const floorMatch = block.match(/>(沙发|板凳|地板|第\d+楼)</);
+              if (floorMatch) comment.floor = floorMatch[1];
+              
+              // 提取父级评论ID（核心字段）
+              const parentMatch = block.match(/moreQuoteContent\(this,\d+,(\d+)\)/);
+              if (parentMatch) comment.parent_id = parentMatch[1];
+            }
+            
+            allComments.push(...pageComments);
+            pagesScanned++;
+            
+          } catch (e) {
+            console.error(`Error fetching page ${pageNum}: ${e.message}`);
+            break;
+          }
+        }
+        
+        return allComments.slice(0, limitPerPage * maxPages);
+      })()
+
+  - map:
+      comment_id: ${{ item.comment_id }}
+      user_name: ${{ item.user_name }}
+      user_id: ${{ item.user_id }}
+      time: ${{ item.time }}
+      floor: ${{ item.floor }}
+      page: ${{ item.page }}
+      content: ${{ item.content }}
+      parent_id: ${{ item.parent_id }}
+
+columns: [comment_id, user_name, time, floor, content, parent_id]

@@ -1,0 +1,123 @@
+site: tgb
+name: user-posts
+description: 获取用户文章列表
+domain: tgb.cn
+strategy: cookie
+browser: true
+
+args:
+  user_id:
+    type: str
+    required: true
+    description: 用户ID
+  limit:
+    type: int
+    default: 20
+    description: 获取文章数量，默认20
+
+pipeline:
+  - navigate: "https://www.tgb.cn/user/blog/moreTopic?userID=${{ args.user_id }}"
+  - evaluate: |
+      (async () => {
+        // 优先尝试从已加载的DOM中提取（更快）
+        const tables = document.querySelectorAll('table');
+        const posts = [];
+        
+        for (const table of tables) {
+          const rows = table.querySelectorAll('tr');
+          
+          for (const row of rows) {
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 8) continue;
+            
+            const titleCell = cells[1];
+            if (!titleCell) continue;
+            
+            const link = titleCell.querySelector('a');
+            if (!link) continue;
+            
+            const href = link.getAttribute('href') || '';
+            if (!href.match(/^a\/[a-zA-Z0-9]+/)) continue;
+            
+            const url = 'https://www.tgb.cn/' + href;
+            const title = titleCell.innerText.trim();
+            const author = cells[2]?.innerText?.trim() || '';
+            const commentTime = cells[3]?.innerText?.trim() || '';
+            const publishDate = cells[7]?.innerText?.trim() || '';
+            
+            if (title && url) {
+              posts.push({
+                title: title,
+                author: author,
+                comment_time: commentTime,
+                publish_date: publishDate,
+                url: url
+              });
+            }
+          }
+        }
+        
+        // 如果DOM提取不到，尝试fetch获取HTML
+        if (posts.length === 0) {
+          try {
+            const res = await fetch(window.location.href, {
+              credentials: 'include'
+            });
+            const html = await res.text();
+            
+            // 解析表格行
+            const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+            let rowMatch;
+            
+            while ((rowMatch = rowRegex.exec(html)) !== null) {
+              const rowHtml = rowMatch[1];
+              
+              // 提取所有单元格
+              const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/g;
+              const cells = [];
+              let cellMatch;
+              while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
+                cells.push(cellMatch[1]);
+              }
+              
+              if (cells.length < 8) continue;
+              
+              // 提取标题和链接
+              const titleMatch = cells[1].match(/<a[^>]*href=["\'](a\/[a-zA-Z0-9]+)["\'][^>]*>([^<]+)/);
+              if (!titleMatch) continue;
+              
+              const href = titleMatch[1];
+              const title = titleMatch[2].trim();
+              
+              // 提取其他字段
+              const author = cells[2].replace(/<[^>]+>/g, '').trim();
+              const commentTime = cells[3].replace(/<[^>]+>/g, '').trim();
+              const publishDate = cells[7].replace(/<[^>]+>/g, '').trim();
+              
+              if (title && href) {
+                posts.push({
+                  title: title,
+                  author: author,
+                  comment_time: commentTime,
+                  publish_date: publishDate,
+                  url: 'https://www.tgb.cn/' + href
+                });
+              }
+            }
+          } catch (e) {
+            // fetch失败，返回空数组
+          }
+        }
+        
+        // 去重
+        const seen = new Set();
+        const unique = posts.filter(p => {
+          if (seen.has(p.url)) return false;
+          seen.add(p.url);
+          return true;
+        });
+        
+        return unique.slice(0, ${{ args.limit }});
+      })()
+
+columns: [title, author, comment_time, publish_date, url]
