@@ -66,6 +66,16 @@ opencli setup
 > opencli doctor --fix      # 修复不一致的配置（交互确认）
 > opencli doctor --fix -y   # 无交互直接修复所有配置
 > ```
+>
+> **VPS / 无头环境提示**：如果你希望启动独立浏览器，而不是连接本地 Chrome 扩展模式，请设置：
+> ```bash
+> export OPENCLI_BROWSER_MODE=standalone
+> export OPENCLI_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium
+> ```
+> 如果是在 Linux root 环境跑 Chromium，还需要再加：
+> ```bash
+> export OPENCLI_MCP_NO_SANDBOX=1
+> ```
 
 <details>
 <summary>手动配置（备选方案）</summary>
@@ -201,6 +211,12 @@ opencli cascade https://api.example.com/data
 - **"Failed to connect to Playwright MCP Bridge"** 报错
   - 确保你当前的 Chrome 已安装且**开启了** Playwright MCP Bridge 浏览器插件。
   - 如果是刚装完插件，需要重启 Chrome 浏览器。
+  - 如果你跑在 VPS 或 CI 上，改成强制 standalone 模式，不要走扩展连接：
+    ```bash
+    export OPENCLI_BROWSER_MODE=standalone
+    export OPENCLI_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium
+    ```
+  - 如果是在 Linux root 环境跑 Chromium，再设置 `OPENCLI_MCP_NO_SANDBOX=1`。
 - **返回空数据，或者报错 "Unauthorized"**
   - Chrome 里的登录态可能已经过期（甚至被要求过滑动验证码）。请打开当前 Chrome 页面，在新标签页重新手工登录或刷新该页面。
 - **Node API 错误 (如 parseArgs, fs 等)**

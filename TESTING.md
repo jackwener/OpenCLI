@@ -213,7 +213,15 @@ CI 中使用 `OPENCLI_BROWSER_EXECUTABLE_PATH` 指定真实 Chrome 路径：
 
 ```yaml
 env:
+  OPENCLI_BROWSER_MODE: standalone
   OPENCLI_BROWSER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+```
+
+如果在 Linux root 环境运行 Chromium，可额外设置：
+
+```yaml
+env:
+  OPENCLI_MCP_NO_SANDBOX: '1'
 ```
 
 ---

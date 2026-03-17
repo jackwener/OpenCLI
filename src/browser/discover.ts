@@ -75,16 +75,31 @@ export function findMcpServerPath(): string | null {
   return _cachedMcpServerPath;
 }
 
+type BrowserMode = 'extension' | 'standalone';
+
+function getBrowserMode(): BrowserMode {
+  const override = process.env.OPENCLI_BROWSER_MODE?.trim().toLowerCase();
+  if (override === 'extension' || override === 'standalone') return override;
+  return process.env.CI ? 'standalone' : 'extension';
+}
+
+function shouldDisableSandbox(): boolean {
+  if (process.env.OPENCLI_MCP_NO_SANDBOX === '1') return true;
+  return process.platform === 'linux' && process.getuid?.() === 0;
+}
+
 export function buildMcpArgs(input: { mcpPath: string; executablePath?: string | null }): string[] {
   const args = [input.mcpPath];
-  if (!process.env.CI) {
-    // Local: always connect to user's running Chrome via MCP Bridge extension
+  if (getBrowserMode() === 'extension') {
+    // Extension mode connects to the user's running Chrome via MCP Bridge.
     args.push('--extension');
   }
-  // CI: standalone mode — @playwright/mcp launches its own browser (headed by default).
-  // xvfb provides a virtual display for headed mode in GitHub Actions.
+  // Standalone mode launches its own browser. CI uses this by default.
   if (input.executablePath) {
     args.push('--executable-path', input.executablePath);
+  }
+  if (shouldDisableSandbox()) {
+    args.push('--no-sandbox');
   }
   return args;
 }

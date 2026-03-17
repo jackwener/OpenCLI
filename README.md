@@ -220,6 +220,12 @@ npx vitest run tests/e2e/                    # E2E tests
 - **"Failed to connect to Playwright MCP Bridge"**
   - Ensure the Playwright MCP extension is installed and **enabled** in your running Chrome.
   - Restart the Chrome browser if you just installed the extension.
+  - If you are running on a VPS or CI host, force standalone mode instead of the extension:
+    ```bash
+    export OPENCLI_BROWSER_MODE=standalone
+    export OPENCLI_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium
+    ```
+  - If Chromium is running as root on Linux, also set `OPENCLI_MCP_NO_SANDBOX=1`.
 - **Empty data returns or 'Unauthorized' error**
   - Your login session in Chrome might have expired. Open a normal Chrome tab, navigate to the target site, and log in or refresh the page to prove you are human.
 - **Node API errors**

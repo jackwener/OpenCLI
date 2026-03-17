@@ -2,6 +2,24 @@ import { describe, it, expect } from 'vitest';
 import { PlaywrightMCP, __test__ } from './browser/index.js';
 
 describe('browser helpers', () => {
+  const setUidForTest = (uid: number) => {
+    const saved = process.getuid;
+    Object.defineProperty(process, 'getuid', {
+      value: () => uid,
+      configurable: true,
+    });
+    return () => {
+      if (saved) {
+        Object.defineProperty(process, 'getuid', {
+          value: saved,
+          configurable: true,
+        });
+      } else {
+        delete (process as NodeJS.Process & { getuid?: () => number }).getuid;
+      }
+    };
+  };
+
   it('creates JSON-RPC requests with unique ids', () => {
     const first = __test__.createJsonRpcRequest('tools/call', { name: 'browser_tabs' });
     const second = __test__.createJsonRpcRequest('tools/call', { name: 'browser_snapshot' });
@@ -51,7 +69,12 @@ describe('browser helpers', () => {
 
   it('builds extension MCP args in local mode (no CI)', () => {
     const savedCI = process.env.CI;
+    const savedMode = process.env.OPENCLI_BROWSER_MODE;
+    const savedNoSandbox = process.env.OPENCLI_MCP_NO_SANDBOX;
+    const restoreUid = setUidForTest(1000);
     delete process.env.CI;
+    delete process.env.OPENCLI_BROWSER_MODE;
+    delete process.env.OPENCLI_MCP_NO_SANDBOX;
     try {
       expect(__test__.buildMcpArgs({
         mcpPath: '/tmp/cli.js',
@@ -70,19 +93,22 @@ describe('browser helpers', () => {
         '--extension',
       ]);
     } finally {
-      if (savedCI !== undefined) {
-        process.env.CI = savedCI;
-      } else {
-        delete process.env.CI;
-      }
+      restoreUid();
+      if (savedCI !== undefined) process.env.CI = savedCI; else delete process.env.CI;
+      if (savedMode !== undefined) process.env.OPENCLI_BROWSER_MODE = savedMode; else delete process.env.OPENCLI_BROWSER_MODE;
+      if (savedNoSandbox !== undefined) process.env.OPENCLI_MCP_NO_SANDBOX = savedNoSandbox; else delete process.env.OPENCLI_MCP_NO_SANDBOX;
     }
   });
 
   it('builds standalone MCP args in CI mode', () => {
     const savedCI = process.env.CI;
+    const savedMode = process.env.OPENCLI_BROWSER_MODE;
+    const savedNoSandbox = process.env.OPENCLI_MCP_NO_SANDBOX;
+    const restoreUid = setUidForTest(1000);
     process.env.CI = 'true';
+    delete process.env.OPENCLI_BROWSER_MODE;
+    delete process.env.OPENCLI_MCP_NO_SANDBOX;
     try {
-      // CI mode: no --extension — browser launches in standalone headed mode
       expect(__test__.buildMcpArgs({
         mcpPath: '/tmp/cli.js',
       })).toEqual([
@@ -98,11 +124,75 @@ describe('browser helpers', () => {
         '/usr/bin/chromium',
       ]);
     } finally {
-      if (savedCI !== undefined) {
-        process.env.CI = savedCI;
-      } else {
-        delete process.env.CI;
-      }
+      restoreUid();
+      if (savedCI !== undefined) process.env.CI = savedCI; else delete process.env.CI;
+      if (savedMode !== undefined) process.env.OPENCLI_BROWSER_MODE = savedMode; else delete process.env.OPENCLI_BROWSER_MODE;
+      if (savedNoSandbox !== undefined) process.env.OPENCLI_MCP_NO_SANDBOX = savedNoSandbox; else delete process.env.OPENCLI_MCP_NO_SANDBOX;
+    }
+  });
+
+  it('allows forcing standalone mode outside CI', () => {
+    const savedCI = process.env.CI;
+    const savedMode = process.env.OPENCLI_BROWSER_MODE;
+    const restoreUid = setUidForTest(1000);
+    delete process.env.CI;
+    process.env.OPENCLI_BROWSER_MODE = 'standalone';
+    try {
+      expect(__test__.buildMcpArgs({
+        mcpPath: '/tmp/cli.js',
+      })).toEqual([
+        '/tmp/cli.js',
+      ]);
+    } finally {
+      restoreUid();
+      if (savedCI !== undefined) process.env.CI = savedCI; else delete process.env.CI;
+      if (savedMode !== undefined) process.env.OPENCLI_BROWSER_MODE = savedMode; else delete process.env.OPENCLI_BROWSER_MODE;
+    }
+  });
+
+  it('allows forcing extension mode in CI', () => {
+    const savedCI = process.env.CI;
+    const savedMode = process.env.OPENCLI_BROWSER_MODE;
+    const restoreUid = setUidForTest(1000);
+    process.env.CI = 'true';
+    process.env.OPENCLI_BROWSER_MODE = 'extension';
+    try {
+      expect(__test__.buildMcpArgs({
+        mcpPath: '/tmp/cli.js',
+      })).toEqual([
+        '/tmp/cli.js',
+        '--extension',
+      ]);
+    } finally {
+      restoreUid();
+      if (savedCI !== undefined) process.env.CI = savedCI; else delete process.env.CI;
+      if (savedMode !== undefined) process.env.OPENCLI_BROWSER_MODE = savedMode; else delete process.env.OPENCLI_BROWSER_MODE;
+    }
+  });
+
+  it('adds no-sandbox when explicitly requested', () => {
+    const savedCI = process.env.CI;
+    const savedMode = process.env.OPENCLI_BROWSER_MODE;
+    const savedNoSandbox = process.env.OPENCLI_MCP_NO_SANDBOX;
+    const restoreUid = setUidForTest(1000);
+    process.env.CI = 'true';
+    delete process.env.OPENCLI_BROWSER_MODE;
+    process.env.OPENCLI_MCP_NO_SANDBOX = '1';
+    try {
+      expect(__test__.buildMcpArgs({
+        mcpPath: '/tmp/cli.js',
+        executablePath: '/usr/bin/chromium',
+      })).toEqual([
+        '/tmp/cli.js',
+        '--executable-path',
+        '/usr/bin/chromium',
+        '--no-sandbox',
+      ]);
+    } finally {
+      restoreUid();
+      if (savedCI !== undefined) process.env.CI = savedCI; else delete process.env.CI;
+      if (savedMode !== undefined) process.env.OPENCLI_BROWSER_MODE = savedMode; else delete process.env.OPENCLI_BROWSER_MODE;
+      if (savedNoSandbox !== undefined) process.env.OPENCLI_MCP_NO_SANDBOX = savedNoSandbox; else delete process.env.OPENCLI_MCP_NO_SANDBOX;
     }
   });
 
@@ -142,6 +232,4 @@ describe('PlaywrightMCP state', () => {
 
     await expect(mcp.connect()).rejects.toThrow('Playwright MCP is closing');
   });
-
-
 });
