@@ -69,6 +69,9 @@ opencli setup
 > opencli doctor --fix -y   # 无交互直接修复所有配置
 > ```
 
+**备选方案：CDP 模式 (适用于服务器/无头环境)**
+如果你无法安装浏览器扩展（比如在远程无头服务器上运行 OpenCLI），你可以通过 SSH 隧道或反向代理，利用 CDP (Chrome DevTools Protocol) 连接到本地的 Chrome 浏览器。详细指南请参考 [CDP 连接教程](./CDP.zh-CN.md)。
+
 <details>
 <summary>手动配置（备选方案）</summary>
 
@@ -197,70 +200,6 @@ opencli cascade https://api.example.com/data
 ```
 
 探索结果输出到 `.opencli/explore/<site>/`。
-
-## 远程 Chrome（服务器/无头环境）
-
-在没有显示器的服务器环境中，可以通过 Chrome DevTools Protocol (CDP) 连接到本地电脑上运行的 Chrome 浏览器。
-
-### 工作原理
-
-```
-本地电脑                                服务器
-┌──────────────────────────────┐       ┌──────────────────────────────┐
-│ Chrome（已登录目标网站）       │       │ OpenCLI                      │
-│ --remote-debugging-port=9222 │◀─────▶│ OPENCLI_CDP_ENDPOINT=        │
-└──────────────────────────────┘  SSH  │   http://localhost:9222      │
-                                隧道   └──────────────────────────────┘
-```
-
-### 第一步：启动带远程调试的 Chrome（本地电脑）
-
-**macOS:**
-```bash
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9222 \
-  --user-data-dir="$HOME/chrome-debug-profile"
-```
-
-**Linux:**
-```bash
-google-chrome --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-debug-profile"
-```
-
-**Windows:**
-```cmd
-"C:\Program Files\Google\Chrome\Application\chrome.exe" ^
-  --remote-debugging-port=9222 ^
-  --user-data-dir="%USERPROFILE%\chrome-debug-profile"
-```
-
-### 第二步：登录目标网站
-
-打开 Chrome 并登录你要使用的网站（如 bilibili.com、zhihu.com）。
-
-### 第三步：建立 SSH 隧道（本地电脑）
-
-将调试端口转发到服务器：
-
-```bash
-ssh -R 9222:localhost:9222 your-server
-```
-
-### 第四步：在服务器上运行 OpenCLI
-
-```bash
-export OPENCLI_CDP_ENDPOINT="http://localhost:9222"
-opencli doctor                    # 验证连接
-opencli bilibili hot --limit 5    # 测试命令
-```
-
-### 持久化配置
-
-添加到 shell 配置文件（`~/.bashrc` 或 `~/.zshrc`）：
-
-```bash
-export OPENCLI_CDP_ENDPOINT="http://localhost:9222"
-```
 
 ## 常见问题排查
 
