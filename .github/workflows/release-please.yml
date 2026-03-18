@@ -12,6 +12,14 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
+      - name: Ensure release-please token is configured
+        run: |
+          if [ -z "${{ secrets.RELEASE_PLEASE_TOKEN }}" ]; then
+            echo "RELEASE_PLEASE_TOKEN secret is required so release PRs can trigger downstream CI workflows." >&2
+            exit 1
+          fi
+
       - uses: googleapis/release-please-action@v4
         with:
           release-type: node
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
