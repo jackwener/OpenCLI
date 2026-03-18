@@ -25,4 +25,5 @@ export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9230"
 | `notion new "title"` | Create a new page (Cmd+N) |
 | `notion write "text"` | Append text to the current page |
 | `notion sidebar` | List pages from the sidebar |
+| `notion favorites` | List pages from the Favorites section |
 | `notion export` | Export page as Markdown |
