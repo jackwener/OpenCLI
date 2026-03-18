@@ -1,6 +1,10 @@
 # Connecting OpenCLI via CDP (Remote/Headless Servers)
 
-For server environments without a display, you can connect OpenCLI to a Chrome browser running on your local machine via Chrome DevTools Protocol (CDP). This is an alternative to using the Playwright MCP Bridge extension.
+If you cannot use the Playwright MCP Bridge extension (e.g., in a remote headless server environment without a UI), OpenCLI provides an alternative: connecting directly to Chrome via **CDP (Chrome DevTools Protocol)**.
+
+Because CDP binds to `localhost` by default for security reasons, accessing it from a remote server requires an additional networking step. This guide explains how to:
+1. Start Chrome with CDP enabled.
+2. Expose that CDP port to your remote server using either **SSH Tunnels** or **Reverse Proxies**.
 
 ## Method 1: SSH Tunnel (Port Forwarding)
 
@@ -31,7 +35,13 @@ google-chrome --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-debug-p
 
 Open the new Chrome instance and log into the websites you want to use (e.g., bilibili.com, zhihu.com) so that the session has the correct cookies.
 
-### Step 3: Create SSH Tunnel (Local Machine)
+---
+
+## Remote Access Methods
+
+Once CDP is running locally, you must securely expose port 9222 to your remote server. Choose one of the two methods below.
+
+### Method 1: SSH Tunnel (Recommended)
 
 Forward the debugging port to your remote server:
 

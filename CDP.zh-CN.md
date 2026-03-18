@@ -1,6 +1,10 @@
-# 通过 CDP 连接 OpenCLI (远程/无头服务器)
+# 通过 CDP 远程连接 OpenCLI (服务器/无头环境)
 
-在没有显示器的服务器环境中，你可以通过 Chrome DevTools Protocol (CDP) 连接到本地电脑上运行的 Chrome 浏览器。这是使用 Playwright MCP Bridge 浏览器扩展之外的另一种备选方案。
+如果你无法使用 Playwright MCP Bridge 浏览器扩展（例如：在由于没有提供界面的远程无头服务器上运行 OpenCLI 时），OpenCLI 提供了通过连接 **CDP (Chrome DevTools Protocol)** 来直接操作 Chrome 的备选方案。
+
+处于安全考虑，CDP 默认仅绑定到 `localhost` 本地端口，这意味着要从远程服务器访问本地的 CDP 服务，需要引入额外的网络方案。本文说明了：
+1. 如何启用 Chrome 的 CDP 调试端口
+2. 借助于 **SSH 隧道反向代理** 或 **反向代理服务 (ngrok 等)** 等网络方案将本地端口暴露给你的服务器。
 
 ## 方法一：SSH 隧道 (反向端口转发)
 
@@ -31,7 +35,13 @@ google-chrome --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-debug-p
 
 在打开的 Chrome 实例中，登录你要使用的网站（如 bilibili.com、zhihu.com），以确保会话中包含正确的 Cookie。
 
-### 第三步：建立 SSH 隧道（本地电脑）
+---
+
+## 暴露给服务器的网络连接方案
+
+在你的本地启动 CDP 后，你需要通过安全的方式将 9222 端口暴露给远端的服务器。根据你的网络条件，请从下方两种方法中选择其一。
+
+### 方法一：SSH 隧道反向端口转发 (推荐)
 
 将调试端口反向转发到服务器：
 
