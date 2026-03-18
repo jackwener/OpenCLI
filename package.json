@@ -6,7 +6,7 @@
   },
   "description": "Make any website your CLI. AI-powered.",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "type": "module",
   "main": "dist/main.js",

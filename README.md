@@ -44,7 +44,7 @@ Turn ANY Electron application into a CLI tool! Recombine, script, and extend app
 
 ## Prerequisites
 
-- **Node.js**: >= 18.0.0
+- **Node.js**: >= 20.0.0
 - **Chrome** running **and logged into the target site** (e.g. bilibili.com, zhihu.com, xiaohongshu.com).
 
 > **⚠️ Important**: Browser commands reuse your Chrome login session. You must be logged into the target website in Chrome before running commands. If you get empty data or errors, check your login status first.
