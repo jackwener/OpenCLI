@@ -30,81 +30,80 @@ cli({
       (async () => {
         const limit = ${limit};
         const typeFilter = '${optionType}'.toLowerCase();
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
-        const headers = { 'X-CSRF-TOKEN': csrf };
 
+        // Wait for CSRF token to appear (Angular may inject it after initial render)
+        let csrf = '';
+        for (let i = 0; i < 10; i++) {
+          csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+          if (csrf) break;
+          await new Promise(r => setTimeout(r, 500));
+        }
+        if (!csrf) return { error: 'no-csrf' };
+
+        const headers = { 'X-CSRF-TOKEN': csrf };
         const fields = [
           'baseSymbol','strikePrice','expirationDate','optionType',
           'lastPrice','volume','openInterest','volumeOpenInterestRatio','volatility',
         ].join(',');
 
-        // Fetch extra rows when filtering by type since server-side filter may not work
+        // Fetch extra rows when filtering by type since server-side filter doesn't work
         const fetchLimit = typeFilter !== 'all' ? limit * 3 : limit;
-        try {
-          const url = '/proxies/core-api/v1/options/get?list=options.unusual_activity.stocks.us'
-            + '&fields=' + fields
-            + '&orderBy=volumeOpenInterestRatio&orderDir=desc'
-            + '&raw=1&limit=' + fetchLimit;
 
-          const resp = await fetch(url, { credentials: 'include', headers });
-          if (resp.ok) {
+        // Try unusual_activity first, fall back to mostActive (unusual_activity is
+        // empty outside market hours)
+        const lists = [
+          'options.unusual_activity.stocks.us',
+          'options.mostActive.us',
+        ];
+
+        for (const list of lists) {
+          try {
+            const url = '/proxies/core-api/v1/options/get?list=' + list
+              + '&fields=' + fields
+              + '&orderBy=volumeOpenInterestRatio&orderDir=desc'
+              + '&raw=1&limit=' + fetchLimit;
+
+            const resp = await fetch(url, { credentials: 'include', headers });
+            if (!resp.ok) continue;
             const d = await resp.json();
             let items = d?.data || [];
-            if (items.length > 0) {
-              // Apply client-side type filter
-              if (typeFilter !== 'all') {
-                items = items.filter(i => {
-                  const t = ((i.raw || i).optionType || '').toLowerCase();
-                  return t === typeFilter;
-                });
-              }
-              return items.slice(0, limit).map(i => {
-                const r = i.raw || i;
-                return {
-                  symbol: r.baseSymbol || r.symbol,
-                  type: r.optionType,
-                  strike: r.strikePrice,
-                  expiration: r.expirationDate,
-                  last: r.lastPrice,
-                  volume: r.volume,
-                  openInterest: r.openInterest,
-                  volOiRatio: r.volumeOpenInterestRatio,
-                  iv: r.volatility,
-                };
+            if (items.length === 0) continue;
+
+            // Apply client-side type filter
+            if (typeFilter !== 'all') {
+              items = items.filter(i => {
+                const t = ((i.raw || i).optionType || '').toLowerCase();
+                return t === typeFilter;
               });
             }
-          }
-        } catch(e) {}
-
-        // Fallback: parse from DOM table
-        try {
-          const rows = document.querySelectorAll('tr[data-ng-repeat], tbody tr');
-          const results = [];
-          for (const row of rows) {
-            const cells = row.querySelectorAll('td');
-            if (cells.length < 6) continue;
-            const getText = (idx) => cells[idx]?.textContent?.trim() || null;
-            results.push({
-              symbol: getText(0),
-              type: getText(1),
-              strike: getText(2),
-              expiration: getText(3),
-              last: getText(4),
-              volume: getText(5),
-              openInterest: cells.length > 6 ? getText(6) : null,
-              volOiRatio: cells.length > 7 ? getText(7) : null,
-              iv: cells.length > 8 ? getText(8) : null,
+            return items.slice(0, limit).map(i => {
+              const r = i.raw || i;
+              return {
+                symbol: r.baseSymbol || r.symbol,
+                type: r.optionType,
+                strike: r.strikePrice,
+                expiration: r.expirationDate,
+                last: r.lastPrice,
+                volume: r.volume,
+                openInterest: r.openInterest,
+                volOiRatio: r.volumeOpenInterestRatio,
+                iv: r.volatility,
+              };
             });
-            if (results.length >= limit) break;
-          }
-          return results;
-        } catch(e) {
-          return [];
+          } catch(e) {}
         }
+
+        return [];
       })()
     `);
 
-    if (!data || !Array.isArray(data)) return [];
+    if (!data) return [];
+
+    if (data.error === 'no-csrf') {
+      throw new Error('Could not extract CSRF token from barchart.com. Make sure you are logged in.');
+    }
+
+    if (!Array.isArray(data)) return [];
 
     return data.slice(0, limit).map(r => ({
       symbol: r.symbol || '',
