@@ -17,6 +17,7 @@ npm run build
 
 # 4. Run a few checks
 npx tsc --noEmit
+npm run lint
 npx vitest run src/
 
 # 5. Link globally (optional, for testing `opencli` command)
@@ -130,7 +131,8 @@ npx vitest run                # All tests
 
 ## Code Style
 
-- **TypeScript strict mode** — avoid `any` where possible.
+- **ESLint** — enforced via [`@antfu/eslint-config`](https://github.com/antfu/eslint-config) (flat config). Run `npm run lint` to check, `npm run lint:fix` to auto-fix.
+- **TypeScript strict mode** — avoid `any` where possible (currently `warn`, will be tightened to `error`).
 - **ES Modules** — use `.js` extensions in imports (TypeScript output).
 - **Naming**: `kebab-case` for files, `camelCase` for variables/functions, `PascalCase` for types/classes.
 - **No default exports** — use named exports.
@@ -156,6 +158,7 @@ Common scopes: site name (`twitter`, `reddit`) or module name (`browser`, `pipel
 3. Run the checks that apply:
    ```bash
    npx tsc --noEmit           # Type check
+   npm run lint               # ESLint
    npx vitest run src/        # Unit tests
    opencli validate           # YAML validation (if applicable)
    ```

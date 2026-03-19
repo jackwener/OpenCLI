@@ -22,7 +22,8 @@
     "start": "node dist/main.js",
     "postinstall": "node scripts/postinstall.js || true",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "prepublishOnly": "npm run build",
     "test": "vitest run",
     "test:site": "node scripts/test-site.mjs",
@@ -48,9 +49,11 @@
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
+    "@antfu/eslint-config": "^7.7.3",
     "@playwright/mcp": "^0.0.68",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.13.10",
+    "eslint": "^10.0.3",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
     "vitest": "^4.1.0"
