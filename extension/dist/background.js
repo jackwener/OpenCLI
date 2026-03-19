@@ -1,6 +1,7 @@
 const DAEMON_PORT = 19825;
 const DAEMON_HOST = "localhost";
 const DAEMON_WS_URL = `ws://${DAEMON_HOST}:${DAEMON_PORT}/ext`;
+const DAEMON_HTTP_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}`;
 const WS_RECONNECT_BASE_DELAY = 2e3;
 const WS_RECONNECT_MAX_DELAY = 6e4;
 
@@ -94,6 +95,7 @@ function registerListeners() {
 let ws = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
+let connecting = false;
 const _origLog = console.log.bind(console);
 const _origWarn = console.warn.bind(console);
 const _origError = console.error.bind(console);
@@ -117,15 +119,48 @@ console.error = (...args) => {
   _origError(...args);
   forwardLog("error", args);
 };
-function connect() {
-  if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
+async function isDaemonReachable() {
   try {
-    ws = new WebSocket(DAEMON_WS_URL);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 2e3);
+    await fetch(DAEMON_HTTP_URL, { method: "HEAD", signal: ctrl.signal });
+    clearTimeout(timer);
+    return true;
   } catch {
+    return false;
+  }
+}
+function connect() {
+  if (connecting) return;
+  if (ws) {
+    const state = ws.readyState;
+    if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
+    if (state === WebSocket.CLOSING) return;
+  }
+  connecting = true;
+  isDaemonReachable().then((reachable) => {
+    if (!reachable) {
+      connecting = false;
+      ws = null;
+      scheduleReconnect();
+      return;
+    }
+    openWebSocket();
+  });
+}
+function openWebSocket() {
+  let socket;
+  try {
+    socket = new WebSocket(DAEMON_WS_URL);
+  } catch (err) {
+    connecting = false;
+    ws = null;
     scheduleReconnect();
     return;
   }
-  ws.onopen = () => {
+  ws = socket;
+  connecting = false;
+  socket.onopen = () => {
     console.log("[opencli] Connected to daemon");
     reconnectAttempts = 0;
     if (reconnectTimer) {
@@ -133,22 +168,27 @@ function connect() {
       reconnectTimer = null;
     }
   };
-  ws.onmessage = async (event) => {
+  socket.onmessage = async (event) => {
     try {
       const command = JSON.parse(event.data);
       const result = await handleCommand(command);
-      ws?.send(JSON.stringify(result));
+      if (ws === socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(result));
+      }
     } catch (err) {
       console.error("[opencli] Message handling error:", err);
     }
   };
-  ws.onclose = () => {
+  socket.onclose = () => {
     console.log("[opencli] Disconnected from daemon");
-    ws = null;
+    if (ws === socket) ws = null;
     scheduleReconnect();
   };
-  ws.onerror = () => {
-    ws?.close();
+  socket.onerror = () => {
+    try {
+      socket.close();
+    } catch {
+    }
   };
 }
 function scheduleReconnect() {

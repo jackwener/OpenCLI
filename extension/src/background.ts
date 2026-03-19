@@ -6,12 +6,13 @@
  */
 
 import type { Command, Result } from './protocol';
-import { DAEMON_WS_URL, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
+import { DAEMON_WS_URL, DAEMON_HTTP_URL, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
 import * as cdp from './cdp';
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
+let connecting = false;
 
 // ─── Console log forwarding ──────────────────────────────────────────
 // Hook console.log/warn/error to forward logs to daemon via WebSocket.
@@ -34,43 +35,97 @@ console.error = (...args: unknown[]) => { _origError(...args); forwardLog('error
 
 // ─── WebSocket connection ────────────────────────────────────────────
 
-function connect(): void {
-  if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
-
+/**
+ * Probe whether the daemon is reachable before opening a WebSocket.
+ * This avoids the noisy ERR_CONNECTION_REFUSED console error that Chrome
+ * prints for failed WebSocket connections (which cannot be suppressed).
+ */
+async function isDaemonReachable(): Promise<boolean> {
   try {
-    ws = new WebSocket(DAEMON_WS_URL);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 2000);
+    // A simple fetch to the daemon HTTP port — any response (even 404) means it's up.
+    await fetch(DAEMON_HTTP_URL, { method: 'HEAD', signal: ctrl.signal });
+    clearTimeout(timer);
+    return true;
   } catch {
+    return false;
+  }
+}
+
+function connect(): void {
+  // Guard against all in-progress or active states
+  if (connecting) return;
+  if (ws) {
+    const state = ws.readyState;
+    if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
+    // CLOSING state — wait for onclose to fire, which will schedule reconnect
+    if (state === WebSocket.CLOSING) return;
+  }
+
+  connecting = true;
+
+  // Probe first, then connect — avoids ERR_CONNECTION_REFUSED noise
+  isDaemonReachable().then((reachable) => {
+    if (!reachable) {
+      connecting = false;
+      ws = null;
+      scheduleReconnect();
+      return;
+    }
+    openWebSocket();
+  });
+}
+
+function openWebSocket(): void {
+  let socket: WebSocket;
+  try {
+    socket = new WebSocket(DAEMON_WS_URL);
+  } catch (err) {
+    // WebSocket constructor can throw if the Service Worker is being
+    // terminated or the URL is unreachable at construction time.
+    connecting = false;
+    ws = null;
     scheduleReconnect();
     return;
   }
+  ws = socket;
+  connecting = false;
 
-  ws.onopen = () => {
+  socket.onopen = () => {
     console.log('[opencli] Connected to daemon');
-    reconnectAttempts = 0; // Reset on successful connection
+    reconnectAttempts = 0;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
   };
 
-  ws.onmessage = async (event) => {
+  socket.onmessage = async (event) => {
     try {
       const command = JSON.parse(event.data as string) as Command;
       const result = await handleCommand(command);
-      ws?.send(JSON.stringify(result));
+      // Only send if this socket is still the active one and open
+      if (ws === socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(result));
+      }
     } catch (err) {
       console.error('[opencli] Message handling error:', err);
     }
   };
 
-  ws.onclose = () => {
+  socket.onclose = () => {
     console.log('[opencli] Disconnected from daemon');
-    ws = null;
+    // Only clear if this is still the active socket (avoid race with a newer connect())
+    if (ws === socket) ws = null;
     scheduleReconnect();
   };
 
-  ws.onerror = () => {
-    ws?.close();
+  socket.onerror = () => {
+    // onerror is always followed by onclose, so just make sure the socket
+    // is closed cleanly. Wrap in try/catch since close() can throw if the
+    // Service Worker context is being torn down.
+    try { socket.close(); } catch { /* ignored */ }
   };
 }
 
