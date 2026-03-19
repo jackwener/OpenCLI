@@ -12,6 +12,40 @@ function isExpectedXiaoyuzhouRestriction(code: number, stderr: string): boolean 
 }
 
 describe('public commands E2E', () => {
+  // ── apple-podcasts ──
+  it('apple-podcasts search returns structured podcast results', async () => {
+    const { stdout, code } = await runCli(['apple-podcasts', 'search', 'technology', '--limit', '3', '-f', 'json']);
+    expect(code).toBe(0);
+    const data = parseJsonOutput(stdout);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeGreaterThanOrEqual(1);
+    expect(data[0]).toHaveProperty('id');
+    expect(data[0]).toHaveProperty('title');
+    expect(data[0]).toHaveProperty('author');
+  }, 30_000);
+
+  it('apple-podcasts episodes returns episode list from a known show', async () => {
+    const { stdout, code } = await runCli(['apple-podcasts', 'episodes', '275699983', '--limit', '3', '-f', 'json']);
+    expect(code).toBe(0);
+    const data = parseJsonOutput(stdout);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeGreaterThanOrEqual(1);
+    expect(data[0]).toHaveProperty('title');
+    expect(data[0]).toHaveProperty('duration');
+    expect(data[0]).toHaveProperty('date');
+  }, 30_000);
+
+  it('apple-podcasts top returns ranked podcasts', async () => {
+    const { stdout, code } = await runCli(['apple-podcasts', 'top', '--limit', '3', '--country', 'us', '-f', 'json']);
+    expect(code).toBe(0);
+    const data = parseJsonOutput(stdout);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBe(3);
+    expect(data[0]).toHaveProperty('rank');
+    expect(data[0]).toHaveProperty('title');
+    expect(data[0]).toHaveProperty('id');
+  }, 30_000);
+
   // ── hackernews ──
   it('hackernews top returns structured data', async () => {
     const { stdout, code } = await runCli(['hackernews', 'top', '--limit', '3', '-f', 'json']);

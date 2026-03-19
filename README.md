@@ -161,6 +161,7 @@ Run `opencli list` for the live registry.
 | **antigravity** | `status` `send` `read` `new` `evaluate` | 🖥️ Desktop |
 | **chatgpt** | `status` `new` `send` `read` `ask` | 🖥️ Desktop |
 | **xiaohongshu** | `search` `notifications` `feed` `me` `user` `download` | 🔐 Browser |
+| **apple-podcasts** | `search` `episodes` `top` | 🌐 Public |
 | **xiaoyuzhou** | `podcast` `podcast-episodes` `episode` | 🌐 Public |
 | **zhihu** | `hot` `search` `question` `download` | 🔐 Browser |
 | **youtube** | `search` `video` `transcript` | 🔐 Browser |
