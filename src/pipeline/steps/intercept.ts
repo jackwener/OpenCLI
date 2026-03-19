@@ -3,7 +3,7 @@
  */
 
 import type { IPage } from '../../types.js';
-import { render } from '../template.js';
+import { render, normalizeEvaluateSource } from '../template.js';
 import { generateInterceptorJs, generateReadInterceptedJs } from '../../interceptor.js';
 
 export async function stepIntercept(page: IPage | null, params: any, data: any, args: Record<string, any>): Promise<any> {
@@ -24,7 +24,6 @@ export async function stepIntercept(page: IPage | null, params: any, data: any, 
     await page!.goto(String(url));
   } else if (trigger.startsWith('evaluate:')) {
     const js = trigger.slice('evaluate:'.length);
-    const { normalizeEvaluateSource } = await import('../template.js');
     await page!.evaluate(normalizeEvaluateSource(render(js, { args, data }) as string));
   } else if (trigger.startsWith('click:')) {
     const ref = render(trigger.slice('click:'.length), { args, data });

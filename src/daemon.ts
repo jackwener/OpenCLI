@@ -70,8 +70,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
   const url = req.url ?? '/';
+  const pathname = url.split('?')[0];
 
-  if (req.method === 'GET' && url === '/status') {
+  if (req.method === 'GET' && pathname === '/status') {
     jsonResponse(res, 200, {
       ok: true,
       extensionConnected: extensionWs?.readyState === WebSocket.OPEN,
@@ -80,8 +81,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  if (req.method === 'GET' && url === '/logs') {
-    const level = new URL(url, `http://localhost:${PORT}`).searchParams.get('level');
+  if (req.method === 'GET' && pathname === '/logs') {
+    const params = new URL(url, `http://localhost:${PORT}`).searchParams;
+    const level = params.get('level');
     const filtered = level
       ? logBuffer.filter(e => e.level === level)
       : logBuffer;
@@ -89,7 +91,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  if (req.method === 'DELETE' && url === '/logs') {
+  if (req.method === 'DELETE' && pathname === '/logs') {
     logBuffer.length = 0;
     jsonResponse(res, 200, { ok: true });
     return;
@@ -199,5 +201,17 @@ httpServer.on('error', (err: NodeJS.ErrnoException) => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => process.exit(0));
-process.on('SIGINT', () => process.exit(0));
+function shutdown(): void {
+  // Reject all pending requests so CLI doesn't hang
+  for (const [, p] of pending) {
+    clearTimeout(p.timer);
+    p.reject(new Error('Daemon shutting down'));
+  }
+  pending.clear();
+  if (extensionWs) extensionWs.close();
+  httpServer.close();
+  process.exit(0);
+}
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

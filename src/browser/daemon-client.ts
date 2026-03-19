@@ -108,4 +108,6 @@ export async function sendCommand(
       throw err;
     }
   }
+  // Unreachable — the loop always returns or throws
+  throw new Error('sendCommand: max retries exhausted');
 }

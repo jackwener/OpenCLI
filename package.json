@@ -32,8 +32,7 @@
     "cli",
     "browser",
     "web",
-    "ai",
-    "browser"
+    "ai"
   ],
   "author": "jackwener",
   "license": "Apache-2.0",

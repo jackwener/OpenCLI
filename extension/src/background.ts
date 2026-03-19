@@ -87,7 +87,11 @@ function scheduleReconnect(): void {
 
 // ─── Lifecycle events ────────────────────────────────────────────────
 
+let initialized = false;
+
 function initialize(): void {
+  if (initialized) return;
+  initialized = true;
   chrome.alarms.create('keepalive', { periodInMinutes: 0.4 }); // ~24 seconds
   cdp.registerListeners();
   connect();

@@ -4,7 +4,7 @@
  */
 
 import type { IPage } from '../../types.js';
-import { render, normalizeEvaluateSource } from '../template.js';
+import { render } from '../template.js';
 
 export async function stepNavigate(page: IPage | null, params: any, data: any, args: Record<string, any>): Promise<any> {
   const url = render(params, { args, data });
