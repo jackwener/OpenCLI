@@ -1,6 +1,7 @@
 import { execSync, spawnSync } from 'node:child_process';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
+import { getVisibleChatMessages } from './ax.js';
 
 export const askCommand = cli({
   site: 'chatgpt',
@@ -21,6 +22,7 @@ export const askCommand = cli({
     // Backup clipboard
     let clipBackup = '';
     try { clipBackup = execSync('pbpaste', { encoding: 'utf-8' }); } catch {}
+    const messagesBefore = getVisibleChatMessages();
 
     // Send the message
     spawnSync('pbcopy', { input: text });
@@ -35,32 +37,29 @@ export const askCommand = cli({
                 "-e 'end tell'";
     execSync(cmd);
 
-    // Clear clipboard marker
-    spawnSync('pbcopy', { input: '__OPENCLI_WAITING__' });
+    // Restore clipboard after the prompt is sent.
+    if (clipBackup) spawnSync('pbcopy', { input: clipBackup });
 
-    // Wait for response, then read it
-    const pollInterval = 3;
+    // Wait for response, then read the latest visible assistant message from the AX tree.
+    const pollInterval = 1;
     const maxPolls = Math.ceil(timeout / pollInterval);
     let response = '';
 
     for (let i = 0; i < maxPolls; i++) {
-      // Wait
       execSync(`sleep ${pollInterval}`);
-
-      // Try Cmd+Shift+C to copy the latest response
       execSync("osascript -e 'tell application \"ChatGPT\" to activate'");
-      execSync("osascript -e 'tell application \"System Events\" to keystroke \"c\" using {command down, shift down}'");
-      execSync("osascript -e 'delay 0.3'");
+      execSync("osascript -e 'delay 0.2'");
 
-      const copied = execSync('pbpaste', { encoding: 'utf-8' }).trim();
-      if (copied && copied !== '__OPENCLI_WAITING__' && copied !== text) {
-        response = copied;
+      const messagesNow = getVisibleChatMessages();
+      if (messagesNow.length <= messagesBefore.length) continue;
+
+      const newMessages = messagesNow.slice(messagesBefore.length);
+      const candidate = [...newMessages].reverse().find((message) => message !== text);
+      if (candidate) {
+        response = candidate;
         break;
       }
     }
-
-    // Restore clipboard
-    if (clipBackup) spawnSync('pbcopy', { input: clipBackup });
 
     if (!response) {
       return [
