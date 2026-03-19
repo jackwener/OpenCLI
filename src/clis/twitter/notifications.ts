@@ -12,17 +12,17 @@ cli({
   ],
   columns: ['id', 'action', 'author', 'text', 'url'],
   func: async (page, kwargs) => {
-    // Install the interceptor before loading the notifications page so we
-    // capture the initial timeline request triggered during page load.
-    await page.goto('https://x.com');
-    await page.wait(2);
+    // 1. Navigate directly to notifications
+    await page.goto('https://x.com/notifications');
+    await page.wait(3);
+
+    // 2. Install interceptor after page load (must be after goto, not before,
+    //    because goto triggers a full navigation that resets the JS context).
+    //    Note: this misses the initial request fired during hydration;
+    //    we rely on scroll-triggered pagination to capture data.
     await page.installInterceptor('NotificationsTimeline');
 
-    // 1. Navigate to notifications
-    await page.goto('https://x.com/notifications');
-    await page.wait(5);
-
-    // 3. Trigger API by scrolling (if we need to load more)
+    // 3. Scroll to trigger API calls (load more notifications)
     await page.autoScroll({ times: 2, delayMs: 2000 });
 
     // 4. Retrieve data

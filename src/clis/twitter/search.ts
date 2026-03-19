@@ -13,18 +13,18 @@ cli({
   ],
   columns: ['id', 'author', 'text', 'likes', 'views', 'url'],
   func: async (page, kwargs) => {
-    // Install the interceptor before opening the target page so we don't miss
-    // the initial SearchTimeline request fired during hydration.
-    await page.goto('https://x.com');
-    await page.wait(2);
-    await page.installInterceptor('SearchTimeline');
-
-    // 1. Navigate to the search page
+    // 1. Navigate directly to the search page
     const q = encodeURIComponent(kwargs.query);
     await page.goto(`https://x.com/search?q=${q}&f=top`);
-    await page.wait(5);
+    await page.wait(3);
 
-    // 3. Trigger API by scrolling
+    // 2. Install interceptor after page load (must be after goto, not before,
+    //    because goto triggers a full navigation that resets the JS context).
+    //    Note: this misses the initial SearchTimeline request fired during
+    //    hydration; we rely on scroll-triggered pagination to capture data.
+    await page.installInterceptor('SearchTimeline');
+
+    // 3. Scroll to trigger SearchTimeline API calls (pagination)
     await page.autoScroll({ times: 3, delayMs: 2000 });
     
     // 4. Retrieve data
