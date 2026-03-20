@@ -21,6 +21,10 @@ cli({
   func: async (page, kwargs) => {
     const url = validateBloombergLink(kwargs.link);
 
+    // Navigate and wait for the page to hydrate before extracting story data.
+    await page.goto(url);
+    await page.wait(5);
+
     const loadStory = async () => page.evaluate(`(() => {
       const isRobot = /Are you a robot/i.test(document.title)
         || /unusual activity/i.test(document.body.innerText)
@@ -79,12 +83,11 @@ cli({
       };
     })()`);
 
-    await page.goto(url);
-    await page.wait(4);
-
     let result: any = await loadStory();
+
+    // Retry once — Bloomberg pages sometimes hydrate slowly.
     if (result?.errorCode === 'NO_NEXT_DATA' || result?.errorCode === 'NO_STORY') {
-      await page.wait(3);
+      await page.wait(4);
       result = await loadStory();
     }
 

@@ -249,8 +249,9 @@ function scanTs(filePath: string, site: string): ManifestEntry | null {
     }
 
     return entry;
-  } catch {
-    // If parsing fails, fall back to empty metadata — module will self-register at runtime
+  } catch (err: any) {
+    // If parsing fails, log a warning (matching scanYaml behaviour) and skip the entry.
+    process.stderr.write(`Warning: failed to scan ${filePath}: ${err.message}\n`);
     return null;
   }
 }

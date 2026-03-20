@@ -29,8 +29,9 @@ describe('public commands E2E', () => {
     expect(Array.isArray(data[0].mediaLinks)).toBe(true);
   }, 30_000);
 
-  it('bloomberg section commands return structured RSS items', async () => {
-    for (const section of ['markets', 'economics', 'industries', 'tech', 'politics', 'businessweek', 'opinions']) {
+  it.each(['markets', 'economics', 'industries', 'tech', 'politics', 'businessweek', 'opinions'])(
+    'bloomberg %s returns structured RSS items',
+    async (section) => {
       const { stdout, code } = await runCli(['bloomberg', section, '--limit', '1', '-f', 'json']);
       expect(code).toBe(0);
       const data = parseJsonOutput(stdout);
@@ -40,8 +41,9 @@ describe('public commands E2E', () => {
       expect(data[0]).toHaveProperty('summary');
       expect(data[0]).toHaveProperty('link');
       expect(data[0]).toHaveProperty('mediaLinks');
-    }
-  }, 60_000);
+    },
+    30_000,
+  );
 
   it('bloomberg feeds lists the supported RSS aliases', async () => {
     const { stdout, code } = await runCli(['bloomberg', 'feeds', '-f', 'json']);

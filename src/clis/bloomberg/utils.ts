@@ -112,7 +112,7 @@ export function validateBloombergLink(input: string): string {
     );
   }
 
-  if (!/([.]|^)bloomberg\.com$/i.test(url.hostname)) {
+  if (!/(?:\.|^)bloomberg\.com$/i.test(url.hostname)) {
     throw new CliError(
       'ARGUMENT',
       `Expected a bloomberg.com link, got: ${url.hostname}`,
