@@ -1,0 +1,30 @@
+site: leetcode
+name: problems
+description: LeetCode problem list with acceptance rates
+domain: leetcode.com
+strategy: public
+browser: false
+
+args:
+  limit:
+    type: int
+    default: 20
+    description: Number of problems (from newest)
+
+pipeline:
+  - fetch:
+      url: https://leetcode.com/api/problems/all/
+
+  - select: stat_status_pairs
+
+  - map:
+      id: ${{ item.stat.frontend_question_id }}
+      title: ${{ item.stat.question__title }}
+      difficulty: ${{ item.difficulty.level }}
+      acceptance: ${{ item.stat.total_acs }}
+      submissions: ${{ item.stat.total_submitted }}
+      paid: ${{ item.paid_only }}
+
+  - limit: ${{ args.limit }}
+
+columns: [id, title, difficulty, acceptance, submissions, paid]
