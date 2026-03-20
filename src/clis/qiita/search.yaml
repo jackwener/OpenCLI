@@ -1,0 +1,31 @@
+site: qiita
+name: search
+description: Search Qiita developer articles
+domain: qiita.com
+strategy: public
+browser: false
+
+args:
+  query:
+    type: string
+    required: true
+    description: "Search query (supports tag:python, user:username)"
+  limit:
+    type: int
+    default: 15
+    description: Number of articles
+
+pipeline:
+  - fetch:
+      url: https://qiita.com/api/v2/items?page=1&per_page=${{ args.limit }}&query=${{ args.query }}
+
+  - map:
+      title: ${{ item.title }}
+      author: ${{ item.user.id }}
+      likes: ${{ item.likes_count }}
+      comments: ${{ item.comments_count }}
+      url: ${{ item.url }}
+
+  - limit: ${{ args.limit }}
+
+columns: [title, author, likes, comments, url]
