@@ -1,0 +1,39 @@
+site: connpass
+name: search
+description: Search tech events on Connpass (Japan)
+domain: connpass.com
+browser: true
+
+args:
+  query:
+    type: string
+    description: Search keyword (e.g. Python, React, Go)
+  limit:
+    type: int
+    default: 20
+    description: Number of events
+
+pipeline:
+  - navigate: https://connpass.com
+
+  - evaluate: |
+      (async () => {
+        let url = 'https://connpass.com/api/v1/event/?order=2&count=${{ args.limit }}';
+        const q = '${{ args.query }}';
+        if (q) url += '&keyword=' + encodeURIComponent(q);
+        const res = await fetch(url, { credentials: 'include' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        return (json.events || []).map((e, i) => ({
+          rank: i + 1,
+          title: e.title,
+          date: (e.started_at || '').substring(0, 10),
+          place: e.place || 'Online',
+          accepted: e.accepted + '/' + (e.limit || '∞'),
+          url: e.event_url,
+        }));
+      })()
+
+  - limit: ${{ args.limit }}
+
+columns: [rank, title, date, place, accepted, url]
