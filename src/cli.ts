@@ -15,6 +15,40 @@ import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
+import { CliError } from './errors.js';
+import { applyBrowserRuntimeOptions } from './browser/backend.js';
+import { runBrowserBackendDoctor, renderBrowserBackendDoctorReport } from './browser/doctor.js';
+import { launchDebugBrowser } from './browser/launch.js';
+import { listDebugBrowsers, parsePortList, parsePortRange } from './browser/instances.js';
+import { renderStopBrowsersReport, stopBrowsers } from './browser/manage.js';
+import {
+  listBrowserProfiles,
+  profileLabel,
+  pruneTemporaryProfiles,
+  removeBrowserProfile,
+  renderPruneTemporaryProfilesReport,
+  renderRemoveBrowserProfileReport,
+} from './browser/profiles.js';
+import { extractPassthroughArgs, runOpenCliWithBrowserBackend } from './browser/run.js';
+
+function addBrowserRuntimeOptions(command: Command): Command {
+  return command
+    .option('--backend <mode>', 'Browser backend: auto, extension, cdp', 'auto')
+    .option('--cdp-endpoint <url>', 'Direct CDP endpoint, for example http://127.0.0.1:9222')
+    .option('--cdp-target <pattern>', 'Preferred CDP target title or URL pattern');
+}
+
+function applyBrowserOptions(opts: { backend?: string; cdpEndpoint?: string; cdpTarget?: string } = {}): void {
+  applyBrowserRuntimeOptions({
+    mode: opts.backend,
+    cdpEndpoint: opts.cdpEndpoint,
+    cdpTarget: opts.cdpTarget,
+  });
+}
+
+function collectRepeatedOption(value: string, previous: string[] = []): string[] {
+  return [...previous, value];
+}
 
 export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
   const program = new Command();
@@ -226,6 +260,256 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .argument('<shell>', 'Shell type: bash, zsh, or fish')
     .action((shell) => {
       printCompletionScript(shell);
+    });
+
+  const browserCmd = program
+    .command('browser')
+    .description('Additive browser backend utilities without modifying existing commands');
+  browserCmd.helpCommand(false);
+
+  addBrowserRuntimeOptions(
+    browserCmd
+      .command('doctor')
+      .description('Diagnose browser backend connectivity for extension or CDP workflows')
+      .option('--live', 'Test browser connectivity (requires backend to be reachable)', false)
+      .option('--sessions', 'Show active automation sessions in extension mode', false),
+  )
+    .addHelpText('after', [
+      '',
+      'Examples:',
+      '  opencli browser doctor --backend extension --live',
+      '  opencli browser doctor --backend cdp --cdp-endpoint http://127.0.0.1:9222 --live',
+    ].join('\n'))
+    .action(async (opts) => {
+      applyBrowserOptions(opts);
+      const report = await runBrowserBackendDoctor({
+        backend: opts.backend,
+        live: opts.live,
+        sessions: opts.sessions,
+        cliVersion: PKG_VERSION,
+      });
+      console.log(renderBrowserBackendDoctorReport(report));
+    });
+
+  browserCmd
+    .command('list')
+    .description('List locally discoverable Chrome CDP browsers and opencli-launched instances')
+    .option('--ports <list>', 'Additional ports to check, for example 9222,9339')
+    .option('--range <start-end>', 'Port range to scan (default: 9222-9350)', '9222-9350')
+    .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
+    .addHelpText('after', [
+      '',
+      'Examples:',
+      '  opencli browser list',
+      '  opencli browser list --ports 9222,9339',
+      '  opencli browser list --range 9222-9400 --format json',
+    ].join('\n'))
+    .action(async (opts) => {
+      const instances = await listDebugBrowsers({
+        ports: parsePortList(opts.ports),
+        range: parsePortRange(opts.range),
+      });
+
+      renderOutput(instances.map((entry) => ({
+        port: entry.port,
+        endpoint: entry.endpoint,
+        browser: entry.browserName ?? '',
+        pid: entry.pid ?? '',
+        mode: entry.launchMode,
+        profile: profileLabel(entry),
+        kind: entry.userDataKind,
+        source: entry.source,
+        status: entry.status,
+      })), {
+        fmt: opts.format,
+        columns: ['port', 'endpoint', 'browser', 'pid', 'mode', 'profile', 'kind', 'source', 'status'],
+        title: 'opencli/browser/list',
+        source: 'opencli browser list',
+      });
+    });
+
+  browserCmd
+    .command('launch')
+    .description('Launch a Chrome/Chromium instance with a CDP debugging port')
+    .option('--browser <path>', 'Browser executable name or absolute path')
+    .option('--browser-arg <arg>', 'Additional raw browser launch argument; repeatable', collectRepeatedOption, [])
+    .option('--port <port>', 'Remote debugging port', '9222')
+    .option('--url <url>', 'Initial URL to open', 'about:blank')
+    .option('--profile <name>', 'Named persistent browser profile to reuse')
+    .option('--headless', 'Launch browser in headless mode', false)
+    .option('--foreground', 'Keep the command attached until the browser is closed', false)
+    .option('--timeout <ms>', 'Milliseconds to wait for the CDP endpoint', '15000')
+    .addHelpText('after', [
+      '',
+      'Notes:',
+      '  By default, launch uses a temporary browser profile.',
+      '  Pass --profile <name> when you want to preserve login state or browser data.',
+      '  Use --browser-arg to pass extra raw Chrome/Chromium flags.',
+      '',
+      'Examples:',
+      '  opencli browser launch --port 9222',
+      '  opencli browser launch --port 9222 --foreground',
+      '  opencli browser launch --port 9222 --profile zhihu',
+      '  opencli browser launch --port 9222 --browser-arg=--window-size=1440,900',
+    ].join('\n'))
+    .action(async (opts) => {
+      const launched = await launchDebugBrowser({
+        browser: opts.browser,
+        browserArgs: opts.browserArg,
+        port: parseInt(opts.port, 10),
+        url: opts.url,
+        profile: opts.profile,
+        headless: opts.headless,
+        foreground: opts.foreground,
+        timeoutMs: parseInt(opts.timeout, 10),
+      });
+
+      console.log(chalk.green(`Launched debug browser (pid ${launched.pid})`));
+      console.log(`  Backend: cdp`);
+      console.log(`  Mode: ${launched.launchMode}`);
+      console.log(`  Executable: ${launched.executable}`);
+      console.log(`  Endpoint: ${launched.endpoint}`);
+      console.log(`  Profile: ${launched.profileName ?? '(temporary)'}`);
+      console.log(`  Kind: ${launched.userDataKind}`);
+      if (opts.browserArg?.length) console.log(`  Extra args: ${opts.browserArg.join(' ')}`);
+      if (launched.browserName) console.log(`  Browser: ${launched.browserName}`);
+      if (launched.webSocketDebuggerUrl) console.log(`  WebSocket: ${launched.webSocketDebuggerUrl}`);
+      console.log();
+      console.log('Use it with:');
+      console.log(`  opencli browser doctor --backend cdp --cdp-endpoint ${launched.endpoint} --live`);
+      console.log(`  opencli browser run --backend cdp --cdp-endpoint ${launched.endpoint} -- zhihu search --keyword AI`);
+      if (launched.userDataKind === 'temporary') {
+        console.log('  opencli browser profiles prune --temporary');
+      }
+      if (launched.launchMode === 'foreground' && launched.exitPromise) {
+        const exited = await launched.exitPromise;
+        process.exitCode = exited.code ?? 0;
+      }
+    });
+
+  browserCmd
+    .command('stop')
+    .description('Stop one or more opencli-launched debug browsers')
+    .option('--port <port>', 'Stop the opencli-launched browser bound to this CDP port')
+    .option('--pid <pid>', 'Stop a specific browser process id')
+    .option('--all', 'Stop all running opencli-launched debug browsers', false)
+    .option('--timeout <ms>', 'Milliseconds to wait for each process to exit', '5000')
+    .addHelpText('after', [
+      '',
+      'Examples:',
+      '  opencli browser stop --port 9339',
+      '  opencli browser stop --pid 12345',
+      '  opencli browser stop --all',
+      '',
+      'Notes:',
+      '  This only stops browser processes.',
+      '  Use `opencli browser profiles rm <name>` or `opencli browser profiles prune --temporary` for profile cleanup.',
+    ].join('\n'))
+    .action(async (opts) => {
+      const report = await stopBrowsers({
+        port: opts.port !== undefined ? parseInt(opts.port, 10) : undefined,
+        pid: opts.pid !== undefined ? parseInt(opts.pid, 10) : undefined,
+        all: opts.all,
+        timeoutMs: parseInt(opts.timeout, 10),
+      });
+      console.log(renderStopBrowsersReport(report));
+      process.exitCode = report.issues.length > 0 && report.stopped.length === 0 ? 1 : 0;
+    });
+
+  const profilesCmd = browserCmd
+    .command('profiles')
+    .description('List and manage persistent and temporary browser profiles');
+  profilesCmd.helpCommand(false);
+
+  profilesCmd
+    .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
+    .addHelpText('after', [
+      '',
+      'Examples:',
+      '  opencli browser profiles',
+      '  opencli browser profiles --format json',
+      '  opencli browser profiles rm zhihu',
+      '  opencli browser profiles prune --temporary',
+      '',
+      'Notes:',
+      '  Persistent profiles are created by `opencli browser launch --profile <name>`.',
+      '  Temporary profiles come from `opencli browser launch` without `--profile`.',
+    ].join('\n'))
+    .action(async (opts) => {
+      const profiles = await listBrowserProfiles();
+      renderOutput(profiles.map((entry) => ({
+        name: entry.name,
+        kind: entry.kind,
+        status: entry.status,
+        ports: entry.ports.join(', '),
+        lastUsedAt: entry.lastUsedAt,
+        path: entry.path,
+      })), {
+        fmt: opts.format,
+        columns: ['name', 'kind', 'status', 'ports', 'lastUsedAt', 'path'],
+        title: 'opencli/browser/profiles',
+        source: 'opencli browser profiles',
+      });
+    });
+
+  profilesCmd
+    .command('rm <name>')
+    .description('Remove a named persistent browser profile')
+    .action(async (name) => {
+      const report = await removeBrowserProfile(name);
+      console.log(renderRemoveBrowserProfileReport(report));
+      process.exitCode = report.issues.length > 0 ? 1 : 0;
+    });
+
+  profilesCmd
+    .command('prune')
+    .description('Remove unused temporary browser profiles')
+    .option('--temporary', 'Prune temporary profiles', false)
+    .addHelpText('after', [
+      '',
+      'Examples:',
+      '  opencli browser profiles prune --temporary',
+      '',
+      'Notes:',
+      '  This only removes temporary profiles that are not in use.',
+      '  It does not stop running browser processes.',
+    ].join('\n'))
+    .action(async (opts) => {
+      if (!opts.temporary) {
+        throw new CliError('INVALID_ARGUMENT', 'Choose a prune target. Use --temporary.');
+      }
+
+      const report = await pruneTemporaryProfiles();
+      console.log(renderPruneTemporaryProfilesReport(report));
+      process.exitCode = report.issues.length > 0 ? 1 : 0;
+    });
+
+  addBrowserRuntimeOptions(
+    browserCmd
+      .command('run')
+      .description('Run an existing opencli command with a selected browser backend')
+      .argument('[command...]', 'Existing opencli command to forward after --'),
+  )
+    .allowExcessArguments()
+    .addHelpText('after', [
+      '',
+      'Examples:',
+      '  opencli browser run --backend extension -- zhihu search --keyword AI',
+      '  opencli browser run --backend cdp --cdp-endpoint http://127.0.0.1:9222 -- zhihu search --keyword AI',
+      '',
+      'Notes:',
+      '  Everything after `--` is forwarded to the existing opencli command unchanged.',
+      '  This command is additive: it does not modify the original command surface.',
+    ].join('\n'))
+    .action(async (_commandArgs, opts) => {
+      const forwardedArgs = extractPassthroughArgs();
+      const exitCode = await runOpenCliWithBrowserBackend({
+        backend: opts.backend,
+        cdpEndpoint: opts.cdpEndpoint,
+        cdpTarget: opts.cdpTarget,
+        forwardedArgs,
+      });
+      process.exitCode = exitCode;
     });
 
   // ── External CLIs ─────────────────────────────────────────────────────────

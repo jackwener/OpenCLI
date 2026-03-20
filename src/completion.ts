@@ -25,8 +25,19 @@ const BUILTIN_COMMANDS = [
   'cascade',
   'doctor',
   'setup',
+  'browser',
   'completion',
 ];
+
+const BUILTIN_SUBCOMMANDS: Record<string, string[]> = {
+  browser: ['doctor', 'list', 'launch', 'stop', 'profiles', 'run'],
+};
+
+const BUILTIN_NESTED_SUBCOMMANDS: Record<string, Record<string, string[]>> = {
+  browser: {
+    profiles: ['rm', 'prune'],
+  },
+};
 
 /**
  * Return completion candidates given the current command-line words and cursor index.
@@ -46,8 +57,24 @@ export function getCompletions(words: string[], cursor: number): string[] {
 
   const site = words[0];
 
+  if (site === 'browser') {
+    if (cursor === 2 && BUILTIN_SUBCOMMANDS.browser) {
+      return BUILTIN_SUBCOMMANDS.browser;
+    }
+
+    const nested = BUILTIN_NESTED_SUBCOMMANDS.browser[words[1] ?? ''];
+    if (cursor === 3 && nested) {
+      return nested;
+    }
+
+    return [];
+  }
+
   // If the first word is a built-in command, no further completion
   if (BUILTIN_COMMANDS.includes(site)) {
+    if (cursor === 2 && BUILTIN_SUBCOMMANDS[site]) {
+      return BUILTIN_SUBCOMMANDS[site];
+    }
     return [];
   }
 

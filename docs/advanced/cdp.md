@@ -1,21 +1,161 @@
-# Connecting OpenCLI via CDP (Remote/Headless Servers)
+# Connecting OpenCLI via CDP
 
-If you cannot use the opencli Browser Bridge extension (e.g., in a remote headless server environment without a UI), OpenCLI provides an alternative: connecting directly to Chrome via **CDP (Chrome DevTools Protocol)**.
+If you cannot or do not want to use the opencli Browser Bridge extension, OpenCLI can also connect directly to a Chrome/Chromium debugging endpoint via **CDP (Chrome DevTools Protocol)**.
 
-Because CDP binds to `localhost` by default for security reasons, accessing it from a remote server requires an additional networking tunnel.
+OpenCLI now provides a dedicated `browser` command group for this workflow, so you do not have to manage everything manually through environment variables and raw Chrome commands.
 
-This guide is broken down into three phases:
-1. **Preparation**: Start Chrome with CDP enabled locally.
-2. **Network Tunnels**: Expose that CDP port to your remote server using either **SSH Tunnels** or **Reverse Proxies**.
-3. **Execution**: Run OpenCLI on your server.
+This guide covers two common modes:
+
+1. **Local CDP browser managed by OpenCLI**
+2. **Remote or headless CDP endpoint managed outside OpenCLI**
 
 ---
 
-## Phase 1: Preparation (Local Machine)
+## Local CDP Workflow with `opencli browser`
 
-First, you need to start a Chrome browser on your local machine with remote debugging enabled.
+For most local workflows, start with the built-in browser commands:
 
-**macOS:**
+```bash
+opencli browser launch --port 9222
+opencli browser list
+opencli browser doctor --backend cdp --cdp-endpoint http://127.0.0.1:9222 --live
+opencli browser run --backend cdp --cdp-endpoint http://127.0.0.1:9222 -- zhihu search --keyword AI
+opencli browser stop --port 9222
+```
+
+### Temporary vs Persistent Profiles
+
+By default, `opencli browser launch` creates a **temporary profile**:
+
+```bash
+opencli browser launch --port 9222
+```
+
+If you want to preserve login state or browser data, use a named persistent profile:
+
+```bash
+opencli browser launch --port 9222 --profile zhihu
+opencli browser profiles
+```
+
+You can later reuse the same profile on a different port:
+
+```bash
+opencli browser stop --port 9222
+opencli browser launch --port 9339 --profile zhihu
+```
+
+### Managing Profiles
+
+List persistent and temporary profiles:
+
+```bash
+opencli browser profiles
+```
+
+Remove a named persistent profile:
+
+```bash
+opencli browser profiles rm zhihu
+```
+
+Remove unused temporary profiles:
+
+```bash
+opencli browser profiles prune --temporary
+```
+
+### Passing Raw Chrome Flags
+
+If you need additional native Chrome/Chromium launch flags, repeat `--browser-arg`:
+
+```bash
+opencli browser launch \
+  --port 9222 \
+  --profile zhihu \
+  --browser-arg=--lang=en-US \
+  --browser-arg=--window-size=1440,900
+```
+
+This is useful for window sizing, language overrides, proxies, and other Chromium flags that OpenCLI does not expose as first-class options.
+
+---
+
+## Remote or Headless CDP Endpoints
+
+If Chrome is already running elsewhere and exposing a CDP endpoint, you can connect OpenCLI directly without using `opencli browser launch`.
+
+Typical examples:
+
+- a remote Linux server running headless Chrome
+- a manually started local Chrome instance
+- a tunneled CDP endpoint exposed through SSH or ngrok
+
+You can either pass the endpoint explicitly:
+
+```bash
+opencli browser doctor --backend cdp --cdp-endpoint http://127.0.0.1:9222 --live
+opencli browser run --backend cdp --cdp-endpoint http://127.0.0.1:9222 -- bilibili hot --limit 5
+```
+
+Or export it once:
+
+```bash
+export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
+opencli doctor
+opencli bilibili hot --limit 5
+```
+
+> Tip: If you provide a standard HTTP/HTTPS CDP endpoint, OpenCLI requests the `/json` target list and picks the most likely inspectable app/page target automatically. If multiple targets exist, narrow selection with `OPENCLI_CDP_TARGET`.
+
+---
+
+## Exposing a Local CDP Port to a Remote Server
+
+Because CDP binds to `localhost` by default, a remote machine usually cannot access it directly. Use one of these patterns if OpenCLI runs on a different machine than the browser.
+
+### Method A: SSH Reverse Tunnel
+
+Run this on your **local machine**:
+
+```bash
+ssh -R 9222:localhost:9222 your-server-user@your-server-ip
+```
+
+Then on the **remote server**:
+
+```bash
+export OPENCLI_CDP_ENDPOINT="http://localhost:9222"
+opencli doctor
+opencli bilibili hot --limit 5
+```
+
+### Method B: Reverse Proxy or Tunnel Tool
+
+For example with `ngrok` on your **local machine**:
+
+```bash
+ngrok http 9222
+```
+
+Then on the **remote server**:
+
+```bash
+export OPENCLI_CDP_ENDPOINT="https://abcdef.ngrok.app"
+opencli doctor
+opencli bilibili hot --limit 5
+```
+
+> Note: Some Chrome versions may require `--remote-allow-origins="*"` when CDP is accessed through reverse proxies or other cross-origin WebSocket paths.
+
+---
+
+## Starting Chrome Manually
+
+If you still prefer to start Chrome yourself instead of using `opencli browser launch`, these commands work.
+
+**macOS**
+
 ```bash
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --remote-debugging-port=9222 \
@@ -23,7 +163,8 @@ First, you need to start a Chrome browser on your local machine with remote debu
   --remote-allow-origins="*"
 ```
 
-**Linux:**
+**Linux**
+
 ```bash
 google-chrome \
   --remote-debugging-port=9222 \
@@ -31,7 +172,8 @@ google-chrome \
   --remote-allow-origins="*"
 ```
 
-**Windows:**
+**Windows**
+
 ```cmd
 "C:\Program Files\Google\Chrome\Application\chrome.exe" ^
   --remote-debugging-port=9222 ^
@@ -39,65 +181,18 @@ google-chrome \
   --remote-allow-origins="*"
 ```
 
-> **Note**: The `--remote-allow-origins="*"` flag is often required for modern Chrome versions to accept cross-origin CDP WebSocket connections (e.g. from reverse proxies like ngrok).
-
-Once this browser instance opens, **log into the target websites you want to use** (e.g., bilibili.com, zhihu.com) so that the session contains the correct cookies.
+Once the browser is open, log into the target websites you want OpenCLI to reuse.
 
 ---
 
-## Phase 2: Remote Access Methods
+## Recommended Workflow
 
-Once CDP is running locally on port `9222`, you must securely expose this port to your remote server. Choose one of the two methods below depending on your network conditions.
+Use this order of operations for most CDP tasks:
 
-### Method A: SSH Tunnel (Recommended)
+1. Start or discover a CDP browser
+2. Verify connectivity with `opencli browser doctor`
+3. Run existing site commands through `opencli browser run`
+4. Stop the browser with `opencli browser stop`
+5. Manage profiles with `opencli browser profiles`
 
-If your local machine has SSH access to the remote server, this is the most secure and straightforward method.
-
-Run this command on your **Local Machine** to forward the remote server's port `9222` back to your local port `9222`:
-
-```bash
-ssh -R 9222:localhost:9222 your-server-user@your-server-ip
-```
-
-Leave this SSH session running in the background.
-
-### Method B: Reverse Proxy (ngrok / frp / socat)
-
-If you cannot establish a direct SSH connection (e.g., due to NAT or firewalls), you can use an intranet penetration tool like `ngrok`.
-
-Run this command on your **Local Machine** to expose your local port `9222` to the public internet securely via ngrok:
-
-```bash
-ngrok http 9222
-```
-
-This will print a forwarding URL, such as `https://abcdef.ngrok.app`. **Copy this URL**.
-
----
-
-## Phase 3: Execution (Remote Server)
-
-Now switch to your **Remote Server** where OpenCLI is installed. 
-
-Depending on the network tunnel method you chose in Phase 2, set the `OPENCLI_CDP_ENDPOINT` environment variable and run your commands.
-
-### If you used Method A (SSH Tunnel):
-
-```bash
-export OPENCLI_CDP_ENDPOINT="http://localhost:9222"
-opencli doctor                    # Verify connection
-opencli bilibili hot --limit 5    # Test a command
-```
-
-### If you used Method B (Reverse Proxy like ngrok):
-
-```bash
-# Use the URL you copied from ngrok earlier
-export OPENCLI_CDP_ENDPOINT="https://abcdef.ngrok.app"
-opencli doctor                    # Verify connection
-opencli bilibili hot --limit 5    # Test a command
-```
-
-> *Tip: If you provide a standard HTTP/HTTPS CDP endpoint, OpenCLI requests the `/json` target list and picks the most likely inspectable app/page target automatically. If multiple app targets exist, you can further narrow selection with `OPENCLI_CDP_TARGET` (for example `antigravity` or `codex`).*
-
-If you plan to use this setup frequently, you can persist the environment variable by adding the `export` line to your `~/.bashrc` or `~/.zshrc` on the server.
+That keeps the CDP path explicit, inspectable, and scriptable for both humans and AI agents.

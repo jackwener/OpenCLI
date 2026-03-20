@@ -23,6 +23,7 @@ Turn ANY Electron application into a CLI tool! Recombine, script, and extend app
 - [Highlights](#highlights)
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
+- [Browser Backend Utilities](#browser-backend-utilities)
 - [Built-in Commands](#built-in-commands)
   - [Desktop App Adapters](#desktop-app-adapters)
 - [Download Support](#download-support)
@@ -111,6 +112,32 @@ opencli list  # Now you can use it anywhere!
 ```bash
 npm install -g @jackwener/opencli@latest
 ```
+
+## Browser Backend Utilities
+
+OpenCLI also ships an additive `browser` command group for managing extension/CDP workflows without changing any existing site commands.
+
+```bash
+opencli browser list
+opencli browser launch --port 9222
+opencli browser launch --port 9222 --profile zhihu
+opencli browser launch --port 9222 --browser-arg=--window-size=1440,900
+opencli browser run --backend cdp --cdp-endpoint http://127.0.0.1:9222 -- zhihu search --keyword AI
+opencli browser stop --port 9222
+opencli browser profiles
+opencli browser profiles rm zhihu
+opencli browser profiles prune --temporary
+```
+
+- `launch` uses a temporary browser profile by default.
+- Pass `--profile <name>` when you want to preserve login state or browser data.
+- Use `--browser-arg <arg>` to pass extra raw Chrome/Chromium launch flags.
+- `stop` only stops browser processes.
+- `profiles rm <name>` removes a named persistent profile.
+- `profiles prune --temporary` removes unused temporary profiles.
+- `doctor` works for both extension mode and direct CDP mode.
+
+For remote or headless CDP setups, see [Connecting OpenCLI via CDP](./docs/advanced/cdp.md).
 
 ## Built-in Commands
 

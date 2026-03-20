@@ -35,6 +35,20 @@ opencli bilibili hot --limit 5            # Browser command
 opencli zhihu hot -f json                 # JSON output
 ```
 
+### Browser Backend Utilities
+
+OpenCLI also ships an additive `browser` command group for browser backend and profile management:
+
+```bash
+opencli browser launch --port 9222
+opencli browser launch --port 9222 --profile zhihu
+opencli browser list
+opencli browser profiles
+opencli browser run --backend cdp --cdp-endpoint http://127.0.0.1:9222 -- zhihu search --keyword AI
+```
+
+Use `launch` without `--profile` for a temporary browser profile. Use `--profile <name>` when you want persistent browser state.
+
 ### Output Formats
 
 All built-in commands support `--format` / `-f`:
@@ -52,5 +66,6 @@ opencli bilibili hot -v         # Verbose: show pipeline debug
 
 - [Installation details](/guide/installation)
 - [Browser Bridge setup](/guide/browser-bridge)
+- [Direct CDP workflows](/advanced/cdp)
 - [All available adapters](/adapters/)
 - [For developers / AI agents](/developer/contributing)
