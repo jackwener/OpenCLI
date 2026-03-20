@@ -10,8 +10,7 @@ import { spawnSync } from 'node:child_process';
 import chalk from 'chalk';
 import { getRegistry, strategyLabel, type Arg, type CliCommand } from './registry.js';
 import { loadExternalClis, isBinaryInstalled, getInstallCmd, type ExternalCliConfig } from './external.js';
-
-// ── Types ────────────────────────────────────────────────────────────────────
+import { CliError } from './errors.js';
 
 export interface SubcommandEntry {
   name: string;
@@ -22,27 +21,19 @@ export interface DescribeResult {
   name: string;
   type: 'builtin' | 'external';
   description: string;
-  // Built-in site: list of commands under the site
   commands?: { name: string; description: string; strategy: string }[];
-  // Built-in single command
   args?: Arg[];
   columns?: string[];
   strategy?: string;
   browser?: boolean;
   domain?: string;
-  // External CLI
   installed?: boolean;
   install?: string;
   subcommands?: SubcommandEntry[];
   help?: string;
 }
 
-// ── Help collection ──────────────────────────────────────────────────────────
-
-/**
- * Run `binary [...args] --help` and capture the output.
- * Returns null on failure or timeout.
- */
+/** Run `binary [...args] --help` and capture the output. Returns null on failure or timeout. */
 export function getCliHelp(binary: string, args: string[] = []): string | null {
   try {
     const result = spawnSync(binary, [...args, '--help'], {
@@ -54,7 +45,6 @@ export function getCliHelp(binary: string, args: string[] = []): string | null {
         NO_COLOR: '1',
         TERM: 'dumb',
       },
-      // Capture both stdout and stderr
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -78,36 +68,32 @@ export function parseSubcommands(helpText: string): SubcommandEntry[] {
   const lines = helpText.split('\n');
   const seen = new Set<string>();
 
-  // Match section headers containing "command" or "subcommand" (case-insensitive)
   const headerPattern = /^[A-Z\s]*\b(?:commands?|subcommands?)\b/i;
-  // Match indented command lines: "  name   description text"
   const commandLinePattern = /^\s{2,}(\S+)\s{2,}(.+)/;
 
   let inCommandSection = false;
 
   for (const line of lines) {
     if (headerPattern.test(line.trim())) {
-      // Entering a new command section
       inCommandSection = true;
       continue;
     }
 
     if (inCommandSection) {
-      // Empty line within a section is OK — continue scanning
       if (line.trim() === '') continue;
 
       const match = commandLinePattern.exec(line);
       if (match) {
-        const name = match[1];
+        // Strip trailing colon from Cobra-style command names (e.g. "browse:" → "browse")
+        const name = match[1].replace(/:$/, '');
         const summary = match[2].trim();
-        // Skip common non-command entries
         if (name === 'help' || name === 'completion') continue;
         if (!seen.has(name)) {
           seen.add(name);
           results.push({ name, summary });
         }
       } else if (/^\S/.test(line)) {
-        // Non-indented, non-empty line — end of this command section, but keep scanning for more
+        // Non-indented, non-empty line — end of current section, keep scanning for more
         inCommandSection = false;
       }
     }
@@ -116,8 +102,6 @@ export function parseSubcommands(helpText: string): SubcommandEntry[] {
   return results;
 }
 
-// ── Core logic ───────────────────────────────────────────────────────────────
-
 /**
  * Describe a target (built-in site or external CLI).
  * Must be called after discoverClis() has populated the registry.
@@ -125,9 +109,8 @@ export function parseSubcommands(helpText: string): SubcommandEntry[] {
 export function describeTarget(target: string, subcommands: string[] = []): DescribeResult {
   const registry = getRegistry();
 
-  // Check if target is a built-in site
   const siteCommands: CliCommand[] = [];
-  for (const [key, cmd] of registry) {
+  for (const [, cmd] of registry) {
     if (cmd.site === target) siteCommands.push(cmd);
   }
 
@@ -135,23 +118,21 @@ export function describeTarget(target: string, subcommands: string[] = []): Desc
     return describeBuiltin(target, siteCommands, subcommands);
   }
 
-  // Check if target is an external CLI
   const externalClis = loadExternalClis();
   const ext = externalClis.find((c) => c.name === target);
   if (ext) {
     return describeExternal(ext, subcommands);
   }
 
-  throw new Error(`Unknown command: '${target}'. Run 'opencli list' to see available commands.`);
+  throw new CliError('NOT_FOUND', `Unknown command: '${target}'.`, "Run 'opencli list' to see available commands.");
 }
 
 function describeBuiltin(site: string, commands: CliCommand[], subcommands: string[]): DescribeResult {
-  // If subcommand specified, find the specific command
   if (subcommands.length > 0) {
     const cmdName = subcommands.join(' ');
     const cmd = commands.find((c) => c.name === cmdName);
     if (!cmd) {
-      throw new Error(`Unknown command: '${site} ${cmdName}'. Run 'opencli describe ${site}' to see available commands.`);
+      throw new CliError('NOT_FOUND', `Unknown command: '${site} ${cmdName}'.`, `Run 'opencli describe ${site}' to see available commands.`);
     }
     return {
       name: `${site}/${cmd.name}`,
@@ -165,7 +146,6 @@ function describeBuiltin(site: string, commands: CliCommand[], subcommands: stri
     };
   }
 
-  // List all commands under the site
   const sorted = [...commands].sort((a, b) => a.name.localeCompare(b.name));
   return {
     name: site,
@@ -192,7 +172,6 @@ function describeExternal(ext: ExternalCliConfig, subcommands: string[]): Descri
     };
   }
 
-  // Collect help for the target path
   const help = getCliHelp(ext.binary, subcommands);
   const subcmds = help ? parseSubcommands(help) : [];
 
@@ -206,15 +185,12 @@ function describeExternal(ext: ExternalCliConfig, subcommands: string[]): Descri
   };
 }
 
-// ── Output formatting ────────────────────────────────────────────────────────
-
 /** Render a describe result as text for human consumption. */
 export function renderDescribeText(result: DescribeResult): string {
   const lines: string[] = [''];
 
   if (result.type === 'builtin') {
     if (result.commands) {
-      // Site-level: list all commands
       lines.push(chalk.bold(`  ${result.name}`) + chalk.dim(` — ${result.description}`));
       lines.push('');
       for (const cmd of result.commands) {
@@ -222,7 +198,6 @@ export function renderDescribeText(result: DescribeResult): string {
         lines.push(`    ${cmd.name.padEnd(20)} ${tag}  ${chalk.dim(cmd.description)}`);
       }
     } else {
-      // Single command
       lines.push(chalk.bold(`  ${result.name}`) + chalk.dim(` — ${result.description}`));
       lines.push(`  Strategy: ${result.strategy} | Browser: ${result.browser ? 'yes' : 'no'}${result.domain ? ` | Domain: ${result.domain}` : ''}`);
 
@@ -246,7 +221,6 @@ export function renderDescribeText(result: DescribeResult): string {
       }
     }
   } else {
-    // External CLI
     const statusTag = result.installed ? chalk.green('[installed]') : chalk.yellow('[not installed]');
     lines.push(chalk.bold(`  ${result.name}`) + ` (external) — ${result.description} ${statusTag}`);
 
@@ -267,11 +241,16 @@ export function renderDescribeText(result: DescribeResult): string {
       }
 
       if (result.help && (!result.subcommands || result.subcommands.length === 0)) {
-        // No subcommands extracted — show raw help
+        // No subcommands extracted — show raw help (truncated to 50 lines)
         lines.push('');
         lines.push(chalk.dim('  Help output:'));
-        for (const helpLine of result.help.split('\n')) {
+        const helpLines = result.help.split('\n');
+        const maxLines = 50;
+        for (const helpLine of helpLines.slice(0, maxLines)) {
           lines.push(`  ${helpLine}`);
+        }
+        if (helpLines.length > maxLines) {
+          lines.push(chalk.dim(`  ... (${helpLines.length - maxLines} more lines, run '${result.name} --help' for full output)`));
         }
       }
     }
@@ -283,7 +262,6 @@ export function renderDescribeText(result: DescribeResult): string {
 
 /** Render a describe result as JSON. */
 export function renderDescribeJson(result: DescribeResult): string {
-  // Strip undefined fields for clean output
   const clean = JSON.parse(JSON.stringify(result));
   return JSON.stringify(clean, null, 2);
 }

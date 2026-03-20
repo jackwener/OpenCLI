@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { parseSubcommands, getCliHelp, describeTarget } from './describe.js';
 import { cli, Strategy } from './registry.js';
 
-// Register test commands so describeTarget can find them
 beforeAll(() => {
   cli({
     site: 'test-describe',
@@ -28,10 +27,8 @@ beforeAll(() => {
   });
 });
 
-// ── parseSubcommands ─────────────────────────────────────────────────────────
-
 describe('parseSubcommands', () => {
-  it('parses Cobra-style help (gh)', () => {
+  it('parses Cobra-style help with trailing colons', () => {
     const help = `Work seamlessly with GitHub from the command line.
 
 USAGE
@@ -52,9 +49,11 @@ FLAGS
 
     const result = parseSubcommands(help);
     expect(result.length).toBe(6);
-    expect(result[0]).toEqual({ name: 'browse:', summary: 'Open the repository in the browser' });
-    // Should capture from both CORE COMMANDS and ADDITIONAL COMMANDS
-    expect(result.some(s => s.name === 'alias:')).toBe(true);
+    // Trailing colons should be stripped
+    expect(result[0]).toEqual({ name: 'browse', summary: 'Open the repository in the browser' });
+    expect(result.some(s => s.name === 'alias')).toBe(true);
+    // No colon in any name
+    expect(result.every(s => !s.name.endsWith(':'))).toBe(true);
   });
 
   it('parses Click/Commander-style help', () => {
@@ -118,13 +117,24 @@ Options:
     expect(result.length).toBe(1);
     expect(result[0].name).toBe('serve');
   });
-});
 
-// ── getCliHelp ───────────────────────────────────────────────────────────────
+  it('deduplicates commands across sections', () => {
+    const help = `COMMANDS
+  foo    First
+  bar    Second
+
+MORE COMMANDS
+  foo    First again
+  baz    Third`;
+
+    const result = parseSubcommands(help);
+    expect(result.length).toBe(3);
+    expect(result.map(s => s.name)).toEqual(['foo', 'bar', 'baz']);
+  });
+});
 
 describe('getCliHelp', () => {
   it('returns help text for a known binary', () => {
-    // `node --help` should always work in test environment
     const help = getCliHelp('node');
     expect(help).not.toBeNull();
     expect(help!.length).toBeGreaterThan(0);
@@ -136,15 +146,10 @@ describe('getCliHelp', () => {
   });
 
   it('passes subcommand args', () => {
-    // `node -e "console.log('test')"` won't have --help but this tests arg passing
-    // We just verify it doesn't crash
     const help = getCliHelp('node', ['--version']);
-    // node --version --help might return version or help, either is fine
     expect(typeof help === 'string' || help === null).toBe(true);
   });
 });
-
-// ── describeTarget (built-in) ────────────────────────────────────────────────
 
 describe('describeTarget', () => {
   it('describes a built-in site (lists commands)', () => {
@@ -164,7 +169,6 @@ describe('describeTarget', () => {
     expect(result.strategy).toBe('public');
     expect(result.browser).toBe(false);
     expect(result.domain).toBe('example.com');
-    // Args with type, choices, default, positional
     expect(result.args).toBeDefined();
     expect(result.args!.length).toBe(2);
     const nameArg = result.args!.find(a => a.name === 'name');
@@ -173,15 +177,14 @@ describe('describeTarget', () => {
     const langArg = result.args!.find(a => a.name === 'lang');
     expect(langArg?.choices).toEqual(['en', 'zh', 'ja']);
     expect(langArg?.default).toBe('en');
-    // Columns
     expect(result.columns).toEqual(['message']);
   });
 
-  it('throws for unknown target', () => {
+  it('throws CliError for unknown target', () => {
     expect(() => describeTarget('__nonexistent__')).toThrow('Unknown command');
   });
 
-  it('throws for unknown subcommand of known site', () => {
+  it('throws CliError for unknown subcommand of known site', () => {
     expect(() => describeTarget('test-describe', ['__nonexistent__'])).toThrow('Unknown command');
   });
 
@@ -189,10 +192,13 @@ describe('describeTarget', () => {
     const result = describeTarget('gh');
     expect(result.type).toBe('external');
     expect(result.name).toBe('gh');
-    // gh is likely installed in dev environment
     if (result.installed) {
       expect(result.subcommands).toBeDefined();
       expect(result.help).toBeDefined();
+      // Subcommand names should not have trailing colons
+      if (result.subcommands!.length > 0) {
+        expect(result.subcommands!.every(s => !s.name.endsWith(':'))).toBe(true);
+      }
     }
   });
 

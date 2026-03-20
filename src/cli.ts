@@ -128,6 +128,11 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .argument('[subcommands...]', 'Subcommand path (e.g. pr list)')
     .option('-f, --format <fmt>', 'Output format: text, json', 'text')
     .action(async (target: string, subcommands: string[], opts: { format: string }) => {
+      if (opts.format !== 'text' && opts.format !== 'json') {
+        console.error(chalk.red(`Error: Invalid format '${opts.format}'. Use 'text' or 'json'.`));
+        process.exitCode = 1;
+        return;
+      }
       const { describeTarget, renderDescribeText, renderDescribeJson } = await import('./describe.js');
       try {
         const result = describeTarget(target, subcommands);
@@ -137,7 +142,12 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
           console.log(renderDescribeText(result));
         }
       } catch (err: any) {
-        console.error(chalk.red(`Error: ${err.message}`));
+        if (err instanceof CliError) {
+          console.error(chalk.red(`Error [${err.code}]: ${err.message}`));
+          if (err.hint) console.error(chalk.yellow(`Hint: ${err.hint}`));
+        } else {
+          console.error(chalk.red(`Error: ${err.message}`));
+        }
         process.exitCode = 1;
       }
     });
