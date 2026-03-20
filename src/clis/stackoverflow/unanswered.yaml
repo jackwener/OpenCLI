@@ -1,0 +1,28 @@
+site: stackoverflow
+name: unanswered
+description: Top voted unanswered questions on Stack Overflow
+domain: stackoverflow.com
+strategy: public
+browser: false
+
+args:
+  limit:
+    type: int
+    default: 10
+    description: Max number of results
+
+pipeline:
+  - fetch:
+      url: https://api.stackexchange.com/2.3/questions/unanswered?order=desc&sort=votes&site=stackoverflow
+  
+  - select: items
+  
+  - map:
+      title: "${{ item.title }}"
+      score: "${{ item.score }}"
+      answers: "${{ item.answer_count }}"
+      url: "${{ item.link }}"
+
+  - limit: ${{ args.limit }}
+
+columns: [title, score, answers, url]

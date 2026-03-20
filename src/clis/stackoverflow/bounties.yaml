@@ -1,0 +1,29 @@
+site: stackoverflow
+name: bounties
+description: Active bounties on Stack Overflow
+domain: stackoverflow.com
+strategy: public
+browser: false
+
+args:
+  limit:
+    type: int
+    default: 10
+    description: Max number of results
+
+pipeline:
+  - fetch:
+      url: https://api.stackexchange.com/2.3/questions/featured?order=desc&sort=activity&site=stackoverflow
+  
+  - select: items
+  
+  - map:
+      title: "${{ item.title }}"
+      bounty: "${{ item.bounty_amount }}"
+      score: "${{ item.score }}"
+      answers: "${{ item.answer_count }}"
+      url: "${{ item.link }}"
+
+  - limit: ${{ args.limit }}
+
+columns: [bounty, title, score, answers, url]

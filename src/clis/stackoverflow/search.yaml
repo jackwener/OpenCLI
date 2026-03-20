@@ -1,0 +1,32 @@
+site: stackoverflow
+name: search
+description: Search Stack Overflow questions
+domain: stackoverflow.com
+strategy: public
+browser: false
+
+args:
+  query:
+    type: string
+    required: true
+    description: Search query
+  limit:
+    type: int
+    default: 10
+    description: Max number of results
+
+pipeline:
+  - fetch:
+      url: https://api.stackexchange.com/2.3/search/advanced?order=desc&sort=relevance&q=${{ args.query }}&site=stackoverflow
+  
+  - select: items
+  
+  - map:
+      title: "${{ item.title }}"
+      score: "${{ item.score }}"
+      answers: "${{ item.answer_count }}"
+      url: "${{ item.link }}"
+
+  - limit: ${{ args.limit }}
+
+columns: [title, score, answers, url]
