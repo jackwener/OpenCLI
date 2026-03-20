@@ -6,6 +6,10 @@ dist/
 .mcp.json
 *.log
 
+# VitePress
+docs/.vitepress/dist
+docs/.vitepress/cache
+
 # Extensions & Secrets
 *.pem
 *.crx

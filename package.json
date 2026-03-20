@@ -26,7 +26,10 @@
     "prepublishOnly": "npm run build",
     "test": "vitest run",
     "test:site": "node scripts/test-site.mjs",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "keywords": [
     "cli",
@@ -49,10 +52,11 @@
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
-    "@types/ws": "^8.5.13",
     "@types/node": "^22.13.10",
+    "@types/ws": "^8.5.13",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
+    "vitepress": "^1.6.4",
     "vitest": "^4.1.0"
   }
 }
