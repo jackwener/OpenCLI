@@ -143,6 +143,9 @@ opencli youtube transcript --url "xxx" --lang zh-Hans --mode raw  # 指定语言
 # Yahoo Finance (browser)
 opencli yahoo-finance quote --symbol AAPL  # 股票行情
 
+# 新浪财经
+opencli sinafinance 724 --limit 10 --type 1  # A股7x24小时实时快讯，Type of news, 0: 全部, 1: A股, 2: 宏观, 3: 公司, 4: 数据, 5: 市场, 6: 国际, 7: 观点, 8: 央行, 9: 其它
+
 # Reuters (browser)
 opencli reuters search --query "AI"     # 路透社搜索
 
