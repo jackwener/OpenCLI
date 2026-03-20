@@ -1,0 +1,31 @@
+site: gitlab
+name: search
+description: Search GitLab projects
+domain: gitlab.com
+strategy: public
+browser: false
+
+args:
+  query:
+    type: string
+    required: true
+    description: Search query
+  limit:
+    type: int
+    default: 15
+    description: Number of projects
+
+pipeline:
+  - fetch:
+      url: https://gitlab.com/api/v4/projects?search=${{ args.query }}&order_by=last_activity_at&sort=desc&per_page=${{ args.limit }}&visibility=public
+
+  - map:
+      name: ${{ item.path_with_namespace }}
+      description: ${{ item.description }}
+      stars: ${{ item.star_count }}
+      forks: ${{ item.forks_count }}
+      url: ${{ item.web_url }}
+
+  - limit: ${{ args.limit }}
+
+columns: [name, description, stars, forks, url]
