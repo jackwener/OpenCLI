@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  base: '/opencli/',
+  base: '/',
   title: 'OpenCLI',
   description: 'Make any website or Electron App your CLI — AI-powered, account-safe, self-healing.',
 
