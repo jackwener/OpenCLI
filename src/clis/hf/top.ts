@@ -109,6 +109,7 @@ cli({
       const items = all ? sorted : sorted.slice(0, Number(kwargs.limit));
       return items.map((item, i) => ({
         rank: i + 1,
+        id: item.id ?? '',
         title: truncate(item.title ?? ''),
         upvotes: item.upvotes ?? 0,
         authors: formatAuthors(item.authors ?? []),
@@ -131,7 +132,8 @@ cli({
     const items = all ? sorted : sorted.slice(0, Number(kwargs.limit));
     return items.map((item, i) => ({
       rank: i + 1,
-      title: item.title ?? '',
+      id: item.paper?.id ?? '',
+      title: truncate(item.title ?? ''),
       upvotes: item.paper?.upvotes ?? 0,
       authors: formatAuthors(item.paper?.authors ?? []),
     }));
