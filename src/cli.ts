@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { executeCommand } from './engine.js';
-import { type CliCommand, fullName, getRegistry, strategyLabel } from './registry.js';
+import { Strategy, type CliCommand, fullName, getRegistry, strategyLabel } from './registry.js';
 import { render as renderOutput } from './output.js';
 import { BrowserBridge, CDPBridge } from './browser/index.js';
 import { browserSession, DEFAULT_BROWSER_COMMAND_TIMEOUT, runWithTimeout } from './runtime.js';
@@ -160,6 +160,10 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
         if (cmd.browser) {
           const BrowserFactory = process.env.OPENCLI_CDP_ENDPOINT ? CDPBridge : BrowserBridge;
           result = await browserSession(BrowserFactory as any, async (page) => {
+            // Cookie/header strategies require same-origin context for credentialed fetch.
+            if ((cmd.strategy === Strategy.COOKIE || cmd.strategy === Strategy.HEADER) && cmd.domain) {
+              try { await page.goto(`https://${cmd.domain}`); await page.wait(2); } catch {}
+            }
             return runWithTimeout(executeCommand(cmd, page, kwargs, actionOpts.verbose), { timeout: cmd.timeoutSeconds ?? DEFAULT_BROWSER_COMMAND_TIMEOUT, label: fullName(cmd) });
           });
         } else { result = await executeCommand(cmd, null, kwargs, actionOpts.verbose); }
