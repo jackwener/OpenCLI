@@ -1,0 +1,32 @@
+site: coingecko
+name: top
+description: Top cryptocurrencies by market cap
+domain: www.coingecko.com
+strategy: public
+browser: false
+
+args:
+  currency:
+    type: string
+    default: usd
+    description: Quote currency (usd, eur, cny, jpy, etc.)
+  limit:
+    type: int
+    default: 20
+    description: Number of coins
+
+pipeline:
+  - fetch:
+      url: https://api.coingecko.com/api/v3/coins/markets?vs_currency=${{ args.currency }}&order=market_cap_desc&per_page=${{ args.limit }}&page=1
+
+  - map:
+      rank: ${{ item.market_cap_rank }}
+      coin: ${{ item.name }}
+      symbol: ${{ item.symbol }}
+      price: ${{ item.current_price }}
+      24h%: ${{ item.price_change_percentage_24h }}
+      market_cap: ${{ item.market_cap }}
+
+  - limit: ${{ args.limit }}
+
+columns: [rank, coin, symbol, price, 24h%, market_cap]
