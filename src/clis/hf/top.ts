@@ -65,6 +65,7 @@ cli({
   browser: false,
   args: [
     { name: 'limit', type: 'int', default: 20, help: 'Number of papers' },
+    { name: 'all', type: 'bool', default: false, help: 'Return all papers (ignore limit)' },
     { name: 'date', type: 'str', required: false, help: 'Date (YYYY-MM-DD), defaults to most recent' },
     { name: 'period', type: 'str', default: 'daily', choices: ['daily', 'weekly', 'monthly'], help: 'Time period: daily, weekly, or monthly' },
   ],
@@ -76,6 +77,7 @@ cli({
   },
   func: async (_page, kwargs) => {
     const period = String(kwargs.period ?? 'daily');
+    const all = Boolean(kwargs.all);
     const endpoint = process.env.HF_ENDPOINT?.replace(/\/+$/, '') || 'https://huggingface.co';
 
     if (period === 'weekly' || period === 'monthly') {
@@ -104,7 +106,8 @@ cli({
         }
       }
       const sorted = [...data].sort((a, b) => (b.upvotes ?? 0) - (a.upvotes ?? 0));
-      return sorted.slice(0, Number(kwargs.limit)).map((item, i) => ({
+      const items = all ? sorted : sorted.slice(0, Number(kwargs.limit));
+      return items.map((item, i) => ({
         rank: i + 1,
         title: truncate(item.title ?? ''),
         upvotes: item.upvotes ?? 0,
@@ -125,7 +128,8 @@ cli({
     if (!Array.isArray(body)) throw new CliError('FETCH_ERROR', 'Unexpected HF API response', 'Check date format or endpoint');
     const data: DailyPaper[] = body;
     const sorted = [...data].sort((a, b) => (b.paper?.upvotes ?? 0) - (a.paper?.upvotes ?? 0));
-    return sorted.slice(0, Number(kwargs.limit)).map((item, i) => ({
+    const items = all ? sorted : sorted.slice(0, Number(kwargs.limit));
+    return items.map((item, i) => ({
       rank: i + 1,
       title: item.title ?? '',
       upvotes: item.paper?.upvotes ?? 0,
