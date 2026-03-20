@@ -137,6 +137,8 @@ Run `opencli list` for the live registry.
 | **bbc** | `news` | Public |
 | **ctrip** | `search` | Browser |
 | **github** | `search` | Public |
+| **arxiv** | `search` `paper` | Public |
+| **wikipedia** | `search` `summary` | Public |
 | **hackernews** | `top` | Public |
 | **linkedin** | `search` | Browser |
 | **reuters** | `search` | Browser |

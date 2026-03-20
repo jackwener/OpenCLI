@@ -138,6 +138,8 @@ npm install -g @jackwener/opencli@latest
 | **bbc** | `news` | 公共 API |
 | **ctrip** | `search` | 浏览器 |
 | **github** | `search` | 公共 API |
+| **arxiv** | `search` `paper` | 公开 |
+| **wikipedia** | `search` `summary` | 公开 |
 | **hackernews** | `top` | 公共 API |
 | **linkedin** | `search` | 浏览器 |
 | **reuters** | `search` | 浏览器 |
