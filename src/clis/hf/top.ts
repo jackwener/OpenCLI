@@ -23,6 +23,10 @@ interface PeriodPaper {
   authors: PaperAuthor[];
 }
 
+function truncate(str: string, max = 60): string {
+  return str.length > max ? str.slice(0, max - 3) + '...' : str;
+}
+
 function formatAuthors(authors: PaperAuthor[], max = 3): string {
   const names = authors.map((a) => a.name);
   if (names.length <= max) return names.join(', ');
@@ -102,7 +106,7 @@ cli({
       const sorted = [...data].sort((a, b) => (b.upvotes ?? 0) - (a.upvotes ?? 0));
       return sorted.slice(0, Number(kwargs.limit)).map((item, i) => ({
         rank: i + 1,
-        title: item.title ?? '',
+        title: truncate(item.title ?? ''),
         upvotes: item.upvotes ?? 0,
         authors: formatAuthors(item.authors ?? []),
       }));
