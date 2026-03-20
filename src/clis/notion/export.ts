@@ -10,7 +10,7 @@ export const exportCommand = cli({
   strategy: Strategy.UI,
   browser: true,
   args: [
-    { name: 'output', required: false, positional: true, help: 'Output file (default: /tmp/notion-export.md)' },
+    { name: 'output', required: false,  help: 'Output file (default: /tmp/notion-export.md)' },
   ],
   columns: ['Status', 'File'],
   func: async (page: IPage, kwargs: any) => {

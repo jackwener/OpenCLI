@@ -5,6 +5,7 @@ domain: www.zhihu.com
 
 args:
   query:
+    positional: true
     type: str
     required: true
     description: Search query

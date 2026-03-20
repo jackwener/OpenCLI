@@ -7,6 +7,7 @@ browser: false
 
 args:
   query:
+    positional: true
     type: string
     required: true
     description: Search query

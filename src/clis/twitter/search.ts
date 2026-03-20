@@ -8,7 +8,7 @@ cli({
   strategy: Strategy.INTERCEPT, // Use intercept strategy
   browser: true,
   args: [
-    { name: 'query', type: 'string', required: true },
+    { name: 'query', type: 'string', required: true, positional: true },
     { name: 'limit', type: 'int', default: 15 },
   ],
   columns: ['id', 'author', 'text', 'likes', 'views', 'url'],

@@ -9,7 +9,7 @@ cli({
   strategy: Strategy.UI, // Utilizes internal DOM flows for interaction
   browser: true,
   args: [
-    { name: 'url', type: 'string', required: true, help: 'The URL of the tweet to like' },
+    { name: 'url', type: 'string', required: true, positional: true, help: 'The URL of the tweet to like' },
   ],
   columns: ['status', 'message'],
   func: async (page: IPage | null, kwargs: any) => {

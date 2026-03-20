@@ -368,7 +368,7 @@ cli({
   strategy: Strategy.HEADER,
   browser: true,
   args: [
-    { name: 'query', type: 'string', required: true, help: 'Job search keywords' },
+    { name: 'query', type: 'string', required: true, positional: true, help: 'Job search keywords' },
     { name: 'location', type: 'string', required: false, help: 'Location text such as San Francisco Bay Area' },
     { name: 'limit', type: 'int', default: 10, help: 'Number of jobs to return (max 100)' },
     { name: 'start', type: 'int', default: 0, help: 'Result offset for pagination' },

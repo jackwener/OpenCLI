@@ -11,7 +11,7 @@ cli({
   domain: 'www.youtube.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'url', required: true, help: 'YouTube video URL or video ID' },
+    { name: 'url', required: true, positional: true, help: 'YouTube video URL or video ID' },
   ],
   columns: ['field', 'value'],
   func: async (page, kwargs) => {

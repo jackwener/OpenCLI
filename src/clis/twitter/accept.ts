@@ -10,7 +10,7 @@ cli({
   browser: true,
   timeoutSeconds: 600, // 10 min — batch operation iterating many conversations
   args: [
-    { name: 'query', type: 'string', required: true, help: 'Keywords to match (comma-separated for OR, e.g. "群,微信")' },
+    { name: 'query', type: 'string', required: true, positional: true, help: 'Keywords to match (comma-separated for OR, e.g. "群,微信")' },
     { name: 'max', type: 'int', required: false, default: 20, help: 'Maximum number of requests to accept (default: 20)' },
   ],
   columns: ['index', 'status', 'user', 'message'],

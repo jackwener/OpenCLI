@@ -11,7 +11,7 @@ cli({
   domain: 'www.ctrip.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'query', required: true, help: 'Search keyword (city or attraction)' },
+    { name: 'query', required: true, positional: true, help: 'Search keyword (city or attraction)' },
     { name: 'limit', type: 'int', default: 15, help: 'Number of results' },
   ],
   columns: ['rank', 'name', 'type', 'score', 'price', 'url'],

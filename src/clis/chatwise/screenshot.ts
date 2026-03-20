@@ -10,7 +10,7 @@ export const screenshotCommand = cli({
   strategy: Strategy.UI,
   browser: true,
   args: [
-    { name: 'output', required: false, positional: true, help: 'Output file path (default: /tmp/chatwise-snapshot)' },
+    { name: 'output', required: false,  help: 'Output file path (default: /tmp/chatwise-snapshot)' },
   ],
   columns: ['Status', 'File'],
   func: async (page: IPage, kwargs: any) => {

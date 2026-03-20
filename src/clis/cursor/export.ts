@@ -11,7 +11,7 @@ function makeExportCommand(site: string, readSelector: string) {
     strategy: Strategy.UI,
     browser: true,
     args: [
-      { name: 'output', required: false, positional: true, help: `Output file (default: /tmp/${site}-export.md)` },
+      { name: 'output', required: false,  help: `Output file (default: /tmp/${site}-export.md)` },
     ],
     columns: ['Status', 'File', 'Messages'],
     func: async (page: IPage, kwargs: any) => {

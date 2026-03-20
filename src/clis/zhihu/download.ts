@@ -92,7 +92,7 @@ cli({
   domain: 'zhuanlan.zhihu.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'url', required: true, help: 'Article URL (zhuanlan.zhihu.com/p/xxx)' },
+    { name: 'url', required: true, positional: true, help: 'Article URL (zhuanlan.zhihu.com/p/xxx)' },
     { name: 'output', default: './zhihu-articles', help: 'Output directory' },
     { name: 'download-images', type: 'boolean', default: false, help: 'Download images locally' },
   ],

@@ -11,7 +11,7 @@ cli({
   domain: 'www.youtube.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'query', required: true, help: 'Search query' },
+    { name: 'query', required: true, positional: true, help: 'Search query' },
     { name: 'limit', type: 'int', default: 20, help: 'Max results (max 50)' },
   ],
   columns: ['rank', 'title', 'channel', 'views', 'duration', 'url'],

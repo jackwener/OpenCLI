@@ -25,7 +25,7 @@ cli({
   domain: 'www.youtube.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'url', required: true, help: 'YouTube video URL or video ID' },
+    { name: 'url', required: true, positional: true, help: 'YouTube video URL or video ID' },
     { name: 'lang', required: false, help: 'Language code (e.g. en, zh-Hans). Omit to auto-select' },
     { name: 'mode', required: false, default: 'grouped', help: 'Output mode: grouped (readable paragraphs) or raw (every segment)' },
   ],

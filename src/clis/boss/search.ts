@@ -72,7 +72,7 @@ cli({
 
   browser: true,
   args: [
-    { name: 'query', required: true, help: 'Search keyword (e.g. AI agent, 前端)' },
+    { name: 'query', required: true, positional: true, help: 'Search keyword (e.g. AI agent, 前端)' },
     { name: 'city', default: '北京', help: 'City name or code (e.g. 杭州, 上海, 101010100)' },
     { name: 'experience', default: '', help: 'Experience: 应届/1年以内/1-3年/3-5年/5-10年/10年以上' },
     { name: 'degree', default: '', help: 'Degree: 大专/本科/硕士/博士' },

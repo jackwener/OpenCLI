@@ -6,6 +6,7 @@ browser: true
 
 args:
   username:
+    positional: true
     type: string
     required: true
     description: Username from profile URL (e.g. wenhao1996)

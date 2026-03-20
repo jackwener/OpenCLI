@@ -16,7 +16,7 @@ cli({
   strategy: Strategy.UI,
   browser: true,
   args: [
-    { name: 'id', type: 'string', required: true, help: '帖子 ID' },
+    { name: 'id', type: 'string', required: true, positional: true, help: '帖子 ID' },
     { name: 'text', type: 'string', required: false, help: '转发附言（可选）' },
   ],
   columns: ['status', 'message'],

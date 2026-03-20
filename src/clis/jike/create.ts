@@ -15,7 +15,7 @@ cli({
   strategy: Strategy.UI,
   browser: true,
   args: [
-    { name: 'text', type: 'string', required: true, help: '动态正文内容' },
+    { name: 'text', type: 'string', required: true, positional: true, help: '动态正文内容' },
   ],
   columns: ['status', 'message'],
   func: async (page, kwargs) => {

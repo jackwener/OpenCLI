@@ -11,7 +11,7 @@ cli({
   domain: 'www.reuters.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'query', required: true, help: 'Search query' },
+    { name: 'query', required: true, positional: true, help: 'Search query' },
     { name: 'limit', type: 'int', default: 10, help: 'Number of results (max 40)' },
   ],
   columns: ['rank', 'title', 'date', 'section', 'url'],

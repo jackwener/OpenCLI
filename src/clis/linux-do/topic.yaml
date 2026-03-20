@@ -6,6 +6,7 @@ browser: true
 
 args:
   id:
+    positional: true
     type: int
     required: true
     description: Topic ID

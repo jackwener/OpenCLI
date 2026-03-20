@@ -16,7 +16,7 @@ cli({
   strategy: Strategy.COOKIE,
   browser: true,
   args: [
-    { name: 'query', type: 'string', required: true },
+    { name: 'query', type: 'string', required: true, positional: true },
     { name: 'limit', type: 'int', default: 20 },
   ],
   columns: ['author', 'content', 'likes', 'comments', 'time', 'url'],

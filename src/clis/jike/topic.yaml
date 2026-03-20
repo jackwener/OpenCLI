@@ -6,6 +6,7 @@ browser: true
 
 args:
   id:
+    positional: true
     type: string
     required: true
     description: Topic ID (from topic URL, e.g. 553870e8e4b0cafb0a1bef68)

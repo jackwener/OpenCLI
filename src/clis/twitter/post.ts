@@ -9,7 +9,7 @@ cli({
   strategy: Strategy.UI,
   browser: true,
   args: [
-    { name: 'text', type: 'string', required: true, help: 'The text content of the tweet' },
+    { name: 'text', type: 'string', required: true, positional: true, help: 'The text content of the tweet' },
   ],
   columns: ['status', 'message', 'text'],
   func: async (page: IPage | null, kwargs: any) => {

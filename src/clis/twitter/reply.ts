@@ -9,8 +9,8 @@ cli({
   strategy: Strategy.UI, // Uses the UI directly to input and click post
   browser: true,
   args: [
-    { name: 'url', type: 'string', required: true, help: 'The URL of the tweet to reply to' },
-    { name: 'text', type: 'string', required: true, help: 'The text content of your reply' },
+    { name: 'url', type: 'string', required: true, positional: true, help: 'The URL of the tweet to reply to' },
+    { name: 'text', type: 'string', required: true, positional: true, help: 'The text content of your reply' },
   ],
   columns: ['status', 'message', 'text'],
   func: async (page: IPage | null, kwargs: any) => {

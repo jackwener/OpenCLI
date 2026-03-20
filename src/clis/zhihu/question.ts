@@ -7,7 +7,7 @@ cli({
   domain: 'www.zhihu.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'id', required: true, help: 'Question ID (numeric)' },
+    { name: 'id', required: true, positional: true, help: 'Question ID (numeric)' },
     { name: 'limit', type: 'int', default: 5, help: 'Number of answers' },
   ],
   columns: ['rank', 'author', 'votes', 'content'],

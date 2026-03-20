@@ -10,6 +10,7 @@ args:
     required: true
     description: Category slug (use 'categories' command to find)
   id:
+    positional: true
     type: int
     required: true
     description: Category ID (use 'categories' command to find)

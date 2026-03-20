@@ -17,7 +17,7 @@ cli({
   browser: true,
   args: [
     { name: 'uid', required: true, help: 'Encrypted UID of the candidate (from chatlist)' },
-    { name: 'text', required: true, help: 'Message text to send' },
+    { name: 'text', required: true, positional: true, help: 'Message text to send' },
   ],
   columns: ['status', 'detail'],
   func: async (page: IPage | null, kwargs) => {

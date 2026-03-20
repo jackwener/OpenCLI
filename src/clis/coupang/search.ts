@@ -409,7 +409,7 @@ cli({
   strategy: Strategy.COOKIE,
   browser: true,
   args: [
-    { name: 'query', required: true, help: 'Search keyword' },
+    { name: 'query', required: true, positional: true, help: 'Search keyword' },
     { name: 'page', type: 'int', default: 1, help: 'Search result page number' },
     { name: 'limit', type: 'int', default: 20, help: 'Max results (max 50)' },
     { name: 'filter', required: false, help: 'Optional search filter (currently supports: rocket)' },

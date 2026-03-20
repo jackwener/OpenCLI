@@ -10,7 +10,7 @@ export const screenshotCommand = cli({
   strategy: Strategy.UI,
   browser: true,
   args: [
-    { name: 'output', required: false, positional: true, help: 'Output file path (default: /tmp/codex-snapshot.txt)' },
+    { name: 'output', required: false,  help: 'Output file path (default: /tmp/codex-snapshot.txt)' },
   ],
   columns: ['Status', 'File'],
   func: async (page: IPage, kwargs: any) => {

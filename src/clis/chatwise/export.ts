@@ -10,7 +10,7 @@ export const exportCommand = cli({
   strategy: Strategy.UI,
   browser: true,
   args: [
-    { name: 'output', required: false, positional: true, help: 'Output file (default: /tmp/chatwise-export.md)' },
+    { name: 'output', required: false,  help: 'Output file (default: /tmp/chatwise-export.md)' },
   ],
   columns: ['Status', 'File', 'Messages'],
   func: async (page: IPage, kwargs: any) => {
