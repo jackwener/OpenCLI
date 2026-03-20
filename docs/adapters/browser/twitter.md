@@ -24,6 +24,9 @@
 | `opencli twitter unfollow` | |
 | `opencli twitter bookmark` | |
 | `opencli twitter unbookmark` | |
+| `opencli twitter block` | |
+| `opencli twitter unblock` | |
+| `opencli twitter hide-reply` | |
 | `opencli twitter download` | |
 | `opencli twitter accept` | |
 | `opencli twitter reply-dm` | |
