@@ -14,7 +14,7 @@
 - `opencli chatgpt status`：检查 ChatGPT 应用是否在运行。
 - `opencli chatgpt new`：激活 ChatGPT 并按 `Cmd+N` 开始新对话。
 - `opencli chatgpt send "消息"`：将消息复制到剪贴板，激活 ChatGPT，粘贴并提交。
-- `opencli chatgpt read`：通过 `Cmd+Shift+C` 复制最后一条 AI 回复并返回文本。
+- `opencli chatgpt read`：通过当前聚焦 ChatGPT 窗口的辅助功能树读取最后一条可见消息并返回文本。
 
 ## 方式二：CDP（高级，Electron 调试模式）
 
@@ -34,11 +34,11 @@ export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9224"
 
 ## 工作原理
 
-- **AppleScript 模式**：使用 `osascript` 和 `pbcopy`/`pbpaste` 进行剪贴板文本传输，无需远程调试端口。
+- **AppleScript 模式**：使用 `osascript` 控制 ChatGPT，发送消息时借助 `pbcopy`/`pbpaste` 粘贴文本，读取消息时通过 macOS 辅助功能树获取当前可见聊天内容。
 - **CDP 模式**：通过 Chrome DevTools Protocol 连接到 Electron 渲染进程，直接操作 DOM。
 
 ## 限制
 
 - 仅支持 macOS（AppleScript 依赖）
 - AppleScript 模式需要辅助功能权限
-- `read` 命令复制最后一条回复，更早的消息需手动滚动
+- `read` 返回的是当前聚焦 ChatGPT 窗口里的最后一条可见消息；如果目标消息不在可见区域，需先手动滚动

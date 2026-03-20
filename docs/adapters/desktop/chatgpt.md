@@ -14,7 +14,7 @@ The current built-in commands use native AppleScript automation — no extra lau
 - `opencli chatgpt status`: Check if the ChatGPT app is currently running.
 - `opencli chatgpt new`: Activate ChatGPT and press `Cmd+N` to start a new conversation.
 - `opencli chatgpt send "message"`: Copy your message to clipboard, activate ChatGPT, paste, and submit.
-- `opencli chatgpt read`: Copy the last AI response via `Cmd+Shift+C` and return it as text.
+- `opencli chatgpt read`: Read the last visible message from the focused ChatGPT window via the Accessibility tree.
 
 ## Approach 2: CDP (Advanced, Electron Debug Mode)
 
@@ -33,11 +33,11 @@ export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9224"
 
 ## How It Works
 
-- **AppleScript mode**: Uses `osascript` and `pbcopy`/`pbpaste` for clipboard-based text transfer.
+- **AppleScript mode**: Uses `osascript` to control ChatGPT, `pbcopy`/`pbpaste` to paste prompts, and the macOS Accessibility tree to read visible chat messages.
 - **CDP mode**: Connects via Chrome DevTools Protocol to the Electron renderer process.
 
 ## Limitations
 
 - macOS only (AppleScript dependency)
 - AppleScript mode requires Accessibility permissions
-- `read` command copies the last response — earlier messages need manual scroll
+- `read` returns the last visible message in the focused ChatGPT window — scroll first if the message you want is not visible

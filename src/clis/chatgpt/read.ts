@@ -6,7 +6,7 @@ import { getVisibleChatMessages } from './ax.js';
 export const readCommand = cli({
   site: 'chatgpt',
   name: 'read',
-  description: 'Copy the most recent ChatGPT Desktop App response to clipboard and read it',
+  description: 'Read the last visible message from the focused ChatGPT Desktop window',
   domain: 'localhost',
   strategy: Strategy.PUBLIC,
   browser: false,
