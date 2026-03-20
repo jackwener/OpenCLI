@@ -13,7 +13,9 @@ import { loadExternalClis, executeExternalCli, installExternalCli, registerExter
 
 export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
   const program = new Command();
-  program.name('opencli').description('Make any website your CLI. Zero setup. AI-powered.').version(PKG_VERSION);
+  // enablePositionalOptions: prevents parent from consuming flags meant for subcommands;
+  // prerequisite for passThroughOptions to forward --help/--version to external binaries
+  program.name('opencli').description('Make any website your CLI. Zero setup. AI-powered.').version(PKG_VERSION).enablePositionalOptions();
 
   // ── Built-in commands ──────────────────────────────────────────────────────
 
@@ -151,13 +153,11 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     if (program.commands.some(c => c.name() === ext.name)) continue;
     program.command(ext.name)
       .description(`(External) ${ext.description || ext.name}`)
+      .argument('[args...]')
       .allowUnknownOption()
-      .allowExcessArguments()
-      .action(() => {
-        // Retrieve args passed to the external CLI
-        // Commander consumes standard args before the action, so we must slice process.argv directly.
-        const extIndex = process.argv.indexOf(ext.name);
-        const args = process.argv.slice(extIndex + 1);
+      .passThroughOptions()
+      .helpOption(false)
+      .action((args: string[]) => {
         executeExternalCli(ext.name, args).catch(err => {
           console.error(chalk.red(`Error: ${err.message}`));
           process.exitCode = 1;

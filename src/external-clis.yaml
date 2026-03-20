@@ -37,3 +37,12 @@
   tags: [docker, containers, devops]
   install:
     mac: "brew install --cask docker"
+
+- name: gws
+  binary: gws
+  description: "Google Workspace CLI — Docs, Sheets, Drive, Gmail, Calendar"
+  homepage: "https://github.com/googleworkspace/cli"
+  tags: [google, docs, sheets, drive, workspace]
+  install:
+    mac: "brew install googleworkspace-cli"
+    default: "npm install -g @googleworkspace/cli"
