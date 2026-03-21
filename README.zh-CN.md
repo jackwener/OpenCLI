@@ -158,6 +158,7 @@ npm install -g @jackwener/opencli@latest
 | **jimeng** | `generate` `history` | 浏览器 |
 | **linux-do** | `hot` `latest` `search` `categories` `category` `topic` | 公开 |
 | **stackoverflow** | `hot` `search` `bounties` `unanswered` | 公开 |
+| **steam** | `top-sellers` | 公开 |
 | **weread** | `shelf` `search` `book` `highlights` `notes` `notebooks` `ranking` | 浏览器 |
 
 > **Bloomberg 说明**：Bloomberg 的 RSS 列表命令（`main`、各栏目 feed、`feeds`）无需浏览器即可使用。`bloomberg news` 适用于当前 Chrome 会话本身就能访问的标准 Bloomberg 文章页。音频页和部分非标准页面可能失败，OpenCLI 也不会绕过 Bloomberg 的付费墙、登录或权限校验。
