@@ -52,5 +52,6 @@ opencli bilibili hot -v         # Verbose: show pipeline debug
 
 - [Installation details](/guide/installation)
 - [Browser Bridge setup](/guide/browser-bridge)
+- [Plugins — extend with community adapters](/guide/plugins)
 - [All available adapters](/adapters/)
 - [For developers / AI agents](/developer/contributing)
