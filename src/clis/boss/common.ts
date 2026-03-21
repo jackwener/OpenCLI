@@ -278,10 +278,10 @@ export async function typeAndSendMessage(page: IPage, text: string): Promise<boo
 }
 
 /**
- * Verbose log helper — only prints when OPENCLI_VERBOSE is set.
+ * Verbose log helper — prints when OPENCLI_VERBOSE or DEBUG=opencli is set.
  */
 export function verbose(msg: string): void {
-  if (process.env.OPENCLI_VERBOSE) {
+  if (process.env.OPENCLI_VERBOSE || process.env.DEBUG?.includes('opencli')) {
     console.error(`[opencli:boss] ${msg}`);
   }
 }
