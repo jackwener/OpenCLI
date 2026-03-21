@@ -1,0 +1,34 @@
+site: bluesky
+name: user
+description: Get recent posts from a Bluesky user
+domain: public.api.bsky.app
+strategy: public
+browser: false
+
+args:
+  handle:
+    type: str
+    required: true
+    positional: true
+    description: "Bluesky handle (e.g. bsky.app)"
+  limit:
+    type: int
+    default: 20
+    description: Number of posts
+
+pipeline:
+  - fetch:
+      url: https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${{ args.handle }}&limit=${{ args.limit }}
+
+  - select: feed
+
+  - map:
+      rank: ${{ index + 1 }}
+      text: ${{ item.post.record.text }}
+      likes: ${{ item.post.likeCount }}
+      reposts: ${{ item.post.repostCount }}
+      replies: ${{ item.post.replyCount }}
+
+  - limit: ${{ args.limit }}
+
+columns: [rank, text, likes, reposts, replies]

@@ -1,0 +1,34 @@
+site: bluesky
+name: search
+description: Search Bluesky users
+domain: public.api.bsky.app
+strategy: public
+browser: false
+
+args:
+  query:
+    type: str
+    required: true
+    positional: true
+    description: Search query
+  limit:
+    type: int
+    default: 10
+    description: Number of results
+
+pipeline:
+  - fetch:
+      url: https://public.api.bsky.app/xrpc/app.bsky.actor.searchActors?q=${{ args.query }}&limit=${{ args.limit }}
+
+  - select: actors
+
+  - map:
+      rank: ${{ index + 1 }}
+      handle: ${{ item.handle }}
+      name: ${{ item.displayName }}
+      followers: ${{ item.followersCount }}
+      description: ${{ item.description }}
+
+  - limit: ${{ args.limit }}
+
+columns: [rank, handle, name, followers, description]
