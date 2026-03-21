@@ -14,10 +14,49 @@ import * as path from 'node:path';
 import yaml from 'js-yaml';
 import { type CliCommand, type InternalCliCommand, type Arg, Strategy, registerCommand } from './registry.js';
 import { log } from './logger.js';
+import type { ManifestEntry } from './build-manifest.js';
 
 /** Plugins directory: ~/.opencli/plugins/ */
 export const PLUGINS_DIR = path.join(os.homedir(), '.opencli', 'plugins');
 const CLI_MODULE_PATTERN = /\bcli\s*\(/;
+
+interface YamlArgDefinition {
+  type?: string;
+  default?: unknown;
+  required?: boolean;
+  positional?: boolean;
+  description?: string;
+  help?: string;
+  choices?: string[];
+}
+
+interface YamlCliDefinition {
+  site?: string;
+  name?: string;
+  description?: string;
+  domain?: string;
+  strategy?: string;
+  browser?: boolean;
+  args?: Record<string, YamlArgDefinition>;
+  columns?: string[];
+  pipeline?: Record<string, unknown>[];
+  timeout?: number;
+  navigateBefore?: boolean | string;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function parseStrategy(rawStrategy: string | undefined, fallback: Strategy = Strategy.COOKIE): Strategy {
+  if (!rawStrategy) return fallback;
+  const key = rawStrategy.toUpperCase() as keyof typeof Strategy;
+  return Strategy[key] ?? fallback;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 /**
  * Discover and register CLI commands.
@@ -46,11 +85,11 @@ export async function discoverClis(...dirs: string[]): Promise<void> {
 async function loadFromManifest(manifestPath: string, clisDir: string): Promise<void> {
   try {
     const raw = await fs.promises.readFile(manifestPath, 'utf-8');
-    const manifest = JSON.parse(raw) as any[];
+    const manifest = JSON.parse(raw) as ManifestEntry[];
     for (const entry of manifest) {
       if (entry.type === 'yaml') {
         // YAML pipelines fully inlined in manifest — register directly
-        const strategy = (Strategy as any)[entry.strategy.toUpperCase()] ?? Strategy.COOKIE;
+        const strategy = parseStrategy(entry.strategy);
         const cmd: CliCommand = {
           site: entry.site,
           name: entry.name,
@@ -69,7 +108,7 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
       } else if (entry.type === 'ts' && entry.modulePath) {
         // TS adapters: register a lightweight stub.
         // The actual module is loaded lazily on first executeCommand().
-        const strategy = (Strategy as any)[(entry.strategy ?? 'cookie').toUpperCase()] ?? Strategy.COOKIE;
+        const strategy = parseStrategy(entry.strategy ?? 'cookie');
         const modulePath = path.resolve(clisDir, entry.modulePath);
         const cmd: InternalCliCommand = {
           site: entry.site,
@@ -89,8 +128,8 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
         registerCommand(cmd);
       }
     }
-  } catch (err: any) {
-    log.warn(`Failed to load manifest ${manifestPath}: ${err.message}`);
+  } catch (err) {
+    log.warn(`Failed to load manifest ${manifestPath}: ${getErrorMessage(err)}`);
   }
 }
 
@@ -99,7 +138,7 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
  */
 async function discoverClisFromFs(dir: string): Promise<void> {
   try { await fs.promises.access(dir); } catch { return; }
-  const promises: Promise<any>[] = [];
+  const promises: Promise<unknown>[] = [];
   const entries = await fs.promises.readdir(dir, { withFileTypes: true });
   
   for (const entry of entries) {
@@ -117,8 +156,8 @@ async function discoverClisFromFs(dir: string): Promise<void> {
       ) {
         if (!(await isCliModule(filePath))) continue;
         promises.push(
-          import(`file://${filePath}`).catch((err: any) => {
-            log.warn(`Failed to load module ${filePath}: ${err.message}`);
+          import(`file://${filePath}`).catch((err) => {
+            log.warn(`Failed to load module ${filePath}: ${getErrorMessage(err)}`);
           })
         );
       }
@@ -130,18 +169,19 @@ async function discoverClisFromFs(dir: string): Promise<void> {
 async function registerYamlCli(filePath: string, defaultSite: string): Promise<void> {
   try {
     const raw = await fs.promises.readFile(filePath, 'utf-8');
-    const def = yaml.load(raw) as any;
-    if (!def || typeof def !== 'object') return;
+    const def = yaml.load(raw) as YamlCliDefinition | null;
+    if (!isRecord(def)) return;
+    const cliDef = def as YamlCliDefinition;
 
-    const site = def.site ?? defaultSite;
-    const name = def.name ?? path.basename(filePath, path.extname(filePath));
-    const strategyStr = def.strategy ?? (def.browser === false ? 'public' : 'cookie');
-    const strategy = (Strategy as any)[strategyStr.toUpperCase()] ?? Strategy.COOKIE;
-    const browser = def.browser ?? (strategy !== Strategy.PUBLIC);
+    const site = cliDef.site ?? defaultSite;
+    const name = cliDef.name ?? path.basename(filePath, path.extname(filePath));
+    const strategyStr = cliDef.strategy ?? (cliDef.browser === false ? 'public' : 'cookie');
+    const strategy = parseStrategy(strategyStr);
+    const browser = cliDef.browser ?? (strategy !== Strategy.PUBLIC);
 
     const args: Arg[] = [];
-    if (def.args && typeof def.args === 'object') {
-      for (const [argName, argDef] of Object.entries(def.args as Record<string, any>)) {
+    if (cliDef.args && typeof cliDef.args === 'object') {
+      for (const [argName, argDef] of Object.entries(cliDef.args)) {
         args.push({
           name: argName,
           type: argDef?.type ?? 'str',
@@ -157,21 +197,21 @@ async function registerYamlCli(filePath: string, defaultSite: string): Promise<v
     const cmd: CliCommand = {
       site,
       name,
-      description: def.description ?? '',
-      domain: def.domain,
+      description: cliDef.description ?? '',
+      domain: cliDef.domain,
       strategy,
       browser,
       args,
-      columns: def.columns,
-      pipeline: def.pipeline,
-      timeoutSeconds: def.timeout,
+      columns: cliDef.columns,
+      pipeline: cliDef.pipeline,
+      timeoutSeconds: cliDef.timeout,
       source: filePath,
-      navigateBefore: def.navigateBefore,
+      navigateBefore: cliDef.navigateBefore,
     };
 
     registerCommand(cmd);
-  } catch (err: any) {
-    log.warn(`Failed to load ${filePath}: ${err.message}`);
+  } catch (err) {
+    log.warn(`Failed to load ${filePath}: ${getErrorMessage(err)}`);
   }
 }
 
@@ -196,7 +236,7 @@ export async function discoverPlugins(): Promise<void> {
 async function discoverPluginDir(dir: string, site: string): Promise<void> {
   const files = await fs.promises.readdir(dir);
   const fileSet = new Set(files);
-  const promises: Promise<any>[] = [];
+  const promises: Promise<unknown>[] = [];
   for (const file of files) {
     const filePath = path.join(dir, file);
     if (file.endsWith('.yaml') || file.endsWith('.yml')) {
@@ -204,8 +244,8 @@ async function discoverPluginDir(dir: string, site: string): Promise<void> {
     } else if (file.endsWith('.js') && !file.endsWith('.d.js')) {
       if (!(await isCliModule(filePath))) continue;
       promises.push(
-        import(`file://${filePath}`).catch((err: any) => {
-          log.warn(`Plugin ${site}/${file}: ${err.message}`);
+        import(`file://${filePath}`).catch((err) => {
+          log.warn(`Plugin ${site}/${file}: ${getErrorMessage(err)}`);
         })
       );
     } else if (
@@ -216,8 +256,8 @@ async function discoverPluginDir(dir: string, site: string): Promise<void> {
       if (fileSet.has(jsFile)) continue;
       if (!(await isCliModule(filePath))) continue;
       promises.push(
-        import(`file://${filePath}`).catch((err: any) => {
-          log.warn(`Plugin ${site}/${file}: ${err.message}`);
+        import(`file://${filePath}`).catch((err) => {
+          log.warn(`Plugin ${site}/${file}: ${getErrorMessage(err)}`);
         })
       );
     }
@@ -229,8 +269,8 @@ async function isCliModule(filePath: string): Promise<boolean> {
   try {
     const source = await fs.promises.readFile(filePath, 'utf-8');
     return CLI_MODULE_PATTERN.test(source);
-  } catch (err: any) {
-    log.warn(`Failed to inspect module ${filePath}: ${err.message}`);
+  } catch (err) {
+    log.warn(`Failed to inspect module ${filePath}: ${getErrorMessage(err)}`);
     return false;
   }
 }

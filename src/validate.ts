@@ -25,6 +25,22 @@ export interface ValidationReport {
   files: number;
 }
 
+interface ValidatedYamlCliDefinition {
+  site?: string;
+  name?: string;
+  pipeline?: unknown[];
+  columns?: unknown[];
+  args?: Record<string, unknown>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function validateClisWithTarget(dirs: string[], target?: string): ValidationReport {
   const results: FileValidationResult[] = [];
   let errors = 0; let warnings = 0; let files = 0;
@@ -53,8 +69,8 @@ function validateYamlFile(filePath: string): FileValidationResult {
   const errors: string[] = []; const warnings: string[] = [];
   try {
     const raw = fs.readFileSync(filePath, 'utf-8');
-    const def = yaml.load(raw) as any;
-    if (!def || typeof def !== 'object') { errors.push('Not a valid YAML object'); return { path: filePath, errors, warnings }; }
+    const def = yaml.load(raw) as ValidatedYamlCliDefinition | null;
+    if (!isRecord(def)) { errors.push('Not a valid YAML object'); return { path: filePath, errors, warnings }; }
     if (!def.site) errors.push('Missing "site"');
     if (!def.name) errors.push('Missing "name"');
     if (def.pipeline && !Array.isArray(def.pipeline)) errors.push('"pipeline" must be an array');
@@ -74,7 +90,7 @@ function validateYamlFile(filePath: string): FileValidationResult {
         }
       }
     }
-  } catch (e: any) { errors.push(`YAML parse error: ${e.message}`); }
+  } catch (e) { errors.push(`YAML parse error: ${getErrorMessage(e)}`); }
   return { path: filePath, errors, warnings };
 }
 
@@ -89,4 +105,3 @@ export function renderValidationReport(report: ValidationReport): string {
   }
   return lines.join('\n');
 }
-

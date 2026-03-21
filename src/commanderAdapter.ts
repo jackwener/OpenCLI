@@ -18,6 +18,10 @@ import { render as renderOutput } from './output.js';
 import { executeCommand } from './execution.js';
 import { CliError } from './errors.js';
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /**
  * Register a single CliCommand as a Commander subcommand.
  */
@@ -46,12 +50,13 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
 
   subCmd.addHelpText('after', formatRegistryHelpText(cmd));
 
-  subCmd.action(async (...actionArgs: any[]) => {
+  subCmd.action(async (...actionArgs: unknown[]) => {
     const actionOpts = actionArgs[positionalArgs.length] ?? {};
+    const optionsRecord = typeof actionOpts === 'object' && actionOpts !== null ? actionOpts as Record<string, unknown> : {};
     const startTime = Date.now();
 
     // ── Collect kwargs ──────────────────────────────────────────────────
-    const kwargs: Record<string, any> = {};
+    const kwargs: Record<string, unknown> = {};
     for (let i = 0; i < positionalArgs.length; i++) {
       const v = actionArgs[i];
       if (v !== undefined) kwargs[positionalArgs[i].name] = v;
@@ -59,36 +64,38 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
     for (const arg of cmd.args) {
       if (arg.positional) continue;
       const camelName = arg.name.replace(/-([a-z])/g, (_m, ch: string) => ch.toUpperCase());
-      const v = actionOpts[arg.name] ?? actionOpts[camelName];
+      const v = optionsRecord[arg.name] ?? optionsRecord[camelName];
       if (v !== undefined) kwargs[arg.name] = v;
     }
 
     // ── Execute + render ────────────────────────────────────────────────
     try {
-      if (actionOpts.verbose) process.env.OPENCLI_VERBOSE = '1';
+      const verbose = optionsRecord.verbose === true;
+      const format = typeof optionsRecord.format === 'string' ? optionsRecord.format : 'table';
+      if (verbose) process.env.OPENCLI_VERBOSE = '1';
 
-      const result = await executeCommand(cmd, kwargs, actionOpts.verbose);
+      const result = await executeCommand(cmd, kwargs, verbose);
 
-      if (actionOpts.verbose && (!result || (Array.isArray(result) && result.length === 0))) {
+      if (verbose && (!result || (Array.isArray(result) && result.length === 0))) {
         console.error(chalk.yellow('[Verbose] Warning: Command returned an empty result.'));
       }
       const resolved = getRegistry().get(fullName(cmd)) ?? cmd;
       renderOutput(result, {
-        fmt: actionOpts.format,
+        fmt: format,
         columns: resolved.columns,
         title: `${resolved.site}/${resolved.name}`,
         elapsed: (Date.now() - startTime) / 1000,
         source: fullName(resolved),
         footerExtra: resolved.footerExtra?.(kwargs),
       });
-    } catch (err: any) {
+    } catch (err) {
       if (err instanceof CliError) {
         console.error(chalk.red(`Error [${err.code}]: ${err.message}`));
         if (err.hint) console.error(chalk.yellow(`Hint: ${err.hint}`));
-      } else if (actionOpts.verbose && err.stack) {
+      } else if (optionsRecord.verbose === true && err instanceof Error && err.stack) {
         console.error(chalk.red(err.stack));
       } else {
-        console.error(chalk.red(`Error: ${err.message ?? err}`));
+        console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
       }
       process.exitCode = 1;
     }

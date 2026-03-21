@@ -18,7 +18,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIS_DIR = path.resolve(__dirname, 'clis');
 const OUTPUT = path.resolve(__dirname, '..', 'dist', 'cli-manifest.json');
 
-interface ManifestEntry {
+export interface ManifestEntry {
   site: string;
   name: string;
   description: string;
@@ -28,14 +28,14 @@ interface ManifestEntry {
   args: Array<{
     name: string;
     type?: string;
-    default?: any;
+    default?: unknown;
     required?: boolean;
     positional?: boolean;
     help?: string;
     choices?: string[];
   }>;
   columns?: string[];
-  pipeline?: any[];
+  pipeline?: Record<string, unknown>[];
   timeout?: number;
   /** 'yaml' or 'ts' — determines how executeCommand loads the handler */
   type: 'yaml' | 'ts';
@@ -43,6 +43,38 @@ interface ManifestEntry {
   modulePath?: string;
   /** Pre-navigation control — see CliCommand.navigateBefore */
   navigateBefore?: boolean | string;
+}
+
+interface YamlArgDefinition {
+  type?: string;
+  default?: unknown;
+  required?: boolean;
+  positional?: boolean;
+  description?: string;
+  help?: string;
+  choices?: string[];
+}
+
+interface YamlCliDefinition {
+  site?: string;
+  name?: string;
+  description?: string;
+  domain?: string;
+  strategy?: string;
+  browser?: boolean;
+  args?: Record<string, YamlArgDefinition>;
+  columns?: string[];
+  pipeline?: Record<string, unknown>[];
+  timeout?: number;
+  navigateBefore?: boolean | string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function extractBalancedBlock(
@@ -129,7 +161,7 @@ export function parseTsArgsBlock(argsBlock: string): ManifestEntry['args'] {
     const helpMatch = body.match(/help\s*:\s*['"`]([^'"`]*)['"`]/);
     const positionalMatch = body.match(/positional\s*:\s*(true|false)/);
 
-    let defaultVal: any = undefined;
+    let defaultVal: unknown = undefined;
     if (defaultMatch) {
       const raw = defaultMatch[1].trim();
       if (raw === 'true') defaultVal = true;
@@ -158,16 +190,17 @@ export function parseTsArgsBlock(argsBlock: string): ManifestEntry['args'] {
 function scanYaml(filePath: string, site: string): ManifestEntry | null {
   try {
     const raw = fs.readFileSync(filePath, 'utf-8');
-    const def = yaml.load(raw) as any;
-    if (!def || typeof def !== 'object') return null;
+    const def = yaml.load(raw) as YamlCliDefinition | null;
+    if (!isRecord(def)) return null;
+    const cliDef = def as YamlCliDefinition;
 
-    const strategyStr = def.strategy ?? (def.browser === false ? 'public' : 'cookie');
+    const strategyStr = cliDef.strategy ?? (cliDef.browser === false ? 'public' : 'cookie');
     const strategy = strategyStr.toUpperCase();
-    const browser = def.browser ?? (strategy !== 'PUBLIC');
+    const browser = cliDef.browser ?? (strategy !== 'PUBLIC');
 
     const args: ManifestEntry['args'] = [];
-    if (def.args && typeof def.args === 'object') {
-      for (const [argName, argDef] of Object.entries(def.args as Record<string, any>)) {
+    if (cliDef.args && typeof cliDef.args === 'object') {
+      for (const [argName, argDef] of Object.entries(cliDef.args)) {
         args.push({
           name: argName,
           type: argDef?.type ?? 'str',
@@ -180,21 +213,21 @@ function scanYaml(filePath: string, site: string): ManifestEntry | null {
     }
 
     return {
-      site: def.site ?? site,
-      name: def.name ?? path.basename(filePath, path.extname(filePath)),
-      description: def.description ?? '',
-      domain: def.domain,
+      site: cliDef.site ?? site,
+      name: cliDef.name ?? path.basename(filePath, path.extname(filePath)),
+      description: cliDef.description ?? '',
+      domain: cliDef.domain,
       strategy: strategy.toLowerCase(),
       browser,
       args,
-      columns: def.columns,
-      pipeline: def.pipeline,
-      timeout: def.timeout,
+      columns: cliDef.columns,
+      pipeline: cliDef.pipeline,
+      timeout: cliDef.timeout,
       type: 'yaml',
-      navigateBefore: def.navigateBefore,
+      navigateBefore: cliDef.navigateBefore,
     };
-  } catch (err: any) {
-    process.stderr.write(`Warning: failed to parse ${filePath}: ${err.message}\n`);
+  } catch (err) {
+    process.stderr.write(`Warning: failed to parse ${filePath}: ${getErrorMessage(err)}\n`);
     return null;
   }
 }
@@ -256,9 +289,9 @@ export function scanTs(filePath: string, site: string): ManifestEntry | null {
     if (navMatch) entry.navigateBefore = navMatch[1] === 'true' ? true : false;
 
     return entry;
-  } catch (err: any) {
+  } catch (err) {
     // If parsing fails, log a warning (matching scanYaml behaviour) and skip the entry.
-    process.stderr.write(`Warning: failed to scan ${filePath}: ${err.message}\n`);
+    process.stderr.write(`Warning: failed to scan ${filePath}: ${getErrorMessage(err)}\n`);
     return null;
   }
 }
