@@ -1,43 +1,104 @@
 # ChatGPT
 
-Control the **ChatGPT macOS Desktop App** directly from the terminal. OpenCLI supports two automation approaches for ChatGPT.
+Control the **ChatGPT Desktop App** from the terminal.
 
-## Approach 1: AppleScript (Default, No Setup)
+OpenCLI now keeps ChatGPT automation split by **target surface** so new Windows support stays additive and the long-standing macOS behavior stays intact.
 
-The current built-in commands use native AppleScript automation — no extra launch flags needed.
+## Surface 1: `macos-native` (default)
+
+This is the original built-in path. If you run `opencli chatgpt ...` with no `--surface` flag, OpenCLI keeps using native macOS automation via AppleScript + Accessibility.
 
 ### Prerequisites
-1. Install the official [ChatGPT Desktop App](https://openai.com/chatgpt/mac/) from OpenAI.
+1. Install the official [ChatGPT desktop app](https://openai.com/chatgpt/download/).
 2. Grant **Accessibility permissions** to your terminal app in **System Settings → Privacy & Security → Accessibility**.
 
-### Commands
-- `opencli chatgpt status`: Check if the ChatGPT app is currently running.
-- `opencli chatgpt new`: Activate ChatGPT and press `Cmd+N` to start a new conversation.
-- `opencli chatgpt send "message"`: Copy your message to clipboard, activate ChatGPT, paste, and submit.
-- `opencli chatgpt read`: Read the last visible message from the focused ChatGPT window via the Accessibility tree.
+### Commands on `macos-native`
+- `opencli chatgpt status`
+- `opencli chatgpt new`
+- `opencli chatgpt send "message"`
+- `opencli chatgpt read`
+- `opencli chatgpt ask "message"`
 
-## Approach 2: CDP (Advanced, Electron Debug Mode)
+### Notes
+- `read` returns the **last visible message** from the focused ChatGPT window via the macOS Accessibility tree.
+- `ask` remains the original **send + wait + read** macOS-only flow.
 
-ChatGPT Desktop is also an Electron app and can be launched with a remote debugging port:
+## Surface 2: `macos-cdp` (experimental)
+
+This preserves the existing documented idea of a **ChatGPT mac CDP mode**, but makes it explicit instead of automatic.
+
+Use it only on the commands that currently support the narrow CDP path:
+
+- `opencli chatgpt status --surface macos-cdp`
+- `opencli chatgpt read --surface macos-cdp`
+- `opencli chatgpt send --surface macos-cdp "message"`
+
+## Surface 3: `windows-cdp` (experimental)
+
+This is the new additive surface for the **Windows ChatGPT desktop app**, including WSL workflows that control the Windows app over a local CDP endpoint.
+
+Use it on the same narrow command subset:
+
+- `opencli chatgpt status --surface windows-cdp`
+- `opencli chatgpt read --surface windows-cdp`
+- `opencli chatgpt send --surface windows-cdp "message"`
+
+> **Important:** OpenCLI does **not** switch ChatGPT into CDP mode automatically just because `OPENCLI_CDP_ENDPOINT` is set. You must opt in per command with `--surface macos-cdp` or `--surface windows-cdp`.
+
+## CDP setup
+
+### macOS example
 
 ```bash
 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT \
   --remote-debugging-port=9224
+
+export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9224"
+# Optional but recommended when multiple targets exist:
+export OPENCLI_CDP_TARGET="chatgpt"
 ```
+
+### Windows / WSL example
+
+Fully quit ChatGPT first, then launch the real Windows app with a debugging port:
+
+```powershell
+ChatGPT.exe --remote-debugging-port=9224 --remote-debugging-address=127.0.0.1
+```
+
+Then from WSL or the same Windows machine:
 
 ```bash
 export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9224"
+export OPENCLI_CDP_TARGET="chatgpt"   # optional but recommended
 ```
 
-> The CDP approach enables future advanced commands like DOM inspection, model switching, and code extraction.
+> On Windows, a **true cold launch matters**. If ChatGPT is already running, relaunching with debug flags may leave you with no usable `/json` target list.
 
-## How It Works
+## Command support matrix
 
-- **AppleScript mode**: Uses `osascript` to control ChatGPT, `pbcopy`/`pbpaste` to paste prompts, and the macOS Accessibility tree to read visible chat messages.
-- **CDP mode**: Connects via Chrome DevTools Protocol to the Electron renderer process.
+| Command | `macos-native` | `macos-cdp` | `windows-cdp` |
+|---------|-----------------|-------------|---------------|
+| `status` | ✅ | ✅ | ✅ |
+| `new` | ✅ | — | — |
+| `send` | ✅ | ✅ | ✅ |
+| `read` | ✅ | ✅ | ✅ |
+| `ask` | ✅ | — | — |
+
+## How the CDP path behaves today
+
+The current CDP implementation is intentionally narrow:
+
+- `status` attaches to the selected ChatGPT target and reports connection state
+- `read` returns the **last visible conversation turn** from the current ChatGPT window
+- `send` injects the prompt into the active composer and submits it
+- the CDP `send` path returns after submission; use `read` later if you want the latest visible output
 
 ## Limitations
 
-- macOS only (AppleScript dependency)
-- AppleScript mode requires Accessibility permissions
-- `read` returns the last visible message in the focused ChatGPT window — scroll first if the message you want is not visible
+- `new` and `ask` remain **macOS-native only**.
+- CDP support is intentionally limited to `status`, `read`, and `send`.
+- If multiple inspectable targets exist, set `OPENCLI_CDP_TARGET=chatgpt`.
+- `send` in CDP mode refuses to overwrite an existing draft already sitting in the composer.
+- `read` only returns the **last visible** conversation turn, not a full export.
+- DOM selectors may drift as ChatGPT desktop changes.

@@ -2,6 +2,12 @@ import { execSync } from 'node:child_process';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import { getVisibleChatMessages } from './ax.js';
+import { readChatGPTCDP } from './cdp.js';
+import {
+  isChatGPTCDPSurface,
+  normalizeChatGPTSurface,
+  requireMacOSHost,
+} from './surface.js';
 
 export const readCommand = cli({
   site: 'chatgpt',
@@ -10,9 +16,23 @@ export const readCommand = cli({
   domain: 'localhost',
   strategy: Strategy.PUBLIC,
   browser: false,
-  args: [],
+  args: [{
+    name: 'surface',
+    required: false,
+    default: 'macos-native',
+    choices: ['macos-native', 'macos-cdp', 'windows-cdp'],
+    help: 'Target ChatGPT surface: macos-native (default), macos-cdp, windows-cdp',
+  }],
   columns: ['Role', 'Text'],
-  func: async (page: IPage | null) => {
+  func: async (_page: IPage | null, kwargs: any) => {
+    const surface = normalizeChatGPTSurface(kwargs.surface);
+
+    if (isChatGPTCDPSurface(surface)) {
+      return await readChatGPTCDP(surface);
+    }
+
+    requireMacOSHost('read');
+
     try {
       execSync("osascript -e 'tell application \"ChatGPT\" to activate'");
       execSync("osascript -e 'delay 0.3'");
@@ -24,7 +44,7 @@ export const readCommand = cli({
 
       return [{ Role: 'Assistant', Text: messages[messages.length - 1] }];
     } catch (err: any) {
-      throw new Error("Failed to read from ChatGPT: " + err.message);
+      throw new Error('Failed to read from ChatGPT: ' + err.message);
     }
   },
 });

@@ -2,6 +2,7 @@ import { execSync, spawnSync } from 'node:child_process';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import { getVisibleChatMessages } from './ax.js';
+import { requireMacOSHost } from './surface.js';
 
 export const askCommand = cli({
   site: 'chatgpt',
@@ -15,7 +16,9 @@ export const askCommand = cli({
     { name: 'timeout', required: false, help: 'Max seconds to wait for response (default: 30)', default: '30' },
   ],
   columns: ['Role', 'Text'],
-  func: async (page: IPage | null, kwargs: any) => {
+  func: async (_page: IPage | null, kwargs: any) => {
+    requireMacOSHost('ask');
+
     const text = kwargs.text as string;
     const timeout = parseInt(kwargs.timeout as string, 10) || 30;
 

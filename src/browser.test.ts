@@ -90,6 +90,25 @@ describe('browser helpers', () => {
 
     expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9226/codex');
   });
+
+  it('boosts ChatGPT targets during generic CDP target scoring', () => {
+    const target = __test__.selectCDPTarget([
+      {
+        type: 'page',
+        title: 'Session Overview',
+        url: 'https://example.com/dashboard',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9224/other',
+      },
+      {
+        type: 'page',
+        title: 'ChatGPT',
+        url: 'https://chatgpt.com/?window_style=main_view',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9224/chatgpt',
+      },
+    ]);
+
+    expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9224/chatgpt');
+  });
 });
 
 describe('BrowserBridge state', () => {

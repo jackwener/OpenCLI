@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
+import { requireMacOSHost } from './surface.js';
 
 export const newCommand = cli({
   site: 'chatgpt',
@@ -11,14 +12,16 @@ export const newCommand = cli({
   browser: false,
   args: [],
   columns: ['Status'],
-  func: async (page: IPage | null) => {
+  func: async (_page: IPage | null) => {
+    requireMacOSHost('new');
+
     try {
       execSync("osascript -e 'tell application \"ChatGPT\" to activate'");
       execSync("osascript -e 'delay 0.5'");
       execSync("osascript -e 'tell application \"System Events\" to keystroke \"n\" using command down'");
       return [{ Status: 'Success' }];
     } catch (err: any) {
-      return [{ Status: "Error: " + err.message }];
+      return [{ Status: 'Error: ' + err.message }];
     }
   },
 });
