@@ -23,7 +23,7 @@ cli({
   strategy: Strategy.COOKIE,
   browser: true,
   args: [
-    { name: 'limit', type: 'int', default: 20, description: 'Number of trends to show' },
+    { name: 'limit', type: 'int', default: 20, help: 'Number of trends to show' },
   ],
   columns: ['rank', 'topic', 'tweets', 'category'],
   func: async (page, kwargs) => {
