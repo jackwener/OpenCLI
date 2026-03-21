@@ -1,0 +1,33 @@
+site: tiktok
+name: unsave
+description: Remove a TikTok video from Favorites
+domain: www.tiktok.com
+
+args:
+  url:
+    type: str
+    required: true
+    positional: true
+    description: TikTok video URL
+
+pipeline:
+  - navigate:
+      url: ${{ args.url }}
+      settleMs: 6000
+
+  - evaluate: |
+      (async () => {
+        const url = ${{ args.url | json }};
+        const btn = document.querySelector('[data-e2e="undefined-icon"]');
+        if (!btn) throw new Error('Favorites button not found');
+        const container = btn.closest('button') || btn.closest('[role="button"]') || btn;
+        const aria = container.getAttribute('aria-label') || '';
+        if (aria.includes('Add to Favorites')) {
+          return [{ status: 'Not in Favorites', url: url }];
+        }
+        container.click();
+        await new Promise(r => setTimeout(r, 2000));
+        return [{ status: 'Removed from Favorites', url: url }];
+      })()
+
+columns: [status, url]

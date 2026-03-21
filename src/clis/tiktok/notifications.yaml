@@ -1,0 +1,57 @@
+site: tiktok
+name: notifications
+description: Get TikTok notifications (likes, comments, mentions, followers)
+domain: www.tiktok.com
+
+args:
+  limit:
+    type: int
+    default: 15
+    description: Number of notifications
+  type:
+    type: str
+    default: all
+    description: Notification type
+    choices: [all, likes, comments, mentions, followers]
+
+pipeline:
+  - navigate:
+      url: https://www.tiktok.com/following
+      settleMs: 5000
+
+  - evaluate: |
+      (() => {
+        const limit = ${{ args.limit }};
+        const type = ${{ args.type | json }};
+
+        // Click inbox icon to open notifications panel
+        const inboxIcon = document.querySelector('[data-e2e="inbox-icon"]');
+        if (inboxIcon) inboxIcon.click();
+
+        // Wait for panel
+        return new Promise(function(resolve) {
+          setTimeout(function() {
+            // Click specific tab if needed
+            if (type !== 'all') {
+              const tab = document.querySelector('[data-e2e="' + type + '"]');
+              if (tab) tab.click();
+            }
+
+            setTimeout(function() {
+              const items = document.querySelectorAll('[data-e2e="inbox-list"] > div, [data-e2e="inbox-list"] [role="button"]');
+              const results = Array.from(items)
+                .filter(function(el) { return el.textContent.trim().length > 5; })
+                .slice(0, limit)
+                .map(function(el, i) {
+                  return {
+                    index: i + 1,
+                    text: el.textContent.trim().replace(/\s+/g, ' ').substring(0, 150),
+                  };
+                });
+              resolve(results);
+            }, 1500);
+          }, 1000);
+        });
+      })()
+
+columns: [index, text]

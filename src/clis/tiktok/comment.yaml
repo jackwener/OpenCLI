@@ -1,0 +1,58 @@
+site: tiktok
+name: comment
+description: Comment on a TikTok video
+domain: www.tiktok.com
+
+args:
+  url:
+    type: str
+    required: true
+    positional: true
+    description: TikTok video URL
+  text:
+    type: str
+    required: true
+    description: Comment text
+
+pipeline:
+  - navigate:
+      url: ${{ args.url }}
+      settleMs: 6000
+
+  - evaluate: |
+      (async () => {
+        const url = ${{ args.url | json }};
+        const commentText = ${{ args.text | json }};
+
+        // Click comment icon to expand comment section
+        const commentIcon = document.querySelector('[data-e2e="comment-icon"]');
+        if (commentIcon) {
+          const cBtn = commentIcon.closest('button') || commentIcon.closest('[role="button"]') || commentIcon;
+          cBtn.click();
+          await new Promise(r => setTimeout(r, 3000));
+        }
+
+        // Find comment input
+        const input = document.querySelector('[data-e2e="comment-input"] [contenteditable="true"]') ||
+                      document.querySelector('[contenteditable="true"]');
+        if (!input) throw new Error('Comment input not found - make sure you are logged in');
+
+        input.focus();
+        document.execCommand('insertText', false, commentText);
+        await new Promise(r => setTimeout(r, 1000));
+
+        // Click post button
+        const btns = Array.from(document.querySelectorAll('[data-e2e="comment-post"], button'));
+        const postBtn = btns.find(function(b) {
+          var t = b.textContent.trim();
+          return t === 'Post' || t === '发布' || t === '发送';
+        });
+        if (postBtn) {
+          postBtn.click();
+          await new Promise(r => setTimeout(r, 2000));
+        }
+
+        return [{ status: 'Commented', url: url, text: commentText }];
+      })()
+
+columns: [status, url, text]
