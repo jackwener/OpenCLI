@@ -28,9 +28,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "prepublishOnly": "npm run build",
-    "test": "vitest run",
-    "test:site": "node scripts/test-site.mjs",
-    "test:watch": "vitest",
+    "test": "vitest run --project unit",
+    "test:all": "vitest run",
+    "test:e2e": "vitest run --project e2e",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"

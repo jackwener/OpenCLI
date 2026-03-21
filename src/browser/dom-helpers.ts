@@ -11,8 +11,21 @@ export function clickJs(ref: string): string {
   return `
     (() => {
       const ref = ${safeRef};
-      const el = document.querySelector('[data-ref="' + ref + '"]')
-        || document.querySelectorAll('a, button, input, [role="button"], [tabindex]')[parseInt(ref, 10) || 0];
+      // 1. data-opencli-ref (set by snapshot engine)
+      let el = document.querySelector('[data-opencli-ref="' + ref + '"]');
+      // 2. data-ref (legacy)
+      if (!el) el = document.querySelector('[data-ref="' + ref + '"]');
+      // 3. CSS selector
+      if (!el && ref.match(/^[a-zA-Z#.\\[]/)) {
+        try { el = document.querySelector(ref); } catch {}
+      }
+      // 4. Numeric index into interactive elements
+      if (!el) {
+        const idx = parseInt(ref, 10);
+        if (!isNaN(idx)) {
+          el = document.querySelectorAll('a, button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])')[idx];
+        }
+      }
       if (!el) throw new Error('Element not found: ' + ref);
       el.scrollIntoView({ behavior: 'instant', block: 'center' });
       el.click();
@@ -28,13 +41,31 @@ export function typeTextJs(ref: string, text: string): string {
   return `
     (() => {
       const ref = ${safeRef};
-      const el = document.querySelector('[data-ref="' + ref + '"]')
-        || document.querySelectorAll('input, textarea, [contenteditable]')[parseInt(ref, 10) || 0];
+      // 1. data-opencli-ref (set by snapshot engine)
+      let el = document.querySelector('[data-opencli-ref="' + ref + '"]');
+      // 2. data-ref (legacy)
+      if (!el) el = document.querySelector('[data-ref="' + ref + '"]');
+      // 3. CSS selector
+      if (!el && ref.match(/^[a-zA-Z#.\\[]/)) {
+        try { el = document.querySelector(ref); } catch {}
+      }
+      // 4. Numeric index into typeable elements
+      if (!el) {
+        const idx = parseInt(ref, 10);
+        if (!isNaN(idx)) {
+          el = document.querySelectorAll('input, textarea, [contenteditable="true"]')[idx];
+        }
+      }
       if (!el) throw new Error('Element not found: ' + ref);
       el.focus();
-      el.value = ${safeText};
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
+      if (el.isContentEditable) {
+        el.textContent = ${safeText};
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      } else {
+        el.value = ${safeText};
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
       return 'typed';
     })()
   `;

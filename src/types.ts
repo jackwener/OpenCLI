@@ -17,10 +17,19 @@ export interface IPage {
     httpOnly?: boolean;
     expirationDate?: number;
   }>>;
-  snapshot(opts?: { interactive?: boolean; compact?: boolean; maxDepth?: number; raw?: boolean }): Promise<any>;
+  snapshot(opts?: {
+    interactive?: boolean;
+    compact?: boolean;
+    maxDepth?: number;
+    raw?: boolean;
+    viewportExpand?: number;
+    maxTextLength?: number;
+  }): Promise<any>;
   click(ref: string): Promise<void>;
   typeText(ref: string, text: string): Promise<void>;
   pressKey(key: string): Promise<void>;
+  scrollTo(ref: string): Promise<any>;
+  getFormState(): Promise<any>;
   wait(options: number | { text?: string; time?: number; timeout?: number }): Promise<void>;
   tabs(): Promise<any>;
   closeTab(index?: number): Promise<void>;

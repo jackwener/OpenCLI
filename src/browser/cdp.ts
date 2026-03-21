@@ -11,6 +11,7 @@
 import { WebSocket, type RawData } from 'ws';
 import type { IPage } from '../types.js';
 import { wrapForEval } from './utils.js';
+import { generateSnapshotJs, scrollToRefJs, getFormStateJs } from './dom-snapshot.js';
 import {
   clickJs,
   typeTextJs,
@@ -193,9 +194,16 @@ class CDPPage implements IPage {
       : cookies;
   }
 
-  async snapshot(_opts?: any): Promise<any> {
-    // CDP doesn't have a built-in accessibility tree equivalent without additional setup
-    return '(snapshot not available in CDP mode)';
+  async snapshot(opts: { interactive?: boolean; compact?: boolean; maxDepth?: number; raw?: boolean; viewportExpand?: number; maxTextLength?: number } = {}): Promise<any> {
+    const snapshotJs = generateSnapshotJs({
+      viewportExpand: opts.viewportExpand ?? 800,
+      maxDepth: Math.max(1, Math.min(Number(opts.maxDepth) || 50, 200)),
+      interactiveOnly: opts.interactive ?? false,
+      maxTextLength: opts.maxTextLength ?? 120,
+      includeScrollInfo: true,
+      bboxDedup: true,
+    });
+    return this.evaluate(snapshotJs);
   }
 
   // ── Shared DOM operations (P1 fix #5 — using dom-helpers.ts) ──
@@ -210,6 +218,14 @@ class CDPPage implements IPage {
 
   async pressKey(key: string): Promise<void> {
     await this.evaluate(pressKeyJs(key));
+  }
+
+  async scrollTo(ref: string): Promise<any> {
+    return this.evaluate(scrollToRefJs(ref));
+  }
+
+  async getFormState(): Promise<any> {
+    return this.evaluate(getFormStateJs());
   }
 
   async wait(options: any): Promise<void> {

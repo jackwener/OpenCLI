@@ -16,6 +16,8 @@ function createMockPage(overrides: Partial<IPage> = {}): IPage {
     click: vi.fn(),
     typeText: vi.fn(),
     pressKey: vi.fn(),
+    scrollTo: vi.fn().mockResolvedValue(undefined),
+    getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
     wait: vi.fn(),
     tabs: vi.fn().mockResolvedValue([]),
     closeTab: vi.fn(),

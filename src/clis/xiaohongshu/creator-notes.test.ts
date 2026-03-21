@@ -22,6 +22,8 @@ function createPageMock(evaluateResult: any, interceptedRequests: any[] = []): I
     click: vi.fn().mockResolvedValue(undefined),
     typeText: vi.fn().mockResolvedValue(undefined),
     pressKey: vi.fn().mockResolvedValue(undefined),
+    scrollTo: vi.fn().mockResolvedValue(undefined),
+    getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
     wait: vi.fn().mockResolvedValue(undefined),
     tabs: vi.fn().mockResolvedValue([]),
     closeTab: vi.fn().mockResolvedValue(undefined),

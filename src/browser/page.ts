@@ -14,6 +14,7 @@ import { formatSnapshot } from '../snapshotFormatter.js';
 import type { IPage } from '../types.js';
 import { sendCommand } from './daemon-client.js';
 import { wrapForEval } from './utils.js';
+import { generateSnapshotJs, scrollToRefJs, getFormStateJs } from './dom-snapshot.js';
 import {
   clickJs,
   typeTextJs,
@@ -79,7 +80,30 @@ export class Page implements IPage {
     return Array.isArray(result) ? result : [];
   }
 
-  async snapshot(opts: { interactive?: boolean; compact?: boolean; maxDepth?: number; raw?: boolean } = {}): Promise<any> {
+  async snapshot(opts: { interactive?: boolean; compact?: boolean; maxDepth?: number; raw?: boolean; viewportExpand?: number; maxTextLength?: number } = {}): Promise<any> {
+    // Primary: use the advanced DOM snapshot engine with multi-layer pruning
+    const snapshotJs = generateSnapshotJs({
+      viewportExpand: opts.viewportExpand ?? 800,
+      maxDepth: Math.max(1, Math.min(Number(opts.maxDepth) || 50, 200)),
+      interactiveOnly: opts.interactive ?? false,
+      maxTextLength: opts.maxTextLength ?? 120,
+      includeScrollInfo: true,
+      bboxDedup: true,
+    });
+
+    try {
+      const result = await sendCommand('exec', { code: snapshotJs, ...this._workspaceOpt(), ...this._tabOpt() });
+      // The advanced engine already produces a clean, pruned, LLM-friendly output.
+      // Do NOT pass through formatSnapshot — its format is incompatible.
+      return result;
+    } catch {
+      // Fallback: basic DOM snapshot (original implementation)
+      return this._basicSnapshot(opts);
+    }
+  }
+
+  /** Fallback basic snapshot — original buildTree approach */
+  private async _basicSnapshot(opts: { interactive?: boolean; compact?: boolean; maxDepth?: number; raw?: boolean } = {}): Promise<any> {
     const maxDepth = Math.max(1, Math.min(Number(opts.maxDepth) || 50, 200));
     const code = `
       (async () => {
@@ -93,7 +117,7 @@ export class Page implements IPage {
 
           let indent = '  '.repeat(depth);
           let line = indent + role;
-          if (name) line += ' "' + name.replace(/"/g, '\\\\"') + '"';
+          if (name) line += ' "' + name.replace(/"/g, '\\\\\\"') + '"';
           if (node.tagName?.toLowerCase() === 'a' && node.href) line += ' [' + node.href + ']';
           if (node.tagName?.toLowerCase() === 'input') line += ' [' + (node.type || 'text') + ']';
 
@@ -127,6 +151,16 @@ export class Page implements IPage {
   async pressKey(key: string): Promise<void> {
     const code = pressKeyJs(key);
     await sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
+  }
+
+  async scrollTo(ref: string): Promise<any> {
+    const code = scrollToRefJs(ref);
+    return sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
+  }
+
+  async getFormState(): Promise<any> {
+    const code = getFormStateJs();
+    return sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
   }
 
   async wait(options: number | { text?: string; time?: number; timeout?: number }): Promise<void> {
