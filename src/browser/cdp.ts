@@ -341,6 +341,7 @@ function scoreCDPTarget(target: CDPTarget, preferredPattern?: RegExp): number {
   if (title.includes('codex')) score += 120;
   if (title.includes('cursor')) score += 120;
   if (title.includes('chatwise')) score += 120;
+  if (title.includes('chatgpt')) score += 120;
   if (title.includes('notion')) score += 120;
   if (title.includes('discord')) score += 120;
   if (title.includes('netease')) score += 120;
@@ -349,6 +350,7 @@ function scoreCDPTarget(target: CDPTarget, preferredPattern?: RegExp): number {
   if (url.includes('codex')) score += 100;
   if (url.includes('cursor')) score += 100;
   if (url.includes('chatwise')) score += 100;
+  if (url.includes('chatgpt') || url.includes('chat.openai')) score += 100;
   if (url.includes('notion')) score += 100;
   if (url.includes('discord')) score += 100;
   if (url.includes('netease')) score += 100;

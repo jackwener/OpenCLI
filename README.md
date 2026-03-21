@@ -129,7 +129,7 @@ Run `opencli list` for the live registry.
 | **v2ex** | `hot` `latest` `topic` `daily` `me` `notifications` | Public / Browser |
 | **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` | Browser |
 | **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` | Desktop |
-| **chatgpt** | `status` `new` `send` `read` `ask` | Desktop |
+| **chatgpt** | `status` `new` `send` `read` `ask` `reasoning` | Desktop |
 | **xiaohongshu** | `search` `notifications` `feed` `user` `download` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | Browser |
 | **apple-podcasts** | `search` `episodes` `top` | Public |
 | **xiaoyuzhou** | `podcast` `podcast-episodes` `episode` | Public |
