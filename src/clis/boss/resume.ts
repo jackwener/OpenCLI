@@ -1,5 +1,13 @@
 /**
  * BOSS直聘 resume — view candidate resume/profile via chat page UI scraping (boss side).
+ *
+ * Flow: navigate to chat page → click on candidate → scrape the right panel info.
+ *
+ * Right panel HTML structure:
+ *  .base-info-single-detial → name, gender, age, experience, degree
+ *  .experience-content.time-list → time ranges (icon-base-info-work / icon-base-info-edu)
+ *  .experience-content.detail-list → details (company·position / school·major·degree)
+ *  .position-content → job being discussed + expectation
  */
 import { cli, Strategy } from '../../registry.js';
 import { requirePage, navigateToChat, findFriendByUid, clickCandidateInList } from './common.js';
