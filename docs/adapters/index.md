@@ -34,7 +34,6 @@ Run `opencli list` for the live registry.
 | Site | Commands | Mode |
 |------|----------|------|
 | **[hackernews](/adapters/browser/hackernews)** | `top` | 🌐 Public |
-| **[github](/adapters/browser/github)** | `search` | 🌐 Public |
 | **[bbc](/adapters/browser/bbc)** | `news` | 🌐 Public |
 | **[apple-podcasts](/adapters/browser/apple-podcasts)** | `search` `episodes` `top` | 🌐 Public |
 | **[xiaoyuzhou](/adapters/browser/xiaoyuzhou)** | `podcast` `podcast-episodes` `episode` | 🌐 Public |
