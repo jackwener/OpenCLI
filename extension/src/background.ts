@@ -226,8 +226,8 @@ async function handleCommand(cmd: Command): Promise<Result> {
 
 // ─── Action handlers ─────────────────────────────────────────────────
 
-/** Check if a URL is a debuggable web page (not chrome:// or extension page) */
-function isWebUrl(url?: string): boolean {
+/** Check if a URL can be attached via CDP (not chrome:// or chrome-extension://) */
+function isDebuggableUrl(url?: string): boolean {
   if (!url) return false;
   return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://');
 }
@@ -243,13 +243,22 @@ async function resolveTabId(tabId: number | undefined, workspace: string): Promi
   // Get (or create) the automation window
   const windowId = await getAutomationWindow(workspace);
 
-  // Find the active tab in our automation window
+  // Prefer an existing debuggable tab (about:blank, http://, https://, etc.)
   const tabs = await chrome.tabs.query({ windowId });
-  const webTab = tabs.find(t => t.id && isWebUrl(t.url));
-  if (webTab?.id) return webTab.id;
+  const debuggableTab = tabs.find(t => t.id && isDebuggableUrl(t.url));
+  if (debuggableTab?.id) return debuggableTab.id;
 
-  // No suitable web tab — create one (don't fall back to chrome-extension:// tabs
-  // which can't be debugged via CDP, causing "attach failed" errors)
+  // No debuggable tab found — this typically happens when a "New Tab Override"
+  // extension replaces about:blank with a chrome-extension:// page.
+  // Reuse the first existing tab by navigating it to about:blank (avoids
+  // accumulating orphan tabs if chrome.tabs.create is also intercepted).
+  const reuseTab = tabs.find(t => t.id);
+  if (reuseTab?.id) {
+    await chrome.tabs.update(reuseTab.id, { url: 'about:blank' });
+    return reuseTab.id;
+  }
+
+  // Window has no tabs at all — create one
   const newTab = await chrome.tabs.create({ windowId, url: 'about:blank', active: true });
   if (!newTab.id) throw new Error('Failed to create tab in automation window');
   return newTab.id;
@@ -268,7 +277,7 @@ async function listAutomationTabs(workspace: string): Promise<chrome.tabs.Tab[]>
 
 async function listAutomationWebTabs(workspace: string): Promise<chrome.tabs.Tab[]> {
   const tabs = await listAutomationTabs(workspace);
-  return tabs.filter((tab) => isWebUrl(tab.url));
+  return tabs.filter((tab) => isDebuggableUrl(tab.url));
 }
 
 async function handleExec(cmd: Command, workspace: string): Promise<Result> {
@@ -413,7 +422,7 @@ async function handleSessions(cmd: Command): Promise<Result> {
   const data = await Promise.all([...automationSessions.entries()].map(async ([workspace, session]) => ({
     workspace,
     windowId: session.windowId,
-    tabCount: (await chrome.tabs.query({ windowId: session.windowId })).filter((tab) => isWebUrl(tab.url)).length,
+    tabCount: (await chrome.tabs.query({ windowId: session.windowId })).filter((tab) => isDebuggableUrl(tab.url)).length,
     idleMsRemaining: Math.max(0, session.idleDeadlineAt - now),
   })));
   return { id: cmd.id, ok: true, data };
