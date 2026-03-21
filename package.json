@@ -19,8 +19,9 @@
   },
   "scripts": {
     "dev": "tsx src/main.ts",
-    "build": "tsc && npm run clean-yaml && npm run copy-yaml && npm run build-manifest",
+    "build": "npm run clean-dist && tsc && npm run clean-yaml && npm run copy-yaml && npm run build-manifest",
     "build-manifest": "node dist/build-manifest.js",
+    "clean-dist": "node scripts/clean-dist.cjs",
     "clean-yaml": "node scripts/clean-yaml.cjs",
     "copy-yaml": "node scripts/copy-yaml.cjs",
     "start": "node dist/main.js",

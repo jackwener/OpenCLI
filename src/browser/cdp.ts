@@ -385,7 +385,6 @@ function scoreCDPTarget(target: CDPTarget, preferredPattern?: RegExp): number {
   if (title.includes('chatwise')) score += 120;
   if (title.includes('notion')) score += 120;
   if (title.includes('discord')) score += 120;
-  if (title.includes('netease')) score += 120;
 
   if (url.includes('antigravity')) score += 100;
   if (url.includes('codex')) score += 100;
@@ -393,7 +392,6 @@ function scoreCDPTarget(target: CDPTarget, preferredPattern?: RegExp): number {
   if (url.includes('chatwise')) score += 100;
   if (url.includes('notion')) score += 100;
   if (url.includes('discord')) score += 100;
-  if (url.includes('netease')) score += 100;
 
   return score;
 }

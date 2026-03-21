@@ -198,9 +198,6 @@ Each desktop adapter has its own detailed documentation with commands reference,
 | **ChatWise** | Multi-LLM client (GPT-4, Claude, Gemini) | [Doc](./docs/adapters/desktop/chatwise.md) |
 | **Notion** | Search, read, write Notion pages | [Doc](./docs/adapters/desktop/notion.md) |
 | **Discord** | Discord Desktop — messages, channels, servers | [Doc](./docs/adapters/desktop/discord.md) |
-| **Feishu** | 飞书/Lark Desktop via AppleScript | [Doc](./docs/adapters/desktop/feishu.md) |
-| **WeChat** | 微信 Desktop via AppleScript + Accessibility | [Doc](./docs/adapters/desktop/wechat.md) |
-| **NeteaseMusic** | 网易云音乐 Desktop via CEF/CDP | [Doc](./docs/adapters/desktop/neteasemusic.md) |
 
 ## Download Support
 

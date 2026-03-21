@@ -199,9 +199,6 @@ opencli register mycli
 | **ChatWise** | 多 LLM 客户端（GPT-4、Claude、Gemini） | [Doc](./docs/adapters/desktop/chatwise.md) |
 | **Notion** | 搜索、读取、写入 Notion 页面 | [Doc](./docs/adapters/desktop/notion.md) |
 | **Discord** | Discord 桌面版 — 消息、频道、服务器 | [Doc](./docs/adapters/desktop/discord.md) |
-| **Feishu** | 飞书/Lark 桌面版 (AppleScript 驱动) | [Doc](./docs/adapters/desktop/feishu.md) |
-| **WeChat** | 微信 Mac 桌面端 (AppleScript + 无障碍接口) | [Doc](./docs/adapters/desktop/wechat.md) |
-| **NeteaseMusic** | 网易云音乐 (CEF/CDP 驱动) | [Doc](./docs/adapters/desktop/neteasemusic.md) |
 
 ## 下载支持
 
