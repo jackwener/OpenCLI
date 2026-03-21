@@ -10,6 +10,7 @@ cli({
   description: 'BOSS直聘职位数据统计',
   domain: 'www.zhipin.com',
   strategy: Strategy.COOKIE,
+  navigateBefore: false,
   browser: true,
   args: [
     { name: 'job-id', default: '', help: 'Encrypted job ID (show all if empty)' },

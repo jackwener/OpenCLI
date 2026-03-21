@@ -13,6 +13,7 @@ cli({
   description: 'BOSS直聘向新候选人发送招呼（开始聊天）',
   domain: 'www.zhipin.com',
   strategy: Strategy.COOKIE,
+  navigateBefore: false,
   browser: true,
   args: [
     { name: 'uid', required: true, help: 'Encrypted UID of the candidate (from recommend)' },

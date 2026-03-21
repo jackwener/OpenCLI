@@ -62,6 +62,7 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
           pipeline: entry.pipeline,
           timeoutSeconds: entry.timeout,
           source: `manifest:${entry.site}/${entry.name}`,
+          navigateBefore: entry.navigateBefore,
         };
         registerCommand(cmd);
       } else if (entry.type === 'ts' && entry.modulePath) {
@@ -80,6 +81,7 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
           columns: entry.columns,
           timeoutSeconds: entry.timeout,
           source: modulePath,
+          navigateBefore: entry.navigateBefore,
           _lazy: true,
           _modulePath: modulePath,
         };
@@ -162,6 +164,7 @@ async function registerYamlCli(filePath: string, defaultSite: string): Promise<v
       pipeline: def.pipeline,
       timeoutSeconds: def.timeout,
       source: filePath,
+      navigateBefore: def.navigateBefore,
     };
 
     registerCommand(cmd);

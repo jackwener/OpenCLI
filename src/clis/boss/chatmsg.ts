@@ -7,6 +7,7 @@ cli({
   description: 'BOSS直聘查看与候选人的聊天消息',
   domain: 'www.zhipin.com',
   strategy: Strategy.COOKIE,
+  navigateBefore: false,
   browser: true,
   args: [
     { name: 'uid', required: true, help: 'Encrypted UID (from chatlist)' },

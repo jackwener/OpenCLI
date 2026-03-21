@@ -19,6 +19,7 @@ cli({
   description: 'BOSS直聘给候选人添加标签',
   domain: 'www.zhipin.com',
   strategy: Strategy.COOKIE,
+  navigateBefore: false,
   browser: true,
   args: [
     { name: 'uid', required: true, help: 'Encrypted UID of the candidate' },

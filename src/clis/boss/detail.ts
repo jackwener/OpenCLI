@@ -10,6 +10,7 @@ cli({
   description: 'BOSS直聘查看职位详情',
   domain: 'www.zhipin.com',
   strategy: Strategy.COOKIE,
+  navigateBefore: false,
   browser: true,
   args: [
     { name: 'security-id', required: true, help: 'Security ID from search results (securityId field)' },

@@ -102,6 +102,24 @@ async function runCommand(
 }
 
 /**
+ * Resolve the pre-navigation URL for a command, or null to skip.
+ *
+ * COOKIE/HEADER strategies need the browser on the target domain so
+ * `fetch(url, { credentials: 'include' })` carries cookies.
+ * Adapters that handle their own navigation set `navigateBefore: false`.
+ */
+function resolvePreNav(cmd: CliCommand): string | null {
+  if (cmd.navigateBefore === false) return null;
+  if (typeof cmd.navigateBefore === 'string') return cmd.navigateBefore;
+
+  // Default: pre-navigate for COOKIE/HEADER strategies with a domain
+  if ((cmd.strategy === Strategy.COOKIE || cmd.strategy === Strategy.HEADER) && cmd.domain) {
+    return `https://${cmd.domain}`;
+  }
+  return null;
+}
+
+/**
  * Execute a CLI command. Automatically manages browser sessions when needed.
  *
  * This is the unified entry point — callers don't need to care about
@@ -122,14 +140,11 @@ export async function executeCommand(
   if (shouldUseBrowserSession(cmd)) {
     const BrowserFactory = getBrowserFactory();
     return browserSession(BrowserFactory, async (page) => {
-      // Cookie/header strategies require same-origin context for credentialed fetch.
-      // TS adapters that manage their own navigation (via common.ts helpers like
-      // navigateToChat/navigateTo) should skip this pre-navigation to avoid
-      // redundant double page loads. Currently only boss adapters do this.
-      // TODO: replace site check with an adapter-level `skipPreNav` flag.
-      const skipPreNav = cmd.site === 'boss';
-      if (!skipPreNav && (cmd.strategy === Strategy.COOKIE || cmd.strategy === Strategy.HEADER) && cmd.domain) {
-        try { await page.goto(`https://${cmd.domain}`); await page.wait(2); } catch {}
+      // Pre-navigate to target domain for cookie/header context if needed.
+      // Each adapter controls this via `navigateBefore` (see CliCommand docs).
+      const preNavUrl = resolvePreNav(cmd);
+      if (preNavUrl) {
+        try { await page.goto(preNavUrl); await page.wait(2); } catch {}
       }
       return runWithTimeout(runCommand(cmd, page, kwargs, debug), {
         timeout: cmd.timeoutSeconds ?? DEFAULT_BROWSER_COMMAND_TIMEOUT,

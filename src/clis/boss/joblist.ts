@@ -10,6 +10,7 @@ cli({
   description: 'BOSS直聘查看我发布的职位列表',
   domain: 'www.zhipin.com',
   strategy: Strategy.COOKIE,
+  navigateBefore: false,
   browser: true,
   args: [],
   columns: ['job_name', 'salary', 'city', 'status', 'encrypt_job_id'],

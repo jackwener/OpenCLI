@@ -10,6 +10,7 @@ cli({
   description: 'BOSS直聘交换联系方式（请求手机/微信）',
   domain: 'www.zhipin.com',
   strategy: Strategy.COOKIE,
+  navigateBefore: false,
   browser: true,
   args: [
     { name: 'uid', required: true, help: 'Encrypted UID of the candidate' },

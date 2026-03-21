@@ -10,6 +10,7 @@ cli({
   description: 'BOSS直聘查看推荐候选人（新招呼列表）',
   domain: 'www.zhipin.com',
   strategy: Strategy.COOKIE,
+  navigateBefore: false,
   browser: true,
   args: [
     { name: 'limit', type: 'int', default: 20, help: 'Number of results to return' },

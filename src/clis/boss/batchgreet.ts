@@ -13,6 +13,7 @@ cli({
   description: 'BOSS直聘批量向推荐候选人发送招呼',
   domain: 'www.zhipin.com',
   strategy: Strategy.COOKIE,
+  navigateBefore: false,
   browser: true,
   args: [
     { name: 'job-id', default: '', help: 'Filter by encrypted job ID (greet all jobs if empty)' },

@@ -36,6 +36,17 @@ export interface CliCommand {
   timeoutSeconds?: number;
   source?: string;
   footerExtra?: (kwargs: Record<string, any>) => string | undefined;
+  /**
+   * Control pre-navigation for cookie/header context before command execution.
+   *
+   * Browser adapters using COOKIE/HEADER strategy need the page to be on the
+   * target domain so that `fetch(url, { credentials: 'include' })` carries cookies.
+   *
+   * - `undefined` / `true`: navigate to `https://${domain}` (default)
+   * - `false`: skip — adapter handles its own navigation (e.g. boss common.ts)
+   * - `string`: navigate to this specific URL instead of the domain root
+   */
+  navigateBefore?: boolean | string;
 }
 
 /** Internal extension for lazy-loaded TS modules (not exposed in public API) */
@@ -73,6 +84,7 @@ export function cli(opts: CliOptions): CliCommand {
     pipeline: opts.pipeline,
     timeoutSeconds: opts.timeoutSeconds,
     footerExtra: opts.footerExtra,
+    navigateBefore: opts.navigateBefore,
   };
 
   const key = fullName(cmd);

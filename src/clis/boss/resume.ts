@@ -18,6 +18,7 @@ cli({
   description: 'BOSS直聘查看候选人简历（招聘端）',
   domain: 'www.zhipin.com',
   strategy: Strategy.COOKIE,
+  navigateBefore: false,
   browser: true,
   args: [
     { name: 'uid', required: true, help: 'Encrypted UID of the candidate (from chatlist)' },

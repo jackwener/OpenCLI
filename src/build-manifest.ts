@@ -41,6 +41,8 @@ interface ManifestEntry {
   type: 'yaml' | 'ts';
   /** Relative path from clis/ dir, e.g. 'bilibili/hot.yaml' or 'bilibili/search.js' */
   modulePath?: string;
+  /** Pre-navigation control — see CliCommand.navigateBefore */
+  navigateBefore?: boolean | string;
 }
 
 function extractBalancedBlock(
@@ -189,6 +191,7 @@ function scanYaml(filePath: string, site: string): ManifestEntry | null {
       pipeline: def.pipeline,
       timeout: def.timeout,
       type: 'yaml',
+      navigateBefore: def.navigateBefore,
     };
   } catch (err: any) {
     process.stderr.write(`Warning: failed to parse ${filePath}: ${err.message}\n`);
@@ -247,6 +250,10 @@ function scanTs(filePath: string, site: string): ManifestEntry | null {
     if (argsBlock) {
       entry.args = parseTsArgsBlock(argsBlock);
     }
+
+    // Extract navigateBefore: false
+    const navMatch = src.match(/navigateBefore\s*:\s*(true|false)/);
+    if (navMatch) entry.navigateBefore = navMatch[1] === 'true' ? true : false;
 
     return entry;
   } catch (err: any) {

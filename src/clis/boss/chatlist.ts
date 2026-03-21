@@ -7,6 +7,7 @@ cli({
   description: 'BOSS直聘查看聊天列表（招聘端）',
   domain: 'www.zhipin.com',
   strategy: Strategy.COOKIE,
+  navigateBefore: false,
   browser: true,
   args: [
     { name: 'page', type: 'int', default: 1, help: 'Page number' },
