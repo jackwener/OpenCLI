@@ -173,6 +173,7 @@ function scanYaml(filePath: string, site: string): ManifestEntry | null {
           type: argDef?.type ?? 'str',
           default: argDef?.default,
           required: argDef?.required ?? false,
+          positional: argDef?.positional === true || undefined,
           help: argDef?.description ?? argDef?.help ?? '',
           choices: argDef?.choices,
         });

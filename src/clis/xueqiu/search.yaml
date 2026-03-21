@@ -6,7 +6,9 @@ browser: true
 
 args:
   query:
+    positional: true
     type: str
+    required: true
     description: 搜索关键词，如 茅台、AAPL、腾讯
   limit:
     type: int
@@ -19,7 +21,6 @@ pipeline:
       (async () => {
         const query = ${{ args.query | json }};
         const count = ${{ args.limit }};
-        if (!query) throw new Error('Missing argument: query');
         const resp = await fetch(`https://xueqiu.com/stock/search.json?code=${encodeURIComponent(query)}&size=${count}`, {credentials: 'include'});
         if (!resp.ok) throw new Error('HTTP ' + resp.status + ' Hint: Not logged in?');
         const d = await resp.json();

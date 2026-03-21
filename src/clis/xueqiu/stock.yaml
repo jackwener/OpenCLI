@@ -6,7 +6,9 @@ browser: true
 
 args:
   symbol:
+    positional: true
     type: str
+    required: true
     description: 股票代码，如 SH600519、SZ000858、AAPL、00700
 
 pipeline:
