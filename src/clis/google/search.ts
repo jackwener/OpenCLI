@@ -16,7 +16,7 @@ cli({
   name: 'search',
   description: 'Search Google',
   domain: 'google.com',
-  strategy: Strategy.COOKIE,
+  strategy: Strategy.PUBLIC,
   browser: true,
   args: [
     { name: 'keyword', positional: true, required: true, help: 'Search query' },
