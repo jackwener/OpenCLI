@@ -199,7 +199,7 @@ function scanYaml(filePath: string, site: string): ManifestEntry | null {
   }
 }
 
-function scanTs(filePath: string, site: string): ManifestEntry | null {
+export function scanTs(filePath: string, site: string): ManifestEntry | null {
   // TS adapters self-register via cli() at import time.
   // We statically parse the source to extract metadata for the manifest stub.
   const baseName = path.basename(filePath, path.extname(filePath));
@@ -263,8 +263,17 @@ function scanTs(filePath: string, site: string): ManifestEntry | null {
   }
 }
 
+/**
+ * When both YAML and TS adapters exist for the same site/name,
+ * prefer the TS version (it self-registers and typically has richer logic).
+ */
+export function shouldReplaceManifestEntry(current: ManifestEntry, next: ManifestEntry): boolean {
+  if (current.type === next.type) return true;
+  return current.type === 'yaml' && next.type === 'ts';
+}
+
 export function buildManifest(): ManifestEntry[] {
-  const manifest: ManifestEntry[] = [];
+  const manifest = new Map<string, ManifestEntry>();
 
   if (fs.existsSync(CLIS_DIR)) {
     for (const site of fs.readdirSync(CLIS_DIR)) {
@@ -274,19 +283,37 @@ export function buildManifest(): ManifestEntry[] {
         const filePath = path.join(siteDir, file);
         if (file.endsWith('.yaml') || file.endsWith('.yml')) {
           const entry = scanYaml(filePath, site);
-          if (entry) manifest.push(entry);
+          if (entry) {
+            const key = `${entry.site}/${entry.name}`;
+            const existing = manifest.get(key);
+            if (!existing || shouldReplaceManifestEntry(existing, entry)) {
+              if (existing && existing.type !== entry.type) {
+                process.stderr.write(`⚠️  Duplicate adapter ${key}: ${existing.type} superseded by ${entry.type}\n`);
+              }
+              manifest.set(key, entry);
+            }
+          }
         } else if (
           (file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts') && file !== 'index.ts') ||
           (file.endsWith('.js') && !file.endsWith('.d.js') && !file.endsWith('.test.js') && file !== 'index.js')
         ) {
           const entry = scanTs(filePath, site);
-          if (entry) manifest.push(entry);
+          if (entry) {
+            const key = `${entry.site}/${entry.name}`;
+            const existing = manifest.get(key);
+            if (!existing || shouldReplaceManifestEntry(existing, entry)) {
+              if (existing && existing.type !== entry.type) {
+                process.stderr.write(`⚠️  Duplicate adapter ${key}: ${existing.type} superseded by ${entry.type}\n`);
+              }
+              manifest.set(key, entry);
+            }
+          }
         }
       }
     }
   }
 
-  return manifest;
+  return [...manifest.values()];
 }
 
 function main(): void {

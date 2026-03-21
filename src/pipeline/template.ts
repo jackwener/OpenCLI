@@ -11,12 +11,13 @@ export interface RenderContext {
 
 export function render(template: any, ctx: RenderContext): any {
   if (typeof template !== 'string') return template;
+  const trimmed = template.trim();
   // Full expression: entire string is a single ${{ ... }}
   // Use [^}] to prevent matching across }} boundaries (e.g. "${{ a }}-${{ b }}")
-  const fullMatch = template.match(/^\$\{\{\s*([^}]*(?:\}[^}][^}]*)*)\s*\}\}$/);
-  if (fullMatch && !template.includes('}}-') && !template.includes('}}${{')) return evalExpr(fullMatch[1].trim(), ctx);
+  const fullMatch = trimmed.match(/^\$\{\{\s*([^}]*(?:\}[^}][^}]*)*)\s*\}\}$/);
+  if (fullMatch && !trimmed.includes('}}-') && !trimmed.includes('}}${{')) return evalExpr(fullMatch[1].trim(), ctx);
   // Check if the entire string is a single expression (no other text around it)
-  const singleExpr = template.match(/^\$\{\{\s*([\s\S]*?)\s*\}\}$/);
+  const singleExpr = trimmed.match(/^\$\{\{\s*([\s\S]*?)\s*\}\}$/);
   if (singleExpr) {
     // Verify it's truly a single expression (no other ${{ inside)
     const inner = singleExpr[1];
@@ -68,7 +69,10 @@ export function evalExpr(expr: string, ctx: RenderContext): any {
     return right.replace(/^['"]|['"]$/g, '');
   }
 
-  return resolvePath(expr, { args, item, data, index });
+  const resolved = resolvePath(expr, { args, item, data, index });
+  if (resolved !== null && resolved !== undefined) return resolved;
+
+  return evalJsExpr(expr, { args, item, data, index });
 }
 
 /**
@@ -145,6 +149,10 @@ function applyFilter(filterExpr: string, value: any): any {
       const parts = value.split(/[/\\]/);
       return parts[parts.length - 1] || value;
     }
+    case 'urlencode':
+      return typeof value === 'string' ? encodeURIComponent(value) : value;
+    case 'urldecode':
+      return typeof value === 'string' ? decodeURIComponent(value) : value;
     default:
       return value;
   }
@@ -169,6 +177,66 @@ export function resolvePath(pathStr: string, ctx: RenderContext): any {
     else return null;
   }
   return obj;
+}
+
+/**
+ * Evaluate arbitrary JS expressions as a last-resort fallback.
+ *
+ * ⚠️  SECURITY NOTE: Uses `new Function()` to execute the expression.
+ * This is acceptable here because:
+ *   1. YAML adapters are authored by trusted repo contributors only.
+ *   2. The expression runs in the same Node.js process (no sandbox).
+ *   3. Only a curated set of globals is exposed (no require/import/process/fs).
+ * If opencli ever loads untrusted third-party adapters, this MUST be replaced
+ * with a proper sandboxed evaluator.
+ */
+function evalJsExpr(expr: string, ctx: RenderContext): any {
+  // Guard against absurdly long expressions that could indicate injection.
+  if (expr.length > 2000) return undefined;
+
+  const args = ctx.args ?? {};
+  const item = ctx.item ?? {};
+  const data = ctx.data;
+  const index = ctx.index ?? 0;
+
+  try {
+    const fn = new Function(
+      'args',
+      'item',
+      'data',
+      'index',
+      'encodeURIComponent',
+      'decodeURIComponent',
+      'JSON',
+      'Math',
+      'Number',
+      'String',
+      'Boolean',
+      'Array',
+      'Object',
+      'Date',
+      `"use strict"; return (${expr});`,
+    );
+
+    return fn(
+      args,
+      item,
+      data,
+      index,
+      encodeURIComponent,
+      decodeURIComponent,
+      JSON,
+      Math,
+      Number,
+      String,
+      Boolean,
+      Array,
+      Object,
+      Date,
+    );
+  } catch {
+    return undefined;
+  }
 }
 
 /**

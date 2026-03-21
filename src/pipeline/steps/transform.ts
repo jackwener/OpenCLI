@@ -20,13 +20,25 @@ export async function stepSelect(_page: any, params: any, data: any, args: Recor
 
 export async function stepMap(_page: any, params: any, data: any, args: Record<string, any>): Promise<any> {
   if (!data || typeof data !== 'object') return data;
-  let items: any[] = Array.isArray(data) ? data : [data];
-  if (!Array.isArray(data) && typeof data === 'object' && 'data' in data) items = data.data;
+  let source = data;
+
+  // Support inline select: { map: { select: 'path', key: '${{ item.x }}' } }
+  if (params && typeof params === 'object' && 'select' in params) {
+    source = await stepSelect(null, (params as any).select, data, args);
+  }
+
+  if (!source || typeof source !== 'object') return source;
+
+  let items: any[] = Array.isArray(source) ? source : [source];
+  if (!Array.isArray(source) && typeof source === 'object' && 'data' in source) items = source.data;
   const result: any[] = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const row: Record<string, any> = {};
-    for (const [key, template] of Object.entries(params)) row[key] = render(template, { args, data, item, index: i });
+    for (const [key, template] of Object.entries(params)) {
+      if (key === 'select') continue;
+      row[key] = render(template, { args, data: source, item, index: i });
+    }
     result.push(row);
   }
   return result;

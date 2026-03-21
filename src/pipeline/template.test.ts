@@ -57,6 +57,15 @@ describe('evalExpr', () => {
   it('resolves simple path', () => {
     expect(evalExpr('item.title', { item: { title: 'Test' } })).toBe('Test');
   });
+  it('evaluates JS helper expressions', () => {
+    expect(evalExpr('encodeURIComponent(args.keyword)', { args: { keyword: 'hello world' } })).toBe('hello%20world');
+  });
+  it('evaluates ternary expressions', () => {
+    expect(evalExpr("args.kind === 'tech' ? 'technology' : args.kind", { args: { kind: 'tech' } })).toBe('technology');
+  });
+  it('evaluates method calls on values', () => {
+    expect(evalExpr("args.username.startsWith('@') ? args.username : '@' + args.username", { args: { username: 'alice' } })).toBe('@alice');
+  });
   it('applies join filter', () => {
     expect(evalExpr('item.tags | join(,)', { item: { tags: ['a', 'b', 'c'] } })).toBe('a,b,c');
   });
@@ -103,6 +112,15 @@ describe('render', () => {
   });
   it('renders URL template', () => {
     expect(render('https://api.example.com/search?q=${{ args.keyword }}', { args: { keyword: 'test' } })).toBe('https://api.example.com/search?q=test');
+  });
+  it('renders inline helper expressions', () => {
+    expect(render('https://example.com/search?q=${{ encodeURIComponent(args.keyword) }}', { args: { keyword: 'hello world' } })).toBe('https://example.com/search?q=hello%20world');
+  });
+  it('renders full multiline expressions', () => {
+    expect(render("${{\n  args.topic ? `https://medium.com/tag/${args.topic}` : 'https://medium.com/tag/technology'\n}}", { args: { topic: 'ai' } })).toBe('https://medium.com/tag/ai');
+  });
+  it('renders block expressions with surrounding whitespace', () => {
+    expect(render("\n  ${{ args.kind === 'tech' ? 'technology' : args.kind }}\n", { args: { kind: 'tech' } })).toBe('technology');
   });
 });
 

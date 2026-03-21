@@ -58,6 +58,19 @@ describe('stepMap', () => {
   it('returns null/undefined as-is', async () => {
     expect(await stepMap(null, { x: '${{ item.x }}' }, null, {})).toBeNull();
   });
+
+  it('supports inline select before mapping', async () => {
+    const result = await stepMap(null, {
+      select: 'posts',
+      title: '${{ item.title }}',
+      rank: '${{ index + 1 }}',
+    }, { posts: [{ title: 'One' }, { title: 'Two' }] }, {});
+
+    expect(result).toEqual([
+      { title: 'One', rank: 1 },
+      { title: 'Two', rank: 2 },
+    ]);
+  });
 });
 
 describe('stepFilter', () => {
