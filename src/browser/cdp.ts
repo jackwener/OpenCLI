@@ -55,7 +55,8 @@ export class CDPBridge {
 
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(wsUrl);
-      const timeout = setTimeout(() => reject(new Error('CDP connect timeout')), opts?.timeout ?? 10000);
+      const timeoutMs = (opts?.timeout ?? 10) * 1000; // opts.timeout is in seconds
+      const timeout = setTimeout(() => reject(new Error('CDP connect timeout')), timeoutMs);
 
       ws.on('open', () => {
         clearTimeout(timeout);
