@@ -11,7 +11,7 @@ cli({
   domain: 'www.barchart.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'symbol', required: true, help: 'Stock ticker (e.g. AAPL)' },
+    { name: 'symbol', required: true, positional: true, help: 'Stock ticker (e.g. AAPL)' },
     { name: 'type', type: 'str', default: 'Call', help: 'Option type: Call or Put', choices: ['Call', 'Put'] },
     { name: 'limit', type: 'int', default: 20, help: 'Max number of strikes to return' },
   ],

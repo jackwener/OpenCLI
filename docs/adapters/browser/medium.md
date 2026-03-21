@@ -1,31 +1,32 @@
 # Medium
 
-**Mode**: 🌐 Public · **Domain**: `medium.com`
+**Mode**: 🌗 Mixed · **Domain**: `medium.com`
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `opencli medium publication` | Get recent articles from a publication |
-| `opencli medium tag` | Get top articles for a tag |
+| `opencli medium feed` | Get hot Medium posts, optionally scoped to a topic |
+| `opencli medium search` | Search Medium posts by keyword |
 | `opencli medium user` | Get recent articles by a user |
 
 ## Usage Examples
 
 ```bash
-# Get articles from a publication
-opencli medium publication --name towards-data-science
+# Get the general Medium feed
+opencli medium feed --limit 10
 
-# Get top articles for a tag
-opencli medium tag --name programming
+# Search posts by keyword
+opencli medium search ai
 
 # Get articles by a user
-opencli medium user --name @username
+opencli medium user @username
 
-# JSON output
-opencli medium tag --name ai -f json
+# Topic feed as JSON
+opencli medium feed --topic programming -f json
 ```
 
 ## Prerequisites
 
-None — all commands use public endpoints, no browser or login required.
+- `opencli medium search` can run without a browser
+- `opencli medium feed` and `opencli medium user` require Browser Bridge access to `medium.com`

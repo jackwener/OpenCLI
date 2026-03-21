@@ -15,7 +15,7 @@ cli({
   domain: 'reddit.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'post-id', required: true, help: 'Post ID (e.g. 1abc123) or full URL' },
+    { name: 'post-id', required: true, positional: true, help: 'Post ID (e.g. 1abc123) or full URL' },
     { name: 'sort', default: 'best', help: 'Comment sort: best, top, new, controversial, old, qa' },
     { name: 'limit', type: 'int', default: 25, help: 'Number of top-level comments' },
     { name: 'depth', type: 'int', default: 2, help: 'Max reply depth (1=no replies, 2=one level of replies, etc.)' },

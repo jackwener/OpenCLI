@@ -10,7 +10,7 @@ cli({
   navigateBefore: false,
   browser: true,
   args: [
-    { name: 'uid', required: true, help: 'Encrypted UID (from chatlist)' },
+    { name: 'uid', required: true, positional: true, help: 'Encrypted UID (from chatlist)' },
     { name: 'page', type: 'int', default: 1, help: 'Page number' },
   ],
   columns: ['from', 'type', 'text', 'time'],

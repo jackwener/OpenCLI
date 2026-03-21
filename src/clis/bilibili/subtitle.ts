@@ -8,7 +8,7 @@ cli({
   description: '获取 Bilibili 视频的字幕',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'bvid', required: true },
+    { name: 'bvid', required: true, positional: true },
     { name: 'lang', required: false, help: '字幕语言代码 (如 zh-CN, en-US, ai-zh)，默认取第一个' },
   ],
   columns: ['index', 'from', 'to', 'content'],

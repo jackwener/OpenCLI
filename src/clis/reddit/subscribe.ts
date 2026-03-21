@@ -8,7 +8,7 @@ cli({
   strategy: Strategy.COOKIE,
   browser: true,
   args: [
-    { name: 'subreddit', type: 'string', required: true, help: 'Subreddit name (e.g. python)' },
+    { name: 'subreddit', type: 'string', required: true, positional: true, help: 'Subreddit name (e.g. python)' },
     { name: 'undo', type: 'boolean', default: false, help: 'Unsubscribe instead of subscribe' },
   ],
   columns: ['status', 'message'],

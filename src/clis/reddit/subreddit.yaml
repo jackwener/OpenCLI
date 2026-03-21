@@ -8,6 +8,7 @@ browser: true
 args:
   name:
     type: string
+    positional: true
     required: true
   sort:
     type: string

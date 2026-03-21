@@ -8,7 +8,7 @@ cli({
   domain: 'www.bilibili.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'uid', required: true, help: 'User UID or username' },
+    { name: 'uid', required: true, positional: true, help: 'User UID or username' },
     { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
     { name: 'order', default: 'pubdate', help: 'Sort: pubdate, click, stow' },
     { name: 'page', type: 'int', default: 1, help: 'Page number' },

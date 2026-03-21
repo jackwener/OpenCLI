@@ -1,6 +1,6 @@
 # Yahoo Finance
 
-**Mode**: 🌐 Public · **Domain**: `finance.yahoo.com`
+**Mode**: 🔐 Browser · **Domain**: `finance.yahoo.com`
 
 ## Commands
 
@@ -12,15 +12,16 @@
 
 ```bash
 # Quick start
-opencli yahoo-finance quote --limit 5
+opencli yahoo-finance quote AAPL
 
 # JSON output
-opencli yahoo-finance quote -f json
+opencli yahoo-finance quote TSLA -f json
 
 # Verbose mode
-opencli yahoo-finance quote -v
+opencli yahoo-finance quote NVDA -v
 ```
 
 ## Prerequisites
 
-- No browser required — uses public API
+- Chrome running and able to open `finance.yahoo.com`
+- [Browser Bridge extension](/guide/browser-bridge) installed

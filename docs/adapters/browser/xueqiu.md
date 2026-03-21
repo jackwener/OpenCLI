@@ -7,6 +7,7 @@
 | Command | Description |
 |---------|-------------|
 | `opencli xueqiu feed` | |
+| `opencli xueqiu earnings-date` | |
 | `opencli xueqiu hot-stock` | |
 | `opencli xueqiu hot` | |
 | `opencli xueqiu search` | |
@@ -18,6 +19,15 @@
 ```bash
 # Quick start
 opencli xueqiu feed --limit 5
+
+# Search stocks
+opencli xueqiu search 茅台
+
+# View one stock
+opencli xueqiu stock SH600519
+
+# Upcoming earnings dates
+opencli xueqiu earnings-date SH600519 --next
 
 # JSON output
 opencli xueqiu feed -f json

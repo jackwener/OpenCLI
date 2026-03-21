@@ -28,7 +28,7 @@ cli({
   domain: 'www.bilibili.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'bvid', required: true, help: 'Video BV ID (e.g., BV1xxx)' },
+    { name: 'bvid', required: true, positional: true, help: 'Video BV ID (e.g., BV1xxx)' },
     { name: 'output', default: './bilibili-downloads', help: 'Output directory' },
     { name: 'quality', default: 'best', help: 'Video quality (best, 1080p, 720p, 480p)' },
   ],

@@ -1,6 +1,6 @@
 # Barchart
 
-**Mode**: 🌐 Public · **Domain**: `barchart.com`
+**Mode**: 🔐 Browser · **Domain**: `barchart.com`
 
 ## Commands
 
@@ -15,13 +15,13 @@
 
 ```bash
 # Get stock quote
-opencli barchart quote --symbol AAPL
+opencli barchart quote AAPL
 
 # View options chain
-opencli barchart options --symbol TSLA
+opencli barchart options TSLA
 
 # Options greeks overview
-opencli barchart greeks --symbol NVDA
+opencli barchart greeks NVDA
 
 # Unusual options flow
 opencli barchart flow --limit 20 -f json
@@ -29,4 +29,5 @@ opencli barchart flow --limit 20 -f json
 
 ## Prerequisites
 
-- No browser required — uses public API
+- Chrome running and able to open `barchart.com`
+- [Browser Bridge extension](/guide/browser-bridge) installed

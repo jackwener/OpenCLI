@@ -28,6 +28,15 @@
 # Quick start
 opencli reddit hot --limit 5
 
+# Read one subreddit
+opencli reddit subreddit python --limit 10
+
+# Read a post thread
+opencli reddit read 1abc123 --depth 2
+
+# Comment on a post
+opencli reddit comment 1abc123 "Great post"
+
 # JSON output
 opencli reddit hot -f json
 

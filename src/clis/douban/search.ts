@@ -9,7 +9,7 @@ cli({
   strategy: Strategy.COOKIE,
   args: [
     { name: 'type', default: 'movie', choices: ['movie', 'book', 'music'], help: '搜索类型（movie=电影, book=图书, music=音乐）' },
-    { name: 'keyword', required: true, help: '搜索关键词' },
+    { name: 'keyword', required: true, positional: true, help: '搜索关键词' },
     { name: 'limit', type: 'int', default: 20, help: '返回结果数量' },
   ],
   columns: ['rank', 'title', 'rating', 'abstract', 'url'],

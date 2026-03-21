@@ -11,7 +11,7 @@ cli({
   domain: 'finance.yahoo.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'symbol', required: true, help: 'Stock ticker (e.g. AAPL, MSFT, TSLA)' },
+    { name: 'symbol', required: true, positional: true, help: 'Stock ticker (e.g. AAPL, MSFT, TSLA)' },
   ],
   columns: ['symbol', 'name', 'price', 'change', 'changePercent', 'open', 'high', 'low', 'volume', 'marketCap'],
   func: async (page, kwargs) => {

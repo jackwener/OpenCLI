@@ -12,7 +12,7 @@ cli({
   domain: 'www.barchart.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'symbol', required: true, help: 'Stock ticker (e.g. AAPL)' },
+    { name: 'symbol', required: true, positional: true, help: 'Stock ticker (e.g. AAPL)' },
     { name: 'expiration', type: 'str', help: 'Expiration date (YYYY-MM-DD). Defaults to the nearest available expiration.' },
     { name: 'limit', type: 'int', default: 10, help: 'Number of near-the-money strikes per type' },
   ],

@@ -8,7 +8,7 @@ cli({
   domain: 'blog.sina.com.cn',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'uid', required: true, help: '新浪博客用户ID（如 1234567890）' },
+    { name: 'uid', required: true, positional: true, help: '新浪博客用户ID（如 1234567890）' },
     { name: 'limit', type: 'int', default: 20, help: '返回的文章数量' },
   ],
   columns: ['rank', 'title', 'author', 'date', 'readCount', 'url'],

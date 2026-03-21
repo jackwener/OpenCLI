@@ -8,7 +8,7 @@ cli({
   strategy: Strategy.COOKIE,
   browser: true,
   args: [
-    { name: 'post-id', type: 'string', required: true, help: 'Post ID (e.g. 1abc123) or fullname (t3_xxx)' },
+    { name: 'post-id', type: 'string', required: true, positional: true, help: 'Post ID (e.g. 1abc123) or fullname (t3_xxx)' },
     { name: 'undo', type: 'boolean', default: false, help: 'Unsave instead of save' },
   ],
   columns: ['status', 'message'],

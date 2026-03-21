@@ -77,7 +77,7 @@ cli({
   strategy: Strategy.PUBLIC,
   browser: false,
   args: [
-    { name: 'keyword', required: true, help: '搜索关键词' },
+    { name: 'keyword', required: true, positional: true, help: '搜索关键词' },
     { name: 'type', default: 'posts', choices: ['posts', 'publications'], help: '搜索类型（posts=文章, publications=Newsletter）' },
     { name: 'limit', type: 'int', default: 20, help: '返回结果数量' },
   ],

@@ -8,7 +8,7 @@ cli({
   strategy: Strategy.COOKIE,
   browser: true,
   args: [
-    { name: 'post-id', type: 'string', required: true, help: 'Post ID (e.g. 1abc123) or fullname (t3_xxx)' },
+    { name: 'post-id', type: 'string', required: true, positional: true, help: 'Post ID (e.g. 1abc123) or fullname (t3_xxx)' },
     { name: 'text', type: 'string', required: true, positional: true, help: 'Comment text' },
   ],
   columns: ['status', 'message'],
