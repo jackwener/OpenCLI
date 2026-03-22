@@ -64,6 +64,7 @@ export default defineConfig({
                 { text: 'SMZDM', link: '/adapters/browser/smzdm' },
                 { text: 'Jike', link: '/adapters/browser/jike' },
                 { text: 'Jimeng', link: '/adapters/browser/jimeng' },
+                { text: 'Yollomi', link: '/adapters/browser/yollomi' },
                 { text: 'LINUX DO', link: '/adapters/browser/linux-do' },
                 { text: 'Chaoxing', link: '/adapters/browser/chaoxing' },
                 { text: 'Grok', link: '/adapters/browser/grok' },
