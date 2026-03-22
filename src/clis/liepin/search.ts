@@ -173,23 +173,47 @@ cli({
         const simple = r.simpleResumeForm || {};
         const id = simple.resIdEncode || r.usercIdEncode || '';
 
-        const lines = [
-          `${simple.resName || '?'} | ${simple.resSexName || ''} ${simple.resBirthYearAge != null ? simple.resBirthYearAge + '岁' : ''} | ${simple.wantDq || r.wantDq || simple.resDqName || ''} | ${simple.resEdulevelName || ''} | ${simple.resWorkyearAgeShow || ''} | ${r.activeStatus?.name || ''} | 更新${(simple.updateTime || '').slice(0, 10)}`,
-          `现任: ${simple.resTitle || ''} @ ${simple.resCompany || ''}`,
-        ];
+        const name = simple.resName || '?';
+        const sex = simple.resSexName || '';
+        const age = simple.resBirthYearAge != null ? simple.resBirthYearAge : null;
+        const city = simple.wantDq || r.wantDq || simple.resDqName || '';
+        const degree = simple.resEdulevelName || '';
+        const experience = simple.resWorkyearAgeShow || '';
+        const active = r.activeStatus?.name || '';
+        const updated = (simple.updateTime || '').slice(0, 10);
+        const currentTitle = simple.resTitle || '';
+        const currentCompany = simple.resCompany || '';
         const wantJob = r.wantJobTitle || simple.wantJobTitle || '';
-        if (wantJob) lines.push(`期望: ${wantJob}`);
-        const workItems = (simple.workExpFormList || []).map((w: any) =>
-          `${w.rwStart || ''}~${w.rwEnd || ''} ${w.rwCompname || ''}/${w.rwTitle || ''}(${w.rwPeriod || ''})`
-        );
-        if (workItems.length) lines.push(`经历: ${workItems.join(' → ')}`);
-        const eduItems = (simple.eduExpForms || []).map((e: any) =>
-          `${e.red_school || ''}/${e.red_special || ''}(${e.red_degree_name || ''})`
-        );
-        if (eduItems.length) lines.push(`学历: ${eduItems.join('; ')}`);
-        if (simple.skillTags?.length) lines.push(`技能: ${simple.skillTags.join(', ')}`);
+        const skills = simple.skillTags || [];
+        const workHistory = (simple.workExpFormList || []).map((w: any) => ({
+          start: w.rwStart || '',
+          end: w.rwEnd || '',
+          company: w.rwCompname || '',
+          title: w.rwTitle || '',
+          duration: w.rwPeriod || '',
+        }));
+        const education = (simple.eduExpForms || []).map((e: any) => ({
+          school: e.red_school || '',
+          major: e.red_special || '',
+          degree: e.red_degree_name || '',
+        }));
 
-        allResults.push({ summary: lines.join('\n'), id });
+        const lines = [
+          `${name} | ${sex}${age != null ? ' ' + age + '岁' : ''} | ${city} | ${degree} | ${experience} | ${active} | 更新${updated}`,
+          `现任: ${currentTitle} @ ${currentCompany}`,
+        ];
+        if (wantJob) lines.push(`期望: ${wantJob}`);
+        if (workHistory.length) lines.push(`经历: ${workHistory.map((w: {start:string;end:string;company:string;title:string;duration:string}) => `${w.start}~${w.end} ${w.company}/${w.title}(${w.duration})`).join(' → ')}`);
+        if (education.length) lines.push(`学历: ${education.map((e: {school:string;major:string;degree:string}) => `${e.school}/${e.major}(${e.degree})`).join('; ')}`);
+        if (skills.length) lines.push(`技能: ${skills.join(', ')}`);
+
+        allResults.push({
+          summary: lines.join('\n'),
+          id,
+          name, sex, age, city, degree, experience, active, updated,
+          currentTitle, currentCompany, wantJob, skills,
+          workHistory, education,
+        });
         if (limit > 0 && allResults.length >= limit) break;
       }
 
