@@ -6,6 +6,7 @@ import chalk from 'chalk';
 import type { IPage } from '../types.js';
 import { getStep, type StepHandler } from './registry.js';
 import { log } from '../logger.js';
+import { ConfigError } from '../errors.js';
 
 export interface PipelineContext {
   args?: Record<string, unknown>;
@@ -32,7 +33,10 @@ export async function executePipeline(
       if (handler) {
         data = await handler(page, params, data, args);
       } else {
-        if (debug) log.warn(`Unknown step: ${op}`);
+        throw new ConfigError(
+          `Unknown pipeline step "${op}" at index ${i}.`,
+          'Check the YAML pipeline step name or register the custom step before execution.',
+        );
       }
 
       if (debug) debugStepResult(op, data);

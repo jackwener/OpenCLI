@@ -11,7 +11,7 @@
 
 import { type CliCommand, type InternalCliCommand, type Arg, Strategy, getRegistry, fullName } from './registry.js';
 import type { IPage } from './types.js';
-import { executePipeline } from './pipeline.js';
+import { executePipeline } from './pipeline/index.js';
 import { AdapterLoadError } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';

@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { executePipeline } from './index.js';
+import { ConfigError } from '../errors.js';
 import type { IPage } from '../types.js';
 
 /** Create a minimal mock page for testing */
@@ -148,13 +149,13 @@ describe('executePipeline', () => {
     expect(page.wait).toHaveBeenCalledWith(2);
   });
 
-  it('handles unknown steps gracefully in debug mode', async () => {
-    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    await executePipeline(null, [
+  it('fails fast on unknown steps', async () => {
+    await expect(executePipeline(null, [
       { unknownStep: 'test' },
-    ], { debug: true });
-    expect(stderr).toHaveBeenCalledWith(expect.stringContaining('Unknown step'));
-    stderr.mockRestore();
+    ], { debug: true })).rejects.toBeInstanceOf(ConfigError);
+    await expect(executePipeline(null, [
+      { unknownStep: 'test' },
+    ], { debug: true })).rejects.toThrow('Unknown pipeline step "unknownStep"');
   });
 
   it('passes args through template rendering', async () => {
