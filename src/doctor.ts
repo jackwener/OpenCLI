@@ -121,7 +121,7 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
       : `failed (${report.connectivity.error ?? 'unknown'})`;
     lines.push(`${connIcon} Connectivity: ${detail}`);
   } else {
-    lines.push(`${chalk.dim('[SKIP]')} Connectivity: not tested (use --live)`);
+    lines.push(`${chalk.dim('[SKIP]')} Connectivity: skipped (--no-live)`);
   }
 
   if (report.sessions) {

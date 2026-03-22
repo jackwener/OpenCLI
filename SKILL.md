@@ -244,8 +244,7 @@ opencli install <name>      # Auto-install an external CLI (e.g., gh, obsidian)
 opencli register <name>     # Register a local custom CLI for unified discovery
 opencli validate            # Validate all CLI definitions
 opencli validate bilibili   # Validate specific site
-opencli doctor              # Diagnose browser bridge connectivity (auto-starts daemon)
-opencli doctor --live       # Also test live browser connectivity
+opencli doctor              # Diagnose browser bridge (auto-starts daemon, includes live test)
 ```
 
 ### AI Agent Workflow

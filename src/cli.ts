@@ -207,21 +207,11 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
   program
     .command('doctor')
     .description('Diagnose opencli browser bridge connectivity')
-    .option('--live', 'Test browser connectivity (requires Chrome running)', false)
+    .option('--no-live', 'Skip live browser connectivity test')
     .option('--sessions', 'Show active automation sessions', false)
     .action(async (opts) => {
       const { runBrowserDoctor, renderBrowserDoctorReport } = await import('./doctor.js');
       const report = await runBrowserDoctor({ live: opts.live, sessions: opts.sessions, cliVersion: PKG_VERSION });
-      console.log(renderBrowserDoctorReport(report));
-    });
-
-  program
-    .command('setup')
-    .description('(deprecated) Use "opencli doctor" instead')
-    .action(async () => {
-      console.log(chalk.yellow('⚠ "opencli setup" is deprecated. Running "opencli doctor" instead.\n'));
-      const { runBrowserDoctor, renderBrowserDoctorReport } = await import('./doctor.js');
-      const report = await runBrowserDoctor({ cliVersion: PKG_VERSION });
       console.log(renderBrowserDoctorReport(report));
     });
 
