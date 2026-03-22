@@ -1,5 +1,6 @@
 - name: gh
   binary: gh
+  aliases: [github]
   description: "GitHub CLI — repos, PRs, issues, releases, gists"
   homepage: "https://cli.github.com"
   tags: [github, git, dev]

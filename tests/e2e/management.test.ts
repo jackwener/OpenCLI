@@ -98,6 +98,13 @@ describe('management commands E2E', () => {
     expect(stdout).toContain('validate');
   });
 
+  it('github alias forwards to gh', async () => {
+    const { stdout, code } = await runCli(['github', '--help']);
+    expect(code).toBe(0);
+    expect(stdout).toContain('Work seamlessly with GitHub from the command line.');
+    expect(stdout).toContain('gh <command> <subcommand> [flags]');
+  });
+
   // ── unknown command ──
   it('unknown command shows error', async () => {
     const { stderr, code } = await runCli(['nonexistent-command-xyz']);

@@ -19,10 +19,16 @@ export interface ExternalCliInstall {
 export interface ExternalCliConfig {
   name: string;
   binary: string;
+  aliases?: string[];
   description?: string;
   homepage?: string;
   tags?: string[];
   install?: ExternalCliInstall;
+}
+
+export interface ResolvedExternalCli {
+  cli: ExternalCliConfig;
+  matchedName: string;
 }
 
 function getUserRegistryPath(): string {
@@ -60,6 +66,14 @@ export function loadExternalClis(): ExternalCliConfig[] {
   }
 
   return Array.from(configs.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function resolveExternalCli(configs: ExternalCliConfig[], name: string): ResolvedExternalCli | null {
+  for (const cli of configs) {
+    if (cli.name === name) return { cli, matchedName: name };
+    if (cli.aliases?.includes(name)) return { cli, matchedName: name };
+  }
+  return null;
 }
 
 export function isBinaryInstalled(binary: string): boolean {
@@ -110,10 +124,11 @@ export function installExternalCli(cli: ExternalCliConfig): boolean {
 
 export function executeExternalCli(name: string, args: string[], preloaded?: ExternalCliConfig[]): void {
   const configs = preloaded ?? loadExternalClis();
-  const cli = configs.find((c) => c.name === name);
-  if (!cli) {
+  const resolved = resolveExternalCli(configs, name);
+  if (!resolved) {
     throw new Error(`External CLI '${name}' not found in registry.`);
   }
+  const { cli } = resolved;
 
   // 1. Check if installed
   if (!isBinaryInstalled(cli.binary)) {

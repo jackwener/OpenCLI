@@ -83,8 +83,9 @@ opencli xueqiu feed                      # 我的关注 timeline
 opencli xueqiu hot --limit 10            # 雪球热榜
 opencli xueqiu search "特斯拉"            # 搜索 (query positional)
 
-# GitHub (public)
-opencli github search "cli"              # 搜索仓库 (query positional)
+# GitHub CLI
+opencli github repo view cli/cli         # `github` 兼容别名，实际透传到 `gh`
+opencli gh search repos "cli"            # 搜索仓库
 
 # Twitter/X (browser)
 opencli twitter trending --limit 10      # 热门话题

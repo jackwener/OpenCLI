@@ -13,7 +13,7 @@ import { render as renderOutput } from './output.js';
 import { getBrowserFactory, browserSession } from './runtime.js';
 import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
-import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
+import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled, resolveExternalCli } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
 
 export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
@@ -309,13 +309,13 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .description('Install an external CLI')
     .argument('<name>', 'Name of the external CLI')
     .action((name: string) => {
-      const ext = externalClis.find(e => e.name === name);
-      if (!ext) {
+      const resolved = resolveExternalCli(externalClis, name);
+      if (!resolved) {
         console.error(chalk.red(`External CLI '${name}' not found in registry.`));
         process.exitCode = 1;
         return;
       }
-      installExternalCli(ext);
+      installExternalCli(resolved.cli);
     });
 
   program
@@ -343,15 +343,18 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
   }
 
   for (const ext of externalClis) {
-    if (program.commands.some(c => c.name() === ext.name)) continue;
-    program
-      .command(ext.name)
-      .description(`(External) ${ext.description || ext.name}`)
-      .argument('[args...]')
-      .allowUnknownOption()
-      .passThroughOptions()
-      .helpOption(false)
-      .action((args: string[]) => passthroughExternal(ext.name, args));
+    for (const name of [ext.name, ...(ext.aliases ?? [])]) {
+      if (program.commands.some(c => c.name() === name)) continue;
+      const aliasSuffix = name === ext.name ? '' : ` (alias for ${ext.name})`;
+      program
+        .command(name)
+        .description(`(External) ${ext.description || ext.name}${aliasSuffix}`)
+        .argument('[args...]')
+        .allowUnknownOption()
+        .passThroughOptions()
+        .helpOption(false)
+        .action((args: string[]) => passthroughExternal(name, args));
+    }
   }
 
   // ── Antigravity serve (long-running, special case) ────────────────────────
