@@ -61,11 +61,15 @@ OpenCLI connects to your browser through a lightweight **Browser Bridge** Chrome
 You can install the extension via either method:
 
 **Method 1: Download Pre-built Release (Recommended)**
-1. Go to the GitHub [Releases page](https://github.com/jackwener/opencli/releases) and download the latest `opencli-extension.zip` or `opencli-extension.crx`.
-2. Open `chrome://extensions` and enable **Developer mode** (top-right toggle).
-3. Drag and drop the `.crx` file or the unzipped folder into the extensions page.
+1. Go to the GitHub [Releases page](https://github.com/jackwener/opencli/releases) and download the latest `opencli-extension.zip`.
+2. Unzip the file and open `chrome://extensions`, enable **Developer mode** (top-right toggle).
+3. Click **Load unpacked** and select the unzipped folder.
 
-**Method 2: Load Unpacked Source (For Developers)**
+**Method 2: Load from npm Package**
+1. After installing opencli via npm, open `chrome://extensions` and enable **Developer mode**.
+2. Click **Load unpacked** and select `node_modules/@jackwener/opencli/extension` directory.
+
+**Method 3: Load Source (For Developers)**
 1. Open `chrome://extensions` and enable **Developer mode**.
 2. Click **Load unpacked** and select the `extension/` directory from this repository.
 

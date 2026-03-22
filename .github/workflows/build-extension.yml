@@ -45,26 +45,12 @@ jobs:
           cd extension-package
           zip -r ../opencli-extension.zip .
 
-      - name: Create Extension CRX
-        run: |
-          npm install -g crx3
-          if [ -n "${{ secrets.CRX_PRIVATE_KEY }}" ]; then
-            echo "Found CRX_PRIVATE_KEY, signing extension..."
-            echo "${{ secrets.CRX_PRIVATE_KEY }}" > crx-key.pem
-            crx3 pack extension-package -o opencli-extension.crx -p crx-key.pem
-            rm crx-key.pem
-          else
-            echo "No CRX_PRIVATE_KEY configured. Generating CRX with a temporary random key..."
-            crx3 pack extension-package -o opencli-extension.crx
-          fi
-
       - name: Upload Artifacts (Action Run)
         uses: actions/upload-artifact@v4
         with:
           name: opencli-extension-build
           path: |
             opencli-extension.zip
-            opencli-extension.crx
           retention-days: 7
 
       - name: Attach to GitHub Release
@@ -73,7 +59,6 @@ jobs:
         with:
           files: |
             opencli-extension.zip
-            opencli-extension.crx
           draft: false
           prerelease: false
         env:
