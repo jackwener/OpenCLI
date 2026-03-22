@@ -202,7 +202,7 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       console.log(renderCascadeResult(result));
     });
 
-  // ── Built-in: doctor / setup / completion ─────────────────────────────────
+  // ── Built-in: doctor / completion ──────────────────────────────────────────
 
   program
     .command('doctor')
@@ -217,10 +217,12 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
 
   program
     .command('setup')
-    .description('Interactive setup: verify browser bridge connectivity')
+    .description('(deprecated) Use "opencli doctor" instead')
     .action(async () => {
-      const { runSetup } = await import('./setup.js');
-      await runSetup({ cliVersion: PKG_VERSION });
+      console.log(chalk.yellow('⚠ "opencli setup" is deprecated. Running "opencli doctor" instead.\n'));
+      const { runBrowserDoctor, renderBrowserDoctorReport } = await import('./doctor.js');
+      const report = await runBrowserDoctor({ cliVersion: PKG_VERSION });
+      console.log(renderBrowserDoctorReport(report));
     });
 
   program

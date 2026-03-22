@@ -244,8 +244,7 @@ opencli install <name>      # Auto-install an external CLI (e.g., gh, obsidian)
 opencli register <name>     # Register a local custom CLI for unified discovery
 opencli validate            # Validate all CLI definitions
 opencli validate bilibili   # Validate specific site
-opencli setup               # Interactive Browser Bridge setup and connectivity check
-opencli doctor              # Diagnose daemon, extension, and browser connectivity
+opencli doctor              # Diagnose browser bridge connectivity (auto-starts daemon)
 opencli doctor --live       # Also test live browser connectivity
 ```
 

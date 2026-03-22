@@ -28,7 +28,7 @@ features:
     details: Supports both YAML declarative data pipelines and robust browser runtime TypeScript injections for maximum flexibility.
   - icon: 🔧
     title: Self-Healing Setup
-    details: "opencli setup verifies Browser Bridge connectivity. opencli doctor diagnoses daemon, extension, and live browser."
+    details: "opencli doctor auto-starts the daemon and diagnoses extension + live browser connectivity."
   - icon: 📦
     title: Dynamic Loader
     details: Simply drop .ts or .yaml adapters into the clis/ folder for auto-registration. Zero boilerplate.

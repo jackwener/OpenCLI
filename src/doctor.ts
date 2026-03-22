@@ -51,7 +51,19 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
 }
 
 export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
-  // Run the live connectivity check first — it may auto-start the daemon as a
+  // Try to auto-start daemon if it's not running, so we show accurate status.
+  let initialStatus = await checkDaemonStatus();
+  if (!initialStatus.running) {
+    try {
+      const mcp = new BrowserBridge();
+      await mcp.connect({ timeout: 5 });
+      await mcp.close();
+    } catch {
+      // Auto-start failed; we'll report it below.
+    }
+  }
+
+  // Run the live connectivity check — it may also auto-start the daemon as a
   // side-effect, so we read daemon status only *after* all side-effects settle.
   let connectivity: ConnectivityResult | undefined;
   if (opts.live) {

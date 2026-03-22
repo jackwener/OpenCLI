@@ -14,7 +14,7 @@ OpenCLI turns **any website** or **Electron app** into a command-line interface 
 - **CLI All Electron** — CLI-ify apps like Antigravity Ultra! Now AI can control itself natively.
 - **Account-safe** — Reuses Chrome's logged-in state; your credentials never leave the browser.
 - **AI Agent ready** — `explore` discovers APIs, `synthesize` generates adapters, `cascade` finds auth strategies.
-- **Self-healing setup** — `opencli setup` verifies Browser Bridge connectivity; `opencli doctor` diagnoses daemon, extension, and live browser connectivity.
+- **Self-healing setup** — `opencli doctor` auto-starts the daemon and diagnoses extension + live browser connectivity.
 - **Dynamic Loader** — Simply drop `.ts` or `.yaml` adapters into the `clis/` folder for auto-registration.
 - **Dual-Engine Architecture** — Supports both YAML declarative data pipelines and robust browser runtime TypeScript injections.
 
