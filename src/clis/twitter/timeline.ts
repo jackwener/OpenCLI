@@ -7,8 +7,16 @@ const BEARER_TOKEN =
 const HOME_TIMELINE_QUERY_ID = 'c-CzHF1LboFilMpsx4ZCrQ';
 const HOME_LATEST_TIMELINE_QUERY_ID = 'BKB7oi212Fi7kQtCBGE4zA';
 
+type TimelineType = 'for-you' | 'following';
+
+interface TimelineEndpointConfig {
+  endpoint: string;
+  method: 'GET' | 'POST';
+  fallbackQueryId: string;
+}
+
 // Endpoint config: for-you uses GET HomeTimeline, following uses POST HomeLatestTimeline
-const TIMELINE_ENDPOINTS: Record<string, { endpoint: string; method: string; fallbackQueryId: string }> = {
+const TIMELINE_ENDPOINTS: Record<TimelineType, TimelineEndpointConfig> = {
   'for-you': { endpoint: 'HomeTimeline', method: 'GET', fallbackQueryId: HOME_TIMELINE_QUERY_ID },
   following: { endpoint: 'HomeLatestTimeline', method: 'POST', fallbackQueryId: HOME_LATEST_TIMELINE_QUERY_ID },
 };
@@ -61,15 +69,20 @@ interface TimelineTweet {
   url: string;
 }
 
-function buildHomeTimelineUrl(queryId: string, endpoint: string, count: number, cursor?: string | null): string {
-  const vars: Record<string, any> = {
+function buildTimelineVariables(type: TimelineType, count: number, cursor?: string | null): Record<string, unknown> {
+  const vars: Record<string, unknown> = {
     count,
     includePromotedContent: false,
     latestControlAvailable: true,
     requestContext: 'launch',
-    withCommunity: true,
   };
+  if (type === 'for-you') vars.withCommunity = true;
+  if (type === 'following') vars.seenTweetIds = [];
   if (cursor) vars.cursor = cursor;
+  return vars;
+}
+
+function buildHomeTimelineUrl(queryId: string, endpoint: string, vars: Record<string, unknown>): string {
 
   return (
     `/i/api/graphql/${queryId}/${endpoint}` +
@@ -170,7 +183,8 @@ cli({
   columns: ['id', 'author', 'text', 'likes', 'retweets', 'replies', 'views', 'created_at', 'url'],
   func: async (page, kwargs) => {
     const limit = kwargs.limit || 20;
-    const { endpoint, method, fallbackQueryId } = TIMELINE_ENDPOINTS[kwargs.type || 'for-you'];
+    const timelineType: TimelineType = kwargs.type === 'following' ? 'following' : 'for-you';
+    const { endpoint, method, fallbackQueryId } = TIMELINE_ENDPOINTS[timelineType];
 
     // Navigate to x.com for cookie context
     await page.goto('https://x.com');
@@ -212,7 +226,8 @@ cli({
 
     for (let i = 0; i < 5 && allTweets.length < limit; i++) {
       const fetchCount = Math.min(40, limit - allTweets.length + 5); // over-fetch slightly for promoted filtering
-      const apiUrl = buildHomeTimelineUrl(queryId, endpoint, fetchCount, cursor);
+      const variables = buildTimelineVariables(timelineType, fetchCount, cursor);
+      const apiUrl = buildHomeTimelineUrl(queryId, endpoint, variables);
 
       const data = await page.evaluate(`async () => {
         const r = await fetch("${apiUrl}", { method: "${method}", headers: ${headers}, credentials: 'include' });
@@ -235,3 +250,9 @@ cli({
     return allTweets.slice(0, limit);
   },
 });
+
+export const __test__ = {
+  buildTimelineVariables,
+  buildHomeTimelineUrl,
+  parseHomeTimeline,
+};
