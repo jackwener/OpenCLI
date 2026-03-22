@@ -1,0 +1,31 @@
+site: devto
+name: tag
+description: Get latest DEV.to articles for a specific tag
+domain: dev.to
+strategy: public
+browser: false
+
+args:
+  tag:
+    type: string
+    required: true
+    description: The tag to search for (e.g., javascript)
+  limit:
+    type: int
+    default: 10
+    description: Max number of stories
+
+pipeline:
+  - fetch:
+      url: https://dev.to/api/articles?tag=${{ args.tag }}&per_page=${{ args.limit }}
+  
+  - map:
+      title: "${{ item.title }}"
+      author: "${{ item.user.username }}"
+      reactions: "${{ item.public_reactions_count }}"
+      comments: "${{ item.comments_count }}"
+      url: "${{ item.url }}"
+
+  - limit: ${{ args.limit }}
+
+columns: [title, author, reactions, comments, url]

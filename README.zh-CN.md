@@ -142,6 +142,7 @@ npm install -g @jackwener/opencli@latest
 | **bbc** | `news` | 公共 API |
 | **bloomberg** | `main` `markets` `economics` `industries` `tech` `politics` `businessweek` `opinions` `feeds` `news` | 公共 API / 浏览器 |
 | **ctrip** | `search` | 浏览器 |
+| **devto** | `top` `tag` `user` | 公开 |
 | **arxiv** | `search` `paper` | 公开 |
 | **wikipedia** | `search` `summary` | 公开 |
 | **hackernews** | `top` | 公共 API |

@@ -78,6 +78,7 @@ export default defineConfig({
               collapsed: false,
               items: [
                 { text: 'HackerNews', link: '/adapters/browser/hackernews' },
+                { text: 'Dev.to', link: '/adapters/browser/devto' },
                 { text: 'BBC', link: '/adapters/browser/bbc' },
                 { text: 'Apple Podcasts', link: '/adapters/browser/apple-podcasts' },
                 { text: 'Xiaoyuzhou', link: '/adapters/browser/xiaoyuzhou' },
