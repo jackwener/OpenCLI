@@ -125,14 +125,16 @@ opencli <site> <command> -v
 
 ## Arg Design Convention
 
-Use **positional** for the primary, required argument of a command (the "what" — query, symbol, id, url, username). Use **named options** (`--flag`) for secondary/optional configuration (limit, format, sort, page).
+Use **positional** for the primary, required argument of a command (the "what" — query, symbol, id, url, username). Use **named options** (`--flag`) for secondary/optional configuration (limit, format, sort, page, filters, language, date).
 
 **Rule of thumb**: Think about how the user will type the command. `opencli xueqiu stock SH600519` is more natural than `opencli xueqiu stock --symbol SH600519`.
 
 | Arg type | Positional? | Examples |
 |----------|-------------|----------|
 | Main target (query, symbol, id, url, username) | ✅ `positional: true` | `search '茅台'`, `stock SH600519`, `download BV1xxx` |
-| Configuration (limit, format, sort, page, type) | ❌ Named `--flag` | `--limit 10`, `--format json`, `--sort hot` |
+| Configuration (limit, format, sort, page, type, filters) | ❌ Named `--flag` | `--limit 10`, `--format json`, `--sort hot`, `--location seattle` |
+
+Do **not** convert an argument to positional just because it appears first in the file. If the argument is optional, acts like a filter, or selects a mode/configuration, it should usually stay a named option.
 
 YAML example:
 ```yaml

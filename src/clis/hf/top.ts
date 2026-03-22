@@ -66,7 +66,7 @@ cli({
   args: [
     { name: 'limit', type: 'int', default: 20, help: 'Number of papers' },
     { name: 'all', type: 'bool', default: false, help: 'Return all papers (ignore limit)' },
-    { name: 'date', positional: true, type: 'str', required: false, help: 'Date (YYYY-MM-DD), defaults to most recent' },
+    { name: 'date', type: 'str', required: false, help: 'Date (YYYY-MM-DD), defaults to most recent' },
     { name: 'period', type: 'str', default: 'daily', choices: ['daily', 'weekly', 'monthly'], help: 'Time period: daily, weekly, or monthly' },
   ],
   footerExtra: (kwargs) => {

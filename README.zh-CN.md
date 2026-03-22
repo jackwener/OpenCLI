@@ -239,7 +239,7 @@ opencli bilibili download BV1xxx --quality 1080p  # 指定画质
 opencli twitter download elonmusk --limit 20 --output ./twitter
 
 # 下载单条推文的媒体
-opencli twitter download elonmusk --tweet-url "https://x.com/user/status/123" --output ./twitter
+opencli twitter download --tweet-url "https://x.com/user/status/123" --output ./twitter
 
 # 导出知乎文章为 Markdown
 opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --output ./zhihu

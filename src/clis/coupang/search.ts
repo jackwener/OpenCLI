@@ -412,7 +412,7 @@ cli({
     { name: 'query', required: true, positional: true, help: 'Search keyword' },
     { name: 'page', type: 'int', default: 1, help: 'Search result page number' },
     { name: 'limit', type: 'int', default: 20, help: 'Max results (max 50)' },
-    { name: 'filter', positional: true, required: false, help: 'Optional search filter (currently supports: rocket)' },
+    { name: 'filter', required: false, help: 'Optional search filter (currently supports: rocket)' },
   ],
   columns: ['rank', 'title', 'price', 'unit_price', 'rating', 'review_count', 'rocket', 'delivery_type', 'delivery_promise', 'url'],
   func: async (page, kwargs) => {

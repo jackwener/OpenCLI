@@ -8,7 +8,7 @@ export const readCommand = cli({
   strategy: Strategy.UI,
   browser: true,
   args: [
-    { name: 'last', positional: true, help: 'Number of recent messages to read (not fully implemented due to generic structure, currently returns full history text or latest chunk)' }
+    { name: 'last', help: 'Number of recent messages to read (not fully implemented due to generic structure, currently returns full history text or latest chunk)' }
   ],
   columns: ['role', 'content'],
   func: async (page, kwargs) => {

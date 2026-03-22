@@ -238,7 +238,7 @@ opencli bilibili download BV1xxx --quality 1080p  # Specify quality
 opencli twitter download elonmusk --limit 20 --output ./twitter
 
 # Download single tweet media
-opencli twitter download elonmusk --tweet-url "https://x.com/user/status/123" --output ./twitter
+opencli twitter download --tweet-url "https://x.com/user/status/123" --output ./twitter
 
 # Export Zhihu article to Markdown
 opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --output ./zhihu

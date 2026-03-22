@@ -26,7 +26,7 @@ cli({
   strategy: Strategy.COOKIE,
   args: [
     { name: 'url', required: true, positional: true, help: 'YouTube video URL or video ID' },
-    { name: 'lang', positional: true, required: false, help: 'Language code (e.g. en, zh-Hans). Omit to auto-select' },
+    { name: 'lang', required: false, help: 'Language code (e.g. en, zh-Hans). Omit to auto-select' },
     { name: 'mode', required: false, default: 'grouped', help: 'Output mode: grouped (readable paragraphs) or raw (every segment)' },
   ],
   // columns intentionally omitted — raw and grouped modes return different schemas,

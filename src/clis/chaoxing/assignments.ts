@@ -13,7 +13,7 @@ cli({
   strategy: Strategy.COOKIE,
   timeoutSeconds: 90,
   args: [
-    { name: 'course', positional: true, type: 'string', help: '按课程名过滤（模糊匹配）' },
+    { name: 'course', type: 'string', help: '按课程名过滤（模糊匹配）' },
     {
       name: 'status',
       type: 'string',
