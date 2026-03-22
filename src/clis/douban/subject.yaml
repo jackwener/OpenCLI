@@ -1,0 +1,76 @@
+site: douban
+name: subject
+description: 获取电影详情
+domain: movie.douban.com
+strategy: cookie
+browser: true
+
+args:
+  id:
+    positional: true
+    required: true
+    type: str
+    description: 电影 ID
+
+pipeline:
+  - navigate: https://movie.douban.com/subject/${{ args.id }}
+
+  - evaluate: |
+      (async () => {
+        const id = '${{ args.id }}';
+        
+        // Wait for page to load
+        await new Promise(r => setTimeout(r, 2000));
+        
+        // Extract title
+        const titleEl = document.querySelector('span[property="v:itemreviewed"]');
+        const title = titleEl?.textContent?.trim() || '';
+        
+        // Extract original title
+        const ogTitleEl = document.querySelector('span[property="v:originalTitle"]');
+        const originalTitle = ogTitleEl?.textContent?.trim() || '';
+        
+        // Extract year
+        const yearEl = document.querySelector('.year');
+        const year = yearEl?.textContent?.trim() || '';
+        
+        // Extract rating
+        const ratingEl = document.querySelector('strong[property="v:average"]');
+        const rating = parseFloat(ratingEl?.textContent || '0');
+        
+        // Extract rating count
+        const ratingCountEl = document.querySelector('span[property="v:votes"]');
+        const ratingCount = parseInt(ratingCountEl?.textContent || '0', 10);
+        
+        // Extract genres
+        const genreEls = document.querySelectorAll('span[property="v:genre"]');
+        const genres = Array.from(genreEls).map(el => el.textContent?.trim()).filter(Boolean).join(',');
+        
+        // Extract directors
+        const directorEls = document.querySelectorAll('a[rel="v:directedBy"]');
+        const directors = Array.from(directorEls).map(el => el.textContent?.trim()).filter(Boolean).join(',');
+        
+        // Extract casts
+        const castEls = document.querySelectorAll('a[rel="v:starring"]');
+        const casts = Array.from(castEls).slice(0, 5).map(el => el.textContent?.trim()).filter(Boolean).join(',');
+        
+        // Extract summary
+        const summaryEl = document.querySelector('span[property="v:summary"]');
+        const summary = summaryEl?.textContent?.trim() || '';
+        
+        return [{
+          id,
+          title,
+          originalTitle,
+          year,
+          rating,
+          ratingCount,
+          genres,
+          directors,
+          casts,
+          summary: summary.substring(0, 200),
+          url: `https://movie.douban.com/subject/${id}`
+        }];
+      })()
+
+columns: [id, title, originalTitle, year, rating, ratingCount, genres, directors, casts, url]

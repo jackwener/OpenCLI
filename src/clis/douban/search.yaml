@@ -1,0 +1,69 @@
+site: douban
+name: search
+description: 搜索豆瓣电影
+domain: movie.douban.com
+strategy: cookie
+browser: true
+
+args:
+  query:
+    positional: true
+    required: true
+    type: str
+    description: 搜索关键词
+  limit:
+    type: int
+    default: 10
+    description: 返回结果数量
+
+pipeline:
+  - navigate: https://search.douban.com/movie/subject_search?search_text=${{ args.query | urlencode }}
+
+  - evaluate: |
+      (async () => {
+        const results = [];
+        const limit = ${{ args.limit }};
+        
+        await new Promise(r => setTimeout(r, 2000));
+        
+        document.querySelectorAll('.item-root').forEach((item, idx) => {
+          if (idx >= limit) return;
+          
+          const link = item.querySelector('a[href*="/subject/"]');
+          if (!link) return;
+          
+          const href = link.href || '';
+          const idMatch = href.match(/subject\/(\d+)/);
+          const id = idMatch ? idMatch[1] : '';
+          
+          const titleTextEl = item.querySelector('.title-text');
+          const title = titleTextEl?.textContent?.trim() || '';
+          
+          // 从标题提取年份 "盗梦空间 Inception (2010)"
+          let year = '';
+          const yearMatch = title.match(/\((\d{4})\)/);
+          if (yearMatch) {
+            year = yearMatch[1];
+          }
+          
+          // 提取评分
+          const ratingNums = item.querySelector('.rating_nums');
+          const rating = ratingNums ? parseFloat(ratingNums.textContent?.trim() || '0') : 0;
+          
+          if (id && title) {
+            results.push({
+              id,
+              title,
+              year,
+              rating,
+              url: href || `https://movie.douban.com/subject/${id}`
+            });
+          }
+        });
+        
+        return results;
+      })()
+
+  - limit: ${{ args.limit }}
+
+columns: [id, title, year, rating, url]

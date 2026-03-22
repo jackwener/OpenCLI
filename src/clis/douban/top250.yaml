@@ -1,0 +1,57 @@
+site: douban
+name: top250
+description: 豆瓣电影 Top250
+domain: movie.douban.com
+strategy: cookie
+browser: true
+
+args:
+  limit:
+    type: int
+    default: 250
+    description: 返回结果数量
+
+pipeline:
+  - navigate: https://movie.douban.com/top250
+
+  - evaluate: |
+      async () => {
+        const results = [];
+        const limit = ${{ args.limit }};
+        
+        await new Promise(r => setTimeout(r, 2000));
+        
+        const items = document.querySelectorAll('.item');
+        for (let idx = 0; idx < Math.min(items.length, limit); idx++) {
+          const item = items[idx];
+          
+          const rankEl = item.querySelector('.pic em');
+          const linkEl = item.querySelector('a');
+          const titleEl = item.querySelector('.title');
+          const ratingEl = item.querySelector('.rating_num');
+          
+          const href = linkEl?.href || '';
+          const matchResult = href.match(/subject\/(\d+)/);
+          const id = matchResult ? matchResult[1] : '';
+          
+          const title = titleEl?.textContent?.trim() || '';
+          const rank = parseInt(rankEl?.textContent || '0', 10);
+          const rating = ratingEl?.textContent?.trim() || '';
+          
+          if (id && title) {
+            results.push({
+              rank: rank || idx + 1,
+              id,
+              title,
+              rating: rating ? parseFloat(rating) : 0,
+              url: href
+            });
+          }
+        }
+        
+        return results;
+      }
+
+  - limit: ${{ args.limit }}
+
+columns: [rank, id, title, rating, url]
