@@ -18,23 +18,6 @@ Turn ANY Electron application into a CLI tool! Recombine, script, and extend app
 
 ---
 
-## Table of Contents
-
-- [Highlights](#highlights)
-- [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [Built-in Commands](#built-in-commands)
-  - [Desktop App Adapters](#desktop-app-adapters)
-- [External CLI Hub](#external-cli-hub)
-- [Download Support](#download-support)
-- [Output Formats](#output-formats)
-- [For AI Agents (Developer Guide)](#for-ai-agents-developer-guide)
-- [Remote Chrome (Server/Headless)](#remote-chrome-serverheadless)
-- [Testing](#testing)
-- [Troubleshooting](#troubleshooting)
-- [Releasing New Versions](#releasing-new-versions)
-- [License](#license)
-
 ---
 
 ## Highlights
@@ -65,11 +48,7 @@ You can install the extension via either method:
 2. Unzip the file and open `chrome://extensions`, enable **Developer mode** (top-right toggle).
 3. Click **Load unpacked** and select the unzipped folder.
 
-**Method 2: Load from npm Package**
-1. After installing opencli via npm, open `chrome://extensions` and enable **Developer mode**.
-2. Click **Load unpacked** and select `node_modules/@jackwener/opencli/extension` directory.
-
-**Method 3: Load Source (For Developers)**
+**Method 2: Load Source (For Developers)**
 1. Open `chrome://extensions` and enable **Developer mode**.
 2. Click **Load unpacked** and select the `extension/` directory from this repository.
 
@@ -167,7 +146,6 @@ Run `opencli list` for the live registry.
 | **weread** | `shelf` `search` `book` `highlights` `notes` `notebooks` `ranking` | Browser |
 | **douban** | `search` `top250` `subject` `marks` `reviews` | Browser |
 
-> **Bloomberg note**: The RSS-backed Bloomberg listing commands (`main`, section feeds, `feeds`) work without a browser. `bloomberg news` is for standard Bloomberg story/article pages that your current Chrome session can already access. Audio and some other non-standard pages may fail, and OpenCLI does not bypass Bloomberg paywall or entitlement checks.
 
 ### External CLI Hub
 
@@ -252,20 +230,7 @@ opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --output ./zhihu
 opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --download-images
 ```
 
-### Pipeline Step (for YAML adapters)
 
-The `download` step can be used in YAML pipelines:
-
-```yaml
-pipeline:
-  - fetch: https://api.example.com/media
-  - download:
-      url: ${{ item.imageUrl }}
-      dir: ./downloads
-      filename: ${{ item.title | sanitize }}.jpg
-      concurrency: 5
-      skip_existing: true
-```
 
 ## Output Formats
 
@@ -308,21 +273,7 @@ Explore outputs to `.opencli/explore/<site>/` (manifest.json, endpoints.json, ca
 
 ## Testing
 
-See **[TESTING.md](./TESTING.md)** for the full testing guide, including:
-
-- Current test coverage (unit + E2E tests across browser and desktop adapters)
-- How to run tests locally
-- How to add tests when creating new adapters
-- CI/CD pipeline with sharding
-- Headless browser mode (`OPENCLI_HEADLESS=1`)
-
-```bash
-# Quick start
-npm run build
-npx vitest run                              # All tests
-npx vitest run src/                          # Unit tests only
-npx vitest run tests/e2e/                    # E2E tests
-```
+See **[TESTING.md](./TESTING.md)** for how to run and write tests.
 
 ## Troubleshooting
 
@@ -338,15 +289,7 @@ npx vitest run tests/e2e/                    # E2E tests
   - Check daemon status: `curl localhost:19825/status`
   - View extension logs: `curl localhost:19825/logs`
 
-## Releasing New Versions
 
-```bash
-npm version patch   # 0.1.0 → 0.1.1
-npm version minor   # 0.1.0 → 0.2.0
-git push --follow-tags
-```
-
-The CI will automatically build, create a GitHub release, and publish to npm.
 
 ## Star History
 
