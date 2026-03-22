@@ -8,23 +8,28 @@ Fetch the latest and greatest developer articles from the DEV community without 
 
 | Command | Description |
 |---------|-------------|
-| `opencli devto top` | Get top DEV.to articles globally |
-| `opencli devto tag` | Get latest DEV.to articles for a specific tag |
-| `opencli devto user` | Get recent DEV.to articles from a specific user |
+| `opencli devto top` | Top DEV.to articles of the day |
+| `opencli devto tag` | Latest articles for a specific tag |
+| `opencli devto user` | Recent articles from a specific user |
 
 ## Usage Examples
 
 ```bash
-# Get top articles on dev.to
+# Top articles today
 opencli devto top --limit 5
 
-# Discover the latest javascript articles
-opencli devto tag --tag "javascript"
+# Articles by tag (positional argument)
+opencli devto tag javascript
+opencli devto tag python --limit 20
 
-# Follow a specific author
-opencli devto user --username "ben"
+# Articles by a specific author
+opencli devto user ben
+opencli devto user thepracticaldev --limit 5
+
+# JSON output
+opencli devto top -f json
 ```
 
 ## Prerequisites
 
-- No browser required — uses the fast, public DEV API.
+- No browser required — uses the public DEV.to API

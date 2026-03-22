@@ -1,31 +1,33 @@
 site: devto
 name: user
-description: Get recent DEV.to articles from a specific user
+description: Recent DEV.to articles from a specific user
 domain: dev.to
 strategy: public
 browser: false
 
 args:
   username:
-    type: string
+    type: str
     required: true
-    description: The developer's DEV.to username
+    positional: true
+    description: "DEV.to username (e.g. ben, thepracticaldev)"
   limit:
     type: int
-    default: 10
-    description: Max number of stories
+    default: 20
+    description: Number of articles
 
 pipeline:
   - fetch:
       url: https://dev.to/api/articles?username=${{ args.username }}&per_page=${{ args.limit }}
-  
+
   - map:
-      title: "${{ item.title }}"
-      author: "${{ item.user.username }}"
-      reactions: "${{ item.public_reactions_count }}"
-      comments: "${{ item.comments_count }}"
-      url: "${{ item.url }}"
+      rank: ${{ index + 1 }}
+      title: ${{ item.title }}
+      reactions: ${{ item.public_reactions_count }}
+      comments: ${{ item.comments_count }}
+      tags: ${{ item.tag_list | join(', ') }}
+      url: ${{ item.url }}
 
   - limit: ${{ args.limit }}
 
-columns: [title, author, reactions, comments, url]
+columns: [rank, title, reactions, comments, tags]
