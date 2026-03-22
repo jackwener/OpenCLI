@@ -1,4 +1,5 @@
 import { BrowserBridge, CDPBridge } from './browser/index.js';
+import { CamoufoxBridge } from './browser/camoufox-bridge.js';
 import type { IPage } from './types.js';
 
 /**
@@ -6,6 +7,7 @@ import type { IPage } from './types.js';
  * Uses CDPBridge when OPENCLI_CDP_ENDPOINT is set, otherwise BrowserBridge.
  */
 export function getBrowserFactory(): new () => IBrowserFactory {
+  if (process.env.OPENCLI_CAMOUFOX_WS) return CamoufoxBridge as any;
   return (process.env.OPENCLI_CDP_ENDPOINT ? CDPBridge : BrowserBridge) as any;
 }
 

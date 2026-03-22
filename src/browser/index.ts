@@ -8,6 +8,8 @@
 export { Page } from './page.js';
 export { BrowserBridge, BrowserBridge as PlaywrightMCP } from './mcp.js';
 export { CDPBridge } from './cdp.js';
+export { CamoufoxBridge } from './camoufox-bridge.js';
+export { CamoufoxPage } from './camoufox-page.js';
 export { isDaemonRunning } from './daemon-client.js';
 export { generateSnapshotJs, scrollToRefJs, getFormStateJs } from './dom-snapshot.js';
 export type { SnapshotOptions } from './dom-snapshot.js';
