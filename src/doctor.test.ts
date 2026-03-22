@@ -87,10 +87,10 @@ describe('doctor report rendering', () => {
     expect(text).toContain('[SKIP] Connectivity: not tested (use --live)');
   });
 
-  it('refreshes status after a live check starts the daemon', async () => {
-    mockCheckDaemonStatus
-      .mockResolvedValueOnce({ running: false, extensionConnected: false })
-      .mockResolvedValueOnce({ running: true, extensionConnected: false });
+  it('reports consistent status when live check auto-starts the daemon', async () => {
+    // With the reordered flow, checkDaemonStatus is called only ONCE — after
+    // the connectivity check that may auto-start the daemon.
+    mockCheckDaemonStatus.mockResolvedValueOnce({ running: true, extensionConnected: false });
     mockConnect.mockRejectedValueOnce(new Error(
       'Daemon is running but the Browser Extension is not connected.\n' +
       'Please install and enable the opencli Browser Bridge extension in Chrome.',
@@ -98,20 +98,22 @@ describe('doctor report rendering', () => {
 
     const report = await runBrowserDoctor({ live: true });
 
+    // Status reflects the post-connectivity state (daemon running)
     expect(report.daemonRunning).toBe(true);
     expect(report.extensionConnected).toBe(false);
-    expect(report.issues).not.toContain('Daemon is not running. It should start automatically when you run an opencli browser command.');
-    expect(report.issues).toContain(
-      'Daemon is running but the Chrome extension is not connected.\n' +
-      'Please install the opencli Browser Bridge extension:\n' +
-      '  1. Download from GitHub Releases\n' +
-      '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
-      '  3. Click "Load unpacked" → select the extension folder',
+    // checkDaemonStatus should only be called once
+    expect(mockCheckDaemonStatus).toHaveBeenCalledTimes(1);
+    // Should NOT report "daemon not running" since it IS running after live check
+    expect(report.issues).not.toContain(
+      expect.stringContaining('Daemon is not running'),
     );
+    // Should report extension not connected
     expect(report.issues).toEqual(expect.arrayContaining([
-      expect.stringContaining(
-        'Browser connectivity test failed: Daemon is running but the Browser Extension is not connected.',
-      ),
+      expect.stringContaining('Chrome extension is not connected'),
+    ]));
+    // Should report connectivity failure
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('Browser connectivity test failed'),
     ]));
   });
 });

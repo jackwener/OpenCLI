@@ -51,15 +51,14 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
 }
 
 export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
-  let status = await checkDaemonStatus();
-
+  // Run the live connectivity check first — it may auto-start the daemon as a
+  // side-effect, so we read daemon status only *after* all side-effects settle.
   let connectivity: ConnectivityResult | undefined;
   if (opts.live) {
     connectivity = await checkConnectivity();
-    // A live connectivity check may auto-start the daemon, so refresh status
-    // before rendering the final report to avoid contradictory output.
-    status = await checkDaemonStatus();
   }
+
+  const status = await checkDaemonStatus();
   const sessions = opts.sessions && status.running && status.extensionConnected
     ? await listSessions() as Array<{ workspace: string; windowId: number; tabCount: number; idleMsRemaining: number }>
     : undefined;
