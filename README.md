@@ -18,8 +18,6 @@ Turn ANY Electron application into a CLI tool! Recombine, script, and extend app
 
 ---
 
----
-
 ## Highlights
 
 - **CLI All Electron** — CLI-ify apps like Antigravity Ultra! Now AI can control itself natively using cc/openclaw!
@@ -288,7 +286,6 @@ See **[TESTING.md](./TESTING.md)** for how to run and write tests.
 - **Daemon issues**
   - Check daemon status: `curl localhost:19825/status`
   - View extension logs: `curl localhost:19825/logs`
-
 
 
 ## Star History
