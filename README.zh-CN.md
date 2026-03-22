@@ -325,6 +325,10 @@ npm version minor   # 0.1.0 → 0.2.0
 git push --follow-tags
 ```
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=jackwener/opencli&type=Date)](https://star-history.com/#jackwener/opencli&Date)
+
 ## License
 
 [Apache-2.0](./LICENSE)

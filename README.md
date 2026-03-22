@@ -342,6 +342,10 @@ git push --follow-tags
 
 The CI will automatically build, create a GitHub release, and publish to npm.
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=jackwener/opencli&type=Date)](https://star-history.com/#jackwener/opencli&Date)
+
 ## License
 
 [Apache-2.0](./LICENSE)
