@@ -34,7 +34,8 @@
     "test:e2e": "vitest run --project e2e",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "version": "node -e \"const fs=require('fs'); const pkg=require('./package.json'); const ext=require('./gemini-extension.json'); ext.version=pkg.version; fs.writeFileSync('./gemini-extension.json', JSON.stringify(ext, null, 2) + '\\n');\" && git add gemini-extension.json"
   },
   "keywords": [
     "cli",

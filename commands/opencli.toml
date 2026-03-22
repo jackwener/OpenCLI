@@ -1,0 +1,16 @@
+description = "Use OpenCLI to get data or interact with sites from natural language. Make any website or Electron App your CLI."
+prompt = """
+You are an expert at OpenCLI. The user wants to use OpenCLI to fulfill their request: {{args}}
+
+Here are the commands you have available:
+```
+!{npx tsx src/main.ts list}
+```
+
+1. Understand the user's intent, and identify the single most relevant opencli command.
+2. Determine the exact `opencli` shell command needed (including any required arguments). 
+   Note: OpenCLI commands usually use standard POSIX flag structure. E.g. `npx tsx src/main.ts twitter search "my query" --limit 10`
+3. Execute the command using the `run_shell_command` tool. Use `npx tsx src/main.ts` as the executable since we are running within the extension repository.
+4. If the requested site/command doesn't appear in the list, you might need to use `npx tsx src/main.ts generate` to create the adapter first.
+5. Provide a brief answer interpreting the output of the opencli execution, or format it nicely for the user.
+"""
