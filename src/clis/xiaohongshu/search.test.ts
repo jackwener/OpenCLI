@@ -42,7 +42,6 @@ describe('xiaohongshu search', () => {
     const page = createPageMock([
       {
         loginWall: true,
-        bodyPreview: '登录后查看搜索结果',
         results: [],
       },
     ]);
@@ -52,39 +51,35 @@ describe('xiaohongshu search', () => {
     );
   });
 
-  it('keeps the search_result url and enriches rows with note details', async () => {
+  it('returns ranked results with search_result url and author_url preserved', async () => {
     const cmd = getRegistry().get('xiaohongshu/search');
     expect(cmd?.func).toBeTypeOf('function');
 
     const detailUrl =
       'https://www.xiaohongshu.com/search_result/68e90be80000000004022e66?xsec_token=test-token&xsec_source=';
+    const authorUrl =
+      'https://www.xiaohongshu.com/user/profile/635a9c720000000018028b40?xsec_token=user-token&xsec_source=pc_search';
+
     const page = createPageMock([
       {
         loginWall: false,
-        bodyPreview: '',
         results: [
           {
             title: '某鱼买FSD被坑了4万',
             author: '随风',
             likes: '261',
             url: detailUrl,
-            author_url:
-              'https://www.xiaohongshu.com/user/profile/635a9c720000000018028b40?xsec_token=user-token&xsec_source=pc_search',
+            author_url: authorUrl,
           },
         ],
-      },
-      {
-        title: '某鱼买FSD被坑了4万',
-        author: '随风',
-        content: '今天早上提车，昨天深夜，心血来潮搜了一下x鱼。',
-        comment_count: '302',
-        comments: ['KA330: 没有被坑啊。', 'NONO: 你怎么敢某鱼花4.3W买的'],
       },
     ]);
 
     const result = await cmd!.func!(page, { query: '特斯拉', limit: 1 });
 
-    expect((page.goto as any).mock.calls[1][0]).toBe(detailUrl);
+    // Should only do one goto (the search page itself), no per-note detail navigation
+    expect((page.goto as any).mock.calls).toHaveLength(1);
+
     expect(result).toEqual([
       {
         rank: 1,
@@ -92,12 +87,48 @@ describe('xiaohongshu search', () => {
         author: '随风',
         likes: '261',
         url: detailUrl,
-        author_url:
-          'https://www.xiaohongshu.com/user/profile/635a9c720000000018028b40?xsec_token=user-token&xsec_source=pc_search',
-        content: '今天早上提车，昨天深夜，心血来潮搜了一下x鱼。',
-        comment_count: '302',
-        comments: ['KA330: 没有被坑啊。', 'NONO: 你怎么敢某鱼花4.3W买的'],
+        author_url: authorUrl,
       },
     ]);
+  });
+
+  it('filters out results with no title and respects the limit', async () => {
+    const cmd = getRegistry().get('xiaohongshu/search');
+    expect(cmd?.func).toBeTypeOf('function');
+
+    const page = createPageMock([
+      {
+        loginWall: false,
+        results: [
+          {
+            title: 'Result A',
+            author: 'UserA',
+            likes: '10',
+            url: 'https://www.xiaohongshu.com/search_result/aaa',
+            author_url: '',
+          },
+          {
+            title: '',
+            author: 'UserB',
+            likes: '5',
+            url: 'https://www.xiaohongshu.com/search_result/bbb',
+            author_url: '',
+          },
+          {
+            title: 'Result C',
+            author: 'UserC',
+            likes: '3',
+            url: 'https://www.xiaohongshu.com/search_result/ccc',
+            author_url: '',
+          },
+        ],
+      },
+    ]);
+
+    const result = (await cmd!.func!(page, { query: '测试', limit: 1 })) as any[];
+
+    // limit=1 should return only the first valid-titled result
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ rank: 1, title: 'Result A' });
   });
 });
