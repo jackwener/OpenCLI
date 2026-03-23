@@ -9,15 +9,16 @@ args:
   word:
     type: string
     required: true
+    positional: true
     description: Word to define (e.g., serendipity)
 
 pipeline:
   - fetch:
-      url: "https://api.dictionaryapi.dev/api/v2/entries/en/${{ args.word }}"
+      url: "https://api.dictionaryapi.dev/api/v2/entries/en/${{ args.word | urlencode }}"
   
   - map:
       word: "${{ item.word }}"
-      phonetic: "${{ item.phonetic || item.phonetics?.[0]?.text || item.phonetics?.[1]?.text || '' }}"
+      phonetic: "${{ (() => { if (item.phonetic) return item.phonetic; if (item.phonetics) { for (const p of item.phonetics) { if (p.text) return p.text; } } return ''; })() }}"
       type: "${{ item.meanings[0].partOfSpeech }}"
       definition: "${{ item.meanings[0].definitions[0].definition }}"
 

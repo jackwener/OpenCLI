@@ -9,11 +9,12 @@ args:
   word:
     type: string
     required: true
+    positional: true
     description: Word to get example sentences for
 
 pipeline:
   - fetch:
-      url: "https://api.dictionaryapi.dev/api/v2/entries/en/${{ args.word }}"
+      url: "https://api.dictionaryapi.dev/api/v2/entries/en/${{ args.word | urlencode }}"
 
   - map:
       word: "${{ item.word }}"

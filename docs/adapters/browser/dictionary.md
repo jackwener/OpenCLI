@@ -16,10 +16,10 @@ Search the open dictionary to quickly fetch native definitions, part of speech c
 
 ```bash
 # Look up a complex term
-opencli dictionary search --word "serendipity"
+opencli dictionary search serendipity
 
 # Discover phonetics
-opencli dictionary search --word "ephemeral"
+opencli dictionary search ephemeral
 ```
 
 ## Prerequisites

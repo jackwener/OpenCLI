@@ -489,4 +489,37 @@ describe('public commands E2E', () => {
     expect(data.length).toBeGreaterThan(0);
     expect(data.every((d: any) => d.type === 'image')).toBe(true);
   }, 30_000);
+
+  // ── dictionary (public API, browser: false) ──
+  it('dictionary search returns word definitions', async () => {
+    const { stdout, code } = await runCli(['dictionary', 'search', 'serendipity', '-f', 'json']);
+    expect(code).toBe(0);
+    const data = parseJsonOutput(stdout);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeGreaterThanOrEqual(1);
+    expect(data[0]).toHaveProperty('word', 'serendipity');
+    expect(data[0]).toHaveProperty('phonetic');
+    expect(data[0]).toHaveProperty('definition');
+  }, 30_000);
+
+  it('dictionary synonyms returns synonyms', async () => {
+    const { stdout, code } = await runCli(['dictionary', 'synonyms', 'serendipity', '-f', 'json']);
+    expect(code).toBe(0);
+    const data = parseJsonOutput(stdout);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeGreaterThanOrEqual(1);
+    expect(data[0]).toHaveProperty('word', 'serendipity');
+    expect(data[0]).toHaveProperty('synonyms');
+  }, 30_000);
+
+  it('dictionary examples returns examples', async () => {
+    const { stdout, code } = await runCli(['dictionary', 'examples', 'perfect', '-f', 'json']);
+    expect(code).toBe(0);
+    const data = parseJsonOutput(stdout);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeGreaterThanOrEqual(1);
+    expect(data[0]).toHaveProperty('word', 'perfect');
+    expect(data[0]).toHaveProperty('example');
+  }, 30_000);
+  }, 30_000);
 });
