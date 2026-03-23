@@ -67,7 +67,7 @@ describe('browser public-data commands E2E', () => {
   }, 60_000);
 
   it('bilibili search returns results', async () => {
-    const data = await tryBrowserCommand(['bilibili', 'search', '--keyword', 'typescript', '--limit', '3', '-f', 'json']);
+    const data = await tryBrowserCommand(['bilibili', 'search', 'typescript', '--limit', '3', '-f', 'json']);
     expectDataOrSkip(data, 'bilibili search');
   }, 60_000);
 
@@ -87,7 +87,7 @@ describe('browser public-data commands E2E', () => {
   }, 60_000);
 
   it('zhihu search returns results', async () => {
-    const data = await tryBrowserCommand(['zhihu', 'search', '--keyword', 'playwright', '--limit', '3', '-f', 'json']);
+    const data = await tryBrowserCommand(['zhihu', 'search', 'playwright', '--limit', '3', '-f', 'json']);
     expectDataOrSkip(data, 'zhihu search');
   }, 60_000);
 
@@ -121,25 +121,25 @@ describe('browser public-data commands E2E', () => {
 
   // ── reuters (browser: true) ──
   it('reuters search returns articles', async () => {
-    const data = await tryBrowserCommand(['reuters', 'search', '--keyword', 'technology', '--limit', '3', '-f', 'json']);
+    const data = await tryBrowserCommand(['reuters', 'search', 'technology', '--limit', '3', '-f', 'json']);
     expectDataOrSkip(data, 'reuters search');
   }, 60_000);
 
   // ── youtube (browser: true) ──
   it('youtube search returns videos', async () => {
-    const data = await tryBrowserCommand(['youtube', 'search', '--keyword', 'typescript tutorial', '--limit', '3', '-f', 'json']);
+    const data = await tryBrowserCommand(['youtube', 'search', 'typescript tutorial', '--limit', '3', '-f', 'json']);
     expectDataOrSkip(data, 'youtube search');
   }, 60_000);
 
   // ── smzdm (browser: true) ──
   it('smzdm search returns deals', async () => {
-    const data = await tryBrowserCommand(['smzdm', 'search', '--keyword', '键盘', '--limit', '3', '-f', 'json']);
+    const data = await tryBrowserCommand(['smzdm', 'search', '键盘', '--limit', '3', '-f', 'json']);
     expectDataOrSkip(data, 'smzdm search');
   }, 60_000);
 
   // ── boss (browser: true) ──
   it('boss search returns jobs', async () => {
-    const data = await tryBrowserCommand(['boss', 'search', '--keyword', 'golang', '--limit', '3', '-f', 'json']);
+    const data = await tryBrowserCommand(['boss', 'search', 'golang', '--limit', '3', '-f', 'json']);
     expectDataOrSkip(data, 'boss search');
   }, 60_000);
 
@@ -151,13 +151,13 @@ describe('browser public-data commands E2E', () => {
 
   // ── coupang (browser: true) ──
   it('coupang search returns products', async () => {
-    const data = await tryBrowserCommand(['coupang', 'search', '--keyword', 'laptop', '--limit', '3', '-f', 'json']);
+    const data = await tryBrowserCommand(['coupang', 'search', 'laptop', '--limit', '3', '-f', 'json']);
     expectDataOrSkip(data, 'coupang search');
   }, 60_000);
 
   // ── xiaohongshu (browser: true) ──
   it('xiaohongshu search returns notes', async () => {
-    const data = await tryBrowserCommand(['xiaohongshu', 'search', '--keyword', '美食', '--limit', '3', '-f', 'json']);
+    const data = await tryBrowserCommand(['xiaohongshu', 'search', '美食', '--limit', '3', '-f', 'json']);
     expectDataOrSkip(data, 'xiaohongshu search');
   }, 60_000);
 
