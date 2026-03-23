@@ -146,10 +146,14 @@ export class HumanDelay {
  * Priority:
  *   1. Explicit `profile` argument
  *   2. OPENCLI_DELAY_PROFILE env var
- *   3. 'moderate' default
+ *   3. 'none' when CI=true (to avoid test timeouts)
+ *   4. 'moderate' default
  */
 export function resolveProfile(profile?: string): DelayProfile {
-  const name = profile ?? process.env.OPENCLI_DELAY_PROFILE ?? 'moderate';
+  // In CI environments, default to 'none' to avoid test timeouts.
+  // Explicit OPENCLI_DELAY_PROFILE or profile argument always takes precedence.
+  const ciDefault = process.env.CI ? 'none' : 'moderate';
+  const name = profile ?? process.env.OPENCLI_DELAY_PROFILE ?? ciDefault;
   return PROFILES[name] ?? PROFILES.moderate;
 }
 
