@@ -106,15 +106,20 @@ function generateFullCaptureInterceptorJs(): string {
       _XHR.open = function(method, url) {
         this.__rec_url = String(url);
         this.__rec_method = String(method);
+        this.__rec_listener_added = false;  // reset per open() call
         return window.__opencli_orig_xhr_open.apply(this, arguments);
       };
       _XHR.send = function() {
-        this.addEventListener('load', function() {
-          const ct = this.getResponseHeader?.('content-type') || '';
-          if (ct.includes('json')) {
-            try { _push(this.__rec_url, this.__rec_method || 'GET', JSON.parse(this.responseText)); } catch {}
-          }
-        });
+        // Guard: only add one listener per XHR instance to prevent duplicate captures
+        if (!this.__rec_listener_added) {
+          this.__rec_listener_added = true;
+          this.addEventListener('load', function() {
+            const ct = this.getResponseHeader?.('content-type') || '';
+            if (ct.includes('json')) {
+              try { _push(this.__rec_url, this.__rec_method || 'GET', JSON.parse(this.responseText)); } catch {}
+            }
+          });
+        }
         return window.__opencli_orig_xhr_send.apply(this, arguments);
       };
 
@@ -253,8 +258,19 @@ function buildRecordedYaml(
     }
   }
 
-  const itemPath = arrayResult?.path || 'data';
-  const pathChain = itemPath.split('.').map(p => `?.${p}`).join('');
+  const itemPath = arrayResult?.path ?? null;
+  // When path is '' (root-level array), access data directly; otherwise chain with optional chaining
+  const pathChain = itemPath === null
+    ? ''
+    : itemPath === ''
+      ? ''
+      : itemPath.split('.').map(p => `?.${p}`).join('');
+
+  // Detect search/limit/page params (must be before fetch URL building to use hasSearch/hasPage)
+  const qp: string[] = [];
+  try { new URL(req.url).searchParams.forEach((_v, k) => { if (!VOLATILE_PARAMS.has(k)) qp.push(k); }); } catch {}
+  const hasSearch = qp.some(p => SEARCH_PARAMS.has(p));
+  const hasPage = qp.some(p => PAGINATION_PARAMS.has(p));
 
   // Build evaluate script
   const mapLines = Object.entries(detectedFields)
@@ -264,19 +280,33 @@ function buildRecordedYaml(
     ? `.map(item => ({\n${mapLines}\n        }))`
     : '';
 
+  // Build fetch URL — for search/page args, replace query param values with template vars
+  let fetchUrl = req.url;
+  try {
+    const u = new URL(req.url);
+    if (hasSearch) {
+      for (const p of SEARCH_PARAMS) {
+        if (u.searchParams.has(p)) { u.searchParams.set(p, '{{args.keyword}}'); break; }
+      }
+    }
+    if (hasPage) {
+      for (const p of PAGINATION_PARAMS) {
+        if (u.searchParams.has(p)) { u.searchParams.set(p, '{{args.page | default(1)}}'); break; }
+      }
+    }
+    fetchUrl = u.toString();
+  } catch {}
+
+  // When itemPath is empty, the array IS the response root; otherwise chain with ?.
+  const dataAccess = pathChain ? `data${pathChain}` : 'data';
+
   const evaluateScript = [
     '(async () => {',
-    `  const res = await fetch(${JSON.stringify(req.url)}, { credentials: 'include' });`,
+    `  const res = await fetch(${JSON.stringify(fetchUrl)}, { credentials: 'include' });`,
     '  const data = await res.json();',
-    `  return (data${pathChain} || [])${mapExpr};`,
+    `  return (${dataAccess} || [])${mapExpr};`,
     '})()',
   ].join('\n');
-
-  // Detect search/limit/page params
-  const qp: string[] = [];
-  try { new URL(req.url).searchParams.forEach((_v, k) => { if (!VOLATILE_PARAMS.has(k)) qp.push(k); }); } catch {}
-  const hasSearch = qp.some(p => SEARCH_PARAMS.has(p));
-  const hasPage = qp.some(p => PAGINATION_PARAMS.has(p));
 
   const args: Record<string, unknown> = {};
   if (hasSearch) args['keyword'] = { type: 'str', required: true, description: 'Search keyword', positional: true };
@@ -366,8 +396,13 @@ export async function recordSession(opts: RecordOptions): Promise<RecordResult> 
     let stopped = false;
     const stop = () => { stopped = true; };
 
-    const enterPromise = waitForEnter().then(stop);
-    const timeoutPromise = new Promise<void>(r => setTimeout(() => { stop(); r(); }, timeoutMs));
+    const { promise: enterPromise, cleanup: cleanupEnter } = waitForEnter();
+    const enterRace = enterPromise.then(stop);
+    const timeoutPromise = new Promise<void>(r => setTimeout(() => {
+      stop();
+      cleanupEnter(); // close readline to prevent process from hanging
+      r();
+    }, timeoutMs));
 
     // Poll loop: drain captured data + inject interceptor into any new tabs
     const pollInterval = setInterval(async () => {
@@ -443,14 +478,23 @@ async function injectIntoTab(workspace: string, tabId: number, injectedTabs: Set
   }
 }
 
-/** Wait for user to press Enter on stdin */
-function waitForEnter(): Promise<void> {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: process.stdin });
-    rl.once('line', () => { rl.close(); resolve(); });
+/**
+ * Wait for user to press Enter on stdin.
+ * Returns both a promise and a cleanup fn so the caller can close the interface
+ * when a timeout fires (preventing the process from hanging on stdin).
+ */
+function waitForEnter(): { promise: Promise<void>; cleanup: () => void } {
+  let rl: readline.Interface | null = null;
+  const promise = new Promise<void>((resolve) => {
+    rl = readline.createInterface({ input: process.stdin });
+    rl.once('line', () => { rl?.close(); rl = null; resolve(); });
     // Handle Ctrl+C gracefully
-    rl.once('SIGINT', () => { rl.close(); resolve(); });
+    rl.once('SIGINT', () => { rl?.close(); rl = null; resolve(); });
   });
+  return {
+    promise,
+    cleanup: () => { rl?.close(); rl = null; },
+  };
 }
 
 // ── Analysis + output ──────────────────────────────────────────────────────
