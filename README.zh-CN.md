@@ -264,6 +264,25 @@ opencli bilibili hot -f csv     # CSV
 opencli bilibili hot -v         # 详细模式：展示管线执行步骤调试信息
 ```
 
+## 插件
+
+通过社区贡献的插件扩展 OpenCLI。插件使用与内置命令相同的 YAML/TS 格式，启动时自动发现。
+
+```bash
+opencli plugin install github:user/opencli-plugin-my-tool  # 安装
+opencli plugin list                                         # 查看已安装
+opencli plugin update my-tool                               # 更新到最新
+opencli plugin uninstall my-tool                            # 卸载
+```
+
+| 插件 | 类型 | 描述 |
+|------|------|------|
+| [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | YAML | GitHub Trending 仓库 |
+| [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | TS | 多平台热榜聚合 |
+| [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | YAML | 稀土掘金热门文章 |
+
+详见 [插件指南](./docs/zh/guide/plugins.md) 了解如何创建自己的插件。
+
 ## 致 AI Agent（开发者指南）
 
 如果你是一个被要求查阅代码并编写新 `opencli` 适配器的 AI，请遵守以下工作流。

@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PLUGINS_DIR } from './discovery.js';
-import { listPlugins, uninstallPlugin, _parseSource } from './plugin.js';
+import { listPlugins, uninstallPlugin, updatePlugin, _parseSource } from './plugin.js';
 
 describe('parseSource', () => {
   it('parses github:user/repo format', () => {
@@ -82,5 +82,11 @@ describe('uninstallPlugin', () => {
 
   it('throws for non-existent plugin', () => {
     expect(() => uninstallPlugin('__nonexistent__')).toThrow('not installed');
+  });
+});
+
+describe('updatePlugin', () => {
+  it('throws for non-existent plugin', () => {
+    expect(() => updatePlugin('__nonexistent__')).toThrow('not installed');
   });
 });

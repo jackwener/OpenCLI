@@ -257,10 +257,11 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .argument('<source>', 'Plugin source (e.g. github:user/repo)')
     .action(async (source: string) => {
       const { installPlugin } = await import('./plugin.js');
+      const { discoverPlugins } = await import('./discovery.js');
       try {
         const name = installPlugin(source);
-        console.log(chalk.green(`✅ Plugin "${name}" installed successfully.`));
-        console.log(chalk.dim(`   Restart opencli to use the new commands.`));
+        await discoverPlugins();
+        console.log(chalk.green(`✅ Plugin "${name}" installed successfully. Commands are ready to use.`));
       } catch (err: any) {
         console.error(chalk.red(`Error: ${err.message}`));
         process.exitCode = 1;
@@ -281,6 +282,24 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
         process.exitCode = 1;
       }
     });
+
+  pluginCmd
+    .command('update')
+    .description('Update a plugin to the latest version')
+    .argument('<name>', 'Plugin name')
+    .action(async (name: string) => {
+      const { updatePlugin } = await import('./plugin.js');
+      const { discoverPlugins } = await import('./discovery.js');
+      try {
+        updatePlugin(name);
+        await discoverPlugins();
+        console.log(chalk.green(`✅ Plugin "${name}" updated successfully.`));
+      } catch (err: any) {
+        console.error(chalk.red(`Error: ${err.message}`));
+        process.exitCode = 1;
+      }
+    });
+
 
   pluginCmd
     .command('list')

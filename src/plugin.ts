@@ -19,6 +19,32 @@ export interface PluginInfo {
 }
 
 /**
+ * Shared post-install lifecycle: npm install → host symlink → TS transpile.
+ * Called by both installPlugin() and updatePlugin().
+ */
+function postInstallLifecycle(pluginDir: string): void {
+  const pkgJsonPath = path.join(pluginDir, 'package.json');
+  if (!fs.existsSync(pkgJsonPath)) return;
+
+  try {
+    execFileSync('npm', ['install', '--omit=dev'], {
+      cwd: pluginDir,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch {
+    // Non-fatal: npm install may fail if no real deps
+  }
+
+  // Symlink host opencli so TS plugins resolve '@jackwener/opencli/registry'
+  // against the running host, not a stale npm-published version.
+  linkHostOpencli(pluginDir);
+
+  // Transpile .ts → .js via esbuild (production node can't load .ts directly).
+  transpilePluginTs(pluginDir);
+}
+
+/**
  * Install a plugin from a source.
  * Currently supports "github:user/repo" format (git clone wrapper).
  */
@@ -52,31 +78,7 @@ export function installPlugin(source: string): string {
     throw new Error(`Failed to clone plugin: ${err.message}`);
   }
 
-  // If the plugin has a package.json, run npm install for regular deps,
-  // then symlink the host opencli into node_modules for peerDep resolution.
-  const pkgJsonPath = path.join(targetDir, 'package.json');
-  if (fs.existsSync(pkgJsonPath)) {
-    try {
-      execFileSync('npm', ['install', '--omit=dev'], {
-        cwd: targetDir,
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-    } catch {
-      // Non-fatal: npm install may fail if no real deps
-    }
-
-    // Symlink host opencli into plugin's node_modules so TS plugins
-    // can resolve '@jackwener/opencli/registry' against the running host.
-    // This is more reliable than depending on the npm-published version
-    // which may lag behind the local installation.
-    linkHostOpencli(targetDir);
-
-    // Transpile TS plugin files to JS so they work in production mode
-    // (node cannot load .ts files directly without tsx).
-    transpilePluginTs(targetDir);
-  }
-
+  postInstallLifecycle(targetDir);
   return name;
 }
 
@@ -89,6 +91,28 @@ export function uninstallPlugin(name: string): void {
     throw new Error(`Plugin "${name}" is not installed.`);
   }
   fs.rmSync(targetDir, { recursive: true, force: true });
+}
+
+/**
+ * Update a plugin by name (git pull + re-install lifecycle).
+ */
+export function updatePlugin(name: string): void {
+  const targetDir = path.join(PLUGINS_DIR, name);
+  if (!fs.existsSync(targetDir)) {
+    throw new Error(`Plugin "${name}" is not installed.`);
+  }
+
+  try {
+    execFileSync('git', ['pull', '--ff-only'], {
+      cwd: targetDir,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (err: any) {
+    throw new Error(`Failed to update plugin: ${err.message}`);
+  }
+
+  postInstallLifecycle(targetDir);
 }
 
 /**

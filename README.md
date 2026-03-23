@@ -262,6 +262,25 @@ opencli bilibili hot -f csv     # CSV
 opencli bilibili hot -v         # Verbose: show pipeline debug steps
 ```
 
+## Plugins
+
+Extend OpenCLI with community-contributed adapters. Plugins use the same YAML/TS format as built-in commands and are automatically discovered at startup.
+
+```bash
+opencli plugin install github:user/opencli-plugin-my-tool  # Install
+opencli plugin list                                         # List installed
+opencli plugin update my-tool                               # Update to latest
+opencli plugin uninstall my-tool                            # Remove
+```
+
+| Plugin | Type | Description |
+|--------|------|-------------|
+| [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | YAML | GitHub Trending repositories |
+| [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | TS | Multi-platform trending aggregator |
+| [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | YAML | 稀土掘金 (Juejin) hot articles |
+
+See [Plugins Guide](./docs/guide/plugins.md) for creating your own plugin.
+
 ## For AI Agents (Developer Guide)
 
 If you are an AI assistant tasked with creating a new command adapter for `opencli`, please follow the AI Agent workflow below:
