@@ -8,7 +8,8 @@ cli({
   site: 'weibo',
   name: 'search',
   description: '搜索微博',
-  domain: 's.weibo.com',
+  domain: 'weibo.com',
+  browser: true,
   strategy: Strategy.COOKIE,
   args: [
     { name: 'keyword', required: true, positional: true, help: 'Search keyword' },

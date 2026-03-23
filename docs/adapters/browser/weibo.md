@@ -7,7 +7,7 @@
 | Command | Description |
 |---------|-------------|
 | `opencli weibo hot` | |
-| `opencli weibo search` | |
+| `opencli weibo search` | Search Weibo posts by keyword |
 
 ## Usage Examples
 
