@@ -5,41 +5,29 @@
  *   opencli xiaohongshu download --note_id abc123 --output ./xhs
  */
 
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { cli, Strategy } from "../../registry.js";
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { cli, Strategy } from '../../registry.js';
 import {
   httpDownload,
   sanitizeFilename,
   formatCookieHeader,
-} from "../../download/index.js";
-import {
-  DownloadProgressTracker,
-  formatBytes,
-} from "../../download/progress.js";
+} from '../../download/index.js';
+import { DownloadProgressTracker, formatBytes } from '../../download/progress.js';
 
 cli({
-  site: "xiaohongshu",
-  name: "download",
-  description: "下载小红书笔记中的图片和视频",
-  domain: "www.xiaohongshu.com",
+  site: 'xiaohongshu',
+  name: 'download',
+  description: '下载小红书笔记中的图片和视频',
+  domain: 'www.xiaohongshu.com',
   strategy: Strategy.COOKIE,
   args: [
-    {
-      name: "note-id",
-      positional: true,
-      required: true,
-      help: "Note ID (from URL)",
-    },
-    {
-      name: "output",
-      default: "./xiaohongshu-downloads",
-      help: "Output directory",
-    },
+    { name: 'note-id', positional: true, required: true, help: 'Note ID (from URL)' },
+    { name: 'output', default: './xiaohongshu-downloads', help: 'Output directory' },
   ],
-  columns: ["index", "type", "status", "size"],
+  columns: ['index', 'type', 'status', 'size'],
   func: async (page, kwargs) => {
-    const noteId = kwargs["note-id"];
+    const noteId = kwargs['note-id'];
     const output = kwargs.output;
 
     // Navigate to note page
@@ -121,15 +109,11 @@ cli({
     `);
 
     if (!data || !data.media || data.media.length === 0) {
-      return [
-        { index: 0, type: "-", status: "failed", size: "No media found" },
-      ];
+      return [{ index: 0, type: '-', status: 'failed', size: 'No media found' }];
     }
 
     // Extract cookies for authenticated downloads
-    const cookies = formatCookieHeader(
-      await page.getCookies({ domain: "xiaohongshu.com" }),
-    );
+    const cookies = formatCookieHeader(await page.getCookies({ domain: 'xiaohongshu.com' }));
 
     // Create output directory
     const outputDir = path.join(output, noteId);
@@ -141,7 +125,7 @@ cli({
 
     for (let i = 0; i < data.media.length; i++) {
       const media = data.media[i];
-      const ext = media.type === "video" ? "mp4" : "jpg";
+      const ext = media.type === 'video' ? 'mp4' : 'jpg';
       const filename = `${noteId}_${i + 1}.${ext}`;
       const destPath = path.join(outputDir, filename);
 
@@ -157,10 +141,7 @@ cli({
         });
 
         if (progressBar) {
-          progressBar.complete(
-            result.success,
-            result.success ? formatBytes(result.size) : undefined,
-          );
+          progressBar.complete(result.success, result.success ? formatBytes(result.size) : undefined);
         }
 
         tracker.onFileComplete(result.success);
@@ -168,10 +149,8 @@ cli({
         results.push({
           index: i + 1,
           type: media.type,
-          status: result.success ? "success" : "failed",
-          size: result.success
-            ? formatBytes(result.size)
-            : result.error || "unknown error",
+          status: result.success ? 'success' : 'failed',
+          size: result.success ? formatBytes(result.size) : (result.error || 'unknown error'),
         });
       } catch (err: any) {
         if (progressBar) progressBar.fail(err.message);
@@ -180,7 +159,7 @@ cli({
         results.push({
           index: i + 1,
           type: media.type,
-          status: "failed",
+          status: 'failed',
           size: err.message,
         });
       }
