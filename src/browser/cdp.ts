@@ -12,6 +12,7 @@ import { WebSocket, type RawData } from 'ws';
 import type { BrowserCookie, IPage, ScreenshotOptions, SnapshotOptions, WaitOptions } from '../types.js';
 import { wrapForEval } from './utils.js';
 import { generateSnapshotJs, scrollToRefJs, getFormStateJs } from './dom-snapshot.js';
+import { generateStealthJs } from './stealth.js';
 import {
   clickJs,
   typeTextJs,
@@ -71,9 +72,16 @@ export class CDPBridge {
       const timeoutMs = (opts?.timeout ?? 10) * 1000; // opts.timeout is in seconds
       const timeout = setTimeout(() => reject(new Error('CDP connect timeout')), timeoutMs);
 
-      ws.on('open', () => {
+      ws.on('open', async () => {
         clearTimeout(timeout);
         this._ws = ws;
+        // Register stealth script to run before any page JS on every navigation.
+        try {
+          await this.send('Page.enable');
+          await this.send('Page.addScriptToEvaluateOnNewDocument', { source: generateStealthJs() });
+        } catch {
+          // Non-fatal: stealth is best-effort
+        }
         resolve(new CDPPage(this));
       });
 

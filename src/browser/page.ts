@@ -15,6 +15,7 @@ import type { BrowserCookie, IPage, ScreenshotOptions, SnapshotOptions, WaitOpti
 import { sendCommand } from './daemon-client.js';
 import { wrapForEval } from './utils.js';
 import { generateSnapshotJs, scrollToRefJs, getFormStateJs } from './dom-snapshot.js';
+import { generateStealthJs } from './stealth.js';
 import {
   clickJs,
   typeTextJs,
@@ -53,6 +54,16 @@ export class Page implements IPage {
     // Remember the tabId for subsequent exec calls
     if (result?.tabId) {
       this._tabId = result.tabId;
+    }
+    // Inject stealth anti-detection patches (guard flag prevents double-injection).
+    try {
+      await sendCommand('exec', {
+        code: generateStealthJs(),
+        ...this._workspaceOpt(),
+        ...this._tabOpt(),
+      });
+    } catch {
+      // Non-fatal: stealth is best-effort
     }
     // Smart settle: use DOM stability detection instead of fixed sleep.
     // settleMs is now a timeout cap (default 1000ms), not a fixed wait.
