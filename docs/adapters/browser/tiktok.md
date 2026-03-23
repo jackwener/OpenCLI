@@ -29,7 +29,7 @@
 opencli tiktok profile --username tiktok
 
 # Search videos
-opencli tiktok search --query "cooking" --limit 10
+opencli tiktok search "cooking" --limit 10
 
 # Trending explore videos
 opencli tiktok explore --limit 20

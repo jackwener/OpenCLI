@@ -101,7 +101,7 @@ describe('login-required commands — graceful failure', () => {
   }, 60_000);
 
   it('linux-do search fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['linux-do', 'search', '--keyword', 'test', '--limit', '3', '-f', 'json'], 'linux-do search');
+    await expectGracefulAuthFailure(['linux-do', 'search', 'test', '--limit', '3', '-f', 'json'], 'linux-do search');
   }, 60_000);
 
   // ── xiaohongshu (requires login) ──
