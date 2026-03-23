@@ -128,7 +128,7 @@ Run `opencli list` for the live registry.
 | **linkedin** | `search` | Browser |
 | **reuters** | `search` | Browser |
 | **smzdm** | `search` | Browser |
-| **weibo** | `hot` | Browser |
+| **weibo** | `hot` `search` | Browser |
 | **yahoo-finance** | `quote` | Browser |
 | **sinafinance** | `news` | 🌐 Public |
 | **barchart** | `quote` `options` `greeks` `flow` | Browser |

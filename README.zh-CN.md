@@ -130,7 +130,7 @@ npm install -g @jackwener/opencli@latest
 | **linkedin** | `search` | 浏览器 |
 | **reuters** | `search` | 浏览器 |
 | **smzdm** | `search` | 浏览器 |
-| **weibo** | `hot` | 浏览器 |
+| **weibo** | `hot` `search` | 浏览器 |
 | **yahoo-finance** | `quote` | 浏览器 |
 | **sinafinance** | `news` | 🌐 公开 |
 | **barchart** | `quote` `options` `greeks` `flow` | 浏览器 |

@@ -102,6 +102,11 @@ describe('browser public-data commands E2E', () => {
     expectDataOrSkip(data, 'weibo hot');
   }, 60_000);
 
+  it('weibo search returns results', async () => {
+    const data = await tryBrowserCommand(['weibo', 'search', '--keyword', 'openai', '--limit', '3', '-f', 'json']);
+    expectDataOrSkip(data, 'weibo search');
+  }, 60_000);
+
   // ── zhihu (browser: true, cookie strategy) ──
   it('zhihu hot returns trending questions', async () => {
     const data = await tryBrowserCommand(['zhihu', 'hot', '--limit', '5', '-f', 'json']);

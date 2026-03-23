@@ -7,6 +7,7 @@
 | Command | Description |
 |---------|-------------|
 | `opencli weibo hot` | |
+| `opencli weibo search` | |
 
 ## Usage Examples
 
@@ -16,6 +17,9 @@ opencli weibo hot --limit 5
 
 # JSON output
 opencli weibo hot -f json
+
+# Search
+opencli weibo search "OpenAI" --limit 5
 
 # Verbose mode
 opencli weibo hot -v
