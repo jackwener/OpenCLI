@@ -8,18 +8,9 @@
  *   - yt-dlp must be installed: pip install yt-dlp
  */
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { cli, Strategy } from '../../registry.js';
-import {
-  ytdlpDownload,
-  checkYtdlp,
-  sanitizeFilename,
-  getTempDir,
-  exportCookiesToNetscape,
-  formatCookieHeader,
-} from '../../download/index.js';
-import { DownloadProgressTracker, formatBytes } from '../../download/progress.js';
+import { checkYtdlp, sanitizeFilename } from '../../download/index.js';
+import { downloadMedia } from '../../download/media-download.js';
 
 cli({
   site: 'bilibili',
@@ -63,21 +54,8 @@ cli({
 
     const title = sanitizeFilename(data?.title || 'video');
 
-    // Extract cookies for authenticated downloads
-    const cookies = await page.getCookies({ domain: 'bilibili.com' });
-    const cookieString = formatCookieHeader(cookies);
-
-    // Create output directory
-    fs.mkdirSync(output, { recursive: true });
-
-    // Export cookies to Netscape format for yt-dlp
-    let cookiesFile: string | undefined;
-    if (cookies.length > 0) {
-      const tempDir = getTempDir();
-      fs.mkdirSync(tempDir, { recursive: true });
-      cookiesFile = path.join(tempDir, `bilibili_cookies_${Date.now()}.txt`);
-      exportCookiesToNetscape(cookies, cookiesFile);
-    }
+    // Extract cookies for yt-dlp
+    const browserCookies = await page.getCookies({ domain: 'bilibili.com' });
 
     // Build yt-dlp format string based on quality
     let format = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
@@ -89,62 +67,26 @@ cli({
       format = 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]';
     }
 
-    const destPath = path.join(output, `${bvid}_${title}.mp4`);
+    const videoUrl = `https://www.bilibili.com/video/${bvid}`;
+    const filename = `${bvid}_${title}.mp4`;
 
-    const tracker = new DownloadProgressTracker(1, true);
-    const progressBar = tracker.onFileStart(`${bvid}.mp4`, 0);
+    const results = await downloadMedia(
+      [{ type: 'video-ytdlp', url: videoUrl, filename }],
+      {
+        output,
+        browserCookies,
+        filenamePrefix: bvid,
+        ytdlpExtraArgs: ['-f', format, '--merge-output-format', 'mp4', '--embed-thumbnail'],
+      },
+    );
 
-    try {
-      const result = await ytdlpDownload(
-        `https://www.bilibili.com/video/${bvid}`,
-        destPath,
-        {
-          cookiesFile,
-          format,
-          extraArgs: [
-            '--merge-output-format', 'mp4',
-            '--embed-thumbnail',
-          ],
-          onProgress: (percent) => {
-            if (progressBar) progressBar.update(percent, 100);
-          },
-        },
-      );
-
-      if (progressBar) {
-        progressBar.complete(result.success, result.success ? formatBytes(result.size) : undefined);
-      }
-
-      tracker.onFileComplete(result.success);
-      tracker.finish();
-
-      // Cleanup cookies file
-      if (cookiesFile && fs.existsSync(cookiesFile)) {
-        fs.unlinkSync(cookiesFile);
-      }
-
-      return [{
-        bvid,
-        title: data?.title || 'video',
-        status: result.success ? 'success' : 'failed',
-        size: result.success ? formatBytes(result.size) : (result.error || 'unknown error'),
-      }];
-    } catch (err: any) {
-      if (progressBar) progressBar.fail(err.message);
-      tracker.onFileComplete(false);
-      tracker.finish();
-
-      // Cleanup cookies file
-      if (cookiesFile && fs.existsSync(cookiesFile)) {
-        fs.unlinkSync(cookiesFile);
-      }
-
-      return [{
-        bvid,
-        title: data?.title || 'video',
-        status: 'failed',
-        size: err.message,
-      }];
-    }
+    // Map results to bilibili-specific columns
+    const r = results[0] || { status: 'failed', size: '-' };
+    return [{
+      bvid,
+      title: data?.title || 'video',
+      status: r.status,
+      size: r.size,
+    }];
   },
 });

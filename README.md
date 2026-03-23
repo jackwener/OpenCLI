@@ -105,16 +105,19 @@ Run `opencli list` for the live registry.
 | **bilibili** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `dynamic` `ranking` `following` `user-videos` `download` | Browser |
 | **codex** | `status` `send` `read` `new` `dump` `extract-diff` `model` `ask` `screenshot` `history` `export` | Desktop |
 | **chatwise** | `status` `new` `send` `read` `ask` `model` `history` `export` `screenshot` | Desktop |
+| **doubao** | `status` `new` `send` `read` `ask` | Browser |
+| **doubao-app** | `status` `new` `send` `read` `ask` `screenshot` `dump` | Desktop |
 | **notion** | `status` `search` `read` `new` `write` `sidebar` `favorites` `export` | Desktop |
 | **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | Desktop |
 | **v2ex** | `hot` `latest` `topic` `daily` `me` `notifications` | Public / Browser |
 | **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` | Browser |
 | **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` `serve` | Desktop |
 | **chatgpt** | `status` `new` `send` `read` `ask` | Desktop |
-| **xiaohongshu** | `search` `notifications` `feed` `user` `download` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | Browser |
+| **xiaohongshu** | `search` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | Browser |
 | **apple-podcasts** | `search` `episodes` `top` | Public |
 | **xiaoyuzhou** | `podcast` `podcast-episodes` `episode` | Public |
 | **zhihu** | `hot` `search` `question` `download` | Browser |
+| **weixin** | `download` | Browser |
 | **youtube** | `search` `video` `transcript` | Browser |
 | **boss** | `search` `detail` `recommend` `joblist` `greet` `batchgreet` `send` `chatlist` `chatmsg` `invite` `mark` `exchange` `resume` `stats` | Browser |
 | **coupang** | `search` `add-to-cart` | Browser |
@@ -133,7 +136,7 @@ Run `opencli list` for the live registry.
 | **sinafinance** | `news` | 🌐 Public |
 | **barchart** | `quote` `options` `greeks` `flow` | Browser |
 | **chaoxing** | `assignments` `exams` | Browser |
-| **grok** | `ask` | Desktop |
+| **grok** | `ask` | Browser |
 | **hf** | `top` | Public |
 | **jike** | `feed` `search` `create` `like` `comment` `repost` `notifications` `post` `topic` `user` | Browser |
 | **jimeng** | `generate` `history` | Browser |
@@ -142,6 +145,14 @@ Run `opencli list` for the live registry.
 | **steam** | `top-sellers` | Public |
 | **weread** | `shelf` `search` `book` `highlights` `notes` `notebooks` `ranking` | Browser |
 | **douban** | `search` `top250` `subject` `marks` `reviews` | Browser |
+| **facebook** | `feed` `profile` `search` `friends` `groups` `events` `notifications` `memories` `add-friend` `join-group` | Browser |
+| **google** | `news` `search` `suggest` `trends` | Public |
+| **instagram** | `explore` `profile` `search` `user` `followers` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `saved` | Browser |
+| **lobsters** | `hot` `newest` `active` `tag` | Public |
+| **medium** | `feed` `search` `user` `shared` | Browser |
+| **sinablog** | `hot` `search` `article` `user` `shared` | Browser |
+| **substack** | `feed` `search` `publication` `shared` | Browser |
+| **tiktok** | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` | Browser |
 
 
 ### External CLI Hub
@@ -179,6 +190,7 @@ Each desktop adapter has its own detailed documentation with commands reference,
 | **ChatWise** | Multi-LLM client (GPT-4, Claude, Gemini) | [Doc](./docs/adapters/desktop/chatwise.md) |
 | **Notion** | Search, read, write Notion pages | [Doc](./docs/adapters/desktop/notion.md) |
 | **Discord** | Discord Desktop — messages, channels, servers | [Doc](./docs/adapters/desktop/discord.md) |
+| **Doubao** | Control Doubao AI desktop app via CDP | [Doc](./docs/adapters/desktop/doubao-app.md) |
 
 ## Download Support
 
@@ -192,6 +204,7 @@ OpenCLI supports downloading images, videos, and articles from supported platfor
 | **bilibili** | Videos | Requires `yt-dlp` installed |
 | **twitter** | Images, Videos | Downloads from user media tab or single tweet |
 | **zhihu** | Articles (Markdown) | Exports articles with optional image download |
+| **weixin** | Articles (Markdown) | Exports WeChat Official Account articles |
 
 ### Prerequisites
 
@@ -225,6 +238,9 @@ opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --output ./zhihu
 
 # Export with local images
 opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --download-images
+
+# Export WeChat article to Markdown
+opencli weixin download --url "https://mp.weixin.qq.com/s/xxx" --output ./weixin
 ```
 
 
@@ -290,6 +306,8 @@ See **[TESTING.md](./TESTING.md)** for how to run and write tests.
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=jackwener/opencli&type=Date)](https://star-history.com/#jackwener/opencli&Date)
+
+After publishing the new version, remember to update the browser extension in the Chrome Web Store as well, so the extension release stays in sync with the CLI release.
 
 ## License
 

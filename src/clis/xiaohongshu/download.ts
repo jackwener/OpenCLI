@@ -5,15 +5,9 @@
  *   opencli xiaohongshu download --note_id abc123 --output ./xhs
  */
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { cli, Strategy } from '../../registry.js';
-import {
-  httpDownload,
-  sanitizeFilename,
-  formatCookieHeader,
-} from '../../download/index.js';
-import { DownloadProgressTracker, formatBytes } from '../../download/progress.js';
+import { formatCookieHeader } from '../../download/index.js';
+import { downloadMedia } from '../../download/media-download.js';
 
 cli({
   site: 'xiaohongshu',
@@ -69,7 +63,6 @@ cli({
             if (src && (src.includes('xhscdn') || src.includes('xiaohongshu'))) {
               // Convert to high quality URL (remove resize parameters)
               src = src.split('?')[0];
-              // Try to get original size
               src = src.replace(/\\/imageView\\d+\\/\\d+\\/w\\/\\d+/, '');
               imageUrls.add(src);
             }
@@ -88,20 +81,14 @@ cli({
           document.querySelectorAll(selector).forEach(v => {
             const src = v.src || v.getAttribute('src') || '';
             if (src) {
-              result.media.push({
-                type: 'video',
-                url: src
-              });
+              result.media.push({ type: 'video', url: src });
             }
           });
         }
 
         // Add images to media
         imageUrls.forEach(url => {
-          result.media.push({
-            type: 'image',
-            url: url
-          });
+          result.media.push({ type: 'image', url: url });
         });
 
         return result;
@@ -115,58 +102,12 @@ cli({
     // Extract cookies for authenticated downloads
     const cookies = formatCookieHeader(await page.getCookies({ domain: 'xiaohongshu.com' }));
 
-    // Create output directory
-    const outputDir = path.join(output, noteId);
-    fs.mkdirSync(outputDir, { recursive: true });
-
-    // Download all media files
-    const tracker = new DownloadProgressTracker(data.media.length, true);
-    const results: any[] = [];
-
-    for (let i = 0; i < data.media.length; i++) {
-      const media = data.media[i];
-      const ext = media.type === 'video' ? 'mp4' : 'jpg';
-      const filename = `${noteId}_${i + 1}.${ext}`;
-      const destPath = path.join(outputDir, filename);
-
-      const progressBar = tracker.onFileStart(filename, i);
-
-      try {
-        const result = await httpDownload(media.url, destPath, {
-          cookies,
-          timeout: 60000,
-          onProgress: (received, total) => {
-            if (progressBar) progressBar.update(received, total);
-          },
-        });
-
-        if (progressBar) {
-          progressBar.complete(result.success, result.success ? formatBytes(result.size) : undefined);
-        }
-
-        tracker.onFileComplete(result.success);
-
-        results.push({
-          index: i + 1,
-          type: media.type,
-          status: result.success ? 'success' : 'failed',
-          size: result.success ? formatBytes(result.size) : (result.error || 'unknown error'),
-        });
-      } catch (err: any) {
-        if (progressBar) progressBar.fail(err.message);
-        tracker.onFileComplete(false);
-
-        results.push({
-          index: i + 1,
-          type: media.type,
-          status: 'failed',
-          size: err.message,
-        });
-      }
-    }
-
-    tracker.finish();
-
-    return results;
+    return downloadMedia(data.media, {
+      output,
+      subdir: noteId,
+      cookies,
+      filenamePrefix: noteId,
+      timeout: 60000,
+    });
   },
 });
