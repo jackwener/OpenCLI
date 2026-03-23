@@ -62,7 +62,7 @@
     "@types/turndown": "^5.0.6",
     "@types/ws": "^8.5.13",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2",
+    "typescript": "^6.0.2",
     "vitepress": "^1.6.4",
     "vitest": "^4.1.0"
   }
