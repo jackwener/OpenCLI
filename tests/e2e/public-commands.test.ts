@@ -8,7 +8,10 @@ import { parseJsonOutput, runCli } from './helpers.js';
 
 function isExpectedChineseSiteRestriction(code: number, stderr: string): boolean {
   if (code === 0) return false;
-  return /Error \[FETCH_ERROR\]: HTTP (403|429|451|503)\b/.test(stderr);
+  // Overseas CI runners may get HTTP errors, geo-blocks, DNS failures,
+  // or receive mangled HTML that fails parsing.
+  return /Error \[(FETCH_ERROR|PARSE_ERROR|NOT_FOUND)\]/.test(stderr)
+    || /fetch failed/.test(stderr);
 }
 
 function isExpectedApplePodcastsRestriction(code: number, stderr: string): boolean {
