@@ -326,7 +326,7 @@ opencli cascade https://api.example.com/data
 
 [![Star History Chart](https://api.star-history.com/svg?repos=jackwener/opencli&type=Date)](https://star-history.com/#jackwener/opencli&Date)
 
-发版完成后，记得也要去 Chrome Web Store 更新浏览器插件，保持插件版本和 CLI 版本同步。
+
 
 ## License
 

@@ -22,6 +22,9 @@ export interface Arg {
   choices?: string[];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- kwargs from CLI parsing are inherently untyped
+export type CommandArgs = Record<string, any>;
+
 export interface CliCommand {
   site: string;
   name: string;
@@ -31,11 +34,12 @@ export interface CliCommand {
   browser?: boolean;
   args: Arg[];
   columns?: string[];
-  func?: (page: IPage, kwargs: Record<string, any>, debug?: boolean) => Promise<unknown>;
+  func?: (page: IPage, kwargs: CommandArgs, debug?: boolean) => Promise<unknown>;
   pipeline?: Record<string, unknown>[];
   timeoutSeconds?: number;
+  /** Origin of this command: 'yaml', 'ts', or plugin name. */
   source?: string;
-  footerExtra?: (kwargs: Record<string, any>) => string | undefined;
+  footerExtra?: (kwargs: CommandArgs) => string | undefined;
   /**
    * Control pre-navigation for cookie/header context before command execution.
    *
@@ -64,9 +68,9 @@ export interface CliOptions extends Partial<Omit<CliCommand, 'args' | 'descripti
 // Use globalThis to ensure a single shared registry across all module instances.
 // This is critical for TS plugins loaded via npm link / peerDependency — without
 // this, the plugin's import creates a separate module instance with its own Map.
-const REGISTRY_KEY = '__opencli_registry__';
+declare global { var __opencli_registry__: Map<string, CliCommand> | undefined; }
 const _registry: Map<string, CliCommand> =
-  (globalThis as any)[REGISTRY_KEY] ??= new Map<string, CliCommand>();
+  globalThis.__opencli_registry__ ??= new Map<string, CliCommand>();
 
 export function cli(opts: CliOptions): CliCommand {
   const strategy = opts.strategy ?? (opts.browser === false ? Strategy.PUBLIC : Strategy.COOKIE);
@@ -101,7 +105,7 @@ export function fullName(cmd: CliCommand): string {
 }
 
 export function strategyLabel(cmd: CliCommand): string {
-  return cmd.strategy ?? 'public';
+  return cmd.strategy ?? Strategy.PUBLIC;
 }
 
 export function registerCommand(cmd: CliCommand): void {

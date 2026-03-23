@@ -7,7 +7,7 @@ import { TimeoutError } from './errors.js';
  * Uses CDPBridge when OPENCLI_CDP_ENDPOINT is set, otherwise BrowserBridge.
  */
 export function getBrowserFactory(): new () => IBrowserFactory {
-  return (process.env.OPENCLI_CDP_ENDPOINT ? CDPBridge : BrowserBridge) as any;
+  return (process.env.OPENCLI_CDP_ENDPOINT ? CDPBridge : BrowserBridge) as unknown as new () => IBrowserFactory;
 }
 
 export const DEFAULT_BROWSER_CONNECT_TIMEOUT = parseInt(process.env.OPENCLI_BROWSER_CONNECT_TIMEOUT ?? '30', 10);

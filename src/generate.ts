@@ -12,7 +12,8 @@ import { exploreUrl } from './explore.js';
 import type { IBrowserFactory } from './runtime.js';
 import { synthesizeFromExplore, type SynthesizeCandidateSummary, type SynthesizeResult } from './synthesize.js';
 
-// TODO: implement real CLI registration (copy candidate YAML to user clis dir)
+// Registration is a no-op stub — candidates are written to disk by synthesize,
+// but not yet auto-copied into the user clis dir.
 interface RegisterCandidatesOptions {
   target: string;
   builtinClis?: string;

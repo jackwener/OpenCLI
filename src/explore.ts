@@ -15,6 +15,7 @@ import { detectFramework } from './scripts/framework.js';
 import { discoverStores } from './scripts/store.js';
 import { interactFuzz } from './scripts/interact.js';
 import type { IPage } from './types.js';
+import { log } from './logger.js';
 
 // ── Site name detection ────────────────────────────────────────────────────
 
@@ -224,7 +225,8 @@ function flattenFields(obj: unknown, prefix: string, maxDepth: number): string[]
 }
 
 function isBooleanRecord(value: unknown): value is Record<string, boolean> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    && Object.values(value as Record<string, unknown>).every(v => typeof v === 'boolean');
 }
 
 function scoreEndpoint(ep: { contentType: string; responseAnalysis: AnalyzedEndpoint['responseAnalysis']; pattern: string; status: number | null; hasSearchParam: boolean; hasPaginationParam: boolean; hasLimitParam: boolean }): number {
@@ -453,7 +455,7 @@ export async function exploreUrl(
            const clicks = await page.evaluate(INTERACT_FUZZ_JS);
            await page.wait(2); // wait for XHRs to settle
          } catch (e) {
-           // fuzzing is best-effort, don't fail the whole explore
+           log.debug(`Interactive fuzzing skipped: ${e instanceof Error ? e.message : String(e)}`);
          }
       }
 

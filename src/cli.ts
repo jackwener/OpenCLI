@@ -196,7 +196,7 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .action(async (url, opts) => {
       const { recordSession, renderRecordSummary } = await import('./record.js');
       const result = await recordSession({
-        BrowserFactory: getBrowserFactory() as any,
+        BrowserFactory: getBrowserFactory(),
         url,
         site: opts.site,
         outDir: opts.out,

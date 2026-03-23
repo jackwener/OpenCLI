@@ -14,6 +14,7 @@ import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
 import { type CliCommand, type InternalCliCommand, type Arg, Strategy, registerCommand } from './registry.js';
+import { getErrorMessage } from './errors.js';
 import { log } from './logger.js';
 import { getErrorMessage } from './errors.js';
 import type { ManifestEntry } from './build-manifest.js';
@@ -141,29 +142,32 @@ async function discoverClisFromFs(dir: string): Promise<void> {
   const promises: Promise<unknown>[] = [];
   const entries = await fs.promises.readdir(dir, { withFileTypes: true });
   
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const site = entry.name;
-    const siteDir = path.join(dir, site);
-    const files = await fs.promises.readdir(siteDir);
-    for (const file of files) {
-      const filePath = path.join(siteDir, file);
-      if (file.endsWith('.yaml') || file.endsWith('.yml')) {
-        promises.push(registerYamlCli(filePath, site));
-      } else if (
-        (file.endsWith('.js') && !file.endsWith('.d.js')) ||
-        (file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts'))
-      ) {
-        if (!(await isCliModule(filePath))) continue;
-        promises.push(
-          import(pathToFileURL(filePath).href).catch((err) => {
-            log.warn(`Failed to load module ${filePath}: ${getErrorMessage(err)}`);
-          })
-        );
+  const sitePromises = entries
+    .filter(entry => entry.isDirectory())
+    .map(async (entry) => {
+      const site = entry.name;
+      const siteDir = path.join(dir, site);
+      const files = await fs.promises.readdir(siteDir);
+      const filePromises: Promise<unknown>[] = [];
+      for (const file of files) {
+        const filePath = path.join(siteDir, file);
+        if (file.endsWith('.yaml') || file.endsWith('.yml')) {
+          filePromises.push(registerYamlCli(filePath, site));
+        } else if (
+          (file.endsWith('.js') && !file.endsWith('.d.js')) ||
+          (file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts'))
+        ) {
+          if (!(await isCliModule(filePath))) continue;
+          filePromises.push(
+            import(pathToFileURL(filePath).href).catch((err) => {
+              log.warn(`Failed to load module ${filePath}: ${getErrorMessage(err)}`);
+            })
+          );
+        }
       }
-    }
-  }
-  await Promise.all(promises);
+      await Promise.all(filePromises);
+    });
+  await Promise.all(sitePromises);
 }
 
 async function registerYamlCli(filePath: string, defaultSite: string): Promise<void> {

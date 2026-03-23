@@ -150,11 +150,14 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
 
+      const timeoutMs = typeof body.timeout === 'number' && body.timeout > 0
+        ? body.timeout * 1000
+        : 120000;
       const result = await new Promise<unknown>((resolve, reject) => {
         const timer = setTimeout(() => {
           pending.delete(body.id);
-          reject(new Error('Command timeout (120s)'));
-        }, 120000);
+          reject(new Error(`Command timeout (${timeoutMs / 1000}s)`));
+        }, timeoutMs);
         pending.set(body.id, { resolve, reject, timer });
         extensionWs!.send(JSON.stringify(body));
       });
