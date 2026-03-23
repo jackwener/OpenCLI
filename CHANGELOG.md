@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.3.2](https://github.com/jackwener/opencli/compare/v1.3.1...v1.3.2) (2026-03-24)
+
+
+### Features
+
+* **error-handling:** refine error handling with semantic error types and emoji-coded output ([#312](https://github.com/jackwener/opencli/issues/312)) ([b4d64ca](https://github.com/jackwener/opencli/commit/b4d64ca))
+
+
+### Bug Fixes
+
+* **security:** replace execSync with execFileSync to prevent command injection ([#309](https://github.com/jackwener/opencli/issues/309)) ([41aedf6](https://github.com/jackwener/opencli/commit/41aedf6))
+* remove duplicate getErrorMessage import in discovery.ts ([#315](https://github.com/jackwener/opencli/issues/315)) ([75f4237](https://github.com/jackwener/opencli/commit/75f4237))
+* **e2e:** broaden xiaoyuzhou skip logic for overseas CI runners ([#316](https://github.com/jackwener/opencli/issues/316)) ([a170873](https://github.com/jackwener/opencli/commit/a170873))
+
+
+### Documentation
+
+* **SKILL.md:** sync command reference — add missing sites and desktop adapters ([#314](https://github.com/jackwener/opencli/issues/314)) ([8bf750c](https://github.com/jackwener/opencli/commit/8bf750c))
+
+
+### Chores
+
+* pre-release cleanup — fix dependencies, sync docs, reduce code duplication ([#311](https://github.com/jackwener/opencli/issues/311)) ([c9b3568](https://github.com/jackwener/opencli/commit/c9b3568))
+
+
 ## [1.3.1](https://github.com/jackwener/opencli/compare/v1.3.0...v1.3.1) (2026-03-22)
 
 
