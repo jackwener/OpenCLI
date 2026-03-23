@@ -183,6 +183,30 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       process.exitCode = r.ok ? 0 : 1;
     });
 
+  // ── Built-in: record ─────────────────────────────────────────────────────
+
+  program
+    .command('record')
+    .description('Record API calls from a live browser session → generate YAML candidates')
+    .argument('<url>', 'URL to open and record')
+    .option('--site <name>', 'Site name (inferred from URL if omitted)')
+    .option('--out <dir>', 'Output directory for candidates')
+    .option('--poll <ms>', 'Poll interval in milliseconds', '2000')
+    .option('--timeout <ms>', 'Auto-stop after N milliseconds (default: 60000)', '60000')
+    .action(async (url, opts) => {
+      const { recordSession, renderRecordSummary } = await import('./record.js');
+      const result = await recordSession({
+        BrowserFactory: getBrowserFactory() as any,
+        url,
+        site: opts.site,
+        outDir: opts.out,
+        pollMs: parseInt(opts.poll, 10),
+        timeoutMs: parseInt(opts.timeout, 10),
+      });
+      console.log(renderRecordSummary(result));
+      process.exitCode = result.candidateCount > 0 ? 0 : 1;
+    });
+
   program
     .command('cascade')
     .description('Strategy cascade: find simplest working strategy')
