@@ -52,7 +52,7 @@ cli({
           '.note-slider img',
           '.note-image img',
           '.image-wrapper img',
-          '#noteContainer img[src*="xhscdn"]',
+          '#noteContainer .media-container img[src*="xhscdn"]',
           'img[src*="ci.xiaohongshu.com"]'
         ];
 
