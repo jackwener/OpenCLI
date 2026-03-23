@@ -118,6 +118,24 @@ export function parseCommand(cmd: string): { binary: string; args: string[] } {
   return { binary, args };
 }
 
+function shouldRetryWithCmdShim(binary: string, err: NodeJS.ErrnoException): boolean {
+  return os.platform() === 'win32' && !path.extname(binary) && err.code === 'ENOENT';
+}
+
+function runInstallCommand(cmd: string): void {
+  const { binary, args } = parseCommand(cmd);
+
+  try {
+    execFileSync(binary, args, { stdio: 'inherit' });
+  } catch (err: any) {
+    if (shouldRetryWithCmdShim(binary, err)) {
+      execFileSync(`${binary}.cmd`, args, { stdio: 'inherit' });
+      return;
+    }
+    throw err;
+  }
+}
+
 export function installExternalCli(cli: ExternalCliConfig): boolean {
   if (!cli.install) {
     console.error(chalk.red(`No auto-install command configured for '${cli.name}'.`));
@@ -135,8 +153,7 @@ export function installExternalCli(cli: ExternalCliConfig): boolean {
   console.log(chalk.cyan(`🔹 '${cli.name}' is not installed. Auto-installing...`));
   console.log(chalk.dim(`$ ${cmd}`));
   try {
-    const { binary: installBinary, args: installArgs } = parseCommand(cmd);
-    execFileSync(installBinary, installArgs, { stdio: 'inherit' });
+    runInstallCommand(cmd);
     console.log(chalk.green(`✅ Installed '${cli.name}' successfully.\n`));
     return true;
   } catch (err: any) {
