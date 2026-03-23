@@ -108,13 +108,14 @@ npm install -g @jackwener/opencli@latest
 | **codex** | `status` `send` `read` `new` `dump` `extract-diff` `model` `ask` `screenshot` `history` `export` | 桌面端 |
 | **chatwise** | `status` `new` `send` `read` `ask` `model` `history` `export` `screenshot` | 桌面端 |
 | **doubao** | `status` `new` `send` `read` `ask` | 浏览器 |
+| **doubao-app** | `status` `new` `send` `read` `ask` `screenshot` `dump` | 桌面端 |
 | **notion** | `status` `search` `read` `new` `write` `sidebar` `favorites` `export` | 桌面端 |
 | **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | 桌面端 |
 | **v2ex** | `hot` `latest` `topic` `daily` `me` `notifications` | 公开 / 浏览器 |
 | **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` | 浏览器 |
 | **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` `serve` | 桌面端 |
 | **chatgpt** | `status` `new` `send` `read` `ask` | 桌面端 |
-| **xiaohongshu** | `search` `notifications` `feed` `user` `download` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | 浏览器 |
+| **xiaohongshu** | `search` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | 浏览器 |
 | **apple-podcasts** | `search` `episodes` `top` | 公开 |
 | **xiaoyuzhou** | `podcast` `podcast-episodes` `episode` | 公开 |
 | **zhihu** | `hot` `search` `question` `download` | 浏览器 |
@@ -137,7 +138,7 @@ npm install -g @jackwener/opencli@latest
 | **sinafinance** | `news` | 🌐 公开 |
 | **barchart** | `quote` `options` `greeks` `flow` | 浏览器 |
 | **chaoxing** | `assignments` `exams` | 浏览器 |
-| **grok** | `ask` | 桌面端 |
+| **grok** | `ask` | 浏览器 |
 | **hf** | `top` | 公开 |
 | **jike** | `feed` `search` `create` `like` `comment` `repost` `notifications` `post` `topic` `user` | 浏览器 |
 | **jimeng** | `generate` `history` | 浏览器 |
@@ -146,6 +147,14 @@ npm install -g @jackwener/opencli@latest
 | **steam** | `top-sellers` | 公开 |
 | **weread** | `shelf` `search` `book` `highlights` `notes` `notebooks` `ranking` | 浏览器 |
 | **douban** | `search` `top250` `subject` `marks` `reviews` | 浏览器 |
+| **facebook** | `feed` `profile` `search` `friends` `groups` `events` `notifications` `memories` `add-friend` `join-group` | 浏览器 |
+| **google** | `news` `search` `suggest` `trends` | 公开 |
+| **instagram** | `explore` `profile` `search` `user` `followers` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `saved` | 浏览器 |
+| **lobsters** | `hot` `newest` `active` `tag` | 公开 |
+| **medium** | `feed` `search` `user` `shared` | 浏览器 |
+| **sinablog** | `hot` `search` `article` `user` `shared` | 浏览器 |
+| **substack** | `feed` `search` `publication` `shared` | 浏览器 |
+| **tiktok** | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` | 浏览器 |
 
 
 ### 外部 CLI 枢纽
@@ -183,6 +192,7 @@ opencli register mycli
 | **ChatWise** | 多 LLM 客户端（GPT-4、Claude、Gemini） | [Doc](./docs/adapters/desktop/chatwise.md) |
 | **Notion** | 搜索、读取、写入 Notion 页面 | [Doc](./docs/adapters/desktop/notion.md) |
 | **Discord** | Discord 桌面版 — 消息、频道、服务器 | [Doc](./docs/adapters/desktop/discord.md) |
+| **Doubao** | 通过 CDP 控制豆包桌面应用 | [Doc](./docs/adapters/desktop/doubao-app.md) |
 
 ## 下载支持
 

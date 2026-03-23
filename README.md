@@ -106,13 +106,14 @@ Run `opencli list` for the live registry.
 | **codex** | `status` `send` `read` `new` `dump` `extract-diff` `model` `ask` `screenshot` `history` `export` | Desktop |
 | **chatwise** | `status` `new` `send` `read` `ask` `model` `history` `export` `screenshot` | Desktop |
 | **doubao** | `status` `new` `send` `read` `ask` | Browser |
+| **doubao-app** | `status` `new` `send` `read` `ask` `screenshot` `dump` | Desktop |
 | **notion** | `status` `search` `read` `new` `write` `sidebar` `favorites` `export` | Desktop |
 | **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | Desktop |
 | **v2ex** | `hot` `latest` `topic` `daily` `me` `notifications` | Public / Browser |
 | **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` | Browser |
 | **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` `serve` | Desktop |
 | **chatgpt** | `status` `new` `send` `read` `ask` | Desktop |
-| **xiaohongshu** | `search` `notifications` `feed` `user` `download` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | Browser |
+| **xiaohongshu** | `search` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | Browser |
 | **apple-podcasts** | `search` `episodes` `top` | Public |
 | **xiaoyuzhou** | `podcast` `podcast-episodes` `episode` | Public |
 | **zhihu** | `hot` `search` `question` `download` | Browser |
@@ -135,7 +136,7 @@ Run `opencli list` for the live registry.
 | **sinafinance** | `news` | 🌐 Public |
 | **barchart** | `quote` `options` `greeks` `flow` | Browser |
 | **chaoxing** | `assignments` `exams` | Browser |
-| **grok** | `ask` | Desktop |
+| **grok** | `ask` | Browser |
 | **hf** | `top` | Public |
 | **jike** | `feed` `search` `create` `like` `comment` `repost` `notifications` `post` `topic` `user` | Browser |
 | **jimeng** | `generate` `history` | Browser |
@@ -144,6 +145,14 @@ Run `opencli list` for the live registry.
 | **steam** | `top-sellers` | Public |
 | **weread** | `shelf` `search` `book` `highlights` `notes` `notebooks` `ranking` | Browser |
 | **douban** | `search` `top250` `subject` `marks` `reviews` | Browser |
+| **facebook** | `feed` `profile` `search` `friends` `groups` `events` `notifications` `memories` `add-friend` `join-group` | Browser |
+| **google** | `news` `search` `suggest` `trends` | Public |
+| **instagram** | `explore` `profile` `search` `user` `followers` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `saved` | Browser |
+| **lobsters** | `hot` `newest` `active` `tag` | Public |
+| **medium** | `feed` `search` `user` `shared` | Browser |
+| **sinablog** | `hot` `search` `article` `user` `shared` | Browser |
+| **substack** | `feed` `search` `publication` `shared` | Browser |
+| **tiktok** | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` | Browser |
 
 
 ### External CLI Hub
@@ -181,6 +190,7 @@ Each desktop adapter has its own detailed documentation with commands reference,
 | **ChatWise** | Multi-LLM client (GPT-4, Claude, Gemini) | [Doc](./docs/adapters/desktop/chatwise.md) |
 | **Notion** | Search, read, write Notion pages | [Doc](./docs/adapters/desktop/notion.md) |
 | **Discord** | Discord Desktop — messages, channels, servers | [Doc](./docs/adapters/desktop/discord.md) |
+| **Doubao** | Control Doubao AI desktop app via CDP | [Doc](./docs/adapters/desktop/doubao-app.md) |
 
 ## Download Support
 
