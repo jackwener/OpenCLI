@@ -99,7 +99,7 @@ Run `opencli list` for the live registry.
 
 | Site | Commands | Mode |
 |------|----------|------|
-| **twitter** | `trending` `bookmarks` `profile` `search` `timeline` `thread` `following` `followers` `notifications` `post` `reply` `delete` `like` `article` `follow` `unfollow` `bookmark` `unbookmark` `download` `accept` `reply-dm` | Browser |
+| **twitter** | `trending` `bookmarks` `profile` `search` `timeline` `thread` `following` `followers` `notifications` `post` `reply` `delete` `like` `article` `follow` `unfollow` `bookmark` `unbookmark` `download` `accept` `reply-dm` `block` `unblock` `hide-reply` | Browser |
 | **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `save` `comment` `subscribe` `saved` `upvoted` | Browser |
 | **cursor** | `status` `send` `read` `new` `dump` `composer` `model` `extract-code` `ask` `screenshot` `history` `export` | Desktop |
 | **bilibili** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `dynamic` `ranking` `following` `user-videos` `download` | Browser |
@@ -111,7 +111,7 @@ Run `opencli list` for the live registry.
 | **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | Desktop |
 | **v2ex** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | Public / Browser |
 | **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` | Browser |
-| **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` `serve` | Desktop |
+| **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` | Desktop |
 | **chatgpt** | `status` `new` `send` `read` `ask` | Desktop |
 | **xiaohongshu** | `search` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | Browser |
 | **apple-podcasts** | `search` `episodes` `top` | Public |
@@ -126,7 +126,7 @@ Run `opencli list` for the live registry.
 | **ctrip** | `search` | Browser |
 | **devto** | `top` `tag` `user` | Public |
 | **arxiv** | `search` `paper` | Public |
-| **wikipedia** | `search` `summary` | Public |
+| **wikipedia** | `search` `summary` `random` `trending` | Public |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` | Public |
 | **linkedin** | `search` | Browser |
 | **reuters** | `search` | Browser |
@@ -145,14 +145,14 @@ Run `opencli list` for the live registry.
 | **stackoverflow** | `hot` `search` `bounties` `unanswered` | Public |
 | **steam** | `top-sellers` | Public |
 | **weread** | `shelf` `search` `book` `highlights` `notes` `notebooks` `ranking` | Browser |
-| **douban** | `search` `top250` `subject` `marks` `reviews` | Browser |
+| **douban** | `search` `top250` `subject` `marks` `reviews` `movie-hot` `book-hot` | Browser |
 | **facebook** | `feed` `profile` `search` `friends` `groups` `events` `notifications` `memories` `add-friend` `join-group` | Browser |
 | **google** | `news` `search` `suggest` `trends` | Public |
 | **instagram** | `explore` `profile` `search` `user` `followers` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `saved` | Browser |
 | **lobsters** | `hot` `newest` `active` `tag` | Public |
-| **medium** | `feed` `search` `user` `shared` | Browser |
-| **sinablog** | `hot` `search` `article` `user` `shared` | Browser |
-| **substack** | `feed` `search` `publication` `shared` | Browser |
+| **medium** | `feed` `search` `user` | Browser |
+| **sinablog** | `hot` `search` `article` `user` | Browser |
+| **substack** | `feed` `search` `publication` | Browser |
 | **tiktok** | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` | Browser |
 
 

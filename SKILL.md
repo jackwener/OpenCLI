@@ -182,7 +182,6 @@ opencli antigravity dump               # 导出 DOM 和快照调试信息
 opencli antigravity extract-code        # 自动抽取 AI 回复中的代码块
 opencli antigravity model claude        # 切换底层模型
 opencli antigravity watch               # 流式监听增量消息
-opencli antigravity serve --port 8082  # 启动 Anthropic 兼容代理
 
 # Barchart (browser)
 opencli barchart quote --symbol AAPL     # 股票行情

@@ -101,7 +101,7 @@ npm install -g @jackwener/opencli@latest
 
 | 站点 | 命令 | 模式 |
 |------|------|------|
-| **twitter** | `trending` `bookmarks` `profile` `search` `timeline` `thread` `following` `followers` `notifications` `post` `reply` `delete` `like` `article` `follow` `unfollow` `bookmark` `unbookmark` `download` `accept` `reply-dm` | 浏览器 |
+| **twitter** | `trending` `bookmarks` `profile` `search` `timeline` `thread` `following` `followers` `notifications` `post` `reply` `delete` `like` `article` `follow` `unfollow` `bookmark` `unbookmark` `download` `accept` `reply-dm` `block` `unblock` `hide-reply` | 浏览器 |
 | **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `save` `comment` `subscribe` `saved` `upvoted` | 浏览器 |
 | **cursor** | `status` `send` `read` `new` `dump` `composer` `model` `extract-code` `ask` `screenshot` `history` `export` | 桌面端 |
 | **bilibili** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `dynamic` `ranking` `following` `user-videos` `download` | 浏览器 |
@@ -113,7 +113,7 @@ npm install -g @jackwener/opencli@latest
 | **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | 桌面端 |
 | **v2ex** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | 公开 / 浏览器 |
 | **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` | 浏览器 |
-| **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` `serve` | 桌面端 |
+| **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` | 桌面端 |
 | **chatgpt** | `status` `new` `send` `read` `ask` | 桌面端 |
 | **xiaohongshu** | `search` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | 浏览器 |
 | **apple-podcasts** | `search` `episodes` `top` | 公开 |
@@ -128,7 +128,7 @@ npm install -g @jackwener/opencli@latest
 | **ctrip** | `search` | 浏览器 |
 | **devto** | `top` `tag` `user` | 公开 |
 | **arxiv** | `search` `paper` | 公开 |
-| **wikipedia** | `search` `summary` | 公开 |
+| **wikipedia** | `search` `summary` `random` `trending` | 公开 |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` | 公共 API |
 | **linkedin** | `search` | 浏览器 |
 | **reuters** | `search` | 浏览器 |
@@ -147,14 +147,14 @@ npm install -g @jackwener/opencli@latest
 | **stackoverflow** | `hot` `search` `bounties` `unanswered` | 公开 |
 | **steam** | `top-sellers` | 公开 |
 | **weread** | `shelf` `search` `book` `highlights` `notes` `notebooks` `ranking` | 浏览器 |
-| **douban** | `search` `top250` `subject` `marks` `reviews` | 浏览器 |
+| **douban** | `search` `top250` `subject` `marks` `reviews` `movie-hot` `book-hot` | 浏览器 |
 | **facebook** | `feed` `profile` `search` `friends` `groups` `events` `notifications` `memories` `add-friend` `join-group` | 浏览器 |
 | **google** | `news` `search` `suggest` `trends` | 公开 |
 | **instagram** | `explore` `profile` `search` `user` `followers` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `saved` | 浏览器 |
 | **lobsters** | `hot` `newest` `active` `tag` | 公开 |
-| **medium** | `feed` `search` `user` `shared` | 浏览器 |
-| **sinablog** | `hot` `search` `article` `user` `shared` | 浏览器 |
-| **substack** | `feed` `search` `publication` `shared` | 浏览器 |
+| **medium** | `feed` `search` `user` | 浏览器 |
+| **sinablog** | `hot` `search` `article` `user` | 浏览器 |
+| **substack** | `feed` `search` `publication` | 浏览器 |
 | **tiktok** | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` | 浏览器 |
 
 

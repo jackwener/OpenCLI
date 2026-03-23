@@ -47,6 +47,3 @@ Quickly target and switch the active LLM engine. Example: `opencli antigravity m
 
 ### `opencli antigravity watch`
 A long-running, streaming process that continuously polls the Antigravity UI for chat updates and outputs them in real-time to standard output.
-
-### `opencli antigravity serve --port 8082`
-Start an Anthropic-compatible `/v1/messages` proxy backed by the local Antigravity app. Useful when you want external tools to talk to Antigravity through an API-shaped interface.
