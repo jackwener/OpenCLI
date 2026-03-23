@@ -107,7 +107,7 @@ async function waitForUploads(page: IPage, maxWaitMs = 30_000): Promise<void> {
       )
     `);
     if (!uploading) return;
-    await page.wait({ time: pollMs / 1_000 });
+    await page.wait(pollMs / 1_000);
   }
 }
 
@@ -158,6 +158,7 @@ cli({
   domain: 'creator.xiaohongshu.com',
   strategy: Strategy.COOKIE,
   browser: true,
+  navigateBefore: false,
   args: [
     { name: 'title', required: true, help: '笔记标题 (最多20字)' },
     { name: 'content', required: true, positional: true, help: '笔记正文' },
@@ -166,8 +167,7 @@ cli({
     { name: 'draft', type: 'bool', default: false, help: '保存为草稿，不直接发布' },
   ],
   columns: ['status', 'detail'],
-  func: async (page: IPage | null, kwargs) => {
-    if (!page) throw new Error('Browser page required');
+  func: async (page, kwargs) => {
 
     const title = String(kwargs.title ?? '').trim();
     const content = String(kwargs.content ?? '').trim();
@@ -192,7 +192,7 @@ cli({
 
     // ── Step 1: Navigate to publish page ──────────────────────────────────────
     await page.goto(PUBLISH_URL);
-    await page.wait({ time: 3 });
+    await page.wait(3);
 
     // Verify we landed on the creator site (not redirected to login)
     const pageUrl: string = await page.evaluate('() => location.href');
@@ -217,7 +217,7 @@ cli({
         return false;
       }
     `);
-    if (tabClicked) await page.wait({ time: 1 });
+    if (tabClicked) await page.wait(1);
 
     // ── Step 3: Upload images ──────────────────────────────────────────────────
     if (imageData.length > 0) {
@@ -230,7 +230,7 @@ cli({
         );
       }
       // Allow XHS to process and upload images to its CDN
-      await page.wait({ time: UPLOAD_SETTLE_MS / 1_000 });
+      await page.wait(UPLOAD_SETTLE_MS / 1_000);
       await waitForUploads(page);
     }
 
@@ -249,7 +249,7 @@ cli({
       title,
       'title'
     );
-    await page.wait({ time: 0.5 });
+    await page.wait(0.5);
 
     // ── Step 5: Fill content / body ────────────────────────────────────────────
     await fillField(
@@ -268,15 +268,16 @@ cli({
       content,
       'content'
     );
-    await page.wait({ time: 0.5 });
+    await page.wait(0.5);
 
     // ── Step 6: Add topic hashtags ─────────────────────────────────────────────
     for (const topic of topics) {
       // Click the "添加话题" button
       const btnClicked: boolean = await page.evaluate(`
         () => {
-          const candidates = document.querySelectorAll('*');
-          for (const el of candidates) {
+          // Target leaf text nodes that match topic-add labels
+          const selectors = 'span, a, button, div, p, [role="button"]';
+          for (const el of document.querySelectorAll(selectors)) {
             const text = (el.innerText || el.textContent || '').trim();
             if (
               (text === '添加话题' || text === '# 话题' || text.startsWith('添加话题')) &&
@@ -295,7 +296,7 @@ cli({
       `);
 
       if (!btnClicked) continue; // Skip topic if UI not found — non-fatal
-      await page.wait({ time: 1 });
+      await page.wait(1);
 
       // Type into the topic search input
       const typed: boolean = await page.evaluate(`
@@ -312,7 +313,7 @@ cli({
       `);
 
       if (!typed) continue;
-      await page.wait({ time: 1.5 }); // Wait for autocomplete suggestions
+      await page.wait(1.5); // Wait for autocomplete suggestions
 
       // Click the first suggestion
       await page.evaluate(`
@@ -323,7 +324,7 @@ cli({
           if (item) item.click();
         }
       `);
-      await page.wait({ time: 0.5 });
+      await page.wait(0.5);
     }
 
     // ── Step 7: Publish or save draft ─────────────────────────────────────────
@@ -355,12 +356,14 @@ cli({
     }
 
     // ── Step 8: Verify success ─────────────────────────────────────────────────
-    await page.wait({ time: 4 });
+    await page.wait(4);
 
     const finalUrl: string = await page.evaluate('() => location.href');
     const successMsg: string = await page.evaluate(`
       () => {
-        for (const el of document.querySelectorAll('*')) {
+        // Check toast / alert containers and common leaf elements for success text
+        const selectors = '[class*="toast"], [class*="message"], [class*="alert"], [class*="notice"], [class*="success"], span, p, div';
+        for (const el of document.querySelectorAll(selectors)) {
           const text = (el.innerText || '').trim();
           if (
             el.children.length === 0 &&
