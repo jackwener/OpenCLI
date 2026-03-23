@@ -249,6 +249,7 @@ describe('public commands E2E', () => {
       expect(data.length).toBeLessThanOrEqual(3);
       expect(data[0]).toHaveProperty('title');
       expect(data[0]).toHaveProperty('author');
+      expect(data[0]).toHaveProperty('url');
     }
   }, 30_000);
 
@@ -261,6 +262,7 @@ describe('public commands E2E', () => {
       expect(data.length).toBeLessThanOrEqual(3);
       expect(data[0]).toHaveProperty('title');
       expect(data[0]).toHaveProperty('node');
+      expect(data[0]).toHaveProperty('url');
     }
   }, 30_000);
 

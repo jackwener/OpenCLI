@@ -55,6 +55,16 @@ describe('API health smoke tests', () => {
     }
   }, 30_000);
 
+  it('v2ex user API is responsive', async () => {
+    const { stdout, code } = await runCli(['v2ex', 'user', 'Livid', '--limit', '3', '-f', 'json']);
+    if (code === 0) {
+      const data = parseJsonOutput(stdout);
+      expect(data.length).toBeGreaterThanOrEqual(1);
+      expect(data[0]).toHaveProperty('title');
+      expect(data[0]).toHaveProperty('url');
+    }
+  }, 30_000);
+
   it('v2ex member API is responsive', async () => {
     const { stdout, code } = await runCli(['v2ex', 'member', 'Livid', '-f', 'json']);
     if (code === 0) {

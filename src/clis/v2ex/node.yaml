@@ -27,7 +27,8 @@ pipeline:
       title: ${{ item.title }}
       author: ${{ item.member.username }}
       replies: ${{ item.replies }}
+      url: ${{ item.url }}
 
   - limit: ${{ args.limit }}
 
-columns: [rank, title, author, replies]
+columns: [rank, title, author, replies, url]
