@@ -30,12 +30,12 @@ tests/
 ├── smoke/
 │   └── api-health.test.ts         # 外部 API、adapter 定义、命令注册健康检查
 src/
-└── **/*.test.ts                   # 单元测试（当前 31 个文件）
+└── **/*.test.ts                   # 单元测试（当前 32 个文件）
 ```
 
 | 层 | 位置 | 当前文件数 | 运行方式 | 用途 |
 |---|---|---:|---|---|
-| 单元测试 | `src/**/*.test.ts` | 31 | `npx vitest run src/` | 内部模块、pipeline、adapter 工具函数 |
+| 单元测试 | `src/**/*.test.ts` | 32 | `npx vitest run src/` | 内部模块、pipeline、adapter 工具函数 |
 | E2E 测试 | `tests/e2e/*.test.ts` | 5 | `npx vitest run tests/e2e/` | 真实 CLI 命令执行 |
 | 烟雾测试 | `tests/smoke/*.test.ts` | 1 | `npx vitest run tests/smoke/` | 外部 API 与注册完整性 |
 
@@ -43,13 +43,13 @@ src/
 
 ## 当前覆盖范围
 
-### 单元测试（31 个文件）
+### 单元测试（32 个文件）
 
 | 领域 | 文件 |
 |---|---|
 | 核心运行时与输出 | `src/browser.test.ts`, `src/browser/dom-snapshot.test.ts`, `src/build-manifest.test.ts`, `src/capabilityRouting.test.ts`, `src/doctor.test.ts`, `src/engine.test.ts`, `src/interceptor.test.ts`, `src/output.test.ts`, `src/plugin.test.ts`, `src/registry.test.ts`, `src/snapshotFormatter.test.ts` |
 | pipeline 与下载 | `src/download/index.test.ts`, `src/pipeline/executor.test.ts`, `src/pipeline/template.test.ts`, `src/pipeline/transform.test.ts` |
-| 站点 / adapter 逻辑 | `src/clis/apple-podcasts/commands.test.ts`, `src/clis/apple-podcasts/utils.test.ts`, `src/clis/bloomberg/utils.test.ts`, `src/clis/chaoxing/utils.test.ts`, `src/clis/coupang/utils.test.ts`, `src/clis/google/utils.test.ts`, `src/clis/grok/ask.test.ts`, `src/clis/twitter/timeline.test.ts`, `src/clis/weread/utils.test.ts`, `src/clis/xiaohongshu/creator-note-detail.test.ts`, `src/clis/xiaohongshu/creator-notes-summary.test.ts`, `src/clis/xiaohongshu/creator-notes.test.ts`, `src/clis/xiaohongshu/user-helpers.test.ts`, `src/clis/xiaoyuzhou/utils.test.ts`, `src/clis/youtube/transcript-group.test.ts`, `src/clis/zhihu/download.test.ts` |
+| 站点 / adapter 逻辑 | `src/clis/apple-podcasts/commands.test.ts`, `src/clis/apple-podcasts/utils.test.ts`, `src/clis/bloomberg/utils.test.ts`, `src/clis/chaoxing/utils.test.ts`, `src/clis/coupang/utils.test.ts`, `src/clis/google/utils.test.ts`, `src/clis/grok/ask.test.ts`, `src/clis/twitter/timeline.test.ts`, `src/clis/weread/utils.test.ts`, `src/clis/xiaohongshu/creator-note-detail.test.ts`, `src/clis/xiaohongshu/creator-notes-summary.test.ts`, `src/clis/xiaohongshu/creator-notes.test.ts`, `src/clis/xiaohongshu/search.test.ts`, `src/clis/xiaohongshu/user-helpers.test.ts`, `src/clis/xiaoyuzhou/utils.test.ts`, `src/clis/youtube/transcript-group.test.ts`, `src/clis/zhihu/download.test.ts` |
 
 这些测试覆盖的重点包括：
 

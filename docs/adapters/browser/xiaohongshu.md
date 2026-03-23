@@ -6,7 +6,7 @@
 
 | Command | Description |
 |---------|-------------|
-| `opencli xiaohongshu search` | |
+| `opencli xiaohongshu search` | Search notes by keyword (returns title, author, likes, URL) |
 | `opencli xiaohongshu notifications` | |
 | `opencli xiaohongshu feed` | |
 | `opencli xiaohongshu user` | |
@@ -20,14 +20,16 @@
 ## Usage Examples
 
 ```bash
-# Quick start
-opencli xiaohongshu search --limit 5
+# Search for notes
+opencli xiaohongshu search 美食 --limit 10
 
 # JSON output
-opencli xiaohongshu search -f json
+opencli xiaohongshu search 旅行 -f json
 
-# Verbose mode
-opencli xiaohongshu search -v
+# Other commands
+opencli xiaohongshu feed
+opencli xiaohongshu notifications
+opencli xiaohongshu download <url>
 ```
 
 ## Prerequisites
