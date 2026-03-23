@@ -1,6 +1,6 @@
 ---
 name: opencli
-description: "OpenCLI — Make any website or Electron App your CLI. Zero risk, AI-powered, reuse Chrome login. 150+ commands across 30+ sites."
+description: "OpenCLI — Make any website or Electron App your CLI. Zero risk, AI-powered, reuse Chrome login."
 version: 1.3.1
 author: jackwener
 tags: [cli, browser, web, chrome-extension, cdp, bilibili, zhihu, twitter, github, v2ex, hackernews, reddit, xiaohongshu, xueqiu, youtube, boss, coupang, yollomi, AI, agent]
@@ -240,6 +240,175 @@ opencli hf top --limit 10                # 热门模型
 # 超星学习通 (browser)
 opencli chaoxing assignments             # 作业列表
 opencli chaoxing exams                   # 考试列表
+
+# Douban 豆瓣 (browser)
+opencli douban search "三体"              # 搜索 (query positional)
+opencli douban top250                     # 豆瓣 Top 250
+opencli douban subject 1234567            # 条目详情 (id positional)
+opencli douban marks --limit 10           # 我的标记
+opencli douban reviews --limit 10         # 短评
+
+# Facebook (browser)
+opencli facebook feed --limit 10          # 动态流
+opencli facebook profile username         # 用户资料 (id positional)
+opencli facebook search "AI"              # 搜索 (query positional)
+opencli facebook friends                  # 好友列表
+opencli facebook groups                   # 群组
+opencli facebook events                   # 活动
+opencli facebook notifications            # 通知
+opencli facebook memories                 # 回忆
+opencli facebook add-friend username      # 添加好友 (id positional)
+opencli facebook join-group groupid       # 加入群组 (id positional)
+
+# Instagram (browser)
+opencli instagram explore                 # 探索
+opencli instagram profile username        # 用户资料 (id positional)
+opencli instagram search "AI"             # 搜索 (query positional)
+opencli instagram user username           # 用户详情 (id positional)
+opencli instagram followers username      # 粉丝 (id positional)
+opencli instagram following username      # 关注 (id positional)
+opencli instagram follow username         # 关注用户 (id positional)
+opencli instagram unfollow username       # 取消关注 (id positional)
+opencli instagram like postid             # 点赞 (id positional)
+opencli instagram unlike postid           # 取消点赞 (id positional)
+opencli instagram comment postid "评论"   # 评论 (id + text positional)
+opencli instagram save postid             # 收藏 (id positional)
+opencli instagram unsave postid           # 取消收藏 (id positional)
+opencli instagram saved                   # 已收藏列表
+
+# TikTok (browser)
+opencli tiktok explore                    # 探索
+opencli tiktok search "AI"                # 搜索 (query positional)
+opencli tiktok profile username           # 用户资料 (id positional)
+opencli tiktok user username              # 用户详情 (id positional)
+opencli tiktok following username         # 关注列表 (id positional)
+opencli tiktok follow username            # 关注 (id positional)
+opencli tiktok unfollow username          # 取消关注 (id positional)
+opencli tiktok like videoid               # 点赞 (id positional)
+opencli tiktok unlike videoid             # 取消点赞 (id positional)
+opencli tiktok comment videoid "评论"     # 评论 (id + text positional)
+opencli tiktok save videoid               # 收藏 (id positional)
+opencli tiktok unsave videoid             # 取消收藏 (id positional)
+opencli tiktok live                       # 直播
+opencli tiktok notifications              # 通知
+opencli tiktok friends                    # 朋友
+
+# Medium (browser)
+opencli medium feed --limit 10            # 动态流
+opencli medium search "AI"                # 搜索 (query positional)
+opencli medium user username              # 用户主页 (id positional)
+
+# Substack (browser)
+opencli substack feed --limit 10          # 订阅动态
+opencli substack search "AI"              # 搜索 (query positional)
+opencli substack publication name         # 出版物详情 (id positional)
+
+# Sinablog 新浪博客 (browser)
+opencli sinablog hot --limit 10           # 热门
+opencli sinablog search "AI"              # 搜索 (query positional)
+opencli sinablog article url              # 文章详情
+opencli sinablog user username            # 用户主页 (id positional)
+
+# Lobsters (public)
+opencli lobsters hot --limit 10           # 热门
+opencli lobsters newest --limit 10        # 最新
+opencli lobsters active --limit 10        # 活跃
+opencli lobsters tag rust                 # 按标签筛选 (tag positional)
+
+# Google (public)
+opencli google news --limit 10            # 新闻
+opencli google search "AI"                # 搜索 (query positional)
+opencli google suggest "AI"               # 搜索建议 (query positional)
+opencli google trends                     # 趋势
+
+# DEV.to (public)
+opencli devto top --limit 10              # 热门文章
+opencli devto tag javascript --limit 10   # 按标签 (tag positional)
+opencli devto user username               # 用户文章 (username positional)
+
+# Steam (public)
+opencli steam top-sellers --limit 10      # 热销游戏
+
+# Wikipedia (public)
+opencli wikipedia search "AI"             # 搜索 (query positional)
+opencli wikipedia summary "Python"        # 摘要 (title positional)
+```
+
+### Desktop Adapter Commands
+
+```bash
+# Cursor (desktop — CDP via Electron)
+opencli cursor status                    # 检查连接
+opencli cursor send "message"            # 发送消息
+opencli cursor read                      # 读取回复
+opencli cursor new                       # 新建对话
+opencli cursor dump                      # 导出 DOM 调试信息
+opencli cursor composer                  # Composer 模式
+opencli cursor model claude              # 切换模型
+opencli cursor extract-code              # 提取代码块
+opencli cursor ask "question"            # 一键提问并等回复
+opencli cursor screenshot                # 截图
+opencli cursor history                   # 对话历史
+opencli cursor export                    # 导出对话
+
+# Codex (desktop — headless CLI agent)
+opencli codex status                     # 检查连接
+opencli codex send "message"             # 发送消息
+opencli codex read                       # 读取回复
+opencli codex new                        # 新建对话
+opencli codex dump                       # 导出调试信息
+opencli codex extract-diff               # 提取 diff
+opencli codex model gpt-4                # 切换模型
+opencli codex ask "question"             # 一键提问并等回复
+opencli codex screenshot                 # 截图
+opencli codex history                    # 对话历史
+opencli codex export                     # 导出对话
+
+# ChatGPT (desktop — macOS AppleScript/CDP)
+opencli chatgpt status                   # 检查应用状态
+opencli chatgpt new                      # 新建对话
+opencli chatgpt send "message"           # 发送消息
+opencli chatgpt read                     # 读取回复
+opencli chatgpt ask "question"           # 一键提问并等回复
+
+# ChatWise (desktop — multi-LLM client)
+opencli chatwise status                  # 检查连接
+opencli chatwise new                     # 新建对话
+opencli chatwise send "message"          # 发送消息
+opencli chatwise read                    # 读取回复
+opencli chatwise ask "question"          # 一键提问并等回复
+opencli chatwise model claude            # 切换模型
+opencli chatwise history                 # 对话历史
+opencli chatwise export                  # 导出对话
+opencli chatwise screenshot              # 截图
+
+# Notion (desktop — CDP via Electron)
+opencli notion status                    # 检查连接
+opencli notion search "keyword"          # 搜索页面
+opencli notion read                      # 读取当前页面
+opencli notion new                       # 新建页面
+opencli notion write "content"           # 写入内容
+opencli notion sidebar                   # 侧边栏导航
+opencli notion favorites                 # 收藏列表
+opencli notion export                    # 导出
+
+# Discord App (desktop — CDP via Electron)
+opencli discord-app status               # 检查连接
+opencli discord-app send "message"       # 发送消息
+opencli discord-app read                 # 读取消息
+opencli discord-app channels             # 频道列表
+opencli discord-app servers              # 服务器列表
+opencli discord-app search "keyword"     # 搜索
+opencli discord-app members              # 成员列表
+
+# Doubao App 豆包桌面版 (desktop — CDP via Electron)
+opencli doubao-app status                # 检查连接
+opencli doubao-app new                   # 新建对话
+opencli doubao-app send "message"        # 发送消息
+opencli doubao-app read                  # 读取回复
+opencli doubao-app ask "question"        # 一键提问并等回复
+opencli doubao-app screenshot            # 截图
+opencli doubao-app dump                  # 导出 DOM 调试信息
 ```
 
 ### Management Commands
@@ -285,8 +454,8 @@ opencli cascade <api-url>
 # Explore with interactive fuzzing (click buttons to trigger lazy APIs)
 opencli explore <url> --auto --click "字幕,CC,评论"
 
-# Verify: validate adapter definitions
-opencli verify
+# Validate: validate adapter definitions
+opencli validate
 ```
 
 ## Output Formats
