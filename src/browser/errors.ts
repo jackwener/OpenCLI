@@ -6,6 +6,7 @@
  */
 
 import { BrowserConnectError } from '../errors.js';
+import { DEFAULT_DAEMON_PORT } from '../constants.js';
 
 export type ConnectFailureKind = 'daemon-not-running' | 'extension-not-connected' | 'command-failed' | 'unknown';
 
@@ -17,7 +18,7 @@ export function formatBrowserConnectError(kind: ConnectFailureKind, detail?: str
         (detail ? `\n\n${detail}` : ''),
         'The daemon should start automatically. If it doesn\'t, try:\n' +
         '  node dist/daemon.js\n' +
-        'Make sure port 19825 is available.',
+        `Make sure port ${DEFAULT_DAEMON_PORT} is available.`,
       );
     case 'extension-not-connected':
       return new BrowserConnectError(

@@ -2,6 +2,9 @@
  * Shared constants used across explore, synthesize, and pipeline modules.
  */
 
+/** Default daemon port for HTTP/WebSocket communication with browser extension */
+export const DEFAULT_DAEMON_PORT = 19825;
+
 /** URL query params that are volatile/ephemeral and should be stripped from patterns */
 export const VOLATILE_PARAMS = new Set([
   'w_rid', 'wts', '_', 'callback', 'timestamp', 't', 'nonce', 'sign',

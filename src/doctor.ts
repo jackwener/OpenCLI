@@ -6,6 +6,7 @@
  */
 
 import chalk from 'chalk';
+import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { checkDaemonStatus } from './browser/discover.js';
 import { BrowserBridge } from './browser/index.js';
 import { listSessions } from './browser/daemon-client.js';
@@ -107,7 +108,7 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
 
   // Daemon status
   const daemonIcon = report.daemonRunning ? chalk.green('[OK]') : chalk.red('[MISSING]');
-  lines.push(`${daemonIcon} Daemon: ${report.daemonRunning ? 'running on port 19825' : 'not running'}`);
+  lines.push(`${daemonIcon} Daemon: ${report.daemonRunning ? `running on port ${DEFAULT_DAEMON_PORT}` : 'not running'}`);
 
   // Extension status
   const extIcon = report.extensionConnected ? chalk.green('[OK]') : chalk.yellow('[MISSING]');
