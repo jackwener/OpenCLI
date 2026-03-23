@@ -321,6 +321,14 @@ async function handleNavigate(cmd: Command, workspace: string): Promise<Result> 
   const beforeUrl = beforeTab.url ?? '';
   const targetUrl = cmd.url;
 
+  // Detach any existing debugger before top-level navigation.
+  // Some sites (observed on creator.xiaohongshu.com flows) can invalidate the
+  // current inspected target during navigation, which leaves a stale CDP attach
+  // state and causes the next Runtime.evaluate to fail with
+  // "Inspected target navigated or closed". Resetting here forces a clean
+  // re-attach after navigation.
+  executor.detach(tabId);
+
   await chrome.tabs.update(tabId, { url: targetUrl });
 
   // Wait for: 1) URL to change from the old URL, 2) tab.status === 'complete'
