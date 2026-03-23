@@ -117,6 +117,7 @@ npm install -g @jackwener/opencli@latest
 | **apple-podcasts** | `search` `episodes` `top` | 公开 |
 | **xiaoyuzhou** | `podcast` `podcast-episodes` `episode` | 公开 |
 | **zhihu** | `hot` `search` `question` `download` | 浏览器 |
+| **weixin** | `download` | 浏览器 |
 | **youtube** | `search` `video` `transcript` | 浏览器 |
 | **boss** | `search` `detail` `recommend` `joblist` `greet` `batchgreet` `send` `chatlist` `chatmsg` `invite` `mark` `exchange` `resume` `stats` | 浏览器 |
 | **coupang** | `search` `add-to-cart` | 浏览器 |
@@ -194,6 +195,7 @@ OpenCLI 支持从各平台下载图片、视频和文章。
 | **B站** | 视频 | 需要安装 `yt-dlp` |
 | **Twitter/X** | 图片、视频 | 从用户媒体页或单条推文下载 |
 | **知乎** | 文章（Markdown） | 导出文章，可选下载图片到本地 |
+| **微信公众号** | 文章（Markdown） | 导出微信公众号文章为 Markdown |
 
 ### 前置依赖
 
@@ -227,6 +229,9 @@ opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --output ./zhihu
 
 # 导出并下载图片
 opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --download-images
+
+# 导出微信公众号文章为 Markdown
+opencli weixin download --url "https://mp.weixin.qq.com/s/xxx" --output ./weixin
 ```
 
 

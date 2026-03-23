@@ -115,6 +115,7 @@ Run `opencli list` for the live registry.
 | **apple-podcasts** | `search` `episodes` `top` | Public |
 | **xiaoyuzhou** | `podcast` `podcast-episodes` `episode` | Public |
 | **zhihu** | `hot` `search` `question` `download` | Browser |
+| **weixin** | `download` | Browser |
 | **youtube** | `search` `video` `transcript` | Browser |
 | **boss** | `search` `detail` `recommend` `joblist` `greet` `batchgreet` `send` `chatlist` `chatmsg` `invite` `mark` `exchange` `resume` `stats` | Browser |
 | **coupang** | `search` `add-to-cart` | Browser |
@@ -192,6 +193,7 @@ OpenCLI supports downloading images, videos, and articles from supported platfor
 | **bilibili** | Videos | Requires `yt-dlp` installed |
 | **twitter** | Images, Videos | Downloads from user media tab or single tweet |
 | **zhihu** | Articles (Markdown) | Exports articles with optional image download |
+| **weixin** | Articles (Markdown) | Exports WeChat Official Account articles |
 
 ### Prerequisites
 
@@ -225,6 +227,9 @@ opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --output ./zhihu
 
 # Export with local images
 opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --download-images
+
+# Export WeChat article to Markdown
+opencli weixin download --url "https://mp.weixin.qq.com/s/xxx" --output ./weixin
 ```
 
 
