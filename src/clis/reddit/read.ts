@@ -7,6 +7,7 @@
  * - Indented output showing conversation threads
  */
 import { cli, Strategy } from '../../registry.js';
+import { CommandExecutionError } from '../../errors.js';
 
 cli({
   site: 'reddit',
@@ -176,9 +177,9 @@ cli({
       })()
     `);
 
-    if (!data || typeof data !== 'object') throw new Error('Failed to fetch post data');
-    if (!Array.isArray(data) && data.error) throw new Error(data.error);
-    if (!Array.isArray(data)) throw new Error('Unexpected response');
+    if (!data || typeof data !== 'object') throw new CommandExecutionError('Failed to fetch post data');
+    if (!Array.isArray(data) && data.error) throw new CommandExecutionError(data.error);
+    if (!Array.isArray(data)) throw new CommandExecutionError('Unexpected response');
 
     return data;
   },
