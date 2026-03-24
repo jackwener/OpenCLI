@@ -55,8 +55,9 @@ export function getOrCreateToken(): string {
   try {
     const existing = fs.readFileSync(TOKEN_PATH, 'utf-8').trim();
     if (TOKEN_REGEX.test(existing)) return existing;
-    // File exists but is corrupted — will be recreated below
+    // File exists but is corrupted — remove it so O_EXCL create succeeds
     console.error('[token] Token file corrupted, regenerating');
+    try { fs.unlinkSync(TOKEN_PATH); } catch { /* already gone */ }
   } catch {
     // File doesn't exist or can't be read — create a new one
   }
