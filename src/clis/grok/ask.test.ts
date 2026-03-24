@@ -1,7 +1,32 @@
 import { describe, expect, it } from 'vitest';
+import type { IPage } from '../../types.js';
 import { __test__ } from './ask.js';
 
 describe('grok ask helpers', () => {
+  describe('isOnGrok', () => {
+    const fakePage = (url: string | Error): IPage =>
+      ({ evaluate: () => url instanceof Error ? Promise.reject(url) : Promise.resolve(url) }) as unknown as IPage;
+
+    it('returns true for grok.com URLs', async () => {
+      expect(await __test__.isOnGrok(fakePage('https://grok.com/'))).toBe(true);
+      expect(await __test__.isOnGrok(fakePage('https://grok.com/chat/abc123'))).toBe(true);
+    });
+
+    it('returns true for grok.com subdomains', async () => {
+      expect(await __test__.isOnGrok(fakePage('https://api.grok.com/v1'))).toBe(true);
+    });
+
+    it('returns false for non-grok domains', async () => {
+      expect(await __test__.isOnGrok(fakePage('https://fakegrok.com/'))).toBe(false);
+      expect(await __test__.isOnGrok(fakePage('https://example.com/?next=grok.com'))).toBe(false);
+      expect(await __test__.isOnGrok(fakePage('about:blank'))).toBe(false);
+    });
+
+    it('returns false when evaluate throws (detached tab)', async () => {
+      expect(await __test__.isOnGrok(fakePage(new Error('detached')))).toBe(false);
+    });
+  });
+
   it('normalizes boolean flags for explicit web routing', () => {
     expect(__test__.normalizeBooleanFlag(true)).toBe(true);
     expect(__test__.normalizeBooleanFlag('true')).toBe(true);

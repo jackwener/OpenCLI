@@ -53,6 +53,19 @@ function updateStableState(previousText: string, stableCount: number, nextText: 
   return { previousText: nextText, stableCount: 0 };
 }
 
+/** Check whether the tab is already on grok.com (any path). */
+async function isOnGrok(page: IPage): Promise<boolean> {
+  // catch handles blank tabs (about:blank) or detached pages
+  const url = await page.evaluate('window.location.href').catch(() => '');
+  if (typeof url !== 'string' || !url) return false;
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname === 'grok.com' || hostname.endsWith('.grok.com');
+  } catch {
+    return false;
+  }
+}
+
 async function runDefaultAsk(
   page: IPage,
   prompt: string,
@@ -60,20 +73,16 @@ async function runDefaultAsk(
   newChat: boolean,
 ) {
   if (newChat) {
+    // Explicitly start a fresh conversation via the homepage
     await page.goto(GROK_URL);
     await page.wait(2);
-    await page.evaluate(`(() => {
-      const btn = [...document.querySelectorAll('a, button')].find(b => {
-        const t = (b.textContent || '').trim().toLowerCase();
-        return t.includes('new') || b.getAttribute('href') === '/';
-      });
-      if (btn) btn.click();
-    })()`);
+    await tryStartFreshChat(page);
     await page.wait(2);
+  } else if (!(await isOnGrok(page))) {
+    // First invocation or tab was recycled — navigate to Grok
+    await page.goto(GROK_URL);
+    await page.wait(3);
   }
-
-  await page.goto(GROK_URL);
-  await page.wait(3);
 
   const promptJson = JSON.stringify(prompt);
   const sendResult = await page.evaluate(`(async () => {
@@ -249,11 +258,14 @@ async function runExplicitWebAsk(
   timeoutMs: number,
   newChat: boolean,
 ) {
-  await page.goto(GROK_URL, { settleMs: 2000 });
-
   if (newChat) {
+    // Navigate to homepage and start a fresh conversation
+    await page.goto(GROK_URL, { settleMs: 2000 });
     await tryStartFreshChat(page);
     await page.wait(2);
+  } else if (!(await isOnGrok(page))) {
+    // First invocation or tab was recycled — navigate to Grok
+    await page.goto(GROK_URL, { settleMs: 2000 });
   }
 
   const baselineBubbles = await getBubbleTexts(page);
@@ -318,4 +330,5 @@ export const __test__ = {
   updateStableState,
   normalizeBooleanFlag,
   normalizeBubbleText,
+  isOnGrok,
 };
