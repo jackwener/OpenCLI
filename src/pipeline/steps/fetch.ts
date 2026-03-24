@@ -28,6 +28,9 @@ async function fetchSingle(
 
   if (page === null) {
     const resp = await fetch(finalUrl, { method: method.toUpperCase(), headers: renderedHeaders });
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status} ${resp.statusText} from ${finalUrl}`);
+    }
     return resp.json();
   }
 
@@ -39,6 +42,9 @@ async function fetchSingle(
       const resp = await fetch(${urlJs}, {
         method: ${methodJs}, headers: ${headersJs}, credentials: "include"
       });
+      if (!resp.ok) {
+        throw new Error('HTTP ' + resp.status + ' ' + resp.statusText + ' from ' + ${urlJs});
+      }
       return await resp.json();
     }
   `);
@@ -71,6 +77,9 @@ async function fetchBatchInBrowser(
           const i = idx++;
           try {
             const resp = await fetch(urls[i], { method, headers, credentials: "include" });
+            if (!resp.ok) {
+              throw new Error('HTTP ' + resp.status + ' ' + resp.statusText + ' from ' + urls[i]);
+            }
             results[i] = await resp.json();
           } catch (e) {
             results[i] = { error: e.message };
