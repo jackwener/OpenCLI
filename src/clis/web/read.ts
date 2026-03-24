@@ -135,6 +135,37 @@ cli({
           '.related-posts, .newsletter, .cookie-banner, script, style, noscript, iframe';
         clone.querySelectorAll(noise).forEach(el => el.remove());
 
+        // Deduplicate: some sites (e.g. Anthropic) render each paragraph twice
+        // (a visible version + a line-broken animation version with missing spaces).
+        // Compare by stripping ALL whitespace so "Hello world" matches "Helloworld".
+        const stripWS = (s) => (s || '').replace(/\\s+/g, '');
+        const dedup = (parent) => {
+          const children = Array.from(parent.children || []);
+          for (let i = children.length - 1; i >= 1; i--) {
+            const curRaw = children[i].textContent || '';
+            const prevRaw = children[i - 1].textContent || '';
+            const cur = stripWS(curRaw);
+            const prev = stripWS(prevRaw);
+            if (cur.length < 20 || prev.length < 20) continue;
+            // Exact match after whitespace strip, or >90% overlap
+            if (cur === prev) {
+              // Keep the one with more proper spacing (more spaces = better formatted)
+              const curSpaces = (curRaw.match(/ /g) || []).length;
+              const prevSpaces = (prevRaw.match(/ /g) || []).length;
+              if (curSpaces >= prevSpaces) children[i - 1].remove();
+              else children[i].remove();
+            } else if (prev.includes(cur) && cur.length / prev.length > 0.8) {
+              children[i].remove();
+            } else if (cur.includes(prev) && prev.length / cur.length > 0.8) {
+              children[i - 1].remove();
+            }
+          }
+        };
+        dedup(clone);
+        clone.querySelectorAll('section, div').forEach(el => {
+          if (el.children && el.children.length > 2) dedup(el);
+        });
+
         result.contentHtml = clone.innerHTML;
 
         // --- Image extraction ---
