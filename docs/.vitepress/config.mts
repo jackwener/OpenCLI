@@ -29,6 +29,7 @@ export default defineConfig({
               items: [
                 { text: 'Getting Started', link: '/guide/getting-started' },
                 { text: 'Installation', link: '/guide/installation' },
+                { text: 'Comparison', link: '/comparison' },
                 { text: 'Browser Bridge', link: '/guide/browser-bridge' },
                 { text: 'Troubleshooting', link: '/guide/troubleshooting' },
                 { text: 'Plugins', link: '/guide/plugins' },
