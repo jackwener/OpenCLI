@@ -192,7 +192,7 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .option('--poll <ms>', 'Poll interval in milliseconds', '2000')
     .option('--timeout <ms>', 'Auto-stop after N milliseconds (default: 60000)', '60000')
     .action(async (url, opts) => {
-      const { recordSession, renderRecordSummary } = await import('./record.js');
+      const { recordSession, renderRecordSummary } = await import('./record/index.js');
       const result = await recordSession({
         BrowserFactory: getBrowserFactory(),
         url,
