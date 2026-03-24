@@ -68,6 +68,7 @@ src/
 | `tests/e2e/browser-auth.test.ts` | `bilibili`、`twitter`、`v2ex`、`xueqiu`、`linux-do`、`xiaohongshu` 的需登录命令 graceful failure |
 | `tests/e2e/management.test.ts` | `list`、`validate`、`verify`、`--version`、`--help`、unknown command |
 | `tests/e2e/output-formats.test.ts` | `json` / `yaml` / `csv` / `md` 输出格式校验 |
+| `tests/e2e/plugin-management.test.ts` | `plugin install` / `list` / `update` / `uninstall` 全生命周期 |
 
 ### 烟雾测试（1 个文件）
 
