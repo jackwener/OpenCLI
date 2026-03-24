@@ -41,9 +41,9 @@ export interface DownloadResult {
 /**
  * Extract cookies from browser page.
  */
-async function extractBrowserCookies(page: IPage, domain?: string): Promise<string> {
+async function extractBrowserCookies(page: IPage, domain: string): Promise<string> {
   try {
-    const cookies = await page.getCookies(domain ? { domain } : {});
+    const cookies = await page.getCookies({ domain });
     return formatCookieHeader(cookies);
   } catch {
     return '';
@@ -123,13 +123,11 @@ export async function stepDownload(
   // Create progress tracker
   const tracker = new DownloadProgressTracker(items.length, showProgress);
 
-  // Extract cookies if browser is available
-  let cookies = '';
+  // Cache cookie lookups per domain so mixed-domain batches stay isolated without repeated browser calls.
+  const cookieHeaderCache = new Map<string, Promise<string>>();
   let cookiesFile: string | undefined;
 
   if (page) {
-    cookies = await extractBrowserCookies(page);
-
     // For yt-dlp, we need to export cookies to Netscape format
     if (useYtdlp || items.some((item, index) => {
       const url = String(render(urlTemplate, { args, data, item, index }));
@@ -234,6 +232,21 @@ export async function stepDownload(
         }
       } else {
         // Direct HTTP download
+        let cookies = '';
+        if (page) {
+          try {
+            const targetDomain = new URL(url).hostname;
+            let cookiePromise = cookieHeaderCache.get(targetDomain);
+            if (!cookiePromise) {
+              cookiePromise = extractBrowserCookies(page, targetDomain);
+              cookieHeaderCache.set(targetDomain, cookiePromise);
+            }
+            cookies = await cookiePromise;
+          } catch {
+            cookies = '';
+          }
+        }
+
         result = await httpDownload(url, destPath, {
           cookies,
           timeout,

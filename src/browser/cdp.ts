@@ -218,7 +218,7 @@ class CDPPage implements IPage {
     const cookies = isRecord(result) && Array.isArray(result.cookies) ? result.cookies : [];
     const domain = opts.domain;
     return domain
-      ? cookies.filter((cookie): cookie is BrowserCookie => isCookie(cookie) && cookie.domain.includes(domain))
+      ? cookies.filter((cookie): cookie is BrowserCookie => isCookie(cookie) && matchesCookieDomain(cookie.domain, domain))
       : cookies;
   }
 
@@ -344,6 +344,13 @@ function isCookie(value: unknown): value is BrowserCookie {
     && typeof value.name === 'string'
     && typeof value.value === 'string'
     && typeof value.domain === 'string';
+}
+
+function matchesCookieDomain(cookieDomain: string, targetDomain: string): boolean {
+  const normalizedCookieDomain = cookieDomain.replace(/^\./, '').toLowerCase();
+  const normalizedTargetDomain = targetDomain.replace(/^\./, '').toLowerCase();
+  return normalizedTargetDomain === normalizedCookieDomain
+    || normalizedTargetDomain.endsWith(`.${normalizedCookieDomain}`);
 }
 
 // ── CDP target selection (unchanged) ──

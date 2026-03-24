@@ -114,10 +114,17 @@ export async function httpDownload(
           resolve({ success: false, size: 0, error: `Too many redirects (> ${maxRedirects})` });
           return;
         }
+        const redirectUrl = resolveRedirectUrl(url, response.headers.location);
+        const originalHost = new URL(url).hostname;
+        const redirectHost = new URL(redirectUrl).hostname;
+        // Do not forward cookies when a redirect crosses host boundaries.
+        const redirectOptions = originalHost === redirectHost
+          ? options
+          : { ...options, cookies: undefined, headers: stripCookieHeaders(options.headers) };
         httpDownload(
-          resolveRedirectUrl(url, response.headers.location),
+          redirectUrl,
           destPath,
-          options,
+          redirectOptions,
           redirectCount + 1,
         ).then(resolve);
         return;
@@ -165,6 +172,13 @@ export async function httpDownload(
 
 export function resolveRedirectUrl(currentUrl: string, location: string): string {
   return new URL(location, currentUrl).toString();
+}
+
+function stripCookieHeaders(headers?: Record<string, string>): Record<string, string> | undefined {
+  if (!headers) return headers;
+  return Object.fromEntries(
+    Object.entries(headers).filter(([key]) => key.toLowerCase() !== 'cookie'),
+  );
 }
 
 /**

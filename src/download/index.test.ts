@@ -14,15 +14,15 @@ afterEach(async () => {
   servers.length = 0;
 });
 
-async function startServer(handler: http.RequestListener): Promise<string> {
+async function startServer(handler: http.RequestListener, hostname = '127.0.0.1'): Promise<string> {
   const server = http.createServer(handler);
   servers.push(server);
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await new Promise<void>((resolve) => server.listen(0, hostname, resolve));
   const address = server.address();
   if (!address || typeof address === 'string') {
     throw new Error('Failed to start test server');
   }
-  return `http://127.0.0.1:${address.port}`;
+  return `http://${hostname}:${address.port}`;
 }
 
 describe('download helpers', () => {
@@ -55,5 +55,53 @@ describe('download helpers', () => {
       error: 'Too many redirects (> 2)',
     });
     expect(fs.existsSync(destPath)).toBe(false);
+  });
+
+  it('does not forward cookies across cross-domain redirects', async () => {
+    let forwardedCookie: string | undefined;
+    const targetUrl = await startServer((req, res) => {
+      forwardedCookie = req.headers.cookie;
+      res.statusCode = 200;
+      res.end('ok');
+    }, 'localhost');
+
+    const redirectUrl = await startServer((_req, res) => {
+      res.statusCode = 302;
+      res.setHeader('Location', targetUrl);
+      res.end();
+    });
+
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-download-'));
+    const destPath = path.join(tempDir, 'redirect.txt');
+    const result = await httpDownload(`${redirectUrl}/start`, destPath, { cookies: 'sid=abc' });
+
+    expect(result).toEqual({ success: true, size: 2 });
+    expect(forwardedCookie).toBeUndefined();
+    expect(fs.readFileSync(destPath, 'utf8')).toBe('ok');
+  });
+
+  it('does not forward cookie headers across cross-domain redirects', async () => {
+    let forwardedCookie: string | undefined;
+    const targetUrl = await startServer((req, res) => {
+      forwardedCookie = req.headers.cookie;
+      res.statusCode = 200;
+      res.end('ok');
+    }, 'localhost');
+
+    const redirectUrl = await startServer((_req, res) => {
+      res.statusCode = 302;
+      res.setHeader('Location', targetUrl);
+      res.end();
+    });
+
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-download-'));
+    const destPath = path.join(tempDir, 'redirect-header.txt');
+    const result = await httpDownload(`${redirectUrl}/start`, destPath, {
+      headers: { Cookie: 'sid=header-cookie' },
+    });
+
+    expect(result).toEqual({ success: true, size: 2 });
+    expect(forwardedCookie).toBeUndefined();
+    expect(fs.readFileSync(destPath, 'utf8')).toBe('ok');
   });
 });
