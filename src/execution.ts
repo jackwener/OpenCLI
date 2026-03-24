@@ -7,6 +7,7 @@
  * 3. Domain pre-navigation for cookie/header strategies
  * 4. Timeout enforcement
  * 5. Lazy-loading of TS modules from manifest
+ * 6. Lifecycle hooks (onBeforeExecute / onAfterExecute)
  */
 
 import { type CliCommand, type InternalCliCommand, type Arg, Strategy, getRegistry, fullName } from './registry.js';
@@ -16,6 +17,7 @@ import { executePipeline } from './pipeline/index.js';
 import { AdapterLoadError, ArgumentError, CommandExecutionError, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
+import { emitHook, type HookContext } from './hooks.js';
 
 /** Set of TS module paths that have been loaded */
 const _loadedModules = new Set<string>();
@@ -138,6 +140,9 @@ function resolvePreNav(cmd: CliCommand): string | null {
  *
  * This is the unified entry point — callers don't need to care about
  * whether the command requires a browser or not.
+ *
+ * Lifecycle hooks are emitted around execution:
+ *   onBeforeExecute → command runs → onAfterExecute(result)
  */
 export async function executeCommand(
   cmd: CliCommand,
@@ -152,9 +157,19 @@ export async function executeCommand(
     throw new ArgumentError(getErrorMessage(err));
   }
 
+  // Build hook context shared across onBeforeExecute and onAfterExecute
+  const hookCtx: HookContext = {
+    command: fullName(cmd),
+    args: kwargs,
+    startedAt: Date.now(),
+  };
+  await emitHook('onBeforeExecute', hookCtx);
+
+  let result: unknown;
+
   if (shouldUseBrowserSession(cmd)) {
     const BrowserFactory = getBrowserFactory();
-    return browserSession(BrowserFactory, async (page) => {
+    result = await browserSession(BrowserFactory, async (page) => {
       // Pre-navigate to target domain for cookie/header context if needed.
       // Each adapter controls this via `navigateBefore` (see CliCommand docs).
       const preNavUrl = resolvePreNav(cmd);
@@ -168,8 +183,12 @@ export async function executeCommand(
         label: fullName(cmd),
       });
     }, { workspace: `site:${cmd.site}` });
+  } else {
+    // Non-browser commands run directly
+    result = await runCommand(cmd, null, kwargs, debug);
   }
 
-  // Non-browser commands run directly
-  return runCommand(cmd, null, kwargs, debug);
+  await emitHook('onAfterExecute', hookCtx, result);
+  return result;
 }
+
