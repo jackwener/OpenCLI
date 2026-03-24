@@ -278,6 +278,16 @@ opencli grok ask --prompt "问题" --web   # 显式 grok.com consumer web UI 路
 # HuggingFace (public)
 opencli hf top --limit 10                # 热门模型
 
+# ONES project management (Browser Bridge + ONES_BASE_URL; legacy Project API, see docs/adapters/browser/ones.md)
+opencli ones me                              # Requires ONES logged in Chrome; optional ONES_USER_ID/TOKEN for headers
+opencli ones login --email you@corp.com --password '***'   # If needed; stderr prints export hints
+opencli ones token-info
+opencli ones tasks <teamUUID> --project <optional> --limit 30
+opencli ones my-tasks <teamUUID> --limit 100   # Defaults to assignee=self; if it looks too broad try --mode field004 or --mode both
+opencli ones worklog <taskUUID> 2 --team <teamUUID> [--date YYYY-MM-DD] [--note '...']  # Log/backfill hours
+opencli ones task <taskUUID> --team <teamUUID>   # Work item detail (URL .../task/<uuid>)
+opencli ones logout
+
 # 超星学习通 (browser)
 opencli chaoxing assignments             # 作业列表
 opencli chaoxing exams                   # 考试列表

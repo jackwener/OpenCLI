@@ -46,6 +46,7 @@ Run `opencli list` for the live registry.
 | **[weixin](/adapters/browser/weixin)** | `download` | 🔐 Browser |
 | **[36kr](/adapters/browser/36kr)** | `news` `hot` `search` `article` | 🌐 / 🔐 |
 | **[producthunt](/adapters/browser/producthunt)** | `posts` `today` `hot` `browse` | 🌐 / 🔐 |
+| **[ones](/adapters/browser/ones)** | `login` `me` `token-info` `tasks` `my-tasks` `task` `worklog` `logout` | 🔐 Browser Bridge + `ONES_BASE_URL` |
 
 ## Public API Adapters
 
