@@ -1,0 +1,78 @@
+site: xueqiu
+name: fund-snapshot
+description: 获取雪球基金（蛋卷）当前快照（总资产、子账户、持仓明细）
+domain: danjuanfunds.com
+browser: true
+
+pipeline:
+  - navigate: https://danjuanfunds.com/my-money
+  - evaluate: |
+      (async () => {
+        const fetchJson = async (url) => {
+          const resp = await fetch(url, { credentials: 'include' });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + url + ' Hint: Not logged in to danjuanfunds.com?');
+          return await resp.json();
+        };
+        const num = (v) => {
+          const n = Number(v);
+          return Number.isFinite(n) ? n : null;
+        };
+
+        const gain = await fetchJson('https://danjuanfunds.com/djapi/fundx/profit/assets/gain?gains=%5B%22private%22%5D');
+        const root = gain?.data || {};
+        const fundSection = (Array.isArray(root.items) ? root.items : []).find((item) => item?.summary_type === 'FUND');
+        const accounts = Array.isArray(fundSection?.invest_account_list) ? fundSection.invest_account_list : [];
+        const holdings = [];
+
+        for (const acc of accounts) {
+          const accountId = String(acc?.invest_account_id || '');
+          const detail = await fetchJson(`https://danjuanfunds.com/djapi/fundx/profit/assets/summary?invest_account_id=${encodeURIComponent(accountId)}`);
+          const data = detail?.data || {};
+          const items = Array.isArray(data.items) ? data.items : [];
+          for (const fund of items) {
+            holdings.push({
+              accountId,
+              accountName: data.invest_account_name || acc.invest_account_name || '',
+              accountType: data.invest_account_type || acc.invest_account_type || '',
+              fdCode: fund.fd_code || '',
+              fdName: fund.fd_name || '',
+              category: fund.category || '',
+              categoryText: fund.category_text || '',
+              marketValue: num(fund.market_value),
+              volume: num(fund.volume),
+              usableRemainShare: num(fund.usable_remain_share),
+              dailyGain: num(fund.daily_gain),
+              dailyGainDate: fund.daily_gain_date || null,
+              holdGain: num(fund.hold_gain),
+              holdGainRate: num(fund.hold_gain_rate),
+              totalGain: num(fund.total_gain),
+              totalGainRate: num(fund.total_gain_rate),
+              nav: num(fund.nav),
+              navDate: fund.nav_date || null,
+              marketPercent: num(fund.market_percent),
+            });
+          }
+        }
+
+        return [{
+          asOf: root.daily_gain_date || null,
+          totalAssetAmount: num(root.amount),
+          totalAssetDailyGain: num(root.daily_gain),
+          totalAssetHoldGain: num(root.hold_gain),
+          totalAssetTotalGain: num(root.total_gain),
+          totalFundMarketValue: num(fundSection?.amount),
+          accountCount: accounts.length,
+          holdingCount: holdings.length,
+          accounts,
+          holdings,
+        }];
+      })()
+
+  - map:
+      asOf: ${{ item.asOf }}
+      totalAssetAmount: ${{ item.totalAssetAmount }}
+      totalFundMarketValue: ${{ item.totalFundMarketValue }}
+      accountCount: ${{ item.accountCount }}
+      holdingCount: ${{ item.holdingCount }}
+
+columns: [asOf, totalAssetAmount, totalFundMarketValue, accountCount, holdingCount]

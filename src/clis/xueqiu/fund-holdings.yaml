@@ -1,0 +1,97 @@
+site: xueqiu
+name: fund-holdings
+description: 获取雪球基金（蛋卷）全部子账户持仓与份额信息（可用 --account 过滤）
+domain: danjuanfunds.com
+browser: true
+
+args:
+  account:
+    type: str
+    description: 按子账户名称或 ID 过滤，如 默认账户 / T0201314857
+
+pipeline:
+  - navigate: https://danjuanfunds.com/my-money
+  - evaluate: |
+      (async () => {
+        const accountFilter = String(${{ args.account | json }} || '').trim();
+        const fetchJson = async (url) => {
+          const resp = await fetch(url, { credentials: 'include' });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + url + ' Hint: Not logged in to danjuanfunds.com?');
+          return await resp.json();
+        };
+        const num = (v) => {
+          const n = Number(v);
+          return Number.isFinite(n) ? n : null;
+        };
+
+        const gain = await fetchJson('https://danjuanfunds.com/djapi/fundx/profit/assets/gain?gains=%5B%22private%22%5D');
+        const root = gain?.data || {};
+        const fundSection = (Array.isArray(root.items) ? root.items : []).find((item) => item?.summary_type === 'FUND');
+        const accounts = Array.isArray(fundSection?.invest_account_list) ? fundSection.invest_account_list : [];
+        const selected = accounts.filter((acc) => {
+          if (!accountFilter) return true;
+          const id = String(acc?.invest_account_id || '');
+          const name = String(acc?.invest_account_name || '');
+          return id === accountFilter || name.includes(accountFilter);
+        });
+        if (!selected.length) {
+          throw new Error(accountFilter ? `No account matched filter: ${accountFilter}` : '未找到基金子账户，可能未登录蛋卷资产页');
+        }
+
+        const rows = [];
+        for (const acc of selected) {
+          const accountId = String(acc?.invest_account_id || '');
+          const detail = await fetchJson(`https://danjuanfunds.com/djapi/fundx/profit/assets/summary?invest_account_id=${encodeURIComponent(accountId)}`);
+          const data = detail?.data || {};
+          const funds = Array.isArray(data.items) ? data.items : [];
+          for (const fund of funds) {
+            rows.push({
+              accountId,
+              accountName: data.invest_account_name || acc.invest_account_name || '',
+              accountType: data.invest_account_type || acc.invest_account_type || '',
+              accountCode: data.invest_account_code || acc.invest_account_code || '',
+              fdCode: fund.fd_code || '',
+              fdName: fund.fd_name || '',
+              category: fund.category || '',
+              categoryText: fund.category_text || '',
+              marketValue: num(fund.market_value),
+              volume: num(fund.volume),
+              usableRemainShare: num(fund.usable_remain_share),
+              dailyGain: num(fund.daily_gain),
+              dailyGainDate: fund.daily_gain_date || null,
+              holdGain: num(fund.hold_gain),
+              holdGainRate: num(fund.hold_gain_rate),
+              totalGain: num(fund.total_gain),
+              totalGainRate: num(fund.total_gain_rate),
+              nav: num(fund.nav),
+              navDate: fund.nav_date || null,
+              marketPercent: num(fund.market_percent),
+              unconfirmedAmount: num(fund.unconfirmed_amount),
+              unconfirmedCount: num(fund.unconfirmed_count),
+              autoInvestCount: num(fund.auto_invest_count),
+              availableAmount: num(fund.available_amount),
+              accountMarketValue: num(data.total_assets ?? acc.market_value),
+              accountDailyGain: num(data.daily_gain ?? acc.daily_gain),
+              accountHoldGain: num(data.hold_gain),
+              accountTotalGain: num(data.total_gain)
+            });
+          }
+        }
+        if (!rows.length) throw new Error('No holdings found.');
+        return rows;
+      })()
+
+  - map:
+      accountName: ${{ item.accountName }}
+      accountType: ${{ item.accountType }}
+      fdCode: ${{ item.fdCode }}
+      fdName: ${{ item.fdName }}
+      marketValue: ${{ item.marketValue }}
+      volume: ${{ item.volume }}
+      usableRemainShare: ${{ item.usableRemainShare }}
+      dailyGain: ${{ item.dailyGain }}
+      holdGain: ${{ item.holdGain }}
+      holdGainRate: ${{ item.holdGainRate }}
+      marketPercent: ${{ item.marketPercent }}
+
+columns: [accountName, accountType, fdCode, fdName, marketValue, volume, usableRemainShare, dailyGain, holdGain, holdGainRate, marketPercent]
