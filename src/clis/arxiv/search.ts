@@ -15,7 +15,7 @@ cli({
   columns: ['id', 'title', 'authors', 'published'],
   func: async (_page, args) => {
     const limit = Math.max(1, Math.min(Number(args.limit), 25));
-    const query = encodeURIComponent(`all:${args.keyword}`);
+    const query = encodeURIComponent(`all:${args.query}`);
     const xml = await arxivFetch(`search_query=${query}&max_results=${limit}&sortBy=relevance`);
     const entries = parseEntries(xml);
     if (!entries.length) throw new CliError('NOT_FOUND', 'No papers found', 'Try a different keyword');
