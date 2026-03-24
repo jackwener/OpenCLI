@@ -187,7 +187,8 @@ describe('resolveEsbuildBin', () => {
     expect(binPath).not.toBeNull();
     expect(typeof binPath).toBe('string');
     expect(fs.existsSync(binPath!)).toBe(true);
-    expect(binPath?.endsWith('esbuild')).toBe(true);
+    // On Windows the resolved path ends with 'esbuild.cmd', on Unix 'esbuild'
+    expect(binPath).toMatch(/esbuild(\.cmd)?$/);
   });
 });
 
