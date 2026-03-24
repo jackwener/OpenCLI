@@ -1,5 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
-import { AuthRequiredError } from '../../errors.js';
+import { AuthRequiredError, EmptyResultError } from '../../errors.js';
 import {
   getCourses, initSession, enterCourse, getTabIframeUrl,
   parseAssignmentsFromDom, sleep,
@@ -40,7 +40,7 @@ cli({
       ? courses.filter(c => c.title.includes(courseFilter))
       : courses;
     if (courseFilter && !filtered.length) {
-      throw new Error(`未找到匹配「${courseFilter}」的课程`);
+      throw new EmptyResultError('chaoxing courses', `未找到匹配「${courseFilter}」的课程`);
     }
 
     // 3. Per-course: enter → click 作业 tab → navigate to iframe → parse

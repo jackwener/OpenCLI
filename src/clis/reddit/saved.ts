@@ -42,7 +42,7 @@ cli({
       }
     })()`);
 
-    if (result?.error) throw new Error(result.error);
+    if (result?.error) throw new CommandExecutionError(result.error);
     return (result || []).slice(0, kwargs.limit);
   }
 });
