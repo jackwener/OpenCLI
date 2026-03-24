@@ -3,7 +3,6 @@
  */
 import { cli, Strategy } from '../../registry.js';
 import { requirePage, navigateTo, bossFetch, assertOk, verbose } from './common.js';
-import { humanSleep } from '../../human-delay.js';
 
 /** City name → BOSS Zhipin city code mapping */
 const CITY_CODES: Record<string, string> = {
@@ -104,9 +103,7 @@ cli({
 
     while (allJobs.length < limit) {
       if (allJobs.length > 0) {
-        // Use framework-level human-like delay instead of fixed jitter
-        const ms = await humanSleep();
-        verbose(`Human delay: ${(ms / 1000).toFixed(1)}s before page ${currentPage}`);
+        await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000));
       }
 
       const qs = new URLSearchParams({

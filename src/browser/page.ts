@@ -12,7 +12,6 @@
 
 import { formatSnapshot } from '../snapshotFormatter.js';
 import type { BrowserCookie, IPage, ScreenshotOptions, SnapshotOptions, WaitOptions } from '../types.js';
-import { HumanDelay, resolveProfile } from '../human-delay.js';
 import { sendCommand } from './daemon-client.js';
 import { wrapForEval } from './utils.js';
 import { saveBase64ToFile } from '../utils.js';
@@ -33,14 +32,7 @@ import {
  * Page — implements IPage by talking to the daemon via HTTP.
  */
 export class Page implements IPage {
-  /** Human-like delay generator for anti-detection. */
-  private _delay: HumanDelay;
-  /** Whether goto() has been called at least once (skip delay on first navigation). */
-  private _hasNavigated = false;
-
-  constructor(private readonly workspace: string = 'default') {
-    this._delay = new HumanDelay(resolveProfile());
-  }
+  constructor(private readonly workspace: string = 'default') {}
 
   /** Active tab ID, set after navigate and used in all subsequent commands */
   private _tabId: number | undefined;
@@ -59,15 +51,6 @@ export class Page implements IPage {
   }
 
   async goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number }): Promise<void> {
-    // Human-like delay between navigations (skip the very first one)
-    if (this._hasNavigated) {
-      const ms = await this._delay.sleep();
-      if (ms > 0 && process.env.OPENCLI_VERBOSE) {
-        console.error(`[opencli] Human delay: ${(ms / 1000).toFixed(1)}s`);
-      }
-    }
-    this._hasNavigated = true;
-
     const result = await sendCommand('navigate', {
       url,
       ...this._cmdOpts(),
