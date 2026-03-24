@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type Listener<T extends (...args: any[]) => void> = { addListener: (fn: T) => void };
 
@@ -96,7 +96,13 @@ function createChromeMock() {
 describe('background tab isolation', () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.useRealTimers();
     vi.stubGlobal('WebSocket', MockWebSocket);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it('lists only automation-window web tabs', async () => {
@@ -131,6 +137,45 @@ describe('background tab isolation', () => {
 
     expect(result.ok).toBe(true);
     expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'https://new.example', active: true });
+  });
+
+  it('treats normalized same-url navigate as already complete', async () => {
+    const { chrome, tabs, update } = createChromeMock();
+    tabs[0].url = 'https://www.bilibili.com/';
+    tabs[0].title = 'bilibili';
+    tabs[0].status = 'complete';
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId('site:bilibili', 1);
+
+    const result = await mod.__test__.handleNavigate(
+      { id: 'same-url', action: 'navigate', url: 'https://www.bilibili.com', workspace: 'site:bilibili' },
+      'site:bilibili',
+    );
+
+    expect(result).toEqual({
+      id: 'same-url',
+      ok: true,
+      data: {
+        title: 'bilibili',
+        url: 'https://www.bilibili.com/',
+        tabId: 1,
+        timedOut: false,
+      },
+    });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('keeps hash routes distinct when comparing target URLs', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+
+    expect(mod.__test__.isTargetUrl('https://example.com/', 'https://example.com')).toBe(true);
+    expect(mod.__test__.isTargetUrl('https://example.com/#feed', 'https://example.com/#settings')).toBe(false);
+    expect(mod.__test__.isTargetUrl('https://example.com/app/', 'https://example.com/app')).toBe(false);
   });
 
   it('reports sessions per workspace', async () => {

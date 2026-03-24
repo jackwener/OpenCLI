@@ -235,6 +235,25 @@ function isDebuggableUrl(url?: string): boolean {
   return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://');
 }
 
+/** Minimal URL normalization for same-page comparison: root slash + default port only. */
+function normalizeUrlForComparison(url?: string): string {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    if ((parsed.protocol === 'https:' && parsed.port === '443') || (parsed.protocol === 'http:' && parsed.port === '80')) {
+      parsed.port = '';
+    }
+    const pathname = parsed.pathname === '/' ? '' : parsed.pathname;
+    return `${parsed.protocol}//${parsed.host}${pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return url;
+  }
+}
+
+function isTargetUrl(currentUrl: string | undefined, targetUrl: string): boolean {
+  return normalizeUrlForComparison(currentUrl) === normalizeUrlForComparison(targetUrl);
+}
+
 /**
  * Resolve target tab in the automation window.
  * If explicit tabId is given, use that directly.
@@ -316,10 +335,18 @@ async function handleNavigate(cmd: Command, workspace: string): Promise<Result> 
   if (!cmd.url) return { id: cmd.id, ok: false, error: 'Missing url' };
   const tabId = await resolveTabId(cmd.tabId, workspace);
 
-  // Capture the current URL before navigation to detect actual URL change
   const beforeTab = await chrome.tabs.get(tabId);
-  const beforeUrl = beforeTab.url ?? '';
+  const beforeNormalized = normalizeUrlForComparison(beforeTab.url);
   const targetUrl = cmd.url;
+
+  // Fast-path: tab is already at the target URL and fully loaded.
+  if (beforeTab.status === 'complete' && isTargetUrl(beforeTab.url, targetUrl)) {
+    return {
+      id: cmd.id,
+      ok: true,
+      data: { title: beforeTab.title, url: beforeTab.url, tabId, timedOut: false },
+    };
+  }
 
   // Detach any existing debugger before top-level navigation.
   // Some sites (observed on creator.xiaohongshu.com flows) can invalidate the
@@ -331,45 +358,51 @@ async function handleNavigate(cmd: Command, workspace: string): Promise<Result> 
 
   await chrome.tabs.update(tabId, { url: targetUrl });
 
-  // Wait for: 1) URL to change from the old URL, 2) tab.status === 'complete'
-  // This avoids the race where 'complete' fires for the OLD URL (e.g. about:blank)
+  // Wait until navigation completes. Resolve when status is 'complete' AND either:
+  // - the URL matches the target (handles same-URL / canonicalized navigations), OR
+  // - the URL differs from the pre-navigation URL (handles redirects).
   let timedOut = false;
   await new Promise<void>((resolve) => {
-    let urlChanged = false;
+    let settled = false;
+    let checkTimer: ReturnType<typeof setTimeout> | null = null;
+    let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      chrome.tabs.onUpdated.removeListener(listener);
+      if (checkTimer) clearTimeout(checkTimer);
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      resolve();
+    };
+
+    const isNavigationDone = (url: string | undefined): boolean => {
+      return isTargetUrl(url, targetUrl) || normalizeUrlForComparison(url) !== beforeNormalized;
+    };
 
     const listener = (id: number, info: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
       if (id !== tabId) return;
-
-      // Track URL change (new URL differs from the one before navigation)
-      if (info.url && info.url !== beforeUrl) {
-        urlChanged = true;
-      }
-
-      // Only resolve when both URL has changed AND status is complete
-      if (urlChanged && info.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
+      if (info.status === 'complete' && isNavigationDone(tab.url ?? info.url)) {
+        finish();
       }
     };
     chrome.tabs.onUpdated.addListener(listener);
 
     // Also check if the tab already navigated (e.g. instant cache hit)
-    setTimeout(async () => {
+    checkTimer = setTimeout(async () => {
       try {
         const currentTab = await chrome.tabs.get(tabId);
-        if (currentTab.url !== beforeUrl && currentTab.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(listener);
-          resolve();
+        if (currentTab.status === 'complete' && isNavigationDone(currentTab.url)) {
+          finish();
         }
       } catch { /* tab gone */ }
     }, 100);
 
     // Timeout fallback with warning
-    setTimeout(() => {
-      chrome.tabs.onUpdated.removeListener(listener);
+    timeoutTimer = setTimeout(() => {
       timedOut = true;
       console.warn(`[opencli] Navigate to ${targetUrl} timed out after 15s`);
-      resolve();
+      finish();
     }, 15000);
   });
 
@@ -489,6 +522,8 @@ async function handleSessions(cmd: Command): Promise<Result> {
 }
 
 export const __test__ = {
+  handleNavigate,
+  isTargetUrl,
   handleTabs,
   handleSessions,
   getAutomationWindowId: (workspace: string = 'default') => automationSessions.get(workspace)?.windowId ?? null,
