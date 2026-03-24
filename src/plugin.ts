@@ -8,7 +8,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { PLUGINS_DIR } from './discovery.js';
 import { getErrorMessage } from './errors.js';
 import { log } from './logger.js';
@@ -394,18 +394,56 @@ function linkHostOpencli(pluginDir: string): void {
 }
 
 /**
+ * Resolve the path to the esbuild CLI executable with fallback strategies.
+ */
+export function resolveEsbuildBin(): string | null {
+  try {
+    const pkgUrl = import.meta.resolve('esbuild/package.json');
+    if (pkgUrl.startsWith('file://')) {
+      const pkgPath = new URL(pkgUrl).pathname;
+      const pkgRaw = fs.readFileSync(pkgPath, 'utf8');
+      const pkg = JSON.parse(pkgRaw);
+      if (pkg.bin && typeof pkg.bin === 'object' && pkg.bin.esbuild) {
+        const binPath = path.resolve(path.dirname(pkgPath), pkg.bin.esbuild);
+        if (fs.existsSync(binPath)) return binPath;
+      } else if (typeof pkg.bin === 'string') {
+        const binPath = path.resolve(path.dirname(pkgPath), pkg.bin);
+        if (fs.existsSync(binPath)) return binPath;
+      }
+    }
+  } catch {
+    // ignore package resolution failures
+  }
+
+  const thisFile = new URL(import.meta.url).pathname;
+  const hostRoot = path.resolve(path.dirname(thisFile), '..');
+  const binFallback = path.join(hostRoot, 'node_modules', '.bin', 'esbuild');
+  if (fs.existsSync(binFallback)) {
+    return binFallback;
+  }
+
+  try {
+    const globalBin = execSync('which esbuild', { encoding: 'utf-8', stdio: 'pipe' }).trim();
+    if (globalBin && fs.existsSync(globalBin)) {
+      return globalBin;
+    }
+  } catch {
+    // ignore PATH lookup failures
+  }
+
+  return null;
+}
+
+/**
  * Transpile TS plugin files to JS so they work in production mode.
  * Uses esbuild from the host opencli's node_modules for fast single-file transpilation.
  */
 function transpilePluginTs(pluginDir: string): void {
   try {
-    // Resolve esbuild binary from the host opencli's node_modules
-    const thisFile = new URL(import.meta.url).pathname;
-    const hostRoot = path.resolve(path.dirname(thisFile), '..');
-    const esbuildBin = path.join(hostRoot, 'node_modules', '.bin', 'esbuild');
+    const esbuildBin = resolveEsbuildBin();
 
-    if (!fs.existsSync(esbuildBin)) {
-      log.debug('esbuild not found in host node_modules, skipping TS transpilation');
+    if (!esbuildBin) {
+      log.debug('esbuild not found in host node_modules, via resolve, or in PATH, skipping TS transpilation');
       return;
     }
 
@@ -438,6 +476,7 @@ function transpilePluginTs(pluginDir: string): void {
 }
 
 export {
+  resolveEsbuildBin as _resolveEsbuildBin,
   getCommitHash as _getCommitHash,
   parseSource as _parseSource,
   readLockFile as _readLockFile,

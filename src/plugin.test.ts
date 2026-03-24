@@ -14,6 +14,7 @@ const {
   _getCommitHash,
   listPlugins,
   _readLockFile,
+  _resolveEsbuildBin,
   uninstallPlugin,
   updatePlugin,
   _parseSource,
@@ -177,6 +178,16 @@ describe('getCommitHash', () => {
 
   it('returns undefined for non-git directory', () => {
     expect(_getCommitHash('/tmp')).toBeUndefined();
+  });
+});
+
+describe('resolveEsbuildBin', () => {
+  it('resolves a usable esbuild executable path', () => {
+    const binPath = _resolveEsbuildBin();
+    expect(binPath).not.toBeNull();
+    expect(typeof binPath).toBe('string');
+    expect(fs.existsSync(binPath!)).toBe(true);
+    expect(binPath?.endsWith('esbuild')).toBe(true);
   });
 });
 
