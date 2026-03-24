@@ -8,12 +8,13 @@
  * automatically downgrades and retries.
  */
 
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 import { exploreUrl } from './explore.js';
 import type { IBrowserFactory } from './runtime.js';
 import { synthesizeFromExplore, type SynthesizeCandidateSummary, type SynthesizeResult } from './synthesize.js';
 
-// Registration is a no-op stub — candidates are written to disk by synthesize,
-// but not yet auto-copied into the user clis dir.
 interface RegisterCandidatesOptions {
   target: string;
   builtinClis?: string;
@@ -60,8 +61,46 @@ export interface GenerateCliResult {
   register: RegisterCandidatesResult | null;
 }
 
-function registerCandidates(_opts: RegisterCandidatesOptions): RegisterCandidatesResult {
-  return { ok: true, count: 0 };
+function registerCandidates(opts: RegisterCandidatesOptions): RegisterCandidatesResult {
+  const userClisDir = opts.userClis ?? path.join(os.homedir(), '.opencli', 'clis');
+
+  // Read candidate list from the synthesize output directory
+  const indexPath = path.join(opts.target, 'candidates.json');
+  if (!fs.existsSync(indexPath)) {
+    return { ok: false, count: 0 };
+  }
+
+  let candidates: Array<{ name: string; path: string }>;
+  try {
+    const raw = fs.readFileSync(indexPath, 'utf-8');
+    const index = JSON.parse(raw) as { candidates: Array<{ name: string; path: string }> };
+    candidates = index.candidates ?? [];
+  } catch {
+    return { ok: false, count: 0 };
+  }
+
+  // Filter to a specific candidate if name is provided
+  if (opts.name) {
+    candidates = candidates.filter(c => c.name === opts.name);
+  }
+
+  fs.mkdirSync(userClisDir, { recursive: true });
+
+  let count = 0;
+  for (const candidate of candidates) {
+    if (!fs.existsSync(candidate.path)) continue;
+
+    const destPath = path.join(userClisDir, path.basename(candidate.path));
+    if (fs.existsSync(destPath)) {
+      console.warn(`[opencli] Skipping ${path.basename(candidate.path)}: already exists in user CLI directory.`);
+      continue;
+    }
+
+    fs.copyFileSync(candidate.path, destPath);
+    count++;
+  }
+
+  return { ok: true, count };
 }
 
 const CAPABILITY_ALIASES: Record<string, string[]> = {
