@@ -16,7 +16,7 @@ export interface PipelineContext {
 }
 
 /** Steps that interact with the browser and may fail transiently */
-const BROWSER_STEPS = new Set(['navigate', 'evaluate', 'click', 'type', 'press', 'wait', 'snapshot', 'scroll']);
+const BROWSER_STEPS = new Set(['navigate', 'evaluate', 'click', 'type', 'press', 'wait', 'snapshot', 'scroll', 'intercept', 'tap', 'download']);
 
 export async function executePipeline(
   page: IPage | null,

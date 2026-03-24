@@ -15,6 +15,7 @@ import type { IPage } from '../../types.js';
 import { render } from '../template.js';
 import {
   httpDownload,
+  type HttpDownloadResult,
   ytdlpDownload,
   saveDocument,
   detectContentType,
@@ -36,6 +37,67 @@ export interface DownloadResult {
   duration?: number;
 }
 
+/** Let executor retry when browser cookie access fails due to a transient disconnect. */
+function isTransientBrowserError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('Extension disconnected')
+    || message.includes('attach failed')
+    || message.includes('no longer exists')
+    || message.includes('CDP connection')
+    || message.includes('Daemon command failed');
+}
+
+const HTML_ROUTE_EXTENSIONS = new Set(['.html', '.htm', '.php', '.asp', '.aspx', '.jsp', '.jspx', '.cfm', '.cgi']);
+const HTML_OUTPUT_EXTENSIONS = new Set(['.html', '.htm']);
+
+/** Decide whether this download target is explicitly or implicitly expected to be an HTML page. */
+function expectsHtmlOutput(
+  originalUrl: string,
+  destPath: string,
+  hasExplicitFilename: boolean,
+): boolean {
+  if (hasExplicitFilename) {
+    return HTML_OUTPUT_EXTENSIONS.has(path.extname(destPath).toLowerCase());
+  }
+
+  const urlExt = path.extname(new URL(originalUrl).pathname).toLowerCase();
+  if (HTML_ROUTE_EXTENSIONS.has(urlExt)) {
+    return true;
+  }
+
+  if (!urlExt && !hasExplicitFilename) {
+    return true;
+  }
+
+  return false;
+}
+
+/** Some protected downloads redirect anonymous requests to an HTML login page instead of the file. */
+function isSuspiciousAnonymousSuccess(
+  originalUrl: string,
+  destPath: string,
+  hasExplicitFilename: boolean,
+  result: HttpDownloadResult,
+): boolean {
+  const contentType = result.contentType?.toLowerCase() ?? '';
+  const htmlExpected = expectsHtmlOutput(originalUrl, destPath, hasExplicitFilename);
+  return contentType.startsWith('text/html')
+    && (!htmlExpected || (result.finalUrl !== undefined && result.finalUrl !== originalUrl));
+}
+
+/** Decide whether an anonymous fallback result is weak enough that browser cookie retry should win. */
+function shouldRetryAnonymousFallback(
+  originalUrl: string,
+  destPath: string,
+  hasExplicitFilename: boolean,
+  result: HttpDownloadResult,
+): boolean {
+  if (result.success) {
+    return isSuspiciousAnonymousSuccess(originalUrl, destPath, hasExplicitFilename, result);
+  }
+
+  return result.statusCode === 401 || result.statusCode === 403 || result.statusCode === 404;
+}
 
 
 /**
@@ -45,7 +107,10 @@ async function extractBrowserCookies(page: IPage, domain?: string): Promise<stri
   try {
     const cookies = await page.getCookies(domain ? { domain } : {});
     return formatCookieHeader(cookies);
-  } catch {
+  } catch (error) {
+    if (isTransientBrowserError(error)) {
+      throw error;
+    }
     return '';
   }
 }
@@ -69,7 +134,10 @@ async function extractCookiesArray(
         secure: cookie.secure ?? false,
         httpOnly: cookie.httpOnly ?? false,
       }));
-  } catch {
+  } catch (error) {
+    if (isTransientBrowserError(error)) {
+      throw error;
+    }
     return [];
   }
 }
@@ -124,12 +192,9 @@ export async function stepDownload(
   const tracker = new DownloadProgressTracker(items.length, showProgress);
 
   // Extract cookies if browser is available
-  let cookies = '';
   let cookiesFile: string | undefined;
 
   if (page) {
-    cookies = await extractBrowserCookies(page);
-
     // For yt-dlp, we need to export cookies to Netscape format
     if (useYtdlp || items.some((item, index) => {
       const url = String(render(urlTemplate, { args, data, item, index }));
@@ -147,11 +212,16 @@ export async function stepDownload(
           cookiesFile = path.join(tempDir, `cookies_${Date.now()}.txt`);
           exportCookiesToNetscape(cookiesArray, cookiesFile);
         }
-      } catch {
-        // Ignore cookie extraction errors
+      } catch (error) {
+        if (isTransientBrowserError(error)) {
+          throw error;
+        }
+        // Ignore non-transient cookie extraction errors
       }
     }
   }
+
+  let retryableStepError: unknown;
 
   // Process downloads with concurrency
   const results = await mapConcurrent(items, concurrency, async (item, index): Promise<any> => {
@@ -198,7 +268,7 @@ export async function stepDownload(
     const detectedType = contentType === 'auto' ? detectContentType(url) : contentType;
     const shouldUseYtdlp = useYtdlp || (detectedType === 'video' && requiresYtdlp(url));
 
-    let result: { success: boolean; size: number; error?: string };
+    let result: HttpDownloadResult;
 
     try {
       if (detectedType === 'document' && contentTemplate) {
@@ -234,6 +304,20 @@ export async function stepDownload(
         }
       } else {
         // Direct HTTP download
+        let cookies = '';
+        let cookieError: unknown;
+        if (page) {
+          try {
+            cookies = await extractBrowserCookies(page);
+          } catch (error) {
+            if (isTransientBrowserError(error)) {
+              cookieError = error;
+            } else {
+              throw error;
+            }
+          }
+        }
+
         result = await httpDownload(url, destPath, {
           cookies,
           timeout,
@@ -243,6 +327,14 @@ export async function stepDownload(
             }
           },
         });
+
+        // Public files should still download anonymously when cookie access is flaky.
+        if (cookieError && shouldRetryAnonymousFallback(url, destPath, Boolean(filenameTemplate), result)) {
+          if (result.success && fs.existsSync(destPath)) {
+            fs.unlinkSync(destPath);
+          }
+          retryableStepError ??= cookieError;
+        }
 
         if (progressBar) {
           progressBar.complete(result.success, result.success ? formatBytes(result.size) : undefined);
@@ -282,6 +374,10 @@ export async function stepDownload(
 
   // Show summary
   tracker.finish();
+
+  if (retryableStepError) {
+    throw retryableStepError;
+  }
 
   return results;
 }

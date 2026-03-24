@@ -23,6 +23,15 @@ export interface DownloadOptions {
   maxRedirects?: number;
 }
 
+export interface HttpDownloadResult {
+  success: boolean;
+  size: number;
+  error?: string;
+  statusCode?: number;
+  contentType?: string;
+  finalUrl?: string;
+}
+
 export interface YtdlpOptions {
   cookies?: string;
   cookiesFile?: string;
@@ -82,7 +91,7 @@ export async function httpDownload(
   destPath: string,
   options: DownloadOptions = {},
   redirectCount = 0,
-): Promise<{ success: boolean; size: number; error?: string }> {
+): Promise<HttpDownloadResult> {
   const { cookies, headers = {}, timeout = 30000, onProgress, maxRedirects = 10 } = options;
 
   return new Promise((resolve) => {
@@ -111,7 +120,7 @@ export async function httpDownload(
         file.close();
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         if (redirectCount >= maxRedirects) {
-          resolve({ success: false, size: 0, error: `Too many redirects (> ${maxRedirects})` });
+          resolve({ success: false, size: 0, error: `Too many redirects (> ${maxRedirects})`, finalUrl: url });
           return;
         }
         httpDownload(
@@ -126,7 +135,14 @@ export async function httpDownload(
       if (response.statusCode !== 200) {
         file.close();
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-        resolve({ success: false, size: 0, error: `HTTP ${response.statusCode}` });
+        resolve({
+          success: false,
+          size: 0,
+          error: `HTTP ${response.statusCode}`,
+          statusCode: response.statusCode,
+          contentType: normalizeHeaderValue(response.headers['content-type']),
+          finalUrl: url,
+        });
         return;
       }
 
@@ -144,27 +160,37 @@ export async function httpDownload(
         file.close();
         // Rename temp file to final destination
         fs.renameSync(tempPath, destPath);
-        resolve({ success: true, size: received });
+        resolve({
+          success: true,
+          size: received,
+          statusCode: response.statusCode,
+          contentType: normalizeHeaderValue(response.headers['content-type']),
+          finalUrl: url,
+        });
       });
     });
 
     request.on('error', (err) => {
       file.close();
       if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-      resolve({ success: false, size: 0, error: err.message });
+      resolve({ success: false, size: 0, error: err.message, finalUrl: url });
     });
 
     request.on('timeout', () => {
       request.destroy();
       file.close();
       if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-      resolve({ success: false, size: 0, error: 'Timeout' });
+      resolve({ success: false, size: 0, error: 'Timeout', finalUrl: url });
     });
   });
 }
 
 export function resolveRedirectUrl(currentUrl: string, location: string): string {
   return new URL(location, currentUrl).toString();
+}
+
+function normalizeHeaderValue(header: string | string[] | undefined): string | undefined {
+  return Array.isArray(header) ? header[0] : header;
 }
 
 /**

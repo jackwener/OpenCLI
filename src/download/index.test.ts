@@ -49,11 +49,11 @@ describe('download helpers', () => {
     const destPath = path.join(tempDir, 'file.txt');
     const result = await httpDownload(`${baseUrl}/loop`, destPath, { maxRedirects: 2 });
 
-    expect(result).toEqual({
+    expect(result).toEqual(expect.objectContaining({
       success: false,
       size: 0,
       error: 'Too many redirects (> 2)',
-    });
+    }));
     expect(fs.existsSync(destPath)).toBe(false);
   });
 });

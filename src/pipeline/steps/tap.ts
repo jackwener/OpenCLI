@@ -10,10 +10,15 @@
  */
 
 import type { IPage } from '../../types.js';
+import { ConfigError } from '../../errors.js';
 import { render } from '../template.js';
 import { generateTapInterceptorJs } from '../../interceptor.js';
 
 export async function stepTap(page: IPage | null, params: any, data: any, args: Record<string, any>): Promise<any> {
+  if (!page) {
+    throw new ConfigError('tap step requires a browser session', 'Set browser: true in your command definition.');
+  }
+
   const cfg = typeof params === 'object' ? params : {};
   const storeName = String(render(cfg.store ?? '', { args, data }));
   const actionName = String(render(cfg.action ?? '', { args, data }));
@@ -96,5 +101,5 @@ export async function stepTap(page: IPage | null, params: any, data: any, args: 
     }
   `;
 
-  return page!.evaluate(js);
+  return page.evaluate(js);
 }

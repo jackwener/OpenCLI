@@ -3,10 +3,15 @@
  */
 
 import type { IPage } from '../../types.js';
+import { ConfigError } from '../../errors.js';
 import { render, normalizeEvaluateSource } from '../template.js';
 import { generateInterceptorJs, generateReadInterceptedJs } from '../../interceptor.js';
 
 export async function stepIntercept(page: IPage | null, params: any, data: any, args: Record<string, any>): Promise<any> {
+  if (!page) {
+    throw new ConfigError('intercept step requires a browser session', 'Set browser: true in your command definition.');
+  }
+
   const cfg = typeof params === 'object' ? params : {};
   const trigger = cfg.trigger ?? '';
   const capturePattern = cfg.capture ?? '';
@@ -16,27 +21,27 @@ export async function stepIntercept(page: IPage | null, params: any, data: any, 
   if (!capturePattern) return data;
 
   // Step 1: Inject fetch/XHR interceptor BEFORE trigger
-  await page!.evaluate(generateInterceptorJs(JSON.stringify(capturePattern)));
+  await page.evaluate(generateInterceptorJs(JSON.stringify(capturePattern)));
 
   // Step 2: Execute the trigger action
   if (trigger.startsWith('navigate:')) {
     const url = render(trigger.slice('navigate:'.length), { args, data });
-    await page!.goto(String(url));
+    await page.goto(String(url));
   } else if (trigger.startsWith('evaluate:')) {
     const js = trigger.slice('evaluate:'.length);
-    await page!.evaluate(normalizeEvaluateSource(render(js, { args, data }) as string));
+    await page.evaluate(normalizeEvaluateSource(render(js, { args, data }) as string));
   } else if (trigger.startsWith('click:')) {
     const ref = render(trigger.slice('click:'.length), { args, data });
-    await page!.click(String(ref).replace(/^@/, ''));
+    await page.click(String(ref).replace(/^@/, ''));
   } else if (trigger === 'scroll') {
-    await page!.scroll('down');
+    await page.scroll('down');
   }
 
   // Step 3: Wait a bit for network requests to fire
-  await page!.wait(Math.min(timeout, 3));
+  await page.wait(timeout);
 
   // Step 4: Retrieve captured data
-  const matchingResponses = await page!.evaluate(generateReadInterceptedJs());
+  const matchingResponses = await page.evaluate(generateReadInterceptedJs());
 
   // Step 5: Select from response if specified
   let result = matchingResponses.length === 1 ? matchingResponses[0] :

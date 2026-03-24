@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { executePipeline } from './index.js';
+import { getStep, registerStep } from './registry.js';
 import { ConfigError } from '../errors.js';
 import type { IPage } from '../types.js';
 
@@ -188,5 +189,30 @@ describe('executePipeline', () => {
     // navigate should preserve existing data
     expect(result).toEqual([{ a: 1 }]);
     expect(page.goto).toHaveBeenCalledWith('https://example.com');
+  });
+
+  it.each(['intercept', 'tap'])('retries transient browser errors for %s step', async (stepName) => {
+    const original = getStep(stepName);
+    expect(original).toBeDefined();
+
+    let attempts = 0;
+    registerStep(stepName, async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new Error('Extension disconnected');
+      }
+      return 'ok';
+    });
+
+    try {
+      const result = await executePipeline(null, [
+        { [stepName]: {} },
+      ]);
+
+      expect(result).toBe('ok');
+      expect(attempts).toBe(2);
+    } finally {
+      registerStep(stepName, original!);
+    }
   });
 });
