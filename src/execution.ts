@@ -194,7 +194,17 @@ export async function executeCommand(
         });
       }, { workspace: `site:${cmd.site}` });
     } else {
-      result = await runCommand(cmd, null, kwargs, debug);
+      // Non-browser commands: apply timeout only when explicitly configured.
+      const timeout = cmd.timeoutSeconds;
+      if (timeout !== undefined && timeout > 0) {
+        result = await runWithTimeout(runCommand(cmd, null, kwargs, debug), {
+          timeout,
+          label: fullName(cmd),
+          hint: `Increase the adapter's timeoutSeconds setting (currently ${timeout}s)`,
+        });
+      } else {
+        result = await runCommand(cmd, null, kwargs, debug);
+      }
     }
   } catch (err) {
     hookCtx.error = err;

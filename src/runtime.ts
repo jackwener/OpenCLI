@@ -30,11 +30,11 @@ export const DEFAULT_BROWSER_EXPLORE_TIMEOUT = parseEnvTimeout('OPENCLI_BROWSER_
  */
 export async function runWithTimeout<T>(
   promise: Promise<T>,
-  opts: { timeout: number; label?: string },
+  opts: { timeout: number; label?: string; hint?: string },
 ): Promise<T> {
   const label = opts.label ?? 'Operation';
   return withTimeoutMs(promise, opts.timeout * 1000,
-    () => new TimeoutError(label, opts.timeout));
+    () => new TimeoutError(label, opts.timeout, opts.hint));
 }
 
 /**
