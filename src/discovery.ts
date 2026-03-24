@@ -20,7 +20,8 @@ import type { ManifestEntry } from './build-manifest.js';
 
 /** Plugins directory: ~/.opencli/plugins/ */
 export const PLUGINS_DIR = path.join(os.homedir(), '.opencli', 'plugins');
-const CLI_MODULE_PATTERN = /\bcli\s*\(/;
+/** Matches files that register commands via cli() or lifecycle hooks */
+const PLUGIN_MODULE_PATTERN = /\b(?:cli|onStartup|onBeforeExecute|onAfterExecute)\s*\(/;
 
 import type { YamlCliDefinition } from './yaml-schema.js';
 
@@ -246,7 +247,7 @@ async function discoverPluginDir(dir: string, site: string): Promise<void> {
 async function isCliModule(filePath: string): Promise<boolean> {
   try {
     const source = await fs.promises.readFile(filePath, 'utf-8');
-    return CLI_MODULE_PATTERN.test(source);
+    return PLUGIN_MODULE_PATTERN.test(source);
   } catch (err) {
     log.warn(`Failed to inspect module ${filePath}: ${getErrorMessage(err)}`);
     return false;
