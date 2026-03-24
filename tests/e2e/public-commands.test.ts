@@ -521,5 +521,4 @@ describe('public commands E2E', () => {
     expect(data[0]).toHaveProperty('word', 'perfect');
     expect(data[0]).toHaveProperty('example');
   }, 30_000);
-  }, 30_000);
 });
