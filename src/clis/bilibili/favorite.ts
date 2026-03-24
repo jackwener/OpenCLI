@@ -1,5 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
-import { apiGet, payloadData } from './utils.js';
+import { apiGet, payloadData, getSelfUid } from './utils.js';
 
 cli({
   site: 'bilibili',
@@ -15,9 +15,12 @@ cli({
   func: async (page, kwargs) => {
     const { limit = 20, page: pageNum = 1 } = kwargs;
 
+    // Get current user's UID
+    const uid = await getSelfUid(page);
+
     // Get default favorite folder ID
     const foldersPayload = await apiGet(page, '/x/v3/fav/folder/created/list-all', {
-      params: { up_mid: 0 },
+      params: { up_mid: uid },
       signed: true,
     });
     const folders = payloadData(foldersPayload)?.list ?? [];
