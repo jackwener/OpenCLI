@@ -3,8 +3,28 @@ name: E2E Headed Chrome
 on:
   push:
     branches: [main, dev]
+    paths:
+      - 'extension/**'
+      - 'src/browser/**'
+      - 'src/daemon.ts'
+      - 'src/execution.ts'
+      - 'src/interceptor.ts'
+      - 'tests/e2e/**'
+      - 'tests/smoke/**'
+      - '.github/actions/setup-chrome/**'
+      - '.github/workflows/e2e-headed.yml'
   pull_request:
     branches: [main, dev]
+    paths:
+      - 'extension/**'
+      - 'src/browser/**'
+      - 'src/daemon.ts'
+      - 'src/execution.ts'
+      - 'src/interceptor.ts'
+      - 'tests/e2e/**'
+      - 'tests/smoke/**'
+      - '.github/actions/setup-chrome/**'
+      - '.github/workflows/e2e-headed.yml'
   workflow_dispatch:
 
 concurrency:

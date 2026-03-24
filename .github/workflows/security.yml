@@ -31,6 +31,3 @@ jobs:
 
       - name: npm audit (production)
         run: npm audit --omit=dev --audit-level=high
-
-      - name: Check for known vulnerabilities
-        run: npx --yes audit-ci@^7 --high --skip-dev
