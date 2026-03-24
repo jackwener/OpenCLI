@@ -13,7 +13,7 @@ import { isTransientBrowserError } from './errors.js';
 const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
 
-function authHeaders(): Record<string, string> {
+export function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = { 'X-OpenCLI': '1' };
   const token = readToken();
   if (token) headers[TOKEN_HEADER] = token;
