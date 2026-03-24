@@ -1,4 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
+import { SelectorError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 
 export const composerCommand = cli({
@@ -33,7 +34,7 @@ export const composerCommand = cli({
     );
 
     if (!typed) {
-      throw new Error('Could not find Cursor Composer input element after pressing Cmd+I.');
+      throw new SelectorError('Cursor Composer input element', 'Could not find Cursor Composer input element after pressing Cmd+I.');
     }
 
     await page.wait(0.5);

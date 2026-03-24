@@ -1,4 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
+import { SelectorError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 
 export const sendCommand = cli({
@@ -13,7 +14,7 @@ export const sendCommand = cli({
   func: async (page: IPage, kwargs: any) => {
     const textToInsert = kwargs.text as string;
 
-    await page.evaluate(`
+    const injected = await page.evaluate(`
       (function(text) {
         let composer = document.querySelector('textarea, [contenteditable="true"]');
         
@@ -22,14 +23,14 @@ export const sendCommand = cli({
            composer = editables[editables.length - 1];
         }
 
-        if (!composer) {
-          throw new Error('Could not find Composer input element in Codex UI');
-        }
+        if (!composer) return false;
 
         composer.focus();
         document.execCommand('insertText', false, text);
+        return true;
       })(${JSON.stringify(textToInsert)})
     `);
+    if (!injected) throw new SelectorError('Codex Composer input element');
 
     // Wait for the UI to register the input
     await page.wait(0.5);

@@ -1,4 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
+import { SelectorError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 
 export const askCommand = cli({
@@ -26,15 +27,17 @@ export const askCommand = cli({
     `);
 
     // Inject and send
-    await page.evaluate(`
+    const injected = await page.evaluate(`
       (function(text) {
         const editables = Array.from(document.querySelectorAll('[contenteditable="true"]'));
         const composer = editables.length > 0 ? editables[editables.length - 1] : document.querySelector('textarea');
-        if (!composer) throw new Error('Could not find Codex input');
+        if (!composer) return false;
         composer.focus();
         document.execCommand('insertText', false, text);
+        return true;
       })(${JSON.stringify(text)})
     `);
+    if (!injected) throw new SelectorError('Codex input element');
     await page.wait(0.5);
     await page.pressKey('Enter');
 

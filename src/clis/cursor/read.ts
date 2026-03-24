@@ -1,4 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
+import { EmptyResultError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 
 export const readCommand = cli({
@@ -39,7 +40,7 @@ export const readCommand = cli({
     `);
 
     if (!history || history.length === 0) {
-      throw new Error('No conversation history found in Cursor.');
+      throw new EmptyResultError('cursor read', 'No conversation history found in Cursor.');
     }
 
     return history;

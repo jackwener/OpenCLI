@@ -1,4 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
+import { SelectorError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 
 export const askCommand = cli({
@@ -33,7 +34,7 @@ export const askCommand = cli({
       })(${JSON.stringify(text)})`
     );
 
-    if (!injected) throw new Error('Could not find input element.');
+    if (!injected) throw new SelectorError('Cursor input element');
     await page.wait(0.5);
     await page.pressKey('Enter');
 

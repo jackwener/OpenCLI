@@ -1,4 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
+import { SelectorError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 
 export const sendCommand = cli({
@@ -29,7 +30,7 @@ export const sendCommand = cli({
     );
 
     if (!injected) {
-      throw new Error('Could not find Cursor Composer input element.');
+      throw new SelectorError('Cursor Composer input element');
     }
 
     // Submit the command. In Cursor, Enter usually submits the chat.

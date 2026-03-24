@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
 import { cli, Strategy } from '../../registry.js';
+import { CommandExecutionError, ConfigError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 import { getVisibleChatMessages } from './ax.js';
 
@@ -14,7 +15,7 @@ export const readCommand = cli({
   columns: ['Role', 'Text'],
   func: async (page: IPage | null) => {
     if (process.platform !== 'darwin') {
-      throw new Error('ChatGPT Desktop integration requires macOS (osascript is not available on this platform)');
+      throw new ConfigError('ChatGPT Desktop integration requires macOS (osascript is not available on this platform)');
     }
 
     try {
@@ -28,7 +29,7 @@ export const readCommand = cli({
 
       return [{ Role: 'Assistant', Text: messages[messages.length - 1] }];
     } catch (err: any) {
-      throw new Error("Failed to read from ChatGPT: " + err.message);
+      throw new CommandExecutionError("Failed to read from ChatGPT: " + err.message);
     }
   },
 });
