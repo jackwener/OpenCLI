@@ -7,6 +7,7 @@
 | Command | Description |
 |---------|-------------|
 | `opencli linkedin search` | |
+| `opencli linkedin timeline` | Read posts from your LinkedIn home feed |
 
 ## Usage Examples
 
@@ -14,8 +15,13 @@
 # Quick start
 opencli linkedin search --limit 5
 
+# Read your home timeline
+opencli linkedin timeline --limit 5
+
 # JSON output
 opencli linkedin search -f json
+
+opencli linkedin timeline -f json
 
 # Verbose mode
 opencli linkedin search -v

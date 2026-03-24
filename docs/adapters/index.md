@@ -16,7 +16,7 @@ Run `opencli list` for the live registry.
 | **[v2ex](/adapters/browser/v2ex)** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | 🌐 / 🔐 |
 | **[bloomberg](/adapters/browser/bloomberg)** | `main` `markets` `economics` `industries` `tech` `politics` `businessweek` `opinions` `feeds` `news` | 🌐 / 🔐 |
 | **[weibo](/adapters/browser/weibo)** | `hot` `search` | 🔐 Browser |
-| **[linkedin](/adapters/browser/linkedin)** | `search` | 🔐 Browser |
+| **[linkedin](/adapters/browser/linkedin)** | `search` `timeline` | 🔐 Browser |
 | **[coupang](/adapters/browser/coupang)** | `search` `add-to-cart` | 🔐 Browser |
 | **[boss](/adapters/browser/boss)** | `search` `detail` `recommend` `joblist` `greet` `batchgreet` `send` `chatlist` `chatmsg` `invite` `mark` `exchange` `resume` `stats` | 🔐 Browser |
 | **[ctrip](/adapters/browser/ctrip)** | `search` | 🔐 Browser |
