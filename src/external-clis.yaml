@@ -22,14 +22,6 @@
   install:
     default: "npm install -g @readwiseio/readwise-cli"
 
-- name: kubectl
-  binary: kubectl
-  description: "Kubernetes command-line tool"
-  homepage: "https://kubernetes.io/docs/reference/kubectl/"
-  tags: [kubernetes, k8s, devops]
-  install:
-    mac: "brew install kubectl"
-
 - name: docker
   binary: docker
   description: "Docker command-line interface"
