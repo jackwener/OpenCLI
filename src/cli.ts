@@ -368,9 +368,10 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       console.log(chalk.bold('  Installed plugins'));
       console.log();
       for (const p of plugins) {
+        const version = p.version ? chalk.green(` @${p.version}`) : '';
         const cmds = p.commands.length > 0 ? chalk.dim(` (${p.commands.join(', ')})`) : '';
         const src = p.source ? chalk.dim(` ← ${p.source}`) : '';
-        console.log(`  ${chalk.cyan(p.name)}${cmds}${src}`);
+        console.log(`  ${chalk.cyan(p.name)}${version}${cmds}${src}`);
       }
       console.log();
       console.log(chalk.dim(`  ${plugins.length} plugin(s) installed`));

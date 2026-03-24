@@ -37,6 +37,10 @@ opencli plugin install https://github.com/user/repo
 
 The repo name prefix `opencli-plugin-` is automatically stripped for the local directory name. For example, `opencli-plugin-hot-digest` becomes `hot-digest`.
 
+## Version Tracking
+
+OpenCLI records installed plugin versions in `~/.opencli/plugins.lock.json`. Each entry stores the plugin source, current git commit hash, install time, and last update time. `opencli plugin list` shows the short commit hash when version metadata is available.
+
 ## Creating a Plugin
 
 ### Option 1: YAML Plugin (Simplest)

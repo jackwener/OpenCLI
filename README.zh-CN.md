@@ -296,6 +296,8 @@ opencli plugin update --all                                 # 更新全部已安
 opencli plugin uninstall my-tool                            # 卸载
 ```
 
+当 plugin 的版本被记录到 `~/.opencli/plugins.lock.json` 后，`opencli plugin list` 也会显示对应的短 commit hash。
+
 | 插件 | 类型 | 描述 |
 |------|------|------|
 | [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | YAML | GitHub Trending 仓库 |

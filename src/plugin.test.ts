@@ -1,20 +1,25 @@
 /**
- * Tests for plugin management: install, uninstall, list.
+ * Tests for plugin management: install, uninstall, list, and lock file support.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PLUGINS_DIR } from './discovery.js';
+import type { LockEntry } from './plugin.js';
 import * as pluginModule from './plugin.js';
 
 const {
+  LOCK_FILE,
+  _getCommitHash,
   listPlugins,
+  _readLockFile,
   uninstallPlugin,
   updatePlugin,
   _parseSource,
   _updateAllPlugins,
   _validatePluginStructure,
+  _writeLockFile,
 } = pluginModule;
 
 describe('parseSource', () => {
@@ -111,6 +116,70 @@ describe('validatePluginStructure', () => {
   });
 });
 
+describe('lock file', () => {
+  const backupPath = `${LOCK_FILE}.test-backup`;
+  let hadOriginal = false;
+
+  beforeEach(() => {
+    hadOriginal = fs.existsSync(LOCK_FILE);
+    if (hadOriginal) {
+      fs.mkdirSync(path.dirname(backupPath), { recursive: true });
+      fs.copyFileSync(LOCK_FILE, backupPath);
+    }
+  });
+
+  afterEach(() => {
+    if (hadOriginal) {
+      fs.copyFileSync(backupPath, LOCK_FILE);
+      fs.unlinkSync(backupPath);
+      return;
+    }
+    try { fs.unlinkSync(LOCK_FILE); } catch {}
+  });
+
+  it('reads empty lock when file does not exist', () => {
+    try { fs.unlinkSync(LOCK_FILE); } catch {}
+    expect(_readLockFile()).toEqual({});
+  });
+
+  it('round-trips lock entries', () => {
+    const entries: Record<string, LockEntry> = {
+      'test-plugin': {
+        source: 'https://github.com/user/repo.git',
+        commitHash: 'abc1234567890def',
+        installedAt: '2025-01-01T00:00:00.000Z',
+      },
+      'another-plugin': {
+        source: 'https://github.com/user/another.git',
+        commitHash: 'def4567890123abc',
+        installedAt: '2025-02-01T00:00:00.000Z',
+        updatedAt: '2025-03-01T00:00:00.000Z',
+      },
+    };
+
+    _writeLockFile(entries);
+    expect(_readLockFile()).toEqual(entries);
+  });
+
+  it('handles malformed lock file gracefully', () => {
+    fs.mkdirSync(path.dirname(LOCK_FILE), { recursive: true });
+    fs.writeFileSync(LOCK_FILE, 'not valid json');
+    expect(_readLockFile()).toEqual({});
+  });
+});
+
+describe('getCommitHash', () => {
+  it('returns a hash for a git repo', () => {
+    const hash = _getCommitHash(process.cwd());
+    expect(hash).toBeDefined();
+    expect(hash).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it('returns undefined for non-git directory', () => {
+    expect(_getCommitHash('/tmp')).toBeUndefined();
+  });
+});
+
 describe('listPlugins', () => {
   const testDir = path.join(PLUGINS_DIR, '__test-list-plugin__');
 
@@ -126,6 +195,28 @@ describe('listPlugins', () => {
     const found = plugins.find(p => p.name === '__test-list-plugin__');
     expect(found).toBeDefined();
     expect(found!.commands).toContain('hello');
+  });
+
+  it('includes version metadata from the lock file', () => {
+    fs.mkdirSync(testDir, { recursive: true });
+    fs.writeFileSync(path.join(testDir, 'hello.yaml'), 'site: test\nname: hello\n');
+
+    const lock = _readLockFile();
+    lock['__test-list-plugin__'] = {
+      source: 'https://github.com/user/repo.git',
+      commitHash: 'abcdef1234567890abcdef1234567890abcdef12',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    _writeLockFile(lock);
+
+    const plugins = listPlugins();
+    const found = plugins.find(p => p.name === '__test-list-plugin__');
+    expect(found).toBeDefined();
+    expect(found!.version).toBe('abcdef1');
+    expect(found!.installedAt).toBe('2025-01-01T00:00:00.000Z');
+
+    delete lock['__test-list-plugin__'];
+    _writeLockFile(lock);
   });
 
   it('returns empty array when no plugins dir', () => {
@@ -150,6 +241,22 @@ describe('uninstallPlugin', () => {
     expect(fs.existsSync(testDir)).toBe(false);
   });
 
+  it('removes lock entry on uninstall', () => {
+    fs.mkdirSync(testDir, { recursive: true });
+    fs.writeFileSync(path.join(testDir, 'test.yaml'), 'site: test');
+
+    const lock = _readLockFile();
+    lock['__test-uninstall__'] = {
+      source: 'https://github.com/user/repo.git',
+      commitHash: 'abc123',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    _writeLockFile(lock);
+
+    uninstallPlugin('__test-uninstall__');
+    expect(_readLockFile()['__test-uninstall__']).toBeUndefined();
+  });
+
   it('throws for non-existent plugin', () => {
     expect(() => uninstallPlugin('__nonexistent__')).toThrow('not installed');
   });
@@ -163,7 +270,13 @@ describe('updatePlugin', () => {
 
 vi.mock('node:child_process', () => {
   return {
-    execFileSync: vi.fn((_cmd, _args, opts) => {
+    execFileSync: vi.fn((_cmd, args, opts) => {
+      if (Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        if (opts?.cwd === '/tmp') {
+          throw new Error('not a git repository');
+        }
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
       if (opts && opts.cwd && String(opts.cwd).endsWith('plugin-b')) {
         throw new Error('Network error');
       }

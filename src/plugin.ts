@@ -6,17 +6,30 @@
  */
 
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
-import { execSync, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { PLUGINS_DIR } from './discovery.js';
 import { getErrorMessage } from './errors.js';
 import { log } from './logger.js';
+
+/** Path to the lock file that tracks installed plugin versions. */
+export const LOCK_FILE = path.join(os.homedir(), '.opencli', 'plugins.lock.json');
+
+export interface LockEntry {
+  source: string;
+  commitHash: string;
+  installedAt: string;
+  updatedAt?: string;
+}
 
 export interface PluginInfo {
   name: string;
   path: string;
   commands: string[];
   source?: string;
+  version?: string;
+  installedAt?: string;
 }
 
 // ── Validation helpers ──────────────────────────────────────────────────────
@@ -24,6 +37,35 @@ export interface PluginInfo {
 export interface ValidationResult {
   valid: boolean;
   errors: string[];
+}
+
+// ── Lock file helpers ───────────────────────────────────────────────────────
+
+export function readLockFile(): Record<string, LockEntry> {
+  try {
+    const raw = fs.readFileSync(LOCK_FILE, 'utf-8');
+    return JSON.parse(raw) as Record<string, LockEntry>;
+  } catch {
+    return {};
+  }
+}
+
+export function writeLockFile(lock: Record<string, LockEntry>): void {
+  fs.mkdirSync(path.dirname(LOCK_FILE), { recursive: true });
+  fs.writeFileSync(LOCK_FILE, JSON.stringify(lock, null, 2) + '\n');
+}
+
+/** Get the HEAD commit hash of a git repo directory. */
+export function getCommitHash(dir: string): string | undefined {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: dir,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -134,6 +176,18 @@ export function installPlugin(source: string): string {
   }
 
   postInstallLifecycle(targetDir);
+
+  const commitHash = getCommitHash(targetDir);
+  if (commitHash) {
+    const lock = readLockFile();
+    lock[name] = {
+      source: cloneUrl,
+      commitHash,
+      installedAt: new Date().toISOString(),
+    };
+    writeLockFile(lock);
+  }
+
   return name;
 }
 
@@ -146,6 +200,12 @@ export function uninstallPlugin(name: string): void {
     throw new Error(`Plugin "${name}" is not installed.`);
   }
   fs.rmSync(targetDir, { recursive: true, force: true });
+
+  const lock = readLockFile();
+  if (lock[name]) {
+    delete lock[name];
+    writeLockFile(lock);
+  }
 }
 
 /**
@@ -173,6 +233,19 @@ export function updatePlugin(name: string): void {
   }
 
   postInstallLifecycle(targetDir);
+
+  const commitHash = getCommitHash(targetDir);
+  if (commitHash) {
+    const lock = readLockFile();
+    const existing = lock[name];
+    lock[name] = {
+      source: existing?.source ?? getPluginSource(targetDir) ?? '',
+      commitHash,
+      installedAt: existing?.installedAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    writeLockFile(lock);
+  }
 }
 
 export interface UpdateResult {
@@ -207,6 +280,7 @@ export function listPlugins(): PluginInfo[] {
   if (!fs.existsSync(PLUGINS_DIR)) return [];
 
   const entries = fs.readdirSync(PLUGINS_DIR, { withFileTypes: true });
+  const lock = readLockFile();
   const plugins: PluginInfo[] = [];
 
   for (const entry of entries) {
@@ -214,12 +288,15 @@ export function listPlugins(): PluginInfo[] {
     const pluginDir = path.join(PLUGINS_DIR, entry.name);
     const commands = scanPluginCommands(pluginDir);
     const source = getPluginSource(pluginDir);
+    const lockEntry = lock[entry.name];
 
     plugins.push({
       name: entry.name,
       path: pluginDir,
       commands,
       source,
+      version: lockEntry?.commitHash?.slice(0, 7),
+      installedAt: lockEntry?.installedAt,
     });
   }
 
@@ -361,7 +438,10 @@ function transpilePluginTs(pluginDir: string): void {
 }
 
 export {
+  getCommitHash as _getCommitHash,
   parseSource as _parseSource,
+  readLockFile as _readLockFile,
   updateAllPlugins as _updateAllPlugins,
   validatePluginStructure as _validatePluginStructure,
+  writeLockFile as _writeLockFile,
 };

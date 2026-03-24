@@ -37,6 +37,10 @@ opencli plugin install https://github.com/user/repo
 
 如果仓库名带 `opencli-plugin-` 前缀，本地目录会自动去掉这个前缀。例如 `opencli-plugin-hot-digest` 会变成 `hot-digest`。
 
+## 版本追踪
+
+OpenCLI 会把已安装 plugin 的版本记录到 `~/.opencli/plugins.lock.json`。每条记录会保存 plugin source、当前 git commit hash、安装时间，以及最近一次更新时间。只要有这份元数据，`opencli plugin list` 就会显示对应的短 commit hash。
+
 ## YAML plugin 示例
 
 ```text

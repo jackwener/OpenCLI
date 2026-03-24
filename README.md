@@ -294,6 +294,8 @@ opencli plugin update --all                                 # Update all install
 opencli plugin uninstall my-tool                            # Remove
 ```
 
+`opencli plugin list` also shows the tracked short commit hash when a plugin version is recorded in `~/.opencli/plugins.lock.json`.
+
 | Plugin | Type | Description |
 |--------|------|-------------|
 | [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | YAML | GitHub Trending repositories |
