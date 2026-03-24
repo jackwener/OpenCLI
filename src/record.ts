@@ -19,12 +19,15 @@ import chalk from 'chalk';
 import yaml from 'js-yaml';
 import { sendCommand } from './browser/daemon-client.js';
 import type { IPage } from './types.js';
+import { SEARCH_PARAMS, PAGINATION_PARAMS, FIELD_ROLES } from './constants.js';
 import {
-  VOLATILE_PARAMS,
-  SEARCH_PARAMS,
-  PAGINATION_PARAMS,
-  FIELD_ROLES,
-} from './constants.js';
+  urlToPattern,
+  findArrayPath,
+  inferCapabilityName,
+  inferStrategy,
+  detectAuthFromContent,
+  classifyQueryParams,
+} from './analysis.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -142,78 +145,6 @@ function generateReadRecordedJs(): string {
 
 // ── Analysis helpers ───────────────────────────────────────────────────────
 
-function urlToPattern(url: string): string {
-  try {
-    const p = new URL(url);
-    const pathNorm = p.pathname
-      .replace(/\/\d+/g, '/{id}')
-      .replace(/\/[0-9a-fA-F]{8,}/g, '/{hex}')
-      .replace(/\/BV[a-zA-Z0-9]{10}/g, '/{bvid}');
-    const params: string[] = [];
-    p.searchParams.forEach((_v, k) => { if (!VOLATILE_PARAMS.has(k)) params.push(k); });
-    return `${p.host}${pathNorm}${params.length ? '?' + params.sort().map(k => `${k}={}`).join('&') : ''}`;
-  } catch { return url; }
-}
-
-function detectAuthIndicators(url: string, body: unknown): string[] {
-  const indicators: string[] = [];
-  // Heuristic: if body contains sign/w_rid fields, it's likely signed
-  if (body && typeof body === 'object') {
-    const keys = Object.keys(body as object).map(k => k.toLowerCase());
-    if (keys.some(k => k.includes('sign') || k === 'w_rid' || k.includes('token'))) {
-      indicators.push('signature');
-    }
-  }
-  // Check URL for common auth patterns
-  if (url.includes('/wbi/') || url.includes('w_rid=')) indicators.push('signature');
-  if (url.includes('bearer') || url.includes('access_token')) indicators.push('bearer');
-  return indicators;
-}
-
-function findArrayPath(obj: unknown, depth = 0): { path: string; items: unknown[] } | null {
-  if (depth > 5 || !obj || typeof obj !== 'object') return null;
-  if (Array.isArray(obj)) {
-    if (obj.length >= 2 && obj.some(i => i && typeof i === 'object' && !Array.isArray(i))) {
-      return { path: '', items: obj };
-    }
-    return null;
-  }
-  let best: { path: string; items: unknown[] } | null = null;
-  for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
-    const found = findArrayPath(val, depth + 1);
-    if (found) {
-      const fullPath = found.path ? `${key}.${found.path}` : key;
-      const candidate = { path: fullPath, items: found.items };
-      if (!best || candidate.items.length > best.items.length) best = candidate;
-    }
-  }
-  return best;
-}
-
-function inferCapabilityName(url: string): string {
-  const u = url.toLowerCase();
-  if (u.includes('hot') || u.includes('popular') || u.includes('ranking') || u.includes('trending')) return 'hot';
-  if (u.includes('search')) return 'search';
-  if (u.includes('feed') || u.includes('timeline') || u.includes('dynamic')) return 'feed';
-  if (u.includes('comment') || u.includes('reply')) return 'comments';
-  if (u.includes('history')) return 'history';
-  if (u.includes('profile') || u.includes('me')) return 'me';
-  if (u.includes('favorite') || u.includes('collect') || u.includes('bookmark')) return 'favorite';
-  try {
-    const segs = new URL(url).pathname
-      .split('/')
-      .filter(s => s && !s.match(/^\d+$/) && !s.match(/^[0-9a-f]{8,}$/i) && !s.match(/^v\d+$/));
-    if (segs.length) return segs[segs.length - 1].replace(/[^a-z0-9]/gi, '_').toLowerCase();
-  } catch {}
-  return 'data';
-}
-
-function inferStrategy(authIndicators: string[]): string {
-  if (authIndicators.includes('signature')) return 'intercept';
-  if (authIndicators.includes('bearer') || authIndicators.includes('csrf')) return 'header';
-  return 'cookie';
-}
-
 function scoreRequest(req: RecordedRequest, arrayResult: ReturnType<typeof findArrayPath> | null): number {
   let s = 0;
   if (arrayResult) {
@@ -267,10 +198,7 @@ function buildRecordedYaml(
       : itemPath.split('.').map(p => `?.${p}`).join('');
 
   // Detect search/limit/page params (must be before fetch URL building to use hasSearch/hasPage)
-  const qp: string[] = [];
-  try { new URL(req.url).searchParams.forEach((_v, k) => { if (!VOLATILE_PARAMS.has(k)) qp.push(k); }); } catch {}
-  const hasSearch = qp.some(p => SEARCH_PARAMS.has(p));
-  const hasPage = qp.some(p => PAGINATION_PARAMS.has(p));
+  const { hasSearch, hasPagination: hasPage } = classifyQueryParams(req.url);
 
   // Build evaluate script
   const mapLines = Object.entries(detectedFields)
@@ -532,7 +460,7 @@ function analyzeAndWrite(
   const scored: ScoredEntry[] = [];
   for (const [pattern, req] of seen) {
     const arrayResult = findArrayPath(req.body);
-    const authIndicators = detectAuthIndicators(req.url, req.body);
+    const authIndicators = detectAuthFromContent(req.url, req.body);
     const score = scoreRequest(req, arrayResult);
     if (score > 0) {
       scored.push({ req, pattern, arrayResult, authIndicators, score });

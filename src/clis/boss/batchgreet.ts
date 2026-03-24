@@ -5,7 +5,7 @@ import { cli, Strategy } from '../../registry.js';
 import {
   requirePage, navigateToChat, fetchRecommendList,
   clickCandidateInList, typeAndSendMessage, verbose,
-} from './common.js';
+} from './utils.js';
 
 cli({
   site: 'boss',

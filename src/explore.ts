@@ -10,12 +10,22 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { DEFAULT_BROWSER_EXPLORE_TIMEOUT, browserSession, runWithTimeout } from './runtime.js';
 import type { IBrowserFactory } from './runtime.js';
-import { VOLATILE_PARAMS, SEARCH_PARAMS, PAGINATION_PARAMS, LIMIT_PARAMS, FIELD_ROLES } from './constants.js';
+import { LIMIT_PARAMS } from './constants.js';
 import { detectFramework } from './scripts/framework.js';
 import { discoverStores } from './scripts/store.js';
 import { interactFuzz } from './scripts/interact.js';
 import type { IPage } from './types.js';
 import { log } from './logger.js';
+import {
+  urlToPattern,
+  findArrayPath,
+  flattenFields,
+  detectFieldRoles,
+  inferCapabilityName,
+  inferStrategy,
+  detectAuthFromHeaders,
+  classifyQueryParams,
+} from './analysis.js';
 
 // ── Site name detection ────────────────────────────────────────────────────
 
@@ -47,10 +57,6 @@ export function detectSiteName(url: string): string {
 export function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '') || 'site';
 }
-
-// ── Field & capability inference ───────────────────────────────────────────
-
-// (constants now imported from constants.ts)
 
 // ── Network analysis ───────────────────────────────────────────────────────
 
@@ -160,68 +166,16 @@ function parseNetworkRequests(raw: unknown): NetworkEntry[] {
   return [];
 }
 
-function urlToPattern(url: string): string {
-  try {
-    const p = new URL(url);
-    const pathNorm = p.pathname.replace(/\/\d+/g, '/{id}').replace(/\/[0-9a-fA-F]{8,}/g, '/{hex}').replace(/\/BV[a-zA-Z0-9]{10}/g, '/{bvid}');
-    const params: string[] = [];
-    p.searchParams.forEach((_v, k) => { if (!VOLATILE_PARAMS.has(k)) params.push(k); });
-    return `${p.host}${pathNorm}${params.length ? '?' + params.sort().map(k => `${k}={}`).join('&') : ''}`;
-  } catch { return url; }
-}
-
-function detectAuthIndicators(headers?: Record<string, string>): string[] {
-  if (!headers) return [];
-  const indicators: string[] = [];
-  const keys = Object.keys(headers).map(k => k.toLowerCase());
-  if (keys.some(k => k === 'authorization')) indicators.push('bearer');
-  if (keys.some(k => k.startsWith('x-csrf') || k.startsWith('x-xsrf'))) indicators.push('csrf');
-  if (keys.some(k => k.startsWith('x-s') || k === 'x-t' || k === 'x-s-common')) indicators.push('signature');
-  return indicators;
-}
-
 function analyzeResponseBody(body: unknown): AnalyzedEndpoint['responseAnalysis'] {
   if (!body || typeof body !== 'object') return null;
-  const candidates: Array<{ path: string; items: unknown[] }> = [];
+  const result = findArrayPath(body);
+  if (!result) return null;
 
-  function findArrays(obj: unknown, path: string, depth: number) {
-    if (depth > 4) return;
-    if (Array.isArray(obj) && obj.length >= 2 && obj.some(item => item && typeof item === 'object' && !Array.isArray(item))) {
-      candidates.push({ path, items: obj });
-    }
-    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
-      for (const [key, val] of Object.entries(obj)) findArrays(val, path ? `${path}.${key}` : key, depth + 1);
-    }
-  }
-  findArrays(body, '', 0);
-  if (!candidates.length) return null;
-
-  candidates.sort((a, b) => b.items.length - a.items.length);
-  const best = candidates[0];
-  const sample = best.items[0];
+  const sample = result.items[0];
   const sampleFields = sample && typeof sample === 'object' ? flattenFields(sample, '', 2) : [];
+  const detectedFields = detectFieldRoles(sampleFields);
 
-  const detectedFields: Record<string, string> = {};
-  for (const [role, aliases] of Object.entries(FIELD_ROLES)) {
-    for (const f of sampleFields) {
-      if (aliases.includes(f.split('.').pop()?.toLowerCase() ?? '')) { detectedFields[role] = f; break; }
-    }
-  }
-
-  return { itemPath: best.path || null, itemCount: best.items.length, detectedFields, sampleFields };
-}
-
-function flattenFields(obj: unknown, prefix: string, maxDepth: number): string[] {
-  if (maxDepth <= 0 || !obj || typeof obj !== 'object') return [];
-  const names: string[] = [];
-  const record = obj as Record<string, unknown>;
-  for (const key of Object.keys(record)) {
-    const full = prefix ? `${prefix}.${key}` : key;
-    names.push(full);
-    const val = record[key];
-    if (val && typeof val === 'object' && !Array.isArray(val)) names.push(...flattenFields(val, full, maxDepth - 1));
-  }
-  return names;
+  return { itemPath: result.path || null, itemCount: result.items.length, detectedFields, sampleFields };
 }
 
 function isBooleanRecord(value: unknown): value is Record<string, boolean> {
@@ -243,28 +197,6 @@ function scoreEndpoint(ep: { contentType: string; responseAnalysis: AnalyzedEndp
   return s;
 }
 
-function inferCapabilityName(url: string, goal?: string): string {
-  if (goal) return goal;
-  const u = url.toLowerCase();
-  if (u.includes('hot') || u.includes('popular') || u.includes('ranking') || u.includes('trending')) return 'hot';
-  if (u.includes('search')) return 'search';
-  if (u.includes('feed') || u.includes('timeline') || u.includes('dynamic')) return 'feed';
-  if (u.includes('comment') || u.includes('reply')) return 'comments';
-  if (u.includes('history')) return 'history';
-  if (u.includes('profile') || u.includes('userinfo') || u.includes('/me')) return 'me';
-  if (u.includes('favorite') || u.includes('collect') || u.includes('bookmark')) return 'favorite';
-  try {
-    const segs = new URL(url).pathname.split('/').filter(s => s && !s.match(/^\d+$/) && !s.match(/^[0-9a-f]{8,}$/i));
-    if (segs.length) return segs[segs.length - 1].replace(/[^a-z0-9]/gi, '_').toLowerCase();
-  } catch {}
-  return 'data';
-}
-
-function inferStrategy(authIndicators: string[]): string {
-  if (authIndicators.includes('signature')) return 'intercept';
-  if (authIndicators.includes('bearer') || authIndicators.includes('csrf')) return 'header';
-  return 'cookie';
-}
 
 // ── Framework detection ────────────────────────────────────────────────────
 
@@ -300,15 +232,14 @@ function analyzeEndpoints(networkEntries: NetworkEntry[]): { analyzed: AnalyzedE
     const key = `${entry.method}:${pattern}`;
     if (seen.has(key)) continue;
 
-    const qp: string[] = [];
-    try { new URL(entry.url).searchParams.forEach((_v, k) => { if (!VOLATILE_PARAMS.has(k)) qp.push(k); }); } catch {}
+    const { params: qp, hasSearch, hasPagination, hasLimit } = classifyQueryParams(entry.url);
 
     const ep: AnalyzedEndpoint = {
       pattern, method: entry.method, url: entry.url, status: entry.status, contentType: ct,
-      queryParams: qp, hasSearchParam: qp.some(p => SEARCH_PARAMS.has(p)),
-      hasPaginationParam: qp.some(p => PAGINATION_PARAMS.has(p)),
-      hasLimitParam: qp.some(p => LIMIT_PARAMS.has(p)),
-      authIndicators: detectAuthIndicators(entry.requestHeaders),
+      queryParams: qp, hasSearchParam: hasSearch,
+      hasPaginationParam: hasPagination,
+      hasLimitParam: hasLimit || qp.some(p => LIMIT_PARAMS.has(p)),
+      authIndicators: detectAuthFromHeaders(entry.requestHeaders),
       responseAnalysis: entry.responseBody ? analyzeResponseBody(entry.responseBody) : null,
       score: 0,
     };

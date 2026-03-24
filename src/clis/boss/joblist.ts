@@ -2,7 +2,7 @@
  * BOSS直聘 job list — list my published jobs via boss API.
  */
 import { cli, Strategy } from '../../registry.js';
-import { requirePage, navigateToChat, bossFetch, verbose } from './common.js';
+import { requirePage, navigateToChat, bossFetch, verbose } from './utils.js';
 
 cli({
   site: 'boss',

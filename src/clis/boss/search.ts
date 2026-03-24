@@ -2,7 +2,7 @@
  * BOSS直聘 job search — browser cookie API.
  */
 import { cli, Strategy } from '../../registry.js';
-import { requirePage, navigateTo, bossFetch, assertOk, verbose } from './common.js';
+import { requirePage, navigateTo, bossFetch, assertOk, verbose } from './utils.js';
 
 /** City name → BOSS Zhipin city code mapping */
 const CITY_CODES: Record<string, string> = {

@@ -1,5 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
-import { buildMediumSearchUrl, loadMediumPosts } from './shared.js';
+import { buildMediumSearchUrl, loadMediumPosts } from './utils.js';
 
 cli({
   site: 'medium',

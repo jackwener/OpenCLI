@@ -1,5 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
-import { injectTextScript, clickSendScript } from './common.js';
+import { injectTextScript, clickSendScript } from './utils.js';
 
 export const sendCommand = cli({
   site: 'doubao-app',

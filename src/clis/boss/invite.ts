@@ -2,7 +2,7 @@
  * BOSS直聘 invite — send interview invitation to a candidate.
  */
 import { cli, Strategy } from '../../registry.js';
-import { requirePage, navigateToChat, bossFetch, findFriendByUid, verbose } from './common.js';
+import { requirePage, navigateToChat, bossFetch, findFriendByUid, verbose } from './utils.js';
 
 cli({
   site: 'boss',

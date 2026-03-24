@@ -1,5 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
-import { SEL, injectTextScript, clickSendScript, pollResponseScript } from './common.js';
+import { SEL, injectTextScript, clickSendScript, pollResponseScript } from './utils.js';
 
 export const askCommand = cli({
   site: 'doubao-app',

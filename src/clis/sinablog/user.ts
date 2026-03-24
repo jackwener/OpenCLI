@@ -1,5 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
-import { loadSinaBlogUser } from './shared.js';
+import { loadSinaBlogUser } from './utils.js';
 
 cli({
   site: 'sinablog',

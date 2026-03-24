@@ -1,21 +1,14 @@
 /**
  * Aria snapshot formatter: parses Playwright MCP snapshot text into clean format.
  *
- * Multi-pass pipeline:
- * 1. Parse & filter: strip annotations, metadata, noise roles, ads, decorators
- * 2. Deduplicate: generic/text child matching parent label
- * 3. Deduplicate: heading + link with identical labels
- * 4. Deduplicate: nested identical links
- * 5. Prune: empty containers (iterative bottom-up)
- * 6. Collapse: single-child containers
+ * 4-pass pipeline:
+ * 1. Parse & filter: strip annotations, metadata, noise, ads, boilerplate subtrees
+ * 2. Deduplicate: generic/text parent match, heading+link, nested identical links
+ * 3. Prune: empty containers (iterative bottom-up)
+ * 4. Collapse: single-child containers
  */
 
-export interface FormatOptions {
-  interactive?: boolean;
-  compact?: boolean;
-  maxDepth?: number;
-  maxTextLength?: number;
-}
+import type { SnapshotOptions } from './types.js';
 
 const DEFAULT_MAX_TEXT_LENGTH = 200;
 
@@ -199,19 +192,18 @@ interface Entry {
   trailingText: string;
   isInteractive: boolean;
   isLandmark: boolean;
-  isSubtreeSkip: boolean; // ad nodes or boilerplate — skip entire subtree
 }
 
-export function formatSnapshot(raw: string, opts: FormatOptions = {}): string {
+export function formatSnapshot(raw: string, opts: SnapshotOptions = {}): string {
   if (!raw || typeof raw !== 'string') return '';
 
   const maxTextLen = opts.maxTextLength ?? DEFAULT_MAX_TEXT_LENGTH;
   const lines = raw.split('\n');
 
-  // === Pass 1: Parse, filter, and collect entries ===
-  const entries: Entry[] = [];
+  // === Pass 1: Parse, filter, and collect entries (merged with ad/boilerplate subtree skip) ===
+  const parsed: Entry[] = [];
   let refCounter = 0;
-  let skipUntilDepth = -1; // When >= 0, skip all nodes at depth > this value
+  let skipUntilDepth = -1;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -220,148 +212,88 @@ export function formatSnapshot(raw: string, opts: FormatOptions = {}): string {
     const indent = line.length - line.trimStart().length;
     const depth = Math.floor(indent / 2);
 
-    // If we're in a subtree skip zone, check depth
+    // Subtree skip zone (noise roles, ads, boilerplate)
     if (skipUntilDepth >= 0) {
-      if (depth > skipUntilDepth) continue; // still inside subtree
-      skipUntilDepth = -1; // exited subtree
+      if (depth > skipUntilDepth) continue;
+      skipUntilDepth = -1;
     }
 
     let content = line.trimStart();
-
-    // Strip leading "- "
-    if (content.startsWith('- ')) {
-      content = content.slice(2);
-    }
-
-    // Skip metadata lines
+    if (content.startsWith('- ')) content = content.slice(2);
     if (isMetadataLine(content)) continue;
-
-    // Apply maxDepth filter
     if (opts.maxDepth !== undefined && depth > opts.maxDepth) continue;
 
     const { role, text, hasText, trailingText } = parseLine(content);
 
-    // Skip noise nodes
     if (isNoiseNode(role, hasText, text, trailingText)) continue;
 
-    // Skip subtree noise roles (contentinfo footer, etc.) — skip entire subtree
-    if (SUBTREE_NOISE_ROLES.has(role)) {
-      skipUntilDepth = depth;
-      continue;
-    }
+    // Subtree noise roles (contentinfo footer, etc.)
+    if (SUBTREE_NOISE_ROLES.has(role)) { skipUntilDepth = depth; continue; }
 
-    // Strip annotations
+    // Ads and boilerplate — skip entire subtree (merged from old Pass 2)
+    if (isAdNode(text, trailingText) || isBoilerplateNode(text)) { skipUntilDepth = depth; continue; }
+
     content = stripAnnotations(content);
 
-    // Check if node should trigger subtree skip (ads, boilerplate)
-    const isSubtreeSkip = isAdNode(text, trailingText) || isBoilerplateNode(text);
-
-    // Interactive mode filter
     const isInteractive = INTERACTIVE_ROLES.has(role);
     const isLandmark = LANDMARK_ROLES.has(role);
-
     if (opts.interactive && !isInteractive && !isLandmark && !hasText) continue;
 
-    // Compact mode
     if (opts.compact) {
-      content = content
-        .replace(/\s*\[.*?\]\s*/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+      content = content.replace(/\s*\[.*?\]\s*/g, ' ').replace(/\s+/g, ' ').trim();
     }
-
-    // Text truncation
     if (maxTextLen > 0 && content.length > maxTextLen) {
       content = content.slice(0, maxTextLen) + '…';
     }
-
-    // Assign refs to interactive elements
     if (isInteractive) {
       refCounter++;
       content = `[@${refCounter}] ${content}`;
     }
 
-    entries.push({ depth, content, role, text, trailingText, isInteractive, isLandmark, isSubtreeSkip });
+    parsed.push({ depth, content, role, text, trailingText, isInteractive, isLandmark });
   }
 
-  // === Pass 2: Remove subtree-skip nodes (ads, boilerplate, contentinfo) ===
-  let noAds: Entry[] = [];
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i];
-    if (entry.isSubtreeSkip) {
-      const skipDepth = entry.depth;
-      i++;
-      while (i < entries.length && entries[i].depth > skipDepth) {
-        i++;
-      }
-      i--;
-      continue;
-    }
-    noAds.push(entry);
-  }
+  // === Pass 2: Deduplicate (merged: generic/text parent match + heading+link + nested links) ===
+  const deduped: Entry[] = [];
+  for (let i = 0; i < parsed.length; i++) {
+    const entry = parsed[i];
 
-  // === Pass 3: Deduplicate child generic/text matching parent label ===
-  let deduped: Entry[] = [];
-  for (let i = 0; i < noAds.length; i++) {
-    const entry = noAds[i];
-
+    // Dedup: generic/text child matching parent label
     if (entry.role === 'generic' || entry.role === 'text') {
       let parent: Entry | undefined;
       for (let j = deduped.length - 1; j >= 0; j--) {
-        if (deduped[j].depth < entry.depth) {
-          parent = deduped[j];
-          break;
-        }
+        if (deduped[j].depth < entry.depth) { parent = deduped[j]; break; }
         if (deduped[j].depth === entry.depth) break;
       }
-
       if (parent) {
         const childText = entry.trailingText || entry.text;
-        if (childText && parent.text && childText === parent.text) {
-          continue;
-        }
+        if (childText && parent.text && childText === parent.text) continue;
+      }
+    }
+
+    // Dedup: heading + child link with identical label
+    if (entry.role === 'heading' && entry.text) {
+      const next = parsed[i + 1];
+      if (next && next.role === 'link' && next.text === entry.text && next.depth === entry.depth + 1) {
+        deduped.push(entry);
+        i++; // skip the link, preserve its children
+        continue;
+      }
+    }
+
+    // Dedup: nested identical links (skip parent, keep child)
+    if (entry.role === 'link' && entry.text) {
+      const next = parsed[i + 1];
+      if (next && next.role === 'link' && next.text === entry.text && next.depth === entry.depth + 1) {
+        continue;
       }
     }
 
     deduped.push(entry);
   }
 
-  // === Pass 4: Deduplicate heading + child link with identical label ===
-  // Pattern: heading "Title": → link "Title": (same text) → skip the link
-  const deduped2: Entry[] = [];
-  for (let i = 0; i < deduped.length; i++) {
-    const entry = deduped[i];
-
-    if (entry.role === 'heading' && entry.text) {
-      const next = deduped[i + 1];
-      if (next && next.role === 'link' && next.text === entry.text && next.depth === entry.depth + 1) {
-        // Keep the heading, skip the link. But preserve link's children re-parented.
-        deduped2.push(entry);
-        i++; // skip the link
-        continue;
-      }
-    }
-
-    deduped2.push(entry);
-  }
-
-  // === Pass 5: Deduplicate nested identical links ===
-  const deduped3: Entry[] = [];
-  for (let i = 0; i < deduped2.length; i++) {
-    const entry = deduped2[i];
-
-    if (entry.role === 'link' && entry.text) {
-      const next = deduped2[i + 1];
-      if (next && next.role === 'link' && next.text === entry.text && next.depth === entry.depth + 1) {
-        continue; // Skip parent, keep child
-      }
-    }
-
-    deduped3.push(entry);
-  }
-
-  // === Pass 6: Iteratively prune empty containers (bottom-up) ===
-  let current = deduped3;
+  // === Pass 3: Iteratively prune empty containers (bottom-up) ===
+  let current = deduped;
   let changed = true;
   while (changed) {
     changed = false;
@@ -372,22 +304,16 @@ export function formatSnapshot(raw: string, opts: FormatOptions = {}): string {
         let hasChildren = false;
         for (let j = i + 1; j < current.length; j++) {
           if (current[j].depth <= entry.depth) break;
-          if (current[j].depth > entry.depth) {
-            hasChildren = true;
-            break;
-          }
+          if (current[j].depth > entry.depth) { hasChildren = true; break; }
         }
-        if (!hasChildren) {
-          changed = true;
-          continue;
-        }
+        if (!hasChildren) { changed = true; continue; }
       }
       next.push(entry);
     }
     current = next;
   }
 
-  // === Pass 7: Collapse single-child containers ===
+  // === Pass 4: Collapse single-child containers ===
   const collapsed: Entry[] = [];
   for (let i = 0; i < current.length; i++) {
     const entry = current[i];
@@ -408,17 +334,13 @@ export function formatSnapshot(raw: string, opts: FormatOptions = {}): string {
         let hasGrandchildren = false;
         for (let j = childIdx + 1; j < current.length; j++) {
           if (current[j].depth <= child.depth) break;
-          if (current[j].depth > child.depth) {
-            hasGrandchildren = true;
-            break;
-          }
+          if (current[j].depth > child.depth) { hasGrandchildren = true; break; }
         }
 
         if (!hasGrandchildren) {
-          const mergedContent = entry.content.replace(/:$/, '') + ' > ' + child.content;
           collapsed.push({
             ...entry,
-            content: mergedContent,
+            content: entry.content.replace(/:$/, '') + ' > ' + child.content,
             role: child.role,
             text: child.text,
             trailingText: child.trailingText,

@@ -6,7 +6,7 @@
  *   6=已交换微信, 7=不合适, 8=牛人发起, 11=收藏
  */
 import { cli, Strategy } from '../../registry.js';
-import { requirePage, navigateToChat, bossFetch, findFriendByUid, verbose } from './common.js';
+import { requirePage, navigateToChat, bossFetch, findFriendByUid, verbose } from './utils.js';
 import { ArgumentError, EmptyResultError } from '../../errors.js';
 
 const LABEL_MAP: Record<string, number> = {

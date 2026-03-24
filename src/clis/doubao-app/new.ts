@@ -1,5 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
-import { clickNewChatScript } from './common.js';
+import { clickNewChatScript } from './utils.js';
 
 export const newCommand = cli({
   site: 'doubao-app',

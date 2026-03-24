@@ -1,5 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
-import { buildSubstackBrowseUrl, loadSubstackFeed } from './shared.js';
+import { buildSubstackBrowseUrl, loadSubstackFeed } from './utils.js';
 
 cli({
   site: 'substack',

@@ -1,5 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
-import { JikePost, getPostDataJs } from './shared.js';
+import { JikePost, getPostDataJs } from './utils.js';
 
 /**
  * 即刻首页动态流适配器

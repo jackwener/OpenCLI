@@ -2,7 +2,7 @@
  * BOSS直聘 stats — job statistics overview.
  */
 import { cli, Strategy } from '../../registry.js';
-import { requirePage, navigateToChat, bossFetch, fetchFriendList, verbose } from './common.js';
+import { requirePage, navigateToChat, bossFetch, fetchFriendList, verbose } from './utils.js';
 
 cli({
   site: 'boss',

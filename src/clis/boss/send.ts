@@ -8,7 +8,7 @@ import { cli, Strategy } from '../../registry.js';
 import {
   requirePage, navigateToChat, findFriendByUid,
   clickCandidateInList, typeAndSendMessage,
-} from './common.js';
+} from './utils.js';
 import { EmptyResultError, SelectorError } from '../../errors.js';
 
 cli({

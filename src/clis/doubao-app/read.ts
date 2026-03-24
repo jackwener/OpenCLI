@@ -1,5 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
-import { readMessagesScript } from './common.js';
+import { readMessagesScript } from './utils.js';
 
 export const readCommand = cli({
   site: 'doubao-app',

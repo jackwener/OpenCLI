@@ -1,5 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
-import { JikePost, getPostDataJs } from './shared.js';
+import { JikePost, getPostDataJs } from './utils.js';
 
 /**
  * 即刻搜索适配器

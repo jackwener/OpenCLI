@@ -1,5 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
-import { loadDoubanBookHot } from './shared.js';
+import { loadDoubanBookHot } from './utils.js';
 
 cli({
   site: 'douban',

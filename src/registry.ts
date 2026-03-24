@@ -112,7 +112,4 @@ export function registerCommand(cmd: CliCommand): void {
   _registry.set(fullName(cmd), cmd);
 }
 
-// Re-export serialization helpers from their dedicated module
-export { serializeArg, serializeCommand, formatArgSummary, formatRegistryHelpText } from './serialization.js';
-export type { SerializedArg } from './serialization.js';
 

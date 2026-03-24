@@ -1,5 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
-import { requirePage, navigateToChat, bossFetch, findFriendByUid } from './common.js';
+import { requirePage, navigateToChat, bossFetch, findFriendByUid } from './utils.js';
 
 cli({
   site: 'boss',

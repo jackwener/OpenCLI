@@ -10,7 +10,7 @@
  *  .position-content → job being discussed + expectation
  */
 import { cli, Strategy } from '../../registry.js';
-import { requirePage, navigateToChat, findFriendByUid, clickCandidateInList } from './common.js';
+import { requirePage, navigateToChat, findFriendByUid, clickCandidateInList } from './utils.js';
 
 cli({
   site: 'boss',

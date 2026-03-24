@@ -26,7 +26,7 @@
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-export interface SnapshotOptions {
+export interface DomSnapshotOptions {
   /** Extra pixels beyond viewport to include (default 800) */
   viewportExpand?: number;
   /** Maximum DOM depth to traverse (default 50) */
@@ -175,7 +175,7 @@ export function getFormStateJs(): string {
  * - `|iframe|` — iframe content
  * - `|table|` — markdown table rendering
  */
-export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
+export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   const viewportExpand = opts.viewportExpand ?? 800;
   const maxDepth = Math.max(1, Math.min(opts.maxDepth ?? 50, 200));
   const interactiveOnly = opts.interactiveOnly ?? false;

@@ -1,6 +1,6 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { DOUBAO_DOMAIN, getDoubaoVisibleTurns } from './common.js';
+import { DOUBAO_DOMAIN, getDoubaoVisibleTurns } from './utils.js';
 
 export const readCommand = cli({
   site: 'doubao',

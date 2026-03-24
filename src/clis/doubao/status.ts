@@ -1,6 +1,6 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { DOUBAO_DOMAIN, DOUBAO_CHAT_URL, getDoubaoPageState } from './common.js';
+import { DOUBAO_DOMAIN, DOUBAO_CHAT_URL, getDoubaoPageState } from './utils.js';
 
 export const statusCommand = cli({
   site: 'doubao',
