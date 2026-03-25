@@ -2,6 +2,9 @@ import { cli, Strategy } from '../../registry.js';
 import { SelectorError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 import { chatwiseRequiredEnv } from './shared.js';
+import { buildChatwiseInjectTextJs } from './utils.js';
+
+const MESSAGE_WRAPPER_SELECTOR = '[class*="group/message"]';
 
 export const askCommand = cli({
   site: 'chatwise',
@@ -23,31 +26,13 @@ export const askCommand = cli({
     // Snapshot content length
     const beforeLen = await page.evaluate(`
       (function() {
-        const msgs = document.querySelectorAll('[data-message-id], [class*="message"], [class*="bubble"]');
+        const msgs = document.querySelectorAll(${JSON.stringify(MESSAGE_WRAPPER_SELECTOR)});
         return msgs.length;
       })()
     `);
 
     // Send message
-    const injected = await page.evaluate(`
-      (function(text) {
-        let composer = document.querySelector('textarea');
-        if (!composer) {
-          const editables = Array.from(document.querySelectorAll('[contenteditable="true"]'));
-          composer = editables.length > 0 ? editables[editables.length - 1] : null;
-        }
-        if (!composer) return false;
-        composer.focus();
-        if (composer.tagName === 'TEXTAREA') {
-          const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-          setter.call(composer, text);
-          composer.dispatchEvent(new Event('input', { bubbles: true }));
-        } else {
-          document.execCommand('insertText', false, text);
-        }
-        return true;
-      })(${JSON.stringify(text)})
-    `);
+    const injected = await page.evaluate(buildChatwiseInjectTextJs(text));
     if (!injected) throw new SelectorError('ChatWise input element');
 
     await page.wait(0.5);
@@ -63,17 +48,22 @@ export const askCommand = cli({
 
       const result = await page.evaluate(`
         (function(prevLen) {
-          const msgs = document.querySelectorAll('[data-message-id], [class*="message"], [class*="bubble"]');
+          const msgs = Array.from(document.querySelectorAll(${JSON.stringify(MESSAGE_WRAPPER_SELECTOR)}))
+            .map(node => (node.innerText || node.textContent || '').trim())
+            .filter(Boolean);
           if (msgs.length <= prevLen) return null;
-          const last = msgs[msgs.length - 1];
-          const text = last.innerText || last.textContent;
-          return text ? text.trim() : null;
+          const fresh = msgs.slice(prevLen).filter(text => text !== ${JSON.stringify(text)});
+          if (fresh.length === 0) return null;
+          return fresh[fresh.length - 1];
         })(${beforeLen})
       `);
 
       if (result) {
-        response = result;
-        break;
+        const next = String(result).trim();
+        if (next === response) {
+          break;
+        }
+        response = next;
       }
     }
 
