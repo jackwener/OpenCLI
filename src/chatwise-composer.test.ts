@@ -3,7 +3,7 @@ import {
   scoreChatwiseComposerCandidate,
   selectBestChatwiseComposer,
   type ChatwiseComposerCandidate,
-} from './utils.js';
+} from './clis/chatwise/utils.js';
 
 function candidate(overrides: Partial<ChatwiseComposerCandidate>): ChatwiseComposerCandidate {
   return {
