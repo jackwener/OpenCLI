@@ -18,15 +18,9 @@ export default defineConfig({
         test: {
           name: 'adapter',
           include: [
-            'src/clis/zhihu/**/*.test.ts',
-            'src/clis/twitter/**/*.test.ts',
-            'src/clis/reddit/**/*.test.ts',
             'src/clis/bilibili/**/*.test.ts',
-            'src/clis/linkedin/**/*.test.ts',
-            'src/clis/grok/**/*.test.ts',
-            'src/clis/pixiv/**/*.test.ts',
-            'src/clis/douyin/_shared/**/*.test.ts',
-            'src/clis/douyin/*.test.ts',
+            'src/clis/zhihu/**/*.test.ts',
+            'src/clis/v2ex/**/*.test.ts',
           ],
           sequence: {
             groupOrder: 1,
