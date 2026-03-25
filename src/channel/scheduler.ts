@@ -107,6 +107,7 @@ export class Scheduler {
       }
 
       // Deliver to all subscribers of this origin
+      let anyDelivered = false;
       if (fresh.length > 0) {
         const subs = this.registry.forOrigin(loop.origin);
         for (const sub of subs) {
@@ -117,15 +118,18 @@ export class Scheduler {
           }
           try {
             await sink.deliver(fresh);
+            anyDelivered = true;
           } catch (e) {
             console.error(`[channel] Sink "${sub.sink}" delivery failed:`, e);
           }
         }
       }
 
-      // Update cursor
-      this.cursors.set(loop.origin, result.cursor, fresh.length);
-      await this.cursors.save();
+      // Only advance cursor if at least one sink succeeded (or no events)
+      if (fresh.length === 0 || anyDelivered) {
+        this.cursors.set(loop.origin, result.cursor, fresh.length);
+        await this.cursors.save();
+      }
 
       // Reset backoff on success
       loop.consecutiveErrors = 0;

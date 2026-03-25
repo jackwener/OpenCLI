@@ -10,7 +10,7 @@
  *   github:owner/repo/issues   — all issue activity
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import type {
   ChannelEvent,
   ChannelSource,
@@ -50,12 +50,12 @@ type GitHubPollConfig = RepoPollConfig | IssuePollConfig | PullsPollConfig | Iss
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-function ghJson<T>(endpoint: string, _args: string[] = []): { data: T; pollInterval?: number } {
-  // Call gh api twice: once for headers (--include is unreliable to parse),
-  // once for JSON body. We use -i and split on the first '[' or '{' as
-  // the JSON boundary — gh outputs headers then a blank line then JSON.
-  const cmd = `gh api --include ${endpoint}`;
-  const raw = execSync(cmd, { encoding: 'utf8', timeout: 30_000 });
+function ghJson<T>(endpoint: string): { data: T; pollInterval?: number } {
+  // Use execFileSync to avoid shell injection — origin strings are user-supplied.
+  const raw = execFileSync('gh', ['api', '--include', endpoint], {
+    encoding: 'utf8',
+    timeout: 30_000,
+  });
 
   // Find the start of JSON body — first '[' or '{' that starts a line
   const jsonStart = raw.search(/^\s*[\[{]/m);

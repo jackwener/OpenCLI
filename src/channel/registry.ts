@@ -32,7 +32,7 @@ export class SubscriptionRegistry {
 
   async save(): Promise<void> {
     mkdirSync(dirname(this.path), { recursive: true });
-    const tmp = `${this.path}.tmp`;
+    const tmp = `${this.path}.${process.pid}.${Date.now()}.tmp`;
     await writeFile(tmp, JSON.stringify(this.subs, null, 2), 'utf8');
     await rename(tmp, this.path);
   }

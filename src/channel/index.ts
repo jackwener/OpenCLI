@@ -16,7 +16,7 @@ import { Command } from 'commander';
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { execSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 
 import { CursorStore } from './cursor-store.js';
 import { Dedup } from './dedup.js';
@@ -118,6 +118,19 @@ export function registerChannelCommand(program: Command): void {
         process.exit(1);
       }
 
+      // Validate interval
+      const intervalMs = parseInt(opts.interval, 10);
+      if (isNaN(intervalMs) || intervalMs < 0) {
+        console.error(`Invalid interval: ${opts.interval}. Must be a positive number in milliseconds.`);
+        process.exit(1);
+      }
+
+      // Validate webhook config
+      if (opts.sink === 'webhook' && !opts.webhookUrl) {
+        console.error('Webhook sink requires --webhook-url.');
+        process.exit(1);
+      }
+
       const sinkConfig: Record<string, unknown> = {};
       if (opts.sink === 'webhook' && opts.webhookUrl) {
         sinkConfig.url = opts.webhookUrl;
@@ -202,6 +215,19 @@ export function registerChannelCommand(program: Command): void {
     .option('-d, --daemon', 'Run in background')
     .action(async (opts: { daemon?: boolean }) => {
       if (opts.daemon) {
+        // Check for stale PID file
+        if (existsSync(PID_FILE)) {
+          const existingPid = parseInt(readFileSync(PID_FILE, 'utf8').trim(), 10);
+          try {
+            process.kill(existingPid, 0);
+            console.error(`Channel daemon already running (PID: ${existingPid}). Use 'opencli channel stop' first.`);
+            process.exit(1);
+          } catch {
+            // Stale PID, clean up
+            unlinkSync(PID_FILE);
+          }
+        }
+
         // Spawn detached child
         const child = spawn(process.execPath, [process.argv[1], 'channel', 'start'], {
           detached: true,

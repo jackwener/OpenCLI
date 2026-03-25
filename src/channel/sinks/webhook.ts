@@ -13,6 +13,11 @@ export class WebhookSink implements ChannelSink {
     if (typeof config.url !== 'string' || !config.url) {
       throw new Error('Webhook sink requires a "url" config.');
     }
+    // Validate URL scheme to prevent SSRF
+    const parsed = new URL(config.url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error(`Webhook sink only supports http/https URLs, got: ${parsed.protocol}`);
+    }
     this.url = config.url;
     if (config.headers && typeof config.headers === 'object') {
       this.headers = config.headers as Record<string, string>;
