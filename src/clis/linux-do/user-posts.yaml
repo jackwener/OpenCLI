@@ -1,0 +1,52 @@
+site: linux-do
+name: user-posts
+description: linux.do 用户的帖子
+domain: linux.do
+strategy: cookie
+browser: true
+
+args:
+  username:
+    positional: true
+    type: str
+    required: true
+    description: Username
+  limit:
+    type: int
+    default: 20
+    description: Number of posts
+
+pipeline:
+  - navigate: https://linux.do
+
+  - evaluate: |
+      (async () => {
+        const username = ${{ args.username | json }};
+        const toLocalTime = (utcStr) => {
+          if (!utcStr) return '';
+          const date = new Date(utcStr);
+          return Number.isNaN(date.getTime()) ? utcStr : date.toLocaleString();
+        };
+        const res = await fetch('/user_actions.json?username=' + encodeURIComponent(username) + '&filter=' + ${{ args.limit | default(20) }}+'&offset=0', { credentials: 'include' });
+        if (!res.ok) throw new Error('HTTP ' + res.status + ' - 请先登录 linux.do');
+        let data;
+        try { data = await res.json(); } catch { throw new Error('响应不是有效 JSON - 请先登录 linux.do'); }
+        const actions = data?.user_actions || [];
+        return actions.slice(0, ${{ args.limit | default(20) }}).map(a => ({
+          author: a.acting_username || a.username || '',
+          title: a.title || '',
+          content: strip(a.excerpt).slice(0, 200),
+          created_at: toLocalTime(a.created_at),
+          url: 'https://linux.do/t/topic/' + a.topic_id + '/' + a.post_number,
+        }));
+      })()
+
+  - map:
+      index: ${{ index + 1 }}
+      topic_user: ${{ item.author }}
+      topic: ${{ item.title }}
+      reply: ${{ item.content }}
+      time: ${{ item.created_at }}
+      url: ${{ item.url }}
+
+columns: [index, topic_user, topic, reply, time, url]

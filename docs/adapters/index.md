@@ -25,7 +25,7 @@ Run `opencli list` for the live registry.
 | **[jike](/adapters/browser/jike)** | `feed` `search` `post` `topic` `user` `create` `comment` `like` `repost` `notifications` | 🔐 Browser |
 | **[jimeng](/adapters/browser/jimeng)** | `generate` `history` | 🔐 Browser |
 | **[yollomi](/adapters/browser/yollomi)** | `generate` `video` `edit` `upload` `models` `remove-bg` `upscale` `face-swap` `restore` `try-on` `background` `object-remover` | 🔐 Browser |
-| **[linux-do](/adapters/browser/linux-do)** | `hot` `latest` `categories` `category` `search` `topic` | 🔐 Browser |
+| **[linux-do](/adapters/browser/linux-do)** | `feed` `categories` `tags` `search` `topic` `user-topics` `user-posts` | 🔐 Browser |
 | **[chaoxing](/adapters/browser/chaoxing)** | `assignments` `exams` | 🔐 Browser |
 | **[grok](/adapters/browser/grok)** | `ask` | 🔐 Browser |
 | **[doubao](/adapters/browser/doubao)** | `status` `new` `send` `read` `ask` | 🔐 Browser |

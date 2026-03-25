@@ -80,28 +80,32 @@ describe('login-required commands — graceful failure', () => {
   }, 60_000);
 
   // ── linux-do (requires login — all endpoints need authentication) ──
-  it('linux-do hot fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['linux-do', 'hot', '--limit', '3', '-f', 'json'], 'linux-do hot');
-  }, 60_000);
-
-  it('linux-do latest fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['linux-do', 'latest', '--limit', '3', '-f', 'json'], 'linux-do latest');
+  it('linux-do feed fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['linux-do', 'feed', '--limit', '3', '-f', 'json'], 'linux-do feed');
   }, 60_000);
 
   it('linux-do categories fails gracefully without login', async () => {
     await expectGracefulAuthFailure(['linux-do', 'categories', '--limit', '3', '-f', 'json'], 'linux-do categories');
   }, 60_000);
 
-  it('linux-do category fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['linux-do', 'category', '--slug', 'general', '--id', '1', '--limit', '3', '-f', 'json'], 'linux-do category');
+  it('linux-do tags fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['linux-do', 'tags', '--limit', '3', '-f', 'json'], 'linux-do tags');
   }, 60_000);
 
   it('linux-do topic fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['linux-do', 'topic', '--id', '1', '-f', 'json'], 'linux-do topic');
+    await expectGracefulAuthFailure(['linux-do', 'topic', '1', '-f', 'json'], 'linux-do topic');
   }, 60_000);
 
   it('linux-do search fails gracefully without login', async () => {
     await expectGracefulAuthFailure(['linux-do', 'search', 'test', '--limit', '3', '-f', 'json'], 'linux-do search');
+  }, 60_000);
+
+  it('linux-do user-topics fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['linux-do', 'user-topics', 'test', '--limit', '3', '-f', 'json'], 'linux-do user-topics');
+  }, 60_000);
+
+  it('linux-do user-posts fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['linux-do', 'user-posts', 'test', '--limit', '3', '-f', 'json'], 'linux-do user-posts');
   }, 60_000);
 
   // ── xiaohongshu (requires login) ──

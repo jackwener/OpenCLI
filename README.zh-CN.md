@@ -166,7 +166,7 @@ npm install -g @jackwener/opencli@latest
 | **jike** | `feed` `search` `create` `like` `comment` `repost` `notifications` `post` `topic` `user` | 浏览器 |
 | **jimeng** | `generate` `history` | 浏览器 |
 | **yollomi** | `generate` `video` `edit` `upload` `models` `remove-bg` `upscale` `face-swap` `restore` `try-on` `background` `object-remover` | 浏览器 |
-| **linux-do** | `hot` `latest` `search` `categories` `category` `topic` | 公开 |
+| **linux-do** | `feed` `categories` `tags` `search` `topic` `user-topics` `user-posts` | 浏览器 |
 | **stackoverflow** | `hot` `search` `bounties` `unanswered` | 公开 |
 | **steam** | `top-sellers` | 公开 |
 | **weread** | `shelf` `search` `book` `highlights` `notes` `notebooks` `ranking` | 浏览器 |
