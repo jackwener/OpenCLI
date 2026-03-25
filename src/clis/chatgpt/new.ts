@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 import { cli, Strategy } from '../../registry.js';
-import { ConfigError } from '../../errors.js';
+import { ConfigError, getErrorMessage } from '../../errors.js';
 import type { IPage } from '../../types.js';
 
 export const newCommand = cli({
@@ -22,8 +22,8 @@ export const newCommand = cli({
       execSync("osascript -e 'delay 0.5'");
       execSync("osascript -e 'tell application \"System Events\" to keystroke \"n\" using command down'");
       return [{ Status: 'Success' }];
-    } catch (err: any) {
-      return [{ Status: "Error: " + err.message }];
+    } catch (err) {
+      return [{ Status: "Error: " + getErrorMessage(err) }];
     }
   },
 });

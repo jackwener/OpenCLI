@@ -6,6 +6,7 @@ import { spawnSync, execFileSync } from 'node:child_process';
 import yaml from 'js-yaml';
 import chalk from 'chalk';
 import { log } from './logger.js';
+import { getErrorMessage } from './errors.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,8 +42,8 @@ export function loadExternalClis(): ExternalCliConfig[] {
       const parsed = (yaml.load(raw) || []) as ExternalCliConfig[];
       for (const item of parsed) configs.set(item.name, item);
     }
-  } catch (err: any) {
-    log.warn(`Failed to parse built-in external-clis.yaml: ${err.message}`);
+  } catch (err) {
+    log.warn(`Failed to parse built-in external-clis.yaml: ${getErrorMessage(err)}`);
   }
 
   // 2. Load user custom
@@ -55,8 +56,8 @@ export function loadExternalClis(): ExternalCliConfig[] {
         configs.set(item.name, item); // Overwrite built-in if duplicated
       }
     }
-  } catch (err: any) {
-    log.warn(`Failed to parse user external-clis.yaml: ${err.message}`);
+  } catch (err) {
+    log.warn(`Failed to parse user external-clis.yaml: ${getErrorMessage(err)}`);
   }
 
   return Array.from(configs.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -127,8 +128,8 @@ function runInstallCommand(cmd: string): void {
 
   try {
     execFileSync(binary, args, { stdio: 'inherit' });
-  } catch (err: any) {
-    if (shouldRetryWithCmdShim(binary, err)) {
+  } catch (err: unknown) {
+    if (shouldRetryWithCmdShim(binary, err as NodeJS.ErrnoException)) {
       execFileSync(`${binary}.cmd`, args, { stdio: 'inherit' });
       return;
     }
@@ -156,8 +157,8 @@ export function installExternalCli(cli: ExternalCliConfig): boolean {
     runInstallCommand(cmd);
     console.log(chalk.green(`✅ Installed '${cli.name}' successfully.\n`));
     return true;
-  } catch (err: any) {
-    console.error(chalk.red(`❌ Failed to install '${cli.name}': ${err.message}`));
+  } catch (err) {
+    console.error(chalk.red(`❌ Failed to install '${cli.name}': ${getErrorMessage(err)}`));
     return false;
   }
 }

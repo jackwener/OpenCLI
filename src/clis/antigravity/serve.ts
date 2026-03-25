@@ -13,6 +13,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { CDPBridge } from '../../browser/cdp.js';
 import type { IPage } from '../../types.js';
+import { getErrorMessage } from '../../errors.js';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -461,15 +462,17 @@ export async function startServe(opts: { port?: number } = {}): Promise<void> {
     cdp = new CDPBridge();
     try {
       page = await cdp.connect({ timeout: 15_000 });
-    } catch (err: any) {
+    } catch (err: unknown) {
       cdp = null;
-      const isRefused = err?.cause?.code === 'ECONNREFUSED' || err?.message?.includes('ECONNREFUSED');
+      const errMsg = getErrorMessage(err);
+      const cause = err instanceof Error ? (err as any).cause : undefined;
+      const isRefused = cause?.code === 'ECONNREFUSED' || errMsg.includes('ECONNREFUSED');
       throw new Error(
         isRefused
           ? `Cannot connect to Antigravity at ${endpoint}.\n` +
             '  1. Make sure Antigravity is running\n' +
             '  2. Launch with: --remote-debugging-port=9224'
-          : `CDP connection failed: ${err.message}`
+          : `CDP connection failed: ${errMsg}`
       );
     }
 

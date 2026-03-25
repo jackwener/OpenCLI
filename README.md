@@ -130,7 +130,7 @@ Run `opencli list` for the live registry.
 | **notion** | `status` `search` `read` `new` `write` `sidebar` `favorites` `export` | Desktop |
 | **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | Desktop |
 | **v2ex** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | Public / Browser |
-| **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` | Browser |
+| **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` `fund-holdings` `fund-snapshot` | Browser |
 | **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` | Desktop |
 | **chatgpt** | `status` `new` `send` `read` `ask` | Desktop |
 | **xiaohongshu** | `search` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | Browser |
@@ -149,9 +149,11 @@ Run `opencli list` for the live registry.
 | **arxiv** | `search` `paper` | Public |
 | **wikipedia** | `search` `summary` `random` `trending` | Public |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` | Public |
+| **jd** | `item` | Browser |
 | **linkedin** | `search` | Browser |
 | **reuters** | `search` | Browser |
 | **smzdm** | `search` | Browser |
+| **web** | `read` | Browser |
 | **weibo** | `hot` `search` | Browser |
 | **yahoo-finance** | `quote` | Browser |
 | **sinafinance** | `news` | 🌐 Public |

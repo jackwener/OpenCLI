@@ -12,6 +12,7 @@ import { URL } from 'node:url';
 import type { ProgressBar } from './progress.js';
 import { isBinaryInstalled } from '../external.js';
 import type { BrowserCookie } from '../types.js';
+import { getErrorMessage } from '../errors.js';
 
 export type { BrowserCookie } from '../types.js';
 
@@ -339,8 +340,8 @@ export async function saveDocument(
 
     fs.writeFileSync(destPath, output, 'utf-8');
     return { success: true, size: Buffer.byteLength(output, 'utf-8') };
-  } catch (err: any) {
-    return { success: false, size: 0, error: err.message };
+  } catch (err) {
+    return { success: false, size: 0, error: getErrorMessage(err) };
   }
 }
 
