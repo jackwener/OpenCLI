@@ -1,0 +1,27 @@
+<svg width="1480" height="900" viewBox="0 0 1480 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1480" height="900" fill="#0B1220"/>
+  <rect x="48" y="44" width="1384" height="812" rx="28" fill="#111827"/>
+  <rect x="48" y="44" width="1384" height="812" rx="28" stroke="#334155" stroke-width="2"/>
+  <circle cx="94" cy="90" r="10" fill="#EF4444"/>
+  <circle cx="126" cy="90" r="10" fill="#F59E0B"/>
+  <circle cx="158" cy="90" r="10" fill="#22C55E"/>
+  <text x="210" y="97" fill="#CBD5E1" font-family="Consolas, 'Courier New', monospace" font-size="24">PR #408 verification: browser websocket fallback + explicit --browser-cdp mode</text>
+
+  <rect x="86" y="138" width="1308" height="320" rx="18" fill="#020617"/>
+  <rect x="86" y="138" width="1308" height="320" rx="18" stroke="#1E293B" stroke-width="2"/>
+  <text x="114" y="188" fill="#93C5FD" font-family="Consolas, 'Courier New', monospace" font-size="28">$ curl http://127.0.0.1:9222/json</text>
+  <text x="114" y="236" fill="#FCA5A5" font-family="Consolas, 'Courier New', monospace" font-size="28">HTTP/1.1 404 Not Found</text>
+  <text x="114" y="284" fill="#E2E8F0" font-family="Consolas, 'Courier New', monospace" font-size="28">$ type "%LOCALAPPDATA%\Google\Chrome\User Data\DevToolsActivePort"</text>
+  <text x="114" y="332" fill="#A7F3D0" font-family="Consolas, 'Courier New', monospace" font-size="28">9222</text>
+  <text x="114" y="380" fill="#A7F3D0" font-family="Consolas, 'Courier New', monospace" font-size="28">/devtools/browser/abc-123-example</text>
+  <text x="114" y="426" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="24">Newer Chrome remote debugging sessions can expose a browser-level websocket even when the classic /json target list is unavailable.</text>
+
+  <rect x="86" y="500" width="1308" height="290" rx="18" fill="#020617"/>
+  <rect x="86" y="500" width="1308" height="290" rx="18" stroke="#1E293B" stroke-width="2"/>
+  <text x="114" y="550" fill="#93C5FD" font-family="Consolas, 'Courier New', monospace" font-size="28">$ opencli cascade https://news.ycombinator.com --browser-cdp</text>
+  <text x="114" y="598" fill="#E2E8F0" font-family="Consolas, 'Courier New', monospace" font-size="28">Strategy Cascade: cookie (30% confidence)</text>
+  <text x="114" y="646" fill="#FCA5A5" font-family="Consolas, 'Courier New', monospace" font-size="28">  ❌ public</text>
+  <text x="114" y="694" fill="#FCA5A5" font-family="Consolas, 'Courier New', monospace" font-size="28">  ❌ cookie</text>
+  <text x="114" y="742" fill="#FCA5A5" font-family="Consolas, 'Courier New', monospace" font-size="28">  ❌ header</text>
+  <text x="114" y="778" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="24">The command reached browser execution through direct CDP mode instead of failing at the daemon / extension connection stage.</text>
+</svg>
