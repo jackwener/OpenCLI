@@ -138,7 +138,7 @@ async function getAutomationWindow(workspace: string): Promise<number> {
   // Create a new window with a data: URI that New Tab Override extensions cannot intercept.
   // Using about:blank would be hijacked by extensions like "New Tab Override".
   const win = await chrome.windows.create({
-    url: 'data:text/html,<html></html>',
+    url: BLANK_PAGE,
     focused: false,
     width: 1280,
     height: 900,
@@ -229,9 +229,17 @@ async function handleCommand(cmd: Command): Promise<Result> {
 
 // ─── Action handlers ─────────────────────────────────────────────────
 
-/** Check if a URL can be attached via CDP — only allow http(s) schemes. */
+/** Internal blank page used when no user URL is provided. */
+const BLANK_PAGE = 'data:text/html,<html></html>';
+
+/** Check if a URL can be attached via CDP — only allow http(s) and our internal blank page. */
 function isDebuggableUrl(url?: string): boolean {
   if (!url) return true;  // empty/undefined = tab still loading, allow it
+  return url.startsWith('http://') || url.startsWith('https://') || url === BLANK_PAGE;
+}
+
+/** Check if a URL is safe for user-facing navigation (http/https only). */
+function isSafeNavigationUrl(url: string): boolean {
   return url.startsWith('http://') || url.startsWith('https://');
 }
 
@@ -292,7 +300,7 @@ async function resolveTabId(tabId: number | undefined, workspace: string): Promi
   // Try to reuse by navigating to a data: URI (not interceptable by New Tab Override).
   const reuseTab = tabs.find(t => t.id);
   if (reuseTab?.id) {
-    await chrome.tabs.update(reuseTab.id, { url: 'data:text/html,<html></html>' });
+    await chrome.tabs.update(reuseTab.id, { url: BLANK_PAGE });
     await new Promise(resolve => setTimeout(resolve, 300));
     try {
       const updated = await chrome.tabs.get(reuseTab.id);
@@ -304,7 +312,7 @@ async function resolveTabId(tabId: number | undefined, workspace: string): Promi
   }
 
   // Fallback: create a new tab
-  const newTab = await chrome.tabs.create({ windowId, url: 'data:text/html,<html></html>', active: true });
+  const newTab = await chrome.tabs.create({ windowId, url: BLANK_PAGE, active: true });
   if (!newTab.id) throw new Error('Failed to create tab in automation window');
   return newTab.id;
 }
@@ -338,8 +346,8 @@ async function handleExec(cmd: Command, workspace: string): Promise<Result> {
 
 async function handleNavigate(cmd: Command, workspace: string): Promise<Result> {
   if (!cmd.url) return { id: cmd.id, ok: false, error: 'Missing url' };
-  if (!cmd.url.startsWith('http://') && !cmd.url.startsWith('https://')) {
-    return { id: cmd.id, ok: false, error: `Blocked URL scheme — only http:// and https:// are allowed` };
+  if (!isSafeNavigationUrl(cmd.url)) {
+    return { id: cmd.id, ok: false, error: 'Blocked URL scheme -- only http:// and https:// are allowed' };
   }
   const tabId = await resolveTabId(cmd.tabId, workspace);
 
@@ -437,11 +445,11 @@ async function handleTabs(cmd: Command, workspace: string): Promise<Result> {
       return { id: cmd.id, ok: true, data };
     }
     case 'new': {
-      if (cmd.url && !cmd.url.startsWith('http://') && !cmd.url.startsWith('https://')) {
-        return { id: cmd.id, ok: false, error: `Blocked URL scheme — only http:// and https:// are allowed` };
+      if (cmd.url && !isSafeNavigationUrl(cmd.url)) {
+        return { id: cmd.id, ok: false, error: 'Blocked URL scheme -- only http:// and https:// are allowed' };
       }
       const windowId = await getAutomationWindow(workspace);
-      const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? 'data:text/html,<html></html>', active: true });
+      const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
       return { id: cmd.id, ok: true, data: { tabId: tab.id, url: tab.url } };
     }
     case 'close': {
@@ -462,6 +470,11 @@ async function handleTabs(cmd: Command, workspace: string): Promise<Result> {
       if (cmd.index === undefined && cmd.tabId === undefined)
         return { id: cmd.id, ok: false, error: 'Missing index or tabId' };
       if (cmd.tabId !== undefined) {
+        const session = automationSessions.get(workspace);
+        const tab = await chrome.tabs.get(cmd.tabId);
+        if (!session || tab.windowId !== session.windowId) {
+          return { id: cmd.id, ok: false, error: `Tab ${cmd.tabId} is not in the automation window` };
+        }
         await chrome.tabs.update(cmd.tabId, { active: true });
         return { id: cmd.id, ok: true, data: { selected: cmd.tabId } };
       }

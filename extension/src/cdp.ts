@@ -8,10 +8,13 @@
 
 const attached = new Set<number>();
 
-/** Check if a URL can be attached via CDP — only allow http(s) schemes. */
+/** Internal blank page used when no user URL is provided. */
+const BLANK_PAGE = 'data:text/html,<html></html>';
+
+/** Check if a URL can be attached via CDP — only allow http(s) and our internal blank page. */
 function isDebuggableUrl(url?: string): boolean {
   if (!url) return true;  // empty/undefined = tab still loading, allow it
-  return url.startsWith('http://') || url.startsWith('https://');
+  return url.startsWith('http://') || url.startsWith('https://') || url === BLANK_PAGE;
 }
 
 async function ensureAttached(tabId: number): Promise<void> {
