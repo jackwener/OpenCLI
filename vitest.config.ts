@@ -22,6 +22,7 @@ export default defineConfig({
             'src/clis/twitter/**/*.test.ts',
             'src/clis/reddit/**/*.test.ts',
             'src/clis/bilibili/**/*.test.ts',
+            'src/clis/chatwise/**/*.test.ts',
             'src/clis/linkedin/**/*.test.ts',
             'src/clis/grok/**/*.test.ts',
             'src/clis/pixiv/**/*.test.ts',
