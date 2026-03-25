@@ -9,8 +9,8 @@ import type { IPage } from '../../types.js';
  * pushState + popstate. A second attempt is enough for the intermittent cases
  * reported in issue #353 while keeping the flow narrowly scoped.
  */
-async function navigateToSearch(page: Pick<IPage, 'evaluate' | 'wait'>, query: string, type: string): Promise<void> {
-  const searchUrl = JSON.stringify(`/search?q=${encodeURIComponent(query)}&f=${type}`);
+async function navigateToSearch(page: Pick<IPage, 'evaluate' | 'wait'>, query: string, filter: string): Promise<void> {
+  const searchUrl = JSON.stringify(`/search?q=${encodeURIComponent(query)}&f=${filter}`);
   let lastPath = '';
 
   for (let attempt = 1; attempt <= 2; attempt++) {
