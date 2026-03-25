@@ -465,7 +465,7 @@ export async function startServe(opts: { port?: number } = {}): Promise<void> {
     } catch (err: unknown) {
       cdp = null;
       const errMsg = getErrorMessage(err);
-      const cause = err instanceof Error ? (err as any).cause : undefined;
+      const cause = err instanceof Error ? (err.cause as Record<string, unknown> | undefined) : undefined;
       const isRefused = cause?.code === 'ECONNREFUSED' || errMsg.includes('ECONNREFUSED');
       throw new Error(
         isRefused

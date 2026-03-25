@@ -119,8 +119,9 @@ export function parseCommand(cmd: string): { binary: string; args: string[] } {
   return { binary, args };
 }
 
-function shouldRetryWithCmdShim(binary: string, err: NodeJS.ErrnoException): boolean {
-  return os.platform() === 'win32' && !path.extname(binary) && err.code === 'ENOENT';
+function shouldRetryWithCmdShim(binary: string, err: unknown): boolean {
+  const code = err instanceof Error ? (err as NodeJS.ErrnoException).code : undefined;
+  return os.platform() === 'win32' && !path.extname(binary) && code === 'ENOENT';
 }
 
 function runInstallCommand(cmd: string): void {
@@ -128,8 +129,8 @@ function runInstallCommand(cmd: string): void {
 
   try {
     execFileSync(binary, args, { stdio: 'inherit' });
-  } catch (err: unknown) {
-    if (shouldRetryWithCmdShim(binary, err as NodeJS.ErrnoException)) {
+  } catch (err) {
+    if (shouldRetryWithCmdShim(binary, err)) {
       execFileSync(`${binary}.cmd`, args, { stdio: 'inherit' });
       return;
     }
