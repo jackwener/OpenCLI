@@ -10,7 +10,7 @@
  *   linux-do feed --category 94 --tag 4 --view top --period monthly
  */
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '../../errors.js';
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy, type Arg, type CommandArgs } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import { LINUX_DO_CATEGORIES, type LinuxDoCategoryRecord } from './categories.data.js';
 import { LINUX_DO_TAGS, type LinuxDoTagRecord } from './tags.data.js';
@@ -141,9 +141,20 @@ function findMatchingCategory(records: ResolvedLinuxDoCategory[], value: string)
   const normalized = normalizeLookupValue(value);
   return /^\d+$/.test(raw)
     ? records.find((item) => item.id === Number(raw)) ?? null
-    : records.find((item) => normalizeLookupValue(item.name) === normalized)
-      ?? records.find((item) => normalizeLookupValue(item.slug) === normalized)
+    : records.find((item) => categoryLookupKeys(item).includes(normalized))
       ?? null;
+}
+
+function categoryLookupKeys(category: ResolvedLinuxDoCategory): string[] {
+  const keys = [category.name, category.slug];
+  if (category.parent) {
+    keys.push(
+      `${category.parent.name} / ${category.name}`,
+      `${category.parent.name}/${category.name}`,
+      `${category.parent.name}, ${category.name}`,
+    );
+  }
+  return keys.map(normalizeLookupValue);
 }
 
 function toCategoryRecord(raw: RawLinuxDoCategory, parent: LinuxDoCategoryRecord | null): ResolvedLinuxDoCategory {
@@ -223,11 +234,16 @@ function toLocalTime(utcStr: string): string {
   return d.toLocaleString();
 }
 
+function normalizeReplyCount(postsCount: unknown): number {
+  const count = typeof postsCount === 'number' ? postsCount : 1;
+  return Math.max(0, count - 1);
+}
+
 function topicListRichFromJson(data: any, limit: number): TopicListItem[] {
   const topics: any[] = data?.topic_list?.topics ?? [];
   return topics.slice(0, limit).map((t: any) => ({
     title: t.fancy_title ?? t.title ?? '',
-    replies: t.posts_count ?? 0,
+    replies: normalizeReplyCount(t.posts_count),
     created: toLocalTime(t.created_at),
     likes: t.like_count ?? 0,
     views: t.views ?? 0,
@@ -326,7 +342,7 @@ async function resolveFeedRequest(page: IPage | null, kwargs: Record<string, any
       .join('/')
     : '';
 
-  const tagSegment = tag ? `${tag.id}-tag/${tag.id}` : '';
+  const tagSegment = tag ? `${encodeURIComponent(tag.slug || `${tag.id}-tag`)}/${tag.id}` : '';
 
   const basePath = category && tag
     ? `/tags/c/${categorySegments}/${tagSegment}`
@@ -342,6 +358,63 @@ async function resolveFeedRequest(page: IPage | null, kwargs: Record<string, any
   };
 }
 
+export const LINUX_DO_FEED_ARGS: Arg[] = [
+  {
+    name: 'view',
+    type: 'str',
+    default: 'latest',
+    help: 'View type',
+    choices: ['latest', 'hot', 'top'],
+  },
+  {
+    name: 'tag',
+    type: 'str',
+    help: 'Tag name, slug, or id',
+  },
+  {
+    name: 'category',
+    type: 'str',
+    help: 'Category name, slug, id, or parent/name path',
+  },
+  { name: 'limit', type: 'int', default: 20, help: 'Number of items (per_page)' },
+  {
+    name: 'order',
+    type: 'str',
+    default: 'default',
+    help: 'Sort order',
+    choices: [
+      'default',
+      'created',
+      'activity',
+      'views',
+      'posts',
+      'category',
+      'likes',
+      'op_likes',
+      'posters',
+    ],
+  },
+  { name: 'ascending', type: 'boolean', default: false, help: 'Sort ascending (default: desc)' },
+  {
+    name: 'period',
+    type: 'str',
+    help: 'Time period (only for --view top)',
+    choices: ['all', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'],
+  },
+];
+
+export async function executeLinuxDoFeed(page: IPage | null, kwargs: CommandArgs): Promise<TopicListItem[]> {
+  const limit = (kwargs.limit || 20) as number;
+  await ensureLinuxDoHome(page);
+  const request = await resolveFeedRequest(page, kwargs);
+  const data = await fetchLinuxDoJson(page, request.url, { skipNavigate: true });
+  return topicListRichFromJson(data, limit);
+}
+
+export function buildLinuxDoCompatFooter(replacement: string): string {
+  return `Deprecated compatibility command. Prefer: ${replacement}`;
+}
+
 cli({
   site: 'linux-do',
   name: 'feed',
@@ -350,57 +423,8 @@ cli({
   strategy: Strategy.COOKIE,
   browser: true,
   columns: ['title', 'replies', 'created', 'likes', 'views', 'url'],
-  args: [
-    {
-      name: 'view',
-      type: 'str',
-      default: 'latest',
-      help: 'View type',
-      choices: ['latest', 'hot', 'top'],
-    },
-    {
-      name: 'tag',
-      type: 'str',
-      help: 'Tag name, slug, or id',
-    },
-    {
-      name: 'category',
-      type: 'str',
-      help: 'Category name, slug, or id',
-    },
-    { name: 'limit', type: 'int', default: 20, help: 'Number of items (per_page)' },
-    {
-      name: 'order',
-      type: 'str',
-      default: 'default',
-      help: 'Sort order',
-      choices: [
-        'default',
-        'created',
-        'activity',
-        'views',
-        'posts',
-        'category',
-        'likes',
-        'op_likes',
-        'posters',
-      ],
-    },
-    { name: 'ascending', type: 'boolean', default: false, help: 'Sort ascending (default: desc)' },
-    {
-      name: 'period',
-      type: 'str',
-      help: 'Time period (only for --view top)',
-      choices: ['all', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'],
-    },
-  ],
-  func: async (page, kwargs) => {
-    const limit = (kwargs.limit || 20) as number;
-    await ensureLinuxDoHome(page);
-    const request = await resolveFeedRequest(page, kwargs);
-    const data = await fetchLinuxDoJson(page, request.url, { skipNavigate: true });
-    return topicListRichFromJson(data, limit);
-  },
+  args: LINUX_DO_FEED_ARGS,
+  func: executeLinuxDoFeed,
 });
 
 export const __test__ = {

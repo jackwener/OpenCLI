@@ -19,7 +19,8 @@
 Browse topic listings. Defaults to latest topics when called with no arguments.
 
 - Supports filtering by `--tag`, `--category`, or both
-- `--tag` and `--category` accept name, slug, or ID
+- `--tag` accepts tag name, slug, or ID
+- `--category` accepts category name, slug, ID, or `Parent / Child` path for sub-categories
 - Use `--view` to switch between latest / hot / top
 
 ### Basic
@@ -75,7 +76,7 @@ opencli linux-do feed --category develop
 opencli linux-do feed --category 4
 
 # Sub-category
-opencli linux-do feed --category "开发调优, Lv1"
+opencli linux-do feed --category "开发调优 / Lv1"
 opencli linux-do feed --category "网盘资源"
 
 # Category + hot / top view
@@ -116,6 +117,8 @@ opencli linux-do categories
 opencli linux-do categories --subcategories
 opencli linux-do categories --limit 50
 ```
+
+When `--subcategories` is enabled, sub-categories are rendered as `Parent / Child` so the `name` value can be copied directly into `opencli linux-do feed --category ...`.
 
 Output columns: `name`, `slug`, `id`, `topics`, `description`
 
@@ -178,6 +181,24 @@ opencli linux-do user-posts neo --limit 10
 ```
 
 Output columns: `index`, `topic_user`, `topic`, `reply`, `time`, `url`
+
+## Compatibility
+
+The legacy commands below are still available as compatibility wrappers while `feed` becomes the canonical entrypoint:
+
+```bash
+opencli linux-do latest
+opencli linux-do hot --period weekly
+opencli linux-do category develop 4
+```
+
+Preferred modern forms:
+
+```bash
+opencli linux-do feed --view latest
+opencli linux-do feed --view top --period weekly
+opencli linux-do feed --category 4
+```
 
 ## Prerequisites
 

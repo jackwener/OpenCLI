@@ -41,12 +41,13 @@ pipeline:
           })
           .replace(/\s+/g, ' ')
           .trim();
-        const res = await fetch('/user_actions.json?username=' + encodeURIComponent(username) + '&filter=' + ${{ args.limit | default(20) }}+'&offset=0', { credentials: 'include' });
+        const limit = ${{ args.limit | default(20) }};
+        const res = await fetch('/user_actions.json?username=' + encodeURIComponent(username) + '&filter=5&offset=0&limit=' + limit, { credentials: 'include' });
         if (!res.ok) throw new Error('HTTP ' + res.status + ' - 请先登录 linux.do');
         let data;
         try { data = await res.json(); } catch { throw new Error('响应不是有效 JSON - 请先登录 linux.do'); }
         const actions = data?.user_actions || [];
-        return actions.slice(0, ${{ args.limit | default(20) }}).map(a => ({
+        return actions.slice(0, limit).map(a => ({
           author: a.acting_username || a.username || '',
           title: a.title || '',
           content: strip(a.excerpt).slice(0, 200),

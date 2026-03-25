@@ -17,7 +17,7 @@ describe('linux-do feed metadata resolution', () => {
       limit: 20,
     });
 
-    expect(request.url).toBe('/tag/9999-tag/9999.json?per_page=20');
+    expect(request.url).toBe('/tag/fresh-tag/9999.json?per_page=20');
   });
 
   it('uses live category metadata with parent paths for subcategories', async () => {
@@ -57,6 +57,43 @@ describe('linux-do feed metadata resolution', () => {
     expect(request.url).toBe('/c/parent/fresh-child/11/l/hot.json?per_page=20');
   });
 
+  it('accepts parent/name category paths for subcategories', async () => {
+    __test__.setLiveMetadataForTests({
+      categories: [
+        {
+          id: 10,
+          name: 'Parent',
+          description: '',
+          slug: 'parent',
+          parentCategoryId: null,
+          parent: null,
+        },
+        {
+          id: 11,
+          name: 'Fresh Child',
+          description: '',
+          slug: 'fresh-child',
+          parentCategoryId: 10,
+          parent: {
+            id: 10,
+            name: 'Parent',
+            description: '',
+            slug: 'parent',
+            parentCategoryId: null,
+          },
+        },
+      ],
+    });
+
+    const request = await __test__.resolveFeedRequest(null, {
+      category: 'Parent / Fresh Child',
+      view: 'latest',
+      limit: 20,
+    });
+
+    expect(request.url).toBe('/c/parent/fresh-child/11.json?per_page=20');
+  });
+
   it('falls back to the bundled snapshot when live metadata is unavailable', async () => {
     const request = await __test__.resolveFeedRequest(null, {
       tag: 'ChatGPT',
@@ -66,7 +103,7 @@ describe('linux-do feed metadata resolution', () => {
       limit: 20,
     });
 
-    expect(request.url).toContain('/tags/c/develop/4/3-tag/3/l/top.json');
+    expect(request.url).toContain('/tags/c/develop/4/chatgpt/3/l/top.json');
     expect(request.url).toContain('per_page=20');
     expect(request.url).toContain('period=monthly');
   });

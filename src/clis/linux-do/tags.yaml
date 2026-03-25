@@ -36,6 +36,6 @@ pipeline:
       count: ${{ item.count }}
       slug: ${{ item.slug }}
       id: ${{ item.id }}
-      url: https://linux.do/tag/${{ item.name }}
+      url: https://linux.do/tag/${{ item.slug }}
 
 columns: [rank, name, count, url]

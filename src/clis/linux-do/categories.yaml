@@ -27,6 +27,7 @@ pipeline:
         const cats = data?.category_list?.categories || [];
         const showSub = ${{ args.subcategories }};
         const results = [];
+        const limit = ${{ args.limit }};
         for (const c of cats.slice(0, ${{ args.limit }})) {
           results.push({
             name: c.name,
@@ -35,6 +36,7 @@ pipeline:
             topics: c.topic_count,
             description: (c.description_text || '').slice(0, 80),
           });
+          if (results.length >= limit) break;
           if (showSub && c.subcategory_ids && c.subcategory_ids.length > 0) {
             const subRes = await fetch('/categories.json?parent_category_id=' + c.id, { credentials: 'include' });
             if (subRes.ok) {
@@ -43,15 +45,17 @@ pipeline:
               const subCats = subData?.category_list?.categories || [];
               for (const sc of subCats) {
                 results.push({
-                  name: '  └ ' + sc.name,
+                  name: c.name + ' / ' + sc.name,
                   slug: sc.slug,
                   id: sc.id,
                   topics: sc.topic_count,
                   description: (sc.description_text || '').slice(0, 80),
                 });
+                if (results.length >= limit) break;
               }
             }
           }
+          if (results.length >= limit) break;
         }
         return results;
       })()
