@@ -1,5 +1,5 @@
-name: Setup Chrome + xvfb
-description: Install real Chrome and xvfb virtual display for headed browser testing
+name: Setup Chrome
+description: Install real Chrome for browser testing (with xvfb on Linux)
 
 outputs:
   chrome-path:
@@ -19,8 +19,9 @@ runs:
       shell: bash
       run: |
         echo "Chrome path: ${{ steps.setup-chrome.outputs.chrome-path }}"
-        ${{ steps.setup-chrome.outputs.chrome-path }} --version
+        "${{ steps.setup-chrome.outputs.chrome-path }}" --version
 
-    - name: Install xvfb for headed mode
+    - name: Install xvfb (Linux only)
+      if: runner.os == 'Linux'
       shell: bash
       run: sudo apt-get install -y xvfb
