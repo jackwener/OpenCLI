@@ -1,5 +1,60 @@
 # Changelog
 
+## [1.4.0](https://github.com/jackwener/opencli/compare/v1.3.3...v1.4.0) (2026-03-25)
+
+
+### Features
+
+* **pixiv:** add Pixiv adapter — ranking, search, user illusts, detail, download ([#403](https://github.com/jackwener/opencli/issues/403))
+* **plugin:** add lifecycle hooks API — onStartup, onBeforeExecute, onAfterExecute ([#376](https://github.com/jackwener/opencli/issues/376))
+* **plugin:** validate plugin structure on install and update ([#364](https://github.com/jackwener/opencli/issues/364))
+* **xueqiu:** add Danjuan fund account commands — fund-holdings, fund-snapshot ([#391](https://github.com/jackwener/opencli/issues/391))
+* **tiktok:** add video URL to search results ([#404](https://github.com/jackwener/opencli/issues/404))
+* **linkedin:** add timeline feed command ([#342](https://github.com/jackwener/opencli/issues/342))
+* **jd:** add JD.com product details adapter ([#344](https://github.com/jackwener/opencli/issues/344))
+* **web:** add generic `web read` command for any URL → Markdown ([#343](https://github.com/jackwener/opencli/issues/343))
+* **dictionary:** add dictionary search, synonyms, and examples adapters ([#241](https://github.com/jackwener/opencli/issues/241))
+
+
+### Bug Fixes
+
+* **analysis:** fix hasLimit using wrong Set (SEARCH_PARAMS → LIMIT_PARAMS) ([#412](https://github.com/jackwener/opencli/issues/412))
+* **pipeline:** remove phantom scroll step — declared but never registered ([#412](https://github.com/jackwener/opencli/issues/412))
+* **validate:** add missing download step to KNOWN_STEP_NAMES ([#412](https://github.com/jackwener/opencli/issues/412))
+* **extension:** security hardening — tab isolation, URL validation, cookie scope ([#409](https://github.com/jackwener/opencli/issues/409))
+* **sort:** use localeCompare with natural numeric sort by default ([#306](https://github.com/jackwener/opencli/issues/306))
+* **pipeline:** evaluate chained || in template engine ([#305](https://github.com/jackwener/opencli/issues/305))
+* **pipeline:** check HTTP status in fetch step ([#384](https://github.com/jackwener/opencli/issues/384))
+* **plugin:** resolve Windows path and symlink issues ([#400](https://github.com/jackwener/opencli/issues/400))
+* **download:** scope cookies to target domain ([#385](https://github.com/jackwener/opencli/issues/385))
+* **extension:** fix same-url navigation timeout ([#380](https://github.com/jackwener/opencli/issues/380))
+* fix ChatWise Windows connect ([#405](https://github.com/jackwener/opencli/issues/405))
+* resolve 6 critical + 11 important bugs from deep code review ([#337](https://github.com/jackwener/opencli/issues/337), [#340](https://github.com/jackwener/opencli/issues/340))
+* harden security-sensitive execution paths ([#335](https://github.com/jackwener/opencli/issues/335))
+* **stealth:** harden anti-detection against advanced fingerprinting ([#357](https://github.com/jackwener/opencli/issues/357))
+
+
+### Code Quality
+
+* replace all `catch (err: any)` with typed `getErrorMessage()` across 13 files ([#412](https://github.com/jackwener/opencli/issues/412))
+* adopt CliError subclasses in social and desktop adapters ([#367](https://github.com/jackwener/opencli/issues/367), [#372](https://github.com/jackwener/opencli/issues/372), [#375](https://github.com/jackwener/opencli/issues/375))
+* simplify codebase with type dedup, shared analysis module, and consistent naming ([#373](https://github.com/jackwener/opencli/issues/373))
+* **ci:** add cross-platform CI matrix (Linux/macOS/Windows) ([#402](https://github.com/jackwener/opencli/issues/402))
+
+
+## [1.3.3](https://github.com/jackwener/opencli/compare/v1.3.2...v1.3.3) (2026-03-25)
+
+
+### Features
+
+* **browser:** add stealth anti-detection for CDP and daemon modes ([#319](https://github.com/jackwener/opencli/issues/319))
+
+
+### Bug Fixes
+
+* **stealth:** review fixes — guard plugins, rewrite stack trace cleanup ([#320](https://github.com/jackwener/opencli/issues/320))
+
+
 ## [1.3.2](https://github.com/jackwener/opencli/compare/v1.3.1...v1.3.2) (2026-03-24)
 
 

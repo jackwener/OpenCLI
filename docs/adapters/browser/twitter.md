@@ -37,6 +37,12 @@
 # Quick start
 opencli twitter trending --limit 5
 
+# Search top tweets (default)
+opencli twitter search "react 19"
+
+# Search latest/live tweets
+opencli twitter search "react 19" --filter live
+
 # JSON output
 opencli twitter trending -f json
 

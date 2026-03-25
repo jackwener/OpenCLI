@@ -37,45 +37,29 @@ export function evalExpr(expr: string, ctx: RenderContext): unknown {
   const index = ctx.index ?? 0;
 
   // ── Pipe filters: expr | filter1(arg) | filter2 ──
-  // Supports: default(val), join(sep), upper, lower, truncate(n), trim, replace(old,new)
-  if (expr.includes('|') && !expr.includes('||')) {
-    const segments = expr.split('|').map(s => s.trim());
-    const mainExpr = segments[0];
-    let result = resolvePath(mainExpr, { args, item, data, index });
-    for (let i = 1; i < segments.length; i++) {
-      result = applyFilter(segments[i], result);
+  // Split on single | (not ||) so "item.a || item.b | upper" works correctly.
+  const pipeSegments = expr.split(/(?<!\|)\|(?!\|)/).map(s => s.trim());
+  if (pipeSegments.length > 1) {
+    let result = evalExpr(pipeSegments[0], ctx);
+    for (let i = 1; i < pipeSegments.length; i++) {
+      result = applyFilter(pipeSegments[i], result);
     }
     return result;
   }
 
-  // Arithmetic: index + 1
-  const arithMatch = expr.match(/^([\w][\w.]*)\s*([+\-*/])\s*(\d+)$/);
-  if (arithMatch) {
-    const [, varName, op, numStr] = arithMatch;
-    const val = resolvePath(varName, { args, item, data, index });
-    if (val !== null && val !== undefined) {
-      const numVal = Number(val); const num = Number(numStr);
-      if (!isNaN(numVal)) {
-        switch (op) {
-          case '+': return numVal + num; case '-': return numVal - num;
-          case '*': return numVal * num; case '/': return num !== 0 ? numVal / num : 0;
-        }
-      }
-    }
-  }
+  // Fast path: quoted string literal — skip VM overhead
+  const strLit = expr.match(/^(['"])(.*)\1$/);
+  if (strLit) return strLit[2];
 
-  // JS-like fallback expression: item.tweetCount || 'N/A'
-  const orMatch = expr.match(/^(.+?)\s*\|\|\s*(.+)$/);
-  if (orMatch) {
-    const left = evalExpr(orMatch[1].trim(), ctx);
-    if (left) return left;
-    const right = orMatch[2].trim();
-    return right.replace(/^['"]|['"]$/g, '');
-  }
+  // Fast path: numeric literal
+  if (/^\d+(\.\d+)?$/.test(expr)) return Number(expr);
 
+  // Try resolving as a simple dotted path (item.foo.bar, args.limit, index)
   const resolved = resolvePath(expr, { args, item, data, index });
   if (resolved !== null && resolved !== undefined) return resolved;
 
+  // Fallback: evaluate as JS in a sandboxed VM.
+  // Handles ||, ??, arithmetic, ternary, method calls, etc. natively.
   return evalJsExpr(expr, { args, item, data, index });
 }
 
@@ -95,7 +79,7 @@ function applyFilter(filterExpr: string, value: unknown): unknown {
     case 'default': {
       if (value === null || value === undefined || value === '') {
         const intVal = parseInt(filterArg, 10);
-        if (!isNaN(intVal) && String(intVal) === filterArg.trim()) return intVal;
+        if (!Number.isNaN(intVal) && String(intVal) === filterArg.trim()) return intVal;
         return filterArg;
       }
       return value;
@@ -110,7 +94,7 @@ function applyFilter(filterExpr: string, value: unknown): unknown {
       return typeof value === 'string' ? value.trim() : value;
     case 'truncate': {
       const n = parseInt(filterArg, 10) || 50;
-      return typeof value === 'string' && value.length > n ? value.slice(0, n) + '...' : value;
+      return typeof value === 'string' && value.length > n ? `${value.slice(0, n)}...` : value;
     }
     case 'replace': {
       if (typeof value !== 'string') return value;
@@ -138,6 +122,7 @@ function applyFilter(filterExpr: string, value: unknown): unknown {
     case 'sanitize':
       // Remove invalid filename characters
       return typeof value === 'string'
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional - strips C0 control chars from filenames
         ? value.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
         : value;
     case 'ext': {

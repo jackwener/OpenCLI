@@ -6,10 +6,10 @@ import { getErrorMessage } from './errors.js';
 
 /** All recognized pipeline step names */
 const KNOWN_STEP_NAMES = new Set([
-  'navigate', 'click', 'type', 'wait', 'press', 'snapshot', 'scroll',
+  'navigate', 'click', 'type', 'wait', 'press', 'snapshot',
   'fetch', 'evaluate',
   'select', 'map', 'filter', 'sort', 'limit',
-  'intercept', 'tap',
+  'intercept', 'tap', 'download',
 ]);
 
 export interface FileValidationResult {

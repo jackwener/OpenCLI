@@ -130,7 +130,7 @@ Run `opencli list` for the live registry.
 | **notion** | `status` `search` `read` `new` `write` `sidebar` `favorites` `export` | Desktop |
 | **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | Desktop |
 | **v2ex** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | Public / Browser |
-| **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` | Browser |
+| **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` `fund-holdings` `fund-snapshot` | Browser |
 | **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` | Desktop |
 | **chatgpt** | `status` `new` `send` `read` `ask` | Desktop |
 | **xiaohongshu** | `search` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | Browser |
@@ -149,9 +149,11 @@ Run `opencli list` for the live registry.
 | **arxiv** | `search` `paper` | Public |
 | **wikipedia** | `search` `summary` `random` `trending` | Public |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` | Public |
-| **linkedin** | `search` | Browser |
+| **jd** | `item` | Browser |
+| **linkedin** | `search` `timeline` | Browser |
 | **reuters** | `search` | Browser |
 | **smzdm** | `search` | Browser |
+| **web** | `read` | Browser |
 | **weibo** | `hot` `search` | Browser |
 | **yahoo-finance** | `quote` | Browser |
 | **sinafinance** | `news` | 🌐 Public |
@@ -174,6 +176,7 @@ Run `opencli list` for the live registry.
 | **medium** | `feed` `search` `user` | Browser |
 | **sinablog** | `hot` `search` `article` `user` | Browser |
 | **substack** | `feed` `search` `publication` | Browser |
+| **pixiv** | `ranking` `search` `user` `illusts` `detail` `download` | Browser |
 | **tiktok** | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` | Browser |
 
 
@@ -225,6 +228,7 @@ OpenCLI supports downloading images, videos, and articles from supported platfor
 | **xiaohongshu** | Images, Videos | Downloads all media from a note |
 | **bilibili** | Videos | Requires `yt-dlp` installed |
 | **twitter** | Images, Videos | Downloads from user media tab or single tweet |
+| **pixiv** | Images | Downloads original-quality illustrations, supports multi-page works |
 | **zhihu** | Articles (Markdown) | Exports articles with optional image download |
 | **weixin** | Articles (Markdown) | Exports WeChat Official Account articles |
 

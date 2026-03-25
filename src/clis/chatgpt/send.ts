@@ -1,6 +1,7 @@
 import { execSync, spawnSync } from 'node:child_process';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
+import { getErrorMessage } from '../../errors.js';
 
 export const sendCommand = cli({
   site: 'chatgpt',
@@ -41,8 +42,8 @@ export const sendCommand = cli({
       }
 
       return [{ Status: 'Success' }];
-    } catch (err: any) {
-      return [{ Status: "Error: " + err.message }];
+    } catch (err) {
+      return [{ Status: "Error: " + getErrorMessage(err) }];
     }
   },
 });

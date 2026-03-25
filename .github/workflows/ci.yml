@@ -86,7 +86,13 @@ jobs:
   smoke-test:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # NOTE: Windows excluded — browser-actions/setup-chrome hangs during
+        # Chrome MSI installation on Windows runners (known issue).
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v6
 
@@ -98,17 +104,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup Chrome + xvfb
+      - name: Setup Chrome
         uses: ./.github/actions/setup-chrome
         id: setup-chrome
 
       - name: Build
         run: npm run build
 
-      - name: Run smoke tests
+      - name: Run smoke tests (Linux, via xvfb)
+        if: runner.os == 'Linux'
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             npx vitest run tests/smoke/ --reporter=verbose
         env:
           OPENCLI_BROWSER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+
+      - name: Run smoke tests (macOS / Windows)
+        if: runner.os != 'Linux'
+        run: npx vitest run tests/smoke/ --reporter=verbose
+        env:
+          OPENCLI_BROWSER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
     timeout-minutes: 15
+

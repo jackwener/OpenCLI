@@ -132,7 +132,7 @@ npm install -g @jackwener/opencli@latest
 | **notion** | `status` `search` `read` `new` `write` `sidebar` `favorites` `export` | 桌面端 |
 | **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | 桌面端 |
 | **v2ex** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | 公开 / 浏览器 |
-| **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` | 浏览器 |
+| **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` `fund-holdings` `fund-snapshot` | 浏览器 |
 | **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` | 桌面端 |
 | **chatgpt** | `status` `new` `send` `read` `ask` | 桌面端 |
 | **xiaohongshu** | `search` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | 浏览器 |
@@ -151,9 +151,11 @@ npm install -g @jackwener/opencli@latest
 | **arxiv** | `search` `paper` | 公开 |
 | **wikipedia** | `search` `summary` `random` `trending` | 公开 |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` | 公共 API |
-| **linkedin** | `search` | 浏览器 |
+| **jd** | `item` | 浏览器 |
+| **linkedin** | `search` `timeline` | 浏览器 |
 | **reuters** | `search` | 浏览器 |
 | **smzdm** | `search` | 浏览器 |
+| **web** | `read` | 浏览器 |
 | **weibo** | `hot` `search` | 浏览器 |
 | **yahoo-finance** | `quote` | 浏览器 |
 | **sinafinance** | `news` | 🌐 公开 |
@@ -176,6 +178,7 @@ npm install -g @jackwener/opencli@latest
 | **medium** | `feed` `search` `user` | 浏览器 |
 | **sinablog** | `hot` `search` `article` `user` | 浏览器 |
 | **substack** | `feed` `search` `publication` | 浏览器 |
+| **pixiv** | `ranking` `search` `user` `illusts` `detail` `download` | 浏览器 |
 | **tiktok** | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` | 浏览器 |
 
 
@@ -227,6 +230,7 @@ OpenCLI 支持从各平台下载图片、视频和文章。
 | **小红书** | 图片、视频 | 下载笔记中的所有媒体文件 |
 | **B站** | 视频 | 需要安装 `yt-dlp` |
 | **Twitter/X** | 图片、视频 | 从用户媒体页或单条推文下载 |
+| **Pixiv** | 图片 | 下载原始画质插画，支持多页作品 |
 | **知乎** | 文章（Markdown） | 导出文章，可选下载图片到本地 |
 | **微信公众号** | 文章（Markdown） | 导出微信公众号文章为 Markdown |
 

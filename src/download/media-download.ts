@@ -9,6 +9,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { getErrorMessage } from '../errors.js';
 import {
   httpDownload,
   ytdlpDownload,
@@ -153,15 +154,16 @@ export async function downloadMedia(
           status: result.success ? 'success' : 'failed',
           size: result.success ? formatBytes(result.size) : (result.error || 'unknown error'),
         });
-      } catch (err: any) {
-        if (progressBar) progressBar.fail(err.message);
+      } catch (err) {
+        const msg = getErrorMessage(err);
+        if (progressBar) progressBar.fail(msg);
         tracker.onFileComplete(false);
 
         results.push({
           index: i + 1,
           type: media.type,
           status: 'failed',
-          size: err.message,
+          size: msg,
         });
       }
     }

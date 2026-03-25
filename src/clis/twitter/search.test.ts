@@ -68,7 +68,7 @@ describe('twitter search command', () => {
       ]),
     };
 
-    const result = await command!.func!(page as any, { query: 'from:alice', limit: 5 });
+    const result = await command!.func!(page as any, { query: 'from:alice', filter: 'top', limit: 5 });
 
     expect(result).toEqual([
       {
@@ -82,6 +82,73 @@ describe('twitter search command', () => {
     ]);
     expect(page.installInterceptor).toHaveBeenCalledWith('SearchTimeline');
     expect(evaluate).toHaveBeenCalledTimes(4);
+  });
+
+  it('uses f=live in search URL when filter is live', async () => {
+    const command = getRegistry().get('twitter/search');
+
+    const evaluate = vi.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce('/search');
+
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      installInterceptor: vi.fn().mockResolvedValue(undefined),
+      evaluate,
+      autoScroll: vi.fn().mockResolvedValue(undefined),
+      getInterceptedRequests: vi.fn().mockResolvedValue([]),
+    };
+
+    await command!.func!(page as any, { query: 'breaking news', filter: 'live', limit: 5 });
+
+    const pushStateCall = evaluate.mock.calls[0][0] as string;
+    expect(pushStateCall).toContain('f=live');
+    expect(pushStateCall).toContain(encodeURIComponent('breaking news'));
+  });
+
+  it('uses f=top in search URL when filter is top', async () => {
+    const command = getRegistry().get('twitter/search');
+
+    const evaluate = vi.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce('/search');
+
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      installInterceptor: vi.fn().mockResolvedValue(undefined),
+      evaluate,
+      autoScroll: vi.fn().mockResolvedValue(undefined),
+      getInterceptedRequests: vi.fn().mockResolvedValue([]),
+    };
+
+    await command!.func!(page as any, { query: 'test', filter: 'top', limit: 5 });
+
+    const pushStateCall = evaluate.mock.calls[0][0] as string;
+    expect(pushStateCall).toContain('f=top');
+  });
+
+  it('falls back to top when filter is omitted', async () => {
+    const command = getRegistry().get('twitter/search');
+
+    const evaluate = vi.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce('/search');
+
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      installInterceptor: vi.fn().mockResolvedValue(undefined),
+      evaluate,
+      autoScroll: vi.fn().mockResolvedValue(undefined),
+      getInterceptedRequests: vi.fn().mockResolvedValue([]),
+    };
+
+    await command!.func!(page as any, { query: 'test', limit: 5 });
+
+    const pushStateCall = evaluate.mock.calls[0][0] as string;
+    expect(pushStateCall).toContain('f=top');
   });
 
   it('throws with the final path after both attempts fail', async () => {
@@ -103,7 +170,7 @@ describe('twitter search command', () => {
       getInterceptedRequests: vi.fn(),
     };
 
-    await expect(command!.func!(page as any, { query: 'from:alice', limit: 5 }))
+    await expect(command!.func!(page as any, { query: 'from:alice', filter: 'top', limit: 5 }))
       .rejects
       .toThrow('Final path: /login');
     expect(page.autoScroll).not.toHaveBeenCalled();

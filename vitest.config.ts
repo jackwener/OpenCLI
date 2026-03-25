@@ -24,6 +24,7 @@ export default defineConfig({
             'src/clis/bilibili/**/*.test.ts',
             'src/clis/linkedin/**/*.test.ts',
             'src/clis/grok/**/*.test.ts',
+            'src/clis/pixiv/**/*.test.ts',
           ],
           sequence: {
             groupOrder: 1,

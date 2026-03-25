@@ -15,6 +15,7 @@ import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
+import { getErrorMessage } from './errors.js';
 
 export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
   const program = new Command();
@@ -260,8 +261,8 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
         const name = installPlugin(source);
         await discoverPlugins();
         console.log(chalk.green(`✅ Plugin "${name}" installed successfully. Commands are ready to use.`));
-      } catch (err: any) {
-        console.error(chalk.red(`Error: ${err.message}`));
+      } catch (err) {
+        console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
         process.exitCode = 1;
       }
     });
@@ -275,8 +276,8 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       try {
         uninstallPlugin(name);
         console.log(chalk.green(`✅ Plugin "${name}" uninstalled.`));
-      } catch (err: any) {
-        console.error(chalk.red(`Error: ${err.message}`));
+      } catch (err) {
+        console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
         process.exitCode = 1;
       }
     });
@@ -336,8 +337,8 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
         updatePlugin(name!);
         await discoverPlugins();
         console.log(chalk.green(`✅ Plugin "${name}" updated successfully.`));
-      } catch (err: any) {
-        console.error(chalk.red(`Error: ${err.message}`));
+      } catch (err) {
+        console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
         process.exitCode = 1;
       }
     });
@@ -414,8 +415,8 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     })();
     try {
       executeExternalCli(name, args, externalClis);
-    } catch (err: any) {
-      console.error(chalk.red(`Error: ${err.message}`));
+    } catch (err) {
+      console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
       process.exitCode = 1;
     }
   }

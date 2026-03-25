@@ -54,6 +54,31 @@ describe('evalExpr', () => {
   it('evaluates || with truthy left', () => {
     expect(evalExpr("item.name || 'N/A'", { item: { name: 'Alice' } })).toBe('Alice');
   });
+  it('evaluates chained || fallback (issue #303)', () => {
+    // When first two are falsy, should evaluate through to the string literal
+    expect(evalExpr("item.a || item.b || 'default'", { item: {} })).toBe('default');
+  });
+  it('evaluates chained || with middle value truthy', () => {
+    expect(evalExpr("item.a || item.b || 'default'", { item: { b: 'middle' } })).toBe('middle');
+  });
+  it('evaluates chained || with first value truthy', () => {
+    expect(evalExpr("item.a || item.b || 'default'", { item: { a: 'first', b: 'middle' } })).toBe('first');
+  });
+  it('evaluates || with 0 as falsy left (JS semantics)', () => {
+    expect(evalExpr("item.count || 'N/A'", { item: { count: 0 } })).toBe('N/A');
+  });
+  it('evaluates || with empty string as falsy left', () => {
+    expect(evalExpr("item.name || 'unknown'", { item: { name: '' } })).toBe('unknown');
+  });
+  it('evaluates || with numeric fallback returning number type', () => {
+    expect(evalExpr('item.a || 42', { item: {} })).toBe(42);
+  });
+  it('evaluates 4-way chained ||', () => {
+    expect(evalExpr("item.a || item.b || item.c || 'last'", { item: { c: 'third' } })).toBe('third');
+  });
+  it('handles || combined with pipe filter', () => {
+    expect(evalExpr("item.a || item.b | upper", { item: { b: 'hello' } })).toBe('HELLO');
+  });
   it('resolves simple path', () => {
     expect(evalExpr('item.title', { item: { title: 'Test' } })).toBe('Test');
   });
