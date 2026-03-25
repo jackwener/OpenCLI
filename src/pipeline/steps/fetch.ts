@@ -2,7 +2,7 @@
  * Pipeline step: fetch — HTTP API requests.
  */
 
-import { CliError } from '../../errors.js';
+import { CliError, getErrorMessage } from '../../errors.js';
 import { log } from '../../logger.js';
 import type { IPage } from '../../types.js';
 import { render } from '../template.js';
@@ -39,21 +39,22 @@ async function fetchSingle(
   const headersJs = JSON.stringify(renderedHeaders);
   const urlJs = JSON.stringify(finalUrl);
   const methodJs = JSON.stringify(method.toUpperCase());
-  // Return error status instead of throwing inside evaluate to avoid CDP wrapper rewriting the message
+  // Return error status instead of throwing inside evaluate to avoid CDP wrapper
+  // rewriting the message (CDP prepends "Evaluate error: " to thrown errors).
   const result = await page.evaluate(`
     async () => {
       const resp = await fetch(${urlJs}, {
         method: ${methodJs}, headers: ${headersJs}, credentials: "include"
       });
       if (!resp.ok) {
-        return { __fetchError: true, status: resp.status, statusText: resp.statusText, url: ${urlJs} };
+        return { __httpError: resp.status, statusText: resp.statusText };
       }
       return await resp.json();
     }
   `);
-  if (result && typeof result === 'object' && '__fetchError' in result) {
-    const { status, statusText, url: errorUrl } = result as { status: number; statusText: string; url: string };
-    throw new CliError('FETCH_ERROR', `HTTP ${status} ${statusText} from ${errorUrl}`);
+  if (result && typeof result === 'object' && '__httpError' in result) {
+    const { __httpError: status, statusText } = result as { __httpError: number; statusText: string };
+    throw new CliError('FETCH_ERROR', `HTTP ${status} ${statusText} from ${finalUrl}`);
   }
   return result;
 }
@@ -90,8 +91,8 @@ async function fetchBatchInBrowser(
             }
             results[i] = await resp.json();
           } catch (e) {
-            const message = e instanceof Error ? e.message : String(e);
-            results[i] = { error: message };
+            results[i] = { error: e instanceof Error ? e.message : String(e) };
+            // Note: getErrorMessage() is a Node.js utility — can't use it inside evaluate()
           }
         }
       }
@@ -148,7 +149,7 @@ export async function stepFetch(page: IPage | null, params: unknown, data: unkno
       try {
         return await fetchSingle(null, itemUrl, method, queryParams, headers, args, data);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = getErrorMessage(error);
         log.warn(`Batch fetch failed for ${itemUrl}: ${message}`);
         return { error: message };
       }
