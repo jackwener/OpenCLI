@@ -31,6 +31,7 @@ pipeline:
           views: t.views,
           likes: t.like_count,
           replies: (t.posts_count || 1) - 1,
+          url: 'https://linux.do/t/topic/' + t.id,
         }));
       })()
 
@@ -40,7 +41,8 @@ pipeline:
       views: ${{ item.views }}
       likes: ${{ item.likes }}
       replies: ${{ item.replies }}
+      url: ${{ item.url }}
 
   - limit: ${{ args.limit }}
 
-columns: [rank, title, views, likes, replies]
+columns: [rank, title, views, likes, replies, url]

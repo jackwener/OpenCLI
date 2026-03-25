@@ -74,10 +74,17 @@ function connect(): void {
   };
 }
 
+/**
+ * After MAX_EAGER_ATTEMPTS (reaching 60s backoff), stop scheduling reconnects.
+ * The keepalive alarm (~24s) will still call connect() periodically, but at a
+ * much lower frequency — reducing console noise when the daemon is not running.
+ */
+const MAX_EAGER_ATTEMPTS = 6; // 2s, 4s, 8s, 16s, 32s, 60s — then stop
+
 function scheduleReconnect(): void {
   if (reconnectTimer) return;
   reconnectAttempts++;
-  // Exponential backoff: 2s, 4s, 8s, 16s, ..., capped at 60s
+  if (reconnectAttempts > MAX_EAGER_ATTEMPTS) return; // let keepalive alarm handle it
   const delay = Math.min(WS_RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts - 1), WS_RECONNECT_MAX_DELAY);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
@@ -191,6 +198,18 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'keepalive') connect();
+});
+
+// ─── Popup status API ───────────────────────────────────────────────
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type === 'getStatus') {
+    sendResponse({
+      connected: ws?.readyState === WebSocket.OPEN,
+      reconnecting: reconnectTimer !== null,
+    });
+  }
+  return false;
 });
 
 // ─── Command dispatcher ─────────────────────────────────────────────

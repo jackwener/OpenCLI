@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "OpenCLI",
-  "version": "1.4.0",
-  "description": "Bridge between opencli CLI and your browser — execute commands, read cookies, manage tabs.",
+  "version": "1.4.1",
+  "description": "Browser automation bridge for the OpenCLI CLI tool. Executes commands in isolated Chrome windows via a local daemon.",
   "permissions": [
     "debugger",
     "tabs",
@@ -22,10 +22,14 @@
   },
   "action": {
     "default_title": "OpenCLI",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png"
     }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
   },
   "homepage_url": "https://github.com/jackwener/opencli"
 }

@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.4.1](https://github.com/jackwener/opencli/compare/v1.4.0...v1.4.1) (2026-03-25)
+
+
+### Features
+
+* **douyin:** add Douyin creator center adapter — 14 commands, 8-phase publish pipeline ([#416](https://github.com/jackwener/opencli/issues/416))
+* **weibo,youtube:** add Weibo commands and YouTube channel/comments ([#418](https://github.com/jackwener/opencli/issues/418))
+* **twitter:** add filter option for search ([#410](https://github.com/jackwener/opencli/issues/410))
+* **extension:** add popup UI, privacy policy, and CSP for Chrome Web Store ([#415](https://github.com/jackwener/opencli/issues/415))
+* add url field to 9 search adapters (67% -> 97% coverage) ([#414](https://github.com/jackwener/opencli/issues/414))
+
+
+### Bug Fixes
+
+* **extension:** improve UX when daemon is not running — show hint in popup, reduce reconnect noise ([#424](https://github.com/jackwener/opencli/issues/424))
+* remove incorrect gws and readwise external CLI entries ([#419](https://github.com/jackwener/opencli/issues/419), [#420](https://github.com/jackwener/opencli/issues/420))
+
+
+### CI
+
+* limit default e2e to bilibili/zhihu/v2ex, gate extended browser tests ([#421](https://github.com/jackwener/opencli/issues/421), [#423](https://github.com/jackwener/opencli/issues/423))
+
+
 ## [1.4.0](https://github.com/jackwener/opencli/compare/v1.3.3...v1.4.0) (2026-03-25)
 
 

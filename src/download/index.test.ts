@@ -6,12 +6,17 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { formatCookieHeader, httpDownload, resolveRedirectUrl } from './index.js';
 
 const servers: http.Server[] = [];
+const tempDirs: string[] = [];
 
 afterEach(async () => {
   await Promise.all(servers.map((server) => new Promise<void>((resolve, reject) => {
     server.close((err) => (err ? reject(err) : resolve()));
   })));
   servers.length = 0;
+  for (const dir of tempDirs) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+  tempDirs.length = 0;
 });
 
 async function startServer(handler: http.RequestListener, hostname = '127.0.0.1'): Promise<string> {
@@ -25,7 +30,9 @@ async function startServer(handler: http.RequestListener, hostname = '127.0.0.1'
   return `http://${hostname}:${address.port}`;
 }
 
-describe('download helpers', () => {
+// Windows Defender can briefly lock newly-written .tmp files, causing EPERM.
+// Retry once to handle this flakiness.
+describe('download helpers', { retry: process.platform === 'win32' ? 2 : 0 }, () => {
   it('resolves relative redirects against the original URL', () => {
     expect(resolveRedirectUrl('https://example.com/a/file', '/cdn/file.bin')).toBe('https://example.com/cdn/file.bin');
     expect(resolveRedirectUrl('https://example.com/a/file', '../next')).toBe('https://example.com/next');
@@ -45,7 +52,8 @@ describe('download helpers', () => {
       res.end();
     });
 
-    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-download-'));
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-dl-'));
+    tempDirs.push(tempDir);
     const destPath = path.join(tempDir, 'file.txt');
     const result = await httpDownload(`${baseUrl}/loop`, destPath, { maxRedirects: 2 });
 
@@ -71,7 +79,8 @@ describe('download helpers', () => {
       res.end();
     });
 
-    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-download-'));
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-dl-'));
+    tempDirs.push(tempDir);
     const destPath = path.join(tempDir, 'redirect.txt');
     const result = await httpDownload(`${redirectUrl}/start`, destPath, { cookies: 'sid=abc' });
 
@@ -94,7 +103,8 @@ describe('download helpers', () => {
       res.end();
     });
 
-    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-download-'));
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-dl-'));
+    tempDirs.push(tempDir);
     const destPath = path.join(tempDir, 'redirect-header.txt');
     const result = await httpDownload(`${redirectUrl}/start`, destPath, {
       headers: { Cookie: 'sid=header-cookie' },

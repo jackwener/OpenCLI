@@ -41,4 +41,4 @@ pipeline:
 
   - limit: ${{ args.limit }}
 
-columns: [rank, title, score, author, comments]
+columns: [rank, title, score, author, comments, url]

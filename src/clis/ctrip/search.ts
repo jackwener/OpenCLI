@@ -1,6 +1,5 @@
 /**
  * 携程旅行搜索 — browser cookie, multi-strategy.
- * Source: bb-sites/ctrip/search.js (simplified to suggestion API)
  */
 import { cli, Strategy } from '../../registry.js';
 

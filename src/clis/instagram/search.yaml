@@ -37,7 +37,8 @@ pipeline:
           name: item.user?.full_name || '',
           verified: item.user?.is_verified ? 'Yes' : 'No',
           private: item.user?.is_private ? 'Yes' : 'No',
+          url: 'https://www.instagram.com/' + (item.user?.username || ''),
         }));
       })()
 
-columns: [rank, username, name, verified, private]
+columns: [rank, username, name, verified, private, url]

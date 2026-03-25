@@ -52,7 +52,8 @@ pipeline:
       type: ${{ item.type }}
       author: ${{ item.author }}
       votes: ${{ item.votes }}
+      url: ${{ item.url }}
 
   - limit: ${{ args.limit }}
 
-columns: [rank, title, type, author, votes]
+columns: [rank, title, type, author, votes, url]

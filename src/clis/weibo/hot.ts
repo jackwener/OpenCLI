@@ -1,6 +1,5 @@
 /**
  * Weibo hot search — browser cookie API.
- * Source: bb-sites/weibo/hot.js
  */
 import { cli, Strategy } from '../../registry.js';
 

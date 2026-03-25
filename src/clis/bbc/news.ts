@@ -1,6 +1,5 @@
 /**
  * BBC News headlines — public RSS feed, no browser needed.
- * Source: bb-sites/bbc/news.js
  */
 import { cli, Strategy } from '../../registry.js';
 

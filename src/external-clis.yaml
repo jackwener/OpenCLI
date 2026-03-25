@@ -14,14 +14,6 @@
   install:
     mac: "brew install --cask obsidian"
 
-- name: readwise
-  binary: readwise
-  description: "Readwise & Reader CLI — highlights, annotations, reading list"
-  homepage: "https://github.com/readwiseio/readwise-cli"
-  tags: [reading, highlights]
-  install:
-    default: "npm install -g @readwiseio/readwise-cli"
-
 - name: docker
   binary: docker
   description: "Docker command-line interface"
@@ -29,12 +21,3 @@
   tags: [docker, containers, devops]
   install:
     mac: "brew install --cask docker"
-
-- name: gws
-  binary: gws
-  description: "Google Workspace CLI — Docs, Sheets, Drive, Gmail, Calendar"
-  homepage: "https://github.com/nicholasgasior/gws"
-  tags: [google, docs, sheets, drive, workspace]
-  install:
-    mac: "brew install gws"
-    default: "npm install -g @nicholasgasior/gws"
