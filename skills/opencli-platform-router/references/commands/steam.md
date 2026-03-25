@@ -1,12 +1,9 @@
 # steam
 
-Total commands: **1**
-
 ## Commands
 
-
 ### top-sellers
-- Description: Steam top selling games
-- Args:
-  - `limit` (optional) — type=int; default=10; Number of games
-- Example: `opencli steam top-sellers -f json`
+- 用途：Steam top selling games
+- 参数：
+  - `limit`（可选）：类型 int；默认值 10；Number of games
+- 用法：`opencli steam top-sellers [options] -f json`

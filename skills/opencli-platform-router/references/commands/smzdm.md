@@ -1,13 +1,10 @@
 # smzdm
 
-Total commands: **1**
-
 ## Commands
 
-
 ### search
-- Description: 什么值得买搜索好价
-- Args:
-  - `query` (required) — Search keyword
-  - `limit` (optional) — type=int; default=20; Number of results
-- Example: `opencli smzdm search -f json`
+- 用途：什么值得买搜索好价
+- 参数：
+  - `query`（必填）：Search keyword
+  - `limit`（可选）：类型 int；默认值 20；Number of results
+- 用法：`opencli smzdm search [options] -f json`

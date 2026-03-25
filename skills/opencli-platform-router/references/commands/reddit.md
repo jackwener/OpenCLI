@@ -1,115 +1,112 @@
 # reddit
 
-Total commands: **15**
-
 ## Commands
 
-
 ### comment
-- Description: Post a comment on a Reddit post
-- Args:
-  - `post-id` (required) — type=string; Post ID (e.g. 1abc123) or fullname (t3_xxx)
-  - `text` (required) — type=string; Comment text
-- Example: `opencli reddit comment -f json`
+- 用途：Post a comment on a Reddit post
+- 参数：
+  - `post-id`（必填）：类型 string；Post ID (e.g. 1abc123) or fullname (t3_xxx)
+  - `text`（必填）：类型 string；Comment text
+- 用法：`opencli reddit comment [options] -f json`
 
 ### frontpage
-- Description: Reddit Frontpage / r/all
-- Args:
-  - `limit` (optional) — type=int; default=15
-- Example: `opencli reddit frontpage -f json`
+- 用途：Reddit Frontpage / r/all
+- 参数：
+  - `limit`（可选）：类型 int；默认值 15
+- 用法：`opencli reddit frontpage [options] -f json`
 
 ### hot
-- Description: Reddit 热门帖子
-- Args:
-  - `subreddit` (optional) — type=str; default=""; "Subreddit name (e.g. programming). Empty for frontpage"
-  - `limit` (optional) — type=int; default=20; Number of posts
-- Example: `opencli reddit hot -f json`
+- 用途：Reddit 热门帖子
+- 参数：
+  - `subreddit`（可选）：类型 str；默认值 ""；"Subreddit name (e.g. programming). Empty for frontpage"
+  - `limit`（可选）：类型 int；默认值 20；Number of posts
+- 用法：`opencli reddit hot [options] -f json`
 
 ### popular
-- Description: Reddit Popular posts (/r/popular)
-- Args:
-  - `limit` (optional) — type=int; default=20
-- Example: `opencli reddit popular -f json`
+- 用途：Reddit Popular posts (/r/popular)
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20
+- 用法：`opencli reddit popular [options] -f json`
 
 ### read
-- Description: Read a Reddit post and its comments
-- Args:
-  - `post-id` (required) — Post ID (e.g. 1abc123) or full URL
-  - `sort` (optional) — default='best'; Comment sort: best, top, new, controversial, old, qa
-  - `limit` (optional) — type=int; default=25; Number of top-level comments
-  - `depth` (optional) — type=int; default=2; Max reply depth (1=no replies, 2=one level of replies, etc.)
-  - `replies` (optional) — type=int; default=5; Max replies shown per comment at each level (sorted by score)
-  - `max-length` (optional) — type=int; default=2000; Max characters per comment body (min 100)
-- Example: `opencli reddit read -f json`
+- 用途：Read a Reddit post and its comments
+- 参数：
+  - `post-id`（必填）：Post ID (e.g. 1abc123) or full URL
+  - `sort`（可选）：默认值 'best'；Comment sort: best, top, new, controversial, old, qa
+  - `limit`（可选）：类型 int；默认值 25；Number of top-level comments
+  - `depth`（可选）：类型 int；默认值 2；Max reply depth (1=no replies, 2=one level of replies, etc.)
+  - `replies`（可选）：类型 int；默认值 5；Max replies shown per comment at each level (sorted by score)
+  - `max-length`（可选）：类型 int；默认值 2000；Max characters per comment body (min 100)
+- 用法：`opencli reddit read [options] -f json`
 
 ### save
-- Description: Save or unsave a Reddit post
-- Args:
-  - `post-id` (required) — type=string; Post ID (e.g. 1abc123) or fullname (t3_xxx)
-  - `undo` (optional) — type=boolean; default=false; Unsave instead of save
-- Example: `opencli reddit save -f json`
+- 用途：Save or unsave a Reddit post
+- 参数：
+  - `post-id`（必填）：类型 string；Post ID (e.g. 1abc123) or fullname (t3_xxx)
+  - `undo`（可选）：类型 boolean；默认值 false；Unsave instead of save
+- 用法：`opencli reddit save [options] -f json`
 
 ### saved
-- Description: Browse your saved Reddit posts
-- Args:
-  - `limit` (optional) — type=int; default=15
-- Example: `opencli reddit saved -f json`
+- 用途：Browse your saved Reddit posts
+- 参数：
+  - `limit`（可选）：类型 int；默认值 15
+- 用法：`opencli reddit saved [options] -f json`
 
 ### search
-- Description: Search Reddit Posts
-- Args:
-  - `query` (required) — type=string
-  - `subreddit` (optional) — type=string; default=""; "Search within a specific subreddit"
-  - `sort` (optional) — type=string; default=relevance; "Sort order: relevance, hot, top, new, comments"
-  - `time` (optional) — type=string; default=all; "Time filter: hour, day, week, month, year, all"
-  - `limit` (optional) — type=int; default=15
-- Example: `opencli reddit search -f json`
+- 用途：Search Reddit Posts
+- 参数：
+  - `query`（必填）：类型 string
+  - `subreddit`（可选）：类型 string；默认值 ""；"Search within a specific subreddit"
+  - `sort`（可选）：类型 string；默认值 relevance；"Sort order: relevance, hot, top, new, comments"
+  - `time`（可选）：类型 string；默认值 all；"Time filter: hour, day, week, month, year, all"
+  - `limit`（可选）：类型 int；默认值 15
+- 用法：`opencli reddit search [options] -f json`
 
 ### subreddit
-- Description: Get posts from a specific Subreddit
-- Args:
-  - `name` (required) — type=string
-  - `sort` (optional) — type=string; default=hot; "Sorting method: hot, new, top, rising, controversial"
-  - `time` (optional) — type=string; default=all; "Time filter for top/controversial: hour, day, week, month, year, all"
-  - `limit` (optional) — type=int; default=15
-- Example: `opencli reddit subreddit -f json`
+- 用途：Get posts from a specific Subreddit
+- 参数：
+  - `name`（必填）：类型 string
+  - `sort`（可选）：类型 string；默认值 hot；"Sorting method: hot, new, top, rising, controversial"
+  - `time`（可选）：类型 string；默认值 all；"Time filter for top/controversial: hour, day, week, month, year, all"
+  - `limit`（可选）：类型 int；默认值 15
+- 用法：`opencli reddit subreddit [options] -f json`
 
 ### subscribe
-- Description: Subscribe or unsubscribe to a subreddit
-- Args:
-  - `subreddit` (required) — type=string; Subreddit name (e.g. python)
-  - `undo` (optional) — type=boolean; default=false; Unsubscribe instead of subscribe
-- Example: `opencli reddit subscribe -f json`
+- 用途：Subscribe or unsubscribe to a subreddit
+- 参数：
+  - `subreddit`（必填）：类型 string；Subreddit name (e.g. python)
+  - `undo`（可选）：类型 boolean；默认值 false；Unsubscribe instead of subscribe
+- 用法：`opencli reddit subscribe [options] -f json`
 
 ### upvote
-- Description: Upvote or downvote a Reddit post
-- Args:
-  - `post-id` (required) — type=string; Post ID (e.g. 1abc123) or fullname (t3_xxx)
-  - `direction` (optional) — type=string; default='up'; Vote direction: up, down, none
-- Example: `opencli reddit upvote -f json`
+- 用途：Upvote or downvote a Reddit post
+- 参数：
+  - `post-id`（必填）：类型 string；Post ID (e.g. 1abc123) or fullname (t3_xxx)
+  - `direction`（可选）：类型 string；默认值 'up'；Vote direction: up, down, none
+- 用法：`opencli reddit upvote [options] -f json`
 
 ### upvoted
-- Description: Browse your upvoted Reddit posts
-- Args:
-  - `limit` (optional) — type=int; default=15
-- Example: `opencli reddit upvoted -f json`
+- 用途：Browse your upvoted Reddit posts
+- 参数：
+  - `limit`（可选）：类型 int；默认值 15
+- 用法：`opencli reddit upvoted [options] -f json`
 
 ### user
-- Description: View a Reddit user profile
-- Args:
-  - `username` (required) — type=string
-- Example: `opencli reddit user -f json`
+- 用途：View a Reddit user profile
+- 参数：
+  - `username`（必填）：类型 string
+- 用法：`opencli reddit user [options] -f json`
 
 ### user-comments
-- Description: View a Reddit user's comment history
-- Args:
-  - `username` (required) — type=string
-  - `limit` (optional) — type=int; default=15
-- Example: `opencli reddit user-comments -f json`
+- 用途：View a Reddit user's comment history
+- 参数：
+  - `username`（必填）：类型 string
+  - `limit`（可选）：类型 int；默认值 15
+- 用法：`opencli reddit user-comments [options] -f json`
 
 ### user-posts
-- Description: View a Reddit user's submitted posts
-- Args:
-  - `username` (required) — type=string
-  - `limit` (optional) — type=int; default=15
-- Example: `opencli reddit user-posts -f json`
+- 用途：View a Reddit user's submitted posts
+- 参数：
+  - `username`（必填）：类型 string
+  - `limit`（可选）：类型 int；默认值 15
+- 用法：`opencli reddit user-posts [options] -f json`

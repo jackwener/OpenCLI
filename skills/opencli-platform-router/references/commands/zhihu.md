@@ -1,34 +1,31 @@
 # zhihu
 
-Total commands: **4**
-
 ## Commands
 
-
 ### download
-- Description: 导出知乎文章为 Markdown 格式
-- Args:
-  - `url` (required) — Article URL (zhuanlan.zhihu.com/p/xxx)
-  - `output` (optional) — default='./zhihu-articles'; Output directory
-  - `download-images` (optional) — type=boolean; default=false; Download images locally
-- Example: `opencli zhihu download -f json`
+- 用途：导出知乎文章为 Markdown 格式
+- 参数：
+  - `url`（必填）：Article URL (zhuanlan.zhihu.com/p/xxx)
+  - `output`（可选）：默认值 './zhihu-articles'；Output directory
+  - `download-images`（可选）：类型 boolean；默认值 false；Download images locally
+- 用法：`opencli zhihu download [options] -f json`
 
 ### hot
-- Description: 知乎热榜
-- Args:
-  - `limit` (optional) — type=int; default=20; Number of items to return
-- Example: `opencli zhihu hot -f json`
+- 用途：知乎热榜
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20；Number of items to return
+- 用法：`opencli zhihu hot [options] -f json`
 
 ### question
-- Description: 知乎问题详情和回答
-- Args:
-  - `id` (required) — Question ID (numeric)
-  - `limit` (optional) — type=int; default=5; Number of answers
-- Example: `opencli zhihu question -f json`
+- 用途：知乎问题详情和回答
+- 参数：
+  - `id`（必填）：Question ID (numeric)
+  - `limit`（可选）：类型 int；默认值 5；Number of answers
+- 用法：`opencli zhihu question [options] -f json`
 
 ### search
-- Description: 知乎搜索
-- Args:
-  - `query` (required) — type=str; Search query
-  - `limit` (optional) — type=int; default=10; Number of results
-- Example: `opencli zhihu search -f json`
+- 用途：知乎搜索
+- 参数：
+  - `query`（必填）：类型 str；Search query
+  - `limit`（可选）：类型 int；默认值 10；Number of results
+- 用法：`opencli zhihu search [options] -f json`

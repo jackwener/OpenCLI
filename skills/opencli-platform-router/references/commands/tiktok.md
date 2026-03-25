@@ -1,100 +1,97 @@
 # tiktok
 
-Total commands: **15**
-
 ## Commands
 
-
 ### comment
-- Description: Comment on a TikTok video
-- Args:
-  - `url` (required) — type=str; TikTok video URL
-  - `text` (required) — type=str; Comment text
-- Example: `opencli tiktok comment -f json`
+- 用途：Comment on a TikTok video
+- 参数：
+  - `url`（必填）：类型 str；TikTok video URL
+  - `text`（必填）：类型 str；Comment text
+- 用法：`opencli tiktok comment [options] -f json`
 
 ### explore
-- Description: Get trending TikTok videos from explore page
-- Args:
-  - `limit` (optional) — type=int; default=20; Number of videos
-- Example: `opencli tiktok explore -f json`
+- 用途：Get trending TikTok videos from explore page
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20；Number of videos
+- 用法：`opencli tiktok explore [options] -f json`
 
 ### follow
-- Description: Follow a TikTok user
-- Args:
-  - `username` (required) — type=str; TikTok username (without @)
-- Example: `opencli tiktok follow -f json`
+- 用途：Follow a TikTok user
+- 参数：
+  - `username`（必填）：类型 str；TikTok username (without @)
+- 用法：`opencli tiktok follow [options] -f json`
 
 ### following
-- Description: List accounts you follow on TikTok
-- Args:
-  - `limit` (optional) — type=int; default=20; Number of accounts
-- Example: `opencli tiktok following -f json`
+- 用途：List accounts you follow on TikTok
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20；Number of accounts
+- 用法：`opencli tiktok following [options] -f json`
 
 ### friends
-- Description: Get TikTok friend suggestions
-- Args:
-  - `limit` (optional) — type=int; default=20; Number of suggestions
-- Example: `opencli tiktok friends -f json`
+- 用途：Get TikTok friend suggestions
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20；Number of suggestions
+- 用法：`opencli tiktok friends [options] -f json`
 
 ### like
-- Description: Like a TikTok video
-- Args:
-  - `url` (required) — type=str; TikTok video URL
-- Example: `opencli tiktok like -f json`
+- 用途：Like a TikTok video
+- 参数：
+  - `url`（必填）：类型 str；TikTok video URL
+- 用法：`opencli tiktok like [options] -f json`
 
 ### live
-- Description: Browse live streams on TikTok
-- Args:
-  - `limit` (optional) — type=int; default=10; Number of streams
-- Example: `opencli tiktok live -f json`
+- 用途：Browse live streams on TikTok
+- 参数：
+  - `limit`（可选）：类型 int；默认值 10；Number of streams
+- 用法：`opencli tiktok live [options] -f json`
 
 ### notifications
-- Description: Get TikTok notifications (likes, comments, mentions, followers)
-- Args:
-  - `limit` (optional) — type=int; default=15; Number of notifications
-  - `type` (optional) — type=str; default=all; Notification type
-- Example: `opencli tiktok notifications -f json`
+- 用途：Get TikTok notifications (likes, comments, mentions, followers)
+- 参数：
+  - `limit`（可选）：类型 int；默认值 15；Number of notifications
+  - `type`（可选）：类型 str；默认值 all；Notification type
+- 用法：`opencli tiktok notifications [options] -f json`
 
 ### profile
-- Description: Get TikTok user profile info
-- Args:
-  - `username` (required) — type=str; TikTok username (without @)
-- Example: `opencli tiktok profile -f json`
+- 用途：Get TikTok user profile info
+- 参数：
+  - `username`（必填）：类型 str；TikTok username (without @)
+- 用法：`opencli tiktok profile [options] -f json`
 
 ### save
-- Description: Add a TikTok video to Favorites
-- Args:
-  - `url` (required) — type=str; TikTok video URL
-- Example: `opencli tiktok save -f json`
+- 用途：Add a TikTok video to Favorites
+- 参数：
+  - `url`（必填）：类型 str；TikTok video URL
+- 用法：`opencli tiktok save [options] -f json`
 
 ### search
-- Description: Search TikTok videos
-- Args:
-  - `query` (required) — type=str; Search query
-  - `limit` (optional) — type=int; default=10; Number of results
-- Example: `opencli tiktok search -f json`
+- 用途：Search TikTok videos
+- 参数：
+  - `query`（必填）：类型 str；Search query
+  - `limit`（可选）：类型 int；默认值 10；Number of results
+- 用法：`opencli tiktok search [options] -f json`
 
 ### unfollow
-- Description: Unfollow a TikTok user
-- Args:
-  - `username` (required) — type=str; TikTok username (without @)
-- Example: `opencli tiktok unfollow -f json`
+- 用途：Unfollow a TikTok user
+- 参数：
+  - `username`（必填）：类型 str；TikTok username (without @)
+- 用法：`opencli tiktok unfollow [options] -f json`
 
 ### unlike
-- Description: Unlike a TikTok video
-- Args:
-  - `url` (required) — type=str; TikTok video URL
-- Example: `opencli tiktok unlike -f json`
+- 用途：Unlike a TikTok video
+- 参数：
+  - `url`（必填）：类型 str；TikTok video URL
+- 用法：`opencli tiktok unlike [options] -f json`
 
 ### unsave
-- Description: Remove a TikTok video from Favorites
-- Args:
-  - `url` (required) — type=str; TikTok video URL
-- Example: `opencli tiktok unsave -f json`
+- 用途：Remove a TikTok video from Favorites
+- 参数：
+  - `url`（必填）：类型 str；TikTok video URL
+- 用法：`opencli tiktok unsave [options] -f json`
 
 ### user
-- Description: Get recent videos from a TikTok user
-- Args:
-  - `username` (required) — type=str; TikTok username (without @)
-  - `limit` (optional) — type=int; default=10; Number of videos
-- Example: `opencli tiktok user -f json`
+- 用途：Get recent videos from a TikTok user
+- 参数：
+  - `username`（必填）：类型 str；TikTok username (without @)
+  - `limit`（可选）：类型 int；默认值 10；Number of videos
+- 用法：`opencli tiktok user [options] -f json`

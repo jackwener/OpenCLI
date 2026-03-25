@@ -1,13 +1,10 @@
 # reuters
 
-Total commands: **1**
-
 ## Commands
 
-
 ### search
-- Description: Reuters 路透社新闻搜索
-- Args:
-  - `query` (required) — Search query
-  - `limit` (optional) — type=int; default=10; Number of results (max 40)
-- Example: `opencli reuters search -f json`
+- 用途：Reuters 路透社新闻搜索
+- 参数：
+  - `query`（必填）：Search query
+  - `limit`（可选）：类型 int；默认值 10；Number of results (max 40)
+- 用法：`opencli reuters search [options] -f json`

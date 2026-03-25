@@ -1,71 +1,68 @@
 # jike
 
-Total commands: **10**
-
 ## Commands
 
-
 ### comment
-- Description: 评论即刻帖子
-- Args:
-  - `id` (required) — type=string; 帖子 ID
-  - `text` (required) — type=string; 评论内容
-- Example: `opencli jike comment -f json`
+- 用途：评论即刻帖子
+- 参数：
+  - `id`（必填）：类型 string；帖子 ID
+  - `text`（必填）：类型 string；评论内容
+- 用法：`opencli jike comment [options] -f json`
 
 ### create
-- Description: 发布即刻动态
-- Args:
-  - `text` (required) — type=string; 动态正文内容
-- Example: `opencli jike create -f json`
+- 用途：发布即刻动态
+- 参数：
+  - `text`（必填）：类型 string；动态正文内容
+- 用法：`opencli jike create [options] -f json`
 
 ### feed
-- Description: 即刻首页动态流
-- Args:
-  - `limit` (optional) — type=int; default=20
-- Example: `opencli jike feed -f json`
+- 用途：即刻首页动态流
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20
+- 用法：`opencli jike feed [options] -f json`
 
 ### like
-- Description: 点赞即刻帖子
-- Args:
-  - `id` (required) — type=string; 帖子 ID
-- Example: `opencli jike like -f json`
+- 用途：点赞即刻帖子
+- 参数：
+  - `id`（必填）：类型 string；帖子 ID
+- 用法：`opencli jike like [options] -f json`
 
 ### notifications
-- Description: 即刻通知
-- Args:
-  - `limit` (optional) — type=int; default=20
-- Example: `opencli jike notifications -f json`
+- 用途：即刻通知
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20
+- 用法：`opencli jike notifications [options] -f json`
 
 ### post
-- Description: 即刻帖子详情及评论
-- Args:
-  - `id` (required) — type=string; Post ID (from post URL)
-- Example: `opencli jike post -f json`
+- 用途：即刻帖子详情及评论
+- 参数：
+  - `id`（必填）：类型 string；Post ID (from post URL)
+- 用法：`opencli jike post [options] -f json`
 
 ### repost
-- Description: 转发即刻帖子
-- Args:
-  - `id` (required) — type=string; 帖子 ID
-  - `text` (optional) — type=string; 转发附言（可选）
-- Example: `opencli jike repost -f json`
+- 用途：转发即刻帖子
+- 参数：
+  - `id`（必填）：类型 string；帖子 ID
+  - `text`（可选）：类型 string；转发附言（可选）
+- 用法：`opencli jike repost [options] -f json`
 
 ### search
-- Description: 搜索即刻帖子
-- Args:
-  - `query` (required) — type=string
-  - `limit` (optional) — type=int; default=20
-- Example: `opencli jike search -f json`
+- 用途：搜索即刻帖子
+- 参数：
+  - `query`（必填）：类型 string
+  - `limit`（可选）：类型 int；默认值 20
+- 用法：`opencli jike search [options] -f json`
 
 ### topic
-- Description: 即刻话题/圈子帖子
-- Args:
-  - `id` (required) — type=string; Topic ID (from topic URL, e.g. 553870e8e4b0cafb0a1bef68)
-  - `limit` (optional) — type=int; default=20; Number of posts
-- Example: `opencli jike topic -f json`
+- 用途：即刻话题/圈子帖子
+- 参数：
+  - `id`（必填）：类型 string；Topic ID (from topic URL, e.g. 553870e8e4b0cafb0a1bef68)
+  - `limit`（可选）：类型 int；默认值 20；Number of posts
+- 用法：`opencli jike topic [options] -f json`
 
 ### user
-- Description: 即刻用户动态
-- Args:
-  - `username` (required) — type=string; Username from profile URL (e.g. wenhao1996)
-  - `limit` (optional) — type=int; default=20; Number of posts
-- Example: `opencli jike user -f json`
+- 用途：即刻用户动态
+- 参数：
+  - `username`（必填）：类型 string；Username from profile URL (e.g. wenhao1996)
+  - `limit`（可选）：类型 int；默认值 20；Number of posts
+- 用法：`opencli jike user [options] -f json`

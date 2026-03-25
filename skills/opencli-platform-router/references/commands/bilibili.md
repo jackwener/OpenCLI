@@ -1,90 +1,87 @@
 # bilibili
 
-Total commands: **12**
-
 ## Commands
 
-
 ### download
-- Description: 下载B站视频（需要 yt-dlp）
-- Args:
-  - `bvid` (required) — Video BV ID (e.g., BV1xxx)
-  - `output` (optional) — default='./bilibili-downloads'; Output directory
-  - `quality` (optional) — default='best'; Video quality (best, 1080p, 720p, 480p)
-- Example: `opencli bilibili download -f json`
+- 用途：下载B站视频（需要 yt-dlp）
+- 参数：
+  - `bvid`（必填）：Video BV ID (e.g., BV1xxx)
+  - `output`（可选）：默认值 './bilibili-downloads'；Output directory
+  - `quality`（可选）：默认值 'best'；Video quality (best, 1080p, 720p, 480p)
+- 用法：`opencli bilibili download [options] -f json`
 
 ### dynamic
-- Description: Get Bilibili user dynamic feed
-- Args:
-  - `limit` (optional) — type=int; default=15
-- Example: `opencli bilibili dynamic -f json`
+- 用途：Get Bilibili user dynamic feed
+- 参数：
+  - `limit`（可选）：类型 int；默认值 15
+- 用法：`opencli bilibili dynamic [options] -f json`
 
 ### favorite
-- Description: 我的默认收藏夹
-- Args:
-  - `limit` (optional) — type=int; default=20; Number of results
-  - `page` (optional) — type=int; default=1; Page number
-- Example: `opencli bilibili favorite -f json`
+- 用途：我的默认收藏夹
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20；Number of results
+  - `page`（可选）：类型 int；默认值 1；Page number
+- 用法：`opencli bilibili favorite [options] -f json`
 
 ### feed
-- Description: 关注的人的动态时间线
-- Args:
-  - `limit` (optional) — type=int; default=20; Number of results
-  - `type` (optional) — default='all'; Filter: all, video, article
-- Example: `opencli bilibili feed -f json`
+- 用途：关注的人的动态时间线
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20；Number of results
+  - `type`（可选）：默认值 'all'；Filter: all, video, article
+- 用法：`opencli bilibili feed [options] -f json`
 
 ### following
-- Description: 获取 Bilibili 用户的关注列表
-- Args:
-  - `uid` (optional) — 目标用户 ID（默认为当前登录用户）
-  - `page` (optional) — type=int; default=1; 页码
-  - `limit` (optional) — type=int; default=50; 每页数量 (最大 50)
-- Example: `opencli bilibili following -f json`
+- 用途：获取 Bilibili 用户的关注列表
+- 参数：
+  - `uid`（可选）：目标用户 ID（默认为当前登录用户）
+  - `page`（可选）：类型 int；默认值 1；页码
+  - `limit`（可选）：类型 int；默认值 50；每页数量 (最大 50)
+- 用法：`opencli bilibili following [options] -f json`
 
 ### history
-- Description: 我的观看历史
-- Args:
-  - `limit` (optional) — type=int; default=20; Number of results
-- Example: `opencli bilibili history -f json`
+- 用途：我的观看历史
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20；Number of results
+- 用法：`opencli bilibili history [options] -f json`
 
 ### hot
-- Description: B站热门视频
-- Args:
-  - `limit` (optional) — type=int; default=20; Number of videos
-- Example: `opencli bilibili hot -f json`
+- 用途：B站热门视频
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20；Number of videos
+- 用法：`opencli bilibili hot [options] -f json`
 
 ### me
-- Description: My Bilibili profile info
-- Args: none declared
-- Example: `opencli bilibili me -f json`
+- 用途：My Bilibili profile info
+- 参数：无
+- 用法：`opencli bilibili me [options] -f json`
 
 ### ranking
-- Description: Get Bilibili video ranking board
-- Args:
-  - `limit` (optional) — type=int; default=20
-- Example: `opencli bilibili ranking -f json`
+- 用途：Get Bilibili video ranking board
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20
+- 用法：`opencli bilibili ranking [options] -f json`
 
 ### search
-- Description: Search Bilibili videos or users
-- Args:
-  - `query` (required) — Search keyword
-  - `type` (optional) — default='video'; video or user
-  - `page` (optional) — type=int; default=1; Result page
-  - `limit` (optional) — type=int; default=20; Number of results
-- Example: `opencli bilibili search -f json`
+- 用途：Search Bilibili videos or users
+- 参数：
+  - `query`（必填）：Search keyword
+  - `type`（可选）：默认值 'video'；video or user
+  - `page`（可选）：类型 int；默认值 1；Result page
+  - `limit`（可选）：类型 int；默认值 20；Number of results
+- 用法：`opencli bilibili search [options] -f json`
 
 ### subtitle
-- Description: 获取 Bilibili 视频的字幕
-- Args:
-  - `bvid` (required)
-  - `lang` (optional) — 字幕语言代码 (如 zh-CN, en-US, ai-zh)，默认取第一个
-- Example: `opencli bilibili subtitle -f json`
+- 用途：获取 Bilibili 视频的字幕
+- 参数：
+  - `bvid`（必填）
+  - `lang`（可选）：字幕语言代码 (如 zh-CN, en-US, ai-zh)，默认取第一个
+- 用法：`opencli bilibili subtitle [options] -f json`
 
 ### user-videos
-- Description: 查看指定用户的投稿视频
-- Args:
-  - `uid` (required) — User UID or username
-  - `limit` (optional) — type=int; default=20; Number of results
-  - `order` (optional) — default='pubdate'; Sort: pubdate, click, stow
-  - `page` (optional) — type=int; default=1; Page number
-- Example: `opencli bilibili user-videos -f json`
+- 用途：查看指定用户的投稿视频
+- 参数：
+  - `uid`（必填）：User UID or username
+  - `limit`（可选）：类型 int；默认值 20；Number of results
+  - `order`（可选）：默认值 'pubdate'；Sort: pubdate, click, stow
+  - `page`（可选）：类型 int；默认值 1；Page number
+- 用法：`opencli bilibili user-videos [options] -f json`

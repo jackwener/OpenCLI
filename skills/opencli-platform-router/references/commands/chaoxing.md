@@ -1,22 +1,19 @@
 # chaoxing
 
-Total commands: **2**
-
 ## Commands
 
-
 ### assignments
-- Description: 学习通作业列表
-- Args:
-  - `course` (optional) — type=string; 按课程名过滤（模糊匹配）
-  - `status` (optional) — type=string; default='all'; 按状态过滤
-  - `limit` (optional) — type=int; default=20; 最大返回数量
-- Example: `opencli chaoxing assignments -f json`
+- 用途：学习通作业列表
+- 参数：
+  - `course`（可选）：类型 string；按课程名过滤（模糊匹配）
+  - `status`（可选）：类型 string；默认值 'all'；按状态过滤
+  - `limit`（可选）：类型 int；默认值 20；最大返回数量
+- 用法：`opencli chaoxing assignments [options] -f json`
 
 ### exams
-- Description: 学习通考试列表
-- Args:
-  - `course` (optional) — type=string; 按课程名过滤（模糊匹配）
-  - `status` (optional) — type=string; default='all'; 按状态过滤
-  - `limit` (optional) — type=int; default=20; 最大返回数量
-- Example: `opencli chaoxing exams -f json`
+- 用途：学习通考试列表
+- 参数：
+  - `course`（可选）：类型 string；按课程名过滤（模糊匹配）
+  - `status`（可选）：类型 string；默认值 'all'；按状态过滤
+  - `limit`（可选）：类型 int；默认值 20；最大返回数量
+- 用法：`opencli chaoxing exams [options] -f json`

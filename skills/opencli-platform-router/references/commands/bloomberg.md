@@ -1,65 +1,62 @@
 # bloomberg
 
-Total commands: **10**
-
 ## Commands
 
-
 ### businessweek
-- Description: Bloomberg Businessweek top stories (RSS)
-- Args:
-  - `limit` (optional) — type=int; default=1; Number of feed items to return (max 20)
-- Example: `opencli bloomberg businessweek -f json`
+- 用途：Bloomberg Businessweek top stories (RSS)
+- 参数：
+  - `limit`（可选）：类型 int；默认值 1；Number of feed items to return (max 20)
+- 用法：`opencli bloomberg businessweek [options] -f json`
 
 ### economics
-- Description: Bloomberg Economics top stories (RSS)
-- Args:
-  - `limit` (optional) — type=int; default=1; Number of feed items to return (max 20)
-- Example: `opencli bloomberg economics -f json`
+- 用途：Bloomberg Economics top stories (RSS)
+- 参数：
+  - `limit`（可选）：类型 int；默认值 1；Number of feed items to return (max 20)
+- 用法：`opencli bloomberg economics [options] -f json`
 
 ### feeds
-- Description: List the Bloomberg RSS feed aliases used by the adapter
-- Args: none declared
-- Example: `opencli bloomberg feeds -f json`
+- 用途：List the Bloomberg RSS feed aliases used by the adapter
+- 参数：无
+- 用法：`opencli bloomberg feeds [options] -f json`
 
 ### industries
-- Description: Bloomberg Industries top stories (RSS)
-- Args:
-  - `limit` (optional) — type=int; default=1; Number of feed items to return (max 20)
-- Example: `opencli bloomberg industries -f json`
+- 用途：Bloomberg Industries top stories (RSS)
+- 参数：
+  - `limit`（可选）：类型 int；默认值 1；Number of feed items to return (max 20)
+- 用法：`opencli bloomberg industries [options] -f json`
 
 ### main
-- Description: Bloomberg homepage top stories (RSS)
-- Args:
-  - `limit` (optional) — type=int; default=1; Number of feed items to return (max 20)
-- Example: `opencli bloomberg main -f json`
+- 用途：Bloomberg homepage top stories (RSS)
+- 参数：
+  - `limit`（可选）：类型 int；默认值 1；Number of feed items to return (max 20)
+- 用法：`opencli bloomberg main [options] -f json`
 
 ### markets
-- Description: Bloomberg Markets top stories (RSS)
-- Args:
-  - `limit` (optional) — type=int; default=1; Number of feed items to return (max 20)
-- Example: `opencli bloomberg markets -f json`
+- 用途：Bloomberg Markets top stories (RSS)
+- 参数：
+  - `limit`（可选）：类型 int；默认值 1；Number of feed items to return (max 20)
+- 用法：`opencli bloomberg markets [options] -f json`
 
 ### news
-- Description: Read a Bloomberg story/article page and return title, full content, and media links
-- Args:
-  - `link` (required) — Bloomberg story/article URL or relative Bloomberg path
-- Example: `opencli bloomberg news -f json`
+- 用途：Read a Bloomberg story/article page and return title, full content, and media links
+- 参数：
+  - `link`（必填）：Bloomberg story/article URL or relative Bloomberg path
+- 用法：`opencli bloomberg news [options] -f json`
 
 ### opinions
-- Description: Bloomberg Opinion top stories (RSS)
-- Args:
-  - `limit` (optional) — type=int; default=1; Number of feed items to return (max 20)
-- Example: `opencli bloomberg opinions -f json`
+- 用途：Bloomberg Opinion top stories (RSS)
+- 参数：
+  - `limit`（可选）：类型 int；默认值 1；Number of feed items to return (max 20)
+- 用法：`opencli bloomberg opinions [options] -f json`
 
 ### politics
-- Description: Bloomberg Politics top stories (RSS)
-- Args:
-  - `limit` (optional) — type=int; default=1; Number of feed items to return (max 20)
-- Example: `opencli bloomberg politics -f json`
+- 用途：Bloomberg Politics top stories (RSS)
+- 参数：
+  - `limit`（可选）：类型 int；默认值 1；Number of feed items to return (max 20)
+- 用法：`opencli bloomberg politics [options] -f json`
 
 ### tech
-- Description: Bloomberg Tech top stories (RSS)
-- Args:
-  - `limit` (optional) — type=int; default=1; Number of feed items to return (max 20)
-- Example: `opencli bloomberg tech -f json`
+- 用途：Bloomberg Tech top stories (RSS)
+- 参数：
+  - `limit`（可选）：类型 int；默认值 1；Number of feed items to return (max 20)
+- 用法：`opencli bloomberg tech [options] -f json`

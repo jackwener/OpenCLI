@@ -1,100 +1,97 @@
 # instagram
 
-Total commands: **14**
-
 ## Commands
 
-
 ### comment
-- Description: Comment on an Instagram post
-- Args:
-  - `username` (required) — type=str; Username of the post author
-  - `text` (required) — type=str; Comment text
-  - `index` (optional) — type=int; default=1; Post index (1 = most recent)
-- Example: `opencli instagram comment -f json`
+- 用途：Comment on an Instagram post
+- 参数：
+  - `username`（必填）：类型 str；Username of the post author
+  - `text`（必填）：类型 str；Comment text
+  - `index`（可选）：类型 int；默认值 1；Post index (1 = most recent)
+- 用法：`opencli instagram comment [options] -f json`
 
 ### explore
-- Description: Instagram explore/discover trending posts
-- Args:
-  - `limit` (optional) — type=int; default=20; Number of posts
-- Example: `opencli instagram explore -f json`
+- 用途：Instagram explore/discover trending posts
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20；Number of posts
+- 用法：`opencli instagram explore [options] -f json`
 
 ### follow
-- Description: Follow an Instagram user
-- Args:
-  - `username` (required) — type=str; Instagram username to follow
-- Example: `opencli instagram follow -f json`
+- 用途：Follow an Instagram user
+- 参数：
+  - `username`（必填）：类型 str；Instagram username to follow
+- 用法：`opencli instagram follow [options] -f json`
 
 ### followers
-- Description: List followers of an Instagram user
-- Args:
-  - `username` (required) — type=str; Instagram username
-  - `limit` (optional) — type=int; default=20; Number of followers
-- Example: `opencli instagram followers -f json`
+- 用途：List followers of an Instagram user
+- 参数：
+  - `username`（必填）：类型 str；Instagram username
+  - `limit`（可选）：类型 int；默认值 20；Number of followers
+- 用法：`opencli instagram followers [options] -f json`
 
 ### following
-- Description: List accounts an Instagram user is following
-- Args:
-  - `username` (required) — type=str; Instagram username
-  - `limit` (optional) — type=int; default=20; Number of accounts
-- Example: `opencli instagram following -f json`
+- 用途：List accounts an Instagram user is following
+- 参数：
+  - `username`（必填）：类型 str；Instagram username
+  - `limit`（可选）：类型 int；默认值 20；Number of accounts
+- 用法：`opencli instagram following [options] -f json`
 
 ### like
-- Description: Like an Instagram post
-- Args:
-  - `username` (required) — type=str; Username of the post author
-  - `index` (optional) — type=int; default=1; Post index (1 = most recent)
-- Example: `opencli instagram like -f json`
+- 用途：Like an Instagram post
+- 参数：
+  - `username`（必填）：类型 str；Username of the post author
+  - `index`（可选）：类型 int；默认值 1；Post index (1 = most recent)
+- 用法：`opencli instagram like [options] -f json`
 
 ### profile
-- Description: Get Instagram user profile info
-- Args:
-  - `username` (required) — type=str; Instagram username
-- Example: `opencli instagram profile -f json`
+- 用途：Get Instagram user profile info
+- 参数：
+  - `username`（必填）：类型 str；Instagram username
+- 用法：`opencli instagram profile [options] -f json`
 
 ### save
-- Description: Save (bookmark) an Instagram post
-- Args:
-  - `username` (required) — type=str; Username of the post author
-  - `index` (optional) — type=int; default=1; Post index (1 = most recent)
-- Example: `opencli instagram save -f json`
+- 用途：Save (bookmark) an Instagram post
+- 参数：
+  - `username`（必填）：类型 str；Username of the post author
+  - `index`（可选）：类型 int；默认值 1；Post index (1 = most recent)
+- 用法：`opencli instagram save [options] -f json`
 
 ### saved
-- Description: Get your saved Instagram posts
-- Args:
-  - `limit` (optional) — type=int; default=20; Number of saved posts
-- Example: `opencli instagram saved -f json`
+- 用途：Get your saved Instagram posts
+- 参数：
+  - `limit`（可选）：类型 int；默认值 20；Number of saved posts
+- 用法：`opencli instagram saved [options] -f json`
 
 ### search
-- Description: Search Instagram users
-- Args:
-  - `query` (required) — type=str; Search query
-  - `limit` (optional) — type=int; default=10; Number of results
-- Example: `opencli instagram search -f json`
+- 用途：Search Instagram users
+- 参数：
+  - `query`（必填）：类型 str；Search query
+  - `limit`（可选）：类型 int；默认值 10；Number of results
+- 用法：`opencli instagram search [options] -f json`
 
 ### unfollow
-- Description: Unfollow an Instagram user
-- Args:
-  - `username` (required) — type=str; Instagram username to unfollow
-- Example: `opencli instagram unfollow -f json`
+- 用途：Unfollow an Instagram user
+- 参数：
+  - `username`（必填）：类型 str；Instagram username to unfollow
+- 用法：`opencli instagram unfollow [options] -f json`
 
 ### unlike
-- Description: Unlike an Instagram post
-- Args:
-  - `username` (required) — type=str; Username of the post author
-  - `index` (optional) — type=int; default=1; Post index (1 = most recent)
-- Example: `opencli instagram unlike -f json`
+- 用途：Unlike an Instagram post
+- 参数：
+  - `username`（必填）：类型 str；Username of the post author
+  - `index`（可选）：类型 int；默认值 1；Post index (1 = most recent)
+- 用法：`opencli instagram unlike [options] -f json`
 
 ### unsave
-- Description: Unsave (remove bookmark) an Instagram post
-- Args:
-  - `username` (required) — type=str; Username of the post author
-  - `index` (optional) — type=int; default=1; Post index (1 = most recent)
-- Example: `opencli instagram unsave -f json`
+- 用途：Unsave (remove bookmark) an Instagram post
+- 参数：
+  - `username`（必填）：类型 str；Username of the post author
+  - `index`（可选）：类型 int；默认值 1；Post index (1 = most recent)
+- 用法：`opencli instagram unsave [options] -f json`
 
 ### user
-- Description: Get recent posts from an Instagram user
-- Args:
-  - `username` (required) — type=str; Instagram username
-  - `limit` (optional) — type=int; default=12; Number of posts
-- Example: `opencli instagram user -f json`
+- 用途：Get recent posts from an Instagram user
+- 参数：
+  - `username`（必填）：类型 str；Instagram username
+  - `limit`（可选）：类型 int；默认值 12；Number of posts
+- 用法：`opencli instagram user [options] -f json`

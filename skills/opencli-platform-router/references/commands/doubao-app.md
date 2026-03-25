@@ -1,45 +1,42 @@
 # doubao-app
 
-Total commands: **7**
-
 ## Commands
 
-
 ### ask
-- Description: Send a message to Doubao desktop app and wait for the AI response
-- Args:
-  - `text` (required) — Prompt to send
-  - `timeout` (optional) — type=int; default=30; Max seconds to wait for response
-- Example: `opencli doubao-app ask -f json`
+- 用途：Send a message to Doubao desktop app and wait for the AI response
+- 参数：
+  - `text`（必填）：Prompt to send
+  - `timeout`（可选）：类型 int；默认值 30；Max seconds to wait for response
+- 用法：`opencli doubao-app ask [options] -f json`
 
 ### dump
-- Description: Dump Doubao desktop app DOM and snapshot to /tmp for debugging
-- Args: none declared
-- Example: `opencli doubao-app dump -f json`
+- 用途：Dump Doubao desktop app DOM and snapshot to /tmp for debugging
+- 参数：无
+- 用法：`opencli doubao-app dump [options] -f json`
 
 ### new
-- Description: Start a new chat in Doubao desktop app
-- Args: none declared
-- Example: `opencli doubao-app new -f json`
+- 用途：Start a new chat in Doubao desktop app
+- 参数：无
+- 用法：`opencli doubao-app new [options] -f json`
 
 ### read
-- Description: Read chat history from Doubao desktop app
-- Args: none declared
-- Example: `opencli doubao-app read -f json`
+- 用途：Read chat history from Doubao desktop app
+- 参数：无
+- 用法：`opencli doubao-app read [options] -f json`
 
 ### screenshot
-- Description: Capture a screenshot of the Doubao desktop app window
-- Args:
-  - `output` (optional) — default=/tmp/doubao-screenshot.png)'; Output file path (default: /tmp/doubao-screenshot.png)
-- Example: `opencli doubao-app screenshot -f json`
+- 用途：Capture a screenshot of the Doubao desktop app window
+- 参数：
+  - `output`（可选）：默认值 /tmp/doubao-screenshot.png)'；Output file path (default: /tmp/doubao-screenshot.png)
+- 用法：`opencli doubao-app screenshot [options] -f json`
 
 ### send
-- Description: Send a message to Doubao desktop app
-- Args:
-  - `text` (required) — Message text to send
-- Example: `opencli doubao-app send -f json`
+- 用途：Send a message to Doubao desktop app
+- 参数：
+  - `text`（必填）：Message text to send
+- 用法：`opencli doubao-app send [options] -f json`
 
 ### status
-- Description: Check CDP connection to Doubao desktop app
-- Args: none declared
-- Example: `opencli doubao-app status -f json`
+- 用途：Check CDP connection to Doubao desktop app
+- 参数：无
+- 用法：`opencli doubao-app status [options] -f json`

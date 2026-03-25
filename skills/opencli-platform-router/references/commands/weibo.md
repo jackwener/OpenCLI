@@ -1,19 +1,16 @@
 # weibo
 
-Total commands: **2**
-
 ## Commands
 
-
 ### hot
-- Description: 微博热搜
-- Args:
-  - `limit` (optional) — type=int; default=30; Number of items (max 50)
-- Example: `opencli weibo hot -f json`
+- 用途：微博热搜
+- 参数：
+  - `limit`（可选）：类型 int；默认值 30；Number of items (max 50)
+- 用法：`opencli weibo hot [options] -f json`
 
 ### search
-- Description: 搜索微博
-- Args:
-  - `keyword` (required) — Search keyword
-  - `limit` (optional) — type=int; default=10; Number of results (max 50)
-- Example: `opencli weibo search -f json`
+- 用途：搜索微博
+- 参数：
+  - `keyword`（必填）：Search keyword
+  - `limit`（可选）：类型 int；默认值 10；Number of results (max 50)
+- 用法：`opencli weibo search [options] -f json`

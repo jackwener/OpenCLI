@@ -1,25 +1,22 @@
 # xiaoyuzhou
 
-Total commands: **3**
-
 ## Commands
 
-
 ### episode
-- Description: View details of a Xiaoyuzhou podcast episode
-- Args:
-  - `id` (required) — Episode ID (eid from podcast-episodes output)
-- Example: `opencli xiaoyuzhou episode -f json`
+- 用途：View details of a Xiaoyuzhou podcast episode
+- 参数：
+  - `id`（必填）：Episode ID (eid from podcast-episodes output)
+- 用法：`opencli xiaoyuzhou episode [options] -f json`
 
 ### podcast
-- Description: View a Xiaoyuzhou podcast profile
-- Args:
-  - `id` (required) — Podcast ID (from xiaoyuzhoufm.com URL)
-- Example: `opencli xiaoyuzhou podcast -f json`
+- 用途：View a Xiaoyuzhou podcast profile
+- 参数：
+  - `id`（必填）：Podcast ID (from xiaoyuzhoufm.com URL)
+- 用法：`opencli xiaoyuzhou podcast [options] -f json`
 
 ### podcast-episodes
-- Description: List recent episodes of a Xiaoyuzhou podcast (up to 15, SSR limit)
-- Args:
-  - `id` (required) — Podcast ID (from xiaoyuzhoufm.com URL)
-  - `limit` (optional) — type=int; default=15; Max episodes to show (up to 15, SSR limit)
-- Example: `opencli xiaoyuzhou podcast-episodes -f json`
+- 用途：List recent episodes of a Xiaoyuzhou podcast (up to 15, SSR limit)
+- 参数：
+  - `id`（必填）：Podcast ID (from xiaoyuzhoufm.com URL)
+  - `limit`（可选）：类型 int；默认值 15；Max episodes to show (up to 15, SSR limit)
+- 用法：`opencli xiaoyuzhou podcast-episodes [options] -f json`
