@@ -1,6 +1,5 @@
 /**
  * YouTube search — innertube API via browser session.
- * Source: bb-sites/youtube/search.js
  */
 import { cli, Strategy } from '../../registry.js';
 

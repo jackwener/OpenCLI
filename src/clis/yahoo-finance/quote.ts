@@ -1,6 +1,5 @@
 /**
  * Yahoo Finance stock quote — multi-strategy API fallback.
- * Source: bb-sites/yahoo-finance/quote.js
  */
 import { cli, Strategy } from '../../registry.js';
 

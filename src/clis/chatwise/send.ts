@@ -1,6 +1,7 @@
 import { cli, Strategy } from '../../registry.js';
 import { SelectorError } from '../../errors.js';
 import type { IPage } from '../../types.js';
+import { chatwiseRequiredEnv } from './shared.js';
 
 export const sendCommand = cli({
   site: 'chatwise',
@@ -9,6 +10,7 @@ export const sendCommand = cli({
   domain: 'localhost',
   strategy: Strategy.UI,
   browser: true,
+  requiredEnv: chatwiseRequiredEnv,
   args: [{ name: 'text', required: true, positional: true, help: 'Message to send' }],
   columns: ['Status', 'InjectedText'],
   func: async (page: IPage, kwargs: any) => {

@@ -13,6 +13,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import type { IPage } from '../../types.js';
 import { render } from '../template.js';
+import { getErrorMessage } from '../../errors.js';
 import {
   httpDownload,
   ytdlpDownload,
@@ -279,10 +280,11 @@ export async function stepDownload(
           progressBar.complete(result.success, result.success ? formatBytes(result.size) : undefined);
         }
       }
-    } catch (err: any) {
-      result = { success: false, size: 0, error: err.message };
+    } catch (err) {
+      const msg = getErrorMessage(err);
+      result = { success: false, size: 0, error: msg };
       if (progressBar) {
-        progressBar.fail(err.message);
+        progressBar.fail(msg);
       }
     }
 

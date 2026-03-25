@@ -12,6 +12,7 @@
 
 import { Strategy } from './registry.js';
 import type { IPage } from './types.js';
+import { getErrorMessage } from './errors.js';
 
 /** Strategy cascade order (simplest → most complex) */
 const CASCADE_ORDER: Strategy[] = [
@@ -128,9 +129,9 @@ export async function probeEndpoint(
         result.error = `Strategy ${strategy} requires site-specific implementation`;
         break;
     }
-  } catch (err: any) {
+  } catch (err) {
     result.success = false;
-    result.error = err.message ?? String(err);
+    result.error = getErrorMessage(err);
   }
 
   return result;

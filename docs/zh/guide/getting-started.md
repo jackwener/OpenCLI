@@ -38,3 +38,4 @@ opencli bilibili hot -f csv     # CSV
 - [Browser Bridge 设置](/zh/guide/browser-bridge)
 - [所有适配器](/zh/adapters/)
 - [开发者指南](/zh/developer/contributing)
+- [给新 Electron 应用生成 CLI](/zh/guide/electron-app-cli)

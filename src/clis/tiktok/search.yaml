@@ -35,6 +35,7 @@ pipeline:
             rank: idx + 1,
             desc: (v.desc || '').replace(/\n/g, ' ').substring(0, 100),
             author: a.uniqueId || '',
+            url: (a.uniqueId && v.id) ? 'https://www.tiktok.com/@' + a.uniqueId + '/video/' + v.id : '',
             plays: s.playCount || 0,
             likes: s.diggCount || 0,
             comments: s.commentCount || 0,
@@ -43,4 +44,4 @@ pipeline:
         });
       })()
 
-columns: [rank, desc, author, plays, likes, comments, shares]
+columns: [rank, desc, author, url, plays, likes, comments, shares]

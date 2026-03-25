@@ -10,7 +10,7 @@ import * as path from 'node:path';
 import { cli, Strategy } from '../../registry.js';
 import { formatCookieHeader, httpDownload } from '../../download/index.js';
 import { formatBytes } from '../../download/progress.js';
-import { CommandExecutionError } from '../../errors.js';
+import { CommandExecutionError, getErrorMessage } from '../../errors.js';
 import { pixivFetch } from './utils.js';
 
 cli({
@@ -76,12 +76,12 @@ cli({
           status: result.success ? 'success' : 'failed',
           size: result.success ? formatBytes(result.size) : (result.error || 'unknown error'),
         });
-      } catch (err: any) {
+      } catch (err) {
         results.push({
           index: i + 1,
           type: 'image',
           status: 'failed',
-          size: err.message,
+          size: getErrorMessage(err),
         });
       }
     }

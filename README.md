@@ -131,7 +131,7 @@ Run `opencli list` for the live registry.
 | **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | Desktop |
 | **dory** | `status` `dump` `screenshot` `connections` `connect` `databases` `tables` `columns` `table-preview` `query` `query-export` `chart-download` `send` `ask` `read` `export` `new` `sessions` | Desktop |
 | **v2ex** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | Public / Browser |
-| **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` | Browser |
+| **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` `fund-holdings` `fund-snapshot` | Browser |
 | **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` | Desktop |
 | **chatgpt** | `status` `new` `send` `read` `ask` | Desktop |
 | **xiaohongshu** | `search` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | Browser |
@@ -150,9 +150,11 @@ Run `opencli list` for the live registry.
 | **arxiv** | `search` `paper` | Public |
 | **wikipedia** | `search` `summary` `random` `trending` | Public |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` | Public |
-| **linkedin** | `search` | Browser |
+| **jd** | `item` | Browser |
+| **linkedin** | `search` `timeline` | Browser |
 | **reuters** | `search` | Browser |
 | **smzdm** | `search` | Browser |
+| **web** | `read` | Browser |
 | **weibo** | `hot` `search` | Browser |
 | **yahoo-finance** | `quote` | Browser |
 | **sinafinance** | `news` | 🌐 Public |
@@ -204,6 +206,8 @@ opencli register mycli
 ### Desktop App Adapters
 
 Each desktop adapter has its own detailed documentation with commands reference, setup guide, and examples:
+
+If you want to add support for a new Electron desktop app, start with [docs/guide/electron-app-cli.md](./docs/guide/electron-app-cli.md) and the deeper [Electron guide](./docs/advanced/electron.md).
 
 | App | Description | Doc |
 |-----|-------------|-----|

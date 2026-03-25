@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 import { cli, Strategy } from '../../registry.js';
-import { CommandExecutionError, ConfigError } from '../../errors.js';
+import { CommandExecutionError, ConfigError, getErrorMessage } from '../../errors.js';
 import type { IPage } from '../../types.js';
 import { getVisibleChatMessages } from './ax.js';
 
@@ -28,8 +28,8 @@ export const readCommand = cli({
       }
 
       return [{ Role: 'Assistant', Text: messages[messages.length - 1] }];
-    } catch (err: any) {
-      throw new CommandExecutionError("Failed to read from ChatGPT: " + err.message);
+    } catch (err) {
+      throw new CommandExecutionError("Failed to read from ChatGPT: " + getErrorMessage(err));
     }
   },
 });

@@ -19,21 +19,15 @@ import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
 import { emitHook, type HookContext } from './hooks.js';
 
-/** Set of TS module paths that have been loaded */
 const _loadedModules = new Set<string>();
 type CommandArgs = Record<string, unknown>;
 
-
-/**
- * Validates and coerces arguments based on the command's Arg definitions.
- */
 export function coerceAndValidateArgs(cmdArgs: Arg[], kwargs: CommandArgs): CommandArgs {
   const result: CommandArgs = { ...kwargs };
 
   for (const argDef of cmdArgs) {
     const val = result[argDef.name];
-    
-    // 1. Check required
+
     if (argDef.required && (val === undefined || val === null || val === '')) {
       throw new ArgumentError(
         `Argument "${argDef.name}" is required.`,
@@ -42,7 +36,6 @@ export function coerceAndValidateArgs(cmdArgs: Arg[], kwargs: CommandArgs): Comm
     }
 
     if (val !== undefined && val !== null) {
-      // 2. Type coercion
       if (argDef.type === 'int' || argDef.type === 'number') {
         const num = Number(val);
         if (Number.isNaN(num)) {
@@ -60,7 +53,6 @@ export function coerceAndValidateArgs(cmdArgs: Arg[], kwargs: CommandArgs): Comm
         }
       }
 
-      // 3. Choices validation
       const coercedVal = result[argDef.name];
       if (argDef.choices && argDef.choices.length > 0) {
         if (!argDef.choices.map(String).includes(String(coercedVal))) {
@@ -74,16 +66,12 @@ export function coerceAndValidateArgs(cmdArgs: Arg[], kwargs: CommandArgs): Comm
   return result;
 }
 
-/**
- * Run a command's func or pipeline against a page.
- */
 async function runCommand(
   cmd: CliCommand,
   page: IPage | null,
   kwargs: CommandArgs,
   debug: boolean,
 ): Promise<unknown> {
-  // Lazy-load TS module on first execution (manifest fast-path)
   const internal = cmd as InternalCliCommand;
   if (internal._lazy && internal._modulePath) {
     const modulePath = internal._modulePath;
@@ -98,7 +86,7 @@ async function runCommand(
         );
       }
     }
-    // After loading, the module's cli() call will have updated the registry.
+
     const updated = getRegistry().get(fullName(cmd));
     if (updated?.func) {
       if (!page && updated.browser !== false) {
@@ -117,33 +105,29 @@ async function runCommand(
   );
 }
 
-/**
- * Resolve the pre-navigation URL for a command, or null to skip.
- *
- * COOKIE/HEADER strategies need the browser on the target domain so
- * `fetch(url, { credentials: 'include' })` carries cookies.
- * Adapters that handle their own navigation set `navigateBefore: false`.
- */
 function resolvePreNav(cmd: CliCommand): string | null {
   if (cmd.navigateBefore === false) return null;
   if (typeof cmd.navigateBefore === 'string') return cmd.navigateBefore;
 
-  // Default: pre-navigate for COOKIE/HEADER strategies with a domain
   if ((cmd.strategy === Strategy.COOKIE || cmd.strategy === Strategy.HEADER) && cmd.domain) {
     return `https://${cmd.domain}`;
   }
   return null;
 }
 
-/**
- * Execute a CLI command. Automatically manages browser sessions when needed.
- *
- * This is the unified entry point — callers don't need to care about
- * whether the command requires a browser or not.
- *
- * Lifecycle hooks are emitted around execution:
- *   onBeforeExecute → command runs → onAfterExecute(result)
- */
+function ensureRequiredEnv(cmd: CliCommand): void {
+  const missing = (cmd.requiredEnv ?? []).find(({ name }) => {
+    const value = process.env[name];
+    return value === undefined || value === null || value === '';
+  });
+  if (!missing) return;
+
+  throw new CommandExecutionError(
+    `Command ${fullName(cmd)} requires environment variable ${missing.name}.`,
+    missing.help ?? `Set ${missing.name} before running ${fullName(cmd)}.`,
+  );
+}
+
 export async function executeCommand(
   cmd: CliCommand,
   rawKwargs: CommandArgs,
@@ -157,7 +141,6 @@ export async function executeCommand(
     throw new ArgumentError(getErrorMessage(err));
   }
 
-  // Build hook context shared across onBeforeExecute and onAfterExecute
   const hookCtx: HookContext = {
     command: fullName(cmd),
     args: kwargs,
@@ -168,13 +151,15 @@ export async function executeCommand(
   let result: unknown;
   try {
     if (shouldUseBrowserSession(cmd)) {
+      ensureRequiredEnv(cmd);
       const BrowserFactory = getBrowserFactory();
       result = await browserSession(BrowserFactory, async (page) => {
-        // Pre-navigate to target domain for cookie/header context if needed.
-        // Each adapter controls this via `navigateBefore` (see CliCommand docs).
         const preNavUrl = resolvePreNav(cmd);
         if (preNavUrl) {
-          try { await page.goto(preNavUrl); await page.wait(2); } catch (err) {
+          try {
+            await page.goto(preNavUrl);
+            await page.wait(2);
+          } catch (err) {
             if (debug) console.error(`[pre-nav] Failed to navigate to ${preNavUrl}: ${err instanceof Error ? err.message : err}`);
           }
         }
@@ -184,7 +169,6 @@ export async function executeCommand(
         });
       }, { workspace: `site:${cmd.site}` });
     } else {
-      // Non-browser commands run directly
       result = await runCommand(cmd, null, kwargs, debug);
     }
   } catch (err) {

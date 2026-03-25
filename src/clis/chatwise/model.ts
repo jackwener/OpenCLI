@@ -1,6 +1,7 @@
 import { cli, Strategy } from '../../registry.js';
 import { SelectorError } from '../../errors.js';
 import type { IPage } from '../../types.js';
+import { chatwiseRequiredEnv } from './shared.js';
 
 export const modelCommand = cli({
   site: 'chatwise',
@@ -9,6 +10,7 @@ export const modelCommand = cli({
   domain: 'localhost',
   strategy: Strategy.UI,
   browser: true,
+  requiredEnv: chatwiseRequiredEnv,
   args: [
     { name: 'model-name', required: false, positional: true, help: 'Model to switch to (e.g. gpt-4, claude-3)' },
   ],

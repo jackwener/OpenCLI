@@ -74,10 +74,17 @@ function connect(): void {
   };
 }
 
+/**
+ * After MAX_EAGER_ATTEMPTS (reaching 60s backoff), stop scheduling reconnects.
+ * The keepalive alarm (~24s) will still call connect() periodically, but at a
+ * much lower frequency — reducing console noise when the daemon is not running.
+ */
+const MAX_EAGER_ATTEMPTS = 6; // 2s, 4s, 8s, 16s, 32s, 60s — then stop
+
 function scheduleReconnect(): void {
   if (reconnectTimer) return;
   reconnectAttempts++;
-  // Exponential backoff: 2s, 4s, 8s, 16s, ..., capped at 60s
+  if (reconnectAttempts > MAX_EAGER_ATTEMPTS) return; // let keepalive alarm handle it
   const delay = Math.min(WS_RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts - 1), WS_RECONNECT_MAX_DELAY);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
@@ -138,7 +145,7 @@ async function getAutomationWindow(workspace: string): Promise<number> {
   // Create a new window with a data: URI that New Tab Override extensions cannot intercept.
   // Using about:blank would be hijacked by extensions like "New Tab Override".
   const win = await chrome.windows.create({
-    url: 'data:text/html,<html></html>',
+    url: BLANK_PAGE,
     focused: false,
     width: 1280,
     height: 900,
@@ -193,6 +200,18 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'keepalive') connect();
 });
 
+// ─── Popup status API ───────────────────────────────────────────────
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type === 'getStatus') {
+    sendResponse({
+      connected: ws?.readyState === WebSocket.OPEN,
+      reconnecting: reconnectTimer !== null,
+    });
+  }
+  return false;
+});
+
 // ─── Command dispatcher ─────────────────────────────────────────────
 
 async function handleCommand(cmd: Command): Promise<Result> {
@@ -229,10 +248,18 @@ async function handleCommand(cmd: Command): Promise<Result> {
 
 // ─── Action handlers ─────────────────────────────────────────────────
 
-/** Check if a URL can be attached via CDP (not chrome:// or chrome-extension://) */
+/** Internal blank page used when no user URL is provided. */
+const BLANK_PAGE = 'data:text/html,<html></html>';
+
+/** Check if a URL can be attached via CDP — only allow http(s) and our internal blank page. */
 function isDebuggableUrl(url?: string): boolean {
   if (!url) return true;  // empty/undefined = tab still loading, allow it
-  return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://');
+  return url.startsWith('http://') || url.startsWith('https://') || url === BLANK_PAGE;
+}
+
+/** Check if a URL is safe for user-facing navigation (http/https only). */
+function isSafeNavigationUrl(url: string): boolean {
+  return url.startsWith('http://') || url.startsWith('https://');
 }
 
 /** Minimal URL normalization for same-page comparison: root slash + default port only. */
@@ -266,9 +293,14 @@ async function resolveTabId(tabId: number | undefined, workspace: string): Promi
   if (tabId !== undefined) {
     try {
       const tab = await chrome.tabs.get(tabId);
-      if (isDebuggableUrl(tab.url)) return tabId;
-      // Tab exists but URL is not debuggable — fall through to auto-resolve
-      console.warn(`[opencli] Tab ${tabId} URL is not debuggable (${tab.url}), re-resolving`);
+      const session = automationSessions.get(workspace);
+      if (isDebuggableUrl(tab.url) && session && tab.windowId === session.windowId) return tabId;
+      if (session && tab.windowId !== session.windowId) {
+        console.warn(`[opencli] Tab ${tabId} belongs to window ${tab.windowId}, not automation window ${session.windowId}, re-resolving`);
+      } else if (!isDebuggableUrl(tab.url)) {
+        // Tab exists but URL is not debuggable — fall through to auto-resolve
+        console.warn(`[opencli] Tab ${tabId} URL is not debuggable (${tab.url}), re-resolving`);
+      }
     } catch {
       // Tab was closed — fall through to auto-resolve
       console.warn(`[opencli] Tab ${tabId} no longer exists, re-resolving`);
@@ -287,7 +319,7 @@ async function resolveTabId(tabId: number | undefined, workspace: string): Promi
   // Try to reuse by navigating to a data: URI (not interceptable by New Tab Override).
   const reuseTab = tabs.find(t => t.id);
   if (reuseTab?.id) {
-    await chrome.tabs.update(reuseTab.id, { url: 'data:text/html,<html></html>' });
+    await chrome.tabs.update(reuseTab.id, { url: BLANK_PAGE });
     await new Promise(resolve => setTimeout(resolve, 300));
     try {
       const updated = await chrome.tabs.get(reuseTab.id);
@@ -299,7 +331,7 @@ async function resolveTabId(tabId: number | undefined, workspace: string): Promi
   }
 
   // Fallback: create a new tab
-  const newTab = await chrome.tabs.create({ windowId, url: 'data:text/html,<html></html>', active: true });
+  const newTab = await chrome.tabs.create({ windowId, url: BLANK_PAGE, active: true });
   if (!newTab.id) throw new Error('Failed to create tab in automation window');
   return newTab.id;
 }
@@ -333,6 +365,9 @@ async function handleExec(cmd: Command, workspace: string): Promise<Result> {
 
 async function handleNavigate(cmd: Command, workspace: string): Promise<Result> {
   if (!cmd.url) return { id: cmd.id, ok: false, error: 'Missing url' };
+  if (!isSafeNavigationUrl(cmd.url)) {
+    return { id: cmd.id, ok: false, error: 'Blocked URL scheme -- only http:// and https:// are allowed' };
+  }
   const tabId = await resolveTabId(cmd.tabId, workspace);
 
   const beforeTab = await chrome.tabs.get(tabId);
@@ -429,8 +464,11 @@ async function handleTabs(cmd: Command, workspace: string): Promise<Result> {
       return { id: cmd.id, ok: true, data };
     }
     case 'new': {
+      if (cmd.url && !isSafeNavigationUrl(cmd.url)) {
+        return { id: cmd.id, ok: false, error: 'Blocked URL scheme -- only http:// and https:// are allowed' };
+      }
       const windowId = await getAutomationWindow(workspace);
-      const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? 'data:text/html,<html></html>', active: true });
+      const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
       return { id: cmd.id, ok: true, data: { tabId: tab.id, url: tab.url } };
     }
     case 'close': {
@@ -451,6 +489,16 @@ async function handleTabs(cmd: Command, workspace: string): Promise<Result> {
       if (cmd.index === undefined && cmd.tabId === undefined)
         return { id: cmd.id, ok: false, error: 'Missing index or tabId' };
       if (cmd.tabId !== undefined) {
+        const session = automationSessions.get(workspace);
+        let tab: chrome.tabs.Tab;
+        try {
+          tab = await chrome.tabs.get(cmd.tabId);
+        } catch {
+          return { id: cmd.id, ok: false, error: `Tab ${cmd.tabId} no longer exists` };
+        }
+        if (!session || tab.windowId !== session.windowId) {
+          return { id: cmd.id, ok: false, error: `Tab ${cmd.tabId} is not in the automation window` };
+        }
         await chrome.tabs.update(cmd.tabId, { active: true });
         return { id: cmd.id, ok: true, data: { selected: cmd.tabId } };
       }
@@ -466,6 +514,9 @@ async function handleTabs(cmd: Command, workspace: string): Promise<Result> {
 }
 
 async function handleCookies(cmd: Command): Promise<Result> {
+  if (!cmd.domain && !cmd.url) {
+    return { id: cmd.id, ok: false, error: 'Cookie scope required: provide domain or url to avoid dumping all cookies' };
+  }
   const details: chrome.cookies.GetAllDetails = {};
   if (cmd.domain) details.domain = cmd.domain;
   if (cmd.url) details.url = cmd.url;

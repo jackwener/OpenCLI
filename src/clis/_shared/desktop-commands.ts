@@ -7,13 +7,15 @@
 import * as fs from 'node:fs';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
+import type { CliOptions } from '../../registry.js';
 
 /**
  * Factory: capture DOM HTML + accessibility snapshot.
  */
-export function makeScreenshotCommand(site: string, displayName?: string) {
+export function makeScreenshotCommand(site: string, displayName?: string, extra: Partial<CliOptions> = {}) {
   const label = displayName ?? site;
   return cli({
+    ...extra,
     site,
     name: 'screenshot',
     description: `Capture a snapshot of the current ${label} window (DOM + Accessibility tree)`,
@@ -47,9 +49,10 @@ export function makeScreenshotCommand(site: string, displayName?: string) {
 /**
  * Factory: check CDP connection status.
  */
-export function makeStatusCommand(site: string, displayName?: string) {
+export function makeStatusCommand(site: string, displayName?: string, extra: Partial<CliOptions> = {}) {
   const label = displayName ?? site;
   return cli({
+    ...extra,
     site,
     name: 'status',
     description: `Check active CDP connection to ${label}`,
@@ -68,9 +71,10 @@ export function makeStatusCommand(site: string, displayName?: string) {
 /**
  * Factory: start a new session via Cmd/Ctrl+N.
  */
-export function makeNewCommand(site: string, displayName?: string) {
+export function makeNewCommand(site: string, displayName?: string, extra: Partial<CliOptions> = {}) {
   const label = displayName ?? site;
   return cli({
+    ...extra,
     site,
     name: 'new',
     description: `Start a new ${label} session`,

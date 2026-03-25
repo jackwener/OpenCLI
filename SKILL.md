@@ -1,7 +1,7 @@
 ---
 name: opencli
 description: "OpenCLI — Make any website or Electron App your CLI. Zero risk, AI-powered, reuse Chrome login."
-version: 1.3.1
+version: 1.4.1
 author: jackwener
 tags: [cli, browser, web, chrome-extension, cdp, bilibili, zhihu, twitter, github, v2ex, hackernews, reddit, xiaohongshu, xueqiu, youtube, boss, coupang, yollomi, AI, agent]
 ---
@@ -88,6 +88,9 @@ opencli xueqiu watchlist                 # 获取自选股/持仓列表
 opencli xueqiu feed                      # 我的关注 timeline
 opencli xueqiu hot --limit 10            # 雪球热榜
 opencli xueqiu search "特斯拉"            # 搜索 (query positional)
+opencli xueqiu earnings-date SH600519    # 股票财报发布日期 (symbol positional)
+opencli xueqiu fund-holdings             # 蛋卷基金持仓明细 (支持 --account 过滤)
+opencli xueqiu fund-snapshot             # 蛋卷基金快照（总资产、子账户、持仓）
 
 # GitHub (via gh External CLI)
 opencli gh repo list                     # 列出仓库 (passthrough to gh)
@@ -106,6 +109,19 @@ opencli twitter follow elonmusk          # 关注用户
 opencli twitter unfollow elonmusk        # 取消关注
 opencli twitter bookmark https://x.com/... # 收藏推文
 opencli twitter unbookmark https://x.com/... # 取消收藏
+opencli twitter post "Hello world"       # 发布推文 (text positional)
+opencli twitter like https://x.com/...   # 点赞推文 (url positional)
+opencli twitter reply https://x.com/... "Nice!" # 回复推文 (url + text positional)
+opencli twitter delete https://x.com/... # 删除推文 (url positional)
+opencli twitter block elonmusk           # 屏蔽用户 (username positional)
+opencli twitter unblock elonmusk         # 取消屏蔽 (username positional)
+opencli twitter followers elonmusk       # 用户的粉丝列表 (user positional)
+opencli twitter following elonmusk       # 用户的关注列表 (user positional)
+opencli twitter notifications --limit 20 # 通知列表
+opencli twitter hide-reply https://x.com/... # 隐藏回复 (url positional)
+opencli twitter download elonmusk        # 下载用户媒体 (username positional, 支持 --tweet-url)
+opencli twitter accept "群,微信"          # 自动接受含关键词的 DM 请求 (query positional)
+opencli twitter reply-dm "消息内容"       # 批量回复 DM (text positional)
 
 # Reddit (browser)
 opencli reddit hot --limit 10            # 热门帖子
@@ -132,9 +148,21 @@ opencli v2ex topic 1024                  # 主题详情 (id positional)
 opencli v2ex daily                       # 每日签到 (browser)
 opencli v2ex me                          # 我的信息 (browser)
 opencli v2ex notifications --limit 10    # 通知 (browser)
+opencli v2ex node python                 # 节点话题列表 (name positional)
+opencli v2ex nodes --limit 30            # 所有节点列表
+opencli v2ex member username             # 用户资料 (username positional)
+opencli v2ex user username               # 用户发帖列表 (username positional)
+opencli v2ex replies 1024                # 主题回复列表 (id positional)
 
 # Hacker News (public)
 opencli hackernews top --limit 10        # Top stories
+opencli hackernews new --limit 10        # Newest stories
+opencli hackernews best --limit 10       # Best stories
+opencli hackernews ask --limit 10        # Ask HN posts
+opencli hackernews show --limit 10       # Show HN posts
+opencli hackernews jobs --limit 10       # Job postings
+opencli hackernews search "rust"         # 搜索 (query positional)
+opencli hackernews user dang             # 用户资料 (username positional)
 
 # BBC (public)
 opencli bbc news --limit 10             # BBC News RSS headlines
@@ -204,11 +232,13 @@ opencli jike comment xxx "评论"           # 评论 (id + text positional)
 opencli jike repost xxx                  # 转发 (id positional)
 opencli jike notifications               # 通知
 
-# Linux.do (public)
+# Linux.do (public + browser)
 opencli linux-do hot --limit 10          # 热门话题
 opencli linux-do latest --limit 10       # 最新话题
 opencli linux-do search "rust"           # 搜索 (query positional)
 opencli linux-do topic 1024              # 主题详情 (id positional)
+opencli linux-do categories --limit 20   # 分类列表 (browser)
+opencli linux-do category dev 7          # 分类内话题 (slug + id positional, browser)
 
 # StackOverflow (public)
 opencli stackoverflow hot --limit 10     # 热门问题
@@ -234,6 +264,12 @@ opencli yollomi video "提示词" --model kling-2-1        # 视频
 opencli yollomi upload ./photo.jpg       # 上传得 URL，供 img2img / 工具链使用
 opencli yollomi remove-bg <image-url>    # 去背景（免费）
 opencli yollomi edit <image-url> "改成油画风格"        # Qwen 图像编辑
+opencli yollomi background <image-url>   # AI 背景生成 (5 credits)
+opencli yollomi face-swap --source <url> --target <url>  # 换脸 (3 credits)
+opencli yollomi object-remover <image-url> <mask-url>    # AI 去除物体 (3 credits)
+opencli yollomi restore <image-url>      # AI 修复老照片 (4 credits)
+opencli yollomi try-on --person <url> --cloth <url>      # 虚拟试衣 (3 credits)
+opencli yollomi upscale <image-url>      # AI 超分辨率 (1 credit, 支持 --scale 2/4)
 
 # Grok (default + explicit web)
 opencli grok ask --prompt "问题"         # 提问 Grok（兼容默认路径）
@@ -333,6 +369,69 @@ opencli devto user username               # 用户文章 (username positional)
 
 # Steam (public)
 opencli steam top-sellers --limit 10      # 热销游戏
+
+# Apple Podcasts (public)
+opencli apple-podcasts top --limit 10     # 热门播客排行榜 (支持 --country us/cn/gb/jp)
+opencli apple-podcasts search "科技"       # 搜索播客 (query positional)
+opencli apple-podcasts episodes 12345     # 播客剧集列表 (id positional, 用 search 获取 ID)
+
+# arXiv (public)
+opencli arxiv search "attention"          # 搜索论文 (query positional)
+opencli arxiv paper 1706.03762            # 论文详情 (id positional)
+
+# Bloomberg (public RSS + browser)
+opencli bloomberg main --limit 10         # Bloomberg 首页头条 (RSS)
+opencli bloomberg markets --limit 10      # 市场新闻 (RSS)
+opencli bloomberg tech --limit 10         # 科技新闻 (RSS)
+opencli bloomberg politics --limit 10     # 政治新闻 (RSS)
+opencli bloomberg economics --limit 10    # 经济新闻 (RSS)
+opencli bloomberg opinions --limit 10     # 观点 (RSS)
+opencli bloomberg industries --limit 10   # 行业新闻 (RSS)
+opencli bloomberg businessweek --limit 10 # Businessweek (RSS)
+opencli bloomberg feeds                   # 列出所有 RSS feed 别名
+opencli bloomberg news "https://..."      # 阅读 Bloomberg 文章全文 (link positional, browser)
+
+# Coupang 쿠팡 (browser)
+opencli coupang search "耳机"             # 搜索商品 (query positional, 支持 --filter rocket)
+opencli coupang add-to-cart 12345         # 加入购物车 (product-id positional, 或 --url)
+
+# Dictionary (public)
+opencli dictionary search "serendipity"   # 单词释义 (word positional)
+opencli dictionary synonyms "happy"       # 近义词 (word positional)
+opencli dictionary examples "ubiquitous"  # 例句 (word positional)
+
+# 豆包 Doubao Web (browser)
+opencli doubao status                     # 检查豆包页面状态
+opencli doubao new                        # 新建对话
+opencli doubao send "你好"                # 发送消息 (text positional)
+opencli doubao read                       # 读取对话记录
+opencli doubao ask "问题"                 # 一键提问并等回复 (text positional)
+
+# 京东 JD (browser)
+opencli jd item 100291143898             # 商品详情 (sku positional, 含价格/主图/规格)
+
+# LinkedIn (browser)
+opencli linkedin search "AI engineer"    # 搜索职位 (query positional, 支持 --location/--company/--remote)
+opencli linkedin timeline --limit 20     # 首页动态流
+
+# Pixiv (browser)
+opencli pixiv ranking --limit 20         # 插画排行榜 (支持 --mode daily/weekly/monthly)
+opencli pixiv search "風景"               # 搜索插画 (query positional)
+opencli pixiv user 12345                 # 画师资料 (uid positional)
+opencli pixiv illusts 12345              # 画师作品列表 (user-id positional)
+opencli pixiv detail 12345               # 插画详情 (id positional)
+opencli pixiv download 12345             # 下载插画 (illust-id positional)
+
+# Web (browser)
+opencli web read --url "https://..."     # 抓取任意网页并导出为 Markdown
+
+# 微信公众号 Weixin (browser)
+opencli weixin download --url "https://mp.weixin.qq.com/s/xxx"  # 下载公众号文章为 Markdown
+
+# 小宇宙 Xiaoyuzhou (public)
+opencli xiaoyuzhou podcast 12345          # 播客资料 (id positional)
+opencli xiaoyuzhou podcast-episodes 12345 # 播客剧集列表 (id positional)
+opencli xiaoyuzhou episode 12345          # 单集详情 (id positional)
 
 # Wikipedia (public)
 opencli wikipedia search "AI"             # 搜索 (query positional)

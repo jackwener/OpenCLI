@@ -123,6 +123,7 @@ columns: [message]
 describe('executeCommand', () => {
   beforeEach(() => {
     clearAllHooks();
+    vi.unstubAllEnvs();
   });
 
   it('accepts kebab-case option names after Commander camelCases them', async () => {
@@ -225,5 +226,24 @@ describe('executeCommand', () => {
     expect(seen[0].error).toBeInstanceOf(Error);
     expect((seen[0].error as Error).message).toBe('boom');
     expect(typeof seen[0].finishedAt).toBe('number');
+  });
+
+  it('fails fast for chatwise commands when OPENCLI_CDP_ENDPOINT is missing', async () => {
+    const cmd = cli({
+      site: 'chatwise',
+      name: 'status',
+      description: 'chatwise status',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      requiredEnv: [
+        {
+          name: 'OPENCLI_CDP_ENDPOINT',
+          help: 'Set OPENCLI_CDP_ENDPOINT before running chatwise commands.',
+        },
+      ],
+      func: async () => [{ ok: true }],
+    });
+
+    await expect(executeCommand(cmd, {})).rejects.toThrow('requires environment variable OPENCLI_CDP_ENDPOINT');
   });
 });

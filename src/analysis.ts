@@ -14,6 +14,7 @@ import {
   VOLATILE_PARAMS,
   SEARCH_PARAMS,
   PAGINATION_PARAMS,
+  LIMIT_PARAMS,
   FIELD_ROLES,
 } from './constants.js';
 
@@ -164,6 +165,6 @@ export function classifyQueryParams(url: string): {
     params,
     hasSearch: params.some(p => SEARCH_PARAMS.has(p)),
     hasPagination: params.some(p => PAGINATION_PARAMS.has(p)),
-    hasLimit: params.some(p => SEARCH_PARAMS.has(p)),
+    hasLimit: params.some(p => LIMIT_PARAMS.has(p)),
   };
 }

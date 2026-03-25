@@ -60,9 +60,7 @@ export async function stepSort(_page: IPage | null, params: unknown, data: unkno
   return [...data].sort((a, b) => {
     const left = isRecord(a) ? a[key] : undefined;
     const right = isRecord(b) ? b[key] : undefined;
-    const va = left ?? '';
-    const vb = right ?? '';
-    const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+    const cmp = String(left ?? '').localeCompare(String(right ?? ''), undefined, { numeric: true });
     return reverse ? -cmp : cmp;
   });
 }

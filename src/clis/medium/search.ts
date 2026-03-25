@@ -11,6 +11,6 @@ cli({
     { name: 'keyword', required: true, positional: true, help: '搜索关键词' },
     { name: 'limit', type: 'int', default: 20, help: '返回的文章数量' },
   ],
-  columns: ['rank', 'title', 'author', 'date', 'readTime', 'claps'],
+  columns: ['rank', 'title', 'author', 'date', 'readTime', 'claps', 'url'],
   func: async (page, args) => loadMediumPosts(page, buildMediumSearchUrl(args.keyword), Number(args.limit) || 20),
 });

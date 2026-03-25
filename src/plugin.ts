@@ -179,8 +179,8 @@ export function installPlugin(source: string): string {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-  } catch (err: any) {
-    throw new Error(`Failed to clone plugin: ${err.message}`);
+  } catch (err) {
+    throw new Error(`Failed to clone plugin: ${getErrorMessage(err)}`);
   }
 
   const validation = validatePluginStructure(targetDir);
@@ -238,8 +238,8 @@ export function updatePlugin(name: string): void {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-  } catch (err: any) {
-    throw new Error(`Failed to update plugin: ${err.message}`);
+  } catch (err) {
+    throw new Error(`Failed to update plugin: ${getErrorMessage(err)}`);
   }
 
   const validation = validatePluginStructure(targetDir);
@@ -405,8 +405,8 @@ function linkHostOpencli(pluginDir: string): void {
     const linkType = isWindows ? 'junction' : 'dir';
     fs.symlinkSync(hostRoot, targetLink, linkType);
     log.debug(`Linked host opencli into plugin: ${targetLink} → ${hostRoot}`);
-  } catch (err: any) {
-    log.warn(`Failed to link host opencli into plugin: ${err.message}`);
+  } catch (err) {
+    log.warn(`Failed to link host opencli into plugin: ${getErrorMessage(err)}`);
   }
 }
 
@@ -502,8 +502,8 @@ function transpilePluginTs(pluginDir: string): void {
           ...(isWindows && { shell: true }),
         });
         log.debug(`Transpiled plugin file: ${tsFile} → ${jsFile}`);
-      } catch (err: any) {
-        log.warn(`Failed to transpile ${tsFile}: ${err.message}`);
+      } catch (err) {
+        log.warn(`Failed to transpile ${tsFile}: ${getErrorMessage(err)}`);
       }
     }
   } catch {

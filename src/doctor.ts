@@ -10,6 +10,7 @@ import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { checkDaemonStatus } from './browser/discover.js';
 import { BrowserBridge } from './browser/index.js';
 import { listSessions } from './browser/daemon-client.js';
+import { getErrorMessage } from './errors.js';
 
 export type DoctorOptions = {
   fix?: boolean;
@@ -46,8 +47,8 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
     await page.evaluate('1 + 1');
     await mcp.close();
     return { ok: true, durationMs: Date.now() - start };
-  } catch (err: any) {
-    return { ok: false, error: err?.message ?? String(err), durationMs: Date.now() - start };
+  } catch (err) {
+    return { ok: false, error: getErrorMessage(err), durationMs: Date.now() - start };
   }
 }
 

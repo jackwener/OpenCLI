@@ -22,6 +22,11 @@ export interface Arg {
   choices?: string[];
 }
 
+export interface RequiredEnv {
+  name: string;
+  help?: string;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- kwargs from CLI parsing are inherently untyped
 export type CommandArgs = Record<string, any>;
 
@@ -40,6 +45,7 @@ export interface CliCommand {
   /** Origin of this command: 'yaml', 'ts', or plugin name. */
   source?: string;
   footerExtra?: (kwargs: CommandArgs) => string | undefined;
+  requiredEnv?: RequiredEnv[];
   /**
    * Control pre-navigation for cookie/header context before command execution.
    *
@@ -88,6 +94,7 @@ export function cli(opts: CliOptions): CliCommand {
     pipeline: opts.pipeline,
     timeoutSeconds: opts.timeoutSeconds,
     footerExtra: opts.footerExtra,
+    requiredEnv: opts.requiredEnv,
     navigateBefore: opts.navigateBefore,
   };
 
@@ -111,5 +118,4 @@ export function strategyLabel(cmd: CliCommand): string {
 export function registerCommand(cmd: CliCommand): void {
   _registry.set(fullName(cmd), cmd);
 }
-
 
