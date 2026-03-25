@@ -35,7 +35,7 @@ pipeline:
             rank: idx + 1,
             desc: (v.desc || '').replace(/\n/g, ' ').substring(0, 100),
             author: a.uniqueId || '',
-            url: 'https://www.tiktok.com/@' + (a.uniqueId || '') + '/video/' + (v.id || ''),
+            url: (a.uniqueId && v.id) ? 'https://www.tiktok.com/@' + a.uniqueId + '/video/' + v.id : '',
             plays: s.playCount || 0,
             likes: s.diggCount || 0,
             comments: s.commentCount || 0,
