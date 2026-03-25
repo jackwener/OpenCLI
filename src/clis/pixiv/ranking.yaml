@@ -45,7 +45,7 @@ pipeline:
           user_id: item.user_id,
           illust_id: item.illust_id,
           pages: item.illust_page_count,
-          bookmarks: item.rating_count,
+          bookmarks: item.illust_bookmark_count,
           url: 'https://www.pixiv.net/artworks/' + item.illust_id
         }));
       })()

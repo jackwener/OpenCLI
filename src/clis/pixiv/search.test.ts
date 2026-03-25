@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { CliCommand } from '../../registry.js';
 import { getRegistry } from '../../registry.js';
-import { AuthRequiredError } from '../../errors.js';
+import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
 import { createPageMock } from './test-utils.js';
 import './search.js';
 
@@ -22,7 +22,7 @@ describe('pixiv search', () => {
   it('throws generic error on non-auth HTTP failure', async () => {
     const page = createPageMock([{ error: 500 }]);
 
-    await expect(cmd.func!(page, { query: 'test', limit: 5 })).rejects.toThrow('Pixiv request failed (HTTP 500)');
+    await expect(cmd.func!(page, { query: 'test', limit: 5 })).rejects.toThrow(CommandExecutionError);
   });
 
   it('returns ranked results with correct fields', async () => {

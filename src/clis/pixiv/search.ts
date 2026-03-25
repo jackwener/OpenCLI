@@ -5,7 +5,7 @@
  */
 
 import { cli, Strategy } from '../../registry.js';
-import { AuthRequiredError } from '../../errors.js';
+import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
 
 cli({
   site: 'pixiv',
@@ -25,16 +25,19 @@ cli({
   func: async (page, kwargs) => {
     const { query, limit = 20, order = 'date_d', mode = 'all', page: pageNum = 1 } = kwargs;
 
+    await page.goto('https://www.pixiv.net');
+
     const data: any = await page.evaluate(`
       (async () => {
-        const keyword = encodeURIComponent(${JSON.stringify(query)});
+        const keyword = ${JSON.stringify(query)};
+        const encoded = encodeURIComponent(keyword);
         const order = ${JSON.stringify(order)};
         const mode = ${JSON.stringify(mode)};
         const pageNum = ${JSON.stringify(pageNum)};
         const res = await fetch(
           'https://www.pixiv.net/ajax/search/illustrations/' +
-          keyword +
-          '?word=' + keyword +
+          encoded +
+          '?word=' + encoded +
           '&order=' + order +
           '&mode=' + mode +
           '&p=' + pageNum +
@@ -51,7 +54,7 @@ cli({
       if (data.error === 401 || data.error === 403) {
         throw new AuthRequiredError('www.pixiv.net', 'Authentication required — please log in to Pixiv in Chrome');
       }
-      throw new Error(`Pixiv request failed (HTTP ${data.error})`);
+      throw new CommandExecutionError(`Pixiv request failed (HTTP ${data.error})`);
     }
 
     const items: any[] = data?.body?.illust?.data || [];

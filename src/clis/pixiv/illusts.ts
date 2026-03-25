@@ -7,7 +7,7 @@
  */
 
 import { cli, Strategy } from '../../registry.js';
-import { AuthRequiredError } from '../../errors.js';
+import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
 
 cli({
   site: 'pixiv',
@@ -24,6 +24,8 @@ cli({
   func: async (page, kwargs) => {
     const userId = kwargs['user-id'];
     const limit = Number(kwargs.limit) || 20;
+
+    await page.goto('https://www.pixiv.net');
 
     // Step 1: get all illust IDs
     const profileData: any = await page.evaluate(`
@@ -42,7 +44,7 @@ cli({
       if (profileData.error === 401 || profileData.error === 403) {
         throw new AuthRequiredError('www.pixiv.net', 'Authentication required — please log in to Pixiv in Chrome');
       }
-      throw new Error(`Pixiv request failed (HTTP ${profileData.error})`);
+      throw new CommandExecutionError(`Pixiv request failed (HTTP ${profileData.error})`);
     }
 
     const allIds = Object.keys(profileData?.body?.illusts || {})
@@ -68,7 +70,9 @@ cli({
       })()
     `);
 
-    if (detailData?.error) return [];
+    if (detailData?.error) {
+      throw new CommandExecutionError(`Pixiv batch detail request failed (HTTP ${detailData.error})`);
+    }
 
     const works = detailData?.body?.works || {};
 

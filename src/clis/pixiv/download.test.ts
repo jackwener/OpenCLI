@@ -1,7 +1,7 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CliCommand } from '../../registry.js';
 import { getRegistry } from '../../registry.js';
-import { AuthRequiredError } from '../../errors.js';
+import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
 import { createPageMock } from './test-utils.js';
 
 // Mock download dependencies before importing the adapter
@@ -30,26 +30,27 @@ beforeAll(() => {
 });
 
 describe('pixiv download', () => {
+  beforeEach(() => {
+    mockHttpDownload.mockReset();
+    mockMkdirSync.mockReset();
+  });
+
   it('throws AuthRequiredError on 403', async () => {
     const page = createPageMock([{ error: 403 }]);
 
     await expect(cmd.func!(page, { 'illust-id': '12345', output: '/tmp/test' })).rejects.toThrow(AuthRequiredError);
   });
 
-  it('throws not-found error on 404', async () => {
+  it('throws CommandExecutionError on 404', async () => {
     const page = createPageMock([{ error: 404 }]);
 
-    await expect(cmd.func!(page, { 'illust-id': '12345', output: '/tmp/test' })).rejects.toThrow(
-      'Illustration not found: 12345'
-    );
+    await expect(cmd.func!(page, { 'illust-id': '12345', output: '/tmp/test' })).rejects.toThrow(CommandExecutionError);
   });
 
-  it('throws generic error on non-auth HTTP failure', async () => {
+  it('throws CommandExecutionError on non-auth HTTP failure', async () => {
     const page = createPageMock([{ error: 500 }]);
 
-    await expect(cmd.func!(page, { 'illust-id': '12345', output: '/tmp/test' })).rejects.toThrow(
-      'Pixiv request failed (HTTP 500)'
-    );
+    await expect(cmd.func!(page, { 'illust-id': '12345', output: '/tmp/test' })).rejects.toThrow(CommandExecutionError);
   });
 
   it('returns failure when no images found', async () => {

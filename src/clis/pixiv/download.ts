@@ -10,7 +10,7 @@ import * as path from 'node:path';
 import { cli, Strategy } from '../../registry.js';
 import { formatCookieHeader, httpDownload } from '../../download/index.js';
 import { formatBytes } from '../../download/progress.js';
-import { AuthRequiredError } from '../../errors.js';
+import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
 
 cli({
   site: 'pixiv',
@@ -27,6 +27,8 @@ cli({
   func: async (page, kwargs) => {
     const illustId = kwargs['illust-id'];
     const output = kwargs.output;
+
+    await page.goto('https://www.pixiv.net');
 
     // Fetch all page URLs for this illustration
     const data: any = await page.evaluate(`
@@ -46,9 +48,9 @@ cli({
         throw new AuthRequiredError('www.pixiv.net', 'Authentication required — please log in to Pixiv in Chrome');
       }
       if (data.error === 404) {
-        throw new Error(`Illustration not found: ${illustId}`);
+        throw new CommandExecutionError(`Illustration not found: ${illustId}`);
       }
-      throw new Error(`Pixiv request failed (HTTP ${data.error})`);
+      throw new CommandExecutionError(`Pixiv request failed (HTTP ${data.error})`);
     }
 
     const pages: any[] = data?.body || [];

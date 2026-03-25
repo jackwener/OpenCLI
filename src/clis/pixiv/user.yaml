@@ -43,4 +43,4 @@ pipeline:
         }];
       })()
 
-columns: [user_id, name, premium, following, illusts, manga, comment]
+columns: [user_id, name, premium, following, illusts, manga, novels, comment]
