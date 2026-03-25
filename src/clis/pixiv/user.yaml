@@ -31,9 +31,9 @@ pipeline:
           name: b.name,
           premium: b.premium ? 'Yes' : 'No',
           following: b.following,
-          illusts: b.illusts ? Object.keys(b.illusts).length : 0,
-          manga: b.manga ? Object.keys(b.manga).length : 0,
-          novels: b.novels ? Object.keys(b.novels).length : 0,
+          illusts: typeof b.illusts === 'object' ? Object.keys(b.illusts).length : (b.illusts || 0),
+          manga: typeof b.manga === 'object' ? Object.keys(b.manga).length : (b.manga || 0),
+          novels: typeof b.novels === 'object' ? Object.keys(b.novels).length : (b.novels || 0),
           comment: (b.comment || '').slice(0, 80),
           url: 'https://www.pixiv.net/users/' + uid
         }];

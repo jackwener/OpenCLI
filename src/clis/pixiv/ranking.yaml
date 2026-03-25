@@ -26,8 +26,8 @@ pipeline:
   - evaluate: |
       (async () => {
         const mode = ${{ args.mode | json }};
-        const page = ${{ args.page }};
-        const limit = ${{ args.limit }};
+        const page = ${{ args.page | json }};
+        const limit = ${{ args.limit | json }};
         const res = await fetch(
           'https://www.pixiv.net/ranking.php?mode=' + mode + '&p=' + page + '&format=json',
           { credentials: 'include' }
