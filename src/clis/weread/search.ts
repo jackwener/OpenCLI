@@ -14,7 +14,7 @@ cli({
   ],
   columns: ['rank', 'title', 'author', 'bookId', 'url'],
   func: async (_page, args) => {
-    const data = await fetchWebApi('/search/global', { keyword: args.keyword });
+    const data = await fetchWebApi('/search/global', { keyword: args.query });
     const books: any[] = data?.books ?? [];
     return books.slice(0, Number(args.limit)).map((item: any, i: number) => ({
       rank: i + 1,
