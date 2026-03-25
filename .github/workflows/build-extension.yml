@@ -43,8 +43,52 @@ jobs:
           rm -rf extension-package
           mkdir -p extension-package
           cp extension/manifest.json extension-package/
+          cp extension/popup.html extension-package/
+          cp extension/popup.js extension-package/
           cp -R extension/dist extension-package/
           cp -R extension/icons extension-package/
+
+      - name: Verify extension package assets
+        run: |
+          node <<'EOF'
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const packageDir = path.join(process.cwd(), 'extension-package');
+          const manifest = JSON.parse(
+            fs.readFileSync(path.join(packageDir, 'manifest.json'), 'utf8')
+          );
+
+          const requiredFiles = new Set(['manifest.json']);
+
+          if (manifest.background?.service_worker) {
+            requiredFiles.add(manifest.background.service_worker);
+          }
+
+          if (manifest.action?.default_popup) {
+            requiredFiles.add(manifest.action.default_popup);
+          }
+
+          for (const iconPath of Object.values(manifest.icons ?? {})) {
+            requiredFiles.add(iconPath);
+          }
+
+          for (const iconPath of Object.values(manifest.action?.default_icon ?? {})) {
+            requiredFiles.add(iconPath);
+          }
+
+          const missingFiles = [...requiredFiles].filter(
+            (relativePath) => !fs.existsSync(path.join(packageDir, relativePath))
+          );
+
+          if (missingFiles.length > 0) {
+            console.error('Missing files in extension package:');
+            for (const missingFile of missingFiles) {
+              console.error(`- ${missingFile}`);
+            }
+            process.exit(1);
+          }
+          EOF
 
       - name: Create Extension ZIP
         run: |
