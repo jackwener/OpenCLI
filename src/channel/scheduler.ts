@@ -134,20 +134,22 @@ export class Scheduler {
       }
 
       // Deliver to each subscription's dedicated sink
-      let anyDelivered = false;
+      let allDelivered = true;
       if (fresh.length > 0) {
         for (const { subscriptionId, sink } of loop.sinks) {
           try {
             await sink.deliver(fresh);
-            anyDelivered = true;
           } catch (e) {
+            allDelivered = false;
             console.error(`[channel] Sink delivery failed for subscription ${subscriptionId}:`, e);
           }
         }
       }
 
-      // Only advance cursor if at least one sink succeeded (or no events)
-      if (fresh.length === 0 || anyDelivered) {
+      // Only advance cursor if ALL sinks succeeded (or no events).
+      // This prevents data loss: a failing sink will see the same events
+      // on the next poll rather than missing them forever.
+      if (fresh.length === 0 || allDelivered) {
         this.cursors.set(loop.origin, result.cursor, fresh.length);
         await this.cursors.save();
       }

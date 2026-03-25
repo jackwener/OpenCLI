@@ -38,9 +38,18 @@ export class SubscriptionRegistry {
   }
 
   add(origin: string, sink: string, sinkConfig: Record<string, unknown> = {}, intervalMs = 0): Subscription {
-    // Check for existing subscription with same origin + sink
-    const existing = this.subs.find(s => s.origin === origin && s.sink === sink);
-    if (existing) return existing;
+    // Check for existing subscription with same origin + sink + config
+    const configKey = JSON.stringify(sinkConfig);
+    const existing = this.subs.find(
+      s => s.origin === origin && s.sink === sink && JSON.stringify(s.sinkConfig) === configKey,
+    );
+    if (existing) {
+      // Update interval if changed
+      if (intervalMs !== existing.intervalMs) {
+        existing.intervalMs = intervalMs;
+      }
+      return existing;
+    }
 
     const sub: Subscription = {
       id: randomUUID(),

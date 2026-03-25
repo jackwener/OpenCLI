@@ -27,13 +27,20 @@ export class WebhookSink implements ChannelSink {
   async deliver(events: ChannelEvent[]): Promise<void> {
     for (const event of events) {
       try {
-        const res = await fetch(this.url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...this.headers },
-          body: JSON.stringify(event),
-        });
-        if (!res.ok) {
-          console.error(`[webhook] ${res.status} ${res.statusText} for event ${event.id}`);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30_000);
+        try {
+          const res = await fetch(this.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...this.headers },
+            body: JSON.stringify(event),
+            signal: controller.signal,
+          });
+          if (!res.ok) {
+            console.error(`[webhook] ${res.status} ${res.statusText} for event ${event.id}`);
+          }
+        } finally {
+          clearTimeout(timeout);
         }
       } catch (e) {
         console.error(`[webhook] Failed to deliver event ${event.id}:`, e);
