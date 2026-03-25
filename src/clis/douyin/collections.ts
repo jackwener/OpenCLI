@@ -1,0 +1,25 @@
+import { cli, Strategy } from '../../registry.js';
+import { browserFetch } from './_shared/browser-fetch.js';
+
+cli({
+  site: 'douyin',
+  name: 'collections',
+  description: '合集列表',
+  domain: 'creator.douyin.com',
+  strategy: Strategy.COOKIE,
+  args: [
+    { name: 'limit', type: 'int', default: 20 },
+  ],
+  columns: ['mix_id', 'name', 'item_count'],
+  func: async (page, kwargs) => {
+    const url = `https://creator.douyin.com/web/api/mix/list/?aid=1128&count=${kwargs.limit}`;
+    const res = await browserFetch(page, 'GET', url) as {
+      mix_list: Array<{ mix_id: string; mix_name: string; item_count: number }>
+    };
+    return (res.mix_list ?? []).map(m => ({
+      mix_id: m.mix_id,
+      name: m.mix_name,
+      item_count: m.item_count,
+    }));
+  },
+});

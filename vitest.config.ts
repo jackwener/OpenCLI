@@ -25,6 +25,8 @@ export default defineConfig({
             'src/clis/linkedin/**/*.test.ts',
             'src/clis/grok/**/*.test.ts',
             'src/clis/pixiv/**/*.test.ts',
+            'src/clis/douyin/_shared/**/*.test.ts',
+            'src/clis/douyin/*.test.ts',
           ],
           sequence: {
             groupOrder: 1,
