@@ -12,12 +12,11 @@ Prerequisites and bootstrap:
   - verify: `opencli --version`
 - Before first real command, run:
   - `opencli doctor`
-- If doctor reports extension/browser connectivity issue, prompt user to install Chrome Browser Bridge extension manually:
-  1. Open `chrome://extensions`
-  2. Enable Developer mode
-  3. Click "Load unpacked"
-  4. Select the `extension/` directory from the OpenCLI repo (or install release zip from OpenCLI releases)
-  5. Keep Chrome open and logged in, then rerun `opencli doctor`
+- If doctor reports extension/browser connectivity issue, prompt user to install Chrome Browser Bridge extension manually (same as README):
+  - Install location: Chrome extension management page `chrome://extensions`
+  - Option A (recommended): download `opencli-extension.zip` from OpenCLI Releases and install
+  - Option B (dev mode): open `chrome://extensions` → enable Developer mode → click "Load unpacked" → select OpenCLI repo `extension/` directory
+  - After install: keep Chrome open and logged into target platforms, then rerun `opencli doctor`
 
 1. Detect target platform from user request.
 2. Load `references/commands/<platform>.md`.
