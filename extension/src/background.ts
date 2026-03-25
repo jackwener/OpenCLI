@@ -471,7 +471,12 @@ async function handleTabs(cmd: Command, workspace: string): Promise<Result> {
         return { id: cmd.id, ok: false, error: 'Missing index or tabId' };
       if (cmd.tabId !== undefined) {
         const session = automationSessions.get(workspace);
-        const tab = await chrome.tabs.get(cmd.tabId);
+        let tab: chrome.tabs.Tab;
+        try {
+          tab = await chrome.tabs.get(cmd.tabId);
+        } catch {
+          return { id: cmd.id, ok: false, error: `Tab ${cmd.tabId} no longer exists` };
+        }
         if (!session || tab.windowId !== session.windowId) {
           return { id: cmd.id, ok: false, error: `Tab ${cmd.tabId} is not in the automation window` };
         }
