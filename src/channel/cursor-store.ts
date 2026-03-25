@@ -35,9 +35,21 @@ export class CursorStore {
     }
   }
 
+  private saving: Promise<void> | null = null;
+
   async save(): Promise<void> {
+    // Serialize concurrent saves to avoid tmp file race condition
+    if (this.saving) {
+      await this.saving;
+    }
+    this.saving = this._doSave();
+    await this.saving;
+    this.saving = null;
+  }
+
+  private async _doSave(): Promise<void> {
     mkdirSync(dirname(this.path), { recursive: true });
-    const tmp = `${this.path}.tmp`;
+    const tmp = `${this.path}.${process.pid}.tmp`;
     const data = JSON.stringify(Object.fromEntries(this.entries), null, 2);
     await writeFile(tmp, data, 'utf8');
     await rename(tmp, this.path);
