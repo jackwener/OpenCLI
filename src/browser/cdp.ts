@@ -12,6 +12,7 @@ import { WebSocket, type RawData } from 'ws';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import type { BrowserCookie, IPage, ScreenshotOptions, SnapshotOptions, WaitOptions } from '../types.js';
+import { discoverLocalChromeCdpEndpoint, resolveCdpEndpoint } from './discover.js';
 import { wrapForEval } from './utils.js';
 import { generateSnapshotJs, scrollToRefJs, getFormStateJs } from './dom-snapshot.js';
 import { generateStealthJs } from './stealth.js';
@@ -28,9 +29,11 @@ import {
 import { isRecord, saveBase64ToFile } from '../utils.js';
 
 export interface CDPTarget {
+  targetId?: string;
   type?: string;
   url?: string;
   title?: string;
+  attached?: boolean;
   webSocketDebuggerUrl?: string;
 }
 
@@ -49,6 +52,8 @@ const CDP_SEND_TIMEOUT = 30_000;
 
 export class CDPBridge {
   private _ws: WebSocket | null = null;
+  private _sessionId: string | null = null;
+  private _attachedTargetId: string | null = null;
   private _idCounter = 0;
   private _pending = new Map<number, { resolve: (val: unknown) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private _eventListeners = new Map<string, Set<(params: unknown) => void>>();
@@ -56,18 +61,15 @@ export class CDPBridge {
   async connect(opts?: { timeout?: number; workspace?: string }): Promise<IPage> {
     if (this._ws) throw new Error('CDPBridge is already connected. Call close() before reconnecting.');
 
-    const endpoint = process.env.OPENCLI_CDP_ENDPOINT;
+    const endpoint = resolveCdpEndpoint().endpoint ?? process.env.OPENCLI_CDP_ENDPOINT;
     if (!endpoint) throw new Error('OPENCLI_CDP_ENDPOINT is not set');
 
     let wsUrl = endpoint;
     if (endpoint.startsWith('http')) {
-      const targets = await fetchJsonDirect(`${endpoint.replace(/\/$/, '')}/json`) as CDPTarget[];
-      const target = selectCDPTarget(targets);
-      if (!target || !target.webSocketDebuggerUrl) {
-        throw new Error('No inspectable targets found at CDP endpoint');
-      }
-      wsUrl = target.webSocketDebuggerUrl;
+      wsUrl = await resolveHttpEndpoint(endpoint);
     }
+
+    const browserLevelWs = isBrowserLevelWebSocketUrl(wsUrl);
 
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(wsUrl);
@@ -75,12 +77,15 @@ export class CDPBridge {
       const timeout = setTimeout(() => reject(new Error('CDP connect timeout')), timeoutMs);
 
       ws.on('open', async () => {
-        clearTimeout(timeout);
         this._ws = ws;
         try {
+          if (browserLevelWs) {
+            await this.attachToInspectableTarget();
+          }
           await this.send('Page.enable');
           await this.send('Page.addScriptToEvaluateOnNewDocument', { source: generateStealthJs() });
         } catch {}
+        clearTimeout(timeout);
         resolve(new CDPPage(this));
       });
 
@@ -93,6 +98,9 @@ export class CDPBridge {
         try {
           const msg = JSON.parse(data.toString());
           if (msg.id && this._pending.has(msg.id)) {
+            if (msg.sessionId && this._sessionId && msg.sessionId !== this._sessionId) {
+              return;
+            }
             const entry = this._pending.get(msg.id)!;
             clearTimeout(entry.timer);
             this._pending.delete(msg.id);
@@ -103,6 +111,12 @@ export class CDPBridge {
             }
           }
           if (msg.method) {
+            if (msg.sessionId && this._sessionId && msg.sessionId !== this._sessionId) {
+              return;
+            }
+            if (!msg.sessionId && this._sessionId && msg.method !== 'Target.attachedToTarget' && msg.method !== 'Target.detachedFromTarget') {
+              return;
+            }
             const listeners = this._eventListeners.get(msg.method);
             if (listeners) {
               for (const fn of listeners) fn(msg.params);
@@ -114,10 +128,19 @@ export class CDPBridge {
   }
 
   async close(): Promise<void> {
+    if (this._ws && this._ws.readyState === WebSocket.OPEN && this._sessionId) {
+      try {
+        await this.send('Target.detachFromTarget', { sessionId: this._sessionId }, 5_000, { root: true });
+      } catch {
+        // Ignore detach errors during shutdown.
+      }
+    }
     if (this._ws) {
       this._ws.close();
       this._ws = null;
     }
+    this._sessionId = null;
+    this._attachedTargetId = null;
     for (const p of this._pending.values()) {
       clearTimeout(p.timer);
       p.reject(new Error('CDP connection closed'));
@@ -126,18 +149,27 @@ export class CDPBridge {
     this._eventListeners.clear();
   }
 
-  async send(method: string, params: Record<string, unknown> = {}, timeoutMs: number = CDP_SEND_TIMEOUT): Promise<unknown> {
+  async send(
+    method: string,
+    params: Record<string, unknown> = {},
+    timeoutMs: number = CDP_SEND_TIMEOUT,
+    opts: { root?: boolean } = {},
+  ): Promise<unknown> {
     if (!this._ws || this._ws.readyState !== WebSocket.OPEN) {
       throw new Error('CDP connection is not open');
     }
     const id = ++this._idCounter;
+    const payload: Record<string, unknown> = { id, method, params };
+    if (this.shouldSendViaSession(method, opts)) {
+      payload.sessionId = this._sessionId;
+    }
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this._pending.delete(id);
         reject(new Error(`CDP command '${method}' timed out after ${timeoutMs / 1000}s`));
       }, timeoutMs);
       this._pending.set(id, { resolve, reject, timer });
-      this._ws!.send(JSON.stringify({ id, method, params }));
+      this._ws!.send(JSON.stringify(payload));
     });
   }
 
@@ -167,6 +199,42 @@ export class CDPBridge {
       };
       this.on(event, handler);
     });
+  }
+
+  private shouldSendViaSession(method: string, opts: { root?: boolean }): boolean {
+    if (opts.root || !this._sessionId) return false;
+    if (method.startsWith('Target.') || method.startsWith('Browser.')) return false;
+    return true;
+  }
+
+  private async attachToInspectableTarget(): Promise<void> {
+    const targetsResult = await this.send('Target.getTargets', {}, CDP_SEND_TIMEOUT, { root: true }) as { targetInfos?: CDPTarget[] };
+    let target = selectCDPAttachTarget(targetsResult.targetInfos ?? []);
+
+    if (!target?.targetId) {
+      const created = await this.send('Target.createTarget', { url: 'about:blank' }, CDP_SEND_TIMEOUT, { root: true }) as { targetId?: string };
+      if (!created.targetId) {
+        throw new Error('No attachable page target found at CDP endpoint');
+      }
+      target = {
+        targetId: created.targetId,
+        type: 'page',
+        title: 'about:blank',
+        url: 'about:blank',
+      };
+    }
+
+    const attach = await this.send('Target.attachToTarget', {
+      targetId: target.targetId,
+      flatten: true,
+    }, CDP_SEND_TIMEOUT, { root: true }) as { sessionId?: string };
+
+    if (!attach.sessionId) {
+      throw new Error('Failed to attach to the selected CDP target');
+    }
+
+    this._sessionId = attach.sessionId;
+    this._attachedTargetId = target.targetId ?? null;
   }
 }
 
@@ -335,22 +403,74 @@ function matchesCookieDomain(cookieDomain: string, targetDomain: string): boolea
     || normalizedTargetDomain.endsWith(`.${normalizedCookieDomain}`);
 }
 
+async function resolveHttpEndpoint(endpoint: string): Promise<string> {
+  const base = endpoint.replace(/\/$/, '');
+
+  try {
+    const targets = await fetchJsonDirect(`${base}/json`) as CDPTarget[];
+    const target = selectCDPTarget(targets);
+    if (!target || !target.webSocketDebuggerUrl) {
+      throw new Error('No inspectable targets found at CDP endpoint');
+    }
+    return target.webSocketDebuggerUrl;
+  } catch (error) {
+    if (isLocalHttpEndpoint(endpoint)) {
+      const localBrowserWs = discoverLocalChromeCdpEndpoint();
+      if (localBrowserWs) return localBrowserWs;
+    }
+    throw error;
+  }
+}
+
+function isLocalHttpEndpoint(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint);
+    return url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '::1';
+  } catch {
+    return false;
+  }
+}
+
+function isBrowserLevelWebSocketUrl(endpoint: string): boolean {
+  return /\/devtools\/browser\//.test(endpoint);
+}
+
 function selectCDPTarget(targets: CDPTarget[]): CDPTarget | undefined {
   const preferredPattern = compilePreferredPattern(process.env.OPENCLI_CDP_TARGET);
+  return rankTargets(targets, preferredPattern, { requireSocketUrl: true });
+}
 
+function selectCDPAttachTarget(targets: CDPTarget[]): CDPTarget | undefined {
+  const preferredPattern = compilePreferredPattern(process.env.OPENCLI_CDP_TARGET);
+  const attachable = targets.filter((target) => {
+    const type = (target.type ?? '').toLowerCase();
+    return type === 'app' || type === 'webview' || type === 'page';
+  });
+  return rankTargets(attachable, preferredPattern, { requireSocketUrl: false });
+}
+
+function rankTargets(
+  targets: CDPTarget[],
+  preferredPattern: RegExp | undefined,
+  opts: { requireSocketUrl: boolean },
+): CDPTarget | undefined {
   const ranked = targets
-    .map((target, index) => ({ target, index, score: scoreCDPTarget(target, preferredPattern) }))
+    .map((target, index) => ({ target, index, score: scoreCDPTarget(target, preferredPattern, opts) }))
     .filter(({ score }) => Number.isFinite(score))
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       return a.index - b.index;
     });
-
   return ranked[0]?.target;
 }
 
-function scoreCDPTarget(target: CDPTarget, preferredPattern?: RegExp): number {
-  if (!target.webSocketDebuggerUrl) return Number.NEGATIVE_INFINITY;
+function scoreCDPTarget(
+  target: CDPTarget,
+  preferredPattern?: RegExp,
+  opts: { requireSocketUrl: boolean } = { requireSocketUrl: true },
+): number {
+  if (opts.requireSocketUrl && !target.webSocketDebuggerUrl) return Number.NEGATIVE_INFINITY;
+  if (!opts.requireSocketUrl && !target.targetId) return Number.NEGATIVE_INFINITY;
 
   const type = (target.type ?? '').toLowerCase();
   const url = (target.url ?? '').toLowerCase();
@@ -359,6 +479,7 @@ function scoreCDPTarget(target: CDPTarget, preferredPattern?: RegExp): number {
 
   if (!haystack.trim() && !type) return Number.NEGATIVE_INFINITY;
   if (haystack.includes('devtools')) return Number.NEGATIVE_INFINITY;
+  if (url.startsWith('chrome-extension://')) return Number.NEGATIVE_INFINITY;
 
   let score = 0;
 
@@ -405,6 +526,7 @@ function escapeRegExp(value: string): string {
 
 export const __test__ = {
   selectCDPTarget,
+  selectCDPAttachTarget,
   scoreCDPTarget,
 };
 

@@ -36,7 +36,7 @@ vi.mock('ws', () => ({
   WebSocket: MockWebSocket,
 }));
 
-import { CDPBridge } from './cdp.js';
+import { CDPBridge, __test__ } from './cdp.js';
 
 describe('CDPBridge cookies', () => {
   beforeEach(() => {
@@ -62,5 +62,32 @@ describe('CDPBridge cookies', () => {
       { name: 'good', value: '1', domain: '.example.com' },
       { name: 'exact', value: '2', domain: 'example.com' },
     ]);
+  });
+});
+
+describe('CDP target selection', () => {
+  it('selects a real page target when attaching through a browser-level websocket', () => {
+    const target = __test__.selectCDPAttachTarget([
+      {
+        targetId: 'worker-1',
+        type: 'service_worker',
+        title: 'Service Worker chrome-extension://abc/background.js',
+        url: 'chrome-extension://abc/background.js',
+      },
+      {
+        targetId: 'page-1',
+        type: 'page',
+        title: 'Cloudflare Dashboard',
+        url: 'https://dash.cloudflare.com',
+      },
+      {
+        targetId: 'iframe-1',
+        type: 'iframe',
+        title: 'Cloudflare Turnstile',
+        url: 'https://challenges.cloudflare.com/cdn-cgi/challenge-platform/...',
+      },
+    ]);
+
+    expect(target?.targetId).toBe('page-1');
   });
 });

@@ -23,5 +23,6 @@ export const __test__ = {
   appendLimited,
   withTimeoutMs,
   selectCDPTarget: cdpTest.selectCDPTarget,
+  selectCDPAttachTarget: cdpTest.selectCDPAttachTarget,
   scoreCDPTarget: cdpTest.scoreCDPTarget,
 };

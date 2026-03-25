@@ -7,8 +7,8 @@
 
 import chalk from 'chalk';
 import { DEFAULT_DAEMON_PORT } from './constants.js';
-import { checkDaemonStatus } from './browser/discover.js';
-import { BrowserBridge } from './browser/index.js';
+import { checkDaemonStatus, resolveCdpEndpoint } from './browser/discover.js';
+import { BrowserBridge, CDPBridge } from './browser/index.js';
 import { listSessions } from './browser/daemon-client.js';
 import { getErrorMessage } from './errors.js';
 
@@ -28,6 +28,7 @@ export type ConnectivityResult = {
 
 export type DoctorReport = {
   cliVersion?: string;
+  cdpEndpoint?: string;
   daemonRunning: boolean;
   extensionConnected: boolean;
   connectivity?: ConnectivityResult;
@@ -41,7 +42,10 @@ export type DoctorReport = {
 export async function checkConnectivity(opts?: { timeout?: number }): Promise<ConnectivityResult> {
   const start = Date.now();
   try {
-    const mcp = new BrowserBridge();
+    const cdpEndpoint = resolveCdpEndpoint().endpoint;
+    if (cdpEndpoint) process.env.OPENCLI_CDP_ENDPOINT = cdpEndpoint;
+    const BrowserFactory = cdpEndpoint ? CDPBridge : BrowserBridge;
+    const mcp = new BrowserFactory();
     const page = await mcp.connect({ timeout: opts?.timeout ?? 8 });
     // Try a simple eval to verify end-to-end connectivity
     await page.evaluate('1 + 1');
@@ -53,6 +57,25 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
 }
 
 export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
+  const cdpEndpoint = resolveCdpEndpoint().endpoint;
+  if (cdpEndpoint) {
+    process.env.OPENCLI_CDP_ENDPOINT = cdpEndpoint;
+    const connectivity = opts.live ? await checkConnectivity() : undefined;
+    const issues: string[] = [];
+    if (connectivity && !connectivity.ok) {
+      issues.push(`Browser connectivity test failed: ${connectivity.error ?? 'unknown'}`);
+    }
+    return {
+      cliVersion: opts.cliVersion,
+      cdpEndpoint,
+      daemonRunning: false,
+      extensionConnected: false,
+      connectivity,
+      sessions: undefined,
+      issues,
+    };
+  }
+
   // Try to auto-start daemon if it's not running, so we show accurate status.
   let initialStatus = await checkDaemonStatus();
   if (!initialStatus.running) {
@@ -96,6 +119,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
 
   return {
     cliVersion: opts.cliVersion,
+    cdpEndpoint,
     daemonRunning: status.running,
     extensionConnected: status.extensionConnected,
     connectivity,
@@ -106,6 +130,33 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
 
 export function renderBrowserDoctorReport(report: DoctorReport): string {
   const lines = [chalk.bold(`opencli v${report.cliVersion ?? 'unknown'} doctor`), ''];
+
+  if (report.cdpEndpoint) {
+    lines.push(`${chalk.green('[OK]')} CDP: ${report.cdpEndpoint}`);
+    lines.push(`${chalk.dim('[SKIP]')} Daemon: not required in CDP mode`);
+    lines.push(`${chalk.dim('[SKIP]')} Extension: not required in CDP mode`);
+
+    if (report.connectivity) {
+      const connIcon = report.connectivity.ok ? chalk.green('[OK]') : chalk.red('[FAIL]');
+      const detail = report.connectivity.ok
+        ? `connected in ${(report.connectivity.durationMs / 1000).toFixed(1)}s`
+        : `failed (${report.connectivity.error ?? 'unknown'})`;
+      lines.push(`${connIcon} Connectivity: ${detail}`);
+    } else {
+      lines.push(`${chalk.dim('[SKIP]')} Connectivity: skipped (--no-live)`);
+    }
+
+    if (report.issues.length) {
+      lines.push('', chalk.yellow('Issues:'));
+      for (const issue of report.issues) {
+        lines.push(chalk.dim(`  • ${issue}`));
+      }
+    } else {
+      lines.push('', chalk.green('Everything looks good!'));
+    }
+
+    return lines.join('\n');
+  }
 
   // Daemon status
   const daemonIcon = report.daemonRunning ? chalk.green('[OK]') : chalk.red('[MISSING]');

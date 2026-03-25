@@ -1,13 +1,20 @@
 import { BrowserBridge, CDPBridge } from './browser/index.js';
+import { resolveCdpEndpoint } from './browser/discover.js';
 import type { IPage } from './types.js';
 import { TimeoutError } from './errors.js';
 
 /**
  * Returns the appropriate browser factory based on environment config.
- * Uses CDPBridge when OPENCLI_CDP_ENDPOINT is set, otherwise BrowserBridge.
+ * Uses CDPBridge when a CDP endpoint is configured or auto-discovered,
+ * otherwise BrowserBridge.
  */
 export function getBrowserFactory(): new () => IBrowserFactory {
-  return (process.env.OPENCLI_CDP_ENDPOINT ? CDPBridge : BrowserBridge) as unknown as new () => IBrowserFactory;
+  const resolved = resolveCdpEndpoint();
+  if (resolved.endpoint) {
+    process.env.OPENCLI_CDP_ENDPOINT = resolved.endpoint;
+    return CDPBridge as unknown as new () => IBrowserFactory;
+  }
+  return BrowserBridge as unknown as new () => IBrowserFactory;
 }
 
 function parseEnvTimeout(envVar: string, fallback: number): number {
