@@ -12,7 +12,7 @@ cli({
     { name: 'query', positional: true, required: true, help: 'Search keyword' },
     { name: 'limit', type: 'int', default: 10, help: 'Max results' },
   ],
-  columns: ['rank', 'title', 'author', 'bookId'],
+  columns: ['rank', 'title', 'author', 'bookId', 'url'],
   func: async (_page, args) => {
     const data = await fetchWebApi('/search/global', { keyword: args.keyword });
     const books: any[] = data?.books ?? [];
@@ -21,6 +21,7 @@ cli({
       title: item.bookInfo?.title ?? '',
       author: item.bookInfo?.author ?? '',
       bookId: item.bookInfo?.bookId ?? '',
+      url: item.bookInfo?.bookId ? 'https://weread.qq.com/web/bookDetail/' + item.bookInfo.bookId : '',
     }));
   },
 });

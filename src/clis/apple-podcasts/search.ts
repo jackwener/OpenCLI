@@ -12,7 +12,7 @@ cli({
     { name: 'query', positional: true, required: true, help: 'Search keyword' },
     { name: 'limit', type: 'int', default: 10, help: 'Max results' },
   ],
-  columns: ['id', 'title', 'author', 'episodes', 'genre'],
+  columns: ['id', 'title', 'author', 'episodes', 'genre', 'url'],
   func: async (_page, args) => {
     const term = encodeURIComponent(args.query);
     const limit = Math.max(1, Math.min(Number(args.limit), 25));
@@ -24,6 +24,7 @@ cli({
       author: p.artistName,
       episodes: p.trackCount ?? '-',
       genre: p.primaryGenreName ?? '-',
+      url: p.collectionViewUrl || '',
     }));
   },
 });

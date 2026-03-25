@@ -48,7 +48,8 @@ pipeline:
       exchange: ${{ item.exchange }}
       price: ${{ item.price }}
       changePercent: ${{ item.changePercent }}
+      url: ${{ item.url }}
       
   - limit: ${{ args.limit }}
 
-columns: [symbol, name, exchange, price, changePercent]
+columns: [symbol, name, exchange, price, changePercent, url]
