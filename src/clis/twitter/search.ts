@@ -9,8 +9,8 @@ import type { IPage } from '../../types.js';
  * pushState + popstate. A second attempt is enough for the intermittent cases
  * reported in issue #353 while keeping the flow narrowly scoped.
  */
-async function navigateToSearch(page: Pick<IPage, 'evaluate' | 'wait'>, query: string): Promise<void> {
-  const searchUrl = JSON.stringify(`/search?q=${encodeURIComponent(query)}&f=top`);
+async function navigateToSearch(page: Pick<IPage, 'evaluate' | 'wait'>, query: string, type: string): Promise<void> {
+  const searchUrl = JSON.stringify(`/search?q=${encodeURIComponent(query)}&f=${type}`);
   let lastPath = '';
 
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -46,6 +46,7 @@ cli({
   browser: true,
   args: [
     { name: 'query', type: 'string', required: true, positional: true },
+    { name: 'filter', type: 'string', default: 'top', choices: ['top', 'live'] },
     { name: 'limit', type: 'int', default: 15 },
   ],
   columns: ['id', 'author', 'text', 'likes', 'views', 'url'],
@@ -66,7 +67,7 @@ cli({
     //    a full page reload, so the interceptor stays alive.
     //    Note: the previous approach (nativeSetter + Enter keydown on the
     //    search input) does not reliably trigger Twitter's form submission.
-    await navigateToSearch(page, query);
+    await navigateToSearch(page, query, kwargs.filter);
 
     // 4. Scroll to trigger additional pagination
     await page.autoScroll({ times: 3, delayMs: 2000 });
