@@ -27,5 +27,16 @@ Prerequisites and bootstrap:
 All command docs live in:
 - `references/commands/*.md`
 
-Setup and manual extension install guide:
-- `README.md`
+Record workflow (for dynamic/auth-heavy pages):
+
+- Start recording: `opencli record <url>`
+- Optional args:
+  - `--site <name>` specify site name
+  - `--timeout <ms>` recording timeout (default 60000)
+  - `--poll <ms>` polling interval (default 2000)
+  - `--out <dir>` output directory
+- During recording, manually operate the page in browser to trigger API calls.
+- Output files:
+  - `.opencli/record/<site>/captured.json`
+  - `.opencli/record/<site>/candidates/*.yaml`
+- Use record when `explore` cannot fully discover requests due to login state, SPA routing, or interaction-dependent APIs.
