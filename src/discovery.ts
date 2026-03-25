@@ -11,6 +11,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
 import { type CliCommand, type InternalCliCommand, type Arg, Strategy, registerCommand } from './registry.js';
 import { log } from './logger.js';
@@ -46,6 +47,10 @@ interface YamlCliDefinition {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+export function toImportHref(filePath: string): string {
+  return pathToFileURL(filePath).href;
 }
 
 function parseStrategy(rawStrategy: string | undefined, fallback: Strategy = Strategy.COOKIE): Strategy {
@@ -156,7 +161,7 @@ async function discoverClisFromFs(dir: string): Promise<void> {
       ) {
         if (!(await isCliModule(filePath))) continue;
         promises.push(
-          import(`file://${filePath}`).catch((err) => {
+          import(toImportHref(filePath)).catch((err) => {
             log.warn(`Failed to load module ${filePath}: ${getErrorMessage(err)}`);
           })
         );
@@ -244,7 +249,7 @@ async function discoverPluginDir(dir: string, site: string): Promise<void> {
     } else if (file.endsWith('.js') && !file.endsWith('.d.js')) {
       if (!(await isCliModule(filePath))) continue;
       promises.push(
-        import(`file://${filePath}`).catch((err) => {
+        import(toImportHref(filePath)).catch((err) => {
           log.warn(`Plugin ${site}/${file}: ${getErrorMessage(err)}`);
         })
       );
@@ -256,7 +261,7 @@ async function discoverPluginDir(dir: string, site: string): Promise<void> {
       if (fileSet.has(jsFile)) continue;
       if (!(await isCliModule(filePath))) continue;
       promises.push(
-        import(`file://${filePath}`).catch((err) => {
+        import(toImportHref(filePath)).catch((err) => {
           log.warn(`Plugin ${site}/${file}: ${getErrorMessage(err)}`);
         })
       );

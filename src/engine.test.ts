@@ -1,11 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { discoverClis, discoverPlugins, PLUGINS_DIR } from './discovery.js';
+import { discoverClis, discoverPlugins, PLUGINS_DIR, toImportHref } from './discovery.js';
 import { executeCommand } from './execution.js';
 import { getRegistry, cli, Strategy } from './registry.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 describe('discoverClis', () => {
+  it('encodes local paths as valid file import URLs', () => {
+    expect(toImportHref('/tmp/opencli path/hello.ts')).toBe('file:///tmp/opencli%20path/hello.ts');
+    expect(toImportHref('/tmp/opencli#hash/hello.ts')).toBe('file:///tmp/opencli%23hash/hello.ts');
+  });
+
   it('handles non-existent directories gracefully', async () => {
     // Should not throw for missing directories
     await expect(discoverClis('/tmp/nonexistent-opencli-test-dir')).resolves.not.toThrow();
