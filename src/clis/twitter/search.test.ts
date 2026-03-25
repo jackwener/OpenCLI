@@ -129,6 +129,28 @@ describe('twitter search command', () => {
     expect(pushStateCall).toContain('f=top');
   });
 
+  it('falls back to top when filter is omitted', async () => {
+    const command = getRegistry().get('twitter/search');
+
+    const evaluate = vi.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce('/search');
+
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      installInterceptor: vi.fn().mockResolvedValue(undefined),
+      evaluate,
+      autoScroll: vi.fn().mockResolvedValue(undefined),
+      getInterceptedRequests: vi.fn().mockResolvedValue([]),
+    };
+
+    await command!.func!(page as any, { query: 'test', limit: 5 });
+
+    const pushStateCall = evaluate.mock.calls[0][0] as string;
+    expect(pushStateCall).toContain('f=top');
+  });
+
   it('throws with the final path after both attempts fail', async () => {
     const command = getRegistry().get('twitter/search');
     expect(command?.func).toBeTypeOf('function');

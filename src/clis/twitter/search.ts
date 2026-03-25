@@ -52,6 +52,7 @@ cli({
   columns: ['id', 'author', 'text', 'likes', 'views', 'url'],
   func: async (page, kwargs) => {
     const query = kwargs.query;
+    const filter = kwargs.filter === 'live' ? 'live' : 'top';
 
     // 1. Navigate to x.com/explore (has a search input at the top)
     await page.goto('https://x.com/explore');
@@ -67,7 +68,7 @@ cli({
     //    a full page reload, so the interceptor stays alive.
     //    Note: the previous approach (nativeSetter + Enter keydown on the
     //    search input) does not reliably trigger Twitter's form submission.
-    await navigateToSearch(page, query, kwargs.filter);
+    await navigateToSearch(page, query, filter);
 
     // 4. Scroll to trigger additional pagination
     await page.autoScroll({ times: 3, delayMs: 2000 });
