@@ -113,6 +113,27 @@ describe('login-required commands — graceful failure', () => {
     await expectGracefulAuthFailure(['xiaohongshu', 'notifications', '--limit', '3', '-f', 'json'], 'xiaohongshu notifications');
   }, 60_000);
 
+  // ── pixiv (requires login) ──
+  it('pixiv ranking fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['pixiv', 'ranking', '--limit', '3', '-f', 'json'], 'pixiv ranking');
+  }, 60_000);
+
+  it('pixiv search fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['pixiv', 'search', '初音ミク', '--limit', '3', '-f', 'json'], 'pixiv search');
+  }, 60_000);
+
+  it('pixiv user fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['pixiv', 'user', '11', '-f', 'json'], 'pixiv user');
+  }, 60_000);
+
+  it('pixiv illusts fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['pixiv', 'illusts', '11', '--limit', '3', '-f', 'json'], 'pixiv illusts');
+  }, 60_000);
+
+  it('pixiv detail fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['pixiv', 'detail', '123456', '-f', 'json'], 'pixiv detail');
+  }, 60_000);
+
   // ── yollomi (requires login session) ──
   it('yollomi generate fails gracefully without login', async () => {
     await expectGracefulAuthFailure(['yollomi', 'generate', 'a cute cat', '--no-download', '-f', 'json'], 'yollomi generate');
