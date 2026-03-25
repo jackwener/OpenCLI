@@ -40,7 +40,7 @@ opencli xueqiu fund-holdings
 
 # Filter one Danjuan sub-account
 opencli xueqiu fund-holdings --account 默认账户
-opencli xueqiu fund-holdings --account T0201314857
+opencli xueqiu fund-holdings --account T020XXXXXXX
 
 # Full Danjuan snapshot as JSON
 opencli xueqiu fund-snapshot -f json
