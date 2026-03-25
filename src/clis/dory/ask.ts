@@ -1,6 +1,7 @@
 import { cli, Strategy } from '../../registry.js';
 import { SelectorError } from '../../errors.js';
 import type { IPage } from '../../types.js';
+import { ensureChatbotPage, injectChatText, resolveConnectionId } from './_shared.js';
 
 export const askCommand = cli({
   site: 'dory',
@@ -11,40 +12,30 @@ export const askCommand = cli({
   browser: true,
   args: [
     { name: 'text', required: true, positional: true, help: 'Message to send' },
+    { name: 'connection', required: false, help: 'Connection name or ID to navigate to before sending' },
     { name: 'timeout', required: false, help: 'Max seconds to wait for response (default: 60)', default: '60' },
   ],
   columns: ['Role', 'Text'],
   func: async (page: IPage, kwargs: any) => {
     const text = kwargs.text as string;
+    const rawConn = kwargs.connection as string | undefined;
+    const connectionId = rawConn ? await resolveConnectionId(page, rawConn) : undefined;
     const timeout = parseInt(kwargs.timeout as string, 10) || 60;
 
-    // Count current assistant messages before sending
+    await ensureChatbotPage(page, connectionId);
+
     const beforeCount = await page.evaluate(`
       (function() {
         return document.querySelectorAll('[role="log"] .is-assistant').length;
       })()
     `);
 
-    // Inject into React-controlled textarea and submit
-    const injected = await page.evaluate(`
-      (function(text) {
-        const textarea = document.querySelector('textarea[name="message"]') || document.querySelector('textarea');
-        if (!textarea) return false;
-        textarea.focus();
-        const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-        nativeSetter.call(textarea, text);
-        textarea.dispatchEvent(new Event('input', { bubbles: true }));
-        textarea.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-      })(${JSON.stringify(text)})
-    `);
-
+    const injected = await injectChatText(page, text);
     if (!injected) throw new SelectorError('Dory chat textarea');
 
     await page.wait(0.3);
     await page.pressKey('Enter');
 
-    // Poll for new assistant message and wait for it to stabilise
     const pollInterval = 2;
     const maxPolls = Math.ceil(timeout / pollInterval);
     let response = '';
@@ -63,7 +54,6 @@ export const askCommand = cli({
       `);
 
       if (result) {
-        // Wait for streaming to finish: text must be stable across two polls
         if (result === lastText) {
           response = result;
           break;

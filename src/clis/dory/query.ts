@@ -1,5 +1,6 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
+import { resolveConnectionId } from './_shared.js';
 
 export const queryCommand = cli({
   site: 'dory',
@@ -10,13 +11,13 @@ export const queryCommand = cli({
   browser: true,
   args: [
     { name: 'sql', required: true, positional: true, help: 'SQL statement to execute' },
-    { name: 'connection', required: true, help: 'Connection ID' },
+    { name: 'connection', required: true, help: 'Connection name or ID' },
     { name: 'database', required: false, help: 'Database name (optional)' },
   ],
   // No fixed columns — inferred dynamically from query result fields
   func: async (page: IPage, kwargs: any) => {
     const sql = kwargs.sql as string;
-    const connectionId = kwargs.connection as string;
+    const connectionId = await resolveConnectionId(page, kwargs.connection as string);
     const database = (kwargs.database as string) || undefined;
 
     const result = await page.evaluate(`

@@ -1,5 +1,6 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
+import { resolveConnectionId } from './_shared.js';
 
 export const tablesCommand = cli({
   site: 'dory',
@@ -9,13 +10,13 @@ export const tablesCommand = cli({
   strategy: Strategy.UI,
   browser: true,
   args: [
-    { name: 'connection', required: true, positional: true, help: 'Connection ID' },
+    { name: 'connection', required: true, positional: true, help: 'Connection name or ID' },
     { name: 'database', required: true, positional: true, help: 'Database name' },
     { name: 'schema', required: false, help: 'Schema name filter (optional)' },
   ],
   columns: ['Schema', 'Name', 'Value'],
   func: async (page: IPage, kwargs: any) => {
-    const connectionId = kwargs.connection as string;
+    const connectionId = await resolveConnectionId(page, kwargs.connection as string);
     const database = kwargs.database as string;
     const schema = kwargs.schema as string | undefined;
 

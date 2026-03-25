@@ -1,5 +1,6 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
+import { ensureChatbotPage, resolveConnectionId } from './_shared.js';
 
 export const sessionsCommand = cli({
   site: 'dory',
@@ -8,9 +9,14 @@ export const sessionsCommand = cli({
   domain: 'localhost',
   strategy: Strategy.UI,
   browser: true,
-  args: [],
+  args: [
+    { name: 'connection', required: false, help: 'Connection name or ID to navigate to before listing sessions' },
+  ],
   columns: ['Index', 'Title'],
-  func: async (page: IPage) => {
+  func: async (page: IPage, kwargs: any) => {
+    const rawConn = kwargs.connection as string | undefined;
+    const connectionId = rawConn ? await resolveConnectionId(page, rawConn) : undefined;
+    await ensureChatbotPage(page, connectionId);
     const items = await page.evaluate(`
       (function() {
         const results = [];

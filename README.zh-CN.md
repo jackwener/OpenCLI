@@ -131,6 +131,7 @@ npm install -g @jackwener/opencli@latest
 | **doubao-app** | `status` `new` `send` `read` `ask` `screenshot` `dump` | 桌面端 |
 | **notion** | `status` `search` `read` `new` `write` `sidebar` `favorites` `export` | 桌面端 |
 | **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | 桌面端 |
+| **dory** | `status` `dump` `screenshot` `connections` `connect` `databases` `tables` `columns` `table-preview` `query` `query-export` `chart-download` `send` `ask` `read` `export` `new` `sessions` | 桌面端 |
 | **v2ex** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | 公开 / 浏览器 |
 | **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` | 浏览器 |
 | **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` | 桌面端 |
@@ -216,6 +217,7 @@ opencli register mycli
 | **Notion** | 搜索、读取、写入 Notion 页面 | [Doc](./docs/adapters/desktop/notion.md) |
 | **Discord** | Discord 桌面版 — 消息、频道、服务器 | [Doc](./docs/adapters/desktop/discord.md) |
 | **Doubao** | 通过 CDP 控制豆包桌面应用 | [Doc](./docs/adapters/desktop/doubao-app.md) |
+| **[Dory](https://github.com/dorylab/dory)** | SQL 客户端 & AI 助手桌面应用 | [Doc](./docs/adapters/desktop/dory.md) |
 
 ## 下载支持
 

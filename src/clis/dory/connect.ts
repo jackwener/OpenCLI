@@ -1,5 +1,6 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
+import { resolveConnectionId } from './_shared.js';
 
 export const connectCommand = cli({
   site: 'dory',
@@ -9,11 +10,11 @@ export const connectCommand = cli({
   strategy: Strategy.UI,
   browser: true,
   args: [
-    { name: 'connection', required: true, positional: true, help: 'Connection ID to connect to' },
+    { name: 'connection', required: true, positional: true, help: 'Connection name or ID' },
   ],
   columns: ['Status', 'URL'],
   func: async (page: IPage, kwargs: any) => {
-    const connectionId = kwargs.connection as string;
+    const connectionId = await resolveConnectionId(page, kwargs.connection as string);
 
     // Resolve the organization slug from the current URL
     // URL pattern: /[organization]/...  or just /

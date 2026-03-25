@@ -13,7 +13,7 @@ export const connectionsCommand = cli({
   func: async (page: IPage) => {
     const result = await page.evaluate(`
       (async function() {
-        const res = await fetch('/api/connection', { credentials: 'include' });
+        const res = await fetch(window.location.origin + '/api/connection', { credentials: 'include' });
         if (!res.ok) throw new Error('API error ' + res.status);
         const json = await res.json();
         const list = json.data ?? json ?? [];

@@ -1,5 +1,6 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
+import { ensureChatbotPage, resolveConnectionId } from './_shared.js';
 
 export const newCommand = cli({
   site: 'dory',
@@ -8,9 +9,15 @@ export const newCommand = cli({
   domain: 'localhost',
   strategy: Strategy.UI,
   browser: true,
-  args: [],
+  args: [
+    { name: 'connection', required: false, help: 'Connection name or ID to navigate to before creating a new session' },
+  ],
   columns: ['Status'],
-  func: async (page: IPage) => {
+  func: async (page: IPage, kwargs: any) => {
+    const rawConn = kwargs.connection as string | undefined;
+    const connectionId = rawConn ? await resolveConnectionId(page, rawConn) : undefined;
+    await ensureChatbotPage(page, connectionId);
+
     // Try to find and click the "New" session button in the sidebar
     const clicked = await page.evaluate(`
       (function() {

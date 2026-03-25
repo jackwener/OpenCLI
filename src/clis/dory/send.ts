@@ -1,6 +1,7 @@
 import { cli, Strategy } from '../../registry.js';
 import { SelectorError } from '../../errors.js';
 import type { IPage } from '../../types.js';
+import { ensureChatbotPage, injectChatText, resolveConnectionId } from './_shared.js';
 
 export const sendCommand = cli({
   site: 'dory',
@@ -9,28 +10,19 @@ export const sendCommand = cli({
   domain: 'localhost',
   strategy: Strategy.UI,
   browser: true,
-  args: [{ name: 'text', required: true, positional: true, help: 'Message text to send' }],
+  args: [
+    { name: 'text', required: true, positional: true, help: 'Message text to send' },
+    { name: 'connection', required: false, help: 'Connection name or ID to navigate to before sending' },
+  ],
   columns: ['Status', 'InjectedText'],
   func: async (page: IPage, kwargs: any) => {
     const text = kwargs.text as string;
+    const rawConn = kwargs.connection as string | undefined;
+    const connectionId = rawConn ? await resolveConnectionId(page, rawConn) : undefined;
 
-    // Dory uses a React-controlled <textarea name="message">.
-    // We must use the native value setter so React's synthetic event picks it up.
-    const injected = await page.evaluate(`
-      (function(text) {
-        const textarea = document.querySelector('textarea[name="message"]') || document.querySelector('textarea');
-        if (!textarea) return false;
-        textarea.focus();
+    await ensureChatbotPage(page, connectionId);
 
-        // Trigger React's synthetic onChange by using the native value setter
-        const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-        nativeSetter.call(textarea, text);
-        textarea.dispatchEvent(new Event('input', { bubbles: true }));
-        textarea.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-      })(${JSON.stringify(text)})
-    `);
-
+    const injected = await injectChatText(page, text);
     if (!injected) throw new SelectorError('Dory chat textarea');
 
     await page.wait(0.3);

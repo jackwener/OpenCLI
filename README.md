@@ -129,6 +129,7 @@ Run `opencli list` for the live registry.
 | **doubao-app** | `status` `new` `send` `read` `ask` `screenshot` `dump` | Desktop |
 | **notion** | `status` `search` `read` `new` `write` `sidebar` `favorites` `export` | Desktop |
 | **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | Desktop |
+| **dory** | `status` `dump` `screenshot` `connections` `connect` `databases` `tables` `columns` `table-preview` `query` `query-export` `chart-download` `send` `ask` `read` `export` `new` `sessions` | Desktop |
 | **v2ex** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | Public / Browser |
 | **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` | Browser |
 | **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` | Desktop |
@@ -214,6 +215,7 @@ Each desktop adapter has its own detailed documentation with commands reference,
 | **Notion** | Search, read, write Notion pages | [Doc](./docs/adapters/desktop/notion.md) |
 | **Discord** | Discord Desktop — messages, channels, servers | [Doc](./docs/adapters/desktop/discord.md) |
 | **Doubao** | Control Doubao AI desktop app via CDP | [Doc](./docs/adapters/desktop/doubao-app.md) |
+| **[Dory](https://github.com/dorylab/dory)** | SQL client & AI assistant desktop app | [Doc](./docs/adapters/desktop/dory.md) |
 
 ## Download Support
 

@@ -70,3 +70,4 @@ Run `opencli list` for the live registry.
 | **[Notion](/adapters/desktop/notion)** | Search, read, write pages | `status` `search` `read` `new` `write` `sidebar` `favorites` `export` |
 | **[Discord](/adapters/desktop/discord)** | Desktop messages & channels | `status` `send` `read` `channels` `servers` `search` `members` |
 | **[Doubao App](/adapters/desktop/doubao-app)** | Doubao AI desktop app via CDP | `status` `new` `send` `read` `ask` `screenshot` `dump` |
+| **[Dory](/adapters/desktop/dory)** | SQL client & AI assistant desktop app (https://github.com/dorylab/dory) | `status` `dump` `screenshot` `connections` `connect` `databases` `tables` `columns` `table-preview` `query` `query-export` `chart-download` `send` `ask` `read` `export` `new` `sessions` |

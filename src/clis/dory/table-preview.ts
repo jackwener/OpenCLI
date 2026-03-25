@@ -1,5 +1,6 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
+import { resolveConnectionId } from './_shared.js';
 
 export const tablePreviewCommand = cli({
   site: 'dory',
@@ -9,14 +10,14 @@ export const tablePreviewCommand = cli({
   strategy: Strategy.UI,
   browser: true,
   args: [
-    { name: 'connection', required: true, positional: true, help: 'Connection ID' },
+    { name: 'connection', required: true, positional: true, help: 'Connection name or ID' },
     { name: 'database', required: true, positional: true, help: 'Database name' },
     { name: 'table', required: true, positional: true, help: 'Table name' },
     { name: 'limit', required: false, help: 'Max rows to return (default: 50)', default: '50' },
   ],
   columns: ['Row'],
   func: async (page: IPage, kwargs: any) => {
-    const connectionId = kwargs.connection as string;
+    const connectionId = await resolveConnectionId(page, kwargs.connection as string);
     const database = kwargs.database as string;
     const table = kwargs.table as string;
     const limit = parseInt(kwargs.limit as string, 10) || 50;

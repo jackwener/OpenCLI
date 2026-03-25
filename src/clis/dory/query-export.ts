@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
+import { resolveConnectionId } from './_shared.js';
 
 function toCsv(columns: string[], rows: any[]): string {
   const escape = (v: unknown) => {
@@ -28,14 +29,14 @@ export const queryExportCommand = cli({
   browser: true,
   args: [
     { name: 'sql', required: true, positional: true, help: 'SQL statement to execute' },
-    { name: 'connection', required: true, help: 'Connection ID' },
+    { name: 'connection', required: true, help: 'Connection name or ID' },
     { name: 'database', required: false, help: 'Database name (optional)' },
     { name: 'output', required: false, help: 'Output CSV file path (default: /tmp/dory-query.csv)' },
   ],
   columns: ['Status', 'File', 'Rows', 'DurationMs'],
   func: async (page: IPage, kwargs: any) => {
     const sql = kwargs.sql as string;
-    const connectionId = kwargs.connection as string;
+    const connectionId = await resolveConnectionId(page, kwargs.connection as string);
     const database = (kwargs.database as string) || undefined;
     const outputPath = (kwargs.output as string) || '/tmp/dory-query.csv';
 
