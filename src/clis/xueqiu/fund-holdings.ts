@@ -1,14 +1,14 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { DANJUAN_DOMAIN, DANJUAN_ASSET_PAGE, fetchDanjuanAll } from './danjuan-utils.js';
+import { fetchDanjuanAll } from './danjuan-utils.js';
 
 cli({
   site: 'xueqiu',
   name: 'fund-holdings',
   description: '获取蛋卷基金持仓明细（可用 --account 按子账户过滤）',
-  domain: DANJUAN_DOMAIN,
+  domain: 'danjuanfunds.com',
   strategy: Strategy.COOKIE,
-  navigateBefore: DANJUAN_ASSET_PAGE,
+  navigateBefore: 'https://danjuanfunds.com/my-money',
   args: [
     { name: 'account', type: 'str', default: '', help: '按子账户名称或 ID 过滤' },
   ],

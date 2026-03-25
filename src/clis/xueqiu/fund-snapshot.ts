@@ -1,14 +1,14 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { DANJUAN_DOMAIN, DANJUAN_ASSET_PAGE, fetchDanjuanAll } from './danjuan-utils.js';
+import { fetchDanjuanAll } from './danjuan-utils.js';
 
 cli({
   site: 'xueqiu',
   name: 'fund-snapshot',
   description: '获取蛋卷基金快照（总资产、子账户、持仓，推荐 -f json 输出）',
-  domain: DANJUAN_DOMAIN,
+  domain: 'danjuanfunds.com',
   strategy: Strategy.COOKIE,
-  navigateBefore: DANJUAN_ASSET_PAGE,
+  navigateBefore: 'https://danjuanfunds.com/my-money',
   args: [],
   columns: ['asOf', 'totalAssetAmount', 'totalFundMarketValue', 'accountCount', 'holdingCount'],
   func: async (page: IPage) => {

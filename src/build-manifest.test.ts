@@ -129,4 +129,18 @@ describe('manifest helper rules', () => {
 
     expect(scanTs(file, 'demo')).toBeNull();
   });
+
+  it('keeps literal domain and navigateBefore for TS adapters', () => {
+    const file = path.join(process.cwd(), 'src', 'clis', 'xueqiu', 'fund-holdings.ts');
+    const entry = scanTs(file, 'xueqiu');
+
+    expect(entry).toMatchObject({
+      site: 'xueqiu',
+      name: 'fund-holdings',
+      domain: 'danjuanfunds.com',
+      navigateBefore: 'https://danjuanfunds.com/my-money',
+      type: 'ts',
+      modulePath: 'xueqiu/fund-holdings.js',
+    });
+  });
 });

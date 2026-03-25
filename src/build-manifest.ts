@@ -260,9 +260,14 @@ export function scanTs(filePath: string, site: string): ManifestEntry | null {
       entry.args = parseTsArgsBlock(argsBlock);
     }
 
-    // Extract navigateBefore: false
-    const navMatch = src.match(/navigateBefore\s*:\s*(true|false)/);
-    if (navMatch) entry.navigateBefore = navMatch[1] === 'true' ? true : false;
+    // Extract navigateBefore: false / true / 'https://...'
+    const navBoolMatch = src.match(/navigateBefore\s*:\s*(true|false)/);
+    if (navBoolMatch) {
+      entry.navigateBefore = navBoolMatch[1] === 'true';
+    } else {
+      const navStringMatch = src.match(/navigateBefore\s*:\s*['"`]([^'"`]+)['"`]/);
+      if (navStringMatch) entry.navigateBefore = navStringMatch[1];
+    }
 
     return entry;
   } catch (err) {
