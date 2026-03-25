@@ -6,7 +6,7 @@ strategy: cookie
 browser: true
 
 args:
-  user-id:
+  uid:
     type: str
     required: true
     positional: true
@@ -17,7 +17,7 @@ pipeline:
 
   - evaluate: |
       (async () => {
-        const uid = ${{ args['user-id'] | json }};
+        const uid = ${{ args.uid | json }};
         const res = await fetch(
           'https://www.pixiv.net/ajax/user/' + uid + '?full=1',
           { credentials: 'include' }

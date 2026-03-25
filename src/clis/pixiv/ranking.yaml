@@ -29,12 +29,12 @@ pipeline:
         const page = ${{ args.page }};
         const limit = ${{ args.limit }};
         const res = await fetch(
-          'https://www.pixiv.net/ajax/ranking?mode=' + mode + '&p=' + page + '&format=json',
+          'https://www.pixiv.net/ranking.php?mode=' + mode + '&p=' + page + '&format=json',
           { credentials: 'include' }
         );
         if (!res.ok) throw new Error('HTTP ' + res.status + ' — make sure you are logged in to Pixiv');
         const data = await res.json();
-        const items = (data?.body?.contents || []).slice(0, limit);
+        const items = (data?.contents || []).slice(0, limit);
         return items.map((item, i) => ({
           rank: item.rank,
           title: item.title,

@@ -6,7 +6,7 @@ strategy: cookie
 browser: true
 
 args:
-  illust-id:
+  id:
     type: str
     required: true
     positional: true
@@ -17,7 +17,7 @@ pipeline:
 
   - evaluate: |
       (async () => {
-        const id = ${{ args['illust-id'] | json }};
+        const id = ${{ args.id | json }};
         const res = await fetch(
           'https://www.pixiv.net/ajax/illust/' + id,
           { credentials: 'include' }
