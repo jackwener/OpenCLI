@@ -150,7 +150,7 @@ Run `opencli list` for the live registry.
 | **wikipedia** | `search` `summary` `random` `trending` | Public |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` | Public |
 | **jd** | `item` | Browser |
-| **linkedin** | `search` | Browser |
+| **linkedin** | `search` `timeline` | Browser |
 | **reuters** | `search` | Browser |
 | **smzdm** | `search` | Browser |
 | **web** | `read` | Browser |

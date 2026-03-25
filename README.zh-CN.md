@@ -152,7 +152,7 @@ npm install -g @jackwener/opencli@latest
 | **wikipedia** | `search` `summary` `random` `trending` | 公开 |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` | 公共 API |
 | **jd** | `item` | 浏览器 |
-| **linkedin** | `search` | 浏览器 |
+| **linkedin** | `search` `timeline` | 浏览器 |
 | **reuters** | `search` | 浏览器 |
 | **smzdm** | `search` | 浏览器 |
 | **web** | `read` | 浏览器 |

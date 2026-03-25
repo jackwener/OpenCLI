@@ -11,7 +11,7 @@ Run `opencli list` for the live registry.
 | **[bilibili](/adapters/browser/bilibili)** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `dynamic` `ranking` `following` `user-videos` `download` | 🔐 Browser |
 | **[zhihu](/adapters/browser/zhihu)** | `hot` `search` `question` `download` | 🔐 Browser |
 | **[xiaohongshu](/adapters/browser/xiaohongshu)** | `search` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | 🔐 Browser |
-| **[xueqiu](/adapters/browser/xueqiu)** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` | 🔐 Browser |
+| **[xueqiu](/adapters/browser/xueqiu)** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` `fund-holdings` `fund-snapshot` | 🔐 Browser |
 | **[youtube](/adapters/browser/youtube)** | `search` `video` `transcript` | 🔐 Browser |
 | **[v2ex](/adapters/browser/v2ex)** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | 🌐 / 🔐 |
 | **[bloomberg](/adapters/browser/bloomberg)** | `main` `markets` `economics` `industries` `tech` `politics` `businessweek` `opinions` `feeds` `news` | 🌐 / 🔐 |
@@ -38,6 +38,10 @@ Run `opencli list` for the live registry.
 | **[substack](/adapters/browser/substack)** | `feed` `search` `publication` | 🔐 Browser |
 | **[pixiv](/adapters/browser/pixiv)** | `ranking` `search` `user` `illusts` `detail` `download` | 🔐 Browser |
 | **[tiktok](/adapters/browser/tiktok)** | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` | 🔐 Browser |
+| **[google](/adapters/browser/google)** | `news` `search` `suggest` `trends` | 🌐 / 🔐 |
+| **[jd](/adapters/browser/jd)** | `item` | 🔐 Browser |
+| **[web](/adapters/browser/web)** | `read` | 🔐 Browser |
+| **[weixin](/adapters/browser/weixin)** | `download` | 🔐 Browser |
 
 ## Public API Adapters
 
@@ -57,6 +61,7 @@ Run `opencli list` for the live registry.
 | **[stackoverflow](/adapters/browser/stackoverflow)** | `hot` `search` `bounties` `unanswered` | 🌐 Public |
 | **[wikipedia](/adapters/browser/wikipedia)** | `search` `summary` `random` `trending` | 🌐 Public |
 | **[lobsters](/adapters/browser/lobsters)** | `hot` `newest` `active` `tag` | 🌐 Public |
+| **[steam](/adapters/browser/steam)** | `top-sellers` | 🌐 Public |
 
 ## Desktop Adapters
 
