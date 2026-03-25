@@ -16,6 +16,7 @@ import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
 import { getErrorMessage } from './errors.js';
+import { registerChannelCommand } from './channel/index.js';
 
 export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
   const program = new Command();
@@ -450,6 +451,9 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
   const siteGroups = new Map<string, Command>();
   siteGroups.set('antigravity', antigravityCmd);
   registerAllCommands(program, siteGroups);
+
+  // ── Channel (event subscriptions) ───────────────────────────────────────
+  registerChannelCommand(program);
 
   // ── Unknown command fallback ──────────────────────────────────────────────
   // Security: do NOT auto-discover and register arbitrary system binaries.

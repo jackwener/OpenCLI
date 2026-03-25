@@ -336,6 +336,23 @@ Explore outputs to `.opencli/explore/<site>/` (manifest.json, endpoints.json, ca
 
 See **[TESTING.md](./TESTING.md)** for how to run and write tests.
 
+## Channel — Event Subscriptions
+
+Subscribe to platform events from the command line. Channel brings the reverse direction: instead of you querying platforms, platforms notify you when something changes.
+
+```bash
+# Subscribe to comments on a GitHub issue
+opencli channel subscribe github:owner/repo#42
+
+# Start polling
+opencli channel start
+
+# One-shot poll
+opencli channel poll github:owner/repo#42
+```
+
+See **[docs/channel.md](./docs/channel.md)** for the full guide.
+
 ## Troubleshooting
 
 - **"Extension not connected"**
