@@ -134,6 +134,10 @@ describe('login-required commands — graceful failure', () => {
     await expectGracefulAuthFailure(['pixiv', 'detail', '123456', '-f', 'json'], 'pixiv detail');
   }, 60_000);
 
+  it('pixiv download fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['pixiv', 'download', '123456', '--output', '/tmp/pixiv-e2e-test', '-f', 'json'], 'pixiv download');
+  }, 60_000);
+
   // ── yollomi (requires login session) ──
   it('yollomi generate fails gracefully without login', async () => {
     await expectGracefulAuthFailure(['yollomi', 'generate', 'a cute cat', '--no-download', '-f', 'json'], 'yollomi generate');
