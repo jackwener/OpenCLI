@@ -22,6 +22,10 @@ describe('toUnixSeconds', () => {
     expect(toUnixSeconds(1744070400)).toBe(1744070400);
   });
 
+  it('parses a numeric unix timestamp string', () => {
+    expect(toUnixSeconds('1744070400')).toBe(1744070400);
+  });
+
   it('parses ISO8601 string', () => {
     expect(toUnixSeconds('2026-04-08T12:00:00Z')).toBe(
       Math.floor(new Date('2026-04-08T12:00:00Z').getTime() / 1000)

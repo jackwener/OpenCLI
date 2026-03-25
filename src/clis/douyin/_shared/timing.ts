@@ -13,6 +13,9 @@ export function validateTiming(unixSeconds: number): void {
 
 export function toUnixSeconds(input: string | number): number {
   if (typeof input === 'number') return input;
+  if (/^\d+$/.test(input)) {
+    return Number(input);
+  }
   const ms = new Date(input).getTime();
   if (isNaN(ms)) throw new Error(`无效的时间格式: "${input}"`);
   return Math.floor(ms / 1000);
