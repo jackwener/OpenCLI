@@ -55,3 +55,4 @@ opencli bilibili hot -v         # Verbose: show pipeline debug
 - [Plugins — extend with community adapters](/guide/plugins)
 - [All available adapters](/adapters/)
 - [For developers / AI agents](/developer/contributing)
+- [Add a new Electron app CLI](/guide/electron-app-cli)

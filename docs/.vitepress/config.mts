@@ -32,6 +32,7 @@ export default defineConfig({
                 { text: 'Comparison', link: '/comparison' },
                 { text: 'Browser Bridge', link: '/guide/browser-bridge' },
                 { text: 'Troubleshooting', link: '/guide/troubleshooting' },
+                { text: 'Add an Electron App CLI', link: '/guide/electron-app-cli' },
                 { text: 'Plugins', link: '/guide/plugins' },
               ],
             },

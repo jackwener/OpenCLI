@@ -206,6 +206,8 @@ opencli register mycli
 
 Each desktop adapter has its own detailed documentation with commands reference, setup guide, and examples:
 
+If you want to add support for a new Electron desktop app, start with [docs/guide/electron-app-cli.md](./docs/guide/electron-app-cli.md) and the deeper [Electron guide](./docs/advanced/electron.md).
+
 | App | Description | Doc |
 |-----|-------------|-----|
 | **Cursor** | Control Cursor IDE — Composer, chat, code extraction | [Doc](./docs/adapters/desktop/cursor.md) |
