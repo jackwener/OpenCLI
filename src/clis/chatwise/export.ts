@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
+import { chatwiseRequiredEnv } from './shared.js';
 
 export const exportCommand = cli({
   site: 'chatwise',
@@ -9,6 +10,7 @@ export const exportCommand = cli({
   domain: 'localhost',
   strategy: Strategy.UI,
   browser: true,
+  requiredEnv: chatwiseRequiredEnv,
   args: [
     { name: 'output', required: false,  help: 'Output file (default: /tmp/chatwise-export.md)' },
   ],

@@ -1,6 +1,7 @@
 import { cli, Strategy } from '../../registry.js';
 import { SelectorError } from '../../errors.js';
 import type { IPage } from '../../types.js';
+import { chatwiseRequiredEnv } from './shared.js';
 
 export const askCommand = cli({
   site: 'chatwise',
@@ -9,6 +10,7 @@ export const askCommand = cli({
   domain: 'localhost',
   strategy: Strategy.UI,
   browser: true,
+  requiredEnv: chatwiseRequiredEnv,
   args: [
     { name: 'text', required: true, positional: true, help: 'Prompt to send' },
     { name: 'timeout', required: false, help: 'Max seconds to wait (default: 30)', default: '30' },

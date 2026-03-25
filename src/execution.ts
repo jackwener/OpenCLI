@@ -115,12 +115,16 @@ function resolvePreNav(cmd: CliCommand): string | null {
   return null;
 }
 
-function ensureDesktopCdpConfigured(cmd: CliCommand): void {
-  if (cmd.site !== 'chatwise' || process.env.OPENCLI_CDP_ENDPOINT) return;
+function ensureRequiredEnv(cmd: CliCommand): void {
+  const missing = (cmd.requiredEnv ?? []).find(({ name }) => {
+    const value = process.env[name];
+    return value === undefined || value === null || value === '';
+  });
+  if (!missing) return;
 
   throw new CommandExecutionError(
-    'ChatWise desktop commands require OPENCLI_CDP_ENDPOINT to point at the ChatWise debugging port.',
-    'Launch ChatWise with --remote-debugging-port=9228, then run OPENCLI_CDP_ENDPOINT=http://127.0.0.1:9228 opencli chatwise status. If you use a local proxy, also set NO_PROXY=127.0.0.1,localhost.',
+    `Command ${fullName(cmd)} requires environment variable ${missing.name}.`,
+    missing.help ?? `Set ${missing.name} before running ${fullName(cmd)}.`,
   );
 }
 
@@ -147,7 +151,7 @@ export async function executeCommand(
   let result: unknown;
   try {
     if (shouldUseBrowserSession(cmd)) {
-      ensureDesktopCdpConfigured(cmd);
+      ensureRequiredEnv(cmd);
       const BrowserFactory = getBrowserFactory();
       result = await browserSession(BrowserFactory, async (page) => {
         const preNavUrl = resolvePreNav(cmd);

@@ -235,9 +235,15 @@ describe('executeCommand', () => {
       description: 'chatwise status',
       browser: true,
       strategy: Strategy.PUBLIC,
+      requiredEnv: [
+        {
+          name: 'OPENCLI_CDP_ENDPOINT',
+          help: 'Set OPENCLI_CDP_ENDPOINT before running chatwise commands.',
+        },
+      ],
       func: async () => [{ ok: true }],
     });
 
-    await expect(executeCommand(cmd, {})).rejects.toThrow('OPENCLI_CDP_ENDPOINT');
+    await expect(executeCommand(cmd, {})).rejects.toThrow('requires environment variable OPENCLI_CDP_ENDPOINT');
   });
 });
