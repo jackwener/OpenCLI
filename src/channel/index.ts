@@ -138,7 +138,7 @@ export function registerChannelCommand(program: Command): void {
 
       const registry = new SubscriptionRegistry();
       await registry.load();
-      const sub = registry.add(origin, opts.sink, sinkConfig, parseInt(opts.interval, 10));
+      const sub = registry.add(origin, opts.sink, sinkConfig, intervalMs);
       await registry.save();
 
       console.log(`✅ Subscribed to ${origin}`);
@@ -234,6 +234,10 @@ export function registerChannelCommand(program: Command): void {
           stdio: 'ignore',
         });
         child.unref();
+        if (!child.pid) {
+          console.error('Failed to spawn daemon process.');
+          process.exit(1);
+        }
         writeFileSync(PID_FILE, String(child.pid));
         console.log(`Channel daemon started (PID: ${child.pid})`);
         return;
@@ -261,6 +265,7 @@ export function registerChannelCommand(program: Command): void {
       const shutdown = (): void => {
         console.log('\nStopping channel daemon...');
         scheduler.stop();
+        try { unlinkSync(PID_FILE); } catch {}
         // Flush cursors before exit
         cursors.save().catch(() => {}).finally(() => process.exit(0));
       };

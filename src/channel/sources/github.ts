@@ -254,8 +254,8 @@ export class GitHubSource implements ChannelSource {
   }
 
   private pollIssues(c: IssuesPollConfig, cursor: string | null): PollResult {
-    const sinceParam = cursor ? `?since=${cursor}` : '?';
-    const endpoint = `/repos/${c.owner}/${c.repo}/issues${sinceParam}&state=all&sort=updated&direction=desc&per_page=30`;
+    const sinceParam = cursor ? `&since=${cursor}` : '';
+    const endpoint = `/repos/${c.owner}/${c.repo}/issues?state=all&sort=updated&direction=desc&per_page=30${sinceParam}`;
     const { data, pollInterval } = ghJson<Array<{
       id: number;
       number: number;
