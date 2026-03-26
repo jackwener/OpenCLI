@@ -171,6 +171,7 @@ Run `opencli list` for the live registry.
 | **facebook** | `feed` `profile` `search` `friends` `groups` `events` `notifications` `memories` `add-friend` `join-group` | Browser |
 | **google** | `news` `search` `suggest` `trends` | Public |
 | **36kr** | `news` `hot` `search` `article` | Public / Browser |
+| **producthunt** | `posts` `today` `hot` `browse` | Public / Browser |
 | **instagram** | `explore` `profile` `search` `user` `followers` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `saved` | Browser |
 | **lobsters** | `hot` `newest` `active` `tag` | Public |
 | **medium** | `feed` `search` `user` | Browser |

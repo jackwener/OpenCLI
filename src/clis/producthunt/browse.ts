@@ -7,12 +7,7 @@
 import { cli, Strategy } from '../../registry.js';
 import { CliError } from '../../errors.js';
 import type { IPage } from '../../types.js';
-
-export const CATEGORY_SLUGS = [
-  'ai-agents', 'ai-coding-agents', 'ai-code-editors', 'ai-chatbots', 'ai-workflow-automation',
-  'vibe-coding', 'developer-tools', 'productivity', 'design-creative', 'marketing-sales',
-  'no-code-platforms', 'llms', 'finance', 'social-community', 'engineering-development',
-];
+import { PRODUCTHUNT_CATEGORY_SLUGS } from './utils.js';
 
 cli({
   site: 'producthunt',
@@ -99,7 +94,7 @@ cli({
       throw new CliError(
         'NO_DATA',
         `No products found for category "${slug}"`,
-        'Check the category slug or try: ' + CATEGORY_SLUGS.slice(0, 5).join(', '),
+        'Check the category slug or try: ' + PRODUCTHUNT_CATEGORY_SLUGS.slice(0, 5).join(', '),
       );
     }
 

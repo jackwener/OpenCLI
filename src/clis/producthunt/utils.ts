@@ -11,6 +11,33 @@ export interface PhPost {
   url: string;
 }
 
+export interface ProductHuntVoteCandidate {
+  text: string;
+  tagName?: string;
+  className?: string;
+  role?: string;
+  inButton?: boolean;
+  inReviewLink?: boolean;
+}
+
+export const PRODUCTHUNT_CATEGORY_SLUGS = [
+  'ai-agents',
+  'ai-coding-agents',
+  'ai-code-editors',
+  'ai-chatbots',
+  'ai-workflow-automation',
+  'vibe-coding',
+  'developer-tools',
+  'productivity',
+  'design-creative',
+  'marketing-sales',
+  'no-code-platforms',
+  'llms',
+  'finance',
+  'social-community',
+  'engineering-development',
+] as const;
+
 const UA = 'Mozilla/5.0 (compatible; opencli/1.0)';
 
 /**
@@ -60,6 +87,33 @@ export function parseFeed(xml: string): PhPost[] {
     }
   }
   return posts;
+}
+
+export function pickVoteCount(candidates: ProductHuntVoteCandidate[]): string {
+  const scored = candidates
+    .map((candidate) => {
+      const text = String(candidate.text ?? '').trim();
+      if (!/^\d+$/.test(text)) return null;
+      if (candidate.inReviewLink) return null;
+
+      const value = parseInt(text, 10);
+      if (!Number.isFinite(value) || value <= 0) return null;
+
+      const signal = `${candidate.tagName ?? ''} ${candidate.className ?? ''} ${candidate.role ?? ''}`.toLowerCase();
+      let score = 0;
+      if (candidate.inButton) score += 4;
+      if (signal.includes('vote') || signal.includes('upvote')) score += 3;
+      if (signal.includes('button')) score += 1;
+      return { text, score, value };
+    })
+    .filter((candidate): candidate is { text: string; score: number; value: number } => Boolean(candidate))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (b.value !== a.value) return b.value - a.value;
+      return a.text.localeCompare(b.text);
+    });
+
+  return scored[0]?.text ?? '';
 }
 
 /** Format ISO date string to YYYY-MM-DD */

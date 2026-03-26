@@ -6,6 +6,7 @@
 import { cli, Strategy } from '../../registry.js';
 import { CliError } from '../../errors.js';
 import type { IPage } from '../../types.js';
+import { pickVoteCount } from './utils.js';
 
 cli({
   site: 'producthunt',
@@ -26,39 +27,61 @@ cli({
 
     const domItems: any = await page.evaluate(`
       (() => {
-        // Vote count elements: <p> with font-semibold containing a pure number
-        const voteEls = Array.from(document.querySelectorAll('p')).filter(el => {
-          const txt = el.textContent?.trim() || '';
-          return /^\\d+$/.test(txt) && parseInt(txt) > 0 && el.className?.includes('font-semibold');
-        });
-
         const seen = new Set();
         const results = [];
 
-        for (const voteEl of voteEls) {
-          const votes = voteEl.textContent?.trim() || '';
-          // Walk up from vote element to find the closest /products/ link
-          let node = voteEl.parentElement;
-          let href = null, name = null;
-          for (let i = 0; i < 12 && node; i++) {
-            // Find all /products/ links and pick the one with the shortest text (= title link)
-            const links = Array.from(node.querySelectorAll('a[href^="/products/"]'));
-            const titleLink = links.find(a => {
-              const txt = a.textContent?.trim() || '';
-              return txt.length > 0 && txt.length < 80;
-            });
-            if (titleLink) {
-              href = titleLink.getAttribute('href');
-              name = (titleLink.textContent?.trim() || '').replace(/^\\d+\\.\\s*/, '');
+        const cardLinks = Array.from(document.querySelectorAll('a[href^="/products/"]')).filter((el) => {
+          const href = el.getAttribute('href') || '';
+          const text = el.textContent?.trim() || '';
+          return href && !href.includes('/reviews') && text.length > 0 && text.length < 120;
+        });
+
+        const normalizeName = (text) => text
+          .replace(/^\\d+\\.\\s*/, '')
+          .replace(/\\s*Launched\\s+this\\s+(month|week|year|day)\\s*/gi, '')
+          .replace(/\\s*Featured\\s*/gi, '')
+          .trim();
+
+        for (const cardLink of cardLinks) {
+          const href = cardLink.getAttribute('href') || '';
+          if (!href || seen.has(href)) continue;
+
+          let card = cardLink;
+          let node = cardLink.parentElement;
+          for (let i = 0; i < 6 && node; i++) {
+            const hasReviewLink = !!node.querySelector('a[href="' + href + '/reviews"]');
+            const hasNumericNode = Array.from(node.querySelectorAll('button, [role="button"], p, span, div'))
+              .some((el) => /^\\d+$/.test(el.textContent?.trim() || ''));
+            if (hasReviewLink || hasNumericNode) {
+              card = node;
               break;
             }
             node = node.parentElement;
           }
-          if (!href || !name || seen.has(href)) continue;
+
+          const name = normalizeName(cardLink.textContent?.trim() || '');
+          if (!name) continue;
+
+          const voteCandidates = Array.from(card.querySelectorAll('button, [role="button"], a, p, span, div'))
+            .map((el) => {
+              const reviewLink = el.closest('a[href="' + href + '/reviews"]');
+              return {
+                text: el.textContent?.trim() || '',
+                tagName: el.tagName,
+                className: el.className || '',
+                role: el.getAttribute('role') || '',
+                inButton: !!el.closest('button, [role="button"]'),
+                inReviewLink: !!reviewLink,
+              };
+            })
+            .filter((candidate) => /^\\d+$/.test(candidate.text));
+
+          if (voteCandidates.length === 0) continue;
+
           seen.add(href);
           results.push({
             name,
-            votes,
+            voteCandidates,
             url: 'https://www.producthunt.com' + href,
           });
         }
@@ -76,10 +99,25 @@ cli({
       );
     }
 
-    // Sort by votes descending and assign ranks
-    items.sort((a: any, b: any) => parseInt(b.votes) - parseInt(a.votes));
+    const rankedItems = items
+      .map((item: any) => ({
+        name: item.name,
+        url: item.url,
+        votes: pickVoteCount(Array.isArray(item.voteCandidates) ? item.voteCandidates : []),
+      }))
+      .filter((item) => item.name && item.url && item.votes);
 
-    return items.slice(0, count).map((item: any, i: number) => ({
+    if (rankedItems.length === 0) {
+      throw new CliError(
+        'NO_DATA',
+        'Could not retrieve Product Hunt vote counts',
+        'Product Hunt may have changed its vote button structure',
+      );
+    }
+
+    rankedItems.sort((a, b) => parseInt(b.votes, 10) - parseInt(a.votes, 10));
+
+    return rankedItems.slice(0, count).map((item, i: number) => ({
       rank: i + 1,
       name: item.name,
       votes: item.votes,

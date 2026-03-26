@@ -173,6 +173,7 @@ npm install -g @jackwener/opencli@latest
 | **facebook** | `feed` `profile` `search` `friends` `groups` `events` `notifications` `memories` `add-friend` `join-group` | 浏览器 |
 | **google** | `news` `search` `suggest` `trends` | 公开 |
 | **36kr** | `news` `hot` `search` `article` | 公开 / 浏览器 |
+| **producthunt** | `posts` `today` `hot` `browse` | 公开 / 浏览器 |
 | **instagram** | `explore` `profile` `search` `user` `followers` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `saved` | 浏览器 |
 | **lobsters** | `hot` `newest` `active` `tag` | 公开 |
 | **medium** | `feed` `search` `user` | 浏览器 |

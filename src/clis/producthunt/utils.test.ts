@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseFeed } from './utils.js';
+import { parseFeed, pickVoteCount, PRODUCTHUNT_CATEGORY_SLUGS } from './utils.js';
 
 const SAMPLE_ATOM = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
@@ -47,5 +47,26 @@ describe('parseFeed', () => {
   it('assigns sequential ranks', () => {
     const posts = parseFeed(SAMPLE_ATOM);
     expect(posts.map(p => p.rank)).toEqual([1, 2]);
+  });
+
+  it('prefers vote-like candidates over unrelated numeric badges', () => {
+    const votes = pickVoteCount([
+      { text: '12', className: 'font-semibold', inButton: false, inReviewLink: false },
+      { text: '98', className: 'vote-button', inButton: true, inReviewLink: false },
+    ]);
+    expect(votes).toBe('98');
+  });
+
+  it('ignores numbers inside review links', () => {
+    const votes = pickVoteCount([
+      { text: '120', className: 'text-secondary', inButton: false, inReviewLink: true },
+      { text: '45', className: 'vote-button', inButton: true, inReviewLink: false },
+    ]);
+    expect(votes).toBe('45');
+  });
+
+  it('shares category slugs across commands', () => {
+    expect(PRODUCTHUNT_CATEGORY_SLUGS).toContain('developer-tools');
+    expect(PRODUCTHUNT_CATEGORY_SLUGS).toContain('ai-agents');
   });
 });

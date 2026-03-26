@@ -43,6 +43,7 @@ Run `opencli list` for the live registry.
 | **[web](/adapters/browser/web)** | `read` | 🔐 Browser |
 | **[weixin](/adapters/browser/weixin)** | `download` | 🔐 Browser |
 | **[36kr](/adapters/browser/36kr)** | `news` `hot` `search` `article` | 🌐 / 🔐 |
+| **[producthunt](/adapters/browser/producthunt)** | `posts` `today` `hot` `browse` | 🌐 / 🔐 |
 
 ## Public API Adapters
 

@@ -2,12 +2,7 @@
  * Product Hunt latest posts — public Atom feed, no browser needed.
  */
 import { cli, Strategy } from '../../registry.js';
-import { fetchFeed } from './utils.js';
-
-const CATEGORIES = [
-  'ai', 'developer-tools', 'productivity', 'saas', 'design-tools',
-  'marketing', 'fintech', 'education', 'health-fitness', 'games',
-];
+import { fetchFeed, PRODUCTHUNT_CATEGORY_SLUGS } from './utils.js';
 
 cli({
   site: 'producthunt',
@@ -21,7 +16,7 @@ cli({
       name: 'category',
       type: 'string',
       default: '',
-      help: `Category filter: ${CATEGORIES.join(', ')}`,
+      help: `Category filter: ${PRODUCTHUNT_CATEGORY_SLUGS.join(', ')}`,
     },
   ],
   columns: ['rank', 'name', 'tagline', 'author', 'date', 'url'],

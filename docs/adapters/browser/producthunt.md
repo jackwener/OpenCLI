@@ -1,6 +1,6 @@
 # Product Hunt
 
-**Mode**: 🌐 Public + 🔐 Browser · **Domain**: `www.producthunt.com`
+**Mode**: 🌐 Public / 🔐 Browser · **Domain**: `www.producthunt.com`
 
 ## Commands
 
@@ -41,7 +41,7 @@ Common categories for `browse` and `posts --category`:
 
 `ai-agents`, `ai-coding-agents`, `ai-code-editors`, `ai-chatbots`, `ai-workflow-automation`,
 `vibe-coding`, `developer-tools`, `productivity`, `design-creative`, `marketing-sales`,
-`no-code-platforms`, `llms`, `finance`, `engineering-development`
+`no-code-platforms`, `llms`, `finance`, `social-community`, `engineering-development`
 
 ## Prerequisites
 
