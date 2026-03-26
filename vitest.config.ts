@@ -26,6 +26,7 @@ export default defineConfig({
             'src/clis/v2ex/**/*.test.ts',
             'src/clis/weread/**/*.test.ts',
             'src/clis/36kr/**/*.test.ts',
+            'src/clis/producthunt/**/*.test.ts',
           ],
           sequence: { groupOrder: 1 },
         },
