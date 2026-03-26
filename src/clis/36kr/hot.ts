@@ -16,12 +16,9 @@ const TYPE_MAP: Record<string, string> = {
 };
 
 function getShanghaiDate(date = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
+  // Shanghai stays on UTC+8 year-round, so a fixed offset is sufficient here
+  // and avoids the slow Intl timezone path that timed out on Windows CI.
+  return new Date(date.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 function buildHotListUrl(listType: string, date = new Date()): string {
