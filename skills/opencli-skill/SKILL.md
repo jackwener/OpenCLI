@@ -1,6 +1,6 @@
 ---
 name: opencli-skill
-description: Route user requests to the right OpenCLI platform command reference in `references/commands/*.md`, then provide exact command usage, required args, and parameter meanings for browser, public API, and desktop app adapters.
+description: Make any website or Electron app your CLI — reuse Chrome login to search, post, download, publish, follow, automate, and more across 60+ platforms (bilibili, zhihu, twitter, xiaohongshu, douyin, youtube, reddit, linkedin, pixiv, jd, weibo, xueqiu, notion, discord, etc.) with zero credential risk. Covers browser-based, public API, and desktop (CDP/Electron) adapters, plus AI-powered API discovery and record workflows for new sites.
 ---
 
 Use this skill as a platform command router.
