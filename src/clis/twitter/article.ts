@@ -1,5 +1,8 @@
 import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
 import { cli, Strategy } from '../../registry.js';
+import { resolveTwitterQueryId } from './shared.js';
+
+const TWEET_RESULT_BY_REST_ID_QUERY_ID = '7xflPyRiUxGVbJd4uWmbfg';
 
 cli({
   site: 'twitter',
@@ -21,6 +24,7 @@ cli({
     // Navigate to the tweet page for cookie context
     await page.goto(`https://x.com/i/status/${tweetId}`);
     await page.wait(3);
+    const queryId = await resolveTwitterQueryId(page, 'TweetResultByRestId', TWEET_RESULT_BY_REST_ID_QUERY_ID);
 
     const result = await page.evaluate(`
       async () => {
@@ -56,34 +60,7 @@ cli({
           withArticlePlainText: true,
         });
 
-        // Dynamically resolve queryId: GitHub community source → JS bundle scan → hardcoded fallback
-        async function resolveQueryId(operationName, fallbackId) {
-          try {
-            const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json');
-            if (ghResp.ok) {
-              const data = await ghResp.json();
-              const entry = data[operationName];
-              if (entry && entry.queryId) return entry.queryId;
-            }
-          } catch {}
-          try {
-            const scripts = performance.getEntriesByType('resource')
-              .filter(r => r.name.includes('client-web') && r.name.endsWith('.js'))
-              .map(r => r.name);
-            for (const scriptUrl of scripts.slice(0, 15)) {
-              try {
-                const text = await (await fetch(scriptUrl)).text();
-                const re = new RegExp('queryId:"([A-Za-z0-9_-]+)"[^}]{0,200}operationName:"' + operationName + '"');
-                const m = text.match(re);
-                if (m) return m[1];
-              } catch {}
-            }
-          } catch {}
-          return fallbackId;
-        }
-
-        const queryId = await resolveQueryId('TweetResultByRestId', '7xflPyRiUxGVbJd4uWmbfg');
-        const url = '/i/api/graphql/' + queryId + '/TweetResultByRestId?variables='
+        const url = '/i/api/graphql/' + ${JSON.stringify(queryId)} + '/TweetResultByRestId?variables='
           + encodeURIComponent(variables)
           + '&features=' + encodeURIComponent(features)
           + '&fieldToggles=' + encodeURIComponent(fieldToggles);

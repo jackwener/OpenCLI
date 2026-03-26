@@ -46,6 +46,10 @@ export interface CliCommand {
   source?: string;
   footerExtra?: (kwargs: CommandArgs) => string | undefined;
   requiredEnv?: RequiredEnv[];
+  /** Deprecation note shown in help / execution warnings. */
+  deprecated?: boolean | string;
+  /** Preferred replacement command, if any. */
+  replacedBy?: string;
   /**
    * Control pre-navigation for cookie/header context before command execution.
    *
@@ -95,6 +99,8 @@ export function cli(opts: CliOptions): CliCommand {
     timeoutSeconds: opts.timeoutSeconds,
     footerExtra: opts.footerExtra,
     requiredEnv: opts.requiredEnv,
+    deprecated: opts.deprecated,
+    replacedBy: opts.replacedBy,
     navigateBefore: opts.navigateBefore,
   };
 
@@ -118,4 +124,3 @@ export function strategyLabel(cmd: CliCommand): string {
 export function registerCommand(cmd: CliCommand): void {
   _registry.set(fullName(cmd), cmd);
 }
-

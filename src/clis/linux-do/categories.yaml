@@ -2,9 +2,14 @@ site: linux-do
 name: categories
 description: linux.do 分类列表
 domain: linux.do
+strategy: cookie
 browser: true
 
 args:
+  subcategories:
+    type: boolean
+    default: false
+    description: Include subcategories
   limit:
     type: int
     default: 20
@@ -20,13 +25,39 @@ pipeline:
         let data;
         try { data = await res.json(); } catch { throw new Error('响应不是有效 JSON - 请先登录 linux.do'); }
         const cats = data?.category_list?.categories || [];
-        return cats.slice(0, ${{ args.limit }}).map(c => ({
-          name: c.name,
-          slug: c.slug,
-          id: c.id,
-          topics: c.topic_count,
-          description: (c.description_text || '').slice(0, 80),
-        }));
+        const showSub = ${{ args.subcategories }};
+        const results = [];
+        const limit = ${{ args.limit }};
+        for (const c of cats.slice(0, ${{ args.limit }})) {
+          results.push({
+            name: c.name,
+            slug: c.slug,
+            id: c.id,
+            topics: c.topic_count,
+            description: (c.description_text || '').slice(0, 80),
+          });
+          if (results.length >= limit) break;
+          if (showSub && c.subcategory_ids && c.subcategory_ids.length > 0) {
+            const subRes = await fetch('/categories.json?parent_category_id=' + c.id, { credentials: 'include' });
+            if (subRes.ok) {
+              let subData;
+              try { subData = await subRes.json(); } catch { continue; }
+              const subCats = subData?.category_list?.categories || [];
+              for (const sc of subCats) {
+                results.push({
+                  name: c.name + ' / ' + sc.name,
+                  slug: sc.slug,
+                  id: sc.id,
+                  topics: sc.topic_count,
+                  description: (sc.description_text || '').slice(0, 80),
+                });
+                if (results.length >= limit) break;
+              }
+            }
+          }
+          if (results.length >= limit) break;
+        }
+        return results;
       })()
 
   - map:
@@ -35,7 +66,5 @@ pipeline:
       id: ${{ item.id }}
       topics: ${{ item.topics }}
       description: ${{ item.description }}
-
-  - limit: ${{ args.limit }}
 
 columns: [name, slug, id, topics, description]

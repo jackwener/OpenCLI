@@ -1,5 +1,5 @@
 /**
- * E2E tests for core browser commands (bilibili, zhihu, v2ex).
+ * E2E tests for core browser commands (bilibili, zhihu, v2ex, IMDb).
  * These use OPENCLI_HEADLESS=1 to launch a headless Chromium.
  *
  * NOTE: Some sites may block headless browsers with bot detection.
@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { runCli, parseJsonOutput } from './helpers.js';
+import { runCli, parseJsonOutput, type CliResult } from './helpers.js';
 
 async function tryBrowserCommand(args: string[]): Promise<any[] | null> {
   const { stdout, code } = await runCli(args, { timeout: 60_000 });
@@ -28,13 +28,47 @@ function expectDataOrSkip(data: any[] | null, label: string) {
   expect(data.length).toBeGreaterThanOrEqual(1);
 }
 
+function isImdbChallenge(result: CliResult): boolean {
+  const text = `${result.stderr}\n${result.stdout}`;
+  return /IMDb blocked this request|Robot Check|Are you a robot|verify that you are human|captcha/i.test(text);
+}
+
+function isBrowserBridgeUnavailable(result: CliResult): boolean {
+  const text = `${result.stderr}\n${result.stdout}`;
+  return /Browser Extension is not connected|Browser Bridge extension.*not connected|Daemon is running but the Browser Extension is not connected/i.test(text);
+}
+
+async function expectImdbDataOrChallengeSkip(args: string[], label: string): Promise<any[] | null> {
+  const result = await runCli(args, { timeout: 60_000 });
+  if (result.code !== 0) {
+    if (isImdbChallenge(result)) {
+      console.warn(`${label}: skipped — IMDb challenge page detected`);
+      return null;
+    }
+    if (isBrowserBridgeUnavailable(result)) {
+      console.warn(`${label}: skipped — Browser Bridge extension is unavailable in this environment`);
+      return null;
+    }
+    throw new Error(`${label} failed:\n${result.stderr || result.stdout}`);
+  }
+
+  const data = parseJsonOutput(result.stdout);
+  if (!Array.isArray(data)) {
+    throw new Error(`${label} returned non-array JSON:\n${result.stdout.slice(0, 500)}`);
+  }
+  if (data.length === 0) {
+    throw new Error(`${label} returned an empty result`);
+  }
+  return data;
+}
+
 describe('browser public-data commands E2E', () => {
 
   // ── bilibili ──
   it('bilibili hot returns trending videos', async () => {
     const data = await tryBrowserCommand(['bilibili', 'hot', '--limit', '5', '-f', 'json']);
     expectDataOrSkip(data, 'bilibili hot');
-    if (data) {
+    if (data?.length) {
       expect(data[0]).toHaveProperty('title');
     }
   }, 60_000);
@@ -53,7 +87,7 @@ describe('browser public-data commands E2E', () => {
   it('zhihu hot returns trending questions', async () => {
     const data = await tryBrowserCommand(['zhihu', 'hot', '--limit', '5', '-f', 'json']);
     expectDataOrSkip(data, 'zhihu hot');
-    if (data) {
+    if (data?.length) {
       expect(data[0]).toHaveProperty('title');
     }
   }, 60_000);
@@ -67,5 +101,29 @@ describe('browser public-data commands E2E', () => {
   it('v2ex daily returns topics', async () => {
     const data = await tryBrowserCommand(['v2ex', 'daily', '--limit', '3', '-f', 'json']);
     expectDataOrSkip(data, 'v2ex daily');
+  }, 60_000);
+
+  // ── imdb ──
+  it('imdb top returns chart data', async () => {
+    const data = await expectImdbDataOrChallengeSkip(['imdb', 'top', '--limit', '3', '-f', 'json'], 'imdb top');
+    if (data?.length) {
+      expect(data[0]).toHaveProperty('title');
+    }
+  }, 60_000);
+
+  it('imdb search returns results', async () => {
+    const data = await expectImdbDataOrChallengeSkip(['imdb', 'search', 'inception', '--limit', '3', '-f', 'json'], 'imdb search');
+    if (data?.length) {
+      expect(data[0]).toHaveProperty('id');
+      expect(data[0]).toHaveProperty('title');
+    }
+  }, 60_000);
+
+  it('imdb title returns movie details', async () => {
+    const data = await expectImdbDataOrChallengeSkip(['imdb', 'title', 'tt1375666', '-f', 'json'], 'imdb title');
+    if (data?.length) {
+      expect(data[0]).toHaveProperty('field');
+      expect(data[0]).toHaveProperty('value');
+    }
   }, 60_000);
 });

@@ -6,7 +6,7 @@
 
 | Command | Description |
 |---------|-------------|
-| `opencli jd item <sku>` | Fetch product details (price, images, specs) |
+| `opencli jd item <sku>` | Fetch product details (price, shop, specs, AVIF images) |
 
 ## Usage Examples
 
@@ -14,7 +14,7 @@
 # Get product details by SKU
 opencli jd item 100291143898
 
-# Limit detail images
+# Limit returned AVIF images
 opencli jd item 100291143898 --images 5
 
 # JSON output

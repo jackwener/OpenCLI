@@ -63,14 +63,22 @@ async function injectImages(page: IPage, images: ImagePayload[]): Promise<{ ok: 
     (async () => {
       const images = ${payload};
 
-      // Prefer image/* file inputs; fall back to the first available input.
+      // Only use image-capable file inputs. Do not fall back to a generic uploader,
+      // otherwise we can accidentally feed images into the video upload flow.
       const inputs = Array.from(document.querySelectorAll('input[type="file"]'));
       const input = inputs.find(el => {
         const accept = el.getAttribute('accept') || '';
-        return accept.includes('image') || accept.includes('.jpg') || accept.includes('.png');
-      }) || inputs[0];
+        return (
+          accept.includes('image') ||
+          accept.includes('.jpg') ||
+          accept.includes('.jpeg') ||
+          accept.includes('.png') ||
+          accept.includes('.gif') ||
+          accept.includes('.webp')
+        );
+      });
 
-      if (!input) return { ok: false, count: 0, error: 'No file input found on page' };
+      if (!input) return { ok: false, count: 0, error: 'No image file input found on page' };
 
       const dt = new DataTransfer();
       for (const img of images) {
@@ -151,6 +159,111 @@ async function fillField(page: IPage, selectors: string[], text: string, fieldNa
   }
 }
 
+async function selectImageTextTab(
+  page: IPage,
+): Promise<{ ok: boolean; target?: string; text?: string; visibleTexts?: string[] }> {
+  const result = await page.evaluate(`
+    () => {
+      const isVisible = (el) => {
+        if (!el || el.offsetParent === null) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+
+      const normalize = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+      const selector = 'button, [role="tab"], [role="button"], a, label, div, span, li';
+      const nodes = Array.from(document.querySelectorAll(selector));
+      const targets = ['上传图文', '图文', '图片'];
+
+      for (const target of targets) {
+        for (const node of nodes) {
+          if (!isVisible(node)) continue;
+          const text = normalize(node.innerText || node.textContent || '');
+          if (!text || text.includes('视频')) continue;
+          if (text === target || text.startsWith(target) || text.includes(target)) {
+            const clickable = node.closest('button, [role="tab"], [role="button"], a, label') || node;
+            clickable.click();
+            return { ok: true, target, text };
+          }
+        }
+      }
+
+      const visibleTexts = [];
+      for (const node of nodes) {
+        if (!isVisible(node)) continue;
+        const text = normalize(node.innerText || node.textContent || '');
+        if (!text || text.length > 20) continue;
+        visibleTexts.push(text);
+        if (visibleTexts.length >= 20) break;
+      }
+      return { ok: false, visibleTexts };
+    }
+  `);
+  if (result?.ok) {
+    await page.wait({ time: 1 });
+  }
+  return result;
+}
+
+async function inspectPublishSurface(
+  page: IPage,
+): Promise<{ hasTitleInput: boolean; hasImageInput: boolean; hasVideoSurface: boolean }> {
+  return page.evaluate(`
+    () => {
+      const text = (document.body?.innerText || '').replace(/\\s+/g, ' ').trim();
+      const hasTitleInput = !!Array.from(document.querySelectorAll('input, textarea')).find((el) => {
+        if (!el || el.offsetParent === null) return false;
+        const placeholder = (el.getAttribute('placeholder') || '').trim();
+        const cls = el.className ? String(el.className) : '';
+        const maxLength = Number(el.getAttribute('maxlength') || 0);
+        return (
+          placeholder.includes('标题') ||
+          /title/i.test(placeholder) ||
+          /title/i.test(cls) ||
+          maxLength === 20
+        );
+      });
+      const hasImageInput = !!Array.from(document.querySelectorAll('input[type="file"]')).find((el) => {
+        const accept = el.getAttribute('accept') || '';
+        return (
+          accept.includes('image') ||
+          accept.includes('.jpg') ||
+          accept.includes('.jpeg') ||
+          accept.includes('.png') ||
+          accept.includes('.gif') ||
+          accept.includes('.webp')
+        );
+      });
+      return {
+        hasTitleInput,
+        hasImageInput,
+        hasVideoSurface: text.includes('拖拽视频到此处点击上传') || text.includes('上传视频'),
+      };
+    }
+  `);
+}
+
+async function waitForImageTextSurface(
+  page: IPage,
+  maxWaitMs = 5_000,
+): Promise<{ hasTitleInput: boolean; hasImageInput: boolean; hasVideoSurface: boolean }> {
+  const pollMs = 500;
+  const maxAttempts = Math.max(1, Math.ceil(maxWaitMs / pollMs));
+  let surface = await inspectPublishSurface(page);
+
+  for (let i = 0; i < maxAttempts; i++) {
+    if (surface.hasTitleInput || surface.hasImageInput || !surface.hasVideoSurface) {
+      return surface;
+    }
+    if (i < maxAttempts - 1) {
+      await page.wait({ time: pollMs / 1_000 });
+      surface = await inspectPublishSurface(page);
+    }
+  }
+
+  return surface;
+}
+
 cli({
   site: 'xiaohongshu',
   name: 'publish',
@@ -204,20 +317,18 @@ cli({
     }
 
     // ── Step 2: Select 图文 (image+text) note type if tabs are present ─────────
-    const tabClicked: boolean = await page.evaluate(`
-      () => {
-        const allEls = document.querySelectorAll('[class*="tab"], [class*="note-type"], [class*="type-item"]');
-        for (const el of allEls) {
-          const text = el.innerText || el.textContent || '';
-          if ((text.includes('图文') || text.includes('图片')) && el.offsetParent !== null) {
-            el.click();
-            return true;
-          }
-        }
-        return false;
-      }
-    `);
-    if (tabClicked) await page.wait({ time: 1 });
+    const tabResult = await selectImageTextTab(page);
+    const surface = await waitForImageTextSurface(page, tabResult?.ok ? 5_000 : 2_000);
+    if (!surface.hasTitleInput && !surface.hasImageInput && surface.hasVideoSurface) {
+      await page.screenshot({ path: '/tmp/xhs_publish_tab_debug.png' });
+      const detail = tabResult?.ok
+        ? `clicked "${tabResult.text}"`
+        : `visible candidates: ${(tabResult?.visibleTexts || []).join(' | ') || 'none'}`;
+      throw new Error(
+        'Still on the video publish page after trying to select 图文. ' +
+        `Details: ${detail}. Debug screenshot: /tmp/xhs_publish_tab_debug.png`
+      );
+    }
 
     // ── Step 3: Upload images ──────────────────────────────────────────────────
     if (imageData.length > 0) {

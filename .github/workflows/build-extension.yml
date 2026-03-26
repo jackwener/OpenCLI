@@ -39,12 +39,8 @@ jobs:
         working-directory: extension
 
       - name: Prepare extension package
-        run: |
-          rm -rf extension-package
-          mkdir -p extension-package
-          cp extension/manifest.json extension-package/
-          cp -R extension/dist extension-package/
-          cp -R extension/icons extension-package/
+        run: npm run package:release -- --out ../extension-package
+        working-directory: extension
 
       - name: Create Extension ZIP
         run: |

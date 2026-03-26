@@ -1,6 +1,6 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { fetchWithPage } from './utils.js';
+import { fetchPrivateApi } from './utils.js';
 
 cli({
   site: 'weread',
@@ -10,7 +10,7 @@ cli({
   strategy: Strategy.COOKIE,
   columns: ['title', 'author', 'noteCount', 'bookId'],
   func: async (page: IPage, _args) => {
-    const data = await fetchWithPage(page, '/user/notebooks');
+    const data = await fetchPrivateApi(page, '/user/notebooks');
     const books: any[] = data?.books ?? [];
     return books.map((item: any) => ({
       title: item.book?.title ?? '',

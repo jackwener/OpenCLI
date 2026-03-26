@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getRegistry } from '../../registry.js';
+import { __test__ } from './item.js';
 import './item.js';
 
 describe('jd item adapter', () => {
@@ -29,7 +30,23 @@ describe('jd item adapter', () => {
 
   it('includes expected columns', () => {
     expect(command!.columns).toEqual(
-      expect.arrayContaining(['title', 'price', 'shop', 'specs', 'mainImages', 'detailImages']),
+      expect.arrayContaining(['title', 'price', 'shop', 'specs', 'avifImages']),
     );
+  });
+
+  it('extracts only pcpubliccms avif images and respects the limit', () => {
+    const result = __test__.extractAvifImages([
+      'https://img14.360buyimg.com/n1/jfs/t1/normal.jpg',
+      'https://img10.360buyimg.com/imgzone/jfs/t1/detail.avif',
+      'https://pcpubliccms.jd.com/image1.avif',
+      'https://pcpubliccms.jd.com/image1.avif',
+      'https://pcpubliccms.jd.com/image2.avif?x=1',
+      'https://example.com/not-jd.avif',
+    ], 2);
+
+    expect(result).toEqual([
+      'https://pcpubliccms.jd.com/image1.avif',
+      'https://pcpubliccms.jd.com/image2.avif?x=1',
+    ]);
   });
 });

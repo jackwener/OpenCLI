@@ -18,13 +18,26 @@ import { render as renderOutput } from './output.js';
 import { executeCommand } from './execution.js';
 import { CliError, ERROR_ICONS, getErrorMessage } from './errors.js';
 
+export function normalizeArgValue(argType: string | undefined, value: unknown, name: string): unknown {
+  if (argType !== 'bool') return value;
+  if (typeof value === 'boolean') return value;
+  if (value == null || value === '') return false;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+
+  throw new CliError('ARGUMENT', `"${name}" must be either "true" or "false".`);
+}
+
 /**
  * Register a single CliCommand as a Commander subcommand.
  */
 export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): void {
   if (siteCmd.commands.some((c: Command) => c.name() === cmd.name)) return;
 
-  const subCmd = siteCmd.command(cmd.name).description(cmd.description);
+  const deprecatedSuffix = cmd.deprecated ? ' [deprecated]' : '';
+  const subCmd = siteCmd.command(cmd.name).description(`${cmd.description}${deprecatedSuffix}`);
 
   // Register positional args first, then named options
   const positionalArgs: typeof cmd.args = [];
@@ -51,24 +64,29 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
     const optionsRecord = typeof actionOpts === 'object' && actionOpts !== null ? actionOpts as Record<string, unknown> : {};
     const startTime = Date.now();
 
-    // ── Collect kwargs ──────────────────────────────────────────────────
-    const kwargs: Record<string, unknown> = {};
-    for (let i = 0; i < positionalArgs.length; i++) {
-      const v = actionArgs[i];
-      if (v !== undefined) kwargs[positionalArgs[i].name] = v;
-    }
-    for (const arg of cmd.args) {
-      if (arg.positional) continue;
-      const camelName = arg.name.replace(/-([a-z])/g, (_m, ch: string) => ch.toUpperCase());
-      const v = optionsRecord[arg.name] ?? optionsRecord[camelName];
-      if (v !== undefined) kwargs[arg.name] = v;
-    }
-
     // ── Execute + render ────────────────────────────────────────────────
     try {
+      // ── Collect kwargs ────────────────────────────────────────────────
+      const kwargs: Record<string, unknown> = {};
+      for (let i = 0; i < positionalArgs.length; i++) {
+        const v = actionArgs[i];
+        if (v !== undefined) kwargs[positionalArgs[i].name] = v;
+      }
+      for (const arg of cmd.args) {
+        if (arg.positional) continue;
+        const camelName = arg.name.replace(/-([a-z])/g, (_m, ch: string) => ch.toUpperCase());
+        const v = optionsRecord[arg.name] ?? optionsRecord[camelName];
+        if (v !== undefined) kwargs[arg.name] = normalizeArgValue(arg.type, v, arg.name);
+      }
+
       const verbose = optionsRecord.verbose === true;
       const format = typeof optionsRecord.format === 'string' ? optionsRecord.format : 'table';
       if (verbose) process.env.OPENCLI_VERBOSE = '1';
+      if (cmd.deprecated) {
+        const message = typeof cmd.deprecated === 'string' ? cmd.deprecated : `${fullName(cmd)} is deprecated.`;
+        const replacement = cmd.replacedBy ? ` Use ${cmd.replacedBy} instead.` : '';
+        console.error(chalk.yellow(`Deprecated: ${message}${replacement}`));
+      }
 
       const result = await executeCommand(cmd, kwargs, verbose);
 

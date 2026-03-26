@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build",
+    "package:release": "node scripts/package-release.mjs",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

@@ -295,6 +295,8 @@ opencli chaoxing exams                   # 考试列表
 opencli douban search "三体"              # 搜索 (query positional)
 opencli douban top250                     # 豆瓣 Top 250
 opencli douban subject 1234567            # 条目详情 (id positional)
+opencli douban photos 30382501            # 图片列表 / 直链（默认海报）
+opencli douban download 30382501          # 下载海报 / 剧照
 opencli douban marks --limit 10           # 我的标记
 opencli douban reviews --limit 10         # 短评
 

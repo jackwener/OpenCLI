@@ -11,6 +11,7 @@ import { checkDaemonStatus } from './browser/discover.js';
 import { BrowserBridge } from './browser/index.js';
 import { listSessions } from './browser/daemon-client.js';
 import { getErrorMessage } from './errors.js';
+import { getRuntimeLabel } from './runtime-detect.js';
 
 export type DoctorOptions = {
   fix?: boolean;
@@ -105,7 +106,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
 }
 
 export function renderBrowserDoctorReport(report: DoctorReport): string {
-  const lines = [chalk.bold(`opencli v${report.cliVersion ?? 'unknown'} doctor`), ''];
+  const lines = [chalk.bold(`opencli v${report.cliVersion ?? 'unknown'} doctor`) + chalk.dim(` (${getRuntimeLabel()})`), ''];
 
   // Daemon status
   const daemonIcon = report.daemonRunning ? chalk.green('[OK]') : chalk.red('[MISSING]');

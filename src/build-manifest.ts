@@ -38,6 +38,8 @@ export interface ManifestEntry {
   columns?: string[];
   pipeline?: Record<string, unknown>[];
   timeout?: number;
+  deprecated?: boolean | string;
+  replacedBy?: string;
   /** 'yaml' or 'ts' — determines how executeCommand loads the handler */
   type: 'yaml' | 'ts';
   /** Relative path from clis/ dir, e.g. 'bilibili/hot.yaml' or 'bilibili/search.js' */
@@ -198,6 +200,8 @@ function scanYaml(filePath: string, site: string): ManifestEntry | null {
       columns: cliDef.columns,
       pipeline: cliDef.pipeline,
       timeout: cliDef.timeout,
+      deprecated: (cliDef as Record<string, unknown>).deprecated as boolean | string | undefined,
+      replacedBy: (cliDef as Record<string, unknown>).replacedBy as string | undefined,
       type: 'yaml',
       navigateBefore: cliDef.navigateBefore,
     };
@@ -268,6 +272,17 @@ export function scanTs(filePath: string, site: string): ManifestEntry | null {
       if (navStringMatch) entry.navigateBefore = navStringMatch[1];
     }
 
+    const deprecatedBoolMatch = src.match(/deprecated\s*:\s*(true|false)/);
+    if (deprecatedBoolMatch) {
+      entry.deprecated = deprecatedBoolMatch[1] === 'true';
+    } else {
+      const deprecatedStringMatch = src.match(/deprecated\s*:\s*['"`]([^'"`]+)['"`]/);
+      if (deprecatedStringMatch) entry.deprecated = deprecatedStringMatch[1];
+    }
+
+    const replacedByMatch = src.match(/replacedBy\s*:\s*['"`]([^'"`]+)['"`]/);
+    if (replacedByMatch) entry.replacedBy = replacedByMatch[1];
+
     return entry;
   } catch (err) {
     // If parsing fails, log a warning (matching scanYaml behaviour) and skip the entry.
@@ -337,6 +352,29 @@ function main(): void {
   const yamlCount = manifest.filter(e => e.type === 'yaml').length;
   const tsCount = manifest.filter(e => e.type === 'ts').length;
   console.log(`✅ Manifest compiled: ${manifest.length} entries (${yamlCount} YAML, ${tsCount} TS) → ${OUTPUT}`);
+
+  // Restore executable permissions on bin entries.
+  // tsc does not preserve the +x bit, so after a clean rebuild the CLI
+  // entry-point loses its executable permission, causing "Permission denied".
+  // See: https://github.com/jackwener/opencli/issues/446
+  if (process.platform !== 'win32') {
+    const pkgPath = path.resolve(__dirname, '..', 'package.json');
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      const bins: Record<string, string> = typeof pkg.bin === 'string'
+        ? { [pkg.name ?? 'cli']: pkg.bin }
+        : pkg.bin ?? {};
+      for (const binPath of Object.values(bins)) {
+        const abs = path.resolve(__dirname, '..', binPath);
+        if (fs.existsSync(abs)) {
+          fs.chmodSync(abs, 0o755);
+          console.log(`✅ Restored executable permission: ${binPath}`);
+        }
+      }
+    } catch {
+      // Best-effort; never break the build for a permission fix.
+    }
+  }
 }
 
 const entrypoint = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;

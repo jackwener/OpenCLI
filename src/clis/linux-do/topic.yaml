@@ -2,6 +2,7 @@ site: linux-do
 name: topic
 description: linux.do 帖子详情和回复（首页）
 domain: linux.do
+strategy: cookie
 browser: true
 
 args:
@@ -10,23 +11,60 @@ args:
     type: int
     required: true
     description: Topic ID
+  limit:
+    type: int
+    default: 20
+    description: Number of posts
+  main_only:
+    type: bool
+    default: false
+    description: Only return the main post body without truncation
 
 pipeline:
   - navigate: https://linux.do
 
   - evaluate: |
       (async () => {
+        const mainOnly = ${{ args.main_only }};
+        const toLocalTime = (utcStr) => {
+          if (!utcStr) return '';
+          const date = new Date(utcStr);
+          return Number.isNaN(date.getTime()) ? utcStr : date.toLocaleString();
+        };
         const res = await fetch('/t/${{ args.id }}.json', { credentials: 'include' });
         if (!res.ok) throw new Error('HTTP ' + res.status + ' - 请先登录 linux.do');
         let data;
         try { data = await res.json(); } catch { throw new Error('响应不是有效 JSON - 请先登录 linux.do'); }
-        const strip = (html) => (html || '').replace(/<br\s*\/?>/gi, ' ').replace(/<\/(p|div|li|blockquote|h[1-6])>/gi, ' ').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#(?:(\d+)|x([0-9a-fA-F]+));/g, (_, dec, hex) => { try { return String.fromCodePoint(dec !== undefined ? Number(dec) : parseInt(hex, 16)); } catch { return ''; } }).replace(/\s+/g, ' ').trim();
+        const strip = (html) => (html || '')
+          .replace(/<br\s*\/?>/gi, ' ')
+          .replace(/<\/(p|div|li|blockquote|h[1-6])>/gi, ' ')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#(?:(\d+)|x([0-9a-fA-F]+));/g, (_, dec, hex) => {
+            try { return String.fromCodePoint(dec !== undefined ? Number(dec) : parseInt(hex, 16)); } catch { return ''; }
+          })
+          .replace(/\s+/g, ' ')
+          .trim();
         const posts = data?.post_stream?.posts || [];
-        return posts.map(p => ({
+        if (mainOnly) {
+          const mainPost = posts.find(p => p.post_number === 1);
+          if (!mainPost) return [];
+          return [{
+            author: mainPost.username || '',
+            content: mainPost.cooked || '',
+            likes: mainPost.like_count || 0,
+            created_at: toLocalTime(mainPost.created_at),
+          }];
+        }
+        return posts.slice(0, ${{ args.limit }}).map(p => ({
           author: p.username,
           content: strip(p.cooked).slice(0, 200),
           likes: p.like_count,
-          created_at: p.created_at,
+          created_at: toLocalTime(p.created_at),
         }));
       })()
 

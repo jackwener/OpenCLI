@@ -156,7 +156,7 @@ describe('browser extended public-data commands E2E', () => {
 
   // ── yahoo-finance ──
   it('yahoo-finance quote returns stock data', async () => {
-    const data = await tryBrowserCommand(['yahoo-finance', 'quote', '--symbol', 'AAPL', '-f', 'json']);
+    const data = await tryBrowserCommand(['yahoo-finance', 'quote', 'AAPL', '-f', 'json']);
     expectDataOrSkip(data, 'yahoo-finance quote');
   }, 60_000);
 });

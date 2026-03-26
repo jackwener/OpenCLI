@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { formatDate, fetchWebApi, fetchWithPage } from './utils.js';
+import { formatDate, fetchWebApi } from './utils.js';
 
 describe('formatDate', () => {
   it('formats a typical Unix timestamp in UTC+8', () => {
@@ -69,36 +69,5 @@ describe('fetchWebApi', () => {
     }));
 
     await expect(fetchWebApi('/search/global')).rejects.toThrow('Invalid JSON');
-  });
-});
-
-describe('fetchWithPage', () => {
-  it('throws AUTH_REQUIRED on errcode -2010', async () => {
-    const mockPage = {
-      evaluate: vi.fn().mockResolvedValue({ errcode: -2010, errmsg: '用户不存在' }),
-    } as any;
-    await expect(fetchWithPage(mockPage, '/book/info')).rejects.toThrow('Not logged in');
-  });
-
-  it('throws API_ERROR on unknown errcode', async () => {
-    const mockPage = {
-      evaluate: vi.fn().mockResolvedValue({ errcode: -1, errmsg: 'unknown error' }),
-    } as any;
-    await expect(fetchWithPage(mockPage, '/book/info')).rejects.toThrow('unknown error');
-  });
-
-  it('returns data on success (errcode 0 or absent)', async () => {
-    const mockPage = {
-      evaluate: vi.fn().mockResolvedValue({ title: 'Test Book', errcode: 0 }),
-    } as any;
-    const result = await fetchWithPage(mockPage, '/book/info');
-    expect(result.title).toBe('Test Book');
-  });
-
-  it('throws FETCH_ERROR on HTTP error', async () => {
-    const mockPage = {
-      evaluate: vi.fn().mockResolvedValue({ _httpError: '403' }),
-    } as any;
-    await expect(fetchWithPage(mockPage, '/book/info')).rejects.toThrow('HTTP 403');
   });
 });

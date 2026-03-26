@@ -1,5 +1,8 @@
 import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
 import { cli, Strategy } from '../../registry.js';
+import { resolveTwitterQueryId } from './shared.js';
+
+const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
 
 cli({
   site: 'twitter',
@@ -30,6 +33,7 @@ cli({
     // Navigate directly to the user's profile page (gives us cookie context)
     await page.goto(`https://x.com/${username}`);
     await page.wait(3);
+    const queryId = await resolveTwitterQueryId(page, 'UserByScreenName', USER_BY_SCREEN_NAME_QUERY_ID);
 
     const result = await page.evaluate(`
       async () => {
@@ -64,34 +68,7 @@ cli({
           responsive_web_graphql_timeline_navigation_enabled: true,
         });
 
-        // Dynamically resolve queryId: GitHub community source → JS bundle scan → hardcoded fallback
-        async function resolveQueryId(operationName, fallbackId) {
-          try {
-            const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json');
-            if (ghResp.ok) {
-              const data = await ghResp.json();
-              const entry = data[operationName];
-              if (entry && entry.queryId) return entry.queryId;
-            }
-          } catch {}
-          try {
-            const scripts = performance.getEntriesByType('resource')
-              .filter(r => r.name.includes('client-web') && r.name.endsWith('.js'))
-              .map(r => r.name);
-            for (const scriptUrl of scripts.slice(0, 15)) {
-              try {
-                const text = await (await fetch(scriptUrl)).text();
-                const re = new RegExp('queryId:"([A-Za-z0-9_-]+)"[^}]{0,200}operationName:"' + operationName + '"');
-                const m = text.match(re);
-                if (m) return m[1];
-              } catch {}
-            }
-          } catch {}
-          return fallbackId;
-        }
-
-        const queryId = await resolveQueryId('UserByScreenName', 'qRednkZG-rn1P6b48NINmQ');
-        const url = '/i/api/graphql/' + queryId + '/UserByScreenName?variables='
+        const url = '/i/api/graphql/' + ${JSON.stringify(queryId)} + '/UserByScreenName?variables='
           + encodeURIComponent(variables)
           + '&features=' + encodeURIComponent(features);
 

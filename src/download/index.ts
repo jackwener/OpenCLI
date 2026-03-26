@@ -8,6 +8,8 @@ import * as path from 'node:path';
 import * as https from 'node:https';
 import * as http from 'node:http';
 import * as os from 'node:os';
+import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { URL } from 'node:url';
 import type { ProgressBar } from './progress.js';
 import { isBinaryInstalled } from '../external.js';
@@ -99,74 +101,84 @@ export async function httpDownload(
       requestHeaders['Cookie'] = cookies;
     }
 
-    // Ensure directory exists
-    const dir = path.dirname(destPath);
-    fs.mkdirSync(dir, { recursive: true });
-
     const tempPath = `${destPath}.tmp`;
-    const file = fs.createWriteStream(tempPath);
+    let settled = false;
+
+    const finish = (result: { success: boolean; size: number; error?: string }) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
+    const cleanupTempFile = async () => {
+      try {
+        await fs.promises.rm(tempPath, { force: true });
+      } catch {
+        // Ignore cleanup errors so the original failure is preserved.
+      }
+    };
 
     const request = protocol.get(url, { headers: requestHeaders, timeout }, (response) => {
-      // Handle redirects
-      if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-        file.close();
-        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-        if (redirectCount >= maxRedirects) {
-          resolve({ success: false, size: 0, error: `Too many redirects (> ${maxRedirects})` });
+      void (async () => {
+        // Handle redirects before creating any file handles.
+        if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+          response.resume();
+          if (redirectCount >= maxRedirects) {
+            finish({ success: false, size: 0, error: `Too many redirects (> ${maxRedirects})` });
+            return;
+          }
+          const redirectUrl = resolveRedirectUrl(url, response.headers.location);
+          const originalHost = new URL(url).hostname;
+          const redirectHost = new URL(redirectUrl).hostname;
+          const redirectOptions = originalHost === redirectHost
+            ? options
+            : { ...options, cookies: undefined, headers: stripCookieHeaders(options.headers) };
+          finish(await httpDownload(
+            redirectUrl,
+            destPath,
+            redirectOptions,
+            redirectCount + 1,
+          ));
           return;
         }
-        const redirectUrl = resolveRedirectUrl(url, response.headers.location);
-        const originalHost = new URL(url).hostname;
-        const redirectHost = new URL(redirectUrl).hostname;
-        // Do not forward cookies when a redirect crosses host boundaries.
-        const redirectOptions = originalHost === redirectHost
-          ? options
-          : { ...options, cookies: undefined, headers: stripCookieHeaders(options.headers) };
-        httpDownload(
-          redirectUrl,
-          destPath,
-          redirectOptions,
-          redirectCount + 1,
-        ).then(resolve);
-        return;
-      }
 
-      if (response.statusCode !== 200) {
-        file.close();
-        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-        resolve({ success: false, size: 0, error: `HTTP ${response.statusCode}` });
-        return;
-      }
+        if (response.statusCode !== 200) {
+          response.resume();
+          finish({ success: false, size: 0, error: `HTTP ${response.statusCode}` });
+          return;
+        }
 
-      const totalSize = parseInt(response.headers['content-length'] || '0', 10);
-      let received = 0;
+        const totalSize = parseInt(response.headers['content-length'] || '0', 10);
+        let received = 0;
+        const progressStream = new Transform({
+          transform(chunk, _encoding, callback) {
+            received += chunk.length;
+            if (onProgress) onProgress(received, totalSize);
+            callback(null, chunk);
+          },
+        });
 
-      response.on('data', (chunk: Buffer) => {
-        received += chunk.length;
-        if (onProgress) onProgress(received, totalSize);
-      });
-
-      response.pipe(file);
-
-      file.on('finish', () => {
-        file.close();
-        // Rename temp file to final destination
-        fs.renameSync(tempPath, destPath);
-        resolve({ success: true, size: received });
-      });
+        try {
+          await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+          await pipeline(response, progressStream, fs.createWriteStream(tempPath));
+          await fs.promises.rename(tempPath, destPath);
+          finish({ success: true, size: received });
+        } catch (err) {
+          await cleanupTempFile();
+          finish({ success: false, size: 0, error: getErrorMessage(err) });
+        }
+      })();
     });
 
     request.on('error', (err) => {
-      file.close();
-      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-      resolve({ success: false, size: 0, error: err.message });
+      void (async () => {
+        await cleanupTempFile();
+        finish({ success: false, size: 0, error: err.message });
+      })();
     });
 
     request.on('timeout', () => {
-      request.destroy();
-      file.close();
-      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-      resolve({ success: false, size: 0, error: 'Timeout' });
+      request.destroy(new Error('Timeout'));
     });
   });
 }

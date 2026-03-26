@@ -77,6 +77,8 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
           pipeline: entry.pipeline,
           timeoutSeconds: entry.timeout,
           source: `manifest:${entry.site}/${entry.name}`,
+          deprecated: entry.deprecated,
+          replacedBy: entry.replacedBy,
           navigateBefore: entry.navigateBefore,
         };
         registerCommand(cmd);
@@ -96,6 +98,8 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
           columns: entry.columns,
           timeoutSeconds: entry.timeout,
           source: modulePath,
+          deprecated: entry.deprecated,
+          replacedBy: entry.replacedBy,
           navigateBefore: entry.navigateBefore,
           _lazy: true,
           _modulePath: modulePath,
@@ -185,6 +189,8 @@ async function registerYamlCli(filePath: string, defaultSite: string): Promise<v
       pipeline: cliDef.pipeline,
       timeoutSeconds: cliDef.timeout,
       source: filePath,
+      deprecated: (cliDef as Record<string, unknown>).deprecated as boolean | string | undefined,
+      replacedBy: (cliDef as Record<string, unknown>).replacedBy as string | undefined,
       navigateBefore: cliDef.navigateBefore,
     };
 

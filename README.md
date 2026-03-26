@@ -3,8 +3,7 @@
 > **Make any website, Electron App, or Local Tool your CLI.**  
 > Zero risk · Reuse Chrome login · AI-powered discovery · Universal CLI Hub
 
-[中文文档](./README.zh-CN.md)
-
+[![中文文档](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87-0F766E?style=flat-square)](./README.zh-CN.md)
 [![npm](https://img.shields.io/npm/v/@jackwener/opencli?style=flat-square)](https://www.npmjs.com/package/@jackwener/opencli)
 [![Node.js Version](https://img.shields.io/node/v/@jackwener/opencli?style=flat-square)](https://nodejs.org)
 [![License](https://img.shields.io/npm/l/@jackwener/opencli?style=flat-square)](./LICENSE)
@@ -50,10 +49,30 @@ There are many great browser automation tools. Here's when opencli is the right 
 
 ## Prerequisites
 
-- **Node.js**: >= 20.0.0
+- **Node.js**: >= 20.0.0 (or **Bun** >= 1.0 — see [Runtime Support](#runtime-support) below)
 - **Chrome** running **and logged into the target site** (e.g. bilibili.com, zhihu.com, xiaohongshu.com).
 
 > **⚠️ Important**: Browser commands reuse your Chrome login session. You must be logged into the target website in Chrome before running commands. If you get empty data or errors, check your login status first.
+
+### Runtime Support
+
+OpenCLI works with both **Node.js** (≥ 20) and **Bun** (≥ 1.0). All commands and adapters are runtime-agnostic.
+
+```bash
+# Development with Bun (faster startup)
+npm run dev:bun
+
+# Run the built CLI with Bun
+npm run start:bun
+
+# Run unit tests under Bun
+npm run test:bun
+
+# Run E2E tests with Bun as the runtime
+OPENCLI_TEST_RUNTIME=bun npm run test:e2e
+```
+
+Use `opencli doctor` to check your current runtime — it displays the active engine (e.g. `node v22.13.0` or `bun 1.1.42`).
 
 OpenCLI connects to your browser through a lightweight **Browser Bridge** Chrome Extension + micro-daemon (zero config, auto-start).
 
@@ -196,7 +215,7 @@ Run `opencli list` for the live registry.
 | **v2ex** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | Public / Browser |
 | **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` `fund-holdings` `fund-snapshot` | Browser |
 | **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` | Desktop |
-| **chatgpt** | `status` `new` `send` `read` `ask` | Desktop |
+| **chatgpt** | `status` `new` `send` `read` `ask` `model` | Desktop |
 | **xiaohongshu** | `search` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | Browser |
 | **apple-podcasts** | `search` `episodes` `top` | Public |
 | **xiaoyuzhou** | `podcast` `podcast-episodes` `episode` | Public |
@@ -211,6 +230,7 @@ Run `opencli list` for the live registry.
 | **devto** | `top` `tag` `user` | Public |
 | **dictionary** | `search` `synonyms` `examples` | Public |
 | **arxiv** | `search` `paper` | Public |
+| **paperreview** | `submit` `review` `feedback` | Public |
 | **wikipedia** | `search` `summary` `random` `trending` | Public |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` | Public |
 | **jd** | `item` | Browser |
@@ -228,13 +248,16 @@ Run `opencli list` for the live registry.
 | **jike** | `feed` `search` `create` `like` `comment` `repost` `notifications` `post` `topic` `user` | Browser |
 | **jimeng** | `generate` `history` | Browser |
 | **yollomi** | `generate` `video` `edit` `upload` `models` `remove-bg` `upscale` `face-swap` `restore` `try-on` `background` `object-remover` | Browser |
-| **linux-do** | `hot` `latest` `search` `categories` `category` `topic` | Public |
+| **linux-do** | `feed` `categories` `tags` `search` `topic` `user-topics` `user-posts` | Browser |
 | **stackoverflow** | `hot` `search` `bounties` `unanswered` | Public |
 | **steam** | `top-sellers` | Public |
 | **weread** | `shelf` `search` `book` `highlights` `notes` `notebooks` `ranking` | Browser |
-| **douban** | `search` `top250` `subject` `marks` `reviews` `movie-hot` `book-hot` | Browser |
+| **douban** | `search` `top250` `subject` `photos` `download` `marks` `reviews` `movie-hot` `book-hot` | Browser |
 | **facebook** | `feed` `profile` `search` `friends` `groups` `events` `notifications` `memories` `add-friend` `join-group` | Browser |
 | **google** | `news` `search` `suggest` `trends` | Public |
+| **36kr** | `news` `hot` `search` `article` | Public / Browser |
+| **imdb** | `search` `title` `top` `trending` `person` `reviews` | Public |
+| **producthunt** | `posts` `today` `hot` `browse` | Public / Browser |
 | **instagram** | `explore` `profile` `search` `user` `followers` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `saved` | Browser |
 | **lobsters** | `hot` `newest` `active` `tag` | Public |
 | **medium** | `feed` `search` `user` | Browser |
@@ -294,6 +317,7 @@ OpenCLI supports downloading images, videos, and articles from supported platfor
 | **xiaohongshu** | Images, Videos | Downloads all media from a note |
 | **bilibili** | Videos | Requires `yt-dlp` installed |
 | **twitter** | Images, Videos | Downloads from user media tab or single tweet |
+| **douban** | Images | Downloads poster / still image lists from movie subjects |
 | **pixiv** | Images | Downloads original-quality illustrations, supports multi-page works |
 | **zhihu** | Articles (Markdown) | Exports articles with optional image download |
 | **weixin** | Articles (Markdown) | Exports WeChat Official Account articles |
@@ -324,6 +348,9 @@ opencli twitter download elonmusk --limit 20 --output ./twitter
 
 # Download single tweet media
 opencli twitter download --tweet-url "https://x.com/user/status/123" --output ./twitter
+
+# Download Douban posters / stills
+opencli douban download 30382501 --output ./douban
 
 # Export Zhihu article to Markdown
 opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --output ./zhihu

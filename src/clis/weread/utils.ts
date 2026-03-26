@@ -3,15 +3,19 @@
  *
  * Two API domains:
  * - WEB_API (weread.qq.com/web/*): public, Node.js fetch
- * - API (i.weread.qq.com/*): private, browser page.evaluate with cookies
+ * - API (i.weread.qq.com/*): private, Node.js fetch with cookies from browser
  */
 
 import { CliError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import type { BrowserCookie, IPage } from '../../types.js';
 
 const WEB_API = 'https://weread.qq.com/web';
 const API = 'https://i.weread.qq.com';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+function buildCookieHeader(cookies: BrowserCookie[]): string {
+  return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ');
+}
 
 /**
  * Fetch a public WeRead web endpoint (Node.js direct fetch).
@@ -36,28 +40,49 @@ export async function fetchWebApi(path: string, params?: Record<string, string>)
 }
 
 /**
- * Fetch a private WeRead API endpoint via browser page.evaluate.
- * Automatically carries cookies for authenticated requests.
+ * Fetch a private WeRead API endpoint with cookies extracted from the browser.
+ * The HTTP request itself runs in Node.js to avoid page-context CORS failures.
  */
-export async function fetchWithPage(page: IPage, path: string, params?: Record<string, string>): Promise<any> {
+export async function fetchPrivateApi(page: IPage, path: string, params?: Record<string, string>): Promise<any> {
   const url = new URL(`${API}${path}`);
   if (params) {
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   }
   const urlStr = url.toString();
-  const data = await page.evaluate(`
-    async () => {
-      const res = await fetch(${JSON.stringify(urlStr)}, { credentials: "include" });
-      if (!res.ok) return { _httpError: String(res.status) };
-      try { return await res.json(); }
-      catch { return { _httpError: 'JSON parse error (status ' + res.status + ')' }; }
-    }
-  `);
-  if (data?._httpError) {
-    throw new CliError('FETCH_ERROR', `HTTP ${data._httpError} for ${path}`, 'WeRead API may be temporarily unavailable');
+
+  const cookies = await page.getCookies({ url: urlStr });
+  const cookieHeader = buildCookieHeader(cookies);
+
+  let resp: Response;
+  try {
+    resp = await fetch(urlStr, {
+      headers: {
+        'User-Agent': UA,
+        'Origin': 'https://weread.qq.com',
+        'Referer': 'https://weread.qq.com/',
+        ...(cookieHeader ? { 'Cookie': cookieHeader } : {}),
+      },
+    });
+  } catch (error) {
+    throw new CliError(
+      'FETCH_ERROR',
+      `Failed to fetch ${path}: ${error instanceof Error ? error.message : String(error)}`,
+      'WeRead API may be temporarily unavailable',
+    );
   }
-  if (data?.errcode === -2010) {
+
+  let data: any;
+  try {
+    data = await resp.json();
+  } catch {
+    throw new CliError('PARSE_ERROR', `Invalid JSON response for ${path}`, 'WeRead may have returned an HTML error page');
+  }
+
+  if (resp.status === 401 || data?.errcode === -2010) {
     throw new CliError('AUTH_REQUIRED', 'Not logged in to WeRead', 'Please log in to weread.qq.com in Chrome first');
+  }
+  if (!resp.ok) {
+    throw new CliError('FETCH_ERROR', `HTTP ${resp.status} for ${path}`, 'WeRead API may be temporarily unavailable');
   }
   if (data?.errcode != null && data.errcode !== 0) {
     throw new CliError('API_ERROR', data.errmsg ?? `WeRead API error ${data.errcode}`);

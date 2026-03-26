@@ -1,6 +1,6 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { fetchWithPage } from './utils.js';
+import { fetchPrivateApi } from './utils.js';
 
 cli({
   site: 'weread',
@@ -13,7 +13,7 @@ cli({
   ],
   columns: ['title', 'author', 'progress', 'bookId'],
   func: async (page: IPage, args) => {
-    const data = await fetchWithPage(page, '/shelf/sync', { synckey: '0', lectureSynckey: '0' });
+    const data = await fetchPrivateApi(page, '/shelf/sync', { synckey: '0', lectureSynckey: '0' });
     const books: any[] = data?.books ?? [];
     return books.slice(0, Number(args.limit)).map((item: any) => ({
       title: item.bookInfo?.title ?? item.title ?? '',

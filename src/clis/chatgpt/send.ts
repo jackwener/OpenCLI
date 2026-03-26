@@ -2,6 +2,7 @@ import { execSync, spawnSync } from 'node:child_process';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import { getErrorMessage } from '../../errors.js';
+import { activateChatGPT, selectModel, MODEL_CHOICES } from './ax.js';
 
 export const sendCommand = cli({
   site: 'chatgpt',
@@ -10,11 +11,21 @@ export const sendCommand = cli({
   domain: 'localhost',
   strategy: Strategy.PUBLIC,
   browser: false,
-  args: [{ name: 'text', required: true, positional: true, help: 'Message to send' }],
+  args: [
+    { name: 'text', required: true, positional: true, help: 'Message to send' },
+    { name: 'model', required: false, help: 'Model/mode to use: auto, instant, thinking, 5.2-instant, 5.2-thinking', choices: MODEL_CHOICES },
+  ],
   columns: ['Status'],
   func: async (page: IPage | null, kwargs: any) => {
     const text = kwargs.text as string;
+    const model = kwargs.model as string | undefined;
     try {
+      // Switch model before sending if requested
+      if (model) {
+        activateChatGPT();
+        selectModel(model);
+      }
+
       // Backup current clipboard content
       let clipBackup = '';
       try {
@@ -23,17 +34,16 @@ export const sendCommand = cli({
 
       // Copy text to clipboard
       spawnSync('pbcopy', { input: text });
-      
-      execSync("osascript -e 'tell application \"ChatGPT\" to activate'");
-      execSync("osascript -e 'delay 0.5'");
-      
+
+      activateChatGPT();
+
       const cmd = "osascript " +
                   "-e 'tell application \"System Events\"' " +
                   "-e 'keystroke \"v\" using command down' " +
                   "-e 'delay 0.2' " +
                   "-e 'keystroke return' " +
                   "-e 'end tell'";
-                     
+
       execSync(cmd);
 
       // Restore original clipboard content

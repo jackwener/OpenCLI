@@ -1,6 +1,6 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { fetchWithPage, formatDate } from './utils.js';
+import { fetchPrivateApi, formatDate } from './utils.js';
 
 cli({
   site: 'weread',
@@ -14,8 +14,8 @@ cli({
   ],
   columns: ['chapter', 'text', 'review', 'createTime'],
   func: async (page: IPage, args) => {
-    const data = await fetchWithPage(page, '/review/list', {
-      bookId: args.bookId,
+    const data = await fetchPrivateApi(page, '/review/list', {
+      bookId: args['book-id'],
       listType: '11',
       mine: '1',
       synckey: '0',

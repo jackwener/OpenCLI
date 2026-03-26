@@ -9,6 +9,8 @@
 | `opencli douban search` | 搜索豆瓣电影、图书或音乐 |
 | `opencli douban top250` | 豆瓣电影 Top 250 |
 | `opencli douban subject` | 条目详情 |
+| `opencli douban photos` | 获取电影海报/剧照图片列表 |
+| `opencli douban download` | 下载电影海报/剧照图片 |
 | `opencli douban marks` | 我的标记 |
 | `opencli douban reviews` | 我的短评 |
 | `opencli douban movie-hot` | 豆瓣电影热门榜单 |
@@ -31,6 +33,18 @@ opencli douban top250 --limit 10
 
 # 条目详情
 opencli douban subject 1292052
+
+# 获取海报直链（默认 type=Rb）
+opencli douban photos 30382501 --limit 20
+
+# 下载海报到本地目录
+opencli douban download 30382501 --output ./douban
+
+# 只下载指定 photo_id 的一张图
+opencli douban download 30382501 --photo-id 2913621075 --output ./douban
+
+# 返回 JSON，便于上层界面直接渲染图片并右键取图
+opencli douban photos 30382501 -f json
 
 # 电影热门
 opencli douban movie-hot --limit 10

@@ -54,6 +54,113 @@ export function normalizeWechatUrl(raw: string): string {
   return s;
 }
 
+/**
+ * Format a WeChat article timestamp as a UTC+8 datetime string.
+ * Accepts either Unix seconds or milliseconds.
+ */
+export function formatWechatTimestamp(rawTimestamp: string): string {
+  const ts = Number.parseInt(rawTimestamp, 10);
+  if (!Number.isFinite(ts) || ts <= 0) return '';
+
+  const timestampMs = rawTimestamp.length === 13 ? ts : ts * 1000;
+  const d = new Date(timestampMs);
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  const utc8 = new Date(d.getTime() + 8 * 3600 * 1000);
+
+  return (
+    `${utc8.getUTCFullYear()}-` +
+    `${pad(utc8.getUTCMonth() + 1)}-` +
+    `${pad(utc8.getUTCDate())} ` +
+    `${pad(utc8.getUTCHours())}:` +
+    `${pad(utc8.getUTCMinutes())}:` +
+    `${pad(utc8.getUTCSeconds())}`
+  );
+}
+
+/**
+ * Extract the raw create_time value from supported WeChat inline script formats.
+ */
+export function extractWechatCreateTimeValue(htmlStr: string): string {
+  const jsDecodeMatch = htmlStr.match(
+    /create_time\s*:\s*JsDecode\('([^']+)'\)(?=[\s,;}]|$)/,
+  );
+  if (jsDecodeMatch) return jsDecodeMatch[1];
+
+  const directValueMatch = htmlStr.match(
+    /create_time\s*[:=]\s*(?:"([^"]+)"|'([^']+)'|([0-9A-Za-z]+))(?=[\s,;}]|$)/,
+  );
+  if (!directValueMatch) return '';
+
+  return directValueMatch[1] || directValueMatch[2] || directValueMatch[3] || '';
+}
+
+/**
+ * Extract the publish time from DOM text first, then fall back to numeric create_time values.
+ */
+export function extractWechatPublishTime(
+  publishTimeText: string | null | undefined,
+  htmlStr: string,
+): string {
+  const normalizedPublishTime = (publishTimeText || '').trim();
+  if (normalizedPublishTime) return normalizedPublishTime;
+
+  const rawCreateTime = extractWechatCreateTimeValue(htmlStr);
+  if (!/^\d{10}$|^\d{13}$/.test(rawCreateTime)) return '';
+
+  return formatWechatTimestamp(rawCreateTime);
+}
+
+/**
+ * Build a self-contained helper for execution inside page.evaluate().
+ */
+export function buildExtractWechatPublishTimeJs(): string {
+  return `(${function extractWechatPublishTimeInPage(
+    publishTimeText: string | null | undefined,
+    htmlStr: string,
+  ) {
+    function formatWechatTimestamp(rawTimestamp: string) {
+      const ts = Number.parseInt(rawTimestamp, 10);
+      if (!Number.isFinite(ts) || ts <= 0) return '';
+
+      const timestampMs = rawTimestamp.length === 13 ? ts : ts * 1000;
+      const d = new Date(timestampMs);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const utc8 = new Date(d.getTime() + 8 * 3600 * 1000);
+
+      return (
+        `${utc8.getUTCFullYear()}-` +
+        `${pad(utc8.getUTCMonth() + 1)}-` +
+        `${pad(utc8.getUTCDate())} ` +
+        `${pad(utc8.getUTCHours())}:` +
+        `${pad(utc8.getUTCMinutes())}:` +
+        `${pad(utc8.getUTCSeconds())}`
+      );
+    }
+
+    function extractWechatCreateTimeValue(html: string) {
+      const jsDecodeMatch = html.match(
+        /create_time\s*:\s*JsDecode\('([^']+)'\)(?=[\s,;}]|$)/,
+      );
+      if (jsDecodeMatch) return jsDecodeMatch[1];
+
+      const directValueMatch = html.match(
+        /create_time\s*[:=]\s*(?:"([^"]+)"|'([^']+)'|([0-9A-Za-z]+))(?=[\s,;}]|$)/,
+      );
+      if (!directValueMatch) return '';
+
+      return directValueMatch[1] || directValueMatch[2] || directValueMatch[3] || '';
+    }
+
+    const normalizedPublishTime = (publishTimeText || '').trim();
+    if (normalizedPublishTime) return normalizedPublishTime;
+
+    const rawCreateTime = extractWechatCreateTimeValue(htmlStr);
+    if (!/^\d{10}$|^\d{13}$/.test(rawCreateTime)) return '';
+
+    return formatWechatTimestamp(rawCreateTime);
+  }.toString()})`;
+}
+
 // ============================================================
 // CLI Registration
 // ============================================================
@@ -102,26 +209,13 @@ cli({
         const authorEl = document.querySelector('#js_name');
         result.author = authorEl ? authorEl.textContent.trim() : '';
 
-        // Publish time: extract create_time from script tags
-        const htmlStr = document.documentElement.innerHTML;
-        let timeMatch = htmlStr.match(/create_time\\s*:\\s*JsDecode\\('([^']+)'\\)/);
-        if (!timeMatch) timeMatch = htmlStr.match(/create_time\\s*:\\s*'(\\d+)'/);
-        if (!timeMatch) timeMatch = htmlStr.match(/create_time\\s*[:=]\\s*["']?(\\d+)["']?/);
-        if (timeMatch) {
-          const ts = parseInt(timeMatch[1], 10);
-          if (ts > 0) {
-            const d = new Date(ts * 1000);
-            const pad = n => String(n).padStart(2, '0');
-            const utc8 = new Date(d.getTime() + 8 * 3600 * 1000);
-            result.publishTime =
-              utc8.getUTCFullYear() + '-' +
-              pad(utc8.getUTCMonth() + 1) + '-' +
-              pad(utc8.getUTCDate()) + ' ' +
-              pad(utc8.getUTCHours()) + ':' +
-              pad(utc8.getUTCMinutes()) + ':' +
-              pad(utc8.getUTCSeconds());
-          }
-        }
+        // Publish time: prefer the rendered DOM text, then fall back to numeric create_time values.
+        const publishTimeEl = document.querySelector('#publish_time');
+        const extractWechatPublishTime = ${buildExtractWechatPublishTimeJs()};
+        result.publishTime = extractWechatPublishTime(
+          publishTimeEl ? publishTimeEl.textContent : '',
+          document.documentElement.innerHTML,
+        );
 
         // Content processing
         const contentEl = document.querySelector('#js_content');

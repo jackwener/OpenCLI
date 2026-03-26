@@ -45,6 +45,8 @@ export function serializeCommand(cmd: CliCommand) {
     args: cmd.args.map(serializeArg),
     columns: cmd.columns ?? [],
     domain: cmd.domain ?? null,
+    deprecated: cmd.deprecated ?? null,
+    replacedBy: cmd.replacedBy ?? null,
   };
 }
 
@@ -73,6 +75,8 @@ export function formatRegistryHelpText(cmd: CliCommand): string {
   meta.push(`Strategy: ${strategyLabel(cmd)}`);
   meta.push(`Browser: ${cmd.browser ? 'yes' : 'no'}`);
   if (cmd.domain) meta.push(`Domain: ${cmd.domain}`);
+  if (cmd.deprecated) meta.push(`Deprecated: ${typeof cmd.deprecated === 'string' ? cmd.deprecated : 'yes'}`);
+  if (cmd.replacedBy) meta.push(`Use instead: ${cmd.replacedBy}`);
   lines.push(meta.join(' | '));
   if (cmd.columns?.length) lines.push(`Output columns: ${cmd.columns.join(', ')}`);
   return '\n' + lines.join('\n') + '\n';
