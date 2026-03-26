@@ -49,7 +49,7 @@ cli({
     { name: 'filter', type: 'string', default: 'top', choices: ['top', 'live'] },
     { name: 'limit', type: 'int', default: 15 },
   ],
-  columns: ['id', 'author', 'text', 'time', 'likes', 'views', 'url'],
+  columns: ['id', 'author', 'text', 'created_at', 'likes', 'views', 'url'],
   func: async (page, kwargs) => {
     const query = kwargs.query;
     const filter = kwargs.filter === 'live' ? 'live' : 'top';
@@ -102,26 +102,11 @@ cli({
           // Twitter moved screen_name from legacy to core
           const tweetUser = tweet.core?.user_results?.result;
 
-          // Parse created_at into a concise ISO-like local timestamp.
-          // Twitter returns RFC 2822 strings like "Thu Mar 26 10:30:00 +0000 2026".
-          const rawTime = tweet.legacy?.created_at || '';
-          let time = rawTime;
-          if (rawTime) {
-            try {
-              const d = new Date(rawTime);
-              if (!isNaN(d.getTime())) {
-                time = d.toISOString().replace('T', ' ').slice(0, 19);
-              }
-            } catch {
-              // keep raw string on parse failure
-            }
-          }
-
           results.push({
             id: tweet.rest_id,
             author: tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown',
             text: tweet.note_tweet?.note_tweet_results?.result?.text || tweet.legacy?.full_text || '',
-            time,
+            created_at: tweet.legacy?.created_at || '',
             likes: tweet.legacy?.favorite_count || 0,
             views: tweet.views?.count || '0',
             url: `https://x.com/i/status/${tweet.rest_id}`
