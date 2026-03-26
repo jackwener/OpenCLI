@@ -28,6 +28,7 @@ export default defineConfig({
             'src/clis/weread/**/*.test.ts',
             'src/clis/36kr/**/*.test.ts',
             'src/clis/producthunt/**/*.test.ts',
+            'src/clis/paperreview/**/*.test.ts',
           ],
           sequence: { groupOrder: 1 },
         },

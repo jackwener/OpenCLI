@@ -166,6 +166,7 @@ Run `opencli list` for the live registry.
 | **devto** | `top` `tag` `user` | Public |
 | **dictionary** | `search` `synonyms` `examples` | Public |
 | **arxiv** | `search` `paper` | Public |
+| **paperreview** | `submit` `review` `feedback` | Public |
 | **wikipedia** | `search` `summary` `random` `trending` | Public |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` | Public |
 | **jd** | `item` | Browser |

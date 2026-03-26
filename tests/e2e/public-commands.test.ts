@@ -4,6 +4,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { parseJsonOutput, runCli } from './helpers.js';
 
 function isExpectedChineseSiteRestriction(code: number, stderr: string): boolean {
@@ -126,6 +129,35 @@ describe('public commands E2E', () => {
     expect(data[0]).toHaveProperty('rank');
     expect(data[0]).toHaveProperty('title');
     expect(data[0]).toHaveProperty('id');
+  }, 30_000);
+
+  it('paperreview submit dry-run validates a local PDF without remote upload', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'opencli-paperreview-'));
+    const pdfPath = path.join(tempDir, 'sample.pdf');
+    await fs.writeFile(pdfPath, Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(256, 1)]));
+
+    const { stdout, code } = await runCli([
+      'paperreview',
+      'submit',
+      pdfPath,
+      '--email',
+      'wang2629651228@gmail.com',
+      '--venue',
+      'RAL',
+      '--dry-run',
+      'true',
+      '-f',
+      'json',
+    ]);
+
+    expect(code).toBe(0);
+    const data = parseJsonOutput(stdout);
+    expect(data).toMatchObject({
+      status: 'dry-run',
+      file: 'sample.pdf',
+      email: 'wang2629651228@gmail.com',
+      venue: 'RAL',
+    });
   }, 30_000);
 
   // ── hackernews ──

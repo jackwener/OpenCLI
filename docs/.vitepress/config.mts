@@ -99,6 +99,7 @@ export default defineConfig({
                 { text: 'Xiaoyuzhou', link: '/adapters/browser/xiaoyuzhou' },
                 { text: 'Yahoo Finance', link: '/adapters/browser/yahoo-finance' },
                 { text: 'arXiv', link: '/adapters/browser/arxiv' },
+                { text: 'paperreview.ai', link: '/adapters/browser/paperreview' },
                 { text: 'Barchart', link: '/adapters/browser/barchart' },
                 { text: 'Hugging Face', link: '/adapters/browser/hf' },
                 { text: 'Sina Finance', link: '/adapters/browser/sinafinance' },
