@@ -63,6 +63,7 @@ export default defineConfig({
                 { text: 'BOSS Zhipin', link: '/adapters/browser/boss' },
                 { text: 'Ctrip', link: '/adapters/browser/ctrip' },
                 { text: 'Reuters', link: '/adapters/browser/reuters' },
+                { text: 'Web of Science', link: '/adapters/browser/webofscience' },
                 { text: 'SMZDM', link: '/adapters/browser/smzdm' },
                 { text: 'Jike', link: '/adapters/browser/jike' },
                 { text: 'Jimeng', link: '/adapters/browser/jimeng' },
