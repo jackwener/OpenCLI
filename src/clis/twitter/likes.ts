@@ -1,10 +1,10 @@
 import { cli, Strategy } from '../../registry.js';
 import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
+import { resolveTwitterQueryId, sanitizeQueryId } from './shared.js';
 
 const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 const LIKES_QUERY_ID = 'RozQdCp4CilQzrcuU0NY5w';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
-const QUERY_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 const FEATURES = {
   rweb_video_screen_enabled: false,
@@ -55,10 +55,6 @@ interface LikedTweet {
   retweets: number;
   created_at: string;
   url: string;
-}
-
-function sanitizeQueryId(resolved: unknown, fallbackId: string): string {
-  return typeof resolved === 'string' && QUERY_ID_PATTERN.test(resolved) ? resolved : fallbackId;
 }
 
 function buildLikesUrl(queryId: string, userId: string, count: number, cursor?: string | null): string {
@@ -159,36 +155,6 @@ function parseLikes(data: any, seen: Set<string>): { tweets: LikedTweet[]; nextC
   }
 
   return { tweets, nextCursor };
-}
-
-async function resolveTwitterQueryId(page: any, operationName: string, fallbackId: string): Promise<string> {
-  const resolved = await page.evaluate(`async () => {
-    const operationName = ${JSON.stringify(operationName)};
-    try {
-      const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json');
-      if (ghResp.ok) {
-        const data = await ghResp.json();
-        const entry = data?.[operationName];
-        if (entry && entry.queryId) return entry.queryId;
-      }
-    } catch {}
-    try {
-      const scripts = performance.getEntriesByType('resource')
-        .filter(r => r.name.includes('client-web') && r.name.endsWith('.js'))
-        .map(r => r.name);
-      for (const scriptUrl of scripts.slice(0, 15)) {
-        try {
-          const text = await (await fetch(scriptUrl)).text();
-          const re = new RegExp('queryId:"([A-Za-z0-9_-]+)"[^}]{0,200}operationName:"' + operationName + '"');
-          const match = text.match(re);
-          if (match) return match[1];
-        } catch {}
-      }
-    } catch {}
-    return null;
-  }`);
-
-  return sanitizeQueryId(resolved, fallbackId);
 }
 
 cli({

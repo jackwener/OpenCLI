@@ -1,5 +1,6 @@
 import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
 import { cli, Strategy } from '../../registry.js';
+import { resolveTwitterQueryId } from './shared.js';
 
 // ── Twitter GraphQL constants ──────────────────────────────────────────
 
@@ -198,19 +199,7 @@ cli({
     if (!ct0) throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
 
     // Dynamically resolve queryId for the selected endpoint
-    const resolved = await page.evaluate(`async () => {
-      try {
-        const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json');
-        if (ghResp.ok) {
-          const data = await ghResp.json();
-          const entry = data['${endpoint}'];
-          if (entry && entry.queryId) return entry.queryId;
-        }
-      } catch {}
-      return null;
-    }`);
-    // Validate queryId format to prevent injection from untrusted upstream
-    const queryId = typeof resolved === 'string' && /^[A-Za-z0-9_-]+$/.test(resolved) ? resolved : fallbackQueryId;
+    const queryId = await resolveTwitterQueryId(page, endpoint, fallbackQueryId);
 
     // Build auth headers
     const headers = JSON.stringify({
