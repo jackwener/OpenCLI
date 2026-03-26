@@ -21,3 +21,11 @@
   tags: [docker, containers, devops]
   install:
     mac: "brew install --cask docker"
+
+- name: curlconverter
+  binary: curlconverter
+  description: "Convert curl commands to Python, JavaScript, Go, PHP and 40+ other languages"
+  homepage: "https://curlconverter.com"
+  tags: [curl, http, converter, code-gen]
+  install:
+    mac: "npm install -g curlconverter"
