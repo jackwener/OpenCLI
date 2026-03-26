@@ -154,6 +154,7 @@ npm install -g @jackwener/opencli@latest
 | **jd** | `item` | 浏览器 |
 | **linkedin** | `search` `timeline` | 浏览器 |
 | **reuters** | `search` | 浏览器 |
+| **webofscience** | `smart-search` `basic-search` `author-search` `record` | 浏览器 |
 | **smzdm** | `search` | 浏览器 |
 | **web** | `read` | 浏览器 |
 | **weibo** | `hot` `search` | 浏览器 |

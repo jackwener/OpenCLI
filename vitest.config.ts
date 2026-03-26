@@ -30,6 +30,7 @@ export default defineConfig({
             'src/clis/36kr/**/*.test.ts',
             'src/clis/producthunt/**/*.test.ts',
             'src/clis/paperreview/**/*.test.ts',
+            'src/clis/webofscience/**/*.test.ts',
           ],
           sequence: { groupOrder: 1 },
         },
