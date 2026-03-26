@@ -4,7 +4,6 @@
 > 零风控 · 复用 Chrome 登录 · AI 自动发现接口 · 全能 CLI 枢纽
 
 [![English](https://img.shields.io/badge/docs-English-1D4ED8?style=flat-square)](./README.md)
-
 [![npm](https://img.shields.io/npm/v/@jackwener/opencli?style=flat-square)](https://www.npmjs.com/package/@jackwener/opencli)
 [![Node.js Version](https://img.shields.io/node/v/@jackwener/opencli?style=flat-square)](https://nodejs.org)
 [![License](https://img.shields.io/npm/l/@jackwener/opencli?style=flat-square)](./LICENSE)
