@@ -31,18 +31,6 @@ export function normalizeArgValue(argType: string | undefined, value: unknown, n
   throw new CliError('ARGUMENT', `"${name}" must be either "true" or "false".`);
 }
 
-export function normalizeArgValue(argType: string | undefined, value: unknown, name: string): unknown {
-  if (argType !== 'bool') return value;
-  if (typeof value === 'boolean') return value;
-  if (value == null || value === '') return false;
-
-  const normalized = String(value).trim().toLowerCase();
-  if (normalized === 'true') return true;
-  if (normalized === 'false') return false;
-
-  throw new CliError('ARGUMENT', `"${name}" must be either "true" or "false".`);
-}
-
 /**
  * Register a single CliCommand as a Commander subcommand.
  */
