@@ -29,6 +29,7 @@ const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 // ─── State ───────────────────────────────────────────────────────────
 
 let extensionWs: WebSocket | null = null;
+let extensionVersion: string | null = null;
 const pending = new Map<string, {
   resolve: (data: unknown) => void;
   reject: (error: Error) => void;
@@ -117,6 +118,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     jsonResponse(res, 200, {
       ok: true,
       extensionConnected: extensionWs?.readyState === WebSocket.OPEN,
+      extensionVersion,
       pending: pending.size,
     });
     return;
@@ -222,6 +224,12 @@ wss.on('connection', (ws: WebSocket) => {
     try {
       const msg = JSON.parse(data.toString());
 
+      // Handle hello message from extension (version handshake)
+      if (msg.type === 'hello') {
+        extensionVersion = typeof msg.version === 'string' ? msg.version : null;
+        return;
+      }
+
       // Handle log messages from extension
       if (msg.type === 'log') {
         const prefix = msg.level === 'error' ? '❌' : msg.level === 'warn' ? '⚠️' : '📋';
@@ -247,6 +255,7 @@ wss.on('connection', (ws: WebSocket) => {
     clearInterval(heartbeatInterval);
     if (extensionWs === ws) {
       extensionWs = null;
+      extensionVersion = null;
       // Reject all pending requests since the extension is gone
       for (const [id, p] of pending) {
         clearTimeout(p.timer);
@@ -258,7 +267,16 @@ wss.on('connection', (ws: WebSocket) => {
 
   ws.on('error', () => {
     clearInterval(heartbeatInterval);
-    if (extensionWs === ws) extensionWs = null;
+    if (extensionWs === ws) {
+      extensionWs = null;
+      extensionVersion = null;
+      // Reject pending requests in case 'close' does not follow this 'error'
+      for (const [, p] of pending) {
+        clearTimeout(p.timer);
+        p.reject(new Error('Extension disconnected'));
+      }
+      pending.clear();
+    }
   });
 });
 

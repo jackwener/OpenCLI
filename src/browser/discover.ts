@@ -16,14 +16,19 @@ export { isDaemonRunning };
 export async function checkDaemonStatus(): Promise<{
   running: boolean;
   extensionConnected: boolean;
+  extensionVersion?: string;
 }> {
   try {
     const port = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2000);
     const res = await fetch(`http://127.0.0.1:${port}/status`, {
       headers: { 'X-OpenCLI': '1' },
+      signal: controller.signal,
     });
-    const data = await res.json() as { ok: boolean; extensionConnected: boolean };
-    return { running: true, extensionConnected: data.extensionConnected };
+    const data = await res.json() as { ok: boolean; extensionConnected: boolean; extensionVersion?: string };
+    clearTimeout(timer);
+    return { running: true, extensionConnected: data.extensionConnected, extensionVersion: data.extensionVersion };
   } catch {
     return { running: false, extensionConnected: false };
   }

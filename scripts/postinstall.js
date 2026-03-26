@@ -195,6 +195,16 @@ function main() {
       console.error(`Warning: Could not install shell completion: ${err.message}`);
     }
   }
+
+  // ── Browser Bridge setup hint ───────────────────────────────────────
+  console.log('');
+  console.log('  \x1b[1mNext step — Browser Bridge setup\x1b[0m');
+  console.log('  Browser commands (bilibili, zhihu, twitter...) require the extension:');
+  console.log('  1. Download: https://github.com/jackwener/opencli/releases');
+  console.log('  2. Open chrome://extensions → enable Developer Mode → Load unpacked');
+  console.log('');
+  console.log('  Then run \x1b[36mopencli doctor\x1b[0m to verify.');
+  console.log('');
 }
 
 main();

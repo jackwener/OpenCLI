@@ -31,6 +31,7 @@ export type DoctorReport = {
   cliVersion?: string;
   daemonRunning: boolean;
   extensionConnected: boolean;
+  extensionVersion?: string;
   connectivity?: ConnectivityResult;
   sessions?: Array<{ workspace: string; windowId: number; tabCount: number; idleMsRemaining: number }>;
   issues: string[];
@@ -95,10 +96,18 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     issues.push(`Browser connectivity test failed: ${connectivity.error ?? 'unknown'}`);
   }
 
+  if (status.extensionVersion && opts.cliVersion && status.extensionVersion !== opts.cliVersion) {
+    issues.push(
+      `Extension version mismatch: extension v${status.extensionVersion} ≠ CLI v${opts.cliVersion}\n` +
+      '  Download the latest extension from: https://github.com/jackwener/opencli/releases',
+    );
+  }
+
   return {
     cliVersion: opts.cliVersion,
     daemonRunning: status.running,
     extensionConnected: status.extensionConnected,
+    extensionVersion: status.extensionVersion,
     connectivity,
     sessions,
     issues,
@@ -114,7 +123,8 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
 
   // Extension status
   const extIcon = report.extensionConnected ? chalk.green('[OK]') : chalk.yellow('[MISSING]');
-  lines.push(`${extIcon} Extension: ${report.extensionConnected ? 'connected' : 'not connected'}`);
+  const extVersion = report.extensionVersion ? chalk.dim(` (v${report.extensionVersion})`) : '';
+  lines.push(`${extIcon} Extension: ${report.extensionConnected ? 'connected' : 'not connected'}${extVersion}`);
 
   // Connectivity
   if (report.connectivity) {

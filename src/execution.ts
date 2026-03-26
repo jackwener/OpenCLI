@@ -14,10 +14,13 @@ import { type CliCommand, type InternalCliCommand, type Arg, Strategy, getRegist
 import type { IPage } from './types.js';
 import { pathToFileURL } from 'node:url';
 import { executePipeline } from './pipeline/index.js';
-import { AdapterLoadError, ArgumentError, CommandExecutionError, getErrorMessage } from './errors.js';
+import { AdapterLoadError, ArgumentError, BrowserConnectError, CommandExecutionError, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
 import { emitHook, type HookContext } from './hooks.js';
+import { checkDaemonStatus } from './browser/discover.js';
+import { PKG_VERSION } from './version.js';
+import chalk from 'chalk';
 
 const _loadedModules = new Set<string>();
 type CommandArgs = Record<string, unknown>;
@@ -151,6 +154,27 @@ export async function executeCommand(
   let result: unknown;
   try {
     if (shouldUseBrowserSession(cmd)) {
+      // ── Fail-fast: only when daemon is UP but extension is not connected ──
+      // If daemon is not running, let browserSession() handle auto-start as usual.
+      // We only short-circuit when the daemon confirms the extension is missing —
+      // that's a clear setup gap, not a transient startup state.
+      const status = await checkDaemonStatus();
+      if (status.running && !status.extensionConnected) {
+        throw new BrowserConnectError(
+          'Browser Bridge extension not connected',
+          'Install the Browser Bridge:\n' +
+          '  1. Download: https://github.com/jackwener/opencli/releases\n' +
+          '  2. chrome://extensions → Developer Mode → Load unpacked\n' +
+          '  Then run: opencli doctor',
+        );
+      }
+      // ── Version mismatch: warn but don't block ──
+      if (status.extensionVersion && status.extensionVersion !== PKG_VERSION) {
+        process.stderr.write(
+          chalk.yellow(`⚠  Extension v${status.extensionVersion} ≠ CLI v${PKG_VERSION} — consider updating the extension.\n`)
+        );
+      }
+
       ensureRequiredEnv(cmd);
       const BrowserFactory = getBrowserFactory();
       result = await browserSession(BrowserFactory, async (page) => {

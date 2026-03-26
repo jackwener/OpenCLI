@@ -20,6 +20,7 @@ import { discoverClis, discoverPlugins } from './discovery.js';
 import { getCompletions } from './completion.js';
 import { runCli } from './cli.js';
 import { emitHook } from './hooks.js';
+import { registerUpdateNoticeOnExit, checkForUpdateBackground } from './update-check.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +29,11 @@ const USER_CLIS = path.join(os.homedir(), '.opencli', 'clis');
 
 await discoverClis(BUILTIN_CLIS, USER_CLIS);
 await discoverPlugins();
+
+// Register exit hook: notice appears after command output (same as npm/gh/yarn)
+registerUpdateNoticeOnExit();
+// Kick off background fetch for next run (non-blocking)
+checkForUpdateBackground();
 
 // ── Fast-path: handle --get-completions before commander parses ─────────
 // Usage: opencli --get-completions --cursor <N> [word1 word2 ...]
