@@ -235,7 +235,7 @@ describe('public commands E2E', () => {
 
   it('v2ex topic returns topic detail', async () => {
     // Topic 1000001 is a well-known V2EX topic
-    const { stdout, code } = await runCli(['v2ex', 'topic', '--id', '1000001', '-f', 'json']);
+    const { stdout, code } = await runCli(['v2ex', 'topic', '1000001', '-f', 'json']);
     // May fail if V2EX rate-limits, but should return structured data
     if (code === 0) {
       const data = parseJsonOutput(stdout);
