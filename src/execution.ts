@@ -19,8 +19,6 @@ import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { checkDaemonStatus } from './browser/discover.js';
-import { PKG_VERSION } from './version.js';
-import chalk from 'chalk';
 
 const _loadedModules = new Set<string>();
 
@@ -186,13 +184,6 @@ export async function executeCommand(
           '  Then run: opencli doctor',
         );
       }
-      // ── Version mismatch: warn but don't block ──
-      if (status.extensionVersion && status.extensionVersion !== PKG_VERSION) {
-        process.stderr.write(
-          chalk.yellow(`⚠  Extension v${status.extensionVersion} ≠ CLI v${PKG_VERSION} — consider updating the extension.\n`)
-        );
-      }
-
       ensureRequiredEnv(cmd);
       const BrowserFactory = getBrowserFactory();
       result = await browserSession(BrowserFactory, async (page) => {
