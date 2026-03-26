@@ -29,7 +29,8 @@ export async function runCli(
 ): Promise<CliResult> {
   const timeout = opts.timeout ?? 30_000;
   try {
-    const { stdout, stderr } = await exec('node', [MAIN, ...args], {
+    const runtime = process.env.OPENCLI_TEST_RUNTIME || 'node';
+    const { stdout, stderr } = await exec(runtime, [MAIN, ...args], {
       cwd: ROOT,
       timeout,
       env: {
