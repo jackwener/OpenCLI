@@ -50,17 +50,6 @@ export function parseYesNo(value: unknown, name: string): boolean {
   throw new CliError('ARGUMENT', `"${name}" must be either "yes" or "no".`);
 }
 
-export function parseBooleanFlag(value: unknown, name: string): boolean {
-  if (typeof value === 'boolean') return value;
-  if (value == null || value === '') return false;
-
-  const normalized = trimOrEmpty(value).toLowerCase();
-  if (normalized === 'true') return true;
-  if (normalized === 'false') return false;
-
-  throw new CliError('ARGUMENT', `"${name}" must be either "true" or "false".`);
-}
-
 export function normalizeVenue(value: unknown): string {
   return trimOrEmpty(value);
 }

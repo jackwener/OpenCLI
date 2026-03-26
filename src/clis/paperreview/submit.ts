@@ -5,7 +5,6 @@ import {
   ensureApiSuccess,
   ensureSuccess,
   normalizeVenue,
-  parseBooleanFlag,
   readPdfFile,
   requestJson,
   summarizeSubmission,
@@ -29,16 +28,16 @@ cli({
   ],
   columns: ['status', 'file', 'email', 'venue', 'token', 'review_url', 'message'],
   footerExtra: (kwargs) => {
-    if (parseBooleanFlag(kwargs['dry-run'], 'dry-run')) return 'dry run only';
-    if (parseBooleanFlag(kwargs['prepare-only'], 'prepare-only')) return 'prepared only';
+    if (kwargs['dry-run'] === true) return 'dry run only';
+    if (kwargs['prepare-only'] === true) return 'prepared only';
     return undefined;
   },
   func: async (_page, kwargs) => {
     const pdfFile = await readPdfFile(kwargs.pdf);
     const email = String(kwargs.email ?? '').trim();
     const venue = normalizeVenue(kwargs.venue);
-    const dryRun = parseBooleanFlag(kwargs['dry-run'], 'dry-run');
-    const prepareOnly = parseBooleanFlag(kwargs['prepare-only'], 'prepare-only');
+    const dryRun = kwargs['dry-run'] === true;
+    const prepareOnly = kwargs['prepare-only'] === true;
 
     if (!email) {
       throw new CliError('ARGUMENT', 'An email address is required.', 'Pass --email <address>');

@@ -6,7 +6,6 @@ import { CliError } from '../../errors.js';
 import {
   MAX_PDF_BYTES,
   buildReviewUrl,
-  parseBooleanFlag,
   parseYesNo,
   readPdfFile,
   requestJson,
@@ -27,22 +26,9 @@ describe('paperreview utils', () => {
     expect(parseYesNo('NO', 'critical-error')).toBe(false);
   });
 
-  it('parses boolean flags from commander-style values', () => {
-    expect(parseBooleanFlag(undefined, 'dry-run')).toBe(false);
-    expect(parseBooleanFlag(false, 'dry-run')).toBe(false);
-    expect(parseBooleanFlag('false', 'dry-run')).toBe(false);
-    expect(parseBooleanFlag(true, 'dry-run')).toBe(true);
-    expect(parseBooleanFlag('true', 'dry-run')).toBe(true);
-  });
-
   it('rejects invalid yes/no flags with CliError', () => {
     expect(() => parseYesNo('maybe', 'critical-error')).toThrow(CliError);
     expect(() => parseYesNo('maybe', 'critical-error')).toThrow('"critical-error" must be either "yes" or "no".');
-  });
-
-  it('rejects invalid boolean flags with CliError', () => {
-    expect(() => parseBooleanFlag('maybe', 'dry-run')).toThrow(CliError);
-    expect(() => parseBooleanFlag('maybe', 'dry-run')).toThrow('"dry-run" must be either "true" or "false".');
   });
 
   it('validates helpfulness scores', () => {

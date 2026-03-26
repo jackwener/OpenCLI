@@ -101,8 +101,8 @@ describe('paperreview submit command', () => {
       pdf: './paper.pdf',
       email: 'wang2629651228@gmail.com',
       venue: 'RAL',
-      'dry-run': 'false',
-      'prepare-only': 'false',
+      'dry-run': false,
+      'prepare-only': false,
     });
 
     expect(mockUploadPresignedPdf).toHaveBeenCalledTimes(1);
@@ -137,8 +137,8 @@ describe('paperreview submit command', () => {
       pdf: './paper.pdf',
       email: 'wang2629651228@gmail.com',
       venue: 'RAL',
-      'dry-run': 'false',
-      'prepare-only': 'true',
+      'dry-run': false,
+      'prepare-only': true,
     });
 
     expect(mockUploadPresignedPdf).not.toHaveBeenCalled();
