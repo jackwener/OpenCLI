@@ -61,6 +61,27 @@ jobs:
       - name: Run unit tests (Node ${{ matrix.node-version }}, shard ${{ matrix.shard }}/2)
         run: npm test -- --reporter=verbose --shard=${{ matrix.shard }}/2
 
+  # ── Bun compatibility check ──
+  bun-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests under Bun
+        run: bun vitest run --project unit --reporter=verbose
+
   adapter-test:
     runs-on: ${{ matrix.os }}
     strategy:

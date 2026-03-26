@@ -50,10 +50,30 @@ There are many great browser automation tools. Here's when opencli is the right 
 
 ## Prerequisites
 
-- **Node.js**: >= 20.0.0
+- **Node.js**: >= 20.0.0 (or **Bun** >= 1.0 — see [Runtime Support](#runtime-support) below)
 - **Chrome** running **and logged into the target site** (e.g. bilibili.com, zhihu.com, xiaohongshu.com).
 
 > **⚠️ Important**: Browser commands reuse your Chrome login session. You must be logged into the target website in Chrome before running commands. If you get empty data or errors, check your login status first.
+
+### Runtime Support
+
+OpenCLI works with both **Node.js** (≥ 20) and **Bun** (≥ 1.0). All commands and adapters are runtime-agnostic.
+
+```bash
+# Development with Bun (faster startup)
+npm run dev:bun
+
+# Run the built CLI with Bun
+npm run start:bun
+
+# Run unit tests under Bun
+npm run test:bun
+
+# Run E2E tests with Bun as the runtime
+OPENCLI_TEST_RUNTIME=bun npm run test:e2e
+```
+
+Use `opencli doctor` to check your current runtime — it displays the active engine (e.g. `node v22.13.0` or `bun 1.1.42`).
 
 OpenCLI connects to your browser through a lightweight **Browser Bridge** Chrome Extension + micro-daemon (zero config, auto-start).
 
