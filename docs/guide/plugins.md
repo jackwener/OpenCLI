@@ -32,10 +32,97 @@ Plugins live in `~/.opencli/plugins/<name>/`. Each subdirectory is scanned at st
 
 ```bash
 opencli plugin install github:user/repo
+opencli plugin install github:user/repo/subplugin   # install specific sub-plugin from monorepo
 opencli plugin install https://github.com/user/repo
 ```
 
 The repo name prefix `opencli-plugin-` is automatically stripped for the local directory name. For example, `opencli-plugin-hot-digest` becomes `hot-digest`.
+
+## Plugin Manifest (`opencli-plugin.json`)
+
+Plugins can include an `opencli-plugin.json` manifest file at the repo root to declare metadata:
+
+```json
+{
+  "name": "my-plugin",
+  "version": "1.0.0",
+  "opencli": ">=1.0.0",
+  "description": "My awesome plugin"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `name` | Plugin name (overrides repo-derived name) |
+| `version` | Semantic version |
+| `opencli` | Required opencli version range (e.g. `>=1.0.0`, `^1.2.0`) |
+| `description` | Human-readable description |
+| `plugins` | Monorepo sub-plugin declarations (see below) |
+
+The manifest is optional — plugins without one continue to work exactly as before.
+
+## Monorepo Plugins
+
+A single repository can contain multiple plugins by declaring a `plugins` field in `opencli-plugin.json`:
+
+```json
+{
+  "version": "1.0.0",
+  "opencli": ">=1.0.0",
+  "description": "My plugin collection",
+  "plugins": {
+    "polymarket": {
+      "path": "packages/polymarket",
+      "description": "Prediction market analysis",
+      "version": "1.2.0"
+    },
+    "defi": {
+      "path": "packages/defi",
+      "description": "DeFi protocol data",
+      "version": "0.8.0",
+      "opencli": ">=1.2.0"
+    },
+    "experimental": {
+      "path": "packages/experimental",
+      "disabled": true
+    }
+  }
+}
+```
+
+### Installing
+
+```bash
+# Install ALL enabled sub-plugins from a monorepo
+opencli plugin install github:user/opencli-plugins
+
+# Install a SPECIFIC sub-plugin
+opencli plugin install github:user/opencli-plugins/polymarket
+```
+
+### How It Works
+
+- The monorepo is cloned once to `~/.opencli/monorepos/<repo>/`
+- Each sub-plugin gets a symlink in `~/.opencli/plugins/<name>/` pointing to its subdirectory
+- Command discovery works transparently — symlinks are scanned just like regular directories
+- Disabled sub-plugins (with `"disabled": true`) are skipped during install
+- Sub-plugins can specify their own `opencli` compatibility range
+
+### Updating
+
+Updating any sub-plugin from a monorepo pulls the entire repo and refreshes all sub-plugins:
+
+```bash
+opencli plugin update polymarket   # updates the monorepo, refreshes all
+```
+
+### Uninstalling
+
+```bash
+opencli plugin uninstall polymarket   # removes just this sub-plugin's symlink
+```
+
+When the last sub-plugin from a monorepo is uninstalled, the monorepo clone is automatically cleaned up.
 
 ## Version Tracking
 

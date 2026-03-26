@@ -258,9 +258,17 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       const { installPlugin } = await import('./plugin.js');
       const { discoverPlugins } = await import('./discovery.js');
       try {
-        const name = installPlugin(source);
+        const result = installPlugin(source);
         await discoverPlugins();
-        console.log(chalk.green(`✅ Plugin "${name}" installed successfully. Commands are ready to use.`));
+        if (Array.isArray(result)) {
+          if (result.length === 0) {
+            console.log(chalk.yellow('No plugins were installed (all skipped or incompatible).'));
+          } else {
+            console.log(chalk.green(`\u2705 Installed ${result.length} plugin(s) from monorepo: ${result.join(', ')}`));
+          }
+        } else {
+          console.log(chalk.green(`\u2705 Plugin "${result}" installed successfully. Commands are ready to use.`));
+        }
       } catch (err) {
         console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
         process.exitCode = 1;
@@ -368,12 +376,36 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       console.log();
       console.log(chalk.bold('  Installed plugins'));
       console.log();
+
+      // Group by monorepo
+      const standalone = plugins.filter((p) => !p.monorepoName);
+      const monoGroups = new Map<string, typeof plugins>();
       for (const p of plugins) {
+        if (!p.monorepoName) continue;
+        const g = monoGroups.get(p.monorepoName) ?? [];
+        g.push(p);
+        monoGroups.set(p.monorepoName, g);
+      }
+
+      for (const p of standalone) {
         const version = p.version ? chalk.green(` @${p.version}`) : '';
+        const desc = p.description ? chalk.dim(` — ${p.description}`) : '';
         const cmds = p.commands.length > 0 ? chalk.dim(` (${p.commands.join(', ')})`) : '';
         const src = p.source ? chalk.dim(` ← ${p.source}`) : '';
-        console.log(`  ${chalk.cyan(p.name)}${version}${cmds}${src}`);
+        console.log(`  ${chalk.cyan(p.name)}${version}${desc}${cmds}${src}`);
       }
+
+      for (const [mono, group] of monoGroups) {
+        console.log();
+        console.log(chalk.bold.magenta(`  📦 ${mono}`) + chalk.dim(' (monorepo)'));
+        for (const p of group) {
+          const version = p.version ? chalk.green(` @${p.version}`) : '';
+          const desc = p.description ? chalk.dim(` — ${p.description}`) : '';
+          const cmds = p.commands.length > 0 ? chalk.dim(` (${p.commands.join(', ')})`) : '';
+          console.log(`    ${chalk.cyan(p.name)}${version}${desc}${cmds}`);
+        }
+      }
+
       console.log();
       console.log(chalk.dim(`  ${plugins.length} plugin(s) installed`));
       console.log();

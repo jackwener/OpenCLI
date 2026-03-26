@@ -22,6 +22,8 @@ const {
   _updateAllPlugins,
   _validatePluginStructure,
   _writeLockFile,
+  _isSymlinkSync,
+  _getMonoreposDir,
 } = pluginModule;
 
 describe('parseSource', () => {
@@ -336,5 +338,187 @@ describe('updateAllPlugins', () => {
 
     expect(resC).toBeDefined();
     expect(resC!.success).toBe(true);
+  });
+});
+
+// ── Monorepo-specific tests ─────────────────────────────────────────────────
+
+describe('parseSource with monorepo subplugin', () => {
+  it('parses github:user/repo/subplugin format', () => {
+    const result = _parseSource('github:ByteYue/opencli-plugins/polymarket');
+    expect(result).toEqual({
+      cloneUrl: 'https://github.com/ByteYue/opencli-plugins.git',
+      name: 'opencli-plugins',
+      subPlugin: 'polymarket',
+    });
+  });
+
+  it('strips opencli-plugin- prefix from repo name in subplugin format', () => {
+    const result = _parseSource('github:user/opencli-plugin-collection/defi');
+    expect(result!.name).toBe('collection');
+    expect(result!.subPlugin).toBe('defi');
+  });
+
+  it('still parses github:user/repo without subplugin', () => {
+    const result = _parseSource('github:user/my-repo');
+    expect(result).toEqual({
+      cloneUrl: 'https://github.com/user/my-repo.git',
+      name: 'my-repo',
+    });
+    expect(result!.subPlugin).toBeUndefined();
+  });
+});
+
+describe('isSymlinkSync', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-symlink-test-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('returns false for a regular directory', () => {
+    const dir = path.join(tmpDir, 'regular');
+    fs.mkdirSync(dir);
+    expect(_isSymlinkSync(dir)).toBe(false);
+  });
+
+  it('returns true for a symlink', () => {
+    const target = path.join(tmpDir, 'target');
+    const link = path.join(tmpDir, 'link');
+    fs.mkdirSync(target);
+    fs.symlinkSync(target, link, 'dir');
+    expect(_isSymlinkSync(link)).toBe(true);
+  });
+
+  it('returns false for non-existent path', () => {
+    expect(_isSymlinkSync(path.join(tmpDir, 'nope'))).toBe(false);
+  });
+});
+
+describe('monorepo uninstall with symlink', () => {
+  let tmpDir: string;
+  let pluginDir: string;
+  let monoDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-mono-uninstall-'));
+    // We need to use the real PLUGINS_DIR for uninstallPlugin() to work
+    pluginDir = path.join(PLUGINS_DIR, '__test-mono-sub__');
+    monoDir = path.join(_getMonoreposDir(), '__test-mono__');
+
+    // Set up monorepo structure
+    const subDir = path.join(monoDir, 'packages', 'sub');
+    fs.mkdirSync(subDir, { recursive: true });
+    fs.writeFileSync(path.join(subDir, 'cmd.yaml'), 'site: test');
+
+    // Create symlink in plugins dir
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    fs.symlinkSync(subDir, pluginDir, 'dir');
+
+    // Set up lock file with monorepo entry
+    const lock = _readLockFile();
+    lock['__test-mono-sub__'] = {
+      source: 'https://github.com/user/test.git',
+      commitHash: 'abc123',
+      installedAt: '2025-01-01T00:00:00.000Z',
+      monorepo: { name: '__test-mono__', subPath: 'packages/sub' },
+    };
+    _writeLockFile(lock);
+  });
+
+  afterEach(() => {
+    try { fs.unlinkSync(pluginDir); } catch {}
+    try { fs.rmSync(pluginDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(monoDir, { recursive: true, force: true }); } catch {}
+    // Clean up lock entry
+    const lock = _readLockFile();
+    delete lock['__test-mono-sub__'];
+    _writeLockFile(lock);
+  });
+
+  it('removes symlink but keeps monorepo if other sub-plugins reference it', () => {
+    // Add another sub-plugin referencing the same monorepo
+    const lock = _readLockFile();
+    lock['__test-mono-other__'] = {
+      source: 'https://github.com/user/test.git',
+      commitHash: 'abc123',
+      installedAt: '2025-01-01T00:00:00.000Z',
+      monorepo: { name: '__test-mono__', subPath: 'packages/other' },
+    };
+    _writeLockFile(lock);
+
+    uninstallPlugin('__test-mono-sub__');
+
+    // Symlink removed
+    expect(fs.existsSync(pluginDir)).toBe(false);
+    // Monorepo dir still exists (other sub-plugin references it)
+    expect(fs.existsSync(monoDir)).toBe(true);
+    // Lock entry removed
+    expect(_readLockFile()['__test-mono-sub__']).toBeUndefined();
+    // Other lock entry still present
+    expect(_readLockFile()['__test-mono-other__']).toBeDefined();
+
+    // Clean up the other entry
+    const finalLock = _readLockFile();
+    delete finalLock['__test-mono-other__'];
+    _writeLockFile(finalLock);
+  });
+
+  it('removes symlink AND monorepo dir when last sub-plugin is uninstalled', () => {
+    uninstallPlugin('__test-mono-sub__');
+
+    // Symlink removed
+    expect(fs.existsSync(pluginDir)).toBe(false);
+    // Monorepo dir also removed (no more references)
+    expect(fs.existsSync(monoDir)).toBe(false);
+    // Lock entry removed
+    expect(_readLockFile()['__test-mono-sub__']).toBeUndefined();
+  });
+});
+
+describe('listPlugins with monorepo metadata', () => {
+  const testSymlinkTarget = path.join(os.tmpdir(), 'opencli-list-mono-target');
+  const testLink = path.join(PLUGINS_DIR, '__test-mono-list__');
+
+  beforeEach(() => {
+    // Create a target dir with a command file
+    fs.mkdirSync(testSymlinkTarget, { recursive: true });
+    fs.writeFileSync(path.join(testSymlinkTarget, 'hello.yaml'), 'site: test\nname: hello\n');
+
+    // Create symlink
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    try { fs.unlinkSync(testLink); } catch {}
+    fs.symlinkSync(testSymlinkTarget, testLink, 'dir');
+
+    // Set up lock file with monorepo entry
+    const lock = _readLockFile();
+    lock['__test-mono-list__'] = {
+      source: 'https://github.com/user/test-mono.git',
+      commitHash: 'def456def456def456def456def456def456def4',
+      installedAt: '2025-01-01T00:00:00.000Z',
+      monorepo: { name: 'test-mono', subPath: 'packages/list' },
+    };
+    _writeLockFile(lock);
+  });
+
+  afterEach(() => {
+    try { fs.unlinkSync(testLink); } catch {}
+    try { fs.rmSync(testSymlinkTarget, { recursive: true, force: true }); } catch {}
+    const lock = _readLockFile();
+    delete lock['__test-mono-list__'];
+    _writeLockFile(lock);
+  });
+
+  it('lists symlinked plugins with monorepoName', () => {
+    const plugins = listPlugins();
+    const found = plugins.find(p => p.name === '__test-mono-list__');
+    expect(found).toBeDefined();
+    expect(found!.monorepoName).toBe('test-mono');
+    expect(found!.commands).toContain('hello');
+    expect(found!.source).toBe('https://github.com/user/test-mono.git');
   });
 });

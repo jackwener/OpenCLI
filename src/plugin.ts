@@ -2,7 +2,8 @@
  * Plugin management: install, uninstall, and list plugins.
  *
  * Plugins live in ~/.opencli/plugins/<name>/.
- * Install source format: "github:user/repo"
+ * Monorepo clones live in ~/.opencli/monorepos/<repo-name>/.
+ * Install source format: "github:user/repo" or "github:user/repo/subplugin"
  */
 
 import * as fs from 'node:fs';
@@ -13,6 +14,13 @@ import { fileURLToPath } from 'node:url';
 import { PLUGINS_DIR } from './discovery.js';
 import { getErrorMessage } from './errors.js';
 import { log } from './logger.js';
+import {
+  readPluginManifest,
+  isMonorepo,
+  getEnabledPlugins,
+  checkCompatibility,
+  type PluginManifest,
+} from './plugin-manifest.js';
 
 const isWindows = process.platform === 'win32';
 
@@ -26,14 +34,27 @@ export function getLockFilePath(): string {
   return path.join(getHomeDir(), '.opencli', 'plugins.lock.json');
 }
 
+/** Monorepo clones directory: ~/.opencli/monorepos/ */
+export function getMonoreposDir(): string {
+  return path.join(getHomeDir(), '.opencli', 'monorepos');
+}
+
 // Legacy const for backward compatibility (computed at load time)
 export const LOCK_FILE = path.join(os.homedir(), '.opencli', 'plugins.lock.json');
+export const MONOREPOS_DIR = path.join(os.homedir(), '.opencli', 'monorepos');
 
 export interface LockEntry {
   source: string;
   commitHash: string;
   installedAt: string;
   updatedAt?: string;
+  /** Present when this plugin comes from a monorepo. */
+  monorepo?: {
+    /** Monorepo directory name under ~/.opencli/monorepos/ */
+    name: string;
+    /** Relative path of this sub-plugin within the monorepo. */
+    subPath: string;
+  };
 }
 
 export interface PluginInfo {
@@ -43,6 +64,10 @@ export interface PluginInfo {
   source?: string;
   version?: string;
   installedAt?: string;
+  /** If from a monorepo, the monorepo name. */
+  monorepoName?: string;
+  /** Description from opencli-plugin.json. */
+  description?: string;
 }
 
 // ── Validation helpers ──────────────────────────────────────────────────────
@@ -151,31 +176,31 @@ function postInstallLifecycle(pluginDir: string): void {
 
 /**
  * Install a plugin from a source.
- * Currently supports "github:user/repo" format (git clone wrapper).
+ * Supports:
+ *   "github:user/repo"            — single plugin or full monorepo
+ *   "github:user/repo/subplugin"  — specific sub-plugin from a monorepo
+ *   "https://github.com/user/repo"
+ *
+ * Returns the installed plugin name(s).
  */
-export function installPlugin(source: string): string {
+export function installPlugin(source: string): string | string[] {
   const parsed = parseSource(source);
   if (!parsed) {
     throw new Error(
       `Invalid plugin source: "${source}"\n` +
       `Supported formats:\n` +
       `  github:user/repo\n` +
+      `  github:user/repo/subplugin\n` +
       `  https://github.com/user/repo`
     );
   }
 
-  const { cloneUrl, name } = parsed;
-  const targetDir = path.join(PLUGINS_DIR, name);
+  const { cloneUrl, name: repoName, subPlugin } = parsed;
 
-  if (fs.existsSync(targetDir)) {
-    throw new Error(`Plugin "${name}" is already installed at ${targetDir}`);
-  }
-
-  // Ensure plugins directory exists
-  fs.mkdirSync(PLUGINS_DIR, { recursive: true });
-
+  // Clone to a temporary location first so we can inspect the manifest
+  const tmpCloneDir = path.join(os.tmpdir(), `opencli-clone-${Date.now()}`);
   try {
-    execFileSync('git', ['clone', '--depth', '1', cloneUrl, targetDir], {
+    execFileSync('git', ['clone', '--depth', '1', cloneUrl, tmpCloneDir], {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -183,19 +208,56 @@ export function installPlugin(source: string): string {
     throw new Error(`Failed to clone plugin: ${getErrorMessage(err)}`);
   }
 
-  const validation = validatePluginStructure(targetDir);
+  try {
+    const manifest = readPluginManifest(tmpCloneDir);
+
+    // Check top-level compatibility
+    if (manifest?.opencli && !checkCompatibility(manifest.opencli)) {
+      throw new Error(
+        `Plugin requires opencli ${manifest.opencli}, but current version is incompatible.`
+      );
+    }
+
+    if (manifest && isMonorepo(manifest)) {
+      return installMonorepo(tmpCloneDir, cloneUrl, repoName, manifest, subPlugin);
+    }
+
+    // Single plugin mode
+    return installSinglePlugin(tmpCloneDir, cloneUrl, repoName, manifest);
+  } finally {
+    // Clean up temp clone (may already have been moved)
+    try { fs.rmSync(tmpCloneDir, { recursive: true, force: true }); } catch {}
+  }
+}
+
+/** Install a single (non-monorepo) plugin. */
+function installSinglePlugin(
+  cloneDir: string,
+  cloneUrl: string,
+  name: string,
+  manifest: PluginManifest | null,
+): string {
+  const pluginName = manifest?.name ?? name;
+  const targetDir = path.join(PLUGINS_DIR, pluginName);
+
+  if (fs.existsSync(targetDir)) {
+    throw new Error(`Plugin "${pluginName}" is already installed at ${targetDir}`);
+  }
+
+  const validation = validatePluginStructure(cloneDir);
   if (!validation.valid) {
-    // If validation fails, clean up the cloned directory and abort
-    fs.rmSync(targetDir, { recursive: true, force: true });
     throw new Error(`Invalid plugin structure:\n- ${validation.errors.join('\n- ')}`);
   }
+
+  fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+  fs.renameSync(cloneDir, targetDir);
 
   postInstallLifecycle(targetDir);
 
   const commitHash = getCommitHash(targetDir);
   if (commitHash) {
     const lock = readLockFile();
-    lock[name] = {
+    lock[pluginName] = {
       source: cloneUrl,
       commitHash,
       installedAt: new Date().toISOString(),
@@ -203,28 +265,151 @@ export function installPlugin(source: string): string {
     writeLockFile(lock);
   }
 
-  return name;
+  return pluginName;
+}
+
+/** Install sub-plugins from a monorepo. */
+function installMonorepo(
+  cloneDir: string,
+  cloneUrl: string,
+  repoName: string,
+  manifest: PluginManifest,
+  subPlugin?: string,
+): string[] {
+  const monoreposDir = getMonoreposDir();
+  const repoDir = path.join(monoreposDir, repoName);
+
+  // Move clone to permanent monorepos location (if not already there)
+  if (!fs.existsSync(repoDir)) {
+    fs.mkdirSync(monoreposDir, { recursive: true });
+    fs.renameSync(cloneDir, repoDir);
+  }
+
+  let pluginsToInstall = getEnabledPlugins(manifest);
+
+  // If a specific sub-plugin was requested, filter to just that one
+  if (subPlugin) {
+    pluginsToInstall = pluginsToInstall.filter((p) => p.name === subPlugin);
+    if (pluginsToInstall.length === 0) {
+      // Check if it exists but is disabled
+      const disabled = manifest.plugins?.[subPlugin];
+      if (disabled) {
+        throw new Error(`Sub-plugin "${subPlugin}" is disabled in the manifest.`);
+      }
+      throw new Error(
+        `Sub-plugin "${subPlugin}" not found in monorepo. Available: ${Object.keys(manifest.plugins ?? {}).join(', ')}`
+      );
+    }
+  }
+
+  const installedNames: string[] = [];
+  const lock = readLockFile();
+  const commitHash = getCommitHash(repoDir);
+
+  fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+
+  for (const { name, entry } of pluginsToInstall) {
+    // Check sub-plugin level compatibility (overrides top-level)
+    if (entry.opencli && !checkCompatibility(entry.opencli)) {
+      log.warn(`Skipping "${name}": requires opencli ${entry.opencli}`);
+      continue;
+    }
+
+    const subDir = path.join(repoDir, entry.path);
+    if (!fs.existsSync(subDir)) {
+      log.warn(`Skipping "${name}": path "${entry.path}" not found in repo.`);
+      continue;
+    }
+
+    const validation = validatePluginStructure(subDir);
+    if (!validation.valid) {
+      log.warn(`Skipping "${name}": invalid structure — ${validation.errors.join(', ')}`);
+      continue;
+    }
+
+    const linkPath = path.join(PLUGINS_DIR, name);
+    if (fs.existsSync(linkPath)) {
+      log.warn(`Skipping "${name}": already installed at ${linkPath}`);
+      continue;
+    }
+
+    // Create symlink (junction on Windows)
+    const linkType = isWindows ? 'junction' : 'dir';
+    fs.symlinkSync(subDir, linkPath, linkType);
+
+    postInstallLifecycle(subDir);
+
+    if (commitHash) {
+      lock[name] = {
+        source: cloneUrl,
+        commitHash,
+        installedAt: new Date().toISOString(),
+        monorepo: { name: repoName, subPath: entry.path },
+      };
+    }
+
+    installedNames.push(name);
+  }
+
+  writeLockFile(lock);
+  return installedNames;
 }
 
 /**
  * Uninstall a plugin by name.
+ * For monorepo sub-plugins: removes symlink and cleans up the monorepo
+ * directory when no more sub-plugins reference it.
  */
 export function uninstallPlugin(name: string): void {
   const targetDir = path.join(PLUGINS_DIR, name);
   if (!fs.existsSync(targetDir)) {
     throw new Error(`Plugin "${name}" is not installed.`);
   }
-  fs.rmSync(targetDir, { recursive: true, force: true });
 
   const lock = readLockFile();
-  if (lock[name]) {
+  const lockEntry = lock[name];
+
+  // Check if this is a symlink (monorepo sub-plugin)
+  const isSymlink = isSymlinkSync(targetDir);
+
+  if (isSymlink) {
+    // Remove symlink only (not the actual directory)
+    fs.unlinkSync(targetDir);
+  } else {
+    fs.rmSync(targetDir, { recursive: true, force: true });
+  }
+
+  // Clean up monorepo directory if no more sub-plugins reference it
+  if (lockEntry?.monorepo) {
     delete lock[name];
-    writeLockFile(lock);
+    const monoName = lockEntry.monorepo.name;
+    const stillReferenced = Object.values(lock).some(
+      (entry) => entry.monorepo?.name === monoName,
+    );
+    if (!stillReferenced) {
+      const monoDir = path.join(getMonoreposDir(), monoName);
+      try { fs.rmSync(monoDir, { recursive: true, force: true }); } catch {}
+    }
+  } else if (lock[name]) {
+    delete lock[name];
+  }
+
+  writeLockFile(lock);
+}
+
+/** Synchronous check if a path is a symlink. */
+function isSymlinkSync(p: string): boolean {
+  try {
+    return fs.lstatSync(p).isSymbolicLink();
+  } catch {
+    return false;
   }
 }
 
 /**
  * Update a plugin by name (git pull + re-install lifecycle).
+ * For monorepo sub-plugins: pulls the monorepo root and re-runs lifecycle
+ * for all sub-plugins from the same monorepo.
  */
 export function updatePlugin(name: string): void {
   const targetDir = path.join(PLUGINS_DIR, name);
@@ -232,6 +417,46 @@ export function updatePlugin(name: string): void {
     throw new Error(`Plugin "${name}" is not installed.`);
   }
 
+  const lock = readLockFile();
+  const lockEntry = lock[name];
+
+  if (lockEntry?.monorepo) {
+    // Monorepo update: pull the repo root
+    const monoDir = path.join(getMonoreposDir(), lockEntry.monorepo.name);
+    try {
+      execFileSync('git', ['pull', '--ff-only'], {
+        cwd: monoDir,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (err) {
+      throw new Error(`Failed to update monorepo: ${getErrorMessage(err)}`);
+    }
+
+    // Re-run lifecycle for ALL sub-plugins from this monorepo
+    const monoName = lockEntry.monorepo.name;
+    const commitHash = getCommitHash(monoDir);
+    for (const [pluginName, entry] of Object.entries(lock)) {
+      if (entry.monorepo?.name !== monoName) continue;
+      const subDir = path.join(monoDir, entry.monorepo.subPath);
+      const validation = validatePluginStructure(subDir);
+      if (!validation.valid) {
+        log.warn(`Plugin "${pluginName}" structure invalid after update:\n- ${validation.errors.join('\n- ')}`);
+      }
+      postInstallLifecycle(subDir);
+      if (commitHash) {
+        lock[pluginName] = {
+          ...entry,
+          commitHash,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+    }
+    writeLockFile(lock);
+    return;
+  }
+
+  // Standard single-plugin update
   try {
     execFileSync('git', ['pull', '--ff-only'], {
       cwd: targetDir,
@@ -251,7 +476,6 @@ export function updatePlugin(name: string): void {
 
   const commitHash = getCommitHash(targetDir);
   if (commitHash) {
-    const lock = readLockFile();
     const existing = lock[name];
     lock[name] = {
       source: existing?.source ?? getPluginSource(targetDir) ?? '',
@@ -290,6 +514,7 @@ export function updateAllPlugins(): UpdateResult[] {
 
 /**
  * List all installed plugins.
+ * Reads opencli-plugin.json for description/version when available.
  */
 export function listPlugins(): PluginInfo[] {
   if (!fs.existsSync(PLUGINS_DIR)) return [];
@@ -299,19 +524,42 @@ export function listPlugins(): PluginInfo[] {
   const plugins: PluginInfo[] = [];
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    // Accept both real directories and symlinks (monorepo sub-plugins)
     const pluginDir = path.join(PLUGINS_DIR, entry.name);
+    const isDir = entry.isDirectory() || isSymlinkSync(pluginDir);
+    if (!isDir) continue;
+
     const commands = scanPluginCommands(pluginDir);
-    const source = getPluginSource(pluginDir);
     const lockEntry = lock[entry.name];
+
+    // Try to read manifest for metadata
+    const manifest = readPluginManifest(pluginDir);
+    // For monorepo sub-plugins, also check the monorepo root manifest
+    let description = manifest?.description;
+    let version = manifest?.version;
+    if (lockEntry?.monorepo && !description) {
+      const monoDir = path.join(getMonoreposDir(), lockEntry.monorepo.name);
+      const monoManifest = readPluginManifest(monoDir);
+      const subEntry = monoManifest?.plugins?.[entry.name];
+      if (subEntry) {
+        description = description ?? subEntry.description;
+        version = version ?? subEntry.version;
+      }
+    }
+
+    const source = lockEntry?.monorepo
+      ? lockEntry.source
+      : getPluginSource(pluginDir);
 
     plugins.push({
       name: entry.name,
       path: pluginDir,
       commands,
       source,
-      version: lockEntry?.commitHash?.slice(0, 7),
+      version: version ?? lockEntry?.commitHash?.slice(0, 7),
       installedAt: lockEntry?.installedAt,
+      monorepoName: lockEntry?.monorepo?.name,
+      description,
     });
   }
 
@@ -350,8 +598,24 @@ function getPluginSource(dir: string): string | undefined {
   }
 }
 
-/** Parse a plugin source string into clone URL and name */
-function parseSource(source: string): { cloneUrl: string; name: string } | null {
+/** Parse a plugin source string into clone URL, repo name, and optional sub-plugin. */
+function parseSource(
+  source: string,
+): { cloneUrl: string; name: string; subPlugin?: string } | null {
+  // github:user/repo/subplugin  (monorepo specific sub-plugin)
+  const githubSubMatch = source.match(
+    /^github:([\w.-]+)\/([\w.-]+)\/([\w.-]+)$/,
+  );
+  if (githubSubMatch) {
+    const [, user, repo, sub] = githubSubMatch;
+    const name = repo.replace(/^opencli-plugin-/, '');
+    return {
+      cloneUrl: `https://github.com/${user}/${repo}.git`,
+      name,
+      subPlugin: sub,
+    };
+  }
+
   // github:user/repo
   const githubMatch = source.match(/^github:([\w.-]+)\/([\w.-]+)$/);
   if (githubMatch) {
@@ -364,7 +628,9 @@ function parseSource(source: string): { cloneUrl: string; name: string } | null 
   }
 
   // https://github.com/user/repo (or .git)
-  const urlMatch = source.match(/^https?:\/\/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?$/);
+  const urlMatch = source.match(
+    /^https?:\/\/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?$/,
+  );
   if (urlMatch) {
     const [, user, repo] = urlMatch;
     const name = repo.replace(/^opencli-plugin-/, '');
@@ -519,4 +785,6 @@ export {
   updateAllPlugins as _updateAllPlugins,
   validatePluginStructure as _validatePluginStructure,
   writeLockFile as _writeLockFile,
+  isSymlinkSync as _isSymlinkSync,
+  getMonoreposDir as _getMonoreposDir,
 };
