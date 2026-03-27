@@ -31,7 +31,10 @@ function getUserRegistryPath(): string {
   return path.join(home, '.opencli', 'external-clis.yaml');
 }
 
+let _cachedExternalClis: ExternalCliConfig[] | null = null;
+
 export function loadExternalClis(): ExternalCliConfig[] {
+  if (_cachedExternalClis) return _cachedExternalClis;
   const configs = new Map<string, ExternalCliConfig>();
 
   // 1. Load built-in
@@ -60,7 +63,8 @@ export function loadExternalClis(): ExternalCliConfig[] {
     log.warn(`Failed to parse user external-clis.yaml: ${getErrorMessage(err)}`);
   }
 
-  return Array.from(configs.values()).sort((a, b) => a.name.localeCompare(b.name));
+  _cachedExternalClis = Array.from(configs.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return _cachedExternalClis;
 }
 
 export function isBinaryInstalled(binary: string): boolean {
@@ -237,5 +241,6 @@ export function registerExternalCli(name: string, opts?: RegisterOptions): void 
 
   const dump = yaml.dump(items, { indent: 2, sortKeys: true });
   fs.writeFileSync(userPath, dump, 'utf8');
+  _cachedExternalClis = null; // Invalidate cache so next load reflects the change
   console.log(chalk.dim(userPath));
 }

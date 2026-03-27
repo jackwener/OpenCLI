@@ -1,5 +1,5 @@
 /**
- * opencli doctor — diagnose and fix browser connectivity.
+ * opencli doctor — diagnose browser connectivity.
  *
  * Simplified for the daemon-based architecture. No more token management,
  * MCP path discovery, or config file scanning.
@@ -14,7 +14,6 @@ import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 
 export type DoctorOptions = {
-  fix?: boolean;
   yes?: boolean;
   live?: boolean;
   sessions?: boolean;
@@ -87,7 +86,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     issues.push(
       'Daemon is running but the Chrome extension is not connected.\n' +
       'Please install the opencli Browser Bridge extension:\n' +
-      '  1. Download from GitHub Releases\n' +
+      '  1. Download from https://github.com/jackwener/opencli/releases\n' +
       '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
       '  3. Click "Load unpacked" → select the extension folder',
     );

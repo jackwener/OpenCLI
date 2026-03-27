@@ -51,8 +51,12 @@ export class AuthRequiredError extends CliError {
 }
 
 export class TimeoutError extends CliError {
-  constructor(label: string, seconds: number) {
-    super('TIMEOUT', `${label} timed out after ${seconds}s`, 'Try again, or increase timeout with OPENCLI_BROWSER_COMMAND_TIMEOUT env var');
+  constructor(label: string, seconds: number, hint?: string) {
+    super(
+      'TIMEOUT',
+      `${label} timed out after ${seconds}s`,
+      hint ?? 'Try again, or increase timeout with OPENCLI_BROWSER_COMMAND_TIMEOUT env var',
+    );
   }
 }
 

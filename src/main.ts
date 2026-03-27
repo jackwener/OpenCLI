@@ -27,6 +27,7 @@ const __dirname = path.dirname(__filename);
 const BUILTIN_CLIS = path.resolve(__dirname, 'clis');
 const USER_CLIS = path.join(os.homedir(), '.opencli', 'clis');
 
+// Sequential: plugins must run after built-in discovery so they can override built-in commands.
 await discoverClis(BUILTIN_CLIS, USER_CLIS);
 await discoverPlugins();
 

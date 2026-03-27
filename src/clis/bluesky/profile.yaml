@@ -1,0 +1,27 @@
+site: bluesky
+name: profile
+description: Get Bluesky user profile info
+domain: public.api.bsky.app
+strategy: public
+browser: false
+
+args:
+  handle:
+    type: str
+    required: true
+    positional: true
+    description: "Bluesky handle (e.g. bsky.app, jay.bsky.team)"
+
+pipeline:
+  - fetch:
+      url: https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${{ args.handle }}
+
+  - map:
+      handle: ${{ item.handle }}
+      name: ${{ item.displayName }}
+      followers: ${{ item.followersCount }}
+      following: ${{ item.followsCount }}
+      posts: ${{ item.postsCount }}
+      description: ${{ item.description }}
+
+columns: [handle, name, followers, following, posts, description]

@@ -1,0 +1,29 @@
+site: bluesky
+name: feeds
+description: Popular Bluesky feed generators
+domain: public.api.bsky.app
+strategy: public
+browser: false
+
+args:
+  limit:
+    type: int
+    default: 20
+    description: Number of feeds
+
+pipeline:
+  - fetch:
+      url: https://public.api.bsky.app/xrpc/app.bsky.unspecced.getPopularFeedGenerators?limit=${{ args.limit }}
+
+  - select: feeds
+
+  - map:
+      rank: ${{ index + 1 }}
+      name: ${{ item.displayName }}
+      likes: ${{ item.likeCount }}
+      creator: ${{ item.creator.handle }}
+      description: ${{ item.description }}
+
+  - limit: ${{ args.limit }}
+
+columns: [rank, name, likes, creator, description]

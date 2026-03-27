@@ -51,9 +51,10 @@ describe('xiaohongshu publish', () => {
     const page = createPageMock([
       'https://creator.xiaohongshu.com/publish/publish?from=menu_left',
       { ok: true, target: '上传图文', text: '上传图文' },
-      { hasTitleInput: true, hasImageInput: true, hasVideoSurface: false },
+      { state: 'editor_ready', hasTitleInput: true, hasImageInput: true, hasVideoSurface: false },
       { ok: true, count: 1 },
       false,
+      true, // waitForEditForm: editor appeared
       { ok: true, sel: 'input[maxlength="20"]' },
       { ok: true, sel: '[contenteditable="true"][class*="content"]' },
       true,
@@ -84,18 +85,23 @@ describe('xiaohongshu publish', () => {
     const cmd = getRegistry().get('xiaohongshu/publish');
     expect(cmd?.func).toBeTypeOf('function');
 
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-publish-'));
+    const imagePath = path.join(tempDir, 'demo.jpg');
+    fs.writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+
     const page = createPageMock([
       'https://creator.xiaohongshu.com/publish/publish?from=menu_left',
       { ok: false, visibleTexts: ['上传视频', '上传图文'] },
-      { hasTitleInput: false, hasImageInput: false, hasVideoSurface: true },
-      { hasTitleInput: false, hasImageInput: false, hasVideoSurface: true },
-      { hasTitleInput: false, hasImageInput: false, hasVideoSurface: true },
-      { hasTitleInput: false, hasImageInput: false, hasVideoSurface: true },
+      { state: 'video_surface', hasTitleInput: false, hasImageInput: false, hasVideoSurface: true },
+      { state: 'video_surface', hasTitleInput: false, hasImageInput: false, hasVideoSurface: true },
+      { state: 'video_surface', hasTitleInput: false, hasImageInput: false, hasVideoSurface: true },
+      { state: 'video_surface', hasTitleInput: false, hasImageInput: false, hasVideoSurface: true },
     ]);
 
     await expect(cmd!.func!(page, {
       title: 'DeepSeek别乱问',
       content: '一篇真实一点的小红书正文',
+      images: imagePath,
       topics: '',
       draft: false,
     })).rejects.toThrow('Still on the video publish page after trying to select 图文');
@@ -107,11 +113,18 @@ describe('xiaohongshu publish', () => {
     const cmd = getRegistry().get('xiaohongshu/publish');
     expect(cmd?.func).toBeTypeOf('function');
 
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-publish-'));
+    const imagePath = path.join(tempDir, 'demo.jpg');
+    fs.writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+
     const page = createPageMock([
       'https://creator.xiaohongshu.com/publish/publish?from=menu_left',
       { ok: true, target: '上传图文', text: '上传图文' },
-      { hasTitleInput: false, hasImageInput: false, hasVideoSurface: true },
-      { hasTitleInput: true, hasImageInput: true, hasVideoSurface: false },
+      { state: 'video_surface', hasTitleInput: false, hasImageInput: false, hasVideoSurface: true },
+      { state: 'editor_ready', hasTitleInput: true, hasImageInput: true, hasVideoSurface: false },
+      { ok: true, count: 1 }, // injectImages
+      false, // waitForUploads: no progress indicator
+      true, // waitForEditForm: editor appeared
       { ok: true, sel: 'input[maxlength="20"]' },
       { ok: true, sel: '[contenteditable="true"][class*="content"]' },
       true,
@@ -122,6 +135,7 @@ describe('xiaohongshu publish', () => {
     const result = await cmd!.func!(page, {
       title: '延迟切换也能过',
       content: '图文页切换慢一点也继续等',
+      images: imagePath,
       topics: '',
       draft: false,
     });
@@ -130,7 +144,7 @@ describe('xiaohongshu publish', () => {
     expect(result).toEqual([
       {
         status: '✅ 发布成功',
-        detail: '"延迟切换也能过" · 无图 · 发布成功',
+        detail: '"延迟切换也能过" · 1张图片 · 发布成功',
       },
     ]);
   });

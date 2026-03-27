@@ -31,9 +31,19 @@ Plugins live in `~/.opencli/plugins/<name>/`. Each subdirectory is scanned at st
 ### Supported Source Formats
 
 ```bash
+# GitHub shorthand
 opencli plugin install github:user/repo
 opencli plugin install github:user/repo/subplugin   # install specific sub-plugin from monorepo
 opencli plugin install https://github.com/user/repo
+
+# Any git-cloneable URL
+opencli plugin install https://gitlab.example.com/team/repo.git
+opencli plugin install ssh://git@gitlab.example.com/team/repo.git
+opencli plugin install git@gitlab.example.com:team/repo.git
+
+# Local plugin (for development)
+opencli plugin install file:///path/to/plugin
+opencli plugin install /path/to/plugin
 ```
 
 The repo name prefix `opencli-plugin-` is automatically stripped for the local directory name. For example, `opencli-plugin-hot-digest` becomes `hot-digest`.

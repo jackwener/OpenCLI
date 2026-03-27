@@ -127,24 +127,20 @@ async function discoverClisFromFs(dir: string): Promise<void> {
       const site = entry.name;
       const siteDir = path.join(dir, site);
       const files = await fs.promises.readdir(siteDir);
-      const filePromises: Promise<unknown>[] = [];
-      for (const file of files) {
+      await Promise.all(files.map(async (file) => {
         const filePath = path.join(siteDir, file);
         if (file.endsWith('.yaml') || file.endsWith('.yml')) {
-          filePromises.push(registerYamlCli(filePath, site));
+          await registerYamlCli(filePath, site);
         } else if (
           (file.endsWith('.js') && !file.endsWith('.d.js')) ||
           (file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts'))
         ) {
-          if (!(await isCliModule(filePath))) continue;
-          filePromises.push(
-            import(pathToFileURL(filePath).href).catch((err) => {
-              log.warn(`Failed to load module ${filePath}: ${getErrorMessage(err)}`);
-            })
-          );
+          if (!(await isCliModule(filePath))) return;
+          await import(pathToFileURL(filePath).href).catch((err) => {
+            log.warn(`Failed to load module ${filePath}: ${getErrorMessage(err)}`);
+          });
         }
-      }
-      await Promise.all(filePromises);
+      }));
     });
   await Promise.all(sitePromises);
 }
@@ -195,10 +191,11 @@ async function registerYamlCli(filePath: string, defaultSite: string): Promise<v
 export async function discoverPlugins(): Promise<void> {
   try { await fs.promises.access(PLUGINS_DIR); } catch { return; }
   const entries = await fs.promises.readdir(PLUGINS_DIR, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    await discoverPluginDir(path.join(PLUGINS_DIR, entry.name), entry.name);
-  }
+  await Promise.all(entries.map(async (entry) => {
+    const pluginDir = path.join(PLUGINS_DIR, entry.name);
+    if (!(await isDiscoverablePluginDir(entry, pluginDir))) return;
+    await discoverPluginDir(pluginDir, entry.name);
+  }));
 }
 
 /**
@@ -208,33 +205,29 @@ export async function discoverPlugins(): Promise<void> {
 async function discoverPluginDir(dir: string, site: string): Promise<void> {
   const files = await fs.promises.readdir(dir);
   const fileSet = new Set(files);
-  const promises: Promise<unknown>[] = [];
-  for (const file of files) {
+  await Promise.all(files.map(async (file) => {
     const filePath = path.join(dir, file);
     if (file.endsWith('.yaml') || file.endsWith('.yml')) {
-      promises.push(registerYamlCli(filePath, site));
+      await registerYamlCli(filePath, site);
     } else if (file.endsWith('.js') && !file.endsWith('.d.js')) {
-      if (!(await isCliModule(filePath))) continue;
-      promises.push(
-        import(pathToFileURL(filePath).href).catch((err) => {
-          log.warn(`Plugin ${site}/${file}: ${getErrorMessage(err)}`);
-        })
-      );
+      if (!(await isCliModule(filePath))) return;
+      await import(pathToFileURL(filePath).href).catch((err) => {
+        log.warn(`Plugin ${site}/${file}: ${getErrorMessage(err)}`);
+      });
     } else if (
       file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts')
     ) {
-      // Skip .ts if a compiled .js sibling exists (production mode can't load .ts)
       const jsFile = file.replace(/\.ts$/, '.js');
-      if (fileSet.has(jsFile)) continue;
-      if (!(await isCliModule(filePath))) continue;
-      promises.push(
-        import(pathToFileURL(filePath).href).catch((err) => {
-          log.warn(`Plugin ${site}/${file}: ${getErrorMessage(err)}`);
-        })
+      // Prefer compiled .js — skip the .ts source file
+      if (fileSet.has(jsFile)) return;
+      // No compiled .js found — cannot import raw .ts in production Node.js.
+      // This typically means esbuild transpilation failed during plugin install.
+      log.warn(
+        `Plugin ${site}/${file}: no compiled .js found. ` +
+        `Run "opencli plugin update ${site}" to re-transpile, or install esbuild.`
       );
     }
-  }
-  await Promise.all(promises);
+  }));
 }
 
 async function isCliModule(filePath: string): Promise<boolean> {
@@ -243,6 +236,21 @@ async function isCliModule(filePath: string): Promise<boolean> {
     return PLUGIN_MODULE_PATTERN.test(source);
   } catch (err) {
     log.warn(`Failed to inspect module ${filePath}: ${getErrorMessage(err)}`);
+    return false;
+  }
+}
+
+async function isDiscoverablePluginDir(entry: fs.Dirent, pluginDir: string): Promise<boolean> {
+  if (entry.isDirectory()) return true;
+  if (!entry.isSymbolicLink()) return false;
+
+  try {
+    return (await fs.promises.stat(pluginDir)).isDirectory();
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+      log.warn(`Failed to inspect plugin link ${pluginDir}: ${getErrorMessage(err)}`);
+    }
     return false;
   }
 }

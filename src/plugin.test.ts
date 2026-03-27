@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { PLUGINS_DIR } from './discovery.js';
 import type { LockEntry } from './plugin.js';
 import * as pluginModule from './plugin.js';
@@ -16,12 +17,15 @@ const { mockExecFileSync, mockExecSync } = vi.hoisted(() => ({
 }));
 
 const {
-  LOCK_FILE,
   _getCommitHash,
   _installDependencies,
   _postInstallMonorepoLifecycle,
+  _promoteDir,
+  _replaceDir,
+  installPlugin,
   listPlugins,
   _readLockFile,
+  _readLockFileWithWriter,
   _resolveEsbuildBin,
   uninstallPlugin,
   updatePlugin,
@@ -29,14 +33,24 @@ const {
   _updateAllPlugins,
   _validatePluginStructure,
   _writeLockFile,
+  _writeLockFileWithFs,
   _isSymlinkSync,
   _getMonoreposDir,
+  getLockFilePath,
+  _installLocalPlugin,
+  _isLocalPluginSource,
+  _moveDir,
+  _resolvePluginSource,
+  _resolveStoredPluginSource,
+  _toStoredPluginSource,
+  _toLocalPluginSource,
 } = pluginModule;
 
 describe('parseSource', () => {
   it('parses github:user/repo format', () => {
     const result = _parseSource('github:ByteYue/opencli-plugin-github-trending');
     expect(result).toEqual({
+      type: 'git',
       cloneUrl: 'https://github.com/ByteYue/opencli-plugin-github-trending.git',
       name: 'github-trending',
     });
@@ -45,6 +59,7 @@ describe('parseSource', () => {
   it('parses https URL format', () => {
     const result = _parseSource('https://github.com/ByteYue/opencli-plugin-hot-digest');
     expect(result).toEqual({
+      type: 'git',
       cloneUrl: 'https://github.com/ByteYue/opencli-plugin-hot-digest.git',
       name: 'hot-digest',
     });
@@ -63,6 +78,98 @@ describe('parseSource', () => {
   it('returns null for invalid source', () => {
     expect(_parseSource('invalid')).toBeNull();
     expect(_parseSource('npm:some-package')).toBeNull();
+  });
+
+  it('parses file:// local plugin directories', () => {
+    const localDir = path.join(os.tmpdir(), 'opencli-plugin-test');
+    const fileUrl = pathToFileURL(localDir).href;
+    const result = _parseSource(fileUrl);
+    expect(result).toEqual({
+      type: 'local',
+      localPath: localDir,
+      name: 'test',
+    });
+  });
+
+  it('parses plain absolute local plugin directories', () => {
+    const localDir = path.join(os.tmpdir(), 'my-plugin');
+    const result = _parseSource(localDir);
+    expect(result).toEqual({
+      type: 'local',
+      localPath: localDir,
+      name: 'my-plugin',
+    });
+  });
+
+  it('strips opencli-plugin- prefix for local paths', () => {
+    const localDir = path.join(os.tmpdir(), 'opencli-plugin-foo');
+    const result = _parseSource(localDir);
+    expect(result!.name).toBe('foo');
+  });
+
+  // ── Generic git URL support ──
+  it('parses ssh:// URLs', () => {
+    const result = _parseSource('ssh://git@gitlab.com/team/opencli-plugin-tools.git');
+    expect(result).toEqual({
+      type: 'git',
+      cloneUrl: 'ssh://git@gitlab.com/team/opencli-plugin-tools.git',
+      name: 'tools',
+    });
+  });
+
+  it('parses ssh:// URLs without .git suffix', () => {
+    const result = _parseSource('ssh://git@gitlab.com/team/my-plugin');
+    expect(result).toEqual({
+      type: 'git',
+      cloneUrl: 'ssh://git@gitlab.com/team/my-plugin',
+      name: 'my-plugin',
+    });
+  });
+
+  it('parses git@ SCP-style URLs', () => {
+    const result = _parseSource('git@gitlab.com:team/my-plugin.git');
+    expect(result).toEqual({
+      type: 'git',
+      cloneUrl: 'git@gitlab.com:team/my-plugin.git',
+      name: 'my-plugin',
+    });
+  });
+
+  it('parses git@ SCP-style URLs and strips opencli-plugin- prefix', () => {
+    const result = _parseSource('git@github.com:user/opencli-plugin-awesome.git');
+    expect(result).toEqual({
+      type: 'git',
+      cloneUrl: 'git@github.com:user/opencli-plugin-awesome.git',
+      name: 'awesome',
+    });
+  });
+
+  it('parses generic HTTPS git URLs (non-GitHub)', () => {
+    const result = _parseSource('https://codehub.example.com/Team/App/opencli-plugins-app.git');
+    expect(result).toEqual({
+      type: 'git',
+      cloneUrl: 'https://codehub.example.com/Team/App/opencli-plugins-app.git',
+      name: 'opencli-plugins-app',
+    });
+  });
+
+  it('parses generic HTTPS git URLs without .git suffix', () => {
+    const result = _parseSource('https://gitlab.example.com/org/my-plugin');
+    expect(result).toEqual({
+      type: 'git',
+      cloneUrl: 'https://gitlab.example.com/org/my-plugin.git',
+      name: 'my-plugin',
+    });
+  });
+
+  it('still prefers GitHub shorthand over generic HTTPS for github.com', () => {
+    const result = _parseSource('https://github.com/user/repo');
+    // Should be handled by the GitHub-specific matcher (normalizes URL)
+    expect(result).toEqual({
+      type: 'git',
+      cloneUrl: 'https://github.com/user/repo.git',
+      name: 'repo',
+    });
   });
 });
 
@@ -128,40 +235,40 @@ describe('validatePluginStructure', () => {
 });
 
 describe('lock file', () => {
-  const backupPath = `${LOCK_FILE}.test-backup`;
+  const backupPath = `${getLockFilePath()}.test-backup`;
   let hadOriginal = false;
 
   beforeEach(() => {
-    hadOriginal = fs.existsSync(LOCK_FILE);
+    hadOriginal = fs.existsSync(getLockFilePath());
     if (hadOriginal) {
       fs.mkdirSync(path.dirname(backupPath), { recursive: true });
-      fs.copyFileSync(LOCK_FILE, backupPath);
+      fs.copyFileSync(getLockFilePath(), backupPath);
     }
   });
 
   afterEach(() => {
     if (hadOriginal) {
-      fs.copyFileSync(backupPath, LOCK_FILE);
+      fs.copyFileSync(backupPath, getLockFilePath());
       fs.unlinkSync(backupPath);
       return;
     }
-    try { fs.unlinkSync(LOCK_FILE); } catch {}
+    try { fs.unlinkSync(getLockFilePath()); } catch {}
   });
 
   it('reads empty lock when file does not exist', () => {
-    try { fs.unlinkSync(LOCK_FILE); } catch {}
+    try { fs.unlinkSync(getLockFilePath()); } catch {}
     expect(_readLockFile()).toEqual({});
   });
 
   it('round-trips lock entries', () => {
     const entries: Record<string, LockEntry> = {
       'test-plugin': {
-        source: 'https://github.com/user/repo.git',
+        source: { kind: 'git', url: 'https://github.com/user/repo.git' },
         commitHash: 'abc1234567890def',
         installedAt: '2025-01-01T00:00:00.000Z',
       },
       'another-plugin': {
-        source: 'https://github.com/user/another.git',
+        source: { kind: 'git', url: 'https://github.com/user/another.git' },
         commitHash: 'def4567890123abc',
         installedAt: '2025-02-01T00:00:00.000Z',
         updatedAt: '2025-03-01T00:00:00.000Z',
@@ -173,9 +280,104 @@ describe('lock file', () => {
   });
 
   it('handles malformed lock file gracefully', () => {
-    fs.mkdirSync(path.dirname(LOCK_FILE), { recursive: true });
-    fs.writeFileSync(LOCK_FILE, 'not valid json');
+    fs.mkdirSync(path.dirname(getLockFilePath()), { recursive: true });
+    fs.writeFileSync(getLockFilePath(), 'not valid json');
     expect(_readLockFile()).toEqual({});
+  });
+
+  it('keeps the previous lockfile contents when atomic rewrite fails', () => {
+    const existing: Record<string, LockEntry> = {
+      stable: {
+        source: { kind: 'git', url: 'https://github.com/user/stable.git' },
+        commitHash: 'stable1234567890',
+        installedAt: '2025-01-01T00:00:00.000Z',
+      },
+    };
+    _writeLockFile(existing);
+
+    const renameSync = vi.fn(() => {
+      throw new Error('rename failed');
+    });
+    const rmSync = vi.fn(() => undefined);
+
+    expect(() => _writeLockFileWithFs({
+      broken: {
+        source: { kind: 'git', url: 'https://github.com/user/broken.git' },
+        commitHash: 'broken1234567890',
+        installedAt: '2025-02-01T00:00:00.000Z',
+      },
+    }, {
+      mkdirSync: fs.mkdirSync,
+      writeFileSync: fs.writeFileSync,
+      renameSync,
+      rmSync,
+    })).toThrow('rename failed');
+
+    expect(_readLockFile()).toEqual(existing);
+    expect(rmSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('migrates legacy string sources to structured sources on read', () => {
+    const legacyLocalPath = path.resolve(path.join(os.tmpdir(), 'opencli-legacy-local-plugin'));
+    fs.mkdirSync(path.dirname(getLockFilePath()), { recursive: true });
+    fs.writeFileSync(getLockFilePath(), JSON.stringify({
+      alpha: {
+        source: 'https://github.com/user/opencli-plugins.git',
+        commitHash: 'abc1234567890def',
+        installedAt: '2025-01-01T00:00:00.000Z',
+        monorepo: { name: 'opencli-plugins', subPath: 'packages/alpha' },
+      },
+      beta: {
+        source: `local:${legacyLocalPath}`,
+        commitHash: 'local',
+        installedAt: '2025-01-01T00:00:00.000Z',
+      },
+    }, null, 2));
+
+    expect(_readLockFile()).toEqual({
+      alpha: {
+        source: {
+          kind: 'monorepo',
+          url: 'https://github.com/user/opencli-plugins.git',
+          repoName: 'opencli-plugins',
+          subPath: 'packages/alpha',
+        },
+        commitHash: 'abc1234567890def',
+        installedAt: '2025-01-01T00:00:00.000Z',
+      },
+      beta: {
+        source: { kind: 'local', path: legacyLocalPath },
+        commitHash: 'local',
+        installedAt: '2025-01-01T00:00:00.000Z',
+      },
+    });
+  });
+
+  it('returns normalized entries even when migration rewrite fails', () => {
+    fs.mkdirSync(path.dirname(getLockFilePath()), { recursive: true });
+    fs.writeFileSync(getLockFilePath(), JSON.stringify({
+      alpha: {
+        source: 'https://github.com/user/opencli-plugins.git',
+        commitHash: 'abc1234567890def',
+        installedAt: '2025-01-01T00:00:00.000Z',
+        monorepo: { name: 'opencli-plugins', subPath: 'packages/alpha' },
+      },
+    }, null, 2));
+
+    expect(_readLockFileWithWriter(() => {
+      throw new Error('disk full');
+    })).toEqual({
+      alpha: {
+        source: {
+          kind: 'monorepo',
+          url: 'https://github.com/user/opencli-plugins.git',
+          repoName: 'opencli-plugins',
+          subPath: 'packages/alpha',
+        },
+        commitHash: 'abc1234567890def',
+        installedAt: '2025-01-01T00:00:00.000Z',
+      },
+    });
   });
 });
 
@@ -197,7 +399,6 @@ describe('resolveEsbuildBin', () => {
     expect(binPath).not.toBeNull();
     expect(typeof binPath).toBe('string');
     expect(fs.existsSync(binPath!)).toBe(true);
-    // On Windows the resolved path ends with 'esbuild.cmd', on Unix 'esbuild'
     expect(binPath).toMatch(/esbuild(\.cmd)?$/);
   });
 });
@@ -225,7 +426,7 @@ describe('listPlugins', () => {
 
     const lock = _readLockFile();
     lock['__test-list-plugin__'] = {
-      source: 'https://github.com/user/repo.git',
+      source: { kind: 'git', url: 'https://github.com/user/repo.git' },
       commitHash: 'abcdef1234567890abcdef1234567890abcdef12',
       installedAt: '2025-01-01T00:00:00.000Z',
     };
@@ -242,9 +443,36 @@ describe('listPlugins', () => {
   });
 
   it('returns empty array when no plugins dir', () => {
-    // listPlugins should handle missing dir gracefully
     const plugins = listPlugins();
     expect(Array.isArray(plugins)).toBe(true);
+  });
+
+  it('prefers lockfile source for local symlink plugins', () => {
+    const localTarget = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-local-list-'));
+    const linkPath = path.join(PLUGINS_DIR, '__test-list-plugin__');
+
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    fs.writeFileSync(path.join(localTarget, 'hello.yaml'), 'site: test\nname: hello\n');
+    try { fs.unlinkSync(linkPath); } catch {}
+    try { fs.rmSync(linkPath, { recursive: true, force: true }); } catch {}
+    fs.symlinkSync(localTarget, linkPath, 'dir');
+
+    const lock = _readLockFile();
+    lock['__test-list-plugin__'] = {
+      source: { kind: 'local', path: localTarget },
+      commitHash: 'local',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    _writeLockFile(lock);
+
+    const plugins = listPlugins();
+    const found = plugins.find(p => p.name === '__test-list-plugin__');
+    expect(found?.source).toBe(`local:${localTarget}`);
+
+    try { fs.unlinkSync(linkPath); } catch {}
+    try { fs.rmSync(localTarget, { recursive: true, force: true }); } catch {}
+    delete lock['__test-list-plugin__'];
+    _writeLockFile(lock);
   });
 });
 
@@ -269,7 +497,7 @@ describe('uninstallPlugin', () => {
 
     const lock = _readLockFile();
     lock['__test-uninstall__'] = {
-      source: 'https://github.com/user/repo.git',
+      source: { kind: 'git', url: 'https://github.com/user/repo.git' },
       commitHash: 'abc123',
       installedAt: '2025-01-01T00:00:00.000Z',
     };
@@ -287,6 +515,45 @@ describe('uninstallPlugin', () => {
 describe('updatePlugin', () => {
   it('throws for non-existent plugin', () => {
     expect(() => updatePlugin('__nonexistent__')).toThrow('not installed');
+  });
+
+  it('refreshes local plugins without running git pull', () => {
+    const localTarget = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-local-update-'));
+    const linkPath = path.join(PLUGINS_DIR, '__test-local-update__');
+
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    fs.writeFileSync(path.join(localTarget, 'hello.yaml'), 'site: test\nname: hello\n');
+    fs.symlinkSync(localTarget, linkPath, 'dir');
+
+    const lock = _readLockFile();
+    lock['__test-local-update__'] = {
+      source: { kind: 'local', path: localTarget },
+      commitHash: 'local',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    _writeLockFile(lock);
+
+    mockExecFileSync.mockClear();
+    updatePlugin('__test-local-update__');
+
+    expect(
+      mockExecFileSync.mock.calls.some(
+        ([cmd, args, opts]) => cmd === 'git'
+          && Array.isArray(args)
+          && args[0] === 'pull'
+          && opts?.cwd === linkPath,
+      ),
+    ).toBe(false);
+
+    const updated = _readLockFile()['__test-local-update__'];
+    expect(updated?.source).toEqual({ kind: 'local', path: path.resolve(localTarget) });
+    expect(updated?.updatedAt).toBeDefined();
+
+    try { fs.unlinkSync(linkPath); } catch {}
+    try { fs.rmSync(localTarget, { recursive: true, force: true }); } catch {}
+    const finalLock = _readLockFile();
+    delete finalLock['__test-local-update__'];
+    _writeLockFile(finalLock);
   });
 });
 
@@ -373,16 +640,59 @@ describe('updateAllPlugins', () => {
     fs.writeFileSync(path.join(testDirA, 'cmd.yaml'), 'site: a');
     fs.writeFileSync(path.join(testDirB, 'cmd.yaml'), 'site: b');
     fs.writeFileSync(path.join(testDirC, 'cmd.yaml'), 'site: c');
+
+    const lock = _readLockFile();
+    lock['plugin-a'] = {
+      source: { kind: 'git', url: 'https://github.com/user/plugin-a.git' },
+      commitHash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    lock['plugin-b'] = {
+      source: { kind: 'git', url: 'https://github.com/user/plugin-b.git' },
+      commitHash: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    lock['plugin-c'] = {
+      source: { kind: 'git', url: 'https://github.com/user/plugin-c.git' },
+      commitHash: 'cccccccccccccccccccccccccccccccccccccccc',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    _writeLockFile(lock);
   });
 
   afterEach(() => {
     try { fs.rmSync(testDirA, { recursive: true }); } catch {}
     try { fs.rmSync(testDirB, { recursive: true }); } catch {}
     try { fs.rmSync(testDirC, { recursive: true }); } catch {}
+    const lock = _readLockFile();
+    delete lock['plugin-a'];
+    delete lock['plugin-b'];
+    delete lock['plugin-c'];
+    _writeLockFile(lock);
     vi.clearAllMocks();
   });
 
   it('collects successes and failures without throwing', () => {
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneUrl = String(args[3]);
+        const cloneDir = String(args[4]);
+        fs.mkdirSync(cloneDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'cmd.yaml'), 'site: test\nname: hello\n');
+        if (cloneUrl.includes('plugin-b')) {
+          fs.writeFileSync(path.join(cloneDir, 'package.json'), JSON.stringify({ name: 'plugin-b' }));
+        }
+        return '';
+      }
+      if (cmd === 'npm' && Array.isArray(args) && args[0] === 'install') {
+        throw new Error('Network error');
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+
     const results = _updateAllPlugins();
 
     const resA = results.find(r => r.name === 'plugin-a');
@@ -407,6 +717,7 @@ describe('parseSource with monorepo subplugin', () => {
   it('parses github:user/repo/subplugin format', () => {
     const result = _parseSource('github:ByteYue/opencli-plugins/polymarket');
     expect(result).toEqual({
+      type: 'git',
       cloneUrl: 'https://github.com/ByteYue/opencli-plugins.git',
       name: 'opencli-plugins',
       subPlugin: 'polymarket',
@@ -422,6 +733,7 @@ describe('parseSource with monorepo subplugin', () => {
   it('still parses github:user/repo without subplugin', () => {
     const result = _parseSource('github:user/my-repo');
     expect(result).toEqual({
+      type: 'git',
       cloneUrl: 'https://github.com/user/my-repo.git',
       name: 'my-repo',
     });
@@ -466,26 +778,26 @@ describe('monorepo uninstall with symlink', () => {
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-mono-uninstall-'));
-    // We need to use the real PLUGINS_DIR for uninstallPlugin() to work
     pluginDir = path.join(PLUGINS_DIR, '__test-mono-sub__');
     monoDir = path.join(_getMonoreposDir(), '__test-mono__');
 
-    // Set up monorepo structure
     const subDir = path.join(monoDir, 'packages', 'sub');
     fs.mkdirSync(subDir, { recursive: true });
     fs.writeFileSync(path.join(subDir, 'cmd.yaml'), 'site: test');
 
-    // Create symlink in plugins dir
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
     fs.symlinkSync(subDir, pluginDir, 'dir');
 
-    // Set up lock file with monorepo entry
     const lock = _readLockFile();
     lock['__test-mono-sub__'] = {
-      source: 'https://github.com/user/test.git',
+      source: {
+        kind: 'monorepo',
+        url: 'https://github.com/user/test.git',
+        repoName: '__test-mono__',
+        subPath: 'packages/sub',
+      },
       commitHash: 'abc123',
       installedAt: '2025-01-01T00:00:00.000Z',
-      monorepo: { name: '__test-mono__', subPath: 'packages/sub' },
     };
     _writeLockFile(lock);
   });
@@ -494,35 +806,32 @@ describe('monorepo uninstall with symlink', () => {
     try { fs.unlinkSync(pluginDir); } catch {}
     try { fs.rmSync(pluginDir, { recursive: true, force: true }); } catch {}
     try { fs.rmSync(monoDir, { recursive: true, force: true }); } catch {}
-    // Clean up lock entry
     const lock = _readLockFile();
     delete lock['__test-mono-sub__'];
     _writeLockFile(lock);
   });
 
   it('removes symlink but keeps monorepo if other sub-plugins reference it', () => {
-    // Add another sub-plugin referencing the same monorepo
     const lock = _readLockFile();
     lock['__test-mono-other__'] = {
-      source: 'https://github.com/user/test.git',
+      source: {
+        kind: 'monorepo',
+        url: 'https://github.com/user/test.git',
+        repoName: '__test-mono__',
+        subPath: 'packages/other',
+      },
       commitHash: 'abc123',
       installedAt: '2025-01-01T00:00:00.000Z',
-      monorepo: { name: '__test-mono__', subPath: 'packages/other' },
     };
     _writeLockFile(lock);
 
     uninstallPlugin('__test-mono-sub__');
 
-    // Symlink removed
     expect(fs.existsSync(pluginDir)).toBe(false);
-    // Monorepo dir still exists (other sub-plugin references it)
     expect(fs.existsSync(monoDir)).toBe(true);
-    // Lock entry removed
     expect(_readLockFile()['__test-mono-sub__']).toBeUndefined();
-    // Other lock entry still present
     expect(_readLockFile()['__test-mono-other__']).toBeDefined();
 
-    // Clean up the other entry
     const finalLock = _readLockFile();
     delete finalLock['__test-mono-other__'];
     _writeLockFile(finalLock);
@@ -531,11 +840,8 @@ describe('monorepo uninstall with symlink', () => {
   it('removes symlink AND monorepo dir when last sub-plugin is uninstalled', () => {
     uninstallPlugin('__test-mono-sub__');
 
-    // Symlink removed
     expect(fs.existsSync(pluginDir)).toBe(false);
-    // Monorepo dir also removed (no more references)
     expect(fs.existsSync(monoDir)).toBe(false);
-    // Lock entry removed
     expect(_readLockFile()['__test-mono-sub__']).toBeUndefined();
   });
 });
@@ -545,22 +851,23 @@ describe('listPlugins with monorepo metadata', () => {
   const testLink = path.join(PLUGINS_DIR, '__test-mono-list__');
 
   beforeEach(() => {
-    // Create a target dir with a command file
     fs.mkdirSync(testSymlinkTarget, { recursive: true });
     fs.writeFileSync(path.join(testSymlinkTarget, 'hello.yaml'), 'site: test\nname: hello\n');
 
-    // Create symlink
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
     try { fs.unlinkSync(testLink); } catch {}
     fs.symlinkSync(testSymlinkTarget, testLink, 'dir');
 
-    // Set up lock file with monorepo entry
     const lock = _readLockFile();
     lock['__test-mono-list__'] = {
-      source: 'https://github.com/user/test-mono.git',
+      source: {
+        kind: 'monorepo',
+        url: 'https://github.com/user/test-mono.git',
+        repoName: 'test-mono',
+        subPath: 'packages/list',
+      },
       commitHash: 'def456def456def456def456def456def456def4',
       installedAt: '2025-01-01T00:00:00.000Z',
-      monorepo: { name: 'test-mono', subPath: 'packages/list' },
     };
     _writeLockFile(lock);
   });
@@ -580,5 +887,541 @@ describe('listPlugins with monorepo metadata', () => {
     expect(found!.monorepoName).toBe('test-mono');
     expect(found!.commands).toContain('hello');
     expect(found!.source).toBe('https://github.com/user/test-mono.git');
+  });
+});
+
+describe('installLocalPlugin', () => {
+  let tmpDir: string;
+  const pluginName = '__test-local-plugin__';
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-local-install-'));
+    fs.writeFileSync(path.join(tmpDir, 'hello.yaml'), 'site: test\nname: hello\n');
+  });
+
+  afterEach(() => {
+    const linkPath = path.join(PLUGINS_DIR, pluginName);
+    try { fs.unlinkSync(linkPath); } catch {}
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    const lock = _readLockFile();
+    delete lock[pluginName];
+    _writeLockFile(lock);
+  });
+
+  it('creates a symlink to the local directory', () => {
+    const result = _installLocalPlugin(tmpDir, pluginName);
+    expect(result).toBe(pluginName);
+    const linkPath = path.join(PLUGINS_DIR, pluginName);
+    expect(fs.existsSync(linkPath)).toBe(true);
+    expect(_isSymlinkSync(linkPath)).toBe(true);
+  });
+
+  it('records local: source in lockfile', () => {
+    _installLocalPlugin(tmpDir, pluginName);
+    const lock = _readLockFile();
+    expect(lock[pluginName]).toBeDefined();
+    expect(lock[pluginName].source).toEqual({ kind: 'local', path: path.resolve(tmpDir) });
+  });
+
+  it('lists the recorded local source', () => {
+    _installLocalPlugin(tmpDir, pluginName);
+    const plugins = listPlugins();
+    const found = plugins.find(p => p.name === pluginName);
+    expect(found).toBeDefined();
+    expect(found!.source).toBe(`local:${path.resolve(tmpDir)}`);
+  });
+
+  it('throws for non-existent path', () => {
+    expect(() => _installLocalPlugin('/does/not/exist', 'x')).toThrow('does not exist');
+  });
+});
+
+describe('isLocalPluginSource', () => {
+  it('detects lockfile local sources', () => {
+    expect(_isLocalPluginSource('local:/tmp/plugin')).toBe(true);
+    expect(_isLocalPluginSource('https://github.com/user/repo.git')).toBe(false);
+    expect(_isLocalPluginSource(undefined)).toBe(false);
+  });
+});
+
+describe('plugin source helpers', () => {
+  it('formats local plugin sources consistently', () => {
+    const dir = path.join(os.tmpdir(), 'opencli-plugin-source');
+    expect(_toLocalPluginSource(dir)).toBe(`local:${path.resolve(dir)}`);
+  });
+
+  it('serializes structured local sources consistently', () => {
+    const dir = path.join(os.tmpdir(), 'opencli-plugin-source');
+    expect(_toStoredPluginSource({ kind: 'local', path: dir })).toBe(`local:${path.resolve(dir)}`);
+  });
+
+  it('prefers lockfile source over git remote lookup', () => {
+    const dir = path.join(os.tmpdir(), 'opencli-plugin-source');
+    const localPath = path.resolve(path.join(os.tmpdir(), 'opencli-plugin-source-local'));
+    const source = _resolveStoredPluginSource({
+      source: { kind: 'local', path: localPath },
+      commitHash: 'local',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    }, dir);
+    expect(source).toBe(`local:${localPath}`);
+  });
+
+  it('returns structured monorepo sources unchanged', () => {
+    const dir = path.join(os.tmpdir(), 'opencli-plugin-source');
+    const source = _resolvePluginSource({
+      source: {
+        kind: 'monorepo',
+        url: 'https://github.com/user/opencli-plugins.git',
+        repoName: 'opencli-plugins',
+        subPath: 'packages/alpha',
+      },
+      commitHash: 'abcdef1234567890abcdef1234567890abcdef12',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    }, dir);
+    expect(source).toEqual({
+      kind: 'monorepo',
+      url: 'https://github.com/user/opencli-plugins.git',
+      repoName: 'opencli-plugins',
+      subPath: 'packages/alpha',
+    });
+  });
+});
+
+describe('moveDir', () => {
+  it('cleans up destination when EXDEV fallback copy fails', () => {
+    const src = path.join(os.tmpdir(), 'opencli-move-src');
+    const dest = path.join(os.tmpdir(), 'opencli-move-dest');
+    const renameErr = Object.assign(new Error('cross-device link not permitted'), { code: 'EXDEV' });
+    const copyErr = new Error('copy failed');
+    const renameSync = vi.fn(() => { throw renameErr; });
+    const cpSync = vi.fn(() => { throw copyErr; });
+    const rmSync = vi.fn(() => undefined);
+
+    expect(() => _moveDir(src, dest, { renameSync, cpSync, rmSync })).toThrow(copyErr);
+    expect(renameSync).toHaveBeenCalledWith(src, dest);
+    expect(cpSync).toHaveBeenCalledWith(src, dest, { recursive: true });
+    expect(rmSync).toHaveBeenCalledWith(dest, { recursive: true, force: true });
+  });
+});
+
+describe('promoteDir', () => {
+  it('cleans up temporary publish dir when final rename fails', () => {
+    const staging = path.join(os.tmpdir(), 'opencli-promote-stage');
+    const dest = path.join(os.tmpdir(), 'opencli-promote-dest');
+    const publishErr = new Error('publish failed');
+    const existsSync = vi.fn(() => false);
+    const mkdirSync = vi.fn(() => undefined);
+    const cpSync = vi.fn(() => undefined);
+    const rmSync = vi.fn(() => undefined);
+    const renameSync = vi.fn((src, _target) => {
+      if (String(src) === staging) return;
+      throw publishErr;
+    });
+
+    expect(() => _promoteDir(staging, dest, { existsSync, mkdirSync, renameSync, cpSync, rmSync })).toThrow(publishErr);
+
+    const tempDest = renameSync.mock.calls[0][1];
+    expect(renameSync).toHaveBeenNthCalledWith(1, staging, tempDest);
+    expect(renameSync).toHaveBeenNthCalledWith(2, tempDest, dest);
+    expect(rmSync).toHaveBeenCalledWith(tempDest, { recursive: true, force: true });
+  });
+});
+
+describe('replaceDir', () => {
+  it('rolls back the original destination when swap fails', () => {
+    const staging = path.join(os.tmpdir(), 'opencli-replace-stage');
+    const dest = path.join(os.tmpdir(), 'opencli-replace-dest');
+    const publishErr = new Error('swap failed');
+    const existingPaths = new Set([dest]);
+    const existsSync = vi.fn((p) => existingPaths.has(String(p)));
+    const mkdirSync = vi.fn(() => undefined);
+    const cpSync = vi.fn(() => undefined);
+    const rmSync = vi.fn(() => undefined);
+    const renameSync = vi.fn((src, target) => {
+      if (String(src) === staging) {
+        existingPaths.add(String(target));
+        return;
+      }
+      if (String(src) === dest) {
+        existingPaths.delete(dest);
+        existingPaths.add(String(target));
+        return;
+      }
+      if (String(target) === dest) throw publishErr;
+      if (existingPaths.has(String(src))) {
+        existingPaths.delete(String(src));
+        existingPaths.add(String(target));
+      }
+    });
+
+    expect(() => _replaceDir(staging, dest, { existsSync, mkdirSync, renameSync, cpSync, rmSync })).toThrow(publishErr);
+
+    const tempDest = renameSync.mock.calls[0][1];
+    const backupDest = renameSync.mock.calls[1][1];
+    expect(renameSync).toHaveBeenNthCalledWith(1, staging, tempDest);
+    expect(renameSync).toHaveBeenNthCalledWith(2, dest, backupDest);
+    expect(renameSync).toHaveBeenNthCalledWith(3, tempDest, dest);
+    expect(renameSync).toHaveBeenNthCalledWith(4, backupDest, dest);
+    expect(rmSync).toHaveBeenCalledWith(tempDest, { recursive: true, force: true });
+  });
+});
+
+describe('installPlugin transactional staging', () => {
+  const standaloneSource = 'github:user/opencli-plugin-__test-transactional-standalone__';
+  const standaloneName = '__test-transactional-standalone__';
+  const standaloneDir = path.join(PLUGINS_DIR, standaloneName);
+  const monorepoSource = 'github:user/opencli-plugins-__test-transactional__';
+  const monorepoRepoDir = path.join(_getMonoreposDir(), 'opencli-plugins-__test-transactional__');
+  const monorepoLink = path.join(PLUGINS_DIR, 'alpha');
+
+  beforeEach(() => {
+    mockExecFileSync.mockClear();
+    mockExecSync.mockClear();
+  });
+
+  afterEach(() => {
+    try { fs.unlinkSync(monorepoLink); } catch {}
+    try { fs.rmSync(monorepoLink, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(monorepoRepoDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(standaloneDir, { recursive: true, force: true }); } catch {}
+    const lock = _readLockFile();
+    delete lock[standaloneName];
+    delete lock.alpha;
+    _writeLockFile(lock);
+    vi.clearAllMocks();
+  });
+
+  it('does not expose the final standalone plugin dir when lifecycle fails in staging', () => {
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneDir = String(args[args.length - 1]);
+        fs.mkdirSync(cloneDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'hello.yaml'), 'site: test\nname: hello\n');
+        fs.writeFileSync(path.join(cloneDir, 'package.json'), JSON.stringify({ name: standaloneName }));
+        return '';
+      }
+      if (cmd === 'npm' && Array.isArray(args) && args[0] === 'install') {
+        throw new Error('boom');
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+
+    expect(() => installPlugin(standaloneSource)).toThrow(`npm install failed`);
+    expect(fs.existsSync(standaloneDir)).toBe(false);
+    expect(_readLockFile()[standaloneName]).toBeUndefined();
+  });
+
+  it('does not expose monorepo links or repo dir when lifecycle fails in staging', () => {
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneDir = String(args[args.length - 1]);
+        const alphaDir = path.join(cloneDir, 'packages', 'alpha');
+        fs.mkdirSync(alphaDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'package.json'), JSON.stringify({
+          name: 'opencli-plugins-__test-transactional__',
+          private: true,
+        }));
+        fs.writeFileSync(path.join(cloneDir, 'opencli-plugin.json'), JSON.stringify({
+          plugins: {
+            alpha: { path: 'packages/alpha' },
+          },
+        }));
+        fs.writeFileSync(path.join(alphaDir, 'hello.yaml'), 'site: test\nname: hello\n');
+        return '';
+      }
+      if (cmd === 'npm' && Array.isArray(args) && args[0] === 'install') {
+        throw new Error('boom');
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+
+    expect(() => installPlugin(monorepoSource)).toThrow(`npm install failed`);
+    expect(fs.existsSync(monorepoRepoDir)).toBe(false);
+    expect(fs.existsSync(monorepoLink)).toBe(false);
+    expect(_readLockFile().alpha).toBeUndefined();
+  });
+});
+
+describe('installPlugin with existing monorepo', () => {
+  const repoName = '__test-existing-monorepo__';
+  const repoDir = path.join(_getMonoreposDir(), repoName);
+  const pluginName = 'beta';
+  const pluginLink = path.join(PLUGINS_DIR, pluginName);
+
+  beforeEach(() => {
+    mockExecFileSync.mockClear();
+    mockExecSync.mockClear();
+  });
+
+  afterEach(() => {
+    try { fs.unlinkSync(pluginLink); } catch {}
+    try { fs.rmSync(pluginLink, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(repoDir, { recursive: true, force: true }); } catch {}
+    const lock = _readLockFile();
+    delete lock[pluginName];
+    _writeLockFile(lock);
+    vi.clearAllMocks();
+  });
+
+  it('reinstalls root dependencies when adding a sub-plugin from an existing monorepo', () => {
+    const subDir = path.join(repoDir, 'packages', pluginName);
+    fs.mkdirSync(subDir, { recursive: true });
+    fs.writeFileSync(path.join(repoDir, 'package.json'), JSON.stringify({
+      name: repoName,
+      private: true,
+      workspaces: ['packages/*'],
+    }));
+    fs.writeFileSync(path.join(repoDir, 'opencli-plugin.json'), JSON.stringify({
+      plugins: {
+        [pluginName]: { path: `packages/${pluginName}` },
+      },
+    }));
+    fs.writeFileSync(path.join(subDir, 'hello.yaml'), 'site: test\nname: hello\n');
+
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneDir = String(args[4]);
+        fs.mkdirSync(cloneDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'opencli-plugin.json'), JSON.stringify({
+          plugins: {
+            [pluginName]: { path: `packages/${pluginName}` },
+          },
+        }));
+        return '';
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+
+    installPlugin(`github:user/${repoName}/${pluginName}`);
+
+    const npmCalls = mockExecFileSync.mock.calls.filter(
+      ([cmd, args]) => cmd === 'npm' && Array.isArray(args) && args[0] === 'install',
+    );
+    expect(npmCalls.some(([, , opts]) => opts?.cwd === repoDir)).toBe(true);
+    expect(fs.realpathSync(pluginLink)).toBe(fs.realpathSync(subDir));
+  });
+});
+
+describe('updatePlugin transactional staging', () => {
+  const standaloneName = '__test-transactional-update__';
+  const standaloneDir = path.join(PLUGINS_DIR, standaloneName);
+  const monorepoName = '__test-transactional-mono-update__';
+  const monorepoRepoDir = path.join(_getMonoreposDir(), monorepoName);
+  const monorepoPluginName = 'alpha-update';
+  const monorepoLink = path.join(PLUGINS_DIR, monorepoPluginName);
+
+  beforeEach(() => {
+    mockExecFileSync.mockClear();
+    mockExecSync.mockClear();
+  });
+
+  afterEach(() => {
+    try { fs.unlinkSync(monorepoLink); } catch {}
+    try { fs.rmSync(monorepoLink, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(monorepoRepoDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(standaloneDir, { recursive: true, force: true }); } catch {}
+    const lock = _readLockFile();
+    delete lock[standaloneName];
+    delete lock[monorepoPluginName];
+    _writeLockFile(lock);
+    vi.clearAllMocks();
+  });
+
+  it('keeps the existing standalone plugin when staged update preparation fails', () => {
+    fs.mkdirSync(standaloneDir, { recursive: true });
+    fs.writeFileSync(path.join(standaloneDir, 'old.yaml'), 'site: old\nname: old\n');
+
+    const lock = _readLockFile();
+    lock[standaloneName] = {
+      source: {
+        kind: 'git',
+        url: 'https://github.com/user/opencli-plugin-__test-transactional-update__.git',
+      },
+      commitHash: 'oldhasholdhasholdhasholdhasholdhasholdh',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    _writeLockFile(lock);
+
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneDir = String(args[4]);
+        fs.mkdirSync(cloneDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'hello.yaml'), 'site: test\nname: hello\n');
+        fs.writeFileSync(path.join(cloneDir, 'package.json'), JSON.stringify({ name: standaloneName }));
+        return '';
+      }
+      if (cmd === 'npm' && Array.isArray(args) && args[0] === 'install') {
+        throw new Error('boom');
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+
+    expect(() => updatePlugin(standaloneName)).toThrow('npm install failed');
+    expect(fs.existsSync(standaloneDir)).toBe(true);
+    expect(fs.readFileSync(path.join(standaloneDir, 'old.yaml'), 'utf-8')).toContain('site: old');
+    expect(_readLockFile()[standaloneName]?.commitHash).toBe('oldhasholdhasholdhasholdhasholdhasholdh');
+  });
+
+  it('keeps the existing monorepo repo and link when staged update preparation fails', () => {
+    const subDir = path.join(monorepoRepoDir, 'packages', monorepoPluginName);
+    fs.mkdirSync(subDir, { recursive: true });
+    fs.writeFileSync(path.join(subDir, 'old.yaml'), 'site: old\nname: old\n');
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    fs.symlinkSync(subDir, monorepoLink, 'dir');
+
+    const lock = _readLockFile();
+    lock[monorepoPluginName] = {
+      source: {
+        kind: 'monorepo',
+        url: 'https://github.com/user/opencli-plugins-__test-transactional-mono-update__.git',
+        repoName: monorepoName,
+        subPath: `packages/${monorepoPluginName}`,
+      },
+      commitHash: 'oldmonooldmonooldmonooldmonooldmonoold',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    _writeLockFile(lock);
+
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneDir = String(args[4]);
+        const alphaDir = path.join(cloneDir, 'packages', monorepoPluginName);
+        fs.mkdirSync(alphaDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'package.json'), JSON.stringify({
+          name: 'opencli-plugins-__test-transactional-mono-update__',
+          private: true,
+        }));
+        fs.writeFileSync(path.join(cloneDir, 'opencli-plugin.json'), JSON.stringify({
+          plugins: {
+            [monorepoPluginName]: { path: `packages/${monorepoPluginName}` },
+          },
+        }));
+        fs.writeFileSync(path.join(alphaDir, 'hello.yaml'), 'site: test\nname: hello\n');
+        return '';
+      }
+      if (cmd === 'npm' && Array.isArray(args) && args[0] === 'install') {
+        throw new Error('boom');
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+
+    expect(() => updatePlugin(monorepoPluginName)).toThrow('npm install failed');
+    expect(fs.existsSync(monorepoRepoDir)).toBe(true);
+    expect(fs.existsSync(monorepoLink)).toBe(true);
+    expect(fs.readFileSync(path.join(subDir, 'old.yaml'), 'utf-8')).toContain('site: old');
+    expect(_readLockFile()[monorepoPluginName]?.commitHash).toBe('oldmonooldmonooldmonooldmonooldmonoold');
+  });
+
+  it('relinks monorepo plugins when the updated manifest moves their subPath', () => {
+    const oldSubDir = path.join(monorepoRepoDir, 'packages', 'old-alpha');
+    fs.mkdirSync(oldSubDir, { recursive: true });
+    fs.writeFileSync(path.join(oldSubDir, 'old.yaml'), 'site: old\nname: old\n');
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    fs.symlinkSync(oldSubDir, monorepoLink, 'dir');
+
+    const lock = _readLockFile();
+    lock[monorepoPluginName] = {
+      source: {
+        kind: 'monorepo',
+        url: 'https://github.com/user/opencli-plugins-__test-transactional-mono-update__.git',
+        repoName: monorepoName,
+        subPath: 'packages/old-alpha',
+      },
+      commitHash: 'oldmonooldmonooldmonooldmonooldmonoold',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    _writeLockFile(lock);
+
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneDir = String(args[4]);
+        const movedDir = path.join(cloneDir, 'packages', 'moved-alpha');
+        fs.mkdirSync(movedDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'opencli-plugin.json'), JSON.stringify({
+          plugins: {
+            [monorepoPluginName]: { path: 'packages/moved-alpha' },
+          },
+        }));
+        fs.writeFileSync(path.join(movedDir, 'hello.yaml'), 'site: test\nname: hello\n');
+        return '';
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+
+    updatePlugin(monorepoPluginName);
+
+    const expectedTarget = path.join(monorepoRepoDir, 'packages', 'moved-alpha');
+    expect(fs.realpathSync(monorepoLink)).toBe(fs.realpathSync(expectedTarget));
+    expect(_readLockFile()[monorepoPluginName]?.source).toMatchObject({
+      kind: 'monorepo',
+      subPath: 'packages/moved-alpha',
+    });
+  });
+
+  it('rolls back the monorepo repo swap when relinking fails', () => {
+    const oldSubDir = path.join(monorepoRepoDir, 'packages', 'old-alpha');
+    fs.mkdirSync(oldSubDir, { recursive: true });
+    fs.writeFileSync(path.join(oldSubDir, 'old.yaml'), 'site: old\nname: old\n');
+    fs.mkdirSync(monorepoLink, { recursive: true });
+    fs.writeFileSync(path.join(monorepoLink, 'blocker.txt'), 'not a symlink');
+
+    const lock = _readLockFile();
+    lock[monorepoPluginName] = {
+      source: {
+        kind: 'monorepo',
+        url: 'https://github.com/user/opencli-plugins-__test-transactional-mono-update__.git',
+        repoName: monorepoName,
+        subPath: 'packages/old-alpha',
+      },
+      commitHash: 'oldmonooldmonooldmonooldmonooldmonoold',
+      installedAt: '2025-01-01T00:00:00.000Z',
+    };
+    _writeLockFile(lock);
+
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneDir = String(args[4]);
+        const movedDir = path.join(cloneDir, 'packages', 'moved-alpha');
+        fs.mkdirSync(movedDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'opencli-plugin.json'), JSON.stringify({
+          plugins: {
+            [monorepoPluginName]: { path: 'packages/moved-alpha' },
+          },
+        }));
+        fs.writeFileSync(path.join(movedDir, 'hello.yaml'), 'site: test\nname: hello\n');
+        return '';
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+
+    expect(() => updatePlugin(monorepoPluginName)).toThrow('to be a symlink');
+    expect(fs.existsSync(path.join(monorepoRepoDir, 'packages', 'old-alpha', 'old.yaml'))).toBe(true);
+    expect(fs.existsSync(path.join(monorepoRepoDir, 'packages', 'moved-alpha'))).toBe(false);
+    expect(fs.readFileSync(path.join(monorepoLink, 'blocker.txt'), 'utf-8')).toBe('not a symlink');
+    expect(_readLockFile()[monorepoPluginName]?.source).toMatchObject({
+      kind: 'monorepo',
+      subPath: 'packages/old-alpha',
+    });
   });
 });

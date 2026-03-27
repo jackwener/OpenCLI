@@ -76,9 +76,10 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       for (const [site, cmds] of sites) {
         console.log(chalk.bold.cyan(`  ${site}`));
         for (const cmd of cmds) {
-          const tag = strategyLabel(cmd) === 'public'
+          const label = strategyLabel(cmd);
+          const tag = label === 'public'
             ? chalk.green('[public]')
-            : chalk.yellow(`[${strategyLabel(cmd)}]`);
+            : chalk.yellow(`[${label}]`);
           console.log(`    ${cmd.name} ${tag}${cmd.description ? chalk.dim(` — ${cmd.description}`) : ''}`);
         }
         console.log();
@@ -252,7 +253,7 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
 
   pluginCmd
     .command('install')
-    .description('Install a plugin from GitHub')
+    .description('Install a plugin from a git repository')
     .argument('<source>', 'Plugin source (e.g. github:user/repo)')
     .action(async (source: string) => {
       const { installPlugin } = await import('./plugin.js');
@@ -409,6 +410,36 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       console.log();
       console.log(chalk.dim(`  ${plugins.length} plugin(s) installed`));
       console.log();
+    });
+
+  pluginCmd
+    .command('create')
+    .description('Create a new plugin scaffold')
+    .argument('<name>', 'Plugin name (lowercase, hyphens allowed)')
+    .option('-d, --dir <path>', 'Output directory (default: ./<name>)')
+    .option('--description <text>', 'Plugin description')
+    .action(async (name: string, opts: { dir?: string; description?: string }) => {
+      const { createPluginScaffold } = await import('./plugin-scaffold.js');
+      try {
+        const result = createPluginScaffold(name, {
+          dir: opts.dir,
+          description: opts.description,
+        });
+        console.log(chalk.green(`✅ Plugin scaffold created at ${result.dir}`));
+        console.log();
+        console.log(chalk.bold('  Files created:'));
+        for (const f of result.files) {
+          console.log(`    ${chalk.cyan(f)}`);
+        }
+        console.log();
+        console.log(chalk.dim('  Next steps:'));
+        console.log(chalk.dim(`    cd ${result.dir}`));
+        console.log(chalk.dim(`    opencli plugin install file://${result.dir}`));
+        console.log(chalk.dim(`    opencli ${name} hello`));
+      } catch (err) {
+        console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
+        process.exitCode = 1;
+      }
     });
 
   // ── External CLIs ─────────────────────────────────────────────────────────
