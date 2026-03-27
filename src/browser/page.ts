@@ -79,6 +79,18 @@ export class Page implements IPage {
     }
   }
 
+  async getCurrentUrl(): Promise<string | null> {
+    try {
+      const result = await sendCommand('exec', {
+        code: 'window.location.href',
+        ...this._cmdOpts(),
+      });
+      return typeof result === 'string' ? result : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Close the automation window in the extension */
   async closeWindow(): Promise<void> {
     try {

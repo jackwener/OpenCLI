@@ -307,6 +307,15 @@ class CDPPage implements IPage {
     return [];
   }
 
+  async getCurrentUrl(): Promise<string | null> {
+    try {
+      const result = await this.evaluate('window.location.href');
+      return typeof result === 'string' ? result : null;
+    } catch {
+      return null;
+    }
+  }
+
   async installInterceptor(pattern: string): Promise<void> {
     const { generateInterceptorJs } = await import('../interceptor.js');
     await this.evaluate(generateInterceptorJs(JSON.stringify(pattern), {

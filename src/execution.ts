@@ -130,6 +130,23 @@ function ensureRequiredEnv(cmd: CliCommand): void {
   );
 }
 
+/**
+ * Check if the browser is already on the target domain, avoiding redundant navigation.
+ * Returns true if current page hostname matches the pre-nav URL hostname.
+ */
+async function isAlreadyOnDomain(page: IPage, targetUrl: string): Promise<boolean> {
+  if (!page.getCurrentUrl) return false;
+  try {
+    const currentUrl = await page.getCurrentUrl();
+    if (!currentUrl) return false;
+    const currentHost = new URL(currentUrl).hostname;
+    const targetHost = new URL(targetUrl).hostname;
+    return currentHost === targetHost;
+  } catch {
+    return false;
+  }
+}
+
 export async function executeCommand(
   cmd: CliCommand,
   rawKwargs: CommandArgs,
@@ -181,11 +198,17 @@ export async function executeCommand(
       result = await browserSession(BrowserFactory, async (page) => {
         const preNavUrl = resolvePreNav(cmd);
         if (preNavUrl) {
-          try {
-            await page.goto(preNavUrl);
-            await page.wait(2);
-          } catch (err) {
-            if (debug) console.error(`[pre-nav] Failed to navigate to ${preNavUrl}: ${err instanceof Error ? err.message : err}`);
+          const skip = await isAlreadyOnDomain(page, preNavUrl);
+          if (skip) {
+            if (debug) console.error(`[pre-nav] Already on target domain, skipping navigation`);
+          } else {
+            try {
+              // goto() already includes smart DOM-settle detection (waitForDomStable).
+              // No additional fixed sleep needed.
+              await page.goto(preNavUrl);
+            } catch (err) {
+              if (debug) console.error(`[pre-nav] Failed to navigate to ${preNavUrl}: ${err instanceof Error ? err.message : err}`);
+            }
           }
         }
         return runWithTimeout(runCommand(cmd, page, kwargs, debug), {

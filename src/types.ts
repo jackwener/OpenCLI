@@ -66,4 +66,6 @@ export interface IPage {
   getInterceptedRequests(): Promise<any[]>;
   screenshot(options?: ScreenshotOptions): Promise<string>;
   closeWindow?(): Promise<void>;
+  /** Returns the current page URL, or null if unavailable. */
+  getCurrentUrl?(): Promise<string | null>;
 }
