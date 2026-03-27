@@ -83,9 +83,15 @@ cli({
 describe('discoverPlugins', () => {
   const testPluginDir = path.join(PLUGINS_DIR, '__test-plugin__');
   const yamlPath = path.join(testPluginDir, 'greeting.yaml');
+  const symlinkTargetDir = path.join(os.tmpdir(), '__test-plugin-symlink-target__');
+  const symlinkPluginDir = path.join(PLUGINS_DIR, '__test-plugin-symlink__');
+  const brokenSymlinkDir = path.join(PLUGINS_DIR, '__test-plugin-broken__');
 
   afterEach(async () => {
     try { await fs.promises.rm(testPluginDir, { recursive: true }); } catch {}
+    try { await fs.promises.rm(symlinkPluginDir, { recursive: true, force: true }); } catch {}
+    try { await fs.promises.rm(symlinkTargetDir, { recursive: true, force: true }); } catch {}
+    try { await fs.promises.rm(brokenSymlinkDir, { recursive: true, force: true }); } catch {}
   });
 
   it('discovers YAML plugins from ~/.opencli/plugins/', async () => {
@@ -117,6 +123,38 @@ columns: [message]
   it('handles non-existent plugins directory gracefully', async () => {
     // discoverPlugins should not throw if ~/.opencli/plugins/ does not exist
     await expect(discoverPlugins()).resolves.not.toThrow();
+  });
+
+  it('discovers YAML plugins from symlinked plugin directories', async () => {
+    await fs.promises.mkdir(PLUGINS_DIR, { recursive: true });
+    await fs.promises.mkdir(symlinkTargetDir, { recursive: true });
+    await fs.promises.writeFile(path.join(symlinkTargetDir, 'hello.yaml'), `
+site: __test-plugin-symlink__
+name: hello
+description: Test plugin greeting via symlink
+strategy: public
+browser: false
+
+pipeline:
+  - evaluate: "() => [{ message: 'hello from symlink plugin' }]"
+
+columns: [message]
+`);
+    await fs.promises.symlink(symlinkTargetDir, symlinkPluginDir, 'dir');
+
+    await discoverPlugins();
+
+    const cmd = getRegistry().get('__test-plugin-symlink__/hello');
+    expect(cmd).toBeDefined();
+    expect(cmd!.description).toBe('Test plugin greeting via symlink');
+  });
+
+  it('skips broken plugin symlinks without throwing', async () => {
+    await fs.promises.mkdir(PLUGINS_DIR, { recursive: true });
+    await fs.promises.symlink(path.join(os.tmpdir(), '__missing-plugin-target__'), brokenSymlinkDir, 'dir');
+
+    await expect(discoverPlugins()).resolves.not.toThrow();
+    expect(getRegistry().get('__test-plugin-broken__/hello')).toBeUndefined();
   });
 });
 

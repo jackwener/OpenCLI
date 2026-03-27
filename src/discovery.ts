@@ -196,10 +196,9 @@ export async function discoverPlugins(): Promise<void> {
   try { await fs.promises.access(PLUGINS_DIR); } catch { return; }
   const entries = await fs.promises.readdir(PLUGINS_DIR, { withFileTypes: true });
   for (const entry of entries) {
-    // Accept both real directories and symlinks (monorepo sub-plugins are
-    // installed as symlinks pointing into ~/.opencli/monorepos/).
-    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
-    await discoverPluginDir(path.join(PLUGINS_DIR, entry.name), entry.name);
+    const pluginDir = path.join(PLUGINS_DIR, entry.name);
+    if (!(await isDiscoverablePluginDir(entry, pluginDir))) continue;
+    await discoverPluginDir(pluginDir, entry.name);
   }
 }
 
@@ -245,6 +244,21 @@ async function isCliModule(filePath: string): Promise<boolean> {
     return PLUGIN_MODULE_PATTERN.test(source);
   } catch (err) {
     log.warn(`Failed to inspect module ${filePath}: ${getErrorMessage(err)}`);
+    return false;
+  }
+}
+
+async function isDiscoverablePluginDir(entry: fs.Dirent, pluginDir: string): Promise<boolean> {
+  if (entry.isDirectory()) return true;
+  if (!entry.isSymbolicLink()) return false;
+
+  try {
+    return (await fs.promises.stat(pluginDir)).isDirectory();
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+      log.warn(`Failed to inspect plugin link ${pluginDir}: ${getErrorMessage(err)}`);
+    }
     return false;
   }
 }
