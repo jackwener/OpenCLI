@@ -56,6 +56,24 @@ describe('weread private API regression', () => {
     await expect(fetchPrivateApi(mockPage, '/book/info')).rejects.toThrow('Not logged in');
   });
 
+  it('maps auth-expired API error codes to AUTH_REQUIRED even on HTTP 200', async () => {
+    const mockPage = {
+      getCookies: vi.fn().mockResolvedValue([]),
+      evaluate: vi.fn(),
+    } as any;
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ errcode: -2012, errmsg: '登录超时' }),
+    }));
+
+    await expect(fetchPrivateApi(mockPage, '/book/info')).rejects.toMatchObject({
+      code: 'AUTH_REQUIRED',
+      message: 'Not logged in to WeRead',
+    });
+  });
+
   it('maps non-auth API errors to API_ERROR', async () => {
     const mockPage = {
       getCookies: vi.fn().mockResolvedValue([]),

@@ -12,9 +12,14 @@ import type { BrowserCookie, IPage } from '../../types.js';
 const WEB_API = 'https://weread.qq.com/web';
 const API = 'https://i.weread.qq.com';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+const WEREAD_AUTH_ERRCODES = new Set([-2010, -2012]);
 
 function buildCookieHeader(cookies: BrowserCookie[]): string {
   return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ');
+}
+
+function isAuthErrorResponse(resp: Response, data: any): boolean {
+  return resp.status === 401 || WEREAD_AUTH_ERRCODES.has(Number(data?.errcode));
 }
 
 /**
@@ -78,7 +83,7 @@ export async function fetchPrivateApi(page: IPage, path: string, params?: Record
     throw new CliError('PARSE_ERROR', `Invalid JSON response for ${path}`, 'WeRead may have returned an HTML error page');
   }
 
-  if (resp.status === 401 || data?.errcode === -2010) {
+  if (isAuthErrorResponse(resp, data)) {
     throw new CliError('AUTH_REQUIRED', 'Not logged in to WeRead', 'Please log in to weread.qq.com in Chrome first');
   }
   if (!resp.ok) {
