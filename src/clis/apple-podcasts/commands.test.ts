@@ -44,6 +44,7 @@ describe('apple-podcasts search command', () => {
         author: 'OpenCLI',
         episodes: 12,
         genre: 'Technology',
+        url: '',
       },
     ]);
   });
