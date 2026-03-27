@@ -8,7 +8,7 @@
  *     opencli-plugin.json   — manifest with name, version, description
  *     package.json          — ESM package with opencli peer dependency
  *     hello.yaml            — sample YAML command
- *     greet.ts              — sample TS command using the registry API
+   *     greet.ts              — sample TS command using the current registry API
  *     README.md             — basic documentation
  */
 
@@ -105,21 +105,19 @@ pipeline:
  * Demonstrates the programmatic cli() registration API.
  */
 
-import { cli } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
   site: '${name}',
   name: 'greet',
   description: 'Greet someone by name',
-  strategy: 'public',
+  strategy: Strategy.PUBLIC,
   browser: false,
   args: [
-    { name: 'name', description: 'Name to greet', required: true },
+    { name: 'name', positional: true, required: true, help: 'Name to greet' },
   ],
-  async run({ args }) {
-    const name = args.name as string;
-    return [{ greeting: \`Hello, \${name}! 👋\` }];
-  },
+  columns: ['greeting'],
+  func: async (_page, kwargs) => [{ greeting: \`Hello, \${String(kwargs.name ?? 'World')}!\` }],
 });
 `;
   writeFile(targetDir, 'greet.ts', tsContent);

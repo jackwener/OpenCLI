@@ -3,7 +3,8 @@
  *
  * Plugins live in ~/.opencli/plugins/<name>/.
  * Monorepo clones live in ~/.opencli/monorepos/<repo-name>/.
- * Install source format: "github:user/repo" or "github:user/repo/subplugin"
+ * Install source format: "github:user/repo", "github:user/repo/subplugin",
+ * "https://github.com/user/repo", "file:///local/plugin", or a local directory path.
  */
 
 import * as fs from 'node:fs';
@@ -68,6 +69,14 @@ export interface PluginInfo {
   monorepoName?: string;
   /** Description from opencli-plugin.json. */
   description?: string;
+}
+
+interface ParsedSource {
+  type: 'git' | 'local';
+  name: string;
+  subPlugin?: string;
+  cloneUrl?: string;
+  localPath?: string;
 }
 
 // ── Validation helpers ──────────────────────────────────────────────────────
@@ -207,21 +216,31 @@ export function installPlugin(source: string): string | string[] {
       `Supported formats:\n` +
       `  github:user/repo\n` +
       `  github:user/repo/subplugin\n` +
-      `  https://github.com/user/repo`
+      `  https://github.com/user/repo\n` +
+      `  file:///absolute/path/to/plugin\n` +
+      `  ./local-plugin-dir`
     );
   }
 
-  const { cloneUrl, name: repoName, subPlugin } = parsed;
-
   // Clone to a temporary location first so we can inspect the manifest
   const tmpCloneDir = path.join(os.tmpdir(), `opencli-clone-${Date.now()}`);
-  try {
-    execFileSync('git', ['clone', '--depth', '1', cloneUrl, tmpCloneDir], {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-  } catch (err) {
-    throw new Error(`Failed to clone plugin: ${getErrorMessage(err)}`);
+  const { name: repoName, subPlugin } = parsed;
+
+  if (parsed.type === 'git') {
+    try {
+      execFileSync('git', ['clone', '--depth', '1', parsed.cloneUrl!, tmpCloneDir], {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (err) {
+      throw new Error(`Failed to clone plugin: ${getErrorMessage(err)}`);
+    }
+  } else {
+    try {
+      fs.cpSync(parsed.localPath!, tmpCloneDir, { recursive: true });
+    } catch (err) {
+      throw new Error(`Failed to copy local plugin: ${getErrorMessage(err)}`);
+    }
   }
 
   try {
@@ -235,11 +254,11 @@ export function installPlugin(source: string): string | string[] {
     }
 
     if (manifest && isMonorepo(manifest)) {
-      return installMonorepo(tmpCloneDir, cloneUrl, repoName, manifest, subPlugin);
+      return installMonorepo(tmpCloneDir, parsed.type === 'git' ? parsed.cloneUrl! : parsed.localPath!, repoName, manifest, subPlugin);
     }
 
     // Single plugin mode
-    return installSinglePlugin(tmpCloneDir, cloneUrl, repoName, manifest);
+    return installSinglePlugin(tmpCloneDir, parsed.type === 'git' ? parsed.cloneUrl! : parsed.localPath!, repoName, manifest);
   } finally {
     // Clean up temp clone (may already have been moved)
     try { fs.rmSync(tmpCloneDir, { recursive: true, force: true }); } catch {}
@@ -633,7 +652,30 @@ function getPluginSource(dir: string): string | undefined {
 /** Parse a plugin source string into clone URL, repo name, and optional sub-plugin. */
 function parseSource(
   source: string,
-): { cloneUrl: string; name: string; subPlugin?: string } | null {
+): ParsedSource | null {
+  if (source.startsWith('file://')) {
+    try {
+      const localPath = fileURLToPath(source);
+      if (!fs.existsSync(localPath) || !fs.statSync(localPath).isDirectory()) return null;
+      return {
+        type: 'local',
+        localPath,
+        name: path.basename(localPath),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  const localPath = path.resolve(source);
+  if (fs.existsSync(localPath) && fs.statSync(localPath).isDirectory()) {
+    return {
+      type: 'local',
+      localPath,
+      name: path.basename(localPath),
+    };
+  }
+
   // github:user/repo/subplugin  (monorepo specific sub-plugin)
   const githubSubMatch = source.match(
     /^github:([\w.-]+)\/([\w.-]+)\/([\w.-]+)$/,
@@ -642,6 +684,7 @@ function parseSource(
     const [, user, repo, sub] = githubSubMatch;
     const name = repo.replace(/^opencli-plugin-/, '');
     return {
+      type: 'git',
       cloneUrl: `https://github.com/${user}/${repo}.git`,
       name,
       subPlugin: sub,
@@ -654,6 +697,7 @@ function parseSource(
     const [, user, repo] = githubMatch;
     const name = repo.replace(/^opencli-plugin-/, '');
     return {
+      type: 'git',
       cloneUrl: `https://github.com/${user}/${repo}.git`,
       name,
     };
@@ -667,6 +711,7 @@ function parseSource(
     const [, user, repo] = urlMatch;
     const name = repo.replace(/^opencli-plugin-/, '');
     return {
+      type: 'git',
       cloneUrl: `https://github.com/${user}/${repo}.git`,
       name,
     };

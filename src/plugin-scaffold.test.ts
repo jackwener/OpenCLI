@@ -59,6 +59,30 @@ describe('createPluginScaffold', () => {
     expect(pkg.peerDependencies?.['@jackwener/opencli']).toBeDefined();
   });
 
+  it('generates a TS sample that matches the current plugin API', () => {
+    const dir = path.join(os.tmpdir(), `opencli-scaffold-${Date.now()}`);
+    createdDirs.push(dir);
+
+    createPluginScaffold('test-ts', { dir });
+    const tsSample = fs.readFileSync(path.join(dir, 'greet.ts'), 'utf-8');
+
+    expect(tsSample).toContain(`import { cli, Strategy } from '@jackwener/opencli/registry';`);
+    expect(tsSample).toContain(`strategy: Strategy.PUBLIC`);
+    expect(tsSample).toContain(`help: 'Name to greet'`);
+    expect(tsSample).toContain(`func: async (_page, kwargs)`);
+    expect(tsSample).not.toContain('async run(');
+  });
+
+  it('documents a supported local install flow', () => {
+    const dir = path.join(os.tmpdir(), `opencli-scaffold-${Date.now()}`);
+    createdDirs.push(dir);
+
+    createPluginScaffold('test-readme', { dir });
+    const readme = fs.readFileSync(path.join(dir, 'README.md'), 'utf-8');
+
+    expect(readme).toContain(`opencli plugin install file://${dir}`);
+  });
+
   it('rejects invalid names', () => {
     expect(() => createPluginScaffold('Bad_Name')).toThrow('Invalid plugin name');
     expect(() => createPluginScaffold('123start')).toThrow('Invalid plugin name');

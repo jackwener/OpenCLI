@@ -37,6 +37,7 @@ describe('parseSource', () => {
   it('parses github:user/repo format', () => {
     const result = _parseSource('github:ByteYue/opencli-plugin-github-trending');
     expect(result).toEqual({
+      type: 'git',
       cloneUrl: 'https://github.com/ByteYue/opencli-plugin-github-trending.git',
       name: 'github-trending',
     });
@@ -45,6 +46,7 @@ describe('parseSource', () => {
   it('parses https URL format', () => {
     const result = _parseSource('https://github.com/ByteYue/opencli-plugin-hot-digest');
     expect(result).toEqual({
+      type: 'git',
       cloneUrl: 'https://github.com/ByteYue/opencli-plugin-hot-digest.git',
       name: 'hot-digest',
     });
@@ -63,6 +65,28 @@ describe('parseSource', () => {
   it('returns null for invalid source', () => {
     expect(_parseSource('invalid')).toBeNull();
     expect(_parseSource('npm:some-package')).toBeNull();
+  });
+
+  it('parses file:// local plugin directories', () => {
+    const localDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-local-plugin-'));
+    const result = _parseSource(`file://${localDir}`);
+    expect(result).toEqual({
+      type: 'local',
+      localPath: localDir,
+      name: path.basename(localDir),
+    });
+    fs.rmSync(localDir, { recursive: true, force: true });
+  });
+
+  it('parses plain local plugin directories', () => {
+    const localDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-local-plugin-'));
+    const result = _parseSource(localDir);
+    expect(result).toEqual({
+      type: 'local',
+      localPath: localDir,
+      name: path.basename(localDir),
+    });
+    fs.rmSync(localDir, { recursive: true, force: true });
   });
 });
 
@@ -407,6 +431,7 @@ describe('parseSource with monorepo subplugin', () => {
   it('parses github:user/repo/subplugin format', () => {
     const result = _parseSource('github:ByteYue/opencli-plugins/polymarket');
     expect(result).toEqual({
+      type: 'git',
       cloneUrl: 'https://github.com/ByteYue/opencli-plugins.git',
       name: 'opencli-plugins',
       subPlugin: 'polymarket',
@@ -422,6 +447,7 @@ describe('parseSource with monorepo subplugin', () => {
   it('still parses github:user/repo without subplugin', () => {
     const result = _parseSource('github:user/my-repo');
     expect(result).toEqual({
+      type: 'git',
       cloneUrl: 'https://github.com/user/my-repo.git',
       name: 'my-repo',
     });
