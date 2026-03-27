@@ -124,6 +124,7 @@ describe('API health smoke tests', () => {
       'coupang',
       'xiaohongshu',
       'yahoo-finance',
+      'webofscience',
     ]) {
       expect(sites.has(expected)).toBe(true);
     }

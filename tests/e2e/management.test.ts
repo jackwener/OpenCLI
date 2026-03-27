@@ -31,7 +31,27 @@ describe('management commands E2E', () => {
     expect(stdout).toContain('hackernews');
     expect(stdout).toContain('bilibili');
     expect(stdout).toContain('twitter');
+    expect(stdout).toContain('webofscience');
     expect(stdout).toContain('commands across');
+  });
+
+  it('list includes the Web of Science adapter commands', async () => {
+    const { stdout, code } = await runCli(['list', '-f', 'json']);
+    expect(code).toBe(0);
+    const data = parseJsonOutput(stdout);
+    const webofscience = data.filter((entry: any) => entry.site === 'webofscience');
+
+    expect(webofscience).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ site: 'webofscience', name: 'smart-search' }),
+        expect.objectContaining({ site: 'webofscience', name: 'basic-search' }),
+        expect.objectContaining({ site: 'webofscience', name: 'author-search' }),
+        expect.objectContaining({ site: 'webofscience', name: 'author-record' }),
+        expect.objectContaining({ site: 'webofscience', name: 'references' }),
+        expect.objectContaining({ site: 'webofscience', name: 'citing-articles' }),
+        expect.objectContaining({ site: 'webofscience', name: 'record' }),
+      ]),
+    );
   });
 
   it('list -f yaml produces valid yaml', async () => {
