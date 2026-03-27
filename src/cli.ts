@@ -411,6 +411,36 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       console.log();
     });
 
+  pluginCmd
+    .command('create')
+    .description('Create a new plugin scaffold')
+    .argument('<name>', 'Plugin name (lowercase, hyphens allowed)')
+    .option('-d, --dir <path>', 'Output directory (default: ./<name>)')
+    .option('--description <text>', 'Plugin description')
+    .action(async (name: string, opts: { dir?: string; description?: string }) => {
+      const { createPluginScaffold } = await import('./plugin-scaffold.js');
+      try {
+        const result = createPluginScaffold(name, {
+          dir: opts.dir,
+          description: opts.description,
+        });
+        console.log(chalk.green(`✅ Plugin scaffold created at ${result.dir}`));
+        console.log();
+        console.log(chalk.bold('  Files created:'));
+        for (const f of result.files) {
+          console.log(`    ${chalk.cyan(f)}`);
+        }
+        console.log();
+        console.log(chalk.dim('  Next steps:'));
+        console.log(chalk.dim(`    cd ${result.dir}`));
+        console.log(chalk.dim(`    opencli plugin install file://${result.dir}`));
+        console.log(chalk.dim(`    opencli ${name} hello`));
+      } catch (err) {
+        console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
+        process.exitCode = 1;
+      }
+    });
+
   // ── External CLIs ─────────────────────────────────────────────────────────
 
   const externalClis = loadExternalClis();
