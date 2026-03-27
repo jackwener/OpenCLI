@@ -21,7 +21,7 @@ Run `opencli list` for the live registry.
 | **[boss](/adapters/browser/boss)** | `search` `detail` `recommend` `joblist` `greet` `batchgreet` `send` `chatlist` `chatmsg` `invite` `mark` `exchange` `resume` `stats` | 🔐 Browser |
 | **[ctrip](/adapters/browser/ctrip)** | `search` | 🔐 Browser |
 | **[reuters](/adapters/browser/reuters)** | `search` | 🔐 Browser |
-| **[webofscience](/adapters/browser/webofscience)** | `smart-search` `basic-search` `author-search` `record` | 🔐 Browser |
+| **[webofscience](/adapters/browser/webofscience)** | `smart-search` `basic-search` `author-search` `author-record` `citing-articles` `references` `record` | 🔐 Browser |
 | **[smzdm](/adapters/browser/smzdm)** | `search` | 🔐 Browser |
 | **[jike](/adapters/browser/jike)** | `feed` `search` `post` `topic` `user` `create` `comment` `like` `repost` `notifications` | 🔐 Browser |
 | **[jimeng](/adapters/browser/jimeng)** | `generate` `history` | 🔐 Browser |

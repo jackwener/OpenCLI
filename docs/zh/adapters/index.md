@@ -6,4 +6,4 @@
 
 新增浏览器适配器：
 
-- [Web of Science](/adapters/browser/webofscience) `smart-search` `basic-search` `author-search` `record`
+- [Web of Science](/adapters/browser/webofscience) `smart-search` `basic-search` `author-search` `author-record` `citing-articles` `references` `record`

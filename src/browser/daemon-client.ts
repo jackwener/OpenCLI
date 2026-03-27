@@ -111,7 +111,8 @@ export async function sendCommand(
         const isTransient = errMsg.includes('Extension disconnected')
           || errMsg.includes('Extension not connected')
           || errMsg.includes('attach failed')
-          || errMsg.includes('no longer exists');
+          || errMsg.includes('no longer exists')
+          || errMsg.includes('Detached while handling command');
         if (isTransient && attempt < maxRetries) {
           // Longer delay for extension recovery (service worker restart)
           await new Promise(r => setTimeout(r, 1500));
@@ -139,4 +140,3 @@ export async function listSessions(): Promise<BrowserSessionInfo[]> {
   const result = await sendCommand('sessions');
   return Array.isArray(result) ? result : [];
 }
-

@@ -66,7 +66,7 @@ PATTERNS
 Research Areas
 Computer Science
 Web of Science Categories
-Computer Science, Artificial IntelligenceComputer Science, Information SystemsComputer Science, Interdisciplinary Applications
+Computer Science, Artificial IntelligenceComputer Science, Information SystemsComputer Science, Interdisciplinary Applications Language English Accession Number WOS:001335131500001 PubMed ID 39569205
 7.4`;
 
     expect(extractSupplementMetadataFromText(body)).toMatchObject({
@@ -75,6 +75,106 @@ Computer Science, Artificial IntelligenceComputer Science, Information SystemsCo
       email_addresses: 'm.lones@hw.ac.uk',
       research_areas: 'Computer Science',
       wos_categories: 'Computer Science, Artificial Intelligence; Computer Science, Information Systems; Computer Science, Interdisciplinary Applications',
+    });
+  });
+
+  it('extracts author-level affiliation references from full-record page text', () => {
+    const body = `Author Information
+By
+Lones, Michael A.1,2
+Doe, Jane3
+Addresses
+1 Heriot Watt Univ, Sch Math & Comp Sci, Edinburgh, Scotland
+2 National Robotarium, Edinburgh, Scotland
+3 Example University, School of Computing, Boston, MA, USA
+E-mail Addresses
+m.lones@hw.ac.uk
+jane@example.edu`;
+
+    expect(extractSupplementMetadataFromText(body)).toMatchObject({
+      authors_structured: JSON.stringify([
+        {
+          name: 'Lones, Michael A.',
+          address_refs: ['1', '2'],
+          addresses: [
+            'Heriot Watt Univ, Sch Math & Comp Sci, Edinburgh, Scotland',
+            'National Robotarium, Edinburgh, Scotland',
+          ],
+        },
+        {
+          name: 'Doe, Jane',
+          address_refs: ['3'],
+          addresses: [
+            'Example University, School of Computing, Boston, MA, USA',
+          ],
+        },
+      ]),
+    });
+  });
+
+  it('strips trailing metadata labels from inline wos categories text', () => {
+    const body = `Web of Science Categories
+Computer Science, Artificial IntelligenceComputer Science, Information SystemsComputer Science, Interdisciplinary Applications Language English Accession Number WOS:001335131500001 PubMed ID 39569205`;
+
+    expect(extractSupplementMetadataFromText(body)).toMatchObject({
+      wos_categories: 'Computer Science, Artificial Intelligence; Computer Science, Information Systems; Computer Science, Interdisciplinary Applications',
+    });
+  });
+
+  it('extracts inline metadata and keyword sections from full-record text when API fields are missing', () => {
+    const body = `Keywords
+Author Keywords
+machine learning
+best practices
+Keywords Plus
+NEURAL NETWORKS
+SELECTION
+Author Information
+By
+Lones, Michael A.
+Corresponding Address
+Heriot Watt Univ, Sch Math & Comp Sci, Edinburgh, Scotland
+E-mail Addresses
+m.lones@hw.ac.uk
+Addresses
+1 Heriot Watt Univ, Sch Math & Comp Sci, Edinburgh, Scotland
+Categories/ Classification
+Research Areas
+Computer Science
+Web of Science Categories
+Computer Science, Artificial Intelligence
+Computer Science, Information Systems
+Language
+English
+Accession Number
+WOS:001335131500001
+PubMed ID
+39569205
+ISSN
+2666-3899
+IDS Number
+J1Z8Y
+Journal information
+Current Publisher
+CELL PRESS
+50 HAMPSHIRE ST, FLOOR 5, CAMBRIDGE, MA 02139
+Journal Impact Factor`;
+
+    expect(extractSupplementMetadataFromText(body)).toMatchObject({
+      author_keywords: 'machine learning; best practices',
+      keywords_plus: 'NEURAL NETWORKS; SELECTION',
+      language: 'English',
+      pubmed_id: '39569205',
+      issn: '2666-3899',
+      ids_number: 'J1Z8Y',
+      current_publisher: 'CELL PRESS; 50 HAMPSHIRE ST, FLOOR 5, CAMBRIDGE, MA 02139',
+      authors_structured: JSON.stringify([
+        {
+          name: 'Lones, Michael A.',
+          address_refs: [],
+          addresses: [],
+        },
+      ]),
     });
   });
 
@@ -180,6 +280,13 @@ Computer Science, Artificial IntelligenceComputer Science, Information SystemsCo
           email_addresses: 'm.lones@hw.ac.uk',
           research_areas: 'Computer Science',
           wos_categories: 'Computer Science, Artificial Intelligence; Computer Science, Information Systems; Computer Science, Interdisciplinary Applications',
+          authors_structured: JSON.stringify([
+            {
+              name: 'Lones, Michael A.',
+              address_refs: ['1'],
+              addresses: ['Heriot Watt Univ, Sch Math & Comp Sci, Edinburgh, Scotland'],
+            },
+          ]),
           current_publisher: 'CELL PRESS50 HAMPSHIRE ST, FLOOR 5, CAMBRIDGE, MA 02139',
           cited_references: '71',
         },
@@ -240,6 +347,13 @@ Computer Science, Artificial IntelligenceComputer Science, Information SystemsCo
       { field: 'email_addresses', value: 'm.lones@hw.ac.uk' },
       { field: 'research_areas', value: 'Computer Science' },
       { field: 'wos_categories', value: 'Computer Science, Artificial Intelligence; Computer Science, Information Systems; Computer Science, Interdisciplinary Applications' },
+      { field: 'authors_structured', value: JSON.stringify([
+        {
+          name: 'Lones, Michael A.',
+          address_refs: ['1'],
+          addresses: ['Heriot Watt Univ, Sch Math & Comp Sci, Edinburgh, Scotland'],
+        },
+      ]) },
       { field: 'current_publisher', value: 'CELL PRESS50 HAMPSHIRE ST, FLOOR 5, CAMBRIDGE, MA 02139' },
       { field: 'author_keywords', value: 'machine learning; best practices' },
       { field: 'keywords_plus', value: 'pitfalls' },
@@ -250,6 +364,73 @@ Computer Science, Artificial IntelligenceComputer Science, Information SystemsCo
       { field: 'full_text_urls', value: 'https://webofscience.clarivate.cn/api/gateway?foo=1; https://pmc.ncbi.nlm.nih.gov/articles/PMC11573893/pdf/main.pdf' },
       { field: 'url', value: 'https://webofscience.clarivate.cn/wos/alldb/full-record/WOS:001335131500001' },
     ]);
+  });
+
+  it('retries supplement scraping when the first full-record page scrape is empty', async () => {
+    const cmd = getRegistry().get('webofscience/record');
+    expect(cmd?.func).toBeTypeOf('function');
+
+    const page = createPageMock([
+      { sid: 'SIDRETRY', href: 'https://webofscience.clarivate.cn/wos/woscc/summary/test/relevance/1' },
+      [
+        {
+          key: 'searchInfo',
+          payload: {
+            QueryID: 'QIDRETRY',
+            RecordsFound: 1,
+          },
+        },
+        {
+          key: 'records',
+          payload: {
+            1: {
+              ut: 'WOS:RETRY1',
+              titles: {
+                item: { en: [{ title: 'Retry supplement result' }] },
+              },
+              citation_related: { counts: { WOSCC: 1 } },
+            },
+          },
+        },
+      ],
+      [
+        {
+          key: 'full-record',
+          payload: {
+            ut: 'WOS:RETRY1',
+            titles: {
+              item: { en: [{ title: 'Retry supplement result' }] },
+            },
+            citation_related: { counts: { WOSCC: 1 } },
+          },
+        },
+      ],
+      {},
+      {
+        bodyText: `Document Type
+Review
+Abstract
+Current Publisher
+Retry Publisher
+Journal Impact Factor`,
+        fullTextLinks: [],
+      },
+    ]);
+
+    const result = await cmd!.func!(page, { id: 'WOS:RETRY1' }) as Array<{ field: string; value: string }>;
+
+    expect(page.goto).toHaveBeenNthCalledWith(
+      2,
+      'https://webofscience.clarivate.cn/wos/woscc/full-record/WOS:RETRY1',
+      { settleMs: 4000 },
+    );
+    expect(page.goto).toHaveBeenNthCalledWith(
+      3,
+      'https://webofscience.clarivate.cn/wos/woscc/full-record/WOS:RETRY1',
+      { settleMs: 4000 },
+    );
+    expect(result).toContainEqual({ field: 'document_type', value: 'Review' });
+    expect(result).toContainEqual({ field: 'current_publisher', value: 'Retry Publisher' });
   });
 
   it('accepts a full-record URL and infers the database from the path', async () => {
@@ -436,5 +617,110 @@ Computer Science, Artificial IntelligenceComputer Science, Information SystemsCo
       { field: 'citations_woscc', value: '9' },
       { field: 'url', value: 'https://webofscience.clarivate.cn/wos/woscc/full-record/WOS:004' },
     ]);
+  });
+
+  it('falls back to page metadata for keyword and identifier fields when the API payload omits them', async () => {
+    const cmd = getRegistry().get('webofscience/record');
+    expect(cmd?.func).toBeTypeOf('function');
+
+    const page = createPageMock([
+      { sid: 'SIDMETA', href: 'https://webofscience.clarivate.cn/wos/woscc/summary/test/relevance/1' },
+      [
+        {
+          key: 'searchInfo',
+          payload: {
+            QueryID: 'QIDMETA',
+            RecordsFound: 1,
+          },
+        },
+        {
+          key: 'records',
+          payload: {
+            1: {
+              ut: 'WOS:001335131500001',
+              titles: {
+                item: { en: [{ title: 'Metadata fallback record' }] },
+              },
+              citation_related: { counts: { WOSCC: 64, ALLDB: 67 } },
+            },
+          },
+        },
+      ],
+      [
+        {
+          key: 'full-record',
+          payload: {
+            ut: 'WOS:001335131500001',
+            titles: {
+              item: { en: [{ title: 'Metadata fallback record' }] },
+            },
+            citation_related: { counts: { WOSCC: 64, ALLDB: 67 } },
+          },
+        },
+      ],
+      {
+        bodyText: `Keywords
+Author Keywords
+machine learning
+best practices
+Keywords Plus
+NEURAL NETWORKS
+SELECTION
+Author Information
+By
+Lones, Michael A.
+Corresponding Address
+Heriot Watt Univ, Sch Math & Comp Sci, Edinburgh, Scotland
+E-mail Addresses
+m.lones@hw.ac.uk
+Addresses
+1 Heriot Watt Univ, Sch Math & Comp Sci, Edinburgh, Scotland
+Categories/ Classification
+Research Areas
+Computer Science
+Web of Science Categories
+Computer Science, Artificial Intelligence
+Computer Science, Information Systems
+Language
+English
+Accession Number
+WOS:001335131500001
+PubMed ID
+39569205
+ISSN
+2666-3899
+IDS Number
+J1Z8Y
+Journal information
+Current Publisher
+CELL PRESS
+50 HAMPSHIRE ST, FLOOR 5, CAMBRIDGE, MA 02139
+Journal Impact Factor`,
+        fullTextLinks: [],
+      },
+    ]);
+
+    const result = await cmd!.func!(page, { id: 'WOS:001335131500001' }) as Array<{ field: string; value: string }>;
+
+    expect(result).toContainEqual({ field: 'author_keywords', value: 'machine learning; best practices' });
+    expect(result).toContainEqual({ field: 'keywords_plus', value: 'NEURAL NETWORKS; SELECTION' });
+    expect(result).toContainEqual({ field: 'language', value: 'English' });
+    expect(result).toContainEqual({ field: 'pubmed_id', value: '39569205' });
+    expect(result).toContainEqual({ field: 'issn', value: '2666-3899' });
+    expect(result).toContainEqual({ field: 'ids_number', value: 'J1Z8Y' });
+    expect(result).toContainEqual({
+      field: 'current_publisher',
+      value: 'CELL PRESS; 50 HAMPSHIRE ST, FLOOR 5, CAMBRIDGE, MA 02139',
+    });
+    expect(result).toContainEqual({
+      field: 'authors_structured',
+      value: JSON.stringify([
+        {
+          name: 'Lones, Michael A.',
+          address_refs: [],
+          addresses: [],
+        },
+      ]),
+    });
   });
 });

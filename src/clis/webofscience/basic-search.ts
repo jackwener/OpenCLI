@@ -2,6 +2,7 @@ import { cli, Strategy } from '../../registry.js';
 import { ArgumentError, EmptyResultError } from '../../errors.js';
 import {
   basicSearchUrl,
+  buildBasicSearchRowText,
   buildSearchPayload,
   clampLimit,
   ensureSearchSessionAtUrl,
@@ -9,8 +10,12 @@ import {
   firstTitle,
   formatAuthors,
   fullRecordUrl,
+  listBasicSearchFields,
   normalizeDatabase,
+  normalizeBasicSearchField,
 } from './shared.js';
+
+const BASIC_SEARCH_INPUT_SELECTOR = '#search-option-0';
 
 cli({
   site: 'webofscience',
@@ -22,6 +27,7 @@ cli({
   navigateBefore: false,
   args: [
     { name: 'query', positional: true, required: true, help: 'Search query' },
+    { name: 'field', required: false, help: 'Basic Search field', choices: listBasicSearchFields().map(field => field.aliases[0]) },
     { name: 'database', required: false, help: 'Database to search', choices: ['woscc', 'alldb'] },
     { name: 'limit', type: 'int', default: 10, help: 'Max results (max 50)' },
   ],
@@ -34,8 +40,9 @@ cli({
 
     const database = normalizeDatabase(kwargs.database);
     const limit = clampLimit(kwargs.limit);
-    const sid = await ensureSearchSessionAtUrl(page, basicSearchUrl(database), query);
-    const payload = buildSearchPayload(query, limit, database);
+    const field = normalizeBasicSearchField(kwargs.field);
+    const sid = await ensureSearchSessionAtUrl(page, basicSearchUrl(database), query, BASIC_SEARCH_INPUT_SELECTOR);
+    const payload = buildSearchPayload(query, limit, database, buildBasicSearchRowText(query, field.key));
 
     const events = await page.evaluate(`(async () => {
       const payload = ${JSON.stringify(payload)};
@@ -69,4 +76,3 @@ cli({
     return records;
   },
 });
-

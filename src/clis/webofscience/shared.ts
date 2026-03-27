@@ -5,6 +5,40 @@ export const SUBMIT_BUTTON_SELECTOR = "button[aria-label='Submit your question']
 export const MAX_LIMIT = 50;
 
 export type WosDatabase = 'woscc' | 'alldb';
+export type BasicSearchFieldKey =
+  | 'all_fields'
+  | 'topic'
+  | 'title'
+  | 'author'
+  | 'publication_titles'
+  | 'year_published'
+  | 'affiliation'
+  | 'funding_agency'
+  | 'publisher'
+  | 'publication_date'
+  | 'abstract'
+  | 'accession_number'
+  | 'address'
+  | 'author_identifiers'
+  | 'author_keywords'
+  | 'conference'
+  | 'document_type'
+  | 'doi'
+  | 'editor'
+  | 'grant_number'
+  | 'group_author'
+  | 'keyword_plus'
+  | 'language'
+  | 'pubmed_id'
+  | 'web_of_science_categories';
+
+export type BasicSearchFieldSpec = {
+  key: BasicSearchFieldKey;
+  label: string;
+  tag: string;
+  aliases: string[];
+};
+
 export type WosEvent = {
   key?: string;
   payload?: Record<string, any>;
@@ -42,6 +76,10 @@ type RecordIdentifier =
   | { kind: 'ut'; value: string; database?: WosDatabase }
   | { kind: 'doi'; value: string; database?: WosDatabase };
 
+type AuthorRecordIdentifier = {
+  id: string;
+};
+
 export function clampLimit(value: unknown): number {
   const parsed = Number(value ?? 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return 10;
@@ -69,6 +107,18 @@ export function basicSearchUrl(database: WosDatabase): string {
 
 export function fullRecordUrl(database: WosDatabase, ut: string): string {
   return `https://webofscience.clarivate.cn/wos/${database}/full-record/${ut}`;
+}
+
+export function citingSummaryUrl(database: WosDatabase, ut: string): string {
+  return `https://webofscience.clarivate.cn/wos/${database}/citing-summary/${ut}?from=${database}&type=colluid&siloSearchWarning=false`;
+}
+
+export function citedReferencesSummaryUrl(database: WosDatabase, ut: string): string {
+  return `https://webofscience.clarivate.cn/wos/${database}/cited-references-summary/${ut}?from=${database}&type=colluid`;
+}
+
+export function authorRecordUrl(id: string): string {
+  return `https://webofscience.clarivate.cn/wos/author/record/${id}`;
 }
 
 export function buildSearchPayload(
@@ -120,6 +170,61 @@ export function buildSearchPayload(
     },
     eventMode: null,
   };
+}
+
+const BASIC_SEARCH_FIELDS: BasicSearchFieldSpec[] = [
+  { key: 'all_fields', label: 'All Fields', tag: 'ALL', aliases: ['all-fields', 'all fields', 'all_fields', 'all'] },
+  { key: 'topic', label: 'Topic', tag: 'TS', aliases: ['topic', 'ts'] },
+  { key: 'title', label: 'Title', tag: 'TI', aliases: ['title', 'ti'] },
+  { key: 'author', label: 'Author', tag: 'AU', aliases: ['author', 'au'] },
+  { key: 'publication_titles', label: 'Publication Titles', tag: 'SO', aliases: ['publication-titles', 'publication titles', 'publication_titles', 'publication title', 'source', 'so'] },
+  { key: 'year_published', label: 'Year Published', tag: 'PY', aliases: ['year-published', 'year published', 'year_published', 'year', 'py'] },
+  { key: 'affiliation', label: 'Affiliation', tag: 'OG', aliases: ['affiliation', 'organization-enhanced', 'organization_enhanced', 'organization enhanced', 'og'] },
+  { key: 'funding_agency', label: 'Funding Agency', tag: 'FO', aliases: ['funding-agency', 'funding agency', 'funding_agency', 'fo'] },
+  { key: 'publisher', label: 'Publisher', tag: 'PUBL', aliases: ['publisher', 'publ'] },
+  { key: 'publication_date', label: 'Publication Date', tag: 'DOP', aliases: ['publication-date', 'publication date', 'publication_date', 'date of publication', 'dop'] },
+  { key: 'abstract', label: 'Abstract', tag: 'AB', aliases: ['abstract', 'ab'] },
+  { key: 'accession_number', label: 'Accession Number', tag: 'UT', aliases: ['accession-number', 'accession number', 'accession_number', 'ut'] },
+  { key: 'address', label: 'Address', tag: 'AD', aliases: ['address', 'ad'] },
+  { key: 'author_identifiers', label: 'Author Identifiers', tag: 'AI', aliases: ['author-identifiers', 'author identifiers', 'author_identifiers', 'ai'] },
+  { key: 'author_keywords', label: 'Author Keywords', tag: 'AK', aliases: ['author-keywords', 'author keywords', 'author_keywords', 'ak'] },
+  { key: 'conference', label: 'Conference', tag: 'CF', aliases: ['conference', 'cf'] },
+  { key: 'document_type', label: 'Document Type', tag: 'DT', aliases: ['document-type', 'document type', 'document_type', 'dt'] },
+  { key: 'doi', label: 'DOI', tag: 'DO', aliases: ['doi', 'do'] },
+  { key: 'editor', label: 'Editor', tag: 'ED', aliases: ['editor', 'ed'] },
+  { key: 'grant_number', label: 'Grant Number', tag: 'FG', aliases: ['grant-number', 'grant number', 'grant_number', 'fg'] },
+  { key: 'group_author', label: 'Group Author', tag: 'GP', aliases: ['group-author', 'group author', 'group_author', 'gp'] },
+  { key: 'keyword_plus', label: 'Keyword Plus', tag: 'KP', aliases: ['keyword-plus', 'keyword plus', 'keyword_plus', 'keywords plus', 'keywords-plus', 'kp'] },
+  { key: 'language', label: 'Language', tag: 'LA', aliases: ['language', 'la'] },
+  { key: 'pubmed_id', label: 'PubMed ID', tag: 'PMID', aliases: ['pubmed-id', 'pubmed id', 'pubmed_id', 'pmid'] },
+  { key: 'web_of_science_categories', label: 'Web of Science Categories', tag: 'WC', aliases: ['web-of-science-categories', 'web of science categories', 'web_of_science_categories', 'wos categories', 'wc'] },
+];
+
+export function listBasicSearchFields(): BasicSearchFieldSpec[] {
+  return [...BASIC_SEARCH_FIELDS];
+}
+
+export function normalizeBasicSearchField(value: unknown): BasicSearchFieldSpec {
+  if (value == null || value === '') {
+    return BASIC_SEARCH_FIELDS.find(field => field.key === 'topic')!;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  const match = BASIC_SEARCH_FIELDS.find(field =>
+    field.aliases.includes(normalized)
+    || field.key === normalized.replace(/[\s-]+/g, '_')
+    || field.label.toLowerCase() === normalized);
+
+  if (!match) {
+    throw new ArgumentError(`Unsupported Web of Science basic-search field: ${String(value)}`);
+  }
+
+  return match;
+}
+
+export function buildBasicSearchRowText(query: string, field: unknown): string {
+  const spec = normalizeBasicSearchField(field);
+  return `${spec.tag}=(${query})`;
 }
 
 export function extractSessionState(page: { evaluate: (js: string) => Promise<any> }): Promise<{ sid?: string | null; href?: string }> {
@@ -183,6 +288,26 @@ export async function ensureSearchSessionAtUrl(
   return session.sid;
 }
 
+export function isWosSubmitControl(input: {
+  text?: string | null;
+  type?: string | null;
+  ariaLabel?: string | null;
+}): boolean {
+  const text = String(input.text || '').trim().toLowerCase();
+  const type = String(input.type || '').trim().toLowerCase();
+  const ariaLabel = String(input.ariaLabel || '').trim().toLowerCase();
+  const hay = `${text} ${ariaLabel}`.trim();
+
+  if (!hay && type !== 'submit') return false;
+  if (hay.includes('history')) return false;
+  if (hay.includes('saved searches')) return false;
+  if (hay.includes('search history')) return false;
+
+  return type === 'submit'
+    || /^search\b/.test(hay)
+    || hay.includes('submit your question');
+}
+
 async function submitSearch(page: {
   click: (selector: string) => Promise<any>;
   pressKey: (key: string) => Promise<any>;
@@ -223,7 +348,14 @@ async function findVisibleSubmitButtonRef(page: { evaluate: (js: string) => Prom
     const target = buttons.find((el) => {
       const text = String(el.textContent || el.getAttribute('value') || '').trim();
       const type = String(el.getAttribute('type') || '').toLowerCase();
-      return type === 'submit' || /search/i.test(text);
+      const ariaLabel = String(el.getAttribute('aria-label') || '').trim();
+      const hay = (text + ' ' + ariaLabel).toLowerCase();
+      if (hay.includes('history')) return false;
+      if (hay.includes('saved searches')) return false;
+      if (hay.includes('search history')) return false;
+      return type === 'submit'
+        || /^search\b/.test(hay)
+        || hay.includes('submit your question');
     });
     if (!target) return null;
     target.setAttribute('data-ref', submitRef);
@@ -252,7 +384,9 @@ async function typeIntoSearch(
     }
   }
 
-  const selector = await page.evaluate(`(() => {
+  let selector: string | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    selector = await page.evaluate(`(() => {
     const isVisible = (el) => {
       const style = window.getComputedStyle(el);
       const rect = el.getBoundingClientRect();
@@ -276,6 +410,11 @@ async function typeIntoSearch(
     target.setAttribute('data-ref', ${JSON.stringify(discoveredRef)});
     return ${JSON.stringify(discoveredRef)};
   })()`);
+    if (selector) break;
+    if (attempt < 2) {
+      await page.wait(2);
+    }
+  }
 
   if (!selector) {
     throw new CommandExecutionError(
@@ -375,6 +514,27 @@ export function parseRecordIdentifier(input: string): RecordIdentifier | null {
   return null;
 }
 
+export function parseAuthorRecordIdentifier(input: string): AuthorRecordIdentifier | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed);
+    const match = url.pathname.match(/\/wos\/author\/record\/([^/?#]+)/i);
+    if (match) {
+      return { id: decodeURIComponent(match[1]) };
+    }
+  } catch {
+    // Not a URL; continue parsing as a bare identifier.
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    return { id: trimmed };
+  }
+
+  return null;
+}
+
 export function buildExactQuery(identifier: RecordIdentifier): string {
   return identifier.kind === 'ut'
     ? `UT=(${identifier.value})`
@@ -457,4 +617,318 @@ export function extractAbstract(record: WosRecord): string {
 
 export function extractKeywordGroup(record: WosRecord, key: string): string {
   return joinValues(record.keywords?.[key]?.en);
+}
+
+export async function fetchSummaryRecords(
+  page: {
+    goto: (url: string, options?: Record<string, unknown>) => Promise<any>;
+    wait: (seconds: number) => Promise<any>;
+    evaluate: (js: string) => Promise<any>;
+  },
+  url: string,
+  database: WosDatabase,
+  limit: number,
+  defaultMode: string,
+): Promise<WosRecord[]> {
+  async function fetchOnce(): Promise<unknown> {
+    return page.evaluate(`(async () => {
+    const href = String(location.href || '');
+    const summaryId = href.match(/\\/summary\\/([^/]+)/)?.[1] || '';
+    const pageNumber = Number(href.match(/\\/summary\\/[^/]+\\/[^/]+\\/(\\d+)/)?.[1] || '1') || 1;
+    const sort = href.match(/\\/summary\\/[^/]+\\/([^/]+)\\/\\d+/)?.[1] || 'relevance';
+    const sid = (() => {
+      try { return JSON.parse(String(localStorage.getItem('wos_sid') || '""')) || ''; } catch { return ''; }
+    })();
+    if (!summaryId || !sid) return [];
+
+    const rawState = localStorage.getItem('wos_search_' + summaryId);
+    const searchState = rawState ? JSON.parse(rawState) : null;
+    const product = ${JSON.stringify(toProduct(database))};
+    const retrieveBase = {
+      count: ${limit},
+      first: Math.max(1, ((pageNumber - 1) * ${limit}) + 1),
+      sort,
+      locale: 'en',
+      jcr: true,
+      history: true,
+    };
+    const baseState = {
+      ...(searchState || { id: summaryId, mode: ${JSON.stringify(defaultMode)}, database: product }),
+      id: summaryId,
+      database: searchState?.database || product,
+      product,
+      serviceMode: 'summary',
+    };
+    const candidates = [
+      {
+        ...baseState,
+        retrieve: retrieveBase,
+        searchMode: searchState?.mode || ${JSON.stringify(defaultMode)},
+        viewType: 'summary',
+        paginated: true,
+      },
+      {
+        ...baseState,
+        retrieve: { ...retrieveBase, coll: searchState?.database || product, view: 'summary' },
+        searchMode: 'GeneralSearch',
+        viewType: 'records',
+        paginated: true,
+      },
+      {
+        ...baseState,
+        retrieve: { ...retrieveBase, coll: searchState?.database || product, activity: true },
+        searchMode: 'GeneralSearch',
+        viewType: 'summary',
+        paginated: false,
+      },
+      {
+        ...baseState,
+        retrieve: { ...retrieveBase, coll: searchState?.database || product, activity: true },
+        searchMode: searchState?.mode || 'GeneralSearch',
+        viewType: 'records',
+        paginated: false,
+      },
+    ];
+
+    for (const payload of candidates) {
+      const res = await fetch('/api/wosnx/core/runQuerySearch?SID=' + encodeURIComponent(sid), {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          accept: 'application/json, text/plain, */*',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const text = await res.text();
+      if (!text || /^<!doctype/i.test(text.trim())) {
+        continue;
+      }
+      try {
+        return JSON.parse(text);
+      } catch {}
+    }
+
+    return [];
+  })()`);
+  }
+
+  await page.goto(url, { settleMs: 5000 });
+  await page.wait(6);
+
+  let records = extractRecords(await fetchOnce());
+  if (!records.length) {
+    await page.wait(4);
+    records = extractRecords(await fetchOnce());
+  }
+
+  return records;
+}
+
+export function parseWosEventStream(text: string): WosEvent[] {
+  const raw = String(text || '').trim();
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed as WosEvent[];
+    }
+  } catch {
+    // Fall back to line-delimited parsing below.
+  }
+
+  return raw
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line) as WosEvent];
+      } catch {
+        return [];
+      }
+    });
+}
+
+export async function fetchCurrentSummaryStreamRecords(
+  page: {
+    wait: (seconds: number) => Promise<any>;
+    evaluate: (js: string) => Promise<any>;
+  },
+  database: WosDatabase,
+  limit: number,
+  defaultMode: string,
+): Promise<WosRecord[]> {
+  async function fetchOnce(): Promise<{ streamText: string; debug: Record<string, any> }> {
+    return page.evaluate(`(async () => {
+    const href = String(location.href || '');
+    const qid = href.match(/\\/summary\\/([^/]+)/)?.[1] || '';
+    const pageNumber = Number(href.match(/\\/summary\\/[^/]+\\/[^/]+\\/(\\d+)/)?.[1] || '1') || 1;
+    const sort = href.match(/\\/summary\\/[^/]+\\/([^/]+)\\/\\d+/)?.[1] || 'relevance';
+    const sid = (() => {
+      try { return JSON.parse(String(localStorage.getItem('wos_sid') || '""')) || ''; } catch { return ''; }
+    })();
+    const searchState = (() => {
+      if (!qid) return null;
+      try { return JSON.parse(String(localStorage.getItem('wos_search_' + qid) || 'null')); } catch { return null; }
+    })();
+    if (!qid || !sid) {
+      return {
+        streamText: '',
+        debug: {
+          href,
+          qid,
+          pageNumber,
+          sort,
+          sid,
+          hasSearchState: !!searchState,
+          searchMode: searchState?.mode || ${JSON.stringify(defaultMode)},
+          product: ${JSON.stringify(toProduct(database))},
+          reason: 'missing-qid-or-sid',
+        },
+      };
+    }
+
+    const payload = {
+      qid,
+      retrieve: {
+        first: Math.max(1, ((pageNumber - 1) * ${MAX_LIMIT}) + 1),
+        sort,
+        count: ${MAX_LIMIT},
+        jcr: true,
+        highlight: false,
+        analyzes: [],
+      },
+      product: ${JSON.stringify(toProduct(database))},
+      searchMode: searchState?.mode || ${JSON.stringify(defaultMode)},
+      viewType: 'records',
+    };
+
+    const res = await fetch('/api/wosnx/core/runQueryGetRecordsStream?SID=' + encodeURIComponent(sid), {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        accept: 'application/json, text/plain, */*',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const streamText = await res.text();
+    return {
+      streamText,
+      debug: {
+        href,
+        qid,
+        pageNumber,
+        sort,
+        sid,
+        hasSearchState: !!searchState,
+        searchMode: searchState?.mode || ${JSON.stringify(defaultMode)},
+        product: ${JSON.stringify(toProduct(database))},
+        responseOk: res.ok,
+        responseStatus: res.status,
+        textSnippet: String(streamText || '').slice(0, 500),
+      },
+    };
+  })()`);
+  }
+  await page.wait(6);
+
+  let first = await fetchOnce();
+  let records = extractRecords(parseWosEventStream(String(first?.streamText || '')));
+  if (!records.length) {
+    await page.wait(4);
+    const second = await fetchOnce();
+    records = extractRecords(parseWosEventStream(String(second?.streamText || '')));
+    if (!records.length && process.env.OPENCLI_WOS_DEBUG_SUMMARY === '1') {
+      throw new CommandExecutionError(`Web of Science summary stream returned no records: ${JSON.stringify({
+        first: first?.debug || {},
+        second: second?.debug || {},
+      })}`);
+    }
+  }
+
+  return records;
+}
+
+export async function fetchSummaryStreamRecords(
+  page: {
+    goto: (url: string, options?: Record<string, unknown>) => Promise<any>;
+    wait: (seconds: number) => Promise<any>;
+    evaluate: (js: string) => Promise<any>;
+    tabs?: () => Promise<any[]>;
+    selectTab?: (index: number) => Promise<any>;
+  },
+  url: string,
+  database: WosDatabase,
+  limit: number,
+  defaultMode: string,
+): Promise<WosRecord[]> {
+  const targetPath = new URL(url).pathname;
+  const summaryMarker = '/summary/';
+  await page.goto(url, { settleMs: 5000 });
+  if (typeof page.tabs === 'function' && typeof page.selectTab === 'function') {
+    try {
+      const tabs = await page.tabs();
+      const matching = Array.isArray(tabs)
+        ? tabs.find(tab => {
+            const href = String(tab?.url || '');
+            return typeof tab?.index === 'number' && (href.includes(targetPath) || href.includes(summaryMarker));
+          })
+        : undefined;
+      if (matching && typeof matching.index === 'number') {
+        await page.selectTab(matching.index);
+      }
+    } catch {
+      // Best-effort: stay on current tab if tab discovery fails.
+    }
+  }
+  try {
+    const href = String(await page.evaluate(`(() => String(location.href || ''))()` ) || '');
+    if (!href.includes(summaryMarker)) {
+      await page.evaluate(`(() => { location.href = ${JSON.stringify(url)}; return true; })()`);
+      await page.wait(6);
+    }
+  } catch {
+    // Ignore navigation verification failures and let fetch diagnostics handle it.
+  }
+  return fetchCurrentSummaryStreamRecords(page, database, limit, defaultMode);
+}
+
+export async function scrapeBodyTextAndLinks(
+  page: {
+    goto: (url: string, options?: Record<string, unknown>) => Promise<any>;
+    wait: (seconds: number) => Promise<any>;
+    evaluate: (js: string) => Promise<any>;
+  },
+  url: string,
+): Promise<{ bodyText: string; links: Array<{ label?: string; url?: string }> }> {
+  await page.goto(url, { settleMs: 5000 });
+  const readOnce = () => page.evaluate(`(() => {
+    const normalize = (text) => String(text || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
+    const links = Array.from(document.querySelectorAll('a'))
+      .map((el) => ({
+        label: normalize(el.textContent || el.getAttribute('aria-label') || ''),
+        url: String(el.href || '').trim(),
+      }))
+      .filter((item) => item.url);
+    return {
+      bodyText: String(document.body.innerText || '').replace(/\\u00a0/g, ' '),
+      links,
+    };
+  })()`);
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.wait(2 + attempt);
+    const result = await readOnce();
+    const bodyText = typeof result?.bodyText === 'string' ? result.bodyText : '';
+    const links = Array.isArray(result?.links) ? result.links : [];
+    if (bodyText.trim()) {
+      return { bodyText, links };
+    }
+  }
+
+  return { bodyText: '', links: [] };
 }

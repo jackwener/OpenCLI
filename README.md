@@ -172,7 +172,7 @@ Run `opencli list` for the live registry.
 | **jd** | `item` | Browser |
 | **linkedin** | `search` `timeline` | Browser |
 | **reuters** | `search` | Browser |
-| **webofscience** | `smart-search` `basic-search` `author-search` `record` | Browser |
+| **webofscience** | `smart-search` `basic-search` `author-search` `author-record` `citing-articles` `references` `record` | Browser |
 | **smzdm** | `search` | Browser |
 | **web** | `read` | Browser |
 | **weibo** | `hot` `search` | Browser |

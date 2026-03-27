@@ -121,6 +121,119 @@ function uniqueValues(values: string[]): string[] {
   return result;
 }
 
+function stripTrailingMetadataLabels(value: string): string {
+  const normalized = normalizeTextValue(value);
+  if (!normalized) return '';
+
+  const trailingLabelPattern = /\s(?:Language|Accession Number|PubMed ID|ISSN|IDS Number)\b/i;
+  const match = normalized.match(trailingLabelPattern);
+  return match?.index != null
+    ? normalized.slice(0, match.index).trim()
+    : normalized;
+}
+
+function normalizeDelimitedList(value: string): string {
+  const normalized = normalizeTextValue(value);
+  if (!normalized) return '';
+
+  return normalized
+    .replace(/([a-z)])(?=[A-Z][a-z])/g, '$1; ')
+    .replace(/([a-z)])\s+(?=[A-Z][a-z].*?,)/g, '$1; ')
+    .replace(/;\s*;/g, '; ')
+    .trim();
+}
+
+function extractCategoryList(value: string): string {
+  const normalized = normalizeTextValue(value);
+  if (!normalized) return '';
+
+  const matches = normalized.match(/[A-Z][A-Za-z&/\-]+(?:\s+[A-Z][A-Za-z&/\-]+)*,\s+[A-Z][A-Za-z&/\-]+(?:\s+[A-Z][A-Za-z&/\-]+)*?(?=(?:[A-Z][A-Za-z&/\-]+(?:\s+[A-Z][A-Za-z&/\-]+)*,\s+[A-Z])|$)/g);
+  if (matches?.length) {
+    return uniqueValues(matches.map(normalizeTextValue)).join('; ');
+  }
+
+  return normalizeDelimitedList(normalized);
+}
+
+function cleanAuthorLine(value: string): { name: string; refs: string[] } | null {
+  const normalized = normalizeTextValue(value);
+  if (!normalized) return null;
+  if (!/,/.test(normalized)) return null;
+  if (/\b(view|provided|source|arrow|journal|impact|publisher)\b/i.test(normalized)) return null;
+
+  const refs = Array.from(normalized.matchAll(/\[(\d+(?:,\d+)*)\]/g))
+    .flatMap(match => String(match[1] || '').split(','))
+    .map(item => item.trim())
+    .filter(Boolean);
+  const parenthetical = normalized.match(/\(([^()]+,[^()]+)\)/)?.[1];
+  const cleaned = normalizeTextValue(
+    (parenthetical || normalized)
+      .replace(/\[[^\]]+\]/g, ' ')
+      .replace(/\([^()]*\)/g, parenthetical ? ' ' : '')
+      .replace(/\s+\d+(?:,\d+)*$/g, ' ')
+  );
+
+  if (!cleaned || /\b(corresponding author)\b/i.test(cleaned)) return null;
+  return { name: cleaned, refs };
+}
+
+function extractSectionValueList(body: string, label: string, endLabels: string[] = []): string[] {
+  const values = extractSectionLines(body, label, endLabels)
+    .flatMap((line) => normalizeDelimitedList(line).split(/\s*;\s*/g))
+    .map(normalizeTextValue)
+    .filter(Boolean);
+
+  return uniqueValues(values);
+}
+
+function extractStructuredAuthors(body: string): Array<{
+  name: string;
+  address_refs: string[];
+  addresses: string[];
+}> {
+  const lines = getTextLines(body);
+  const byIndex = lines.findIndex(line => line === 'By');
+  if (byIndex < 0) return [];
+
+  const addressMap = new Map<string, string>();
+  for (const line of extractSectionLines(body, 'Addresses', [
+    'E-mail Addresses',
+    'Categories/ Classification',
+  ])) {
+    const match = line.match(/^(\d+)\s+(.+)$/);
+    if (!match) continue;
+    addressMap.set(match[1], normalizeTextValue(match[2]));
+  }
+
+  const authors: Array<{ name: string; address_refs: string[]; addresses: string[] }> = [];
+  for (let index = byIndex + 1; index < lines.length; index++) {
+    const line = lines[index];
+    if (isSectionBoundary(line, ['Addresses', 'E-mail Addresses', 'Keywords', 'Source', 'Abstract'])) break;
+    const match = line.match(/^(.+?)(\d+(?:,\d+)*)$/);
+    if (match) {
+      const name = normalizeTextValue(match[1]);
+      const refs = match[2].split(',').map(item => item.trim()).filter(Boolean);
+      if (!name || !refs.length) continue;
+      authors.push({
+        name,
+        address_refs: refs,
+        addresses: refs.map(ref => addressMap.get(ref) || '').filter(Boolean),
+      });
+      continue;
+    }
+
+    const parsed = cleanAuthorLine(line);
+    if (!parsed) continue;
+    authors.push({
+      name: parsed.name,
+      address_refs: parsed.refs,
+      addresses: parsed.refs.map(ref => addressMap.get(ref) || '').filter(Boolean),
+    });
+  }
+
+  return authors;
+}
+
 export function extractSupplementMetadataFromText(body: string): Record<string, string> {
   const text = String(body || '').replace(/\u00a0/g, ' ');
   const metadata: Record<string, string> = {};
@@ -142,6 +255,20 @@ export function extractSupplementMetadataFromText(body: string): Record<string, 
   for (const [key, pattern] of Object.entries(regexFields)) {
     const value = extract(pattern);
     if (value) metadata[key] = value;
+  }
+
+  const fallbackFields: Array<[keyof typeof metadata | string, string, string[]]> = [
+    ['language', 'Language', ['Accession Number', 'PubMed ID', 'ISSN']],
+    ['pubmed_id', 'PubMed ID', ['ISSN', 'IDS Number', 'Journal information']],
+    ['issn', 'ISSN', ['IDS Number', 'Journal information', 'Current Publisher']],
+    ['ids_number', 'IDS Number', ['Journal information', 'Current Publisher']],
+  ];
+
+  for (const [key, label, endLabels] of fallbackFields) {
+    if (!metadata[key]) {
+      const value = extractInlineOrSectionValue(text, label, endLabels);
+      if (value) metadata[key] = value;
+    }
   }
 
   const citedReferences = text.match(/(\d+)\s+Cited References/)?.[1];
@@ -172,14 +299,70 @@ export function extractSupplementMetadataFromText(body: string): Record<string, 
   ]);
   if (researchAreas) metadata.research_areas = researchAreas;
 
-  const wosCategories = extractInlineOrSectionValue(text, 'Web of Science Categories', [
+  const wosCategories = extractCategoryList(stripTrailingMetadataLabels(extractInlineOrSectionValue(text, 'Web of Science Categories', [
     'See more data fields',
     'Journal information',
     'Journal Impact Factor',
     'Citation Network',
-  ])
-    .replace(/([a-z)])(?=[A-Z][a-z])/g, '$1; ');
+  ])));
   if (wosCategories) metadata.wos_categories = wosCategories;
+
+  const authorKeywords = extractSectionValueList(text, 'Author Keywords', [
+    'Keywords Plus',
+    'Author Information',
+    'Corresponding Address',
+  ]).join('; ');
+  if (authorKeywords) metadata.author_keywords = authorKeywords;
+
+  const keywordsPlus = extractSectionValueList(text, 'Keywords Plus', [
+    'Author Information',
+    'Corresponding Address',
+    'Addresses',
+  ]).join('; ');
+  if (keywordsPlus) metadata.keywords_plus = keywordsPlus;
+
+  const authorsStructured = extractStructuredAuthors(text);
+  if (authorsStructured.length) metadata.authors_structured = JSON.stringify(authorsStructured);
+
+  const currentPublisherLines = extractSectionLines(text, 'Current Publisher', [
+    'Journal Impact Factor',
+    'Journal Citation Reports TM',
+    'Citation Network',
+  ]);
+  const currentPublisher = (uniqueValues(currentPublisherLines).join('; ')
+    || extractInlineOrSectionValue(text, 'Current Publisher', [
+      'Journal Impact Factor',
+      'Journal Citation Reports TM',
+      'Citation Network',
+    ]))
+    .replace(/([A-Z])(\d)/g, '$1; $2');
+  if (currentPublisher) metadata.current_publisher = currentPublisher;
+
+  if (metadata.wos_categories) {
+    metadata.wos_categories = metadata.wos_categories
+      .replace(/;\s*;/g, '; ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  if (metadata.current_publisher) {
+    metadata.current_publisher = metadata.current_publisher
+      .replace(/;\s*;/g, '; ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  if (metadata.authors_structured) {
+    try {
+      const parsed = JSON.parse(metadata.authors_structured) as Array<{ name?: string; address_refs?: string[]; addresses?: string[] }>;
+      metadata.authors_structured = JSON.stringify(parsed.filter((item) => {
+        const name = normalizeTextValue(String(item?.name || ''));
+        return Boolean(name) && /,/.test(name) && !/\b(view|provided|source|arrow|journal|impact|publisher)\b/i.test(name);
+      }));
+    } catch {
+      // Ignore malformed fallback author metadata.
+    }
+  }
 
   return metadata;
 }
@@ -277,6 +460,13 @@ async function scrapeRecordPageSupplement(
   };
 }
 
+function hasSupplementData(supplement: RecordPageSupplement): boolean {
+  return Boolean(
+    Object.keys(supplement.metadata ?? {}).length
+    || (supplement.fullTextLinks?.length ?? 0) > 0,
+  );
+}
+
 cli({
   site: 'webofscience',
   name: 'record',
@@ -359,10 +549,13 @@ cli({
     const recordUrl = record.ut ? fullRecordUrl(database, record.ut) : '';
     let supplement: RecordPageSupplement = {};
     if (recordUrl) {
-      try {
-        supplement = await scrapeRecordPageSupplement(page, recordUrl);
-      } catch {
-        // DOM enrichment is best-effort; keep the structured API result.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          supplement = await scrapeRecordPageSupplement(page, recordUrl);
+          if (hasSupplementData(supplement)) break;
+        } catch {
+          // DOM enrichment is best-effort; keep the structured API result.
+        }
       }
     }
 
@@ -375,6 +568,8 @@ cli({
       .filter(Boolean)
       .join('; ');
     const metadata = supplement.metadata ?? {};
+    const authorKeywords = extractKeywordGroup(record, 'author_keywords') || metadata.author_keywords || '';
+    const keywordsPlus = extractKeywordGroup(record, 'keywords_plus') || metadata.keywords_plus || '';
 
     const rows = [
       { field: 'title', value: firstTitle(record, 'item') },
@@ -398,9 +593,10 @@ cli({
       { field: 'email_addresses', value: metadata.email_addresses ?? '' },
       { field: 'research_areas', value: metadata.research_areas ?? '' },
       { field: 'wos_categories', value: metadata.wos_categories ?? '' },
+      { field: 'authors_structured', value: metadata.authors_structured ?? '' },
       { field: 'current_publisher', value: metadata.current_publisher ?? '' },
-      { field: 'author_keywords', value: extractKeywordGroup(record, 'author_keywords') },
-      { field: 'keywords_plus', value: extractKeywordGroup(record, 'keywords_plus') },
+      { field: 'author_keywords', value: authorKeywords },
+      { field: 'keywords_plus', value: keywordsPlus },
       { field: 'citations_woscc', value: String(record.citation_related?.counts?.WOSCC ?? '') },
       { field: 'citations_alldb', value: String(record.citation_related?.counts?.ALLDB ?? '') },
       { field: 'cited_references', value: metadata.cited_references ?? '' },
