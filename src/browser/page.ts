@@ -36,6 +36,8 @@ export class Page implements IPage {
 
   /** Active tab ID, set after navigate and used in all subsequent commands */
   private _tabId: number | undefined;
+  /** Last navigated URL, tracked in-memory to avoid extra round-trips */
+  private _lastUrl: string | null = null;
 
   /** Helper: spread workspace into command params */
   private _wsOpt(): { workspace: string } {
@@ -55,10 +57,11 @@ export class Page implements IPage {
       url,
       ...this._cmdOpts(),
     }) as { tabId?: number };
-    // Remember the tabId for subsequent exec calls
+    // Remember the tabId and URL for subsequent calls
     if (result?.tabId) {
       this._tabId = result.tabId;
     }
+    this._lastUrl = url;
     // Inject stealth anti-detection patches (guard flag prevents double-injection).
     try {
       await sendCommand('exec', {
@@ -80,15 +83,7 @@ export class Page implements IPage {
   }
 
   async getCurrentUrl(): Promise<string | null> {
-    try {
-      const result = await sendCommand('exec', {
-        code: 'window.location.href',
-        ...this._cmdOpts(),
-      });
-      return typeof result === 'string' ? result : null;
-    } catch {
-      return null;
-    }
+    return this._lastUrl;
   }
 
   /** Close the automation window in the extension */

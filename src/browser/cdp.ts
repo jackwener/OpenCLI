@@ -173,6 +173,7 @@ export class CDPBridge implements IBrowserFactory {
 
 class CDPPage implements IPage {
   private _pageEnabled = false;
+  private _lastUrl: string | null = null;
   constructor(private bridge: CDPBridge) {}
 
   async goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number }): Promise<void> {
@@ -183,6 +184,7 @@ class CDPPage implements IPage {
     const loadPromise = this.bridge.waitForEvent('Page.loadEventFired', 30_000).catch(() => {});
     await this.bridge.send('Page.navigate', { url });
     await loadPromise;
+    this._lastUrl = url;
     if (options?.waitUntil !== 'none') {
       const maxMs = options?.settleMs ?? 1000;
       await this.evaluate(waitForDomStableJs(maxMs, Math.min(500, maxMs)));
@@ -308,12 +310,7 @@ class CDPPage implements IPage {
   }
 
   async getCurrentUrl(): Promise<string | null> {
-    try {
-      const result = await this.evaluate('window.location.href');
-      return typeof result === 'string' ? result : null;
-    } catch {
-      return null;
-    }
+    return this._lastUrl;
   }
 
   async installInterceptor(pattern: string): Promise<void> {
