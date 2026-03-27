@@ -937,7 +937,10 @@ function transpilePluginTs(pluginDir: string): void {
     const esbuildBin = resolveEsbuildBin();
 
     if (!esbuildBin) {
-      log.debug('esbuild not found in host node_modules, via resolve, or in PATH, skipping TS transpilation');
+      log.warn(
+        'esbuild not found. TS plugin files will not be transpiled and may fail to load. ' +
+        'Install esbuild (`npm i -g esbuild`) or ensure it is available in the opencli host node_modules.'
+      );
       return;
     }
 
@@ -965,8 +968,8 @@ function transpilePluginTs(pluginDir: string): void {
         log.warn(`Failed to transpile ${tsFile}: ${getErrorMessage(err)}`);
       }
     }
-  } catch {
-    // Non-fatal: skip transpilation if anything goes wrong
+  } catch (err) {
+    log.warn(`TS transpilation setup failed: ${getErrorMessage(err)}`);
   }
 }
 

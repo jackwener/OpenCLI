@@ -218,11 +218,14 @@ async function discoverPluginDir(dir: string, site: string): Promise<void> {
       file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts')
     ) {
       const jsFile = file.replace(/\.ts$/, '.js');
+      // Prefer compiled .js — skip the .ts source file
       if (fileSet.has(jsFile)) return;
-      if (!(await isCliModule(filePath))) return;
-      await import(pathToFileURL(filePath).href).catch((err) => {
-        log.warn(`Plugin ${site}/${file}: ${getErrorMessage(err)}`);
-      });
+      // No compiled .js found — cannot import raw .ts in production Node.js.
+      // This typically means esbuild transpilation failed during plugin install.
+      log.warn(
+        `Plugin ${site}/${file}: no compiled .js found. ` +
+        `Run "opencli plugin update ${site}" to re-transpile, or install esbuild.`
+      );
     }
   }));
 }
