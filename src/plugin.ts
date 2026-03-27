@@ -117,9 +117,9 @@ function moveDir(src: string, dest: string, fsOps: MoveDirFsOps = fs): void {
 
 type PromoteDirFsOps = MoveDirFsOps & Pick<typeof fs, 'existsSync' | 'mkdirSync'>;
 
-function createPromoteTempDir(dest: string): string {
+function createSiblingTempPath(dest: string, kind: 'tmp' | 'bak'): string {
   const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  return path.join(path.dirname(dest), `.${path.basename(dest)}.tmp-${suffix}`);
+  return path.join(path.dirname(dest), `.${path.basename(dest)}.${kind}-${suffix}`);
 }
 
 /**
@@ -132,7 +132,7 @@ function promoteDir(stagingDir: string, dest: string, fsOps: PromoteDirFsOps = f
   }
 
   fsOps.mkdirSync(path.dirname(dest), { recursive: true });
-  const tempDest = createPromoteTempDir(dest);
+  const tempDest = createSiblingTempPath(dest, 'tmp');
 
   try {
     moveDir(stagingDir, tempDest, fsOps);
@@ -141,6 +141,60 @@ function promoteDir(stagingDir: string, dest: string, fsOps: PromoteDirFsOps = f
     try { fsOps.rmSync(tempDest, { recursive: true, force: true }); } catch {}
     throw err;
   }
+}
+
+function replaceDir(stagingDir: string, dest: string, fsOps: PromoteDirFsOps = fs): void {
+  if (!fsOps.existsSync(dest)) {
+    promoteDir(stagingDir, dest, fsOps);
+    return;
+  }
+
+  fsOps.mkdirSync(path.dirname(dest), { recursive: true });
+
+  const tempDest = createSiblingTempPath(dest, 'tmp');
+  const backupDest = createSiblingTempPath(dest, 'bak');
+  let backupMoved = false;
+
+  try {
+    moveDir(stagingDir, tempDest, fsOps);
+    fsOps.renameSync(dest, backupDest);
+    backupMoved = true;
+    fsOps.renameSync(tempDest, dest);
+  } catch (err) {
+    try { fsOps.rmSync(tempDest, { recursive: true, force: true }); } catch {}
+    if (backupMoved && !fsOps.existsSync(dest)) {
+      try { fsOps.renameSync(backupDest, dest); } catch {}
+    }
+    throw err;
+  }
+
+  try { fsOps.rmSync(backupDest, { recursive: true, force: true }); } catch {}
+}
+
+function cloneRepoToTemp(cloneUrl: string): string {
+  const tmpCloneDir = path.join(
+    os.tmpdir(),
+    `opencli-clone-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  );
+
+  try {
+    execFileSync('git', ['clone', '--depth', '1', cloneUrl, tmpCloneDir], {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (err) {
+    throw new Error(`Failed to clone plugin: ${getErrorMessage(err)}`);
+  }
+
+  return tmpCloneDir;
+}
+
+function resolveRemotePluginSource(lockEntry: LockEntry | undefined, dir: string): string {
+  const source = resolveStoredPluginSource(lockEntry, dir);
+  if (!source || isLocalPluginSource(source)) {
+    throw new Error(`Unable to determine remote source for plugin at ${dir}`);
+  }
+  return source;
 }
 
 // ── Validation helpers ──────────────────────────────────────────────────────
@@ -297,16 +351,8 @@ export function installPlugin(source: string): string | string[] {
     return installLocalPlugin(parsed.localPath!, repoName);
   }
 
-  // Clone to a temporary location first so we can inspect the manifest
-  const tmpCloneDir = path.join(os.tmpdir(), `opencli-clone-${Date.now()}`);
-  try {
-    execFileSync('git', ['clone', '--depth', '1', parsed.cloneUrl!, tmpCloneDir], {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-  } catch (err) {
-    throw new Error(`Failed to clone plugin: ${getErrorMessage(err)}`);
-  }
+  // Clone to a temporary location first so we can inspect the manifest.
+  const tmpCloneDir = cloneRepoToTemp(parsed.cloneUrl!);
 
   try {
     const manifest = readPluginManifest(tmpCloneDir);
@@ -471,7 +517,7 @@ function installMonorepo(
     pluginsToInstall = pluginsToInstall.filter((p) => p.name === subPlugin);
     if (pluginsToInstall.length === 0) {
       // Check if it exists but is disabled
-      const disabled = manifest.plugins?.[subPlugin];
+      const disabled = effectiveManifest.plugins?.[subPlugin];
       if (disabled) {
         throw new Error(`Sub-plugin "${subPlugin}" is disabled in the manifest.`);
       }
@@ -520,7 +566,9 @@ function installMonorepo(
   }
 
   if (repoAlreadyInstalled) {
-    postInstallMonorepoLifecycle(repoDir, eligiblePlugins.map((p) => path.join(repoDir, p.entry.path)));
+    for (const { entry } of eligiblePlugins) {
+      finalizePluginRuntime(path.join(repoDir, entry.path));
+    }
   } else {
     postInstallMonorepoLifecycle(cloneDir, eligiblePlugins.map((p) => path.join(cloneDir, p.entry.path)));
     fs.mkdirSync(monoreposDir, { recursive: true });
@@ -624,76 +672,118 @@ export function updatePlugin(name: string): void {
   }
 
   if (lockEntry?.monorepo) {
-    // Monorepo update: pull the repo root
     const monoDir = path.join(getMonoreposDir(), lockEntry.monorepo.name);
-    try {
-      execFileSync('git', ['pull', '--ff-only'], {
-        cwd: monoDir,
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-    } catch (err) {
-      throw new Error(`Failed to update monorepo: ${getErrorMessage(err)}`);
-    }
-
-    // Re-run lifecycle for ALL sub-plugins from this monorepo
     const monoName = lockEntry.monorepo.name;
-    const commitHash = getCommitHash(monoDir);
-    const pluginDirs: string[] = [];
-    for (const [pluginName, entry] of Object.entries(lock)) {
-      if (entry.monorepo?.name !== monoName) continue;
-      const subDir = path.join(monoDir, entry.monorepo.subPath);
-      const validation = validatePluginStructure(subDir);
-      if (!validation.valid) {
-        log.warn(`Plugin "${pluginName}" structure invalid after update:\n- ${validation.errors.join('\n- ')}`);
+    const cloneUrl = resolveRemotePluginSource(lockEntry, monoDir);
+    const tmpCloneDir = cloneRepoToTemp(cloneUrl);
+
+    try {
+      const manifest = readPluginManifest(tmpCloneDir);
+      if (!manifest || !isMonorepo(manifest)) {
+        throw new Error(`Updated source is no longer a monorepo: ${cloneUrl}`);
       }
-      pluginDirs.push(subDir);
-    }
-    if (pluginDirs.length > 0) {
-      postInstallMonorepoLifecycle(monoDir, pluginDirs);
-    }
-    for (const [pluginName, entry] of Object.entries(lock)) {
-      if (entry.monorepo?.name !== monoName) continue;
-      if (commitHash) {
-        lock[pluginName] = {
-          ...entry,
-          commitHash,
-          updatedAt: new Date().toISOString(),
-        };
+
+      if (manifest.opencli && !checkCompatibility(manifest.opencli)) {
+        throw new Error(
+          `Plugin requires opencli ${manifest.opencli}, but current version is incompatible.`
+        );
       }
+
+      const updatedPlugins: Array<{
+        name: string;
+        lockEntry: LockEntry;
+        manifestEntry: NonNullable<PluginManifest['plugins']>[string];
+      }> = [];
+      for (const [pluginName, entry] of Object.entries(lock)) {
+        if (entry.monorepo?.name !== monoName) continue;
+        const manifestEntry = manifest.plugins?.[pluginName];
+        if (!manifestEntry || manifestEntry.disabled) {
+          throw new Error(`Installed sub-plugin "${pluginName}" no longer exists in ${cloneUrl}`);
+        }
+        if (manifestEntry.opencli && !checkCompatibility(manifestEntry.opencli)) {
+          throw new Error(`Sub-plugin "${pluginName}" requires opencli ${manifestEntry.opencli}`);
+        }
+
+        const subDir = path.join(tmpCloneDir, manifestEntry.path);
+        const validation = validatePluginStructure(subDir);
+        if (!validation.valid) {
+          throw new Error(`Updated sub-plugin "${pluginName}" is invalid:\n- ${validation.errors.join('\n- ')}`);
+        }
+        updatedPlugins.push({ name: pluginName, lockEntry: entry, manifestEntry });
+      }
+
+      if (updatedPlugins.length > 0) {
+        postInstallMonorepoLifecycle(tmpCloneDir, updatedPlugins.map((plugin) => path.join(tmpCloneDir, plugin.manifestEntry.path)));
+      }
+
+      replaceDir(tmpCloneDir, monoDir);
+
+      const commitHash = getCommitHash(monoDir);
+      for (const plugin of updatedPlugins) {
+        const linkPath = path.join(PLUGINS_DIR, plugin.name);
+        const subDir = path.join(monoDir, plugin.manifestEntry.path);
+        if (isSymlinkSync(linkPath)) {
+          fs.unlinkSync(linkPath);
+        } else if (fs.existsSync(linkPath)) {
+          throw new Error(`Expected monorepo plugin link at ${linkPath} to be a symlink`);
+        }
+
+        const linkType = isWindows ? 'junction' : 'dir';
+        fs.symlinkSync(subDir, linkPath, linkType);
+
+        if (commitHash) {
+          lock[plugin.name] = {
+            ...plugin.lockEntry,
+            source: cloneUrl,
+            commitHash,
+            updatedAt: new Date().toISOString(),
+            monorepo: { name: monoName, subPath: plugin.manifestEntry.path },
+          };
+        }
+      }
+      writeLockFile(lock);
+    } finally {
+      try { fs.rmSync(tmpCloneDir, { recursive: true, force: true }); } catch {}
     }
-    writeLockFile(lock);
     return;
   }
 
-  // Standard single-plugin update
+  const cloneUrl = resolveRemotePluginSource(lockEntry, targetDir);
+  const tmpCloneDir = cloneRepoToTemp(cloneUrl);
+
   try {
-    execFileSync('git', ['pull', '--ff-only'], {
-      cwd: targetDir,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-  } catch (err) {
-    throw new Error(`Failed to update plugin: ${getErrorMessage(err)}`);
-  }
+    const manifest = readPluginManifest(tmpCloneDir);
+    if (manifest && isMonorepo(manifest)) {
+      throw new Error(`Updated source is now a monorepo: ${cloneUrl}`);
+    }
 
-  const validation = validatePluginStructure(targetDir);
-  if (!validation.valid) {
-    log.warn(`Plugin "${name}" updated, but structure is now invalid:\n- ${validation.errors.join('\n- ')}`);
-  }
+    if (manifest?.opencli && !checkCompatibility(manifest.opencli)) {
+      throw new Error(
+        `Plugin requires opencli ${manifest.opencli}, but current version is incompatible.`
+      );
+    }
 
-  postInstallLifecycle(targetDir);
+    const validation = validatePluginStructure(tmpCloneDir);
+    if (!validation.valid) {
+      throw new Error(`Updated plugin structure is invalid:\n- ${validation.errors.join('\n- ')}`);
+    }
 
-  const commitHash = getCommitHash(targetDir);
-  if (commitHash) {
-    const existing = lock[name];
-    lock[name] = {
-      source: resolveStoredPluginSource(existing, targetDir) ?? '',
-      commitHash,
-      installedAt: existing?.installedAt ?? new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    writeLockFile(lock);
+    postInstallLifecycle(tmpCloneDir);
+    replaceDir(tmpCloneDir, targetDir);
+
+    const commitHash = getCommitHash(targetDir);
+    if (commitHash) {
+      const existing = lock[name];
+      lock[name] = {
+        source: cloneUrl,
+        commitHash,
+        installedAt: existing?.installedAt ?? new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      writeLockFile(lock);
+    }
+  } finally {
+    try { fs.rmSync(tmpCloneDir, { recursive: true, force: true }); } catch {}
   }
 }
 
@@ -1065,6 +1155,7 @@ export {
   isLocalPluginSource as _isLocalPluginSource,
   moveDir as _moveDir,
   promoteDir as _promoteDir,
+  replaceDir as _replaceDir,
   resolveStoredPluginSource as _resolveStoredPluginSource,
   toLocalPluginSource as _toLocalPluginSource,
 };
