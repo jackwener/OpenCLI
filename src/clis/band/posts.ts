@@ -57,10 +57,14 @@ cli({
       throw new EmptyResultError('band posts', 'No post data captured');
     }
 
-    // result_data.items is an array of { post: { ... } }
+    // result_data.items contains both posts and announcements. Filter to items that
+    // have a resolvable post object with at least a post_no or web_url to link to.
     const items = (requests as any[]).flatMap(req =>
       Array.isArray(req?.result_data?.items) ? req.result_data.items : []
-    );
+    ).filter((item: any) => {
+      const post = item.post ?? item;
+      return post.post_no || post.web_url;
+    });
 
     if (items.length === 0) {
       throw new EmptyResultError('band posts', 'No posts found in this Band');
@@ -71,7 +75,8 @@ cli({
     const stripBandTags = (s: string) => s.replace(/<\/?band:[^>]+>/g, '').trim();
 
     return items.slice(0, limit).map((item: any) => {
-      const post = item.post;
+      // Some bands wrap the post under item.post; others return the post object directly.
+      const post = item.post ?? item;
       const ts = post.created_at ? new Date(post.created_at) : null;
       return {
         date: ts
