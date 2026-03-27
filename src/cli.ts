@@ -76,9 +76,10 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       for (const [site, cmds] of sites) {
         console.log(chalk.bold.cyan(`  ${site}`));
         for (const cmd of cmds) {
-          const tag = strategyLabel(cmd) === 'public'
+          const label = strategyLabel(cmd);
+          const tag = label === 'public'
             ? chalk.green('[public]')
-            : chalk.yellow(`[${strategyLabel(cmd)}]`);
+            : chalk.yellow(`[${label}]`);
           console.log(`    ${cmd.name} ${tag}${cmd.description ? chalk.dim(` — ${cmd.description}`) : ''}`);
         }
         console.log();
