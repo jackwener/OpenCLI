@@ -60,7 +60,10 @@ describe('plugin management E2E', () => {
     const lock = JSON.parse(fs.readFileSync(LOCK_FILE, 'utf-8'));
     expect(lock[PLUGIN_NAME]).toBeDefined();
     expect(lock[PLUGIN_NAME].commitHash).toBeTruthy();
-    expect(lock[PLUGIN_NAME].source).toContain('opencli-plugin-hot-digest');
+    expect(lock[PLUGIN_NAME].source).toMatchObject({
+      kind: 'git',
+    });
+    expect(lock[PLUGIN_NAME].source.url).toContain('opencli-plugin-hot-digest');
     expect(lock[PLUGIN_NAME].installedAt).toBeTruthy();
   }, 60_000);
 
