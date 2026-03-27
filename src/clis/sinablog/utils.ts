@@ -1,8 +1,7 @@
 import type { IPage } from '../../types.js';
+import { clampToRange } from '../_shared/common.js';
 
-function clampLimit(limit: number): number {
-  return Math.max(1, Math.min(limit || 20, 50));
-}
+const clampLimit = (limit: number) => clampToRange(limit, 20, 1, 50);
 
 export function buildSinaBlogSearchUrl(keyword: string): string {
   return `https://search.sina.com.cn/search?q=${encodeURIComponent(keyword)}&tp=mix`;

@@ -19,6 +19,7 @@ import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { checkDaemonStatus } from './browser/discover.js';
+import { log } from './logger.js';
 
 const _loadedModules = new Set<string>();
 
@@ -191,14 +192,14 @@ export async function executeCommand(
         if (preNavUrl) {
           const skip = await isAlreadyOnDomain(page, preNavUrl);
           if (skip) {
-            if (debug) console.error(`[pre-nav] Already on target domain, skipping navigation`);
+            if (debug) log.debug('[pre-nav] Already on target domain, skipping navigation');
           } else {
             try {
               // goto() already includes smart DOM-settle detection (waitForDomStable).
               // No additional fixed sleep needed.
               await page.goto(preNavUrl);
             } catch (err) {
-              if (debug) console.error(`[pre-nav] Failed to navigate to ${preNavUrl}: ${err instanceof Error ? err.message : err}`);
+              if (debug) log.debug(`[pre-nav] Failed to navigate to ${preNavUrl}: ${err instanceof Error ? err.message : err}`);
             }
           }
         }

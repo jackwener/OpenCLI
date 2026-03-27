@@ -4,17 +4,13 @@
 
 import { ArgumentError, CliError, EmptyResultError } from '../../errors.js';
 import type { IPage } from '../../types.js';
+import { clampToRange } from '../_shared/common.js';
 
 const DOUBAN_PHOTO_PAGE_SIZE = 30;
 const MAX_DOUBAN_PHOTOS = 500;
 
-function clampLimit(limit: number): number {
-  return Math.max(1, Math.min(limit || 20, 50));
-}
-
-function clampPhotoLimit(limit: number): number {
-  return Math.max(1, Math.min(limit || 120, MAX_DOUBAN_PHOTOS));
-}
+const clampLimit = (limit: number) => clampToRange(limit, 20, 1, 50);
+const clampPhotoLimit = (limit: number) => clampToRange(limit, 120, 1, MAX_DOUBAN_PHOTOS);
 
 async function ensureDoubanReady(page: IPage): Promise<void> {
   const state = await page.evaluate(`

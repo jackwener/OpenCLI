@@ -11,6 +11,7 @@ const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_D
 const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
 
 let _idCounter = 0;
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 function generateId(): string {
   return `cmd_${Date.now()}_${++_idCounter}`;
@@ -114,7 +115,7 @@ export async function sendCommand(
           || errMsg.includes('no longer exists');
         if (isTransient && attempt < maxRetries) {
           // Longer delay for extension recovery (service worker restart)
-          await new Promise(r => setTimeout(r, 1500));
+          await sleep(1500);
           continue;
         }
         throw new Error(result.error ?? 'Daemon command failed');
@@ -125,7 +126,7 @@ export async function sendCommand(
       const isRetryable = err instanceof TypeError  // fetch network error
         || (err instanceof Error && err.name === 'AbortError');
       if (isRetryable && attempt < maxRetries) {
-        await new Promise(r => setTimeout(r, 500));
+        await sleep(500);
         continue;
       }
       throw err;
