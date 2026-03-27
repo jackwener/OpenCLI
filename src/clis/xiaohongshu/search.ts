@@ -9,6 +9,23 @@
 import { cli, Strategy } from '../../registry.js';
 import { AuthRequiredError } from '../../errors.js';
 
+/**
+ * Extract approximate publish date from a Xiaohongshu note URL.
+ * XHS note IDs follow MongoDB ObjectID format where the first 8 hex
+ * characters encode a Unix timestamp (the moment the ID was generated,
+ * which closely matches publish time but is not an official API field).
+ * e.g. "697f6c74..." → 0x697f6c74 = 1769958516 → 2026-02-01
+ */
+export function noteIdToDate(url: string): string {
+  const match = url.match(/\/(?:search_result|explore|note)\/([0-9a-f]{24})(?=[?#/]|$)/i);
+  if (!match) return '';
+  const hex = match[1].substring(0, 8);
+  const ts = parseInt(hex, 16);
+  if (!ts || ts < 1_000_000_000 || ts > 4_000_000_000) return '';
+  // Offset by UTC+8 (China Standard Time) so the date matches what XHS users see
+  return new Date((ts + 8 * 3600) * 1000).toISOString().slice(0, 10);
+}
+
 cli({
   site: 'xiaohongshu',
   name: 'search',
@@ -19,7 +36,7 @@ cli({
     { name: 'query', required: true, positional: true, help: 'Search keyword' },
     { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
   ],
-  columns: ['rank', 'title', 'author', 'likes', 'url'],
+  columns: ['rank', 'title', 'author', 'likes', 'published_at', 'url'],
   func: async (page, kwargs) => {
     const keyword = encodeURIComponent(kwargs.query);
     await page.goto(
@@ -97,6 +114,7 @@ cli({
       .map((item: any, i: number) => ({
         rank: i + 1,
         ...item,
+        published_at: noteIdToDate(item.url),
       }));
   },
 });
