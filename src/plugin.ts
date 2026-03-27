@@ -24,6 +24,7 @@ import {
 } from './plugin-manifest.js';
 
 const isWindows = process.platform === 'win32';
+const LOCAL_PLUGIN_SOURCE_PREFIX = 'local:';
 
 /** Get home directory, respecting HOME environment variable for test isolation. */
 function getHomeDir(): string {
@@ -39,8 +40,6 @@ export function getLockFilePath(): string {
 export function getMonoreposDir(): string {
   return path.join(getHomeDir(), '.opencli', 'monorepos');
 }
-
-
 
 export interface LockEntry {
   source: string;
@@ -75,6 +74,18 @@ interface ParsedSource {
   subPlugin?: string;
   cloneUrl?: string;
   localPath?: string;
+}
+
+function isLocalPluginSource(source?: string): boolean {
+  return typeof source === 'string' && source.startsWith(LOCAL_PLUGIN_SOURCE_PREFIX);
+}
+
+function toLocalPluginSource(pluginDir: string): string {
+  return `${LOCAL_PLUGIN_SOURCE_PREFIX}${path.resolve(pluginDir)}`;
+}
+
+function resolveStoredPluginSource(lockEntry: LockEntry | undefined, pluginDir: string): string | undefined {
+  return lockEntry?.source ?? getPluginSource(pluginDir);
 }
 
 // ── Validation helpers ──────────────────────────────────────────────────────
@@ -121,7 +132,7 @@ export function getCommitHash(dir: string): string | undefined {
  */
 export function validatePluginStructure(pluginDir: string): ValidationResult {
   const errors: string[] = [];
-  
+
   if (!fs.existsSync(pluginDir)) {
     return { valid: false, errors: ['Plugin directory does not exist'] };
   }
@@ -132,21 +143,21 @@ export function validatePluginStructure(pluginDir: string): ValidationResult {
   const hasJs = files.some(f => f.endsWith('.js') && !f.endsWith('.d.js'));
 
   if (!hasYaml && !hasTs && !hasJs) {
-    errors.push(`No command files found in plugin directory. A plugin must contain at least one .yaml, .ts, or .js command file.`);
+    errors.push('No command files found in plugin directory. A plugin must contain at least one .yaml, .ts, or .js command file.');
   }
 
   if (hasTs) {
     const pkgJsonPath = path.join(pluginDir, 'package.json');
     if (!fs.existsSync(pkgJsonPath)) {
-      errors.push(`Plugin contains .ts files but no package.json. A package.json with "type": "module" and "@jackwener/opencli" peer dependency is required for TS plugins.`);
+      errors.push('Plugin contains .ts files but no package.json. A package.json with "type": "module" and "@jackwener/opencli" peer dependency is required for TS plugins.');
     } else {
       try {
         const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
         if (pkg.type !== 'module') {
-          errors.push(`Plugin package.json must have "type": "module" for TypeScript plugins.`);
+          errors.push('Plugin package.json must have "type": "module" for TypeScript plugins.');
         }
       } catch {
-        errors.push(`Plugin package.json is malformed or invalid JSON.`);
+        errors.push('Plugin package.json is malformed or invalid JSON.');
       }
     }
   }
@@ -203,6 +214,8 @@ function postInstallMonorepoLifecycle(repoDir: string, pluginDirs: string[]): vo
  *   "github:user/repo"            — single plugin or full monorepo
  *   "github:user/repo/subplugin"  — specific sub-plugin from a monorepo
  *   "https://github.com/user/repo"
+ *   "file:///absolute/path"       — local plugin directory (symlinked)
+ *   "/absolute/path"              — local plugin directory (symlinked)
  *
  * Returns the installed plugin name(s).
  */
@@ -215,30 +228,26 @@ export function installPlugin(source: string): string | string[] {
       `  github:user/repo\n` +
       `  github:user/repo/subplugin\n` +
       `  https://github.com/user/repo\n` +
-      `  file:///absolute/path/to/plugin\n` +
-      `  ./local-plugin-dir`
+      `  file:///absolute/path\n` +
+      `  /absolute/path`
     );
+  }
+
+  const { name: repoName, subPlugin } = parsed;
+
+  if (parsed.type === 'local') {
+    return installLocalPlugin(parsed.localPath!, repoName);
   }
 
   // Clone to a temporary location first so we can inspect the manifest
   const tmpCloneDir = path.join(os.tmpdir(), `opencli-clone-${Date.now()}`);
-  const { name: repoName, subPlugin } = parsed;
-
-  if (parsed.type === 'git') {
-    try {
-      execFileSync('git', ['clone', '--depth', '1', parsed.cloneUrl!, tmpCloneDir], {
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-    } catch (err) {
-      throw new Error(`Failed to clone plugin: ${getErrorMessage(err)}`);
-    }
-  } else {
-    try {
-      fs.cpSync(parsed.localPath!, tmpCloneDir, { recursive: true });
-    } catch (err) {
-      throw new Error(`Failed to copy local plugin: ${getErrorMessage(err)}`);
-    }
+  try {
+    execFileSync('git', ['clone', '--depth', '1', parsed.cloneUrl!, tmpCloneDir], {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (err) {
+    throw new Error(`Failed to clone plugin: ${getErrorMessage(err)}`);
   }
 
   try {
@@ -252,11 +261,11 @@ export function installPlugin(source: string): string | string[] {
     }
 
     if (manifest && isMonorepo(manifest)) {
-      return installMonorepo(tmpCloneDir, parsed.type === 'git' ? parsed.cloneUrl! : parsed.localPath!, repoName, manifest, subPlugin);
+      return installMonorepo(tmpCloneDir, parsed.cloneUrl!, repoName, manifest, subPlugin);
     }
 
     // Single plugin mode
-    return installSinglePlugin(tmpCloneDir, parsed.type === 'git' ? parsed.cloneUrl! : parsed.localPath!, repoName, manifest);
+    return installSinglePlugin(tmpCloneDir, parsed.cloneUrl!, repoName, manifest);
   } finally {
     // Clean up temp clone (may already have been moved)
     try { fs.rmSync(tmpCloneDir, { recursive: true, force: true }); } catch {}
@@ -299,6 +308,86 @@ function installSinglePlugin(
   }
 
   return pluginName;
+}
+
+/**
+ * Install a local plugin by creating a symlink.
+ * Used for plugin development: the source directory is symlinked into
+ * the plugins dir so changes are reflected immediately.
+ */
+function installLocalPlugin(localPath: string, name: string): string {
+  if (!fs.existsSync(localPath)) {
+    throw new Error(`Local plugin path does not exist: ${localPath}`);
+  }
+
+  const stat = fs.statSync(localPath);
+  if (!stat.isDirectory()) {
+    throw new Error(`Local plugin path is not a directory: ${localPath}`);
+  }
+
+  const manifest = readPluginManifest(localPath);
+
+  if (manifest?.opencli && !checkCompatibility(manifest.opencli)) {
+    throw new Error(
+      `Plugin requires opencli ${manifest.opencli}, but current version is incompatible.`
+    );
+  }
+
+  const pluginName = manifest?.name ?? name;
+  const targetDir = path.join(PLUGINS_DIR, pluginName);
+
+  if (fs.existsSync(targetDir)) {
+    throw new Error(`Plugin "${pluginName}" is already installed at ${targetDir}`);
+  }
+
+  const validation = validatePluginStructure(localPath);
+  if (!validation.valid) {
+    throw new Error(`Invalid plugin structure:\n- ${validation.errors.join('\n- ')}`);
+  }
+
+  fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+
+  const resolvedPath = path.resolve(localPath);
+  const linkType = isWindows ? 'junction' : 'dir';
+  fs.symlinkSync(resolvedPath, targetDir, linkType);
+
+  installDependencies(localPath);
+  finalizePluginRuntime(localPath);
+
+  const lock = readLockFile();
+  const commitHash = getCommitHash(localPath);
+  lock[pluginName] = {
+    source: toLocalPluginSource(resolvedPath),
+    commitHash: commitHash ?? 'local',
+    installedAt: new Date().toISOString(),
+  };
+  writeLockFile(lock);
+
+  return pluginName;
+}
+
+function updateLocalPlugin(
+  name: string,
+  targetDir: string,
+  lock: Record<string, LockEntry>,
+  lockEntry?: LockEntry,
+): void {
+  const pluginDir = fs.realpathSync(targetDir);
+
+  const validation = validatePluginStructure(pluginDir);
+  if (!validation.valid) {
+    log.warn(`Plugin "${name}" structure invalid:\n- ${validation.errors.join('\n- ')}`);
+  }
+
+  postInstallLifecycle(pluginDir);
+
+  lock[name] = {
+    source: lockEntry?.source ?? toLocalPluginSource(pluginDir),
+    commitHash: getCommitHash(pluginDir) ?? 'local',
+    installedAt: lockEntry?.installedAt ?? new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  writeLockFile(lock);
 }
 
 /** Install sub-plugins from a monorepo. */
@@ -462,6 +551,11 @@ export function updatePlugin(name: string): void {
   const lock = readLockFile();
   const lockEntry = lock[name];
 
+  if (isLocalPluginSource(lockEntry?.source)) {
+    updateLocalPlugin(name, targetDir, lock, lockEntry);
+    return;
+  }
+
   if (lockEntry?.monorepo) {
     // Monorepo update: pull the repo root
     const monoDir = path.join(getMonoreposDir(), lockEntry.monorepo.name);
@@ -527,7 +621,7 @@ export function updatePlugin(name: string): void {
   if (commitHash) {
     const existing = lock[name];
     lock[name] = {
-      source: existing?.source ?? getPluginSource(targetDir) ?? '',
+      source: resolveStoredPluginSource(existing, targetDir) ?? '',
       commitHash,
       installedAt: existing?.installedAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -596,9 +690,7 @@ export function listPlugins(): PluginInfo[] {
       }
     }
 
-    const source = lockEntry?.monorepo
-      ? lockEntry.source
-      : getPluginSource(pluginDir);
+    const source = resolveStoredPluginSource(lockEntry, pluginDir);
 
     plugins.push({
       name: entry.name,
@@ -653,24 +745,23 @@ function parseSource(
 ): ParsedSource | null {
   if (source.startsWith('file://')) {
     try {
-      const localPath = fileURLToPath(source);
-      if (!fs.existsSync(localPath) || !fs.statSync(localPath).isDirectory()) return null;
+      const localPath = path.resolve(fileURLToPath(source));
       return {
         type: 'local',
         localPath,
-        name: path.basename(localPath),
+        name: path.basename(localPath).replace(/^opencli-plugin-/, ''),
       };
     } catch {
       return null;
     }
   }
 
-  const localPath = path.resolve(source);
-  if (fs.existsSync(localPath) && fs.statSync(localPath).isDirectory()) {
+  if (path.isAbsolute(source)) {
+    const localPath = path.resolve(source);
     return {
       type: 'local',
       localPath,
-      name: path.basename(localPath),
+      name: path.basename(localPath).replace(/^opencli-plugin-/, ''),
     };
   }
 
@@ -864,4 +955,8 @@ export {
   writeLockFile as _writeLockFile,
   isSymlinkSync as _isSymlinkSync,
   getMonoreposDir as _getMonoreposDir,
+  installLocalPlugin as _installLocalPlugin,
+  isLocalPluginSource as _isLocalPluginSource,
+  resolveStoredPluginSource as _resolveStoredPluginSource,
+  toLocalPluginSource as _toLocalPluginSource,
 };
