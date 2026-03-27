@@ -1009,6 +1009,69 @@ describe('installPlugin transactional staging', () => {
   });
 });
 
+describe('installPlugin with existing monorepo', () => {
+  const repoName = '__test-existing-monorepo__';
+  const repoDir = path.join(_getMonoreposDir(), repoName);
+  const pluginName = 'beta';
+  const pluginLink = path.join(PLUGINS_DIR, pluginName);
+
+  beforeEach(() => {
+    mockExecFileSync.mockClear();
+    mockExecSync.mockClear();
+  });
+
+  afterEach(() => {
+    try { fs.unlinkSync(pluginLink); } catch {}
+    try { fs.rmSync(pluginLink, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(repoDir, { recursive: true, force: true }); } catch {}
+    const lock = _readLockFile();
+    delete lock[pluginName];
+    _writeLockFile(lock);
+    vi.clearAllMocks();
+  });
+
+  it('reinstalls root dependencies when adding a sub-plugin from an existing monorepo', () => {
+    const subDir = path.join(repoDir, 'packages', pluginName);
+    fs.mkdirSync(subDir, { recursive: true });
+    fs.writeFileSync(path.join(repoDir, 'package.json'), JSON.stringify({
+      name: repoName,
+      private: true,
+      workspaces: ['packages/*'],
+    }));
+    fs.writeFileSync(path.join(repoDir, 'opencli-plugin.json'), JSON.stringify({
+      plugins: {
+        [pluginName]: { path: `packages/${pluginName}` },
+      },
+    }));
+    fs.writeFileSync(path.join(subDir, 'hello.yaml'), 'site: test\nname: hello\n');
+
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneDir = String(args[4]);
+        fs.mkdirSync(cloneDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'opencli-plugin.json'), JSON.stringify({
+          plugins: {
+            [pluginName]: { path: `packages/${pluginName}` },
+          },
+        }));
+        return '';
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+
+    installPlugin(`github:user/${repoName}/${pluginName}`);
+
+    const npmCalls = mockExecFileSync.mock.calls.filter(
+      ([cmd, args]) => cmd === 'npm' && Array.isArray(args) && args[0] === 'install',
+    );
+    expect(npmCalls.some(([, , opts]) => opts?.cwd === repoDir)).toBe(true);
+    expect(fs.realpathSync(pluginLink)).toBe(subDir);
+  });
+});
+
 describe('updatePlugin transactional staging', () => {
   const standaloneName = '__test-transactional-update__';
   const standaloneDir = path.join(PLUGINS_DIR, standaloneName);
@@ -1158,5 +1221,47 @@ describe('updatePlugin transactional staging', () => {
     const expectedTarget = path.join(monorepoRepoDir, 'packages', 'moved-alpha');
     expect(fs.realpathSync(monorepoLink)).toBe(expectedTarget);
     expect(_readLockFile()[monorepoPluginName]?.monorepo?.subPath).toBe('packages/moved-alpha');
+  });
+
+  it('rolls back the monorepo repo swap when relinking fails', () => {
+    const oldSubDir = path.join(monorepoRepoDir, 'packages', 'old-alpha');
+    fs.mkdirSync(oldSubDir, { recursive: true });
+    fs.writeFileSync(path.join(oldSubDir, 'old.yaml'), 'site: old\nname: old\n');
+    fs.mkdirSync(monorepoLink, { recursive: true });
+    fs.writeFileSync(path.join(monorepoLink, 'blocker.txt'), 'not a symlink');
+
+    const lock = _readLockFile();
+    lock[monorepoPluginName] = {
+      source: 'https://github.com/user/opencli-plugins-__test-transactional-mono-update__.git',
+      commitHash: 'oldmonooldmonooldmonooldmonooldmonoold',
+      installedAt: '2025-01-01T00:00:00.000Z',
+      monorepo: { name: monorepoName, subPath: 'packages/old-alpha' },
+    };
+    _writeLockFile(lock);
+
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneDir = String(args[4]);
+        const movedDir = path.join(cloneDir, 'packages', 'moved-alpha');
+        fs.mkdirSync(movedDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'opencli-plugin.json'), JSON.stringify({
+          plugins: {
+            [monorepoPluginName]: { path: 'packages/moved-alpha' },
+          },
+        }));
+        fs.writeFileSync(path.join(movedDir, 'hello.yaml'), 'site: test\nname: hello\n');
+        return '';
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+
+    expect(() => updatePlugin(monorepoPluginName)).toThrow('to be a symlink');
+    expect(fs.existsSync(path.join(monorepoRepoDir, 'packages', 'old-alpha', 'old.yaml'))).toBe(true);
+    expect(fs.existsSync(path.join(monorepoRepoDir, 'packages', 'moved-alpha'))).toBe(false);
+    expect(fs.readFileSync(path.join(monorepoLink, 'blocker.txt'), 'utf-8')).toBe('not a symlink');
+    expect(_readLockFile()[monorepoPluginName]?.monorepo?.subPath).toBe('packages/old-alpha');
   });
 });

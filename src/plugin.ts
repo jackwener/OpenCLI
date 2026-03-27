@@ -144,31 +144,8 @@ function promoteDir(stagingDir: string, dest: string, fsOps: PromoteDirFsOps = f
 }
 
 function replaceDir(stagingDir: string, dest: string, fsOps: PromoteDirFsOps = fs): void {
-  if (!fsOps.existsSync(dest)) {
-    promoteDir(stagingDir, dest, fsOps);
-    return;
-  }
-
-  fsOps.mkdirSync(path.dirname(dest), { recursive: true });
-
-  const tempDest = createSiblingTempPath(dest, 'tmp');
-  const backupDest = createSiblingTempPath(dest, 'bak');
-  let backupMoved = false;
-
-  try {
-    moveDir(stagingDir, tempDest, fsOps);
-    fsOps.renameSync(dest, backupDest);
-    backupMoved = true;
-    fsOps.renameSync(tempDest, dest);
-  } catch (err) {
-    try { fsOps.rmSync(tempDest, { recursive: true, force: true }); } catch {}
-    if (backupMoved && !fsOps.existsSync(dest)) {
-      try { fsOps.renameSync(backupDest, dest); } catch {}
-    }
-    throw err;
-  }
-
-  try { fsOps.rmSync(backupDest, { recursive: true, force: true }); } catch {}
+  const replacement = beginReplaceDir(stagingDir, dest, fsOps);
+  replacement.finalize();
 }
 
 function cloneRepoToTemp(cloneUrl: string): string {
@@ -195,6 +172,124 @@ function resolveRemotePluginSource(lockEntry: LockEntry | undefined, dir: string
     throw new Error(`Unable to determine remote source for plugin at ${dir}`);
   }
   return source;
+}
+
+function pathExistsSync(p: string): boolean {
+  try {
+    fs.lstatSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removePathSync(p: string): void {
+  try {
+    const stat = fs.lstatSync(p);
+    if (stat.isSymbolicLink()) {
+      fs.unlinkSync(p);
+      return;
+    }
+    fs.rmSync(p, { recursive: true, force: true });
+  } catch {}
+}
+
+interface TransactionHandle {
+  finalize(): void;
+  rollback(): void;
+}
+
+function beginReplaceDir(
+  stagingDir: string,
+  dest: string,
+  fsOps: PromoteDirFsOps = fs,
+): TransactionHandle {
+  const destExisted = fsOps.existsSync(dest);
+  fsOps.mkdirSync(path.dirname(dest), { recursive: true });
+
+  const tempDest = createSiblingTempPath(dest, 'tmp');
+  const backupDest = destExisted ? createSiblingTempPath(dest, 'bak') : null;
+  let settled = false;
+
+  try {
+    moveDir(stagingDir, tempDest, fsOps);
+    if (backupDest) {
+      fsOps.renameSync(dest, backupDest);
+    }
+    fsOps.renameSync(tempDest, dest);
+  } catch (err) {
+    try { fsOps.rmSync(tempDest, { recursive: true, force: true }); } catch {}
+    if (backupDest && !fsOps.existsSync(dest)) {
+      try { fsOps.renameSync(backupDest, dest); } catch {}
+    }
+    throw err;
+  }
+
+  return {
+    finalize() {
+      if (settled) return;
+      settled = true;
+      if (backupDest) {
+        try { fsOps.rmSync(backupDest, { recursive: true, force: true }); } catch {}
+      }
+    },
+    rollback() {
+      if (settled) return;
+      settled = true;
+      try { fsOps.rmSync(dest, { recursive: true, force: true }); } catch {}
+      if (backupDest) {
+        try { fsOps.renameSync(backupDest, dest); } catch {}
+      }
+      try { fsOps.rmSync(tempDest, { recursive: true, force: true }); } catch {}
+    },
+  };
+}
+
+function beginReplaceSymlink(target: string, linkPath: string): TransactionHandle {
+  const linkExists = pathExistsSync(linkPath);
+  if (linkExists && !isSymlinkSync(linkPath)) {
+    throw new Error(`Expected monorepo plugin link at ${linkPath} to be a symlink`);
+  }
+
+  fs.mkdirSync(path.dirname(linkPath), { recursive: true });
+
+  const tempLink = createSiblingTempPath(linkPath, 'tmp');
+  const backupLink = linkExists ? createSiblingTempPath(linkPath, 'bak') : null;
+  const linkType = isWindows ? 'junction' : 'dir';
+  let settled = false;
+
+  try {
+    fs.symlinkSync(target, tempLink, linkType);
+    if (backupLink) {
+      fs.renameSync(linkPath, backupLink);
+    }
+    fs.renameSync(tempLink, linkPath);
+  } catch (err) {
+    removePathSync(tempLink);
+    if (backupLink && !pathExistsSync(linkPath)) {
+      try { fs.renameSync(backupLink, linkPath); } catch {}
+    }
+    throw err;
+  }
+
+  return {
+    finalize() {
+      if (settled) return;
+      settled = true;
+      if (backupLink) {
+        removePathSync(backupLink);
+      }
+    },
+    rollback() {
+      if (settled) return;
+      settled = true;
+      removePathSync(linkPath);
+      if (backupLink && !pathExistsSync(linkPath)) {
+        try { fs.renameSync(backupLink, linkPath); } catch {}
+      }
+      removePathSync(tempLink);
+    },
+  };
 }
 
 // ── Validation helpers ──────────────────────────────────────────────────────
@@ -566,9 +661,7 @@ function installMonorepo(
   }
 
   if (repoAlreadyInstalled) {
-    for (const { entry } of eligiblePlugins) {
-      finalizePluginRuntime(path.join(repoDir, entry.path));
-    }
+    postInstallMonorepoLifecycle(repoDir, eligiblePlugins.map((p) => path.join(repoDir, p.entry.path)));
   } else {
     postInstallMonorepoLifecycle(cloneDir, eligiblePlugins.map((p) => path.join(cloneDir, p.entry.path)));
     fs.mkdirSync(monoreposDir, { recursive: true });
@@ -716,32 +809,38 @@ export function updatePlugin(name: string): void {
         postInstallMonorepoLifecycle(tmpCloneDir, updatedPlugins.map((plugin) => path.join(tmpCloneDir, plugin.manifestEntry.path)));
       }
 
-      replaceDir(tmpCloneDir, monoDir);
+      const repoReplacement = beginReplaceDir(tmpCloneDir, monoDir);
+      const linkReplacements: TransactionHandle[] = [];
 
-      const commitHash = getCommitHash(monoDir);
-      for (const plugin of updatedPlugins) {
-        const linkPath = path.join(PLUGINS_DIR, plugin.name);
-        const subDir = path.join(monoDir, plugin.manifestEntry.path);
-        if (isSymlinkSync(linkPath)) {
-          fs.unlinkSync(linkPath);
-        } else if (fs.existsSync(linkPath)) {
-          throw new Error(`Expected monorepo plugin link at ${linkPath} to be a symlink`);
+      try {
+        const commitHash = getCommitHash(monoDir);
+        for (const plugin of updatedPlugins) {
+          const linkPath = path.join(PLUGINS_DIR, plugin.name);
+          const subDir = path.join(monoDir, plugin.manifestEntry.path);
+          linkReplacements.push(beginReplaceSymlink(subDir, linkPath));
+
+          if (commitHash) {
+            lock[plugin.name] = {
+              ...plugin.lockEntry,
+              source: cloneUrl,
+              commitHash,
+              updatedAt: new Date().toISOString(),
+              monorepo: { name: monoName, subPath: plugin.manifestEntry.path },
+            };
+          }
         }
-
-        const linkType = isWindows ? 'junction' : 'dir';
-        fs.symlinkSync(subDir, linkPath, linkType);
-
-        if (commitHash) {
-          lock[plugin.name] = {
-            ...plugin.lockEntry,
-            source: cloneUrl,
-            commitHash,
-            updatedAt: new Date().toISOString(),
-            monorepo: { name: monoName, subPath: plugin.manifestEntry.path },
-          };
+        writeLockFile(lock);
+        for (const replacement of linkReplacements) {
+          replacement.finalize();
         }
+        repoReplacement.finalize();
+      } catch (err) {
+        for (const replacement of linkReplacements.reverse()) {
+          replacement.rollback();
+        }
+        repoReplacement.rollback();
+        throw err;
       }
-      writeLockFile(lock);
     } finally {
       try { fs.rmSync(tmpCloneDir, { recursive: true, force: true }); } catch {}
     }
@@ -769,18 +868,24 @@ export function updatePlugin(name: string): void {
     }
 
     postInstallLifecycle(tmpCloneDir);
-    replaceDir(tmpCloneDir, targetDir);
+    const replacement = beginReplaceDir(tmpCloneDir, targetDir);
 
-    const commitHash = getCommitHash(targetDir);
-    if (commitHash) {
-      const existing = lock[name];
-      lock[name] = {
-        source: cloneUrl,
-        commitHash,
-        installedAt: existing?.installedAt ?? new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      writeLockFile(lock);
+    try {
+      const commitHash = getCommitHash(targetDir);
+      if (commitHash) {
+        const existing = lock[name];
+        lock[name] = {
+          source: cloneUrl,
+          commitHash,
+          installedAt: existing?.installedAt ?? new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        writeLockFile(lock);
+      }
+      replacement.finalize();
+    } catch (err) {
+      replacement.rollback();
+      throw err;
     }
   } finally {
     try { fs.rmSync(tmpCloneDir, { recursive: true, force: true }); } catch {}
