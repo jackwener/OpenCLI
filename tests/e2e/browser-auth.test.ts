@@ -150,4 +150,17 @@ describe('login-required commands — graceful failure', () => {
   it('yollomi video fails gracefully without login', async () => {
     await expectGracefulAuthFailure(['yollomi', 'video', 'a sunset over the ocean', '--no-download', '-f', 'json'], 'yollomi video');
   }, 60_000);
+
+  // ── band (requires band.us login session) ──
+  it('band bands fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['band', 'bands', '-f', 'json'], 'band bands');
+  }, 60_000);
+
+  it('band mentions fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['band', 'mentions', '--limit', '3', '-f', 'json'], 'band mentions');
+  }, 60_000);
+
+  it('band posts fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['band', 'posts', '58400480', '--limit', '3', '-f', 'json'], 'band posts');
+  }, 60_000);
 });
