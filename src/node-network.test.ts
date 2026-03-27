@@ -40,6 +40,18 @@ describe('node network proxy decisions', () => {
     expect(decision).toEqual({ mode: 'direct' });
   });
 
+  it('supports wildcard-style NO_PROXY subdomain entries', () => {
+    const decision = decideProxy(
+      new URL('https://api.example.com/v1/items'),
+      {
+        https_proxy: 'http://127.0.0.1:7897',
+        no_proxy: '*.example.com',
+      },
+    );
+
+    expect(decision).toEqual({ mode: 'direct' });
+  });
+
   it('matches NO_PROXY entries that rely on the default URL port', () => {
     const env = { https_proxy: 'http://127.0.0.1:7897', http_proxy: 'http://127.0.0.1:7897' };
 
