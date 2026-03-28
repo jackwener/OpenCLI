@@ -21,7 +21,7 @@ function loadEnv(): Record<string, string> {
       .split('\n')
       .map(l => l.trim())
       .filter(l => l && !l.startsWith('#'))
-      .map(l => l.split('=').map(s => s.trim()) as [string, string])
+      .map(l => { const i = l.indexOf('='); return [l.slice(0, i).trim(), l.slice(i + 1).trim()] as [string, string]; })
   );
 }
 
@@ -34,10 +34,6 @@ const SCOPES = [
   'user-modify-playback-state',
   'user-read-currently-playing',
   'playlist-read-private',
-  'playlist-modify-public',
-  'playlist-modify-private',
-  'user-library-read',
-  'user-top-read',
 ].join(' ');
 
 // ── Token storage ─────────────────────────────────────────────────────────────
@@ -68,11 +64,16 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
     },
     body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken }),
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as any;
+    throw new CliError('REFRESH_FAILED', err?.error_description || `Token refresh failed (${res.status})`);
+  }
   const data = await res.json() as any;
-  const tokens = loadTokens()!;
-  tokens.access_token = data.access_token;
-  tokens.expires_at   = Date.now() + data.expires_in * 1000;
-  if (data.refresh_token) tokens.refresh_token = data.refresh_token;
+  const tokens: Tokens = {
+    access_token:  data.access_token,
+    refresh_token: data.refresh_token || refreshToken,
+    expires_at:    Date.now() + data.expires_in * 1000,
+  };
   saveTokens(tokens);
   return tokens.access_token;
 }
@@ -146,6 +147,12 @@ cli({
             },
             body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }),
           });
+          if (!tokenRes.ok) {
+            const err = await tokenRes.json().catch(() => ({})) as any;
+            server.close();
+            reject(new CliError('AUTH_FAILED', err?.error_description || `Token exchange failed (${tokenRes.status})`));
+            return;
+          }
           const data = await tokenRes.json() as any;
           saveTokens({ access_token: data.access_token, refresh_token: data.refresh_token, expires_at: Date.now() + data.expires_in * 1000 });
           res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -154,12 +161,18 @@ cli({
           resolve([{ status: 'Authenticated successfully' }]);
         } catch (e) { server.close(); reject(e); }
       });
+      server.on('error', (e: NodeJS.ErrnoException) => {
+        if (e.code === 'EADDRINUSE') reject(new CliError('PORT_IN_USE', 'Port 8888 is already in use. Stop the other process and retry.'));
+        else reject(e);
+      });
+      const timeout = setTimeout(() => { server.close(); reject(new CliError('AUTH_TIMEOUT', 'Authentication timed out after 5 minutes')); }, 5 * 60 * 1000);
       server.listen(8888, () => {
         const authUrl = `https://accounts.spotify.com/authorize?${new URLSearchParams({ client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT_URI, scope: SCOPES })}`;
         console.log('Opening browser for Spotify login...');
         console.log('If it does not open, visit:', authUrl);
         openBrowser(authUrl);
       });
+      server.on('close', () => clearTimeout(timeout));
     });
   },
 });
@@ -174,7 +187,7 @@ cli({
   columns: ['track', 'artist', 'album', 'status', 'progress'],
   func: async () => {
     const data = await api('GET', '/me/player');
-    if (!data) return [{ track: 'Nothing playing', artist: '', album: '', status: '', progress: '' }];
+    if (!data || !data.item) return [{ track: 'Nothing playing', artist: '', album: '', status: '', progress: '' }];
     const t = data.item;
     const prog = data.progress_ms / 1000 | 0;
     const dur  = t.duration_ms / 1000 | 0;
@@ -244,8 +257,10 @@ cli({
   args: [{ name: 'level', type: 'int', default: 50, positional: true, required: true, help: 'Volume 0–100' }],
   columns: ['volume'],
   func: async (_page, kwargs) => {
-    await api('PUT', `/me/player/volume?volume_percent=${kwargs.level}`);
-    return [{ volume: `${kwargs.level}%` }];
+    const level = Math.round(kwargs.level);
+    if (level < 0 || level > 100) throw new CliError('INVALID_ARGS', 'Volume must be between 0 and 100');
+    await api('PUT', `/me/player/volume?volume_percent=${level}`);
+    return [{ volume: `${level}%` }];
   },
 });
 
