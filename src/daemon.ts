@@ -102,7 +102,18 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  // Require custom header on all HTTP requests.  Browsers cannot attach
+  const url = req.url ?? '/';
+  const pathname = url.split('?')[0];
+
+  // Health-check endpoint — no X-OpenCLI header required.
+  // Used by the extension to silently probe daemon reachability before
+  // attempting a WebSocket connection (avoids uncatchable ERR_CONNECTION_REFUSED).
+  if (req.method === 'GET' && pathname === '/ping') {
+    jsonResponse(res, 200, { ok: true });
+    return;
+  }
+
+  // Require custom header on all other HTTP requests.  Browsers cannot attach
   // custom headers in "simple" requests, and our preflight returns no
   // Access-Control-Allow-Headers, so scripted fetch() from web pages is
   // blocked even if Origin check is somehow bypassed.
@@ -110,9 +121,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     jsonResponse(res, 403, { ok: false, error: 'Forbidden: missing X-OpenCLI header' });
     return;
   }
-
-  const url = req.url ?? '/';
-  const pathname = url.split('?')[0];
 
   if (req.method === 'GET' && pathname === '/status') {
     jsonResponse(res, 200, {
