@@ -7,14 +7,46 @@ import yaml from 'js-yaml';
 import chalk from 'chalk';
 import { log } from './logger.js';
 import { EXIT_CODES, getErrorMessage } from './errors.js';
+import * as externalStore from './external-store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export type InstallationType = 'global' | 'isolated';
 
 export interface ExternalCliInstall {
   mac?: string;
   linux?: string;
   windows?: string;
   default?: string;
+}
+
+export interface IsolatedInstallEntry {
+  version: string;
+  installPath: string;
+  installedAt: string;
+  current: boolean;
+}
+
+export interface InstalledExternalCli {
+  name: string;
+  binaryName: string;
+  installType: InstallationType;
+  versions: IsolatedInstallEntry[];
+  cachedVersion?: string;
+  cachedAt?: string;
+}
+
+export interface ExternalLockFile {
+  [name: string]: InstalledExternalCli;
+}
+
+export interface ListExternalCliEntry {
+  name: string;
+  description?: string;
+  binary: string;
+  installed: boolean;
+  version?: string;
+  installType?: InstallationType;
 }
 
 export interface ExternalCliConfig {
@@ -142,7 +174,12 @@ function runInstallCommand(cmd: string): void {
   }
 }
 
-export function installExternalCli(cli: ExternalCliConfig): boolean {
+export interface InstallOptions {
+  version?: string;
+  isolated?: boolean;
+}
+
+export function installExternalCli(cli: ExternalCliConfig, opts: InstallOptions = {}): boolean {
   if (!cli.install) {
     console.error(chalk.red(`No auto-install command configured for '${cli.name}'.`));
     console.error(`Please install '${cli.binary}' manually.`);
@@ -156,16 +193,92 @@ export function installExternalCli(cli: ExternalCliConfig): boolean {
     return false;
   }
 
-  console.log(chalk.cyan(`🔹 '${cli.name}' is not installed. Auto-installing...`));
-  console.log(chalk.dim(`$ ${cmd}`));
+  if (!opts.isolated) {
+    // Global installation - original behavior
+    console.log(chalk.cyan(`🔹 '${cli.name}' is not installed. Installing globally...`));
+    console.log(chalk.dim(`$ ${cmd}`));
+    try {
+      runInstallCommand(cmd);
+      console.log(chalk.green(`✅ Installed '${cli.name}' successfully.\n`));
+      return true;
+    } catch (err) {
+      console.error(chalk.red(`❌ Failed to install '${cli.name}': ${getErrorMessage(err)}`));
+      return false;
+    }
+  }
+
+  // Isolated installation
+  const version = opts.version || 'latest';
+  console.log(chalk.cyan(`🔹 '${cli.name}'@${version} - installing in isolated mode...`));
+
+  // Check if already installed
+  const existing = externalStore.getInstalledInfo(cli.name);
+  if (existing) {
+    const hasVersion = existing.versions.some(v => v.version === version);
+    if (hasVersion) {
+      console.log(chalk.yellow(`⚠️  '${cli.name}'@${version} is already installed. Switching to it...`));
+      externalStore.setCurrentVersion(cli.name, version);
+      console.log(chalk.green(`✅ Switched to '${cli.name}'@${version}\n`));
+      return true;
+    }
+  }
+
+  // Create isolated directory
+  const optRoot = externalStore.getOptRoot();
+  const installPath = path.join(optRoot, cli.name, version);
+  if (!fs.existsSync(installPath)) {
+    fs.mkdirSync(installPath, { recursive: true });
+  }
+
+  // Modify install command for isolated installation
+  let installCmd = cmd;
+  if (cmd.startsWith('npm install ')) {
+    // For npm packages: npm install <pkg>@<version> --prefix <installPath>
+    const pkgSpec = version === 'latest' ? cli.name : `${cli.name}@${version}`;
+    installCmd = `npm install ${pkgSpec} --prefix "${installPath}"`;
+  } else if (cmd.startsWith('yarn add ')) {
+    const pkgSpec = version === 'latest' ? cli.name : `${cli.name}@${version}`;
+    installCmd = `yarn add ${pkgSpec} --cwd "${installPath}"`;
+  }
+
+  console.log(chalk.dim(`$ ${installCmd}`));
   try {
-    runInstallCommand(cmd);
-    console.log(chalk.green(`✅ Installed '${cli.name}' successfully.\n`));
-    return true;
+    runInstallCommand(installCmd);
   } catch (err) {
     console.error(chalk.red(`❌ Failed to install '${cli.name}': ${getErrorMessage(err)}`));
+    // Clean up partial installation
+    try { fs.rmSync(installPath, { recursive: true, force: true }); } catch {}
     return false;
   }
+
+  // Update lock file
+  const installedAt = new Date().toISOString();
+  const entry: IsolatedInstallEntry = {
+    version,
+    installPath,
+    installedAt,
+    current: true,
+  };
+
+  if (existing) {
+    // Unmark current on existing
+    existing.versions.forEach(v => v.current = false);
+    existing.versions.push(entry);
+    externalStore.upsertInstallEntry({
+      ...existing,
+      versions: existing.versions,
+    });
+  } else {
+    externalStore.upsertInstallEntry({
+      name: cli.name,
+      binaryName: cli.binary,
+      installType: 'isolated',
+      versions: [entry],
+    });
+  }
+
+  console.log(chalk.green(`✅ Installed '${cli.name}'@${version} in isolated mode.\n`));
+  return true;
 }
 
 export function executeExternalCli(name: string, args: string[], preloaded?: ExternalCliConfig[]): void {
@@ -175,27 +288,129 @@ export function executeExternalCli(name: string, args: string[], preloaded?: Ext
     throw new Error(`External CLI '${name}' not found in registry.`);
   }
 
+  // Check for isolated installation first
+  const installedInfo = externalStore.getInstalledInfo(name);
+  let binaryPath = cli.binary;
+
+  if (installedInfo && installedInfo.installType === 'isolated') {
+    const currentPath = externalStore.getCurrentBinaryPath(installedInfo);
+    if (currentPath) {
+      if (fs.existsSync(currentPath) || fs.existsSync(`${currentPath}.cmd`)) {
+        binaryPath = currentPath;
+      } else {
+        console.log(chalk.yellow(`⚠️  Isolated installation not found at ${currentPath}. Falling back to global.`));
+      }
+    }
+  }
+
   // 1. Check if installed
-  if (!isBinaryInstalled(cli.binary)) {
+  const isInstalled = installedInfo?.installType === 'isolated'
+    ? fs.existsSync(binaryPath) || fs.existsSync(`${binaryPath}.cmd`)
+    : isBinaryInstalled(cli.binary);
+
+  if (!isInstalled) {
     // 2. Try to auto install
     const success = installExternalCli(cli);
     if (!success) {
       process.exitCode = EXIT_CODES.SERVICE_UNAVAIL;
       return;
     }
+    // After install, check again for isolated
+    const newInfo = externalStore.getInstalledInfo(name);
+    if (newInfo?.installType === 'isolated') {
+      const newPath = externalStore.getCurrentBinaryPath(newInfo);
+      if (newPath) {
+        binaryPath = newPath;
+      }
+    }
   }
 
   // 3. Passthrough execution with stdio inherited
-  const result = spawnSync(cli.binary, args, { stdio: 'inherit' });
+  const result = spawnSync(binaryPath, args, { stdio: 'inherit' });
   if (result.error) {
-    console.error(chalk.red(`Failed to execute '${cli.binary}': ${result.error.message}`));
+    console.error(chalk.red(`Failed to execute '${binaryPath}': ${result.error.message}`));
     process.exitCode = EXIT_CODES.GENERIC_ERROR;
     return;
   }
-  
+
   if (result.status !== null) {
     process.exitCode = result.status;
   }
+}
+
+/**
+ * Uninstall an external CLI.
+ * If version is specified, only uninstall that version.
+ * Otherwise, uninstall all versions.
+ */
+export function uninstallExternalCli(name: string, version?: string): boolean {
+  const installedInfo = externalStore.getInstalledInfo(name);
+  if (!installedInfo) {
+    console.error(chalk.red(`External CLI '${name}' is not installed in isolated mode.`));
+    console.error(chalk.dim(`For globally installed CLI, please uninstall it manually.`));
+    return false;
+  }
+
+  const optRoot = externalStore.getOptRoot();
+  const cliDir = path.join(optRoot, name);
+
+  if (version) {
+    // Uninstall only the specified version
+    const versionDir = path.join(cliDir, version);
+    if (!fs.existsSync(versionDir)) {
+      console.error(chalk.red(`Version '${version}' of '${name}' is not installed.`));
+      return false;
+    }
+
+    try {
+      fs.rmSync(versionDir, { recursive: true, force: true });
+    } catch (err) {
+      console.error(chalk.red(`Failed to delete version directory: ${getErrorMessage(err)}`));
+      return false;
+    }
+
+    const removed = externalStore.removeVersionEntry(name, version);
+    console.log(chalk.green(`✅ Uninstalled '${name}'@${version} successfully.`));
+    return removed;
+  }
+
+  // Uninstall all versions
+  if (fs.existsSync(cliDir)) {
+    try {
+      fs.rmSync(cliDir, { recursive: true, force: true });
+    } catch (err) {
+      console.error(chalk.red(`Failed to delete installation directory: ${getErrorMessage(err)}`));
+      return false;
+    }
+  }
+
+  const removed = externalStore.removeInstallEntry(name);
+  console.log(chalk.green(`✅ Uninstalled '${name}' completely.`));
+  return removed;
+}
+
+/**
+ * Switch the currently active version.
+ */
+export function switchExternalCliVersion(name: string, version: string): boolean {
+  const installedInfo = externalStore.getInstalledInfo(name);
+  if (!installedInfo) {
+    console.error(chalk.red(`External CLI '${name}' is not installed in isolated mode.`));
+    return false;
+  }
+
+  const hasVersion = installedInfo.versions.some(v => v.version === version);
+  if (!hasVersion) {
+    console.error(chalk.red(`Version '${version}' is not installed for '${name}'.`));
+    console.error(chalk.dim(`Installed versions: ${installedInfo.versions.map(v => v.version).join(', ')}`));
+    return false;
+  }
+
+  const success = externalStore.setCurrentVersion(name, version);
+  if (success) {
+    console.log(chalk.green(`✅ Switched '${name}' to version ${version}.`));
+  }
+  return success;
 }
 
 export interface RegisterOptions {
