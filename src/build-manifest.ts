@@ -14,6 +14,7 @@ import * as path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
 import { getErrorMessage } from './errors.js';
+import { getRegistry, type CliCommand } from './registry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIS_DIR = path.resolve(__dirname, 'clis');
@@ -117,6 +118,18 @@ function parseInlineChoices(body: string): string[] | undefined {
     .filter(Boolean);
 
   return values.length > 0 ? values : undefined;
+}
+
+function toManifestArgs(args: CliCommand['args']): ManifestEntry['args'] {
+  return args.map(arg => ({
+    name: arg.name,
+    type: arg.type ?? 'str',
+    default: arg.default,
+    required: !!arg.required,
+    positional: arg.positional || undefined,
+    help: arg.help ?? '',
+    choices: arg.choices,
+  }));
 }
 
 export function parseTsArgsBlock(argsBlock: string): ManifestEntry['args'] {
@@ -279,6 +292,45 @@ export function scanTs(filePath: string, site: string): ManifestEntry | null {
   }
 }
 
+export async function hydrateTsManifestEntry(
+  filePath: string,
+  entry: ManifestEntry,
+  importer: (moduleHref: string) => Promise<unknown> = moduleHref => import(moduleHref),
+): Promise<ManifestEntry> {
+  const registry = getRegistry();
+  const expectedKey = `${entry.site}/${entry.name}`;
+  const beforeKeys = new Set(registry.keys());
+
+  try {
+    await importer(pathToFileURL(filePath).href);
+  } catch {
+    return entry;
+  }
+
+  const runtimeCmd = registry.get(expectedKey)
+    ?? [...registry.entries()]
+      .filter(([key]) => !beforeKeys.has(key))
+      .map(([, cmd]) => cmd)
+      .find(cmd => cmd.site === entry.site);
+
+  if (!runtimeCmd) return entry;
+
+  return {
+    ...entry,
+    site: runtimeCmd.site,
+    name: runtimeCmd.name,
+    description: runtimeCmd.description ?? entry.description,
+    domain: runtimeCmd.domain,
+    strategy: (runtimeCmd.strategy ?? entry.strategy).toString().toLowerCase(),
+    browser: runtimeCmd.browser ?? entry.browser,
+    args: toManifestArgs(runtimeCmd.args),
+    columns: runtimeCmd.columns,
+    deprecated: runtimeCmd.deprecated,
+    replacedBy: runtimeCmd.replacedBy,
+    navigateBefore: runtimeCmd.navigateBefore,
+  };
+}
+
 /**
  * When both YAML and TS adapters exist for the same site/name,
  * prefer the TS version (it self-registers and typically has richer logic).
@@ -288,7 +340,7 @@ export function shouldReplaceManifestEntry(current: ManifestEntry, next: Manifes
   return current.type === 'yaml' && next.type === 'ts';
 }
 
-export function buildManifest(): ManifestEntry[] {
+export async function buildManifest(): Promise<ManifestEntry[]> {
   const manifest = new Map<string, ManifestEntry>();
 
   if (fs.existsSync(CLIS_DIR)) {
@@ -313,7 +365,8 @@ export function buildManifest(): ManifestEntry[] {
           (file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts') && file !== 'index.ts') ||
           (file.endsWith('.js') && !file.endsWith('.d.js') && !file.endsWith('.test.js') && file !== 'index.js')
         ) {
-          const entry = scanTs(filePath, site);
+          const scanned = scanTs(filePath, site);
+          const entry = scanned ? await hydrateTsManifestEntry(filePath, scanned) : null;
           if (entry) {
             const key = `${entry.site}/${entry.name}`;
             const existing = manifest.get(key);
@@ -332,8 +385,8 @@ export function buildManifest(): ManifestEntry[] {
   return [...manifest.values()];
 }
 
-function main(): void {
-  const manifest = buildManifest();
+async function main(): Promise<void> {
+  const manifest = await buildManifest();
   fs.mkdirSync(path.dirname(OUTPUT), { recursive: true });
   fs.writeFileSync(OUTPUT, JSON.stringify(manifest, null, 2));
 
@@ -367,5 +420,5 @@ function main(): void {
 
 const entrypoint = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
 if (entrypoint === import.meta.url) {
-  main();
+  void main();
 }

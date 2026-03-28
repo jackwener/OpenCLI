@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { parseTsArgsBlock, scanTs, shouldReplaceManifestEntry } from './build-manifest.js';
+import { cli, getRegistry, Strategy, type CliCommand } from './registry.js';
+import { hydrateTsManifestEntry, parseTsArgsBlock, scanTs, shouldReplaceManifestEntry, type ManifestEntry } from './build-manifest.js';
 
 describe('parseTsArgsBlock', () => {
   it('keeps args with nested choices arrays', () => {
@@ -165,5 +166,65 @@ describe('manifest helper rules', () => {
       deprecated: 'legacy is deprecated',
       replacedBy: 'opencli demo new',
     });
+  });
+
+  it('hydrates TS entries from runtime registration when static parsing misses dynamic args metadata', async () => {
+    const site = `manifest-hydrate-${Date.now()}`;
+    const key = `${site}/dynamic`;
+    const entry: ManifestEntry = {
+      site,
+      name: 'dynamic',
+      description: '',
+      strategy: 'public',
+      browser: false,
+      args: [
+        {
+          name: 'model',
+          type: 'str',
+          required: true,
+          positional: true,
+          help: '',
+          default: '30)',
+        },
+      ],
+      type: 'ts',
+      modulePath: `${site}/dynamic.js`,
+    };
+
+    const hydrated = await hydrateTsManifestEntry('/tmp/dynamic.js', entry, async () => {
+      const runtime: CliCommand = cli({
+        site,
+        name: 'dynamic',
+        description: 'dynamic command',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+        args: [
+          {
+            name: 'model',
+            required: true,
+            positional: true,
+            help: 'Choose a model',
+            choices: ['auto', 'thinking'],
+            default: '30',
+          },
+        ],
+      });
+      return runtime;
+    });
+
+    expect(hydrated.description).toBe('dynamic command');
+    expect(hydrated.args).toEqual([
+      {
+        name: 'model',
+        type: 'str',
+        required: true,
+        positional: true,
+        help: 'Choose a model',
+        choices: ['auto', 'thinking'],
+        default: '30',
+      },
+    ]);
+
+    getRegistry().delete(key);
   });
 });
