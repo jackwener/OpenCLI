@@ -41,7 +41,7 @@ export function normalizeArgValue(argType: string | undefined, value: unknown, n
   if (normalized === 'true') return true;
   if (normalized === 'false') return false;
 
-  throw new CliError('ARGUMENT', `"${name}" must be either "true" or "false".`);
+  throw new ArgumentError(`"${name}" must be either "true" or "false".`);
 }
 
 /**
@@ -141,6 +141,7 @@ function resolveExitCode(err: unknown): number {
   const kind = classifyGenericError(msg);
   if (kind === 'auth')      return EXIT_CODES.NOPERM;
   if (kind === 'not-found') return EXIT_CODES.EMPTY_RESULT;
+  if (kind === 'http')      return EXIT_CODES.GENERIC_ERROR;  // HTTP 4xx/5xx → generic; renderer shows details
   return EXIT_CODES.GENERIC_ERROR;
 }
 

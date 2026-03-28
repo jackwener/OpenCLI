@@ -4,6 +4,7 @@
  * Uses raw stdin mode + ANSI escape codes for interactive prompts.
  */
 import chalk from 'chalk';
+import { EXIT_CODES } from './errors.js';
 
 export interface CheckboxItem {
   label: string;
@@ -161,7 +162,7 @@ export async function checkboxPrompt(
       // Ctrl+C — exit process
       if (key === '\x03') {
         cleanup();
-        process.exit(130);
+        process.exit(EXIT_CODES.INTERRUPTED);
       }
     }
 

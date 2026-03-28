@@ -12,11 +12,11 @@
  *   0   Success
  *   1   Generic / unexpected error
  *   2   Argument / usage error          (ArgumentError)
- *  66   No input / empty result         (EmptyResultError, SelectorError)
+ *  66   No input / empty result         (EmptyResultError)
  *  69   Service unavailable             (BrowserConnectError, AdapterLoadError)
+ *  75   Temporary failure, retry later  (TimeoutError)   EX_TEMPFAIL
  *  77   Permission denied / auth needed (AuthRequiredError)
  *  78   Configuration error             (ConfigError)
- * 124   Timeout                         (TimeoutError)
  * 130   Interrupted by Ctrl-C           (set by tui.ts SIGINT handler)
  */
 
@@ -26,11 +26,11 @@ export const EXIT_CODES = {
   SUCCESS:         0,
   GENERIC_ERROR:   1,
   USAGE_ERROR:     2,   // Bad arguments / command misuse
-  EMPTY_RESULT:   66,   // No data / not found          (EX_NOINPUT)
+  EMPTY_RESULT:   66,   // No data / not found           (EX_NOINPUT)
   SERVICE_UNAVAIL:69,   // Daemon / browser unavailable  (EX_UNAVAILABLE)
+  TEMPFAIL:       75,   // Timeout — try again later     (EX_TEMPFAIL)
   NOPERM:         77,   // Auth required / permission    (EX_NOPERM)
   CONFIG_ERROR:   78,   // Missing / invalid config      (EX_CONFIG)
-  TIMEOUT:       124,   // Command timed out
   INTERRUPTED:   130,   // Ctrl-C / SIGINT
 } as const;
 
@@ -104,7 +104,7 @@ export class TimeoutError extends CliError {
       'TIMEOUT',
       `${label} timed out after ${seconds}s`,
       hint ?? 'Try again, or increase timeout with OPENCLI_BROWSER_COMMAND_TIMEOUT env var',
-      EXIT_CODES.TIMEOUT,
+      EXIT_CODES.TEMPFAIL,
     );
   }
 }
@@ -132,7 +132,7 @@ export class SelectorError extends CliError {
       'SELECTOR',
       `Could not find element: ${selector}`,
       hint ?? 'The page UI may have changed. Please report this issue.',
-      EXIT_CODES.EMPTY_RESULT,
+      EXIT_CODES.GENERIC_ERROR,
     );
   }
 }
