@@ -79,7 +79,7 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
 
 async function getToken(): Promise<string> {
   const tokens = loadTokens();
-  if (!tokens) throw new CliError('Not authenticated. Run: opencli spotify auth');
+  if (!tokens) throw new CliError('AUTH_REQUIRED', 'Not authenticated. Run: opencli spotify auth');
   if (Date.now() > tokens.expires_at - 60_000) return refreshAccessToken(tokens.refresh_token);
   return tokens.access_token;
 }
@@ -96,7 +96,7 @@ async function api(method: string, path: string, body?: unknown): Promise<any> {
   if (res.status === 204 || res.status === 202) return null;
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as any;
-    throw new CliError(err?.error?.message || `Spotify API error ${res.status}`);
+    throw new CliError('API_ERROR', err?.error?.message || `Spotify API error ${res.status}`);
   }
   return res.json();
 }
@@ -104,7 +104,7 @@ async function api(method: string, path: string, body?: unknown): Promise<any> {
 async function findTrackUri(query: string): Promise<{ uri: string; name: string; artist: string }> {
   const data = await api('GET', `/search?q=${encodeURIComponent(query)}&type=track&limit=1`);
   const track = data.tracks.items[0];
-  if (!track) throw new CliError(`No track found for: ${query}`);
+  if (!track) throw new CliError('EMPTY_RESULT', `No track found for: ${query}`);
   return { uri: track.uri, name: track.name, artist: track.artists.map((a: any) => a.name).join(', ') };
 }
 
@@ -126,6 +126,7 @@ cli({
   func: async () => {
     if (!CLIENT_ID || !CLIENT_SECRET) {
       throw new CliError(
+        'CONFIG',
         'Missing credentials. Set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET in ' +
         '~/.opencli/spotify.env or as environment variables.'
       );
