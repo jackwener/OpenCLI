@@ -89,7 +89,6 @@ cli({
           const commentEl = el.querySelector('span.count');
           const comments = commentEl ? parseInt((commentEl.textContent || '').replace(/[^0-9]/g, ''), 10) || 0 : 0;
 
-          if (!url && !content) continue;
           if (results.length >= limit) break;
           results.push({ date, author, content, comments, url });
         }

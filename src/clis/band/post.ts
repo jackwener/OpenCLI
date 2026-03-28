@@ -140,18 +140,20 @@ cli({
       // Use a global index across both batches so filenames don't collide (photo_1, photo_2, ...).
       const cookieHeader = formatCookieHeader(await page.getCookies({ domain: 'band.us' }));
       const isBandUrl = (u: string) => { try { const h = new URL(u).hostname; return h === 'band.us' || h.endsWith('.band.us'); } catch { return false; } };
+      // Derive extension from URL path so downloaded files have correct extensions (e.g. photo_1.jpg).
+      const urlExt = (u: string) => { try { return new URL(u).pathname.match(/\.(\w+)$/)?.[1] ?? 'jpg'; } catch { return 'jpg'; } };
       let globalIndex = 1;
       const bandPhotos = photos.filter(isBandUrl);
       const otherPhotos = photos.filter(u => !isBandUrl(u));
       if (bandPhotos.length > 0) {
         await downloadMedia(
-          bandPhotos.map(url => ({ type: 'image' as const, url, filename: `photo_${globalIndex++}` })),
+          bandPhotos.map(url => ({ type: 'image' as const, url, filename: `photo_${globalIndex++}.${urlExt(url)}` })),
           { output: outputDir, verbose: false, cookies: cookieHeader },
         );
       }
       if (otherPhotos.length > 0) {
         await downloadMedia(
-          otherPhotos.map(url => ({ type: 'image' as const, url, filename: `photo_${globalIndex++}` })),
+          otherPhotos.map(url => ({ type: 'image' as const, url, filename: `photo_${globalIndex++}.${urlExt(url)}` })),
           { output: outputDir, verbose: false },
         );
       }
