@@ -196,6 +196,21 @@ function main() {
     }
   }
 
+  // ── Spotify credentials template ────────────────────────────────────
+  const opencliDir = join(home, '.opencli');
+  const spotifyEnvFile = join(opencliDir, 'spotify.env');
+  ensureDir(opencliDir);
+  if (!existsSync(spotifyEnvFile)) {
+    writeFileSync(spotifyEnvFile,
+      `# Spotify credentials — get them at https://developer.spotify.com/dashboard\n` +
+      `SPOTIFY_CLIENT_ID=your_spotify_client_id_here\n` +
+      `SPOTIFY_CLIENT_SECRET=your_spotify_client_secret_here\n`,
+      'utf8'
+    );
+    console.log(`✓ Spotify credentials template created at ${spotifyEnvFile}`);
+    console.log(`  Edit the file and add your Client ID and Secret, then run: opencli spotify auth`);
+  }
+
   // ── Browser Bridge setup hint ───────────────────────────────────────
   console.log('');
   console.log('  \x1b[1mNext step — Browser Bridge setup\x1b[0m');
