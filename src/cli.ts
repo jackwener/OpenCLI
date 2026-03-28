@@ -13,7 +13,7 @@ import { render as renderOutput } from './output.js';
 import { getBrowserFactory, browserSession } from './runtime.js';
 import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
-import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
+import { loadExternalClis, executeExternalCli, installExternalCli, uninstallExternalCli, switchExternalCliVersion, registerExternalCli, isBinaryInstalled } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
 import { EXIT_CODES, getErrorMessage } from './errors.js';
 
@@ -450,14 +450,35 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .command('install')
     .description('Install an external CLI')
     .argument('<name>', 'Name of the external CLI')
-    .action((name: string) => {
+    .option('--version <ver>', 'Install specific version (isolated mode only)')
+    .option('--isolated', 'Install in isolated directory (does not affect global)')
+    .action((name: string, opts: { version?: string; isolated?: boolean }) => {
       const ext = externalClis.find(e => e.name === name);
       if (!ext) {
         console.error(chalk.red(`External CLI '${name}' not found in registry.`));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      installExternalCli(ext);
+      installExternalCli(ext, { version: opts.version, isolated: opts.isolated });
+    });
+
+  program
+    .command('uninstall')
+    .description('Uninstall an isolated external CLI')
+    .argument('<name>', 'Name of the external CLI')
+    .option('--version <ver>', 'Uninstall only the specified version')
+    .action((name: string, opts: { version?: string }) => {
+      uninstallExternalCli(name, opts.version);
+    });
+
+  program
+    .command('switch')
+    .description('Switch active version of an isolated external CLI')
+    .argument('<name>', 'Name of the external CLI')
+    .argument('<version>', 'Version to activate')
+    .action((name: string, version: string) => {
+      const success = switchExternalCliVersion(name, version);
+      if (!success) process.exitCode = 1;
     });
 
   program
