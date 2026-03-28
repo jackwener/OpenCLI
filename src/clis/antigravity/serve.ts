@@ -13,7 +13,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { CDPBridge } from '../../browser/cdp.js';
 import type { IPage } from '../../types.js';
-import { getErrorMessage } from '../../errors.js';
+import { EXIT_CODES, getErrorMessage } from '../../errors.js';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -594,7 +594,7 @@ export async function startServe(opts: { port?: number } = {}): Promise<void> {
     console.error('\n[serve] Shutting down...');
     cdp?.close().catch(() => {});
     server.close();
-    process.exit(0);
+    process.exit(EXIT_CODES.SUCCESS);
   };
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);

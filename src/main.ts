@@ -22,6 +22,7 @@ import { runCli } from './cli.js';
 import { emitHook } from './hooks.js';
 import { installNodeNetwork } from './node-network.js';
 import { registerUpdateNoticeOnExit, checkForUpdateBackground } from './update-check.js';
+import { EXIT_CODES } from './errors.js';
 
 installNodeNetwork();
 
@@ -57,7 +58,7 @@ if (getCompIdx !== -1) {
   if (cursor === undefined) cursor = words.length;
   const candidates = getCompletions(words, cursor);
   process.stdout.write(candidates.join('\n') + '\n');
-  process.exit(0);
+  process.exit(EXIT_CODES.SUCCESS);
 }
 
 await emitHook('onStartup', { command: '__startup__', args: {} });

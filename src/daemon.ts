@@ -22,6 +22,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import { DEFAULT_DAEMON_PORT } from './constants.js';
+import { EXIT_CODES } from './errors.js';
 
 const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
@@ -53,7 +54,7 @@ function resetIdleTimer(): void {
   if (idleTimer) clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
     console.error('[daemon] Idle timeout, shutting down');
-    process.exit(0);
+    process.exit(EXIT_CODES.SUCCESS);
   }, IDLE_TIMEOUT);
 }
 
@@ -303,10 +304,10 @@ httpServer.listen(PORT, '127.0.0.1', () => {
 httpServer.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`[daemon] Port ${PORT} already in use — another daemon is likely running. Exiting.`);
-    process.exit(1);
+    process.exit(EXIT_CODES.SERVICE_UNAVAIL);
   }
   console.error('[daemon] Server error:', err.message);
-  process.exit(1);
+  process.exit(EXIT_CODES.GENERIC_ERROR);
 });
 
 // Graceful shutdown
@@ -319,7 +320,7 @@ function shutdown(): void {
   pending.clear();
   if (extensionWs) extensionWs.close();
   httpServer.close();
-  process.exit(0);
+  process.exit(EXIT_CODES.SUCCESS);
 }
 
 process.on('SIGTERM', shutdown);
