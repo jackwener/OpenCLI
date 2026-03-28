@@ -20,7 +20,10 @@ import { discoverClis, discoverPlugins } from './discovery.js';
 import { getCompletions } from './completion.js';
 import { runCli } from './cli.js';
 import { emitHook } from './hooks.js';
+import { installNodeNetwork } from './node-network.js';
 import { registerUpdateNoticeOnExit, checkForUpdateBackground } from './update-check.js';
+
+installNodeNetwork();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

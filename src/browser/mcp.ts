@@ -96,10 +96,11 @@ export class BrowserBridge implements IBrowserFactory {
     });
     this._daemonProc.unref();
 
-    // Wait for daemon to be ready AND extension to connect
+    // Wait for daemon to be ready AND extension to connect (exponential backoff)
+    const backoffs = [50, 100, 200, 400, 800, 1500, 3000];
     const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+    for (let i = 0; Date.now() < deadline; i++) {
+      await new Promise(resolve => setTimeout(resolve, backoffs[Math.min(i, backoffs.length - 1)]));
       if (await isExtensionConnected()) return;
     }
 

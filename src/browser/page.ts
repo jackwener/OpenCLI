@@ -22,11 +22,19 @@ import {
   typeTextJs,
   pressKeyJs,
   waitForTextJs,
+  waitForCaptureJs,
+  waitForSelectorJs,
   scrollJs,
   autoScrollJs,
   networkRequestsJs,
   waitForDomStableJs,
 } from './dom-helpers.js';
+
+export function isRetryableSettleError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.includes('Inspected target navigated or closed')
+    || (message.includes('-32000') && message.toLowerCase().includes('target'));
+}
 
 /**
  * Page — implements IPage by talking to the daemon via HTTP.
@@ -75,10 +83,27 @@ export class Page implements IPage {
     // settleMs is now a timeout cap (default 1000ms), not a fixed wait.
     if (options?.waitUntil !== 'none') {
       const maxMs = options?.settleMs ?? 1000;
-      await sendCommand('exec', {
+      const settleOpts = {
         code: waitForDomStableJs(maxMs, Math.min(500, maxMs)),
         ...this._cmdOpts(),
-      });
+      };
+      try {
+        await sendCommand('exec', settleOpts);
+      } catch (err) {
+        if (!isRetryableSettleError(err)) throw err;
+        // SPA client-side redirects can invalidate the CDP target after
+        // chrome.tabs reports 'complete'. Wait briefly for the new document
+        // to load, then retry the settle probe once.
+        try {
+          await new Promise((r) => setTimeout(r, 200));
+          await sendCommand('exec', settleOpts);
+        } catch (retryErr) {
+          if (!isRetryableSettleError(retryErr)) throw retryErr;
+          // Retry also failed — give up silently. Settle is best-effort
+          // after successful navigation; the next real command will surface
+          // any persistent target error immediately.
+        }
+      }
     }
   }
 
@@ -213,6 +238,12 @@ export class Page implements IPage {
       await new Promise(resolve => setTimeout(resolve, options.time! * 1000));
       return;
     }
+    if (options.selector) {
+      const timeout = (options.timeout ?? 10) * 1000;
+      const code = waitForSelectorJs(options.selector, timeout);
+      await sendCommand('exec', { code, ...this._cmdOpts() });
+      return;
+    }
     if (options.text) {
       const timeout = (options.timeout ?? 30) * 1000;
       const code = waitForTextJs(options.text, timeout);
@@ -306,6 +337,14 @@ export class Page implements IPage {
     // Same as installInterceptor: must go through evaluate() for IIFE wrapping
     const result = await this.evaluate(generateReadInterceptedJs('__opencli_xhr'));
     return Array.isArray(result) ? result : [];
+  }
+
+  async waitForCapture(timeout: number = 10): Promise<void> {
+    const maxMs = timeout * 1000;
+    await sendCommand('exec', {
+      code: waitForCaptureJs(maxMs),
+      ...this._cmdOpts(),
+    });
   }
 }
 

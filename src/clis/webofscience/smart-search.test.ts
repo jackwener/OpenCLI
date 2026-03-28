@@ -20,6 +20,7 @@ function createPageMock(evaluateResults: any[]): IPage {
     scrollTo: vi.fn().mockResolvedValue(undefined),
     getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
     wait: vi.fn().mockResolvedValue(undefined),
+    waitForCapture: vi.fn().mockResolvedValue(undefined),
     tabs: vi.fn().mockResolvedValue([]),
     closeTab: vi.fn().mockResolvedValue(undefined),
     newTab: vi.fn().mockResolvedValue(undefined),

@@ -5,16 +5,16 @@
 import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as https from 'node:https';
-import * as http from 'node:http';
 import * as os from 'node:os';
-import { Transform } from 'node:stream';
+import { Readable, Transform } from 'node:stream';
+import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { pipeline } from 'node:stream/promises';
 import { URL } from 'node:url';
 import type { ProgressBar } from './progress.js';
 import { isBinaryInstalled } from '../external.js';
 import type { BrowserCookie } from '../types.js';
 import { getErrorMessage } from '../errors.js';
+import { fetchWithNodeNetwork } from '../node-network.js';
 
 export type { BrowserCookie } from '../types.js';
 
@@ -89,9 +89,6 @@ export async function httpDownload(
   const { cookies, headers = {}, timeout = 30000, onProgress, maxRedirects = 10 } = options;
 
   return new Promise((resolve) => {
-    const parsedUrl = new URL(url);
-    const protocol = parsedUrl.protocol === 'https:' ? https : http;
-
     const requestHeaders: Record<string, string> = {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
       ...headers,
@@ -118,37 +115,52 @@ export async function httpDownload(
       }
     };
 
-    const request = protocol.get(url, { headers: requestHeaders, timeout }, (response) => {
-      void (async () => {
+    void (async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
+      try {
+        const response = await fetchWithNodeNetwork(url, {
+          headers: requestHeaders,
+          signal: controller.signal,
+          redirect: 'manual',
+        });
+        clearTimeout(timer);
+
         // Handle redirects before creating any file handles.
-        if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-          response.resume();
-          if (redirectCount >= maxRedirects) {
-            finish({ success: false, size: 0, error: `Too many redirects (> ${maxRedirects})` });
+        if (response.status >= 300 && response.status < 400) {
+          const location = response.headers.get('location');
+          if (location) {
+            if (redirectCount >= maxRedirects) {
+              finish({ success: false, size: 0, error: `Too many redirects (> ${maxRedirects})` });
+              return;
+            }
+            const redirectUrl = resolveRedirectUrl(url, location);
+            const originalHost = new URL(url).hostname;
+            const redirectHost = new URL(redirectUrl).hostname;
+            const redirectOptions = originalHost === redirectHost
+              ? options
+              : { ...options, cookies: undefined, headers: stripCookieHeaders(options.headers) };
+            finish(await httpDownload(
+              redirectUrl,
+              destPath,
+              redirectOptions,
+              redirectCount + 1,
+            ));
             return;
           }
-          const redirectUrl = resolveRedirectUrl(url, response.headers.location);
-          const originalHost = new URL(url).hostname;
-          const redirectHost = new URL(redirectUrl).hostname;
-          const redirectOptions = originalHost === redirectHost
-            ? options
-            : { ...options, cookies: undefined, headers: stripCookieHeaders(options.headers) };
-          finish(await httpDownload(
-            redirectUrl,
-            destPath,
-            redirectOptions,
-            redirectCount + 1,
-          ));
+        }
+
+        if (response.status !== 200) {
+          finish({ success: false, size: 0, error: `HTTP ${response.status}` });
           return;
         }
 
-        if (response.statusCode !== 200) {
-          response.resume();
-          finish({ success: false, size: 0, error: `HTTP ${response.statusCode}` });
+        if (!response.body) {
+          finish({ success: false, size: 0, error: 'Empty response body' });
           return;
         }
 
-        const totalSize = parseInt(response.headers['content-length'] || '0', 10);
+        const totalSize = parseInt(response.headers.get('content-length') || '0', 10);
         let received = 0;
         const progressStream = new Transform({
           transform(chunk, _encoding, callback) {
@@ -160,26 +172,23 @@ export async function httpDownload(
 
         try {
           await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
-          await pipeline(response, progressStream, fs.createWriteStream(tempPath));
+          await pipeline(
+            Readable.fromWeb(response.body as unknown as WebReadableStream),
+            progressStream,
+            fs.createWriteStream(tempPath),
+          );
           await fs.promises.rename(tempPath, destPath);
           finish({ success: true, size: received });
         } catch (err) {
           await cleanupTempFile();
           finish({ success: false, size: 0, error: getErrorMessage(err) });
         }
-      })();
-    });
-
-    request.on('error', (err) => {
-      void (async () => {
+      } catch (err) {
+        clearTimeout(timer);
         await cleanupTempFile();
-        finish({ success: false, size: 0, error: err.message });
-      })();
-    });
-
-    request.on('timeout', () => {
-      request.destroy(new Error('Timeout'));
-    });
+        finish({ success: false, size: 0, error: err instanceof Error ? err.message : String(err) });
+      }
+    })();
   });
 }
 

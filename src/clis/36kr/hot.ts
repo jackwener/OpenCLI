@@ -60,7 +60,7 @@ cli({
 
     await page.installInterceptor('36kr.com/api');
     await page.goto(url);
-    await page.wait(6);
+    await page.waitForCapture(6);
 
     // Scrape rendered article links from DOM (deduplicated)
     const domItems: any = await page.evaluate(`

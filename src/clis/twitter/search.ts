@@ -20,7 +20,7 @@ async function navigateToSearch(page: Pick<IPage, 'evaluate' | 'wait'>, query: s
         window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
       })()
     `);
-    await page.wait(5);
+    await page.wait({ selector: '[data-testid="primaryColumn"]' });
 
     lastPath = String(await page.evaluate('() => window.location.pathname') || '');
     if (lastPath.startsWith('/search')) {

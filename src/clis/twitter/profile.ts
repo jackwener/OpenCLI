@@ -21,7 +21,7 @@ cli({
     // If no username, detect the logged-in user
     if (!username) {
       await page.goto('https://x.com/home');
-      await page.wait(5);
+      await page.wait({ selector: '[data-testid="primaryColumn"]' });
       const href = await page.evaluate(`() => {
         const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
         return link ? link.getAttribute('href') : null;

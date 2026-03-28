@@ -23,7 +23,7 @@ cli({
 
     // Navigate and wait for the page to hydrate before extracting story data.
     await page.goto(url);
-    await page.wait(5);
+    await page.wait({ selector: 'article', timeout: 5 });
 
     const loadStory = async () => page.evaluate(`(() => {
       const isRobot = /Are you a robot/i.test(document.title)

@@ -25,7 +25,7 @@ cli({
         window.history.pushState({}, '', '/notifications');
         window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
     }`);
-    await page.wait(5);
+    await page.waitForCapture(5);
 
     // Verify SPA navigation succeeded
     const currentUrl = await page.evaluate('() => window.location.pathname');

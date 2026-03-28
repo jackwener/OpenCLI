@@ -1,6 +1,7 @@
 /**
  * E2E tests for output format rendering.
- * Uses hackernews (public, fast) as a stable data source.
+ * Uses the built-in list command so renderer coverage does not depend on
+ * external network availability.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -10,19 +11,22 @@ const FORMATS = ['json', 'yaml', 'csv', 'md'] as const;
 
 describe('output formats E2E', () => {
   for (const fmt of FORMATS) {
-    it(`hackernews top -f ${fmt} produces valid output`, async () => {
-      const { stdout, code } = await runCli(['hackernews', 'top', '--limit', '2', '-f', fmt]);
+    it(`list -f ${fmt} produces valid output`, async () => {
+      const { stdout, code } = await runCli(['list', '-f', fmt]);
       expect(code).toBe(0);
       expect(stdout.trim().length).toBeGreaterThan(0);
 
       if (fmt === 'json') {
         const data = parseJsonOutput(stdout);
         expect(Array.isArray(data)).toBe(true);
-        expect(data.length).toBe(2);
+        expect(data.length).toBeGreaterThan(50);
+        expect(data[0]).toHaveProperty('command');
+        expect(data[0]).toHaveProperty('site');
       }
 
       if (fmt === 'yaml') {
-        expect(stdout).toContain('title:');
+        expect(stdout).toContain('command:');
+        expect(stdout).toContain('site:');
       }
 
       if (fmt === 'csv') {
@@ -33,16 +37,8 @@ describe('output formats E2E', () => {
 
       if (fmt === 'md') {
         // Markdown table should have pipe characters
-        expect(stdout).toContain('|');
+        expect(stdout).toContain('| command |');
       }
     }, 30_000);
   }
-
-  it('list -f csv produces valid csv', async () => {
-    const { stdout, code } = await runCli(['list', '-f', 'csv']);
-    expect(code).toBe(0);
-    const lines = stdout.trim().split('\n');
-    // Header + many data lines
-    expect(lines.length).toBeGreaterThan(50);
-  });
 });

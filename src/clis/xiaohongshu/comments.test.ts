@@ -26,6 +26,7 @@ function createPageMock(evaluateResult: any): IPage {
     getInterceptedRequests: vi.fn().mockResolvedValue([]),
     getCookies: vi.fn().mockResolvedValue([]),
     screenshot: vi.fn().mockResolvedValue(''),
+    waitForCapture: vi.fn().mockResolvedValue(undefined),
   };
 }
 

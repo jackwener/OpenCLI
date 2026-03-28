@@ -3,6 +3,7 @@ import { CliError } from '../../errors.js';
 
 // Apple Marketing Tools RSS API — public, no key required
 const CHARTS_URL = 'https://rss.marketingtools.apple.com/api/v2';
+const CHARTS_TIMEOUT_MS = 15_000;
 
 cli({
   site: 'apple-podcasts',
@@ -21,7 +22,9 @@ cli({
     const url = `${CHARTS_URL}/${country}/podcasts/top/${limit}/podcasts.json`;
     let resp: Response;
     try {
-      resp = await fetch(url);
+      resp = await fetch(url, {
+        signal: AbortSignal.timeout(CHARTS_TIMEOUT_MS),
+      });
     } catch (error: any) {
       const reason = error?.cause?.code ?? error?.message ?? 'unknown network error';
       throw new CliError(

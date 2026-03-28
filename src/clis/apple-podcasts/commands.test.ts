@@ -38,13 +38,14 @@ describe('apple-podcasts search command', () => {
       'https://itunes.apple.com/search?term=machine%20learning&media=podcast&limit=5',
     );
     expect(result).toEqual([
-      {
+      expect.objectContaining({
         id: 42,
         title: 'Machine Learning Guide',
         author: 'OpenCLI',
         episodes: 12,
         genre: 'Technology',
-      },
+        url: '',
+      }),
     ]);
   });
 });
@@ -52,6 +53,30 @@ describe('apple-podcasts search command', () => {
 describe('apple-podcasts top command', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('adds a timeout signal to chart fetches', async () => {
+    const cmd = getRegistry().get('apple-podcasts/top');
+    expect(cmd?.func).toBeTypeOf('function');
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        feed: {
+          results: [
+            { id: '100', name: 'Top Show', artistName: 'Host A' },
+          ],
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await cmd!.func!(null as any, { country: 'US', limit: 1 });
+
+    const [, options] = fetchMock.mock.calls[0] ?? [];
+    expect(options).toBeDefined();
+    expect(options.signal).toBeDefined();
+    expect(options.signal).toHaveProperty('aborted', false);
   });
 
   it('uses the canonical Apple charts host and maps ranked results', async () => {
@@ -75,6 +100,9 @@ describe('apple-podcasts top command', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://rss.marketingtools.apple.com/api/v2/us/podcasts/top/2/podcasts.json',
+      expect.objectContaining({
+        signal: expect.any(Object),
+      }),
     );
     expect(result).toEqual([
       { rank: 1, title: 'Top Show', author: 'Host A', id: '100' },

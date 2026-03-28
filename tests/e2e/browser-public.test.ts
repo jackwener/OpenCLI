@@ -35,7 +35,7 @@ function isImdbChallenge(result: CliResult): boolean {
 
 function isBrowserBridgeUnavailable(result: CliResult): boolean {
   const text = `${result.stderr}\n${result.stdout}`;
-  return /Browser Bridge not connected|Extension.*not connected|not connected.*extension/i.test(text);
+  return /Browser Bridge.*not connected|Extension.*not connected/i.test(text);
 }
 
 async function expectImdbDataOrChallengeSkip(args: string[], label: string): Promise<any[] | null> {

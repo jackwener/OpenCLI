@@ -18,7 +18,7 @@ cli({
     const username = kwargs.username.replace(/^@/, '');
 
     await page.goto(`https://x.com/${username}`);
-    await page.wait(5);
+    await page.wait({ selector: '[data-testid="primaryColumn"]' });
 
     const result = await page.evaluate(`(async () => {
         try {

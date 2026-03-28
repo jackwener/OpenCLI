@@ -27,7 +27,7 @@ cli({
 
     // Step 1: Navigate to messages to get conversation list
     await page.goto('https://x.com/messages');
-    await page.wait(5);
+    await page.wait({ selector: '[data-testid="primaryColumn"]' });
 
     // Step 2: Collect conversations with scroll-to-load
     const needed = maxSend + 10; // extra buffer for skips

@@ -1,8 +1,7 @@
 import type { IPage } from '../../types.js';
+import { clamp } from '../_shared/common.js';
 
-function clampLimit(limit: number): number {
-  return Math.max(1, Math.min(limit || 20, 50));
-}
+const clampLimit = (limit: number) => clamp(limit || 20, 1, 50);
 
 export function buildSinaBlogSearchUrl(keyword: string): string {
   return `https://search.sina.com.cn/search?q=${encodeURIComponent(keyword)}&tp=mix`;
@@ -14,7 +13,7 @@ export function buildSinaBlogUserUrl(uid: string): string {
 
 export async function loadSinaBlogArticle(page: IPage, url: string): Promise<any> {
   await page.goto(url);
-  await page.wait(3);
+  await page.wait({ selector: 'h1', timeout: 3 });
   return page.evaluate(`
     (async () => {
       await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -52,7 +51,7 @@ export async function loadSinaBlogArticle(page: IPage, url: string): Promise<any
 export async function loadSinaBlogHot(page: IPage, limit: number): Promise<any[]> {
   const safeLimit = clampLimit(limit);
   await page.goto('https://blog.sina.com.cn/');
-  await page.wait(3);
+  await page.wait({ selector: 'h1', timeout: 3 });
   const data = await page.evaluate(`
     (async () => {
       await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -122,7 +121,7 @@ export async function loadSinaBlogHot(page: IPage, limit: number): Promise<any[]
 export async function loadSinaBlogSearch(page: IPage, keyword: string, limit: number): Promise<any[]> {
   const safeLimit = clampLimit(limit);
   await page.goto(buildSinaBlogSearchUrl(keyword));
-  await page.wait(5);
+  await page.wait({ selector: '.result-item', timeout: 5 });
   const data = await page.evaluate(`
     (async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -159,7 +158,7 @@ export async function loadSinaBlogSearch(page: IPage, keyword: string, limit: nu
 export async function loadSinaBlogUser(page: IPage, uid: string, limit: number): Promise<any[]> {
   const safeLimit = clampLimit(limit);
   await page.goto(buildSinaBlogUserUrl(uid));
-  await page.wait(3);
+  await page.wait({ selector: 'h1', timeout: 3 });
   const data = await page.evaluate(`
     (async () => {
       await new Promise((resolve) => setTimeout(resolve, 1000));

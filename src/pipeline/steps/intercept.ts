@@ -4,7 +4,6 @@
 
 import type { IPage } from '../../types.js';
 import { render, normalizeEvaluateSource } from '../template.js';
-import { generateInterceptorJs, generateReadInterceptedJs } from '../../interceptor.js';
 
 export async function stepIntercept(page: IPage | null, params: any, data: any, args: Record<string, any>): Promise<any> {
   const cfg = typeof params === 'object' ? params : {};
@@ -16,7 +15,7 @@ export async function stepIntercept(page: IPage | null, params: any, data: any, 
   if (!capturePattern) return data;
 
   // Step 1: Inject fetch/XHR interceptor BEFORE trigger
-  await page!.evaluate(generateInterceptorJs(JSON.stringify(capturePattern)));
+  await page!.installInterceptor(capturePattern);
 
   // Step 2: Execute the trigger action
   if (trigger.startsWith('navigate:')) {
@@ -32,11 +31,11 @@ export async function stepIntercept(page: IPage | null, params: any, data: any, 
     await page!.scroll('down');
   }
 
-  // Step 3: Wait a bit for network requests to fire
-  await page!.wait(Math.min(timeout, 3));
+  // Step 3: Wait for network capture (event-driven, not fixed sleep)
+  await page!.waitForCapture(timeout);
 
   // Step 4: Retrieve captured data
-  const matchingResponses = await page!.evaluate(generateReadInterceptedJs());
+  const matchingResponses = await page!.getInterceptedRequests();
 
   // Step 5: Select from response if specified
   let result = matchingResponses.length === 1 ? matchingResponses[0] :

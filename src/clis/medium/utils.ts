@@ -16,7 +16,7 @@ export function buildMediumUserUrl(username: string): string {
 export async function loadMediumPosts(page: IPage, url: string, limit: number): Promise<any[]> {
   if (!page) throw new CommandExecutionError('Browser session required for medium posts');
   await page.goto(url);
-  await page.wait(5);
+  await page.wait({ selector: 'article', timeout: 5 });
   const data = await page.evaluate(`
     (async () => {
       await new Promise((resolve) => setTimeout(resolve, 3000));

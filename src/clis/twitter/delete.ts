@@ -17,7 +17,7 @@ cli({
     if (!page) throw new CommandExecutionError('Browser session required for twitter delete');
 
     await page.goto(kwargs.url);
-    await page.wait(5); // Wait for tweet to load completely
+    await page.wait({ selector: '[data-testid="primaryColumn"]' }); // Wait for tweet to load completely
 
     const result = await page.evaluate(`(async () => {
         try {

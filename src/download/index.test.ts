@@ -2,13 +2,14 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { formatCookieHeader, httpDownload, resolveRedirectUrl } from './index.js';
 
 const servers: http.Server[] = [];
 const tempDirs: string[] = [];
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(servers.map((server) => new Promise<void>((resolve, reject) => {
     server.close((err) => (err ? reject(err) : resolve()));
   })));
@@ -112,6 +113,23 @@ describe('download helpers', { retry: process.platform === 'win32' ? 2 : 0 }, ()
 
     expect(result).toEqual({ success: true, size: 2 });
     expect(forwardedCookie).toBeUndefined();
+    expect(fs.readFileSync(destPath, 'utf8')).toBe('ok');
+  });
+
+  it('bypasses proxy settings for loopback downloads', async () => {
+    vi.stubEnv('HTTP_PROXY', 'http://127.0.0.1:9');
+
+    const baseUrl = await startServer((_req, res) => {
+      res.statusCode = 200;
+      res.end('ok');
+    });
+
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-dl-'));
+    tempDirs.push(tempDir);
+    const destPath = path.join(tempDir, 'loopback.txt');
+    const result = await httpDownload(`${baseUrl}/ok`, destPath);
+
+    expect(result).toEqual({ success: true, size: 2 });
     expect(fs.readFileSync(destPath, 'utf8')).toBe('ok');
   });
 });

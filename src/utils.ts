@@ -31,6 +31,11 @@ export async function mapConcurrent<T, R>(
   return results;
 }
 
+/** Pause for the given number of milliseconds. */
+export function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /** Save a base64-encoded string to a file, creating parent directories as needed. */
 export async function saveBase64ToFile(base64: string, filePath: string): Promise<void> {
   const dir = path.dirname(filePath);

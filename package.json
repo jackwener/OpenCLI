@@ -1,6 +1,6 @@
 {
   "name": "@jackwener/opencli",
-  "version": "1.5.0",
+  "version": "1.5.2",
   "publishConfig": {
     "access": "public"
   },
@@ -58,6 +58,7 @@
     "commander": "^14.0.3",
     "js-yaml": "^4.1.0",
     "turndown": "^7.2.2",
+    "undici": "^7.24.6",
     "ws": "^8.18.0"
   },
   "devDependencies": {

@@ -106,7 +106,7 @@ type AutomationSession = {
 };
 
 const automationSessions = new Map<string, AutomationSession>();
-const WINDOW_IDLE_TIMEOUT = 120000; // 120s — longer to survive slow pipelines
+const WINDOW_IDLE_TIMEOUT = 30000; // 30s — quick cleanup after command finishes
 
 function getWorkspaceKey(workspace?: string): string {
   return workspace?.trim() || 'default';
@@ -152,6 +152,7 @@ async function getAutomationWindow(workspace: string): Promise<number> {
     width: 1280,
     height: 900,
     type: 'normal',
+    state: 'minimized',
   });
   const session: AutomationSession = {
     windowId: win.id!,

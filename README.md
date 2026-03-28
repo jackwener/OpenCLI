@@ -1,6 +1,6 @@
 # OpenCLI
 
-> **Make any website, Electron App, or Local Tool your CLI.**  
+> **Make any website, Electron App, or Local Tool your CLI.**
 > Zero risk · Reuse Chrome login · AI-powered discovery · Universal CLI Hub
 
 [![中文文档](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87-0F766E?style=flat-square)](./README.zh-CN.md)
@@ -8,384 +8,42 @@
 [![Node.js Version](https://img.shields.io/node/v/@jackwener/opencli?style=flat-square)](https://nodejs.org)
 [![License](https://img.shields.io/npm/l/@jackwener/opencli?style=flat-square)](./LICENSE)
 
-A CLI tool that turns **any website**, **Electron app**, or **local CLI tool** into a command-line interface — Bilibili, Zhihu, 小红书, Twitter/X, Reddit, YouTube, Antigravity, `gh`, `docker`, and [many more](#built-in-commands) — powered by browser session reuse and AI-native discovery.
+A CLI tool that turns **any website**, **Electron app**, or **local CLI tool** into a command-line interface — powered by browser session reuse and AI-native discovery.
 
-**Built for AI Agents**: Simply configure an instruction in your global `AGENT.md` or `.cursorrules` guiding the AI to execute `opencli list` via Bash to discover available tools. Register your favorite local CLIs (`opencli register mycli`), and the AI will automatically learn how to invoke all your tools perfectly!
-
-**CLI All Electron Apps! The Most Powerful Update Has Arrived!**
-Turn ANY Electron application into a CLI tool! Recombine, script, and extend applications like Antigravity Ultra seamlessly. Now AI can control itself natively. Unlimited possibilities await!
-
----
-
-## Highlights
-
-- **CLI All Electron** — CLI-ify apps like Antigravity Ultra! Now AI can control itself natively using cc/openclaw!
+- **Zero LLM cost** — No tokens consumed at runtime.
 - **Account-safe** — Reuses Chrome's logged-in state; your credentials never leave the browser.
-- **AI Agent ready** — `explore` discovers APIs, `synthesize` generates adapters, `cascade` finds auth strategies.
-- **External CLI Hub** — Discover, auto-install, and passthrough commands to any external CLI (gh, obsidian, docker, etc). Zero setup.
-- **Self-healing setup** — `opencli doctor` diagnoses and auto-starts the daemon, extension, and live browser connectivity.
-- **Dynamic Loader** — Simply drop `.ts` or `.yaml` adapters into the `clis/` folder for auto-registration.
-- **Dual-Engine Architecture** — Supports both YAML declarative data pipelines and robust browser runtime TypeScript injections.
-
-## Why opencli?
-
-There are many great browser automation tools. Here's when opencli is the right choice:
-
-| Your need | Best tool | Why |
-|-----------|-----------|-----|
-| Scheduled data extraction from specific sites | **opencli** | Pre-built adapters, deterministic JSON, zero LLM cost |
-| AI agent needs reliable site operations | **opencli** | Hundreds of commands, structured output, fast deterministic response |
-| Explore an unknown website ad-hoc | Browser-Use, Stagehand | LLM-driven general browsing for one-off tasks |
-| Large-scale web crawling | Crawl4AI, Scrapy | Purpose-built for throughput and scale |
-| Control desktop Electron apps from terminal | **opencli** | CDP + AppleScript — the only CLI tool that does this |
-
-**What makes opencli different:**
-
-- **Zero LLM cost** — No tokens consumed at runtime. Run 10,000 times and pay nothing.
 - **Deterministic** — Same command, same output schema, every time. Pipeable, scriptable, CI-friendly.
-- **Broad coverage** — 50+ sites across global and Chinese platforms (Bilibili, Zhihu, Xiaohongshu, Reddit, HackerNews, and more), plus desktop Electron apps via CDP.
-
-> For a detailed comparison with Browser-Use, Crawl4AI, Firecrawl, and others, see the [Comparison Guide](./docs/comparison.md).
-
-## Prerequisites
-
-- **Node.js**: >= 20.0.0 (or **Bun** >= 1.0 — see [Runtime Support](#runtime-support) below)
-- **Chrome** running **and logged into the target site** (e.g. bilibili.com, zhihu.com, xiaohongshu.com).
-
-> **⚠️ Important**: Browser commands reuse your Chrome login session. You must be logged into the target website in Chrome before running commands. If you get empty data or errors, check your login status first.
-
-### Runtime Support
-
-OpenCLI works with both **Node.js** (≥ 20) and **Bun** (≥ 1.0). All commands and adapters are runtime-agnostic.
-
-```bash
-# Development with Bun (faster startup)
-npm run dev:bun
-
-# Run the built CLI with Bun
-npm run start:bun
-
-# Run unit tests under Bun
-npm run test:bun
-
-# Run E2E tests with Bun as the runtime
-OPENCLI_TEST_RUNTIME=bun npm run test:e2e
-```
-
-Use `opencli doctor` to check your current runtime — it displays the active engine (e.g. `node v22.13.0` or `bun 1.1.42`).
-
-OpenCLI connects to your browser through a lightweight **Browser Bridge** Chrome Extension + micro-daemon (zero config, auto-start).
-
-### Browser Bridge Extension Setup
-
-You can install the extension via either method:
-
-**Method 1: Download Pre-built Release (Recommended)**
-1. Go to the GitHub [Releases page](https://github.com/jackwener/opencli/releases) and download the latest `opencli-extension.zip`.
-2. Unzip the file and open `chrome://extensions`, enable **Developer mode** (top-right toggle).
-3. Click **Load unpacked** and select the unzipped folder.
-
-**Method 2: Load Source (For Developers)**
-1. Open `chrome://extensions` and enable **Developer mode**.
-2. Click **Load unpacked** and select the `extension/` directory from this repository.
-
-That's it! The daemon auto-starts when you run any browser command. No tokens, no manual configuration.
-
-> **Tip**: Use `opencli doctor` for ongoing diagnosis:
-> ```bash
-> opencli doctor            # Check extension + daemon connectivity
-> ```
+- **AI Agent ready** — `explore` discovers APIs, `synthesize` generates adapters, `cascade` finds auth strategies.
+- **65+ built-in adapters** — Global and Chinese platforms, plus desktop Electron apps via CDP.
 
 ## Quick Start
 
-### Install via npm (recommended)
-
 ```bash
 npm install -g @jackwener/opencli
+opencli doctor                         # Check setup
+opencli list                           # See all commands
+opencli hackernews top --limit 5       # Public API, no browser needed
+opencli bilibili hot -f json           # Browser command, JSON output
 ```
 
-Then use directly:
+**[→ Full documentation](./docs/index.md)**
 
-```bash
-opencli list                              # See all commands
-opencli list -f yaml                      # List commands as YAML
-opencli hackernews top --limit 5          # Public API, no browser
-opencli bilibili hot --limit 5            # Browser command
-opencli zhihu hot -f json                 # JSON output
-opencli zhihu hot -f yaml                 # YAML output
-```
+## Documentation
 
-### Install from source (for developers)
-
-```bash
-git clone git@github.com:jackwener/opencli.git
-cd opencli 
-npm install
-npm run build
-npm link      # Link binary globally
-opencli list  # Now you can use it anywhere!
-```
-
-### Update
-
-```bash
-npm install -g @jackwener/opencli@latest
-```
-
-## Built-in Commands
-
-Run `opencli list` for the live registry.
-
-| Site | Commands | Mode |
-|------|----------|------|
-| **twitter** | `trending` `bookmarks` `profile` `search` `timeline` `thread` `following` `followers` `notifications` `post` `reply` `delete` `like` `article` `follow` `unfollow` `bookmark` `unbookmark` `download` `accept` `reply-dm` `block` `unblock` `hide-reply` | Browser |
-| **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `save` `comment` `subscribe` `saved` `upvoted` | Browser |
-| **cursor** | `status` `send` `read` `new` `dump` `composer` `model` `extract-code` `ask` `screenshot` `history` `export` | Desktop |
-| **bilibili** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `dynamic` `ranking` `following` `user-videos` `download` | Browser |
-| **codex** | `status` `send` `read` `new` `dump` `extract-diff` `model` `ask` `screenshot` `history` `export` | Desktop |
-| **chatwise** | `status` `new` `send` `read` `ask` `model` `history` `export` `screenshot` | Desktop |
-| **doubao** | `status` `new` `send` `read` `ask` | Browser |
-| **doubao-app** | `status` `new` `send` `read` `ask` `screenshot` `dump` | Desktop |
-| **notion** | `status` `search` `read` `new` `write` `sidebar` `favorites` `export` | Desktop |
-| **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | Desktop |
-| **v2ex** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | Public / Browser |
-| **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `watchlist` `earnings-date` `fund-holdings` `fund-snapshot` | Browser |
-| **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` | Desktop |
-| **chatgpt** | `status` `new` `send` `read` `ask` `model` | Desktop |
-| **xiaohongshu** | `search` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | Browser |
-| **apple-podcasts** | `search` `episodes` `top` | Public |
-| **xiaoyuzhou** | `podcast` `podcast-episodes` `episode` | Public |
-| **zhihu** | `hot` `search` `question` `download` | Browser |
-| **weixin** | `download` | Browser |
-| **youtube** | `search` `video` `transcript` | Browser |
-| **boss** | `search` `detail` `recommend` `joblist` `greet` `batchgreet` `send` `chatlist` `chatmsg` `invite` `mark` `exchange` `resume` `stats` | Browser |
-| **coupang** | `search` `add-to-cart` | Browser |
-| **bbc** | `news` | Public |
-| **bloomberg** | `main` `markets` `economics` `industries` `tech` `politics` `businessweek` `opinions` `feeds` `news` | Public / Browser |
-| **ctrip** | `search` | Browser |
-| **devto** | `top` `tag` `user` | Public |
-| **dictionary** | `search` `synonyms` `examples` | Public |
-| **arxiv** | `search` `paper` | Public |
-| **paperreview** | `submit` `review` `feedback` | Public |
-| **wikipedia** | `search` `summary` `random` `trending` | Public |
-| **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` | Public |
-| **jd** | `item` | Browser |
-| **linkedin** | `search` `timeline` | Browser |
-| **reuters** | `search` | Browser |
-| **webofscience** | `smart-search` `basic-search` `author-search` `author-record` `citing-articles` `references` `record` | Browser |
-| **smzdm** | `search` | Browser |
-| **web** | `read` | Browser |
-| **weibo** | `hot` `search` | Browser |
-| **yahoo-finance** | `quote` | Browser |
-| **sinafinance** | `news` | 🌐 Public |
-| **barchart** | `quote` `options` `greeks` `flow` | Browser |
-| **chaoxing** | `assignments` `exams` | Browser |
-| **grok** | `ask` | Browser |
-| **hf** | `top` | Public |
-| **jike** | `feed` `search` `create` `like` `comment` `repost` `notifications` `post` `topic` `user` | Browser |
-| **jimeng** | `generate` `history` | Browser |
-| **yollomi** | `generate` `video` `edit` `upload` `models` `remove-bg` `upscale` `face-swap` `restore` `try-on` `background` `object-remover` | Browser |
-| **linux-do** | `feed` `categories` `tags` `search` `topic` `user-topics` `user-posts` | Browser |
-| **stackoverflow** | `hot` `search` `bounties` `unanswered` | Public |
-| **steam** | `top-sellers` | Public |
-| **weread** | `shelf` `search` `book` `highlights` `notes` `notebooks` `ranking` | Browser |
-| **douban** | `search` `top250` `subject` `photos` `download` `marks` `reviews` `movie-hot` `book-hot` | Browser |
-| **facebook** | `feed` `profile` `search` `friends` `groups` `events` `notifications` `memories` `add-friend` `join-group` | Browser |
-| **google** | `news` `search` `suggest` `trends` | Public |
-| **36kr** | `news` `hot` `search` `article` | Public / Browser |
-| **imdb** | `search` `title` `top` `trending` `person` `reviews` | Public |
-| **producthunt** | `posts` `today` `hot` `browse` | Public / Browser |
-| **instagram** | `explore` `profile` `search` `user` `followers` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `saved` | Browser |
-| **lobsters** | `hot` `newest` `active` `tag` | Public |
-| **medium** | `feed` `search` `user` | Browser |
-| **sinablog** | `hot` `search` `article` `user` | Browser |
-| **substack** | `feed` `search` `publication` | Browser |
-| **pixiv** | `ranking` `search` `user` `illusts` `detail` `download` | Browser |
-| **tiktok** | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` | Browser |
-
-
-### External CLI Hub
-
-OpenCLI acts as a universal hub for your existing command-line tools. It provides unified discovery, automatic installation, and pure passthrough execution.
-
-| External CLI | Description | Commands Example |
-|--------------|-------------|------------------|
-| **gh** | GitHub CLI | `opencli gh pr list --limit 5` |
-| **obsidian** | Obsidian vault management | `opencli obsidian search query="AI"` |
-| **docker** | Docker command-line interface | `opencli docker ps` |
-| **readwise** | Readwise & Reader CLI | `opencli readwise login` |
-| **gws** | Google Workspace CLI — Docs, Sheets, Drive, Gmail, Calendar | `opencli gws docs list` |
-
-**Zero Configuration**: OpenCLI purely passes your inputs to the underlying binary via standard I/O streams. The external CLI works exactly as it naturally would, maintaining its standard output formats.
-
-**Auto-Installation**: If you run `opencli gh ...` and `gh` is not installed on your system, OpenCLI will automatically try to install it using your system's package manager (e.g., `brew install gh`) before seamlessly re-running the command.
-
-**Register Your Own**:
-Add any local CLI to your OpenCLI registry so AI agents can automatically discover it via the `opencli list` command.
-```bash
-opencli register mycli
-```
-
-### Desktop App Adapters
-
-Each desktop adapter has its own detailed documentation with commands reference, setup guide, and examples:
-
-If you want to add support for a new Electron desktop app, start with [docs/guide/electron-app-cli.md](./docs/guide/electron-app-cli.md) and the deeper [Electron guide](./docs/advanced/electron.md).
-
-| App | Description | Doc |
-|-----|-------------|-----|
-| **Cursor** | Control Cursor IDE — Composer, chat, code extraction | [Doc](./docs/adapters/desktop/cursor.md) |
-| **Codex** | Drive OpenAI Codex CLI agent headlessly | [Doc](./docs/adapters/desktop/codex.md) |
-| **Antigravity** | Control Antigravity Ultra from terminal | [Doc](./docs/adapters/desktop/antigravity.md) |
-| **ChatGPT** | Automate ChatGPT macOS desktop app | [Doc](./docs/adapters/desktop/chatgpt.md) |
-| **ChatWise** | Multi-LLM client (GPT-4, Claude, Gemini) | [Doc](./docs/adapters/desktop/chatwise.md) |
-| **Notion** | Search, read, write Notion pages | [Doc](./docs/adapters/desktop/notion.md) |
-| **Discord** | Discord Desktop — messages, channels, servers | [Doc](./docs/adapters/desktop/discord.md) |
-| **Doubao** | Control Doubao AI desktop app via CDP | [Doc](./docs/adapters/desktop/doubao-app.md) |
-
-## Download Support
-
-OpenCLI supports downloading images, videos, and articles from supported platforms.
-
-### Supported Platforms
-
-| Platform | Content Types | Notes |
-|----------|---------------|-------|
-| **xiaohongshu** | Images, Videos | Downloads all media from a note |
-| **bilibili** | Videos | Requires `yt-dlp` installed |
-| **twitter** | Images, Videos | Downloads from user media tab or single tweet |
-| **douban** | Images | Downloads poster / still image lists from movie subjects |
-| **pixiv** | Images | Downloads original-quality illustrations, supports multi-page works |
-| **zhihu** | Articles (Markdown) | Exports articles with optional image download |
-| **weixin** | Articles (Markdown) | Exports WeChat Official Account articles |
-
-### Prerequisites
-
-For video downloads from streaming platforms, you need to install `yt-dlp`:
-
-```bash
-# Install yt-dlp
-pip install yt-dlp
-# or
-brew install yt-dlp
-```
-
-### Usage Examples
-
-```bash
-# Download images/videos from Xiaohongshu note
-opencli xiaohongshu download abc123 --output ./xhs
-
-# Download Bilibili video (requires yt-dlp)
-opencli bilibili download BV1xxx --output ./bilibili
-opencli bilibili download BV1xxx --quality 1080p  # Specify quality
-
-# Download Twitter media from user
-opencli twitter download elonmusk --limit 20 --output ./twitter
-
-# Download single tweet media
-opencli twitter download --tweet-url "https://x.com/user/status/123" --output ./twitter
-
-# Download Douban posters / stills
-opencli douban download 30382501 --output ./douban
-
-# Export Zhihu article to Markdown
-opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --output ./zhihu
-
-# Export with local images
-opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --download-images
-
-# Export WeChat article to Markdown
-opencli weixin download --url "https://mp.weixin.qq.com/s/xxx" --output ./weixin
-```
-
-
-
-## Output Formats
-
-All built-in commands support `--format` / `-f` with `table`, `json`, `yaml`, `md`, and `csv`.
-The `list` command supports the same format options, and keeps `--json` for backward compatibility.
-
-```bash
-opencli list -f yaml            # Command registry as YAML
-opencli bilibili hot -f table   # Default: rich terminal table
-opencli bilibili hot -f json    # JSON (pipe to jq or LLMs)
-opencli bilibili hot -f yaml    # YAML (human-readable structured output)
-opencli bilibili hot -f md      # Markdown
-opencli bilibili hot -f csv     # CSV
-opencli bilibili hot -v         # Verbose: show pipeline debug steps
-```
-
-## Plugins
-
-Extend OpenCLI with community-contributed adapters. Plugins use the same YAML/TS format as built-in commands and are automatically discovered at startup.
-
-```bash
-opencli plugin install github:user/opencli-plugin-my-tool  # Install
-opencli plugin list                                         # List installed
-opencli plugin update my-tool                               # Update to latest
-opencli plugin update --all                                 # Update all installed plugins
-opencli plugin uninstall my-tool                            # Remove
-```
-
-`opencli plugin list` also shows the tracked short commit hash when a plugin version is recorded in `~/.opencli/plugins.lock.json`.
-
-| Plugin | Type | Description |
-|--------|------|-------------|
-| [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | YAML | GitHub Trending repositories |
-| [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | TS | Multi-platform trending aggregator |
-| [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | YAML | 稀土掘金 (Juejin) hot articles |
-
-See [Plugins Guide](./docs/guide/plugins.md) for creating your own plugin.
-
-## For AI Agents (Developer Guide)
-
-If you are an AI assistant tasked with creating a new command adapter for `opencli`, please follow the AI Agent workflow below:
-
-> **Quick mode**: To generate a single command for a specific page URL, see [CLI-ONESHOT.md](./CLI-ONESHOT.md) — just a URL + one-line goal, 4 steps done.
-
-> **Full mode**: Before writing any adapter code, read [CLI-EXPLORER.md](./CLI-EXPLORER.md). It contains the complete browser exploration workflow, the 5-tier authentication strategy decision tree, and debugging guide.
-
-```bash
-# 1. Deep Explore — discover APIs, infer capabilities, detect framework
-opencli explore https://example.com --site mysite
-
-# 2. Synthesize — generate YAML adapters from explore artifacts
-opencli synthesize mysite
-
-# 3. Generate — one-shot: explore → synthesize → register
-opencli generate https://example.com --goal "hot"
-
-# 4. Strategy Cascade — auto-probe: PUBLIC → COOKIE → HEADER
-opencli cascade https://api.example.com/data
-```
-
-Explore outputs to `.opencli/explore/<site>/` (manifest.json, endpoints.json, capabilities.json, auth.json).
-
-## Testing
-
-See **[TESTING.md](./TESTING.md)** for how to run and write tests.
-
-## Troubleshooting
-
-- **"Extension not connected"**
-  - Ensure the opencli Browser Bridge extension is installed and **enabled** in `chrome://extensions`.
-- **"attach failed: Cannot access a chrome-extension:// URL"**
-  - Another Chrome extension (e.g. youmind, New Tab Override, or AI assistant extensions) may be interfering. Try **disabling other extensions** temporarily, then retry.
-- **Empty data returns or 'Unauthorized' error**
-  - Your login session in Chrome might have expired. Open a normal Chrome tab, navigate to the target site, and log in or refresh the page.
-- **Node API errors**
-  - Make sure you are using Node.js >= 20. Some dependencies require modern Node APIs.
-- **Daemon issues**
-  - Check daemon status: `curl localhost:19825/status`
-  - View extension logs: `curl localhost:19825/logs`
-
+| Topic | Link |
+|-------|------|
+| Installation & Setup | [docs/guide/installation.md](./docs/guide/installation.md) |
+| Getting Started | [docs/guide/getting-started.md](./docs/guide/getting-started.md) |
+| Built-in Commands | [docs/adapters/index.md](./docs/adapters/index.md) |
+| Desktop App Adapters | [docs/adapters/desktop](./docs/adapters/desktop) |
+| Plugins | [docs/guide/plugins.md](./docs/guide/plugins.md) |
+| Electron App Guide | [docs/guide/electron-app-cli.md](./docs/guide/electron-app-cli.md) |
+| Troubleshooting | [docs/guide/troubleshooting.md](./docs/guide/troubleshooting.md) |
+| Comparison with other tools | [docs/comparison.md](./docs/comparison.md) |
 
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=jackwener/opencli&type=Date)](https://star-history.com/#jackwener/opencli&Date)
-
-
 
 ## License
 

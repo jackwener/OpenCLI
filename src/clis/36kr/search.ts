@@ -24,7 +24,7 @@ cli({
 
     await page.installInterceptor('36kr.com/api');
     await page.goto(`https://www.36kr.com/search/articles/${query}`);
-    await page.wait(6);
+    await page.waitForCapture(6);
 
     const domItems: any = await page.evaluate(`
       (() => {

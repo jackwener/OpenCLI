@@ -198,6 +198,7 @@ const wss = new WebSocketServer({
 wss.on('connection', (ws: WebSocket) => {
   console.error('[daemon] Extension connected');
   extensionWs = ws;
+  extensionVersion = null; // cleared until hello message arrives
 
   // ── Heartbeat: ping every 15s, close if 2 pongs missed ──
   let missedPongs = 0;

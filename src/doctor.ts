@@ -95,11 +95,15 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     issues.push(`Browser connectivity test failed: ${connectivity.error ?? 'unknown'}`);
   }
 
-  if (status.extensionVersion && opts.cliVersion && status.extensionVersion !== opts.cliVersion) {
-    issues.push(
-      `Extension version mismatch: extension v${status.extensionVersion} ≠ CLI v${opts.cliVersion}\n` +
-      '  Download the latest extension from: https://github.com/jackwener/opencli/releases',
-    );
+  if (status.extensionVersion && opts.cliVersion) {
+    const extMajor = status.extensionVersion.split('.')[0];
+    const cliMajor = opts.cliVersion.split('.')[0];
+    if (extMajor !== cliMajor) {
+      issues.push(
+        `Extension major version mismatch: extension v${status.extensionVersion} ≠ CLI v${opts.cliVersion}\n` +
+        '  Download the latest extension from: https://github.com/jackwener/opencli/releases',
+      );
+    }
   }
 
   return {

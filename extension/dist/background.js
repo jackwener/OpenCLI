@@ -164,6 +164,7 @@ function connect() {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
+    ws?.send(JSON.stringify({ type: "hello", version: chrome.runtime.getManifest().version }));
   };
   ws.onmessage = async (event) => {
     try {
@@ -195,7 +196,7 @@ function scheduleReconnect() {
   }, delay);
 }
 const automationSessions = /* @__PURE__ */ new Map();
-const WINDOW_IDLE_TIMEOUT = 12e4;
+const WINDOW_IDLE_TIMEOUT = 3e4;
 function getWorkspaceKey(workspace) {
   return workspace?.trim() || "default";
 }
@@ -230,7 +231,8 @@ async function getAutomationWindow(workspace) {
     focused: false,
     width: 1280,
     height: 900,
-    type: "normal"
+    type: "normal",
+    state: "minimized"
   });
   const session = {
     windowId: win.id,

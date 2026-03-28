@@ -37,6 +37,7 @@ function createPageMock(evaluateResult: any, interceptedRequests: any[] = []): I
     getInterceptedRequests,
     getCookies: vi.fn().mockResolvedValue([]),
     screenshot: vi.fn().mockResolvedValue(''),
+    waitForCapture: vi.fn().mockResolvedValue(undefined),
   };
 }
 

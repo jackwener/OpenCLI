@@ -26,6 +26,7 @@ export interface SnapshotOptions {
 
 export interface WaitOptions {
   text?: string;
+  selector?: string;   // wait until document.querySelector(selector) matches
   time?: number;
   timeout?: number;
 }
@@ -64,6 +65,7 @@ export interface IPage {
   autoScroll(options?: { times?: number; delayMs?: number }): Promise<void>;
   installInterceptor(pattern: string): Promise<void>;
   getInterceptedRequests(): Promise<any[]>;
+  waitForCapture(timeout?: number): Promise<void>;
   screenshot(options?: ScreenshotOptions): Promise<string>;
   closeWindow?(): Promise<void>;
   /** Returns the current page URL, or null if unavailable. */

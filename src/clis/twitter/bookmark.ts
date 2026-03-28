@@ -17,7 +17,7 @@ cli({
     if (!page) throw new CommandExecutionError('Browser session required for twitter bookmark');
 
     await page.goto(kwargs.url);
-    await page.wait(5);
+    await page.wait({ selector: '[data-testid="primaryColumn"]' });
 
     const result = await page.evaluate(`(async () => {
         try {

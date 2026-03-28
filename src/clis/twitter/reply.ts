@@ -19,7 +19,7 @@ cli({
 
     // 1. Navigate to the tweet page
     await page.goto(kwargs.url);
-    await page.wait(5); // Wait for the react application to hydrate
+    await page.wait({ selector: '[data-testid="primaryColumn"]' });
 
     // 2. Automate typing the reply and clicking reply
     const result = await page.evaluate(`(async () => {

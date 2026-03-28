@@ -179,3 +179,47 @@ export function waitForDomStableJs(maxMs: number, quietMs: number): string {
     })
   `;
 }
+
+/**
+ * Generate JS to wait until window.__opencli_xhr has ≥1 captured response.
+ * Polls every 100ms. Resolves 'captured' on success; rejects after maxMs.
+ * Used after installInterceptor() + goto() instead of a fixed sleep.
+ */
+export function waitForCaptureJs(maxMs: number): string {
+  return `
+    new Promise((resolve, reject) => {
+      const deadline = Date.now() + ${maxMs};
+      const check = () => {
+        if ((window.__opencli_xhr || []).length > 0) return resolve('captured');
+        if (Date.now() > deadline) return reject(new Error('No network capture within ${maxMs / 1000}s'));
+        setTimeout(check, 100);
+      };
+      check();
+    })
+  `;
+}
+
+/**
+ * Generate JS to wait until document.querySelector(selector) returns a match.
+ * Uses MutationObserver for near-instant resolution; falls back to reject after timeoutMs.
+ */
+export function waitForSelectorJs(selector: string, timeoutMs: number): string {
+  return `
+    new Promise((resolve, reject) => {
+      const sel = ${JSON.stringify(selector)};
+      if (document.querySelector(sel)) return resolve('found');
+      const cap = setTimeout(() => {
+        obs.disconnect();
+        reject(new Error('Selector not found: ' + sel));
+      }, ${timeoutMs});
+      const obs = new MutationObserver(() => {
+        if (document.querySelector(sel)) {
+          clearTimeout(cap);
+          obs.disconnect();
+          resolve('found');
+        }
+      });
+      obs.observe(document.body || document.documentElement, { childList: true, subtree: true });
+    })
+  `;
+}

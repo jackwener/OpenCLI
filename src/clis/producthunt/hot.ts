@@ -23,7 +23,7 @@ cli({
 
     await page.installInterceptor('producthunt.com');
     await page.goto('https://www.producthunt.com');
-    await page.wait(5);
+    await page.waitForCapture(5);
 
     const domItems: any = await page.evaluate(`
       (() => {
