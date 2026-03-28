@@ -43,8 +43,8 @@ cli({
         const results = [];
 
         for (const a of Array.from(document.querySelectorAll('a.bandCover._link'))) {
-          // Extract band_no from href: /band/{id} or /band/{id}/post
-          const m = (a.getAttribute('href') || '').match(/\\/band\\/(\\d+)/);
+          // Extract band_no from href: /band/{id} or /band/{id}/post only.
+          const m = (a.getAttribute('href') || '').match(/^\\/band\\/(\\d+)(?:\\/post)?\\/?$/);
           if (!m) continue;
           const bandNo = Number(m[1]);
           if (seen.has(bandNo)) continue;
