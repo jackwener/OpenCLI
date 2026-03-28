@@ -232,7 +232,7 @@ async function getAutomationWindow(workspace) {
     width: 1280,
     height: 900,
     type: "normal",
-    state: "minimized"
+    state: "normal"
   });
   const session = {
     windowId: win.id,

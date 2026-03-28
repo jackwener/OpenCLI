@@ -152,7 +152,7 @@ async function getAutomationWindow(workspace: string): Promise<number> {
     width: 1280,
     height: 900,
     type: 'normal',
-    state: 'minimized',
+    state: 'normal',
   });
   const session: AutomationSession = {
     windowId: win.id!,
