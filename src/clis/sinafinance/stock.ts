@@ -38,7 +38,8 @@ function hqSymbol(e: SuggestEntry): string {
 }
 
 function parseHq(raw: string, sym: string): string[] {
-  const m = raw.match(new RegExp(`hq_str_${sym}="([^"]*)"`));
+  const escaped = sym.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const m = raw.match(new RegExp(`hq_str_${escaped}="([^"]*)"`));
   return m ? m[1].split(',') : [];
 }
 
@@ -76,9 +77,9 @@ cli({
       throw new CliError('INPUT_ERROR', `Invalid market: "${market}"`, 'Expected cn, hk, us, or auto');
     }
 
-    // 1. Search symbol
+    // 1. Search symbol — only request the markets we care about
     const suggestRaw = await fetchGBK(
-      `https://suggest3.sinajs.cn/suggest/type=11,31,41&key=${encodeURIComponent(key)}`
+      `https://suggest3.sinajs.cn/suggest/type=${targetMarkets.join(',')}&key=${encodeURIComponent(key)}`
     );
     const entries = parseSuggest(suggestRaw, targetMarkets);
     if (!entries.length) {
@@ -110,7 +111,7 @@ cli({
     if (best.market === MARKET_CN) {
       const price = parseFloat(f[3]);
       const prev  = parseFloat(f[2]);
-      const chg   = (price - prev).toFixed(3);
+      const chg   = (price - prev).toFixed(2);
       const chgPct = ((price - prev) / prev * 100).toFixed(2) + '%';
       return [{ Symbol: sym.toUpperCase(), Name: f[0], Price: f[3], Change: chg, ChangePercent: chgPct, Open: f[1], High: f[4], Low: f[5], Volume: f[8], MarketCap: '' }];
     }

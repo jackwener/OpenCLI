@@ -18,7 +18,6 @@ import { render as renderOutput } from './output.js';
 import { executeCommand } from './execution.js';
 import {
   CliError,
-  EXIT_CODES,
   ERROR_ICONS,
   getErrorMessage,
   BrowserConnectError,
@@ -118,30 +117,9 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       });
     } catch (err) {
       await renderError(err, fullName(cmd), optionsRecord.verbose === true);
-      process.exitCode = resolveExitCode(err);
+      process.exitCode = 1;
     }
   });
-}
-
-// ── Exit code resolution ─────────────────────────────────────────────────────
-
-/**
- * Map any thrown value to a Unix process exit code.
- *
- * - CliError subclasses carry their own exitCode (set in errors.ts).
- * - Generic Error objects are classified by message pattern so that
- *   un-typed auth / not-found errors from adapters still produce
- *   meaningful exit codes for shell scripts.
- */
-function resolveExitCode(err: unknown): number {
-  if (err instanceof CliError) return err.exitCode;
-
-  // Pattern-based fallback for untyped errors thrown by third-party adapters.
-  const msg = getErrorMessage(err);
-  const kind = classifyGenericError(msg);
-  if (kind === 'auth')      return EXIT_CODES.NOPERM;
-  if (kind === 'not-found') return EXIT_CODES.EMPTY_RESULT;
-  return EXIT_CODES.GENERIC_ERROR;
 }
 
 // ── Error rendering ──────────────────────────────────────────────────────────
