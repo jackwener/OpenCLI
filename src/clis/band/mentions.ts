@@ -66,10 +66,14 @@ cli({
     // Click the notification bell to open the panel. This triggers an initial get_news
     // call for all notification types. Use the CSS class directly — text-based matching
     // is locale-dependent and breaks when Band.us is set to a non-Japanese language.
-    await page.evaluate(`() => {
+    const bellFound = await page.evaluate(`() => {
       const bell = document.querySelector('button._btnWidgetIcon');
-      if (bell) bell.click();
+      if (bell) { bell.click(); return true; }
+      return false;
     }`);
+    if (!bellFound) {
+      throw new EmptyResultError('band mentions', 'Notification bell not found (selector: button._btnWidgetIcon). The Band.us UI may have changed.');
+    }
 
     const requests = await waitForOneCapture();
 

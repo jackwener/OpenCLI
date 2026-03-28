@@ -1,4 +1,5 @@
 import { AuthRequiredError, EmptyResultError } from '../../errors.js';
+import { formatCookieHeader } from '../../download/index.js';
 import { downloadMedia } from '../../download/media-download.js';
 import { cli, Strategy } from '../../registry.js';
 
@@ -132,8 +133,7 @@ cli({
     // which handles redirects, timeouts, and stream errors correctly.
     // Pass browser cookies so Band's login-protected photo URLs don't fail with 401/403.
     if (outputDir && photos.length > 0) {
-      const browserCookies = await page.getCookies({ domain: 'band.us' });
-      const cookieHeader = browserCookies.map(c => `${c.name}=${c.value}`).join('; ');
+      const cookieHeader = formatCookieHeader(await page.getCookies({ domain: 'band.us' }));
       await downloadMedia(
         photos.map(url => ({ type: 'image' as const, url })),
         { output: outputDir, filenamePrefix: 'photo', verbose: false, cookies: cookieHeader },
