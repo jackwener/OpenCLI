@@ -52,9 +52,9 @@ cli({
               digg_count: c.digg_count,
               nickname: c.user && c.user.nickname,
             }));
-            return Object.assign({}, v, { top_comments: comments });
+            return { ...v, top_comments: comments };
           } catch {
-            return Object.assign({}, v, { top_comments: [] });
+            return { ...v, top_comments: [] };
           }
         }));
 
