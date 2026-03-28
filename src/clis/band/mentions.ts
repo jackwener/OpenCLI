@@ -37,8 +37,11 @@ cli({
     const limit = kwargs.limit as number;
     const unreadOnly = kwargs.unread as boolean;
 
-    await page.goto('https://www.band.us/');
-    await page.wait(2); // wait for React hydration and cookie settlement
+    // Navigate with a timestamp param to force a fresh page load each run.
+    // Without this, same-URL navigation may skip the reload (preserving the JS context
+    // and leaving the notification panel open from a previous run).
+    await page.goto(`https://www.band.us/?_=${Date.now()}`);
+    await page.wait(2);
 
     const isLoggedIn = await page.evaluate(`() => document.cookie.includes('band_session')`);
     if (!isLoggedIn) throw new AuthRequiredError('band.us', 'Not logged in to Band');
@@ -46,15 +49,16 @@ cli({
     // Install XHR interceptor before any clicks so all get_news responses are captured.
     await page.installInterceptor('get_news');
 
-    // Poll until at least `count` requests are captured, up to maxSecs seconds.
-    // Avoids relying on fixed sleeps when the XHR round-trip is slow.
-    const waitForCaptures = async (count: number, maxSecs = 8): Promise<any[]> => {
+    // Poll until at least 1 new capture arrives, up to maxSecs seconds.
+    // getInterceptedRequests() clears the array on each call, so we wait for
+    // exactly 1 new capture after each UI action rather than a cumulative total.
+    const waitForOneCapture = async (maxSecs = 8): Promise<any[]> => {
       for (let i = 0; i < maxSecs * 2; i++) {
-        await page.wait(500);
+        await page.wait(0.5); // 0.5 seconds per iteration (page.wait takes seconds)
         const reqs = await page.getInterceptedRequests();
-        if (reqs.length >= count) return reqs;
+        if (reqs.length >= 1) return reqs;
       }
-      return page.getInterceptedRequests();
+      return [];
     };
 
     // Click the notification bell to open the panel. This triggers an initial get_news
@@ -66,50 +70,28 @@ cli({
       if (bell) bell.click();
     }`);
 
-    let requests = await waitForCaptures(1);
-
-    if (filter === 'mentioned') {
-      // Click the @メンション tab to trigger a server-side filtered get_news call.
-      // This response contains only notifications with the 'referred' filter flag,
-      // which is more accurate than client-side filtering the full list.
-      await page.evaluate(`() => {
-        const tab = Array.from(document.querySelectorAll('button._btnFilter'))
-          .find(b => b.textContent && b.textContent.includes('メンション'));
-        if (tab) tab.click();
-      }`);
-      requests = await waitForCaptures(2);
-
-      if (unreadOnly) {
-        // 未確認のみ表示: triggers another server-side filtered get_news for unread mentions.
-        await page.evaluate(`() => {
-          const btn = Array.from(document.querySelectorAll('button'))
-            .find(b => b.textContent && b.textContent.includes('未確認のみ'));
-          if (btn) btn.click();
-        }`);
-        requests = await waitForCaptures(3);
-      }
-    }
+    const requests = await waitForOneCapture();
 
     if (requests.length === 0) {
       throw new EmptyResultError('band mentions', 'No notification data captured. Try running the command again.');
     }
 
-    // Use the last captured response: each UI action (bell → tab → unread toggle)
-    // triggers a progressively more specific get_news call, so the last one is correct.
-    const lastReq = requests[requests.length - 1] as any;
-    let items: any[] = Array.isArray(lastReq?.result_data?.news) ? lastReq.result_data.news : [];
+    // Find the get_news response (has result_data.news); get_news_count responses do not.
+    const newsReq = requests.find((r: any) => Array.isArray(r?.result_data?.news)) as any;
+    let items: any[] = newsReq?.result_data?.news ?? [];
 
     if (items.length === 0) {
       throw new EmptyResultError('band mentions', 'No notifications found');
     }
 
-    // For non-mention modes the server returns the full list; apply unread filter client-side.
-    // For 'mentioned' mode the server already filtered by unread (via the 未確認のみ button click),
-    // so skip the redundant client-side pass to avoid dropping items when is_new is absent.
-    if (unreadOnly && filter !== 'mentioned') {
+    // Apply filters client-side from the full notification list.
+    if (unreadOnly) {
       items = items.filter((n: any) => n.is_new === true);
     }
-    if (filter === 'post') {
+    if (filter === 'mentioned') {
+      // 'filters' is Band's server-side tag array; 'referred' means you were @mentioned.
+      items = items.filter((n: any) => n.filters?.includes('referred'));
+    } else if (filter === 'post') {
       items = items.filter((n: any) => n.category === 'post');
     } else if (filter === 'comment') {
       items = items.filter((n: any) => n.category === 'comment');

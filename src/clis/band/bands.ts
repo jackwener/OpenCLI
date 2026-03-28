@@ -25,42 +25,38 @@ cli({
     const isLoggedIn = await page.evaluate(`() => document.cookie.includes('band_session')`);
     if (!isLoggedIn) throw new AuthRequiredError('band.us', 'Not logged in to Band');
 
-    // Extract the band list from the sidebar. Poll until at least one band link
+    // Extract the band list from the sidebar. Poll until at least one band card
     // appears (React hydration may take a moment after navigation).
+    // Sidebar band cards use class "bandCover _link" with hrefs like /band/{id}/post.
     const bands: { band_no: number; name: string; members: number }[] = await page.evaluate(`
       (async () => {
         const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-        // Sidebar band links have the form /band/{id} or /band/{id}/post (no post_no suffix).
-        // This pattern excludes feed/post-detail links like /band/{id}/post/{postNo}.
-        const sidebarHref = /^\\/band\\/(\\d+)(?:\\/post)?$/;
-
-        // Wait up to 9 s for sidebar band links to render.
+        // Wait up to 9 s for sidebar band cards to render.
         for (let i = 0; i < 30; i++) {
-          if (Array.from(document.querySelectorAll('a[href*="/band/"]')).some(a => sidebarHref.test(a.getAttribute('href') || ''))) break;
+          if (document.querySelector('a.bandCover._link')) break;
           await sleep(300);
         }
 
+        const norm = s => (s || '').replace(/\\s+/g, ' ').trim();
         const seen = new Set();
         const results = [];
 
-        for (const a of Array.from(document.querySelectorAll('a[href*="/band/"]'))) {
-          const m = (a.getAttribute('href') || '').match(sidebarHref);
+        for (const a of Array.from(document.querySelectorAll('a.bandCover._link'))) {
+          // Extract band_no from href: /band/{id} or /band/{id}/post
+          const m = (a.getAttribute('href') || '').match(/\\/band\\/(\\d+)/);
           if (!m) continue;
           const bandNo = Number(m[1]);
           if (seen.has(bandNo)) continue;
           seen.add(bandNo);
 
-          // Band name: prefer a dedicated name element; fall back to the link's
-          // own text content (stripping any nested numeric badge text).
-          const nameEl = a.querySelector('._bandName, .bandName, .name, strong');
-          const name = (nameEl?.textContent || a.textContent || '').trim()
-            .replace(/\\s*\\d+\\s*$/, '') // strip trailing member-count badge
-            .trim();
+          // Band name lives in p.uriText inside div.bandName.
+          const nameEl = a.querySelector('p.uriText');
+          const name = nameEl ? norm(nameEl.textContent) : '';
           if (!name) continue;
 
-          // Member count may appear as a small badge element inside the link.
-          const memberEl = a.querySelector('._memberCount, .memberCount, .count');
+          // Member count is the <em> inside span.member.
+          const memberEl = a.querySelector('span.member em');
           const members = memberEl ? parseInt(memberEl.textContent, 10) || 0 : 0;
 
           results.push({ band_no: bandNo, name, members });

@@ -53,7 +53,7 @@ cli({
 
         // Wait up to 9 s for post items to render.
         for (let i = 0; i < 30; i++) {
-          if (document.querySelector('li._postListItem, li[data-post-no], article._post')) break;
+          if (document.querySelector('article.cContentsCard._postMainWrap')) break;
           await sleep(300);
         }
 
@@ -62,30 +62,29 @@ cli({
 
         const results = [];
         const postEls = Array.from(
-          document.querySelectorAll('li._postListItem, li[data-post-no], article._post')
+          document.querySelectorAll('article.cContentsCard._postMainWrap')
         );
 
         for (const el of postEls) {
-          // URL: find the post permalink link.
+          // URL: first post permalink link (absolute or relative).
           const linkEl = el.querySelector('a[href*="/post/"]');
           const href = linkEl?.getAttribute('href') || '';
           const url = href.startsWith('http') ? href : 'https://www.band.us' + href;
 
-          // Author name.
-          const author = norm(el.querySelector('.authorName, .uAuthorName, a.text.ellipsis')?.textContent);
+          // Author name — a.text in the post header area.
+          const author = norm(el.querySelector('a.text')?.textContent);
 
           // Date / timestamp.
-          const dateEl = el.querySelector('time, .timeText._postDate, .uPostDate');
-          const date = norm(dateEl?.textContent || dateEl?.getAttribute('datetime') || '');
+          const date = norm(el.querySelector('time')?.textContent);
 
           // Post body text (strip Band markup tags, truncate for listing).
-          const bodyEl = el.querySelector('.postText._postText, .uPostText');
+          const bodyEl = el.querySelector('.postText._postText');
           const content = bodyEl
             ? stripTags(norm(bodyEl.innerText || bodyEl.textContent)).slice(0, 120)
             : '';
 
-          // Comment count badge.
-          const commentEl = el.querySelector('._commentCount, .commentCount, .uCommentCount');
+          // Comment count is in span.count inside the count area.
+          const commentEl = el.querySelector('span.count');
           const comments = commentEl ? parseInt(commentEl.textContent, 10) || 0 : 0;
 
           if (!url && !content) continue;
