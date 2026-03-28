@@ -339,6 +339,146 @@ export function executeExternalCli(name: string, args: string[], preloaded?: Ext
 }
 
 /**
+ * Version cache TTL in milliseconds (24 hours).
+ */
+const VERSION_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Detect the version of a binary and cache it.
+ * For isolated installations, version is already known from lock file.
+ * For global installations, run --version and cache the result.
+ */
+export function detectAndCacheVersion(
+  name: string,
+  binaryPath: string,
+  installType: InstallationType
+): string | null {
+  // For isolated installation, version is already in lock file
+  if (installType === 'isolated') {
+    const info = externalStore.getInstalledInfo(name);
+    if (!info) return null;
+    const version = externalStore.getCurrentVersion(info);
+    return version;
+  }
+
+  // Check cached version
+  const info = externalStore.getInstalledInfo(name);
+  if (info?.cachedVersion && info.cachedAt) {
+    const cachedAt = new Date(info.cachedAt).getTime();
+    if (Date.now() - cachedAt < VERSION_CACHE_TTL) {
+      return info.cachedVersion;
+    }
+  }
+
+  // Try to detect version by running --version
+  try {
+    const result = execFileSync(binaryPath, ['--version'], { encoding: 'utf8', timeout: 5000 });
+    const version = extractVersion(result);
+    if (version) {
+      // Update cache
+      if (info) {
+        info.cachedVersion = version;
+        info.cachedAt = new Date().toISOString();
+        externalStore.upsertInstallEntry(info);
+      } else {
+        externalStore.upsertInstallEntry({
+          name,
+          binaryName: binaryPath,
+          installType: 'global',
+          versions: [],
+          cachedVersion: version,
+          cachedAt: new Date().toISOString(),
+        });
+      }
+    }
+    return version;
+  } catch {
+    // Try -v instead of --version
+    try {
+      const result = execFileSync(binaryPath, ['-v'], { encoding: 'utf8', timeout: 5000 });
+      const version = extractVersion(result);
+      if (version) {
+        if (info) {
+          info.cachedVersion = version;
+          info.cachedAt = new Date().toISOString();
+          externalStore.upsertInstallEntry(info);
+        }
+        return version;
+      }
+    } catch {
+      // Ignore, version detection failed
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract version number from --version output.
+ * Looks for patterns like: v1.2.3, 1.2.3, version 1.2.3
+ */
+function extractVersion(output: string): string | null {
+  const patterns = [
+    /v?(\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?)/i,
+    /version\s+v?(\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?)/i,
+    /^(\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?)/,
+  ];
+
+  const lines = output.split('\n');
+  for (const line of lines) {
+    for (const pattern of patterns) {
+      const match = line.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Collect all external CLI entries with installation and version info.
+ * Used for opencli list output.
+ */
+export function collectListEntries(): ListExternalCliEntry[] {
+  const externalClis = loadExternalClis();
+  const lock = externalStore.readLockFile();
+
+  return externalClis.map(cli => {
+    const entry: ListExternalCliEntry = {
+      name: cli.name,
+      description: cli.description,
+      binary: cli.binary,
+      installed: false,
+    };
+
+    const installedInfo = lock[cli.name];
+    if (installedInfo) {
+      entry.installed = true;
+      entry.installType = installedInfo.installType;
+
+      if (installedInfo.installType === 'isolated') {
+        const currentVersion = externalStore.getCurrentVersion(installedInfo);
+        entry.version = currentVersion ?? undefined;
+      } else {
+        entry.version = installedInfo.cachedVersion ?? undefined;
+        // If cached version is stale, detection will happen on next execution
+      }
+    } else {
+      // Not in lock file, check global
+      if (isBinaryInstalled(cli.binary)) {
+        entry.installed = true;
+        entry.installType = 'global';
+        // Try to detect version (will cache for next time)
+        const version = detectAndCacheVersion(cli.name, cli.binary, 'global');
+        entry.version = version ?? undefined;
+      }
+    }
+
+    return entry;
+  });
+}
+
+/**
  * Uninstall an external CLI.
  * If version is specified, only uninstall that version.
  * Otherwise, uninstall all versions.
