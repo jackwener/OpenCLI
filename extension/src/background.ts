@@ -3,115 +3,84 @@
  *
  * Connects to the opencli daemon via WebSocket, receives commands,
  * dispatches them to Chrome APIs (debugger/tabs/cookies), returns results.
+ *
+ * WebSocket lives in an Offscreen document (offscreen.ts) so it is never
+ * killed when the Service Worker is suspended by Chrome MV3.  The SW only
+ * forwards messages to/from the offscreen document.
  */
 
 import type { Command, Result } from './protocol';
-import { DAEMON_WS_URL, DAEMON_PING_URL, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
 import * as executor from './cdp';
 
-let ws: WebSocket | null = null;
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let reconnectAttempts = 0;
+// ─── Offscreen document management ──────────────────────────────────
+
+const OFFSCREEN_URL = chrome.runtime.getURL('offscreen.html');
+
+async function ensureOffscreen(): Promise<void> {
+  // @ts-ignore — chrome.offscreen is typed in newer @types/chrome but may not
+  // be present in older versions; we guard with existence check at runtime.
+  if (!chrome.offscreen) return; // unsupported Chrome version, fall back silently
+  const existing = await (chrome as any).offscreen.hasDocument();
+  if (!existing) {
+    await (chrome as any).offscreen.createDocument({
+      url: OFFSCREEN_URL,
+      reasons: ['DOM_SCRAPING'],
+      justification: 'Maintain persistent WebSocket connection to opencli daemon',
+    });
+  }
+}
+
+/** Tell the offscreen doc to (re-)connect. */
+async function offscreenConnect(): Promise<void> {
+  await ensureOffscreen();
+  try {
+    await chrome.runtime.sendMessage({ type: 'ws-connect' });
+  } catch {
+    // offscreen not ready yet — it will auto-connect on boot anyway
+  }
+}
+
+/** Send a serialised result/hello string over the WebSocket. */
+async function wsSend(payload: string): Promise<void> {
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: 'ws-send', payload }) as { ok: boolean };
+    if (!resp?.ok) {
+      // Offscreen WS is down — trigger reconnect
+      void offscreenConnect();
+    }
+  } catch {
+    void offscreenConnect();
+  }
+}
+
+/** Query live connection status from offscreen. */
+async function wsStatus(): Promise<{ connected: boolean; reconnecting: boolean }> {
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: 'ws-status' }) as any;
+    return { connected: resp?.connected ?? false, reconnecting: resp?.reconnecting ?? false };
+  } catch {
+    return { connected: false, reconnecting: false };
+  }
+}
 
 // ─── Console log forwarding ──────────────────────────────────────────
-// Hook console.log/warn/error to forward logs to daemon via WebSocket.
+// Logs from offscreen arrive as { type:'log', level, msg, ts } messages.
+// SW-side logs are forwarded directly via wsSend.
 
 const _origLog = console.log.bind(console);
 const _origWarn = console.warn.bind(console);
 const _origError = console.error.bind(console);
 
 function forwardLog(level: 'info' | 'warn' | 'error', args: unknown[]): void {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  try {
-    const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
-    ws.send(JSON.stringify({ type: 'log', level, msg, ts: Date.now() }));
-  } catch { /* don't recurse */ }
+  const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+  void wsSend(JSON.stringify({ type: 'log', level, msg, ts: Date.now() }));
 }
 
 console.log = (...args: unknown[]) => { _origLog(...args); forwardLog('info', args); };
 console.warn = (...args: unknown[]) => { _origWarn(...args); forwardLog('warn', args); };
 console.error = (...args: unknown[]) => { _origError(...args); forwardLog('error', args); };
 
-// ─── WebSocket connection ────────────────────────────────────────────
-
-/**
- * Probe the daemon via its /ping HTTP endpoint before attempting a WebSocket
- * connection.  fetch() failures are silently catchable; new WebSocket() is not
- * — Chrome logs ERR_CONNECTION_REFUSED to the extension error page before any
- * JS handler can intercept it.  By keeping the probe inside connect() every
- * call site remains unchanged and the guard can never be accidentally skipped.
- */
-async function connect(): Promise<void> {
-  if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
-
-  try {
-    const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1000) });
-    if (!res.ok) return; // unexpected response — not our daemon
-  } catch {
-    return; // daemon not running — skip WebSocket to avoid console noise
-  }
-
-  try {
-    ws = new WebSocket(DAEMON_WS_URL);
-  } catch {
-    scheduleReconnect();
-    return;
-  }
-
-  ws.onopen = () => {
-    console.log('[opencli] Connected to daemon');
-    reconnectAttempts = 0; // Reset on successful connection
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
-    // Send version so the daemon can report mismatches to the CLI
-    ws?.send(JSON.stringify({ type: 'hello', version: chrome.runtime.getManifest().version }));
-  };
-
-  ws.onmessage = async (event) => {
-    try {
-      const command = JSON.parse(event.data as string) as Command;
-      const result = await handleCommand(command);
-      ws?.send(JSON.stringify(result));
-    } catch (err) {
-      console.error('[opencli] Message handling error:', err);
-    }
-  };
-
-  ws.onclose = () => {
-    console.log('[opencli] Disconnected from daemon');
-    ws = null;
-    scheduleReconnect();
-  };
-
-  ws.onerror = () => {
-    ws?.close();
-  };
-}
-
-/**
- * After MAX_EAGER_ATTEMPTS (reaching 60s backoff), stop scheduling reconnects.
- * The keepalive alarm (~24s) will still call connect() periodically, but at a
- * much lower frequency — reducing console noise when the daemon is not running.
- */
-const MAX_EAGER_ATTEMPTS = 6; // 2s, 4s, 8s, 16s, 32s, 60s — then stop
-
-function scheduleReconnect(): void {
-  if (reconnectTimer) return;
-  reconnectAttempts++;
-  if (reconnectAttempts > MAX_EAGER_ATTEMPTS) return; // let keepalive alarm handle it
-  const delay = Math.min(WS_RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts - 1), WS_RECONNECT_MAX_DELAY);
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null;
-    void connect();
-  }, delay);
-}
-
 // ─── Automation window isolation ─────────────────────────────────────
-// All opencli operations happen in a dedicated Chrome window so the
-// user's active browsing session is never touched.
-// The window auto-closes after 120s of idle (no commands).
 
 type AutomationSession = {
   windowId: number;
@@ -120,7 +89,7 @@ type AutomationSession = {
 };
 
 const automationSessions = new Map<string, AutomationSession>();
-const WINDOW_IDLE_TIMEOUT = 30000; // 30s — quick cleanup after command finishes
+const WINDOW_IDLE_TIMEOUT = 30000;
 
 function getWorkspaceKey(workspace?: string): string {
   return workspace?.trim() || 'default';
@@ -137,31 +106,22 @@ function resetWindowIdleTimer(workspace: string): void {
     try {
       await chrome.windows.remove(current.windowId);
       console.log(`[opencli] Automation window ${current.windowId} (${workspace}) closed (idle timeout)`);
-    } catch {
-      // Already gone
-    }
+    } catch { /* Already gone */ }
     automationSessions.delete(workspace);
   }, WINDOW_IDLE_TIMEOUT);
 }
 
-/** Get or create the dedicated automation window. */
 async function getAutomationWindow(workspace: string): Promise<number> {
-  // Check if our window is still alive
   const existing = automationSessions.get(workspace);
   if (existing) {
     try {
       await chrome.windows.get(existing.windowId);
       return existing.windowId;
     } catch {
-      // Window was closed by user
       automationSessions.delete(workspace);
     }
   }
 
-  // Create a new window with a data: URI that New Tab Override extensions cannot intercept.
-  // Using about:blank would be hijacked by extensions like "New Tab Override".
-  // Note: Do NOT set `state` parameter here. Chrome 146+ rejects 'normal' as an invalid
-  // state value for windows.create(). The window defaults to 'normal' state anyway.
   const win = await chrome.windows.create({
     url: BLANK_PAGE,
     focused: false,
@@ -177,12 +137,10 @@ async function getAutomationWindow(workspace: string): Promise<number> {
   automationSessions.set(workspace, session);
   console.log(`[opencli] Created automation window ${session.windowId} (${workspace})`);
   resetWindowIdleTimer(workspace);
-  // Brief delay to let Chrome load the initial data: URI tab
   await new Promise(resolve => setTimeout(resolve, 200));
   return session.windowId;
 }
 
-// Clean up when the automation window is closed
 chrome.windows.onRemoved.addListener((windowId) => {
   for (const [workspace, session] of automationSessions.entries()) {
     if (session.windowId === windowId) {
@@ -200,9 +158,9 @@ let initialized = false;
 function initialize(): void {
   if (initialized) return;
   initialized = true;
-  chrome.alarms.create('keepalive', { periodInMinutes: 0.4 }); // ~24 seconds
+  chrome.alarms.create('keepalive', { periodInMinutes: 0.25 }); // ~15 seconds — faster recovery after SW suspend
   executor.registerListeners();
-  void connect();
+  void offscreenConnect();
   console.log('[opencli] OpenCLI extension initialized');
 }
 
@@ -215,26 +173,54 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'keepalive') void connect();
+  if (alarm.name === 'keepalive') {
+    // Ensure offscreen doc is alive and WS is connected after any SW suspend/resume.
+    void offscreenConnect();
+  }
 });
 
-// ─── Popup status API ───────────────────────────────────────────────
+// ─── Message router ──────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  // ── Popup status query ──
   if (msg?.type === 'getStatus') {
-    sendResponse({
-      connected: ws?.readyState === WebSocket.OPEN,
-      reconnecting: reconnectTimer !== null,
-    });
+    wsStatus().then(s => sendResponse(s));
+    return true; // async
   }
+
+  // ── Incoming WS frame from offscreen ──
+  if (msg?.type === 'ws-message') {
+    void (async () => {
+      try {
+        const command = JSON.parse(msg.data as string) as Command;
+        const result = await handleCommand(command);
+        await wsSend(JSON.stringify(result));
+      } catch (err) {
+        console.error('[opencli] Message handling error:', err);
+      }
+    })();
+    return false;
+  }
+
+  // ── WS connected — send hello with real extension version ──
+  if (msg?.type === 'ws-connected') {
+    void wsSend(JSON.stringify({ type: 'hello', version: chrome.runtime.getManifest().version }));
+    return false;
+  }
+
+  // ── Log forwarding from offscreen (pass through to WS) ──
+  if (msg?.type === 'log') {
+    void wsSend(JSON.stringify(msg));
+    return false;
+  }
+
   return false;
 });
 
-// ─── Command dispatcher ─────────────────────────────────────────────
+// ─── Command dispatcher ──────────────────────────────────────────────
 
 async function handleCommand(cmd: Command): Promise<Result> {
   const workspace = getWorkspaceKey(cmd.workspace);
-  // Reset idle timer on every command (window stays alive while active)
   resetWindowIdleTimer(workspace);
   try {
     switch (cmd.action) {
@@ -279,12 +265,10 @@ function isDebuggableUrl(url?: string): boolean {
   return url.startsWith('http://') || url.startsWith('https://') || url === 'about:blank' || url.startsWith('data:');
 }
 
-/** Check if a URL is safe for user-facing navigation (http/https only). */
 function isSafeNavigationUrl(url: string): boolean {
   return url.startsWith('http://') || url.startsWith('https://');
 }
 
-/** Minimal URL normalization for same-page comparison: root slash + default port only. */
 function normalizeUrlForComparison(url?: string): string {
   if (!url) return '';
   try {
@@ -319,9 +303,6 @@ function setWorkspaceSession(workspace: string, session: Pick<AutomationSession,
  * Otherwise, find or create a tab in the dedicated automation window.
  */
 async function resolveTabId(tabId: number | undefined, workspace: string): Promise<number> {
-  // Even when an explicit tabId is provided, validate it is still debuggable.
-  // This prevents issues when extensions hijack the tab URL to chrome-extension://
-  // or when the tab has been closed by the user.
   if (tabId !== undefined) {
     try {
       const tab = await chrome.tabs.get(tabId);
@@ -331,25 +312,18 @@ async function resolveTabId(tabId: number | undefined, workspace: string): Promi
       if (session && !matchesSession) {
         console.warn(`[opencli] Tab ${tabId} is not bound to workspace ${workspace}, re-resolving`);
       } else if (!isDebuggableUrl(tab.url)) {
-        // Tab exists but URL is not debuggable — fall through to auto-resolve
         console.warn(`[opencli] Tab ${tabId} URL is not debuggable (${tab.url}), re-resolving`);
       }
     } catch {
-      // Tab was closed — fall through to auto-resolve
       console.warn(`[opencli] Tab ${tabId} no longer exists, re-resolving`);
     }
   }
 
-  // Get (or create) the automation window
   const windowId = await getAutomationWindow(workspace);
-
-  // Prefer an existing debuggable tab
   const tabs = await chrome.tabs.query({ windowId });
   const debuggableTab = tabs.find(t => t.id && isDebuggableUrl(t.url));
   if (debuggableTab?.id) return debuggableTab.id;
 
-  // No debuggable tab — another extension may have hijacked the tab URL.
-  // Try to reuse by navigating to a data: URI (not interceptable by New Tab Override).
   const reuseTab = tabs.find(t => t.id);
   if (reuseTab?.id) {
     await chrome.tabs.update(reuseTab.id, { url: BLANK_PAGE });
@@ -358,12 +332,9 @@ async function resolveTabId(tabId: number | undefined, workspace: string): Promi
       const updated = await chrome.tabs.get(reuseTab.id);
       if (isDebuggableUrl(updated.url)) return reuseTab.id;
       console.warn(`[opencli] data: URI was intercepted (${updated.url}), creating fresh tab`);
-    } catch {
-      // Tab was closed during navigation
-    }
+    } catch { /* Tab was closed */ }
   }
 
-  // Fallback: create a new tab
   const newTab = await chrome.tabs.create({ windowId, url: BLANK_PAGE, active: true });
   if (!newTab.id) throw new Error('Failed to create tab in automation window');
   return newTab.id;
@@ -408,7 +379,6 @@ async function handleNavigate(cmd: Command, workspace: string): Promise<Result> 
   const beforeNormalized = normalizeUrlForComparison(beforeTab.url);
   const targetUrl = cmd.url;
 
-  // Fast-path: tab is already at the target URL and fully loaded.
   if (beforeTab.status === 'complete' && isTargetUrl(beforeTab.url, targetUrl)) {
     return {
       id: cmd.id,
@@ -417,19 +387,9 @@ async function handleNavigate(cmd: Command, workspace: string): Promise<Result> 
     };
   }
 
-  // Detach any existing debugger before top-level navigation.
-  // Some sites (observed on creator.xiaohongshu.com flows) can invalidate the
-  // current inspected target during navigation, which leaves a stale CDP attach
-  // state and causes the next Runtime.evaluate to fail with
-  // "Inspected target navigated or closed". Resetting here forces a clean
-  // re-attach after navigation.
   await executor.detach(tabId);
-
   await chrome.tabs.update(tabId, { url: targetUrl });
 
-  // Wait until navigation completes. Resolve when status is 'complete' AND either:
-  // - the URL matches the target (handles same-URL / canonicalized navigations), OR
-  // - the URL differs from the pre-navigation URL (handles redirects).
   let timedOut = false;
   await new Promise<void>((resolve) => {
     let settled = false;
@@ -451,23 +411,17 @@ async function handleNavigate(cmd: Command, workspace: string): Promise<Result> 
 
     const listener = (id: number, info: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
       if (id !== tabId) return;
-      if (info.status === 'complete' && isNavigationDone(tab.url ?? info.url)) {
-        finish();
-      }
+      if (info.status === 'complete' && isNavigationDone(tab.url ?? info.url)) finish();
     };
     chrome.tabs.onUpdated.addListener(listener);
 
-    // Also check if the tab already navigated (e.g. instant cache hit)
     checkTimer = setTimeout(async () => {
       try {
         const currentTab = await chrome.tabs.get(tabId);
-        if (currentTab.status === 'complete' && isNavigationDone(currentTab.url)) {
-          finish();
-        }
+        if (currentTab.status === 'complete' && isNavigationDone(currentTab.url)) finish();
       } catch { /* tab gone */ }
     }, 100);
 
-    // Timeout fallback with warning
     timeoutTimer = setTimeout(() => {
       timedOut = true;
       console.warn(`[opencli] Navigate to ${targetUrl} timed out after 15s`);
@@ -487,14 +441,13 @@ async function handleTabs(cmd: Command, workspace: string): Promise<Result> {
   switch (cmd.op) {
     case 'list': {
       const tabs = await listAutomationWebTabs(workspace);
-      const data = tabs
-        .map((t, i) => ({
-          index: i,
-          tabId: t.id,
-          url: t.url,
-          title: t.title,
-          active: t.active,
-        }));
+      const data = tabs.map((t, i) => ({
+        index: i,
+        tabId: t.id,
+        url: t.url,
+        title: t.title,
+        active: t.active,
+      }));
       return { id: cmd.id, ok: true, data };
     }
     case 'new': {
@@ -628,11 +581,7 @@ async function handleCdp(cmd: Command, workspace: string): Promise<Result> {
 async function handleCloseWindow(cmd: Command, workspace: string): Promise<Result> {
   const session = automationSessions.get(workspace);
   if (session) {
-    try {
-      await chrome.windows.remove(session.windowId);
-    } catch {
-      // Window may already be closed
-    }
+    try { await chrome.windows.remove(session.windowId); } catch { /* already closed */ }
     if (session.idleTimer) clearTimeout(session.idleTimer);
     automationSessions.delete(workspace);
   }

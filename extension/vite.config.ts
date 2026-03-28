@@ -6,9 +6,12 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
-      input: resolve(__dirname, 'src/background.ts'),
+      input: {
+        background: resolve(__dirname, 'src/background.ts'),
+        offscreen: resolve(__dirname, 'src/offscreen.ts'),
+      },
       output: {
-        entryFileNames: 'background.js',
+        entryFileNames: '[name].js',
         format: 'es',
       },
     },
