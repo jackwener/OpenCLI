@@ -160,13 +160,14 @@ async function getAutomationWindow(workspace: string): Promise<number> {
 
   // Create a new window with a data: URI that New Tab Override extensions cannot intercept.
   // Using about:blank would be hijacked by extensions like "New Tab Override".
+  // Note: Do NOT set `state` parameter here. Chrome 146+ rejects 'normal' as an invalid
+  // state value for windows.create(). The window defaults to 'normal' state anyway.
   const win = await chrome.windows.create({
     url: BLANK_PAGE,
     focused: false,
     width: 1280,
     height: 900,
     type: 'normal',
-    state: 'normal',
   });
   const session: AutomationSession = {
     windowId: win.id!,
