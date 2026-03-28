@@ -122,18 +122,21 @@ cli({
       })()
     `);
 
-    if (!data?.text && !data?.comments?.length) {
+    if (!data?.text && !data?.comments?.length && !data?.photos?.length) {
       throw new EmptyResultError('band post', 'Post not found or not accessible');
     }
 
     const photos: string[] = data.photos ?? [];
 
-    // Download photos when --output is specified, using the shared httpDownload utility
+    // Download photos when --output is specified, using the shared downloadMedia utility
     // which handles redirects, timeouts, and stream errors correctly.
+    // Pass browser cookies so Band's login-protected photo URLs don't fail with 401/403.
     if (outputDir && photos.length > 0) {
+      const browserCookies = await page.getCookies({ domain: 'band.us' });
+      const cookieHeader = browserCookies.map(c => `${c.name}=${c.value}`).join('; ');
       await downloadMedia(
         photos.map(url => ({ type: 'image' as const, url })),
-        { output: outputDir, filenamePrefix: 'photo', verbose: false },
+        { output: outputDir, filenamePrefix: 'photo', verbose: false, cookies: cookieHeader },
       );
     }
 

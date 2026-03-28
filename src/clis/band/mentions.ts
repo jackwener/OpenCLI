@@ -7,11 +7,8 @@ import { cli, Strategy } from '../../registry.js';
  * Band.us signs every API request with a per-request HMAC (`md` header) generated
  * by its own JavaScript, so we cannot replicate it externally. Instead we use
  * Strategy.INTERCEPT: install an XHR interceptor, open the notification panel by
- * clicking the bell, then click the @メンション tab — which triggers a server-side
- * filtered get_news call containing only notifications where you were mentioned.
- *
- * The tab-click approach is preferred over client-side filtering on the full
- * notification list, because Band's server already paginates/filters correctly.
+ * clicking the bell to trigger the get_news XHR call, then apply client-side
+ * filtering to extract notifications matching the requested filter/unread options.
  */
 cli({
   site: 'band',
@@ -49,16 +46,21 @@ cli({
     // Install XHR interceptor before any clicks so all get_news responses are captured.
     await page.installInterceptor('get_news');
 
-    // Poll until at least 1 new capture arrives, up to maxSecs seconds.
-    // getInterceptedRequests() clears the array on each call, so we wait for
-    // exactly 1 new capture after each UI action rather than a cumulative total.
+    // Poll until a capture containing result_data.news arrives, up to maxSecs seconds.
+    // getInterceptedRequests() clears the array on each call, so captures are accumulated
+    // locally. The interceptor pattern 'get_news' also matches 'get_news_count' responses
+    // which don't have result_data.news — keep polling until the real news response arrives.
     const waitForOneCapture = async (maxSecs = 8): Promise<any[]> => {
+      const captures: any[] = [];
       for (let i = 0; i < maxSecs * 2; i++) {
         await page.wait(0.5); // 0.5 seconds per iteration (page.wait takes seconds)
         const reqs = await page.getInterceptedRequests();
-        if (reqs.length >= 1) return reqs;
+        if (reqs.length > 0) {
+          captures.push(...reqs);
+          if (captures.some((r: any) => Array.isArray(r?.result_data?.news))) return captures;
+        }
       }
-      return [];
+      return captures;
     };
 
     // Click the notification bell to open the panel. This triggers an initial get_news
