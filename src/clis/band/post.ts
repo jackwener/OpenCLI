@@ -93,9 +93,11 @@ cli({
 
         if (!withComments) return { author, date, text, photos, comments: [] };
 
-        // Wait up to 6 s for comments to appear.
+        // Wait up to 6 s for the comment list container to render.
+        // Wait for the container itself (not .cComment) so posts with zero comments
+        // don't incur a fixed 6s delay waiting for an element that never appears.
         for (let i = 0; i < 20; i++) {
-          if (postCard?.querySelector('.sCommentList._heightDetectAreaForComment .cComment')) break;
+          if (postCard?.querySelector('.sCommentList._heightDetectAreaForComment')) break;
           await sleep(300);
         }
 

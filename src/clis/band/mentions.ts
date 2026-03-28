@@ -73,8 +73,17 @@ cli({
       return captures;
     };
 
-    // Click the bell — bellReady guarantees the element exists at this point.
-    await page.evaluate(`() => document.querySelector('button._btnWidgetIcon').click()`);
+    // Click the bell. Guard against the element disappearing between the readiness
+    // check and the click (e.g. due to a React re-render) to surface a clear error.
+    const bellClicked = await page.evaluate(`() => {
+      const el = document.querySelector('button._btnWidgetIcon');
+      if (!el) return false;
+      el.click();
+      return true;
+    }`);
+    if (!bellClicked) {
+      throw new EmptyResultError('band mentions', 'Notification bell disappeared before click (selector: button._btnWidgetIcon). The Band.us UI may have changed.');
+    }
 
     const requests = await waitForOneCapture();
 
