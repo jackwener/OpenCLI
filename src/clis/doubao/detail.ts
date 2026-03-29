@@ -21,7 +21,7 @@ export const detailCommand = cli({
 
     const { messages, meeting } = await getConversationDetail(page, conversationId);
 
-    if (messages.length === 0) {
+    if (messages.length === 0 && !meeting) {
       return [{ Role: 'System', Text: 'No messages found. Verify the conversation ID.' }];
     }
 

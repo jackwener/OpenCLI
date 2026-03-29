@@ -794,6 +794,56 @@ function readTextNotesScript(): string {
   `;
 }
 
+function normalizeTranscriptLines(text: string): string[] {
+  return text
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+}
+
+function containsLineSequence(haystack: string[], needle: string[]): boolean {
+  if (needle.length === 0) return true;
+  if (needle.length > haystack.length) return false;
+
+  for (let start = 0; start <= haystack.length - needle.length; start += 1) {
+    let matched = true;
+    for (let offset = 0; offset < needle.length; offset += 1) {
+      if (haystack[start + offset] !== needle[offset]) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched) return true;
+  }
+
+  return false;
+}
+
+export function mergeTranscriptSnapshots(existing: string, incoming: string): string {
+  const currentLines = normalizeTranscriptLines(existing);
+  const nextLines = normalizeTranscriptLines(incoming);
+
+  if (nextLines.length === 0) return currentLines.join('\n');
+  if (currentLines.length === 0) return nextLines.join('\n');
+  if (containsLineSequence(currentLines, nextLines)) return currentLines.join('\n');
+
+  const maxOverlap = Math.min(currentLines.length, nextLines.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
+    let matched = true;
+    for (let index = 0; index < overlap; index += 1) {
+      if (currentLines[currentLines.length - overlap + index] !== nextLines[index]) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched) {
+      return [...currentLines, ...nextLines.slice(overlap)].join('\n');
+    }
+  }
+
+  return [...currentLines, ...nextLines].join('\n');
+}
+
 function clickChapterTabScript(): string {
   return `
     (() => {
@@ -892,16 +942,24 @@ export async function getMeetingTranscript(page: IPage): Promise<string> {
   await page.evaluate(clickTextNotesTabScript());
   await page.wait(2);
 
-  let prevLength = 0;
+  let merged = '';
+  let stableRounds = 0;
   for (let i = 0; i < 10; i++) {
     await page.evaluate(scrollTextNotesPanelScript());
     await page.wait(1);
-    const current = await page.evaluate(readTextNotesScript()) as string;
-    if (current.length === prevLength && current.length > 0) break;
-    prevLength = current.length;
+    const snapshot = await page.evaluate(readTextNotesScript()) as string;
+    const nextMerged = mergeTranscriptSnapshots(merged, snapshot);
+
+    if (nextMerged === merged && snapshot.length > 0) {
+      stableRounds += 1;
+      if (stableRounds >= 2) break;
+    } else {
+      stableRounds = 0;
+      merged = nextMerged;
+    }
   }
 
-  return await page.evaluate(readTextNotesScript()) as string;
+  return merged;
 }
 
 export async function triggerTranscriptDownload(page: IPage): Promise<boolean> {
