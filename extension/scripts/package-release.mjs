@@ -65,6 +65,10 @@ function collectManifestEntrypoints(manifest) {
   for (const entry of manifest.web_accessible_resources ?? []) {
     for (const resource of entry.resources ?? []) addLocalAsset(files, resource);
   }
+  // MV3 offscreen documents are created at runtime via chrome.offscreen.createDocument()
+  // and are not referenced directly from manifest entry fields, so include the
+  // conventional offscreen page explicitly when the permission is present.
+  if ((manifest.permissions ?? []).includes('offscreen')) files.add('offscreen.html');
   if (manifest.default_locale) files.add('_locales');
 
   return [...files];
@@ -130,6 +134,7 @@ async function collectManifestAssets(manifest) {
   if (manifest.options_page) htmlPages.push(manifest.options_page);
   if (manifest.devtools_page) htmlPages.push(manifest.devtools_page);
   if (manifest.side_panel?.default_path) htmlPages.push(manifest.side_panel.default_path);
+  if ((manifest.permissions ?? []).includes('offscreen')) htmlPages.push('offscreen.html');
   for (const page of manifest.sandbox?.pages ?? []) htmlPages.push(page);
   for (const overridePage of Object.values(manifest.chrome_url_overrides ?? {})) htmlPages.push(overridePage);
 
