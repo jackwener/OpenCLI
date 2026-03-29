@@ -94,9 +94,7 @@ async function uploadImages(
         (() => {
           const sels = ${JSON.stringify(IMAGE_INPUT_SELECTOR)};
           const el = document.querySelector(sels);
-          if (el) return sels;
-          const any = document.querySelector('input[type="file"]');
-          return any ? 'input[type="file"]' : null;
+          return el ? sels : null;
         })()
       `);
       if (!selector) {

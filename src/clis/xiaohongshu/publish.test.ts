@@ -89,6 +89,36 @@ describe('xiaohongshu publish', () => {
     ]);
   });
 
+  it('fails fast when only a generic file input exists on the page', async () => {
+    const cmd = getRegistry().get('xiaohongshu/publish');
+    expect(cmd?.func).toBeTypeOf('function');
+
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-publish-'));
+    const imagePath = path.join(tempDir, 'demo.jpg');
+    fs.writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+
+    const setFileInput = vi.fn().mockResolvedValue(undefined);
+    const page = createPageMock([
+      'https://creator.xiaohongshu.com/publish/publish?from=menu_left',
+      { ok: true, target: '上传图文', text: '上传图文' },
+      { state: 'editor_ready', hasTitleInput: true, hasImageInput: true, hasVideoSurface: false },
+      null,
+    ], {
+      setFileInput,
+    });
+
+    await expect(cmd!.func!(page, {
+      title: '不要走泛化上传',
+      content: 'generic file input 应该直接报错',
+      images: imagePath,
+      topics: '',
+      draft: false,
+    })).rejects.toThrow('Image injection failed: No file input found on page');
+
+    expect(setFileInput).not.toHaveBeenCalled();
+    expect(page.screenshot).toHaveBeenCalledWith({ path: '/tmp/xhs_publish_upload_debug.png' });
+  });
+
   it('selects the image-text tab and publishes successfully', async () => {
     const cmd = getRegistry().get('xiaohongshu/publish');
     expect(cmd?.func).toBeTypeOf('function');
