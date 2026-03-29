@@ -1,7 +1,55 @@
 import { cli, Strategy } from '../../registry.js';
-import { ArgumentError } from '../../errors.js';
 import type { IPage } from '../../types.js';
-import { browserFetch } from './_shared/browser-fetch.js';
+import { fetchDouyinComments, fetchDouyinUserVideos, type DouyinVideo } from './_shared/public-api.js';
+
+export const MAX_USER_VIDEOS_LIMIT = 20;
+export const USER_VIDEO_COMMENT_CONCURRENCY = 4;
+export const DEFAULT_COMMENT_LIMIT = 10;
+
+type EnrichedDouyinVideo = DouyinVideo & {
+  top_comments?: Array<{
+    text: string;
+    digg_count: number;
+    nickname: string;
+  }>;
+};
+
+export function normalizeUserVideosLimit(limit: unknown): number {
+  const numeric = Number(limit);
+  if (!Number.isFinite(numeric)) return MAX_USER_VIDEOS_LIMIT;
+  return Math.min(MAX_USER_VIDEOS_LIMIT, Math.max(1, Math.round(numeric)));
+}
+
+export function normalizeCommentLimit(limit: unknown): number {
+  const numeric = Number(limit);
+  if (!Number.isFinite(numeric)) return DEFAULT_COMMENT_LIMIT;
+  return Math.min(DEFAULT_COMMENT_LIMIT, Math.max(1, Math.round(numeric)));
+}
+
+async function mapInBatches<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let index = 0; index < items.length; index += concurrency) {
+    const chunk = items.slice(index, index + concurrency);
+    results.push(...(await Promise.all(chunk.map(mapper))));
+  }
+  return results;
+}
+
+async function fetchTopComments(
+  page: IPage,
+  awemeId: string,
+  count: number,
+): Promise<Array<{ text: string; digg_count: number; nickname: string }>> {
+  try {
+    return await fetchDouyinComments(page, awemeId, count);
+  } catch {
+    return [];
+  }
+}
 
 cli({
   site: 'douyin',
@@ -11,77 +59,42 @@ cli({
   strategy: Strategy.COOKIE,
   args: [
     { name: 'sec_uid', type: 'string', required: true, positional: true, help: '用户 sec_uid（URL 末尾部分）' },
-    { name: 'limit', type: 'int', default: 20, help: '获取数量' },
+    { name: 'limit', type: 'int', default: 20, help: '获取数量（最大 20）' },
+    { name: 'with_comments', type: 'bool', default: true, help: '包含热门评论（默认: true）' },
+    { name: 'comment_limit', type: 'int', default: 10, help: '每个视频获取多少条评论（最大 10）' },
   ],
   columns: ['index', 'aweme_id', 'title', 'duration', 'digg_count', 'play_url', 'top_comments'],
   func: async (page: IPage, kwargs) => {
-    const limit = Number(kwargs.limit);
-    if (!Number.isInteger(limit) || limit <= 0) {
-      throw new ArgumentError('limit must be a positive integer');
-    }
+    const secUid = kwargs.sec_uid as string;
+    const limit = normalizeUserVideosLimit(kwargs.limit);
+    const withComments = kwargs.with_comments !== false;
+    const commentLimit = normalizeCommentLimit(kwargs.comment_limit);
 
-    await page.goto(`https://www.douyin.com/user/${kwargs.sec_uid as string}`);
+    await page.goto(`https://www.douyin.com/user/${secUid}`);
     await page.wait(3);
 
-    const params = new URLSearchParams({
-      sec_user_id: String(kwargs.sec_uid),
-      max_cursor: '0',
-      count: String(limit),
-      aid: '6383',
-    });
-    const data = await browserFetch(
-      page,
-      'GET',
-      `https://www.douyin.com/aweme/v1/web/aweme/post/?${params.toString()}`,
-    ) as { aweme_list?: Array<Record<string, unknown>> };
-    const awemeList = (data.aweme_list || []).slice(0, limit);
+    const awemeList = (await fetchDouyinUserVideos(page, secUid, limit)).slice(0, limit);
+    const videos: EnrichedDouyinVideo[] = withComments
+      ? await mapInBatches(
+          awemeList,
+          USER_VIDEO_COMMENT_CONCURRENCY,
+          async (video) => ({
+            ...video,
+            top_comments: await fetchTopComments(page, video.aweme_id, commentLimit),
+          }),
+        )
+      : awemeList.map((video) => ({ ...video, top_comments: [] }));
 
-    const result = await page.evaluate(`
-      (async () => {
-        const awemeList = ${JSON.stringify(awemeList)};
-
-        const withComments = await Promise.all(awemeList.map(async (v) => {
-          try {
-            const cp = new URLSearchParams({
-              aweme_id: String(v.aweme_id),
-              count: '10',
-              cursor: '0',
-              aid: '6383',
-            });
-            const cr = await fetch('/aweme/v1/web/comment/list/?' + cp.toString(), {
-              credentials: 'include',
-              headers: { referer: 'https://www.douyin.com/' },
-            });
-            const cd = await cr.json();
-            const comments = (cd.comments || []).slice(0, 10).map((c) => ({
-              text: c.text,
-              digg_count: c.digg_count,
-              nickname: c.user && c.user.nickname,
-            }));
-            return { ...v, top_comments: comments };
-          } catch {
-            return { ...v, top_comments: [] };
-          }
-        }));
-
-        return withComments;
-      })()
-    `) as Array<Record<string, unknown>>;
-
-    return (result || []).map((v, i) => {
-      const video = v.video as Record<string, unknown> | undefined;
-      const playAddr = video?.play_addr as Record<string, unknown> | undefined;
-      const urlList = playAddr?.url_list as string[] | undefined;
-      const playUrl = urlList?.[0] ?? '';
-      const statistics = v.statistics as Record<string, unknown> | undefined;
+    return videos.map((video, index) => {
+      const playUrl = video.video?.play_addr?.url_list?.[0] ?? '';
       return {
-        index: i + 1,
-        aweme_id: v.aweme_id as string,
-        title: v.desc as string,
-        duration: Math.round(((video?.duration as number) ?? 0) / 1000),
-        digg_count: (statistics?.digg_count as number) ?? 0,
+        index: index + 1,
+        aweme_id: video.aweme_id,
+        title: video.desc ?? '',
+        duration: Math.round((video.video?.duration ?? 0) / 1000),
+        digg_count: video.statistics?.digg_count ?? 0,
         play_url: playUrl,
-        top_comments: v.top_comments as unknown[],
+        top_comments: video.top_comments ?? [],
       };
     });
   },
