@@ -8,6 +8,7 @@ export interface XhsUserNoteRow {
   title: string;
   type: string;
   likes: string;
+  cover: string;
   url: string;
 }
 
@@ -72,11 +73,14 @@ export function extractXhsUserNotes(snapshot: XhsUserPageSnapshot, fallbackUserI
     const xsecToken = toCleanString(entry?.xsecToken ?? entry?.xsec_token ?? noteCard.xsecToken ?? noteCard.xsec_token);
     const likes = toCleanString(noteCard.interactInfo?.likedCount ?? noteCard.interact_info?.liked_count ?? 0) || '0';
 
+    const cover = toCleanString(noteCard.cover?.urlDefault ?? noteCard.cover?.urlPre ?? noteCard.cover?.url ?? '');
+
     rows.push({
       id: noteId,
       title: toCleanString(noteCard.displayTitle ?? noteCard.display_title ?? noteCard.title),
       type: toCleanString(noteCard.type),
       likes,
+      cover,
       url: buildXhsNoteUrl(userId || fallbackUserId, noteId, xsecToken),
     });
   }
