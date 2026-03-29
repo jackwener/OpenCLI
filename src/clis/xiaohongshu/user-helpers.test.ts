@@ -75,6 +75,7 @@ describe('extractXhsUserNotes', () => {
         title: 'First note',
         type: 'video',
         likes: '4.6万',
+        cover: '',
         url: 'https://www.xiaohongshu.com/user/profile/user-1/note-1?xsec_token=abc&xsec_source=pc_user',
       },
       {
@@ -82,8 +83,30 @@ describe('extractXhsUserNotes', () => {
         title: 'Second note',
         type: 'normal',
         likes: '42',
+        cover: '',
         url: 'https://www.xiaohongshu.com/user/profile/fallback-user/note-2',
       },
+    ]);
+  });
+
+  it('extracts cover urls with fallback priority urlDefault -> urlPre -> url', () => {
+    const rows = extractXhsUserNotes(
+      {
+        noteGroups: [
+          [
+            { noteCard: { noteId: 'cover-1', cover: { urlDefault: 'https://img.example/default.jpg', urlPre: 'https://img.example/pre.jpg', url: 'https://img.example/raw.jpg' } } },
+            { noteCard: { noteId: 'cover-2', cover: { urlPre: 'https://img.example/pre-only.jpg', url: 'https://img.example/raw-only.jpg' } } },
+            { noteCard: { noteId: 'cover-3', cover: { url: 'https://img.example/raw-fallback.jpg' } } },
+          ],
+        ],
+      },
+      'fallback-user'
+    );
+
+    expect(rows.map(row => row.cover)).toEqual([
+      'https://img.example/default.jpg',
+      'https://img.example/pre-only.jpg',
+      'https://img.example/raw-fallback.jpg',
     ]);
   });
 
