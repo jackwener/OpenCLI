@@ -8,7 +8,7 @@ import { getRegistry } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import './publish.js';
 
-function createPageMock(evaluateResults: any[]): IPage {
+function createPageMock(evaluateResults: any[], overrides: Partial<IPage> = {}): IPage {
   const evaluate = vi.fn();
   for (const result of evaluateResults) {
     evaluate.mockResolvedValueOnce(result);
@@ -37,10 +37,58 @@ function createPageMock(evaluateResults: any[]): IPage {
     getCookies: vi.fn().mockResolvedValue([]),
     screenshot: vi.fn().mockResolvedValue(''),
     waitForCapture: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
   };
 }
 
 describe('xiaohongshu publish', () => {
+  it('prefers CDP setFileInput upload when the page supports it', async () => {
+    const cmd = getRegistry().get('xiaohongshu/publish');
+    expect(cmd?.func).toBeTypeOf('function');
+
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-publish-'));
+    const imagePath = path.join(tempDir, 'demo.jpg');
+    fs.writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+
+    const setFileInput = vi.fn().mockResolvedValue(undefined);
+    const page = createPageMock([
+      'https://creator.xiaohongshu.com/publish/publish?from=menu_left',
+      { ok: true, target: '上传图文', text: '上传图文' },
+      { state: 'editor_ready', hasTitleInput: true, hasImageInput: true, hasVideoSurface: false },
+      'input[type="file"][accept*="image"],input[type="file"][accept*=".jpg"],input[type="file"][accept*=".jpeg"],input[type="file"][accept*=".png"],input[type="file"][accept*=".gif"],input[type="file"][accept*=".webp"]',
+      false,
+      true,
+      { ok: true, sel: 'input[maxlength="20"]' },
+      { ok: true, sel: '[contenteditable="true"][class*="content"]' },
+      true,
+      'https://creator.xiaohongshu.com/publish/success',
+      '发布成功',
+    ], {
+      setFileInput,
+    });
+
+    const result = await cmd!.func!(page, {
+      title: 'CDP上传优先',
+      content: '优先走 setFileInput 主路径',
+      images: imagePath,
+      topics: '',
+      draft: false,
+    });
+
+    expect(setFileInput).toHaveBeenCalledWith(
+      [imagePath],
+      expect.stringContaining('input[type="file"][accept*="image"]'),
+    );
+    const evaluateCalls = (page.evaluate as any).mock.calls.map((args: any[]) => String(args[0]));
+    expect(evaluateCalls.some((code: string) => code.includes('atob(img.base64)'))).toBe(false);
+    expect(result).toEqual([
+      {
+        status: '✅ 发布成功',
+        detail: '"CDP上传优先" · 1张图片 · 发布成功',
+      },
+    ]);
+  });
+
   it('selects the image-text tab and publishes successfully', async () => {
     const cmd = getRegistry().get('xiaohongshu/publish');
     expect(cmd?.func).toBeTypeOf('function');
