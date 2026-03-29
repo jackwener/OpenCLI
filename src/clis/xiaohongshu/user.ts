@@ -32,7 +32,7 @@ cli({
     { name: 'id', type: 'string', required: true, positional: true, help: 'User id or profile URL' },
     { name: 'limit', type: 'int', default: 15, help: 'Number of notes to return' },
   ],
-  columns: ['id', 'title', 'type', 'likes', 'cover', 'url'],
+  columns: ['id', 'title', 'type', 'likes', 'url'],
   func: async (page, kwargs) => {
     const userId = normalizeXhsUserId(String(kwargs.id));
     const limit = Math.max(1, Number(kwargs.limit ?? 15));
