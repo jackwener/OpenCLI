@@ -1,0 +1,32 @@
+site: github
+name: user
+description: GitHub user profile
+domain: github.com
+strategy: public
+browser: false
+
+args:
+  username:
+    type: string
+    required: true
+    description: GitHub username
+
+pipeline:
+  - fetch:
+      url: "https://api.github.com/users/${{ args.username }}"
+      headers:
+        Accept: application/vnd.github.v3+json
+        User-Agent: opencli
+
+  - map:
+      login: "${{ item.login }}"
+      name: "${{ item.name || '-' }}"
+      bio: "${{ (item.bio || '').substring(0, 60) }}"
+      repos: ${{ item.public_repos }}
+      followers: ${{ item.followers }}
+      following: ${{ item.following }}
+      company: "${{ item.company || '-' }}"
+      location: "${{ item.location || '-' }}"
+      created: "${{ item.created_at?.substring(0, 10) }}"
+
+columns: [login, name, repos, followers, following, location]

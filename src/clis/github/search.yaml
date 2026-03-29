@@ -1,0 +1,41 @@
+site: github
+name: search
+description: Search GitHub repositories
+domain: github.com
+strategy: public
+browser: false
+
+args:
+  query:
+    type: string
+    required: true
+    description: Search query
+  sort:
+    type: string
+    default: stars
+    description: "Sort by: stars, forks, updated"
+  limit:
+    type: int
+    default: 10
+    description: Number of results
+
+pipeline:
+  - fetch:
+      url: "https://api.github.com/search/repositories?q=${{ encodeURIComponent(args.query) }}&sort=${{ args.sort }}&per_page=${{ args.limit }}"
+      headers:
+        Accept: application/vnd.github.v3+json
+        User-Agent: opencli
+
+  - select: items
+
+  - map:
+      rank: ${{ index + 1 }}
+      name: "${{ item.full_name }}"
+      stars: ${{ item.stargazers_count }}
+      forks: ${{ item.forks_count }}
+      language: "${{ item.language || '-' }}"
+      description: "${{ (item.description || '').substring(0, 60) }}"
+
+  - limit: ${{ args.limit }}
+
+columns: [rank, name, stars, forks, language, description]

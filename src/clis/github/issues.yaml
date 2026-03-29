@@ -1,0 +1,45 @@
+site: github
+name: issues
+description: List issues for a GitHub repository
+domain: github.com
+strategy: public
+browser: false
+
+args:
+  owner:
+    type: string
+    required: true
+    description: Repository owner
+  name:
+    type: string
+    required: true
+    description: Repository name
+  state:
+    type: string
+    default: open
+    description: "Issue state: open, closed, all"
+  limit:
+    type: int
+    default: 10
+    description: Number of issues
+
+pipeline:
+  - fetch:
+      url: "https://api.github.com/repos/${{ args.owner }}/${{ args.name }}/issues?state=${{ args.state }}&per_page=${{ args.limit }}"
+      headers:
+        Accept: application/vnd.github.v3+json
+        User-Agent: opencli
+
+  - filter: "!item.pull_request"
+
+  - map:
+      number: "#${{ item.number }}"
+      title: "${{ (item.title || '').substring(0, 60) }}"
+      author: "${{ item.user.login }}"
+      labels: "${{ (item.labels || []).map(l => l.name).join(', ') }}"
+      comments: ${{ item.comments }}
+      created: "${{ item.created_at?.substring(0, 10) }}"
+
+  - limit: ${{ args.limit }}
+
+columns: [number, title, author, labels, comments, created]

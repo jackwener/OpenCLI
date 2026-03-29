@@ -1,0 +1,41 @@
+site: github
+name: trending
+description: GitHub trending repositories (by recent stars)
+domain: github.com
+strategy: public
+browser: false
+
+args:
+  language:
+    type: string
+    default: ""
+    description: "Filter by language (e.g. typescript, python, rust)"
+  since:
+    type: string
+    default: daily
+    description: "Time range: daily (7 days), weekly (30 days), monthly (90 days)"
+  limit:
+    type: int
+    default: 10
+    description: Number of repositories
+
+pipeline:
+  - fetch:
+      url: "https://api.github.com/search/repositories?q=stars%3A%3E50+created%3A%3E${{ (function(){ const d=new Date(); const days={daily:7,weekly:30,monthly:90}[args.since]||7; d.setDate(d.getDate()-days); return d.toISOString().substring(0,10) })() }}${{ args.language ? '+language%3A'+args.language : '' }}&sort=stars&order=desc&per_page=${{ args.limit }}"
+      headers:
+        Accept: application/vnd.github.v3+json
+        User-Agent: opencli
+
+  - select: items
+
+  - map:
+      rank: ${{ index + 1 }}
+      name: "${{ item.full_name }}"
+      stars: ${{ item.stargazers_count }}
+      forks: ${{ item.forks_count }}
+      language: "${{ item.language || '-' }}"
+      description: "${{ (item.description || '').substring(0, 60) }}"
+
+  - limit: ${{ args.limit }}
+
+columns: [rank, name, stars, forks, language, description]

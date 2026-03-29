@@ -1,0 +1,36 @@
+site: github
+name: repo
+description: GitHub repository details
+domain: github.com
+strategy: public
+browser: false
+
+args:
+  owner:
+    type: string
+    required: true
+    description: Repository owner
+  name:
+    type: string
+    required: true
+    description: Repository name
+
+pipeline:
+  - fetch:
+      url: "https://api.github.com/repos/${{ args.owner }}/${{ args.name }}"
+      headers:
+        Accept: application/vnd.github.v3+json
+        User-Agent: opencli
+
+  - map:
+      name: "${{ item.full_name }}"
+      stars: ${{ item.stargazers_count }}
+      forks: ${{ item.forks_count }}
+      issues: ${{ item.open_issues_count }}
+      language: "${{ item.language || '-' }}"
+      license: "${{ item.license?.spdx_id || '-' }}"
+      created: "${{ item.created_at?.substring(0, 10) }}"
+      updated: "${{ item.pushed_at?.substring(0, 10) }}"
+      description: "${{ (item.description || '').substring(0, 80) }}"
+
+columns: [name, stars, forks, issues, language, license, description]
