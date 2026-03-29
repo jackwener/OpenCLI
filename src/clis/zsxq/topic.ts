@@ -1,6 +1,7 @@
 import { cli, Strategy } from '../../registry.js';
 import { CliError } from '../../errors.js';
 import {
+  browserJsonRequest,
   ensureZsxqAuth,
   ensureZsxqPage,
   fetchFirstJson,
@@ -30,12 +31,18 @@ cli({
     const topicId = String(kwargs.id);
     const commentLimit = Math.max(1, Number(kwargs.comment_limit) || 20);
 
-    const detailResp = await fetchFirstJson(page, [
-      `https://api.zsxq.com/v2/topics/${topicId}`,
-    ], { allowStatuses: [404] });
+    const detailUrl = `https://api.zsxq.com/v2/topics/${topicId}`;
+    const detailResp = await browserJsonRequest(page, detailUrl);
 
     if (detailResp.status === 404) {
       throw new CliError('NOT_FOUND', `Topic ${topicId} not found`);
+    }
+    if (!detailResp.ok) {
+      throw new CliError(
+        'FETCH_ERROR',
+        detailResp.error || `Failed to fetch topic ${topicId}`,
+        `Checked endpoint: ${detailUrl}`,
+      );
     }
 
     const commentsResp = await fetchFirstJson(page, [

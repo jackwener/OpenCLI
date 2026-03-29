@@ -78,16 +78,12 @@ export interface ZsxqTopic {
   comments?: ZsxqComment[];
 }
 
-interface BrowserFetchResult {
+export interface BrowserFetchResult {
   ok: boolean;
   url?: string;
   status?: number;
   error?: string;
   data?: unknown;
-}
-
-interface FetchFirstJsonOptions {
-  allowStatuses?: number[];
 }
 
 const SITE_DOMAIN = 'wx.zsxq.com';
@@ -204,80 +200,74 @@ export async function getDefaultGroupId(page: IPage): Promise<string> {
   return raw;
 }
 
-export async function fetchFirstJson(
-  page: IPage,
-  paths: string[],
-  options: FetchFirstJsonOptions = {},
-): Promise<BrowserFetchResult> {
-  const raw = await page.evaluate(`
+export async function browserJsonRequest(page: IPage, path: string): Promise<BrowserFetchResult> {
+  return await page.evaluate(`
     (async () => {
-      const paths = ${JSON.stringify(paths)};
-      const allowStatuses = ${JSON.stringify(options.allowStatuses || [])};
-      let lastFailure = null;
+      const path = ${JSON.stringify(path)};
 
-      for (const path of paths) {
-        try {
-          const result = await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', path, true);
-            xhr.withCredentials = true;
-            xhr.setRequestHeader('accept', 'application/json, text/plain, */*');
-            xhr.onload = () => {
-              let parsed = null;
-              if (xhr.responseText) {
-                try { parsed = JSON.parse(xhr.responseText); }
-                catch {}
-              }
+      try {
+        return await new Promise((resolve) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('GET', path, true);
+          xhr.withCredentials = true;
+          xhr.setRequestHeader('accept', 'application/json, text/plain, */*');
+          xhr.onload = () => {
+            let parsed = null;
+            if (xhr.responseText) {
+              try { parsed = JSON.parse(xhr.responseText); }
+              catch {}
+            }
 
-              if (xhr.status >= 200 && xhr.status < 300) {
-                resolve({ ok: true, url: path, status: xhr.status, data: parsed });
-                return;
-              }
-
-              if (allowStatuses.includes(xhr.status)) {
-                resolve({ ok: true, url: path, status: xhr.status, data: parsed });
-                return;
-              }
-
-              resolve({
-                ok: false,
-                url: path,
-                status: xhr.status,
-                data: parsed,
-                error: 'HTTP ' + xhr.status,
-              });
-            };
-            xhr.onerror = () => resolve({
-              ok: false,
+            resolve({
+              ok: xhr.status >= 200 && xhr.status < 300,
               url: path,
-              error: 'Network error',
+              status: xhr.status,
+              data: parsed,
+              error: xhr.status >= 200 && xhr.status < 300 ? undefined : 'HTTP ' + xhr.status,
             });
-            xhr.send();
+          };
+          xhr.onerror = () => resolve({
+            ok: false,
+            url: path,
+            error: 'Network error',
           });
-
-          if (result && result.ok) {
-            return result;
-          }
-
-          if (result) lastFailure = result;
-        } catch (error) {
-          // keep probing the next candidate path
-        }
+          xhr.send();
+        });
+      } catch (error) {
+        return {
+          ok: false,
+          url: path,
+          error: error instanceof Error ? error.message : String(error),
+        };
       }
-
-      return lastFailure || { ok: false, error: 'No candidate endpoint returned JSON', url: paths[0] || '' };
     })()
   `) as BrowserFetchResult;
+}
 
-  if (!raw?.ok) {
+export async function fetchFirstJson(page: IPage, paths: string[]): Promise<BrowserFetchResult> {
+  let lastFailure: BrowserFetchResult | null = null;
+
+  for (const path of paths) {
+    const result = await browserJsonRequest(page, path);
+    if (result.ok) {
+      return result;
+    }
+    lastFailure = result;
+  }
+
+  if (!lastFailure) {
     throw new CliError(
       'FETCH_ERROR',
-      raw?.error || 'Failed to fetch ZSXQ API',
+      'No candidate endpoint returned JSON',
       `Checked endpoints: ${paths.join(', ')}`,
     );
   }
 
-  return raw;
+  throw new CliError(
+    'FETCH_ERROR',
+    lastFailure.error || 'Failed to fetch ZSXQ API',
+    `Checked endpoints: ${paths.join(', ')}`,
+  );
 }
 
 export function unwrapRespData<T>(payload: unknown): T {
