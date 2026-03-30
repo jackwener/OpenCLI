@@ -121,7 +121,7 @@ function resetIdleTimer(): void {
   if (idleTimer) clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
     console.error('[daemon] Idle timeout, shutting down');
-    process.exit(EXIT_CODES.SUCCESS);
+    shutdown();
   }, IDLE_TIMEOUT);
 }
 

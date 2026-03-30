@@ -47,7 +47,7 @@ function readDaemonToken(): string | null {
  * Always includes X-OpenCLI (CSRF guard).
  * Includes Authorization: Bearer when a token file exists.
  */
-function authHeaders(): Record<string, string> {
+export function buildDaemonAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = { 'X-OpenCLI': '1' };
   const token = readDaemonToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -101,7 +101,7 @@ export async function isDaemonRunning(): Promise<boolean> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2000);
     const res = await fetch(`${DAEMON_URL}/status`, {
-      headers: authHeaders(),
+      headers: buildDaemonAuthHeaders(),
       signal: controller.signal,
     });
     clearTimeout(timer);
@@ -119,7 +119,7 @@ export async function isExtensionConnected(): Promise<boolean> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2000);
     const res = await fetch(`${DAEMON_URL}/status`, {
-      headers: authHeaders(),
+      headers: buildDaemonAuthHeaders(),
       signal: controller.signal,
     });
     clearTimeout(timer);
@@ -152,7 +152,7 @@ export async function sendCommand(
 
       const res = await fetch(`${DAEMON_URL}/command`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: { 'Content-Type': 'application/json', ...buildDaemonAuthHeaders() },
         body: JSON.stringify(command),
         signal: controller.signal,
       });
@@ -198,4 +198,3 @@ export async function listSessions(): Promise<BrowserSessionInfo[]> {
   const result = await sendCommand('sessions');
   return Array.isArray(result) ? result : [];
 }
-
