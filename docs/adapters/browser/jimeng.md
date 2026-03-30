@@ -41,6 +41,9 @@ opencli jimeng video "日落海边" --wait 300 -f json
 
 # Use Seedance 2.0 Fast, 15s, 9:16 portrait
 opencli jimeng video "人物走路" --model seedance_20_fast --duration 15 --ratio 9:16 -f json
+
+# Reference image to video (全能参考)
+opencli jimeng video "参考图片中的人物，让她在花园散步" --ref-image ./photo.jpg -f json
 ```
 
 ### Output Fields (balance)
@@ -83,6 +86,7 @@ opencli jimeng video "人物走路" --model seedance_20_fast --duration 15 --rat
 | `--duration` | 时长: `4` (默认), `10`, `15` 秒 |
 | `--workspace` | workspace ID (默认 0) |
 | `--wait` | 轮询等待秒数 (默认 0 提交即返回) |
+| `--ref-image` | 参考图片路径（全能参考模式，可选） |
 
 ### Options (generate)
 

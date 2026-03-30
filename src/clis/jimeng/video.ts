@@ -367,10 +367,38 @@ function buildDraftContent(opts: {
   const videoGenInput: Record<string, unknown> = {
     type: '', id: crypto.randomUUID(),
     min_version: '3.0.5',
-    prompt,
+    prompt: refImage ? '' : prompt,
     video_mode: 2, fps: 24,
     duration_ms: duration * 1000,
   };
+
+  // In ref-image mode, text goes into unified_edit_input.meta_list, not prompt
+  if (refImage) {
+    videoGenInput.unified_edit_input = {
+      type: '', id: crypto.randomUUID(),
+      material_list: [{
+        type: '', id: crypto.randomUUID(),
+        material_type: 'image',
+        image_info: {
+          type: 'image', id: crypto.randomUUID(),
+          source_from: 'upload',
+          platform_type: 1,
+          name: '',
+          image_uri: refImage.uri,
+          aigc_image: { type: '', id: crypto.randomUUID() },
+          width: refImage.width,
+          height: refImage.height,
+          format: '',
+          uri: refImage.uri,
+        },
+      }],
+      meta_list: [{
+        type: '', id: crypto.randomUUID(),
+        meta_type: 'text',
+        text: prompt || '参考图片生成视频',
+      }],
+    };
+  }
 
   const component: Record<string, unknown> = {
     type: 'video_base_component', id: componentId,
@@ -398,33 +426,6 @@ function buildDraftContent(opts: {
     process_type: 1,
   };
 
-  // Add unified_edit_input for ref-image mode
-  if (refImage) {
-    (component as Record<string, unknown>).unified_edit_input = {
-      type: '', id: crypto.randomUUID(),
-      material_list: [{
-        type: '', id: crypto.randomUUID(),
-        material_type: 'image',
-        image_info: {
-          type: 'image', id: crypto.randomUUID(),
-          source_from: 'upload',
-          platform_type: 1,
-          name: '',
-          image_uri: refImage.uri,
-          aigc_image: { type: '', id: crypto.randomUUID() },
-          width: refImage.width,
-          height: refImage.height,
-          format: '',
-          uri: refImage.uri,
-        },
-      }],
-      meta_list: [{
-        type: '', id: crypto.randomUUID(),
-        meta_type: 'text',
-        text: prompt || '参考图片生成视频',
-      }],
-    };
-  }
 
   return JSON.stringify({
     type: 'draft', id: draftId,
@@ -489,7 +490,7 @@ cli({
     { name: 'duration', type: 'int', default: 4, help: '时长（秒）: 4, 10, 15' },
     { name: 'workspace', type: 'string', default: '0', help: 'workspace ID（默认 0）' },
     { name: 'wait', type: 'int', default: 0, help: '轮询等待秒数（默认 0 提交即返回，显式传值如 300 阻塞等结果）' },
-    { name: 'ref_image', type: 'string', default: '', help: '参考图片路径（全能参考模式）' },
+    { name: 'ref-image', type: 'string', default: '', help: '参考图片路径（全能参考模式）' },
   ],
   columns: ['status', 'task_id', 'video_url', 'queue_position'],
   navigateBefore: 'https://jimeng.jianying.com/ai-tool/generate?type=video&workspace=0',
@@ -501,7 +502,7 @@ cli({
     const duration = kwargs.duration as number;
     const waitSec = kwargs.wait as number;
     const workspaceId = parseInt(kwargs.workspace as string) || 0;
-    const refImagePath = kwargs.ref_image as string;
+    const refImagePath = kwargs['ref-image'] as string;
 
     const modelCfg = MODELS[modelArg] || MODELS['seedance_20_fast'];
 
