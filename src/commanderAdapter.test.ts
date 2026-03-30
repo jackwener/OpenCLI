@@ -123,3 +123,37 @@ describe('commanderAdapter boolean alias support', () => {
     expect(kwargs.undo).toBe(false);
   });
 });
+
+describe('commanderAdapter external passthrough support', () => {
+  const cmd: CliCommand = {
+    site: 'ext',
+    name: 'gh',
+    description: 'GitHub CLI',
+    browser: false,
+    args: [{ name: 'args', positional: true, variadic: true, help: 'Raw args' }],
+    execution: 'external-binary',
+    passthrough: true,
+    externalCli: { name: 'gh', binary: 'gh' },
+  };
+
+  beforeEach(() => {
+    mockExecuteCommand.mockReset();
+    mockExecuteCommand.mockResolvedValue(null);
+    mockRenderOutput.mockReset();
+    delete process.env.OPENCLI_VERBOSE;
+    process.exitCode = undefined;
+  });
+
+  it('forwards raw variadic args without rendering opencli output', async () => {
+    const program = new Command().enablePositionalOptions();
+    const siteCmd = program.command('ext');
+    registerCommandToProgram(siteCmd, cmd);
+
+    await program.parseAsync(['node', 'opencli', 'ext', 'gh', 'pr', 'list', '--limit', '5']);
+
+    expect(mockExecuteCommand).toHaveBeenCalled();
+    const kwargs = mockExecuteCommand.mock.calls[0][1];
+    expect(kwargs.args).toEqual(['pr', 'list', '--limit', '5']);
+    expect(mockRenderOutput).not.toHaveBeenCalled();
+  });
+});

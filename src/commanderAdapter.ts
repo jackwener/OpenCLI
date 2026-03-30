@@ -52,12 +52,14 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
 
   const deprecatedSuffix = cmd.deprecated ? ' [deprecated]' : '';
   const subCmd = siteCmd.command(cmd.name).description(`${cmd.description}${deprecatedSuffix}`);
+  const isPassthrough = cmd.passthrough === true && cmd.execution === 'external-binary';
 
   // Register positional args first, then named options
   const positionalArgs: typeof cmd.args = [];
   for (const arg of cmd.args) {
     if (arg.positional) {
-      const bracket = arg.required ? `<${arg.name}>` : `[${arg.name}]`;
+      const label = arg.variadic ? `${arg.name}...` : arg.name;
+      const bracket = arg.required ? `<${label}>` : `[${label}]`;
       subCmd.argument(bracket, arg.help ?? '');
       positionalArgs.push(arg);
     } else {
@@ -67,9 +69,13 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       else subCmd.option(flag, arg.help ?? '');
     }
   }
-  subCmd
-    .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
-    .option('-v, --verbose', 'Debug output', false);
+  if (isPassthrough) {
+    subCmd.allowUnknownOption().passThroughOptions().helpOption(false);
+  } else {
+    subCmd
+      .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
+      .option('-v, --verbose', 'Debug output', false);
+  }
 
   subCmd.addHelpText('after', formatRegistryHelpText(cmd));
 
@@ -86,15 +92,17 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
         const v = actionArgs[i];
         if (v !== undefined) kwargs[positionalArgs[i].name] = v;
       }
-      for (const arg of cmd.args) {
-        if (arg.positional) continue;
-        const camelName = arg.name.replace(/-([a-z])/g, (_m, ch: string) => ch.toUpperCase());
-        const v = optionsRecord[arg.name] ?? optionsRecord[camelName];
-        if (v !== undefined) kwargs[arg.name] = normalizeArgValue(arg.type, v, arg.name);
+      if (!isPassthrough) {
+        for (const arg of cmd.args) {
+          if (arg.positional) continue;
+          const camelName = arg.name.replace(/-([a-z])/g, (_m, ch: string) => ch.toUpperCase());
+          const v = optionsRecord[arg.name] ?? optionsRecord[camelName];
+          if (v !== undefined) kwargs[arg.name] = normalizeArgValue(arg.type, v, arg.name);
+        }
       }
 
-      const verbose = optionsRecord.verbose === true;
-      const format = typeof optionsRecord.format === 'string' ? optionsRecord.format : 'table';
+      const verbose = !isPassthrough && optionsRecord.verbose === true;
+      const format = !isPassthrough && typeof optionsRecord.format === 'string' ? optionsRecord.format : 'table';
       if (verbose) process.env.OPENCLI_VERBOSE = '1';
       if (cmd.deprecated) {
         const message = typeof cmd.deprecated === 'string' ? cmd.deprecated : `${fullName(cmd)} is deprecated.`;
@@ -103,6 +111,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       }
 
       const result = await executeCommand(cmd, kwargs, verbose);
+      if (isPassthrough) return;
 
       if (verbose && (!result || (Array.isArray(result) && result.length === 0))) {
         console.error(chalk.yellow('[Verbose] Warning: Command returned an empty result.'));

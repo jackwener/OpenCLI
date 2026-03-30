@@ -35,26 +35,34 @@ const BUILTIN_COMMANDS = [
  * @param cursor - 1-based position of the word being completed (1 = first arg)
  */
 export function getCompletions(words: string[], cursor: number): string[] {
+  const registry = [...getRegistry().values()];
+  const externalAliases = new Set<string>();
+  for (const cmd of registry) {
+    if (cmd.execution === 'external-binary') {
+      for (const alias of cmd.aliases ?? []) externalAliases.add(alias);
+    }
+  }
+
   // cursor === 1 → completing the first argument (site name or built-in command)
   if (cursor <= 1) {
     const sites = new Set<string>();
-    for (const [, cmd] of getRegistry()) {
+    for (const cmd of registry) {
       sites.add(cmd.site);
     }
-    return [...BUILTIN_COMMANDS, ...sites].sort();
+    return [...BUILTIN_COMMANDS, ...sites, ...externalAliases].sort();
   }
 
   const site = words[0];
 
   // If the first word is a built-in command, no further completion
-  if (BUILTIN_COMMANDS.includes(site)) {
+  if (BUILTIN_COMMANDS.includes(site) || externalAliases.has(site)) {
     return [];
   }
 
   // cursor === 2 → completing the sub-command name under a site
   if (cursor === 2) {
     const subcommands: string[] = [];
-    for (const [, cmd] of getRegistry()) {
+    for (const cmd of registry) {
       if (cmd.site === site) {
         subcommands.push(cmd.name);
       }

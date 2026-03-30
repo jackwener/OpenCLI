@@ -20,6 +20,7 @@ import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMM
 import { emitHook, type HookContext } from './hooks.js';
 import { checkDaemonStatus } from './browser/discover.js';
 import { log } from './logger.js';
+import { executeExternalCliConfig } from './external.js';
 
 const _loadedModules = new Set<string>();
 
@@ -100,6 +101,13 @@ async function runCommand(
 
   if (cmd.func) return cmd.func(page as IPage, kwargs, debug);
   if (cmd.pipeline) return executePipeline(page, cmd.pipeline, { args: kwargs, debug });
+  if (cmd.execution === 'external-binary' && cmd.externalCli) {
+    const args = Array.isArray(kwargs.args)
+      ? kwargs.args.map((arg) => String(arg))
+      : [];
+    executeExternalCliConfig(cmd.externalCli, args);
+    return null;
+  }
   throw new CommandExecutionError(
     `Command ${fullName(cmd)} has no func or pipeline`,
     'This is likely a bug in the adapter definition. Please report this issue.',

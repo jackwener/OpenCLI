@@ -13,9 +13,10 @@ import { render as renderOutput } from './output.js';
 import { getBrowserFactory, browserSession } from './runtime.js';
 import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
-import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
+import { EXTERNAL_SITE, loadExternalClis, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
 import { EXIT_CODES, getErrorMessage } from './errors.js';
+import { executeCommand } from './execution.js';
 
 export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
   const program = new Command();
@@ -37,6 +38,8 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .action((opts) => {
       const registry = getRegistry();
       const commands = [...registry.values()].sort((a, b) => fullName(a).localeCompare(fullName(b)));
+      const externalCommands = commands.filter((cmd) => cmd.execution === 'external-binary');
+      const registryCommands = commands.filter((cmd) => cmd.execution !== 'external-binary');
       const fmt = opts.json && opts.format === 'table' ? 'json' : opts.format;
       const isStructured = fmt === 'json' || fmt === 'yaml';
 
@@ -74,29 +77,26 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       console.log(chalk.bold('  opencli') + chalk.dim(' — available commands'));
       console.log();
       for (const [site, cmds] of sites) {
-        console.log(chalk.bold.cyan(`  ${site}`));
+        const siteLabel = site === EXTERNAL_SITE ? `${site} ${chalk.dim('(external)')}` : site;
+        console.log(chalk.bold.cyan(`  ${siteLabel}`));
         for (const cmd of cmds) {
-          const label = strategyLabel(cmd);
-          const tag = label === 'public'
-            ? chalk.green('[public]')
-            : chalk.yellow(`[${label}]`);
-          console.log(`    ${cmd.name} ${tag}${cmd.description ? chalk.dim(` — ${cmd.description}`) : ''}`);
+          let tag: string;
+          if (cmd.execution === 'external-binary' && cmd.externalCli) {
+            const installed = isBinaryInstalled(cmd.externalCli.binary);
+            tag = installed ? chalk.green('[installed]') : chalk.yellow('[auto-install]');
+          } else {
+            const label = strategyLabel(cmd);
+            tag = label === 'public'
+              ? chalk.green('[public]')
+              : chalk.yellow(`[${label}]`);
+          }
+          const aliasNote = cmd.aliases?.length ? chalk.dim(` · alias: ${cmd.aliases.join(', ')}`) : '';
+          console.log(`    ${cmd.name} ${tag}${cmd.description ? chalk.dim(` — ${cmd.description}`) : ''}${aliasNote}`);
         }
         console.log();
       }
 
-      const externalClis = loadExternalClis();
-      if (externalClis.length > 0) {
-        console.log(chalk.bold.cyan('  external CLIs'));
-        for (const ext of externalClis) {
-          const isInstalled = isBinaryInstalled(ext.binary);
-          const tag = isInstalled ? chalk.green('[installed]') : chalk.yellow('[auto-install]');
-          console.log(`    ${ext.name} ${tag}${ext.description ? chalk.dim(` — ${ext.description}`) : ''}`);
-        }
-        console.log();
-      }
-
-      console.log(chalk.dim(`  ${commands.length} built-in commands across ${sites.size} sites, ${externalClis.length} external CLIs`));
+      console.log(chalk.dim(`  ${registryCommands.length} adapter/plugin commands across ${sites.size - (sites.has(EXTERNAL_SITE) ? 1 : 0)} sites, ${externalCommands.length} external CLIs`));
       console.log();
     });
 
@@ -471,13 +471,17 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       registerExternalCli(name, { binary: opts.binary, install: opts.install, description: opts.desc });
     });
 
-  function passthroughExternal(name: string, parsedArgs?: string[]) {
+  async function passthroughExternal(name: string, parsedArgs?: string[]) {
     const args = parsedArgs ?? (() => {
       const idx = process.argv.indexOf(name);
       return process.argv.slice(idx + 1);
     })();
     try {
-      executeExternalCli(name, args, externalClis);
+      const cmd = getRegistry().get(`${EXTERNAL_SITE}/${name}`);
+      if (!cmd) {
+        throw new Error(`External CLI '${name}' not found in registry.`);
+      }
+      await executeCommand(cmd, { args });
     } catch (err) {
       console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
       process.exitCode = EXIT_CODES.GENERIC_ERROR;
@@ -493,7 +497,7 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       .allowUnknownOption()
       .passThroughOptions()
       .helpOption(false)
-      .action((args: string[]) => passthroughExternal(ext.name, args));
+      .action(async (args: string[]) => passthroughExternal(ext.name, args));
   }
 
   // ── Antigravity serve (long-running, special case) ────────────────────────

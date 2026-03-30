@@ -23,6 +23,7 @@ import { emitHook } from './hooks.js';
 import { installNodeNetwork } from './node-network.js';
 import { registerUpdateNoticeOnExit, checkForUpdateBackground } from './update-check.js';
 import { EXIT_CODES } from './errors.js';
+import { registerExternalCliCommands } from './external.js';
 
 installNodeNetwork();
 
@@ -34,6 +35,7 @@ const USER_CLIS = path.join(os.homedir(), '.opencli', 'clis');
 // Sequential: plugins must run after built-in discovery so they can override built-in commands.
 await discoverClis(BUILTIN_CLIS, USER_CLIS);
 await discoverPlugins();
+registerExternalCliCommands();
 
 // Register exit hook: notice appears after command output (same as npm/gh/yarn)
 registerUpdateNoticeOnExit();

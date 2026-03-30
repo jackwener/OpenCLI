@@ -12,7 +12,7 @@ A CLI tool that turns **any website**, **Electron app**, or **local CLI tool** i
 
 **Built for AI Agents** — Configure an instruction in your `AGENT.md` or `.cursorrules` to run `opencli list` via Bash. The AI will automatically discover and invoke all available tools.
 
-**CLI Hub** — Register any local CLI (`opencli register mycli`) so AI agents can discover and call it alongside built-in commands. Auto-installs missing tools via your package manager (e.g. if `gh` isn't installed, `opencli gh ...` runs `brew install gh` first then re-executes seamlessly).
+**CLI Hub** — Register any local CLI (`opencli register mycli`) so AI agents can discover and call it alongside built-in commands. External tools now have a canonical `opencli ext <tool> ...` namespace, while curated top-level aliases like `opencli gh ...` stay supported for convenience. Missing tools can still be auto-installed before passthrough execution.
 
 **CLI for Electron Apps** — Turn any Electron application into a CLI tool. Recombine, script, and extend apps like Antigravity Ultra from the terminal. AI agents can now control other AI apps natively.
 
@@ -129,6 +129,20 @@ git clone git@github.com:jackwener/opencli.git && cd opencli && npm install && n
 ## CLI Hub
 
 OpenCLI acts as a universal hub for your existing command-line tools — unified discovery, pure passthrough execution, and auto-install (if a tool isn't installed, OpenCLI runs `brew install <tool>` automatically before re-running the command).
+
+External tools are registered in the unified command registry under the canonical `ext` namespace:
+
+```bash
+opencli ext gh pr list --limit 5
+opencli ext docker ps
+```
+
+For convenience, curated top-level aliases still work:
+
+```bash
+opencli gh pr list --limit 5
+opencli docker ps
+```
 
 | External CLI | Description | Example |
 |--------------|-------------|---------|

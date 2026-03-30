@@ -10,7 +10,7 @@
 
 OpenCLI 将任何网站、本地 CLI 或 Electron 应用（如 Antigravity）变成命令行工具 — B站、知乎、小红书、Twitter/X、Reddit、YouTube，以及 `gh`、`docker` 等[多种站点与工具](#内置命令) — 复用浏览器登录态，AI 驱动探索。
 
-**专为 AI Agent 打造**：只需在全局 `.cursorrules` 或 `AGENT.md` 中配置简单指令，引导 AI 通过 Bash 执行 `opencli list` 来检索可用的 CLI 工具及其用法。随后，将你常用的 CLI 列表整合注册进去（`opencli register mycli`），AI 便能瞬间学会自动调用相应的本地工具！
+**专为 AI Agent 打造**：只需在全局 `.cursorrules` 或 `AGENT.md` 中配置简单指令，引导 AI 通过 Bash 执行 `opencli list` 来检索可用的 CLI 工具及其用法。随后，将你常用的 CLI 列表整合注册进去（`opencli register mycli`），AI 便能瞬间学会自动调用相应的本地工具。外部工具现在有统一的 `opencli ext <tool> ...` 命名空间，同时继续兼容 `opencli gh ...` 这类顶层 alias。 
 
 **opencli 支持 CLI 化所有 electron 应用！最强大更新来袭！**
 CLI all electron！现在支持把所有 electron 应用 CLI 化，从而组合出各种神奇的能力。
@@ -193,6 +193,20 @@ npm install -g @jackwener/opencli@latest
 ### 外部 CLI 枢纽
 
 OpenCLI 也可以作为你现有命令行工具的统一入口，负责发现、自动安装和纯透传执行。
+
+外部 CLI 现在会以统一的 `ext` 命名空间注册进命令系统：
+
+```bash
+opencli ext gh pr list --limit 5
+opencli ext docker ps
+```
+
+为了兼容已有习惯，常用工具的顶层 alias 依然保留：
+
+```bash
+opencli gh pr list --limit 5
+opencli docker ps
+```
 
 | 外部 CLI | 描述 | 示例 |
 |----------|------|------|

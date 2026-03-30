@@ -7,8 +7,10 @@ import yaml from 'js-yaml';
 import chalk from 'chalk';
 import { log } from './logger.js';
 import { EXIT_CODES, getErrorMessage } from './errors.js';
+import { registerCommand, Strategy, type CliCommand } from './registry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export const EXTERNAL_SITE = 'ext';
 
 export interface ExternalCliInstall {
   mac?: string;
@@ -168,13 +170,7 @@ export function installExternalCli(cli: ExternalCliConfig): boolean {
   }
 }
 
-export function executeExternalCli(name: string, args: string[], preloaded?: ExternalCliConfig[]): void {
-  const configs = preloaded ?? loadExternalClis();
-  const cli = configs.find((c) => c.name === name);
-  if (!cli) {
-    throw new Error(`External CLI '${name}' not found in registry.`);
-  }
-
+export function executeExternalCliConfig(cli: ExternalCliConfig, args: string[]): void {
   // 1. Check if installed
   if (!isBinaryInstalled(cli.binary)) {
     // 2. Try to auto install
@@ -192,10 +188,19 @@ export function executeExternalCli(name: string, args: string[], preloaded?: Ext
     process.exitCode = EXIT_CODES.GENERIC_ERROR;
     return;
   }
-  
+
   if (result.status !== null) {
     process.exitCode = result.status;
   }
+}
+
+export function executeExternalCli(name: string, args: string[], preloaded?: ExternalCliConfig[]): void {
+  const configs = preloaded ?? loadExternalClis();
+  const cli = configs.find((c) => c.name === name);
+  if (!cli) {
+    throw new Error(`External CLI '${name}' not found in registry.`);
+  }
+  executeExternalCliConfig(cli, args);
 }
 
 export interface RegisterOptions {
@@ -243,4 +248,33 @@ export function registerExternalCli(name: string, opts?: RegisterOptions): void 
   fs.writeFileSync(userPath, dump, 'utf8');
   _cachedExternalClis = null; // Invalidate cache so next load reflects the change
   console.log(chalk.dim(userPath));
+}
+
+export function buildExternalCliCommand(cli: ExternalCliConfig): CliCommand {
+  return {
+    site: EXTERNAL_SITE,
+    name: cli.name,
+    description: cli.description ?? `Passthrough to ${cli.binary}`,
+    strategy: Strategy.PUBLIC,
+    browser: false,
+    args: [
+      {
+        name: 'args',
+        positional: true,
+        variadic: true,
+        help: `Arguments passed through to ${cli.binary}`,
+      },
+    ],
+    source: 'external-registry',
+    execution: 'external-binary',
+    passthrough: true,
+    aliases: [cli.name],
+    externalCli: cli,
+  };
+}
+
+export function registerExternalCliCommands(configs: ExternalCliConfig[] = loadExternalClis()): CliCommand[] {
+  const commands = configs.map(buildExternalCliCommand);
+  for (const cmd of commands) registerCommand(cmd);
+  return commands;
 }

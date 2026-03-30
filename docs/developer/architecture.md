@@ -1,6 +1,6 @@
 # Architecture
 
-OpenCLI is built on a **Dual-Engine Architecture** that supports both declarative YAML pipelines and programmatic TypeScript adapters.
+OpenCLI is built on a **Dual-Engine Architecture** with a unified command registry. Built-in adapters, plugins, and external CLI passthrough commands all register into the same command model, while using different execution backends.
 
 ## High-Level Architecture
 
@@ -32,13 +32,13 @@ OpenCLI is built on a **Dual-Engine Architecture** that supports both declarativ
 ## Core Modules
 
 ### Registry (`src/registry.ts`)
-Central command registry. All adapters register their commands via the `cli()` function with metadata: site, name, description, domain, strategy, args, columns.
+Central command registry. Built-in adapters, plugins, and external CLI passthrough commands register here with shared metadata: site, name, description, strategy, args, execution backend, aliases, and optional binary metadata.
 
 ### Discovery (`src/discovery.ts`)
 CLI discovery and manifest loading. Discovers commands from YAML and TypeScript adapter files, parses YAML pipelines, and registers them into the central registry.
 
 ### Execution (`src/execution.ts`)
-Command execution: argument validation, lazy loading of adapter modules, and executing the appropriate handler function.
+Command execution: argument validation, lazy loading of adapter modules, and dispatching to the appropriate execution backend (`adapter` or `external-binary`).
 
 ### Commander Adapter (`src/commanderAdapter.ts`)
 Bridges the Registry commands to Commander.js subcommands. Handles positional args, named options, browser session wiring, and output formatting. Isolates all Commander-specific logic so the core is framework-agnostic.

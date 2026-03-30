@@ -2,6 +2,7 @@
  * Core registry: Strategy enum, Arg/CliCommand interfaces, cli() registration.
  */
 
+import type { ExternalCliConfig } from './external.js';
 import type { IPage } from './types.js';
 
 export enum Strategy {
@@ -18,6 +19,7 @@ export interface Arg {
   default?: unknown;
   required?: boolean;
   positional?: boolean;
+  variadic?: boolean;
   help?: string;
   choices?: string[];
 }
@@ -46,6 +48,14 @@ export interface CliCommand {
   source?: string;
   footerExtra?: (kwargs: CommandArgs) => string | undefined;
   requiredEnv?: RequiredEnv[];
+  /** Execution backend used to run this command. */
+  execution?: 'adapter' | 'external-binary';
+  /** Whether Commander should forward raw args to the underlying executor. */
+  passthrough?: boolean;
+  /** Additional top-level aliases that resolve to this command. */
+  aliases?: string[];
+  /** Backing external CLI config for passthrough commands. */
+  externalCli?: ExternalCliConfig;
   /** Deprecation note shown in help / execution warnings. */
   deprecated?: boolean | string;
   /** Preferred replacement command, if any. */
@@ -99,6 +109,10 @@ export function cli(opts: CliOptions): CliCommand {
     timeoutSeconds: opts.timeoutSeconds,
     footerExtra: opts.footerExtra,
     requiredEnv: opts.requiredEnv,
+    execution: opts.execution,
+    passthrough: opts.passthrough,
+    aliases: opts.aliases,
+    externalCli: opts.externalCli,
     deprecated: opts.deprecated,
     replacedBy: opts.replacedBy,
     navigateBefore: opts.navigateBefore,

@@ -15,6 +15,7 @@ export type SerializedArg = {
   type: string;
   required: boolean;
   positional: boolean;
+  variadic: boolean;
   choices: string[];
   default: unknown;
   help: string;
@@ -27,6 +28,7 @@ export function serializeArg(a: Arg): SerializedArg {
     type: a.type ?? 'string',
     required: !!a.required,
     positional: !!a.positional,
+    variadic: !!a.variadic,
     choices: a.choices ?? [],
     default: a.default ?? null,
     help: a.help ?? '',
@@ -45,6 +47,12 @@ export function serializeCommand(cmd: CliCommand) {
     args: cmd.args.map(serializeArg),
     columns: cmd.columns ?? [],
     domain: cmd.domain ?? null,
+    execution: cmd.execution ?? 'adapter',
+    passthrough: !!cmd.passthrough,
+    aliases: cmd.aliases ?? [],
+    binary: cmd.externalCli?.binary ?? null,
+    homepage: cmd.externalCli?.homepage ?? null,
+    tags: cmd.externalCli?.tags ?? [],
     deprecated: cmd.deprecated ?? null,
     replacedBy: cmd.replacedBy ?? null,
   };
@@ -56,7 +64,10 @@ export function serializeCommand(cmd: CliCommand) {
 export function formatArgSummary(args: Arg[]): string {
   return args
     .map(a => {
-      if (a.positional) return a.required ? `<${a.name}>` : `[${a.name}]`;
+      if (a.positional) {
+        const label = a.variadic ? `${a.name}...` : a.name;
+        return a.required ? `<${label}>` : `[${label}]`;
+      }
       return a.required ? `--${a.name}` : `[--${a.name}]`;
     })
     .join(' ');
@@ -79,7 +90,11 @@ export function formatRegistryHelpText(cmd: CliCommand): string {
   const meta: string[] = [];
   meta.push(`Strategy: ${strategyLabel(cmd)}`);
   meta.push(`Browser: ${cmd.browser ? 'yes' : 'no'}`);
+  meta.push(`Execution: ${cmd.execution ?? 'adapter'}`);
+  if (cmd.passthrough) meta.push('Passthrough: yes');
+  if (cmd.externalCli?.binary) meta.push(`Binary: ${cmd.externalCli.binary}`);
   if (cmd.domain) meta.push(`Domain: ${cmd.domain}`);
+  if (cmd.aliases?.length) meta.push(`Aliases: ${cmd.aliases.join(', ')}`);
   if (cmd.deprecated) meta.push(`Deprecated: ${typeof cmd.deprecated === 'string' ? cmd.deprecated : 'yes'}`);
   if (cmd.replacedBy) meta.push(`Use instead: ${cmd.replacedBy}`);
   lines.push(meta.join(' | '));
