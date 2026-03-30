@@ -109,6 +109,7 @@ export function scrollJs(direction: string, amount: number): string {
 export function autoScrollJs(times: number, delayMs: number): string {
   return `
     (async () => {
+      if (!document.body) return;
       for (let i = 0; i < ${times}; i++) {
         const lastHeight = document.body.scrollHeight;
         window.scrollTo(0, lastHeight);

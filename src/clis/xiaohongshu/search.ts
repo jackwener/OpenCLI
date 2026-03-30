@@ -44,6 +44,19 @@ cli({
     );
     await page.wait(3);
 
+    // Early login-wall detection: XHS may show a login gate instead of
+    // results. Check *before* autoScroll to avoid crashing on a page
+    // that has no meaningful content to scroll through.
+    const loginCheck = await page.evaluate(`
+      (() => /登录后查看搜索结果/.test(document.body?.innerText || ''))()
+    `);
+    if (loginCheck) {
+      throw new AuthRequiredError(
+        'www.xiaohongshu.com',
+        'Xiaohongshu search results are blocked behind a login wall',
+      );
+    }
+
     // Scroll a couple of times to load more results
     await page.autoScroll({ times: 2 });
 

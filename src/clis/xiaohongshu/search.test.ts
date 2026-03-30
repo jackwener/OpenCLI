@@ -41,15 +41,16 @@ describe('xiaohongshu search', () => {
     expect(cmd?.func).toBeTypeOf('function');
 
     const page = createPageMock([
-      {
-        loginWall: true,
-        results: [],
-      },
+      // First evaluate: early login-wall check (returns true)
+      true,
     ]);
 
     await expect(cmd!.func!(page, { query: '特斯拉', limit: 5 })).rejects.toThrow(
       'Xiaohongshu search results are blocked behind a login wall'
     );
+
+    // autoScroll must NOT be called when a login wall is detected early
+    expect(page.autoScroll).not.toHaveBeenCalled();
   });
 
   it('returns ranked results with search_result url and author_url preserved', async () => {
@@ -62,6 +63,9 @@ describe('xiaohongshu search', () => {
       'https://www.xiaohongshu.com/user/profile/635a9c720000000018028b40?xsec_token=user-token&xsec_source=pc_search';
 
     const page = createPageMock([
+      // First evaluate: early login-wall check (returns false → no wall)
+      false,
+      // Second evaluate: main DOM extraction
       {
         loginWall: false,
         results: [
@@ -99,6 +103,9 @@ describe('xiaohongshu search', () => {
     expect(cmd?.func).toBeTypeOf('function');
 
     const page = createPageMock([
+      // First evaluate: early login-wall check (returns false → no wall)
+      false,
+      // Second evaluate: main DOM extraction
       {
         loginWall: false,
         results: [

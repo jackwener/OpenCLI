@@ -1,5 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { waitForCaptureJs, waitForSelectorJs } from './dom-helpers.js';
+import { autoScrollJs, waitForCaptureJs, waitForSelectorJs } from './dom-helpers.js';
+
+describe('autoScrollJs', () => {
+  it('returns early without error when document.body is null', async () => {
+    const g = globalThis as any;
+    const origDoc = g.document;
+    g.document = { body: null, documentElement: {} };
+    g.window = g;
+    const code = autoScrollJs(3, 500);
+    // Should resolve without throwing
+    await expect(eval(code)).resolves.not.toThrow();
+    g.document = origDoc;
+    delete g.window;
+  });
+});
 
 describe('waitForCaptureJs', () => {
   it('returns a non-empty string', () => {
