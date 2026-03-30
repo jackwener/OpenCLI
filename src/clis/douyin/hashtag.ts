@@ -42,11 +42,19 @@ cli({
       const kw = kwargs.keyword as string;
       const url = `https://creator.douyin.com/aweme/v1/hotspot/recommend/?${kw ? `keyword=${encodeURIComponent(kw)}&` : ''}aid=1128`;
       const res = await browserFetch(page, 'GET', url) as {
-        hotspot_list: Array<{ sentence: string; hot_value: number }>
+        hotspot_list?: Array<{ sentence: string; hot_value: number }>;
+        all_sentences?: Array<{ sentence_id?: string; word?: string; hot_value: number }>;
       };
-      return (res.hotspot_list ?? []).slice(0, kwargs.limit as number).map(h => ({
+      const items = res.hotspot_list
+        ?? res.all_sentences?.map(h => ({
+          sentence: h.word ?? '',
+          hot_value: h.hot_value,
+          sentence_id: h.sentence_id ?? '',
+        }))
+        ?? [];
+      return items.slice(0, kwargs.limit as number).map(h => ({
         name: h.sentence,
-        id: '',
+        id: 'sentence_id' in h ? h.sentence_id : '',
         view_count: h.hot_value,
       }));
     }

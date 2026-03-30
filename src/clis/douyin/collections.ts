@@ -12,7 +12,7 @@ cli({
   ],
   columns: ['mix_id', 'name', 'item_count'],
   func: async (page, kwargs) => {
-    const url = `https://creator.douyin.com/web/api/mix/list/?aid=1128&count=${kwargs.limit}`;
+    const url = `https://creator.douyin.com/web/api/mix/list/?status=0,1,2,3,6&count=${kwargs.limit}&cursor=0&should_query_new_mix=1&device_platform=web&aid=1128`;
     const res = await browserFetch(page, 'GET', url) as {
       mix_list: Array<{ mix_id: string; mix_name: string; item_count: number }>
     };
