@@ -64,6 +64,20 @@ describe('xiaohongshu comments', () => {
     expect((page.goto as any).mock.calls[0][0]).toContain('/explore/69aadbcb000000002202f131');
   });
 
+  it('preserves full search_result URL with xsec_token for navigation', async () => {
+    const page = createPageMock({
+      loginWall: false,
+      results: [{ author: 'Alice', text: 'Nice', likes: 1, time: '2024-01-01', is_reply: false, reply_to: '' }],
+    });
+
+    const fullUrl =
+      'https://www.xiaohongshu.com/search_result/69aadbcb000000002202f131?xsec_token=abc&xsec_source=pc_search';
+
+    await command!.func!(page, { 'note-id': fullUrl, limit: 5 });
+
+    expect((page.goto as any).mock.calls[0][0]).toBe(fullUrl);
+  });
+
   it('throws AuthRequiredError when login wall is detected', async () => {
     const page = createPageMock({ loginWall: true, results: [] });
 
@@ -95,6 +109,21 @@ describe('xiaohongshu comments', () => {
     expect(result[2].rank).toBe(3);
   });
 
+  it('clamps invalid negative limits to a safe minimum', async () => {
+    const page = createPageMock({
+      loginWall: false,
+      results: [
+        { author: 'Alice', text: 'Great note!', likes: 10, time: '2024-01-01', is_reply: false, reply_to: '' },
+        { author: 'Bob', text: 'Very helpful', likes: 0, time: '2024-01-02', is_reply: false, reply_to: '' },
+      ],
+    });
+
+    const result = (await command!.func!(page, { 'note-id': 'abc123', limit: -3 })) as any[];
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ rank: 1, author: 'Alice' });
+  });
+
   describe('--with-replies', () => {
     it('includes reply rows with is_reply=true and reply_to set', async () => {
       const page = createPageMock({
@@ -114,6 +143,10 @@ describe('xiaohongshu comments', () => {
       expect(result[0]).toMatchObject({ author: 'Alice', is_reply: false, reply_to: '' });
       expect(result[1]).toMatchObject({ author: 'Bob', is_reply: true, reply_to: 'Alice' });
       expect(result[2]).toMatchObject({ author: 'Carol', is_reply: false, reply_to: '' });
+
+      const script = (page.evaluate as any).mock.calls[0][0];
+      expect(script).toContain('共\\d+条回复');
+      expect(script).toContain('el.click()');
     });
 
     it('limits by top-level count, keeping attached replies', async () => {
