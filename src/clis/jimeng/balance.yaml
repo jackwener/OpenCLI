@@ -11,11 +11,9 @@ pipeline:
   - navigate: https://jimeng.jianying.com/ai-tool/generate?type=image&workspace=0
   - evaluate: |
       (async () => {
-        // 1. Wait for page to fully initialize (BDMS + React hydration)
         await new Promise(r => setTimeout(r, 5000));
 
-        // 2. Verify login — check for credit display element
-        const creditAmountEl = document.querySelector('[class*="credit-amount-container"],[class*="credit-amount-text"]');
+        const creditAmountEl = document.querySelector('[class*="credit-amount-container"]');
         if (!creditAmountEl) {
           const loginCheck = await fetch('/mweb/v1/get_user_info', {
             method: 'POST', credentials: 'include',
@@ -28,29 +26,31 @@ pipeline:
           throw new Error('Credit display not found — page structure may have changed');
         }
 
-        // 3. Click credit element to open the detail dropdown panel
+        // Click credit element to open the detail panel
         const rect = creditAmountEl.getBoundingClientRect();
         creditAmountEl.dispatchEvent(new MouseEvent('click', {
           bubbles: true, cancelable: true,
           clientX: rect.left + rect.width / 2,
           clientY: rect.top + rect.height / 2
         }));
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 2000));
 
-        // 4. Find the dropdown panel that just opened
-        const panel = document.querySelector('[class*="credit-dropdown"],[class*="credit-panel"],[class*="creditPanel"],[class*="popover"]')
-          || creditAmountEl.closest('[class*="credit-"]')?.parentElement;
+        // The detail panel is inside [class*="infos-"], which contains:
+        //   text nodes: "高级会员", "连续包月", "2026.04.25 14:17"
+        //   creditItem → credits element with exact number "13932"
+        const infosPanel = document.querySelector('[class*="infos-"]');
 
-        // 5. Extract total from the panel's numeric display
-        let total = '0';
-        const searchRoot = panel || document;
-        const creditNumEl = Array.from(searchRoot.querySelectorAll('[class*="credits-"],[class*="creditItem-"]'))
-          .find(el => el.children.length === 0 && /^\d+$/.test(el.textContent?.trim() || ''));
-        if (creditNumEl) {
-          total = creditNumEl.textContent.trim();
-        } else {
-          const headerAmountEl = document.querySelector('[class*="credit-amount-text"]');
-          const raw = headerAmountEl?.textContent?.trim() || '0';
+        // Extract exact total from credits element inside the panel
+        let total = '';
+        if (infosPanel) {
+          const creditsEl = infosPanel.querySelector('[class*="credits-"]');
+          if (creditsEl) {
+            total = creditsEl.textContent?.trim() || '';
+          }
+        }
+        if (!total) {
+          // Fallback: parse formatted amount from header (e.g. "1.4万")
+          const raw = document.querySelector('[class*="credit-amount-text"]')?.textContent?.trim() || '';
           if (raw.includes('万')) {
             total = String(Math.round(parseFloat(raw) * 10000));
           } else {
@@ -58,15 +58,15 @@ pipeline:
           }
         }
 
-        // 6. Extract VIP level from credit-container text
-        const containerText = document.querySelector('[class*="credit-container"],[class*="credit-display-container"]')?.textContent?.trim() || '';
-        const vipLevel = containerText.replace(/[\d万,.]+/g, '').trim() || 'free';
+        // Extract VIP level from credit-display-container
+        const displayContainer = document.querySelector('[class*="credit-display-container"]');
+        const upgradeText = displayContainer?.querySelector('[class*="upgrade-text"]');
+        const vipLevel = upgradeText?.textContent?.trim() || 'free';
 
-        // 7. Extract VIP expiry — scoped to the dropdown panel only, not full page
+        // Extract VIP expiry from text nodes inside the infos panel only
         let vipExpire = '';
-        const expireRoot = panel || creditAmountEl.closest('[class*="credit-"]')?.parentElement || null;
-        if (expireRoot) {
-          const walker = document.createTreeWalker(expireRoot, NodeFilter.SHOW_TEXT);
+        if (infosPanel) {
+          const walker = document.createTreeWalker(infosPanel, NodeFilter.SHOW_TEXT);
           let node;
           while ((node = walker.nextNode())) {
             const txt = node.textContent?.trim();
