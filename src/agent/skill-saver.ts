@@ -57,6 +57,10 @@ export async function saveTraceAsSkill(
 
 /**
  * Stage 4: Validate the generated adapter and self-repair if needed.
+ *
+ * Validates syntax by checking for common issues (missing imports,
+ * invalid TypeScript patterns). Cannot do full import validation since
+ * user CLI files resolve imports differently at runtime.
  */
 export async function saveTraceAsSkillWithValidation(
   trace: RichTrace,
@@ -65,31 +69,59 @@ export async function saveTraceAsSkillWithValidation(
 ): Promise<SavedSkill> {
   const saved = await saveTraceAsSkill(trace, name);
 
-  // Try to import the generated file to check for syntax errors
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      // Dynamic import to verify syntax
-      const { pathToFileURL } = await import('node:url');
-      await import(pathToFileURL(saved.path).href);
-      return saved; // Success — file is valid
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
+  // Syntax validation: check for common LLM code generation issues
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const code = readFileSync(saved.path, 'utf-8');
+    const issues = validateAdapterSyntax(code);
 
-      if (attempt >= maxRetries - 1) {
-        // Last attempt failed — return what we have
-        console.error(`Warning: Generated adapter has issues: ${errMsg}`);
-        return saved;
-      }
-
-      // Self-repair: feed error back to LLM
-      const [site, command] = name.split('/');
-      const currentCode = readFileSync(saved.path, 'utf-8');
-      const fixedCode = await repairAdapter(currentCode, errMsg, trace);
-      writeFileSync(saved.path, fixedCode, 'utf-8');
+    if (issues.length === 0) {
+      return saved; // Looks good
     }
+
+    if (attempt >= maxRetries) {
+      // Last attempt — return what we have with a warning
+      console.error(`Warning: Generated adapter may have issues: ${issues.join('; ')}`);
+      return saved;
+    }
+
+    // Self-repair: feed issues back to LLM
+    const fixedCode = await repairAdapter(code, issues.join('\n'), trace);
+    writeFileSync(saved.path, fixedCode, 'utf-8');
   }
 
   return saved;
+}
+
+/** Check for common issues in generated adapter code. */
+function validateAdapterSyntax(code: string): string[] {
+  const issues: string[] = [];
+
+  // Must have cli() call
+  if (!code.includes('cli(')) {
+    issues.push('Missing cli() registration call');
+  }
+
+  // Must import from registry
+  if (!code.includes("from '../../registry") && !code.includes('from "../../registry')) {
+    issues.push('Missing import from ../../registry.js');
+  }
+
+  // page.evaluate must use string, not arrow function
+  if (/page\.evaluate\(\s*\(/.test(code)) {
+    issues.push('page.evaluate() must receive a string argument, not an arrow function. Use page.evaluate(`(function() { ... })()`) instead');
+  }
+
+  // page.waitForSelector doesn't exist on IPage
+  if (code.includes('page.waitForSelector')) {
+    issues.push('page.waitForSelector() does not exist. Use page.wait({ selector: "..." }) instead');
+  }
+
+  // Import paths should end with .js
+  if (/from ['"]\.\.\/.*(?<!\.js)['"]/.test(code) && !code.includes('.js')) {
+    issues.push('Import paths should end with .js (ESM requirement)');
+  }
+
+  return issues;
 }
 
 // ── LLM Code Generation ──────────────────────────────────────────────
@@ -240,7 +272,11 @@ cli({
 - Use ${discovery.strategy.toUpperCase()} strategy
 - Domain: ${extractDomain(trace.startUrl) ?? site}
 - Handle errors gracefully (AuthRequiredError, CommandExecutionError)
-- Return [] if no results instead of throwing`);
+- Return [] if no results instead of throwing
+- CRITICAL: page.evaluate() takes a STRING argument, NOT an arrow function. Write: page.evaluate(\\\`(function() { ... })()\\\`)
+- CRITICAL: page.waitForSelector does NOT exist. Use: page.wait({ selector: '...' })
+- CRITICAL: Import paths must end with .js — write '../../registry.js' not '../../registry'
+- site must be exactly '${site}' and name must be exactly '${command}'`);
 
   // Respond with a done action containing the code as result
   parts.push(`\nRespond with JSON: {"thinking": "...", "nextGoal": "generate adapter", "actions": [{"type": "done", "result": "<full TypeScript code here>"}]}`);
