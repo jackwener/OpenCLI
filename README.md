@@ -136,6 +136,8 @@ OpenCLI acts as a universal hub for your existing command-line tools — unified
 | **obsidian** | Obsidian vault management | `opencli obsidian search query="AI"` |
 | **docker** | Docker | `opencli docker ps` |
 | **lark-cli** | Lark/Feishu — messages, docs, calendar, tasks, 200+ commands | `opencli lark-cli calendar +agenda` |
+| **dingtalk** | DingTalk — cross-platform CLI for DingTalk's full suite, designed for humans and AI agents | `opencli dingtalk msg send --to user "hello"` |
+| **wecom** | WeCom/企业微信 — CLI for WeCom open platform, for humans and AI agents | `opencli wecom msg send --to user "hello"` |
 | **vercel** | Vercel — deploy projects, manage domains, env vars, logs | `opencli vercel deploy --prod` |
 
 **Register your own** — add any local CLI so AI agents can discover it via `opencli list`:

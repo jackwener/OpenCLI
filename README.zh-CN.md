@@ -200,6 +200,8 @@ OpenCLI 也可以作为你现有命令行工具的统一入口，负责发现、
 | **obsidian** | Obsidian 仓库管理 | `opencli obsidian search query="AI"` |
 | **docker** | Docker 命令行工具 | `opencli docker ps` |
 | **lark-cli** | 飞书 CLI — 消息、文档、日历、任务，200+ 命令 | `opencli lark-cli calendar +agenda` |
+| **dingtalk** | 钉钉 CLI — 钉钉全套产品能力的跨平台命令行工具，支持人类和 AI Agent 使用 | `opencli dingtalk msg send --to user "hello"` |
+| **wecom** | 企业微信 CLI — 企业微信开放平台命令行工具，支持人类和 AI Agent 使用 | `opencli wecom msg send --to user "hello"` |
 | **vercel** | Vercel — 部署项目、管理域名、环境变量、日志 | `opencli vercel deploy --prod` |
 
 **零配置透传**：OpenCLI 会把你的输入原样转发给底层二进制，保留原生 stdout / stderr 行为。
