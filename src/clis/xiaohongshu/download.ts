@@ -11,14 +11,7 @@
 import { cli, Strategy } from '../../registry.js';
 import { formatCookieHeader } from '../../download/index.js';
 import { downloadMedia } from '../../download/media-download.js';
-
-/**
- * Extract a bare note ID from a URL or return the input as-is.
- */
-function extractNoteId(input: string): string {
-  const match = input.match(/\/(?:explore|discovery\/item|search_result)\/([0-9a-f]{24})/i);
-  return match ? match[1] : input;
-}
+import { buildNoteUrl, parseNoteId } from './note-helpers.js';
 
 cli({
   site: 'xiaohongshu',
@@ -32,15 +25,11 @@ cli({
   ],
   columns: ['index', 'type', 'status', 'size'],
   func: async (page, kwargs) => {
-    const rawInput = kwargs['note-id'];
+    const rawInput = String(kwargs['note-id']);
     const output = kwargs.output;
-    const noteId = extractNoteId(rawInput);
+    const noteId = parseNoteId(rawInput);
 
-    // Support full URL / short link; fall back to constructing explore URL
-    const targetUrl = rawInput.startsWith('http')
-      ? rawInput
-      : `https://www.xiaohongshu.com/explore/${noteId}`;
-    await page.goto(targetUrl);
+    await page.goto(buildNoteUrl(rawInput));
 
     // Extract note info and media URLs
     const data = await page.evaluate(`
@@ -51,6 +40,18 @@ cli({
           author: '',
           media: []
         };
+        const seenMedia = new Set();
+        const pushMedia = (type, url) => {
+          if (!url) return;
+          const key = type + ':' + url;
+          if (seenMedia.has(key)) return;
+          seenMedia.add(key);
+          result.media.push({ type, url });
+        };
+        const locationMatch = (location.pathname || '').match(/\\/(?:explore|note|search_result|discovery\\/item)\\/([a-f0-9]+)/i);
+        if (locationMatch) {
+          result.noteId = locationMatch[1];
+        }
 
         // Get title
         const titleEl = document.querySelector('.title, #detail-title, .note-content .title');
@@ -97,11 +98,11 @@ cli({
                 const vUrl = video.url || video.originVideoKey || video.consumer?.originVideoKey;
                 if (vUrl) {
                   const fullUrl = vUrl.startsWith('http') ? vUrl : 'https://sns-video-bd.xhscdn.com/' + vUrl;
-                  result.media.push({ type: 'video', url: fullUrl });
+                  pushMedia('video', fullUrl);
                 }
                 const streams = video.media?.stream?.h264 || [];
                 for (const stream of streams) {
-                  if (stream.masterUrl) result.media.push({ type: 'video', url: stream.masterUrl });
+                  if (stream.masterUrl) pushMedia('video', stream.masterUrl);
                 }
               }
             }
@@ -118,7 +119,7 @@ cli({
                 || text.match(/https?:\\/\\/[^"'\\s]*xhscdn[^"'\\s]*\\.mp4[^"'\\s]*/g);
               if (videoMatches) {
                 videoMatches.forEach(url => {
-                  result.media.push({ type: 'video', url: url.replace(/\\\\u002F/g, '/') });
+                  pushMedia('video', url.replace(/\\\\u002F/g, '/'));
                 });
               }
             }
@@ -137,7 +138,7 @@ cli({
             document.querySelectorAll(selector).forEach(v => {
               const src = v.src || v.getAttribute('src') || '';
               if (src && !src.startsWith('blob:')) {
-                result.media.push({ type: 'video', url: src });
+                pushMedia('video', src);
               }
             });
           }
@@ -145,7 +146,7 @@ cli({
 
         // Add images to media
         imageUrls.forEach(url => {
-          result.media.push({ type: 'image', url: url });
+          pushMedia('image', url);
         });
 
         return result;
@@ -158,12 +159,15 @@ cli({
 
     // Extract cookies for authenticated downloads
     const cookies = formatCookieHeader(await page.getCookies({ domain: 'xiaohongshu.com' }));
+    const resolvedNoteId = typeof data.noteId === 'string' && data.noteId.trim()
+      ? data.noteId.trim()
+      : noteId;
 
     return downloadMedia(data.media, {
       output,
-      subdir: noteId,
+      subdir: resolvedNoteId,
       cookies,
-      filenamePrefix: noteId,
+      filenamePrefix: resolvedNoteId,
       timeout: 60000,
     });
   },
