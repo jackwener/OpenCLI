@@ -16,7 +16,7 @@ if (process.platform !== 'win32') {
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { discoverClis, discoverPlugins } from './discovery.js';
+import { discoverClis, discoverPlugins, ensureUserCliCompatShims, USER_CLIS_DIR } from './discovery.js';
 import { getCompletions } from './completion.js';
 import { runCli } from './cli.js';
 import { emitHook } from './hooks.js';
@@ -29,9 +29,10 @@ installNodeNetwork();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const BUILTIN_CLIS = path.resolve(__dirname, 'clis');
-const USER_CLIS = path.join(os.homedir(), '.opencli', 'clis');
+const USER_CLIS = USER_CLIS_DIR;
 
 // Sequential: plugins must run after built-in discovery so they can override built-in commands.
+await ensureUserCliCompatShims();
 await discoverClis(BUILTIN_CLIS, USER_CLIS);
 await discoverPlugins();
 

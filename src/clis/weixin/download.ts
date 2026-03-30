@@ -111,6 +111,37 @@ export function extractWechatPublishTime(
 }
 
 /**
+ * Detect WeChat anti-bot / verification gate pages before we try to parse the article.
+ */
+export function detectWechatAccessIssue(
+  pageText: string | null | undefined,
+  htmlStr: string,
+): string {
+  const normalizedText = (pageText || '').replace(/\s+/g, ' ').trim();
+
+  if (
+    /环境异常/.test(normalizedText) &&
+    /(完成验证后即可继续访问|去验证)/.test(normalizedText)
+  ) {
+    return 'environment verification required';
+  }
+
+  if (/secitptpage\/verify\.html/.test(htmlStr) || /id=["']js_verify["']/.test(htmlStr)) {
+    return 'environment verification required';
+  }
+
+  return '';
+}
+
+export function pickFirstWechatMetaText(...candidates: Array<string | null | undefined>): string {
+  for (const candidate of candidates) {
+    const normalized = (candidate || '').replace(/\s+/g, ' ').trim();
+    if (normalized && normalized !== 'Name cleared') return normalized;
+  }
+  return '';
+}
+
+/**
  * Build a self-contained helper for execution inside page.evaluate().
  */
 export function buildExtractWechatPublishTimeJs(): string {
@@ -161,6 +192,31 @@ export function buildExtractWechatPublishTimeJs(): string {
   }.toString()})`;
 }
 
+/**
+ * Build a self-contained access-issue detector for execution inside page.evaluate().
+ */
+export function buildDetectWechatAccessIssueJs(): string {
+  return `(${function detectWechatAccessIssueInPage(
+    pageText: string | null | undefined,
+    htmlStr: string,
+  ) {
+    const normalizedText = (pageText || '').replace(/\s+/g, ' ').trim();
+
+    if (
+      /环境异常/.test(normalizedText) &&
+      /(完成验证后即可继续访问|去验证)/.test(normalizedText)
+    ) {
+      return 'environment verification required';
+    }
+
+    if (/secitptpage\/verify\.html/.test(htmlStr) || /id=["']js_verify["']/.test(htmlStr)) {
+      return 'environment verification required';
+    }
+
+    return '';
+  }.toString()})`;
+}
+
 // ============================================================
 // CLI Registration
 // ============================================================
@@ -196,18 +252,34 @@ cli({
           title: '',
           author: '',
           publishTime: '',
+          errorHint: '',
           contentHtml: '',
           codeBlocks: [],
           imageUrls: []
         };
 
-        // Title: #activity-name
-        const titleEl = document.querySelector('#activity-name');
-        result.title = titleEl ? titleEl.textContent.trim() : '';
+        const pickFirstText = (...selectors) => {
+          for (const selector of selectors) {
+            const text = document.querySelector(selector)?.textContent?.replace(/\\s+/g, ' ').trim() || '';
+            if (text && text !== 'Name cleared') return text;
+          }
+          return '';
+        };
 
-        // Author (WeChat Official Account name): #js_name
-        const authorEl = document.querySelector('#js_name');
-        result.author = authorEl ? authorEl.textContent.trim() : '';
+        // WeChat has multiple article templates. Newer pages use #js_text_title.
+        result.title = pickFirstText(
+          '#activity-name',
+          '#js_text_title',
+          '.rich_media_title',
+        );
+
+        result.author = pickFirstText(
+          '#js_name',
+          '.wx_follow_nickname',
+          '#profileBt .profile_nickname',
+          '.rich_media_meta.rich_media_meta_nickname',
+          '.rich_media_meta_nickname',
+        );
 
         // Publish time: prefer the rendered DOM text, then fall back to numeric create_time values.
         const publishTimeEl = document.querySelector('#publish_time');
@@ -216,6 +288,13 @@ cli({
           publishTimeEl ? publishTimeEl.textContent : '',
           document.documentElement.innerHTML,
         );
+
+        const detectWechatAccessIssue = ${buildDetectWechatAccessIssueJs()};
+        result.errorHint = detectWechatAccessIssue(
+          document.body ? document.body.innerText : '',
+          document.documentElement.innerHTML,
+        );
+        if (result.errorHint) return result;
 
         // Content processing
         const contentEl = document.querySelector('#js_content');
@@ -267,6 +346,16 @@ cli({
         return result;
       })()
     `);
+
+    if (data?.errorHint === 'environment verification required') {
+      return [{
+        title: 'Error',
+        author: '-',
+        publish_time: '-',
+        status: 'failed — verification required in WeChat browser page',
+        size: '-',
+      }];
+    }
 
     return downloadArticle(
       {

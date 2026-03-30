@@ -61,4 +61,31 @@ describe('weixin publish time extraction', () => {
       'var create_time = "1711291080";',
     )).toBe('2026年3月24日 22:38');
   });
+
+  it('detects WeChat verification gate pages', async () => {
+    const mod = await loadModule();
+
+    expect(mod.detectWechatAccessIssue(
+      '环境异常 当前环境异常，完成验证后即可继续访问。 去验证',
+      '<html><body><a id="js_verify">去验证</a></body></html>',
+    )).toBe('environment verification required');
+  });
+
+  it('browser access detector matches the server-side verifier', async () => {
+    const mod = await loadModule();
+
+    const detectInPage = eval(mod.buildDetectWechatAccessIssueJs()) as (pageText: string, htmlStr: string) => string;
+
+    expect(detectInPage(
+      '环境异常 当前环境异常，完成验证后即可继续访问。 去验证',
+      '<html>secitptpage/verify.html<a id="js_verify">去验证</a></html>',
+    )).toBe('environment verification required');
+  });
+
+  it('picks the first non-empty WeChat metadata field', async () => {
+    const mod = await loadModule();
+
+    expect(mod.pickFirstWechatMetaText('', 'Name cleared', '数字生命卡兹克')).toBe('数字生命卡兹克');
+    expect(mod.pickFirstWechatMetaText('', '  聊聊刚刚上线的PixVerse V6视频模型。  ')).toBe('聊聊刚刚上线的PixVerse V6视频模型。');
+  });
 });

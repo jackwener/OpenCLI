@@ -11,15 +11,19 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
 import { type CliCommand, type InternalCliCommand, type Arg, Strategy, registerCommand } from './registry.js';
 import { getErrorMessage } from './errors.js';
 import { log } from './logger.js';
 import type { ManifestEntry } from './build-manifest.js';
 
+/** User runtime directory: ~/.opencli */
+export const USER_OPENCLI_DIR = path.join(os.homedir(), '.opencli');
+/** User CLIs directory: ~/.opencli/clis */
+export const USER_CLIS_DIR = path.join(USER_OPENCLI_DIR, 'clis');
 /** Plugins directory: ~/.opencli/plugins/ */
-export const PLUGINS_DIR = path.join(os.homedir(), '.opencli', 'plugins');
+export const PLUGINS_DIR = path.join(USER_OPENCLI_DIR, 'plugins');
 /** Matches files that register commands via cli() or lifecycle hooks */
 const PLUGIN_MODULE_PATTERN = /\b(?:cli|onStartup|onBeforeExecute|onAfterExecute)\s*\(/;
 
@@ -32,6 +36,47 @@ function parseStrategy(rawStrategy: string | undefined, fallback: Strategy = Str
 }
 
 import { isRecord } from './utils.js';
+
+function resolveHostRuntimeModulePath(moduleName: string): string {
+  const runtimeDir = path.dirname(fileURLToPath(import.meta.url));
+  for (const ext of ['.js', '.ts']) {
+    const candidate = path.join(runtimeDir, `${moduleName}${ext}`);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return path.join(runtimeDir, `${moduleName}.js`);
+}
+
+async function writeCompatShimIfNeeded(filePath: string, content: string): Promise<void> {
+  try {
+    const existing = await fs.promises.readFile(filePath, 'utf-8');
+    if (existing === content) return;
+  } catch {
+    // Fall through to write missing shim
+  }
+  await fs.promises.writeFile(filePath, content, 'utf-8');
+}
+
+/**
+ * Create runtime shim files under ~/.opencli so legacy user TS CLIs can keep
+ * importing ../../registry(.js) and ../../errors(.js).
+ */
+export async function ensureUserCliCompatShims(baseDir: string = USER_OPENCLI_DIR): Promise<void> {
+  await fs.promises.mkdir(baseDir, { recursive: true });
+
+  const registryUrl = pathToFileURL(resolveHostRuntimeModulePath('registry-api')).href;
+  const errorsUrl = pathToFileURL(resolveHostRuntimeModulePath('errors')).href;
+
+  await Promise.all([
+    writeCompatShimIfNeeded(path.join(baseDir, 'registry'), `export * from '${registryUrl}';\n`),
+    writeCompatShimIfNeeded(path.join(baseDir, 'registry.js'), `export * from '${registryUrl}';\n`),
+    writeCompatShimIfNeeded(path.join(baseDir, 'errors'), `export * from '${errorsUrl}';\n`),
+    writeCompatShimIfNeeded(path.join(baseDir, 'errors.js'), `export * from '${errorsUrl}';\n`),
+    writeCompatShimIfNeeded(
+      path.join(baseDir, 'package.json'),
+      `${JSON.stringify({ name: 'opencli-user-runtime', private: true, type: 'module' }, null, 2)}\n`,
+    ),
+  ]);
+}
 
 /**
  * Discover and register CLI commands.
