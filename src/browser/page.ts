@@ -108,7 +108,17 @@ export class Page implements IPage {
   }
 
   async getCurrentUrl(): Promise<string | null> {
-    return this._lastUrl;
+    if (this._lastUrl) return this._lastUrl;
+    try {
+      const current = await this.evaluate('window.location.href');
+      if (typeof current === 'string' && current) {
+        this._lastUrl = current;
+        return current;
+      }
+    } catch {
+      // Best-effort: some commands may run before a debuggable tab is ready.
+    }
+    return null;
   }
 
   /** Close the automation window in the extension */
@@ -122,7 +132,13 @@ export class Page implements IPage {
 
   async evaluate(js: string): Promise<unknown> {
     const code = wrapForEval(js);
-    return sendCommand('exec', { code, ...this._cmdOpts() });
+    try {
+      return await sendCommand('exec', { code, ...this._cmdOpts() });
+    } catch (err) {
+      if (!isRetryableSettleError(err)) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return sendCommand('exec', { code, ...this._cmdOpts() });
+    }
   }
 
   async getCookies(opts: { domain?: string; url?: string } = {}): Promise<BrowserCookie[]> {

@@ -39,6 +39,7 @@ export function serializeCommand(cmd: CliCommand) {
     command: fullName(cmd),
     site: cmd.site,
     name: cmd.name,
+    aliases: cmd.aliases ?? [],
     description: cmd.description,
     strategy: strategyLabel(cmd),
     browser: !!cmd.browser,
@@ -82,6 +83,7 @@ export function formatRegistryHelpText(cmd: CliCommand): string {
   if (cmd.domain) meta.push(`Domain: ${cmd.domain}`);
   if (cmd.deprecated) meta.push(`Deprecated: ${typeof cmd.deprecated === 'string' ? cmd.deprecated : 'yes'}`);
   if (cmd.replacedBy) meta.push(`Use instead: ${cmd.replacedBy}`);
+  if (cmd.aliases?.length) meta.push(`Aliases: ${cmd.aliases.join(', ')}`);
   lines.push(meta.join(' | '));
   if (cmd.columns?.length) lines.push(`Output columns: ${cmd.columns.join(', ')}`);
   return '\n' + lines.join('\n') + '\n';

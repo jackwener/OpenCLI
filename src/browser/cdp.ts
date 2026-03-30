@@ -326,7 +326,17 @@ class CDPPage implements IPage {
   }
 
   async getCurrentUrl(): Promise<string | null> {
-    return this._lastUrl;
+    if (this._lastUrl) return this._lastUrl;
+    try {
+      const current = await this.evaluate('window.location.href');
+      if (typeof current === 'string' && current) {
+        this._lastUrl = current;
+        return current;
+      }
+    } catch {
+      // Best-effort: direct CDP sessions may not have a ready page yet.
+    }
+    return null;
   }
 
   async installInterceptor(pattern: string): Promise<void> {

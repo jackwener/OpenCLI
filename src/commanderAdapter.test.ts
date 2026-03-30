@@ -123,3 +123,33 @@ describe('commanderAdapter boolean alias support', () => {
     expect(kwargs.undo).toBe(false);
   });
 });
+
+describe('commanderAdapter command aliases', () => {
+  const cmd: CliCommand = {
+    site: 'notebooklm',
+    name: 'get',
+    aliases: ['metadata'],
+    description: 'Get notebook metadata',
+    browser: false,
+    args: [],
+    func: vi.fn(),
+  };
+
+  beforeEach(() => {
+    mockExecuteCommand.mockReset();
+    mockExecuteCommand.mockResolvedValue([]);
+    mockRenderOutput.mockReset();
+    delete process.env.OPENCLI_VERBOSE;
+    process.exitCode = undefined;
+  });
+
+  it('registers aliases with Commander so compatibility names execute the same command', async () => {
+    const program = new Command();
+    const siteCmd = program.command('notebooklm');
+    registerCommandToProgram(siteCmd, cmd);
+
+    await program.parseAsync(['node', 'opencli', 'notebooklm', 'metadata']);
+
+    expect(mockExecuteCommand).toHaveBeenCalledWith(cmd, {}, false);
+  });
+});

@@ -113,6 +113,7 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
         const cmd: CliCommand = {
           site: entry.site,
           name: entry.name,
+          aliases: entry.aliases,
           description: entry.description ?? '',
           domain: entry.domain,
           strategy,
@@ -135,6 +136,7 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
         const cmd: InternalCliCommand = {
           site: entry.site,
           name: entry.name,
+          aliases: entry.aliases,
           description: entry.description ?? '',
           domain: entry.domain,
           strategy,
@@ -208,6 +210,9 @@ async function registerYamlCli(filePath: string, defaultSite: string): Promise<v
     const cmd: CliCommand = {
       site,
       name,
+      aliases: isRecord(cliDef) && Array.isArray((cliDef as Record<string, unknown>).aliases)
+        ? ((cliDef as Record<string, unknown>).aliases as unknown[]).filter((value): value is string => typeof value === 'string')
+        : undefined,
       description: cliDef.description ?? '',
       domain: cliDef.domain,
       strategy,

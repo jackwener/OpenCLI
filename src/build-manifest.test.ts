@@ -84,6 +84,7 @@ describe('manifest helper rules', () => {
         description: 'dynamic command',
         strategy: Strategy.PUBLIC,
         browser: false,
+        aliases: ['metadata'],
         args: [
           {
             name: 'model',
@@ -109,6 +110,7 @@ describe('manifest helper rules', () => {
         domain: 'localhost',
         strategy: 'public',
         browser: false,
+        aliases: ['metadata'],
         args: [
           {
             name: 'model',

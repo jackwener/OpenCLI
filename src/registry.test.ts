@@ -60,6 +60,21 @@ describe('cli() registration', () => {
     const reg = getRegistry();
     expect(reg.get('test-registry/overwrite')?.description).toBe('v2');
   });
+
+  it('registers aliases as alternate registry keys for the same command', () => {
+    const cmd = cli({
+      site: 'test-registry',
+      name: 'canonical',
+      description: 'test aliases',
+      aliases: ['compat', 'legacy-name'],
+    });
+
+    const registry = getRegistry();
+    expect(cmd.aliases).toEqual(['compat', 'legacy-name']);
+    expect(registry.get('test-registry/canonical')).toBe(cmd);
+    expect(registry.get('test-registry/compat')).toBe(cmd);
+    expect(registry.get('test-registry/legacy-name')).toBe(cmd);
+  });
 });
 
 describe('fullName', () => {

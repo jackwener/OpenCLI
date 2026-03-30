@@ -57,9 +57,10 @@ export function getCompletions(words: string[], cursor: number): string[] {
     for (const [, cmd] of getRegistry()) {
       if (cmd.site === site) {
         subcommands.push(cmd.name);
+        if (cmd.aliases?.length) subcommands.push(...cmd.aliases);
       }
     }
-    return subcommands.sort();
+    return [...new Set(subcommands)].sort();
   }
 
   // cursor >= 3 → no further completion

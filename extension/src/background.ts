@@ -117,6 +117,8 @@ type AutomationSession = {
   windowId: number;
   idleTimer: ReturnType<typeof setTimeout> | null;
   idleDeadlineAt: number;
+  owned: boolean;
+  preferredTabId: number | null;
 };
 
 const automationSessions = new Map<string, AutomationSession>();
@@ -134,6 +136,11 @@ function resetWindowIdleTimer(workspace: string): void {
   session.idleTimer = setTimeout(async () => {
     const current = automationSessions.get(workspace);
     if (!current) return;
+    if (!current.owned) {
+      console.log(`[opencli] Borrowed workspace ${workspace} detached from window ${current.windowId} (idle timeout)`);
+      automationSessions.delete(workspace);
+      return;
+    }
     try {
       await chrome.windows.remove(current.windowId);
       console.log(`[opencli] Automation window ${current.windowId} (${workspace}) closed (idle timeout)`);
@@ -173,6 +180,8 @@ async function getAutomationWindow(workspace: string): Promise<number> {
     windowId: win.id!,
     idleTimer: null,
     idleDeadlineAt: Date.now() + WINDOW_IDLE_TIMEOUT,
+    owned: true,
+    preferredTabId: null,
   };
   automationSessions.set(workspace, session);
   console.log(`[opencli] Created automation window ${session.windowId} (${workspace})`);
@@ -254,6 +263,8 @@ async function handleCommand(cmd: Command): Promise<Result> {
         return await handleSessions(cmd);
       case 'set-file-input':
         return await handleSetFileInput(cmd, workspace);
+      case 'bind-current':
+        return await handleBindCurrent(cmd, workspace);
       default:
         return { id: cmd.id, ok: false, error: `Unknown action: ${cmd.action}` };
     }
@@ -301,6 +312,89 @@ function isTargetUrl(currentUrl: string | undefined, targetUrl: string): boolean
   return normalizeUrlForComparison(currentUrl) === normalizeUrlForComparison(targetUrl);
 }
 
+function matchesDomain(url: string | undefined, domain: string): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`);
+  } catch {
+    return false;
+  }
+}
+
+function matchesBindCriteria(tab: chrome.tabs.Tab, cmd: Command): boolean {
+  if (!tab.id || !isDebuggableUrl(tab.url)) return false;
+  if (cmd.matchDomain && !matchesDomain(tab.url, cmd.matchDomain)) return false;
+  if (cmd.matchPathPrefix) {
+    try {
+      const parsed = new URL(tab.url!);
+      if (!parsed.pathname.startsWith(cmd.matchPathPrefix)) return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isNotebooklmWorkspace(workspace: string): boolean {
+  return workspace === 'site:notebooklm';
+}
+
+function classifyNotebooklmUrl(url?: string): 'notebook' | 'home' | 'other' {
+  if (!url) return 'other';
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname !== 'notebooklm.google.com') return 'other';
+    return parsed.pathname.startsWith('/notebook/') ? 'notebook' : 'home';
+  } catch {
+    return 'other';
+  }
+}
+
+function scoreWorkspaceTab(workspace: string, tab: chrome.tabs.Tab): number {
+  if (!tab.id || !isDebuggableUrl(tab.url)) return -1;
+  if (isNotebooklmWorkspace(workspace)) {
+    const kind = classifyNotebooklmUrl(tab.url);
+    if (kind === 'other') return -1;
+    if (kind === 'notebook') return tab.active ? 400 : 300;
+    return tab.active ? 200 : 100;
+  }
+  return -1;
+}
+
+function setWorkspaceSession(workspace: string, session: Omit<AutomationSession, 'idleTimer' | 'idleDeadlineAt'>): void {
+  const existing = automationSessions.get(workspace);
+  if (existing?.idleTimer) clearTimeout(existing.idleTimer);
+  automationSessions.set(workspace, {
+    ...session,
+    idleTimer: null,
+    idleDeadlineAt: Date.now() + WINDOW_IDLE_TIMEOUT,
+  });
+}
+
+async function maybeBindWorkspaceToExistingTab(workspace: string): Promise<number | null> {
+  if (!isNotebooklmWorkspace(workspace)) return null;
+  const tabs = await chrome.tabs.query({});
+  let bestTab: chrome.tabs.Tab | null = null;
+  let bestScore = -1;
+  for (const tab of tabs) {
+    const score = scoreWorkspaceTab(workspace, tab);
+    if (score > bestScore) {
+      bestScore = score;
+      bestTab = tab;
+    }
+  }
+  if (!bestTab?.id || bestScore < 0) return null;
+  setWorkspaceSession(workspace, {
+    windowId: bestTab.windowId,
+    owned: false,
+    preferredTabId: bestTab.id,
+  });
+  console.log(`[opencli] Workspace ${workspace} bound to existing tab ${bestTab.id} in window ${bestTab.windowId}`);
+  resetWindowIdleTimer(workspace);
+  return bestTab.id;
+}
+
 /**
  * Resolve target tab in the automation window.
  * If explicit tabId is given, use that directly.
@@ -314,9 +408,12 @@ async function resolveTabId(tabId: number | undefined, workspace: string): Promi
     try {
       const tab = await chrome.tabs.get(tabId);
       const session = automationSessions.get(workspace);
-      if (isDebuggableUrl(tab.url) && session && tab.windowId === session.windowId) return tabId;
-      if (session && tab.windowId !== session.windowId) {
-        console.warn(`[opencli] Tab ${tabId} belongs to window ${tab.windowId}, not automation window ${session.windowId}, re-resolving`);
+      const matchesSession = session
+        ? (session.preferredTabId !== null ? session.preferredTabId === tabId : tab.windowId === session.windowId)
+        : false;
+      if (isDebuggableUrl(tab.url) && matchesSession) return tabId;
+      if (session && !matchesSession) {
+        console.warn(`[opencli] Tab ${tabId} is not bound to workspace ${workspace}, re-resolving`);
       } else if (!isDebuggableUrl(tab.url)) {
         // Tab exists but URL is not debuggable — fall through to auto-resolve
         console.warn(`[opencli] Tab ${tabId} URL is not debuggable (${tab.url}), re-resolving`);
@@ -324,6 +421,19 @@ async function resolveTabId(tabId: number | undefined, workspace: string): Promi
     } catch {
       // Tab was closed — fall through to auto-resolve
       console.warn(`[opencli] Tab ${tabId} no longer exists, re-resolving`);
+    }
+  }
+
+  const adoptedTabId = await maybeBindWorkspaceToExistingTab(workspace);
+  if (adoptedTabId !== null) return adoptedTabId;
+
+  const existingSession = automationSessions.get(workspace);
+  if (existingSession?.preferredTabId !== null) {
+    try {
+      const preferredTab = await chrome.tabs.get(existingSession.preferredTabId);
+      if (isDebuggableUrl(preferredTab.url)) return preferredTab.id!;
+    } catch {
+      automationSessions.delete(workspace);
     }
   }
 
@@ -359,6 +469,14 @@ async function resolveTabId(tabId: number | undefined, workspace: string): Promi
 async function listAutomationTabs(workspace: string): Promise<chrome.tabs.Tab[]> {
   const session = automationSessions.get(workspace);
   if (!session) return [];
+  if (session.preferredTabId !== null) {
+    try {
+      return [await chrome.tabs.get(session.preferredTabId)];
+    } catch {
+      automationSessions.delete(workspace);
+      return [];
+    }
+  }
   try {
     return await chrome.tabs.query({ windowId: session.windowId });
   } catch {
@@ -570,10 +688,12 @@ async function handleScreenshot(cmd: Command, workspace: string): Promise<Result
 async function handleCloseWindow(cmd: Command, workspace: string): Promise<Result> {
   const session = automationSessions.get(workspace);
   if (session) {
-    try {
-      await chrome.windows.remove(session.windowId);
-    } catch {
-      // Window may already be closed
+    if (session.owned) {
+      try {
+        await chrome.windows.remove(session.windowId);
+      } catch {
+        // Window may already be closed
+      }
     }
     if (session.idleTimer) clearTimeout(session.idleTimer);
     automationSessions.delete(workspace);
@@ -605,11 +725,52 @@ async function handleSessions(cmd: Command): Promise<Result> {
   return { id: cmd.id, ok: true, data };
 }
 
+async function handleBindCurrent(cmd: Command, workspace: string): Promise<Result> {
+  const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const fallbackTabs = await chrome.tabs.query({ lastFocusedWindow: true });
+  const allTabs = await chrome.tabs.query({});
+  const boundTab = activeTabs.find((tab) => matchesBindCriteria(tab, cmd))
+    ?? fallbackTabs.find((tab) => matchesBindCriteria(tab, cmd))
+    ?? allTabs.find((tab) => matchesBindCriteria(tab, cmd));
+  if (!boundTab?.id) {
+    return {
+      id: cmd.id,
+      ok: false,
+      error: cmd.matchDomain || cmd.matchPathPrefix
+        ? `No visible tab matching ${cmd.matchDomain ?? 'domain'}${cmd.matchPathPrefix ? ` ${cmd.matchPathPrefix}` : ''}`
+        : 'No active debuggable tab found',
+    };
+  }
+
+  setWorkspaceSession(workspace, {
+    windowId: boundTab.windowId,
+    owned: false,
+    preferredTabId: boundTab.id,
+  });
+  resetWindowIdleTimer(workspace);
+  console.log(`[opencli] Workspace ${workspace} explicitly bound to tab ${boundTab.id} (${boundTab.url})`);
+  return {
+    id: cmd.id,
+    ok: true,
+    data: {
+      tabId: boundTab.id,
+      windowId: boundTab.windowId,
+      url: boundTab.url,
+      title: boundTab.title,
+      workspace,
+    },
+  };
+}
+
 export const __test__ = {
   handleNavigate,
   isTargetUrl,
   handleTabs,
   handleSessions,
+  handleBindCurrent,
+  resolveTabId,
+  resetWindowIdleTimer,
+  getSession: (workspace: string = 'default') => automationSessions.get(workspace) ?? null,
   getAutomationWindowId: (workspace: string = 'default') => automationSessions.get(workspace)?.windowId ?? null,
   setAutomationWindowId: (workspace: string, windowId: number | null) => {
     if (windowId === null) {
@@ -618,10 +779,13 @@ export const __test__ = {
       automationSessions.delete(workspace);
       return;
     }
-    automationSessions.set(workspace, {
+    setWorkspaceSession(workspace, {
       windowId,
-      idleTimer: null,
-      idleDeadlineAt: Date.now() + WINDOW_IDLE_TIMEOUT,
+      owned: true,
+      preferredTabId: null,
     });
+  },
+  setSession: (workspace: string, session: { windowId: number; owned: boolean; preferredTabId: number | null }) => {
+    setWorkspaceSession(workspace, session);
   },
 };
