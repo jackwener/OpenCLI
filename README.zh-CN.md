@@ -207,6 +207,15 @@ OpenCLI 也可以作为你现有命令行工具的统一入口，负责发现、
 opencli register mycli
 ```
 
+**隔离安装与版本切换**：把外部 CLI 安装到 `~/.opencli/opt`，不污染全局环境：
+
+```bash
+opencli install vercel --isolated
+opencli install vercel --isolated --version 43.1.0
+opencli switch vercel 43.1.0
+opencli uninstall vercel --version 43.1.0
+```
+
 ### 桌面应用适配器
 
 每个桌面适配器都有自己详细的文档说明，包括命令参考、启动配置与使用示例：

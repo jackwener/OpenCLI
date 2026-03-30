@@ -143,6 +143,15 @@ OpenCLI acts as a universal hub for your existing command-line tools — unified
 opencli register mycli
 ```
 
+**Versioned isolated installs** — keep external CLIs under `~/.opencli/opt` without mutating the global environment:
+
+```bash
+opencli install vercel --isolated
+opencli install vercel --isolated --version 43.1.0
+opencli switch vercel 43.1.0
+opencli uninstall vercel --version 43.1.0
+```
+
 ### Desktop App Adapters
 
 Control Electron desktop apps directly from the terminal. Each adapter has its own detailed documentation:

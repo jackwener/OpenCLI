@@ -1,8 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockExecFileSync, mockPlatform } = vi.hoisted(() => ({
+const { mockExecFileSync, mockPlatform, mockHomedir } = vi.hoisted(() => ({
   mockExecFileSync: vi.fn(),
   mockPlatform: vi.fn(() => 'darwin'),
+  mockHomedir: vi.fn(() => '/tmp'),
 }));
 
 vi.mock('node:child_process', () => ({
@@ -15,6 +19,7 @@ vi.mock('node:os', async () => {
   return {
     ...actual,
     platform: mockPlatform,
+    homedir: mockHomedir,
   };
 });
 
@@ -56,6 +61,12 @@ describe('installExternalCli', () => {
   beforeEach(() => {
     mockExecFileSync.mockReset();
     mockPlatform.mockReturnValue('darwin');
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-external-test-'));
+    mockHomedir.mockReturnValue(tempHome);
+  });
+
+  afterEach(() => {
+    fs.rmSync(mockHomedir(), { recursive: true, force: true });
   });
 
   it('retries with .cmd on Windows when the bare binary is unavailable', () => {
@@ -93,5 +104,36 @@ describe('installExternalCli', () => {
 
     expect(installExternalCli(cli)).toBe(false);
     expect(mockExecFileSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the real package spec when isolated install rewrites npm commands', () => {
+    const larkCli: ExternalCliConfig = {
+      name: 'lark-cli',
+      binary: 'lark-cli',
+      install: {
+        default: 'npm install -g @larksuite/cli',
+      },
+    };
+
+    expect(installExternalCli(larkCli, { isolated: true, version: '1.2.3' })).toBe(true);
+    expect(mockExecFileSync).toHaveBeenCalledWith(
+      'npm',
+      ['install', '@larksuite/cli@1.2.3', '--prefix', expect.stringContaining(path.join('.opencli', 'opt', 'lark-cli', '1.2.3'))],
+      { stdio: 'inherit' },
+    );
+  });
+
+  it('rejects isolated install for unsupported package managers instead of creating fake isolated state', () => {
+    const ghCli: ExternalCliConfig = {
+      name: 'gh',
+      binary: 'gh',
+      install: {
+        mac: 'brew install gh',
+      },
+    };
+
+    expect(installExternalCli(ghCli, { isolated: true })).toBe(false);
+    expect(mockExecFileSync).not.toHaveBeenCalled();
+    expect(fs.existsSync(path.join(mockHomedir(), '.opencli', 'external.lock.json'))).toBe(false);
   });
 });

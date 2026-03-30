@@ -179,6 +179,62 @@ export interface InstallOptions {
   isolated?: boolean;
 }
 
+function joinPackageSpecWithVersion(pkgSpec: string, version: string): string {
+  if (version === 'latest') return pkgSpec;
+  if (pkgSpec.startsWith('@')) {
+    const slashIndex = pkgSpec.indexOf('/');
+    const versionIndex = pkgSpec.lastIndexOf('@');
+    if (slashIndex !== -1 && versionIndex > slashIndex) {
+      return `${pkgSpec.slice(0, versionIndex)}@${version}`;
+    }
+    return `${pkgSpec}@${version}`;
+  }
+  const versionIndex = pkgSpec.lastIndexOf('@');
+  if (versionIndex > 0) {
+    return `${pkgSpec.slice(0, versionIndex)}@${version}`;
+  }
+  return `${pkgSpec}@${version}`;
+}
+
+function buildIsolatedInstallCommand(cmd: string, installPath: string, version: string): string {
+  const { binary, args } = parseCommand(cmd);
+
+  if (binary === 'npm' && args[0] === 'install') {
+    const packageSpecs = args.slice(1).filter(arg => arg !== '-g' && arg !== '--global');
+    if (packageSpecs.length !== 1) {
+      throw new Error(
+        `Isolated installation only supports a single npm package spec. Original command: "${cmd}".`,
+      );
+    }
+    const pkgSpec = joinPackageSpecWithVersion(packageSpecs[0], version);
+    return `npm install ${pkgSpec} --prefix "${installPath}"`;
+  }
+
+  if (binary === 'yarn') {
+    let packageSpecs: string[] = [];
+    if (args[0] === 'add') {
+      packageSpecs = args.slice(1);
+    } else if (args[0] === 'global' && args[1] === 'add') {
+      packageSpecs = args.slice(2);
+    }
+
+    if (packageSpecs.length > 0) {
+      if (packageSpecs.length !== 1) {
+        throw new Error(
+          `Isolated installation only supports a single yarn package spec. Original command: "${cmd}".`,
+        );
+      }
+      const pkgSpec = joinPackageSpecWithVersion(packageSpecs[0], version);
+      return `yarn add ${pkgSpec} --cwd "${installPath}"`;
+    }
+  }
+
+  throw new Error(
+    `Isolated installation is only supported for npm/yarn package installs. ` +
+      `Original command: "${cmd}". Please install '${binary}' globally or register a package-manager command.`,
+  );
+}
+
 export function installExternalCli(cli: ExternalCliConfig, opts: InstallOptions = {}): boolean {
   if (!cli.install) {
     console.error(chalk.red(`No auto-install command configured for '${cli.name}'.`));
@@ -230,15 +286,13 @@ export function installExternalCli(cli: ExternalCliConfig, opts: InstallOptions 
     fs.mkdirSync(installPath, { recursive: true });
   }
 
-  // Modify install command for isolated installation
-  let installCmd = cmd;
-  if (cmd.startsWith('npm install ')) {
-    // For npm packages: npm install <pkg>@<version> --prefix <installPath>
-    const pkgSpec = version === 'latest' ? cli.name : `${cli.name}@${version}`;
-    installCmd = `npm install ${pkgSpec} --prefix "${installPath}"`;
-  } else if (cmd.startsWith('yarn add ')) {
-    const pkgSpec = version === 'latest' ? cli.name : `${cli.name}@${version}`;
-    installCmd = `yarn add ${pkgSpec} --cwd "${installPath}"`;
+  let installCmd: string;
+  try {
+    installCmd = buildIsolatedInstallCommand(cmd, installPath, version);
+  } catch (err) {
+    console.error(chalk.red(`❌ Failed to install '${cli.name}' in isolated mode: ${getErrorMessage(err)}`));
+    try { fs.rmSync(installPath, { recursive: true, force: true }); } catch {}
+    return false;
   }
 
   console.log(chalk.dim(`$ ${installCmd}`));
