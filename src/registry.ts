@@ -62,6 +62,8 @@ export interface CliCommand {
    * - `string`: navigate to this specific URL instead of the domain root
    */
   navigateBefore?: boolean | string;
+  /** Render default output in plain minimal mode instead of table. */
+  outputMode?: 'table' | 'plain';
 }
 
 /** Internal extension for lazy-loaded TS modules (not exposed in public API) */
@@ -105,6 +107,7 @@ export function cli(opts: CliOptions): CliCommand {
     deprecated: opts.deprecated,
     replacedBy: opts.replacedBy,
     navigateBefore: opts.navigateBefore,
+    outputMode: opts.outputMode,
   };
 
   registerCommand(cmd);
