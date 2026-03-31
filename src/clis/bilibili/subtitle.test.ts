@@ -38,9 +38,9 @@ describe('bilibili subtitle', () => {
       },
     });
 
-    const result = command!.func!(page, { bvid: 'BV1GbXPBeEZm' });
-    await expect(result).rejects.toThrow(AuthRequiredError);
-    await expect(result).rejects.toThrow(/login|登录/i);
+    await expect(command!.func!(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toSatisfy((err: Error) =>
+      err instanceof AuthRequiredError && /login|登录/i.test(err.message),
+    );
   });
 
   it('throws EmptyResultError when a video truly has no subtitles', async () => {
