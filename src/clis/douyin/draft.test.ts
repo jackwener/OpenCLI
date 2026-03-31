@@ -31,7 +31,7 @@ function getDraftCommand() {
   const registry = getRegistry();
   const cmd = [...registry.values()].find(c => c.site === 'douyin' && c.name === 'draft');
   if (!cmd?.func) throw new Error('douyin draft command not registered');
-  return cmd;
+  return cmd as typeof cmd & { func: NonNullable<typeof cmd.func> };
 }
 
 afterAll(() => {
