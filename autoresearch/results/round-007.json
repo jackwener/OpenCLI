@@ -1,0 +1,488 @@
+{
+  "timestamp": "2026-03-31T10:09:09.542Z",
+  "score": "53/59",
+  "trainScore": "43/49",
+  "testScore": "10/10",
+  "tasks": [
+    {
+      "name": "extract-title-example",
+      "passed": true,
+      "steps": 1,
+      "cost": 0.0037,
+      "duration": 4221,
+      "set": "train"
+    },
+    {
+      "name": "extract-title-iana",
+      "passed": true,
+      "steps": 1,
+      "cost": 0.0102,
+      "duration": 5994,
+      "set": "train"
+    },
+    {
+      "name": "extract-paragraph-wiki-js",
+      "passed": true,
+      "steps": 3,
+      "cost": 0.1712,
+      "duration": 38080,
+      "set": "train"
+    },
+    {
+      "name": "extract-paragraph-wiki-python",
+      "passed": false,
+      "steps": 0,
+      "cost": 0,
+      "error": "unknown failure",
+      "duration": 7,
+      "set": "train"
+    },
+    {
+      "name": "extract-github-stars",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.1814,
+      "duration": 24631,
+      "set": "train"
+    },
+    {
+      "name": "extract-github-description",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.0977,
+      "duration": 14808,
+      "set": "train"
+    },
+    {
+      "name": "extract-github-readme-heading",
+      "passed": true,
+      "steps": 1,
+      "cost": 0.0935,
+      "duration": 11894,
+      "set": "train"
+    },
+    {
+      "name": "extract-npm-downloads",
+      "passed": true,
+      "steps": 1,
+      "cost": 0.0208,
+      "duration": 9348,
+      "set": "train"
+    },
+    {
+      "name": "extract-npm-description",
+      "passed": true,
+      "steps": 1,
+      "cost": 0.0231,
+      "duration": 11407,
+      "set": "train"
+    },
+    {
+      "name": "list-hn-top5",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.1261,
+      "duration": 11742,
+      "set": "train"
+    },
+    {
+      "name": "list-hn-top10",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.0861,
+      "duration": 13039,
+      "set": "train"
+    },
+    {
+      "name": "list-books-5",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.0385,
+      "duration": 10151,
+      "set": "train"
+    },
+    {
+      "name": "list-books-10",
+      "passed": true,
+      "steps": 9,
+      "cost": 0.2157,
+      "duration": 55391,
+      "set": "train"
+    },
+    {
+      "name": "list-quotes-3",
+      "passed": true,
+      "steps": 4,
+      "cost": 0.0426,
+      "duration": 16740,
+      "set": "train"
+    },
+    {
+      "name": "list-quotes-tags",
+      "passed": true,
+      "steps": 1,
+      "cost": 0.0141,
+      "duration": 6350,
+      "set": "train"
+    },
+    {
+      "name": "list-github-trending",
+      "passed": true,
+      "steps": 3,
+      "cost": 0.2996,
+      "duration": 23302,
+      "set": "train"
+    },
+    {
+      "name": "list-github-trending-lang",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.2044,
+      "duration": 42285,
+      "set": "train"
+    },
+    {
+      "name": "list-jsonplaceholder-posts",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.0197,
+      "duration": 10684,
+      "set": "train"
+    },
+    {
+      "name": "list-jsonplaceholder-users",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.0122,
+      "duration": 7617,
+      "set": "train"
+    },
+    {
+      "name": "search-google",
+      "passed": false,
+      "steps": 6,
+      "cost": 0.2632,
+      "error": "Successfully searched for 'opencli github' and extracted the titles of the top 3 search results.",
+      "duration": 49664,
+      "set": "train"
+    },
+    {
+      "name": "search-ddg",
+      "passed": true,
+      "steps": 4,
+      "cost": 0.2783,
+      "duration": 38077,
+      "set": "train"
+    },
+    {
+      "name": "search-ddg-tech",
+      "passed": true,
+      "steps": 5,
+      "cost": 0.3587,
+      "duration": 60080,
+      "set": "train"
+    },
+    {
+      "name": "search-wiki",
+      "passed": true,
+      "steps": 10,
+      "cost": 1.4971,
+      "duration": 94749,
+      "set": "train"
+    },
+    {
+      "name": "search-npm",
+      "passed": true,
+      "steps": 4,
+      "cost": 0.0917,
+      "duration": 33953,
+      "set": "train"
+    },
+    {
+      "name": "search-github",
+      "passed": true,
+      "steps": 8,
+      "cost": 0.3074,
+      "duration": 59222,
+      "set": "train"
+    },
+    {
+      "name": "nav-click-link-example",
+      "passed": false,
+      "steps": 6,
+      "cost": 0.0112,
+      "error": "Failed to complete task - browser automation encountered repeated DOM parsing errors (TypeError: Cannot read properties of null reading 'getAttribute'). The error occurred in the buildTree function du",
+      "duration": 12859,
+      "set": "train"
+    },
+    {
+      "name": "nav-click-hn-first",
+      "passed": false,
+      "steps": 6,
+      "cost": 0.0466,
+      "error": "Task failed due to persistent technical errors. The automation encountered 'TypeError: Cannot read properties of null (reading getAttribute)' when attempting to interact with the Hacker News homepage.",
+      "duration": 13310,
+      "set": "train"
+    },
+    {
+      "name": "nav-click-hn-comments",
+      "passed": true,
+      "steps": 3,
+      "cost": 0.1682,
+      "duration": 17037,
+      "set": "train"
+    },
+    {
+      "name": "nav-click-wiki-link",
+      "passed": true,
+      "steps": 4,
+      "cost": 0.3279,
+      "duration": 36679,
+      "set": "train"
+    },
+    {
+      "name": "nav-click-github-tab",
+      "passed": true,
+      "steps": 6,
+      "cost": 0.8733,
+      "duration": 98810,
+      "set": "train"
+    },
+    {
+      "name": "nav-go-back",
+      "passed": true,
+      "steps": 3,
+      "cost": 0.0143,
+      "duration": 13474,
+      "set": "train"
+    },
+    {
+      "name": "nav-multi-step",
+      "passed": true,
+      "steps": 3,
+      "cost": 0.0291,
+      "duration": 13237,
+      "set": "train"
+    },
+    {
+      "name": "scroll-footer-quotes",
+      "passed": true,
+      "steps": 3,
+      "cost": 0.0389,
+      "duration": 26695,
+      "set": "train"
+    },
+    {
+      "name": "scroll-footer-books",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.029,
+      "duration": 9897,
+      "set": "train"
+    },
+    {
+      "name": "scroll-long-page",
+      "passed": true,
+      "steps": 7,
+      "cost": 0.0475,
+      "duration": 20613,
+      "set": "train"
+    },
+    {
+      "name": "scroll-find-element",
+      "passed": true,
+      "steps": 3,
+      "cost": 0.0379,
+      "duration": 13167,
+      "set": "train"
+    },
+    {
+      "name": "scroll-lazy-load",
+      "passed": true,
+      "steps": 6,
+      "cost": 0.1352,
+      "duration": 29211,
+      "set": "train"
+    },
+    {
+      "name": "form-simple-name",
+      "passed": true,
+      "steps": 1,
+      "cost": 0.0065,
+      "duration": 8053,
+      "set": "train"
+    },
+    {
+      "name": "form-text-inputs",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.0114,
+      "duration": 8752,
+      "set": "train"
+    },
+    {
+      "name": "form-radio-select",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.0098,
+      "duration": 9625,
+      "set": "train"
+    },
+    {
+      "name": "form-checkbox",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.0102,
+      "duration": 12951,
+      "set": "train"
+    },
+    {
+      "name": "form-textarea",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.0117,
+      "duration": 21005,
+      "set": "train"
+    },
+    {
+      "name": "form-login-fake",
+      "passed": false,
+      "steps": 5,
+      "cost": 0.0161,
+      "error": "Failed to complete task due to chrome-extension interference. The login page loaded correctly and displayed the username and password input fields (indices 4 and 6), but repeated 'attach failed' error",
+      "duration": 51704,
+      "set": "train"
+    },
+    {
+      "name": "complex-wiki-toc",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.1222,
+      "duration": 14697,
+      "set": "train"
+    },
+    {
+      "name": "complex-books-detail",
+      "passed": true,
+      "steps": 3,
+      "cost": 0.043,
+      "duration": 11010,
+      "set": "train"
+    },
+    {
+      "name": "complex-quotes-page2",
+      "passed": true,
+      "steps": 4,
+      "cost": 0.0533,
+      "duration": 15956,
+      "set": "train"
+    },
+    {
+      "name": "complex-github-repo-info",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.1708,
+      "duration": 15185,
+      "set": "train"
+    },
+    {
+      "name": "complex-hn-story-comments",
+      "passed": false,
+      "steps": 6,
+      "cost": 0.0831,
+      "error": "Failed to complete task due to repeated TypeError exceptions in the browser automation framework. The page loaded correctly (Hacker News homepage with 291 interactive elements visible), but every clic",
+      "duration": 12493,
+      "set": "train"
+    },
+    {
+      "name": "complex-multi-extract",
+      "passed": true,
+      "steps": 3,
+      "cost": 0.173,
+      "duration": 15846,
+      "set": "train"
+    },
+    {
+      "name": "bench-reddit-top5",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.0991,
+      "duration": 12446,
+      "set": "test"
+    },
+    {
+      "name": "bench-imdb-matrix",
+      "passed": true,
+      "steps": 5,
+      "cost": 0.2689,
+      "duration": 43367,
+      "set": "test"
+    },
+    {
+      "name": "bench-npm-zod",
+      "passed": true,
+      "steps": 5,
+      "cost": 0.1958,
+      "duration": 35608,
+      "set": "test"
+    },
+    {
+      "name": "bench-wiki-search",
+      "passed": true,
+      "steps": 8,
+      "cost": 0.8606,
+      "duration": 54571,
+      "set": "test"
+    },
+    {
+      "name": "bench-github-profile",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.0734,
+      "duration": 17054,
+      "set": "test"
+    },
+    {
+      "name": "bench-books-category",
+      "passed": true,
+      "steps": 2,
+      "cost": 0.0331,
+      "duration": 13574,
+      "set": "test"
+    },
+    {
+      "name": "bench-quotes-author",
+      "passed": true,
+      "steps": 3,
+      "cost": 0.0271,
+      "duration": 13960,
+      "set": "test"
+    },
+    {
+      "name": "bench-ddg-images",
+      "passed": true,
+      "steps": 5,
+      "cost": 0.4653,
+      "duration": 52211,
+      "set": "test"
+    },
+    {
+      "name": "bench-httpbin-headers",
+      "passed": true,
+      "steps": 3,
+      "cost": 0.0172,
+      "duration": 42563,
+      "set": "test"
+    },
+    {
+      "name": "bench-jsonapi-todo",
+      "passed": true,
+      "steps": 1,
+      "cost": 0.0076,
+      "duration": 10945,
+      "set": "test"
+    }
+  ],
+  "totalCost": 8.9753,
+  "duration": "24min"
+}
