@@ -46,17 +46,22 @@ describe('discoverAppPath', () => {
     vi.restoreAllMocks();
   });
 
-  it('returns path when osascript succeeds', () => {
+  it.skipIf(process.platform !== 'darwin')('returns path when osascript succeeds', () => {
     cp.execFileSync.mockReturnValue('/Applications/Cursor.app/\n');
     const result = discoverAppPath('Cursor');
     expect(result).toBe('/Applications/Cursor.app');
   });
 
-  it('returns null when osascript fails', () => {
+  it.skipIf(process.platform !== 'darwin')('returns null when osascript fails', () => {
     cp.execFileSync.mockImplementation(() => {
       throw new Error('app not found');
     });
     const result = discoverAppPath('NonExistent');
+    expect(result).toBeNull();
+  });
+
+  it.skipIf(process.platform === 'darwin')('returns null on non-darwin platform', () => {
+    const result = discoverAppPath('Cursor');
     expect(result).toBeNull();
   });
 });

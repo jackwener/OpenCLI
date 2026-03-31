@@ -128,7 +128,7 @@ export async function resolveElectronEndpoint(site: string): Promise<string> {
   }
 
   const { port, processName, displayName } = app;
-  const label = displayName ?? site;
+  const label = displayName ?? processName;
   const endpoint = `http://127.0.0.1:${port}`;
 
   // Step 1: Already running with CDP?
