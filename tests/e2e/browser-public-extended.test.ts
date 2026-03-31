@@ -126,9 +126,13 @@ describe('browser extended public-data commands E2E', () => {
   }, 60_000);
 
   // ── ctrip ──
-  it('ctrip search returns flights', async () => {
-    const data = await tryBrowserCommand(['ctrip', 'search', '-f', 'json']);
+  it('ctrip search returns destination suggestions', async () => {
+    const data = await tryBrowserCommand(['ctrip', 'search', '苏州', '--limit', '3', '-f', 'json']);
     expectDataOrSkip(data, 'ctrip search');
+    if (data) {
+      expect(data[0]).toHaveProperty('name');
+      expect(data[0]).toHaveProperty('type');
+    }
   }, 60_000);
 
   // ── coupang ──
