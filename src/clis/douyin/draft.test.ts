@@ -2,12 +2,43 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 
 import { wrapForEval } from '../../browser/utils.js';
 import { getRegistry } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import { buildCoverCheckPanelTextJs } from './draft.js';
+
+// ─── Shared test helpers ────────────────────────────────────────────
+
+const tempDirs: string[] = [];
+
+function createTempVideo(name = 'demo.mp4'): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-douyin-draft-'));
+  tempDirs.push(dir);
+  const filePath = path.join(dir, name);
+  fs.writeFileSync(filePath, Buffer.from([0, 0, 0, 20, 102, 116, 121, 112]));
+  return filePath;
+}
+
+function createTempCover(videoPath: string, name = 'cover.jpg'): string {
+  const filePath = path.join(path.dirname(videoPath), name);
+  fs.writeFileSync(filePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+  return filePath;
+}
+
+function getDraftCommand() {
+  const registry = getRegistry();
+  const cmd = [...registry.values()].find(c => c.site === 'douyin' && c.name === 'draft');
+  if (!cmd?.func) throw new Error('douyin draft command not registered');
+  return cmd;
+}
+
+afterAll(() => {
+  for (const dir of tempDirs) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 type FakeNode = {
   textContent: string;
@@ -150,14 +181,8 @@ describe('douyin draft registration', () => {
   });
 
   it('uploads through the official creator draft page and saves the draft session', async () => {
-    const registry = getRegistry();
-    const cmd = [...registry.values()].find(c => c.site === 'douyin' && c.name === 'draft');
-    expect(cmd?.func).toBeTypeOf('function');
-    if (!cmd?.func) throw new Error('douyin draft command not registered');
-
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-douyin-draft-'));
-    const videoPath = path.join(tempDir, 'demo.mp4');
-    fs.writeFileSync(videoPath, Buffer.from([0, 0, 0, 20, 102, 116, 121, 112]));
+    const cmd = getDraftCommand();
+    const videoPath = createTempVideo('demo.mp4');
 
     const page = createPageMock(
       [
@@ -208,14 +233,8 @@ describe('douyin draft registration', () => {
   });
 
   it('waits for the composer when upload processing is slower than the first few polls', async () => {
-    const registry = getRegistry();
-    const cmd = [...registry.values()].find(c => c.site === 'douyin' && c.name === 'draft');
-    expect(cmd?.func).toBeTypeOf('function');
-    if (!cmd?.func) throw new Error('douyin draft command not registered');
-
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-douyin-draft-'));
-    const videoPath = path.join(tempDir, 'slow.mp4');
-    fs.writeFileSync(videoPath, Buffer.from([0, 0, 0, 20, 102, 116, 121, 112]));
+    const cmd = getDraftCommand();
+    const videoPath = createTempVideo('slow.mp4');
 
     const page = createPageMock(
       [
@@ -256,14 +275,8 @@ describe('douyin draft registration', () => {
   });
 
   it('fails fast when the save action does not expose a draft creation id', async () => {
-    const registry = getRegistry();
-    const cmd = [...registry.values()].find(c => c.site === 'douyin' && c.name === 'draft');
-    expect(cmd?.func).toBeTypeOf('function');
-    if (!cmd?.func) throw new Error('douyin draft command not registered');
-
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-douyin-draft-'));
-    const videoPath = path.join(tempDir, 'missing-id.mp4');
-    fs.writeFileSync(videoPath, Buffer.from([0, 0, 0, 20, 102, 116, 121, 112]));
+    const cmd = getDraftCommand();
+    const videoPath = createTempVideo('missing-id.mp4');
 
     const page = createPageMock(
       [
@@ -288,16 +301,9 @@ describe('douyin draft registration', () => {
   });
 
   it('uses the dedicated cover upload input when a custom cover is provided', async () => {
-    const registry = getRegistry();
-    const cmd = [...registry.values()].find(c => c.site === 'douyin' && c.name === 'draft');
-    expect(cmd?.func).toBeTypeOf('function');
-    if (!cmd?.func) throw new Error('douyin draft command not registered');
-
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-douyin-draft-'));
-    const videoPath = path.join(tempDir, 'demo.mp4');
-    const coverPath = path.join(tempDir, 'cover.jpg');
-    fs.writeFileSync(videoPath, Buffer.from([0, 0, 0, 20, 102, 116, 121, 112]));
-    fs.writeFileSync(coverPath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+    const cmd = getDraftCommand();
+    const videoPath = createTempVideo('demo.mp4');
+    const coverPath = createTempCover(videoPath);
 
     const page = createPageMock(
       [
@@ -354,16 +360,9 @@ describe('douyin draft registration', () => {
   });
 
   it('waits for a late cover-section update before treating the custom cover as ready', async () => {
-    const registry = getRegistry();
-    const cmd = [...registry.values()].find(c => c.site === 'douyin' && c.name === 'draft');
-    expect(cmd?.func).toBeTypeOf('function');
-    if (!cmd?.func) throw new Error('douyin draft command not registered');
-
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-douyin-draft-'));
-    const videoPath = path.join(tempDir, 'cover-race.mp4');
-    const coverPath = path.join(tempDir, 'cover-race.jpg');
-    fs.writeFileSync(videoPath, Buffer.from([0, 0, 0, 20, 102, 116, 121, 112]));
-    fs.writeFileSync(coverPath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+    const cmd = getDraftCommand();
+    const videoPath = createTempVideo('cover-race.mp4');
+    const coverPath = createTempCover(videoPath, 'cover-race.jpg');
 
     const page = createPageMock(
       [
@@ -408,16 +407,9 @@ describe('douyin draft registration', () => {
   });
 
   it('accepts the same ready label after cover busy state when the quick-check panel actually transitioned', async () => {
-    const registry = getRegistry();
-    const cmd = [...registry.values()].find(c => c.site === 'douyin' && c.name === 'draft');
-    expect(cmd?.func).toBeTypeOf('function');
-    if (!cmd?.func) throw new Error('douyin draft command not registered');
-
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-douyin-draft-'));
-    const videoPath = path.join(tempDir, 'cover-same-ready.mp4');
-    const coverPath = path.join(tempDir, 'cover-same-ready.jpg');
-    fs.writeFileSync(videoPath, Buffer.from([0, 0, 0, 20, 102, 116, 121, 112]));
-    fs.writeFileSync(coverPath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+    const cmd = getDraftCommand();
+    const videoPath = createTempVideo('cover-same-ready.mp4');
+    const coverPath = createTempCover(videoPath, 'cover-same-ready.jpg');
 
     const page = createPageMock(
       [
