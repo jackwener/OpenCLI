@@ -62,7 +62,7 @@ export const DAEMON_PING_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}/ping`;
 
 /** Base reconnect delay for extension WebSocket (ms) */
 export const WS_RECONNECT_BASE_DELAY = 2000;
-/** Max reconnect delay (ms) */
-export const WS_RECONNECT_MAX_DELAY = 60000;
+/** Max reconnect delay (ms) — kept short since daemon is long-lived */
+export const WS_RECONNECT_MAX_DELAY = 5000;
 /** Idle timeout before daemon auto-exits (ms) */
 export const DAEMON_IDLE_TIMEOUT = 5 * 60 * 1000;
