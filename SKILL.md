@@ -47,6 +47,38 @@ Browser commands require:
 
 Public API commands (`hackernews`, `v2ex`) need no browser.
 
+### Browser Bridge Extension Installation
+
+**Step-by-step installation:**
+
+1. **Open Chrome Extensions page**: Navigate to `chrome://extensions` in Chrome
+2. **Enable Developer Mode**: Toggle the "Developer mode" switch in the top-right corner
+3. **Load the extension**: Click "Load unpacked" button
+4. **Select extension directory**: Choose the `extension/` folder from your opencli installation:
+   - **npm global install**: `~/.openclaw/skills/opencli/extension` (OpenClaw users)
+   - **From source**: `<opencli-source-dir>/extension`
+5. **Verify installation**: The extension should appear as "OpenCLI" with status "Enabled"
+
+**Post-installation checklist:**
+
+| Step | Command/Action | Expected Result |
+|------|---------------|-----------------|
+| 1. Check public API | `opencli hackernews top --limit 5` | Returns top 5 HN stories |
+| 2. Check browser connection | `opencli doctor` | Shows "Browser Bridge: connected" |
+| 3. Test logged-in site | `opencli bilibili hot --limit 5` | Returns B站 hot videos (requires login) |
+
+**Login requirements by platform:**
+
+| Platform | Login Required | Notes |
+|----------|---------------|-------|
+| HackerNews | ❌ No | Public API |
+| V2EX | ❌ No (most commands) | Some commands like `daily`, `me` require login |
+| Bilibili | ✅ Yes | Log in at bilibili.com |
+| 知乎 | ✅ Yes | Log in at zhihu.com |
+| 小红书 | ✅ Yes | Log in at xiaohongshu.com |
+| Twitter/X | ✅ Yes | Log in at x.com |
+| 雪球 | ✅ Yes | Log in at xueqiu.com |
+
 ## Commands Reference
 
 ### Data Commands
@@ -877,3 +909,56 @@ ${{ index + 1 }}
 | `Target page context` error | Add `navigate:` step before `evaluate:` in YAML |
 | Empty table data | Check if evaluate returns correct data path |
 | Daemon issues | `curl localhost:19825/status` to check, `curl localhost:19825/logs` for extension logs |
+
+### Extension Installation Issues
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Extension not appearing | Developer mode not enabled | Toggle "Developer mode" in `chrome://extensions` |
+| Wrong extension path | Incorrect directory selected | Use `~/.openclaw/skills/opencli/extension` (OpenClaw) or `<source>/extension` |
+| Extension shows errors | Corrupted extension files | Re-install opencli: `npm update -g @jackwener/opencli` |
+
+### Login State Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| Commands return empty data | Not logged in to target site | Log in via Chrome before running commands |
+| "需要登录" errors | Session expired | Re-login in Chrome, retry command |
+| Commands work in browser but not CLI | Wrong Chrome profile | Ensure extension is installed in the same profile where you're logged in |
+
+### Tool Call Warnings
+
+If you see warnings like:
+```
+[agent/embedded] read tool called without path
+```
+
+**What this means:**
+- This is a **parameter validation warning**, not a functional error
+- Occurs when embedded agents (e.g., memory plugins, sub-agents) call tools with missing parameters
+- **Severity**: Low — does not affect core functionality
+
+**Common sources:**
+- MemOS auto-memory features
+- Sub-agent invocations
+- Background automation tasks
+
+**Action required:** None — this is informational only. If the warning appears frequently, check your plugin configurations, but it does not indicate a problem with opencli itself.
+
+### Verification Commands
+
+Use these commands to verify your setup:
+
+```bash
+# 1. Check daemon status
+curl localhost:19825/status
+
+# 2. Run diagnostics
+opencli doctor
+
+# 3. Test public API (no browser needed)
+opencli hackernews top --limit 5
+
+# 4. Test browser + login state
+opencli bilibili hot --limit 5   # Requires B站 login
+```
