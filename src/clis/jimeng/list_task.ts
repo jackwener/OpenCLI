@@ -38,31 +38,34 @@ function checkRet(res: Record<string, unknown>, context: string): void {
   }
 }
 
-interface HistoryItem {
-  history_id?: string;
-  common_attr?: {
-    title?: string;
-    status?: number;
-    create_time?: number;
-  };
-  aigc_image_params?: {
-    text2image_params?: {
-      prompt?: string;
-      model_config?: { model_name?: string };
-    };
-  };
-  image?: {
-    large_images?: Array<{ image_url?: string }>;
-  };
-  item_list?: Array<{ video_url?: string; cover_url?: string }>;
-}
+// generate_type mapping
+const GEN_TYPE_MAP: Record<number, string> = {
+  1: 'image',
+  2: 'video',
+  12: 'image',
+};
 
 const STATUS_MAP: Record<number, string> = {
-  50: 'queued',
-  100: 'processing',
-  102: 'completed',
-  103: 'failed',
+  10: 'queued',
+  20: 'processing',
+  30: 'failed',
+  50: 'completed',
 };
+
+interface RecordItem {
+  history_record_id?: string;
+  generate_type?: number;
+  status?: number;
+  created_time?: number;
+  submit_id?: string;
+  model_info?: { model_name?: string };
+  item_list?: Array<{
+    common_attr?: { video_url?: string; prompt?: string; cover_url?: string };
+    image?: { large_images?: Array<{ image_url?: string }> };
+    aigc_image_params?: { text2image_params?: { prompt?: string } };
+  }>;
+  draft_content?: string;
+}
 
 cli({
   site: 'jimeng',
@@ -88,41 +91,38 @@ cli({
     });
     checkRet(resp, 'get_history');
 
-    const data = resp.data as { history_list?: HistoryItem[] } | undefined;
-    const items = data?.history_list || [];
+    const data = resp.data as { records_list?: RecordItem[]; history_list?: RecordItem[] } | undefined;
+    const items = data?.records_list || data?.history_list || [];
 
-    return items.slice(0, limit).map((item) => {
-      const statusCode = item.common_attr?.status ?? 0;
+    return items.slice(0, limit).map((record) => {
+      const statusCode = record.status ?? 0;
       const statusText = STATUS_MAP[statusCode] || `unknown(${statusCode})`;
 
+      const i0 = record.item_list?.[0];
       const prompt =
-        item.aigc_image_params?.text2image_params?.prompt ||
-        item.common_attr?.title ||
+        i0?.aigc_image_params?.text2image_params?.prompt ||
+        i0?.common_attr?.prompt ||
         '';
 
       // Determine type and URL
-      const videoItems = item.item_list || [];
-      const imageItems = item.image?.large_images || [];
-      let type = 'unknown';
+      const genType = GEN_TYPE_MAP[record.generate_type ?? 0] || 'unknown';
       let url = '';
 
-      if (videoItems.length > 0 && videoItems[0].video_url) {
-        type = 'video';
-        url = videoItems[0].video_url;
-      } else if (imageItems.length > 0 && imageItems[0].image_url) {
-        type = 'image';
-        url = imageItems[0].image_url;
+      if (i0?.common_attr?.video_url) {
+        url = i0.common_attr.video_url;
+      } else if (i0?.image?.large_images?.[0]?.image_url) {
+        url = i0.image.large_images[0].image_url;
       }
 
-      const createdAt = item.common_attr?.create_time
-        ? new Date(item.common_attr.create_time * 1000).toLocaleString('zh-CN')
+      const createdAt = record.created_time
+        ? new Date(record.created_time * 1000).toLocaleString('zh-CN')
         : '';
 
       return {
-        task_id: item.history_id || '',
+        task_id: record.history_record_id || '',
         prompt: prompt.length > 50 ? prompt.substring(0, 47) + '...' : prompt,
         status: statusText,
-        type,
+        type: genType,
         url,
         created_at: createdAt,
       };
