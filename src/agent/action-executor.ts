@@ -79,12 +79,38 @@ export class ActionExecutor {
     return { action, success: true };
   }
 
-  /** Click an element: try native CDP, fallback to JS injection */
+  /** Scroll an element into the viewport center before interacting with it. */
+  private async scrollIntoView(index: number): Promise<void> {
+    await this.page.evaluate(`
+      (function() {
+        var el = document.querySelector('[data-opencli-ref="${index}"]');
+        if (el) el.scrollIntoView({ block: 'center', behavior: 'instant' });
+      })()
+    `);
+    await this.page.wait(0.3);
+  }
+
+  /** Click an element: scroll into view first, then try native CDP, fallback to JS */
   private async clickElement(index: number, el: ElementInfo): Promise<void> {
+    // Always scroll into view first — CDP mouse events only work within the viewport
+    await this.scrollIntoView(index);
+
     if (this.page.nativeClick) {
       try {
-        await this.page.nativeClick(el.center.x, el.center.y);
-        return;
+        // Re-read position after scroll (element may have moved)
+        const freshPos = await this.page.evaluate(`
+          (function() {
+            var el = document.querySelector('[data-opencli-ref="${index}"]');
+            if (!el) return null;
+            var r = el.getBoundingClientRect();
+            return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+          })()
+        `) as { x: number; y: number } | null;
+
+        if (freshPos) {
+          await this.page.nativeClick(freshPos.x, freshPos.y);
+          return;
+        }
       } catch {
         // CDP click failed — fallback to JS
       }
