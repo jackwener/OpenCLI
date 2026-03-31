@@ -71,6 +71,18 @@ async function ensureAttached(tabId: number): Promise<void> {
   } catch {
     // Some pages may not need explicit enable
   }
+
+  // Disable breakpoints so that `debugger;` statements in page code don't
+  // pause execution.  Anti-bot scripts use `debugger;` traps to detect CDP —
+  // they measure the time gap caused by the pause. Deactivating breakpoints
+  // makes the engine skip `debugger;` entirely, neutralising the timing
+  // side-channel without patching page JS.
+  try {
+    await chrome.debugger.sendCommand({ tabId }, 'Debugger.enable');
+    await chrome.debugger.sendCommand({ tabId }, 'Debugger.setBreakpointsActive', { active: false });
+  } catch {
+    // Non-fatal: best-effort hardening
+  }
 }
 
 export async function evaluate(tabId: number, expression: string): Promise<unknown> {
