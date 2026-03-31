@@ -57,6 +57,14 @@ export interface NotebooklmSourceGuideRow {
   source: 'rpc';
 }
 
+export interface NotebooklmAskRow {
+  notebook_id: string;
+  prompt: string;
+  answer: string;
+  url: string;
+  source: 'query-endpoint';
+}
+
 export interface NotebooklmNotebookDetailRow extends NotebooklmRow {
   emoji?: string | null;
   source_count?: number | null;

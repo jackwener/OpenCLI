@@ -75,6 +75,23 @@
   - slot 0 is a source-id envelope
 - Re-verified live that `source-list` now reports `pdf`, `web`, `pasted-text`, and `youtube` correctly in the current notebook.
 - Re-verified live that `source-guide` returns `source_id`, `notebook_id`, `title`, `type`, `summary`, `keywords`, and `source: "rpc"`.
+- Continued with the next constrained milestone only:
+  - implemented `notebooklm ask --prompt ...` as the minimal viable ask path
+  - kept scope to the current notebook only
+  - did not add thread selection, multi-turn state, note saving, streaming, or any other write command
+- Confirmed from upstream `notebooklm-py` that ask uses the dedicated query endpoint rather than `batchexecute`:
+  - `GenerateFreeFormStreamed`
+- Added minimal ask transport/parsing in the NotebookLM adapter:
+  - build query `f.req` from current notebook source ids + prompt + fresh conversation UUID
+  - post via in-page fetch with current NotebookLM auth/session tokens
+  - parse chunked `wrb.fr` response and return the longest marked answer body
+- Added new test coverage for:
+  - ask command execution
+  - ask request-body shape
+  - ask response parsing
+- Re-verified live that:
+  - `node dist/main.js notebooklm ask --prompt "用一句话总结这个 notebook" -f json`
+  - returns `notebook_id`, `prompt`, `answer`, `url`, and `source: "query-endpoint"`
 
 ### Verification
 
@@ -114,6 +131,11 @@
 - `npx vitest run src\\clis\\notebooklm\\utils.test.ts src\\clis\\notebooklm\\source-guide.test.ts src\\clis\\notebooklm\\source-get.test.ts src\\clis\\notebooklm\\source-fulltext.test.ts --reporter=verbose`
 - `node dist/main.js notebooklm source-list -f json` -> live types now render as `pdf`, `web`, `pasted-text`, `youtube`
 - `node dist/main.js notebooklm source-guide "黃仁勳最新重磅專訪：AI 代理時代正來...｜Jensen Huang: The Era of AI Agents Is Coming..." -f json`
+- `npx vitest run src\\clis\\notebooklm\\ask.test.ts src\\clis\\notebooklm\\utils.test.ts --reporter=verbose`
+- `npx vitest run src\\browser\\page.test.ts src\\clis\\notebooklm\\ask.test.ts src\\clis\\notebooklm\\bind-current.test.ts src\\clis\\notebooklm\\binding.test.ts src\\clis\\notebooklm\\compat.test.ts src\\clis\\notebooklm\\history.test.ts src\\clis\\notebooklm\\note-list.test.ts src\\clis\\notebooklm\\notes-get.test.ts src\\clis\\notebooklm\\rpc.test.ts src\\clis\\notebooklm\\source-fulltext.test.ts src\\clis\\notebooklm\\source-get.test.ts src\\clis\\notebooklm\\source-guide.test.ts src\\clis\\notebooklm\\summary.test.ts src\\clis\\notebooklm\\utils.test.ts --reporter=verbose`
+- `npx tsc --noEmit`
+- `npm run build`
+- `node dist/main.js notebooklm ask --prompt "用一句话总结这个 notebook" -f json`
 
 ### Open Items
 
@@ -126,3 +148,9 @@
 - 暂不单独补 `notebook-get`，避免和 `get` / `metadata` / `current` 制造命令噪音。
 - `tr032e` 的 live payload 现在已跨 type 验证过，并已经进入 `source-guide` 命令实现。
 - Keep `generate/*`, `download/*`, `artifact/*`, and command-tree refactors out of scope for now.
+- `ask` 当前仍有明确边界：
+  - 只支持当前绑定 notebook
+  - 每次调用都生成新的 conversation UUID，不做多轮延续
+  - 不返回 citations / references
+  - 不做流式输出
+  - 依赖 RPC source ids，因此页面退化到只有 DOM source 标题时无法继续 ask

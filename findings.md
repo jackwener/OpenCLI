@@ -307,3 +307,22 @@ High-level groups verified from the source repo:
   - page-side fetch
   - generic `callNotebooklmRpc(...)`
 - `src/clis/notebooklm/list.ts` now reaches notebook list RPC through the shared transport path.
+
+## Ask Minimal-Viable Findings
+
+- 当前 `ask` 不走 `batchexecute` RPC，也不需要 DOM 点按钮；上游 `notebooklm-py` 已确认真实链路是独立 query endpoint：
+  - `https://notebooklm.google.com/_/LabsTailwindUi/data/google.internal.labs.tailwind.orchestration.v1.LabsTailwindOrchestrationService/GenerateFreeFormStreamed`
+- query body 不是 `[[[rpcId, ...]]]` 形状，而是：
+  - `f.req=[null, JSON.stringify(params)]`
+  - `params = [sources_array, prompt, conversation_history|null, [2, null, [1]], conversation_id]`
+- 最小可用 ask 依赖当前 notebook 的真实 source ids：
+  - 当前实现直接复用已稳定的 `source-list` RPC 解析结果
+  - 不接受 DOM source fallback，因为当前页 DOM 不能稳定给出真实 source UUID
+- query response 是分块文本流，但最小可用版不需要流式输出：
+  - 当前实现按 chunk 扫描 `wrb.fr`
+  - 提取 `first[0]` 文本
+  - 优先选择 `first[4][-1] == 1` 的最长 answer chunk
+  - 若没有 marked answer，才回退到最长未标记文本
+- live smoke 已确认：
+  - `node dist/main.js notebooklm ask --prompt "用一句话总结这个 notebook" -f json`
+  - 当前绑定 notebook 可直接返回回答正文，`source: "query-endpoint"`

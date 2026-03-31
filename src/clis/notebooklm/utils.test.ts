@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildNotebooklmAskBody,
   buildNotebooklmRpcBody,
   classifyNotebooklmPage,
   extractNotebooklmHistoryPreview,
   extractNotebooklmRpcResult,
   getNotebooklmPageState,
   normalizeNotebooklmTitle,
+  parseNotebooklmAskResponse,
   parseNotebooklmHistoryThreadIdsResult,
   parseNotebooklmIdFromUrl,
   parseNotebooklmListResult,
@@ -42,6 +44,28 @@ describe('notebooklm utils', () => {
     expect(body).toContain('at=csrf123');
     expect(body.endsWith('&')).toBe(true);
     expect(decodeURIComponent(body)).toContain('"[null,1,null,[2]]"');
+  });
+
+  it('builds the notebooklm ask body with source ids, prompt, and csrf token', () => {
+    const body = buildNotebooklmAskBody(
+      ['src-1', 'src-2'],
+      '用一句话总结这个 notebook',
+      'csrf123',
+      'conv-123',
+    );
+    const params = new URLSearchParams(body.slice(0, -1));
+    const encodedRequest = params.get('f.req');
+    const [, encodedPayload] = JSON.parse(encodedRequest ?? '[]') as [null, string];
+    const [sourceIds, prompt, conversationHistory, chatOptions, conversationId] = JSON.parse(encodedPayload);
+
+    expect(body).toContain('f.req=');
+    expect(body).toContain('at=csrf123');
+    expect(body.endsWith('&')).toBe(true);
+    expect(sourceIds).toEqual([[[ 'src-1' ]], [[ 'src-2' ]]]);
+    expect(prompt).toBe('用一句话总结这个 notebook');
+    expect(conversationHistory).toBeNull();
+    expect(chatOptions).toEqual([2, null, [1]]);
+    expect(conversationId).toBe('conv-123');
   });
 
   it('extracts notebooklm rpc payload from chunked batchexecute response', () => {
@@ -408,6 +432,43 @@ describe('notebooklm utils', () => {
       keywords: ['AI', 'agents'],
       source: 'rpc',
     });
+  });
+
+  it('extracts the longest marked answer from the notebooklm ask response', () => {
+    const partialChunk = JSON.stringify([
+      [
+        'wrb.fr',
+        null,
+        JSON.stringify([
+          [
+            '较短的中间输出',
+            null,
+            [],
+            null,
+            [[], null, null, 0],
+          ],
+        ]),
+      ],
+    ]);
+
+    const finalChunk = JSON.stringify([
+      [
+        'wrb.fr',
+        null,
+        JSON.stringify([
+          [
+            '最终回答正文',
+            null,
+            [],
+            null,
+            [[], null, null, 1],
+          ],
+        ]),
+      ],
+    ]);
+
+    const raw = `)]}'\n128\n${partialChunk}\n256\n${finalChunk}`;
+    expect(parseNotebooklmAskResponse(raw)).toBe('最终回答正文');
   });
 
   it('prefers real NotebookLM page tokens over login text heuristics', async () => {

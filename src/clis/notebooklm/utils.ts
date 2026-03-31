@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { AuthRequiredError, CliError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 import { bindCurrentTab } from '../../browser/daemon-client.js';
 import {
+  type NotebooklmAskRow,
   NOTEBOOKLM_DOMAIN,
   NOTEBOOKLM_HOME_URL,
   NOTEBOOKLM_SITE,
@@ -40,6 +42,11 @@ const NOTEBOOKLM_LIST_RPC_ID = 'wXbhsf';
 const NOTEBOOKLM_NOTEBOOK_DETAIL_RPC_ID = 'rLM1Ne';
 const NOTEBOOKLM_HISTORY_THREADS_RPC_ID = 'hPTbtc';
 const NOTEBOOKLM_HISTORY_DETAIL_RPC_ID = 'khqZz';
+const NOTEBOOKLM_ASK_QUERY_URL =
+  `https://${NOTEBOOKLM_DOMAIN}` +
+  '/_/LabsTailwindUi/data/google.internal.labs.tailwind.orchestration.v1.LabsTailwindOrchestrationService/GenerateFreeFormStreamed';
+const NOTEBOOKLM_ASK_BL =
+  process.env.NOTEBOOKLM_BL ?? 'boq_labs-tailwind-frontend_20251221.14_p0';
 
 function unwrapNotebooklmSingletonResult(result: unknown): unknown {
   let current = result;
@@ -202,6 +209,76 @@ export function parseNotebooklmHistoryThreadIdsResult(result: unknown): string[]
 export function extractNotebooklmHistoryPreview(result: unknown): string | null {
   const strings = collectNotebooklmStrings(result, []);
   return strings.length > 0 ? strings[0] : null;
+}
+
+export function buildNotebooklmAskBody(
+  sourceIds: string[],
+  prompt: string,
+  csrfToken: string,
+  conversationId: string,
+): string {
+  const params = [
+    sourceIds.map((sourceId) => [[sourceId]]),
+    prompt,
+    null,
+    [2, null, [1]],
+    conversationId,
+  ];
+  const body = JSON.stringify([null, JSON.stringify(params)]);
+  return `f.req=${encodeURIComponent(body)}&at=${encodeURIComponent(csrfToken)}&`;
+}
+
+function extractNotebooklmAskChunk(chunk: string): { text: string | null; isAnswer: boolean } {
+  try {
+    const parsed = JSON.parse(chunk);
+    if (!Array.isArray(parsed)) return { text: null, isAnswer: false };
+
+    for (const item of parsed) {
+      if (!Array.isArray(item) || item[0] !== 'wrb.fr' || typeof item[2] !== 'string') continue;
+
+      const inner = JSON.parse(item[2]);
+      if (!Array.isArray(inner) || !Array.isArray(inner[0])) continue;
+
+      const first = inner[0];
+      const text = typeof first[0] === 'string' ? first[0].trim() : '';
+      const isAnswer = Array.isArray(first[4]) && first[4].length > 0 && first[4][first[4].length - 1] === 1;
+      if (text) return { text, isAnswer };
+    }
+  } catch {
+    // Ignore malformed chunks and keep scanning.
+  }
+
+  return { text: null, isAnswer: false };
+}
+
+export function parseNotebooklmAskResponse(rawBody: string): string {
+  const cleaned = stripNotebooklmAntiXssi(rawBody).trim();
+  if (!cleaned) return '';
+
+  const lines = cleaned.split('\n');
+  let bestMarked = '';
+  let bestUnmarked = '';
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]?.trim();
+    if (!line) continue;
+
+    const chunk = /^\d+$/.test(line) ? lines[i + 1]?.trim() ?? '' : line;
+    if (/^\d+$/.test(line)) i += 1;
+    if (!chunk) continue;
+
+    const { text, isAnswer } = extractNotebooklmAskChunk(chunk);
+    if (!text) continue;
+
+    if (isAnswer) {
+      if (text.length > bestMarked.length) bestMarked = text;
+      continue;
+    }
+
+    if (text.length > bestUnmarked.length) bestUnmarked = text;
+  }
+
+  return bestMarked || bestUnmarked;
 }
 
 export function parseNotebooklmNoteListRawRows(
@@ -614,6 +691,70 @@ export async function getNotebooklmSourceGuideViaRpc(
   );
 
   return parseNotebooklmSourceGuideResult(rpc.result, source);
+}
+
+export async function askNotebooklmQuestionViaQuery(
+  page: IPage,
+  prompt: string,
+): Promise<NotebooklmAskRow | null> {
+  const state = await getNotebooklmPageState(page);
+  if (state.kind !== 'notebook' || !state.notebookId) return null;
+
+  const sources = await listNotebooklmSourcesViaRpc(page);
+  const sourceIds = sources
+    .map((row) => row.id)
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+  if (sourceIds.length === 0) {
+    throw new CliError(
+      'NOTEBOOKLM_QUERY',
+      'NotebookLM ask could not resolve source ids for the current notebook',
+      'Retry after the notebook sources finish loading, then rerun the ask command.',
+    );
+  }
+
+  const auth = await getNotebooklmPageAuth(page);
+  const body = buildNotebooklmAskBody(sourceIds, prompt, auth.csrfToken, randomUUID());
+  const urlParams = new URLSearchParams({
+    bl: NOTEBOOKLM_ASK_BL,
+    hl: 'en',
+    _reqid: String(Date.now()),
+    rt: 'c',
+  });
+  if (auth.sessionId) urlParams.set('f.sid', auth.sessionId);
+
+  const response = await fetchNotebooklmInPage(page, `${NOTEBOOKLM_ASK_QUERY_URL}?${urlParams.toString()}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+    },
+    body,
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    throw new AuthRequiredError(
+      NOTEBOOKLM_DOMAIN,
+      `NotebookLM ask returned auth error (${response.status})`,
+    );
+  }
+
+  if (!response.ok) {
+    throw new CliError(
+      'NOTEBOOKLM_QUERY',
+      `NotebookLM ask request failed with HTTP ${response.status}`,
+      'Retry from an already logged-in NotebookLM notebook tab.',
+    );
+  }
+
+  const answer = parseNotebooklmAskResponse(response.body).trim();
+  if (!answer) return null;
+
+  return {
+    notebook_id: state.notebookId,
+    prompt,
+    answer,
+    url: state.url || `https://${NOTEBOOKLM_DOMAIN}/notebook/${state.notebookId}`,
+    source: 'query-endpoint',
+  };
 }
 
 export async function readNotebooklmVisibleNoteFromPage(page: IPage): Promise<NotebooklmNoteDetailRow | null> {
