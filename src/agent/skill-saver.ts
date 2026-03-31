@@ -105,9 +105,9 @@ function validateAdapterSyntax(code: string): string[] {
     issues.push('Missing cli() registration call');
   }
 
-  // Must import from registry
-  if (!code.includes("from '../../registry") && !code.includes('from "../../registry')) {
-    issues.push('Missing import from ../../registry.js');
+  // Must import from registry (either package import or relative)
+  if (!code.includes("from '@jackwener/opencli/registry'") && !code.includes("from '../../registry")) {
+    issues.push("Missing import from '@jackwener/opencli/registry'");
   }
 
   // page.evaluate must use string, not arrow function
@@ -177,7 +177,7 @@ Starting URL: ${trace.startUrl ?? 'none'}
 An adapter is a single .ts file that calls cli() to register a command:
 
 \`\`\`typescript
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
   site: '${site}',
@@ -215,7 +215,7 @@ cli({
 3. CSRF tokens: Extract from \`document.cookie\` if needed
 4. Return an ARRAY of objects matching the columns
 5. Use optional chaining (?.) for defensive field access
-6. Import errors: \`import { AuthRequiredError, CommandExecutionError } from '../../errors.js';\`
+6. For errors, just throw plain \`new Error('message')\` — do NOT import error classes from other packages
 7. Throw AuthRequiredError if cookies/tokens are missing
 8. Throw CommandExecutionError for API/parsing failures
 9. Never throw on empty results — return []`);
