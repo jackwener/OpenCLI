@@ -16,6 +16,7 @@ import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
 import { EXIT_CODES, getErrorMessage } from './errors.js';
+import { daemonStatus, daemonStop, daemonRestart } from './commands/daemon.js';
 
 export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
   const program = new Command();
@@ -443,6 +444,21 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
+
+  // ── Built-in: daemon ──────────────────────────────────────────────────────
+  const daemonCmd = program.command('daemon').description('Manage the opencli daemon');
+  daemonCmd
+    .command('status')
+    .description('Show daemon status')
+    .action(async () => { await daemonStatus(); });
+  daemonCmd
+    .command('stop')
+    .description('Stop the daemon')
+    .action(async () => { await daemonStop(); });
+  daemonCmd
+    .command('restart')
+    .description('Restart the daemon')
+    .action(async () => { await daemonRestart(); });
 
   // ── External CLIs ─────────────────────────────────────────────────────────
 
