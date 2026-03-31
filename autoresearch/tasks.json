@@ -1,0 +1,219 @@
+[
+  {
+    "name": "example-title",
+    "command": "Go to example.com and extract the main heading text",
+    "url": "https://example.com",
+    "maxSteps": 5,
+    "judge": {
+      "type": "contains",
+      "field": "extractedData",
+      "value": "Example Domain"
+    }
+  },
+  {
+    "name": "google-search",
+    "command": "Search for 'opencli github' and extract the titles of the top 3 search results",
+    "url": "https://www.google.com",
+    "maxSteps": 10,
+    "judge": {
+      "type": "arrayMinLength",
+      "field": "extractedData",
+      "minLength": 3
+    }
+  },
+  {
+    "name": "hn-top-stories",
+    "command": "Extract the top 5 stories from the front page (title and score for each)",
+    "url": "https://news.ycombinator.com",
+    "maxSteps": 8,
+    "judge": {
+      "type": "arrayMinLength",
+      "field": "extractedData",
+      "minLength": 5
+    }
+  },
+  {
+    "name": "wikipedia-extract",
+    "command": "Extract the first paragraph of the JavaScript article",
+    "url": "https://en.wikipedia.org/wiki/JavaScript",
+    "maxSteps": 5,
+    "judge": {
+      "type": "contains",
+      "field": "extractedData",
+      "value": "programming language"
+    }
+  },
+  {
+    "name": "github-stars",
+    "command": "Find the number of stars on the browser-use/browser-use repository",
+    "url": "https://github.com/browser-use/browser-use",
+    "maxSteps": 5,
+    "judge": {
+      "type": "matchesPattern",
+      "field": "extractedData",
+      "pattern": "\\d"
+    }
+  },
+  {
+    "name": "ddg-search",
+    "command": "Search for 'weather beijing' and extract the search results",
+    "url": "https://duckduckgo.com",
+    "maxSteps": 10,
+    "judge": {
+      "type": "nonEmpty",
+      "field": "extractedData"
+    }
+  },
+  {
+    "name": "form-fill-simple",
+    "command": "Fill in the Customer Name field with 'OpenCLI Test' and the Telephone field with '1234567890'",
+    "url": "https://httpbin.org/forms/post",
+    "maxSteps": 8,
+    "judge": {
+      "type": "successTrue"
+    }
+  },
+  {
+    "name": "form-fill-complex",
+    "command": "Fill in all the fields on this form: Customer Name='OpenCLI', Telephone='555-0100', Email='test@opencli.dev', Size=Medium, Topping=Cheese, Delivery time='19:30', Comments='AutoResearch test'. Do not submit.",
+    "url": "https://httpbin.org/forms/post",
+    "maxSteps": 12,
+    "judge": {
+      "type": "successTrue"
+    }
+  },
+  {
+    "name": "books-scrape",
+    "command": "Extract the first 5 books with their title and price",
+    "url": "https://books.toscrape.com",
+    "maxSteps": 8,
+    "judge": {
+      "type": "arrayFieldsPresent",
+      "field": "extractedData",
+      "minLength": 5,
+      "requiredFields": ["title", "price"]
+    }
+  },
+  {
+    "name": "quotes-scrape",
+    "command": "Extract the first 3 quotes with their text and author",
+    "url": "https://quotes.toscrape.com",
+    "maxSteps": 8,
+    "judge": {
+      "type": "arrayFieldsPresent",
+      "field": "extractedData",
+      "minLength": 3,
+      "requiredFields": ["text", "author"]
+    }
+  },
+  {
+    "name": "scroll-extract-footer",
+    "command": "Scroll to the bottom of the page and extract the text in the footer",
+    "url": "https://quotes.toscrape.com",
+    "maxSteps": 8,
+    "judge": {
+      "type": "nonEmpty",
+      "field": "extractedData"
+    }
+  },
+  {
+    "name": "github-trending",
+    "command": "Extract the top 3 trending repositories today (repo name and description)",
+    "url": "https://github.com/trending",
+    "maxSteps": 8,
+    "judge": {
+      "type": "arrayMinLength",
+      "field": "extractedData",
+      "minLength": 3
+    }
+  },
+  {
+    "name": "hn-click-first",
+    "command": "Click on the first story link and extract the title of the page you land on",
+    "url": "https://news.ycombinator.com",
+    "maxSteps": 8,
+    "judge": {
+      "type": "nonEmpty",
+      "field": "extractedData"
+    }
+  },
+  {
+    "name": "example-follow-link",
+    "command": "Click the 'More information...' link and extract the heading of the new page",
+    "url": "https://example.com",
+    "maxSteps": 8,
+    "judge": {
+      "type": "contains",
+      "field": "extractedData",
+      "value": "IANA"
+    }
+  },
+  {
+    "name": "jsonplaceholder-endpoints",
+    "command": "Extract the list of available API resource endpoints shown on the page",
+    "url": "https://jsonplaceholder.typicode.com",
+    "maxSteps": 5,
+    "judge": {
+      "type": "nonEmpty",
+      "field": "extractedData"
+    }
+  },
+  {
+    "name": "bench-wikipedia-nav",
+    "command": "Go to Wikipedia, search for 'Rust programming language', click the result, and extract the first sentence of the article",
+    "url": "https://en.wikipedia.org",
+    "maxSteps": 10,
+    "judge": {
+      "type": "contains",
+      "field": "extractedData",
+      "value": "programming language"
+    },
+    "set": "test"
+  },
+  {
+    "name": "bench-reddit-extract",
+    "command": "Extract the titles of the top 5 posts on the front page",
+    "url": "https://old.reddit.com",
+    "maxSteps": 8,
+    "judge": {
+      "type": "arrayMinLength",
+      "field": "extractedData",
+      "minLength": 5
+    },
+    "set": "test"
+  },
+  {
+    "name": "bench-imdb-search",
+    "command": "Search for 'The Matrix' and extract the year and rating of the first result",
+    "url": "https://www.imdb.com",
+    "maxSteps": 10,
+    "judge": {
+      "type": "contains",
+      "field": "extractedData",
+      "value": "1999"
+    },
+    "set": "test"
+  },
+  {
+    "name": "bench-npm-package",
+    "command": "Search for the 'zod' package and extract its weekly download count and description",
+    "url": "https://www.npmjs.com",
+    "maxSteps": 10,
+    "judge": {
+      "type": "nonEmpty",
+      "field": "extractedData"
+    },
+    "set": "test"
+  },
+  {
+    "name": "bench-stackoverflow",
+    "command": "Search for 'how to center a div css' and extract the title and vote count of the top answer",
+    "url": "https://stackoverflow.com",
+    "maxSteps": 10,
+    "judge": {
+      "type": "nonEmpty",
+      "field": "extractedData"
+    },
+    "set": "test"
+  }
+]
