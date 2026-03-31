@@ -73,6 +73,7 @@ export default defineConfig({
                 { text: 'Chaoxing', link: '/adapters/browser/chaoxing' },
                 { text: 'Grok', link: '/adapters/browser/grok' },
                 { text: 'Amazon', link: '/adapters/browser/amazon' },
+                { text: '1688', link: '/adapters/browser/1688' },
                 { text: 'Gemini', link: '/adapters/browser/gemini' },
                 { text: 'NotebookLM', link: '/adapters/browser/notebooklm' },
                 { text: 'WeRead', link: '/adapters/browser/weread' },

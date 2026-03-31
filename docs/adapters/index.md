@@ -45,6 +45,7 @@ Run `opencli list` for the live registry.
 | **[google](./browser/google)** | `news` `search` `suggest` `trends` | 🌐 / 🔐 |
 | **[jd](./browser/jd)** | `item` | 🔐 Browser |
 | **[amazon](./browser/amazon)** | `bestsellers` `search` `product` `offer` `discussion` | 🔐 Browser |
+| **[1688](./browser/1688)** | `search` `item` `store` | 🔐 Browser |
 | **[web](./browser/web)** | `read` | 🔐 Browser |
 | **[weixin](./browser/weixin)** | `download` | 🔐 Browser |
 | **[36kr](./browser/36kr)** | `news` `hot` `search` `article` | 🌐 / 🔐 |

@@ -131,6 +131,8 @@ npx vitest src/
 - `browser-public.test.ts` 使用 `tryBrowserCommand()`，站点反爬或地域限制导致空数据时会 warn + pass
 - `browser-auth.test.ts` 验证 **graceful failure**，重点是不 crash、不 hang、错误信息可控
 - 如需测试完整登录态，保持 Chrome 登录态并安装 Browser Bridge 扩展，再手动运行对应测试
+- 对依赖具体 host 页面上下文的 browser adapter，除了单测外，还应手动验证真实命令，并把必要的 target host 约束写进 adapter docs / troubleshooting
+- 对会主动导航页面的 browser commands，手动验证时优先串行执行；多个 CLI 进程同时连到同一个 CDP target 可能互相覆盖导航，制造假的 adapter 故障
 
 ---
 
