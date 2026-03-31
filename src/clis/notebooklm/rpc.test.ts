@@ -3,6 +3,7 @@ import { AuthRequiredError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 import {
   buildNotebooklmRpcBody,
+  extractNotebooklmRpcUserDisplayableError,
   extractNotebooklmRpcResult,
   getNotebooklmPageAuth,
   parseNotebooklmChunkedResponse,
@@ -108,6 +109,24 @@ describe('notebooklm rpc transport', () => {
         ['Notebook One', null, 'nb1', null, null, [null, false, null, null, null, [1704067200]]],
       ],
     ]);
+  });
+
+  it('extracts a readable UserDisplayableError message from wrb.fr responses when present', () => {
+    const raw = `)]}'\n228\n[["wrb.fr","R7cb6c",null,null,"You reached your daily limit for audio overviews and slides today. Upgrade to continue.",[8,null,[["type.googleapis.com/google.internal.labs.tailwind.orchestration.v1.UserDisplayableError",[]]]],"generic"]]`;
+
+    expect(extractNotebooklmRpcUserDisplayableError(raw, 'R7cb6c')).toEqual({
+      kind: 'UserDisplayableError',
+      message: 'You reached your daily limit for audio overviews and slides today. Upgrade to continue.',
+    });
+  });
+
+  it('still identifies UserDisplayableError envelopes when no readable message is present', () => {
+    const raw = `)]}'\n220\n[["wrb.fr","R7cb6c",null,null,null,[8,null,[["type.googleapis.com/google.internal.labs.tailwind.orchestration.v1.UserDisplayableError",[[null,[[1]]]]]]],"generic"]]`;
+
+    expect(extractNotebooklmRpcUserDisplayableError(raw, 'R7cb6c')).toEqual({
+      kind: 'UserDisplayableError',
+      message: null,
+    });
   });
 
   it('classifies auth errors as AuthRequiredError', () => {

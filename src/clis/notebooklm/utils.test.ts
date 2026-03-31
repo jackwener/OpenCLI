@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { NotebooklmDownloadListRow } from './shared.js';
 import {
   buildNotebooklmCreateNotebookParams,
   buildNotebooklmDeleteNotebookParams,
@@ -42,6 +43,9 @@ import {
   parseNotebooklmSourceListResult,
   parseNotebooklmSourceListResultWithStatus,
   parseNotebooklmDownloadListRows,
+  parseNotebooklmGenerationFailureFromRpcBody,
+  classifyNotebooklmGenerationFailureMessage,
+  pickNotebooklmArtifactIdCompletionCandidates,
   parseNotebooklmGenerationResult,
   selectNotebooklmCompletedArtifact,
   extractNotebooklmAudioDownloadVariant,
@@ -1087,6 +1091,87 @@ describe('notebooklm utils', () => {
       created_at: '1970-01-01T00:06:40.000Z',
       download_variants: ['pdf', 'pptx'],
       source: 'rpc+artifact-list',
+    });
+  });
+
+  it('filters artifact-id completion candidates by supported NotebookLM download type', () => {
+    const rows: NotebooklmDownloadListRow[] = [
+      {
+        notebook_id: 'nb-demo',
+        artifact_id: 'report-1',
+        artifact_type: 'report',
+        status: 'completed',
+        title: 'Report',
+        created_at: '2026-03-31T00:00:00.000Z',
+        download_variants: ['markdown'],
+        source: 'rpc+artifact-list',
+      },
+      {
+        notebook_id: 'nb-demo',
+        artifact_id: 'audio-1',
+        artifact_type: 'audio',
+        status: 'completed',
+        title: 'Audio',
+        created_at: '2026-03-31T00:01:00.000Z',
+        download_variants: ['audio/mp4'],
+        source: 'rpc+artifact-list',
+      },
+      {
+        notebook_id: 'nb-demo',
+        artifact_id: 'video-1',
+        artifact_type: 'video',
+        status: 'completed',
+        title: 'Video',
+        created_at: '2026-03-31T00:02:00.000Z',
+        download_variants: ['video/mp4'],
+        source: 'rpc+artifact-list',
+      },
+      {
+        notebook_id: 'nb-demo',
+        artifact_id: 'slide-1',
+        artifact_type: 'slide_deck',
+        status: 'completed',
+        title: 'Deck',
+        created_at: '2026-03-31T00:03:00.000Z',
+        download_variants: ['pdf', 'pptx'],
+        source: 'rpc+artifact-list',
+      },
+    ];
+
+    expect(pickNotebooklmArtifactIdCompletionCandidates(rows, 'report')).toEqual(['report-1']);
+    expect(pickNotebooklmArtifactIdCompletionCandidates(rows, 'audio')).toEqual(['audio-1']);
+    expect(pickNotebooklmArtifactIdCompletionCandidates(rows, 'video')).toEqual(['video-1']);
+    expect(pickNotebooklmArtifactIdCompletionCandidates(rows, 'slide_deck')).toEqual(['slide-1']);
+  });
+
+  it('classifies generation failure messages into explicit diagnostic buckets', () => {
+    expect(classifyNotebooklmGenerationFailureMessage(
+      'You reached your daily limit for audio overviews and slides today. Upgrade to continue.',
+    )).toBe('daily_limit_reached');
+    expect(classifyNotebooklmGenerationFailureMessage(
+      'This feature is not eligible on your current plan. Upgrade to continue.',
+    )).toBe('feature_not_eligible');
+    expect(classifyNotebooklmGenerationFailureMessage(
+      'There is not enough content in this notebook to generate an audio overview yet.',
+    )).toBe('content_insufficient');
+    expect(classifyNotebooklmGenerationFailureMessage(null)).toBe('generation_failed_unknown');
+  });
+
+  it('parses UserDisplayableError generation failures into diagnostic metadata', () => {
+    const raw = `)]}'\n228\n[["wrb.fr","R7cb6c",null,null,"You reached your daily limit for audio overviews and slides today. Upgrade to continue.",[8,null,[["type.googleapis.com/google.internal.labs.tailwind.orchestration.v1.UserDisplayableError",[]]]],"generic"]]`;
+
+    expect(parseNotebooklmGenerationFailureFromRpcBody(raw)).toEqual({
+      error_type: 'daily_limit_reached',
+      message: 'You reached your daily limit for audio overviews and slides today. Upgrade to continue.',
+    });
+  });
+
+  it('falls back to unknown generation failures when UserDisplayableError has no readable message', () => {
+    const raw = `)]}'\n220\n[["wrb.fr","R7cb6c",null,null,null,[8,null,[["type.googleapis.com/google.internal.labs.tailwind.orchestration.v1.UserDisplayableError",[[null,[[1]]]]]]],"generic"]]`;
+
+    expect(parseNotebooklmGenerationFailureFromRpcBody(raw)).toEqual({
+      error_type: 'generation_failed_unknown',
+      message: null,
     });
   });
 

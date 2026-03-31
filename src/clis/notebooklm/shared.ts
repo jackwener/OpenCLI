@@ -137,12 +137,20 @@ export interface NotebooklmDownloadListRow {
   source: 'rpc+artifact-list';
 }
 
+export type NotebooklmGenerationErrorType =
+  | 'daily_limit_reached'
+  | 'feature_not_eligible'
+  | 'content_insufficient'
+  | 'generation_failed_unknown';
+
 export interface NotebooklmGenerateRow {
   notebook_id: string;
   artifact_id: string | null;
   artifact_type: 'report' | 'audio' | 'slide_deck';
   status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'unknown';
   created_at?: string | null;
+  error_type?: NotebooklmGenerationErrorType | null;
+  message?: string | null;
   source: 'rpc+create-artifact' | 'rpc+create-artifact+artifact-list';
 }
 

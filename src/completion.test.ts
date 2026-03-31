@@ -9,7 +9,7 @@ describe('nested completion paths', () => {
     for (const key of keys.splice(0)) getRegistry().delete(key);
   });
 
-  it('completes nested command groups and keeps flat commands available', () => {
+  it('completes nested command groups and keeps flat commands available', async () => {
     cli({
       site: 'notebooklm-tree',
       name: 'source/list',
@@ -24,7 +24,57 @@ describe('nested completion paths', () => {
 
     keys.push('notebooklm-tree/source/list', 'notebooklm-tree/status');
 
-    expect(getCompletions(['notebooklm-tree'], 2)).toEqual(['source', 'source-list', 'status']);
-    expect(getCompletions(['notebooklm-tree', 'source'], 3)).toEqual(['list']);
+    await expect(getCompletions(['notebooklm-tree'], 2)).resolves.toEqual(['source', 'source-list', 'status']);
+    await expect(getCompletions(['notebooklm-tree', 'source'], 3)).resolves.toEqual(['list']);
+  });
+
+  it('completes dynamic artifact-id values for nested and flat notebooklm download commands', async () => {
+    cli({
+      site: 'notebooklm-tree',
+      name: 'download/report',
+      aliases: ['download-report'],
+      description: 'Download report',
+      args: [
+        { name: 'output_path', positional: true, required: true },
+        {
+          name: 'artifact-id',
+          completion: async () => ['report-1', 'report-2'],
+        },
+      ],
+    });
+    cli({
+      site: 'notebooklm-tree',
+      name: 'download/audio',
+      aliases: ['download-audio'],
+      description: 'Download audio',
+      args: [
+        { name: 'output_path', positional: true, required: true },
+        {
+          name: 'artifact-id',
+          completion: async () => ['audio-1'],
+        },
+      ],
+    });
+
+    keys.push(
+      'notebooklm-tree/download/report',
+      'notebooklm-tree/download/audio',
+    );
+
+    await expect(
+      getCompletions(['notebooklm-tree', 'download', 'report', 'out.md', '--artifact-id'], 6),
+    ).resolves.toEqual(['report-1', 'report-2']);
+
+    await expect(
+      getCompletions(['notebooklm-tree', 'download-report', 'out.md', '--artifact-id'], 5),
+    ).resolves.toEqual(['report-1', 'report-2']);
+
+    await expect(
+      getCompletions(['notebooklm-tree', 'download', 'audio', 'out.m4a', '--artifact-id'], 6),
+    ).resolves.toEqual(['audio-1']);
+
+    await expect(
+      getCompletions(['notebooklm-tree', 'download', 'report', 'out.md'], 5),
+    ).resolves.toEqual([]);
   });
 });

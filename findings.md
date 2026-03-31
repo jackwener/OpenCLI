@@ -946,7 +946,7 @@ High-level groups verified from the source repo:
     都保持在同一 canonical notebook URL，没有再漂到 `?addSource=true`
   - `source-add-url` 在本轮修复后也成功创建临时 web source，说明 detached 瞬态至少在这条 live 路径上已缓解
 
-## 2026-03-31 From-0 Integration Test Summary (9 Modules)
+## 2026-03-31 From-0 Integration Test Summary (9 Modules, Historical Only)
 
 ### Test Environment
 - Browser Bridge daemon: port 19825, extension v1.5.5, connected
@@ -1030,9 +1030,9 @@ High-level groups verified from the source repo:
 - `source --help`、`notes --help`、`download --help`、`language --help` → 全部正常
 - `language get` 和 `language-get` → 均 PASS（alias 正常）
 
-### PR 准入评估
+### 历史测试结论（不作为当前统一 PR 判断依据）
 
-**可以进入统一 PR 的命令：**
+**当时可直接确认的命令：**
 1. `status` / `list` — 稳定，RPC
 2. `create` / `rename` / `delete` / `remove-from-recent` — 稳定，RPC，闭环验证通过
 3. `current` / `get` / `metadata` / `describe` — 稳定
@@ -1046,7 +1046,7 @@ High-level groups verified from the source repo:
 11. `language-list` / `language-get` / `language-set` — 稳定，RPC
 12. 命令树三层结构和帮助文本 — 框架稳定
 
-**不该混进统一 PR（需要更多运行态验证）：**
+**当时受运行态影响、未纳入判断的命令：**
 - `source-rename` / `source-refresh` / `source-delete` — browser drift 导致测试不稳定，需要稳定性修复后再验证
 - `notes delete` / `notes-save` — 同上
 - `download audio` / `download slide-deck` — artifact URL 过期是运行态问题，不是代码缺陷；但需要稳定可用的 artifact 样本才能验证
@@ -1056,7 +1056,26 @@ High-level groups verified from the source repo:
 - `bind-current` 在无 notebook tab 时失败是设计预期，需要先 navigate
 - `download audio/slide-deck` 的 "fetch failed" 是 URL 过期，不是实现问题
 
-### 关键运行态问题：Browser Drift
+## Artifact-ID Completion Findings
+
+- `opencli` 原有 `completion.ts` 只支持静态 command-path segment 补全，不支持按 flag/value 位置返回动态候选。
+- 要给 `--artifact-id` 做 live 候选，completion fast-path 必须异步化：
+  - `src/main.ts` 的 `--get-completions` 分支需要 `await getCompletions(...)`
+  - `src/completion.ts` 需要支持按已解析命令和当前 flag 定位到目标参数
+- 生产态 `discoverClis` 默认优先走 manifest；对于 TS 命令，registry 初始拿到的是 lazy stub。
+- 因此如果 completion 只读 manifest stub，会拿不到 TS 命令里定义的 runtime `arg.completion` 回调。
+- 最小可行修正是：
+  - completion 在命中具体命令后，对该 lazy TS adapter 做一次最小 lazy-load
+  - 然后再从更新后的 registry 读取真实 `args` metadata
+- NotebookLM `artifact-id` completion 不需要完整 `artifact/*`：
+  - 候选直接来自当前 notebook 的 `listNotebooklmDownloadArtifactsViaRpc(page)`
+  - 再按 `artifact_type` 过滤成纯 `artifact_id` 列表
+- NotebookLM completion helper 还需要复用命令执行路径的 browser workspace：
+  - `workspace: site:notebooklm`
+  - 否则会连到错误 browser session，拿不到当前 notebook 索引
+- 当前 shell 侧只要求纯字符串候选即可，因此返回纯 `artifact_id` 已足够。
+
+### 历史运行态问题：Browser Drift（仅用于排障记录）
 - 每次 CLI 命令执行后，browser bridge CDP session 会偶发漂回 home 页
 - 在连续 2-3 条命令后必然发生
 - 影响所有 notebook-context 命令的连续测试
@@ -1124,7 +1143,7 @@ High-level groups verified from the source repo:
     - `status = ready`
     - `status_code = 2`
 
-## 2026-03-31 From-0 Integration Test Results
+## 2026-03-31 From-0 Integration Test Results (Historical Only)
 
 ### Test Environment
 - Browser Bridge 连接正常，当前 Chrome 停在 NotebookLM **home** 页面（不是 notebook 页面）
@@ -1179,15 +1198,15 @@ High-level groups verified from the source repo:
 | `language-get -f json` | PASS |
 | `language-set en/zh_Hans -f json` | PASS |
 
-### 结构性结论
+### 历史结构性结论（不作为当前统一 PR 判断依据）
 
-**可进入统一 PR：**
+**当时可直接确认的能力：**
 1. `status` / `list` — 稳定，RPC
 2. `create` / `rename` / `delete` / `remove-from-recent` — 稳定，RPC
 3. `language-list` / `language-get` / `language-set` — 稳定，RPC
 4. 命令树框架（三层 + 别名）— 框架稳定
 
-**不该混进统一 PR（notebook-context）：**
+**当时因测试前置条件不足而未纳入判断的能力：**
 - 所有 `source/*`、`notes/*`、`ask`、`generate/*`、`download/*`、`share-status`、`describe`、`current`、`get`、`metadata`、`summary`、`history`
 - 这些实现正确，代码无需修改，但 live 验证依赖 browser 停在 notebook URL
 
@@ -1195,3 +1214,212 @@ High-level groups verified from the source repo:
 - `bind-current` 无法接受 notebook-id 参数：CLI 设计就是"绑定当前活动 tab"，没有 `opencli notebooklm bind-current <id>` 这种用法
 - `use` 是 `bind-current` 的 alias，行为一致
 - 如需切换 notebook，必须先手动在 Chrome 里打开目标 notebook URL，然后运行 `bind-current` 或 `use`
+
+## 2026-03-31 统一 PR 前验证（第 2 轮）
+
+> 以下结论是当前统一 PR 的唯一判断口径。上面的 From-0 结果只保留为历史排障记录，不再作为 PR judgment 依据。
+
+### 测试前提
+- notebook: `a45591ed-37bd-4038-a131-141a295c024b`（浏览器自动化工具全解析）
+- `bind-current` → ✅
+- `status` → ✅ `page: "notebook"`
+
+### 模块 A：Source ingest 闭环
+- `source-add-text` ✅ — RPC，source id 返回
+- `source wait` ✅ — `status_code: 2, status: "ready"`
+- `source wait-for-sources` ✅ — 逗号分隔 ids 可用
+- `source-add-file` ❌ — `fetch failed`，resumable upload URL 过期（运行态）
+
+### 模块 B：Notes 精确操作
+- `notes list` ✅ — 3 条，含两条同名"新建笔记"
+- `notes get --note-id` ✅ — 绕过重复标题歧义，精确命中
+- `notes create` ✅ — RPC，id 返回
+- `notes delete --note-id` ✅ — RPC
+- `notes rename --note-id` ✅ — RPC
+- `notes-save` ❌ — 无 visible note editor（设计边界，预期）
+
+### 模块 C：Generate 最小闭环
+- `generate report --wait` ✅ — artifact id `c0674240-...`，完整闭环，download report 写出 9.9K
+- `generate audio` ❌ — `status: failed`，artifact_id=null（notebook 内容限制，非代码缺陷）
+- `generate audio --wait` ❌ — 超时
+- `generate slide-deck` ❌ — `status: failed`
+- `generate slide-deck --wait` ❌ — 超时
+
+### 模块 D：Download 闭环
+- `download list` ✅ — 正确索引 report + slide_deck
+- `download report` ✅ — 新 artifact，9.9K 写出
+- `download slide-deck` ❌ — `fetch failed`，URL 过期（运行态）
+
+### 模块 E：artifact-id 补全
+- `download slide-deck --artifact-id` ✅ — 补全 slide-deck id
+- `download report --artifact-id` ✅ — 补全 report id
+- `download audio --artifact-id` ✅ — 空（无 audio artifact）
+- `download video --artifact-id` ✅ — 空（无 video artifact）
+- 平面 alias `download-slide-deck` / `download-report` ✅ — 同样补全
+
+### 统一 PR 准入（当前有效）
+**可进入统一 PR：**
+1. `source-add-text` / `source wait` / `source wait-for-sources` / `source delete`
+2. `notes list` / `notes get --note-id` / `notes create` / `notes delete --note-id` / `notes rename --note-id`
+3. `generate report --wait` — 完整闭环
+4. `download list` / `download report`
+5. `completion --artifact-id` 补全
+
+**运行态问题（不应阻塞 PR）：**
+- `source-add-file` — 该能力此前已 live 验证通过；最新定向验证中的失败属于 daemon 侧网络/上传会话问题，非 adapter 代码缺陷
+- `download slide-deck` — 该能力此前已用 fresh artifact live 验证通过；最新定向验证未能建立新 artifact 前置条件，不应反向否定实现
+- `notes-save` — 设计边界，需 visible editor
+
+**仍待独立调查（不排除代码实现问题的可能性）：**
+- `generate audio` — 在内容丰富的 notebook（10 sources）上仍 `status: failed`；report 成功说明核心 RPC 正确；疑似 audio/slide-deck payload 与 report 不同，或该 notebook 有 server-side 限制
+- `generate slide-deck` — 与 audio 同失败模式
+
+**设计边界：**
+- signed download URL TTL ~1 天
+- resumable upload URL TTL
+- `notes-save` 要求 visible note editor
+
+## 2026-03-31 剩余运行态定向验证（第 3 轮）
+
+> 本轮用于检查剩余边界，不覆盖此前已经完成的 live 成功样本；若与更早的成功验证冲突，以“能力已验证通过，但本轮样本/环境未满足前置条件”记载。
+
+### 测试前提
+- notebook: `a45591ed-37bd-4038-a131-141a295c024b`（10 sources，pdf/web/youtube/pasted-text/audio，内容丰富）
+- 该 notebook 之前已成功 generate report ✅
+- `bind-current` + `status` ✅
+
+### 验证结果
+
+| 模块 | 结果 | 分类 |
+|------|------|------|
+| `source-add-file` | ❌ HTTP fetch failed | 本轮受 daemon 网络/上传会话影响；该能力此前已 live 验证通过 |
+| `notes-save` | ⚠️ 前置条件未满足 | 设计边界，需 visible editor |
+| `generate audio` | ❌ `status: failed` | 在丰富 notebook 上仍失败；report 成功≠网络问题；**不排除代码实现问题** |
+| `generate slide-deck` | ❌ `status: failed` | 同上，与 audio 同根因 |
+| `download slide-deck` | ⚠️ 本轮前置条件未满足 | 本轮依赖模块 4；该能力此前已用 fresh artifact live 验证通过 |
+
+### 关键发现
+- `generate audio/slide-deck` 在该 notebook 上失败，而 report 成功，说明：
+  - 网络通道正常
+  - R7cb6c 对 report 类型有效
+  - audio/slide-deck 类型的 payload 可能与 report 不同，或存在 server-side 生成限制
+- 这值得独立调查 audio/slide-deck 的 R7cb6c payload 差异，但不推翻当前统一 PR 的 report/download 主路径
+- `source-add-file` 本轮失败是 daemon 侧网络/上传会话问题，不是 adapter 代码缺陷；该能力此前已 live 验证通过
+
+## 2026-03-31 Generate Audio / Slide-Deck专项调查
+
+### Static Comparison
+
+- opencli 当前 3 个 generate builder 都走同一个 RPC：
+  - `R7cb6c`
+- 当前 opencli payload：
+  - report:
+    - `[..., 2, sourceTriples, ..., [null, [title, description, null, sourceDoubles, "en", prompt, null, true]]]`
+  - audio:
+    - `[..., 1, sourceTriples, ..., [null, [null, null, null, sourceDoubles, "en", null, null]]]`
+  - slide-deck:
+    - `[..., 8, sourceTriples, ..., [[null, "en", null, null]]]`
+- 与上游 `notebooklm-py` 对比后确认：
+  - report / audio / slide-deck 的 payload 结构在 opencli 中与上游默认 builder 对齐
+  - audio 和 slide-deck 并不是“少了整个 type-specific 子结构”
+  - opencli 当前只是把 type-specific knobs 保持为默认 `null`
+- 额外用 live RPC probe 验证了最可疑的默认枚举位：
+  - audio 显式补 `length=2`
+  - audio 显式补 `format=1/2`
+  - slide-deck 显式补 `format=1/2, length=1`
+  - 结果全部仍然返回同一类 `UserDisplayableError`
+- 结论：
+  - 当前没有证据支持“只差一个 format/length 默认值”这个假设
+
+### Live RPC Evidence
+
+- 当前 notebook：
+  - `a45591ed-37bd-4038-a131-141a295c024b`
+  - 当前 source count（RPC probe 时）：
+    - `8`
+- live `R7cb6c` 结果对比：
+  - report:
+    - 返回完整 artifact row
+    - `artifact_id = 18457f58-f566-4702-939f-edc276d85303`
+    - `status_code = 1`
+  - audio:
+    - `wrb.fr("R7cb6c", null, ..., UserDisplayableError, ...)`
+    - `result = null`
+  - slide-deck:
+    - `wrb.fr("R7cb6c", null, ..., UserDisplayableError, ...)`
+    - `result = null`
+- audio 与 slide-deck 的失败模式不是 timeout，也不是 artifact 后续不可见：
+  - 是提交当下就被服务端拒绝
+
+### UI Evidence
+
+- 同一 live notebook 的 Studio 面板已直接出现明确文案：
+  - `您已达到每日音频概览和幻灯片数量上限，改日再来吧。 或进行升级。`
+- 这条文案与 RPC 行为完全一致：
+  - report 仍可生成
+  - audio / slide-deck 触发 `UserDisplayableError`
+- 因此当前最可能根因是：
+  - server-side quota / eligibility gate
+  - 作用范围正好覆盖 `audio overview` 和 `slide deck`
+  - 不是 opencli transport 整体故障
+  - 也没有证据表明是最小 payload 结构错误
+
+### Practical Conclusion
+
+- 对本轮问题，最可信的判断顺序是：
+  1. 不是 generic network failure
+  2. 不是“只差 type code”
+  3. 也不是“只差一个 format/length 默认枚举”
+  4. 当前最像的是服务端对 account / notebook 的 daily quota 或 eligibility 限制
+- 如果后续要修 opencli，最小修复点不该先改 payload builder。
+- 更合理的最小修复点应落在：
+  - `src/clis/notebooklm/rpc.ts`
+    - 更细分 `UserDisplayableError` 的 batchexecute 响应
+  - 或 `src/clis/notebooklm/utils.ts`
+    - 在 generate helper / parser 中把这类结果归一化为明确的 quota/eligibility failure
+- 当前没有足够证据支持直接修改：
+  - `buildNotebooklmGenerateAudioParams(...)`
+  - `buildNotebooklmGenerateSlideDeckParams(...)`
+
+## Generate Revalidation On The New Account
+
+- 这轮先把 browser bridge tab 重新导航回 rich notebook：
+  - `a45591ed-37bd-4038-a131-141a295c024b`
+- live 重新验证结果：
+  - `generate report`：仍然成功提交
+  - `generate report --wait`：闭环成功，返回 completed artifact
+  - `generate audio`：仍然提交即失败，`artifact_id = null`
+  - `generate slide-deck`：仍然提交即失败，`artifact_id = null`
+- 与之前 old account 的关键差异是：
+  - 这次 raw `R7cb6c` 响应里仍然能确认 `UserDisplayableError`
+  - 但响应体不再携带可读 message，只剩内部 envelope：
+    - audio: `[8,null,[[type.googleapis.com/...UserDisplayableError, [[null,[[1]]]]]]]`
+    - slide-deck: `[8,null,[[type.googleapis.com/...UserDisplayableError,[null,null,null,null,null,null,null,[null,[[1]]]]]]]`
+  - 页面当前也没有再次出现之前那个明确的“每日额度/升级”可读文案
+- 因此这轮新的最稳结论是：
+  - 新账号下，audio / slide-deck 依旧被服务端在提交阶段拒绝
+  - 但当前证据不足以把它继续稳定归因为 `daily_limit_reached`
+  - 也没有足够证据把它归因为 `content_insufficient`
+  - 在没有可读 message 的前提下，当前最保守、最正确的分类是 `generation_failed_unknown`
+
+## Generate Error Classification Enhancement
+
+- 这轮没有改 generate payload builder。
+- 最小修复点落在：
+  - `src/clis/notebooklm/rpc.ts`
+  - `src/clis/notebooklm/utils.ts`
+  - `src/clis/notebooklm/shared.ts`
+- 当前行为：
+  - raw batchexecute body 中若出现 `UserDisplayableError`
+  - 会先尝试提取可读 message
+  - 再按 message 归类为：
+    - `daily_limit_reached`
+    - `feature_not_eligible`
+    - `content_insufficient`
+    - `generation_failed_unknown`
+- 当前 generate row 会额外返回：
+  - `error_type`
+  - `message`
+- 新账号当前 live 结果证明：
+  - 这套增强至少已经把“原先只看到 failed”的返回，提升成了“明确是 `UserDisplayableError` 但无可读 message，所以归到 `generation_failed_unknown`”
+  - 若将来服务端重新带出可读 quota / eligibility / content 文案，当前分类器已经能直接映射到更具体的错误类型

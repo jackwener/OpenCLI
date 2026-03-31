@@ -57,7 +57,7 @@ if (getCompIdx !== -1) {
     }
   }
   if (cursor === undefined) cursor = words.length;
-  const candidates = getCompletions(words, cursor);
+  const candidates = await getCompletions(words, cursor);
   process.stdout.write(candidates.join('\n') + '\n');
   process.exit(EXIT_CODES.SUCCESS);
 }

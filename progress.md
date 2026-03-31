@@ -245,6 +245,47 @@
   - `node .\\dist\\main.js notebooklm notes list -f json`
   - 当前返回 no data，所以没有继续基于真实 id 运行 `notes get --note-id ...` / `notes-save --note-id ...`
   - 因此这轮 live 结论是：实现和测试已收口，但真实 notebook 页上的 `--note-id` smoke 还缺一个可读的 note-list 结果作为入口
+- 这轮 generate 只做重新验证和错误分类增强：
+  - 先确认 browser bridge 初始停在 NotebookLM home，无法直接做 live generate
+  - 用 daemon `navigate` 把 workspace tab 切回 rich notebook：
+    - `a45591ed-37bd-4038-a131-141a295c024b`
+  - live 重新验证：
+    - `generate report` -> `in_progress`
+    - `generate report --wait` -> `completed`
+    - `generate audio` -> 立即 `failed`
+    - `generate slide-deck` -> 立即 `failed`
+  - 额外只读 probe 抓到 raw `R7cb6c` 响应：
+    - audio / slide-deck 仍然都是 `UserDisplayableError`
+    - 但这次 raw body 不再带可读 message
+    - 当前页面也没复现旧账号上的“每日额度/升级”提示
+- 因此这轮实现没有改 payload builder，只做了最小错误分类增强：
+  - `src/clis/notebooklm/rpc.ts`
+    - 增加 `UserDisplayableError` envelope 提取
+  - `src/clis/notebooklm/utils.ts`
+    - 增加 generate failure message 分类
+    - 增加从 raw RPC body 提取 `error_type/message`
+    - generate report/audio/slide-deck row 现在会带 `error_type` / `message`
+  - `src/clis/notebooklm/shared.ts`
+    - `NotebooklmGenerateRow` 新增 `error_type` / `message`
+- 这轮分类规则已覆盖：
+  - `daily_limit_reached`
+  - `feature_not_eligible`
+  - `content_insufficient`
+  - `generation_failed_unknown`
+- 当前新账号 live 结果：
+  - report 正常
+  - audio / slide-deck 仍失败
+  - 由于服务端没有返回可读 message，当前实际落到：
+    - `error_type: "generation_failed_unknown"`
+    - `message: null`
+- 这轮验证结果：
+  - `npx vitest run src\\clis\\notebooklm\\rpc.test.ts src\\clis\\notebooklm\\utils.test.ts src\\clis\\notebooklm\\generate-audio.test.ts src\\clis\\notebooklm\\generate-slide-deck.test.ts src\\clis\\notebooklm\\generate-report.test.ts --reporter=verbose`
+  - `npx tsc --noEmit`
+  - `npm run build`
+  - `node dist/main.js notebooklm generate report -f json`
+  - `node dist/main.js notebooklm generate audio -f json`
+  - `node dist/main.js notebooklm generate slide-deck -f json`
+  - `node dist/main.js notebooklm generate report --wait -f json`
 
 ## 2026-03-31 Notebook Light-Write CRUD
 
@@ -923,7 +964,7 @@
     - add-file 创建 source `6143e8b6-cb0d-4b18-9192-fbcd2abbebc1`
     - wait / wait-for-sources 都等到 ready
 
-## 2026-03-31 From-0 Integration Test Summary (9 Modules)
+## 2026-03-31 From-0 Integration Test Summary (9 Modules, Historical Only)
 
 ### Test Environment
 - Browser Bridge daemon: port 19825, extension v1.5.5, connected
@@ -1007,9 +1048,9 @@
 - `source --help`、`notes --help`、`download --help`、`language --help` → 全部正常
 - `language get` 和 `language-get` → 均 PASS（alias 正常）
 
-### PR 准入评估
+### 历史测试结论（不作为当前统一 PR 判断依据）
 
-**可以进入统一 PR 的命令：**
+**当时可直接确认的命令：**
 1. `status` / `list` — 稳定，RPC
 2. `create` / `rename` / `delete` / `remove-from-recent` — 稳定，RPC，闭环验证通过
 3. `current` / `get` / `metadata` / `describe` — 稳定
@@ -1023,7 +1064,7 @@
 11. `language-list` / `language-get` / `language-set` — 稳定，RPC
 12. 命令树三层结构和帮助文本 — 框架稳定
 
-**不该混进统一 PR（需要更多运行态验证）：**
+**当时受运行态影响、未纳入判断的命令：**
 - `source-rename` / `source-refresh` / `source-delete` — browser drift 导致测试不稳定，需要稳定性修复后再验证
 - `notes delete` / `notes-save` — 同上
 - `download audio` / `download slide-deck` — artifact URL 过期是运行态问题，不是代码缺陷；但需要稳定可用的 artifact 样本才能验证
@@ -1033,10 +1074,213 @@
 - `bind-current` 在无 notebook tab 时失败是设计预期，需要先 navigate
 - `download audio/slide-deck` 的 "fetch failed" 是 URL 过期，不是实现问题
 
-### 关键运行态问题：Browser Drift
+### 历史运行态问题：Browser Drift（仅用于排障记录）
 - 每次 CLI 命令执行后，browser bridge CDP session 会偶发漂回 home 页
 - 在连续 2-3 条命令后必然发生
 - 影响所有 notebook-context 命令的连续测试
 - 根因：`navigate` 命令在 daemon 端执行后，下一次 CLI 调用时 CDP session 丢失了 notebook URL 上下文
 - 当前 workaround：每次 FAIL 后重新 `curl navigate`，然后继续测试
 - 建议：这是 daemon/CDP session 管理问题，不是 NotebookLM adapter 代码缺陷
+
+## 2026-03-31 Artifact-ID Completion
+
+### Session Summary
+
+- Scoped this round strictly to `artifact-id` completion for existing NotebookLM download commands.
+- Confirmed the original completion path was static-only and could not return flag-value candidates.
+- Added a minimal async completion path:
+  - `src/completion.ts`
+  - `src/main.ts`
+  - `src/registry.ts`
+- Added arg-level completion metadata without expanding into a generic id-completion subsystem.
+- Reused the existing NotebookLM download index (`gArtLc` -> `listNotebooklmDownloadArtifactsViaRpc`) as the completion data source.
+- Added NotebookLM completion helpers in `src/clis/notebooklm/utils.ts`:
+  - type-filtered candidate picker
+  - live artifact-id completion probe using `workspace: site:notebooklm`
+- Wired `artifact-id` completion into these existing commands only:
+  - `download/report`
+  - `download/audio`
+  - `download/video`
+  - `download/slide-deck`
+- Kept nested and flat alias forms both supported:
+  - `notebooklm download <type>`
+  - `notebooklm download-<type>`
+
+### Tests and Verification
+
+- Added failing-then-passing tests in:
+  - `src/completion.test.ts`
+  - `src/clis/notebooklm/utils.test.ts`
+- Verified:
+  - `npx vitest run src/completion.test.ts src/clis/notebooklm/utils.test.ts`
+  - `npx tsc --noEmit`
+  - `npm run build`
+  - `node dist/main.js completion bash`
+- Live completion probes:
+  - `node dist/main.js notebooklm download list -f json`
+    - current notebook: `a45591ed-37bd-4038-a131-141a295c024b`
+    - current downloadable artifact sample: slide deck `ef34f755-809b-4d86-8517-e65049dca2d2`
+  - `node dist/main.js --get-completions --cursor 6 notebooklm download slide-deck out.pdf --artifact-id`
+    - returned `ef34f755-809b-4d86-8517-e65049dca2d2`
+  - `node dist/main.js --get-completions --cursor 5 notebooklm download-slide-deck out.pdf --artifact-id`
+    - returned `ef34f755-809b-4d86-8517-e65049dca2d2`
+  - `node dist/main.js --get-completions --cursor 6 notebooklm download report out.md --artifact-id`
+    - returned empty, matching current notebook having no report artifact
+  - `node dist/main.js --get-completions --cursor 6 notebooklm download audio out.m4a --artifact-id`
+    - returned empty, matching current notebook having no audio artifact
+  - `node dist/main.js --get-completions --cursor 6 notebooklm download video out.mp4 --artifact-id`
+    - returned empty, matching current notebook having no video artifact
+
+## 2026-03-31 统一 PR 前验证（第 2 轮）
+
+> 以下结论是当前统一 PR 的唯一判断口径。上面的 From-0 结果只保留为历史排障记录，不再作为 PR judgment 依据。
+
+### 测试前提
+- notebook: `a45591ed-37bd-4038-a131-141a295c024b`（浏览器自动化工具全解析）
+- `bind-current` → ✅
+- `status` → ✅ `page: "notebook"`
+
+### 模块 A：Source ingest 闭环
+| 命令 | 结果 | 备注 |
+|------|------|------|
+| `source-add-text` | ✅ | RPC，source id 返回 |
+| `source wait` | ✅ | `status_code: 2, status: "ready"` |
+| `source wait-for-sources` | ✅ | 逗号分隔 ids |
+| `source-add-file` | ❌ | `fetch failed`，upload URL 过期（运行态）|
+
+### 模块 B：Notes 精确操作
+| 命令 | 结果 | 备注 |
+|------|------|------|
+| `notes list` | ✅ | 3 条，含两条同名"新建笔记" |
+| `notes get --note-id` | ✅ | 绕过重复标题歧义 |
+| `notes create` | ✅ | RPC，id 返回 |
+| `notes delete --note-id` | ✅ | RPC |
+| `notes rename --note-id` | ✅ | RPC |
+| `notes-save` | ❌ | 无 visible note editor（设计边界）|
+
+### 模块 C：Generate 最小闭环
+| 命令 | 结果 | 备注 |
+|------|------|------|
+| `generate report --wait` | ✅ | 完整闭环，9.9K 写出 |
+| `generate audio` | ❌ | `failed`，notebook 内容限制 |
+| `generate slide-deck` | ❌ | `failed` |
+| `generate audio/slide-deck --wait` | ❌ | 超时 |
+
+### 模块 D：Download 闭环
+| 命令 | 结果 | 备注 |
+|------|------|------|
+| `download list` | ✅ | 正确索引 |
+| `download report` | ✅ | 新 artifact，9.9K 写出 |
+| `download slide-deck` | ❌ | URL 过期（运行态）|
+
+### 模块 E：artifact-id 补全
+| probe | 结果 |
+|--------|------|
+| `download slide-deck --artifact-id` | ✅ |
+| `download report --artifact-id` | ✅ |
+| `download audio --artifact-id` | ✅ 空 |
+| `download video --artifact-id` | ✅ 空 |
+| 平面 alias | ✅ |
+
+### 统一 PR 建议（当前有效）
+**可进入统一 PR：**
+- source ingest：`source-add-text/wait/wait-for-sources/delete`
+- notes：`list/get --note-id/create/delete --note-id/rename --note-id`
+- generate：`report --wait`
+- download：`list/report`
+- completion：`--artifact-id` 补全
+
+**运行态问题（不应阻塞 PR）：**
+- `source-add-file`：该能力此前已 live 验证通过；最新定向验证中的失败属于 daemon 侧网络/上传会话问题
+- `download slide-deck`：该能力此前已用 fresh artifact live 验证通过；最新定向验证未能建立新 artifact 前置条件
+- `notes-save`：设计边界，需 visible editor
+
+**仍待独立调查：**
+- `generate audio` — 内容丰富 notebook 上仍 `status: failed`；report 成功说明非网络问题；**不排除代码实现问题**
+- `generate slide-deck` — 与 audio 同模式
+
+**设计边界：**
+- signed URL TTL ~1 天
+- `notes-save` 要求 visible editor
+
+## 2026-03-31 剩余运行态定向验证（第 3 轮）
+
+> 本轮用于检查剩余边界，不覆盖此前已经完成的 live 成功样本；若与更早的成功验证冲突，以“能力已验证通过，但本轮样本/环境未满足前置条件”记载。
+
+### 测试前提
+- notebook: `a45591ed-37bd-4038-a131-141a295c024b`（10 sources，内容丰富）
+- 该 notebook 已成功 generate report ✅
+- `bind-current` + `status` ✅
+
+### 定向验证结果
+
+| 模块 | 结果 | 分类 |
+|------|------|------|
+| `source-add-file` | ❌ HTTP fetch failed | 本轮受 daemon 网络/上传会话影响；该能力此前已 live 验证通过 |
+| `notes-save` | ⚠️ 前置条件未满足 | 设计边界，需 visible editor |
+| `generate audio` | ❌ `status: failed` | 内容丰富 notebook 上仍失败；report 成功≠网络问题；**不排除代码实现问题** |
+| `generate slide-deck` | ❌ `status: failed` | 与 audio 同根因 |
+| `download slide-deck` | ⚠️ 本轮前置条件未满足 | 本轮依赖模块 4；该能力此前已用 fresh artifact live 验证通过 |
+
+### 关键发现
+- `generate audio/slide-deck` 在该 notebook（10 sources）上失败，report 成功 → 网络正常，R7cb6c 对 report 有效
+- audio/slide-deck 值得独立调查 payload 类型差异或 server-side 限制，但这不推翻当前统一 PR 的 report/download 主路径
+- 建议后续单开 follow-up 调查 audio/slide-deck 的 R7cb6c payload 与 report 的差异
+
+## 2026-03-31 Generate Audio / Slide-Deck专项调查
+
+### Session Summary
+
+- Scoped this round strictly to investigation only.
+- Re-read the current generate implementation in:
+  - `src/clis/notebooklm/generate-report.ts`
+  - `src/clis/notebooklm/generate-audio.ts`
+  - `src/clis/notebooklm/generate-slide-deck.ts`
+  - `src/clis/notebooklm/utils.ts`
+  - `src/clis/notebooklm/shared.ts`
+- Compared opencli payload builders against upstream:
+  - `E:\\web\\notebooklm-cdp-cli\\src\\notebooklm_cdp_cli\\notebooklm_ops.py`
+  - `E:\\web\\tools\\notebooklm-py\\src\\notebooklm\\_artifacts.py`
+  - `E:\\web\\tools\\notebooklm-py\\src\\notebooklm\\rpc\\types.py`
+- Confirmed statically that opencli is not missing the entire audio/slide-deck payload subtrees.
+- Reproduced live on the current rich notebook:
+  - `node dist/main.js notebooklm generate report -f json`
+  - `node dist/main.js notebooklm generate audio -f json`
+  - `node dist/main.js notebooklm generate slide-deck -f json`
+- Captured live `R7cb6c` request params and raw responses through a one-off read-only probe script that reused the existing browser workspace:
+  - report returns a normal artifact row
+  - audio returns `null + UserDisplayableError`
+  - slide-deck returns `null + UserDisplayableError`
+- Ran a narrow parameter probe:
+  - audio with explicit `length=2`
+  - audio with explicit `format=1/2`
+  - slide-deck with explicit `format=1/2, length=1`
+  - all still failed with the same `UserDisplayableError`
+- Inspected the live page snapshot and found the key UI evidence:
+  - Studio panel currently shows:
+    - `您已达到每日音频概览和幻灯片数量上限，改日再来吧。 或进行升级。`
+
+### Outcome
+
+- Current best explanation is now server-side quota / eligibility gating for audio overview and slide deck.
+- Current evidence does not support changing:
+  - `buildNotebooklmGenerateAudioParams(...)`
+  - `buildNotebooklmGenerateSlideDeckParams(...)`
+- If a follow-up fix is needed, the minimal target should be:
+  - `src/clis/notebooklm/rpc.ts`
+  - or `src/clis/notebooklm/utils.ts`
+  - specifically to classify and surface this quota-style `UserDisplayableError` clearly
+
+### Verification
+
+- No product code was changed in this round.
+- Investigation commands run:
+  - `node dist/main.js notebooklm current -f json`
+  - `node dist/main.js notebooklm generate report -f json`
+  - `node dist/main.js notebooklm generate audio -f json`
+  - `node dist/main.js notebooklm generate slide-deck -f json`
+  - `node dist/main.js notebooklm download list -f json`
+- Additional read-only live probes were run via inline Node scripts against the existing browser workspace to capture:
+  - raw `R7cb6c` params
+  - raw `R7cb6c` responses
+  - current Studio-panel snapshot text

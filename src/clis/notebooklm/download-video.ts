@@ -3,6 +3,7 @@ import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import {
+  completeNotebooklmArtifactIds,
   downloadNotebooklmVideoViaRpc,
   ensureNotebooklmNotebookBinding,
   getNotebooklmPageState,
@@ -28,6 +29,7 @@ cli({
     {
       name: 'artifact-id',
       help: 'Specific completed video artifact id',
+      completion: () => completeNotebooklmArtifactIds('video'),
     },
   ],
   columns: ['artifact_id', 'artifact_type', 'mime_type', 'created_at', 'output_path', 'source'],
