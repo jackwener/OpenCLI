@@ -47,8 +47,6 @@ export interface ManifestEntry {
   modulePath?: string;
   /** Pre-navigation control — see CliCommand.navigateBefore */
   navigateBefore?: boolean | string;
-  /** Lower values appear earlier in command listings/help. */
-  order?: number;
 }
 
 import { type YamlCliDefinition, parseYamlArgs } from './yaml-schema.js';
@@ -98,7 +96,6 @@ function toManifestEntry(cmd: CliCommand, modulePath: string): ManifestEntry {
     type: 'ts',
     modulePath,
     navigateBefore: cmd.navigateBefore,
-    order: cmd.order,
   };
 }
 
@@ -174,7 +171,7 @@ export async function loadTsManifestEntries(
         seen.add(key);
         return true;
       })
-      .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name))
+      .sort((a, b) => a.name.localeCompare(b.name))
       .map(cmd => toManifestEntry(cmd, modulePath));
   } catch (err) {
     // If parsing fails, log a warning (matching scanYaml behaviour) and skip the entry.
@@ -233,7 +230,7 @@ export async function buildManifest(): Promise<ManifestEntry[]> {
     }
   }
 
-  return [...manifest.values()].sort((a, b) => a.site.localeCompare(b.site) || (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name));
+  return [...manifest.values()].sort((a, b) => a.site.localeCompare(b.site) || a.name.localeCompare(b.name));
 }
 
 async function main(): Promise<void> {

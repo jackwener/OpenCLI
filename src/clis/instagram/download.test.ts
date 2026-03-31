@@ -1,3 +1,4 @@
+import * as os from 'node:os';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CliCommand } from '../../registry.js';
 import { getRegistry } from '../../registry.js';
@@ -22,7 +23,7 @@ const {
 let cmd: CliCommand;
 
 beforeAll(() => {
-  cmd = getRegistry().get('instagram/dl')!;
+  cmd = getRegistry().get('instagram/download')!;
   expect(cmd?.func).toBeTypeOf('function');
 });
 
@@ -134,5 +135,25 @@ describe('instagram download command', () => {
       expect.objectContaining({ timeout: 120000 }),
     );
     expect(logSpy).toHaveBeenCalledWith('📁 saved: instagram-test/DWUR_azCWbN');
+  });
+
+  it('uses a cross-platform Downloads default when path is omitted', async () => {
+    mockHttpDownload.mockResolvedValueOnce({ success: true, size: 120_000 });
+
+    const page = createPageMock({
+      ok: true,
+      shortcode: 'DWUR_azCWbN',
+      items: [
+        { type: 'image', url: 'https://cdn.example.com/photo.webp?foo=1' },
+      ],
+    });
+
+    await cmd.func!(page, { url: 'https://www.instagram.com/p/DWUR_azCWbN/' });
+
+    expect(mockHttpDownload).toHaveBeenCalledWith(
+      'https://cdn.example.com/photo.webp?foo=1',
+      expect.stringContaining(`${os.homedir()}/Downloads/Instagram/DWUR_azCWbN/DWUR_azCWbN_01.webp`),
+      expect.objectContaining({ timeout: 60000 }),
+    );
   });
 });

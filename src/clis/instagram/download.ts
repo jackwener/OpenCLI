@@ -253,20 +253,19 @@ async function downloadInstagramMedia(items: DownloadedMediaItem[], outputDir: s
 
 cli({
   site: 'instagram',
-  name: 'dl',
+  name: 'download',
   description: 'Download images and videos from Instagram posts and reels',
   domain: 'www.instagram.com',
   strategy: Strategy.COOKIE,
   navigateBefore: false,
-  order: 9.5,
   args: [
     { name: 'url', positional: true, required: true, help: 'Instagram post / reel / tv URL' },
-    { name: 'path', default: '/sdcard/Pictures/Instagram', help: 'Download directory' },
+    { name: 'path', default: path.join(os.homedir(), 'Downloads', 'Instagram'), help: 'Download directory' },
   ],
   func: async (page, kwargs) => {
     const browserPage = ensurePage(page);
     const target = parseInstagramMediaTarget(String(kwargs.url ?? ''));
-    const outputRoot = String(kwargs.path ?? '/sdcard/Pictures/Instagram');
+    const outputRoot = String(kwargs.path ?? path.join(os.homedir(), 'Downloads', 'Instagram'));
 
     await browserPage.goto(target.canonicalUrl);
 
