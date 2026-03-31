@@ -212,8 +212,9 @@ describe('douyin draft registration', () => {
         1,
         { ok: false, reason: 'cover-input-pending' },
         { ok: true, selector: '[data-opencli-cover-input="1"]' },
-        { ready: false, bodyText: '封面处理中' },
-        { ready: true, bodyText: '上传新封面' },
+        { titleReady: true, coverBusy: true, bodyText: '封面处理中' },
+        { titleReady: true, coverBusy: false, bodyText: '上传新封面' },
+        { titleReady: true, coverBusy: false, bodyText: '上传新封面' },
         true,
         true,
         { ok: true, text: '暂存离开', creationId: 'creation-002' },
@@ -237,7 +238,7 @@ describe('douyin draft registration', () => {
     const shortWaitCalls = (page.wait as ReturnType<typeof vi.fn>).mock.calls.filter(
       ([arg]) => JSON.stringify(arg) === JSON.stringify({ time: 0.5 }),
     );
-    expect(shortWaitCalls).toHaveLength(2);
+    expect(shortWaitCalls).toHaveLength(3);
 
     const evaluateCalls = (page.evaluate as ReturnType<typeof vi.fn>).mock.calls.map(
       (args: unknown[]) => String(args[0]),
@@ -255,5 +256,58 @@ describe('douyin draft registration', () => {
         draft_id: 'creation-002',
       },
     ]);
+  });
+
+  it('waits for the cover state to stay idle even when busy appears after the first poll', async () => {
+    const registry = getRegistry();
+    const cmd = [...registry.values()].find(c => c.site === 'douyin' && c.name === 'draft');
+    expect(cmd?.func).toBeTypeOf('function');
+    if (!cmd?.func) throw new Error('douyin draft command not registered');
+
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-douyin-draft-'));
+    const videoPath = path.join(tempDir, 'cover-race.mp4');
+    const coverPath = path.join(tempDir, 'cover-race.jpg');
+    fs.writeFileSync(videoPath, Buffer.from([0, 0, 0, 20, 102, 116, 121, 112]));
+    fs.writeFileSync(coverPath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+
+    const page = createPageMock(
+      [
+        undefined,
+        { href: 'https://creator.douyin.com/creator-micro/content/post/video?enter_from=publish_page', ready: true, bodyText: '' },
+        undefined,
+        1,
+        { ok: true, selector: '[data-opencli-cover-input="1"]' },
+        { titleReady: true, coverBusy: false, bodyText: '上传新封面' },
+        { titleReady: true, coverBusy: true, bodyText: '封面处理中' },
+        { titleReady: true, coverBusy: false, bodyText: '上传新封面' },
+        { titleReady: true, coverBusy: false, bodyText: '上传新封面' },
+        true,
+        true,
+        { ok: true, text: '暂存离开', creationId: 'creation-cover-race' },
+        {
+          href: 'https://creator.douyin.com/creator-micro/content/upload?enter_from=publish',
+          bodyText: '你还有上次未发布的视频，是否继续编辑？继续编辑放弃',
+        },
+      ],
+    );
+
+    const rows = await cmd.func(page, {
+      video: videoPath,
+      title: '封面竞态验证',
+      caption: '',
+      cover: coverPath,
+      visibility: 'public',
+    });
+
+    expect(rows).toEqual([
+      {
+        status: '✅ 草稿已保存，可在创作中心继续编辑',
+        draft_id: 'creation-cover-race',
+      },
+    ]);
+    const shortWaitCalls = (page.wait as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([arg]) => JSON.stringify(arg) === JSON.stringify({ time: 0.5 }),
+    );
+    expect(shortWaitCalls).toHaveLength(3);
   });
 });

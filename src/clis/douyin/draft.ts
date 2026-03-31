@@ -22,6 +22,8 @@ const DRAFT_UPLOAD_URL = 'https://creator.douyin.com/creator-micro/content/uploa
 const COMPOSER_WAIT_ATTEMPTS = 120;
 const COVER_INPUT_WAIT_ATTEMPTS = 20;
 const COVER_READY_WAIT_ATTEMPTS = 20;
+const COVER_READY_STABLE_POLLS = 2;
+const COVER_READY_IDLE_POLLS_WITHOUT_BUSY = 3;
 
 interface DraftComposerState {
   href: string;
@@ -210,6 +212,8 @@ async function prepareCustomCoverInput(page: IPage): Promise<string> {
  */
 async function waitForCoverReady(page: IPage): Promise<void> {
   let lastBodyText = '';
+  let sawBusy = false;
+  let stableIdlePolls = 0;
 
   for (let attempt = 0; attempt < COVER_READY_WAIT_ATTEMPTS; attempt += 1) {
     const state = (await page.evaluate(`() => {
@@ -219,13 +223,25 @@ async function waitForCoverReady(page: IPage): Promise<void> {
       );
       const coverBusy = /(封面处理中|封面上传中|上传封面中|正在上传封面|正在处理封面)/.test(bodyText);
       return {
-        ready: titleReady && !coverBusy,
+        titleReady,
+        coverBusy,
         bodyText,
       };
-    }`)) as { ready: boolean; bodyText: string };
+    }`)) as { titleReady: boolean; coverBusy: boolean; bodyText: string };
 
-    if (state.ready) {
-      return;
+    if (state.coverBusy) {
+      sawBusy = true;
+      stableIdlePolls = 0;
+    } else if (state.titleReady) {
+      stableIdlePolls += 1;
+      const requiredIdlePolls = sawBusy
+        ? COVER_READY_STABLE_POLLS
+        : COVER_READY_IDLE_POLLS_WITHOUT_BUSY;
+      if (stableIdlePolls >= requiredIdlePolls) {
+        return;
+      }
+    } else {
+      stableIdlePolls = 0;
     }
 
     lastBodyText = state.bodyText;
