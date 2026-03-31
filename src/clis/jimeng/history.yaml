@@ -24,16 +24,37 @@ pipeline:
           body: JSON.stringify({ cursor: '', count: limit, need_page_item: true, need_aigc_data: true, aigc_mode_list: ['workbench'] })
         });
         const data = await res.json();
-        const items = data?.data?.history_list || [];
-        return items.slice(0, limit).map(item => {
-          const params = item.aigc_image_params?.text2image_params || {};
-          const images = item.image?.large_images || [];
+        const statusMap = { 10: 'queued', 20: 'processing', 30: 'failed', 50: 'completed', 100: 'processing', 102: 'completed', 103: 'failed' };
+
+        // Support both new (records_list) and old (history_list) API schemas
+        const items = data?.data?.records_list || data?.data?.history_list || [];
+        return items.slice(0, limit).map(record => {
+          // In new schema, detail is nested under item_list[0]; in old schema, at top level
+          const i0 = record.item_list?.[0];
+
+          // prompt: new → i0.aigc_image_params, old → record.aigc_image_params
+          const params = i0?.aigc_image_params?.text2image_params
+            || record.aigc_image_params?.text2image_params
+            || {};
+
+          // image_url: new → i0.image, old → record.image
+          const images = i0?.image?.large_images || record.image?.large_images || [];
+
+          // status: new → record.status, old → record.common_attr.status or i0.common_attr.status
+          const statusCode = record.status ?? record.common_attr?.status ?? i0?.common_attr?.status ?? 0;
+
+          // model: new → record.model_info, old → params.model_config
+          const model = record.model_info?.model_name || params.model_config?.model_name || 'unknown';
+
+          // created_at: new → record.created_time (float), old → record.common_attr.create_time (int)
+          const timestamp = record.created_time || record.common_attr?.create_time || i0?.common_attr?.create_time || 0;
+
           return {
-            prompt: params.prompt || item.common_attr?.title || 'N/A',
-            model: params.model_config?.model_name || 'unknown',
-            status: item.common_attr?.status === 102 ? 'completed' : 'pending',
+            prompt: params.prompt || i0?.common_attr?.prompt || record.common_attr?.title || 'N/A',
+            model,
+            status: statusMap[statusCode] || `unknown(${statusCode})`,
             image_url: images[0]?.image_url || '',
-            created_at: new Date((item.common_attr?.create_time || 0) * 1000).toLocaleString('zh-CN'),
+            created_at: new Date(timestamp * 1000).toLocaleString('zh-CN'),
           };
         });
       })()
