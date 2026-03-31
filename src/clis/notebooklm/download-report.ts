@@ -3,6 +3,7 @@ import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import {
+  completeNotebooklmArtifactIds,
   downloadNotebooklmReportViaRpc,
   ensureNotebooklmNotebookBinding,
   getNotebooklmPageState,
@@ -28,6 +29,7 @@ cli({
     {
       name: 'artifact-id',
       help: 'Specific completed report artifact id',
+      completion: () => completeNotebooklmArtifactIds('report'),
     },
   ],
   columns: ['title', 'artifact_id', 'created_at', 'output_path', 'source'],

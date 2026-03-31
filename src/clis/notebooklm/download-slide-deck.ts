@@ -3,6 +3,7 @@ import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE, type NotebooklmSlideDeckDownloadFormat } from './shared.js';
 import {
+  completeNotebooklmArtifactIds,
   downloadNotebooklmSlideDeckViaRpc,
   ensureNotebooklmNotebookBinding,
   getNotebooklmPageState,
@@ -32,6 +33,7 @@ cli({
     {
       name: 'artifact-id',
       help: 'Specific completed slide deck artifact id',
+      completion: () => completeNotebooklmArtifactIds('slide_deck'),
     },
     {
       name: 'output-format',

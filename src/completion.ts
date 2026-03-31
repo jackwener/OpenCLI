@@ -6,7 +6,8 @@
  *  - Dynamic completion logic that returns candidates for the current cursor position
  */
 
-import { getRegistry, splitCommandPath } from './registry.js';
+import { pathToFileURL } from 'node:url';
+import { getRegistry, splitCommandPath, type CliCommand, type InternalCliCommand } from './registry.js';
 import { CliError } from './errors.js';
 
 // ── Dynamic completion logic ───────────────────────────────────────────────
@@ -34,7 +35,7 @@ const BUILTIN_COMMANDS = [
  * @param words  - The argv after 'opencli' (words[0] is the first arg, e.g. site name)
  * @param cursor - 1-based position of the word being completed (1 = first arg)
  */
-export function getCompletions(words: string[], cursor: number): string[] {
+export async function getCompletions(words: string[], cursor: number): Promise<string[]> {
   // cursor === 1 → completing the first argument (site name or built-in command)
   if (cursor <= 1) {
     const sites = new Set<string>();
@@ -51,12 +52,36 @@ export function getCompletions(words: string[], cursor: number): string[] {
     return [];
   }
 
+  const commandTokens = words.slice(1, Math.max(1, cursor - 1));
+  const resolved = resolveCommandForArgs(site, commandTokens);
+  if (resolved) {
+    const loadedCmd = await ensureCompletionCommandLoaded(resolved.cmd);
+    const optionArg = resolveActiveOptionArg(loadedCmd, commandTokens.slice(resolved.path.length));
+    const currentToken = words[cursor - 1] ?? '';
+    if (!optionArg) return [];
+
+    try {
+      const rawCandidates = optionArg.completion
+        ? await optionArg.completion({
+          words,
+          cursor,
+          site,
+          command: loadedCmd.name,
+          currentToken,
+        })
+        : optionArg.choices;
+      if (!Array.isArray(rawCandidates) || rawCandidates.length === 0) return [];
+      return [...new Set(rawCandidates.filter((value): value is string => typeof value === 'string' && value.trim().length > 0))].sort();
+    } catch {
+      return [];
+    }
+  }
+
   const prefix = words.slice(1, Math.max(1, cursor - 1));
   const candidates = new Set<string>();
 
   for (const [, cmd] of getRegistry()) {
     if (cmd.site !== site) continue;
-
     const paths = [cmd.name, ...(cmd.aliases ?? [])].map(splitCommandPath).filter(path => path.length > 0);
     for (const path of paths) {
       if (path.length < prefix.length + 1) continue;
@@ -67,6 +92,55 @@ export function getCompletions(words: string[], cursor: number): string[] {
   }
 
   return [...candidates].sort();
+}
+
+function resolveCommandForArgs(site: string, tokensBeforeCurrent: string[]) {
+  let best: { cmd: CliCommand; path: string[] } | null = null;
+  const seen = new Set<string>();
+
+  for (const [, cmd] of getRegistry()) {
+    if (cmd.site !== site) continue;
+
+    const canonicalKey = `${cmd.site}/${cmd.name}`;
+    if (seen.has(canonicalKey)) continue;
+    seen.add(canonicalKey);
+
+    const paths = [cmd.name, ...(cmd.aliases ?? [])].map(splitCommandPath).filter(path => path.length > 0);
+    for (const path of paths) {
+      if (tokensBeforeCurrent.length < path.length) continue;
+      const matches = path.every((segment, index) => tokensBeforeCurrent[index] === segment);
+      if (!matches) continue;
+      if (!best || path.length > best.path.length) {
+        best = { cmd, path };
+      }
+    }
+  }
+
+  return best;
+}
+
+function resolveActiveOptionArg(
+  cmd: CliCommand,
+  tokensAfterCommand: string[],
+) {
+  const previousToken = tokensAfterCommand[tokensAfterCommand.length - 1];
+  if (!previousToken?.startsWith('--')) return null;
+
+  const optionName = previousToken.slice(2);
+  return cmd.args.find((arg) => !arg.positional && arg.name === optionName) ?? null;
+}
+
+async function ensureCompletionCommandLoaded(cmd: CliCommand): Promise<CliCommand> {
+  const internal = cmd as InternalCliCommand;
+  if (!internal._lazy || !internal._modulePath) return cmd;
+
+  try {
+    await import(pathToFileURL(internal._modulePath).href);
+  } catch {
+    return cmd;
+  }
+
+  return getRegistry().get(`${cmd.site}/${cmd.name}`) ?? cmd;
 }
 
 // ── Shell script generators ────────────────────────────────────────────────

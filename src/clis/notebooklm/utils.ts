@@ -5,6 +5,7 @@ import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { AuthRequiredError, CliError } from '../../errors.js';
 import { formatCookieHeader, httpDownload } from '../../download/index.js';
 import { fetchWithNodeNetwork } from '../../node-network.js';
+import { browserSession, getBrowserFactory } from '../../runtime.js';
 import type { IPage } from '../../types.js';
 import { bindCurrentTab } from '../../browser/daemon-client.js';
 import {
@@ -12,6 +13,7 @@ import {
   type NotebooklmAudioDownloadRow,
   type NotebooklmDownloadListRow,
   type NotebooklmGenerateRow,
+  type NotebooklmGenerationErrorType,
   type NotebooklmVideoDownloadRow,
   NOTEBOOKLM_DOMAIN,
   NOTEBOOKLM_HOME_URL,
@@ -44,6 +46,7 @@ import { NOTEBOOKLM_SUPPORTED_LANGUAGES } from './languages.js';
 import {
   callNotebooklmRpc,
   buildNotebooklmRpcBody,
+  extractNotebooklmRpcUserDisplayableError,
   extractNotebooklmRpcResult,
   fetchNotebooklmInPage,
   getNotebooklmPageAuth,
@@ -677,6 +680,49 @@ export function parseNotebooklmGenerationResult(
   return {
     artifact_id: artifactId,
     status: artifactId ? parseNotebooklmGenerationStatus(statusCode) : 'failed',
+  };
+}
+
+export function classifyNotebooklmGenerationFailureMessage(
+  message: string | null | undefined,
+): NotebooklmGenerationErrorType {
+  const normalized = typeof message === 'string' ? message.trim().toLowerCase() : '';
+  if (!normalized) return 'generation_failed_unknown';
+
+  if (
+    /daily .*limit|limit reached|quota|try again tomorrow|每日|上限|额度|改日再来|数量上限/.test(normalized)
+  ) {
+    return 'daily_limit_reached';
+  }
+
+  if (
+    /not enough content|insufficient content|insufficient information|need more content|need more sources|more material|内容不足|材料不足|信息不足|更多来源/.test(normalized)
+  ) {
+    return 'content_insufficient';
+  }
+
+  if (
+    /not eligible|eligible|upgrade|premium|plus|pro plan|进行升级|升级|资格/.test(normalized)
+  ) {
+    return 'feature_not_eligible';
+  }
+
+  return 'generation_failed_unknown';
+}
+
+export function parseNotebooklmGenerationFailureFromRpcBody(
+  rawBody: string,
+): Pick<NotebooklmGenerateRow, 'error_type' | 'message'> | null {
+  const displayable = extractNotebooklmRpcUserDisplayableError(rawBody, NOTEBOOKLM_CREATE_ARTIFACT_RPC_ID);
+  if (!displayable) return null;
+
+  const message = typeof displayable.message === 'string' && displayable.message.trim()
+    ? displayable.message.trim()
+    : null;
+
+  return {
+    error_type: classifyNotebooklmGenerationFailureMessage(message),
+    message,
   };
 }
 
@@ -2069,10 +2115,15 @@ export async function generateNotebooklmReportViaRpc(
     buildNotebooklmGenerateReportParams(state.notebookId, sourceIds),
   );
   const parsed = parseNotebooklmGenerationResult(rpc.result);
+  const initialFailure = !parsed.artifact_id
+    ? parseNotebooklmGenerationFailureFromRpcBody(rpc.response.body)
+    : null;
 
   let createdAt: string | null | undefined;
   let artifactId = parsed.artifact_id;
   let status = parsed.status;
+  let errorType = initialFailure?.error_type ?? (status === 'failed' ? 'generation_failed_unknown' : null);
+  let message = initialFailure?.message ?? null;
   let source: NotebooklmGenerateRow['source'] = 'rpc+create-artifact';
 
   if (options.wait) {
@@ -2092,6 +2143,8 @@ export async function generateNotebooklmReportViaRpc(
       artifactId = String(artifact[0] ?? '') || artifactId;
       status = parseNotebooklmGenerationStatus(artifact[4]);
       createdAt = toNotebooklmIsoTimestamp(artifact[15]);
+      errorType = status === 'failed' ? errorType ?? 'generation_failed_unknown' : null;
+      if (status !== 'failed') message = null;
       source = 'rpc+create-artifact+artifact-list';
     }
   }
@@ -2102,6 +2155,8 @@ export async function generateNotebooklmReportViaRpc(
     artifact_type: 'report',
     status,
     created_at: createdAt,
+    error_type: errorType,
+    message,
     source,
   };
 }
@@ -2139,10 +2194,15 @@ export async function generateNotebooklmAudioViaRpc(
     buildNotebooklmGenerateAudioParams(state.notebookId, sourceIds),
   );
   const parsed = parseNotebooklmGenerationResult(rpc.result);
+  const initialFailure = !parsed.artifact_id
+    ? parseNotebooklmGenerationFailureFromRpcBody(rpc.response.body)
+    : null;
 
   let createdAt: string | null | undefined;
   let artifactId = parsed.artifact_id;
   let status = parsed.status;
+  let errorType = initialFailure?.error_type ?? (status === 'failed' ? 'generation_failed_unknown' : null);
+  let message = initialFailure?.message ?? null;
   let source: NotebooklmGenerateRow['source'] = 'rpc+create-artifact';
 
   if (options.wait) {
@@ -2162,6 +2222,8 @@ export async function generateNotebooklmAudioViaRpc(
       artifactId = String(artifact[0] ?? '') || artifactId;
       status = parseNotebooklmGenerationStatus(artifact[4]);
       createdAt = toNotebooklmIsoTimestamp(artifact[15]);
+      errorType = status === 'failed' ? errorType ?? 'generation_failed_unknown' : null;
+      if (status !== 'failed') message = null;
       source = 'rpc+create-artifact+artifact-list';
     }
   }
@@ -2172,6 +2234,8 @@ export async function generateNotebooklmAudioViaRpc(
     artifact_type: 'audio',
     status,
     created_at: createdAt,
+    error_type: errorType,
+    message,
     source,
   };
 }
@@ -2209,10 +2273,15 @@ export async function generateNotebooklmSlideDeckViaRpc(
     buildNotebooklmGenerateSlideDeckParams(state.notebookId, sourceIds),
   );
   const parsed = parseNotebooklmGenerationResult(rpc.result);
+  const initialFailure = !parsed.artifact_id
+    ? parseNotebooklmGenerationFailureFromRpcBody(rpc.response.body)
+    : null;
 
   let createdAt: string | null | undefined;
   let artifactId = parsed.artifact_id;
   let status = parsed.status;
+  let errorType = initialFailure?.error_type ?? (status === 'failed' ? 'generation_failed_unknown' : null);
+  let message = initialFailure?.message ?? null;
   let source: NotebooklmGenerateRow['source'] = 'rpc+create-artifact';
 
   if (options.wait) {
@@ -2235,6 +2304,8 @@ export async function generateNotebooklmSlideDeckViaRpc(
       artifactId = String(artifact[0] ?? '') || artifactId;
       status = parseNotebooklmGenerationStatus(artifact[4]);
       createdAt = toNotebooklmIsoTimestamp(artifact[15]);
+      errorType = status === 'failed' ? errorType ?? 'generation_failed_unknown' : null;
+      if (status !== 'failed') message = null;
       source = 'rpc+create-artifact+artifact-list';
     }
   }
@@ -2245,6 +2316,8 @@ export async function generateNotebooklmSlideDeckViaRpc(
     artifact_type: 'slide_deck',
     status,
     created_at: createdAt,
+    error_type: errorType,
+    message,
     source,
   };
 }
@@ -2259,6 +2332,42 @@ export async function listNotebooklmDownloadArtifactsViaRpc(page: IPage): Promis
     state.notebookId,
     state.url || `https://${NOTEBOOKLM_DOMAIN}/notebook/${state.notebookId}`,
   );
+}
+
+export function pickNotebooklmArtifactIdCompletionCandidates(
+  rows: NotebooklmDownloadListRow[],
+  artifactType: NotebooklmDownloadListRow['artifact_type'],
+): string[] {
+  return rows
+    .filter((row) => row.artifact_type === artifactType)
+    .map((row) => row.artifact_id)
+    .filter((artifactId) => typeof artifactId === 'string' && artifactId.trim().length > 0);
+}
+
+async function listNotebooklmDownloadArtifactsForCompletionProbe(): Promise<NotebooklmDownloadListRow[] | null> {
+  return browserSession(getBrowserFactory(), async (page) => {
+    const rebound = await ensureNotebooklmNotebookBinding(page);
+    if (rebound) return null;
+
+    await requireNotebooklmSession(page);
+    const state = await getNotebooklmPageState(page);
+    if (state.kind !== 'notebook') return [];
+
+    return listNotebooklmDownloadArtifactsViaRpc(page);
+  }, { workspace: `site:${NOTEBOOKLM_SITE}` });
+}
+
+export async function completeNotebooklmArtifactIds(
+  artifactType: NotebooklmDownloadListRow['artifact_type'],
+): Promise<string[]> {
+  try {
+    const firstProbe = await listNotebooklmDownloadArtifactsForCompletionProbe();
+    const rows = firstProbe ?? await listNotebooklmDownloadArtifactsForCompletionProbe();
+    if (!Array.isArray(rows) || rows.length === 0) return [];
+    return pickNotebooklmArtifactIdCompletionCandidates(rows, artifactType);
+  } catch {
+    return [];
+  }
 }
 
 export async function downloadNotebooklmReportViaRpc(

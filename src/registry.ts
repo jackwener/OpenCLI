@@ -12,6 +12,16 @@ export enum Strategy {
   UI = 'ui',
 }
 
+export interface ArgCompletionContext {
+  words: string[];
+  cursor: number;
+  site: string;
+  command: string;
+  currentToken: string;
+}
+
+export type ArgCompletionHandler = (ctx: ArgCompletionContext) => Promise<string[]> | string[];
+
 export interface Arg {
   name: string;
   type?: string;
@@ -20,6 +30,7 @@ export interface Arg {
   positional?: boolean;
   help?: string;
   choices?: string[];
+  completion?: ArgCompletionHandler;
 }
 
 export interface RequiredEnv {

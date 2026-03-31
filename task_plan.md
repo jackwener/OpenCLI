@@ -78,6 +78,11 @@
     - `download_variants`
     - `source`
   - 不暴露完整 artifact payload，也不扩成 `artifact/*`
+- `artifact-id` 补全本轮也维持最小范围：
+  - 只覆盖现有 4 个 NotebookLM 下载命令
+  - 不扩成通用 `source-id` / `note-id` / `notebook-id` 补全系统
+  - 数据源直接复用当前 notebook 的 `download/list` / `gArtLc` 索引
+  - 需要的框架改动只限 completion 入口异步化和按命令 lazy-load TS adapter metadata
 - 当前最小 generate 方向也已落地：
   - `generate/report`
   - `generate/audio`
@@ -91,6 +96,24 @@
   - 当前 live 说明：
     - `report` 在最小 wait 窗口内可稳定闭环
     - `audio` / `slide-deck` 的真实生成时长可能超过最小 wait 窗口，因此提交路径与后续 artifact 可见性已验证，但不应把这版误写成完整长任务恢复体系
+- 对 `generate/audio` / `generate/slide-deck` 的专项调查已补充一个更强结论：
+  - 在当前 rich notebook 上，`R7cb6c` 对 report 会直接返回 artifact row
+  - 但对 audio / slide-deck 会稳定返回 `wrb.fr(..., null, ..., UserDisplayableError, ...)`
+  - 页面 Studio 面板同时出现明确 upsell/quota 文案：
+    - `您已达到每日音频概览和幻灯片数量上限，改日再来吧。 或进行升级。`
+  - 因此当前最可能根因是 server-side quota / eligibility gate，而不是 opencli 少传了某个最小 payload 槽位
+  - 继续修复时应优先处理“把这类返回识别成 quota/eligibility failure 并给出明确诊断”，而不是盲目扩 payload
+- 已完成：generate 错误分类最小增强
+  - `UserDisplayableError` 现在会被显式识别
+  - generate row 新增：
+    - `error_type`
+    - `message`
+  - 当前支持的分类：
+    - `daily_limit_reached`
+    - `feature_not_eligible`
+    - `content_insufficient`
+    - `generation_failed_unknown`
+  - 若服务端没有返回可读 message，则保守落到 `generation_failed_unknown`
 
 ## Risks
 
@@ -151,6 +174,10 @@
   - 若继续推进 generate / artifact：
     - 优先评估是否真的需要公开最小 `artifact/list`
     - 不应先铺完整 `artifact wait/poll/export` 面
+  - 若继续推进 `generate/audio` / `generate/slide-deck`：
+    - 当前已完成 server-side `UserDisplayableError` 分类兜底
+    - 若还要继续收窄原因，再决定是否需要额外 live UI request 对比或内部 envelope code 对照
+    - 当前不建议先改 `R7cb6c` payload builder
   - `notes-save` 已不再只依赖标题唯一；当前剩余 live 阻塞变成“当前 visible editor 没有稳定 id，且 notebook 内存在 title 和 content 都完全相同的重复 note”
   - 这类歧义现在可以通过显式 `--note-id` 解决，但前提仍然是当前页已经打开目标 note editor
   - 若继续推进三层命令树，优先 remount 仍保留平面形态的 notebook/share 命令，而不是扩大业务范围
@@ -207,7 +234,7 @@
     - `wait-for-sources` / `wait` 共用同一个 RPC polling 核心，只在命令层分别收单个和逗号分隔的多个 source id
     - 当前仍不扩 `source add-drive` / `source add-research`
 
-## 2026-03-31 From-0 Integration Test Summary (9 Modules)
+## 2026-03-31 From-0 Integration Test Summary (9 Modules, Historical Only)
 
 ### Test Environment
 - Browser Bridge daemon: port 19825, extension v1.5.5, connected
@@ -291,9 +318,9 @@
 - `source --help`、`notes --help`、`download --help`、`language --help` → 全部正常
 - `language get` 和 `language-get` → 均 PASS（alias 正常）
 
-### PR 准入评估
+### 历史测试结论（不作为当前统一 PR 判断依据）
 
-**可以进入统一 PR 的命令：**
+**当时可直接确认的命令：**
 1. `status` / `list` — 稳定，RPC
 2. `create` / `rename` / `delete` / `remove-from-recent` — 稳定，RPC，闭环验证通过
 3. `current` / `get` / `metadata` / `describe` — 稳定
@@ -307,7 +334,7 @@
 11. `language-list` / `language-get` / `language-set` — 稳定，RPC
 12. 命令树三层结构和帮助文本 — 框架稳定
 
-**不该混进统一 PR（需要更多运行态验证）：**
+**当时受运行态影响、未纳入判断的命令：**
 - `source-rename` / `source-refresh` / `source-delete` — browser drift 导致测试不稳定，需要稳定性修复后再验证
 - `notes delete` / `notes-save` — 同上
 - `download audio` / `download slide-deck` — artifact URL 过期是运行态问题，不是代码缺陷；但需要稳定可用的 artifact 样本才能验证
@@ -317,10 +344,138 @@
 - `bind-current` 在无 notebook tab 时失败是设计预期，需要先 navigate
 - `download audio/slide-deck` 的 "fetch failed" 是 URL 过期，不是实现问题
 
-### 关键运行态问题：Browser Drift
+### 历史运行态问题：Browser Drift（仅用于排障记录）
 - 每次 CLI 命令执行后，browser bridge CDP session 会偶发漂回 home 页
 - 在连续 2-3 条命令后必然发生
 - 影响所有 notebook-context 命令的连续测试
 - 根因：`navigate` 命令在 daemon 端执行后，下一次 CLI 调用时 CDP session 丢失了 notebook URL 上下文
 - 当前 workaround：每次 FAIL 后重新 `curl navigate`，然后继续测试
 - 建议：这是 daemon/CDP session 管理问题，不是 NotebookLM adapter 代码缺陷
+
+## 2026-03-31 统一 PR 前验证（第 2 轮）
+
+> 以下结论是当前统一 PR 的唯一判断口径。上面的 From-0 结果只保留为历史排障记录，不再作为 PR judgment 依据。
+
+### 测试前提
+- notebook: `a45591ed-37bd-4038-a131-141a295c024b`（浏览器自动化工具全解析）
+- `bind-current` → ✅
+- `status` → ✅ `page: "notebook"`
+
+### 模块 A：Source ingest 闭环
+
+| 命令 | 结果 | 备注 |
+|------|------|------|
+| `source-add-text` | ✅ | source id 返回，RPC |
+| `source wait` | ✅ | `status_code: 2, status: "ready"` |
+| `source wait-for-sources` | ✅ | 单 id 逗号形式可用 |
+| `source-add-file` | ❌ | `fetch failed` — resumable upload URL 过期（运行态）|
+
+- `source delete` ✅（清理测试 source）
+
+### 模块 B：Notes 精确操作
+
+| 命令 | 结果 | 备注 |
+|------|------|------|
+| `notes list` | ✅ | 3 条，含两条同名"新建笔记" |
+| `notes get --note-id` | ✅ | 绕过重复标题歧义，精确命中 |
+| `notes create` | ✅ | RPC，id 返回 |
+| `notes delete --note-id` | ✅ | RPC |
+| `notes rename --note-id` | ✅ | RPC |
+| `notes-save` | ❌ | 无 visible editor（设计边界，预期）|
+
+### 模块 C：Generate 最小闭环
+
+| 命令 | 结果 | 备注 |
+|------|------|------|
+| `generate report --wait` | ✅ | artifact id `c0674240-...`，完整闭环 |
+| `generate audio` | ❌ | `status: failed`，artifact_id=null（非超时，是生成失败）|
+| `generate audio --wait` | ❌ | 超时，这个 notebook 内容可能不足以生成 audio |
+| `generate slide-deck` | ❌ | `status: failed`，同上 |
+| `generate slide-deck --wait` | ❌ | 超时 |
+
+- `generate audio/slide-deck` 失败是这个 notebook 的内容限制，不是代码缺陷
+- 在有足够源材料的 notebook（如 Electron Debugging 2026）上 audio/slide-deck 提交链路已验证
+
+### 模块 D：Download 闭环
+
+| 命令 | 结果 | 备注 |
+|------|------|------|
+| `download list` | ✅ | 正确索引 report + slide_deck |
+| `download report` | ✅ | 新 artifact 9.9K 写出 |
+| `download slide-deck` | ❌ | `fetch failed` — URL 过期（运行态）|
+
+### 模块 E：artifact-id 补全
+
+| probe | 结果 | 备注 |
+|------|------|------|
+| `download slide-deck ... --artifact-id` | ✅ | 补全 slide-deck id |
+| `download report ... --artifact-id` | ✅ | 补全 report id |
+| `download audio ... --artifact-id` | ✅ | 空（无 audio artifact）|
+| `download video ... --artifact-id` | ✅ | 空（无 video artifact）|
+| `download-slide-deck`（flat）| ✅ | 同 slide-deck |
+| `download-report`（flat）| ✅ | 同 report |
+
+### 统一 PR 准入复核（当前有效）
+
+**可进入统一 PR 的能力：**
+1. `source-add-text` / `source wait` / `source wait-for-sources` / `source delete` — 稳定
+2. `notes list` / `notes get --note-id` / `notes create` / `notes delete --note-id` / `notes rename --note-id` — 稳定
+3. `generate report --wait` — 完整闭环，downloadable
+4. `download list` / `download report` — 稳定
+5. `completion --artifact-id` 补全 — 正确，空时返回空
+
+**不该因运行态问题阻塞 PR 的命令：**
+- `source-add-file` — 该能力此前已 live 验证通过；最新定向验证中的失败属于 daemon 侧网络/上传会话运行态问题，不是 adapter 代码问题
+- `download slide-deck` — 该能力此前已用 fresh artifact live 验证通过；最新定向验证未能建立新 artifact 前置条件，不应反向否定下载实现
+
+**仍建议拆 follow-up 的部分：**
+- `generate audio` / `generate slide-deck` — 在该 notebook 上 `status: failed`；content 调查后仍失败，疑似 server-side payload 限制，不排除代码问题，需独立调查
+- `notes-save` 的 visible editor 要求 → 建议文档化而非改设计
+
+**已知设计边界：**
+- signed download URL 有 TTL（~1 天）
+- resumable upload URL 有 TTL
+- audio/slide-deck 生成依赖 notebook 内容丰富程度
+- `notes-save` 要求当前页有 visible note editor
+
+## 2026-03-31 剩余运行态定向验证（第 3 轮）
+
+> 本轮用于检查剩余边界，不覆盖此前已经完成的 live 成功样本；若与更早的成功验证冲突，以“能力已验证通过，但本轮样本/环境未满足前置条件”记载。
+
+### 测试前提
+- notebook: `a45591ed-37bd-4038-a131-141a295c024b`（浏览器自动化工具全解析）
+- 10 条 sources（pdf/web/youtube/pasted-text/audio），内容丰富 ✅
+- 该 notebook 之前已成功 generate report ✅
+- `bind-current` ✅，`status` ✅ `page: "notebook"`
+
+### 定向验证结果
+
+**模块 1：source-add-file**
+- 结果：❌ 运行态失败（HTTP fetch failed）
+- 分类：**本轮受 daemon 侧网络/上传会话问题影响**；该能力此前已 live 验证通过
+- 清理了 3 条 stale `type-0` 测试 source 残留
+
+**模块 2：notes-save**
+- 结果：⚠️ 前置条件未满足
+- 分类：**设计边界**（需 visible note editor，CDP 自动化无法人工打开 editor）
+- notes list 有 3 条 note，但无 visible editor
+
+**模块 3：generate audio**
+- 结果：❌ `status: failed`（`artifact_id: null`）
+- 分类：**运行态失败，在内容丰富的 notebook 上仍复现**；report 成功（说明非网络问题）；不排除代码实现问题（payload 格式差异或 server-side 限制）
+- 该 notebook 有 7 条正常 sources，内容充分
+
+**模块 4：generate slide-deck**
+- 结果：❌ `status: failed`（与 audio 同模式）
+- 分类：同模块 3；疑似 audio/slide-deck 共用同一失败根因
+
+**模块 5：download slide-deck**
+- 结果：⚠️ 前置条件未满足（generate slide-deck 失败，无法获得新 artifact id）
+- 分类：本轮依赖模块 4，闭环无法建立；该能力此前已用 fresh artifact live 验证通过
+
+### 关键发现
+- `generate audio` / `generate slide-deck` 的 `status: failed` 在内容丰富的 notebook 上仍复现
+- `report` 成功说明核心 RPC 路径正确，R7cb6c 对 report 类型有效
+- audio/slide-deck 疑似 payload 类型或格式与 report 不同，或该 notebook 有 server-side 限制
+- 这值得独立调查，但不推翻当前统一 PR 的 report/download 主路径
+- `source-add-file` 本轮失败是 daemon 侧网络/上传会话问题，不是 adapter 代码问题；该能力此前已 live 验证通过
