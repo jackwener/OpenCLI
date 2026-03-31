@@ -140,7 +140,7 @@ describe('BrowserBridge state', () => {
 
     const mcp = new BrowserBridge();
 
-    await expect(mcp.connect()).rejects.toThrow('Browser Extension is not connected');
+    await expect(mcp.connect({ timeout: 0.1 })).rejects.toThrow('Browser Extension is not connected');
   });
 });
 

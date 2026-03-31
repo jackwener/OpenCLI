@@ -57,21 +57,30 @@ export class BrowserBridge implements IBrowserFactory {
   }
 
   private async _ensureDaemon(timeoutSeconds?: number): Promise<void> {
-    // Use default if not provided, zero, or negative
     const effectiveSeconds = (timeoutSeconds && timeoutSeconds > 0) ? timeoutSeconds : Math.ceil(DAEMON_SPAWN_TIMEOUT / 1000);
     const timeoutMs = effectiveSeconds * 1000;
 
+    // Fast path: extension already connected
     if (await isExtensionConnected()) return;
+
+    // Daemon running but no extension — wait for extension with progress
     if (await isDaemonRunning()) {
+      if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
+        process.stderr.write('⏳ Waiting for Chrome extension to connect...\n');
+        process.stderr.write('   Make sure Chrome is open and the OpenCLI extension is enabled.\n');
+      }
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        if (await isExtensionConnected()) return;
+      }
       throw new Error(
         'Daemon is running but the Browser Extension is not connected.\n' +
         'Please install and enable the opencli Browser Bridge extension in Chrome.',
       );
     }
 
-    // Find daemon relative to this file — works for both:
-    //   npx tsx src/main.ts  → src/browser/mcp.ts  → src/daemon.ts
-    //   node dist/main.js    → dist/browser/mcp.js → dist/daemon.js
+    // No daemon — spawn one
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const parentDir = path.resolve(__dirname, '..');
     const daemonTs = path.join(parentDir, 'daemon.ts');
@@ -79,12 +88,10 @@ export class BrowserBridge implements IBrowserFactory {
     const isTs = fs.existsSync(daemonTs);
     const daemonPath = isTs ? daemonTs : daemonJs;
 
-    if (process.env.OPENCLI_VERBOSE) {
-      console.error(`[opencli] Starting daemon (${isTs ? 'ts' : 'js'})...`);
+    if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
+      process.stderr.write('⏳ Starting daemon...\n');
     }
 
-    // For compiled .js, use the current node binary directly (fast).
-    // For .ts dev mode, node can't run .ts files — use tsx via --import.
     const spawnArgs = isTs
       ? [process.execPath, '--import', 'tsx/esm', daemonPath]
       : [process.execPath, daemonPath];
@@ -96,15 +103,13 @@ export class BrowserBridge implements IBrowserFactory {
     });
     this._daemonProc.unref();
 
-    // Wait for daemon to be ready AND extension to connect (exponential backoff)
-    const backoffs = [50, 100, 200, 400, 800, 1500, 3000];
+    // Wait for daemon + extension with faster polling
     const deadline = Date.now() + timeoutMs;
-    for (let i = 0; Date.now() < deadline; i++) {
-      await new Promise(resolve => setTimeout(resolve, backoffs[Math.min(i, backoffs.length - 1)]));
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 200));
       if (await isExtensionConnected()) return;
     }
 
-    // Daemon might be up but extension not connected — give a useful error
     if (await isDaemonRunning()) {
       throw new Error(
         'Daemon is running but the Browser Extension is not connected.\n' +
