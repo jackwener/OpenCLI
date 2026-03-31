@@ -282,12 +282,12 @@ async function handleCommand(cmd: Command): Promise<Result> {
 // ─── Action handlers ─────────────────────────────────────────────────
 
 /** Internal blank page used when no user URL is provided. */
-const BLANK_PAGE = 'data:text/html,<html></html>';
+const BLANK_PAGE = 'about:blank';
 
-/** Check if a URL can be attached via CDP — only allow http(s) and our internal blank page. */
+/** Check if a URL can be attached via CDP — only allow http(s) and blank pages. */
 function isDebuggableUrl(url?: string): boolean {
   if (!url) return true;  // empty/undefined = tab still loading, allow it
-  return url.startsWith('http://') || url.startsWith('https://') || url === BLANK_PAGE;
+  return url.startsWith('http://') || url.startsWith('https://') || url === 'about:blank' || url.startsWith('data:');
 }
 
 /** Check if a URL is safe for user-facing navigation (http/https only). */
