@@ -72,7 +72,8 @@ npm install -g @jackwener/opencli
 ### 3. Verify & Try
 
 ```bash
-opencli doctor   # Check extension + daemon connectivity
+opencli doctor          # Check extension + daemon connectivity
+opencli daemon status   # Check daemon state (PID, uptime, memory)
 ```
 
 **Try it out:**

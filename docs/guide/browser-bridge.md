@@ -35,3 +35,15 @@ opencli doctor            # Check extension + daemon connectivity
 ```
 
 The daemon manages the WebSocket connection between your CLI commands and the Chrome extension. The extension executes JavaScript in the context of web pages, with access to the logged-in session.
+
+## Daemon Lifecycle
+
+The daemon auto-starts on first browser command and stays alive for **4 hours** by default. It exits only when both conditions are met: no CLI requests for the timeout period AND no Chrome extension connected.
+
+```bash
+opencli daemon status    # Check daemon state (PID, uptime, extension, memory)
+opencli daemon stop      # Graceful shutdown
+opencli daemon restart   # Stop + restart
+```
+
+Override the timeout via the `OPENCLI_DAEMON_TIMEOUT` environment variable (milliseconds). Set to `0` to keep the daemon alive indefinitely.

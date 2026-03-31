@@ -20,16 +20,21 @@
 ### Daemon issues
 
 ```bash
-# Check daemon status
-curl localhost:19825/status
+# Check daemon status (PID, uptime, extension connection, memory)
+opencli daemon status
 
 # View extension logs
 curl localhost:19825/logs
 
-# Kill and restart daemon
-pkill -f opencli-daemon
+# Stop or restart the daemon
+opencli daemon stop
+opencli daemon restart
+
+# Full diagnostics
 opencli doctor
 ```
+
+> The daemon auto-exits after 4 hours of inactivity (no CLI requests and no extension connection). Override with `OPENCLI_DAEMON_TIMEOUT` (milliseconds, `0` = never timeout).
 
 ### Desktop adapter connection issues
 
