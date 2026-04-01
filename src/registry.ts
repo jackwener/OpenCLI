@@ -12,6 +12,16 @@ export enum Strategy {
   UI = 'ui',
 }
 
+export interface ArgCompletionContext {
+  words: string[];
+  cursor: number;
+  site: string;
+  command: string;
+  currentToken: string;
+}
+
+export type ArgCompletionHandler = (ctx: ArgCompletionContext) => Promise<string[]> | string[];
+
 export interface Arg {
   name: string;
   type?: string;
@@ -20,6 +30,7 @@ export interface Arg {
   positional?: boolean;
   help?: string;
   choices?: string[];
+  completion?: ArgCompletionHandler;
 }
 
 export interface RequiredEnv {
@@ -117,6 +128,17 @@ export function getRegistry(): Map<string, CliCommand> {
 
 export function fullName(cmd: CliCommand): string {
   return `${cmd.site}/${cmd.name}`;
+}
+
+export function splitCommandPath(name: string): string[] {
+  return name
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+}
+
+export function formatCommandInvocation(cmd: CliCommand): string {
+  return [cmd.site, ...splitCommandPath(cmd.name)].join(' ');
 }
 
 export function strategyLabel(cmd: CliCommand): string {

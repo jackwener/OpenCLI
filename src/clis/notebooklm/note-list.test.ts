@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockListNotebooklmNotesFromPage, mockGetNotebooklmPageState, mockRequireNotebooklmSession } = vi.hoisted(() => ({
+const { mockListNotebooklmNotesFromPage, mockListNotebooklmNotesViaRpc, mockGetNotebooklmPageState, mockRequireNotebooklmSession } = vi.hoisted(() => ({
   mockListNotebooklmNotesFromPage: vi.fn(),
+  mockListNotebooklmNotesViaRpc: vi.fn(),
   mockGetNotebooklmPageState: vi.fn(),
   mockRequireNotebooklmSession: vi.fn(),
 }));
@@ -12,6 +13,7 @@ vi.mock('./utils.js', async () => {
     ...actual,
     getNotebooklmPageState: mockGetNotebooklmPageState,
     listNotebooklmNotesFromPage: mockListNotebooklmNotesFromPage,
+    listNotebooklmNotesViaRpc: mockListNotebooklmNotesViaRpc,
     requireNotebooklmSession: mockRequireNotebooklmSession,
   };
 });
@@ -24,9 +26,11 @@ describe('notebooklm note-list', () => {
 
   beforeEach(() => {
     mockListNotebooklmNotesFromPage.mockReset();
+    mockListNotebooklmNotesViaRpc.mockReset();
     mockGetNotebooklmPageState.mockReset();
     mockRequireNotebooklmSession.mockReset();
     mockRequireNotebooklmSession.mockResolvedValue(undefined);
+    mockListNotebooklmNotesViaRpc.mockResolvedValue([]);
     mockGetNotebooklmPageState.mockResolvedValue({
       url: 'https://notebooklm.google.com/notebook/nb-demo',
       title: 'Browser Automation',
@@ -42,6 +46,7 @@ describe('notebooklm note-list', () => {
     mockListNotebooklmNotesFromPage.mockResolvedValue([
       {
         notebook_id: 'nb-demo',
+        id: 'note-1',
         title: '新建笔记',
         created_at: '6 分钟前',
         url: 'https://notebooklm.google.com/notebook/nb-demo',
@@ -54,11 +59,40 @@ describe('notebooklm note-list', () => {
     expect(result).toEqual([
       {
         notebook_id: 'nb-demo',
+        id: 'note-1',
         title: '新建笔记',
         created_at: '6 分钟前',
         url: 'https://notebooklm.google.com/notebook/nb-demo',
         source: 'studio-list',
       },
     ]);
+  });
+
+  it('falls back to rpc when the Studio panel dom is empty', async () => {
+    mockListNotebooklmNotesFromPage.mockResolvedValue([]);
+    mockListNotebooklmNotesViaRpc.mockResolvedValue([
+      {
+        notebook_id: 'nb-demo',
+        id: 'note-rpc-1',
+        title: '新建笔记',
+        content: '',
+        url: 'https://notebooklm.google.com/notebook/nb-demo',
+        source: 'rpc',
+      },
+    ]);
+
+    const result = await command!.func!({} as any, {});
+
+    expect(result).toEqual([
+      {
+        notebook_id: 'nb-demo',
+        id: 'note-rpc-1',
+        title: '新建笔记',
+        content: '',
+        url: 'https://notebooklm.google.com/notebook/nb-demo',
+        source: 'rpc',
+      },
+    ]);
+    expect(mockListNotebooklmNotesViaRpc).toHaveBeenCalledTimes(1);
   });
 });

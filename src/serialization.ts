@@ -6,7 +6,7 @@
  */
 
 import type { Arg, CliCommand } from './registry.js';
-import { fullName, strategyLabel } from './registry.js';
+import { formatCommandInvocation, fullName, strategyLabel } from './registry.js';
 
 // ── Serialization ───────────────────────────────────────────────────────────
 
@@ -37,6 +37,7 @@ export function serializeArg(a: Arg): SerializedArg {
 export function serializeCommand(cmd: CliCommand) {
   return {
     command: fullName(cmd),
+    invocation: formatCommandInvocation(cmd),
     site: cmd.site,
     name: cmd.name,
     aliases: cmd.aliases ?? [],

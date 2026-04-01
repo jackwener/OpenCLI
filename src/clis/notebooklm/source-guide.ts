@@ -14,7 +14,8 @@ import {
 
 cli({
   site: NOTEBOOKLM_SITE,
-  name: 'source-guide',
+  name: 'source/guide',
+  aliases: ['source-guide'],
   description: 'Get the guide summary and keywords for one source in the currently opened NotebookLM notebook',
   domain: NOTEBOOKLM_DOMAIN,
   strategy: Strategy.COOKIE,

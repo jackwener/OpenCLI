@@ -12,7 +12,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { type CliCommand, fullName, getRegistry } from './registry.js';
+import { type CliCommand, fullName, getRegistry, splitCommandPath } from './registry.js';
 import { formatRegistryHelpText } from './serialization.js';
 import { render as renderOutput } from './output.js';
 import { executeCommand } from './execution.js';
@@ -44,15 +44,29 @@ export function normalizeArgValue(argType: string | undefined, value: unknown, n
   throw new ArgumentError(`"${name}" must be either "true" or "false".`);
 }
 
-/**
- * Register a single CliCommand as a Commander subcommand.
- */
-export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): void {
-  if (siteCmd.commands.some((c: Command) => c.name() === cmd.name)) return;
+function ensureCommandPath(root: Command, segments: string[]): Command {
+  if (segments.length === 0) return root;
 
+  let parentCmd = root;
+  for (const segment of segments.slice(0, -1)) {
+    const existing = parentCmd.commands.find((child: Command) => child.name() === segment);
+    if (existing) {
+      parentCmd = existing;
+      continue;
+    }
+    parentCmd = parentCmd.command(segment).description(`${segment} commands`);
+  }
+
+  const leafName = segments[segments.length - 1];
+  const existingLeaf = parentCmd.commands.find((child: Command) => child.name() === leafName);
+  if (existingLeaf) return existingLeaf;
+
+  return parentCmd.command(leafName);
+}
+
+function attachCommandDefinition(subCmd: Command, cmd: CliCommand): void {
   const deprecatedSuffix = cmd.deprecated ? ' [deprecated]' : '';
-  const subCmd = siteCmd.command(cmd.name).description(`${cmd.description}${deprecatedSuffix}`);
-  if (cmd.aliases?.length) subCmd.aliases(cmd.aliases);
+  subCmd.description(`${cmd.description}${deprecatedSuffix}`);
 
   // Register positional args first, then named options
   const positionalArgs: typeof cmd.args = [];
@@ -125,6 +139,28 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       process.exitCode = resolveExitCode(err);
     }
   });
+}
+
+/**
+ * Register a single CliCommand as a Commander subcommand.
+ */
+export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): void {
+  const segments = splitCommandPath(cmd.name);
+  const subCmd = ensureCommandPath(siteCmd, segments);
+
+  if (segments.length === 1 && cmd.aliases?.length) {
+    subCmd.aliases(cmd.aliases.filter((alias) => splitCommandPath(alias).length === 1));
+  }
+  attachCommandDefinition(subCmd, cmd);
+
+  if (segments.length > 1 && cmd.aliases?.length) {
+    for (const alias of cmd.aliases) {
+      const aliasSegments = splitCommandPath(alias);
+      if (aliasSegments.length === 0) continue;
+      const aliasCmd = ensureCommandPath(siteCmd, aliasSegments);
+      attachCommandDefinition(aliasCmd, cmd);
+    }
+  }
 }
 
 // ── Exit code resolution ─────────────────────────────────────────────────────

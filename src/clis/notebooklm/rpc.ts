@@ -31,6 +31,37 @@ export type NotebooklmRpcCallResult = {
   result: unknown;
 };
 
+export type NotebooklmRpcUserDisplayableError = {
+  kind: 'UserDisplayableError';
+  message: string | null;
+};
+
+function collectNotebooklmChunkStrings(value: unknown, strings: string[]): string[] {
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+    if (normalized) strings.push(normalized);
+    return strings;
+  }
+
+  if (!Array.isArray(value)) return strings;
+  for (const item of value) collectNotebooklmChunkStrings(item, strings);
+  return strings;
+}
+
+function pickNotebooklmReadableErrorMessage(strings: string[], rpcId: string): string | null {
+  const candidates = strings.filter((value) =>
+    value !== 'wrb.fr' &&
+    value !== rpcId &&
+    value !== 'generic' &&
+    !/UserDisplayableError/i.test(value) &&
+    !value.startsWith('type.googleapis.com/') &&
+    !/^[\d-]+$/.test(value),
+  );
+
+  const readable = candidates.find((value) => /[\u4e00-\u9fff]/.test(value) || /\s/.test(value) || value.length >= 16);
+  return readable ?? null;
+}
+
 export function extractNotebooklmPageAuthFromHtml(
   html: string,
   sourcePath: string = '/',
@@ -193,6 +224,32 @@ export function extractNotebooklmRpcResult(rawBody: string, rpcId: string): unkn
   return null;
 }
 
+export function extractNotebooklmRpcUserDisplayableError(
+  rawBody: string,
+  rpcId: string,
+): NotebooklmRpcUserDisplayableError | null {
+  const chunks = parseNotebooklmChunkedResponse(rawBody);
+
+  for (const chunk of chunks) {
+    if (!Array.isArray(chunk)) continue;
+    const items = Array.isArray(chunk[0]) ? chunk : [chunk];
+
+    for (const item of items) {
+      if (!Array.isArray(item) || item[0] !== 'wrb.fr' || item[1] !== rpcId) continue;
+      const strings = collectNotebooklmChunkStrings(item, []);
+      const hasUserDisplayableError = strings.some((value) => /UserDisplayableError/i.test(value));
+      if (!hasUserDisplayableError) continue;
+
+      return {
+        kind: 'UserDisplayableError',
+        message: pickNotebooklmReadableErrorMessage(strings, rpcId),
+      };
+    }
+  }
+
+  return null;
+}
+
 export async function fetchNotebooklmInPage(
   page: IPage,
   url: string,
@@ -243,13 +300,15 @@ export async function callNotebooklmRpc(
   params: unknown[] | Record<string, unknown> | null,
   options: {
     hl?: string;
+    sourcePath?: string;
   } = {},
 ): Promise<NotebooklmRpcCallResult> {
   const auth = await getNotebooklmPageAuth(page);
   const requestBody = buildNotebooklmRpcBody(rpcId, params, auth.csrfToken);
+  const sourcePath = options.sourcePath ?? auth.sourcePath;
   const url =
     `https://${NOTEBOOKLM_DOMAIN}/_/LabsTailwindUi/data/batchexecute` +
-    `?rpcids=${rpcId}&source-path=${encodeURIComponent(auth.sourcePath)}` +
+    `?rpcids=${rpcId}&source-path=${encodeURIComponent(sourcePath)}` +
     `&hl=${encodeURIComponent(options.hl ?? 'en')}` +
     `&f.sid=${encodeURIComponent(auth.sessionId)}&rt=c`;
 

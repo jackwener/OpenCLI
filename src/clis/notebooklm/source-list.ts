@@ -12,7 +12,8 @@ import {
 
 cli({
   site: NOTEBOOKLM_SITE,
-  name: 'source-list',
+  name: 'source/list',
+  aliases: ['source-list'],
   description: 'List sources for the currently opened NotebookLM notebook',
   domain: NOTEBOOKLM_DOMAIN,
   strategy: Strategy.COOKIE,

@@ -153,3 +153,43 @@ describe('commanderAdapter command aliases', () => {
     expect(mockExecuteCommand).toHaveBeenCalledWith(cmd, {}, false);
   });
 });
+
+describe('commanderAdapter nested command paths', () => {
+  const cmd: CliCommand = {
+    site: 'notebooklm',
+    name: 'source/list',
+    aliases: ['source-list'],
+    description: 'List notebook sources',
+    browser: false,
+    args: [],
+    func: vi.fn(),
+  };
+
+  beforeEach(() => {
+    mockExecuteCommand.mockReset();
+    mockExecuteCommand.mockResolvedValue([]);
+    mockRenderOutput.mockReset();
+    delete process.env.OPENCLI_VERBOSE;
+    process.exitCode = undefined;
+  });
+
+  it('registers path-like names as nested Commander subcommands', async () => {
+    const program = new Command();
+    const siteCmd = program.command('notebooklm');
+    registerCommandToProgram(siteCmd, cmd);
+
+    await program.parseAsync(['node', 'opencli', 'notebooklm', 'source', 'list']);
+
+    expect(mockExecuteCommand).toHaveBeenCalledWith(cmd, {}, false);
+  });
+
+  it('keeps flat aliases working for nested canonical commands', async () => {
+    const program = new Command();
+    const siteCmd = program.command('notebooklm');
+    registerCommandToProgram(siteCmd, cmd);
+
+    await program.parseAsync(['node', 'opencli', 'notebooklm', 'source-list']);
+
+    expect(mockExecuteCommand).toHaveBeenCalledWith(cmd, {}, false);
+  });
+});

@@ -7,7 +7,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { type CliCommand, fullName, getRegistry, strategyLabel } from './registry.js';
+import { type CliCommand, formatCommandInvocation, fullName, getRegistry, strategyLabel } from './registry.js';
 import { serializeCommand, formatArgSummary } from './serialization.js';
 import { render as renderOutput } from './output.js';
 import { getBrowserFactory, browserSession } from './runtime.js';
@@ -46,6 +46,7 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
           ? commands.map(serializeCommand)
           : commands.map(c => ({
               command: fullName(c),
+              invocation: formatCommandInvocation(c),
               site: c.site,
               name: c.name,
               aliases: c.aliases?.join(', ') ?? '',
@@ -56,7 +57,7 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
             }));
         renderOutput(rows, {
           fmt,
-          columns: ['command', 'site', 'name', 'aliases', 'description', 'strategy', 'browser', 'args',
+          columns: ['command', 'invocation', 'site', 'name', 'aliases', 'description', 'strategy', 'browser', 'args',
                      ...(isStructured ? ['columns', 'domain'] : [])],
           title: 'opencli/list',
           source: 'opencli list',
@@ -83,7 +84,7 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
             ? chalk.green('[public]')
             : chalk.yellow(`[${label}]`);
           const aliases = cmd.aliases?.length ? chalk.dim(` (aliases: ${cmd.aliases.join(', ')})`) : '';
-          console.log(`    ${cmd.name} ${tag}${aliases}${cmd.description ? chalk.dim(` — ${cmd.description}`) : ''}`);
+          console.log(`    ${formatCommandInvocation(cmd).slice(cmd.site.length + 1)} ${tag}${aliases}${cmd.description ? chalk.dim(` — ${cmd.description}`) : ''}`);
         }
         console.log();
       }

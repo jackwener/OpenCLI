@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   mockListNotebooklmNotesFromPage,
+  mockListNotebooklmNotesViaRpc,
   mockReadNotebooklmVisibleNoteFromPage,
   mockGetNotebooklmPageState,
   mockRequireNotebooklmSession,
 } = vi.hoisted(() => ({
   mockListNotebooklmNotesFromPage: vi.fn(),
+  mockListNotebooklmNotesViaRpc: vi.fn(),
   mockReadNotebooklmVisibleNoteFromPage: vi.fn(),
   mockGetNotebooklmPageState: vi.fn(),
   mockRequireNotebooklmSession: vi.fn(),
@@ -17,6 +19,7 @@ vi.mock('./utils.js', async () => {
   return {
     ...actual,
     listNotebooklmNotesFromPage: mockListNotebooklmNotesFromPage,
+    listNotebooklmNotesViaRpc: mockListNotebooklmNotesViaRpc,
     readNotebooklmVisibleNoteFromPage: mockReadNotebooklmVisibleNoteFromPage,
     getNotebooklmPageState: mockGetNotebooklmPageState,
     requireNotebooklmSession: mockRequireNotebooklmSession,
@@ -32,6 +35,7 @@ describe('notebooklm notes-get', () => {
 
   beforeEach(() => {
     mockListNotebooklmNotesFromPage.mockReset();
+    mockListNotebooklmNotesViaRpc.mockReset();
     mockReadNotebooklmVisibleNoteFromPage.mockReset();
     mockGetNotebooklmPageState.mockReset();
     mockRequireNotebooklmSession.mockReset();
@@ -45,6 +49,43 @@ describe('notebooklm notes-get', () => {
       loginRequired: false,
       notebookCount: 1,
     });
+  });
+
+  it('returns a note directly by rpc id when --note-id is provided', async () => {
+    mockReadNotebooklmVisibleNoteFromPage.mockResolvedValue(null);
+    mockListNotebooklmNotesViaRpc.mockResolvedValue([
+      {
+        notebook_id: 'nb-demo',
+        id: 'note-1',
+        title: '新建笔记',
+        content: '第一段\\n第二段',
+        url: 'https://notebooklm.google.com/notebook/nb-demo',
+        source: 'rpc',
+      },
+    ]);
+
+    const result = await command!.func!({} as any, { 'note-id': 'note-1' });
+
+    expect(result).toEqual([
+      {
+        notebook_id: 'nb-demo',
+        id: 'note-1',
+        title: '新建笔记',
+        content: '第一段\\n第二段',
+        url: 'https://notebooklm.google.com/notebook/nb-demo',
+        source: 'rpc',
+      },
+    ]);
+  });
+
+  it('reports a missing note id explicitly', async () => {
+    mockReadNotebooklmVisibleNoteFromPage.mockResolvedValue(null);
+    mockListNotebooklmNotesViaRpc.mockResolvedValue([]);
+
+    await expect(command!.func!({} as any, { 'note-id': 'missing-note' })).rejects.toMatchObject({
+      message: expect.stringMatching(/missing-note/),
+      hint: expect.stringMatching(/No NotebookLM note with id/i),
+    } satisfies Partial<CliError>);
   });
 
   it('returns the currently visible note editor content when the title matches', async () => {

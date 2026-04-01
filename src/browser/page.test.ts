@@ -55,4 +55,16 @@ describe('Page.evaluate', () => {
     expect(value).toBe(42);
     expect(sendCommandMock).toHaveBeenCalledTimes(2);
   });
+
+  it('retries once when the daemon reports a detached target during exec', async () => {
+    sendCommandMock
+      .mockRejectedValueOnce(new Error('Detached while handling command.'))
+      .mockResolvedValueOnce(42);
+
+    const page = new Page('site:notebooklm');
+    const value = await page.evaluate('21 + 21');
+
+    expect(value).toBe(42);
+    expect(sendCommandMock).toHaveBeenCalledTimes(2);
+  });
 });

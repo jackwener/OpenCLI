@@ -33,6 +33,7 @@ import {
 export function isRetryableSettleError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return message.includes('Inspected target navigated or closed')
+    || message.includes('Detached while handling command')
     || (message.includes('-32000') && message.toLowerCase().includes('target'));
 }
 

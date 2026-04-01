@@ -14,7 +14,8 @@ import {
 
 cli({
   site: NOTEBOOKLM_SITE,
-  name: 'source-fulltext',
+  name: 'source/fulltext',
+  aliases: ['source-fulltext'],
   description: 'Get the extracted fulltext for one source in the currently opened NotebookLM notebook',
   domain: NOTEBOOKLM_DOMAIN,
   strategy: Strategy.COOKIE,

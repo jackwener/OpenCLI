@@ -197,4 +197,31 @@ describe('manifest helper rules', () => {
     getRegistry().delete(screenKey);
     getRegistry().delete(statusKey);
   });
+
+  it('preserves path-like command names in manifest entries', async () => {
+    const site = `manifest-nested-${Date.now()}`;
+    const key = `${site}/source/list`;
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-manifest-'));
+    tempDirs.push(dir);
+    const file = path.join(dir, `${site}.ts`);
+    fs.writeFileSync(file, `export const nested = cli({ site: '${site}', name: 'source/list' });`);
+
+    const entries = await loadTsManifestEntries(file, site, async () => ({
+      nested: cli({
+        site,
+        name: 'source/list',
+        description: 'nested command',
+      }),
+    }));
+
+    expect(entries).toEqual([
+      expect.objectContaining({
+        site,
+        name: 'source/list',
+        modulePath: `${site}/${site}.js`,
+      }),
+    ]);
+
+    getRegistry().delete(key);
+  });
 });
