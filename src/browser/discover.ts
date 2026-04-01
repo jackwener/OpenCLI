@@ -1,8 +1,5 @@
 /**
- * Daemon discovery — simplified from MCP server path discovery.
- *
- * Only needs to check if the daemon is running. No more file system
- * scanning for @playwright/mcp locations.
+ * Daemon discovery — checks if the daemon is running.
  */
 
 import { DEFAULT_DAEMON_PORT } from '../constants.js';

@@ -122,7 +122,7 @@ export async function daemonRestart(): Promise<void> {
   }
 
   // Import BrowserBridge to spawn a new daemon
-  const { BrowserBridge } = await import('../browser/mcp.js');
+  const { BrowserBridge } = await import('../browser/bridge.js');
   const bridge = new BrowserBridge();
   try {
     console.log('Starting daemon...');

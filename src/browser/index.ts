@@ -6,7 +6,7 @@
  */
 
 export { Page } from './page.js';
-export { BrowserBridge } from './mcp.js';
+export { BrowserBridge } from './bridge.js';
 export { CDPBridge } from './cdp.js';
 export { isDaemonRunning } from './daemon-client.js';
 export { generateSnapshotJs, scrollToRefJs, getFormStateJs } from './dom-snapshot.js';

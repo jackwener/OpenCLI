@@ -72,15 +72,15 @@ export async function browserSession<T>(
   fn: (page: IPage) => Promise<T>,
   opts: { workspace?: string; cdpEndpoint?: string } = {},
 ): Promise<T> {
-  const mcp = new BrowserFactory();
+  const browser = new BrowserFactory();
   try {
-    const page = await mcp.connect({
+    const page = await browser.connect({
       timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT,
       workspace: opts.workspace,
       cdpEndpoint: opts.cdpEndpoint,
     });
     return await fn(page);
   } finally {
-    await mcp.close().catch(() => {});
+    await browser.close().catch(() => {});
   }
 }

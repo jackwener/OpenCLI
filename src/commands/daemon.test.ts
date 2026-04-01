@@ -10,7 +10,7 @@ vi.mock('chalk', () => ({
 }));
 
 const mockConnect = vi.fn();
-vi.mock('../browser/mcp.js', () => ({
+vi.mock('../browser/bridge.js', () => ({
   BrowserBridge: class {
     connect = mockConnect;
   },

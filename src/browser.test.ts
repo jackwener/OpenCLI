@@ -104,43 +104,43 @@ describe('browser helpers', () => {
 
 describe('BrowserBridge state', () => {
   it('transitions to closed after close()', async () => {
-    const mcp = new BrowserBridge();
+    const bridge = new BrowserBridge();
 
-    expect(mcp.state).toBe('idle');
+    expect(bridge.state).toBe('idle');
 
-    await mcp.close();
+    await bridge.close();
 
-    expect(mcp.state).toBe('closed');
+    expect(bridge.state).toBe('closed');
   });
 
   it('rejects connect() after the session has been closed', async () => {
-    const mcp = new BrowserBridge();
-    await mcp.close();
+    const bridge = new BrowserBridge();
+    await bridge.close();
 
-    await expect(mcp.connect()).rejects.toThrow('Session is closed');
+    await expect(bridge.connect()).rejects.toThrow('Session is closed');
   });
 
   it('rejects connect() while already connecting', async () => {
-    const mcp = new BrowserBridge();
-    (mcp as any)._state = 'connecting';
+    const bridge = new BrowserBridge();
+    (bridge as any)._state = 'connecting';
 
-    await expect(mcp.connect()).rejects.toThrow('Already connecting');
+    await expect(bridge.connect()).rejects.toThrow('Already connecting');
   });
 
   it('rejects connect() while closing', async () => {
-    const mcp = new BrowserBridge();
-    (mcp as any)._state = 'closing';
+    const bridge = new BrowserBridge();
+    (bridge as any)._state = 'closing';
 
-    await expect(mcp.connect()).rejects.toThrow('Session is closing');
+    await expect(bridge.connect()).rejects.toThrow('Session is closing');
   });
 
   it('fails fast when daemon is running but extension is disconnected', async () => {
     vi.spyOn(daemonClient, 'isExtensionConnected').mockResolvedValue(false);
     vi.spyOn(daemonClient, 'isDaemonRunning').mockResolvedValue(true);
 
-    const mcp = new BrowserBridge();
+    const bridge = new BrowserBridge();
 
-    await expect(mcp.connect({ timeout: 0.1 })).rejects.toThrow('Browser Extension is not connected');
+    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Browser Extension is not connected');
   });
 });
 

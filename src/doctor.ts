@@ -1,8 +1,7 @@
 /**
  * opencli doctor — diagnose browser connectivity.
  *
- * Simplified for the daemon-based architecture. No more token management,
- * MCP path discovery, or config file scanning.
+ * Simplified for the daemon-based architecture.
  */
 
 import chalk from 'chalk';
@@ -42,11 +41,11 @@ export type DoctorReport = {
 export async function checkConnectivity(opts?: { timeout?: number }): Promise<ConnectivityResult> {
   const start = Date.now();
   try {
-    const mcp = new BrowserBridge();
-    const page = await mcp.connect({ timeout: opts?.timeout ?? 8 });
+    const bridge = new BrowserBridge();
+    const page = await bridge.connect({ timeout: opts?.timeout ?? 8 });
     // Try a simple eval to verify end-to-end connectivity
     await page.evaluate('1 + 1');
-    await mcp.close();
+    await bridge.close();
     return { ok: true, durationMs: Date.now() - start };
   } catch (err) {
     return { ok: false, error: getErrorMessage(err), durationMs: Date.now() - start };
@@ -58,9 +57,9 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   let initialStatus = await checkDaemonStatus();
   if (!initialStatus.running) {
     try {
-      const mcp = new BrowserBridge();
-      await mcp.connect({ timeout: 5 });
-      await mcp.close();
+      const bridge = new BrowserBridge();
+      await bridge.connect({ timeout: 5 });
+      await bridge.close();
     } catch {
       // Auto-start failed; we'll report it below.
     }
