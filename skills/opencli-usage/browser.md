@@ -1,0 +1,305 @@
+# Browser-based Commands
+
+Commands that require Chrome browser with login state.
+
+## Bilibili (哔哩哔哩)
+
+```bash
+opencli bilibili hot --limit 10          # B站热门视频
+opencli bilibili search "rust"            # 搜索视频 (query positional)
+opencli bilibili me                       # 我的信息
+opencli bilibili favorite                 # 我的收藏
+opencli bilibili history --limit 20       # 观看历史
+opencli bilibili feed --limit 10          # 动态时间线
+opencli bilibili user-videos --uid 12345  # 用户投稿
+opencli bilibili subtitle --bvid BV1xxx   # 获取视频字幕 (支持 --lang zh-CN)
+opencli bilibili dynamic --limit 10       # 动态
+opencli bilibili ranking --limit 10       # 排行榜
+opencli bilibili following --limit 20     # 我的关注列表 (支持 --uid 查看他人)
+```
+
+## Zhihu (知乎)
+
+```bash
+opencli zhihu hot --limit 10             # 知乎热榜
+opencli zhihu search "AI"                # 搜索 (query positional)
+opencli zhihu question 34816524            # 问题详情和回答 (id positional)
+```
+
+## Xiaohongshu (小红书)
+
+```bash
+opencli xiaohongshu search "美食"           # 搜索笔记 (query positional)
+opencli xiaohongshu notifications             # 通知（mentions/likes/connections）
+opencli xiaohongshu feed --limit 10           # 推荐 Feed
+opencli xiaohongshu user xxx               # 用户主页 (id positional)
+opencli xiaohongshu creator-notes --limit 10   # 创作者笔记列表
+opencli xiaohongshu creator-note-detail --note-id xxx  # 笔记详情
+opencli xiaohongshu creator-notes-summary      # 笔记数据概览
+opencli xiaohongshu creator-profile            # 创作者资料
+opencli xiaohongshu creator-stats              # 创作者数据统计
+```
+
+## Xueqiu (雪球)
+
+```bash
+opencli xueqiu hot-stock --limit 10      # 雪球热门股票榜
+opencli xueqiu stock --symbol SH600519   # 查看股票实时行情
+opencli xueqiu watchlist                 # 获取自选股/持仓列表
+opencli xueqiu feed                      # 我的关注 timeline
+opencli xueqiu hot --limit 10            # 雪球热榜
+opencli xueqiu search "特斯拉"            # 搜索 (query positional)
+opencli xueqiu earnings-date SH600519    # 股票财报发布日期 (symbol positional)
+opencli xueqiu fund-holdings             # 蛋卷基金持仓明细 (支持 --account 过滤)
+opencli xueqiu fund-snapshot             # 蛋卷基金快照（总资产、子账户、持仓）
+```
+
+## Twitter/X
+
+```bash
+opencli twitter trending --limit 10      # 热门话题
+opencli twitter bookmarks --limit 20     # 获取收藏的书签推文
+opencli twitter search "AI"              # 搜索推文 (query positional)
+opencli twitter profile elonmusk         # 用户资料
+opencli twitter timeline --limit 20      # 时间线
+opencli twitter thread 1234567890        # 推文 thread（原文 + 回复）
+opencli twitter article 1891511252174299446 # 推文长文内容
+opencli twitter follow elonmusk          # 关注用户
+opencli twitter unfollow elonmusk        # 取消关注
+opencli twitter bookmark https://x.com/... # 收藏推文
+opencli twitter unbookmark https://x.com/... # 取消收藏
+opencli twitter post "Hello world"       # 发布推文 (text positional)
+opencli twitter like https://x.com/...   # 点赞推文 (url positional)
+opencli twitter reply https://x.com/... "Nice!" # 回复推文 (url + text positional)
+opencli twitter delete https://x.com/... # 删除推文 (url positional)
+opencli twitter block elonmusk           # 屏蔽用户 (username positional)
+opencli twitter unblock elonmusk         # 取消屏蔽 (username positional)
+opencli twitter followers elonmusk       # 用户的粉丝列表 (user positional)
+opencli twitter following elonmusk       # 用户的关注列表 (user positional)
+opencli twitter notifications --limit 20 # 通知列表
+opencli twitter hide-reply https://x.com/... # 隐藏回复 (url positional)
+opencli twitter download elonmusk        # 下载用户媒体 (username positional, 支持 --tweet-url)
+opencli twitter accept "群,微信"          # 自动接受含关键词的 DM 请求 (query positional)
+opencli twitter reply-dm "消息内容"       # 批量回复 DM (text positional)
+```
+
+## Reddit
+
+```bash
+opencli reddit hot --limit 10            # 热门帖子
+opencli reddit hot --subreddit programming  # 指定子版块
+opencli reddit frontpage --limit 10      # 首页 /r/all
+opencli reddit popular --limit 10        # /r/popular 热门
+opencli reddit search "AI" --sort top --time week  # 搜索（支持排序+时间过滤）
+opencli reddit subreddit rust --sort top --time month  # 子版块浏览（支持时间过滤）
+opencli reddit read --post-id 1abc123    # 阅读帖子 + 评论
+opencli reddit user spez                 # 用户资料（karma、注册时间）
+opencli reddit user-posts spez           # 用户发帖历史
+opencli reddit user-comments spez        # 用户评论历史
+opencli reddit upvote --post-id xxx --direction up  # 投票（up/down/none）
+opencli reddit save --post-id xxx        # 收藏帖子
+opencli reddit comment --post-id xxx "Great!"  # 发表评论 (text positional)
+opencli reddit subscribe --subreddit python  # 订阅子版块
+opencli reddit saved --limit 10          # 我的收藏
+opencli reddit upvoted --limit 10        # 我的赞
+```
+
+## V2EX (Browser Features)
+
+```bash
+opencli v2ex daily                       # 每日签到
+opencli v2ex me                          # 我的信息
+opencli v2ex notifications --limit 10    # 通知
+```
+
+## Weibo (微博)
+
+```bash
+opencli weibo hot --limit 10            # 微博热搜
+```
+
+## BOSS直聘
+
+```bash
+opencli boss search "AI agent"          # 搜索职位 (query positional)
+opencli boss detail --security-id xxx    # 职位详情
+opencli boss recommend --limit 10        # 推荐职位
+opencli boss joblist --limit 10          # 职位列表
+opencli boss greet --security-id xxx     # 打招呼
+opencli boss batchgreet --job-id xxx     # 批量打招呼
+opencli boss send --uid xxx "消息内容"    # 发消息 (text positional)
+opencli boss chatlist --limit 10         # 聊天列表
+opencli boss chatmsg --security-id xxx   # 聊天记录
+opencli boss invite --security-id xxx    # 邀请沟通
+opencli boss mark --security-id xxx      # 标记管理
+opencli boss exchange --security-id xxx  # 交换联系方式
+opencli boss resume                    # 简历管理
+opencli boss stats                     # 数据统计
+```
+
+## YouTube
+
+```bash
+opencli youtube search "rust"            # 搜索视频 (query positional)
+opencli youtube video "https://www.youtube.com/watch?v=xxx"  # 视频元数据
+opencli youtube transcript "https://www.youtube.com/watch?v=xxx"  # 获取视频字幕/转录
+opencli youtube transcript "xxx" --lang zh-Hans --mode raw  # 指定语言 + 原始时间戳模式
+```
+
+## Yahoo Finance
+
+```bash
+opencli yahoo-finance quote --symbol AAPL  # 股票行情
+```
+
+## Chaoxing (超星学习通)
+
+```bash
+opencli chaoxing assignments             # 作业列表
+opencli chaoxing exams                   # 考试列表
+```
+
+## Douban (豆瓣)
+
+```bash
+opencli douban search "三体"              # 搜索 (query positional)
+opencli douban top250                     # 豆瓣 Top 250
+opencli douban subject 1234567            # 条目详情 (id positional)
+opencli douban photos 30382501            # 图片列表 / 直链（默认海报）
+opencli douban download 30382501          # 下载海报 / 剧照
+opencli douban marks --limit 10           # 我的标记
+opencli douban reviews --limit 10         # 短评
+```
+
+## Facebook
+
+```bash
+opencli facebook feed --limit 10          # 动态流
+opencli facebook profile username         # 用户资料 (id positional)
+opencli facebook search "AI"              # 搜索 (query positional)
+opencli facebook friends                  # 好友列表
+opencli facebook groups                   # 群组列表
+```
+
+## Coupang (쿠팡)
+
+```bash
+opencli coupang search "노트북"           # 搜索商品 (query positional)
+opencli coupang product 123456            # 商品详情 (id positional)
+```
+
+## Yollomi (욜로미)
+
+```bash
+opencli yollomi search "서울"             # 搜索 (query positional)
+```
+
+## Instagram
+
+```bash
+opencli instagram explore                 # 探索
+opencli instagram profile username        # 用户资料 (id positional)
+opencli instagram search "AI"             # 搜索 (query positional)
+opencli instagram user username           # 用户详情 (id positional)
+opencli instagram followers username      # 粉丝 (id positional)
+opencli instagram following username      # 关注 (id positional)
+opencli instagram follow username         # 关注用户 (id positional)
+opencli instagram unfollow username       # 取消关注 (id positional)
+opencli instagram like postid             # 点赞 (id positional)
+opencli instagram unlike postid           # 取消点赞 (id positional)
+opencli instagram comment postid "评论"   # 评论 (id + text positional)
+opencli instagram save postid             # 收藏 (id positional)
+opencli instagram unsave postid           # 取消收藏 (id positional)
+opencli instagram saved                   # 已收藏列表
+```
+
+## TikTok
+
+```bash
+opencli tiktok explore                    # 探索
+opencli tiktok search "AI"                # 搜索 (query positional)
+opencli tiktok profile username           # 用户资料 (id positional)
+opencli tiktok user username              # 用户详情 (id positional)
+opencli tiktok following username         # 关注列表 (id positional)
+opencli tiktok follow username            # 关注 (id positional)
+opencli tiktok unfollow username          # 取消关注 (id positional)
+opencli tiktok like videoid               # 点赞 (id positional)
+opencli tiktok unlike videoid             # 取消点赞 (id positional)
+opencli tiktok comment videoid "评论"     # 评论 (id + text positional)
+opencli tiktok save videoid               # 收藏 (id positional)
+opencli tiktok unsave videoid             # 取消收藏 (id positional)
+opencli tiktok live                       # 直播
+opencli tiktok notifications              # 通知
+opencli tiktok friends                    # 朋友
+```
+
+## Medium
+
+```bash
+opencli medium feed --limit 10            # 动态流
+opencli medium search "AI"                # 搜索 (query positional)
+opencli medium user username              # 用户主页 (id positional)
+```
+
+## Substack
+
+```bash
+opencli substack feed --limit 10          # 订阅动态
+opencli substack search "AI"              # 搜索 (query positional)
+opencli substack publication name         # 出版物详情 (id positional)
+```
+
+## Sinablog (新浪博客)
+
+```bash
+opencli sinablog hot --limit 10           # 热门
+opencli sinablog search "AI"              # 搜索 (query positional)
+opencli sinablog article url              # 文章详情
+opencli sinablog user username            # 用户主页 (id positional)
+```
+
+## Bloomberg (Browser - Full Article)
+
+```bash
+opencli bloomberg news "https://..."      # 阅读 Bloomberg 文章全文 (link positional, browser)
+```
+
+## Grok (Browser)
+
+```bash
+opencli grok ask "问题"                   # 提问 Grok (prompt positional)
+opencli grok ask --prompt "问题" --web   # 显式 grok.com consumer web UI 路径
+```
+
+## Doubao Web (豆包)
+
+```bash
+opencli doubao status                     # 检查豆包页面状态
+opencli doubao new                        # 新建对话
+opencli doubao ask "问题"                 # 提问 (prompt positional)
+opencli doubao ask --prompt "问题" --web # 显式 doubao.com web UI 路径
+```
+
+## Kimi
+
+```bash
+opencli kimi status                       # 检查 Kimi 页面状态
+opencli kimi new                          # 新建对话
+opencli kimi ask "问题"                   # 提问 (prompt positional)
+```
+
+## DeepSeek
+
+```bash
+opencli deepseek status                   # 检查 DeepSeek 页面状态
+opencli deepseek new                      # 新建对话
+opencli deepseek ask "问题"               # 提问 (prompt positional)
+```
+
+## Qwen (通义千问)
+
+```bash
+opencli qwen status                       # 检查 Qwen 页面状态
+opencli qwen new                          # 新建对话
+opencli qwen ask "问题"                   # 提问 (prompt positional)
+```
