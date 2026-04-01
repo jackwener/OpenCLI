@@ -1,10 +1,22 @@
 /**
  * Jimeng AI list tasks — view recent generation history (images + videos).
  *
+ * The get_history API separates images and videos via the `type` body param:
+ *   - omitted → image records (generate_type 1/12)
+ *   - 'video' → video records (generate_type 2/10)
+ *
+ * To show both, we issue two requests and merge by created_time desc.
+ *
+ * Video-specific fields:
+ *   - URL: item_list[0].video.transcoded_video["1080p"|"720p"|"360p"].video_url
+ *   - Prompt: parsed from draft_content JSON →
+ *       component_list[0].abilities.gen_video.text_to_video_params
+ *       .video_gen_inputs[0].prompt (text-to-video)
+ *       or .unified_edit_input.meta_list[].text (ref-image-to-video)
+ *
  * Supports two API response schemas:
- *   - New (2026-03+): data.records_list[] with top-level status/created_time/history_record_id,
- *     detail nested under item_list[0]
- *   - Old: data.history_list[] with common_attr.status/create_time, detail at top level
+ *   - New (2026-03+): data.records_list[]
+ *   - Old: data.history_list[]
  */
 
 import { cli, Strategy } from '../../registry.js';
@@ -47,6 +59,7 @@ function checkRet(res: Record<string, unknown>, context: string): void {
 const GEN_TYPE_MAP: Record<number, string> = {
   1: 'image',
   2: 'video',
+  10: 'video',
   12: 'image',
 };
 
@@ -64,6 +77,7 @@ const STATUS_MAP: Record<number, string> = {
 interface NormalizedTask {
   task_id: string;
   prompt: string;
+  model: string;
   status: string;
   type: string;
   url: string;
@@ -71,28 +85,58 @@ interface NormalizedTask {
 }
 
 /**
+ * Extract the best video URL from transcoded_video, preferring higher quality.
+ */
+function extractVideoUrl(item: any): string {
+  const transcoded = item?.video?.transcoded_video;
+  if (!transcoded) return item?.common_attr?.video_url || item?.video_url || '';
+  for (const quality of ['1080p', '720p', '480p', '360p']) {
+    if (transcoded[quality]?.video_url) return transcoded[quality].video_url;
+  }
+  return item?.common_attr?.video_url || item?.video_url || '';
+}
+
+/**
+ * Extract prompt from draft_content JSON for video records.
+ * Video prompts are stored in the draft differently from images:
+ *   - text-to-video: video_gen_inputs[0].prompt
+ *   - ref-image-to-video: video_gen_inputs[0].unified_edit_input.meta_list[].text
+ */
+function parseDraftContent(record: any): { prompt: string; model: string } {
+  try {
+    const draft =
+      typeof record.draft_content === 'string'
+        ? JSON.parse(record.draft_content)
+        : record.draft_content;
+    const comp = draft?.component_list?.[0];
+    const genVideo = comp?.abilities?.gen_video?.text_to_video_params;
+    const model = genVideo?.model_req_key || '';
+    const inp = genVideo?.video_gen_inputs?.[0];
+    let prompt = inp?.prompt || '';
+    if (!prompt) {
+      // ref-image mode: prompt in unified_edit_input.meta_list
+      const metaList = inp?.unified_edit_input?.meta_list;
+      if (Array.isArray(metaList)) {
+        for (const meta of metaList) {
+          if (meta.meta_type === 'text' && meta.text) { prompt = meta.text; break; }
+        }
+      }
+    }
+    return { prompt, model };
+  } catch {
+    return { prompt: '', model: '' };
+  }
+}
+
+/**
  * Normalize a history record from either old or new API schema into a
  * consistent NormalizedTask shape.
- *
- * Old schema (history_list):
- *   - record.history_id, record.common_attr.{status, create_time, title}
- *   - record.aigc_image_params.text2image_params.prompt
- *   - record.image.large_images[0].image_url
- *   - record.item_list[0].video_url (video items)
- *
- * New schema (records_list):
- *   - record.history_record_id, record.status, record.created_time
- *   - record.item_list[0].aigc_image_params.text2image_params.prompt
- *   - record.item_list[0].image.large_images[0].image_url
- *   - record.item_list[0].common_attr.video_url
  */
 export function normalizeRecord(record: any): NormalizedTask {
   const i0 = record.item_list?.[0];
 
-  // task_id: new → history_record_id, old → history_id
   const taskId = record.history_record_id || record.history_id || '';
 
-  // status: new → record.status, old → record.common_attr.status or i0.common_attr.status
   const statusCode =
     record.status ??
     record.common_attr?.status ??
@@ -100,25 +144,33 @@ export function normalizeRecord(record: any): NormalizedTask {
     0;
   const status = STATUS_MAP[statusCode] || `unknown(${statusCode})`;
 
-  // prompt: new → i0.aigc_image_params..., old → record.aigc_image_params...
-  const prompt =
+  // type from generate_type
+  let type = GEN_TYPE_MAP[record.generate_type ?? 0] || 'unknown';
+
+  // model: new → record.model_info.model_name, video → draft_content.model_req_key
+  // old → i0.aigc_image_params.text2image_params.model_config.model_name
+  let model =
+    record.model_info?.model_name ||
+    i0?.aigc_image_params?.text2image_params?.model_config?.model_name ||
+    record.aigc_image_params?.text2image_params?.model_config?.model_name ||
+    '';
+
+  // prompt: try standard image params first, then draft_content for videos
+  let prompt =
     i0?.aigc_image_params?.text2image_params?.prompt ||
     record.aigc_image_params?.text2image_params?.prompt ||
     i0?.common_attr?.prompt ||
     record.common_attr?.title ||
     '';
+  if (record.draft_content) {
+    const draft = parseDraftContent(record);
+    if (!prompt) prompt = draft.prompt;
+    if (!model) model = draft.model;
+  }
 
-  // type: new → record.generate_type, old → infer from content
-  let type = GEN_TYPE_MAP[record.generate_type ?? 0] || 'unknown';
-
-  // url: new → i0 nested, old → top-level
+  // url: check video transcoded URLs, then image URLs
   let url = '';
-  // Video URL: new nested or old top-level
-  const videoUrl =
-    i0?.common_attr?.video_url ||
-    (record.item_list?.[0] as any)?.video_url ||
-    '';
-  // Image URL: new nested or old top-level
+  const videoUrl = i0 ? extractVideoUrl(i0) : '';
   const imageUrl =
     i0?.image?.large_images?.[0]?.image_url ||
     record.image?.large_images?.[0]?.image_url ||
@@ -132,7 +184,6 @@ export function normalizeRecord(record: any): NormalizedTask {
     url = imageUrl;
   }
 
-  // created_at: new → record.created_time (float seconds), old → record.common_attr.create_time (int seconds)
   const timestamp =
     record.created_time ||
     record.common_attr?.create_time ||
@@ -145,11 +196,48 @@ export function normalizeRecord(record: any): NormalizedTask {
   return {
     task_id: taskId,
     prompt: prompt.length > 50 ? prompt.substring(0, 47) + '...' : prompt,
+    model,
     status,
     type,
     url,
     created_at: createdAt,
   };
+}
+
+function extractItems(data: any): any[] {
+  return data?.records_list || data?.history_list || [];
+}
+
+async function fetchHistory(
+  page: IPage,
+  limit: number,
+  workspace: string,
+  apiType?: string,
+): Promise<any[]> {
+  // Fetch extra records when workspace filter is active, since the API
+  // does not support server-side workspace filtering — we filter client-side.
+  const fetchCount = workspace !== '' ? Math.max(limit * 3, 30) : limit;
+  const body: Record<string, any> = {
+    cursor: '',
+    count: fetchCount,
+    need_page_item: true,
+    need_aigc_data: true,
+    aigc_mode_list: ['workbench'],
+  };
+  if (apiType) {
+    body.type = apiType;
+  }
+
+  const resp = await jimengFetch(page, 'get_history', body);
+  checkRet(resp, 'get_history');
+  let items = extractItems(resp.data as any);
+
+  // Client-side workspace filtering (API ignores workspace_id in body)
+  if (workspace !== '') {
+    const wsId = parseInt(workspace) || 0;
+    items = items.filter((r: any) => r.workspace_id === wsId);
+  }
+  return items;
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -161,26 +249,45 @@ cli({
   strategy: Strategy.COOKIE,
   args: [
     { name: 'limit', type: 'int', default: 10, help: '返回条数（默认 10）' },
+    { name: 'workspace', type: 'string', default: '', help: '工作区 ID（留空查全部，0=默认）' },
+    { name: 'type', type: 'string', default: '', help: '过滤类型：image/video（留空显示全部）' },
   ],
-  columns: ['task_id', 'prompt', 'status', 'type', 'url', 'created_at'],
+  columns: ['task_id', 'prompt', 'model', 'status', 'type', 'url', 'created_at'],
   navigateBefore: 'https://jimeng.jianying.com/ai-tool/generate?type=video&workspace=0',
 
   func: async (page: IPage, kwargs) => {
     const limit = kwargs.limit as number;
+    const workspace = kwargs.workspace as string;
+    const typeFilter = kwargs.type as string;
 
-    const resp = await jimengFetch(page, 'get_history', {
-      cursor: '',
-      count: limit,
-      need_page_item: true,
-      need_aigc_data: true,
-      aigc_mode_list: ['workbench'],
+    if (typeFilter === 'video') {
+      const items = await fetchHistory(page, limit, workspace, 'video');
+      return items.slice(0, limit).map(normalizeRecord);
+    } else if (typeFilter === 'image') {
+      const items = await fetchHistory(page, limit, workspace);
+      return items.slice(0, limit).map(normalizeRecord);
+    }
+
+    // Both: fetch images and videos, merge by created_time desc, deduplicate
+    const [imageItems, videoItems] = await Promise.all([
+      fetchHistory(page, limit, workspace),
+      fetchHistory(page, limit, workspace, 'video'),
+    ]);
+    // Deduplicate by history_record_id / history_id
+    const seen = new Set<string>();
+    const merged: any[] = [];
+    for (const item of [...imageItems, ...videoItems]) {
+      const id = item.history_record_id || item.history_id || '';
+      if (id && seen.has(id)) continue;
+      if (id) seen.add(id);
+      merged.push(item);
+    }
+    // Sort by timestamp descending
+    merged.sort((a: any, b: any) => {
+      const ta = a.created_time || a.common_attr?.create_time || 0;
+      const tb = b.created_time || b.common_attr?.create_time || 0;
+      return tb - ta;
     });
-    checkRet(resp, 'get_history');
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = resp.data as any;
-    const items = data?.records_list || data?.history_list || [];
-
-    return items.slice(0, limit).map(normalizeRecord);
+    return merged.slice(0, limit).map(normalizeRecord);
   },
 });

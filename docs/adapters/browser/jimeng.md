@@ -11,6 +11,8 @@
 | `opencli jimeng balance` | 查看积分余额与会员信息 |
 | `opencli jimeng new` | 新建会话（workspace） |
 | `opencli jimeng video` | 文生视频 — 提交视频生成任务 |
+| `opencli jimeng list_task` | 查历史任务 — 列出最近生成的图片/视频任务 |
+| `opencli jimeng workspaces` | 查看所有工作区（会话窗口） |
 
 ## Usage Examples
 
@@ -35,6 +37,18 @@ opencli jimeng new -f json
 
 # Submit a video generation task (returns immediately with task_id)
 opencli jimeng video "一只猫在花园里散步" -f json
+
+# List recent tasks (images + videos)
+opencli jimeng list_task
+
+# List only video tasks
+opencli jimeng list_task --type video
+
+# List tasks from a specific workspace
+opencli jimeng list_task --workspace 10573075959308
+
+# View all workspaces
+opencli jimeng workspaces
 
 # Submit and wait for completion (up to 300s)
 opencli jimeng video "日落海边" --wait 300 -f json
@@ -95,6 +109,38 @@ opencli jimeng video "参考图片中的人物，让她在花园散步" --ref-im
 | `--prompt` | Image description prompt (required) |
 | `--model` | Model: `high_aes_general_v50` (5.0 Lite), `high_aes_general_v42` (4.6), `high_aes_general_v40` (4.0) |
 | `--wait` | Wait seconds for generation (default: 40) |
+
+### Output Fields (list_task)
+
+| Field | Description |
+|-------|-------------|
+| `task_id` | 任务 ID |
+| `prompt` | 生成提示词（截断至 50 字符） |
+| `status` | queued / processing / completed / failed |
+| `type` | image / video |
+| `url` | 图片 URL 或视频 URL（1080p 优先） |
+| `created_at` | 创建时间 |
+
+> **Implementation**: Tier 2 Cookie API — 调用 `/mweb/v1/get_history`。图片和视频需分别请求（`type: 'video'`），合并去重后按时间排序。视频 URL 从 `transcoded_video` 提取，prompt 从 `draft_content` JSON 解析。
+
+### Options (list_task)
+
+| Option | Description |
+|--------|-------------|
+| `--limit` | 返回条数（默认 10） |
+| `--workspace` | 工作区 ID（留空查全部，0=默认）— 客户端过滤 |
+| `--type` | 过滤类型：`image` / `video`（留空显示全部） |
+
+### Output Fields (workspaces)
+
+| Field | Description |
+|-------|-------------|
+| `workspace_id` | 工作区 ID（0 为默认工作区） |
+| `name` | 工作区名称 |
+| `is_pinned` | 是否置顶 |
+| `updated_at` | 最后更新时间 |
+
+> **Implementation**: Tier 2 Cookie API — 调用 `/mweb/v1/workspace/list`。
 
 ## Prerequisites
 
