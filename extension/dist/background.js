@@ -87,11 +87,6 @@ async function ensureAttached(tabId) {
       attached.delete(tabId);
     }
   }
-  const preAttachCleanup = await removeForeignExtensionEmbeds(tabId);
-  if (preAttachCleanup.removed > 0) {
-    console.warn(`[opencli] Removed ${preAttachCleanup.removed} foreign extension frame(s) before attach on tab ${tabId}`);
-    await delay(ATTACH_RECOVERY_DELAY_MS);
-  }
   try {
     await tryAttach(tabId);
   } catch (e) {
@@ -538,7 +533,7 @@ async function resolveTabId(tabId, workspace) {
   const adoptedTabId = await maybeBindWorkspaceToExistingTab(workspace);
   if (adoptedTabId !== null) return adoptedTabId;
   const existingSession = automationSessions.get(workspace);
-  if (existingSession?.preferredTabId !== null) {
+  if (existingSession && existingSession.preferredTabId !== null) {
     try {
       const preferredTabId = existingSession.preferredTabId;
       const preferredTab = await chrome.tabs.get(preferredTabId);

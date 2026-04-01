@@ -428,7 +428,7 @@ async function resolveTabId(tabId: number | undefined, workspace: string): Promi
   if (adoptedTabId !== null) return adoptedTabId;
 
   const existingSession = automationSessions.get(workspace);
-  if (existingSession?.preferredTabId !== null) {
+  if (existingSession && existingSession.preferredTabId !== null) {
     try {
       const preferredTabId = existingSession.preferredTabId;
       const preferredTab = await chrome.tabs.get(preferredTabId);

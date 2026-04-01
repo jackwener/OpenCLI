@@ -109,12 +109,6 @@ async function ensureAttached(tabId: number): Promise<void> {
     }
   }
 
-  const preAttachCleanup = await removeForeignExtensionEmbeds(tabId);
-  if (preAttachCleanup.removed > 0) {
-    console.warn(`[opencli] Removed ${preAttachCleanup.removed} foreign extension frame(s) before attach on tab ${tabId}`);
-    await delay(ATTACH_RECOVERY_DELAY_MS);
-  }
-
   try {
     await tryAttach(tabId);
   } catch (e: unknown) {
