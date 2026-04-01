@@ -44,6 +44,22 @@ interface StoreItemSeed {
   services?: Array<{ serviceName?: string }>;
 }
 
+function collectOfferIds(
+  rawInput: string,
+  storePayload: StoreBrowserPayload | null,
+  contactPayload: StoreBrowserPayload | null,
+): string[] {
+  const ids = uniqueNonEmpty([
+    rawInput,
+    ...(storePayload?.offerLinks ?? []),
+    ...(contactPayload?.offerLinks ?? []),
+  ])
+    .map((value) => extractOfferId(value))
+    .filter((value): value is string => Boolean(value));
+
+  return [...new Set(ids)];
+}
+
 function normalizeStorePayload(input: {
   resolvedUrl: string;
   storePayload: StoreBrowserPayload | null;
@@ -208,6 +224,20 @@ async function readItemSeed(
   return seed;
 }
 
+async function readFirstUsableItemSeed(
+  page: IPage,
+  offerIds: string[],
+): Promise<StoreItemSeed | null> {
+  for (const offerId of offerIds.slice(0, 8)) {
+    try {
+      return await readItemSeed(page, offerId);
+    } catch (err) {
+      if (!(err instanceof CommandExecutionError)) throw err;
+    }
+  }
+  return null;
+}
+
 cli({
   site: '1688',
   name: 'store',
@@ -232,10 +262,10 @@ cli({
     const storePayload = await readStorePayload(page, resolvedUrl, 'store');
     const contactUrl = buildContactUrl(storePayload.href || resolvedUrl);
     const contactPayload = contactUrl ? await readStorePayload(page, contactUrl, 'store contact') : null;
-    const offerId = extractOfferId(rawInput)
-      || firstOfferId(storePayload.offerLinks ?? [])
-      || firstOfferId(contactPayload?.offerLinks ?? []);
-    const seed = offerId ? await readItemSeed(page, offerId) : null;
+    const seed = await readFirstUsableItemSeed(
+      page,
+      collectOfferIds(rawInput, storePayload, contactPayload),
+    );
 
     return [
       normalizeStorePayload({
@@ -257,4 +287,5 @@ export const __test__ = {
   firstMetric,
   extractReturnRate,
   firstOfferId,
+  collectOfferIds,
 };

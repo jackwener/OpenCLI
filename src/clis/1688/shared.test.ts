@@ -47,6 +47,9 @@ describe('1688 shared helpers', () => {
 
   it('extracts location and captcha states', () => {
     expect(__test__.extractLocation('山东青岛 送至 江苏苏州')).toBe('山东青岛');
+    expect(__test__.extractMetric(`主营：家装建材
+地址：江苏省常州市武进区横林镇崔桥崔卫路40号`, '主营')).toBe('家装建材');
+    expect(__test__.extractMetric('常州市优品诺家居科技有限公司是家居用品、家居用品等产品专业生产加工的公司', '生产加工')).toBe(null);
     expect(__test__.isCaptchaState({
       href: 'https://s.1688.com/_____tmd_____/punish',
       title: '验证码拦截',

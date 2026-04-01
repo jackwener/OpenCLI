@@ -60,4 +60,26 @@ describe('1688 store normalization', () => {
       'https://detail.1688.com/offer/887904326744.html',
     ])).toBe('887904326744');
   });
+
+  it('collects deduplicated offer ids from input and store links', () => {
+    expect(__test__.collectOfferIds(
+      'https://detail.1688.com/offer/887904326744.html',
+      {
+        href: 'https://yinuoweierfushi.1688.com/page/index.html',
+        bodyText: '',
+        offerLinks: [
+          'https://detail.1688.com/offer/887904326744.html',
+          'https://detail.1688.com/offer/123456789012.html',
+        ],
+      },
+      {
+        href: 'https://yinuoweierfushi.1688.com/page/contactinfo.html',
+        bodyText: '',
+        offerLinks: [
+          'https://detail.1688.com/offer/123456789012.html',
+          'https://detail.1688.com/offer/999999999999.html',
+        ],
+      },
+    )).toEqual(['887904326744', '123456789012', '999999999999']);
+  });
 });

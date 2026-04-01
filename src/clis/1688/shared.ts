@@ -342,10 +342,10 @@ export function extractAddress(text: string): string | null {
 
 export function extractMetric(text: string, label: string): string | null {
   const normalized = cleanMultilineText(text);
-  const direct = normalized.match(new RegExp(`${escapeForRegex(label)}[:：]?\\s*([^\\n]+)`));
+  const direct = normalized.match(new RegExp(`(?:^|\\n)\\s*${escapeForRegex(label)}[:：]?\\s*([^\\n]+)`));
   if (direct) return cleanText(direct[1]);
 
-  const lineBased = normalized.match(new RegExp(`${escapeForRegex(label)}\\n([^\\n]+)`));
+  const lineBased = normalized.match(new RegExp(`(?:^|\\n)\\s*${escapeForRegex(label)}\\n([^\\n]+)`));
   return lineBased ? cleanText(lineBased[1]) : null;
 }
 
