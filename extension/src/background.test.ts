@@ -29,6 +29,7 @@ class MockWebSocket {
 
 function createChromeMock() {
   let nextTabId = 10;
+  const updatedListeners: Array<(id: number, info: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => void> = [];
   const tabs: MockTab[] = [
     { id: 1, windowId: 1, url: 'https://automation.example', title: 'automation', active: true, status: 'complete' },
     { id: 2, windowId: 2, url: 'https://user.example', title: 'user', active: true, status: 'complete' },
@@ -59,6 +60,14 @@ function createChromeMock() {
     if (!tab) throw new Error(`Unknown tab ${tabId}`);
     if (updates.active !== undefined) tab.active = updates.active;
     if (updates.url !== undefined) tab.url = updates.url;
+    tab.status = 'complete';
+    const info: chrome.tabs.TabChangeInfo = {
+      status: 'complete',
+      ...(updates.url !== undefined ? { url: updates.url } : {}),
+    };
+    for (const listener of updatedListeners) {
+      listener(tabId, info, tab as unknown as chrome.tabs.Tab);
+    }
     return tab;
   });
 
@@ -73,7 +82,15 @@ function createChromeMock() {
         if (!tab) throw new Error(`Unknown tab ${tabId}`);
         return tab;
       }),
-      onUpdated: { addListener: vi.fn(), removeListener: vi.fn() } as Listener<(id: number, info: chrome.tabs.TabChangeInfo) => void>,
+      onUpdated: {
+        addListener: vi.fn((fn: (id: number, info: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => void) => {
+          updatedListeners.push(fn);
+        }),
+        removeListener: vi.fn((fn: (id: number, info: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => void) => {
+          const idx = updatedListeners.indexOf(fn);
+          if (idx >= 0) updatedListeners.splice(idx, 1);
+        }),
+      } as Listener<(id: number, info: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => void>,
     },
     windows: {
       get: vi.fn(async (windowId: number) => ({ id: windowId })),
@@ -96,7 +113,7 @@ function createChromeMock() {
     },
   };
 
-  return { chrome, tabs, query, create, update };
+  return { chrome, tabs, query, create, update, updatedListeners };
 }
 
 describe('background tab isolation', () => {
@@ -391,6 +408,67 @@ describe('background tab isolation', () => {
       id: 'bind-miss',
       ok: false,
       error: 'No visible tab matching notebooklm.google.com /notebook/',
+    });
+  });
+
+  it('adopts a drifted owned tab instead of discarding it', async () => {
+    const { chrome, tabs } = createChromeMock();
+    tabs[0].windowId = 7;
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId('site:twitter', 1);
+
+    const target = await mod.__test__.resolveTabContext(1, 'site:twitter');
+
+    expect(target).toEqual({
+      tabId: 1,
+      windowId: 7,
+      owned: true,
+    });
+    expect(mod.__test__.getSession('site:twitter')).toEqual(expect.objectContaining({
+      windowId: 7,
+      owned: true,
+      preferredTabId: null,
+    }));
+  });
+
+  it('recovers owned navigation by opening a fresh target tab when the original tab is hijacked', async () => {
+    const { chrome, tabs, create, updatedListeners } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    vi.useFakeTimers();
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId('site:twitter', 1);
+
+    chrome.tabs.update = vi.fn(async (tabId: number, updates: { active?: boolean; url?: string }) => {
+      const tab = tabs.find((entry) => entry.id === tabId);
+      if (!tab) throw new Error(`Unknown tab ${tabId}`);
+      tab.url = 'chrome-extension://foreign/page.html';
+      tab.status = 'complete';
+      const info: chrome.tabs.TabChangeInfo = { status: 'complete', url: tab.url };
+      for (const listener of updatedListeners) {
+        listener(tabId, info, tab as unknown as chrome.tabs.Tab);
+      }
+      return tab;
+    });
+
+    const resultPromise = mod.__test__.handleNavigate(
+      { id: 'recover-nav', action: 'navigate', url: 'https://x.com/home', workspace: 'site:twitter' },
+      'site:twitter',
+    );
+
+    await vi.advanceTimersByTimeAsync(500);
+    const result = await resultPromise;
+
+    expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'https://x.com/home', active: true });
+    expect(result).toEqual({
+      id: 'recover-nav',
+      ok: true,
+      data: expect.objectContaining({
+        tabId: 10,
+        url: 'https://x.com/home',
+      }),
     });
   });
 });
