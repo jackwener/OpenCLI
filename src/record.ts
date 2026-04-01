@@ -35,6 +35,14 @@ export interface RecordedRequest {
   url: string;
   method: string;
   status: number | null;
+  /** Request content type captured at record time, if available. */
+  requestContentType: string | null;
+  /** Response content type captured at record time, if available. */
+  responseContentType: string | null;
+  /** Parsed JSON request body for replayable write requests. */
+  requestBody: unknown;
+  /** Parsed JSON response body captured from the network call. */
+  responseBody: unknown;
   contentType: string;
   body: unknown;
   capturedAt: number;
@@ -49,13 +57,109 @@ export interface RecordResult {
   candidates: Array<{ name: string; path: string; strategy: string }>;
 }
 
+type RecordedCandidateKind = 'read' | 'write';
+
+export interface RecordedCandidate {
+  kind: RecordedCandidateKind;
+  req: RecordedRequest;
+  score: number;
+  arrayResult: ReturnType<typeof findArrayPath> | null;
+}
+
+interface GeneratedRecordedCandidate {
+  kind: RecordedCandidateKind;
+  name: string;
+  strategy: string;
+  yaml: unknown;
+}
+
+/** Keep the stronger candidate when multiple recordings share one bucket. */
+function preferRecordedCandidate(current: RecordedCandidate, next: RecordedCandidate): RecordedCandidate {
+  if (next.score > current.score) return next;
+  if (next.score < current.score) return current;
+  return next;
+}
+
+/** Apply shared endpoint score tweaks. */
+function applyCommonEndpointScoreAdjustments(req: RecordedRequest, score: number): number {
+  let adjusted = score;
+  if (req.url.includes('/api/')) adjusted += 3;
+  if (req.url.match(/\/(track|log|analytics|beacon|pixel|stats|metric)/i)) adjusted -= 10;
+  if (req.url.match(/\/(ping|heartbeat|keep.?alive)/i)) adjusted -= 10;
+  return adjusted;
+}
+
+/** Build a candidate-level dedupe key. */
+function getRecordedCandidateKey(candidate: RecordedCandidate): string {
+  return `${candidate.kind} ${getRecordedRequestKey(candidate.req)}`;
+}
+
+/** Build a request dedupe key from method and URL pattern. */
+function getRecordedRequestKey(req: RecordedRequest): string {
+  return `${req.method.toUpperCase()} ${urlToPattern(req.url)}`;
+}
+
+/** Deduplicate recorded requests by method and URL pattern. */
+function dedupeRecordedRequests(requests: RecordedRequest[]): RecordedRequest[] {
+  const deduped = new Map<string, RecordedRequest>();
+  for (const req of requests) {
+    deduped.set(getRecordedRequestKey(req), req);
+  }
+  return [...deduped.values()];
+}
+
+/** Check whether a content type should be treated as JSON. */
+function isJsonContentType(contentType: string | null | undefined): boolean {
+  const normalized = contentType?.toLowerCase() ?? '';
+  return normalized.includes('application/json') || normalized.includes('+json');
+}
+
+/** Parse a captured request body only when the request advertises JSON. */
+function parseJsonBodyText(contentType: string | null | undefined, raw: string | null | undefined): unknown {
+  if (!isJsonContentType(contentType)) return null;
+  if (!raw || !raw.trim()) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** Build one normalized recorded entry from captured request and response values. */
+export function createRecordedEntry(input: {
+  url: string;
+  method: string;
+  requestContentType?: string | null;
+  requestBodyText?: string | null;
+  responseBody: unknown;
+  responseContentType?: string | null;
+  status?: number | null;
+  capturedAt?: number;
+}): RecordedRequest {
+  const requestBody = parseJsonBodyText(input.requestContentType ?? null, input.requestBodyText ?? null);
+  const responseContentType = input.responseContentType ?? 'application/json';
+  return {
+    url: input.url,
+    method: input.method.toUpperCase(),
+    status: input.status ?? null,
+    requestContentType: input.requestContentType ?? null,
+    responseContentType,
+    requestBody,
+    responseBody: input.responseBody,
+    // Keep legacy fields in sync until the analyzer/template path is migrated.
+    contentType: responseContentType,
+    body: input.responseBody,
+    capturedAt: input.capturedAt ?? Date.now(),
+  };
+}
+
 // ── Interceptor JS ─────────────────────────────────────────────────────────
 
 /**
  * Generates a full-capture interceptor that stores {url, method, status, body}
  * for every JSON response. No URL pattern filter — captures everything.
  */
-function generateFullCaptureInterceptorJs(): string {
+export function generateFullCaptureInterceptorJs(): string {
   return `
     (() => {
       // Restore original fetch/XHR if previously patched, then re-patch (idempotent injection)
@@ -63,24 +167,47 @@ function generateFullCaptureInterceptorJs(): string {
         if (window.__opencli_orig_fetch) window.fetch = window.__opencli_orig_fetch;
         if (window.__opencli_orig_xhr_open) XMLHttpRequest.prototype.open = window.__opencli_orig_xhr_open;
         if (window.__opencli_orig_xhr_send) XMLHttpRequest.prototype.send = window.__opencli_orig_xhr_send;
+        if (window.__opencli_orig_xhr_set_request_header) XMLHttpRequest.prototype.setRequestHeader = window.__opencli_orig_xhr_set_request_header;
         window.__opencli_record_patched = false;
       }
       // Preserve existing capture buffer across re-injections
       window.__opencli_record = window.__opencli_record || [];
 
-      const _push = (url, method, body) => {
+      const _tryParseJson = (contentType, raw) => {
         try {
-          // Only capture JSON-like responses
-          if (typeof body !== 'object' || body === null) return;
-          // Skip tiny/trivial responses (tracking pixels, empty acks)
-          const keys = Object.keys(body);
-          if (keys.length < 2) return;
+          const normalized = String(contentType || '').toLowerCase();
+          if (!normalized.includes('application/json') && !normalized.includes('+json')) return null;
+          if (typeof raw !== 'string' || !raw.trim()) return null;
+          return JSON.parse(raw);
+        } catch {
+          return null;
+        }
+      };
+
+      const _push = (entry) => {
+        try {
+          const responseBody = entry.responseBody;
+          if (typeof responseBody !== 'object' || responseBody === null) return;
+          const isReplayableWrite = ['POST', 'PUT', 'PATCH'].includes(String(entry.method).toUpperCase())
+            && (() => {
+              const normalized = String(entry.requestContentType || '').toLowerCase();
+              return normalized.includes('application/json') || normalized.includes('+json');
+            })()
+            && entry.requestBody
+            && typeof entry.requestBody === 'object';
+          const keys = Object.keys(responseBody);
+          if (keys.length < 2 && !isReplayableWrite) return;
           window.__opencli_record.push({
-            url: String(url),
-            method: String(method).toUpperCase(),
+            url: String(entry.url),
+            method: String(entry.method).toUpperCase(),
             status: null,
-            body,
-            ts: Date.now(),
+            requestContentType: entry.requestContentType || null,
+            responseContentType: entry.responseContentType || 'application/json',
+            requestBody: entry.requestBody || null,
+            responseBody,
+            contentType: entry.responseContentType || 'application/json',
+            body: responseBody,
+            capturedAt: Date.now(),
           });
         } catch {}
       };
@@ -89,14 +216,53 @@ function generateFullCaptureInterceptorJs(): string {
       window.__opencli_orig_fetch = window.fetch;
       window.fetch = async function(...args) {
         const req = args[0];
+        const init = args[1] || {};
         const reqUrl = typeof req === 'string' ? req : (req instanceof Request ? req.url : String(req));
-        const method = (args[1]?.method || (req instanceof Request ? req.method : 'GET') || 'GET');
+        const method = (init?.method || (req instanceof Request ? req.method : 'GET') || 'GET');
+        const requestContentType = (() => {
+          if (init?.headers) {
+            try {
+              const headers = new Headers(init.headers);
+              const value = headers.get('content-type');
+              if (value) return value;
+            } catch {}
+          }
+          if (req instanceof Request) {
+            return req.headers.get('content-type');
+          }
+          return null;
+        })();
+        const requestBodyText = (() => {
+          if (typeof init?.body === 'string') return init.body;
+          return null;
+        })();
+        const shouldReadRequestBodyFromRequest = req instanceof Request
+          && !requestBodyText
+          && ['POST', 'PUT', 'PATCH'].includes(String(method).toUpperCase())
+          && (() => {
+            const normalized = String(requestContentType || '').toLowerCase();
+            return normalized.includes('application/json') || normalized.includes('+json');
+          })();
+        let requestBodyTextFromRequest = null;
+        if (shouldReadRequestBodyFromRequest) {
+          try {
+            requestBodyTextFromRequest = await req.clone().text();
+          } catch {}
+        }
+        const requestBody = _tryParseJson(requestContentType, requestBodyText || requestBodyTextFromRequest);
         const res = await window.__opencli_orig_fetch.apply(this, args);
         const ct = res.headers.get('content-type') || '';
         if (ct.includes('json')) {
           try {
-            const body = await res.clone().json();
-            _push(reqUrl, method, body);
+            const responseBody = await res.clone().json();
+            _push({
+              url: reqUrl,
+              method,
+              requestContentType,
+              requestBody,
+              responseContentType: ct,
+              responseBody,
+            });
           } catch {}
         }
         return res;
@@ -106,20 +272,38 @@ function generateFullCaptureInterceptorJs(): string {
       const _XHR = XMLHttpRequest.prototype;
       window.__opencli_orig_xhr_open = _XHR.open;
       window.__opencli_orig_xhr_send = _XHR.send;
+      window.__opencli_orig_xhr_set_request_header = _XHR.setRequestHeader;
       _XHR.open = function(method, url) {
         this.__rec_url = String(url);
         this.__rec_method = String(method);
+        this.__rec_request_content_type = null;
         this.__rec_listener_added = false;  // reset per open() call
         return window.__opencli_orig_xhr_open.apply(this, arguments);
       };
+      _XHR.setRequestHeader = function(name, value) {
+        if (String(name).toLowerCase() === 'content-type') {
+          this.__rec_request_content_type = String(value);
+        }
+        return window.__opencli_orig_xhr_set_request_header.apply(this, arguments);
+      };
       _XHR.send = function() {
+        const requestBody = _tryParseJson(this.__rec_request_content_type, typeof arguments[0] === 'string' ? arguments[0] : null);
         // Guard: only add one listener per XHR instance to prevent duplicate captures
         if (!this.__rec_listener_added) {
           this.__rec_listener_added = true;
           this.addEventListener('load', function() {
             const ct = this.getResponseHeader?.('content-type') || '';
             if (ct.includes('json')) {
-              try { _push(this.__rec_url, this.__rec_method || 'GET', JSON.parse(this.responseText)); } catch {}
+              try {
+                _push({
+                  url: this.__rec_url,
+                  method: this.__rec_method || 'GET',
+                  requestContentType: this.__rec_request_content_type,
+                  requestBody,
+                  responseContentType: ct,
+                  responseBody: JSON.parse(this.responseText),
+                });
+              } catch {}
             }
           });
         }
@@ -159,11 +343,42 @@ function scoreRequest(req: RecordedRequest, arrayResult: ReturnType<typeof findA
       }
     }
   }
-  if (req.url.includes('/api/')) s += 3;
-  // Penalize likely tracking / analytics endpoints
-  if (req.url.match(/\/(track|log|analytics|beacon|pixel|stats|metric)/i)) s -= 10;
-  if (req.url.match(/\/(ping|heartbeat|keep.?alive)/i)) s -= 10;
-  return s;
+  return applyCommonEndpointScoreAdjustments(req, s);
+}
+
+/** Check whether one recorded request is safe to treat as a write candidate. */
+function isWriteCandidate(req: RecordedRequest): boolean {
+  return ['POST', 'PUT', 'PATCH'].includes(req.method)
+    && isJsonContentType(req.requestContentType)
+    && !!req.requestBody
+    && typeof req.requestBody === 'object'
+    && !Array.isArray(req.requestBody)
+    && !!req.responseBody
+    && typeof req.responseBody === 'object'
+    && !Array.isArray(req.responseBody);
+}
+
+/** Score replayable write requests while keeping tracking and heartbeat traffic suppressed. */
+function scoreWriteRequest(req: RecordedRequest): number {
+  return applyCommonEndpointScoreAdjustments(req, 6);
+}
+
+/** Analyze recorded requests into read and write candidates. */
+export function analyzeRecordedRequests(requests: RecordedRequest[]): { candidates: RecordedCandidate[] } {
+  const candidates: RecordedCandidate[] = [];
+  for (const req of requests) {
+    const arrayResult = findArrayPath(req.responseBody);
+    if (isWriteCandidate(req)) {
+      const score = scoreWriteRequest(req);
+      if (score > 0) candidates.push({ kind: 'write', req, score, arrayResult: null });
+      continue;
+    }
+    if (arrayResult) {
+      const score = scoreRequest(req, arrayResult);
+      if (score > 0) candidates.push({ kind: 'read', req, score, arrayResult });
+    }
+  }
+  return { candidates };
 }
 
 // ── YAML generation ────────────────────────────────────────────────────────
@@ -214,15 +429,20 @@ function buildRecordedYaml(
     const u = new URL(req.url);
     if (hasSearch) {
       for (const p of SEARCH_PARAMS) {
-        if (u.searchParams.has(p)) { u.searchParams.set(p, '{{args.keyword}}'); break; }
+        if (u.searchParams.has(p)) { u.searchParams.set(p, '${{ args.keyword }}'); break; }
       }
     }
     if (hasPage) {
       for (const p of PAGINATION_PARAMS) {
-        if (u.searchParams.has(p)) { u.searchParams.set(p, '{{args.page | default(1)}}'); break; }
+        if (u.searchParams.has(p)) { u.searchParams.set(p, '${{ args.page | default(1) }}'); break; }
       }
     }
     fetchUrl = u.toString();
+    fetchUrl = fetchUrl
+      .replaceAll(encodeURIComponent('${{ args.keyword }}'), '${{ args.keyword }}')
+      .replaceAll('%24%7B%7B+args.keyword+%7D%7D', '${{ args.keyword }}')
+      .replaceAll(encodeURIComponent('${{ args.page | default(1) }}'), '${{ args.page | default(1) }}');
+    fetchUrl = fetchUrl.replaceAll('%24%7B%7B+args.page+%7C+default%281%29+%7D%7D', '${{ args.page | default(1) }}');
   } catch {}
 
   // When itemPath is empty, the array IS the response root; otherwise chain with ?.
@@ -269,6 +489,87 @@ function buildRecordedYaml(
       columns,
     },
   };
+}
+
+/** Build a minimal YAML candidate for replayable JSON write requests. */
+export function buildWriteRecordedYaml(
+  site: string,
+  pageUrl: string,
+  req: RecordedRequest,
+  capName: string,
+): { name: string; yaml: unknown } {
+  const responseColumns = req.responseBody && typeof req.responseBody === 'object' && !Array.isArray(req.responseBody)
+    ? Object.keys(req.responseBody as Record<string, unknown>).slice(0, 6)
+    : ['ok'];
+
+  const evaluateScript = [
+    '(async () => {',
+    `  const res = await fetch(${JSON.stringify(req.url)}, {`,
+    `    method: ${JSON.stringify(req.method)},`,
+    `    credentials: 'include',`,
+    `    headers: { 'content-type': ${JSON.stringify(req.requestContentType ?? 'application/json')} },`,
+    `    body: JSON.stringify(${JSON.stringify(req.requestBody)}),`,
+    '  });',
+    '  return await res.json();',
+    '})()',
+  ].join('\n');
+
+  return {
+    name: capName,
+    yaml: {
+      site,
+      name: capName,
+      description: `${site} ${capName} (recorded write)`,
+      domain: (() => { try { return new URL(pageUrl).hostname; } catch { return ''; } })(),
+      strategy: 'cookie',
+      browser: true,
+      args: {},
+      pipeline: [
+        { navigate: pageUrl },
+        { evaluate: evaluateScript },
+      ],
+      columns: responseColumns.length ? responseColumns : ['ok'],
+    },
+  };
+}
+
+/** Turn recorded requests into YAML-ready read and write candidates. */
+export function generateRecordedCandidates(
+  site: string,
+  pageUrl: string,
+  requests: RecordedRequest[],
+): GeneratedRecordedCandidate[] {
+  const analysis = analyzeRecordedRequests(dedupeRecordedRequests(requests));
+  const deduped = new Map<string, RecordedCandidate>();
+  for (const candidate of analysis.candidates) {
+    const key = getRecordedCandidateKey(candidate);
+    const current = deduped.get(key);
+    deduped.set(key, current ? preferRecordedCandidate(current, candidate) : candidate);
+  }
+
+  const selected = [...deduped.values()]
+    .filter((candidate) => candidate.kind === 'read' ? candidate.score >= 8 : candidate.score >= 6)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+
+  const usedNames = new Set<string>();
+  return selected.map((candidate) => {
+    let capName = inferCapabilityName(candidate.req.url);
+    if (usedNames.has(capName)) capName = `${capName}_${usedNames.size + 1}`;
+    usedNames.add(capName);
+
+    const authIndicators = detectAuthFromContent(candidate.req.url, candidate.req.responseBody);
+    const strategy = candidate.kind === 'write' ? 'cookie' : inferStrategy(authIndicators);
+    const yamlCandidate = candidate.kind === 'write'
+      ? buildWriteRecordedYaml(site, pageUrl, candidate.req, capName)
+      : buildRecordedYaml(site, pageUrl, candidate.req, capName, candidate.arrayResult!, authIndicators);
+    return {
+      kind: candidate.kind,
+      name: yamlCandidate.name,
+      strategy,
+      yaml: yamlCandidate.yaml,
+    };
+  });
 }
 
 // ── Main record function ───────────────────────────────────────────────────
@@ -441,32 +742,9 @@ function analyzeAndWrite(
     return { site, url: pageUrl, requests: [], outDir: targetDir, candidateCount: 0, candidates: [] };
   }
 
-  // Deduplicate by pattern
-  const seen = new Map<string, RecordedRequest>();
-  for (const req of requests) {
-    const pattern = urlToPattern(req.url);
-    if (!seen.has(pattern)) seen.set(pattern, req);
-  }
-
-  // Score and rank unique requests
-  type ScoredEntry = {
-    req: RecordedRequest;
-    pattern: string;
-    arrayResult: ReturnType<typeof findArrayPath>;
-    authIndicators: string[];
-    score: number;
-  };
-
-  const scored: ScoredEntry[] = [];
-  for (const [pattern, req] of seen) {
-    const arrayResult = findArrayPath(req.body);
-    const authIndicators = detectAuthFromContent(req.url, req.body);
-    const score = scoreRequest(req, arrayResult);
-    if (score > 0) {
-      scored.push({ req, pattern, arrayResult, authIndicators, score });
-    }
-  }
-  scored.sort((a, b) => b.score - a.score);
+  // Score and rank deduplicated requests for console output and candidate generation.
+  const analysisRequests = dedupeRecordedRequests(requests);
+  const analysis = analyzeRecordedRequests(analysisRequests);
 
   // Save raw captured data
   fs.writeFileSync(
@@ -480,35 +758,36 @@ function analyzeAndWrite(
 
   console.log(chalk.bold('\n  Captured endpoints (scored):\n'));
 
-  for (const entry of scored.slice(0, 8)) {
+  for (const entry of analysis.candidates.sort((a, b) => b.score - a.score).slice(0, 8)) {
     const itemCount = entry.arrayResult?.items.length ?? 0;
-    const strategy = inferStrategy(entry.authIndicators);
+    const strategy = entry.kind === 'write'
+      ? 'cookie'
+      : inferStrategy(detectAuthFromContent(entry.req.url, entry.req.responseBody));
     const marker = entry.score >= 15 ? chalk.green('★') : entry.score >= 8 ? chalk.yellow('◆') : chalk.dim('·');
     console.log(
-      `  ${marker} ${chalk.white(entry.pattern)}` +
+      `  ${marker} ${chalk.white(urlToPattern(entry.req.url))}` +
       chalk.dim(` [${strategy}]`) +
-      (itemCount ? chalk.cyan(` ← ${itemCount} items`) : ''),
+      (entry.kind === 'write'
+        ? chalk.magenta(' ← write')
+        : itemCount ? chalk.cyan(` ← ${itemCount} items`) : ''),
     );
   }
 
   console.log();
 
-  const topCandidates = scored.filter(e => e.arrayResult && e.score >= 8).slice(0, 5);
+  const topCandidates = generateRecordedCandidates(site, pageUrl, analysisRequests);
   const candidatesDir = path.join(targetDir, 'candidates');
   fs.mkdirSync(candidatesDir, { recursive: true });
 
   for (const entry of topCandidates) {
-    let capName = inferCapabilityName(entry.req.url);
-    if (usedNames.has(capName)) capName = `${capName}_${usedNames.size + 1}`;
-    usedNames.add(capName);
+    if (usedNames.has(entry.name)) continue;
+    usedNames.add(entry.name);
 
-    const strategy = inferStrategy(entry.authIndicators);
-    const candidate = buildRecordedYaml(site, pageUrl, entry.req, capName, entry.arrayResult!, entry.authIndicators);
-    const filePath = path.join(candidatesDir, `${capName}.yaml`);
-    fs.writeFileSync(filePath, yaml.dump(candidate.yaml, { sortKeys: false, lineWidth: 120 }));
-    candidates.push({ name: capName, path: filePath, strategy });
+    const filePath = path.join(candidatesDir, `${entry.name}.yaml`);
+    fs.writeFileSync(filePath, yaml.dump(entry.yaml, { sortKeys: false, lineWidth: 120 }));
+    candidates.push({ name: entry.name, path: filePath, strategy: entry.strategy });
 
-    console.log(chalk.green(`  ✓ Generated: ${chalk.bold(capName)}.yaml  [${strategy}]`));
+    console.log(chalk.green(`  ✓ Generated: ${chalk.bold(entry.name)}.yaml  [${entry.strategy}]`));
     console.log(chalk.dim(`    → ${filePath}`));
   }
 
