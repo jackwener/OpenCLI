@@ -2,6 +2,75 @@
 
 ## 2026-03-31
 
+### Infographic Generate / Download
+
+- Scoped this round strictly to NotebookLM infographic generation/download:
+  - `generate infographic`
+  - `download infographic`
+- Re-read the existing generate/download helpers in:
+  - `generate-report.ts`
+  - `generate-audio.ts`
+  - `generate-slide-deck.ts`
+  - `download-list.ts`
+  - `download-report.ts`
+  - `download-slide-deck.ts`
+  - `utils.ts`
+  - `rpc.ts`
+  - `shared.ts`
+- Re-checked upstream command surface and packaged implementation:
+  - old CLI still exposes `generate infographic` / `download infographic`
+  - upstream artifact type code is `7`
+  - generate still uses `R7cb6c`
+  - download still uses `gArtLc` raw artifact list plus a deep image URL extractor
+- Kept the implementation narrow:
+  - added `generate/infographic`
+  - added `download/infographic`
+  - extended shared artifact unions/types with `infographic`
+  - added infographic payload builder and PNG URL extractor
+  - extended `download/list` / artifact-id completion to recognize `infographic`
+  - reused the existing generate failure classification and HTTP download path
+- Did not expand into:
+  - `quiz`
+  - `flashcards`
+  - `data-table`
+  - `artifact/*`
+  - framework / command-tree changes
+
+### Verification
+
+- red -> green tests:
+  - `npx vitest run src\\clis\\notebooklm\\generate-infographic.test.ts src\\clis\\notebooklm\\download-infographic.test.ts --reporter=verbose`
+  - `npx vitest run src\\clis\\notebooklm\\utils.test.ts -t "infographic|supported downloadable artifact rows|filters artifact-id completion candidates" --reporter=verbose`
+- broader related tests:
+  - `npx vitest run src\\clis\\notebooklm\\generate-report.test.ts src\\clis\\notebooklm\\generate-audio.test.ts src\\clis\\notebooklm\\generate-slide-deck.test.ts src\\clis\\notebooklm\\generate-infographic.test.ts src\\clis\\notebooklm\\download-list.test.ts src\\clis\\notebooklm\\download-report.test.ts src\\clis\\notebooklm\\download-slide-deck.test.ts src\\clis\\notebooklm\\download-infographic.test.ts --reporter=verbose`
+- type/build:
+  - `npx tsc --noEmit`
+  - `npm run build`
+- command discovery/help smoke:
+  - `node dist/main.js list -f json | Select-String 'generate/infographic|download/infographic'`
+  - `node dist/main.js notebooklm generate infographic --help`
+  - `node dist/main.js notebooklm download infographic --help`
+- live:
+  - initial `node dist/main.js notebooklm status -f json` showed browser bridge connected but parked on NotebookLM home
+  - daemon navigate moved workspace `site:notebooklm` to:
+    - `https://notebooklm.google.com/notebook/a45591ed-37bd-4038-a131-141a295c024b`
+  - `node dist/main.js notebooklm generate infographic -f json`
+    - returned `status: "failed"`, `artifact_id: null`, `error_type: "generation_failed_unknown"`
+  - `node dist/main.js notebooklm download list -f json`
+    - returned one completed infographic artifact:
+      - `6a31b7d3-7b9c-402d-a4dc-fcc396430de4`
+      - `download_variants: ["png"]`
+  - `node dist/main.js notebooklm download infographic "E:\\web\\opencli\\tmp\\notebooklm-infographic-smoke.png" --artifact-id 6a31b7d3-7b9c-402d-a4dc-fcc396430de4 -f json`
+    - succeeded
+
+### Outcome
+
+- `generate infographic` is implemented and uses the verified `R7cb6c` payload path.
+- `download infographic` is implemented and closes successfully against an existing live artifact.
+- Current live boundary is explicit:
+  - generate is still server-rejected on the current account/notebook sample
+  - download does not require `artifact/*` as a prerequisite
+
 ### Session Summary
 
 - Confirmed `opencli` is the Windows/browser-bridge target repo.
@@ -963,6 +1032,55 @@
   - live：
     - add-file 创建 source `6143e8b6-cb0d-4b18-9192-fbcd2abbebc1`
     - wait / wait-for-sources 都等到 ready
+
+## 2026-04-01 Source Add-Drive
+
+- 范围控制：
+  - 只做 `source/add-drive`
+  - 不扩 `add-research`
+  - 不碰 notes / notebook CRUD / share / generate / download / artifact / framework
+- 先取证，再实现：
+  - 读取了：
+    - `notebooklm-cdp-cli` 的 `cli.py` / `notebooklm_ops.py`
+    - `notebooklm-py` 的 `_sources.py` / `cli/source.py` / `rpc/types.py`
+  - 确认上游最小输入是：
+    - `file_id`
+    - `title`
+    - `mime_type`
+  - 确认链路是：
+    - `izAoDd` RPC
+    - 不需要 DOM 点击
+    - 不需要 Drive URL 解析
+- TDD：
+  1. 新增失败测试：
+     - `src/clis/notebooklm/source-add-drive.test.ts`
+     - `src/clis/notebooklm/utils.test.ts` 中 add-drive builder 用例
+  2. 初次失败点：
+     - 缺 `source-add-drive.ts`
+     - 缺 `buildNotebooklmAddDriveParams(...)`
+  3. 最小实现：
+     - `src/clis/notebooklm/source-add-drive.ts`
+     - `src/clis/notebooklm/utils.ts`
+- 当前命令边界：
+  - positional:
+    - `<file-id>`
+    - `<title>`
+  - optional:
+    - `--mime-type`
+  - 默认 MIME：
+    - `application/vnd.google-apps.document`
+- 验证结果：
+  - targeted vitest：
+    - `source-add-drive.test.ts` 通过
+    - add-drive builder 过滤测试通过
+    - source ingest 相关回归测试 `4 files, 4 tests passed`
+  - `npx tsc --noEmit` / `npm run build`：
+    - 失败
+    - 原因是 repo 里已存在的 infographic 相关缺件，不是 add-drive 本身
+  - live：
+    - 尝试建立 smoke notebook 失败：NotebookLM home RPC 400
+    - 当前 browser workspace 停在 home，且没有 visible notebook tab
+    - 因此本轮未能完成 add-drive live 闭环
 
 ## 2026-03-31 From-0 Integration Test Summary (9 Modules, Historical Only)
 

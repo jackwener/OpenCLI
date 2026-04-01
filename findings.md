@@ -1143,6 +1143,61 @@ High-level groups verified from the source repo:
     - `status = ready`
     - `status_code = 2`
 
+## 2026-04-01 Source Add-Drive
+
+- 这轮范围严格限制在 `source/add-drive`，不碰：
+  - `source add-research`
+  - notes / notebook CRUD / share / generate / download / artifact / framework
+- 上游取证结论明确：
+  - `notebooklm-cdp-cli` 的 `source add-drive` 输入形态是：
+    - `file_id`
+    - `title`
+    - `mime_type`
+  - `notebooklm-py` 的 `client.sources.add_drive(...)` 走的不是 Drive URL 解析，也不是 DOM 上传
+  - 实际 RPC 仍然是 `izAoDd`（与 add-text / add-url 共用）
+- 上游稳定 params 形状：
+  - `source_data = [[file_id, mime_type, 1, title], null x9, 1]`
+  - `params = [[source_data], notebook_id, [2], [1, null x9, [1]]]`
+- 因此 opencli 这轮实现刻意收口为：
+  - 只支持 raw Google Drive `file_id`
+  - 需要显式 `title`
+  - `--mime-type` 允许传原始 MIME string
+  - 当前已知稳定值：
+    - `application/vnd.google-apps.document`
+    - `application/vnd.google-apps.presentation`
+    - `application/vnd.google-apps.spreadsheet`
+    - `application/pdf`
+  - 不支持把 `docs.google.com/...` 或 `drive.google.com/...` URL 自动解析成 file id
+- opencli 落地链路：
+  - `buildNotebooklmAddDriveParams(...)`
+  - `addNotebooklmDriveSourceViaRpc(...)`
+  - `source/add-drive` 命令层只负责取当前 notebook、校验输入、调用 RPC helper
+
+### Verification
+
+- red -> green:
+  - `npx vitest run src\\clis\\notebooklm\\source-add-drive.test.ts --reporter=verbose`
+  - `npx vitest run src\\clis\\notebooklm\\utils.test.ts -t "builds add-drive rpc params with file id, mime type, and display title in the drive slot" --reporter=verbose`
+- related ingest regression:
+  - `npx vitest run src\\clis\\notebooklm\\source-add-drive.test.ts src\\clis\\notebooklm\\source-add-text.test.ts src\\clis\\notebooklm\\source-add-url.test.ts src\\clis\\notebooklm\\source-add-file.test.ts --reporter=verbose`
+- type/build:
+  - `npx tsc --noEmit`
+  - `npm run build`
+- type/build 当前失败，但根因与 add-drive 无关：
+  - 缺失 / 未实现的 infographic 相关文件与导出：
+    - `src/clis/notebooklm/download-infographic.test.ts`
+    - `src/clis/notebooklm/generate-infographic.test.ts`
+    - `buildNotebooklmGenerateInfographicParams`
+    - `extractNotebooklmInfographicDownloadUrl`
+- live 尝试结果：
+  - `node dist/main.js notebooklm list -f json` → `[]`
+  - `node dist/main.js notebooklm status -f json` → 当前停在 NotebookLM home，`authuser=3`，无 visible notebook tab
+  - `npx tsx src/main.ts notebooklm create "opencli add-drive smoke 2026-04-01" -f json` → NotebookLM RPC HTTP 400
+- 因此这轮 live 的真实阻塞点是：
+  - 当前浏览器会话没有可绑定的 notebook 上下文
+  - 同时也没有稳定、现成可验证的 Drive `file_id`
+  - 这不是 `source/add-drive` 的静态链路不清楚，而是运行态前置条件不足
+
 ## 2026-03-31 From-0 Integration Test Results (Historical Only)
 
 ### Test Environment
@@ -1423,3 +1478,68 @@ High-level groups verified from the source repo:
 - 新账号当前 live 结果证明：
   - 这套增强至少已经把“原先只看到 failed”的返回，提升成了“明确是 `UserDisplayableError` 但无可读 message，所以归到 `generation_failed_unknown`”
   - 若将来服务端重新带出可读 quota / eligibility / content 文案，当前分类器已经能直接映射到更具体的错误类型
+
+## Infographic Generate / Download Findings
+
+- 上游原仓库和当前 `.venv` client 已确认 infographic 仍走：
+  - generate RPC: `R7cb6c`
+  - artifact type code: `7`
+  - download data source: `gArtLc` raw artifact list，而不是 export RPC
+- 当前最小 generate payload 已确认可按上游稳定形状构造：
+  - `[[2], notebook_id, [null, null, 7, source_ids_triple, ..., [[instructions, language, null, orientation_code, detail_code, style_code]]]]`
+- 当前可用的 infographic 选项码位已确认：
+  - orientation:
+    - `landscape -> 1`
+    - `portrait -> 2`
+    - `square -> 3`
+  - detail:
+    - `concise -> 1`
+    - `standard -> 2`
+    - `detailed -> 3`
+  - style:
+    - `auto_select -> 1`
+    - `sketch_note -> 2`
+    - `professional -> 3`
+    - `bento_grid -> 4`
+    - `editorial -> 5`
+    - `instructional -> 6`
+    - `bricks -> 7`
+    - `clay -> 8`
+    - `anime -> 9`
+    - `kawaii -> 10`
+    - `scientific -> 11`
+- `gArtLc` raw row 里的 infographic 下载 URL 形态也已确认：
+  - 不像 slide deck 那样有固定 `pdf/pptx` 槽位
+  - 更像深层 metadata / content 列表里嵌的单个 PNG URL
+  - 当前 opencli 采用的最小稳定提取策略与上游 `_find_infographic_url(...)` 一致：从 raw row 尾部反向扫描第一个可用 image URL
+
+### Live Verification
+
+- 已手动把 browser bridge workspace 导航回 rich notebook：
+  - `a45591ed-37bd-4038-a131-141a295c024b`
+- live `generate infographic`：
+  - 返回：
+    - `artifact_id: null`
+    - `artifact_type: "infographic"`
+    - `status: "failed"`
+    - `error_type: "generation_failed_unknown"`
+    - `message: null`
+  - 这说明当前账号/样本上，服务端在提交阶段直接拒绝 infographic，但没有返回可读 message
+- live `download list`：
+  - 已正确列出历史 infographic artifact：
+    - `artifact_id: 6a31b7d3-7b9c-402d-a4dc-fcc396430de4`
+    - `artifact_type: "infographic"`
+    - `download_variants: ["png"]`
+- live `download infographic --artifact-id 6a31b7d3-7b9c-402d-a4dc-fcc396430de4`：
+  - 成功写出：
+    - `E:\web\opencli\tmp\notebooklm-infographic-smoke.png`
+  - 返回 direct PNG URL（`lh3.googleusercontent.com/notebooklm/...`）
+
+### Practical Conclusion
+
+- infographic 的 `type / payload / artifact` 形态已经查清。
+- `download/infographic` 已可独立闭环，不需要 `artifact/*` 作为前置。
+- `generate/infographic` 当前也已接入，但 live 行为与 audio / slide-deck 一样，现阶段最保守的结论仍然是：
+  - 服务端拒绝
+  - 错误分类只能稳定落到 `generation_failed_unknown`
+  - 当前没有证据支持继续扩 artifact 子系统来解决它

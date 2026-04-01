@@ -4,11 +4,13 @@ import {
   buildNotebooklmCreateNotebookParams,
   buildNotebooklmDeleteNotebookParams,
   buildNotebooklmGenerateAudioParams,
+  buildNotebooklmGenerateInfographicParams,
   buildNotebooklmGenerateReportParams,
   buildNotebooklmGenerateSlideDeckParams,
   buildNotebooklmRemoveFromRecentParams,
   buildNotebooklmRenameNotebookParams,
   buildNotebooklmAddTextParams,
+  buildNotebooklmAddDriveParams,
   buildNotebooklmAddFileParams,
   buildNotebooklmAddUrlParams,
   buildNotebooklmAddYoutubeParams,
@@ -49,6 +51,7 @@ import {
   parseNotebooklmGenerationResult,
   selectNotebooklmCompletedArtifact,
   extractNotebooklmAudioDownloadVariant,
+  extractNotebooklmInfographicDownloadUrl,
   extractNotebooklmVideoDownloadVariant,
   extractNotebooklmSlideDeckDownloadUrl,
   extractNotebooklmReportMarkdown,
@@ -118,6 +121,32 @@ describe('notebooklm utils', () => {
   it('builds add-file rpc params with the filename nested in the upload registration slot', () => {
     expect(buildNotebooklmAddFileParams('demo.txt', 'nb-demo')).toEqual([
       [['demo.txt']],
+      'nb-demo',
+      [2],
+      [1, null, null, null, null, null, null, null, null, null, [1]],
+    ]);
+  });
+
+  it('builds add-drive rpc params with file id, mime type, and display title in the drive slot', () => {
+    expect(buildNotebooklmAddDriveParams(
+      '1abcDriveFileIdXYZ',
+      'Shared Spec',
+      'nb-demo',
+      'application/vnd.google-apps.document',
+    )).toEqual([
+      [[
+        ['1abcDriveFileIdXYZ', 'application/vnd.google-apps.document', 1, 'Shared Spec'],
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        1,
+      ]],
       'nb-demo',
       [2],
       [1, null, null, null, null, null, null, null, null, null, [1]],
@@ -935,6 +964,35 @@ describe('notebooklm utils', () => {
     ]);
   });
 
+  it('builds the NotebookLM infographic generation payload for create-artifact RPC', () => {
+    expect(buildNotebooklmGenerateInfographicParams('nb-demo', ['src-1', 'src-2'], {
+      instructions: 'Focus on the architecture trade-offs',
+      orientation: 'portrait',
+      detail: 'detailed',
+      style: 'scientific',
+    })).toEqual([
+      [2],
+      'nb-demo',
+      [
+        null,
+        null,
+        7,
+        [[['src-1']], [['src-2']]],
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        [['Focus on the architecture trade-offs', 'en', null, 2, 3, 11]],
+      ],
+    ]);
+  });
+
   it('parses NotebookLM generation RPC results into artifact id and normalized status', () => {
     expect(parseNotebooklmGenerationResult([
       ['artifact-pending', 'Briefing Doc', 2, null, 2],
@@ -970,6 +1028,21 @@ describe('notebooklm utils', () => {
     expect(slideDeck?.[0]).toBe('slide-2');
     expect(extractNotebooklmSlideDeckDownloadUrl(slideDeck ?? null, 'pdf')).toBe('https://example.com/latest.pdf');
     expect(extractNotebooklmSlideDeckDownloadUrl(slideDeck ?? null, 'pptx')).toBe('https://example.com/latest.pptx');
+  });
+
+  it('extracts the infographic png download url from the completed artifact payload', () => {
+    const result = [
+      [
+        ['infographic-1', 'Older infographic', 7, null, 3, null, null, null, null, null, null, null, null, null, null, [100], [null, null, [[null, ['https://example.com/older.png']]]]],
+        ['infographic-2', 'Latest infographic', 7, null, 3, null, null, null, null, null, null, null, null, null, null, [200], [null, null, [[null, ['https://example.com/latest.png']]]]],
+      ],
+    ];
+
+    const rows = parseNotebooklmArtifactListResult(result);
+    const infographic = selectNotebooklmCompletedArtifact(rows, 7);
+
+    expect(infographic?.[0]).toBe('infographic-2');
+    expect(extractNotebooklmInfographicDownloadUrl(infographic ?? null)).toBe('https://example.com/latest.png');
   });
 
   it('extracts the preferred audio/mp4 download variant from the completed artifact payload', () => {
@@ -1039,6 +1112,7 @@ describe('notebooklm utils', () => {
         ['audio-1', 'Browser Automation Audio', 1, null, 3, null, [null, null, null, null, null, [['https://example.com/audio.mp4', 1, 'audio/mp4'], ['https://example.com/audio.m3u8', 2], ['https://example.com/audio.mpd', 3]]], null, null, null, null, null, null, null, null, [200]],
         ['video-1', 'Browser Automation Video', 3, null, 2, null, null, null, [null, null, null, null, [['https://example.com/video.m3u8', 2], ['https://example.com/video.mp4', 1, 'video/mp4']]], null, null, null, null, null, null, [300]],
         ['slide-1', 'Browser Automation Deck', 8, null, 3, null, null, null, null, null, null, null, null, null, null, [400], [null, null, null, 'https://example.com/deck.pdf', 'https://example.com/deck.pptx']],
+        ['infographic-1', 'Browser Automation Infographic', 7, null, 3, null, null, null, null, null, null, null, null, null, null, [450], [null, null, [[null, ['https://example.com/infographic.png']]]]],
         ['other-1', 'Unsupported Artifact', 4, null, 3, null, null, null, null, null, null, null, null, null, null, [500]],
       ],
     ];
@@ -1050,8 +1124,8 @@ describe('notebooklm utils', () => {
       'https://notebooklm.google.com/notebook/nb-demo',
     );
 
-    expect(downloadRows).toHaveLength(4);
-    expect(downloadRows.map((row) => row.artifact_id)).toEqual(['slide-1', 'video-1', 'audio-1', 'report-1']);
+    expect(downloadRows).toHaveLength(5);
+    expect(downloadRows.map((row) => row.artifact_id)).toEqual(['infographic-1', 'slide-1', 'video-1', 'audio-1', 'report-1']);
     expect(downloadRows.find((row) => row.artifact_id === 'report-1')).toEqual({
       notebook_id: 'nb-demo',
       artifact_id: 'report-1',
@@ -1090,6 +1164,16 @@ describe('notebooklm utils', () => {
       title: 'Browser Automation Deck',
       created_at: '1970-01-01T00:06:40.000Z',
       download_variants: ['pdf', 'pptx'],
+      source: 'rpc+artifact-list',
+    });
+    expect(downloadRows.find((row) => row.artifact_id === 'infographic-1')).toEqual({
+      notebook_id: 'nb-demo',
+      artifact_id: 'infographic-1',
+      artifact_type: 'infographic',
+      status: 'completed',
+      title: 'Browser Automation Infographic',
+      created_at: '1970-01-01T00:07:30.000Z',
+      download_variants: ['png'],
       source: 'rpc+artifact-list',
     });
   });
@@ -1136,12 +1220,23 @@ describe('notebooklm utils', () => {
         download_variants: ['pdf', 'pptx'],
         source: 'rpc+artifact-list',
       },
+      {
+        notebook_id: 'nb-demo',
+        artifact_id: 'infographic-1',
+        artifact_type: 'infographic',
+        status: 'completed',
+        title: 'Infographic',
+        created_at: '2026-03-31T00:04:00.000Z',
+        download_variants: ['png'],
+        source: 'rpc+artifact-list',
+      },
     ];
 
     expect(pickNotebooklmArtifactIdCompletionCandidates(rows, 'report')).toEqual(['report-1']);
     expect(pickNotebooklmArtifactIdCompletionCandidates(rows, 'audio')).toEqual(['audio-1']);
     expect(pickNotebooklmArtifactIdCompletionCandidates(rows, 'video')).toEqual(['video-1']);
     expect(pickNotebooklmArtifactIdCompletionCandidates(rows, 'slide_deck')).toEqual(['slide-1']);
+    expect(pickNotebooklmArtifactIdCompletionCandidates(rows, 'infographic')).toEqual(['infographic-1']);
   });
 
   it('classifies generation failure messages into explicit diagnostic buckets', () => {

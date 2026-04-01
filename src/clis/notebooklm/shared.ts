@@ -113,6 +113,18 @@ export interface NotebooklmAudioDownloadRow {
   source: 'rpc+artifact-url';
 }
 
+export interface NotebooklmInfographicDownloadRow {
+  notebook_id: string;
+  artifact_id: string;
+  artifact_type: 'infographic';
+  title: string;
+  output_path: string;
+  created_at?: string | null;
+  url: string;
+  download_url: string;
+  source: 'rpc+artifact-url';
+}
+
 export interface NotebooklmVideoDownloadRow {
   notebook_id: string;
   artifact_id: string;
@@ -129,13 +141,28 @@ export interface NotebooklmVideoDownloadRow {
 export interface NotebooklmDownloadListRow {
   notebook_id: string;
   artifact_id: string;
-  artifact_type: 'report' | 'audio' | 'video' | 'slide_deck';
+  artifact_type: 'report' | 'audio' | 'video' | 'infographic' | 'slide_deck';
   status: string;
   title: string;
   created_at: string | null;
   download_variants: string[];
   source: 'rpc+artifact-list';
 }
+
+export type NotebooklmInfographicOrientation = 'landscape' | 'portrait' | 'square';
+export type NotebooklmInfographicDetail = 'concise' | 'standard' | 'detailed';
+export type NotebooklmInfographicStyle =
+  | 'auto_select'
+  | 'sketch_note'
+  | 'professional'
+  | 'bento_grid'
+  | 'editorial'
+  | 'instructional'
+  | 'bricks'
+  | 'clay'
+  | 'anime'
+  | 'kawaii'
+  | 'scientific';
 
 export type NotebooklmGenerationErrorType =
   | 'daily_limit_reached'
@@ -146,7 +173,7 @@ export type NotebooklmGenerationErrorType =
 export interface NotebooklmGenerateRow {
   notebook_id: string;
   artifact_id: string | null;
-  artifact_type: 'report' | 'audio' | 'slide_deck';
+  artifact_type: 'report' | 'audio' | 'infographic' | 'slide_deck';
   status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'unknown';
   created_at?: string | null;
   error_type?: NotebooklmGenerationErrorType | null;

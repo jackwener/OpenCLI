@@ -14,6 +14,10 @@ import {
   type NotebooklmDownloadListRow,
   type NotebooklmGenerateRow,
   type NotebooklmGenerationErrorType,
+  type NotebooklmInfographicDetail,
+  type NotebooklmInfographicDownloadRow,
+  type NotebooklmInfographicOrientation,
+  type NotebooklmInfographicStyle,
   type NotebooklmVideoDownloadRow,
   NOTEBOOKLM_DOMAIN,
   NOTEBOOKLM_HOME_URL,
@@ -81,6 +85,7 @@ const NOTEBOOKLM_ARTIFACT_STATUS_COMPLETED = 3;
 const NOTEBOOKLM_ARTIFACT_TYPE_AUDIO = 1;
 const NOTEBOOKLM_ARTIFACT_TYPE_REPORT = 2;
 const NOTEBOOKLM_ARTIFACT_TYPE_VIDEO = 3;
+const NOTEBOOKLM_ARTIFACT_TYPE_INFOGRAPHIC = 7;
 const NOTEBOOKLM_ARTIFACT_TYPE_SLIDE_DECK = 8;
 const NOTEBOOKLM_SOURCE_STATUS_PROCESSING = 1;
 const NOTEBOOKLM_SOURCE_STATUS_READY = 2;
@@ -90,8 +95,35 @@ const NOTEBOOKLM_DOWNLOADABLE_ARTIFACT_TYPES = new Map<number, NotebooklmDownloa
   [NOTEBOOKLM_ARTIFACT_TYPE_REPORT, 'report'],
   [NOTEBOOKLM_ARTIFACT_TYPE_AUDIO, 'audio'],
   [NOTEBOOKLM_ARTIFACT_TYPE_VIDEO, 'video'],
+  [NOTEBOOKLM_ARTIFACT_TYPE_INFOGRAPHIC, 'infographic'],
   [NOTEBOOKLM_ARTIFACT_TYPE_SLIDE_DECK, 'slide_deck'],
 ]);
+
+const NOTEBOOKLM_INFOGRAPHIC_ORIENTATION_CODES: Record<NotebooklmInfographicOrientation, number> = {
+  landscape: 1,
+  portrait: 2,
+  square: 3,
+};
+
+const NOTEBOOKLM_INFOGRAPHIC_DETAIL_CODES: Record<NotebooklmInfographicDetail, number> = {
+  concise: 1,
+  standard: 2,
+  detailed: 3,
+};
+
+const NOTEBOOKLM_INFOGRAPHIC_STYLE_CODES: Record<NotebooklmInfographicStyle, number> = {
+  auto_select: 1,
+  sketch_note: 2,
+  professional: 3,
+  bento_grid: 4,
+  editorial: 5,
+  instructional: 6,
+  bricks: 7,
+  clay: 8,
+  anime: 9,
+  kawaii: 10,
+  scientific: 11,
+};
 
 function unwrapNotebooklmSingletonResult(result: unknown): unknown {
   let current = result;
@@ -354,6 +386,32 @@ export function buildNotebooklmAddFileParams(
 ): unknown[] {
   return [
     [[filename]],
+    notebookId,
+    [2],
+    [1, null, null, null, null, null, null, null, null, null, [1]],
+  ];
+}
+
+export function buildNotebooklmAddDriveParams(
+  fileId: string,
+  title: string,
+  notebookId: string,
+  mimeType: string,
+): unknown[] {
+  return [
+    [[
+      [fileId, mimeType, 1, title],
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      1,
+    ]],
     notebookId,
     [2],
     [1, null, null, null, null, null, null, null, null, null, [1]],
@@ -668,6 +726,51 @@ export function buildNotebooklmGenerateSlideDeckParams(
   ];
 }
 
+export function buildNotebooklmGenerateInfographicParams(
+  notebookId: string,
+  sourceIds: string[],
+  options: {
+    instructions?: string | null;
+    language?: string | null;
+    orientation?: NotebooklmInfographicOrientation | null;
+    detail?: NotebooklmInfographicDetail | null;
+    style?: NotebooklmInfographicStyle | null;
+  } = {},
+): unknown[] {
+  const sourceTriples = buildNotebooklmGenerateSourceTriples(sourceIds);
+  const language = typeof options.language === 'string' && options.language.trim()
+    ? options.language.trim()
+    : 'en';
+  const instructions = typeof options.instructions === 'string' && options.instructions.trim()
+    ? options.instructions.trim()
+    : null;
+  const orientationCode = options.orientation ? NOTEBOOKLM_INFOGRAPHIC_ORIENTATION_CODES[options.orientation] : null;
+  const detailCode = options.detail ? NOTEBOOKLM_INFOGRAPHIC_DETAIL_CODES[options.detail] : null;
+  const styleCode = options.style ? NOTEBOOKLM_INFOGRAPHIC_STYLE_CODES[options.style] : null;
+
+  return [
+    [2],
+    notebookId,
+    [
+      null,
+      null,
+      NOTEBOOKLM_ARTIFACT_TYPE_INFOGRAPHIC,
+      sourceTriples,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      [[instructions, language, null, orientationCode, detailCode, styleCode]],
+    ],
+  ];
+}
+
 export function parseNotebooklmGenerationResult(
   result: unknown,
 ): Pick<NotebooklmGenerateRow, 'artifact_id' | 'status'> {
@@ -832,6 +935,25 @@ export function extractNotebooklmVideoDownloadVariant(
   return null;
 }
 
+export function extractNotebooklmInfographicDownloadUrl(
+  row: unknown[] | null,
+): string | null {
+  if (!Array.isArray(row)) return null;
+
+  for (const item of [...row].reverse()) {
+    if (!Array.isArray(item) || item.length <= 2) continue;
+    const content = item[2];
+    if (!Array.isArray(content) || content.length === 0) continue;
+    const firstContent = content[0];
+    if (!Array.isArray(firstContent) || firstContent.length <= 1) continue;
+    const imageData = firstContent[1];
+    if (!Array.isArray(imageData) || typeof imageData[0] !== 'string' || !imageData[0].trim()) continue;
+    return imageData[0].trim();
+  }
+
+  return null;
+}
+
 export function extractNotebooklmSlideDeckDownloadUrl(
   row: unknown[] | null,
   outputFormat: NotebooklmSlideDeckDownloadFormat = 'pdf',
@@ -866,6 +988,8 @@ export function parseNotebooklmDownloadListRows(
         downloadVariants = extractNotebooklmVariantLabels(Array.isArray(row[6]) ? row[6][5] : null);
       } else if (artifactType === 'video') {
         downloadVariants = extractNotebooklmVariantLabels(Array.isArray(row[8]) ? row[8][4] : null);
+      } else if (artifactType === 'infographic') {
+        downloadVariants = extractNotebooklmInfographicDownloadUrl(row) ? ['png'] : [];
       } else if (artifactType === 'slide_deck') {
         const variants: string[] = [];
         if (extractNotebooklmSlideDeckDownloadUrl(row, 'pdf')) variants.push('pdf');
@@ -1665,6 +1789,28 @@ export async function addNotebooklmUrlSourceViaRpc(
   );
 }
 
+export async function addNotebooklmDriveSourceViaRpc(
+  page: IPage,
+  fileId: string,
+  title: string,
+  mimeType: string,
+): Promise<NotebooklmSourceRow | null> {
+  const state = await getNotebooklmPageState(page);
+  if (state.kind !== 'notebook' || !state.notebookId) return null;
+
+  const rpc = await callNotebooklmRpc(
+    page,
+    'izAoDd',
+    buildNotebooklmAddDriveParams(fileId, title, state.notebookId, mimeType),
+  );
+
+  return parseNotebooklmCreatedSourceResult(
+    rpc.result,
+    state.notebookId,
+    state.url || `https://${NOTEBOOKLM_DOMAIN}/notebook/${state.notebookId}`,
+  );
+}
+
 function parseNotebooklmSourceStatus(statusCode: unknown): NotebooklmSourceRow['status'] {
   const value = Number(statusCode ?? NaN);
   if (!Number.isFinite(value)) return 'unknown';
@@ -2240,6 +2386,94 @@ export async function generateNotebooklmAudioViaRpc(
   };
 }
 
+export async function generateNotebooklmInfographicViaRpc(
+  page: IPage,
+  options: {
+    instructions?: string | null;
+    orientation?: NotebooklmInfographicOrientation | null;
+    detail?: NotebooklmInfographicDetail | null;
+    style?: NotebooklmInfographicStyle | null;
+    wait?: boolean;
+    timeout?: number;
+    initialInterval?: number;
+    maxInterval?: number;
+    backoffFactor?: number;
+  } = {},
+): Promise<NotebooklmGenerateRow | null> {
+  const state = await getNotebooklmPageState(page);
+  if (state.kind !== 'notebook' || !state.notebookId) return null;
+
+  const sources = await listNotebooklmSourcesViaRpc(page);
+  const sourceIds = sources
+    .map((row) => (typeof row.id === 'string' ? row.id.trim() : ''))
+    .filter(Boolean);
+  if (sourceIds.length === 0) return null;
+
+  const baselineRows = await listNotebooklmArtifactsViaRpc(page);
+  const baselineIds = new Set(
+    baselineRows
+      .filter((row) => Number(row[2] ?? 0) === NOTEBOOKLM_ARTIFACT_TYPE_INFOGRAPHIC)
+      .map((row) => String(row[0] ?? ''))
+      .filter(Boolean),
+  );
+
+  const rpc = await callNotebooklmRpc(
+    page,
+    NOTEBOOKLM_CREATE_ARTIFACT_RPC_ID,
+    buildNotebooklmGenerateInfographicParams(state.notebookId, sourceIds, {
+      instructions: options.instructions,
+      orientation: options.orientation,
+      detail: options.detail,
+      style: options.style,
+    }),
+  );
+  const parsed = parseNotebooklmGenerationResult(rpc.result);
+  const initialFailure = !parsed.artifact_id
+    ? parseNotebooklmGenerationFailureFromRpcBody(rpc.response.body)
+    : null;
+
+  let createdAt: string | null | undefined;
+  let artifactId = parsed.artifact_id;
+  let status = parsed.status;
+  let errorType = initialFailure?.error_type ?? (status === 'failed' ? 'generation_failed_unknown' : null);
+  let message = initialFailure?.message ?? null;
+  let source: NotebooklmGenerateRow['source'] = 'rpc+create-artifact';
+
+  if (options.wait) {
+    const artifact = await waitForNotebooklmGeneratedArtifactViaRpc(page, {
+      artifactType: 'infographic',
+      typeCode: NOTEBOOKLM_ARTIFACT_TYPE_INFOGRAPHIC,
+      artifactId,
+      baselineIds,
+      timeout: options.timeout,
+      initialInterval: options.initialInterval,
+      maxInterval: options.maxInterval,
+      backoffFactor: options.backoffFactor,
+      isReady: (row) => Boolean(extractNotebooklmInfographicDownloadUrl(row)),
+    });
+
+    if (artifact) {
+      artifactId = String(artifact[0] ?? '') || artifactId;
+      status = parseNotebooklmGenerationStatus(artifact[4]);
+      createdAt = toNotebooklmIsoTimestamp(artifact[15]);
+      errorType = status === 'failed' ? errorType ?? 'generation_failed_unknown' : null;
+      if (status !== 'failed') message = null;
+      source = 'rpc+create-artifact+artifact-list';
+    }
+  }
+
+  return {
+    notebook_id: state.notebookId,
+    artifact_id: artifactId,
+    artifact_type: 'infographic',
+    status,
+    created_at: createdAt,
+    error_type: errorType,
+    message,
+    source,
+  };
+}
+
 export async function generateNotebooklmSlideDeckViaRpc(
   page: IPage,
   options: {
@@ -2491,6 +2725,52 @@ export async function downloadNotebooklmVideoViaRpc(
     url: state.url || `https://${NOTEBOOKLM_DOMAIN}/notebook/${state.notebookId}`,
     download_url: variant.url,
     mime_type: variant.mime_type,
+    source: 'rpc+artifact-url',
+  };
+}
+
+export async function downloadNotebooklmInfographicViaRpc(
+  page: IPage,
+  outputPath: string,
+  artifactId?: string | null,
+): Promise<NotebooklmInfographicDownloadRow | null> {
+  const state = await getNotebooklmPageState(page);
+  if (state.kind !== 'notebook' || !state.notebookId) return null;
+
+  const rows = await listNotebooklmArtifactsViaRpc(page);
+  const artifact = selectNotebooklmCompletedArtifact(rows, NOTEBOOKLM_ARTIFACT_TYPE_INFOGRAPHIC, artifactId);
+  if (!artifact) return null;
+
+  const downloadUrl = extractNotebooklmInfographicDownloadUrl(artifact);
+  if (!downloadUrl) return null;
+
+  const resolvedOutputPath = resolvePath(outputPath);
+  const cookieHeader = formatCookieHeader(await page.getCookies({ url: downloadUrl }));
+  const result = await httpDownload(downloadUrl, resolvedOutputPath, {
+    cookies: cookieHeader || undefined,
+    headers: {
+      Referer: state.url || `https://${NOTEBOOKLM_DOMAIN}/notebook/${state.notebookId}`,
+    },
+    timeout: 120000,
+  });
+
+  if (!result.success) {
+    throw new CliError(
+      'DOWNLOAD_ERROR',
+      `Failed to download infographic artifact "${String(artifact[0] ?? '')}": ${result.error || 'unknown error'}`,
+      'The artifact URL may have expired. Refresh the NotebookLM notebook tab and retry.',
+    );
+  }
+
+  return {
+    notebook_id: state.notebookId,
+    artifact_id: String(artifact[0] ?? ''),
+    artifact_type: 'infographic',
+    title: normalizeNotebooklmTitle(artifact[1], 'Untitled Infographic'),
+    output_path: resolvedOutputPath,
+    created_at: toNotebooklmIsoTimestamp(artifact[15]),
+    url: state.url || `https://${NOTEBOOKLM_DOMAIN}/notebook/${state.notebookId}`,
+    download_url: downloadUrl,
     source: 'rpc+artifact-url',
   };
 }

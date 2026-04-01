@@ -20,7 +20,7 @@
 | 2. Read-surface expansion | in_progress | 已补 `get` / `source-list` / `history` / `note-list`，并开始做与原 CLI 的兼容命名层；下一步继续做高价值读命令 |
 | 3. Light write operations | in_progress | `ask`、`source-add-text`、`source-add-url`、`notes-save` 已落地；仍需后续决定是否继续补 share 写操作或更多 note/source 写命令 |
 | 4. Long-running jobs | in_progress | 已补最小 `generate/report`、`generate/audio`、`generate/slide-deck` 提交链路与命令内最小等待；完整 artifact/poll 子系统仍未展开 |
-| 5. Download and export | in_progress | 已完成 `download/report`、`download/slide-deck`、`download/audio`、`download/video` 和最小下载索引 `download/list`；更完整的 artifact/export 面仍待后续评估 |
+| 5. Download and export | in_progress | 已完成 `download/report`、`download/slide-deck`、`download/audio`、`download/video`、`download/infographic` 和最小下载索引 `download/list`；更完整的 artifact/export 面仍待后续评估 |
 | 6. Docs / release / PR | pending | 文档、测试矩阵、面向维护者的 PR 收口 |
 
 ## Decisions
@@ -67,6 +67,12 @@
   - 选择规则保持最小且稳定：优先首个 `video/mp4`，否则回退第一个 variant URL
   - 用现有 opencli `httpDownload` + browser cookie forwarding 落盘
   - 仍然没有先实现 `artifact/list|get|export`
+- `download/infographic` 已按同一原则落地：
+  - 仍然只复用内部 `gArtLc` raw artifact helper
+  - infographic artifact type 已确认是 `type=7`
+  - 下载 URL 不走 export，而是从 raw artifact 深层 metadata 里提取 PNG URL
+  - 用现有 opencli `httpDownload` + browser cookie forwarding 落盘
+  - 仍然没有先实现 `artifact/list|get|export`
 - 当前最小下载索引也已落地：
   - 命令名选择 `download/list`
   - 仍然只复用内部 `gArtLc` raw artifact helper
@@ -87,11 +93,13 @@
   - `generate/report`
   - `generate/audio`
   - `generate/slide-deck`
-  - 三者都直接复用 `R7cb6c` create-artifact RPC
+  - `generate/infographic`
+  - 四者都直接复用 `R7cb6c` create-artifact RPC
   - 提交前只取当前 notebook source ids 与同类型 artifact baseline
   - `--wait` 只做命令内最小轮询，仍然不公开 `artifact wait/poll/list/get/export`
   - `report` 等到 markdown 可见即可
   - `audio` 等到 media variant 可见即可判定 ready
+  - `infographic` 等到 PNG URL 可见即可判定 ready
   - `slide-deck` 等到 PDF/PPTX 任一下载 URL 可见即可判定 ready
   - 当前 live 说明：
     - `report` 在最小 wait 窗口内可稳定闭环
@@ -161,13 +169,13 @@
     - `download/slide-deck`
     - `download/audio`
     - `download/video`
+    - `download/infographic`
     - `download/list`
   - 当前不继续扩 `artifact/*`
   - 当前也不继续扩 `generate/*` 到：
     - `video`
     - `quiz`
     - `flashcards`
-    - `infographic`
   - 若下一轮继续 download：
     - 才评估是否要补最小 `artifact/list`
     - 仍不必先做完整 `artifact list/get/export` 命令树
@@ -178,6 +186,10 @@
     - 当前已完成 server-side `UserDisplayableError` 分类兜底
     - 若还要继续收窄原因，再决定是否需要额外 live UI request 对比或内部 envelope code 对照
     - 当前不建议先改 `R7cb6c` payload builder
+  - 若继续推进 `generate/infographic`：
+    - 当前 `type=7`、payload 槽位和 PNG artifact URL 形态都已确认
+    - 当前 live 账号/样本上仍是提交即失败，且没有可读 message
+    - 后续若要继续收窄原因，应复用现有 `UserDisplayableError` 分类路径，而不是先扩 `artifact/*`
   - `notes-save` 已不再只依赖标题唯一；当前剩余 live 阻塞变成“当前 visible editor 没有稳定 id，且 notebook 内存在 title 和 content 都完全相同的重复 note”
   - 这类歧义现在可以通过显式 `--note-id` 解决，但前提仍然是当前页已经打开目标 note editor
   - 若继续推进三层命令树，优先 remount 仍保留平面形态的 notebook/share 命令，而不是扩大业务范围
@@ -233,6 +245,13 @@
     - `add-file` 不走脆弱 DOM 点击，而是走“`o4cbdc` 注册 source + NotebookLM resumable upload”链路
     - `wait-for-sources` / `wait` 共用同一个 RPC polling 核心，只在命令层分别收单个和逗号分隔的多个 source id
     - 当前仍不扩 `source add-drive` / `source add-research`
+  - A 模块 source ingest follow-up 这一轮只做：
+    - `source/add-drive`
+  - 当前收口边界：
+    - 只支持 raw Google Drive `file_id`
+    - 需要显式 `title`
+    - `--mime-type` 默认为 `application/vnd.google-apps.document`
+    - 不假装支持整条 Drive URL，也不扩到 `add-research`
 
 ## 2026-03-31 From-0 Integration Test Summary (9 Modules, Historical Only)
 
