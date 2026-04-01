@@ -32,6 +32,27 @@ opencli bilibili hot -f md      # Markdown
 opencli bilibili hot -f csv     # CSV
 ```
 
+## 终端自动补全
+
+OpenCLI 支持智能的 Tab 自动补全，加快命令输入：
+
+```bash
+# 把自动补全加入 shell 启动配置
+echo 'eval "$(opencli completion zsh)"' >> ~/.zshrc              # Zsh
+echo 'eval "$(opencli completion bash)"' >> ~/.bashrc            # Bash
+echo 'opencli completion fish | source' >> ~/.config/fish/config.fish  # Fish
+
+# 重启 shell 后，按 Tab 键补全：
+opencli [Tab]          # 补全站点名称（bilibili、zhihu、twitter...）
+opencli bilibili [Tab] # 补全命令（hot、search、me、download...）
+```
+
+补全功能包含：
+- 所有可用的站点和适配器
+- 内置命令（list、explore、validate...）
+- 命令别名
+- 新增适配器时的实时更新
+
 ## 下一步
 
 - [安装详情](/zh/guide/installation)
