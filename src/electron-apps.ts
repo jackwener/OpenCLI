@@ -21,6 +21,8 @@ export interface ElectronAppEntry {
   displayName?: string;
   /** Additional launch args beyond --remote-debugging-port */
   extraArgs?: string[];
+  /** URL pattern to prefer when selecting a CDP target (e.g. 'doubao-chat/chat') */
+  targetFilter?: string;
 }
 
 export const builtinApps: Record<string, ElectronAppEntry> = {
@@ -29,7 +31,7 @@ export const builtinApps: Record<string, ElectronAppEntry> = {
   chatwise:      { port: 9228, processName: 'ChatWise',     bundleId: 'com.chatwise.app',               displayName: 'ChatWise' },
   notion:        { port: 9230, processName: 'Notion',       bundleId: 'notion.id',                      displayName: 'Notion' },
   'discord-app': { port: 9232, processName: 'Discord',      bundleId: 'com.discord.app',                 displayName: 'Discord' },
-  'doubao-app':  { port: 9225, processName: 'Doubao',       bundleId: 'com.volcengine.doubao',          displayName: 'Doubao' },
+  'doubao-app':  { port: 9225, processName: 'Doubao',       bundleId: 'com.volcengine.doubao',          displayName: 'Doubao', targetFilter: 'doubao-chat/chat' },
   antigravity:   { port: 9234, processName: 'Antigravity',  bundleId: 'dev.antigravity.app',            displayName: 'Antigravity' },
   chatgpt:       { port: 9236, processName: 'ChatGPT',      bundleId: 'com.openai.chat',                displayName: 'ChatGPT' },
 };

@@ -20,7 +20,7 @@ import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMM
 import { emitHook, type HookContext } from './hooks.js';
 import { checkDaemonStatus } from './browser/discover.js';
 import { log } from './logger.js';
-import { isElectronApp } from './electron-apps.js';
+import { isElectronApp, getElectronApp } from './electron-apps.js';
 import { resolveElectronEndpoint } from './launcher.js';
 
 const _loadedModules = new Set<string>();
@@ -173,10 +173,12 @@ export async function executeCommand(
     if (shouldUseBrowserSession(cmd)) {
       const electron = isElectronApp(cmd.site);
       let cdpEndpoint: string | undefined;
+      let cdpTargetFilter: string | undefined;
 
       if (electron) {
         // Electron apps: auto-detect, prompt restart if needed, launch with CDP
         cdpEndpoint = await resolveElectronEndpoint(cmd.site);
+        cdpTargetFilter = getElectronApp(cmd.site)?.targetFilter;
       } else {
         // Browser Bridge: fail-fast when daemon is up but extension is missing.
         // 300ms timeout avoids a full 2s wait on cold-start.
@@ -212,7 +214,7 @@ export async function executeCommand(
           timeout: cmd.timeoutSeconds ?? DEFAULT_BROWSER_COMMAND_TIMEOUT,
           label: fullName(cmd),
         });
-      }, { workspace: `site:${cmd.site}`, cdpEndpoint });
+      }, { workspace: `site:${cmd.site}`, cdpEndpoint, cdpTargetFilter });
     } else {
       // Non-browser commands: apply timeout only when explicitly configured.
       const timeout = cmd.timeoutSeconds;
