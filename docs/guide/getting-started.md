@@ -48,6 +48,27 @@ opencli bilibili hot -f csv     # CSV
 opencli bilibili hot -v         # Verbose: show pipeline debug
 ```
 
+### Tab Completion
+
+OpenCLI supports intelligent tab completion to speed up command input:
+
+```bash
+# Add shell completion to your startup config
+echo 'eval "$(opencli completion zsh)"' >> ~/.zshrc              # Zsh
+echo 'eval "$(opencli completion bash)"' >> ~/.bashrc            # Bash
+echo 'opencli completion fish | source' >> ~/.config/fish/config.fish  # Fish
+
+# Restart your shell, then press Tab to complete:
+opencli [Tab]          # Complete site names (bilibili, zhihu, twitter...)
+opencli bilibili [Tab] # Complete commands (hot, search, me, download...)
+```
+
+The completion includes:
+- All available sites and adapters
+- Built-in commands (list, explore, validate...)
+- Command aliases
+- Real-time updates as you add new adapters
+
 ## Next Steps
 
 - [Installation details](/guide/installation)
