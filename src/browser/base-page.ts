@@ -42,7 +42,29 @@ export abstract class BasePage implements IPage {
   // ── Shared DOM helper implementations ──
 
   async click(ref: string): Promise<void> {
-    await this.evaluate(clickJs(ref));
+    const result = await this.evaluate(clickJs(ref)) as
+      | string
+      | { status: string; x?: number; y?: number; w?: number; h?: number; error?: string }
+      | null;
+
+    // Backwards compat: old format returned 'clicked' string
+    if (typeof result === 'string' || result == null) return;
+
+    // JS click succeeded
+    if (result.status === 'clicked') return;
+
+    // JS click failed — try CDP native click if coordinates available
+    if (result.x != null && result.y != null) {
+      const success = await this.tryNativeClick(result.x, result.y);
+      if (success) return;
+    }
+
+    if (result.error) throw new Error(`Click failed: ${result.error}`);
+  }
+
+  /** Override in subclasses with CDP native click support */
+  protected async tryNativeClick(_x: number, _y: number): Promise<boolean> {
+    return false;
   }
 
   async typeText(ref: string, text: string): Promise<void> {

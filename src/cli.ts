@@ -372,7 +372,23 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
       await page.click(index);
       await page.wait(0.3);
       await page.typeText(index, text);
-      console.log(`Typed "${text}" into element [${index}]`);
+      // Detect autocomplete/combobox fields and wait for dropdown suggestions
+      const isAutocomplete = await page.evaluate(`
+        (() => {
+          const el = document.querySelector('[data-opencli-ref="${index}"]');
+          if (!el) return false;
+          const role = el.getAttribute('role');
+          const ac = el.getAttribute('aria-autocomplete');
+          const list = el.getAttribute('list');
+          return role === 'combobox' || ac === 'list' || ac === 'both' || !!list;
+        })()
+      `);
+      if (isAutocomplete) {
+        await page.wait(0.4);
+        console.log(`Typed "${text}" into autocomplete [${index}] — use state to see suggestions`);
+      } else {
+        console.log(`Typed "${text}" into element [${index}]`);
+      }
     }));
 
   operate.command('select').argument('<index>', 'Element index of <select>').argument('<option>', 'Option text')

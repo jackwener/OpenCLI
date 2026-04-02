@@ -5,64 +5,77 @@
  * to eliminate code duplication for click, type, press, wait, scroll, etc.
  */
 
-/** Generate JS to click an element by ref */
+/** Shared element lookup JS fragment (4-strategy resolution) */
+function resolveElementJs(safeRef: string, selectorSet: string): string {
+  return `
+      const ref = ${safeRef};
+      let el = document.querySelector('[data-opencli-ref="' + ref + '"]');
+      if (!el) el = document.querySelector('[data-ref="' + ref + '"]');
+      if (!el && ref.match(/^[a-zA-Z#.\\[]/)) {
+        try { el = document.querySelector(ref); } catch {}
+      }
+      if (!el) {
+        const idx = parseInt(ref, 10);
+        if (!isNaN(idx)) {
+          el = document.querySelectorAll('${selectorSet}')[idx];
+        }
+      }`;
+}
+
+/** Generate JS to click an element by ref.
+ *  Returns { status, x, y, w, h } for CDP fallback when JS click fails. */
 export function clickJs(ref: string): string {
   const safeRef = JSON.stringify(ref);
   return `
     (() => {
-      const ref = ${safeRef};
-      // 1. data-opencli-ref (set by snapshot engine)
-      let el = document.querySelector('[data-opencli-ref="' + ref + '"]');
-      // 2. data-ref (legacy)
-      if (!el) el = document.querySelector('[data-ref="' + ref + '"]');
-      // 3. CSS selector
-      if (!el && ref.match(/^[a-zA-Z#.\\[]/)) {
-        try { el = document.querySelector(ref); } catch {}
-      }
-      // 4. Numeric index into interactive elements
-      if (!el) {
-        const idx = parseInt(ref, 10);
-        if (!isNaN(idx)) {
-          el = document.querySelectorAll('a, button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])')[idx];
-        }
-      }
+      ${resolveElementJs(safeRef, 'a, button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])')}
       if (!el) throw new Error('Element not found: ' + ref);
       el.scrollIntoView({ behavior: 'instant', block: 'center' });
-      el.click();
-      return 'clicked';
+      const rect = el.getBoundingClientRect();
+      const x = Math.round(rect.left + rect.width / 2);
+      const y = Math.round(rect.top + rect.height / 2);
+      try {
+        el.click();
+        return { status: 'clicked', x, y, w: Math.round(rect.width), h: Math.round(rect.height) };
+      } catch (e) {
+        return { status: 'js_failed', x, y, w: Math.round(rect.width), h: Math.round(rect.height), error: e.message };
+      }
     })()
   `;
 }
 
-/** Generate JS to type text into an element by ref */
+/** Generate JS to type text into an element by ref.
+ *  Uses native setter for React compat + execCommand for contenteditable. */
 export function typeTextJs(ref: string, text: string): string {
   const safeRef = JSON.stringify(ref);
   const safeText = JSON.stringify(text);
   return `
     (() => {
-      const ref = ${safeRef};
-      // 1. data-opencli-ref (set by snapshot engine)
-      let el = document.querySelector('[data-opencli-ref="' + ref + '"]');
-      // 2. data-ref (legacy)
-      if (!el) el = document.querySelector('[data-ref="' + ref + '"]');
-      // 3. CSS selector
-      if (!el && ref.match(/^[a-zA-Z#.\\[]/)) {
-        try { el = document.querySelector(ref); } catch {}
-      }
-      // 4. Numeric index into typeable elements
-      if (!el) {
-        const idx = parseInt(ref, 10);
-        if (!isNaN(idx)) {
-          el = document.querySelectorAll('input, textarea, [contenteditable="true"]')[idx];
-        }
-      }
+      ${resolveElementJs(safeRef, 'input, textarea, [contenteditable="true"]')}
       if (!el) throw new Error('Element not found: ' + ref);
       el.focus();
       if (el.isContentEditable) {
-        el.textContent = ${safeText};
+        // Select all content + delete, then insert (supports undo, works with rich text editors)
+        const sel = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand('delete', false);
+        document.execCommand('insertText', false, ${safeText});
         el.dispatchEvent(new Event('input', { bubbles: true }));
       } else {
-        el.value = ${safeText};
+        // Use native setter for React/framework compatibility
+        const nativeSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLInputElement.prototype, 'value'
+        )?.set || Object.getOwnPropertyDescriptor(
+          window.HTMLTextAreaElement.prototype, 'value'
+        )?.set;
+        if (nativeSetter) {
+          nativeSetter.call(el, ${safeText});
+        } else {
+          el.value = ${safeText};
+        }
         el.dispatchEvent(new Event('input', { bubbles: true }));
         el.dispatchEvent(new Event('change', { bubbles: true }));
       }

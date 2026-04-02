@@ -377,10 +377,31 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
     if (role && INTERACTIVE_ROLES.has(role)) return true;
     if (el.hasAttribute('onclick') || el.hasAttribute('onmousedown') || el.hasAttribute('ontouchstart')) return true;
     if (el.hasAttribute('tabindex') && el.getAttribute('tabindex') !== '-1') return true;
+    // Framework event listener detection (React/Vue/Angular onClick)
+    if (hasFrameworkListener(el)) return true;
     try { if (window.getComputedStyle(el).cursor === 'pointer') return true; } catch {}
     if (el.isContentEditable && el.getAttribute('contenteditable') !== 'false') return true;
     // Search element heuristic detection
     if (isSearchElement(el)) return true;
+    return false;
+  }
+
+  function hasFrameworkListener(el) {
+    try {
+      // React: __reactProps$xxx / __reactEvents$xxx with onClick/onMouseDown
+      for (const key of Object.keys(el)) {
+        if (key.startsWith('__reactProps$') || key.startsWith('__reactEvents$')) {
+          const props = el[key];
+          if (props && (props.onClick || props.onMouseDown || props.onPointerDown)) return true;
+        }
+      }
+      // Vue 3: _vei (Vue Event Invoker) with onClick
+      if (el._vei && (el._vei.onClick || el._vei.click || el._vei.onMousedown)) return true;
+      // Vue 2: __vue__ instance with $listeners
+      if (el.__vue__?.$listeners?.click) return true;
+      // Angular: ng-reflect-click binding
+      if (el.hasAttribute('ng-reflect-click')) return true;
+    } catch { /* ignore errors from cross-origin or frozen objects */ }
     return false;
   }
 
