@@ -124,6 +124,54 @@ describe('instagram private publish helpers', () => {
     });
   });
 
+  it('retries transient private publish config resolution failures and then succeeds', async () => {
+    const entries: InstagramProtocolCaptureEntry[] = [
+      {
+        kind: 'cdp' as never,
+        url: 'https://www.instagram.com/api/v1/feed/timeline/',
+        method: 'GET',
+        requestHeaders: {
+          'X-ASBD-ID': '359341',
+          'X-IG-WWW-Claim': 'hmac.claim',
+          'X-Web-Session-ID': 'abc:def:ghi',
+        },
+        timestamp: Date.now(),
+      },
+    ];
+    let evaluateAttempts = 0;
+    const page = {
+      goto: async () => undefined,
+      wait: async () => undefined,
+      getCookies: async () => [{ name: 'csrftoken', value: 'csrf-cookie', domain: 'instagram.com' }],
+      startNetworkCapture: async () => undefined,
+      readNetworkCapture: async () => entries,
+      evaluate: async () => {
+        evaluateAttempts += 1;
+        if (evaluateAttempts === 1) {
+          throw new TypeError('fetch failed');
+        }
+        return {
+          appId: '936619743392459',
+          csrfToken: 'csrf-from-html',
+          instagramAjax: '1036523242',
+        };
+      },
+    } as any;
+
+    await expect(resolveInstagramPrivatePublishConfig(page)).resolves.toEqual({
+      apiContext: {
+        asbdId: '359341',
+        csrfToken: 'csrf-from-html',
+        igAppId: '936619743392459',
+        igWwwClaim: 'hmac.claim',
+        instagramAjax: '1036523242',
+        webSessionId: 'abc:def:ghi',
+      },
+      jazoest: deriveInstagramJazoest('csrf-from-html'),
+    });
+    expect(evaluateAttempts).toBe(2);
+  });
+
   it('builds the single-image configure form body', () => {
     expect(buildConfigureBody({
       uploadId: '1775134280303',
@@ -389,5 +437,95 @@ describe('instagram private publish helpers', () => {
       fetcher,
       prepareAsset: async (filePath) => readImageAsset(filePath),
     })).rejects.toThrow('children_metadata invalid');
+  });
+
+  it('retries transient rupload fetch failures and still completes the carousel publish', async () => {
+    const first = createTempFile('private-carousel-retry-1.jpg', Buffer.from(
+      'FFD8FFE000104A46494600010100000100010000FFC00011080004000603012200021101031101FFD9',
+      'hex',
+    ));
+    const second = createTempFile('private-carousel-retry-2.png', Buffer.from(
+      '89504E470D0A1A0A0000000D49484452000000030000000508060000008D6F26E50000000049454E44AE426082',
+      'hex',
+    ));
+    const calls: string[] = [];
+    let firstUploadAttempts = 0;
+    let uploadCounter = 0;
+    const fetcher = async (url: string | URL) => {
+      const value = String(url);
+      calls.push(value);
+      if (value.includes('/rupload_igphoto/')) {
+        firstUploadAttempts += value.includes('fb_uploader_501') ? 1 : 0;
+        if (value.includes('fb_uploader_501') && firstUploadAttempts === 1) {
+          throw new TypeError('fetch failed');
+        }
+        uploadCounter += 1;
+        return new Response(JSON.stringify({ upload_id: String(500 + uploadCounter), status: 'ok' }), { status: 200 });
+      }
+      return new Response('{"media":{"code":"SIDERETRY"}}', { status: 200 });
+    };
+
+    const response = await publishImagesViaPrivateApi({
+      page: {} as never,
+      imagePaths: [first, second],
+      caption: 'private carousel retry',
+      apiContext: {
+        asbdId: '359341',
+        csrfToken: 'csrf-token',
+        igAppId: '936619743392459',
+        igWwwClaim: 'hmac.claim',
+        instagramAjax: '1036517563',
+        webSessionId: 'abc:def:ghi',
+      },
+      jazoest: '22047',
+      now: () => 500,
+      fetcher,
+      prepareAsset: async (filePath) => readImageAsset(filePath),
+    });
+
+    expect(calls.filter((url) => url.includes('fb_uploader_501'))).toHaveLength(2);
+    expect(response).toEqual({ code: 'SIDERETRY', uploadIds: ['501', '502'] });
+  });
+
+  it('does not retry transient configure_sidecar fetch failures to avoid duplicate posts', async () => {
+    const first = createTempFile('private-carousel-no-retry-1.jpg', Buffer.from(
+      'FFD8FFE000104A46494600010100000100010000FFC00011080004000603012200021101031101FFD9',
+      'hex',
+    ));
+    const second = createTempFile('private-carousel-no-retry-2.png', Buffer.from(
+      '89504E470D0A1A0A0000000D49484452000000030000000508060000008D6F26E50000000049454E44AE426082',
+      'hex',
+    ));
+    const calls: string[] = [];
+    let uploadCounter = 0;
+    const fetcher = async (url: string | URL) => {
+      const value = String(url);
+      calls.push(value);
+      if (value.includes('/rupload_igphoto/')) {
+        uploadCounter += 1;
+        return new Response(JSON.stringify({ upload_id: String(600 + uploadCounter), status: 'ok' }), { status: 200 });
+      }
+      throw new TypeError('fetch failed');
+    };
+
+    await expect(publishImagesViaPrivateApi({
+      page: {} as never,
+      imagePaths: [first, second],
+      caption: 'private no retry configure',
+      apiContext: {
+        asbdId: '359341',
+        csrfToken: 'csrf-token',
+        igAppId: '936619743392459',
+        igWwwClaim: 'hmac.claim',
+        instagramAjax: '1036517563',
+        webSessionId: 'abc:def:ghi',
+      },
+      jazoest: '22047',
+      now: () => 600,
+      fetcher,
+      prepareAsset: async (filePath) => readImageAsset(filePath),
+    })).rejects.toThrow('fetch failed');
+
+    expect(calls.filter((url) => url.includes('configure_sidecar'))).toHaveLength(1);
   });
 });

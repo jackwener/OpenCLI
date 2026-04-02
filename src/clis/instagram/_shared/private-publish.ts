@@ -56,6 +56,8 @@ const INSTAGRAM_MAX_FEED_ASPECT_RATIO = 1.91;
 const INSTAGRAM_PRIVATE_PAD_COLOR = 'FFFFFF';
 const INSTAGRAM_HOME_URL = 'https://www.instagram.com/';
 const INSTAGRAM_PRIVATE_CAPTURE_PATTERN = '/api/v1/|/graphql/';
+const INSTAGRAM_PRIVATE_CONFIG_RETRY_BUDGET = 2;
+const INSTAGRAM_PRIVATE_UPLOAD_RETRY_BUDGET = 2;
 
 export function derivePrivateApiContextFromCapture(
   entries: InstagramProtocolCaptureEntry[],
@@ -106,6 +108,11 @@ export function deriveInstagramJazoest(value: string): string {
   return `2${sum}`;
 }
 
+function isTransientPrivateFetchError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /fetch failed|network|socket hang up|econnreset|etimedout/i.test(message);
+}
+
 function getCookieValue(cookies: BrowserCookie[], name: string): string {
   return cookies.find((cookie) => cookie.name === name)?.value || '';
 }
@@ -114,51 +121,62 @@ export async function resolveInstagramPrivatePublishConfig(page: IPage): Promise
   apiContext: InstagramPrivateApiContext;
   jazoest: string;
 }> {
-  if (typeof page.startNetworkCapture === 'function') {
-    await page.startNetworkCapture(INSTAGRAM_PRIVATE_CAPTURE_PATTERN);
-  }
-  await page.goto(`${INSTAGRAM_HOME_URL}?__opencli_private_probe=${Date.now()}`);
-  await page.wait({ time: 2 });
+  let lastError: unknown;
+  for (let attempt = 0; attempt < INSTAGRAM_PRIVATE_CONFIG_RETRY_BUDGET; attempt += 1) {
+    try {
+      if (typeof page.startNetworkCapture === 'function') {
+        await page.startNetworkCapture(INSTAGRAM_PRIVATE_CAPTURE_PATTERN);
+      }
+      await page.goto(`${INSTAGRAM_HOME_URL}?__opencli_private_probe=${Date.now()}`);
+      await page.wait({ time: 2 });
 
-  const [cookies, runtime, entries] = await Promise.all([
-    page.getCookies({ domain: 'instagram.com' }),
-    page.evaluate(buildReadInstagramRuntimeInfoJs()) as Promise<InstagramRuntimeInfo>,
-    typeof page.readNetworkCapture === 'function'
-      ? page.readNetworkCapture() as Promise<unknown[]>
-      : Promise.resolve([]),
-  ]);
+      const [cookies, runtime, entries] = await Promise.all([
+        page.getCookies({ domain: 'instagram.com' }),
+        page.evaluate(buildReadInstagramRuntimeInfoJs()) as Promise<InstagramRuntimeInfo>,
+        typeof page.readNetworkCapture === 'function'
+          ? page.readNetworkCapture() as Promise<unknown[]>
+          : Promise.resolve([]),
+      ]);
 
-  const captureEntries = (Array.isArray(entries) ? entries : []) as InstagramProtocolCaptureEntry[];
-  const capturedContext = derivePrivateApiContextFromCapture(captureEntries)
-    ?? derivePartialPrivateApiContextFromCapture(captureEntries);
+      const captureEntries = (Array.isArray(entries) ? entries : []) as InstagramProtocolCaptureEntry[];
+      const capturedContext = derivePrivateApiContextFromCapture(captureEntries)
+        ?? derivePartialPrivateApiContextFromCapture(captureEntries);
 
-  const csrfToken = runtime?.csrfToken || getCookieValue(cookies, 'csrftoken') || capturedContext.csrfToken || '';
-  const igAppId = runtime?.appId || capturedContext.igAppId || '';
-  const instagramAjax = runtime?.instagramAjax || capturedContext.instagramAjax || '';
-  if (!csrfToken) {
-    throw new CommandExecutionError('Instagram private route could not derive CSRF token from browser session');
-  }
-  if (!igAppId) {
-    throw new CommandExecutionError('Instagram private route could not derive X-IG-App-ID from instagram runtime');
-  }
-  if (!instagramAjax) {
-    throw new CommandExecutionError('Instagram private route could not derive X-Instagram-AJAX from instagram runtime');
-  }
-  const asbdId = capturedContext.asbdId || '';
-  const igWwwClaim = capturedContext.igWwwClaim || '';
-  const webSessionId = capturedContext.webSessionId || '';
+      const csrfToken = runtime?.csrfToken || getCookieValue(cookies, 'csrftoken') || capturedContext.csrfToken || '';
+      const igAppId = runtime?.appId || capturedContext.igAppId || '';
+      const instagramAjax = runtime?.instagramAjax || capturedContext.instagramAjax || '';
+      if (!csrfToken) {
+        throw new CommandExecutionError('Instagram private route could not derive CSRF token from browser session');
+      }
+      if (!igAppId) {
+        throw new CommandExecutionError('Instagram private route could not derive X-IG-App-ID from instagram runtime');
+      }
+      if (!instagramAjax) {
+        throw new CommandExecutionError('Instagram private route could not derive X-Instagram-AJAX from instagram runtime');
+      }
+      const asbdId = capturedContext.asbdId || '';
+      const igWwwClaim = capturedContext.igWwwClaim || '';
+      const webSessionId = capturedContext.webSessionId || '';
 
-  return {
-    apiContext: {
-      asbdId,
-      csrfToken,
-      igAppId,
-      igWwwClaim,
-      instagramAjax,
-      webSessionId,
-    },
-    jazoest: deriveInstagramJazoest(csrfToken),
-  };
+      return {
+        apiContext: {
+          asbdId,
+          csrfToken,
+          igAppId,
+          igWwwClaim,
+          instagramAjax,
+          webSessionId,
+        },
+        jazoest: deriveInstagramJazoest(csrfToken),
+      };
+    } catch (error) {
+      lastError = error;
+      if (!isTransientPrivateFetchError(error) || attempt >= INSTAGRAM_PRIVATE_CONFIG_RETRY_BUDGET - 1) {
+        throw error;
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
 export function buildConfigureBody(input: {
@@ -445,6 +463,25 @@ async function parseJsonResponse(response: Response, stage: string): Promise<any
   return data;
 }
 
+async function fetchPrivateUploadWithRetry(
+  fetcher: PrivateApiFetchLike,
+  url: string,
+  init: PrivateApiFetchInit,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < INSTAGRAM_PRIVATE_UPLOAD_RETRY_BUDGET; attempt += 1) {
+    try {
+      return await fetcher(url, init);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientPrivateFetchError(error) || attempt >= INSTAGRAM_PRIVATE_UPLOAD_RETRY_BUDGET - 1) {
+        throw error;
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
 export async function publishImagesViaPrivateApi(input: {
   page: unknown;
   imagePaths: string[];
@@ -468,7 +505,7 @@ export async function publishImagesViaPrivateApi(input: {
     for (let index = 0; index < assets.length; index += 1) {
       const asset = assets[index]!;
       const uploadId = uploadIds[index]!;
-      const response = await fetcher(`https://i.instagram.com/rupload_igphoto/fb_uploader_${uploadId}`, {
+      const response = await fetchPrivateUploadWithRetry(fetcher, `https://i.instagram.com/rupload_igphoto/fb_uploader_${uploadId}`, {
         method: 'POST',
         headers: buildRuploadHeaders(asset, uploadId, input.apiContext),
         body: asset.bytes,
