@@ -1,0 +1,391 @@
+[
+  {"_comment": "=== Layer 1: Atomic Operations (10 tasks) ==="},
+
+  {
+    "name": "v2ex-open-home",
+    "steps": [
+      "opencli operate open https://v2ex.com/"
+    ],
+    "judge": { "type": "contains", "value": "Navigated to" }
+  },
+  {
+    "name": "v2ex-state-home",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate state"
+    ],
+    "judge": { "type": "matchesPattern", "pattern": "\\[\\d+\\]" }
+  },
+  {
+    "name": "v2ex-get-title",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate eval \"document.title\""
+    ],
+    "judge": { "type": "contains", "value": "V2EX" }
+  },
+  {
+    "name": "v2ex-click-tab",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate eval \"(() => { const a = document.querySelector('a[href=\\\"/?tab=tech\\\"]'); if(a){a.click(); return 'clicked';} return 'not found'; })()\""
+    ],
+    "judge": { "type": "contains", "value": "clicked" }
+  },
+  {
+    "name": "v2ex-scroll-down",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate scroll down --amount 500",
+      "opencli operate eval \"window.scrollY > 100 ? 'scrolled' : 'not scrolled'\""
+    ],
+    "judge": { "type": "contains", "value": "scrolled" }
+  },
+  {
+    "name": "v2ex-get-first-topic-text",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate eval \"document.querySelector('a[href^=\\\"/t/\\\"]')?.textContent?.trim()\""
+    ],
+    "judge": { "type": "nonEmpty" }
+  },
+  {
+    "name": "v2ex-eval-extract-titles",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
+    ],
+    "judge": { "type": "arrayMinLength", "minLength": 3 }
+  },
+  {
+    "name": "v2ex-get-url",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate get url"
+    ],
+    "judge": { "type": "contains", "value": "v2ex.com" }
+  },
+  {
+    "name": "v2ex-back-navigation",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate open https://v2ex.com/go/programmer",
+      "opencli operate back",
+      "opencli operate get url"
+    ],
+    "judge": { "type": "matchesPattern", "pattern": "v2ex\\.com/?$" }
+  },
+  {
+    "name": "v2ex-wait-page-load",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate wait selector \"a[href^='/t/']\"",
+      "opencli operate eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length > 0 ? 'loaded' : 'empty'\""
+    ],
+    "judge": { "type": "contains", "value": "loaded" }
+  },
+
+  {"_comment": "=== Layer 2: Single Page Tasks (10 tasks) ==="},
+
+  {
+    "name": "v2ex-hot-topics",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,10).map(a=>({title:a.textContent.trim(),url:a.href})).filter(t=>t.title.length>2))\""
+    ],
+    "judge": { "type": "arrayMinLength", "minLength": 5 }
+  },
+  {
+    "name": "v2ex-node-list",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/go/\\\"]')].map(a=>a.textContent.trim()).filter(t=>t.length>0))\""
+    ],
+    "judge": { "type": "arrayMinLength", "minLength": 10 }
+  },
+  {
+    "name": "v2ex-topic-meta",
+    "steps": [
+      "opencli operate open https://v2ex.com/go/programmer",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');const href=a?.href;return href||'';})()\"",
+      "opencli operate eval \"(()=>{const links=[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')];const first=links[0];if(!first)return JSON.stringify({error:'no topic'});const title=first.textContent.trim();const row=first.closest('tr')||first.parentElement;const author=row?.querySelector('a[href^=\\\"/member/\\\"]')?.textContent?.trim()||'';return JSON.stringify({title,author});})()\" "
+    ],
+    "judge": { "type": "matchesPattern", "pattern": "\"title\":" }
+  },
+  {
+    "name": "v2ex-node-topics",
+    "steps": [
+      "opencli operate open https://v2ex.com/go/python",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
+    ],
+    "judge": { "type": "arrayMinLength", "minLength": 3 }
+  },
+  {
+    "name": "v2ex-node-pagination-info",
+    "steps": [
+      "opencli operate open https://v2ex.com/go/programmer",
+      "opencli operate eval \"(()=>{const pages=[...document.querySelectorAll('a[href*=\\\"?p=\\\"]')];if(pages.length===0)return'no pagination';const nums=pages.map(a=>{const m=a.href.match(/p=(\\d+)/);return m?parseInt(m[1]):0}).filter(n=>n>0);return JSON.stringify({pages:nums.length,max:Math.max(...nums)});})()\" "
+    ],
+    "judge": { "type": "matchesPattern", "pattern": "\"max\":\\d+" }
+  },
+  {
+    "name": "v2ex-tab-content",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=jobs",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
+    ],
+    "judge": { "type": "arrayMinLength", "minLength": 3 }
+  },
+  {
+    "name": "v2ex-topic-replies-extract",
+    "steps": [
+      "opencli operate open https://v2ex.com/go/programmer",
+      "opencli operate eval \"(()=>{const link=document.querySelector('a[href^=\\\"/t/\\\"]');if(!link)return'';return link.href;})()\"",
+      "opencli operate eval \"(()=>{const link=document.querySelector('a[href^=\\\"/t/\\\"]');if(link)window.location.href=link.href;return'navigating';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('.reply_content')].slice(0,5).map(el=>el.textContent.trim().slice(0,100)))\""
+    ],
+    "judge": { "type": "nonEmpty" }
+  },
+  {
+    "name": "v2ex-topic-reply-count",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate eval \"(()=>{const counts=[...document.querySelectorAll('a[class*=\\\"count\\\"]')].map(a=>parseInt(a.textContent)).filter(n=>!isNaN(n));return JSON.stringify(counts.slice(0,10));})()\" "
+    ],
+    "judge": { "type": "arrayMinLength", "minLength": 3 }
+  },
+  {
+    "name": "v2ex-member-info",
+    "steps": [
+      "opencli operate open https://v2ex.com/member/Livid",
+      "opencli operate eval \"(()=>{const name=document.querySelector('h1')?.textContent?.trim();const bio=document.querySelector('.bigger')?.textContent?.trim()||'';return JSON.stringify({name,bio});})()\" "
+    ],
+    "judge": { "type": "contains", "value": "Livid" }
+  },
+  {
+    "name": "v2ex-search-results",
+    "steps": [
+      "opencli operate open https://www.google.com/search?q=site:v2ex.com+TypeScript",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('h3')].slice(0,5).map(h=>h.textContent.trim()))\""
+    ],
+    "judge": { "type": "arrayMinLength", "minLength": 2 }
+  },
+
+  {"_comment": "=== Layer 3: Multi-Step (10 tasks) ==="},
+
+  {
+    "name": "v2ex-click-topic-read",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate state",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked '+a.textContent.trim().slice(0,30);}return 'not found';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"document.querySelector('.topic_content,.markdown_body')?.textContent?.trim()?.slice(0,200)||document.title\""
+    ],
+    "judge": { "type": "nonEmpty" }
+  },
+  {
+    "name": "v2ex-click-author-profile",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/member/\\\"]');if(a){const name=a.textContent.trim();a.click();return name;}return'not found';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"(()=>{const h1=document.querySelector('h1');const joined=document.querySelector('.gray')?.textContent||'';return JSON.stringify({name:h1?.textContent?.trim(),info:joined.slice(0,100)});})()\" "
+    ],
+    "judge": { "type": "matchesPattern", "pattern": "\"name\":" }
+  },
+  {
+    "name": "v2ex-navigate-node-from-home",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href=\\\"/go/programmer\\\"]')||document.querySelector('a[href^=\\\"/go/\\\"]');if(a){a.click();return 'clicked '+a.textContent.trim();}return'not found';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
+    ],
+    "judge": { "type": "arrayMinLength", "minLength": 3 }
+  },
+  {
+    "name": "v2ex-pagination-page2",
+    "steps": [
+      "opencli operate open https://v2ex.com/go/programmer",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href*=\\\"?p=2\\\"]');if(a){a.click();return'navigating to page 2';}return'no page 2 link';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"JSON.stringify({url:location.href,topics:[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2)})\""
+    ],
+    "judge": { "type": "matchesPattern", "pattern": "p=2" }
+  },
+  {
+    "name": "v2ex-topic-and-back",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate back",
+      "opencli operate wait time 1",
+      "opencli operate get url"
+    ],
+    "judge": { "type": "matchesPattern", "pattern": "v2ex\\.com/?$" }
+  },
+  {
+    "name": "v2ex-tab-then-topic",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=creative",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){const t=a.textContent.trim();a.click();return t;}return'not found';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"document.title\""
+    ],
+    "judge": { "type": "nonEmpty" }
+  },
+  {
+    "name": "v2ex-scroll-find-more",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\"",
+      "opencli operate scroll down --amount 1000",
+      "opencli operate scroll down --amount 1000",
+      "opencli operate eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\""
+    ],
+    "judge": { "type": "matchesPattern", "pattern": "\\d+" }
+  },
+  {
+    "name": "v2ex-node-to-topic-content",
+    "steps": [
+      "opencli operate open https://v2ex.com/go/python",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"(()=>{const title=document.querySelector('h1')?.textContent?.trim()||document.title;const content=document.querySelector('.topic_content,.markdown_body')?.textContent?.trim()?.slice(0,200)||'';return JSON.stringify({title,content});})()\" "
+    ],
+    "judge": { "type": "matchesPattern", "pattern": "\"title\":" }
+  },
+  {
+    "name": "v2ex-multi-tab-compare",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=tech",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()))\"",
+      "opencli operate open https://v2ex.com/?tab=creative",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()))\""
+    ],
+    "judge": { "type": "arrayMinLength", "minLength": 2 }
+  },
+  {
+    "name": "v2ex-topic-reply-to-author",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"(()=>{const replies=document.querySelectorAll('.reply_content');const authors=[...document.querySelectorAll('a[href^=\\\"/member/\\\"]')];if(replies.length>0){const authorLink=document.querySelector('.cell a[href^=\\\"/member/\\\"]');if(authorLink){authorLink.click();return'clicked author';}};return'no replies found';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"document.querySelector('h1')?.textContent?.trim()||document.title\""
+    ],
+    "judge": { "type": "nonEmpty" }
+  },
+
+  {"_comment": "=== Layer 4: Write Operations (5 tasks, requires login) ==="},
+
+  {
+    "name": "v2ex-reply-type-text",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate eval \"(()=>{const links=[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')];const link=links.find(a=>a.closest('tr')?.querySelector('a[class*=\\\"count\\\"]'));if(link){link.click();return'clicked';}if(links[0]){links[0].click();return'clicked first';}return'no topic';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"(()=>{const ta=document.querySelector('textarea#reply_content,textarea[name=\\\"content\\\"]');if(ta){ta.focus();ta.value='AutoResearch test reply - please ignore';ta.dispatchEvent(new Event('input',{bubbles:true}));return ta.value;}return'no textarea';})()\" "
+    ],
+    "judge": { "type": "contains", "value": "AutoResearch test reply" },
+    "note": "Types into reply box but does NOT submit"
+  },
+  {
+    "name": "v2ex-favorite-topic",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"(()=>{const favLink=[...document.querySelectorAll('a')].find(a=>a.textContent.includes('加入收藏')||a.textContent.includes('Favorite'));return favLink?favLink.href:'no fav link';})()\" "
+    ],
+    "judge": { "type": "matchesPattern", "pattern": "favorite|收藏" },
+    "note": "Finds favorite link but does NOT click it"
+  },
+  {
+    "name": "v2ex-thank-reply-find",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"(()=>{const thankBtns=document.querySelectorAll('.thank_area,a[onclick*=\\\"thank\\\"],.thank');return JSON.stringify({found:thankBtns.length});})()\" "
+    ],
+    "judge": { "type": "matchesPattern", "pattern": "\"found\":\\d+" },
+    "note": "Finds thank buttons but does NOT click"
+  },
+  {
+    "name": "v2ex-reply-form-detect",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"(()=>{const ta=document.querySelector('textarea#reply_content,textarea[name=\\\"content\\\"]');const btn=document.querySelector('input[type=\\\"submit\\\"],button[type=\\\"submit\\\"]');const once=document.querySelector('input[name=\\\"once\\\"]');return JSON.stringify({textarea:!!ta,submitBtn:!!btn,csrfToken:!!once});})()\" "
+    ],
+    "judge": { "type": "contains", "value": "\"textarea\":" }
+  },
+  {
+    "name": "v2ex-create-topic-form-detect",
+    "steps": [
+      "opencli operate open https://v2ex.com/new",
+      "opencli operate wait time 2",
+      "opencli operate eval \"(()=>{const title=document.querySelector('input[name=\\\"title\\\"],#topic_title');const content=document.querySelector('textarea[name=\\\"content\\\"],#topic_content,textarea#editor');const nodeSelect=document.querySelector('select[name=\\\"node_name\\\"],#node-select');return JSON.stringify({titleInput:!!title,contentArea:!!content,nodeSelect:!!nodeSelect,url:location.href});})()\" "
+    ],
+    "judge": { "type": "nonEmpty" },
+    "note": "Detects create topic form elements, does NOT submit"
+  },
+
+  {"_comment": "=== Layer 5: Complex Chain (5 tasks) ==="},
+
+  {
+    "name": "v2ex-collect-hot-authors",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate eval \"(()=>{const rows=[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5);const authors=new Set();rows.forEach(a=>{const row=a.closest('tr')||a.closest('.cell')||a.parentElement;const memberLink=row?.querySelector('a[href^=\\\"/member/\\\"]');if(memberLink)authors.add(memberLink.textContent.trim());});return JSON.stringify([...authors]);})()\" "
+    ],
+    "judge": { "type": "arrayMinLength", "minLength": 2 }
+  },
+  {
+    "name": "v2ex-multi-node-compare",
+    "steps": [
+      "opencli operate open https://v2ex.com/go/python",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()).filter(t=>t.length>2))\"",
+      "opencli operate open https://v2ex.com/go/go",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
+    ],
+    "judge": { "type": "arrayMinLength", "minLength": 2 }
+  },
+  {
+    "name": "v2ex-topic-deep-read",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"(()=>{const title=document.querySelector('h1')?.textContent?.trim()||document.title;const author=document.querySelector('.header a[href^=\\\"/member/\\\"]')?.textContent?.trim()||'';const content=document.querySelector('.topic_content,.markdown_body')?.textContent?.trim()?.slice(0,300)||'';const replyCount=document.querySelectorAll('.reply_content').length;return JSON.stringify({title,author,content,replyCount});})()\" "
+    ],
+    "judge": { "type": "matchesPattern", "pattern": "\"title\":.+\"author\":" }
+  },
+  {
+    "name": "v2ex-cross-page-data-collect",
+    "steps": [
+      "opencli operate open https://v2ex.com/go/programmer",
+      "opencli operate eval \"(()=>{const titles=[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim());window.__collected=titles;return JSON.stringify(titles);})()\"",
+      "opencli operate open https://v2ex.com/go/programmer?p=2",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
+    ],
+    "judge": { "type": "arrayMinLength", "minLength": 2 }
+  },
+  {
+    "name": "v2ex-full-workflow",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate eval \"(()=>{const topics=[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>({title:a.textContent.trim(),href:a.href}));return JSON.stringify(topics);})()\"",
+      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked: '+a.textContent.trim().slice(0,30);}return'not found';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"(()=>{const title=document.querySelector('h1')?.textContent?.trim()||document.title;const replies=[...document.querySelectorAll('.reply_content')].slice(0,3).map(el=>el.textContent.trim().slice(0,80));const author=document.querySelector('.header a[href^=\\\"/member/\\\"]')?.textContent?.trim()||'';return JSON.stringify({title,author,replies,replyCount:replies.length});})()\" "
+    ],
+    "judge": { "type": "matchesPattern", "pattern": "\"title\":.+\"author\":" }
+  }
+]
