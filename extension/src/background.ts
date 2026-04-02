@@ -6,12 +6,34 @@
  */
 
 import type { Command, Result } from './protocol';
-import { DAEMON_WS_URL, DAEMON_PING_URL, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
+import {
+  DEFAULT_DAEMON_HOST,
+  DEFAULT_DAEMON_PORT,
+  WS_RECONNECT_BASE_DELAY,
+  WS_RECONNECT_MAX_DELAY,
+  buildDaemonEndpoints,
+} from './protocol';
 import * as executor from './cdp';
 
+const STORAGE_KEYS = { host: 'daemonHost', port: 'daemonPort' } as const;
+
 let ws: WebSocket | null = null;
+let activeWsUrl: string | null = null;
+/** URL we are currently connecting to (before onopen). */
+let pendingWsUrl: string | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
+
+async function getDaemonSettings(): Promise<{ host: string; port: number }> {
+  const result = await chrome.storage.local.get({
+    [STORAGE_KEYS.host]: DEFAULT_DAEMON_HOST,
+    [STORAGE_KEYS.port]: DEFAULT_DAEMON_PORT,
+  });
+  let host = result[STORAGE_KEYS.host]?.trim() || DEFAULT_DAEMON_HOST;
+  let port = typeof result[STORAGE_KEYS.port] === 'number' ? result[STORAGE_KEYS.port] : DEFAULT_DAEMON_PORT;
+  if (!Number.isFinite(port) || port < 1 || port > 65535) port = DEFAULT_DAEMON_PORT;
+  return { host, port };
+}
 
 // ─── Console log forwarding ──────────────────────────────────────────
 // Hook console.log/warn/error to forward logs to daemon via WebSocket.
@@ -42,24 +64,40 @@ console.error = (...args: unknown[]) => { _origError(...args); forwardLog('error
  * call site remains unchanged and the guard can never be accidentally skipped.
  */
 async function connect(): Promise<void> {
-  if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
+  const { host, port } = await getDaemonSettings();
+  const { ping: pingUrl, ws: wsUrl } = buildDaemonEndpoints(host, port);
+
+  if (ws) {
+    if (ws.readyState === WebSocket.OPEN && activeWsUrl === wsUrl) return;
+    if (ws.readyState === WebSocket.CONNECTING && pendingWsUrl === wsUrl) return;
+    try {
+      ws.close();
+    } catch { /* ignore */ }
+    ws = null;
+    activeWsUrl = null;
+    pendingWsUrl = null;
+  }
 
   try {
-    const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1000) });
+    const res = await fetch(pingUrl, { signal: AbortSignal.timeout(1000) });
     if (!res.ok) return; // unexpected response — not our daemon
   } catch {
     return; // daemon not running — skip WebSocket to avoid console noise
   }
 
   try {
-    ws = new WebSocket(DAEMON_WS_URL);
+    pendingWsUrl = wsUrl;
+    ws = new WebSocket(wsUrl);
   } catch {
+    pendingWsUrl = null;
     scheduleReconnect();
     return;
   }
 
   ws.onopen = () => {
     console.log('[opencli] Connected to daemon');
+    pendingWsUrl = null;
+    activeWsUrl = wsUrl;
     reconnectAttempts = 0; // Reset on successful connection
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
@@ -82,6 +120,8 @@ async function connect(): Promise<void> {
   ws.onclose = () => {
     console.log('[opencli] Disconnected from daemon');
     ws = null;
+    activeWsUrl = null;
+    pendingWsUrl = null;
     scheduleReconnect();
   };
 
@@ -218,14 +258,32 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'keepalive') void connect();
 });
 
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if (!changes[STORAGE_KEYS.host] && !changes[STORAGE_KEYS.port]) return;
+  try {
+    ws?.close();
+  } catch { /* ignore */ }
+  ws = null;
+  activeWsUrl = null;
+  pendingWsUrl = null;
+  reconnectAttempts = 0;
+  void connect();
+});
+
 // ─── Popup status API ───────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === 'getStatus') {
-    sendResponse({
-      connected: ws?.readyState === WebSocket.OPEN,
-      reconnecting: reconnectTimer !== null,
+    void getDaemonSettings().then(({ host, port }) => {
+      sendResponse({
+        connected: ws?.readyState === WebSocket.OPEN,
+        reconnecting: reconnectTimer !== null,
+        host,
+        port,
+      });
     });
+    return true;
   }
   return false;
 });

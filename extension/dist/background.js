@@ -1,7 +1,14 @@
-const DAEMON_PORT = 19825;
-const DAEMON_HOST = "localhost";
-const DAEMON_WS_URL = `ws://${DAEMON_HOST}:${DAEMON_PORT}/ext`;
-const DAEMON_PING_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}/ping`;
+const DEFAULT_DAEMON_HOST = "localhost";
+const DEFAULT_DAEMON_PORT = 19825;
+function buildDaemonEndpoints(host, port) {
+  const h = (host || DEFAULT_DAEMON_HOST).trim() || DEFAULT_DAEMON_HOST;
+  const p = Number.isFinite(port) && port >= 1 && port <= 65535 ? port : DEFAULT_DAEMON_PORT;
+  const hostPart = h.includes(":") && !h.startsWith("[") ? `[${h}]` : h;
+  return {
+    ping: `http://${hostPart}:${p}/ping`,
+    ws: `ws://${hostPart}:${p}/ext`
+  };
+}
 const WS_RECONNECT_BASE_DELAY = 2e3;
 const WS_RECONNECT_MAX_DELAY = 5e3;
 
@@ -210,9 +217,22 @@ function registerListeners() {
   });
 }
 
+const STORAGE_KEYS = { host: "daemonHost", port: "daemonPort" };
 let ws = null;
+let activeWsUrl = null;
+let pendingWsUrl = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
+async function getDaemonSettings() {
+  const result = await chrome.storage.local.get({
+    [STORAGE_KEYS.host]: DEFAULT_DAEMON_HOST,
+    [STORAGE_KEYS.port]: DEFAULT_DAEMON_PORT
+  });
+  let host = result[STORAGE_KEYS.host]?.trim() || DEFAULT_DAEMON_HOST;
+  let port = typeof result[STORAGE_KEYS.port] === "number" ? result[STORAGE_KEYS.port] : DEFAULT_DAEMON_PORT;
+  if (!Number.isFinite(port) || port < 1 || port > 65535) port = DEFAULT_DAEMON_PORT;
+  return { host, port };
+}
 const _origLog = console.log.bind(console);
 const _origWarn = console.warn.bind(console);
 const _origError = console.error.bind(console);
@@ -237,21 +257,37 @@ console.error = (...args) => {
   forwardLog("error", args);
 };
 async function connect() {
-  if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
+  const { host, port } = await getDaemonSettings();
+  const { ping: pingUrl, ws: wsUrl } = buildDaemonEndpoints(host, port);
+  if (ws) {
+    if (ws.readyState === WebSocket.OPEN && activeWsUrl === wsUrl) return;
+    if (ws.readyState === WebSocket.CONNECTING && pendingWsUrl === wsUrl) return;
+    try {
+      ws.close();
+    } catch {
+    }
+    ws = null;
+    activeWsUrl = null;
+    pendingWsUrl = null;
+  }
   try {
-    const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1e3) });
+    const res = await fetch(pingUrl, { signal: AbortSignal.timeout(1e3) });
     if (!res.ok) return;
   } catch {
     return;
   }
   try {
-    ws = new WebSocket(DAEMON_WS_URL);
+    pendingWsUrl = wsUrl;
+    ws = new WebSocket(wsUrl);
   } catch {
+    pendingWsUrl = null;
     scheduleReconnect();
     return;
   }
   ws.onopen = () => {
     console.log("[opencli] Connected to daemon");
+    pendingWsUrl = null;
+    activeWsUrl = wsUrl;
     reconnectAttempts = 0;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
@@ -271,6 +307,8 @@ async function connect() {
   ws.onclose = () => {
     console.log("[opencli] Disconnected from daemon");
     ws = null;
+    activeWsUrl = null;
+    pendingWsUrl = null;
     scheduleReconnect();
   };
   ws.onerror = () => {
@@ -364,12 +402,30 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "keepalive") void connect();
 });
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if (!changes[STORAGE_KEYS.host] && !changes[STORAGE_KEYS.port]) return;
+  try {
+    ws?.close();
+  } catch {
+  }
+  ws = null;
+  activeWsUrl = null;
+  pendingWsUrl = null;
+  reconnectAttempts = 0;
+  void connect();
+});
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "getStatus") {
-    sendResponse({
-      connected: ws?.readyState === WebSocket.OPEN,
-      reconnecting: reconnectTimer !== null
+    void getDaemonSettings().then(({ host, port }) => {
+      sendResponse({
+        connected: ws?.readyState === WebSocket.OPEN,
+        reconnecting: reconnectTimer !== null,
+        host,
+        port
+      });
     });
+    return true;
   }
   return false;
 });

@@ -49,12 +49,22 @@ export interface Result {
   error?: string;
 }
 
+/** Default daemon host (overridable in extension popup) */
+export const DEFAULT_DAEMON_HOST = 'localhost';
+
 /** Default daemon port */
-export const DAEMON_PORT = 19825;
-export const DAEMON_HOST = 'localhost';
-export const DAEMON_WS_URL = `ws://${DAEMON_HOST}:${DAEMON_PORT}/ext`;
-/** Lightweight health-check endpoint — probed before each WebSocket attempt. */
-export const DAEMON_PING_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}/ping`;
+export const DEFAULT_DAEMON_PORT = 19825;
+
+/** Build ping / WebSocket URLs for a daemon host and port. */
+export function buildDaemonEndpoints(host: string, port: number): { ping: string; ws: string } {
+  const h = (host || DEFAULT_DAEMON_HOST).trim() || DEFAULT_DAEMON_HOST;
+  const p = Number.isFinite(port) && port >= 1 && port <= 65535 ? port : DEFAULT_DAEMON_PORT;
+  const hostPart = h.includes(':') && !h.startsWith('[') ? `[${h}]` : h;
+  return {
+    ping: `http://${hostPart}:${p}/ping`,
+    ws: `ws://${hostPart}:${p}/ext`,
+  };
+}
 
 /** Base reconnect delay for extension WebSocket (ms) */
 export const WS_RECONNECT_BASE_DELAY = 2000;
