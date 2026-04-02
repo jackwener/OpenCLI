@@ -101,21 +101,9 @@ npm install -g @jackwener/opencli@latest
 
 ### 浏览器自动化 — 让 AI Agent 直接控制浏览器
 
-#### AI Agent 快速接入（1 步）
+将 [`skills/opencli-operate/SKILL.md`](./skills/opencli-operate/SKILL.md) 指向你的 AI Agent（Claude Code、Cursor），即可开箱即用，内含完整命令参考与使用示例。
 
-将 [`skills/opencli-operate/SKILL.md`](./skills/opencli-operate/SKILL.md) 指向你的 AI Agent（Claude Code、Cursor），即可开箱即用。
-
-#### 人工快速上手（3 步）
-
-```bash
-opencli operate open https://news.ycombinator.com    # 1. 打开页面
-opencli operate state                                 # 2. 查看可交互元素
-opencli operate eval "document.title"                 # 3. 提取数据
-```
-
-更多命令：`click`、`type`、`select`、`keys`、`wait`、`get`、`screenshot`、`scroll`、`back`、`eval`、`network`、`init`、`verify`、`close`。
-
-完整文档见 [`skills/opencli-operate/SKILL.md`](./skills/opencli-operate/SKILL.md)。
+可用命令：`open`、`state`、`click`、`type`、`select`、`keys`、`wait`、`get`、`screenshot`、`scroll`、`back`、`eval`、`network`、`init`、`verify`、`close`。
 
 ### 安装 AI Skills
 

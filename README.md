@@ -70,21 +70,9 @@ opencli bilibili hot --limit 5         # Browser command (requires Extension)
 
 ### 4. Browser Automation — Make Websites Accessible for AI Agents
 
-#### AI Agent Quickstart (1 step)
+Point your AI agent (Claude Code, Cursor) to [`skills/opencli-operate/SKILL.md`](./skills/opencli-operate/SKILL.md). It has everything needed — full command reference, examples, and workflow.
 
-Point your AI agent (Claude Code, Cursor) to [`skills/opencli-operate/SKILL.md`](./skills/opencli-operate/SKILL.md). It has everything needed.
-
-#### Human Quickstart (3 steps)
-
-```bash
-opencli operate open https://news.ycombinator.com    # 1. Open a page
-opencli operate state                                 # 2. See interactive elements
-opencli operate eval "document.title"                 # 3. Extract data
-```
-
-More commands: `click`, `type`, `select`, `keys`, `wait`, `get`, `screenshot`, `scroll`, `back`, `eval`, `network`, `init`, `verify`, `close`.
-
-See [`skills/opencli-operate/SKILL.md`](./skills/opencli-operate/SKILL.md) for full documentation.
+Available commands: `open`, `state`, `click`, `type`, `select`, `keys`, `wait`, `get`, `screenshot`, `scroll`, `back`, `eval`, `network`, `init`, `verify`, `close`.
 
 ### Update
 
