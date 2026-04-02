@@ -113,14 +113,7 @@ npm install -g @jackwener/opencli@latest
 OpenCLI provides [skills](./skills/) for AI agents (Claude Code, etc.):
 
 ```bash
-# Install all OpenCLI skills
 npx skills add jackwener/opencli
-
-# Or install specific skills
-npx skills add jackwener/opencli --skill opencli-usage      # Command reference
-npx skills add jackwener/opencli --skill opencli-operate     # Browser automation for AI agents
-npx skills add jackwener/opencli --skill opencli-explorer    # Adapter development guide
-npx skills add jackwener/opencli --skill opencli-oneshot     # Quick command reference
 ```
 
 ---
