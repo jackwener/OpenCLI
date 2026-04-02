@@ -16,32 +16,44 @@ cli({
   ],
   columns: ['title', 'author', 'content', 'url'],
   func: async (page, kwargs) => {
-    // Extract tweet ID from URL if needed
+    // Extract tweet ID from URL if needed.
+    // Article URLs (x.com/i/article/{articleId}) use a different ID than
+    // tweet status URLs — the GraphQL endpoint needs the parent tweet ID.
     let tweetId = kwargs['tweet-id'];
+    const isArticleUrl = /\/article\/\d+/.test(tweetId);
     const urlMatch = tweetId.match(/\/(?:status|article)\/(\d+)/);
     if (urlMatch) tweetId = urlMatch[1];
 
-    // Navigate to article page first, then resolve the associated tweet ID.
-    // Article IDs differ from tweet IDs — we need to visit the article page
-    // and extract the parent tweet ID from the DOM before querying GraphQL.
-    await page.goto(`https://x.com/i/article/${tweetId}`);
+    if (isArticleUrl) {
+      // Navigate to the article page and resolve the parent tweet ID from DOM
+      await page.goto(`https://x.com/i/article/${tweetId}`);
+      await page.wait(3);
+      const resolvedId = await page.evaluate(`
+        (function() {
+          var links = document.querySelectorAll('a[href*="/status/"]');
+          for (var i = 0; i < links.length; i++) {
+            var m = links[i].href.match(/\\/status\\/(\\d+)/);
+            if (m) return m[1];
+          }
+          var og = document.querySelector('meta[property="og:url"]');
+          if (og && og.content) {
+            var m2 = og.content.match(/\\/status\\/(\\d+)/);
+            if (m2) return m2[1];
+          }
+          return null;
+        })()
+      `);
+      if (!resolvedId || typeof resolvedId !== 'string') {
+        throw new CommandExecutionError(
+          `Could not resolve article ${tweetId} to a tweet ID. The article page may not contain a linked tweet.`,
+        );
+      }
+      tweetId = resolvedId;
+    }
+
+    // Navigate to the tweet page for cookie context
+    await page.goto(`https://x.com/i/status/${tweetId}`);
     await page.wait(3);
-    const resolvedTweetId = await page.evaluate([
-      '(function(){',
-      '  var links = document.querySelectorAll("a[href*=\\"/status/\\"]");',
-      '  for (var i = 0; i < links.length; i++) {',
-      '    var m = links[i].href.match(/\\/status\\/(\\d+)/);',
-      '    if (m) return m[1];',
-      '  }',
-      '  var og = document.querySelector("meta[property=\\"og:url\\"]");',
-      '  if (og && og.content) {',
-      '    var m2 = og.content.match(/\\/status\\/(\\d+)/);',
-      '    if (m2) return m2[1];',
-      '  }',
-      '  return null;',
-      '})()',
-    ].join('\n'));
-    if (resolvedTweetId) tweetId = resolvedTweetId;
     const queryId = await resolveTwitterQueryId(page, 'TweetResultByRestId', TWEET_RESULT_BY_REST_ID_QUERY_ID);
 
     const result = await page.evaluate(`
