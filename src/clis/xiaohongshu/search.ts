@@ -39,28 +39,30 @@ cli({
   columns: ['rank', 'title', 'author', 'likes', 'published_at', 'url'],
   func: async (page, kwargs) => {
     const keyword = encodeURIComponent(kwargs.query);
-    await page.goto(
-      `https://www.xiaohongshu.com/search_result?keyword=${keyword}&source=web_search_result_notes`
-    );
-    await page.wait(3);
+    const searchUrl =
+      `https://www.xiaohongshu.com/search_result?keyword=${keyword}&source=web_search_result_notes`;
 
-    // Early login-wall detection: XHS may show a login gate instead of
-    // results. Check *before* autoScroll to avoid crashing on a page
-    // that has no meaningful content to scroll through.
-    const loginCheck = await page.evaluate(`
+    const fetchAttempt = async () => {
+      await page.goto(searchUrl);
+      await page.wait(3);
+
+      // Early login-wall detection: XHS may show a login gate instead of
+      // results. Check *before* autoScroll to avoid crashing on a page
+      // that has no meaningful content to scroll through.
+      const loginCheck = await page.evaluate(`
       (() => /登录后查看搜索结果/.test(document.body?.innerText || ''))()
     `);
-    if (loginCheck) {
-      throw new AuthRequiredError(
-        'www.xiaohongshu.com',
-        'Xiaohongshu search results are blocked behind a login wall',
-      );
-    }
+      if (loginCheck) {
+        throw new AuthRequiredError(
+          'www.xiaohongshu.com',
+          'Xiaohongshu search results are blocked behind a login wall',
+        );
+      }
 
-    // Scroll a couple of times to load more results
-    await page.autoScroll({ times: 2 });
+      // Scroll a couple of times to load more results
+      await page.autoScroll({ times: 2 });
 
-    const payload = await page.evaluate(`
+      const payload = await page.evaluate(`
       (() => {
         const loginWall = /登录后查看搜索结果/.test(document.body.innerText || '');
 
@@ -114,20 +116,30 @@ cli({
       })()
     `);
 
-    if (!payload || typeof payload !== 'object') return [];
+      if (!payload || typeof payload !== 'object') return [];
 
-    if ((payload as any).loginWall) {
-      throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
+      if ((payload as any).loginWall) {
+        throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
+      }
+
+      const data: any[] = Array.isArray((payload as any).results) ? (payload as any).results : [];
+      return data
+        .filter((item: any) => item.title)
+        .slice(0, kwargs.limit)
+        .map((item: any, i: number) => ({
+          rank: i + 1,
+          ...item,
+          published_at: noteIdToDate(item.url),
+        }));
+    };
+
+    let results = await fetchAttempt();
+    if (!results.length) {
+      // XHS search can intermittently render blank blocks in the first paint.
+      // Retry once with a fresh navigation before returning empty.
+      await page.wait(1);
+      results = await fetchAttempt();
     }
-
-    const data: any[] = Array.isArray((payload as any).results) ? (payload as any).results : [];
-    return data
-      .filter((item: any) => item.title)
-      .slice(0, kwargs.limit)
-      .map((item: any, i: number) => ({
-        rank: i + 1,
-        ...item,
-        published_at: noteIdToDate(item.url),
-      }));
+    return results;
   },
 });

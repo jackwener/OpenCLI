@@ -140,6 +140,36 @@ describe('xiaohongshu search', () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ rank: 1, title: 'Result A' });
   });
+
+  it('retries once when the first pass returns empty results', async () => {
+    const cmd = getRegistry().get('xiaohongshu/search');
+    expect(cmd?.func).toBeTypeOf('function');
+
+    const page = createPageMock([
+      // First pass: login check + empty extraction
+      false,
+      { loginWall: false, results: [] },
+      // Retry pass: login check + non-empty extraction
+      false,
+      {
+        loginWall: false,
+        results: [
+          {
+            title: 'Retry Result',
+            author: 'UserR',
+            likes: '9',
+            url: 'https://www.xiaohongshu.com/search_result/69b739f00000000000000000',
+            author_url: '',
+          },
+        ],
+      },
+    ]);
+
+    const result = (await cmd!.func!(page, { query: '测试重试', limit: 5 })) as any[];
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ title: 'Retry Result' });
+    expect(page.goto).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('noteIdToDate (ObjectID timestamp parsing)', () => {
