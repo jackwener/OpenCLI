@@ -66,6 +66,9 @@ export interface IPage {
   installInterceptor(pattern: string): Promise<void>;
   getInterceptedRequests(): Promise<any[]>;
   waitForCapture(timeout?: number): Promise<void>;
+  installStreamingInterceptor(pattern: string): Promise<void>;
+  getStreamedResponses(opts?: { clear?: boolean }): Promise<{ text: string; events: any[]; done: boolean; errors: any[] }>;
+  waitForStreamCapture(timeout?: number, opts?: { minChars?: number; waitForDone?: boolean }): Promise<void>;
   screenshot(options?: ScreenshotOptions): Promise<string>;
   /**
    * Set local file paths on a file input element via CDP DOM.setFileInputFiles.

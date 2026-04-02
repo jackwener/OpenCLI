@@ -65,6 +65,25 @@ The `page` parameter provides browser interaction methods:
 - `page.click(selector)` — Click an element
 - `page.type(selector, text)` — Type text into an input
 
+### Streaming API Interception
+
+For capturing streaming responses (SSE / chunked transfer) — works in background tabs where DOM rendering is throttled but fetch streams and XHR progress events are not.
+
+```typescript
+await page.installStreamingInterceptor('StreamGenerate');
+// ... trigger the streaming request ...
+await page.waitForStreamCapture(60, { minChars: 100, waitForDone: true });
+const { text, events, done, errors } = await page.getStreamedResponses();
+// Or peek without clearing:
+const { text } = await page.getStreamedResponses({ clear: false });
+```
+
+| Method | Description |
+|--------|-------------|
+| `installStreamingInterceptor(pattern)` | Patch fetch + XHR to capture streaming responses |
+| `waitForStreamCapture(timeout, opts?)` | Poll until `minChars` reached and/or stream `done` |
+| `getStreamedResponses(opts?)` | Read captured text/events; pass `{ clear: false }` to peek |
+
 ## The `kwargs` Object
 
 Contains parsed CLI arguments as key-value pairs. Always destructure with defaults:

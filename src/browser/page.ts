@@ -15,9 +15,9 @@ import { sendCommand } from './daemon-client.js';
 import { wrapForEval } from './utils.js';
 import { saveBase64ToFile } from '../utils.js';
 import { generateStealthJs } from './stealth.js';
-import { waitForDomStableJs } from './dom-helpers.js';
-import { BasePage } from './base-page.js';
 
+import { waitForDomStableJs, waitForCaptureJs, waitForStreamCaptureJs } from './dom-helpers.js';
+import { BasePage } from './base-page.js';
 export function isRetryableSettleError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return message.includes('Inspected target navigated or closed')
@@ -178,6 +178,15 @@ export class Page extends BasePage {
     if (!result?.count) {
       throw new Error('setFileInput returned no count — command may not be supported by the extension');
     }
+  }
+
+  // Override: waitForStreamCapture needs longer HTTP timeout for long-running browser promises
+  async waitForStreamCapture(timeout: number = 30, opts?: { minChars?: number; waitForDone?: boolean }): Promise<void> {
+    const maxMs = timeout * 1000;
+    await sendCommand('exec', {
+      code: waitForStreamCaptureJs(maxMs, opts),
+      ...this._cmdOpts(),
+    }, maxMs + 10000); // HTTP timeout = browser timeout + 10s buffer
   }
 }
 

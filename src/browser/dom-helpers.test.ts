@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { autoScrollJs, waitForCaptureJs, waitForSelectorJs } from './dom-helpers.js';
+import { autoScrollJs, waitForCaptureJs, waitForSelectorJs, waitForStreamCaptureJs } from './dom-helpers.js';
 
 describe('autoScrollJs', () => {
   it('returns early without error when document.body is null', async () => {
@@ -110,5 +110,66 @@ describe('waitForSelectorJs', () => {
     await expect(eval(code) as Promise<string>).rejects.toThrow('Selector not found: #missing');
     delete g.document;
     delete g.MutationObserver;
+  });
+});
+
+describe('waitForStreamCaptureJs', () => {
+  it('returns a non-empty string with default prefix', () => {
+    const code = waitForStreamCaptureJs(1000);
+    expect(typeof code).toBe('string');
+    expect(code.length).toBeGreaterThan(0);
+    expect(code).toContain('__opencli_stream_text');
+    expect(code).toContain('__opencli_stream_done');
+  });
+
+  it('generates code that resolves when minChars is reached', async () => {
+    const g = globalThis as any;
+    g.__opencli_stream_text = '';
+    g.__opencli_stream_done = false;
+    g.window = g;
+    const code = waitForStreamCaptureJs(1000, { minChars: 5 });
+    const promise = eval(code) as Promise<void>;
+    // Simulate data arriving
+    g.__opencli_stream_text = 'hello world';
+    await expect(promise).resolves.not.toThrow();
+    delete g.__opencli_stream_text;
+    delete g.__opencli_stream_done;
+    delete g.window;
+  });
+
+  it('generates code that resolves when done flag is set', async () => {
+    const g = globalThis as any;
+    g.__opencli_stream_text = '';
+    g.__opencli_stream_done = false;
+    g.window = g;
+    const code = waitForStreamCaptureJs(1000, { waitForDone: true });
+    const promise = eval(code) as Promise<void>;
+    // Simulate stream completion — need both minChars AND done
+    g.__opencli_stream_text = 'data arrived';
+    g.__opencli_stream_done = true;
+    await expect(promise).resolves.not.toThrow();
+    delete g.__opencli_stream_text;
+    delete g.__opencli_stream_done;
+    delete g.window;
+  });
+
+  it('generates code that rejects on timeout', async () => {
+    const g = globalThis as any;
+    g.__opencli_stream_text = '';
+    g.__opencli_stream_done = false;
+    g.window = g;
+    const code = waitForStreamCaptureJs(50, { minChars: 100, waitForDone: true });
+    const promise = eval(code) as Promise<void>;
+    await expect(promise).rejects.toThrow();
+    delete g.__opencli_stream_text;
+    delete g.__opencli_stream_done;
+    delete g.window;
+  });
+
+  it('uses custom prefix when provided', () => {
+    const code = waitForStreamCaptureJs(1000, { prefix: '__my_prefix' });
+    expect(code).toContain('__my_prefix_text');
+    expect(code).toContain('__my_prefix_done');
+    expect(code).not.toContain('__opencli_stream');
   });
 });

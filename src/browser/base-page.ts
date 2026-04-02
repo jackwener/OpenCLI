@@ -18,6 +18,7 @@ import {
   waitForTextJs,
   waitForCaptureJs,
   waitForSelectorJs,
+  waitForStreamCaptureJs,
   scrollJs,
   autoScrollJs,
   networkRequestsJs,
@@ -157,6 +158,22 @@ export abstract class BasePage implements IPage {
   async waitForCapture(timeout: number = 10): Promise<void> {
     const maxMs = timeout * 1000;
     await this.evaluate(waitForCaptureJs(maxMs));
+  }
+
+  async installStreamingInterceptor(pattern: string): Promise<void> {
+    const { generateStreamingInterceptorJs } = await import('../interceptor.js');
+    await this.evaluate(generateStreamingInterceptorJs(JSON.stringify(pattern)));
+  }
+
+  async getStreamedResponses(opts?: { clear?: boolean }): Promise<{ text: string; events: any[]; done: boolean; errors: any[] }> {
+    const { generateReadStreamJs } = await import('../interceptor.js');
+    const clear = opts?.clear !== false; // default true for backwards compat
+    return (await this.evaluate(generateReadStreamJs('__opencli_stream', clear))) as { text: string; events: any[]; done: boolean; errors: any[] };
+  }
+
+  async waitForStreamCapture(timeout: number = 30, opts?: { minChars?: number; waitForDone?: boolean }): Promise<void> {
+    const maxMs = timeout * 1000;
+    await this.evaluate(waitForStreamCaptureJs(maxMs, opts));
   }
 
   /** Fallback basic snapshot */

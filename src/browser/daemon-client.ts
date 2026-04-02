@@ -114,6 +114,7 @@ export async function isExtensionConnected(): Promise<boolean> {
 export async function sendCommand(
   action: DaemonCommand['action'],
   params: Omit<DaemonCommand, 'id' | 'action'> = {},
+  timeoutMs: number = 30000,
 ): Promise<unknown> {
   const maxRetries = 4;
 
@@ -126,7 +127,7 @@ export async function sendCommand(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(command),
-        timeout: 30000,
+        timeout: timeoutMs,
       });
 
       const result = (await res.json()) as DaemonResult;

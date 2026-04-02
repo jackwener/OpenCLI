@@ -201,6 +201,35 @@ export function waitForCaptureJs(maxMs: number): string {
 }
 
 /**
+ * Generate JS to wait until the streaming interceptor has captured data.
+ * Polls window.__opencli_stream_text length. Optionally waits for stream completion.
+ * 50ms interval, rejects after maxMs.
+ */
+export function waitForStreamCaptureJs(
+  maxMs: number,
+  opts: { minChars?: number; waitForDone?: boolean; prefix?: string } = {},
+): string {
+  const minChars = opts.minChars ?? 1;
+  const waitForDone = opts.waitForDone ?? false;
+  const prefix = opts.prefix ?? '__opencli_stream';
+  return `
+    new Promise((resolve, reject) => {
+      const deadline = Date.now() + ${maxMs};
+      const check = () => {
+        const text = window.${prefix}_text || '';
+        const done = window.${prefix}_done || false;
+        if (text.length >= ${minChars} && (${waitForDone} ? done : true)) {
+          return resolve('captured');
+        }
+        if (Date.now() > deadline) return reject(new Error('Stream capture timeout'));
+        setTimeout(check, 50);
+      };
+      check();
+    })
+  `;
+}
+
+/**
  * Generate JS to wait until document.querySelector(selector) returns a match.
  * Uses MutationObserver for near-instant resolution; falls back to reject after timeoutMs.
  */

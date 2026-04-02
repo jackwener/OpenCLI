@@ -15,7 +15,7 @@ import type { BrowserCookie, IPage, ScreenshotOptions } from '../types.js';
 import type { IBrowserFactory } from '../runtime.js';
 import { wrapForEval } from './utils.js';
 import { generateStealthJs } from './stealth.js';
-import { waitForDomStableJs } from './dom-helpers.js';
+import { waitForDomStableJs, waitForCaptureJs } from './dom-helpers.js';
 import { isRecord, saveBase64ToFile } from '../utils.js';
 import { getAllElectronApps } from '../electron-apps.js';
 import { BasePage } from './base-page.js';
@@ -233,6 +233,33 @@ class CDPPage extends BasePage {
 
   async selectTab(_index: number): Promise<void> {
     // Not supported in direct CDP mode
+  }
+
+  async consoleMessages(_level?: string): Promise<unknown[]> {
+    return [];
+  }
+
+  async getCurrentUrl(): Promise<string | null> {
+    return this._lastUrl;
+  }
+
+  async installInterceptor(pattern: string): Promise<void> {
+    const { generateInterceptorJs } = await import('../interceptor.js');
+    await this.evaluate(generateInterceptorJs(JSON.stringify(pattern), {
+      arrayName: '__opencli_xhr',
+      patchGuard: '__opencli_interceptor_patched',
+    }));
+  }
+
+  async getInterceptedRequests(): Promise<unknown[]> {
+    const { generateReadInterceptedJs } = await import('../interceptor.js');
+    const result = await this.evaluate(generateReadInterceptedJs('__opencli_xhr'));
+    return Array.isArray(result) ? result : [];
+  }
+
+  async waitForCapture(timeout: number = 10): Promise<void> {
+    const maxMs = timeout * 1000;
+    await this.evaluate(waitForCaptureJs(maxMs));
   }
 }
 

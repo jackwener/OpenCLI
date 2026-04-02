@@ -100,6 +100,27 @@ Download media files.
 ```
 :::
 
+### `stream-intercept`
+Capture streaming responses (SSE / chunked transfer) incrementally. Unlike `intercept`, this reads the response body as a stream — ideal for AI chat endpoints that stream replies, and works in background tabs where DOM rendering is throttled. Requires `browser: true`.
+
+::: v-pre
+```yaml
+- stream-intercept:
+    capture: "StreamGenerate"
+    trigger: "click:@send"
+    timeout: 60
+    waitForDone: true
+```
+:::
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `capture` | (required) | URL substring to match |
+| `trigger` | `""` | Action before capture: `click:@ref`, `navigate:url`, `evaluate:js`, `scroll` |
+| `timeout` | `60` | Max seconds to wait for stream data |
+| `waitForDone` | `true` | Wait until the stream completes (not just first bytes) |
+| `returnEvents` | `false` | Return parsed SSE events instead of raw text |
+
 ## Template Expressions
 
 ::: v-pre
