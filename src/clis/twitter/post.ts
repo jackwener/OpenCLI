@@ -1,3 +1,6 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
 import { cli, Strategy } from '../../registry.js';
 import { CommandExecutionError } from '../../errors.js';
 import type { IPage } from '../../types.js';
@@ -46,8 +49,6 @@ cli({
 
     // 3. Attach images if provided
     if (kwargs.images) {
-      const nodePath = await import('node:path');
-      const nodeFs = await import('node:fs');
       const imagePaths = String(kwargs.images).split(',').map((s: string) => s.trim()).filter(Boolean);
 
       if (imagePaths.length > 4) {
@@ -55,9 +56,8 @@ cli({
       }
 
       const absPaths = imagePaths.map((p: string) => {
-        const absPath = nodePath.resolve(p);
-        const stat = nodeFs.statSync(absPath, { throwIfNoEntry: false });
-        if (!stat || !stat.isFile()) {
+        const absPath = path.resolve(p);
+        if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) {
           throw new CommandExecutionError(`Not a valid file: ${absPath}`);
         }
         return absPath;
