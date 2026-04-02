@@ -49,19 +49,102 @@ Public API commands (`hackernews`, `v2ex`) need no browser.
 | **finance/stock** | Xueqiu, Yahoo Finance, Barchart, Sina Finance, Bloomberg | browser.md / public-api.md |
 | **web scraping** | `opencli web read --url <url>` — any URL to Markdown | browser.md |
 
-## Command Categories
+## Command Quick Reference
 
-### 📱 Browser-based Commands (login required)
-See [browser.md](./browser.md) — 40+ platforms including Bilibili, Twitter, Reddit, Xiaohongshu, YouTube, Instagram, TikTok, Facebook, LinkedIn, etc.
+Usage: `opencli <site> <command> [args] [--limit N] [-f json|yaml|md|csv|table]`
 
-### 🖥️ Desktop Adapter Commands
-See [desktop.md](./desktop.md) — GitHub (gh CLI), Cursor, Codex, ChatGPT, ChatWise, Notion, Discord App, Doubao App, Antigravity.
+### Browser-based (login required)
 
-### 🌐 Public API Commands (no browser needed)
-See [public-api.md](./public-api.md) — HackerNews, V2EX, Google, arXiv, Bloomberg RSS, StackOverflow, Wikipedia, etc.
+| Site | Commands |
+|------|----------|
+| **bilibili** | `hot` `search` `me` `favorite` `history` `feed` `user-videos` `subtitle` `dynamic` `ranking` `following` |
+| **zhihu** | `hot` `search` `question` |
+| **xiaohongshu** | `search` `notifications` `feed` `user` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` |
+| **xueqiu** | `hot-stock` `stock` `watchlist` `feed` `hot` `search` `earnings-date` `fund-holdings` `fund-snapshot` |
+| **twitter** | `trending` `bookmarks` `search` `profile` `timeline` `thread` `article` `follow` `unfollow` `bookmark` `unbookmark` `post` `like` `reply` `delete` `block` `unblock` `followers` `following` `notifications` `hide-reply` `download` `accept` `reply-dm` |
+| **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `save` `comment` `subscribe` `saved` `upvoted` |
+| **youtube** | `search` `video` `transcript` |
+| **facebook** | `feed` `profile` `search` `friends` `groups` `events` `notifications` `memories` `add-friend` `join-group` |
+| **instagram** | `explore` `profile` `search` `user` `followers` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `saved` |
+| **tiktok** | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` |
+| **linkedin** | `search` `timeline` |
+| **medium** | `feed` `search` `user` |
+| **substack** | `feed` `search` `publication` |
+| **sinablog** | `hot` `search` `article` `user` |
+| **weibo** | `hot` |
+| **boss** | `search` `detail` `recommend` `joblist` `greet` `batchgreet` `send` `chatlist` `chatmsg` `invite` `mark` `exchange` `resume` `stats` |
+| **douban** | `search` `top250` `subject` `photos` `download` `marks` `reviews` |
+| **pixiv** | `ranking` `search` `user` `illusts` `detail` `download` |
+| **jike** | `feed` `search` `create` `like` `comment` `repost` `notifications` |
+| **yahoo-finance** | `quote` |
+| **barchart** | `quote` `options` `greeks` `flow` |
+| **sinafinance** | `news` |
+| **reuters** | `search` |
+| **coupang** | `search` `add-to-cart` |
+| **jd** | `item` |
+| **smzdm** | `search` |
+| **ctrip** | `search` |
+| **weread** | `shelf` `search` `book` `highlights` `notes` `ranking` |
+| **chaoxing** | `assignments` `exams` |
+| **jimeng** | `generate` `history` |
+| **yollomi** | `models` `generate` `video` `upload` `remove-bg` `edit` `background` `face-swap` `object-remover` `restore` `try-on` `upscale` |
+| **web** | `read` — any URL to Markdown |
+| **weixin** | `download` — 公众号 article to Markdown |
+| **v2ex** (browser) | `daily` `me` `notifications` |
+| **linux-do** (browser) | `categories` `category` |
+| **bloomberg** (browser) | `news` — full article reader |
+| **grok** | `ask` |
+| **doubao** | `status` `new` `send` `read` `ask` |
+| **kimi** | `status` `new` `ask` |
+| **deepseek** | `status` `new` `ask` |
+| **qwen** | `status` `new` `ask` |
 
-### 🔧 Management & AI Workflow
-See [plugins.md](./plugins.md) — `opencli list`, `opencli validate`, `opencli explore`, `opencli record`, output formats, environment variables.
+### Desktop (CDP/Electron)
+
+| Site | Commands |
+|------|----------|
+| **gh** | `repo` `pr` `issue` — passthrough to gh CLI |
+| **cursor** | `status` `send` `read` `new` `dump` `composer` `model` `extract-code` `ask` `screenshot` `history` `export` |
+| **codex** | `status` `send` `read` `new` `dump` `extract-diff` `model` `ask` `screenshot` `history` `export` |
+| **chatgpt** | `status` `new` `send` `read` `ask` |
+| **chatwise** | `status` `new` `send` `read` `ask` `model` `history` `export` `screenshot` |
+| **notion** | `status` `search` `read` `new` `write` `sidebar` `favorites` `export` |
+| **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` |
+| **doubao-app** | `status` `new` `send` `read` `ask` `screenshot` `dump` |
+| **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` |
+
+### Public API (no browser)
+
+| Site | Commands |
+|------|----------|
+| **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
+| **v2ex** (public) | `hot` `latest` `topic` `node` `nodes` `member` `user` `replies` |
+| **bbc** | `news` |
+| **lobsters** | `hot` `newest` `active` `tag` |
+| **google** | `news` `search` `suggest` `trends` |
+| **devto** | `top` `tag` `user` |
+| **steam** | `top-sellers` |
+| **apple-podcasts** | `top` `search` `episodes` |
+| **arxiv** | `search` `paper` |
+| **bloomberg** (RSS) | `main` `markets` `tech` `politics` `economics` `opinions` `industries` `businessweek` `feeds` |
+| **dictionary** | `search` `synonyms` `examples` |
+| **hf** | `top` |
+| **stackoverflow** | `hot` `search` `bounties` |
+| **xiaoyuzhou** | `podcast` `podcast-episodes` `episode` |
+| **wikipedia** | `search` `summary` |
+| **producthunt** | `today` `week` `month` `search` |
+
+### Management
+
+```bash
+opencli list [-f json|yaml]     # List all commands
+opencli validate [site]         # Validate adapter definitions
+opencli doctor                  # Diagnose browser bridge
+opencli explore <url>           # AI-powered API discovery
+opencli record <url>            # Record API calls manually
+```
+
+All commands support: `--format` / `-f` with `table` `json` `yaml` `md` `csv`
 
 ## Related Skills
 
