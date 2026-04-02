@@ -137,6 +137,57 @@ describe('xiaohongshu note', () => {
     await expect(command!.func!(page, { 'note-id': 'abc123' })).rejects.toThrow('returned no data');
   });
 
+  it('throws a token hint when the note page renders as an empty shell', async () => {
+    const page = createPageMock({
+      loginWall: false,
+      notFound: false,
+      title: '',
+      desc: '',
+      author: '',
+      likes: '',
+      collects: '',
+      comments: '',
+      tags: [],
+    });
+
+    try {
+      await command!.func!(page, { 'note-id': '69ca3927000000001a020fd5' });
+      throw new Error('expected xiaohongshu note to fail on an empty shell page');
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'EMPTY_RESULT',
+        hint: expect.stringMatching(/xsec_token|full url|search_result/i),
+      });
+    }
+  });
+
+  it('keeps the empty-shell hint generic when the user already passed a full URL', async () => {
+    const page = createPageMock({
+      loginWall: false,
+      notFound: false,
+      title: '',
+      desc: '',
+      author: '',
+      likes: '',
+      collects: '',
+      comments: '',
+      tags: [],
+    });
+
+    try {
+      await command!.func!(page, {
+        'note-id': 'https://www.xiaohongshu.com/search_result/69ca3927000000001a020fd5?xsec_token=abc',
+      });
+      throw new Error('expected xiaohongshu note to fail on an empty shell page');
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'EMPTY_RESULT',
+        hint: expect.stringContaining('loaded without visible content'),
+      });
+      expect((error as { hint?: string }).hint).not.toContain('bare note ID');
+    }
+  });
+
   it('normalizes placeholder text to 0 for zero-count metrics', async () => {
     const page = createPageMock({
       loginWall: false, notFound: false,

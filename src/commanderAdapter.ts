@@ -225,7 +225,7 @@ async function renderError(err: unknown, cmdName: string, verbose: boolean): Pro
   if (err instanceof SelectorError || err instanceof EmptyResultError) {
     const icon = ERROR_ICONS[err.code] ?? '⚠️';
     console.error(chalk.red(`${icon} ${err.message}`));
-    console.error(chalk.yellow('→ The page structure may have changed — this adapter may be outdated.'));
+    console.error(chalk.yellow(`→ ${err.hint ?? 'The page structure may have changed — this adapter may be outdated.'}`));
     console.error(chalk.dim(`  Debug:  ${cmdName} --verbose`));
     console.error(chalk.dim(`  Report: ${ISSUES_URL}`));
     return;

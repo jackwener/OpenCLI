@@ -76,6 +76,28 @@ export async function ensureUserCliCompatShims(baseDir: string = USER_OPENCLI_DI
       `${JSON.stringify({ name: 'opencli-user-runtime', private: true, type: 'module' }, null, 2)}\n`,
     ),
   ]);
+
+  // Create node_modules/@jackwener/opencli symlink so user TS CLIs can import
+  // from '@jackwener/opencli/registry' (the package export).
+  // This is needed because ~/.opencli/clis/ is outside opencli's node_modules tree.
+  const opencliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const symlinkDir = path.join(baseDir, 'node_modules', '@jackwener');
+  const symlinkPath = path.join(symlinkDir, 'opencli');
+  try {
+    // Only recreate if symlink is missing or points to wrong target
+    let needsUpdate = true;
+    try {
+      const existing = await fs.promises.readlink(symlinkPath);
+      if (existing === opencliRoot) needsUpdate = false;
+    } catch { /* doesn't exist */ }
+    if (needsUpdate) {
+      await fs.promises.mkdir(symlinkDir, { recursive: true });
+      try { await fs.promises.unlink(symlinkPath); } catch { /* doesn't exist */ }
+      await fs.promises.symlink(opencliRoot, symlinkPath, 'dir');
+    }
+  } catch {
+    // Non-fatal: npm-linked installs or permission issues may prevent this
+  }
 }
 
 /**

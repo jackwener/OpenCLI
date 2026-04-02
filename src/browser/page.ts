@@ -179,6 +179,53 @@ export class Page extends BasePage {
       throw new Error('setFileInput returned no count — command may not be supported by the extension');
     }
   }
+
+  async cdp(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+    return sendCommand('cdp', {
+      cdpMethod: method,
+      cdpParams: params,
+      ...this._cmdOpts(),
+    });
+  }
+
+  async nativeClick(x: number, y: number): Promise<void> {
+    await this.cdp('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x, y,
+      button: 'left',
+      clickCount: 1,
+    });
+    await this.cdp('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x, y,
+      button: 'left',
+      clickCount: 1,
+    });
+  }
+
+  async nativeType(text: string): Promise<void> {
+    // Use Input.insertText for reliable Unicode/CJK text insertion
+    await this.cdp('Input.insertText', { text });
+  }
+
+  async nativeKeyPress(key: string, modifiers: string[] = []): Promise<void> {
+    let modifierFlags = 0;
+    for (const mod of modifiers) {
+      if (mod === 'Alt') modifierFlags |= 1;
+      if (mod === 'Ctrl') modifierFlags |= 2;
+      if (mod === 'Meta') modifierFlags |= 4;
+      if (mod === 'Shift') modifierFlags |= 8;
+    }
+    await this.cdp('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key,
+      modifiers: modifierFlags,
+    });
+    await this.cdp('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key,
+      modifiers: modifierFlags,
+    });
+  }
 }
 
-// (End of file)

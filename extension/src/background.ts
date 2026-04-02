@@ -311,6 +311,8 @@ async function handleCommand(cmd: Command): Promise<Result> {
         return await handleScreenshot(cmd, workspace);
       case 'close-window':
         return await handleCloseWindow(cmd, workspace);
+      case 'cdp':
+        return await handleCdp(cmd, workspace);
       case 'sessions':
         return await handleSessions(cmd);
       case 'set-file-input':
@@ -330,12 +332,12 @@ async function handleCommand(cmd: Command): Promise<Result> {
 // ─── Action handlers ─────────────────────────────────────────────────
 
 /** Internal blank page used when no user URL is provided. */
-const BLANK_PAGE = 'data:text/html,<html></html>';
+const BLANK_PAGE = 'about:blank';
 
-/** Check if a URL can be attached via CDP — only allow http(s) and our internal blank page. */
+/** Check if a URL can be attached via CDP — only allow http(s) and blank pages. */
 function isDebuggableUrl(url?: string): boolean {
   if (!url) return true;  // empty/undefined = tab still loading, allow it
-  return url.startsWith('http://') || url.startsWith('https://') || url === BLANK_PAGE;
+  return url.startsWith('http://') || url.startsWith('https://') || url === 'about:blank' || url.startsWith('data:');
 }
 
 /** Check if a URL is safe for user-facing navigation (http/https only). */
@@ -448,7 +450,8 @@ async function handleExec(cmd: Command, workspace: string): Promise<Result> {
   if (!cmd.code) return { id: cmd.id, ok: false, error: 'Missing code' };
   const tabId = await resolveTabId(cmd.tabId, workspace);
   try {
-    const data = await executor.evaluateAsync(tabId, cmd.code);
+    const aggressive = workspace.startsWith('operate:');
+    const data = await executor.evaluateAsync(tabId, cmd.code, aggressive);
     return { id: cmd.id, ok: true, data };
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -633,6 +636,50 @@ async function handleScreenshot(cmd: Command, workspace: string): Promise<Result
       quality: cmd.quality,
       fullPage: cmd.fullPage,
     });
+    return { id: cmd.id, ok: true, data };
+  } catch (err) {
+    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** CDP methods permitted via the 'cdp' passthrough action. */
+const CDP_ALLOWLIST = new Set([
+  // Agent DOM context
+  'Accessibility.getFullAXTree',
+  'DOM.getDocument',
+  'DOM.getBoxModel',
+  'DOM.getContentQuads',
+  'DOM.querySelectorAll',
+  'DOM.scrollIntoViewIfNeeded',
+  'DOMSnapshot.captureSnapshot',
+  // Native input events
+  'Input.dispatchMouseEvent',
+  'Input.dispatchKeyEvent',
+  'Input.insertText',
+  // Page metrics & screenshots
+  'Page.getLayoutMetrics',
+  'Page.captureScreenshot',
+  // Runtime.enable needed for CDP attach setup (Runtime.evaluate goes through 'exec' action)
+  'Runtime.enable',
+  // Emulation (used by screenshot full-page)
+  'Emulation.setDeviceMetricsOverride',
+  'Emulation.clearDeviceMetricsOverride',
+]);
+
+async function handleCdp(cmd: Command, workspace: string): Promise<Result> {
+  if (!cmd.cdpMethod) return { id: cmd.id, ok: false, error: 'Missing cdpMethod' };
+  if (!CDP_ALLOWLIST.has(cmd.cdpMethod)) {
+    return { id: cmd.id, ok: false, error: `CDP method not permitted: ${cmd.cdpMethod}` };
+  }
+  const tabId = await resolveTabId(cmd.tabId, workspace);
+  try {
+    const aggressive = workspace.startsWith('operate:');
+    await executor.ensureAttached(tabId, aggressive);
+    const data = await chrome.debugger.sendCommand(
+      { tabId },
+      cmd.cdpMethod,
+      cmd.cdpParams ?? {},
+    );
     return { id: cmd.id, ok: true, data };
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };

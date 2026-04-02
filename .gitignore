@@ -22,3 +22,5 @@ docs/.vitepress/cache
 
 # Database files
 *.db
+autoresearch/results/
+extension/dist/

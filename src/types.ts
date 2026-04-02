@@ -77,4 +77,12 @@ export interface IPage {
   getCurrentUrl?(): Promise<string | null>;
   /** Returns the active tab ID, or undefined if not yet resolved. */
   getActiveTabId?(): number | undefined;
+  /** Send a raw CDP command via chrome.debugger passthrough. */
+  cdp?(method: string, params?: Record<string, unknown>): Promise<unknown>;
+  /** Click at native coordinates via CDP Input.dispatchMouseEvent. */
+  nativeClick?(x: number, y: number): Promise<void>;
+  /** Type text via CDP Input.insertText. */
+  nativeType?(text: string): Promise<void>;
+  /** Press a key via CDP Input.dispatchKeyEvent. */
+  nativeKeyPress?(key: string, modifiers?: string[]): Promise<void>;
 }

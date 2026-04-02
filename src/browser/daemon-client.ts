@@ -11,6 +11,7 @@ import { isTransientBrowserError } from './errors.js';
 
 const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
+const OPENCLI_HEADERS = { 'X-OpenCLI': '1' };
 
 let _idCounter = 0;
 
@@ -20,7 +21,7 @@ function generateId(): string {
 
 export interface DaemonCommand {
   id: string;
-  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'sessions' | 'set-file-input';
+  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'sessions' | 'set-file-input' | 'cdp';
   tabId?: number;
   code?: string;
   workspace?: string;
@@ -31,10 +32,13 @@ export interface DaemonCommand {
   format?: 'png' | 'jpeg';
   quality?: number;
   fullPage?: boolean;
+
   /** Local file paths for set-file-input action */
   files?: string[];
   /** CSS selector for file input element (set-file-input action) */
   selector?: string;
+  cdpMethod?: string;
+  cdpParams?: Record<string, unknown>;
 }
 
 export interface DaemonResult {
@@ -44,18 +48,46 @@ export interface DaemonResult {
   error?: string;
 }
 
-/**
- * Check if daemon is running.
- */
-export async function isDaemonRunning(): Promise<boolean> {
+export interface DaemonStatus {
+  ok: boolean;
+  pid: number;
+  uptime: number;
+  extensionConnected: boolean;
+  extensionVersion?: string;
+  pending: number;
+  lastCliRequestTime: number;
+  memoryMB: number;
+  port: number;
+}
+
+async function requestDaemon(pathname: string, init?: RequestInit & { timeout?: number }): Promise<Response> {
+  const { timeout = 2000, headers, ...rest } = init ?? {};
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(`${DAEMON_URL}/status`, {
-      headers: { 'X-OpenCLI': '1' },
+    return await fetch(`${DAEMON_URL}${pathname}`, {
+      ...rest,
+      headers: { ...OPENCLI_HEADERS, ...headers },
       signal: controller.signal,
     });
+  } finally {
     clearTimeout(timer);
+  }
+}
+
+export async function fetchDaemonStatus(opts?: { timeout?: number }): Promise<DaemonStatus | null> {
+  try {
+    const res = await requestDaemon('/status', { timeout: opts?.timeout ?? 2000 });
+    if (!res.ok) return null;
+    return await res.json() as DaemonStatus;
+  } catch {
+    return null;
+  }
+}
+
+export async function requestDaemonShutdown(opts?: { timeout?: number }): Promise<boolean> {
+  try {
+    const res = await requestDaemon('/shutdown', { method: 'POST', timeout: opts?.timeout ?? 5000 });
     return res.ok;
   } catch {
     return false;
@@ -63,23 +95,18 @@ export async function isDaemonRunning(): Promise<boolean> {
 }
 
 /**
+ * Check if daemon is running.
+ */
+export async function isDaemonRunning(): Promise<boolean> {
+  return (await fetchDaemonStatus()) !== null;
+}
+
+/**
  * Check if daemon is running AND the extension is connected.
  */
 export async function isExtensionConnected(): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(`${DAEMON_URL}/status`, {
-      headers: { 'X-OpenCLI': '1' },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (!res.ok) return false;
-    const data = await res.json() as { extensionConnected?: boolean };
-    return !!data.extensionConnected;
-  } catch {
-    return false;
-  }
+  const status = await fetchDaemonStatus();
+  return !!status?.extensionConnected;
 }
 
 /**
@@ -98,16 +125,12 @@ export async function sendCommand(
     const id = generateId();
     const command: DaemonCommand = { id, action, ...params };
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 30000);
-
-      const res = await fetch(`${DAEMON_URL}/command`, {
+      const res = await requestDaemon('/command', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-OpenCLI': '1' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(command),
-        signal: controller.signal,
+        timeout: 30000,
       });
-      clearTimeout(timer);
 
       const result = (await res.json()) as DaemonResult;
 

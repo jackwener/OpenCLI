@@ -6,55 +6,7 @@
  */
 
 import chalk from 'chalk';
-import { DEFAULT_DAEMON_PORT } from '../constants.js';
-
-const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
-const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
-
-interface DaemonStatus {
-  ok: boolean;
-  pid: number;
-  uptime: number;
-  extensionConnected: boolean;
-  pending: number;
-  lastCliRequestTime: number;
-  memoryMB: number;
-  port: number;
-}
-
-async function fetchStatus(): Promise<DaemonStatus | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 2000);
-  try {
-    const res = await fetch(`${DAEMON_URL}/status`, {
-      headers: { 'X-OpenCLI': '1' },
-      signal: controller.signal,
-    });
-    if (!res.ok) return null;
-    return await res.json() as DaemonStatus;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function requestShutdown(): Promise<boolean> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
-  try {
-    const res = await fetch(`${DAEMON_URL}/shutdown`, {
-      method: 'POST',
-      headers: { 'X-OpenCLI': '1' },
-      signal: controller.signal,
-    });
-    return res.ok;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timer);
-  }
-}
+import { fetchDaemonStatus, requestDaemonShutdown } from '../browser/daemon-client.js';
 
 function formatUptime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -74,7 +26,7 @@ function formatTimeSince(timestampMs: number): string {
 }
 
 export async function daemonStatus(): Promise<void> {
-  const status = await fetchStatus();
+  const status = await fetchDaemonStatus();
   if (!status) {
     console.log(`Daemon: ${chalk.dim('not running')}`);
     return;
@@ -89,13 +41,13 @@ export async function daemonStatus(): Promise<void> {
 }
 
 export async function daemonStop(): Promise<void> {
-  const status = await fetchStatus();
+  const status = await fetchDaemonStatus();
   if (!status) {
     console.log(chalk.dim('Daemon is not running.'));
     return;
   }
 
-  const ok = await requestShutdown();
+  const ok = await requestDaemonShutdown();
   if (ok) {
     console.log(chalk.green('Daemon stopped.'));
   } else {
@@ -105,9 +57,9 @@ export async function daemonStop(): Promise<void> {
 }
 
 export async function daemonRestart(): Promise<void> {
-  const status = await fetchStatus();
+  const status = await fetchDaemonStatus();
   if (status) {
-    const ok = await requestShutdown();
+    const ok = await requestDaemonShutdown();
     if (!ok) {
       console.error(chalk.red('Failed to stop daemon.'));
       process.exitCode = 1;
@@ -117,7 +69,7 @@ export async function daemonRestart(): Promise<void> {
     const deadline = Date.now() + 5000;
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, 200));
-      if (!(await fetchStatus())) break;
+      if (!(await fetchDaemonStatus())) break;
     }
   }
 

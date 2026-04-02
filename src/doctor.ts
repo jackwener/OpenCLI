@@ -25,6 +25,7 @@ export type ConnectivityResult = {
   durationMs: number;
 };
 
+
 export type DoctorReport = {
   cliVersion?: string;
   daemonRunning: boolean;
@@ -93,7 +94,6 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   if (connectivity && !connectivity.ok) {
     issues.push(`Browser connectivity test failed: ${connectivity.error ?? 'unknown'}`);
   }
-
   if (status.extensionVersion && opts.cliVersion) {
     const extMajor = status.extensionVersion.split('.')[0];
     const cliMajor = opts.cliVersion.split('.')[0];

@@ -2,8 +2,7 @@
  * Daemon discovery — checks if the daemon is running.
  */
 
-import { DEFAULT_DAEMON_PORT } from '../constants.js';
-import { isDaemonRunning } from './daemon-client.js';
+import { fetchDaemonStatus, isDaemonRunning } from './daemon-client.js';
 
 export { isDaemonRunning };
 
@@ -15,21 +14,13 @@ export async function checkDaemonStatus(opts?: { timeout?: number }): Promise<{
   extensionConnected: boolean;
   extensionVersion?: string;
 }> {
-  try {
-    const port = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), opts?.timeout ?? 2000);
-    try {
-      const res = await fetch(`http://127.0.0.1:${port}/status`, {
-        headers: { 'X-OpenCLI': '1' },
-        signal: controller.signal,
-      });
-      const data = await res.json() as { ok: boolean; extensionConnected: boolean; extensionVersion?: string };
-      return { running: true, extensionConnected: data.extensionConnected, extensionVersion: data.extensionVersion };
-    } finally {
-      clearTimeout(timer);
-    }
-  } catch {
+  const status = await fetchDaemonStatus({ timeout: opts?.timeout ?? 2000 });
+  if (!status) {
     return { running: false, extensionConnected: false };
   }
+  return {
+    running: true,
+    extensionConnected: status.extensionConnected,
+    extensionVersion: status.extensionVersion,
+  };
 }
