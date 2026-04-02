@@ -90,6 +90,20 @@ opencli bilibili hot --limit 5         # Browser command (requires Extension)
 npm install -g @jackwener/opencli@latest
 ```
 
+### Install AI Skills
+
+OpenCLI provides [skills](./skills/) for AI agents (Claude Code, etc.):
+
+```bash
+# Install all OpenCLI skills
+npx skills add jackwener/opencli
+
+# Or install specific skills
+npx skills add jackwener/opencli --skill opencli-usage      # Command reference
+npx skills add jackwener/opencli --skill opencli-explorer    # Adapter development guide
+npx skills add jackwener/opencli --skill opencli-oneshot     # Quick command reference
+```
+
 ---
 
 ### For Developers

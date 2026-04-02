@@ -116,6 +116,20 @@ opencli list  # 可以在任何地方使用了！
 npm install -g @jackwener/opencli@latest
 ```
 
+### 安装 AI Skills
+
+OpenCLI 提供 [skills](./skills/) 供 AI Agent（Claude Code 等）使用：
+
+```bash
+# 安装所有 OpenCLI skills
+npx skills add jackwener/opencli
+
+# 或安装特定 skill
+npx skills add jackwener/opencli --skill opencli-usage      # 命令参考
+npx skills add jackwener/opencli --skill opencli-explorer    # 适配器开发指南
+npx skills add jackwener/opencli --skill opencli-oneshot     # 快速命令参考
+```
+
 ## 内置命令
 
 运行 `opencli list` 查看完整注册表。
