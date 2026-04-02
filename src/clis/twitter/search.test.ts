@@ -158,10 +158,11 @@ describe('twitter search command', () => {
     expect(command?.func).toBeTypeOf('function');
 
     const evaluate = vi.fn()
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce('/explore')
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce('/login');
+      .mockResolvedValueOnce(undefined)   // pushState attempt 1
+      .mockResolvedValueOnce('/explore')  // pathname check 1
+      .mockResolvedValueOnce(undefined)   // pushState attempt 2
+      .mockResolvedValueOnce('/login')    // pathname check 2
+      .mockResolvedValueOnce({ ok: false }); // search input fallback
 
     const page = {
       goto: vi.fn().mockResolvedValue(undefined),
@@ -177,6 +178,6 @@ describe('twitter search command', () => {
       .toThrow('Final path: /login');
     expect(page.autoScroll).not.toHaveBeenCalled();
     expect(page.getInterceptedRequests).not.toHaveBeenCalled();
-    expect(evaluate).toHaveBeenCalledTimes(4);
+    expect(evaluate).toHaveBeenCalledTimes(5);
   });
 });
