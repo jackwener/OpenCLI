@@ -88,6 +88,29 @@ opencli arxiv search "attention"          # 搜索论文 (query positional)
 opencli arxiv paper 1706.03762            # 论文详情 (id positional)
 ```
 
+## StackOverflow
+
+```bash
+opencli stackoverflow hot --limit 10     # 热门问题
+opencli stackoverflow search "typescript"  # 搜索 (query positional)
+opencli stackoverflow bounties --limit 10  # 悬赏问题
+```
+
+## Xiaoyuzhou (小宇宙)
+
+```bash
+opencli xiaoyuzhou podcast 12345          # 播客资料 (id positional)
+opencli xiaoyuzhou podcast-episodes 12345 # 播客剧集列表 (id positional)
+opencli xiaoyuzhou episode 12345          # 单集详情 (id positional)
+```
+
+## Wikipedia
+
+```bash
+opencli wikipedia search "AI"             # 搜索 (query positional)
+opencli wikipedia summary "Python"        # 摘要 (title positional)
+```
+
 ## Bloomberg (RSS)
 
 ```bash

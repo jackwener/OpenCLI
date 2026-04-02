@@ -152,6 +152,77 @@ opencli youtube transcript "xxx" --lang zh-Hans --mode raw  # 指定语言 + 原
 opencli yahoo-finance quote --symbol AAPL  # 股票行情
 ```
 
+## Sina Finance
+
+```bash
+opencli sinafinance news --limit 10 --type 1  # 7x24实时快讯
+# Types: 0=全部 1=A股 2=宏观 3=公司 4=数据 5=市场 6=国际 7=观点 8=央行 9=其它
+```
+
+## Reuters (路透社)
+
+```bash
+opencli reuters search "AI"              # 路透社搜索 (query positional)
+```
+
+## SMZDM (什么值得买)
+
+```bash
+opencli smzdm search "耳机"              # 搜索好价 (query positional)
+```
+
+## Ctrip (携程)
+
+```bash
+opencli ctrip search "三亚"              # 搜索目的地 (query positional)
+```
+
+## Barchart
+
+```bash
+opencli barchart quote --symbol AAPL     # 股票行情
+opencli barchart options --symbol AAPL   # 期权链
+opencli barchart greeks --symbol AAPL    # 期权 Greeks
+opencli barchart flow --limit 20         # 异常期权活动
+```
+
+## Jike (即刻)
+
+```bash
+opencli jike feed --limit 10             # 动态流
+opencli jike search "AI"                 # 搜索 (query positional)
+opencli jike create "内容"                # 发布动态 (text positional)
+opencli jike like xxx                    # 点赞 (id positional)
+opencli jike comment xxx "评论"           # 评论 (id + text positional)
+opencli jike repost xxx                  # 转发 (id positional)
+opencli jike notifications               # 通知
+```
+
+## Linux.do (Browser Features)
+
+```bash
+opencli linux-do categories --limit 20   # 分类列表
+opencli linux-do category dev 7          # 分类内话题 (slug + id positional)
+```
+
+## WeRead (微信读书)
+
+```bash
+opencli weread shelf --limit 10          # 书架
+opencli weread search "AI"               # 搜索图书 (query positional)
+opencli weread book xxx                  # 图书详情 (book-id positional)
+opencli weread highlights xxx            # 划线笔记 (book-id positional)
+opencli weread notes xxx                 # 想法笔记 (book-id positional)
+opencli weread ranking --limit 10        # 排行榜
+```
+
+## Jimeng (即梦 AI)
+
+```bash
+opencli jimeng generate --prompt "描述"  # AI 生图
+opencli jimeng history --limit 10        # 生成历史
+```
+
 ## Chaoxing (超星学习通)
 
 ```bash
@@ -178,20 +249,12 @@ opencli facebook feed --limit 10          # 动态流
 opencli facebook profile username         # 用户资料 (id positional)
 opencli facebook search "AI"              # 搜索 (query positional)
 opencli facebook friends                  # 好友列表
-opencli facebook groups                   # 群组列表
-```
-
-## Coupang (쿠팡)
-
-```bash
-opencli coupang search "노트북"           # 搜索商品 (query positional)
-opencli coupang product 123456            # 商品详情 (id positional)
-```
-
-## Yollomi (욜로미)
-
-```bash
-opencli yollomi search "서울"             # 搜索 (query positional)
+opencli facebook groups                   # 群组
+opencli facebook events                   # 活动
+opencli facebook notifications            # 通知
+opencli facebook memories                 # 回忆
+opencli facebook add-friend username      # 添加好友 (id positional)
+opencli facebook join-group groupid       # 加入群组 (id positional)
 ```
 
 ## Instagram
@@ -258,17 +321,28 @@ opencli sinablog article url              # 文章详情
 opencli sinablog user username            # 用户主页 (id positional)
 ```
 
-## Bloomberg (Browser - Full Article)
+## Coupang (쿠팡)
 
 ```bash
-opencli bloomberg news "https://..."      # 阅读 Bloomberg 文章全文 (link positional, browser)
+opencli coupang search "耳机"             # 搜索商品 (query positional, 支持 --filter rocket)
+opencli coupang add-to-cart 12345         # 加入购物车 (product-id positional, 或 --url)
 ```
 
-## Grok (Browser)
+## Yollomi (browser — 需在 Chrome 登录 yollomi.com)
 
 ```bash
-opencli grok ask "问题"                   # 提问 Grok (prompt positional)
-opencli grok ask --prompt "问题" --web   # 显式 grok.com consumer web UI 路径
+opencli yollomi models --type image      # 列出图像模型与积分
+opencli yollomi generate "提示词" --model z-image-turbo   # 文生图
+opencli yollomi video "提示词" --model kling-2-1        # 视频
+opencli yollomi upload ./photo.jpg       # 上传得 URL，供 img2img / 工具链使用
+opencli yollomi remove-bg <image-url>    # 去背景（免费）
+opencli yollomi edit <image-url> "改成油画风格"        # Qwen 图像编辑
+opencli yollomi background <image-url>   # AI 背景生成 (5 credits)
+opencli yollomi face-swap --source <url> --target <url>  # 换脸 (3 credits)
+opencli yollomi object-remover <image-url> <mask-url>    # AI 去除物体 (3 credits)
+opencli yollomi restore <image-url>      # AI 修复老照片 (4 credits)
+opencli yollomi try-on --person <url> --cloth <url>      # 虚拟试衣 (3 credits)
+opencli yollomi upscale <image-url>      # AI 超分辨率 (1 credit, 支持 --scale 2/4)
 ```
 
 ## Doubao Web (豆包)
@@ -276,8 +350,58 @@ opencli grok ask --prompt "问题" --web   # 显式 grok.com consumer web UI 路
 ```bash
 opencli doubao status                     # 检查豆包页面状态
 opencli doubao new                        # 新建对话
-opencli doubao ask "问题"                 # 提问 (prompt positional)
-opencli doubao ask --prompt "问题" --web # 显式 doubao.com web UI 路径
+opencli doubao send "你好"                # 发送消息 (text positional)
+opencli doubao read                       # 读取对话记录
+opencli doubao ask "问题"                 # 一键提问并等回复 (text positional)
+```
+
+## Grok
+
+```bash
+opencli grok ask --prompt "问题"         # 提问 Grok（兼容默认路径）
+opencli grok ask --prompt "问题" --web   # 显式 grok.com consumer web UI 路径
+```
+
+## Pixiv
+
+```bash
+opencli pixiv ranking --limit 20         # 插画排行榜 (支持 --mode daily/weekly/monthly)
+opencli pixiv search "風景"               # 搜索插画 (query positional)
+opencli pixiv user 12345                 # 画师资料 (uid positional)
+opencli pixiv illusts 12345              # 画师作品列表 (user-id positional)
+opencli pixiv detail 12345               # 插画详情 (id positional)
+opencli pixiv download 12345             # 下载插画 (illust-id positional)
+```
+
+## Web
+
+```bash
+opencli web read --url "https://..."     # 抓取任意网页并导出为 Markdown
+```
+
+## Weixin (微信公众号)
+
+```bash
+opencli weixin download --url "https://mp.weixin.qq.com/s/xxx"  # 下载公众号文章为 Markdown
+```
+
+## JD (京东)
+
+```bash
+opencli jd item 100291143898             # 商品详情 (sku positional, 含价格/主图/规格)
+```
+
+## LinkedIn
+
+```bash
+opencli linkedin search "AI engineer"    # 搜索职位 (query positional, 支持 --location/--company/--remote)
+opencli linkedin timeline --limit 20     # 首页动态流
+```
+
+## Bloomberg (Browser - Full Article)
+
+```bash
+opencli bloomberg news "https://..."      # 阅读 Bloomberg 文章全文 (link positional, browser)
 ```
 
 ## Kimi
