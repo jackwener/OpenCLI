@@ -21,9 +21,27 @@ cli({
     const urlMatch = tweetId.match(/\/(?:status|article)\/(\d+)/);
     if (urlMatch) tweetId = urlMatch[1];
 
-    // Navigate to the tweet page for cookie context
-    await page.goto(`https://x.com/i/status/${tweetId}`);
+    // Navigate to article page first, then resolve the associated tweet ID.
+    // Article IDs differ from tweet IDs — we need to visit the article page
+    // and extract the parent tweet ID from the DOM before querying GraphQL.
+    await page.goto(`https://x.com/i/article/${tweetId}`);
     await page.wait(3);
+    const resolvedTweetId = await page.evaluate([
+      '(function(){',
+      '  var links = document.querySelectorAll("a[href*=\\"/status/\\"]");',
+      '  for (var i = 0; i < links.length; i++) {',
+      '    var m = links[i].href.match(/\\/status\\/(\\d+)/);',
+      '    if (m) return m[1];',
+      '  }',
+      '  var og = document.querySelector("meta[property=\\"og:url\\"]");',
+      '  if (og && og.content) {',
+      '    var m2 = og.content.match(/\\/status\\/(\\d+)/);',
+      '    if (m2) return m2[1];',
+      '  }',
+      '  return null;',
+      '})()',
+    ].join('\n'));
+    if (resolvedTweetId) tweetId = resolvedTweetId;
     const queryId = await resolveTwitterQueryId(page, 'TweetResultByRestId', TWEET_RESULT_BY_REST_ID_QUERY_ID);
 
     const result = await page.evaluate(`
