@@ -71,15 +71,9 @@ cli({
     const numOrZero = (v: string) => /^\d+/.test(v) ? v : '0';
 
     // XHS sometimes renders an empty shell page for bare /explore/<id> visits
-    // when the request lacks a valid xsec_token.
-    const emptyShell =
-      !d.title &&
-      !d.desc &&
-      !d.author &&
-      !(d.tags?.length) &&
-      numOrZero(d.likes || '') === '0' &&
-      numOrZero(d.collects || '') === '0' &&
-      numOrZero(d.comments || '') === '0';
+    // when the request lacks a valid xsec_token.  Title + author are always
+    // present on a real note, so their absence is the simplest reliable signal.
+    const emptyShell = !d.title && !d.author;
     if (emptyShell) {
       if (isBareNoteId) {
         throw new EmptyResultError(
