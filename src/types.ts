@@ -80,6 +80,8 @@ export interface IPage {
    */
   insertText?(text: string): Promise<void>;
   closeWindow?(): Promise<void>;
+  /** Bring the automation window to the foreground. Creates one if none exists. */
+  focusWindow?(): Promise<void>;
   /** Returns the current page URL, or null if unavailable. */
   getCurrentUrl?(): Promise<string | null>;
   /** Returns the active tab ID, or undefined if not yet resolved. */

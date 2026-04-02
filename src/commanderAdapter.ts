@@ -13,6 +13,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { type CliCommand, fullName, getRegistry } from './registry.js';
+import { sendCommand } from './browser/daemon-client.js';
 import { formatRegistryHelpText } from './serialization.js';
 import { render as renderOutput } from './output.js';
 import { executeCommand } from './execution.js';
@@ -297,6 +298,8 @@ export function registerAllCommands(
   siteGroups: Map<string, Command>,
 ): void {
   const seen = new Set<CliCommand>();
+  const browserSites = new Set<string>();
+
   for (const [, cmd] of getRegistry()) {
     if (seen.has(cmd)) continue;
     seen.add(cmd);
@@ -306,5 +309,25 @@ export function registerAllCommands(
       siteGroups.set(cmd.site, siteCmd);
     }
     registerCommandToProgram(siteCmd, cmd);
+    if (cmd.browser) browserSites.add(cmd.site);
+  }
+
+  // Inject `open` subcommand for every site that has at least one browser command.
+  for (const site of browserSites) {
+    const siteCmd = siteGroups.get(site);
+    if (!siteCmd) continue;
+    if (siteCmd.commands.some((c: Command) => c.name() === 'open')) continue;
+    siteCmd
+      .command('open')
+      .description('Bring the automation window to the foreground')
+      .action(async () => {
+        try {
+          await sendCommand('focus-window', { workspace: `site:${site}` });
+          console.log(chalk.green(`✓ ${site} automation window is now in the foreground.`));
+        } catch (err) {
+          console.error(chalk.red(`Failed to focus window: ${err instanceof Error ? err.message : err}`));
+          process.exitCode = EXIT_CODES.GENERIC_ERROR;
+        }
+      });
   }
 }

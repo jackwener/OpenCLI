@@ -18,7 +18,8 @@ export type Action =
   | 'bind-current'
   | 'network-capture-start'
   | 'network-capture-read'
-  | 'cdp';
+  | 'cdp'
+  | 'focus-window';
 
 export interface Command {
   /** Unique request ID */

@@ -126,6 +126,11 @@ export class Page extends BasePage {
     }
   }
 
+  /** Bring the automation window to the foreground. Creates one if none exists. */
+  async focusWindow(): Promise<void> {
+    await sendCommand('focus-window', { ...this._wsOpt() });
+  }
+
   async tabs(): Promise<unknown[]> {
     const result = await sendCommand('tabs', { op: 'list', ...this._wsOpt() });
     return Array.isArray(result) ? result : [];

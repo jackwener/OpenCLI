@@ -296,6 +296,8 @@ async function handleCommand(cmd: Command): Promise<Result> {
         return await handleNetworkCaptureStart(cmd, workspace);
       case 'network-capture-read':
         return await handleNetworkCaptureRead(cmd, workspace);
+      case 'focus-window':
+        return await handleFocusWindow(cmd, workspace);
       default:
         return { id: cmd.id, ok: false, error: `Unknown action: ${cmd.action}` };
     }
@@ -753,6 +755,24 @@ async function handleCloseWindow(cmd: Command, workspace: string): Promise<Resul
     automationSessions.delete(workspace);
   }
   return { id: cmd.id, ok: true, data: { closed: true } };
+}
+
+async function handleFocusWindow(cmd: Command, workspace: string): Promise<Result> {
+  const session = automationSessions.get(workspace);
+  if (session) {
+    try {
+      await chrome.windows.update(session.windowId, { focused: true });
+      return { id: cmd.id, ok: true, data: { focused: true } };
+    } catch {
+      // Window was closed externally — clean up and fall through to create
+      if (session.idleTimer) clearTimeout(session.idleTimer);
+      automationSessions.delete(workspace);
+    }
+  }
+  // No live session — create one and bring it to the foreground
+  const windowId = await getAutomationWindow(workspace);
+  await chrome.windows.update(windowId, { focused: true });
+  return { id: cmd.id, ok: true, data: { focused: true } };
 }
 
 async function handleSetFileInput(cmd: Command, workspace: string): Promise<Result> {
