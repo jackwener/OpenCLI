@@ -5,8 +5,9 @@
 ### comments
 - Purpose: 获取小红书笔记评论（仅主评论，不含楼中楼）
 - Args:
-  - `note-id`(required); Note ID or full /explore/<id> URL
-  - `limit`(optional; type: int; default: 20); Number of comments (max 50)
+  - `note-id`(required); Note ID or full URL (preserves xsec_token for access)
+  - `limit`(optional; type: int; default: 20); Number of top-level comments (max 50)
+  - `with-replies`(optional; type: boolean; default: false); Include nested replies (楼中楼)
 - Usage: `opencli xiaohongshu comments [options] -f json`
 
 ### creator-note-detail
@@ -41,7 +42,7 @@
 ### download
 - Purpose: Download images and videos from a Xiaohongshu note
 - Args:
-  - `note-id`(required); Note ID (from URL)
+  - `note-id`(required); Note ID, full URL, or short link
   - `output`(optional; default: './xiaohongshu-downloads'); Output directory
 - Usage: `opencli xiaohongshu download [options] -f json`
 
@@ -49,6 +50,12 @@
 - Purpose: Xiaohongshu home recommendation feed (via Pinia Store action)
 - Args: None
 - Usage: `opencli xiaohongshu feed [options] -f json`
+
+### note
+- Purpose: 获取小红书笔记正文和互动数据
+- Args:
+  - `note-id`(required); Note ID or full URL (preserves xsec_token for access)
+- Usage: `opencli xiaohongshu note [options] -f json`
 
 ### notifications
 - Purpose: Xiaohongshu notifications (mentions/likes/connections)
@@ -60,7 +67,7 @@
 - Args:
   - `title`(required); 笔记标题 (最多20字)
   - `content`(required); 笔记正文
-  - `images`(optional); 图片路径，逗号分隔，最多9张 (jpg/png/gif/webp)
+  - `images`(required); 图片路径，逗号分隔，最多9张 (jpg/png/gif/webp)
   - `topics`(optional); 话题标签，逗号分隔，不含 # 号
   - `draft`(optional; type: bool; default: false); 保存为草稿，不直接发布
 - Usage: `opencli xiaohongshu publish [options] -f json`

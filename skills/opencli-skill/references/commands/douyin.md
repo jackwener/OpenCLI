@@ -89,6 +89,15 @@
   - `caption`(optional; default: ''); 新的正文内容
 - Usage: `opencli douyin update [options] -f json`
 
+### user-videos
+- Purpose: 获取指定用户的视频列表（含下载地址和热门评论）
+- Args:
+  - `sec_uid`(required; type: string); 用户 sec_uid（URL 末尾部分）
+  - `limit`(optional; type: int; default: 20); 获取数量（最大 20）
+  - `with_comments`(optional; type: bool; default: true); 包含热门评论（默认: true）
+  - `comment_limit`(optional; type: int; default: 10); 每个视频获取多少条评论（最大 10）
+- Usage: `opencli douyin user-videos [options] -f json`
+
 ### videos
 - Purpose: Get creator video list
 - Args:

@@ -7,6 +7,13 @@
 - Args: None
 - Usage: `opencli instagram comment [options] -f json`
 
+### download
+- Purpose: Download images and videos from Instagram posts and reels
+- Args:
+  - `url`(required); Instagram post / reel / tv URL
+  - `path`(optional; default: path.join(os.homedir()); Download directory
+- Usage: `opencli instagram download [options] -f json`
+
 ### explore
 - Purpose: Instagram explore/discover trending posts
 - Args: None

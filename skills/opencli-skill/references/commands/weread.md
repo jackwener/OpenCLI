@@ -5,7 +5,7 @@
 ### book
 - Purpose: View book details on WeRead
 - Args:
-  - `book-id`(required); Book ID (numeric, from search or shelf results)
+  - `book-id`(required); Book ID from search or shelf results
 - Usage: `opencli weread book [options] -f json`
 
 ### highlights

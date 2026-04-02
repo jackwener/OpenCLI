@@ -21,6 +21,9 @@
 - Args:
   - `query`(required); Search query
   - `limit`(optional; type: int; default: 20); Max results (max 50)
+  - `type`(optional; default: ''); Filter type: shorts, video, channel, playlist
+  - `upload`(optional; default: ''); Upload date: hour, today, week, month, year
+  - `sort`(optional; default: ''); Sort by: relevance, date, views, rating
 - Usage: `opencli youtube search [options] -f json`
 
 ### transcript

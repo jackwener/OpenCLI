@@ -2,6 +2,13 @@
 
 ## Commands
 
+### comments
+- Purpose: 获取单只股票的讨论动态
+- Args:
+  - `symbol`(required); Stock symbol, e.g. SH600519, AAPL, or 00700
+  - `limit`(optional; type: int; default: 20); Number of discussion posts to return
+- Usage: `opencli xueqiu comments [options] -f json`
+
 ### earnings-date
 - Purpose: Get expected earnings release dates
 - Args: None
