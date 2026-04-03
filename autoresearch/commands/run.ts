@@ -64,7 +64,7 @@ async function modify(ctx: ModifyContext, config: AutoResearchConfig): Promise<s
       `claude -p --dangerously-skip-permissions --allowedTools "Bash(npm:*),Bash(npx:*),Bash(git:*),Read,Edit,Write,Glob,Grep" --output-format text --no-session-persistence "${prompt.replace(/"/g, '\\"')}"`,
       {
         cwd: ROOT,
-        timeout: 180_000,
+        timeout: 300_000,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
         env: process.env,
