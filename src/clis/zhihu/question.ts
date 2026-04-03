@@ -45,10 +45,10 @@ cli({
       if (result?.status === 401 || result?.status === 403) {
         throw new AuthRequiredError('www.zhihu.com', 'Failed to fetch question data from Zhihu');
       }
-      const detail = result?.status > 0 ? `with HTTP ${result.status}` : (result?.error ?? '');
+      const detail = result?.status > 0 ? ` with HTTP ${result.status}` : (result?.error ? `: ${result.error}` : '');
       throw new CliError(
         'FETCH_ERROR',
-        `Zhihu question answers request failed ${detail}`.trim(),
+        `Zhihu question answers request failed${detail}`,
         'Try again later or rerun with -v for more detail',
       );
     }

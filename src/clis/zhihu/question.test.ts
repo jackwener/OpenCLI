@@ -89,7 +89,7 @@ describe('zhihu question', () => {
       cmd!.func!(page, { id: '2021881398772981878', limit: 3 }),
     ).rejects.toMatchObject({
       code: 'FETCH_ERROR',
-      message: 'Zhihu question answers request failed Failed to fetch',
+      message: 'Zhihu question answers request failed: Failed to fetch',
     });
   });
 
