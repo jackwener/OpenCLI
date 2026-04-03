@@ -72,10 +72,15 @@ cli({
         throw new CommandExecutionError('Failed to attach images. The extension may not support file input.');
       }
 
-      // Poll until image upload completes (tweet button becomes enabled) or timeout
+      // Poll until image upload completes (attachments rendered & tweet button enabled) or timeout
+      const imageCount = absPaths.length;
       const uploaded = await page.evaluate(`(async () => {
-          for (let i = 0; i < 20; i++) {
+          for (let i = 0; i < 30; i++) {
               await new Promise(r => setTimeout(r, 1000));
+              const container = document.querySelector('[data-testid="attachments"]');
+              if (!container) continue;
+              const groups = container.querySelectorAll('[role="group"]');
+              if (groups.length !== ${imageCount}) continue;
               const btn = document.querySelector('[data-testid="tweetButton"]');
               if (btn && !btn.disabled) return true;
               const inlineBtn = document.querySelector('[data-testid="tweetButtonInline"]');
@@ -85,7 +90,7 @@ cli({
       })()`);
 
       if (!uploaded) {
-        return [{ status: 'failed', message: 'Image upload timed out (20s).', text: kwargs.text }];
+        return [{ status: 'failed', message: 'Image upload timed out (30s).', text: kwargs.text }];
       }
     }
 
