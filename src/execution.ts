@@ -158,8 +158,9 @@ export async function executeCommand(
       let cdpEndpoint: string | undefined;
 
       if (electron) {
-        // Electron apps: auto-detect, prompt restart if needed, launch with CDP
-        cdpEndpoint = await resolveElectronEndpoint(cmd.site);
+        // Electron apps: respect manual endpoint override, then try auto-detect
+        cdpEndpoint = process.env.OPENCLI_CDP_ENDPOINT
+          ?? await resolveElectronEndpoint(cmd.site);
       } else {
         // Browser Bridge: fail-fast when daemon is up but extension is missing.
         // 300ms timeout avoids a full 2s wait on cold-start.

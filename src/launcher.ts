@@ -46,6 +46,7 @@ export function probeCDP(port: number, timeoutMs: number = PROBE_TIMEOUT_MS): Pr
  * Uses pgrep on macOS/Linux.
  */
 export function detectProcess(processName: string): boolean {
+  if (process.platform === 'win32') return false; // pgrep not available on Windows
   try {
     execFileSync('pgrep', ['-x', processName], { encoding: 'utf-8', stdio: 'pipe' });
     return true;
@@ -58,6 +59,7 @@ export function detectProcess(processName: string): boolean {
  * Kill a process by name. Sends SIGTERM first, then SIGKILL after grace period.
  */
 export function killProcess(processName: string): void {
+  if (process.platform === 'win32') return; // pkill not available on Windows
   try {
     execFileSync('pkill', ['-x', processName], { stdio: 'pipe' });
   } catch {
@@ -138,7 +140,17 @@ export async function resolveElectronEndpoint(site: string): Promise<string> {
     return endpoint;
   }
 
-  // Step 2: Running without CDP?
+  // Step 2: Running without CDP? (process detection requires Unix tools)
+  if (process.platform !== 'darwin' && process.platform !== 'linux') {
+    throw new CommandExecutionError(
+      `${label} is not reachable on CDP port ${port}.`,
+      `Auto-launch is not yet supported on ${process.platform}.\n` +
+      `Start ${label} manually with --remote-debugging-port=${port}, then either:\n` +
+      `  • Set OPENCLI_CDP_ENDPOINT=http://127.0.0.1:${port}\n` +
+      `  • Or just re-run the command once ${label} is listening on port ${port}.`,
+    );
+  }
+
   const isRunning = detectProcess(processName);
   if (isRunning) {
     log.debug(`[launcher] ${label} is running but CDP not available`);
