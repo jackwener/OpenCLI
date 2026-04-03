@@ -152,5 +152,21 @@
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-jsonplaceholder',\n  name: 'photos',\n  description: 'JSONPlaceholder photos',\n  domain: 'jsonplaceholder.typicode.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of photos' },\n  ],\n  columns: ['id', 'albumId', 'title'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://jsonplaceholder.typicode.com/photos');\n    const photos = await res.json();\n    return photos.slice(0, limit).map((p: any) => ({ id: p.id, albumId: p.albumId, title: p.title }));\n  },\n});\n",
     "judge": { "type": "arrayMinLength", "minLength": 3 },
     "note": "PUBLIC strategy: JSONPlaceholder photos — same base domain as posts/users/todos/comments/albums, different endpoint"
+  },
+  {
+    "name": "hn-best",
+    "site": "test-hn",
+    "command": "best",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-hn',\n  name: 'best',\n  description: 'HackerNews best stories',\n  domain: 'news.ycombinator.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of stories' },\n  ],\n  columns: ['rank', 'title', 'score'],\n  func: async (_page, kwargs) => {\n    const limit = Math.min(kwargs.limit ?? 5, 10);\n    const res = await fetch('https://hacker-news.firebaseio.com/v0/beststories.json');\n    const ids = await res.json();\n    const items = await Promise.all(ids.slice(0, limit).map(async (id: number) => {\n      const r = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);\n      return r.json();\n    }));\n    return items.map((item: any, i: number) => ({\n      rank: i + 1, title: item.title, score: item.score ?? 0,\n    }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "note": "PUBLIC strategy: HackerNews best stories using same Firebase API as hn-top/hn-ask/hn-new/hn-show"
+  },
+  {
+    "name": "hn-jobs",
+    "site": "test-hn",
+    "command": "jobs",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-hn',\n  name: 'jobs',\n  description: 'HackerNews job stories',\n  domain: 'news.ycombinator.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of jobs' },\n  ],\n  columns: ['rank', 'title', 'url'],\n  func: async (_page, kwargs) => {\n    const limit = Math.min(kwargs.limit ?? 5, 10);\n    const res = await fetch('https://hacker-news.firebaseio.com/v0/jobstories.json');\n    const ids = await res.json();\n    const items = await Promise.all(ids.slice(0, limit).map(async (id: number) => {\n      const r = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);\n      return r.json();\n    }));\n    return items.map((item: any, i: number) => ({\n      rank: i + 1, title: item.title, url: item.url ?? '',\n    }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "note": "PUBLIC strategy: HackerNews job listings using same Firebase API as other HN adapters"
   }
 ]
