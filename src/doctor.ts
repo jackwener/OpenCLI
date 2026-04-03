@@ -57,10 +57,12 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
 export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
   // Try to auto-start daemon if it's not running, so we show accurate status.
   let initialStatus = await checkDaemonStatus();
+  let inferredBrowserName: string | undefined;
   if (!initialStatus.running) {
     try {
       const bridge = new BrowserBridge();
       await bridge.connect({ timeout: 5 });
+      inferredBrowserName = bridge.inferredBrowserName ?? undefined;
       await bridge.close();
     } catch {
       // Auto-start failed; we'll report it below.
@@ -72,6 +74,9 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   let connectivity: ConnectivityResult | undefined;
   if (opts.live) {
     connectivity = await checkConnectivity();
+    if (connectivity.ok && !connectivity.browserName && inferredBrowserName) {
+      connectivity.browserName = inferredBrowserName;
+    }
   }
 
   const status = await checkDaemonStatus();

@@ -148,4 +148,17 @@ describe('doctor report rendering', () => {
 
     expect(report.connectivity).toEqual(expect.objectContaining({ ok: true, browserName: 'Edge' }));
   });
+
+  it('preserves inferred browser from auto-start when live connectivity reuses an existing connection', async () => {
+    mockCheckDaemonStatus
+      .mockResolvedValueOnce({ running: false, extensionConnected: false })
+      .mockResolvedValueOnce({ running: true, extensionConnected: true });
+    mockConnect.mockResolvedValue({ evaluate: vi.fn().mockResolvedValue(2) });
+    mockClose.mockResolvedValue(undefined);
+    mockInferredBrowserName.value = 'Edge';
+
+    const report = await runBrowserDoctor({ live: true });
+
+    expect(report.connectivity).toEqual(expect.objectContaining({ ok: true, browserName: 'Edge' }));
+  });
 });
