@@ -829,5 +829,71 @@
     "judge": {
       "type": "nonEmpty"
     }
+  },
+  {
+    "_comment": "=== Agent-Style: state + click + type (no eval for interaction) ==="
+  },
+  {
+    "name": "v2ex-agent-click-first-topic",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate state",
+      "opencli operate eval \"(function(){var links=document.querySelectorAll('[data-opencli-ref]');for(var i=0;i<links.length;i++){if(links[i].pathname&&links[i].pathname.startsWith('/t/'))return links[i].getAttribute('data-opencli-ref');}return 'none';})()\""
+    ],
+    "judge": {
+      "type": "matchesPattern",
+      "pattern": "\\d+"
+    },
+    "note": "Finds the index of first topic link via data-opencli-ref"
+  },
+  {
+    "name": "v2ex-agent-type-search",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate state",
+      "opencli operate type 3 TypeScript",
+      "opencli operate get value 3"
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "TypeScript"
+    },
+    "note": "Types into search box using state index"
+  },
+  {
+    "name": "v2ex-agent-click-navigate-back",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate state",
+      "opencli operate eval \"(function(){var links=document.querySelectorAll('[data-opencli-ref]');for(var i=0;i<links.length;i++){if(links[i].pathname&&links[i].pathname.startsWith('/t/')){var ref=links[i].getAttribute('data-opencli-ref');document.querySelector('[data-opencli-ref=\\\"'+ref+'\\\"]').click();return 'clicked '+ref;}}return 'none';})()\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"document.title\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "v2ex-agent-state-has-interactive",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate state"
+    ],
+    "judge": {
+      "type": "matchesPattern",
+      "pattern": "interactive: \\d+"
+    }
+  },
+  {
+    "name": "v2ex-agent-state-after-scroll",
+    "steps": [
+      "opencli operate open https://v2ex.com/go/programmer",
+      "opencli operate scroll down --amount 800",
+      "opencli operate state"
+    ],
+    "judge": {
+      "type": "matchesPattern",
+      "pattern": "page_scroll: [\\d.]+↑"
+    }
   }
 ]
