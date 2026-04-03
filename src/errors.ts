@@ -91,7 +91,7 @@ export class AuthRequiredError extends CliError {
     super(
       'AUTH_REQUIRED',
       message ?? `Not logged in to ${domain}`,
-      `Please open Chrome and log in to https://${domain}`,
+      `Please open Chrome or Chromium and log in to https://${domain}`,
       EXIT_CODES.NOPERM,
     );
     this.domain = domain;

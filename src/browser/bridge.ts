@@ -69,8 +69,8 @@ export class BrowserBridge implements IBrowserFactory {
     // Daemon running but no extension — wait for extension with progress
     if (status !== null) {
       if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
-        process.stderr.write('⏳ Waiting for Chrome extension to connect...\n');
-        process.stderr.write('   Make sure Chrome is open and the OpenCLI extension is enabled.\n');
+        process.stderr.write('⏳ Waiting for Chrome/Chromium extension to connect...\n');
+        process.stderr.write('   Make sure Chrome or Chromium is open and the OpenCLI extension is enabled.\n');
       }
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
@@ -79,7 +79,7 @@ export class BrowserBridge implements IBrowserFactory {
       }
       throw new Error(
         'Daemon is running but the Browser Extension is not connected.\n' +
-        'Please install and enable the opencli Browser Bridge extension in Chrome.',
+        'Please install and enable the opencli Browser Bridge extension in Chrome or Chromium.',
       );
     }
 
@@ -116,7 +116,7 @@ export class BrowserBridge implements IBrowserFactory {
     if ((await fetchDaemonStatus()) !== null) {
       throw new Error(
         'Daemon is running but the Browser Extension is not connected.\n' +
-        'Please install and enable the opencli Browser Bridge extension in Chrome.',
+        'Please install and enable the opencli Browser Bridge extension in Chrome or Chromium.',
       );
     }
 

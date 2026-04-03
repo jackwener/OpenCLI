@@ -209,7 +209,7 @@ async function renderError(err: unknown, cmdName: string, verbose: boolean): Pro
   if (err instanceof AuthRequiredError) {
     console.error(chalk.red(`🔒 Not logged in to ${err.domain}`));
     // Respect custom hints set by the adapter; fall back to generic guidance.
-    console.error(chalk.yellow(`→ ${err.hint ?? `Open Chrome and log in to https://${err.domain}, then retry.`}`));
+    console.error(chalk.yellow(`→ ${err.hint ?? `Open Chrome or Chromium and log in to https://${err.domain}, then retry.`}`));
     return;
   }
 
@@ -270,7 +270,7 @@ async function renderError(err: unknown, cmdName: string, verbose: boolean): Pro
 
   if (kind === 'auth') {
     console.error(chalk.red(`🔒 ${msg}`));
-    console.error(chalk.yellow('→ Open Chrome, log in to the target site, then retry.'));
+    console.error(chalk.yellow('→ Open Chrome or Chromium, log in to the target site, then retry.'));
     return;
   }
   if (kind === 'http') {

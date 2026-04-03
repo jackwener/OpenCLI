@@ -169,7 +169,7 @@ export async function executeCommand(
             'Browser Bridge extension not connected',
             'Install the Browser Bridge:\n' +
             '  1. Download: https://github.com/jackwener/opencli/releases\n' +
-            '  2. chrome://extensions → Developer Mode → Load unpacked\n' +
+            '  2. In Chrome or Chromium, open chrome://extensions → Developer Mode → Load unpacked\n' +
             '  Then run: opencli doctor',
           );
         }
