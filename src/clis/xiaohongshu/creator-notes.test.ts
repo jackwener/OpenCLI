@@ -26,8 +26,6 @@ function createPageMock(evaluateResult: any, interceptedRequests: any[] = []): I
     getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
     wait: vi.fn().mockResolvedValue(undefined),
     tabs: vi.fn().mockResolvedValue([]),
-    closeTab: vi.fn().mockResolvedValue(undefined),
-    newTab: vi.fn().mockResolvedValue(undefined),
     selectTab: vi.fn().mockResolvedValue(undefined),
     networkRequests: vi.fn().mockResolvedValue([]),
     consoleMessages: vi.fn().mockResolvedValue([]),
@@ -46,7 +44,7 @@ describe('xiaohongshu creator-notes', () => {
     const bodyText = `笔记管理
 全部笔记(366)
 已发布
-神雕侠侣战力金字塔
+测试笔记一
 发布于 2025年12月04日 19:45
 148208
 324
@@ -58,7 +56,7 @@ describe('xiaohongshu creator-notes', () => {
 编辑
 删除
 仅自己可见
-终于等到了！！！
+测试笔记二
 发布于 2026年03月18日 12:39
 10
 0
@@ -70,7 +68,7 @@ describe('xiaohongshu creator-notes', () => {
     expect(parseCreatorNotesText(bodyText)).toEqual([
       {
         id: '',
-        title: '神雕侠侣战力金字塔',
+        title: '测试笔记一',
         date: '2025年12月04日 19:45',
         views: 148208,
         likes: 2279,
@@ -80,7 +78,7 @@ describe('xiaohongshu creator-notes', () => {
       },
       {
         id: '',
-        title: '终于等到了！！！',
+        title: '测试笔记二',
         date: '2026年03月18日 12:39',
         views: 10,
         likes: 0,
@@ -106,7 +104,7 @@ describe('xiaohongshu creator-notes', () => {
 4
 5
 权限设置`,
-        html: '&quot;noteId&quot;:&quot;69ba940500000000200384db&quot;',
+        html: '&quot;noteId&quot;:&quot;aaaaaaaaaaaaaaaaaaaaaaaa&quot;',
       },
     ]);
 
@@ -116,14 +114,14 @@ describe('xiaohongshu creator-notes', () => {
     expect(result).toEqual([
       {
         rank: 1,
-        id: '69ba940500000000200384db',
+        id: 'aaaaaaaaaaaaaaaaaaaaaaaa',
         title: '示例笔记',
         date: '2026年03月19日 12:00',
         views: 10,
         likes: 3,
         collects: 4,
         comments: 2,
-        url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=69ba940500000000200384db',
+        url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=aaaaaaaaaaaaaaaaaaaaaaaa',
       },
     ]);
   });
@@ -136,8 +134,8 @@ describe('xiaohongshu creator-notes', () => {
       undefined,
       [
         {
-          id: '693155fc000000000d03b42c',
-          title: '神雕侠侣战力金字塔',
+          id: 'bbbbbbbbbbbbbbbbbbbbbbbb',
+          title: '测试笔记一',
           date: '2025年12月04日 19:45',
           metrics: [148284, 319, 2280, 466, 33],
         },
@@ -149,14 +147,14 @@ describe('xiaohongshu creator-notes', () => {
     expect(result).toEqual([
       {
         rank: 1,
-        id: '693155fc000000000d03b42c',
-        title: '神雕侠侣战力金字塔',
+        id: 'bbbbbbbbbbbbbbbbbbbbbbbb',
+        title: '测试笔记一',
         date: '2025年12月04日 19:45',
         views: 148284,
         likes: 2280,
         collects: 466,
         comments: 319,
-        url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=693155fc000000000d03b42c',
+        url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=bbbbbbbbbbbbbbbbbbbbbbbb',
       },
     ]);
   });
@@ -169,8 +167,8 @@ describe('xiaohongshu creator-notes', () => {
       data: {
         note_infos: [
           {
-            id: '69ba940500000000200384db',
-            title: '一张图讲清 诡秘之主·耕种者途径',
+            id: 'cccccccccccccccccccccccc',
+            title: '示例内容复盘',
             post_time: new Date('2026-03-18T20:01:00+08:00').getTime(),
             read_count: 521,
             like_count: 18,
@@ -187,28 +185,28 @@ describe('xiaohongshu creator-notes', () => {
     expect(result).toEqual([
       {
         rank: 1,
-        id: '69ba940500000000200384db',
-        title: '一张图讲清 诡秘之主·耕种者途径',
+        id: 'cccccccccccccccccccccccc',
+        title: '示例内容复盘',
         date: '2026年03月18日 20:01',
         views: 521,
         likes: 18,
         collects: 10,
         comments: 7,
-        url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=69ba940500000000200384db',
+        url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=cccccccccccccccccccccccc',
       },
     ]);
   });
 
   it('extracts note ids from creator note-manager html', () => {
     const html = `
-      <div>&quot;noteId&quot;:&quot;69ba940500000000200384db&quot;</div>
-      <div>&quot;noteId&quot;:&quot;69ba2c98000000001a026e0f&quot;</div>
-      <div>&quot;noteId&quot;:&quot;69ba940500000000200384db&quot;</div>
+      <div>&quot;noteId&quot;:&quot;aaaaaaaaaaaaaaaaaaaaaaaa&quot;</div>
+      <div>&quot;noteId&quot;:&quot;dddddddddddddddddddddddd&quot;</div>
+      <div>&quot;noteId&quot;:&quot;aaaaaaaaaaaaaaaaaaaaaaaa&quot;</div>
     `;
 
     expect(parseCreatorNoteIdsFromHtml(html)).toEqual([
-      '69ba940500000000200384db',
-      '69ba2c98000000001a026e0f',
+      'aaaaaaaaaaaaaaaaaaaaaaaa',
+      'dddddddddddddddddddddddd',
     ]);
   });
 });

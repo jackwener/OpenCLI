@@ -14,8 +14,6 @@ function createPageMock(evaluateResult: unknown): IPage {
     getFormState: vi.fn().mockResolvedValue({}),
     wait: vi.fn().mockResolvedValue(undefined),
     tabs: vi.fn().mockResolvedValue([]),
-    closeTab: vi.fn().mockResolvedValue(undefined),
-    newTab: vi.fn().mockResolvedValue(undefined),
     selectTab: vi.fn().mockResolvedValue(undefined),
     networkRequests: vi.fn().mockResolvedValue([]),
     consoleMessages: vi.fn().mockResolvedValue([]),

@@ -86,7 +86,7 @@ cli({
   domain: 'www.mysite.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'query', required: true, help: 'Search query' },
+    { name: 'query', positional: true, required: true, help: 'Search query' },
     { name: 'limit', type: 'int', default: 10, help: 'Max results' },
   ],
   columns: ['title', 'url', 'date'],

@@ -1,7 +1,7 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, NOTEBOOKLM_SITE } from './shared.js';
-import { ensureNotebooklmNotebookBinding, getNotebooklmPageState } from './utils.js';
+import { getNotebooklmPageState } from './utils.js';
 
 cli({
   site: NOTEBOOKLM_SITE,
@@ -14,7 +14,6 @@ cli({
   args: [],
   columns: ['status', 'login', 'page', 'url', 'title', 'notebooks'],
   func: async (page: IPage) => {
-    await ensureNotebooklmNotebookBinding(page);
     const currentUrl = await page.getCurrentUrl?.().catch(() => null);
     if (!currentUrl || !currentUrl.includes(NOTEBOOKLM_DOMAIN)) {
       await page.goto(NOTEBOOKLM_HOME_URL);

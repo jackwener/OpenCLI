@@ -1,5 +1,5 @@
 /**
- * Aria snapshot formatter: parses Playwright MCP snapshot text into clean format.
+ * Aria snapshot formatter: parses snapshot text into clean format.
  *
  * 4-pass pipeline:
  * 1. Parse & filter: strip annotations, metadata, noise, ads, boilerplate subtrees
@@ -62,10 +62,10 @@ const BOILERPLATE_LABELS = [
 /**
  * Parse role and text from a trimmed snapshot line.
  * Handles quoted labels and trailing text after colon correctly,
- * including lines wrapped in single quotes by Playwright.
+ * including lines wrapped in single quotes.
  */
 function parseLine(trimmed: string): { role: string; text: string; hasText: boolean; trailingText: string } {
-  // Unwrap outer single quotes if present (Playwright wraps lines with special chars)
+  // Unwrap outer single quotes if present (snapshot wraps lines with special chars)
   let line = trimmed;
   if (line.startsWith("'") && line.endsWith("':")) {
     line = line.slice(1, -2) + ':';
@@ -107,7 +107,7 @@ function parseLine(trimmed: string): { role: string; text: string; hasText: bool
 
 /**
  * Strip ALL bracket annotations from a content line, preserving quoted strings.
- * Handles both double-quoted and outer single-quoted lines from Playwright.
+ * Handles both double-quoted and outer single-quoted lines.
  */
 function stripAnnotations(content: string): string {
   // Unwrap outer single quotes first

@@ -8,7 +8,8 @@
 |---------|-------------|
 | `opencli notebooklm status` | Check whether NotebookLM is reachable in the current Chrome session |
 | `opencli notebooklm list` | List notebooks visible from the NotebookLM home page |
-| `opencli notebooklm current` | Show metadata for the currently opened notebook tab |
+| `opencli notebooklm open <notebook>` | Open one notebook in the NotebookLM automation workspace by id or URL |
+| `opencli notebooklm current` | Show metadata for the currently opened notebook in the automation workspace |
 | `opencli notebooklm get` | Get richer metadata for the current notebook |
 | `opencli notebooklm source-list` | List sources in the current notebook |
 | `opencli notebooklm source-get <source>` | Resolve one source in the current notebook by id or title |
@@ -17,15 +18,14 @@
 | `opencli notebooklm history` | List conversation history threads for the current notebook |
 | `opencli notebooklm note-list` | List Studio notes visible in the current notebook |
 | `opencli notebooklm notes-get <note>` | Read the currently visible Studio note by title |
-| `opencli notebooklm bind-current` | Bind the current active NotebookLM tab into the `site:notebooklm` workspace |
 | `opencli notebooklm summary` | Read the current notebook summary |
 
 ## Compatibility Aliases
 
 | Alias | Canonical command |
 |-------|-------------------|
+| `opencli notebooklm select <notebook>` | `opencli notebooklm open <notebook>` |
 | `opencli notebooklm metadata` | `opencli notebooklm get` |
-| `opencli notebooklm use` | `opencli notebooklm bind-current` |
 | `opencli notebooklm notes-list` | `opencli notebooklm note-list` |
 
 ## Positioning
@@ -43,6 +43,7 @@ The current milestone focuses on a stable NotebookLM read surface in desktop Chr
 ```bash
 opencli notebooklm status
 opencli notebooklm list -f json
+opencli notebooklm open nb-demo -f json
 opencli notebooklm current -f json
 opencli notebooklm metadata -f json
 opencli notebooklm source-list -f json
@@ -53,7 +54,6 @@ opencli notebooklm history -f json
 opencli notebooklm notes-list -f json
 opencli notebooklm notes-get "Draft note" -f json
 opencli notebooklm summary -f json
-opencli notebooklm use -f json
 ```
 
 ## Prerequisites
@@ -64,6 +64,6 @@ opencli notebooklm use -f json
 
 ## Notes
 
-- Notebook-oriented commands assume you already have the target notebook open in Chrome, or that `opencli notebooklm use` can bind an existing notebook tab into `site:notebooklm`.
+- Notebook-oriented commands run in OpenCLI's owned NotebookLM automation workspace/window. Use `opencli notebooklm open <notebook>` first to choose the current notebook for follow-up commands.
 - `list`, `get`, `source-list`, `history`, `source-fulltext`, and `source-guide` prefer NotebookLM RPC paths and fall back only when the richer path is unavailable.
 - `notes-get` currently reads note content only from the visible Studio note editor; if the note is listed but not open, open it in NotebookLM first and then retry.

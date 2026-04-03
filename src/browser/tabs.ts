@@ -21,12 +21,12 @@ export function extractTabEntries(raw: unknown): Array<{ index: number; identity
       .map(line => line.trim())
       .filter(Boolean)
       .map(line => {
-        // Match actual Playwright MCP format: "- 0: (current) [title](url)"  or  "- 1: [title](url)"
-        const mcpMatch = line.match(/^-\s+(\d+):\s*(.*)$/);
-        if (mcpMatch) {
+        // Match tab list format: "- 0: (current) [title](url)"  or  "- 1: [title](url)"
+        const tabMatch = line.match(/^-\s+(\d+):\s*(.*)$/);
+        if (tabMatch) {
           return {
-            index: parseInt(mcpMatch[1], 10),
-            identity: mcpMatch[2].trim() || `tab-${mcpMatch[1]}`,
+            index: parseInt(tabMatch[1], 10),
+            identity: tabMatch[2].trim() || `tab-${tabMatch[1]}`,
           };
         }
         // Legacy format: "Tab 0 ..."

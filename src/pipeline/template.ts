@@ -172,6 +172,10 @@ export function resolvePath(pathStr: string, ctx: RenderContext): unknown {
 /**
  * Evaluate arbitrary JS expressions as a last-resort fallback.
  * Runs inside a `node:vm` sandbox with dynamic code generation disabled.
+ *
+ * Compiled functions are cached by expression string to avoid re-creating
+ * VM contexts on every invocation — critical for loops where the same
+ * expression is evaluated hundreds of times.
  */
 const FORBIDDEN_EXPR_PATTERNS = /\b(constructor|__proto__|prototype|globalThis|process|require|import|eval)\b/;
 
@@ -189,6 +193,25 @@ function sanitizeContext(obj: unknown): unknown {
   }
 }
 
+/** LRU-bounded cache for compiled VM scripts — prevents unbounded memory growth. */
+const MAX_VM_CACHE_SIZE = 256;
+const _vmCache = new Map<string, vm.Script>();
+
+function getOrCompileScript(expr: string): vm.Script {
+  let script = _vmCache.get(expr);
+  if (script) return script;
+
+  // Evict oldest entry when cache is full
+  if (_vmCache.size >= MAX_VM_CACHE_SIZE) {
+    const firstKey = _vmCache.keys().next().value;
+    if (firstKey !== undefined) _vmCache.delete(firstKey);
+  }
+
+  script = new vm.Script(`(${expr})`);
+  _vmCache.set(expr, script);
+  return script;
+}
+
 function evalJsExpr(expr: string, ctx: RenderContext): unknown {
   // Guard against absurdly long expressions that could indicate injection.
   if (expr.length > 2000) return undefined;
@@ -202,8 +225,8 @@ function evalJsExpr(expr: string, ctx: RenderContext): unknown {
   const index = ctx.index ?? 0;
 
   try {
-    return vm.runInNewContext(
-      `(${expr})`,
+    const script = getOrCompileScript(expr);
+    const sandbox = vm.createContext(
       {
         args,
         item,
@@ -220,13 +243,13 @@ function evalJsExpr(expr: string, ctx: RenderContext): unknown {
         Date,
       },
       {
-        timeout: 50,
-        contextCodeGeneration: {
+        codeGeneration: {
           strings: false,
           wasm: false,
         },
       },
     );
+    return script.runInContext(sandbox, { timeout: 50 });
   } catch {
     return undefined;
   }

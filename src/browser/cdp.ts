@@ -11,25 +11,14 @@
 import { WebSocket, type RawData } from 'ws';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import type { BrowserCookie, IPage, ScreenshotOptions, SnapshotOptions, WaitOptions } from '../types.js';
+import type { BrowserCookie, IPage, ScreenshotOptions } from '../types.js';
 import type { IBrowserFactory } from '../runtime.js';
 import { wrapForEval } from './utils.js';
-import { generateSnapshotJs, scrollToRefJs, getFormStateJs } from './dom-snapshot.js';
 import { generateStealthJs } from './stealth.js';
-import {
-  clickJs,
-  typeTextJs,
-  pressKeyJs,
-  waitForTextJs,
-  scrollJs,
-  autoScrollJs,
-  networkRequestsJs,
-  waitForDomStableJs,
-  waitForCaptureJs,
-  waitForSelectorJs,
-} from './dom-helpers.js';
+import { waitForDomStableJs } from './dom-helpers.js';
 import { isRecord, saveBase64ToFile } from '../utils.js';
 import { getAllElectronApps } from '../electron-apps.js';
+import { BasePage } from './base-page.js';
 
 export interface CDPTarget {
   type?: string;
@@ -174,10 +163,11 @@ export class CDPBridge implements IBrowserFactory {
   }
 }
 
-class CDPPage implements IPage {
+class CDPPage extends BasePage {
   private _pageEnabled = false;
-  private _lastUrl: string | null = null;
-  constructor(private bridge: CDPBridge) {}
+  constructor(private bridge: CDPBridge) {
+    super();
+  }
 
   async goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number }): Promise<void> {
     if (!this._pageEnabled) {
@@ -216,78 +206,6 @@ class CDPPage implements IPage {
       : cookies;
   }
 
-  async snapshot(opts: SnapshotOptions = {}): Promise<unknown> {
-    const snapshotJs = generateSnapshotJs({
-      viewportExpand: opts.viewportExpand ?? 800,
-      maxDepth: Math.max(1, Math.min(Number(opts.maxDepth) || 50, 200)),
-      interactiveOnly: opts.interactive ?? false,
-      maxTextLength: opts.maxTextLength ?? 120,
-      includeScrollInfo: true,
-      bboxDedup: true,
-    });
-    return this.evaluate(snapshotJs);
-  }
-
-  async click(ref: string): Promise<void> {
-    await this.evaluate(clickJs(ref));
-  }
-
-  async typeText(ref: string, text: string): Promise<void> {
-    await this.evaluate(typeTextJs(ref, text));
-  }
-
-  async pressKey(key: string): Promise<void> {
-    await this.evaluate(pressKeyJs(key));
-  }
-
-  async scrollTo(ref: string): Promise<unknown> {
-    return this.evaluate(scrollToRefJs(ref));
-  }
-
-  async getFormState(): Promise<Record<string, unknown>> {
-    return (await this.evaluate(getFormStateJs())) as Record<string, unknown>;
-  }
-
-  async wait(options: number | WaitOptions): Promise<void> {
-    if (typeof options === 'number') {
-      if (options >= 1) {
-        try {
-          const maxMs = options * 1000;
-          await this.evaluate(waitForDomStableJs(maxMs, Math.min(500, maxMs)));
-          return;
-        } catch {
-          // Fallback: fixed sleep
-        }
-      }
-      await new Promise((resolve) => setTimeout(resolve, options * 1000));
-      return;
-    }
-    if (typeof options.time === 'number') {
-      const waitTime = options.time;
-      await new Promise((resolve) => setTimeout(resolve, waitTime * 1000));
-      return;
-    }
-    if (options.selector) {
-      const timeout = (options.timeout ?? 10) * 1000;
-      await this.evaluate(waitForSelectorJs(options.selector, timeout));
-      return;
-    }
-    if (options.text) {
-      const timeout = (options.timeout ?? 30) * 1000;
-      await this.evaluate(waitForTextJs(options.text, timeout));
-    }
-  }
-
-  async scroll(direction: string = 'down', amount: number = 500): Promise<void> {
-    await this.evaluate(scrollJs(direction, amount));
-  }
-
-  async autoScroll(options?: { times?: number; delayMs?: number }): Promise<void> {
-    const times = options?.times ?? 3;
-    const delayMs = options?.delayMs ?? 2000;
-    await this.evaluate(autoScrollJs(times, delayMs));
-  }
-
   async screenshot(options: ScreenshotOptions = {}): Promise<string> {
     const result = await this.bridge.send('Page.captureScreenshot', {
       format: options.format ?? 'png',
@@ -301,62 +219,12 @@ class CDPPage implements IPage {
     return base64;
   }
 
-  async networkRequests(includeStatic: boolean = false): Promise<unknown[]> {
-    const result = await this.evaluate(networkRequestsJs(includeStatic));
-    return Array.isArray(result) ? result : [];
-  }
-
   async tabs(): Promise<unknown[]> {
     return [];
   }
 
-  async closeTab(_index?: number): Promise<void> {
-    // Not supported in direct CDP mode
-  }
-
-  async newTab(): Promise<void> {
-    await this.bridge.send('Target.createTarget', { url: 'about:blank' });
-  }
-
   async selectTab(_index: number): Promise<void> {
     // Not supported in direct CDP mode
-  }
-
-  async consoleMessages(_level?: string): Promise<unknown[]> {
-    return [];
-  }
-
-  async getCurrentUrl(): Promise<string | null> {
-    if (this._lastUrl) return this._lastUrl;
-    try {
-      const current = await this.evaluate('window.location.href');
-      if (typeof current === 'string' && current) {
-        this._lastUrl = current;
-        return current;
-      }
-    } catch {
-      // Best-effort: direct CDP sessions may not have a ready page yet.
-    }
-    return null;
-  }
-
-  async installInterceptor(pattern: string): Promise<void> {
-    const { generateInterceptorJs } = await import('../interceptor.js');
-    await this.evaluate(generateInterceptorJs(JSON.stringify(pattern), {
-      arrayName: '__opencli_xhr',
-      patchGuard: '__opencli_interceptor_patched',
-    }));
-  }
-
-  async getInterceptedRequests(): Promise<unknown[]> {
-    const { generateReadInterceptedJs } = await import('../interceptor.js');
-    const result = await this.evaluate(generateReadInterceptedJs('__opencli_xhr'));
-    return Array.isArray(result) ? result : [];
-  }
-
-  async waitForCapture(timeout: number = 10): Promise<void> {
-    const maxMs = timeout * 1000;
-    await this.evaluate(waitForCaptureJs(maxMs));
   }
 }
 

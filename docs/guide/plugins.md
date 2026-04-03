@@ -243,6 +243,7 @@ On startup, if both `my-command.ts` and `my-command.js` exist, the `.js` version
 | [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | YAML | GitHub Trending repositories |
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | TS | Multi-platform trending aggregator (zhihu, weibo, bilibili, v2ex, stackoverflow, reddit, linux-do) |
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | YAML | 稀土掘金 (Juejin) hot articles, categories, and article feed |
+| [opencli-plugin-rubysec](https://github.com/nullptrKey/opencli-plugin-rubysec) | TS | RubySec advisory archive and advisory article reader |
 
 ## Troubleshooting
 

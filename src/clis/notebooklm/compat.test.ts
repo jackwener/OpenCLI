@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { getRegistry } from '../../registry.js';
-import './bind-current.js';
 import './get.js';
 import './note-list.js';
+import './open.js';
 
 describe('notebooklm compatibility aliases', () => {
-  it('registers use as a compatibility alias for bind-current', () => {
-    expect(getRegistry().get('notebooklm/use')).toBe(getRegistry().get('notebooklm/bind-current'));
+  it('registers select as a compatibility alias for open', () => {
+    expect(getRegistry().get('notebooklm/select')).toBe(getRegistry().get('notebooklm/open'));
   });
 
   it('registers metadata as a compatibility alias for get', () => {

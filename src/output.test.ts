@@ -89,4 +89,21 @@ describe('render', () => {
     const calls = log.mock.calls.map(c => c[0]);
     expect(calls[1]).toBe('test,');
   });
+
+  it('renders single-field rows in plain mode as the bare value', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    render([{ response: 'Gemini says hi' }], { fmt: 'plain' });
+    expect(log).toHaveBeenCalledWith('Gemini says hi');
+  });
+
+  it('renders multi-field rows in plain mode as key-value lines', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    render([{ status: 'ok', file: '~/tmp/a.png', link: 'https://example.com' }], { fmt: 'plain' });
+    const calls = log.mock.calls.map(c => c[0]);
+    expect(calls).toEqual([
+      'status: ok',
+      'file: ~/tmp/a.png',
+      'link: https://example.com',
+    ]);
+  });
 });

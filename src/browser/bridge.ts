@@ -9,7 +9,7 @@ import * as fs from 'node:fs';
 import type { IPage } from '../types.js';
 import type { IBrowserFactory } from '../runtime.js';
 import { Page } from './page.js';
-import { isDaemonRunning, isExtensionConnected } from './daemon-client.js';
+import { fetchDaemonStatus, isExtensionConnected } from './daemon-client.js';
 import { DEFAULT_DAEMON_PORT } from '../constants.js';
 
 const DAEMON_SPAWN_TIMEOUT = 10000; // 10s to wait for daemon + extension
@@ -60,11 +60,14 @@ export class BrowserBridge implements IBrowserFactory {
     const effectiveSeconds = (timeoutSeconds && timeoutSeconds > 0) ? timeoutSeconds : Math.ceil(DAEMON_SPAWN_TIMEOUT / 1000);
     const timeoutMs = effectiveSeconds * 1000;
 
+    // Single status check instead of two separate fetchDaemonStatus() calls
+    const status = await fetchDaemonStatus();
+
     // Fast path: extension already connected
-    if (await isExtensionConnected()) return;
+    if (status?.extensionConnected) return;
 
     // Daemon running but no extension — wait for extension with progress
-    if (await isDaemonRunning()) {
+    if (status !== null) {
       if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
         process.stderr.write('⏳ Waiting for Chrome extension to connect...\n');
         process.stderr.write('   Make sure Chrome is open and the OpenCLI extension is enabled.\n');
@@ -110,7 +113,7 @@ export class BrowserBridge implements IBrowserFactory {
       if (await isExtensionConnected()) return;
     }
 
-    if (await isDaemonRunning()) {
+    if ((await fetchDaemonStatus()) !== null) {
       throw new Error(
         'Daemon is running but the Browser Extension is not connected.\n' +
         'Please install and enable the opencli Browser Bridge extension in Chrome.',

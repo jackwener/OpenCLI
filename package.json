@@ -1,10 +1,10 @@
 {
   "name": "@jackwener/opencli",
-  "version": "1.5.8",
+  "version": "1.6.1",
   "publishConfig": {
     "access": "public"
   },
-  "description": "Make any website your CLI. AI-powered.",
+  "description": "Make any website or Electron App your CLI. AI-powered.",
   "engines": {
     "node": ">=20.0.0"
   },

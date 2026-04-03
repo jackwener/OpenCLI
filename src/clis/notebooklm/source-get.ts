@@ -3,7 +3,6 @@ import type { IPage } from '../../types.js';
 import { EmptyResultError } from '../../errors.js';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import {
-  ensureNotebooklmNotebookBinding,
   findNotebooklmSourceRow,
   getNotebooklmPageState,
   listNotebooklmSourcesFromPage,
@@ -29,13 +28,12 @@ cli({
   ],
   columns: ['title', 'id', 'type', 'size', 'created_at', 'updated_at', 'url', 'source'],
   func: async (page: IPage, kwargs) => {
-    await ensureNotebooklmNotebookBinding(page);
     await requireNotebooklmSession(page);
     const state = await getNotebooklmPageState(page);
     if (state.kind !== 'notebook') {
       throw new EmptyResultError(
         'opencli notebooklm source-get',
-        'Open a specific NotebookLM notebook tab first, then retry.',
+        'No NotebookLM notebook is open in the automation workspace. Run `opencli notebooklm open <notebook>` first.',
       );
     }
 

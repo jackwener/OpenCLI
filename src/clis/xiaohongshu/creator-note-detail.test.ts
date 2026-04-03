@@ -22,8 +22,6 @@ function createPageMock(evaluateResult: any): IPage {
     getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
     wait: vi.fn().mockResolvedValue(undefined),
     tabs: vi.fn().mockResolvedValue([]),
-    closeTab: vi.fn().mockResolvedValue(undefined),
-    newTab: vi.fn().mockResolvedValue(undefined),
     selectTab: vi.fn().mockResolvedValue(undefined),
     networkRequests: vi.fn().mockResolvedValue([]),
     consoleMessages: vi.fn().mockResolvedValue([]),
@@ -40,9 +38,9 @@ function createPageMock(evaluateResult: any): IPage {
 describe('xiaohongshu creator-note-detail', () => {
   it('parses note detail page text into info and metric rows', () => {
     const bodyText = `笔记数据详情
-一张图讲清 诡秘之主·耕种者途径
-#诡秘之主
-#耕种者序列
+示例内容复盘
+#测试标签
+#内容分析
 2026-03-18 20:01
 切换笔记
 笔记诊断
@@ -86,9 +84,9 @@ describe('xiaohongshu creator-note-detail', () => {
 6
 粉丝占比 0%`;
 
-    expect(parseCreatorNoteDetailText(bodyText, '69ba940500000000200384db')).toEqual([
-      { section: '笔记信息', metric: 'note_id', value: '69ba940500000000200384db', extra: '' },
-      { section: '笔记信息', metric: 'title', value: '一张图讲清 诡秘之主·耕种者途径', extra: '' },
+    expect(parseCreatorNoteDetailText(bodyText, 'cccccccccccccccccccccccc')).toEqual([
+      { section: '笔记信息', metric: 'note_id', value: 'cccccccccccccccccccccccc', extra: '' },
+      { section: '笔记信息', metric: 'title', value: '示例内容复盘', extra: '' },
       { section: '笔记信息', metric: 'published_at', value: '2026-03-18 20:01', extra: '' },
       { section: '基础数据', metric: '曝光数', value: '1733', extra: '粉丝占比 6.6%' },
       { section: '基础数据', metric: '观看数', value: '544', extra: '粉丝占比 7.2%' },
@@ -104,8 +102,8 @@ describe('xiaohongshu creator-note-detail', () => {
 
   it('parses structured note detail dom data into rows', () => {
     expect(parseCreatorNoteDetailDomData({
-      title: '神雕侠侣战力金字塔',
-      infoText: '神雕侠侣战力金字塔\n#武侠\n2025-12-04 19:45\n切换笔记',
+      title: '测试笔记一',
+      infoText: '测试笔记一\n#测试标签\n2025-12-04 19:45\n切换笔记',
       sections: [
         {
           title: '基础数据',
@@ -127,9 +125,9 @@ describe('xiaohongshu creator-note-detail', () => {
           ],
         },
       ],
-    }, '693155fc000000000d03b42c')).toEqual([
-      { section: '笔记信息', metric: 'note_id', value: '693155fc000000000d03b42c', extra: '' },
-      { section: '笔记信息', metric: 'title', value: '神雕侠侣战力金字塔', extra: '' },
+    }, 'bbbbbbbbbbbbbbbbbbbbbbbb')).toEqual([
+      { section: '笔记信息', metric: 'note_id', value: 'bbbbbbbbbbbbbbbbbbbbbbbb', extra: '' },
+      { section: '笔记信息', metric: 'title', value: '测试笔记一', extra: '' },
       { section: '笔记信息', metric: 'published_at', value: '2025-12-04 19:45', extra: '' },
       { section: '基础数据', metric: '曝光数', value: '898204', extra: '粉丝占比 0.5%' },
       { section: '基础数据', metric: '观看数', value: '148284', extra: '粉丝占比 0.6%' },

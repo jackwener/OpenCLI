@@ -86,8 +86,6 @@ function createPageMock(
     getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
     wait: vi.fn().mockResolvedValue(undefined),
     tabs: vi.fn().mockResolvedValue([]),
-    closeTab: vi.fn().mockResolvedValue(undefined),
-    newTab: vi.fn().mockResolvedValue(undefined),
     selectTab: vi.fn().mockResolvedValue(undefined),
     networkRequests: vi.fn().mockResolvedValue([]),
     consoleMessages: vi.fn().mockResolvedValue([]),

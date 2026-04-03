@@ -8,7 +8,6 @@ function makePage(result: unknown): IPage {
     getCookies: vi.fn(), snapshot: vi.fn(), click: vi.fn(),
     typeText: vi.fn(), pressKey: vi.fn(), scrollTo: vi.fn(),
     getFormState: vi.fn(), wait: vi.fn(), tabs: vi.fn(),
-    closeTab: vi.fn(), newTab: vi.fn(), selectTab: vi.fn(),
     networkRequests: vi.fn(), consoleMessages: vi.fn(),
     scroll: vi.fn(), autoScroll: vi.fn(),
     installInterceptor: vi.fn(), getInterceptedRequests: vi.fn(),

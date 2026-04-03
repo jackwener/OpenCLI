@@ -6,8 +6,13 @@
 
 | Command | Description |
 |---------|-------------|
-| `opencli weibo hot` | |
+| `opencli weibo hot` | 微博热搜 |
 | `opencli weibo search` | Search Weibo posts by keyword |
+| `opencli weibo feed` | 首页时间线 |
+| `opencli weibo user` | 用户信息 |
+| `opencli weibo me` | 我的信息 |
+| `opencli weibo post` | 发微博 |
+| `opencli weibo comments` | 微博评论 |
 
 ## Usage Examples
 

@@ -8,6 +8,8 @@
 |---------|-------------|
 | `opencli wikipedia search` | Search Wikipedia articles |
 | `opencli wikipedia summary` | Get Wikipedia article summary |
+| `opencli wikipedia random` | Random Wikipedia article |
+| `opencli wikipedia trending` | Trending Wikipedia articles |
 
 ## Usage Examples
 

@@ -1,10 +1,8 @@
 import { AuthRequiredError, CliError } from '../../errors.js';
 import type { IPage } from '../../types.js';
-import { bindCurrentTab } from '../../browser/daemon-client.js';
 import {
   NOTEBOOKLM_DOMAIN,
   NOTEBOOKLM_HOME_URL,
-  NOTEBOOKLM_SITE,
   type NotebooklmHistoryRow,
   type NotebooklmNotebookDetailRow,
   type NotebooklmNoteDetailRow,
@@ -52,6 +50,35 @@ function unwrapNotebooklmSingletonResult(result: unknown): unknown {
 export function parseNotebooklmIdFromUrl(url: string): string {
   const match = url.match(/\/notebook\/([^/?#]+)/);
   return match?.[1] ?? '';
+}
+
+export function parseNotebooklmNotebookTarget(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new CliError(
+      'NOTEBOOKLM_INVALID_NOTEBOOK',
+      'NotebookLM notebook id is required',
+      'Pass a notebook id from `opencli notebooklm list` or a full notebook URL.',
+    );
+  }
+
+  if (/^https?:\/\//i.test(normalized)) {
+    const notebookId = parseNotebooklmIdFromUrl(normalized);
+    if (notebookId) return notebookId;
+    throw new CliError(
+      'NOTEBOOKLM_INVALID_NOTEBOOK',
+      'NotebookLM notebook URL is invalid',
+      'Pass a full NotebookLM notebook URL like https://notebooklm.google.com/notebook/<id>.',
+    );
+  }
+
+  const pathMatch = normalized.match(/(?:^|\/)notebook\/([^/?#]+)/);
+  if (pathMatch?.[1]) return pathMatch[1];
+  return normalized;
+}
+
+export function buildNotebooklmNotebookUrl(notebookId: string): string {
+  return new URL(`/notebook/${encodeURIComponent(notebookId)}`, NOTEBOOKLM_HOME_URL).toString();
 }
 
 export function classifyNotebooklmPage(url: string): NotebooklmPageKind {
@@ -654,24 +681,6 @@ export async function ensureNotebooklmHome(page: IPage): Promise<void> {
   if (currentKind === 'home') return;
   await page.goto(NOTEBOOKLM_HOME_URL);
   await page.wait(2);
-}
-
-export async function ensureNotebooklmNotebookBinding(page: IPage): Promise<boolean> {
-  if (!page.getCurrentUrl) return false;
-  if (process.env.OPENCLI_CDP_ENDPOINT) return false;
-
-  const currentUrl = await page.getCurrentUrl().catch(() => null);
-  if (currentUrl && classifyNotebooklmPage(currentUrl) === 'notebook') return false;
-
-  try {
-    await bindCurrentTab(`site:${NOTEBOOKLM_SITE}`, {
-      matchDomain: NOTEBOOKLM_DOMAIN,
-      matchPathPrefix: '/notebook/',
-    });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export async function getNotebooklmPageState(page: IPage): Promise<NotebooklmPageState> {

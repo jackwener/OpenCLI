@@ -8,6 +8,7 @@ import { getStep, type StepHandler } from './registry.js';
 import { log } from '../logger.js';
 import { ConfigError } from '../errors.js';
 import { BROWSER_ONLY_STEPS } from '../capabilityRouting.js';
+import { isTransientBrowserError } from '../browser/errors.js';
 
 export interface PipelineContext {
   args?: Record<string, unknown>;
@@ -73,13 +74,7 @@ async function executeStepWithRetry(
     } catch (err) {
       if (attempt >= maxRetries) throw err;
       // Only retry on transient browser errors
-      const msg = err instanceof Error ? err.message : '';
-      const isTransient = msg.includes('Extension disconnected')
-        || msg.includes('attach failed')
-        || msg.includes('no longer exists')
-        || msg.includes('CDP connection')
-        || msg.includes('Daemon command failed');
-      if (!isTransient) throw err;
+      if (!isTransientBrowserError(err)) throw err;
       // Brief delay before retry
       await new Promise(resolve => setTimeout(resolve, 1000));
     }

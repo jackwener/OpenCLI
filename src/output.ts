@@ -33,6 +33,7 @@ export function render(data: unknown, opts: RenderOptions = {}): void {
   }
   switch (fmt) {
     case 'json': renderJson(data); break;
+    case 'plain': renderPlain(data, opts); break;
     case 'md': case 'markdown': renderMarkdown(data, opts); break;
     case 'csv': renderCsv(data, opts); break;
     case 'yaml': case 'yml': renderYaml(data); break;
@@ -74,6 +75,32 @@ function renderTable(data: unknown, opts: RenderOptions): void {
 function renderJson(data: unknown): void {
   console.log(JSON.stringify(data, null, 2));
 }
+function renderPlain(data: unknown, opts: RenderOptions): void {
+  const rows = normalizeRows(data);
+  if (!rows.length) return;
+
+  // Single-row single-field shortcuts for chat-style commands.
+  if (rows.length === 1) {
+    const row = rows[0];
+    const entries = Object.entries(row);
+    if (entries.length === 1) {
+      const [key, value] = entries[0];
+      if (key === 'response' || key === 'content' || key === 'text' || key === 'value') {
+        console.log(String(value ?? ''));
+        return;
+      }
+    }
+  }
+
+  rows.forEach((row, index) => {
+    const entries = Object.entries(row).filter(([, value]) => value !== undefined && value !== null && String(value) !== '');
+    entries.forEach(([key, value]) => {
+      console.log(`${key}: ${value}`);
+    });
+    if (index < rows.length - 1) console.log('');
+  });
+}
+
 
 function renderMarkdown(data: unknown, opts: RenderOptions): void {
   const rows = normalizeRows(data);

@@ -167,6 +167,7 @@ cli({
 - `opencli-plugin-github-trending`：GitHub Trending 仓库
 - `opencli-plugin-hot-digest`：多平台热点聚合（zhihu、weibo、bilibili、v2ex、stackoverflow、reddit、linux-do）
 - `opencli-plugin-juejin`：稀土掘金热榜、分类和文章流
+- `opencli-plugin-rubysec`：RubySec 漏洞归档与单篇漏洞文章读取
 
 ## 排查问题
 

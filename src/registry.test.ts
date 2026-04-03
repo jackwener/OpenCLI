@@ -75,6 +75,18 @@ describe('cli() registration', () => {
     expect(registry.get('test-registry/compat')).toBe(cmd);
     expect(registry.get('test-registry/legacy-name')).toBe(cmd);
   });
+
+  it('preserves defaultFormat on the registered command', () => {
+    const cmd = cli({
+      site: 'test-registry',
+      name: 'plain-default',
+      description: 'prefers plain output',
+      defaultFormat: 'plain',
+    });
+
+    expect(cmd.defaultFormat).toBe('plain');
+    expect(getRegistry().get('test-registry/plain-default')?.defaultFormat).toBe('plain');
+  });
 });
 
 describe('fullName', () => {

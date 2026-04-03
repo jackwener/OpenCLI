@@ -1,0 +1,688 @@
+[
+  {
+    "name": "extract-title-example",
+    "steps": [
+      "opencli operate open https://example.com",
+      "opencli operate eval \"document.title\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "Example Domain"
+    }
+  },
+  {
+    "name": "extract-title-iana",
+    "steps": [
+      "opencli operate open https://www.iana.org",
+      "opencli operate eval \"document.querySelector('h1')?.textContent\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "extract-paragraph-wiki-js",
+    "steps": [
+      "opencli operate open https://en.wikipedia.org/wiki/JavaScript",
+      "opencli operate eval \"(() => { const ps = document.querySelectorAll('#mw-content-text .mw-parser-output > p'); for (const p of ps) { const t = p.textContent?.trim(); if (t && t.length > 50 && !t.startsWith('{')) return t.slice(0,300); } return ''; })()\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "programming language"
+    }
+  },
+  {
+    "name": "extract-paragraph-wiki-python",
+    "steps": [
+      "opencli operate open \"https://en.wikipedia.org/wiki/Python_(programming_language)\"",
+      "opencli operate eval \"(() => { const ps = document.querySelectorAll('#mw-content-text .mw-parser-output > p'); for (const p of ps) { const t = p.textContent?.trim(); if (t && t.length > 50 && !t.startsWith('{')) return t.slice(0,300); } return ''; })()\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "programming language"
+    }
+  },
+  {
+    "name": "extract-github-stars",
+    "steps": [
+      "opencli operate open https://github.com/browser-use/browser-use",
+      "opencli operate eval \"document.querySelector('#repo-stars-counter-star')?.textContent?.trim()\""
+    ],
+    "judge": {
+      "type": "matchesPattern",
+      "pattern": "\\d"
+    }
+  },
+  {
+    "name": "extract-github-description",
+    "steps": [
+      "opencli operate open https://github.com/anthropics/claude-code",
+      "opencli operate eval \"document.querySelector('p.f4, [data-testid=about-description], .f4.my-3, .BorderGrid-cell p')?.textContent?.trim()\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "extract-github-readme-heading",
+    "steps": [
+      "opencli operate open https://github.com/vercel/next.js",
+      "opencli operate eval \"document.querySelector('article h1, article h2')?.textContent?.trim()\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "extract-npm-downloads",
+    "steps": [
+      "opencli operate open https://www.npmjs.com/package/zod",
+      "opencli operate eval \"document.querySelector('[data-nosnippet]')?.textContent?.trim() || document.querySelector('p.f2874b88')?.textContent?.trim()\""
+    ],
+    "judge": {
+      "type": "matchesPattern",
+      "pattern": "\\d"
+    }
+  },
+  {
+    "name": "extract-npm-description",
+    "steps": [
+      "opencli operate open https://www.npmjs.com/package/express",
+      "opencli operate eval \"document.querySelector('p[class*=description], [data-testid=package-description], #readme p')?.textContent?.trim()\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "list-hn-top5",
+    "steps": [
+      "opencli operate open https://news.ycombinator.com",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('.titleline > a')].slice(0,5).map(a=>({title:a.textContent,url:a.href})))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 5
+    }
+  },
+  {
+    "name": "list-hn-top10",
+    "steps": [
+      "opencli operate open https://news.ycombinator.com",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('.athing')].slice(0,10).map(tr=>{const a=tr.querySelector('.titleline>a');const s=tr.nextElementSibling?.querySelector('.score');return{title:a?.textContent,score:parseInt(s?.textContent)||0}}))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 10
+    }
+  },
+  {
+    "name": "list-books-5",
+    "steps": [
+      "opencli operate open https://books.toscrape.com",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('article.product_pod')].slice(0,5).map(el=>({title:el.querySelector('h3 a')?.getAttribute('title'),price:el.querySelector('.price_color')?.textContent})))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 5
+    }
+  },
+  {
+    "name": "list-books-10",
+    "steps": [
+      "opencli operate open https://books.toscrape.com",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('article.product_pod')].slice(0,10).map(el=>({title:el.querySelector('h3 a')?.getAttribute('title'),price:el.querySelector('.price_color')?.textContent})))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 10
+    }
+  },
+  {
+    "name": "list-quotes-3",
+    "steps": [
+      "opencli operate open https://quotes.toscrape.com",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('.quote')].slice(0,3).map(el=>({text:el.querySelector('.text')?.textContent,author:el.querySelector('.author')?.textContent})))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    }
+  },
+  {
+    "name": "list-quotes-tags",
+    "steps": [
+      "opencli operate open https://quotes.toscrape.com",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('.quote')].slice(0,5).map(el=>({text:el.querySelector('.text')?.textContent,author:el.querySelector('.author')?.textContent,tags:[...el.querySelectorAll('.tag')].map(t=>t.textContent)})))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 5
+    }
+  },
+  {
+    "name": "list-github-trending",
+    "steps": [
+      "opencli operate open https://github.com/trending",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('article.Box-row')].slice(0,3).map(el=>({name:el.querySelector('h2 a')?.textContent?.trim().replace(/\\s+/g,' '),desc:el.querySelector('p')?.textContent?.trim()})))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    }
+  },
+  {
+    "name": "list-github-trending-lang",
+    "steps": [
+      "opencli operate open https://github.com/trending/python",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('article.Box-row')].slice(0,5).map(el=>({name:el.querySelector('h2 a')?.textContent?.trim().replace(/\\s+/g,' ')})))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 5
+    }
+  },
+  {
+    "name": "list-jsonplaceholder-posts",
+    "steps": [
+      "opencli operate open https://jsonplaceholder.typicode.com/posts",
+      "opencli operate eval \"JSON.stringify(JSON.parse(document.body.innerText).slice(0,5).map(p=>({id:p.id,title:p.title})))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 5
+    }
+  },
+  {
+    "name": "list-jsonplaceholder-users",
+    "steps": [
+      "opencli operate open https://jsonplaceholder.typicode.com/users",
+      "opencli operate eval \"JSON.stringify(JSON.parse(document.body.innerText).map(u=>({name:u.name,email:u.email})))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 5
+    }
+  },
+  {
+    "name": "search-google",
+    "steps": [
+      "opencli operate open https://www.google.com",
+      "opencli operate eval \"document.querySelector('textarea[name=q], input[name=q]').value='opencli github';document.querySelector('form').submit();'submitted'\"",
+      "opencli operate wait time 3",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('h3')].slice(0,3).map(h=>h.textContent))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
+    "note": "index 5 may vary"
+  },
+  {
+    "name": "search-ddg",
+    "steps": [
+      "opencli operate open https://duckduckgo.com",
+      "opencli operate state",
+      "opencli operate type 1 \"weather beijing\"",
+      "opencli operate keys Enter",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('[data-testid=result-title-a]')].slice(0,3).map(a=>a.textContent))\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    },
+    "note": "index may vary"
+  },
+  {
+    "name": "search-ddg-tech",
+    "steps": [
+      "opencli operate open https://duckduckgo.com",
+      "opencli operate eval \"document.querySelector('input[name=q]').value='TypeScript tutorial';document.querySelector('form').submit();'submitted'\"",
+      "opencli operate wait time 3",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('[data-testid=result-title-a], .result__a')].slice(0,3).map(a=>({title:a.textContent,url:a.href})))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
+    "note": "index may vary"
+  },
+  {
+    "name": "search-wiki",
+    "steps": [
+      "opencli operate open https://en.wikipedia.org",
+      "opencli operate eval \"document.querySelector('input[name=search]').value='Rust programming language';document.querySelector('form#searchform, form[role=search]').submit();'submitted'\"",
+      "opencli operate wait time 3",
+      "opencli operate eval \"(() => { const ps = document.querySelectorAll('#mw-content-text .mw-parser-output > p'); for (const p of ps) { const t = p.textContent?.trim(); if (t && t.length > 50) return t.slice(0,300); } return ''; })()\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "programming language"
+    },
+    "note": "index may vary"
+  },
+  {
+    "name": "search-npm",
+    "steps": [
+      "opencli operate open https://www.npmjs.com",
+      "opencli operate state",
+      "opencli operate type 1 \"react\"",
+      "opencli operate keys Enter",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('[data-testid=pkg-list-item] h3, section h3')].slice(0,3).map(h=>h.textContent?.trim()))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
+    "note": "index may vary"
+  },
+  {
+    "name": "search-github",
+    "steps": [
+      "opencli operate open https://github.com/search?q=browser+automation&type=repositories",
+      "opencli operate wait time 3",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('.search-title a, [data-testid=results-list] a.Link--primary')].slice(0,3).map(a=>a.textContent?.trim().replace(/\\\\s+/g,' ')))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
+    "note": "index may vary"
+  },
+  {
+    "name": "nav-click-link-example",
+    "steps": [
+      "opencli operate open https://example.com",
+      "opencli operate eval \"document.querySelector('a')?.click();'clicked'\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"document.title\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "IANA"
+    }
+  },
+  {
+    "name": "nav-click-hn-first",
+    "steps": [
+      "opencli operate open https://news.ycombinator.com",
+      "opencli operate eval \"document.querySelector('.titleline a')?.click();'clicked'\"",
+      "opencli operate wait time 2",
+      "opencli operate eval \"document.title\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "nav-click-hn-comments",
+    "steps": [
+      "opencli operate open https://news.ycombinator.com",
+      "opencli operate eval \"document.querySelector('.subtext a:last-child')?.click(); 'clicked'\"",
+      "opencli operate eval \"document.title\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "nav-click-wiki-link",
+    "steps": [
+      "opencli operate open https://en.wikipedia.org/wiki/JavaScript",
+      "opencli operate eval \"document.querySelector('#toc a, .toc a, [href=\\\"#History\\\"]')?.click(); 'clicked'\"",
+      "opencli operate eval \"document.querySelector('#History, #History ~ p')?.textContent?.slice(0,100)\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "nav-click-github-tab",
+    "steps": [
+      "opencli operate open https://github.com/vercel/next.js",
+      "opencli operate eval \"document.querySelector('[data-tab-item=i1issues-tab] a, #issues-tab')?.click(); 'clicked'\"",
+      "opencli operate eval \"document.title\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "nav-go-back",
+    "steps": [
+      "opencli operate open https://example.com",
+      "opencli operate eval \"document.querySelector('a')?.click();'clicked'\"",
+      "opencli operate wait time 2",
+      "opencli operate back",
+      "opencli operate wait time 2",
+      "opencli operate eval \"document.title\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "Example Domain"
+    }
+  },
+  {
+    "name": "nav-multi-step",
+    "steps": [
+      "opencli operate open https://quotes.toscrape.com",
+      "opencli operate eval \"document.querySelector('.next a')?.click(); 'clicked'\"",
+      "opencli operate eval \"document.querySelector('.quote .text')?.textContent\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "scroll-footer-quotes",
+    "steps": [
+      "opencli operate open https://quotes.toscrape.com",
+      "opencli operate scroll down",
+      "opencli operate scroll down",
+      "opencli operate eval \"document.querySelector('footer, .footer, .tags-box')?.textContent?.trim().slice(0,100)\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "scroll-footer-books",
+    "steps": [
+      "opencli operate open https://books.toscrape.com",
+      "opencli operate scroll down",
+      "opencli operate scroll down",
+      "opencli operate eval \"document.querySelector('.pager .current')?.textContent?.trim()\""
+    ],
+    "judge": {
+      "type": "matchesPattern",
+      "pattern": "\\d"
+    }
+  },
+  {
+    "name": "scroll-long-page",
+    "steps": [
+      "opencli operate open https://jsonplaceholder.typicode.com/posts",
+      "opencli operate eval \"JSON.parse(document.body.innerText).length\""
+    ],
+    "judge": {
+      "type": "matchesPattern",
+      "pattern": "\\d"
+    }
+  },
+  {
+    "name": "scroll-find-element",
+    "steps": [
+      "opencli operate open https://quotes.toscrape.com",
+      "opencli operate eval \"document.querySelector('.next a')?.href\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "scroll-lazy-load",
+    "steps": [
+      "opencli operate open https://books.toscrape.com",
+      "opencli operate eval \"document.querySelectorAll('article.product_pod').length\""
+    ],
+    "judge": {
+      "type": "matchesPattern",
+      "pattern": "\\d"
+    }
+  },
+  {
+    "name": "form-simple-name",
+    "steps": [
+      "opencli operate open https://httpbin.org/forms/post",
+      "opencli operate eval \"var el=document.querySelector('[name=custname]');el.value='OpenCLI Test';el.dispatchEvent(new Event('input',{bubbles:true}));el.value\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "OpenCLI"
+    },
+    "note": "index may vary"
+  },
+  {
+    "name": "form-text-inputs",
+    "steps": [
+      "opencli operate open https://httpbin.org/forms/post",
+      "opencli operate eval \"var n=document.querySelector('[name=custname]');n.value='Alice';n.dispatchEvent(new Event('input',{bubbles:true}));var t=document.querySelector('[name=custtel]');t.value='555-1234';t.dispatchEvent(new Event('input',{bubbles:true}));n.value+'|'+t.value\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "Alice"
+    },
+    "note": "index may vary"
+  },
+  {
+    "name": "form-radio-select",
+    "steps": [
+      "opencli operate open https://httpbin.org/forms/post",
+      "opencli operate eval \"document.querySelector('[value=medium]').checked=true;document.querySelector('[value=medium]').dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('[value=medium]').checked\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "true"
+    }
+  },
+  {
+    "name": "form-checkbox",
+    "steps": [
+      "opencli operate open https://httpbin.org/forms/post",
+      "opencli operate eval \"var cb=document.querySelector('[value=cheese]');cb.checked=true;cb.dispatchEvent(new Event('change',{bubbles:true}));cb.checked\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "true"
+    }
+  },
+  {
+    "name": "form-textarea",
+    "steps": [
+      "opencli operate open https://httpbin.org/forms/post",
+      "opencli operate eval \"var ta=document.querySelector('textarea[name=comments]');ta.value='AutoResearch test';ta.dispatchEvent(new Event('input',{bubbles:true}));ta.value\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "AutoResearch"
+    }
+  },
+  {
+    "name": "form-login-fake",
+    "steps": [
+      "opencli operate open https://the-internet.herokuapp.com/login",
+      "opencli operate eval \"var u=document.querySelector('#username');u.value='testuser';u.dispatchEvent(new Event('input',{bubbles:true}));var p=document.querySelector('#password');p.value='testpass';p.dispatchEvent(new Event('input',{bubbles:true}));u.value+'|'+p.value\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "testuser"
+    },
+    "note": "index may vary"
+  },
+  {
+    "name": "complex-wiki-toc",
+    "steps": [
+      "opencli operate open https://en.wikipedia.org/wiki/JavaScript",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('.toc li a, #toc li a, .vector-toc-contents a')].slice(0,8).map(a=>a.textContent?.trim()))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 5
+    }
+  },
+  {
+    "name": "complex-books-detail",
+    "steps": [
+      "opencli operate open https://books.toscrape.com",
+      "opencli operate eval \"document.querySelector('article.product_pod h3 a')?.click();'clicked'\"",
+      "opencli operate eval \"JSON.stringify({title:document.querySelector('h1')?.textContent,price:document.querySelector('.price_color')?.textContent})\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "complex-quotes-page2",
+    "steps": [
+      "opencli operate open https://quotes.toscrape.com",
+      "opencli operate eval \"document.querySelector('.next a')?.click();'clicked'\"",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('.quote')].slice(0,3).map(el=>({text:el.querySelector('.text')?.textContent,author:el.querySelector('.author')?.textContent})))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    }
+  },
+  {
+    "name": "complex-github-repo-info",
+    "steps": [
+      "opencli operate open https://github.com/expressjs/express",
+      "opencli operate eval \"JSON.stringify({lang:document.querySelector('[itemprop=programmingLanguage]')?.textContent?.trim(),license:document.querySelector('[data-analytics-event*=license] span, .Layout-sidebar [href*=LICENSE]')?.textContent?.trim()})\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "complex-hn-story-comments",
+    "steps": [
+      "opencli operate open https://news.ycombinator.com",
+      "opencli operate eval \"document.querySelector('.subtext a:last-child')?.click();'clicked'\"",
+      "opencli operate eval \"document.querySelector('.fatitem .titleline a')?.textContent\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
+  },
+  {
+    "name": "complex-multi-extract",
+    "steps": [
+      "opencli operate open https://en.wikipedia.org/wiki/TypeScript",
+      "opencli operate eval \"JSON.stringify({title:document.title,firstParagraph:document.querySelector('#mw-content-text p')?.textContent?.slice(0,150)})\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "TypeScript"
+    }
+  },
+  {
+    "name": "bench-reddit-top5",
+    "steps": [
+      "opencli operate open https://old.reddit.com",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('#siteTable .thing .title a.title')].slice(0,5).map(a=>a.textContent))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 5
+    },
+    "set": "test"
+  },
+  {
+    "name": "bench-imdb-matrix",
+    "steps": [
+      "opencli operate open https://www.imdb.com/title/tt0133093/",
+      "opencli operate eval \"JSON.stringify({title:document.querySelector('h1 span, [data-testid=hero__pageTitle] span')?.textContent,year:document.querySelector('a[href*=releaseinfo], [data-testid=hero-title-block__metadata] a')?.textContent})\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "1999"
+    },
+    "set": "test"
+  },
+  {
+    "name": "bench-npm-zod",
+    "steps": [
+      "opencli operate open https://www.npmjs.com/package/zod",
+      "opencli operate eval \"JSON.stringify({name:document.querySelector('h1 span, #top h2')?.textContent?.trim(),description:document.querySelector('[data-testid=package-description], p.package-description-redundant')?.textContent?.trim()})\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    },
+    "set": "test"
+  },
+  {
+    "name": "bench-wiki-search",
+    "steps": [
+      "opencli operate open https://en.wikipedia.org/wiki/Machine_learning",
+      "opencli operate eval \"(() => { const ps = document.querySelectorAll('#mw-content-text .mw-parser-output > p'); for (const p of ps) { const t = p.textContent?.trim(); if (t && t.length > 50) return t.slice(0,300); } return ''; })()\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "learning"
+    },
+    "set": "test"
+  },
+  {
+    "name": "bench-github-profile",
+    "steps": [
+      "opencli operate open https://github.com/torvalds",
+      "opencli operate eval \"JSON.stringify({name:document.querySelector('[itemprop=name]')?.textContent?.trim(),bio:document.querySelector('[data-bio-text]')?.textContent?.trim()||document.querySelector('.p-note')?.textContent?.trim()})\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    },
+    "set": "test"
+  },
+  {
+    "name": "bench-books-category",
+    "steps": [
+      "opencli operate open https://books.toscrape.com",
+      "opencli operate eval \"document.querySelector('a[href*=science]')?.click();'clicked'\"",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('article.product_pod h3 a')].slice(0,3).map(a=>a.getAttribute('title')))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
+    "set": "test"
+  },
+  {
+    "name": "bench-quotes-author",
+    "steps": [
+      "opencli operate open https://quotes.toscrape.com",
+      "opencli operate eval \"document.querySelector('.author + a, a[href*=author]')?.click();'clicked'\"",
+      "opencli operate eval \"document.querySelector('.author-description, .author-details p')?.textContent?.slice(0,100)\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    },
+    "set": "test"
+  },
+  {
+    "name": "bench-ddg-images",
+    "steps": [
+      "opencli operate open https://duckduckgo.com",
+      "opencli operate eval \"document.querySelector('input[name=q]').value='sunset';document.querySelector('form').submit();'submitted'\"",
+      "opencli operate wait time 3",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('[data-testid=result-title-a], .result__a')].slice(0,3).map(a=>a.textContent))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
+    "set": "test",
+    "note": "index may vary"
+  },
+  {
+    "name": "bench-httpbin-headers",
+    "steps": [
+      "opencli operate open https://httpbin.org/headers",
+      "opencli operate eval \"JSON.parse(document.body.innerText).headers['User-Agent']\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    },
+    "set": "test"
+  },
+  {
+    "name": "bench-jsonapi-todo",
+    "steps": [
+      "opencli operate open https://jsonplaceholder.typicode.com/todos",
+      "opencli operate eval \"JSON.stringify(JSON.parse(document.body.innerText).slice(0,5).map(t=>({id:t.id,title:t.title,completed:t.completed})))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 5
+    },
+    "set": "test"
+  }
+]

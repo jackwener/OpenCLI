@@ -7,14 +7,14 @@ import './creator-notes-summary.js';
 describe('xiaohongshu creator-notes-summary', () => {
   it('summarizes note list row and detail rows into one compact row', () => {
     const note: CreatorNoteRow = {
-      id: '69ba940500000000200384db',
-      title: '一张图讲清 诡秘之主·耕种者途径',
+      id: 'cccccccccccccccccccccccc',
+      title: '示例内容复盘',
       date: '2026年03月18日 20:01',
       views: 549,
       likes: 19,
       collects: 10,
       comments: 7,
-      url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=69ba940500000000200384db',
+      url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=cccccccccccccccccccccccc',
     };
 
     const rows: CreatorNoteDetailRow[] = [
@@ -34,8 +34,8 @@ describe('xiaohongshu creator-notes-summary', () => {
 
     expect(summarizeCreatorNote(note, rows, 1)).toEqual({
       rank: 1,
-      id: '69ba940500000000200384db',
-      title: '一张图讲清 诡秘之主·耕种者途径',
+      id: 'cccccccccccccccccccccccc',
+      title: '示例内容复盘',
       published_at: '2026-03-18 20:01',
       views: '549',
       likes: '19',
@@ -48,7 +48,7 @@ describe('xiaohongshu creator-notes-summary', () => {
       top_source_pct: '89.9%',
       top_interest: '二次元',
       top_interest_pct: '13%',
-      url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=69ba940500000000200384db',
+      url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=cccccccccccccccccccccccc',
     });
   });
 });

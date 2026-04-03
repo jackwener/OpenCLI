@@ -62,6 +62,8 @@ export interface CliCommand {
    * - `string`: navigate to this specific URL instead of the domain root
    */
   navigateBefore?: boolean | string;
+  /** Override the default CLI output format when the user does not pass -f/--format. */
+  defaultFormat?: 'table' | 'plain' | 'json' | 'yaml' | 'yml' | 'md' | 'markdown' | 'csv';
 }
 
 /** Internal extension for lazy-loaded TS modules (not exposed in public API) */
@@ -105,6 +107,7 @@ export function cli(opts: CliOptions): CliCommand {
     deprecated: opts.deprecated,
     replacedBy: opts.replacedBy,
     navigateBefore: opts.navigateBefore,
+    defaultFormat: opts.defaultFormat,
   };
 
   registerCommand(cmd);

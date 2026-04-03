@@ -8,6 +8,28 @@
 import { BrowserConnectError, type BrowserConnectKind } from '../errors.js';
 import { DEFAULT_DAEMON_PORT } from '../constants.js';
 
+/**
+ * Transient browser error patterns — shared across daemon-client, pipeline executor,
+ * and page retry logic. These errors indicate temporary conditions (extension restart,
+ * service worker cycle, tab navigation) that are worth retrying.
+ */
+const TRANSIENT_ERROR_PATTERNS = [
+  'Extension disconnected',
+  'Extension not connected',
+  'attach failed',
+  'no longer exists',
+  'CDP connection',
+  'Daemon command failed',
+] as const;
+
+/**
+ * Check if an error message indicates a transient browser error worth retrying.
+ */
+export function isTransientBrowserError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return TRANSIENT_ERROR_PATTERNS.some(pattern => msg.includes(pattern));
+}
+
 // Re-export so callers don't need to import from two places
 export type ConnectFailureKind = BrowserConnectKind;
 

@@ -72,6 +72,8 @@ export default defineConfig({
                 { text: 'Band', link: '/adapters/browser/band' },
                 { text: 'Chaoxing', link: '/adapters/browser/chaoxing' },
                 { text: 'Grok', link: '/adapters/browser/grok' },
+                { text: 'Amazon', link: '/adapters/browser/amazon' },
+                { text: 'Gemini', link: '/adapters/browser/gemini' },
                 { text: 'NotebookLM', link: '/adapters/browser/notebooklm' },
                 { text: 'WeRead', link: '/adapters/browser/weread' },
                 { text: 'Douban', link: '/adapters/browser/douban' },

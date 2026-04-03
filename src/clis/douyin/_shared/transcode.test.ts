@@ -19,8 +19,6 @@ function makePage(): IPage {
     getFormState: vi.fn(),
     wait: vi.fn(),
     tabs: vi.fn(),
-    closeTab: vi.fn(),
-    newTab: vi.fn(),
     selectTab: vi.fn(),
     networkRequests: vi.fn(),
     consoleMessages: vi.fn(),

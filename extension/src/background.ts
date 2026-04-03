@@ -117,8 +117,6 @@ type AutomationSession = {
   windowId: number;
   idleTimer: ReturnType<typeof setTimeout> | null;
   idleDeadlineAt: number;
-  owned: boolean;
-  preferredTabId: number | null;
 };
 
 const automationSessions = new Map<string, AutomationSession>();
@@ -136,11 +134,6 @@ function resetWindowIdleTimer(workspace: string): void {
   session.idleTimer = setTimeout(async () => {
     const current = automationSessions.get(workspace);
     if (!current) return;
-    if (!current.owned) {
-      console.log(`[opencli] Borrowed workspace ${workspace} detached from window ${current.windowId} (idle timeout)`);
-      automationSessions.delete(workspace);
-      return;
-    }
     try {
       await chrome.windows.remove(current.windowId);
       console.log(`[opencli] Automation window ${current.windowId} (${workspace}) closed (idle timeout)`);
@@ -151,8 +144,11 @@ function resetWindowIdleTimer(workspace: string): void {
   }, WINDOW_IDLE_TIMEOUT);
 }
 
-/** Get or create the dedicated automation window. */
-async function getAutomationWindow(workspace: string): Promise<number> {
+/** Get or create the dedicated automation window.
+ *  @param initialUrl — if provided (http/https), used as the initial page instead of about:blank.
+ *    This avoids an extra blank-page→target-domain navigation on first command.
+ */
+async function getAutomationWindow(workspace: string, initialUrl?: string): Promise<number> {
   // Check if our window is still alive
   const existing = automationSessions.get(workspace);
   if (existing) {
@@ -165,12 +161,13 @@ async function getAutomationWindow(workspace: string): Promise<number> {
     }
   }
 
-  // Create a new window with a data: URI that New Tab Override extensions cannot intercept.
-  // Using about:blank would be hijacked by extensions like "New Tab Override".
+  // Use the target URL directly if it's a safe navigation URL, otherwise fall back to about:blank.
+  const startUrl = (initialUrl && isSafeNavigationUrl(initialUrl)) ? initialUrl : BLANK_PAGE;
+
   // Note: Do NOT set `state` parameter here. Chrome 146+ rejects 'normal' as an invalid
   // state value for windows.create(). The window defaults to 'normal' state anyway.
   const win = await chrome.windows.create({
-    url: BLANK_PAGE,
+    url: startUrl,
     focused: false,
     width: 1280,
     height: 900,
@@ -180,14 +177,31 @@ async function getAutomationWindow(workspace: string): Promise<number> {
     windowId: win.id!,
     idleTimer: null,
     idleDeadlineAt: Date.now() + WINDOW_IDLE_TIMEOUT,
-    owned: true,
-    preferredTabId: null,
   };
   automationSessions.set(workspace, session);
-  console.log(`[opencli] Created automation window ${session.windowId} (${workspace})`);
+  console.log(`[opencli] Created automation window ${session.windowId} (${workspace}, start=${startUrl})`);
   resetWindowIdleTimer(workspace);
-  // Brief delay to let Chrome load the initial data: URI tab
-  await new Promise(resolve => setTimeout(resolve, 200));
+  // Wait for the initial tab to finish loading instead of a fixed 200ms sleep.
+  const tabs = await chrome.tabs.query({ windowId: win.id! });
+  if (tabs[0]?.id) {
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(resolve, 500); // fallback cap
+      const listener = (tabId: number, info: chrome.tabs.TabChangeInfo) => {
+        if (tabId === tabs[0].id && info.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(listener);
+          clearTimeout(timeout);
+          resolve();
+        }
+      };
+      // Check if already complete before listening
+      if (tabs[0].status === 'complete') {
+        clearTimeout(timeout);
+        resolve();
+      } else {
+        chrome.tabs.onUpdated.addListener(listener);
+      }
+    });
+  }
   return session.windowId;
 }
 
@@ -259,12 +273,12 @@ async function handleCommand(cmd: Command): Promise<Result> {
         return await handleScreenshot(cmd, workspace);
       case 'close-window':
         return await handleCloseWindow(cmd, workspace);
+      case 'cdp':
+        return await handleCdp(cmd, workspace);
       case 'sessions':
         return await handleSessions(cmd);
       case 'set-file-input':
         return await handleSetFileInput(cmd, workspace);
-      case 'bind-current':
-        return await handleBindCurrent(cmd, workspace);
       default:
         return { id: cmd.id, ok: false, error: `Unknown action: ${cmd.action}` };
     }
@@ -280,12 +294,12 @@ async function handleCommand(cmd: Command): Promise<Result> {
 // ─── Action handlers ─────────────────────────────────────────────────
 
 /** Internal blank page used when no user URL is provided. */
-const BLANK_PAGE = 'data:text/html,<html></html>';
+const BLANK_PAGE = 'about:blank';
 
-/** Check if a URL can be attached via CDP — only allow http(s) and our internal blank page. */
+/** Check if a URL can be attached via CDP — only allow http(s) and blank pages. */
 function isDebuggableUrl(url?: string): boolean {
   if (!url) return true;  // empty/undefined = tab still loading, allow it
-  return url.startsWith('http://') || url.startsWith('https://') || url === BLANK_PAGE;
+  return url.startsWith('http://') || url.startsWith('https://') || url === 'about:blank' || url.startsWith('data:');
 }
 
 /** Check if a URL is safe for user-facing navigation (http/https only). */
@@ -312,57 +326,7 @@ function isTargetUrl(currentUrl: string | undefined, targetUrl: string): boolean
   return normalizeUrlForComparison(currentUrl) === normalizeUrlForComparison(targetUrl);
 }
 
-function matchesDomain(url: string | undefined, domain: string): boolean {
-  if (!url) return false;
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`);
-  } catch {
-    return false;
-  }
-}
-
-function matchesBindCriteria(tab: chrome.tabs.Tab, cmd: Command): boolean {
-  if (!tab.id || !isDebuggableUrl(tab.url)) return false;
-  if (cmd.matchDomain && !matchesDomain(tab.url, cmd.matchDomain)) return false;
-  if (cmd.matchPathPrefix) {
-    try {
-      const parsed = new URL(tab.url!);
-      if (!parsed.pathname.startsWith(cmd.matchPathPrefix)) return false;
-    } catch {
-      return false;
-    }
-  }
-  return true;
-}
-
-function isNotebooklmWorkspace(workspace: string): boolean {
-  return workspace === 'site:notebooklm';
-}
-
-function classifyNotebooklmUrl(url?: string): 'notebook' | 'home' | 'other' {
-  if (!url) return 'other';
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname !== 'notebooklm.google.com') return 'other';
-    return parsed.pathname.startsWith('/notebook/') ? 'notebook' : 'home';
-  } catch {
-    return 'other';
-  }
-}
-
-function scoreWorkspaceTab(workspace: string, tab: chrome.tabs.Tab): number {
-  if (!tab.id || !isDebuggableUrl(tab.url)) return -1;
-  if (isNotebooklmWorkspace(workspace)) {
-    const kind = classifyNotebooklmUrl(tab.url);
-    if (kind === 'other') return -1;
-    if (kind === 'notebook') return tab.active ? 400 : 300;
-    return tab.active ? 200 : 100;
-  }
-  return -1;
-}
-
-function setWorkspaceSession(workspace: string, session: Omit<AutomationSession, 'idleTimer' | 'idleDeadlineAt'>): void {
+function setWorkspaceSession(workspace: string, session: Pick<AutomationSession, 'windowId'>): void {
   const existing = automationSessions.get(workspace);
   if (existing?.idleTimer) clearTimeout(existing.idleTimer);
   automationSessions.set(workspace, {
@@ -372,89 +336,57 @@ function setWorkspaceSession(workspace: string, session: Omit<AutomationSession,
   });
 }
 
-async function maybeBindWorkspaceToExistingTab(workspace: string): Promise<number | null> {
-  if (!isNotebooklmWorkspace(workspace)) return null;
-  const tabs = await chrome.tabs.query({});
-  let bestTab: chrome.tabs.Tab | null = null;
-  let bestScore = -1;
-  for (const tab of tabs) {
-    const score = scoreWorkspaceTab(workspace, tab);
-    if (score > bestScore) {
-      bestScore = score;
-      bestTab = tab;
-    }
-  }
-  if (!bestTab?.id || bestScore < 0) return null;
-  setWorkspaceSession(workspace, {
-    windowId: bestTab.windowId,
-    owned: false,
-    preferredTabId: bestTab.id,
-  });
-  console.log(`[opencli] Workspace ${workspace} bound to existing tab ${bestTab.id} in window ${bestTab.windowId}`);
-  resetWindowIdleTimer(workspace);
-  return bestTab.id;
-}
+type ResolvedTab = { tabId: number; tab: chrome.tabs.Tab | null };
 
 /**
- * Resolve target tab in the automation window.
- * If explicit tabId is given, use that directly.
- * Otherwise, find or create a tab in the dedicated automation window.
+ * Resolve target tab in the automation window, returning both the tabId and
+ * the Tab object (when available) so callers can skip a redundant chrome.tabs.get().
  */
-async function resolveTabId(tabId: number | undefined, workspace: string): Promise<number> {
+async function resolveTab(tabId: number | undefined, workspace: string, initialUrl?: string): Promise<ResolvedTab> {
   // Even when an explicit tabId is provided, validate it is still debuggable.
-  // This prevents issues when extensions hijack the tab URL to chrome-extension://
-  // or when the tab has been closed by the user.
   if (tabId !== undefined) {
     try {
       const tab = await chrome.tabs.get(tabId);
       const session = automationSessions.get(workspace);
-      const matchesSession = session
-        ? (session.preferredTabId !== null ? session.preferredTabId === tabId : tab.windowId === session.windowId)
-        : false;
-      if (isDebuggableUrl(tab.url) && matchesSession) return tabId;
-      if (session && !matchesSession) {
-        console.warn(`[opencli] Tab ${tabId} is not bound to workspace ${workspace}, re-resolving`);
+      const matchesSession = session ? tab.windowId === session.windowId : false;
+      if (isDebuggableUrl(tab.url) && matchesSession) return { tabId, tab };
+      if (session && !matchesSession && isDebuggableUrl(tab.url)) {
+        // Tab drifted to another window but content is still valid.
+        // Try to move it back instead of abandoning it.
+        console.warn(`[opencli] Tab ${tabId} drifted to window ${tab.windowId}, moving back to ${session.windowId}`);
+        try {
+          await chrome.tabs.move(tabId, { windowId: session.windowId, index: -1 });
+          const moved = await chrome.tabs.get(tabId);
+          if (moved.windowId === session.windowId && isDebuggableUrl(moved.url)) {
+            return { tabId, tab: moved };
+          }
+        } catch (moveErr) {
+          console.warn(`[opencli] Failed to move tab back: ${moveErr}`);
+        }
       } else if (!isDebuggableUrl(tab.url)) {
-        // Tab exists but URL is not debuggable — fall through to auto-resolve
         console.warn(`[opencli] Tab ${tabId} URL is not debuggable (${tab.url}), re-resolving`);
       }
     } catch {
-      // Tab was closed — fall through to auto-resolve
       console.warn(`[opencli] Tab ${tabId} no longer exists, re-resolving`);
     }
   }
 
-  const adoptedTabId = await maybeBindWorkspaceToExistingTab(workspace);
-  if (adoptedTabId !== null) return adoptedTabId;
-
-  const existingSession = automationSessions.get(workspace);
-  if (existingSession && existingSession.preferredTabId !== null) {
-    try {
-      const preferredTabId = existingSession.preferredTabId;
-      const preferredTab = await chrome.tabs.get(preferredTabId);
-      if (isDebuggableUrl(preferredTab.url)) return preferredTab.id!;
-    } catch {
-      automationSessions.delete(workspace);
-    }
-  }
-
   // Get (or create) the automation window
-  const windowId = await getAutomationWindow(workspace);
+  const windowId = await getAutomationWindow(workspace, initialUrl);
 
   // Prefer an existing debuggable tab
   const tabs = await chrome.tabs.query({ windowId });
   const debuggableTab = tabs.find(t => t.id && isDebuggableUrl(t.url));
-  if (debuggableTab?.id) return debuggableTab.id;
+  if (debuggableTab?.id) return { tabId: debuggableTab.id, tab: debuggableTab };
 
   // No debuggable tab — another extension may have hijacked the tab URL.
-  // Try to reuse by navigating to a data: URI (not interceptable by New Tab Override).
   const reuseTab = tabs.find(t => t.id);
   if (reuseTab?.id) {
     await chrome.tabs.update(reuseTab.id, { url: BLANK_PAGE });
     await new Promise(resolve => setTimeout(resolve, 300));
     try {
       const updated = await chrome.tabs.get(reuseTab.id);
-      if (isDebuggableUrl(updated.url)) return reuseTab.id;
+      if (isDebuggableUrl(updated.url)) return { tabId: reuseTab.id, tab: updated };
       console.warn(`[opencli] data: URI was intercepted (${updated.url}), creating fresh tab`);
     } catch {
       // Tab was closed during navigation
@@ -464,20 +396,18 @@ async function resolveTabId(tabId: number | undefined, workspace: string): Promi
   // Fallback: create a new tab
   const newTab = await chrome.tabs.create({ windowId, url: BLANK_PAGE, active: true });
   if (!newTab.id) throw new Error('Failed to create tab in automation window');
-  return newTab.id;
+  return { tabId: newTab.id, tab: newTab };
+}
+
+/** Convenience wrapper returning just the tabId (used by most handlers) */
+async function resolveTabId(tabId: number | undefined, workspace: string, initialUrl?: string): Promise<number> {
+  const resolved = await resolveTab(tabId, workspace, initialUrl);
+  return resolved.tabId;
 }
 
 async function listAutomationTabs(workspace: string): Promise<chrome.tabs.Tab[]> {
   const session = automationSessions.get(workspace);
   if (!session) return [];
-  if (session.preferredTabId !== null) {
-    try {
-      return [await chrome.tabs.get(session.preferredTabId)];
-    } catch {
-      automationSessions.delete(workspace);
-      return [];
-    }
-  }
   try {
     return await chrome.tabs.query({ windowId: session.windowId });
   } catch {
@@ -495,7 +425,8 @@ async function handleExec(cmd: Command, workspace: string): Promise<Result> {
   if (!cmd.code) return { id: cmd.id, ok: false, error: 'Missing code' };
   const tabId = await resolveTabId(cmd.tabId, workspace);
   try {
-    const data = await executor.evaluateAsync(tabId, cmd.code);
+    const aggressive = workspace.startsWith('operate:');
+    const data = await executor.evaluateAsync(tabId, cmd.code, aggressive);
     return { id: cmd.id, ok: true, data };
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -507,9 +438,11 @@ async function handleNavigate(cmd: Command, workspace: string): Promise<Result> 
   if (!isSafeNavigationUrl(cmd.url)) {
     return { id: cmd.id, ok: false, error: 'Blocked URL scheme -- only http:// and https:// are allowed' };
   }
-  const tabId = await resolveTabId(cmd.tabId, workspace);
+  // Pass target URL so that first-time window creation can start on the right domain
+  const resolved = await resolveTab(cmd.tabId, workspace, cmd.url);
+  const tabId = resolved.tabId;
 
-  const beforeTab = await chrome.tabs.get(tabId);
+  const beforeTab = resolved.tab ?? await chrome.tabs.get(tabId);
   const beforeNormalized = normalizeUrlForComparison(beforeTab.url);
   const targetUrl = cmd.url;
 
@@ -580,7 +513,22 @@ async function handleNavigate(cmd: Command, workspace: string): Promise<Result> 
     }, 15000);
   });
 
-  const tab = await chrome.tabs.get(tabId);
+  let tab = await chrome.tabs.get(tabId);
+
+  // Post-navigation drift detection: if the tab moved to another window
+  // during navigation (e.g. a tab-management extension regrouped it),
+  // try to move it back to maintain session isolation.
+  const session = automationSessions.get(workspace);
+  if (session && tab.windowId !== session.windowId) {
+    console.warn(`[opencli] Tab ${tabId} drifted to window ${tab.windowId} during navigation, moving back to ${session.windowId}`);
+    try {
+      await chrome.tabs.move(tabId, { windowId: session.windowId, index: -1 });
+      tab = await chrome.tabs.get(tabId);
+    } catch (moveErr) {
+      console.warn(`[opencli] Failed to recover drifted tab: ${moveErr}`);
+    }
+  }
+
   return {
     id: cmd.id,
     ok: true,
@@ -686,15 +634,57 @@ async function handleScreenshot(cmd: Command, workspace: string): Promise<Result
   }
 }
 
+/** CDP methods permitted via the 'cdp' passthrough action. */
+const CDP_ALLOWLIST = new Set([
+  // Agent DOM context
+  'Accessibility.getFullAXTree',
+  'DOM.getDocument',
+  'DOM.getBoxModel',
+  'DOM.getContentQuads',
+  'DOM.querySelectorAll',
+  'DOM.scrollIntoViewIfNeeded',
+  'DOMSnapshot.captureSnapshot',
+  // Native input events
+  'Input.dispatchMouseEvent',
+  'Input.dispatchKeyEvent',
+  'Input.insertText',
+  // Page metrics & screenshots
+  'Page.getLayoutMetrics',
+  'Page.captureScreenshot',
+  // Runtime.enable needed for CDP attach setup (Runtime.evaluate goes through 'exec' action)
+  'Runtime.enable',
+  // Emulation (used by screenshot full-page)
+  'Emulation.setDeviceMetricsOverride',
+  'Emulation.clearDeviceMetricsOverride',
+]);
+
+async function handleCdp(cmd: Command, workspace: string): Promise<Result> {
+  if (!cmd.cdpMethod) return { id: cmd.id, ok: false, error: 'Missing cdpMethod' };
+  if (!CDP_ALLOWLIST.has(cmd.cdpMethod)) {
+    return { id: cmd.id, ok: false, error: `CDP method not permitted: ${cmd.cdpMethod}` };
+  }
+  const tabId = await resolveTabId(cmd.tabId, workspace);
+  try {
+    const aggressive = workspace.startsWith('operate:');
+    await executor.ensureAttached(tabId, aggressive);
+    const data = await chrome.debugger.sendCommand(
+      { tabId },
+      cmd.cdpMethod,
+      cmd.cdpParams ?? {},
+    );
+    return { id: cmd.id, ok: true, data };
+  } catch (err) {
+    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 async function handleCloseWindow(cmd: Command, workspace: string): Promise<Result> {
   const session = automationSessions.get(workspace);
   if (session) {
-    if (session.owned) {
-      try {
-        await chrome.windows.remove(session.windowId);
-      } catch {
-        // Window may already be closed
-      }
+    try {
+      await chrome.windows.remove(session.windowId);
+    } catch {
+      // Window may already be closed
     }
     if (session.idleTimer) clearTimeout(session.idleTimer);
     automationSessions.delete(workspace);
@@ -726,49 +716,11 @@ async function handleSessions(cmd: Command): Promise<Result> {
   return { id: cmd.id, ok: true, data };
 }
 
-async function handleBindCurrent(cmd: Command, workspace: string): Promise<Result> {
-  const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  const fallbackTabs = await chrome.tabs.query({ lastFocusedWindow: true });
-  const allTabs = await chrome.tabs.query({});
-  const boundTab = activeTabs.find((tab) => matchesBindCriteria(tab, cmd))
-    ?? fallbackTabs.find((tab) => matchesBindCriteria(tab, cmd))
-    ?? allTabs.find((tab) => matchesBindCriteria(tab, cmd));
-  if (!boundTab?.id) {
-    return {
-      id: cmd.id,
-      ok: false,
-      error: cmd.matchDomain || cmd.matchPathPrefix
-        ? `No visible tab matching ${cmd.matchDomain ?? 'domain'}${cmd.matchPathPrefix ? ` ${cmd.matchPathPrefix}` : ''}`
-        : 'No active debuggable tab found',
-    };
-  }
-
-  setWorkspaceSession(workspace, {
-    windowId: boundTab.windowId,
-    owned: false,
-    preferredTabId: boundTab.id,
-  });
-  resetWindowIdleTimer(workspace);
-  console.log(`[opencli] Workspace ${workspace} explicitly bound to tab ${boundTab.id} (${boundTab.url})`);
-  return {
-    id: cmd.id,
-    ok: true,
-    data: {
-      tabId: boundTab.id,
-      windowId: boundTab.windowId,
-      url: boundTab.url,
-      title: boundTab.title,
-      workspace,
-    },
-  };
-}
-
 export const __test__ = {
   handleNavigate,
   isTargetUrl,
   handleTabs,
   handleSessions,
-  handleBindCurrent,
   resolveTabId,
   resetWindowIdleTimer,
   getSession: (workspace: string = 'default') => automationSessions.get(workspace) ?? null,
@@ -782,11 +734,9 @@ export const __test__ = {
     }
     setWorkspaceSession(workspace, {
       windowId,
-      owned: true,
-      preferredTabId: null,
     });
   },
-  setSession: (workspace: string, session: { windowId: number; owned: boolean; preferredTabId: number | null }) => {
+  setSession: (workspace: string, session: { windowId: number }) => {
     setWorkspaceSession(workspace, session);
   },
 };

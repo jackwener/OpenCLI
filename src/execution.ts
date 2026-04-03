@@ -131,23 +131,6 @@ function ensureRequiredEnv(cmd: CliCommand): void {
   );
 }
 
-/**
- * Check if the browser is already on the target domain, avoiding redundant navigation.
- * Returns true if current page hostname matches the pre-nav URL hostname.
- */
-async function isAlreadyOnDomain(page: IPage, targetUrl: string): Promise<boolean> {
-  if (!page.getCurrentUrl) return false;
-  try {
-    const currentUrl = await page.getCurrentUrl();
-    if (!currentUrl) return false;
-    const currentHost = new URL(currentUrl).hostname;
-    const targetHost = new URL(targetUrl).hostname;
-    return currentHost === targetHost;
-  } catch {
-    return false;
-  }
-}
-
 export async function executeCommand(
   cmd: CliCommand,
   rawKwargs: CommandArgs,
@@ -197,15 +180,15 @@ export async function executeCommand(
       result = await browserSession(BrowserFactory, async (page) => {
         const preNavUrl = resolvePreNav(cmd);
         if (preNavUrl) {
-          const skip = await isAlreadyOnDomain(page, preNavUrl);
-          if (skip) {
-            if (debug) log.debug('[pre-nav] Already on target domain, skipping navigation');
-          } else {
-            try {
-              await page.goto(preNavUrl);
-            } catch (err) {
-              if (debug) log.debug(`[pre-nav] Failed to navigate to ${preNavUrl}: ${err instanceof Error ? err.message : err}`);
-            }
+          // Navigate directly — the extension's handleNavigate already has a fast-path
+          // that skips navigation if the tab is already at the target URL.
+          // This avoids an extra exec round-trip (getCurrentUrl) on first command and
+          // lets the extension create the automation window with the target URL directly
+          // instead of about:blank.
+          try {
+            await page.goto(preNavUrl);
+          } catch (err) {
+            if (debug) log.debug(`[pre-nav] Failed to navigate to ${preNavUrl}: ${err instanceof Error ? err.message : err}`);
           }
         }
         return runWithTimeout(runCommand(cmd, page, kwargs, debug), {
