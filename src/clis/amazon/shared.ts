@@ -211,10 +211,11 @@ export function isRankingPaginationUrl(listType: AmazonRankingListType, inputUrl
   try {
     const url = new URL(absolute);
     const ref = cleanText(url.searchParams.get('ref')).toLowerCase();
+    // pg= query param is the most reliable pagination indicator across all ranking lists
     return url.searchParams.has('pg')
-      || absolute.includes('ref=zg_bs_pg_')
       || /(?:^|_)pg(?:_|$)/.test(ref)
-      || ref.includes('zg_bs_pg_');
+      // Amazon ranking pagination refs: zg_bs_pg_ (bestsellers), zg_bsnr_pg_ (new releases), zg_bsms_pg_ (movers & shakers)
+      || /zg_bs(?:nr|ms)?_pg_/.test(ref);
   } catch {
     return false;
   }
