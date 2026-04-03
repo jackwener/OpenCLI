@@ -4,7 +4,7 @@
  */
 
 import { cli, Strategy } from '../../registry.js';
-import { apiGet } from './utils.js';
+import { apiGet, resolveBvid } from './utils.js';
 
 cli({
   site: 'bilibili',
@@ -18,7 +18,7 @@ cli({
   ],
   columns: ['rank', 'author', 'text', 'likes', 'replies', 'time'],
   func: async (page, kwargs) => {
-    const bvid = String(kwargs.bvid).trim();
+    const bvid = await resolveBvid(String(kwargs.bvid).trim());
     const limit = Math.min(Number(kwargs.limit) || 20, 50);
 
     // Resolve bvid → aid (required by reply API)

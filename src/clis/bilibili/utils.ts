@@ -2,8 +2,34 @@
  * Bilibili shared helpers: WBI signing, authenticated fetch, nav data, UID resolution.
  */
 
+import https from 'node:https';
 import type { IPage } from '../../types.js';
 import { AuthRequiredError, EmptyResultError } from '../../errors.js';
+
+/**
+ * Resolve Bilibili short URL / short code to BV ID.
+ * Supports: BV1MV9NBtENN, XYzsqGa, b23.tv/XYzsqGa, https://b23.tv/XYzsqGa
+ */
+export function resolveBvid(input: string): Promise<string> {
+  const trimmed = input.trim();
+  if (/^BV[A-Za-z0-9]+$/i.test(trimmed)) {
+    return Promise.resolve(trimmed);
+  }
+  const shortCode = trimmed.replace(/^https?:\/\//, '').replace(/^(www\.)?b23\.tv\//, '');
+  const url = 'https://b23.tv/' + shortCode;
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, (res) => {
+      const location = res.headers.location;
+      if (location) {
+        const match = location.match(/\/video\/(BV[A-Za-z0-9]+)/);
+        if (match) { res.resume(); resolve(match[1]); return; }
+      }
+      res.resume();
+      reject(new Error(`Cannot resolve BV ID from short URL: ${input}`));
+    });
+    req.on('error', reject);
+  });
+}
 
 const MIXIN_KEY_ENC_TAB = [
   46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,

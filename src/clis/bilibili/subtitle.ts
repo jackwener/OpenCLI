@@ -1,7 +1,7 @@
 import { cli, Strategy } from '../../registry.js';
 import { AuthRequiredError, CommandExecutionError, EmptyResultError, SelectorError } from '../../errors.js';
 import type { IPage } from '../../types.js';
-import { apiGet } from './utils.js';
+import { apiGet, resolveBvid } from './utils.js';
 
 cli({
   site: 'bilibili',
@@ -15,8 +15,9 @@ cli({
   columns: ['index', 'from', 'to', 'content'],
   func: async (page: IPage | null, kwargs: any) => {
     if (!page) throw new CommandExecutionError('Browser session required for bilibili subtitle');
+    const bvid = await resolveBvid(kwargs.bvid);
     // 1. 先前往视频详情页 (建立有鉴权的 Session，且这里不需要加载完整个视频)
-    await page.goto(`https://www.bilibili.com/video/${kwargs.bvid}/`);
+    await page.goto(`https://www.bilibili.com/video/${bvid}/`);
 
     // 2. 利用 __INITIAL_STATE__ 获取基础信息，拿 CID
     const cid = await page.evaluate(`(async () => {
@@ -31,7 +32,7 @@ cli({
     // 3. 在 Node 端使用 apiGet 获取带 Wbi 签名的字幕列表
     // 之前纯靠 evaluate 里的 fetch 会失败，因为 B 站 /wbi/ 开头的接口强校验 w_rid，未签名直接被风控返回 403 HTML
     const payload = await apiGet(page, '/x/player/wbi/v2', {
-      params: { bvid: kwargs.bvid, cid },
+      params: { bvid, cid },
       signed: true, // 开启 wbi_sign 自动签名
     });
 

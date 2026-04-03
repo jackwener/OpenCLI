@@ -11,6 +11,7 @@
 import { cli, Strategy } from '../../registry.js';
 import { checkYtdlp, sanitizeFilename } from '../../download/index.js';
 import { downloadMedia } from '../../download/media-download.js';
+import { resolveBvid } from './utils.js';
 
 cli({
   site: 'bilibili',
@@ -25,7 +26,7 @@ cli({
   ],
   columns: ['bvid', 'title', 'status', 'size'],
   func: async (page, kwargs) => {
-    const bvid = kwargs.bvid;
+    const bvid = await resolveBvid(kwargs.bvid);
     const output = kwargs.output;
     const quality = kwargs.quality;
 
