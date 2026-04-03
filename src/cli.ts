@@ -145,7 +145,9 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .option('--wait <s>', '', '3')
     .option('--auto', 'Enable interactive fuzzing')
     .option('--click <labels>', 'Comma-separated labels to click before fuzzing')
+    .option('-v, --verbose', 'Debug output')
     .action(async (url, opts) => {
+      if (opts.verbose) process.env.OPENCLI_VERBOSE = '1';
       const { exploreUrl, renderExploreSummary } = await import('./explore.js');
       const clickLabels = opts.click
         ? opts.click.split(',').map((s: string) => s.trim())
@@ -179,7 +181,9 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .argument('<url>')
     .option('--goal <text>')
     .option('--site <name>')
+    .option('-v, --verbose', 'Debug output')
     .action(async (url, opts) => {
+      if (opts.verbose) process.env.OPENCLI_VERBOSE = '1';
       const { generateCliFromUrl, renderGenerateSummary } = await import('./generate.js');
       const workspace = `generate:${inferHost(url, opts.site)}`;
       const r = await generateCliFromUrl({
@@ -203,7 +207,9 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .option('--out <dir>', 'Output directory for candidates')
     .option('--poll <ms>', 'Poll interval in milliseconds', '2000')
     .option('--timeout <ms>', 'Auto-stop after N milliseconds (default: 60000)', '60000')
+    .option('-v, --verbose', 'Debug output')
     .action(async (url, opts) => {
+      if (opts.verbose) process.env.OPENCLI_VERBOSE = '1';
       const { recordSession, renderRecordSummary } = await import('./record.js');
       const result = await recordSession({
         BrowserFactory: getBrowserFactory(),
@@ -222,7 +228,9 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .description('Strategy cascade: find simplest working strategy')
     .argument('<url>')
     .option('--site <name>')
+    .option('-v, --verbose', 'Debug output')
     .action(async (url, opts) => {
+      if (opts.verbose) process.env.OPENCLI_VERBOSE = '1';
       const { cascadeProbe, renderCascadeResult } = await import('./cascade.js');
       const workspace = `cascade:${inferHost(url, opts.site)}`;
       const result = await browserSession(getBrowserFactory(), async (page) => {

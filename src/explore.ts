@@ -386,7 +386,7 @@ export async function exploreUrl(
            const clicks = await page.evaluate(INTERACT_FUZZ_JS);
            await page.wait(2); // wait for XHRs to settle
          } catch (e) {
-           log.debug(`Interactive fuzzing skipped: ${e instanceof Error ? e.message : String(e)}`);
+           log.verbose(`Interactive fuzzing skipped: ${e instanceof Error ? e.message : String(e)}`);
          }
       }
 
