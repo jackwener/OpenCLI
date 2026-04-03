@@ -76,7 +76,7 @@ function runCommand(cmd: string): string {
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
   } catch (err: any) {
-    return err.stdout?.trim() ?? '';
+    return err.stdout?.trim() || err.stderr?.trim() || '';
   }
 }
 

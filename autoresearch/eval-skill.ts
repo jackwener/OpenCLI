@@ -18,7 +18,6 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const TASKS_FILE = join(__dirname, 'skill-tasks.yaml');
 const RESULTS_DIR = join(__dirname, 'results');
 const SKILL_PATH = join(__dirname, '..', 'skills', 'opencli-operate', 'SKILL.md');
 
@@ -160,13 +159,20 @@ Always close the browser with 'opencli operate close' when done.`;
 }
 
 function extractVerdict(text: string): { success: boolean; explanation: string } {
-  // Try to find {"success": ...} JSON in the text
-  const jsonMatches = text.match(/\{"success"\s*:\s*(true|false)\s*,\s*"explanation"\s*:\s*"([^"]*)"\s*\}/g);
-  if (jsonMatches) {
-    const last = jsonMatches[jsonMatches.length - 1];
-    try {
-      return JSON.parse(last);
-    } catch { /* fall through */ }
+  // Try to find and parse {"success": ...} JSON from the last occurrence
+  const idx = text.lastIndexOf('{"success"');
+  if (idx !== -1) {
+    // Find the matching closing brace (handle escaped quotes in explanation)
+    const sub = text.slice(idx);
+    let braceCount = 0;
+    let end = -1;
+    for (let i = 0; i < sub.length; i++) {
+      if (sub[i] === '{') braceCount++;
+      else if (sub[i] === '}') { braceCount--; if (braceCount === 0) { end = i + 1; break; } }
+    }
+    if (end > 0) {
+      try { return JSON.parse(sub.slice(0, end)); } catch { /* fall through */ }
+    }
   }
 
   // Fallback: check for success indicators in text
