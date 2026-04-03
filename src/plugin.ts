@@ -22,23 +22,19 @@ import {
   checkCompatibility,
   type PluginManifest,
 } from './plugin-manifest.js';
+import { getUserPluginLockFilePath, USER_MONOREPOS_DIR } from './user-opencli-paths.js';
 
 const isWindows = process.platform === 'win32';
 const LOCAL_PLUGIN_SOURCE_PREFIX = 'local:';
 
-/** Get home directory, respecting HOME environment variable for test isolation. */
-function getHomeDir(): string {
-  return process.env.HOME || process.env.USERPROFILE || os.homedir();
-}
-
 /** Path to the lock file that tracks installed plugin versions. */
 export function getLockFilePath(): string {
-  return path.join(getHomeDir(), '.opencli', 'plugins.lock.json');
+  return getUserPluginLockFilePath();
 }
 
 /** Monorepo clones directory: ~/.opencli/monorepos/ */
 export function getMonoreposDir(): string {
-  return path.join(getHomeDir(), '.opencli', 'monorepos');
+  return USER_MONOREPOS_DIR;
 }
 
 export type PluginSourceRecord =

@@ -8,9 +8,9 @@
 
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { getUserOpenCliPath } from '../../../src/user-opencli-paths.js';
 import type { Sts2Credentials, TosUploadInfo } from './types.js';
 
 export interface TosUploadOptions {
@@ -32,7 +32,7 @@ interface ResumeState {
 }
 
 const PART_SIZE = 5 * 1024 * 1024; // 5 MB minimum per TOS/S3 spec
-const RESUME_DIR = path.join(os.homedir(), '.opencli', 'douyin-resume');
+const RESUME_DIR = getUserOpenCliPath('douyin-resume');
 
 // ── Resume file helpers ──────────────────────────────────────────────────────
 

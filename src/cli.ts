@@ -20,6 +20,7 @@ import { loadExternalClis, executeExternalCli, installExternalCli, registerExter
 import { registerAllCommands } from './commanderAdapter.js';
 import { EXIT_CODES, getErrorMessage } from './errors.js';
 import { daemonStatus, daemonStop, daemonRestart } from './commands/daemon.js';
+import { getUserCliDir } from './user-opencli-paths.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 
@@ -565,10 +566,9 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           return;
         }
 
-        const os = await import('node:os');
         const fs = await import('node:fs');
         const path = await import('node:path');
-        const dir = path.join(os.homedir(), '.opencli', 'clis', site);
+        const dir = getUserCliDir(site);
         const filePath = path.join(dir, `${command}.ts`);
 
         if (fs.existsSync(filePath)) {
@@ -632,8 +632,7 @@ cli({
         }
 
         const { execFileSync } = await import('node:child_process');
-        const os = await import('node:os');
-        const filePath = path.join(os.homedir(), '.opencli', 'clis', site, `${command}.ts`);
+        const filePath = path.join(getUserCliDir(site), `${command}.ts`);
         if (!fs.existsSync(filePath)) {
           console.error(`Adapter not found: ${filePath}`);
           console.error(`Run "opencli operate init ${name}" to create it.`);

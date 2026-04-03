@@ -2,7 +2,6 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { createServer } from 'http';
-import { homedir } from 'os';
 import { join } from 'path';
 import { exec } from 'child_process';
 import {
@@ -12,6 +11,7 @@ import {
   parseDotEnv,
   resolveSpotifyCredentials,
 } from './utils.js';
+import { USER_OPENCLI_DIR, getUserOpenCliPath } from '../../user-opencli-paths.js';
 
 // ── Credentials ───────────────────────────────────────────────────────────────
 // Set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET as environment variables,
@@ -19,7 +19,7 @@ import {
 //   SPOTIFY_CLIENT_ID=your_id
 //   SPOTIFY_CLIENT_SECRET=your_secret
 
-const ENV_FILE = join(homedir(), '.opencli', 'spotify.env');
+const ENV_FILE = getUserOpenCliPath('spotify.env');
 
 function loadEnv(): Record<string, string> {
   if (!existsSync(ENV_FILE)) return {};
@@ -40,7 +40,7 @@ const SCOPES = [
 
 // ── Token storage ─────────────────────────────────────────────────────────────
 
-const TOKEN_FILE = join(homedir(), '.opencli', 'spotify-tokens.json');
+const TOKEN_FILE = getUserOpenCliPath('spotify-tokens.json');
 
 interface Tokens {
   access_token: string;
@@ -53,7 +53,7 @@ function loadTokens(): Tokens | null {
 }
 
 function saveTokens(tokens: Tokens): void {
-  mkdirSync(join(homedir(), '.opencli'), { recursive: true });
+  mkdirSync(USER_OPENCLI_DIR, { recursive: true });
   writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2));
 }
 

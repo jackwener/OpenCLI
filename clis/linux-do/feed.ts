@@ -15,6 +15,7 @@ import * as path from 'node:path';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy, type Arg, type CommandArgs } from '@jackwener/opencli/registry';
 import type { IPage } from '@jackwener/opencli/types';
+import { getUserOpenCliPath } from '../../src/user-opencli-paths.js';
 
 const LINUX_DO_HOME = 'https://linux.do';
 const LINUX_DO_METADATA_TTL_MS = 24 * 60 * 60 * 1000;
@@ -95,12 +96,8 @@ function normalizeLookupValue(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
-function getHomeDir(): string {
-  return process.env.HOME || process.env.USERPROFILE || os.homedir();
-}
-
 function getLinuxDoCacheDir(): string {
-  return testCacheDirOverride ?? path.join(getHomeDir(), '.opencli', 'cache', 'linux-do');
+  return testCacheDirOverride ?? getUserOpenCliPath('cache', 'linux-do');
 }
 
 function getMetadataCachePath(name: 'tags' | 'categories'): string {

@@ -11,12 +11,12 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
 import chalk from 'chalk';
 import { PKG_VERSION } from './version.js';
+import { USER_OPENCLI_DIR, getUserUpdateCheckCachePath } from './user-opencli-paths.js';
 
-const CACHE_DIR = path.join(os.homedir(), '.opencli');
-const CACHE_FILE = path.join(CACHE_DIR, 'update-check.json');
+const CACHE_DIR = USER_OPENCLI_DIR;
+const CACHE_FILE = getUserUpdateCheckCachePath();
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
 const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@jackwener/opencli/latest';
 

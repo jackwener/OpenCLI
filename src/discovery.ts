@@ -9,7 +9,6 @@
  */
 
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
@@ -17,17 +16,15 @@ import { type CliCommand, type InternalCliCommand, type Arg, Strategy, registerC
 import { getErrorMessage } from './errors.js';
 import { log } from './logger.js';
 import type { ManifestEntry } from './build-manifest.js';
-
-/** User runtime directory: ~/.opencli */
-export const USER_OPENCLI_DIR = path.join(os.homedir(), '.opencli');
-/** User CLIs directory: ~/.opencli/clis */
-export const USER_CLIS_DIR = path.join(USER_OPENCLI_DIR, 'clis');
-/** Plugins directory: ~/.opencli/plugins/ */
-export const PLUGINS_DIR = path.join(USER_OPENCLI_DIR, 'plugins');
 /** Matches files that register commands via cli() or lifecycle hooks */
 const PLUGIN_MODULE_PATTERN = /\b(?:cli|onStartup|onBeforeExecute|onAfterExecute)\s*\(/;
 
 import { type YamlCliDefinition, parseYamlArgs } from './yaml-schema.js';
+import { USER_CLIS_DIR, USER_OPENCLI_DIR, USER_PLUGINS_DIR } from './user-opencli-paths.js';
+
+export { USER_CLIS_DIR, USER_OPENCLI_DIR };
+/** Plugins directory: ~/.opencli/plugins/ */
+export const PLUGINS_DIR = USER_PLUGINS_DIR;
 
 function parseStrategy(rawStrategy: string | undefined, fallback: Strategy = Strategy.COOKIE): Strategy {
   if (!rawStrategy) return fallback;

@@ -7,6 +7,7 @@ import yaml from 'js-yaml';
 import chalk from 'chalk';
 import { log } from './logger.js';
 import { EXIT_CODES, getErrorMessage } from './errors.js';
+import { getUserExternalClisConfigPath } from './user-opencli-paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,8 +28,7 @@ export interface ExternalCliConfig {
 }
 
 function getUserRegistryPath(): string {
-  const home = os.homedir();
-  return path.join(home, '.opencli', 'external-clis.yaml');
+  return getUserExternalClisConfigPath();
 }
 
 let _cachedExternalClis: ExternalCliConfig[] | null = null;
