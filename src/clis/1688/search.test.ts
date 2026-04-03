@@ -13,12 +13,14 @@ describe('1688 search normalization', () => {
       tag_items: ['退货包运费', '回头率52%'],
       hover_items: ['验厂报告'],
       seller_name: '青岛沁澜衣品服装有限公司',
-      seller_url: 'https://yinuoweierfushi.1688.com',
-    }, 1, 'https://s.1688.com/selloffer/offer_search.htm?charset=utf8&keywords=置物架');
+      seller_url: 'https://yinuoweierfushi.1688.com/page/index.html?spm=a123',
+    }, 'https://s.1688.com/selloffer/offer_search.htm?charset=utf8&keywords=置物架');
 
-    expect(result.rank).toBe(1);
+    expect(result.rank).toBe(0);
     expect(result.offer_id).toBe('887904326744');
     expect(result.shop_id).toBe('yinuoweierfushi');
+    expect(result.item_url).toBe('https://detail.1688.com/offer/887904326744.html');
+    expect(result.seller_url).toBe('https://yinuoweierfushi.1688.com');
     expect(result.price_text).toBe('¥56.00');
     expect(result.price_min).toBe(56);
     expect(result.price_max).toBe(56);
@@ -39,14 +41,27 @@ describe('1688 search normalization', () => {
       moq_text: '≥2个',
       seller_name: '泰商国际贸易（宁阳）有限公司',
       seller_url: 'http://tsgjmy.1688.com/',
-    }, 1, 'https://s.1688.com/selloffer/offer_search.htm?charset=utf8&keywords=桌面置物架');
+    }, 'https://s.1688.com/selloffer/offer_search.htm?charset=utf8&keywords=桌面置物架');
 
     expect(result.offer_id).toBe('910933345396');
     expect(result.shop_id).toBe('tsgjmy');
+    expect(result.item_url).toBe('https://detail.1688.com/offer/910933345396.html');
     expect(result.title).toContain('桌面书桌办公室工位收纳展示');
     expect(result.price_text).toBe('¥14.28');
     expect(result.sales_text).toBe('1500+件');
     expect(result.moq_text).toBe('≥2个');
     expect(result.moq_value).toBe(2);
+  });
+
+  it('prefers offer id and falls back to item url for dedupe key', () => {
+    expect(__test__.buildDedupeKey({
+      offer_id: '123456',
+      item_url: 'https://detail.1688.com/offer/123456.html',
+    })).toBe('offer:123456');
+    expect(__test__.buildDedupeKey({
+      offer_id: null,
+      item_url: 'https://detail.1688.com/offer/123456.html',
+    })).toBe('url:https://detail.1688.com/offer/123456.html');
+    expect(__test__.buildDedupeKey({ offer_id: null, item_url: null })).toBeNull();
   });
 });

@@ -1,12 +1,14 @@
-import { CommandExecutionError } from '../../errors.js';
+import { CommandExecutionError, EmptyResultError } from '../../errors.js';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import {
   FACTORY_BADGE_PATTERNS,
   SERVICE_BADGE_PATTERNS,
-  assertNotCaptcha,
+  assertAuthenticatedState,
   buildProvenance,
   buildSearchUrl,
+  canonicalizeItemUrl,
+  canonicalizeSellerUrl,
   cleanText,
   extractBadges,
   extractLocation,
@@ -14,9 +16,11 @@ import {
   extractOfferId,
   extractShopId,
   gotoAndReadState,
-  limitCandidates,
   parseMoqText,
   parsePriceText,
+  SEARCH_LIMIT_DEFAULT,
+  SEARCH_LIMIT_MAX,
+  parseSearchLimit,
   uniqueNonEmpty,
 } from './shared.js';
 
@@ -24,6 +28,7 @@ interface SearchPayload {
   href?: string;
   title?: string;
   bodyText?: string;
+  next_url?: string;
   candidates?: Array<{
     item_url?: string;
     title?: string;
@@ -40,17 +45,41 @@ interface SearchPayload {
   }>;
 }
 
+interface SearchRow {
+  rank: number;
+  offer_id: string | null;
+  member_id: string | null;
+  shop_id: string | null;
+  title: string | null;
+  item_url: string | null;
+  seller_name: string | null;
+  seller_url: string | null;
+  price_text: string | null;
+  price_min: number | null;
+  price_max: number | null;
+  currency: string | null;
+  moq_text: string | null;
+  moq_value: number | null;
+  location: string | null;
+  badges: string[];
+  sales_text: string | null;
+  return_rate_text: string | null;
+  source_url: string;
+  fetched_at: string;
+  strategy: string;
+}
+
 const SEARCH_ITEM_URL_PATTERNS = [
   'detail.1688.com/offer/',
   'detail.m.1688.com/page/index.html?offerId=',
 ];
+const MAX_SEARCH_PAGES = 12;
 
 function normalizeSearchCandidate(
   candidate: NonNullable<SearchPayload['candidates']>[number],
-  rank: number,
   sourceUrl: string,
-): Record<string, unknown> {
-  const itemUrl = cleanText(candidate.item_url);
+): SearchRow {
+  const canonicalItemUrl = canonicalizeItemUrl(cleanText(candidate.item_url));
   const containerText = cleanText(candidate.container_text);
   const priceText = firstNonEmpty([
     normalizeInlineText(candidate.price_text),
@@ -62,7 +91,7 @@ function normalizeSearchCandidate(
     normalizeInlineText(extractMoqText(candidate.hover_price_text)),
     normalizeInlineText(extractMoqText(containerText)),
   ]));
-  const sellerUrl = cleanText(candidate.seller_url);
+  const canonicalSellerUrl = canonicalizeSellerUrl(cleanText(candidate.seller_url));
   const evidenceText = uniqueNonEmpty([
     containerText,
     ...(candidate.desc_rows ?? []),
@@ -72,31 +101,33 @@ function normalizeSearchCandidate(
   const badges = extractBadges(evidenceText, [...FACTORY_BADGE_PATTERNS, ...SERVICE_BADGE_PATTERNS]);
   const salesText = firstNonEmpty([
     extractSalesText(candidate.sales_text),
-    extractSalesText(containerText) ?? '',
-  ]) || null;
+    extractSalesText(containerText),
+  ]);
+  const returnRateText = extractReturnRateText([...(candidate.tag_items ?? []), ...(candidate.hover_items ?? [])]);
+  const provenance = buildProvenance(sourceUrl);
 
   return {
-    rank,
-    offer_id: extractOfferId(itemUrl),
-    member_id: extractMemberId(sellerUrl),
-    shop_id: extractShopId(sellerUrl),
-    title: cleanText(candidate.title) || firstLine(containerText),
-    source_url: sourceUrl,
-    fetched_at: new Date().toISOString(),
-    strategy: 'cookie',
-    price_text: priceRange.price_text,
+    rank: 0,
+    offer_id: extractOfferId(canonicalItemUrl ?? '') ?? null,
+    member_id: extractMemberId(canonicalSellerUrl ?? '') ?? null,
+    shop_id: extractShopId(canonicalSellerUrl ?? '') ?? null,
+    title: cleanText(candidate.title) || firstLine(containerText) || null,
+    item_url: canonicalItemUrl,
+    seller_name: cleanText(candidate.seller_name) || null,
+    seller_url: canonicalSellerUrl,
+    price_text: priceRange.price_text || null,
     price_min: priceRange.price_min,
     price_max: priceRange.price_max,
-    currency: priceRange.currency ?? 'CNY',
-    moq_text: moq.moq_text,
+    currency: priceRange.currency,
+    moq_text: moq.moq_text || null,
     moq_value: moq.moq_value,
-    seller_name: cleanText(candidate.seller_name) || null,
-    seller_url: sellerUrl || null,
-    item_url: itemUrl,
     location: extractLocation(containerText),
     badges,
-    sales_text: salesText,
-    return_rate_text: extractReturnRateText(candidate.tag_items ?? []),
+    sales_text: salesText || null,
+    return_rate_text: returnRateText,
+    source_url: provenance.source_url,
+    fetched_at: provenance.fetched_at,
+    strategy: provenance.strategy,
   };
 }
 
@@ -113,14 +144,14 @@ function extractPriceText(text: string | null | undefined): string {
   return normalized.match(/[¥$€]\s*\d+(?:\.\d+)?/)?.[0] ?? '';
 }
 
-function extractSalesText(text: string | null | undefined): string | null {
+function extractSalesText(text: string | null | undefined): string {
   const normalized = normalizeInlineText(text);
-  if (!normalized) return null;
+  if (!normalized) return '';
   if (/^\d+(?:\.\d+)?\+?\s*(件|套|个|单)$/.test(normalized)) {
     return normalized;
   }
   const match = normalized.match(/(?:已售|销量|售)\s*\d+(?:\.\d+)?\+?\s*(件|套|个|单)?/);
-  return match ? cleanText(match[0]) : null;
+  return match ? cleanText(match[0]) : '';
 }
 
 function firstLine(text: string): string {
@@ -145,15 +176,29 @@ function extractReturnRateText(values: string[]): string | null {
     ?? null;
 }
 
-async function readSearchPayload(page: IPage, query: string): Promise<SearchPayload> {
-  const url = buildSearchUrl(query);
-  const state = await gotoAndReadState(page, url, 2500, 'search');
-  assertNotCaptcha(state, 'search');
+function buildDedupeKey(row: Pick<SearchRow, 'offer_id' | 'item_url'>): string | null {
+  if (row.offer_id) return `offer:${row.offer_id}`;
+  if (row.item_url) return `url:${row.item_url}`;
+  return null;
+}
 
-  return await page.evaluate(`
+async function readSearchPayload(page: IPage, url: string): Promise<SearchPayload> {
+  const state = await gotoAndReadState(page, url, 2500, 'search');
+  assertAuthenticatedState(state, 'search');
+
+  const payload = await page.evaluate(`
     (() => {
       const normalizeText = (value) => (value || '').replace(/\\s+/g, ' ').trim();
-      const isItemHref = (href) => ${JSON.stringify(SEARCH_ITEM_URL_PATTERNS)}.some((pattern) => (href || '').includes(pattern));
+      const normalizeUrl = (href) => {
+        if (!href) return '';
+        try {
+          return new URL(href, window.location.href).toString();
+        } catch {
+          return '';
+        }
+      };
+      const isItemHref = (href) => ${JSON.stringify(SEARCH_ITEM_URL_PATTERNS)}
+        .some((pattern) => (href || '').includes(pattern));
       const uniqueTexts = (values) => [...new Set(values.map((value) => normalizeText(value)).filter(Boolean))];
       const collectTexts = (root, selector) => uniqueTexts(
         Array.from(root.querySelectorAll(selector)).map((node) => node.innerText || node.textContent || ''),
@@ -178,7 +223,14 @@ async function readSearchPayload(page: IPage, query: string): Promise<SearchPayl
           const url = new URL(href, window.location.href);
           const host = url.hostname || '';
           if (!host.endsWith('.1688.com')) return false;
-          if (host === 's.1688.com' || host === 'r.1688.com' || host === 'air.1688.com' || host === 'detail.1688.com' || host === 'detail.m.1688.com' || host === 'dj.1688.com') {
+          if (
+            host === 's.1688.com'
+            || host === 'r.1688.com'
+            || host === 'air.1688.com'
+            || host === 'detail.1688.com'
+            || host === 'detail.m.1688.com'
+            || host === 'dj.1688.com'
+          ) {
             return false;
           }
           return true;
@@ -186,23 +238,21 @@ async function readSearchPayload(page: IPage, query: string): Promise<SearchPayl
           return false;
         }
       };
+      const pickContainer = (anchor) => {
+        let node = anchor;
+        while (node && node !== document.body) {
+          const text = normalizeText(node.innerText || node.textContent || '');
+          if (text.length >= 40 && text.length <= 2000) {
+            return node;
+          }
+          node = node.parentElement;
+        }
+        return anchor;
+      };
       const collectCandidates = () => {
         const anchors = Array.from(document.querySelectorAll('a')).filter((anchor) => isItemHref(anchor.href || ''));
         const seen = new Set();
         const items = [];
-
-        const pickContainer = (anchor) => {
-          let node = anchor;
-          while (node && node !== document.body) {
-            const text = normalizeText(node.innerText || node.textContent || '');
-            if (text.length >= 40 && text.length <= 2000) {
-              return node;
-            }
-            node = node.parentElement;
-          }
-          return anchor;
-        };
-
         for (const anchor of anchors) {
           const href = anchor.href || '';
           if (!href || seen.has(href)) continue;
@@ -234,18 +284,85 @@ async function readSearchPayload(page: IPage, query: string): Promise<SearchPayl
             seller_url: sellerAnchor ? sellerAnchor.href : null,
           });
         }
-
         return items;
+      };
+      const findNextUrl = () => {
+        const selectors = [
+          'a.fui-next:not(.disabled)',
+          'a.next-pagination-item:not(.disabled)',
+          'a[rel="next"]:not(.disabled)',
+          'a[data-role="next"]:not(.disabled)',
+        ];
+        for (const selector of selectors) {
+          const node = document.querySelector(selector);
+          if (!node) continue;
+          const href = normalizeUrl(node.getAttribute('href') || node.href || '');
+          if (href) return href;
+        }
+        const textBased = Array.from(document.querySelectorAll('a'))
+          .find((node) => /下一页|next/i.test(normalizeText(node.textContent || '')));
+        if (!textBased) return '';
+        return normalizeUrl(textBased.getAttribute('href') || textBased.href || '');
       };
 
       return {
         href: window.location.href,
         title: document.title || '',
         bodyText: document.body ? document.body.innerText || '' : '',
+        next_url: findNextUrl(),
         candidates: collectCandidates(),
       };
     })()
   `) as SearchPayload;
+
+  if (!payload || typeof payload !== 'object') {
+    throw new CommandExecutionError(
+      '1688 search page did not return a readable payload',
+      'Open the same query in Chrome and verify the page is fully loaded before retrying.',
+    );
+  }
+
+  return payload;
+}
+
+async function collectSearchRows(page: IPage, query: string, limit: number): Promise<SearchRow[]> {
+  const rowsByKey = new Map<string, SearchRow>();
+  const seenPages = new Set<string>();
+  let nextUrl = buildSearchUrl(query);
+  let pageCount = 0;
+
+  while (nextUrl && rowsByKey.size < limit && pageCount < MAX_SEARCH_PAGES) {
+    if (seenPages.has(nextUrl)) break;
+    seenPages.add(nextUrl);
+    pageCount += 1;
+
+    const payload = await readSearchPayload(page, nextUrl);
+    const sourceUrl = cleanText(payload.href) || nextUrl;
+    const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+
+    for (const candidate of candidates) {
+      const row = normalizeSearchCandidate(candidate, sourceUrl);
+      const dedupeKey = buildDedupeKey(row);
+      if (!dedupeKey || rowsByKey.has(dedupeKey)) continue;
+      rowsByKey.set(dedupeKey, row);
+      if (rowsByKey.size >= limit) break;
+    }
+
+    const candidateNextUrl = cleanText(payload.next_url);
+    if (!candidateNextUrl || candidateNextUrl === sourceUrl) break;
+    nextUrl = candidateNextUrl;
+  }
+
+  if (rowsByKey.size === 0) {
+    throw new EmptyResultError(
+      '1688 search',
+      'No visible results were extracted. Retry with a different query or open the same search page in Chrome first.',
+    );
+  }
+
+  return [...rowsByKey.values()]
+    .slice(0, limit)
+    .map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
 cli({
@@ -265,32 +382,15 @@ cli({
     {
       name: 'limit',
       type: 'int',
-      default: 20,
-      help: '结果数量上限（默认 20）',
+      default: SEARCH_LIMIT_DEFAULT,
+      help: `结果数量上限（默认 ${SEARCH_LIMIT_DEFAULT}，最大 ${SEARCH_LIMIT_MAX}）`,
     },
   ],
   columns: ['rank', 'title', 'price_text', 'moq_text', 'seller_name', 'location'],
   func: async (page, kwargs) => {
     const query = String(kwargs.query ?? '');
-    const limit = Math.max(1, Number(kwargs.limit) || 20);
-    const payload = await readSearchPayload(page, query);
-    const sourceUrl = cleanText(payload.href) || buildSearchUrl(query);
-    const candidates = limitCandidates(payload.candidates ?? [], limit)
-      .filter((candidate) => cleanText(candidate.item_url));
-
-    if (candidates.length === 0) {
-      throw new CommandExecutionError(
-        '1688 search did not expose any result cards',
-        'The search page likely hit a slider challenge or changed its DOM. Open the same query in Chrome, solve any challenge, keep a clean 1688 tab selected, and retry.',
-      );
-    }
-
-    const provenance = buildProvenance(sourceUrl);
-    return candidates.map((candidate, index) => ({
-      ...normalizeSearchCandidate(candidate, index + 1, sourceUrl),
-      fetched_at: provenance.fetched_at,
-      strategy: provenance.strategy,
-    }));
+    const limit = parseSearchLimit(kwargs.limit);
+    return collectSearchRows(page, query, limit);
   },
 });
 
@@ -299,4 +399,5 @@ export const __test__ = {
   extractMoqText,
   extractSalesText,
   firstLine,
+  buildDedupeKey,
 };

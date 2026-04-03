@@ -7,7 +7,22 @@ export const SEARCH_URL_PREFIX = 'https://s.1688.com/selloffer/offer_search.htm?
 export const DETAIL_URL_PREFIX = 'https://detail.1688.com/offer/';
 export const STORE_MOBILE_URL_PREFIX = 'https://winport.m.1688.com/page/index.html?memberId=';
 export const STRATEGY = 'cookie';
+export const SEARCH_LIMIT_DEFAULT = 20;
+export const SEARCH_LIMIT_MAX = 100;
 
+const STORE_GENERIC_HOSTS = new Set(['www', 'detail', 's', 'winport', 'work', 'air', 'dj']);
+const TRACKING_QUERY_KEYS = new Set([
+  'spm',
+  'tracelog',
+  'clickid',
+  'source',
+  'scene',
+  'from',
+  'src',
+  'ns',
+  'cna',
+  'pvid',
+]);
 const CAPTCHA_URL_MARKER = '/_____tmd_____/punish';
 const CAPTCHA_TEXT_PATTERNS = [
   '请拖动下方滑块完成验证',
@@ -17,6 +32,18 @@ const CAPTCHA_TEXT_PATTERNS = [
   '访问验证',
   '滑动验证',
 ];
+const LOGIN_TEXT_PATTERNS = [
+  '请登录',
+  '登录后',
+  '账号登录',
+  '手机登录',
+  '立即登录',
+  '扫码登录',
+  '请先完成登录',
+  '请先登录后查看',
+];
+const LOGIN_URL_PATTERNS = ['/member/login', 'passport', 'login.taobao.com', 'account.1688.com'];
+
 export const FACTORY_BADGE_PATTERNS = [
   '源头工厂',
   '深度验厂',
@@ -41,6 +68,7 @@ export const SERVICE_BADGE_PATTERNS = [
   '包邮',
   '闪电拿样',
 ];
+
 const CHINA_LOCATIONS = [
   '北京',
   '天津',
@@ -139,10 +167,24 @@ export function uniqueNonEmpty(values: Array<string | null | undefined>): string
   return [...new Set(values.map((value) => cleanText(value)).filter(Boolean))];
 }
 
+export function parseSearchLimit(input: unknown): number {
+  const parsed = Number.parseInt(String(input ?? SEARCH_LIMIT_DEFAULT), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    throw new ArgumentError(
+      '1688 search --limit must be a positive integer',
+      'Example: opencli 1688 search "桌面置物架" --limit 20',
+    );
+  }
+  return Math.min(SEARCH_LIMIT_MAX, parsed);
+}
+
 export function buildSearchUrl(query: string): string {
   const normalized = cleanText(query);
   if (!normalized) {
-    throw new ArgumentError('1688 search query cannot be empty');
+    throw new ArgumentError(
+      '1688 search query cannot be empty',
+      'Example: opencli 1688 search "桌面置物架" --limit 20',
+    );
   }
   return `${SEARCH_URL_PREFIX}${encodeURIComponent(normalized)}`;
 }
@@ -161,16 +203,19 @@ export function buildDetailUrl(input: string): string {
 export function resolveStoreUrl(input: string): string {
   const normalized = cleanText(input);
   if (!normalized) {
-    throw new ArgumentError('1688 store expects a store URL, shop host, or member ID');
-  }
-
-  if (/^https?:\/\//i.test(normalized)) {
-    return canonicalizeStoreUrl(normalized);
+    throw new ArgumentError(
+      '1688 store expects a store URL or member ID',
+      'Example: opencli 1688 store https://yinuoweierfushi.1688.com/',
+    );
   }
 
   const memberId = extractMemberId(normalized);
   if (memberId) {
     return `${STORE_MOBILE_URL_PREFIX}${memberId}`;
+  }
+
+  if (/^https?:\/\//i.test(normalized)) {
+    return canonicalizeStoreUrl(normalized);
   }
 
   if (normalized.endsWith('.1688.com')) {
@@ -182,21 +227,50 @@ export function resolveStoreUrl(input: string): string {
   }
 
   throw new ArgumentError(
-    '1688 store expects a store URL, shop host, or member ID',
-    'Example: opencli 1688 store https://yinuoweierfushi.1688.com/?offerId=887904326744',
+    '1688 store expects a store URL or member ID',
+    'Example: opencli 1688 store b2b-22154705262941f196',
   );
 }
 
 export function canonicalizeStoreUrl(input: string): string {
-  try {
-    const url = new URL(input);
-    if (!url.hostname.endsWith('1688.com')) {
-      throw new Error('not-1688');
-    }
-    return url.toString();
-  } catch {
-    throw new ArgumentError('Invalid 1688 store URL');
+  const url = parse1688Url(input);
+  const memberId = extractMemberId(url.toString());
+  if (memberId) {
+    return `${STORE_MOBILE_URL_PREFIX}${memberId}`;
   }
+
+  const host = normalizeStoreHost(url.hostname);
+  if (!host) {
+    throw new ArgumentError(
+      'Invalid 1688 store URL',
+      'Example: opencli 1688 store https://yinuoweierfushi.1688.com/',
+    );
+  }
+  return `https://${host}`;
+}
+
+export function canonicalizeItemUrl(input: string): string | null {
+  const offerId = extractOfferId(input);
+  if (offerId) {
+    return `${DETAIL_URL_PREFIX}${offerId}.html`;
+  }
+  const url = parse1688UrlOrNull(input);
+  if (!url) return null;
+  stripTrackingParams(url);
+  url.hash = '';
+  return url.toString();
+}
+
+export function canonicalizeSellerUrl(input: string): string | null {
+  const memberId = extractMemberId(input);
+  if (memberId) {
+    return `${STORE_MOBILE_URL_PREFIX}${memberId}`;
+  }
+  const url = parse1688UrlOrNull(input);
+  if (!url) return null;
+  const host = normalizeStoreHost(url.hostname);
+  if (!host) return null;
+  return `https://${host}`;
 }
 
 export function extractOfferId(input: string): string | null {
@@ -226,13 +300,12 @@ export function extractMemberId(input: string): string | null {
 export function extractShopId(input: string): string | null {
   const normalized = cleanText(input);
   if (!normalized) return null;
+
   try {
     const url = new URL(/^https?:\/\//i.test(normalized) ? normalized : `https://${normalized}`);
-    const [subdomain] = url.hostname.split('.');
-    if (!subdomain || ['www', 'detail', 's', 'winport', 'work'].includes(subdomain)) {
-      return null;
-    }
-    return subdomain;
+    const host = normalizeStoreHost(url.hostname);
+    if (!host) return null;
+    return host.split('.')[0] ?? null;
   } catch {
     return /^[a-z0-9-]+$/i.test(normalized) ? normalized : null;
   }
@@ -280,9 +353,7 @@ export function normalizePriceTiers(
       const priceText = cleanText(tier.price);
       const price = toNumber(tier.price);
       return {
-        quantity_text: quantityMin !== null
-          ? `${quantityMin}${unit ?? ''}`
-          : '',
+        quantity_text: quantityMin !== null ? `${quantityMin}${unit ?? ''}` : '',
         quantity_min: quantityMin,
         price_text: priceText,
         price,
@@ -359,9 +430,7 @@ export function extractMainBusiness(text: string): string | null {
 }
 
 export function extractBadges(text: string, candidates: string[]): string[] {
-  return uniqueNonEmpty(
-    candidates.filter((candidate) => cleanMultilineText(text).includes(candidate)),
-  );
+  return uniqueNonEmpty(candidates.filter((candidate) => cleanMultilineText(text).includes(candidate)));
 }
 
 export function guessTopCategories(text: string): string[] {
@@ -376,6 +445,14 @@ export function isCaptchaState(state: Partial<PageState>): boolean {
   const bodyText = cleanMultilineText(state.body_text);
   if (href.includes(CAPTCHA_URL_MARKER)) return true;
   return CAPTCHA_TEXT_PATTERNS.some((pattern) => title.includes(pattern) || bodyText.includes(pattern));
+}
+
+export function isLoginState(state: Partial<PageState>): boolean {
+  const href = cleanText(state.href).toLowerCase();
+  const title = cleanText(state.title);
+  const bodyText = cleanMultilineText(state.body_text);
+  if (LOGIN_URL_PATTERNS.some((pattern) => href.includes(pattern))) return true;
+  return LOGIN_TEXT_PATTERNS.some((pattern) => title.includes(pattern) || bodyText.includes(pattern));
 }
 
 export function buildCaptchaHint(action: string): string {
@@ -428,48 +505,17 @@ export async function gotoAndReadState(
 }
 
 export async function ensure1688Session(page: IPage): Promise<void> {
-  const state = await gotoAndReadState(page, HOME_URL, 1500);
-  if (isCaptchaState(state)) {
-    throw new CommandExecutionError(
-      '1688 homepage is currently blocked by a slider challenge',
-      buildCaptchaHint('homepage'),
-    );
-  }
+  const state = await gotoAndReadState(page, HOME_URL, 1500, 'homepage');
+  assertAuthenticatedState(state, 'homepage');
+}
 
-  const authState = await page.evaluate(`
-    (() => {
-      const text = document.body ? document.body.innerText || '' : '';
-      const hasSearchInput = !!document.querySelector('input#alisearch-input, input[name="keywords"]');
-      const hasLoggedMarker = ['采购车', '收藏的品', '我的足迹', '全部订单']
-        .some((label) => text.includes(label));
-      const hasLoginPrompt = ['请登录', '立即登录', '登录后']
-        .some((label) => text.includes(label));
-      return {
-        hasSearchInput,
-        hasLoggedMarker,
-        hasLoginPrompt,
-      };
-    })()
-  `) as { hasSearchInput?: boolean; hasLoggedMarker?: boolean; hasLoginPrompt?: boolean };
-
-  const isLoggedIn = authState.hasSearchInput === true
-    && authState.hasLoggedMarker === true
-    && authState.hasLoginPrompt !== true;
-
-  if (!isLoggedIn) {
-    throw new AuthRequiredError(
-      '1688.com',
-      '1688 is not logged in in the shared Chrome profile',
-    );
-  }
+export function assertAuthenticatedState(state: PageState, action: string): void {
+  if (!isCaptchaState(state) && !isLoginState(state)) return;
+  throw new AuthRequiredError('1688.com', `请先在共享 Chrome 完成 1688 登录/验证，再重试（${action}）`);
 }
 
 export function assertNotCaptcha(state: PageState, action: string): void {
-  if (!isCaptchaState(state)) return;
-  throw new CommandExecutionError(
-    `1688 ${action} hit a slider challenge`,
-    buildCaptchaHint(action),
-  );
+  assertAuthenticatedState(state, action);
 }
 
 export function toNumber(value: unknown): number | null {
@@ -502,10 +548,59 @@ function escapeForRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function parse1688Url(input: string): URL {
+  const normalized = cleanText(input);
+  try {
+    const url = new URL(normalized);
+    if (!url.hostname.endsWith('.1688.com') && url.hostname !== '1688.com' && url.hostname !== 'www.1688.com') {
+      throw new Error('invalid-host');
+    }
+    stripTrackingParams(url);
+    url.hash = '';
+    return url;
+  } catch {
+    throw new ArgumentError(
+      'Invalid 1688 URL',
+      'Use a URL under 1688.com (for example: https://detail.1688.com/offer/887904326744.html)',
+    );
+  }
+}
+
+function parse1688UrlOrNull(input: string): URL | null {
+  try {
+    return parse1688Url(input);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeStoreHost(hostname: string): string | null {
+  const lower = cleanText(hostname).toLowerCase();
+  if (!lower.endsWith('.1688.com')) return null;
+  const [subdomain] = lower.split('.');
+  if (!subdomain || STORE_GENERIC_HOSTS.has(subdomain)) return null;
+  return lower;
+}
+
+function stripTrackingParams(url: URL): void {
+  const keys = [...url.searchParams.keys()];
+  for (const key of keys) {
+    if (TRACKING_QUERY_KEYS.has(key) || key.toLowerCase().startsWith('utm_')) {
+      url.searchParams.delete(key);
+    }
+  }
+}
+
 export const __test__ = {
+  SEARCH_LIMIT_DEFAULT,
+  SEARCH_LIMIT_MAX,
+  parseSearchLimit,
   buildSearchUrl,
   buildDetailUrl,
   resolveStoreUrl,
+  canonicalizeStoreUrl,
+  canonicalizeItemUrl,
+  canonicalizeSellerUrl,
   extractOfferId,
   extractMemberId,
   extractShopId,
@@ -520,6 +615,7 @@ export const __test__ = {
   extractBadges,
   guessTopCategories,
   isCaptchaState,
+  isLoginState,
   cleanText,
   cleanMultilineText,
   uniqueNonEmpty,
