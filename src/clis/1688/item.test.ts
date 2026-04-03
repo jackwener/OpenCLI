@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { __test__ } from './item.js';
 
 describe('1688 item normalization', () => {
-  it('normalizes public item payload into reportable fields', () => {
+  it('normalizes public item payload into contract fields', () => {
     const result = __test__.normalizeItemPayload({
       href: 'https://detail.1688.com/offer/887904326744.html',
       title: '法式春季长袖开衫连衣裙女新款大码女装碎花吊带裙套装142077 - 阿里巴巴',
@@ -22,7 +22,7 @@ describe('1688 item normalization', () => {
       seller: {
         companyName: '青岛沁澜衣品服装有限公司',
         memberId: 'b2b-1641351767',
-        winportUrl: 'https://yinuoweierfushi.1688.com',
+        winportUrl: 'https://yinuoweierfushi.1688.com/page/index.html?spm=a1',
       },
       trade: {
         beginAmount: 3,
@@ -55,14 +55,15 @@ describe('1688 item normalization', () => {
     expect(result.offer_id).toBe('887904326744');
     expect(result.member_id).toBe('b2b-1641351767');
     expect(result.shop_id).toBe('yinuoweierfushi');
+    expect(result.seller_url).toBe('https://yinuoweierfushi.1688.com');
     expect(result.price_text).toBe('¥96.00-98.00');
     expect(result.moq_text).toBe('3套起批');
     expect(result.origin_place).toBe('山东青岛');
     expect(result.delivery_days_text).toBe('360小时内发货');
     expect(result.private_label_text).toBe('支持定制logo');
-    expect(result.visible_attributes).toEqual({
-      面料名称: '莫代尔',
-      主面料成分: '莫代尔纤维',
-    });
+    expect(result.visible_attributes).toEqual([
+      { key: '面料名称', value: '莫代尔' },
+      { key: '主面料成分', value: '莫代尔纤维' },
+    ]);
   });
 });

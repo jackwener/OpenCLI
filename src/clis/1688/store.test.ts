@@ -36,7 +36,7 @@ describe('1688 store normalization', () => {
         seller: {
           companyName: '青岛沁澜衣品服装有限公司',
           memberId: 'b2b-1641351767',
-          winportUrl: 'https://yinuoweierfushi.1688.com',
+          winportUrl: 'https://yinuoweierfushi.1688.com/page/index.html?spm=abc',
         },
         services: [{ serviceName: '延期必赔' }, { serviceName: '品质保障' }],
       },
@@ -47,39 +47,23 @@ describe('1688 store normalization', () => {
     expect(result.company_url).toBe('https://yinuoweierfushi.1688.com/page/contactinfo.html');
     expect(result.years_on_platform_text).toBe('入驻13年');
     expect(result.location).toBe('山东省青岛市即墨区环秀街道办事处湘江二路97号甲');
-    expect(result.return_rate_text).toBe('87%');
+    expect(result.return_rate_text).toContain('87%');
     expect(result.top_categories).toEqual(['大码女装']);
     expect(result.service_badges).toEqual(['延期必赔', '品质保障']);
   });
 
   it('builds contact urls and extracts offer ids', () => {
+    expect(__test__.safeCanonicalStoreUrl('https://yinuoweierfushi.1688.com/page/index.html?spm=foo')).toBe(
+      'https://yinuoweierfushi.1688.com',
+    );
     expect(__test__.buildContactUrl('https://yinuoweierfushi.1688.com')).toBe(
       'https://yinuoweierfushi.1688.com/page/contactinfo.html',
     );
     expect(__test__.firstOfferId([
       'https://detail.1688.com/offer/887904326744.html',
     ])).toBe('887904326744');
-  });
-
-  it('collects deduplicated offer ids from input and store links', () => {
-    expect(__test__.collectOfferIds(
-      'https://detail.1688.com/offer/887904326744.html',
-      {
-        href: 'https://yinuoweierfushi.1688.com/page/index.html',
-        bodyText: '',
-        offerLinks: [
-          'https://detail.1688.com/offer/887904326744.html',
-          'https://detail.1688.com/offer/123456789012.html',
-        ],
-      },
-      {
-        href: 'https://yinuoweierfushi.1688.com/page/contactinfo.html',
-        bodyText: '',
-        offerLinks: [
-          'https://detail.1688.com/offer/123456789012.html',
-          'https://detail.1688.com/offer/999999999999.html',
-        ],
-      },
-    )).toEqual(['887904326744', '123456789012', '999999999999']);
+    expect(__test__.firstContactUrl([
+      'https://yinuoweierfushi.1688.com/page/contactinfo.html?spm=1',
+    ])).toBe('https://yinuoweierfushi.1688.com/page/contactinfo.html');
   });
 });

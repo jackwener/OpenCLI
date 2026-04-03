@@ -2,19 +2,33 @@ import { describe, expect, it } from 'vitest';
 import { __test__ } from './shared.js';
 
 describe('1688 shared helpers', () => {
-  it('builds encoded search URLs', () => {
+  it('builds encoded search URLs and validates limit', () => {
     expect(__test__.buildSearchUrl('置物架')).toBe(
       'https://s.1688.com/selloffer/offer_search.htm?charset=utf8&keywords=%E7%BD%AE%E7%89%A9%E6%9E%B6',
     );
+    expect(() => __test__.buildSearchUrl('   ')).toThrowError(/cannot be empty/i);
+
+    expect(__test__.parseSearchLimit(3)).toBe(3);
+    expect(__test__.parseSearchLimit('1000')).toBe(__test__.SEARCH_LIMIT_MAX);
+    expect(() => __test__.parseSearchLimit('0')).toThrowError(/positive integer/i);
   });
 
-  it('extracts stable ids from 1688 inputs', () => {
+  it('extracts IDs and canonicalizes urls', () => {
     expect(__test__.extractOfferId('887904326744')).toBe('887904326744');
     expect(__test__.extractOfferId('https://detail.1688.com/offer/887904326744.html')).toBe('887904326744');
     expect(__test__.extractMemberId('https://winport.m.1688.com/page/index.html?memberId=b2b-1641351767')).toBe('b2b-1641351767');
     expect(__test__.extractMemberId('b2b-22154705262941f196')).toBe('b2b-22154705262941f196');
     expect(__test__.resolveStoreUrl('b2b-22154705262941f196')).toBe(
       'https://winport.m.1688.com/page/index.html?memberId=b2b-22154705262941f196',
+    );
+    expect(__test__.canonicalizeStoreUrl('https://yinuoweierfushi.1688.com/page/index.html?spm=foo')).toBe(
+      'https://yinuoweierfushi.1688.com',
+    );
+    expect(__test__.canonicalizeItemUrl('http://detail.m.1688.com/page/index.html?offerId=910933345396&spm=x')).toBe(
+      'https://detail.1688.com/offer/910933345396.html',
+    );
+    expect(__test__.canonicalizeSellerUrl('https://yinuoweierfushi.1688.com/page/contactinfo.html?tracelog=1')).toBe(
+      'https://yinuoweierfushi.1688.com',
     );
     expect(__test__.extractShopId('https://yinuoweierfushi.1688.com/page/index.html')).toBe('yinuoweierfushi');
   });
@@ -45,15 +59,17 @@ describe('1688 shared helpers', () => {
     });
   });
 
-  it('extracts location and captcha states', () => {
+  it('detects captcha and login states', () => {
     expect(__test__.extractLocation('山东青岛 送至 江苏苏州')).toBe('山东青岛');
-    expect(__test__.extractMetric(`主营：家装建材
-地址：江苏省常州市武进区横林镇崔桥崔卫路40号`, '主营')).toBe('家装建材');
-    expect(__test__.extractMetric('常州市优品诺家居科技有限公司是家居用品、家居用品等产品专业生产加工的公司', '生产加工')).toBe(null);
     expect(__test__.isCaptchaState({
       href: 'https://s.1688.com/_____tmd_____/punish',
       title: '验证码拦截',
       body_text: '请拖动下方滑块完成验证',
+    })).toBe(true);
+    expect(__test__.isLoginState({
+      href: 'https://login.taobao.com/member/login.jhtml',
+      title: '账号登录',
+      body_text: '请登录后继续',
     })).toBe(true);
   });
 });

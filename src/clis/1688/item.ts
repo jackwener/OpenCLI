@@ -3,10 +3,10 @@ import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import { isRecord } from '../../utils.js';
 import {
-  assertNotCaptcha,
-  buildCaptchaHint,
+  assertAuthenticatedState,
   buildDetailUrl,
   buildProvenance,
+  canonicalizeSellerUrl,
   cleanMultilineText,
   cleanText,
   extractLocation,
@@ -65,18 +65,24 @@ interface ItemBrowserPayload {
   services?: BuyerProtectionModel[];
 }
 
+interface VisibleAttribute {
+  key: string;
+  value: string;
+}
+
 function normalizeItemPayload(payload: ItemBrowserPayload): Record<string, unknown> {
   const href = cleanText(payload.href);
   const bodyText = cleanMultilineText(payload.bodyText);
   const sellerName = cleanText(payload.seller?.companyName);
-  const sellerUrl = cleanText(
+  const sellerUrlRaw = cleanText(
     payload.seller?.winportUrl
       ?? payload.seller?.sellerWinportUrlMap?.defaultUrl
       ?? payload.seller?.sellerWinportUrlMap?.indexUrl,
   );
-  const offerId = cleanText(String(payload.offerId ?? '')) || extractOfferId(href) || '';
-  const memberId = cleanText(payload.seller?.memberId) || extractMemberId(href) || null;
-  const shopId = extractShopId(sellerUrl) ?? extractShopId(href);
+  const sellerUrl = canonicalizeSellerUrl(sellerUrlRaw);
+  const offerId = cleanText(String(payload.offerId ?? '')) || extractOfferId(href) || null;
+  const memberId = cleanText(payload.seller?.memberId) || extractMemberId(sellerUrlRaw || href) || null;
+  const shopId = extractShopId(sellerUrl ?? href);
   const unit = cleanText(payload.trade?.unit);
   const priceDisplay = cleanText(payload.trade?.priceDisplay);
   const priceRange = parsePriceText(priceDisplay ? `¥${priceDisplay}` : bodyText);
@@ -85,9 +91,6 @@ function normalizeItemPayload(payload: ItemBrowserPayload): Record<string, unkno
   const services = uniqueServices(payload);
   const serviceBadges = uniqueNonEmpty(services.map((service) => cleanText(service.serviceName)));
   const attributes = normalizeVisibleAttributes(payload.trade?.offerIDatacenterSellInfo);
-
-  const detailUrl = offerId ? buildDetailUrl(offerId) : href;
-  const provenance = buildProvenance(href || detailUrl);
   const priceTiers = normalizePriceTiers(payload.trade?.offerPriceModel?.currentPrices ?? [], unit || null);
   const images = uniqueNonEmpty([
     ...(payload.gallery?.mainImage ?? []),
@@ -95,21 +98,23 @@ function normalizeItemPayload(payload: ItemBrowserPayload): Record<string, unkno
     ...((payload.gallery?.wlImageInfos ?? []).map((item) => item.fullPathImageURI ?? '')),
   ]);
 
+  const detailUrl = offerId ? buildDetailUrl(offerId) : href;
+  const provenance = buildProvenance(href || detailUrl);
+
   return {
     offer_id: offerId,
     member_id: memberId,
     shop_id: shopId,
-    title: cleanText(payload.offerTitle) || stripAlibabaSuffix(payload.title) || firstNonEmptyLine(bodyText),
+    title: cleanText(payload.offerTitle) || stripAlibabaSuffix(payload.title) || firstNonEmptyLine(bodyText) || null,
     item_url: detailUrl,
-    ...provenance,
     main_images: images,
-    price_text: priceRange.price_text,
+    price_text: priceRange.price_text || null,
     price_tiers: priceTiers,
-    currency: priceRange.currency ?? 'CNY',
-    moq_text: moq.moq_text,
+    currency: priceRange.currency,
+    moq_text: moq.moq_text || null,
     moq_value: moq.moq_value,
     seller_name: sellerName || null,
-    seller_url: sellerUrl || null,
+    seller_url: sellerUrl,
     shop_name: sellerName || null,
     origin_place: extractLocation(bodyText),
     delivery_days_text: extractDeliveryDaysText(bodyText, services, payload.shipping),
@@ -119,15 +124,15 @@ function normalizeItemPayload(payload: ItemBrowserPayload): Record<string, unkno
     sales_text: extractSalesText(bodyText),
     service_badges: serviceBadges,
     stock_quantity: extractStockQuantity(bodyText),
+    ...provenance,
   };
 }
 
-function normalizeVisibleAttributes(raw: unknown): Record<string, string> {
-  if (!isRecord(raw)) return {};
-  const entries = Object.entries(raw)
+function normalizeVisibleAttributes(raw: unknown): VisibleAttribute[] {
+  if (!isRecord(raw)) return [];
+  return Object.entries(raw)
     .filter(([key, value]) => key !== 'sellPointModel' && cleanText(key) && cleanText(String(value)))
-    .map(([key, value]) => [cleanText(key), cleanText(String(value))] as const);
-  return Object.fromEntries(entries);
+    .map(([key, value]) => ({ key: cleanText(key), value: cleanText(String(value)) }));
 }
 
 function uniqueServices(payload: ItemBrowserPayload): BuyerProtectionModel[] {
@@ -208,10 +213,8 @@ function extractStockQuantity(bodyText: string): number | null {
 }
 
 async function readItemPayload(page: IPage, itemUrl: string): Promise<ItemBrowserPayload> {
-  let state = await gotoAndReadState(page, itemUrl, 2500, 'item');
-  if (state.href && !state.href.includes('/offer/')) {
-    assertNotCaptcha(state, 'item');
-  }
+  const state = await gotoAndReadState(page, itemUrl, 2500, 'item');
+  assertAuthenticatedState(state, 'item');
 
   const payload = await page.evaluate(`
     (() => {
@@ -233,12 +236,11 @@ async function readItemPayload(page: IPage, itemUrl: string): Promise<ItemBrowse
     })()
   `) as ItemBrowserPayload;
 
-  if (!cleanText(String(payload.offerId ?? ''))) {
-    state = await gotoAndReadState(page, itemUrl, 2500, 'item');
-    assertNotCaptcha(state, 'item');
+  const resolvedOfferId = cleanText(String(payload.offerId ?? '')) || extractOfferId(cleanText(payload.href));
+  if (!resolvedOfferId) {
     throw new CommandExecutionError(
       '1688 item page did not expose product context',
-      `${buildCaptchaHint('item')} If the page is still open but blank, refresh the item page in Chrome and retry.`,
+      '当前 tab 非商品详情上下文，请切到 detail.1688.com 商品页并重试',
     );
   }
 
