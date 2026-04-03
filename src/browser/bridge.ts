@@ -130,31 +130,49 @@ export class BrowserBridge implements IBrowserFactory {
 
     if (await isExtensionConnected()) return true;
     const startedAt = Date.now();
-
+    const runningCandidates = candidates.filter(candidate => candidate.running);
+    const stoppedCandidates = candidates.filter(candidate => !candidate.running);
     const perBrowserWaitMs = candidates.length > 0
       ? Math.min(MAX_PER_BROWSER_WAIT_MS, Math.max(EXTENSION_POLL_INTERVAL_MS, Math.floor(timeoutMs / candidates.length)))
       : timeoutMs;
 
+    if (await this._tryCandidateGroup(runningCandidates, { launch: false, timeoutMs, startedAt, perBrowserWaitMs })) return true;
+    if (await this._tryCandidateGroup(stoppedCandidates, { launch: true, timeoutMs, startedAt, perBrowserWaitMs })) return true;
+
+    const remainingMs = Math.max(0, timeoutMs - (Date.now() - startedAt));
+    if (remainingMs > 0 && await this._waitForExtensionConnection(remainingMs)) return true;
+    return false;
+  }
+
+  private async _tryCandidateGroup(
+    candidates: ReturnType<typeof getBrowserCandidates>,
+    opts: { launch: boolean; timeoutMs: number; startedAt: number; perBrowserWaitMs: number },
+  ): Promise<boolean> {
+    if (candidates.length === 0) return false;
+
     for (const candidate of candidates) {
+      const remainingMs = Math.max(0, opts.timeoutMs - (Date.now() - opts.startedAt));
+      if (remainingMs <= 0) break;
+
       this._lastTriedBrowsers.push(candidate.name);
       if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
         process.stderr.write(`   Trying browser: ${candidate.name}\n`);
       }
-      await launchBrowserCandidate(candidate);
-      if (await isExtensionConnected()) {
-        this._inferredBrowserName = candidate.name;
-        return true;
+
+      if (opts.launch) {
+        await launchBrowserCandidate(candidate);
+        if (await isExtensionConnected()) {
+          this._inferredBrowserName = candidate.name;
+          return true;
+        }
       }
-      const remainingMs = Math.max(0, timeoutMs - (Date.now() - startedAt));
-      if (remainingMs <= 0) break;
-      if (await this._waitForExtensionConnection(Math.min(perBrowserWaitMs, remainingMs))) {
+
+      if (await this._waitForExtensionConnection(Math.min(opts.perBrowserWaitMs, remainingMs))) {
         this._inferredBrowserName = candidate.name;
         return true;
       }
     }
 
-    const remainingMs = Math.max(0, timeoutMs - (Date.now() - startedAt));
-    if (remainingMs > 0 && await this._waitForExtensionConnection(remainingMs)) return true;
     return false;
   }
 
