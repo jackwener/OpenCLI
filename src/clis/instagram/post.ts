@@ -10,14 +10,16 @@ import {
   type InstagramProtocolCaptureEntry,
 } from './_shared/protocol-capture.js';
 import {
+  publishMediaViaPrivateApi,
   publishImagesViaPrivateApi,
   resolveInstagramPrivatePublishConfig,
 } from './_shared/private-publish.js';
 import { resolveInstagramRuntimeInfo } from './_shared/runtime-info.js';
 
 const INSTAGRAM_HOME_URL = 'https://www.instagram.com/';
-const SUPPORTED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
-const MAX_IMAGES = 10;
+const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+const SUPPORTED_VIDEO_EXTENSIONS = new Set(['.mp4']);
+const MAX_MEDIA_ITEMS = 10;
 const INSTAGRAM_PROTOCOL_TRACE_OUTPUT_PATH = '/tmp/instagram_post_protocol_trace.json';
 
 type InstagramProtocolDrain = () => Promise<void>;
@@ -25,6 +27,10 @@ type InstagramSuccessRow = {
   status: string;
   detail: string;
   url: string;
+};
+type InstagramPostMediaItem = {
+  type: 'image' | 'video';
+  filePath: string;
 };
 
 async function gotoInstagramHome(page: IPage, forceReload = false): Promise<void> {
@@ -118,8 +124,8 @@ function validateImagePaths(inputs: string[]): string[] {
       'Provide --image /path/to/file.jpg or --images /path/a.jpg,/path/b.jpg',
     );
   }
-  if (inputs.length > MAX_IMAGES) {
-    throw new ArgumentError(`Too many images: ${inputs.length}`, `Instagram carousel posts support at most ${MAX_IMAGES} images`);
+  if (inputs.length > MAX_MEDIA_ITEMS) {
+    throw new ArgumentError(`Too many images: ${inputs.length}`, `Instagram carousel posts support at most ${MAX_MEDIA_ITEMS} items`);
   }
 
   return inputs.map((input) => {
@@ -132,7 +138,7 @@ function validateImagePaths(inputs: string[]): string[] {
     }
 
     const ext = path.extname(resolved).toLowerCase();
-    if (!SUPPORTED_EXTENSIONS.has(ext)) {
+    if (!SUPPORTED_IMAGE_EXTENSIONS.has(ext)) {
       throw new ArgumentError(`Unsupported image format: ${ext}`, 'Supported formats: .jpg, .jpeg, .png, .webp');
     }
 
@@ -159,13 +165,68 @@ function normalizeImagePaths(kwargs: Record<string, unknown>): string[] {
   return validateImagePaths([]);
 }
 
+function validateMixedMediaItems(inputs: string[]): InstagramPostMediaItem[] {
+  if (inputs.length < 2) {
+    throw new ArgumentError(
+      'Argument "media" requires at least two items.',
+      'Provide --media /path/to/image.jpg,/path/to/video.mp4',
+    );
+  }
+  if (inputs.length > MAX_MEDIA_ITEMS) {
+    throw new ArgumentError(`Too many media items: ${inputs.length}`, `Instagram carousel posts support at most ${MAX_MEDIA_ITEMS} items`);
+  }
+
+  const items = inputs.map((input) => {
+    const resolved = path.resolve(String(input || '').trim());
+    if (!resolved) {
+      throw new ArgumentError('Media path cannot be empty');
+    }
+    if (!fs.existsSync(resolved)) {
+      throw new ArgumentError(`Media file not found: ${resolved}`);
+    }
+    const ext = path.extname(resolved).toLowerCase();
+    if (SUPPORTED_IMAGE_EXTENSIONS.has(ext)) {
+      return { type: 'image' as const, filePath: resolved };
+    }
+    if (SUPPORTED_VIDEO_EXTENSIONS.has(ext)) {
+      return { type: 'video' as const, filePath: resolved };
+    }
+    throw new ArgumentError(`Unsupported media format: ${ext}`, 'Supported formats: images (.jpg, .jpeg, .png, .webp) and videos (.mp4)');
+  });
+
+  if (!items.some((item) => item.type === 'image') || !items.some((item) => item.type === 'video')) {
+    throw new ArgumentError(
+      'Argument "media" must include at least one image and one video.',
+      'Use --image/--images for image-only posts, or mix image and .mp4 files in --media',
+    );
+  }
+
+  return items;
+}
+
+function normalizePostMediaItems(kwargs: Record<string, unknown>): InstagramPostMediaItem[] {
+  const media = String(kwargs.media ?? '').trim();
+  const hasLegacyImageArgs = String(kwargs.image ?? '').trim() || String(kwargs.images ?? '').trim();
+
+  if (media && hasLegacyImageArgs) {
+    throw new ArgumentError('Use either --media or --image/--images, not both');
+  }
+
+  if (media) {
+    return validateMixedMediaItems(media.split(',').map((part) => part.trim()).filter(Boolean));
+  }
+
+  return normalizeImagePaths(kwargs).map((filePath) => ({ type: 'image' as const, filePath }));
+}
+
 function validateInstagramPostArgs(kwargs: Record<string, unknown>): void {
   const image = kwargs.image;
   const images = kwargs.images;
-  if (image === undefined && images === undefined) {
+  const media = kwargs.media;
+  if (image === undefined && images === undefined && media === undefined) {
     throw new ArgumentError(
-      'Argument "image" or "images" is required.',
-      'Provide --image /path/to/file.jpg or --images /path/a.jpg,/path/b.jpg',
+      'Argument "image", "images", or "media" is required.',
+      'Provide --image /path/to/file.jpg, --images /path/a.jpg,/path/b.jpg, or --media /path/a.jpg,/path/b.mp4',
     );
   }
 }
@@ -176,10 +237,10 @@ function isSafePrivateRouteFallbackError(error: unknown): boolean {
     || error.message.startsWith('Instagram private route');
 }
 
-function buildInstagramSuccessResult(imagePaths: string[], url: string): InstagramSuccessRow[] {
+function buildInstagramSuccessResult(mediaItems: InstagramPostMediaItem[], url: string): InstagramSuccessRow[] {
   return [{
     status: '✅ Posted',
-    detail: describePostDetail(imagePaths),
+    detail: describePostDetail(mediaItems),
     url,
   }];
 }
@@ -192,27 +253,35 @@ function buildFallbackHint(privateError: unknown, uiError: unknown): string {
 
 async function executePrivateInstagramPost(input: {
   page: IPage;
-  imagePaths: string[];
+  mediaItems: InstagramPostMediaItem[];
   content: string;
   existingPostPaths: Set<string>;
 }): Promise<InstagramSuccessRow[]> {
   const privateConfig = await resolveInstagramPrivatePublishConfig(input.page);
-  const privateResult = await publishImagesViaPrivateApi({
-    page: input.page,
-    imagePaths: input.imagePaths,
-    caption: input.content,
-    apiContext: privateConfig.apiContext,
-    jazoest: privateConfig.jazoest,
-  });
+  const privateResult = input.mediaItems.every((item) => item.type === 'image')
+    ? await publishImagesViaPrivateApi({
+        page: input.page,
+        imagePaths: input.mediaItems.map((item) => item.filePath),
+        caption: input.content,
+        apiContext: privateConfig.apiContext,
+        jazoest: privateConfig.jazoest,
+      })
+    : await publishMediaViaPrivateApi({
+        page: input.page,
+        mediaItems: input.mediaItems,
+        caption: input.content,
+        apiContext: privateConfig.apiContext,
+        jazoest: privateConfig.jazoest,
+      });
   const url = privateResult.code
     ? new URL(`/p/${privateResult.code}/`, INSTAGRAM_HOME_URL).toString()
     : await resolveLatestPostUrl(input.page, input.existingPostPaths);
-  return buildInstagramSuccessResult(input.imagePaths, url);
+  return buildInstagramSuccessResult(input.mediaItems, url);
 }
 
 async function executeUiInstagramPost(input: {
   page: IPage;
-  imagePaths: string[];
+  mediaItems: InstagramPostMediaItem[];
   content: string;
   existingPostPaths: Set<string>;
   commandAttemptBudget: number;
@@ -237,7 +306,7 @@ async function executeUiInstagramPost(input: {
       await dismissResidualDialogs(input.page);
 
       await ensureComposerOpen(input.page);
-      const uploadSelectors = await resolveUploadSelectors(input.page);
+      const uploadSelectors = await resolveUploadSelectors(input.page, input.mediaItems);
       if (input.preUploadDelaySeconds > 0) {
         await input.page.wait({ time: input.preUploadDelaySeconds });
       }
@@ -246,7 +315,7 @@ async function executeUiInstagramPost(input: {
       for (const selector of uploadSelectors) {
         let activeSelector = selector;
         for (let uploadAttempt = 0; uploadAttempt < input.uploadAttemptBudget; uploadAttempt++) {
-          await uploadImage(input.page, input.imagePaths, activeSelector);
+          await uploadMedia(input.page, input.mediaItems, activeSelector);
           const uploadState = await waitForPreviewMaybe(input.page, input.previewProbeWindowSeconds);
           if (uploadState.state === 'preview') {
             uploaded = true;
@@ -276,7 +345,7 @@ async function executeUiInstagramPost(input: {
                 await input.page.wait({ time: 2 });
                 await dismissResidualDialogs(input.page);
                 await ensureComposerOpen(input.page);
-                activeSelector = await resolveFreshUploadSelector(input.page, activeSelector);
+                activeSelector = await resolveFreshUploadSelector(input.page, activeSelector, input.mediaItems);
                 if (input.preUploadDelaySeconds > 0) {
                   await input.page.wait({ time: input.preUploadDelaySeconds });
                 }
@@ -330,7 +399,7 @@ async function executeUiInstagramPost(input: {
         url = await resolveLatestPostUrl(input.page, input.existingPostPaths);
       }
 
-      return buildInstagramSuccessResult(input.imagePaths, url);
+      return buildInstagramSuccessResult(input.mediaItems, url);
     } catch (error) {
       lastError = error;
       if (error instanceof CommandExecutionError && error.message !== 'Failed to open Instagram post composer') {
@@ -347,7 +416,7 @@ async function executeUiInstagramPost(input: {
         throw error;
       }
       let resetWindow = false;
-      if (input.imagePaths.length >= 10 && input.page.closeWindow) {
+      if (input.mediaItems.length >= 10 && input.page.closeWindow) {
         try {
           await input.drainProtocolCapture();
           await input.page.closeWindow();
@@ -428,9 +497,10 @@ async function dismissResidualDialogs(page: IPage): Promise<void> {
   }
 }
 
-async function findUploadSelectors(page: IPage): Promise<string[]> {
+async function findUploadSelectors(page: IPage, mediaItems: InstagramPostMediaItem[]): Promise<string[]> {
+  const includesVideo = mediaItems.some((item) => item.type === 'video');
   const result = await page.evaluate(`
-    (() => {
+    ((includesVideo) => {
       const isVisible = (el) => {
         if (!(el instanceof HTMLElement)) return false;
         const style = window.getComputedStyle(el);
@@ -454,7 +524,9 @@ async function findUploadSelectors(page: IPage): Promise<string[]> {
         if (!(el instanceof HTMLInputElement)) return false;
         if (el.disabled) return false;
         const accept = (el.getAttribute('accept') || '').toLowerCase();
-        return !accept || accept.includes('image') || accept.includes('.jpg') || accept.includes('.jpeg') || accept.includes('.png') || accept.includes('.webp');
+        if (!accept) return true;
+        if (includesVideo) return true;
+        return accept.includes('image') || accept.includes('.jpg') || accept.includes('.jpeg') || accept.includes('.png') || accept.includes('.webp');
       });
 
       const dialogInputs = candidates.filter((el) => {
@@ -486,7 +558,7 @@ async function findUploadSelectors(page: IPage): Promise<string[]> {
         return '[data-opencli-ig-upload-index="' + index + '"]';
       });
       return { ok: true, selectors };
-    })()
+    })(${JSON.stringify(includesVideo)})
   `) as { ok?: boolean; selectors?: string[] };
 
   if (!result?.ok || !result.selectors?.length) {
@@ -495,9 +567,9 @@ async function findUploadSelectors(page: IPage): Promise<string[]> {
   return result.selectors;
 }
 
-async function resolveUploadSelectors(page: IPage): Promise<string[]> {
+async function resolveUploadSelectors(page: IPage, mediaItems: InstagramPostMediaItem[]): Promise<string[]> {
   try {
-    return await findUploadSelectors(page);
+    return await findUploadSelectors(page, mediaItems);
   } catch (error) {
     if (!(error instanceof CommandExecutionError) || !error.message.includes('upload input not found')) {
       throw error;
@@ -507,7 +579,7 @@ async function resolveUploadSelectors(page: IPage): Promise<string[]> {
     await page.wait({ time: 1.5 });
 
     try {
-      return await findUploadSelectors(page);
+      return await findUploadSelectors(page, mediaItems);
     } catch (retryError) {
       if (!(retryError instanceof CommandExecutionError) || !retryError.message.includes('upload input not found')) {
         throw retryError;
@@ -518,7 +590,7 @@ async function resolveUploadSelectors(page: IPage): Promise<string[]> {
       await dismissResidualDialogs(page);
       await ensureComposerOpen(page);
       await page.wait({ time: 2 });
-      return findUploadSelectors(page);
+      return findUploadSelectors(page, mediaItems);
     }
   }
 }
@@ -530,8 +602,8 @@ function extractSelectorIndex(selector: string): number | null {
   return Number.isNaN(index) ? null : index;
 }
 
-async function resolveFreshUploadSelector(page: IPage, previousSelector: string): Promise<string> {
-  const selectors = await resolveUploadSelectors(page);
+async function resolveFreshUploadSelector(page: IPage, previousSelector: string, mediaItems: InstagramPostMediaItem[]): Promise<string> {
+  const selectors = await resolveUploadSelectors(page, mediaItems);
   const index = extractSelectorIndex(previousSelector);
   if (index !== null && selectors[index]) return selectors[index]!;
   return selectors[0] || previousSelector;
@@ -688,7 +760,8 @@ function makeUploadFailure(detail?: string): CommandExecutionError {
   );
 }
 
-async function uploadImage(page: IPage, imagePaths: string[], selector: string): Promise<void> {
+async function uploadMedia(page: IPage, mediaItems: InstagramPostMediaItem[], selector: string): Promise<void> {
+  const mediaPaths = mediaItems.map((item) => item.filePath);
   if (!page.setFileInput) {
     throw new CommandExecutionError(
       'Instagram posting requires Browser Bridge file upload support',
@@ -699,7 +772,7 @@ async function uploadImage(page: IPage, imagePaths: string[], selector: string):
   let activeSelector = selector;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      await page.setFileInput(imagePaths, activeSelector);
+      await page.setFileInput(mediaPaths, activeSelector);
       await dispatchUploadEvents(page, activeSelector);
       return;
     } catch (error) {
@@ -708,63 +781,74 @@ async function uploadImage(page: IPage, imagePaths: string[], selector: string):
         || message.includes('Could not find node with given id')
         || message.includes('No node with given id found');
       if (staleSelector && attempt === 0) {
-        activeSelector = await resolveFreshUploadSelector(page, activeSelector);
+        activeSelector = await resolveFreshUploadSelector(page, activeSelector, mediaItems);
         continue;
       }
       if (!message.includes('Unknown action') && !message.includes('set-file-input') && !message.includes('not supported')) {
         throw error;
       }
-      await injectImageViaBrowser(page, imagePaths, activeSelector);
+      if (mediaItems.some((item) => item.type === 'video')) {
+        throw new CommandExecutionError(
+          'Instagram mixed-media posting requires Browser Bridge file upload support',
+          'Use Browser Bridge or another browser mode that supports setFileInput for image/video uploads',
+        );
+      }
+      await injectImageViaBrowser(page, mediaPaths, activeSelector);
       return;
     }
   }
 }
 
-function describePostDetail(imagePaths: string[]): string {
-  return imagePaths.length === 1
-    ? 'Single image post shared successfully'
-    : `${imagePaths.length}-image carousel post shared successfully`;
+function describePostDetail(mediaItems: InstagramPostMediaItem[]): string {
+  if (mediaItems.every((item) => item.type === 'image')) {
+    return mediaItems.length === 1
+      ? 'Single image post shared successfully'
+      : `${mediaItems.length}-image carousel post shared successfully`;
+  }
+  return mediaItems.length === 1
+    ? 'Single mixed-media post shared successfully'
+    : `${mediaItems.length}-item mixed-media carousel post shared successfully`;
 }
 
-function getCommandAttemptBudget(imagePaths: string[]): number {
-  if (imagePaths.length >= 10) return 6;
-  if (imagePaths.length >= 5) return 4;
+function getCommandAttemptBudget(mediaItems: InstagramPostMediaItem[]): number {
+  if (mediaItems.length >= 10) return 6;
+  if (mediaItems.length >= 5) return 4;
   return 3;
 }
 
-function getPreUploadDelaySeconds(imagePaths: string[]): number {
-  if (imagePaths.length >= 10) return 3;
-  if (imagePaths.length >= 5) return 1.5;
+function getPreUploadDelaySeconds(mediaItems: InstagramPostMediaItem[]): number {
+  if (mediaItems.length >= 10) return 3;
+  if (mediaItems.length >= 5) return 1.5;
   return 0;
 }
 
-function getUploadAttemptBudget(imagePaths: string[]): number {
-  if (imagePaths.length >= 10) return 3;
-  if (imagePaths.length >= 5) return 3;
+function getUploadAttemptBudget(mediaItems: InstagramPostMediaItem[]): number {
+  if (mediaItems.length >= 10) return 3;
+  if (mediaItems.length >= 5) return 3;
   return 2;
 }
 
-function getPreviewProbeWindowSeconds(imagePaths: string[]): number {
-  if (imagePaths.length >= 10) return 6;
-  if (imagePaths.length >= 5) return 6;
+function getPreviewProbeWindowSeconds(mediaItems: InstagramPostMediaItem[]): number {
+  if (mediaItems.length >= 10) return 6;
+  if (mediaItems.length >= 5) return 6;
   return 4;
 }
 
-function getFinalPreviewWaitSeconds(imagePaths: string[]): number {
-  if (imagePaths.length >= 10) return 12;
-  if (imagePaths.length >= 5) return 16;
+function getFinalPreviewWaitSeconds(mediaItems: InstagramPostMediaItem[]): number {
+  if (mediaItems.length >= 10) return 12;
+  if (mediaItems.length >= 5) return 16;
   return 12;
 }
 
-function getPreShareDelaySeconds(imagePaths: string[]): number {
-  if (imagePaths.length >= 10) return 4;
-  if (imagePaths.length >= 5) return 3;
+function getPreShareDelaySeconds(mediaItems: InstagramPostMediaItem[]): number {
+  if (mediaItems.length >= 10) return 4;
+  if (mediaItems.length >= 5) return 3;
   return 0;
 }
 
-function getInlineUploadRetryBudget(imagePaths: string[]): number {
-  if (imagePaths.length >= 10) return 3;
-  if (imagePaths.length >= 5) return 2;
+function getInlineUploadRetryBudget(mediaItems: InstagramPostMediaItem[]): number {
+  if (mediaItems.length >= 10) return 3;
+  if (mediaItems.length >= 5) return 2;
   return 1;
 }
 
@@ -1510,30 +1594,31 @@ async function resolveLatestPostUrl(page: IPage, existingPostPaths: ReadonlySet<
 cli({
   site: 'instagram',
   name: 'post',
-  description: 'Post an Instagram feed image or image carousel',
+  description: 'Post an Instagram feed image or mixed-media carousel',
   domain: 'www.instagram.com',
   strategy: Strategy.UI,
   browser: true,
   timeoutSeconds: 300,
   args: [
     { name: 'image', required: false, valueRequired: true, help: 'Path to a single image file' },
-    { name: 'images', required: false, valueRequired: true, help: `Comma-separated image paths (up to ${MAX_IMAGES})` },
+    { name: 'images', required: false, valueRequired: true, help: `Comma-separated image paths (up to ${MAX_MEDIA_ITEMS})` },
+    { name: 'media', required: false, valueRequired: true, help: `Comma-separated mixed image/video paths (up to ${MAX_MEDIA_ITEMS})` },
     { name: 'content', positional: true, required: false, help: 'Caption text' },
   ],
   columns: ['status', 'detail', 'url'],
   validateArgs: validateInstagramPostArgs,
   func: async (page: IPage | null, kwargs) => {
     const browserPage = requirePage(page);
-    const imagePaths = normalizeImagePaths(kwargs as Record<string, unknown>);
+    const mediaItems = normalizePostMediaItems(kwargs as Record<string, unknown>);
     const content = String(kwargs.content ?? '').trim();
     const existingPostPaths = await captureExistingProfilePostPaths(browserPage);
-    const commandAttemptBudget = getCommandAttemptBudget(imagePaths);
-    const preUploadDelaySeconds = getPreUploadDelaySeconds(imagePaths);
-    const uploadAttemptBudget = getUploadAttemptBudget(imagePaths);
-    const previewProbeWindowSeconds = getPreviewProbeWindowSeconds(imagePaths);
-    const finalPreviewWaitSeconds = getFinalPreviewWaitSeconds(imagePaths);
-    const preShareDelaySeconds = getPreShareDelaySeconds(imagePaths);
-    const inlineUploadRetryBudget = getInlineUploadRetryBudget(imagePaths);
+    const commandAttemptBudget = getCommandAttemptBudget(mediaItems);
+    const preUploadDelaySeconds = getPreUploadDelaySeconds(mediaItems);
+    const uploadAttemptBudget = getUploadAttemptBudget(mediaItems);
+    const previewProbeWindowSeconds = getPreviewProbeWindowSeconds(mediaItems);
+    const finalPreviewWaitSeconds = getFinalPreviewWaitSeconds(mediaItems);
+    const preShareDelaySeconds = getPreShareDelaySeconds(mediaItems);
+    const inlineUploadRetryBudget = getInlineUploadRetryBudget(mediaItems);
     const protocolCaptureEnabled = process.env.OPENCLI_INSTAGRAM_CAPTURE === '1';
     const protocolCaptureData: InstagramProtocolCaptureEntry[] = [];
     const protocolCaptureErrors: string[] = [];
@@ -1554,7 +1639,7 @@ cli({
       try {
         return await executePrivateInstagramPost({
           page: browserPage,
-          imagePaths,
+          mediaItems,
           content,
           existingPostPaths,
         });
@@ -1565,7 +1650,7 @@ cli({
         try {
           return await executeUiInstagramPost({
             page: browserPage,
-            imagePaths,
+            mediaItems,
             content,
             existingPostPaths,
             commandAttemptBudget,

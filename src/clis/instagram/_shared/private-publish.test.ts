@@ -13,6 +13,7 @@ import {
   extractInstagramRuntimeInfo,
   getInstagramFeedNormalizedDimensions,
   isInstagramFeedAspectRatioAllowed,
+  publishMediaViaPrivateApi,
   publishImagesViaPrivateApi,
   readImageAsset,
   resolveInstagramPrivatePublishConfig,
@@ -527,5 +528,121 @@ describe('instagram private publish helpers', () => {
     })).rejects.toThrow('fetch failed');
 
     expect(calls.filter((url) => url.includes('configure_sidecar'))).toHaveLength(1);
+  });
+
+  it('publishes a mixed image/video carousel and polls configure_sidecar until transcoding finishes', async () => {
+    const image = createTempFile('mixed-private-image.jpg', Buffer.from(
+      'FFD8FFE000104A46494600010100000100010000FFC00011080004000603012200021101031101FFD9',
+      'hex',
+    ));
+    const video = createTempFile('mixed-private-video.mp4', Buffer.from('video-binary'));
+    const coverBytes = Buffer.from(
+      'FFD8FFE000104A46494600010100000100010000FFC00011080168028003012200021101031101FFD9',
+      'hex',
+    );
+    const calls: Array<{ url: string; init?: { method?: string; headers?: Record<string, string>; body?: unknown } }> = [];
+    let configureAttempts = 0;
+    const fetcher = async (url: string | URL, init?: { method?: string; headers?: Record<string, string>; body?: unknown }) => {
+      const value = String(url);
+      calls.push({ url: value, init });
+      if (value.includes('/rupload_igphoto/') && value.includes('fb_uploader_701')) {
+        return new Response('{"upload_id":"701","status":"ok"}', { status: 200 });
+      }
+      if (value.includes('/rupload_igvideo/') && value.includes('fb_uploader_702')) {
+        return new Response('{"media_id":17944674009157009,"status":"ok"}', { status: 200 });
+      }
+      if (value.includes('/rupload_igphoto/') && value.includes('fb_uploader_702')) {
+        return new Response('{"upload_id":"702","status":"ok"}', { status: 200 });
+      }
+      configureAttempts += 1;
+      if (configureAttempts === 1) {
+        return new Response('{"message":"Transcode not finished yet.","status":"fail"}', { status: 202 });
+      }
+      return new Response('{"status":"ok","media":{"code":"MIXEDSIDE123"}}', { status: 200 });
+    };
+
+    const response = await publishMediaViaPrivateApi({
+      page: {} as never,
+      mediaItems: [
+        { type: 'image', filePath: image },
+        { type: 'video', filePath: video },
+      ],
+      caption: 'mixed private carousel',
+      apiContext: {
+        asbdId: '359341',
+        csrfToken: 'csrf-token',
+        igAppId: '936619743392459',
+        igWwwClaim: 'hmac.claim',
+        instagramAjax: '1036517563',
+        webSessionId: 'abc:def:ghi',
+      },
+      jazoest: '22047',
+      now: () => 700,
+      fetcher,
+      prepareMediaAsset: async (item) => {
+        if (item.type === 'image') {
+          return {
+            type: 'image' as const,
+            asset: readImageAsset(item.filePath),
+          };
+        }
+        return {
+          type: 'video' as const,
+          asset: {
+            filePath: item.filePath,
+            fileName: 'mixed-private-video.mp4',
+            mimeType: 'video/mp4',
+            width: 640,
+            height: 360,
+            durationMs: 28245,
+            byteLength: 12,
+            bytes: Buffer.from('video-binary'),
+            coverImage: {
+              filePath: '/tmp/mixed-private-cover.jpg',
+              fileName: 'mixed-private-cover.jpg',
+              mimeType: 'image/jpeg',
+              width: 640,
+              height: 360,
+              byteLength: coverBytes.length,
+              bytes: coverBytes,
+            },
+          },
+        };
+      },
+      waitMs: async () => undefined,
+    });
+
+    expect(calls).toHaveLength(5);
+    expect(calls[0]?.url).toContain('/rupload_igphoto/fb_uploader_701');
+    expect(calls[1]?.url).toContain('/rupload_igvideo/fb_uploader_702');
+    expect(calls[2]?.url).toContain('/rupload_igphoto/fb_uploader_702');
+    expect(JSON.parse(String(calls[1]?.init?.headers?.['X-Instagram-Rupload-Params'] || '{}'))).toMatchObject({
+      media_type: 2,
+      upload_id: '702',
+      upload_media_width: 640,
+      upload_media_height: 360,
+      upload_media_duration_ms: 28245,
+      video_edit_params: {
+        crop_width: 360,
+        crop_height: 360,
+        crop_x1: 140,
+        crop_y1: 0,
+        trim_start: 0,
+        trim_end: 28.245,
+        mute: false,
+      },
+    });
+    expect(JSON.parse(String(calls[2]?.init?.headers?.['X-Instagram-Rupload-Params'] || '{}'))).toMatchObject({
+      media_type: 2,
+      upload_id: '702',
+      upload_media_width: 640,
+      upload_media_height: 360,
+    });
+    expect(JSON.parse(String(calls[3]?.init?.body || '{}'))).toMatchObject({
+      caption: 'mixed private carousel',
+      client_sidecar_id: '700',
+      children_metadata: [{ upload_id: '701' }, { upload_id: '702' }],
+    });
+    expect(response).toEqual({ code: 'MIXEDSIDE123', uploadIds: ['701', '702'] });
   });
 });

@@ -21,6 +21,14 @@ function createTempImage(name = 'demo.jpg', bytes = Buffer.from([0xff, 0xd8, 0xf
   return filePath;
 }
 
+function createTempVideo(name = 'demo.mp4', bytes = Buffer.from('video')): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-instagram-post-video-'));
+  tempDirs.push(dir);
+  const filePath = path.join(dir, name);
+  fs.writeFileSync(filePath, bytes);
+  return filePath;
+}
+
 function withInitialDialogDismiss(results: unknown[]): unknown[] {
   return [{ ok: false }, ...results];
 }
@@ -454,13 +462,14 @@ describe('instagram post registration', () => {
     vi.restoreAllMocks();
   });
 
-  it('registers the post command with single and multi-image args', () => {
+  it('registers the post command with single-image, multi-image, and mixed-media args', () => {
     const cmd = getRegistry().get('instagram/post');
     expect(cmd).toBeDefined();
     expect(cmd?.browser).toBe(true);
     expect(cmd?.timeoutSeconds).toBe(300);
     expect(cmd?.args.some((arg) => arg.name === 'image' && !arg.required)).toBe(true);
     expect(cmd?.args.some((arg) => arg.name === 'images' && !arg.required)).toBe(true);
+    expect(cmd?.args.some((arg) => arg.name === 'media' && !arg.required && arg.valueRequired)).toBe(true);
     expect(cmd?.args.some((arg) => arg.name === 'content' && !arg.required && arg.positional)).toBe(true);
   });
 
@@ -532,6 +541,82 @@ describe('instagram post registration', () => {
     privateSpy.mockRestore();
   });
 
+  it('falls back to the UI route for mixed-media posts when the private route fails safely before publishing', async () => {
+    const imagePath = createTempImage('mixed-fallback-image.jpg');
+    const videoPath = createTempVideo('mixed-fallback-video.mp4');
+    const privateSpy = vi.spyOn(privatePublish, 'publishMediaViaPrivateApi').mockRejectedValueOnce(
+      new CommandExecutionError('Instagram private publish configure_sidecar failed: 400 {"message":"fallback to ui"}'),
+    );
+    const evaluate = vi.fn(async (js: string) => {
+      if (js.includes('sharing') && js.includes('create new post')) return { ok: false };
+      if (js.includes('window.location?.pathname')) return { ok: true };
+      if (js.includes('data-opencli-ig-upload-index')) return { ok: true, selectors: ['[data-opencli-ig-upload-index="0"]'] };
+      if (js.includes("dispatchEvent(new Event('input'")) return { ok: true };
+      if (js.includes('const hasPreviewUi =')) return { ok: true, state: 'preview' };
+      if (js.includes("scope === 'media'")) return { ok: true, label: 'Next' };
+      if (js.includes("scope === 'caption'")) return { ok: true, label: 'Share' };
+      if (js.includes('post shared') && js.includes('your post has been shared')) return { ok: true, url: 'https://www.instagram.com/p/MIXEDFALLBACK123/' };
+      return { ok: true };
+    });
+    const page = createPageMock([], {
+      evaluate,
+      getCookies: vi.fn().mockResolvedValue([{ name: 'csrftoken', value: 'csrf-token', domain: 'instagram.com' }]),
+    });
+    const cmd = getRegistry().get('instagram/post');
+
+    const result = await cmd!.func!(page, {
+      media: `${imagePath},${videoPath}`,
+      content: 'mixed ui fallback',
+    });
+
+    expect(privateSpy).toHaveBeenCalledTimes(1);
+    expect(page.setFileInput).toHaveBeenCalledWith([imagePath, videoPath], '[data-opencli-ig-upload-index="0"]');
+    expect(result).toEqual([
+      {
+        status: '✅ Posted',
+        detail: '2-item mixed-media carousel post shared successfully',
+        url: 'https://www.instagram.com/p/MIXEDFALLBACK123/',
+      },
+    ]);
+    privateSpy.mockRestore();
+  });
+
+  it('prefers the private route by default for mixed-media posts and preserves input order', async () => {
+    const imagePath = createTempImage('mixed-default.jpg');
+    const videoPath = createTempVideo('mixed-default.mp4');
+    const privateSpy = vi.spyOn(privatePublish, 'publishMediaViaPrivateApi').mockResolvedValueOnce({
+      code: 'MIXEDPRIVATE123',
+      uploadIds: ['111', '222'],
+    });
+    const page = createPageMock([], {
+      evaluate: vi.fn(async () => ({ ok: true })),
+      getCookies: vi.fn().mockResolvedValue([{ name: 'csrftoken', value: 'csrf-token', domain: 'instagram.com' }]),
+    });
+    const cmd = getRegistry().get('instagram/post');
+
+    const result = await cmd!.func!(page, {
+      media: `${imagePath},${videoPath}`,
+      content: 'mixed private default',
+    });
+
+    expect(privateSpy).toHaveBeenCalledWith(expect.objectContaining({
+      mediaItems: [
+        { type: 'image', filePath: imagePath },
+        { type: 'video', filePath: videoPath },
+      ],
+      caption: 'mixed private default',
+    }));
+    expect(page.setFileInput).not.toHaveBeenCalled();
+    expect(result).toEqual([
+      {
+        status: '✅ Posted',
+        detail: '2-item mixed-media carousel post shared successfully',
+        url: 'https://www.instagram.com/p/MIXEDPRIVATE123/',
+      },
+    ]);
+    privateSpy.mockRestore();
+  });
+
   it('rejects passing both --image and --images together', async () => {
     const imagePath = createTempImage('conflict-a.jpg');
     const secondImagePath = createTempImage('conflict-b.jpg');
@@ -543,6 +628,24 @@ describe('instagram post registration', () => {
       images: `${imagePath},${secondImagePath}`,
       content: 'conflicting image args',
     })).rejects.toThrow('Use either --image or --images, not both');
+  });
+
+  it('rejects passing --media together with --image or --images', async () => {
+    const imagePath = createTempImage('conflict-media-image.jpg');
+    const secondImagePath = createTempImage('conflict-media-second.jpg');
+    const videoPath = createTempVideo('conflict-media.mp4');
+    const page = createPageMock([]);
+    const cmd = getRegistry().get('instagram/post');
+
+    await expect(cmd!.func!(page, {
+      media: `${imagePath},${videoPath}`,
+      image: imagePath,
+    })).rejects.toThrow('Use either --media or --image/--images, not both');
+
+    await expect(cmd!.func!(page, {
+      media: `${imagePath},${videoPath}`,
+      images: `${imagePath},${secondImagePath}`,
+    })).rejects.toThrow('Use either --media or --image/--images, not both');
   });
 
   it('uploads a single image, fills caption, and shares the post', async () => {

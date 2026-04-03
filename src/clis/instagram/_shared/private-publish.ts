@@ -43,6 +43,30 @@ export interface PreparedInstagramImageAsset extends InstagramImageAsset {
   cleanupPath?: string;
 }
 
+export type InstagramMediaKind = 'image' | 'video';
+
+export interface InstagramMediaItem {
+  type: InstagramMediaKind;
+  filePath: string;
+}
+
+export interface InstagramVideoAsset {
+  filePath: string;
+  fileName: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  durationMs: number;
+  byteLength: number;
+  bytes: Buffer;
+  coverImage: PreparedInstagramImageAsset;
+  cleanupPaths?: string[];
+}
+
+export type PreparedInstagramMediaAsset =
+  | { type: 'image'; asset: PreparedInstagramImageAsset }
+  | { type: 'video'; asset: InstagramVideoAsset };
+
 type PrivateApiFetchInit = {
   method?: string;
   headers?: Record<string, string>;
@@ -58,6 +82,8 @@ const INSTAGRAM_HOME_URL = 'https://www.instagram.com/';
 const INSTAGRAM_PRIVATE_CAPTURE_PATTERN = '/api/v1/|/graphql/';
 const INSTAGRAM_PRIVATE_CONFIG_RETRY_BUDGET = 2;
 const INSTAGRAM_PRIVATE_UPLOAD_RETRY_BUDGET = 2;
+const INSTAGRAM_PRIVATE_SIDECAR_TRANSCODE_ATTEMPTS = 20;
+const INSTAGRAM_PRIVATE_SIDECAR_TRANSCODE_WAIT_MS = 2000;
 
 export function derivePrivateApiContextFromCapture(
   entries: InstagramProtocolCaptureEntry[],
@@ -106,6 +132,10 @@ export function deriveInstagramJazoest(value: string): string {
   if (!value) return '';
   const sum = Array.from(value).reduce((total, char) => total + char.charCodeAt(0), 0);
   return `2${sum}`;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function isTransientPrivateFetchError(error: unknown): boolean {
@@ -415,6 +445,140 @@ export function prepareImageAssetForPrivateUpload(filePath: string): PreparedIns
   };
 }
 
+function runSwiftJsonScript<T>(script: string, args: string[], stage: string): T {
+  const scriptPath = path.join(os.tmpdir(), `opencli-instagram-${crypto.randomUUID()}.swift`);
+  fs.writeFileSync(scriptPath, script);
+  try {
+    const result = spawnSync('swift', [scriptPath, ...args], {
+      encoding: 'utf8',
+    });
+    if (result.error || result.status !== 0) {
+      const detail = [result.error?.message, result.stderr, result.stdout]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+        .join(' ');
+      throw new CommandExecutionError(
+        `Instagram private publish failed to ${stage}`,
+        detail || 'swift helper failed',
+      );
+    }
+    return JSON.parse(String(result.stdout || '{}')) as T;
+  } catch (error) {
+    if (error instanceof CommandExecutionError) throw error;
+    throw new CommandExecutionError(
+      `Instagram private publish failed to ${stage}`,
+      error instanceof Error ? error.message : String(error),
+    );
+  } finally {
+    fs.rmSync(scriptPath, { force: true });
+  }
+}
+
+function readVideoMetadata(filePath: string): { width: number; height: number; durationMs: number } {
+  if (process.platform !== 'darwin') {
+    throw new CommandExecutionError(
+      `Instagram private mixed-media publish does not support reading video metadata on ${process.platform}`,
+      'Use macOS for private mixed-media publishing, or rely on the UI fallback',
+    );
+  }
+
+  const metadata = runSwiftJsonScript<{ width?: number; height?: number; durationMs?: number }>(`
+import AVFoundation
+import Foundation
+
+let path = CommandLine.arguments[1]
+let url = URL(fileURLWithPath: path)
+let asset = AVURLAsset(url: url)
+guard let track = asset.tracks(withMediaType: .video).first else {
+  fputs("{\\"error\\":\\"missing-video-track\\"}", stderr)
+  exit(1)
+}
+let transformed = track.naturalSize.applying(track.preferredTransform)
+let width = Int(abs(transformed.width.rounded()))
+let height = Int(abs(transformed.height.rounded()))
+let durationMs = Int((CMTimeGetSeconds(asset.duration) * 1000.0).rounded())
+let payload: [String: Int] = [
+  "width": width,
+  "height": height,
+  "durationMs": durationMs,
+]
+let data = try JSONSerialization.data(withJSONObject: payload, options: [])
+FileHandle.standardOutput.write(data)
+`, [filePath], 'read video metadata');
+
+  if (!metadata.width || !metadata.height || !metadata.durationMs) {
+    throw new CommandExecutionError(`Instagram private publish failed to read video metadata for ${filePath}`);
+  }
+  return {
+    width: metadata.width,
+    height: metadata.height,
+    durationMs: metadata.durationMs,
+  };
+}
+
+function buildPrivateVideoCoverPath(filePath: string): string {
+  const parsed = path.parse(filePath);
+  return path.join(
+    os.tmpdir(),
+    `opencli-instagram-private-video-cover-${parsed.name}-${crypto.randomUUID()}.jpg`,
+  );
+}
+
+function generateVideoCoverImage(filePath: string): PreparedInstagramImageAsset {
+  if (process.platform !== 'darwin') {
+    throw new CommandExecutionError(
+      `Instagram private mixed-media publish does not support generating video covers on ${process.platform}`,
+      'Use macOS for private mixed-media publishing, or rely on the UI fallback',
+    );
+  }
+
+  const outputPath = buildPrivateVideoCoverPath(filePath);
+  runSwiftJsonScript<{ ok?: boolean }>(`
+import AVFoundation
+import AppKit
+import Foundation
+
+let inputPath = CommandLine.arguments[1]
+let outputPath = CommandLine.arguments[2]
+let asset = AVURLAsset(url: URL(fileURLWithPath: inputPath))
+let generator = AVAssetImageGenerator(asset: asset)
+generator.appliesPreferredTrackTransform = true
+let image = try generator.copyCGImage(at: CMTime(seconds: 0, preferredTimescale: 600), actualTime: nil)
+let rep = NSBitmapImageRep(cgImage: image)
+guard let data = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9]) else {
+  fputs("{\\"error\\":\\"jpeg-encode-failed\\"}", stderr)
+  exit(1)
+}
+try data.write(to: URL(fileURLWithPath: outputPath))
+let payload = ["ok": true]
+let json = try JSONSerialization.data(withJSONObject: payload, options: [])
+FileHandle.standardOutput.write(json)
+`, [filePath, outputPath], 'generate video cover');
+
+  return {
+    ...readImageAsset(outputPath),
+    cleanupPath: outputPath,
+  };
+}
+
+export function readVideoAsset(filePath: string): InstagramVideoAsset {
+  const bytes = fs.readFileSync(filePath);
+  const metadata = readVideoMetadata(filePath);
+  const coverImage = generateVideoCoverImage(filePath);
+  return {
+    filePath,
+    fileName: path.basename(filePath),
+    mimeType: 'video/mp4',
+    width: metadata.width,
+    height: metadata.height,
+    durationMs: metadata.durationMs,
+    byteLength: bytes.length,
+    bytes,
+    coverImage,
+    cleanupPaths: coverImage.cleanupPath ? [coverImage.cleanupPath] : [],
+  };
+}
+
 function buildPrivateApiHeaders(context: InstagramPrivateApiContext): Record<string, string> {
   return Object.fromEntries(Object.entries({
     'X-ASBD-ID': context.asbdId,
@@ -441,6 +605,70 @@ function buildRuploadHeaders(
     'X-Entity-Type': asset.mimeType,
     'X-Instagram-Rupload-Params': JSON.stringify({
       media_type: 1,
+      upload_id: uploadId,
+      upload_media_height: asset.height,
+      upload_media_width: asset.width,
+    }),
+  };
+}
+
+function buildVideoEditParams(asset: InstagramVideoAsset): Record<string, number | boolean> {
+  const cropSize = Math.min(asset.width, asset.height);
+  const trimEndSeconds = Number((asset.durationMs / 1000).toFixed(3));
+  return {
+    crop_height: cropSize,
+    crop_width: cropSize,
+    crop_x1: Math.max(0, Math.floor((asset.width - cropSize) / 2)),
+    crop_y1: Math.max(0, Math.floor((asset.height - cropSize) / 2)),
+    mute: false,
+    trim_end: trimEndSeconds,
+    trim_start: 0,
+  };
+}
+
+function buildVideoRuploadHeaders(
+  asset: InstagramVideoAsset,
+  uploadId: string,
+  context: InstagramPrivateApiContext,
+): Record<string, string> {
+  return {
+    ...buildPrivateApiHeaders(context),
+    'Accept': '*/*',
+    'Offset': '0',
+    'X-Entity-Length': String(asset.byteLength),
+    'X-Entity-Name': `fb_uploader_${uploadId}`,
+    'X-Instagram-Rupload-Params': JSON.stringify({
+      'client-passthrough': '1',
+      'is_unified_video': '0',
+      'is_sidecar': '1',
+      'media_type': 2,
+      'for_album': false,
+      'video_format': '',
+      'upload_id': uploadId,
+      'upload_media_duration_ms': asset.durationMs,
+      'upload_media_height': asset.height,
+      'upload_media_width': asset.width,
+      'video_transform': null,
+      'video_edit_params': buildVideoEditParams(asset),
+    }),
+  };
+}
+
+function buildVideoCoverRuploadHeaders(
+  asset: InstagramVideoAsset,
+  uploadId: string,
+  context: InstagramPrivateApiContext,
+): Record<string, string> {
+  return {
+    ...buildPrivateApiHeaders(context),
+    'Accept': '*/*',
+    'Content-Type': asset.coverImage.mimeType,
+    'Offset': '0',
+    'X-Entity-Length': String(asset.coverImage.byteLength),
+    'X-Entity-Name': `fb_uploader_${uploadId}`,
+    'X-Entity-Type': asset.coverImage.mimeType,
+    'X-Instagram-Rupload-Params': JSON.stringify({
+      media_type: 2,
       upload_id: uploadId,
       upload_media_height: asset.height,
       upload_media_width: asset.width,
@@ -482,41 +710,166 @@ async function fetchPrivateUploadWithRetry(
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
-export async function publishImagesViaPrivateApi(input: {
+async function prepareInstagramMediaAsset(item: InstagramMediaItem): Promise<PreparedInstagramMediaAsset> {
+  if (item.type === 'video') {
+    return {
+      type: 'video',
+      asset: readVideoAsset(item.filePath),
+    };
+  }
+  return {
+    type: 'image',
+    asset: prepareImageAssetForPrivateUpload(item.filePath),
+  };
+}
+
+function cleanupPreparedMediaAssets(assets: PreparedInstagramMediaAsset[]): void {
+  for (const prepared of assets) {
+    if (prepared.type === 'image') {
+      if (prepared.asset.cleanupPath) {
+        fs.rmSync(prepared.asset.cleanupPath, { force: true });
+      }
+      continue;
+    }
+    for (const cleanupPath of prepared.asset.cleanupPaths || []) {
+      fs.rmSync(cleanupPath, { force: true });
+    }
+    if (prepared.asset.coverImage.cleanupPath) {
+      fs.rmSync(prepared.asset.coverImage.cleanupPath, { force: true });
+    }
+  }
+}
+
+async function uploadPreparedMediaAsset(
+  fetcher: PrivateApiFetchLike,
+  prepared: PreparedInstagramMediaAsset,
+  uploadId: string,
+  context: InstagramPrivateApiContext,
+): Promise<void> {
+  if (prepared.type === 'image') {
+    const response = await fetchPrivateUploadWithRetry(fetcher, `https://i.instagram.com/rupload_igphoto/fb_uploader_${uploadId}`, {
+      method: 'POST',
+      headers: buildRuploadHeaders(prepared.asset, uploadId, context),
+      body: prepared.asset.bytes,
+    });
+    const json = await parseJsonResponse(response, 'upload');
+    if (String(json?.status || '') !== 'ok') {
+      throw new CommandExecutionError(`Instagram private publish upload failed for ${prepared.asset.fileName}`);
+    }
+    return;
+  }
+
+  const videoResponse = await fetchPrivateUploadWithRetry(fetcher, `https://i.instagram.com/rupload_igvideo/fb_uploader_${uploadId}`, {
+    method: 'POST',
+    headers: buildVideoRuploadHeaders(prepared.asset, uploadId, context),
+    body: prepared.asset.bytes,
+  });
+  const videoJson = await parseJsonResponse(videoResponse, 'video upload');
+  if (String(videoJson?.status || '') !== 'ok') {
+    throw new CommandExecutionError(`Instagram private publish video upload failed for ${prepared.asset.fileName}`);
+  }
+
+  const coverResponse = await fetchPrivateUploadWithRetry(fetcher, `https://i.instagram.com/rupload_igphoto/fb_uploader_${uploadId}`, {
+    method: 'POST',
+    headers: buildVideoCoverRuploadHeaders(prepared.asset, uploadId, context),
+    body: prepared.asset.coverImage.bytes,
+  });
+  const coverJson = await parseJsonResponse(coverResponse, 'video cover upload');
+  if (String(coverJson?.status || '') !== 'ok') {
+    throw new CommandExecutionError(`Instagram private publish video cover upload failed for ${prepared.asset.fileName}`);
+  }
+}
+
+async function publishSidecarWithRetry(input: {
+  fetcher: PrivateApiFetchLike;
+  payload: Record<string, unknown>;
+  apiContext: InstagramPrivateApiContext;
+  waitMs?: (ms: number) => Promise<void>;
+}): Promise<{ code?: string }> {
+  const waitMs = input.waitMs ?? sleep;
+  const requestInit: PrivateApiFetchInit = {
+    method: 'POST',
+    headers: {
+      ...buildPrivateApiHeaders(input.apiContext),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input.payload),
+  };
+
+  for (let attempt = 0; attempt < INSTAGRAM_PRIVATE_SIDECAR_TRANSCODE_ATTEMPTS; attempt += 1) {
+    const response = await input.fetcher('https://www.instagram.com/api/v1/media/configure_sidecar/', requestInit);
+    const text = await response.text();
+    let json: any = {};
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch {
+      throw new CommandExecutionError('Instagram private publish configure_sidecar returned invalid JSON');
+    }
+
+    if (!response.ok) {
+      const detail = text ? ` ${text.slice(0, 500)}` : '';
+      throw new CommandExecutionError(`Instagram private publish configure_sidecar failed: ${response.status}${detail}`);
+    }
+
+    const message = String(json?.message || '');
+    if (
+      response.status === 202
+      || /transcode not finished yet/i.test(message)
+    ) {
+      if (attempt >= INSTAGRAM_PRIVATE_SIDECAR_TRANSCODE_ATTEMPTS - 1) {
+        throw new CommandExecutionError(
+          'Instagram private publish configure_sidecar timed out waiting for video transcode',
+          text.slice(0, 500),
+        );
+      }
+      await waitMs(INSTAGRAM_PRIVATE_SIDECAR_TRANSCODE_WAIT_MS);
+      continue;
+    }
+
+    if (String(json?.status || '').toLowerCase() === 'fail') {
+      throw new CommandExecutionError(
+        'Instagram private publish configure_sidecar failed',
+        message || text.slice(0, 500),
+      );
+    }
+
+    return { code: json?.media?.code };
+  }
+
+  throw new CommandExecutionError('Instagram private publish configure_sidecar failed');
+}
+
+export async function publishMediaViaPrivateApi(input: {
   page: unknown;
-  imagePaths: string[];
+  mediaItems: InstagramMediaItem[];
   caption: string;
   apiContext: InstagramPrivateApiContext;
   jazoest: string;
   now?: () => number;
   fetcher?: PrivateApiFetchLike;
-  prepareAsset?: (filePath: string) => PreparedInstagramImageAsset | Promise<PreparedInstagramImageAsset>;
+  prepareMediaAsset?: (item: InstagramMediaItem) => PreparedInstagramMediaAsset | Promise<PreparedInstagramMediaAsset>;
+  waitMs?: (ms: number) => Promise<void>;
 }): Promise<{ code?: string; uploadIds: string[] }> {
   const now = input.now ?? (() => Date.now());
   const clientSidecarId = String(now());
-  const uploadIds = input.imagePaths.length > 1
-    ? input.imagePaths.map((_, index) => String(now() + index + 1))
+  const uploadIds = input.mediaItems.length > 1
+    ? input.mediaItems.map((_, index) => String(now() + index + 1))
     : [String(now())];
   const fetcher: PrivateApiFetchLike = input.fetcher ?? ((url, init) => instagramPrivateApiFetch(input.page as any, url, init as any));
-  const prepareAsset = input.prepareAsset ?? prepareImageAssetForPrivateUpload;
-  const assets = await Promise.all(input.imagePaths.map((filePath) => prepareAsset(filePath)));
+  const prepareMediaAsset = input.prepareMediaAsset ?? prepareInstagramMediaAsset;
+  const assets = await Promise.all(input.mediaItems.map((item) => prepareMediaAsset(item)));
 
   try {
     for (let index = 0; index < assets.length; index += 1) {
       const asset = assets[index]!;
       const uploadId = uploadIds[index]!;
-      const response = await fetchPrivateUploadWithRetry(fetcher, `https://i.instagram.com/rupload_igphoto/fb_uploader_${uploadId}`, {
-        method: 'POST',
-        headers: buildRuploadHeaders(asset, uploadId, input.apiContext),
-        body: asset.bytes,
-      });
-      const json = await parseJsonResponse(response, 'upload');
-      if (String(json?.status || '') !== 'ok') {
-        throw new CommandExecutionError(`Instagram private publish upload failed for ${asset.fileName}`);
-      }
+      await uploadPreparedMediaAsset(fetcher, asset, uploadId, input.apiContext);
     }
 
     if (uploadIds.length === 1) {
+      if (assets[0]?.type !== 'image') {
+        throw new CommandExecutionError('Instagram private publish only supports single-video uploads through instagram reel');
+      }
       const response = await fetcher('https://www.instagram.com/api/v1/media/configure/', {
         method: 'POST',
         headers: {
@@ -533,26 +886,48 @@ export async function publishImagesViaPrivateApi(input: {
       return { code: json?.media?.code, uploadIds };
     }
 
-    const response = await fetcher('https://www.instagram.com/api/v1/media/configure_sidecar/', {
-      method: 'POST',
-      headers: {
-        ...buildPrivateApiHeaders(input.apiContext),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(buildConfigureSidecarPayload({
+    const result = await publishSidecarWithRetry({
+      fetcher,
+      payload: buildConfigureSidecarPayload({
         uploadIds,
         caption: input.caption,
         clientSidecarId,
         jazoest: input.jazoest,
-      })),
+      }),
+      apiContext: input.apiContext,
+      waitMs: input.waitMs,
     });
-    const json = await parseJsonResponse(response, 'configure_sidecar');
-    return { code: json?.media?.code, uploadIds };
+    return { code: result.code, uploadIds };
   } finally {
-    for (const asset of assets) {
-      if (asset.cleanupPath) {
-        fs.rmSync(asset.cleanupPath, { force: true });
-      }
-    }
+    cleanupPreparedMediaAssets(assets);
   }
+}
+
+export async function publishImagesViaPrivateApi(input: {
+  page: unknown;
+  imagePaths: string[];
+  caption: string;
+  apiContext: InstagramPrivateApiContext;
+  jazoest: string;
+  now?: () => number;
+  fetcher?: PrivateApiFetchLike;
+  prepareAsset?: (filePath: string) => PreparedInstagramImageAsset | Promise<PreparedInstagramImageAsset>;
+  waitMs?: (ms: number) => Promise<void>;
+}): Promise<{ code?: string; uploadIds: string[] }> {
+  return publishMediaViaPrivateApi({
+    page: input.page,
+    mediaItems: input.imagePaths.map((filePath) => ({ type: 'image' as const, filePath })),
+    caption: input.caption,
+    apiContext: input.apiContext,
+    jazoest: input.jazoest,
+    now: input.now,
+    fetcher: input.fetcher,
+    waitMs: input.waitMs,
+    prepareMediaAsset: input.prepareAsset
+      ? async (item) => ({
+          type: 'image' as const,
+          asset: await input.prepareAsset!(item.filePath),
+        })
+      : undefined,
+  });
 }
