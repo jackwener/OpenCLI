@@ -101,6 +101,37 @@ function resolveExecutable(appPath: string, processName: string): string {
   return `${appPath}/Contents/MacOS/${processName}`;
 }
 
+export async function launchDetachedApp(executable: string, args: string[], label: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(executable, args, {
+      detached: true,
+      stdio: 'ignore',
+    });
+
+    const onError = (err: NodeJS.ErrnoException): void => {
+      if (err.code === 'ENOENT') {
+        reject(new CommandExecutionError(
+          `Could not launch ${label}: executable not found at ${executable}`,
+          `Install ${label}, reinstall it, or register a custom app path in ~/.opencli/apps.yaml`,
+        ));
+        return;
+      }
+
+      reject(new CommandExecutionError(
+        `Failed to launch ${label}`,
+        err.message,
+      ));
+    };
+
+    child.once('error', onError);
+    child.once('spawn', () => {
+      child.off('error', onError);
+      child.unref();
+      resolve();
+    });
+  });
+}
+
 async function pollForReady(port: number): Promise<void> {
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   while (Date.now() < deadline) {
@@ -169,12 +200,7 @@ export async function resolveElectronEndpoint(site: string): Promise<string> {
   const executable = resolveExecutable(appPath, processName);
   const args = [`--remote-debugging-port=${port}`, ...(app.extraArgs ?? [])];
   log.debug(`[launcher] Launching: ${executable} ${args.join(' ')}`);
-
-  const child = spawn(executable, args, {
-    detached: true,
-    stdio: 'ignore',
-  });
-  child.unref();
+  await launchDetachedApp(executable, args, label);
 
   // Step 5: Poll for readiness
   process.stderr.write(`  Waiting for ${label} on port ${port}...\n`);
