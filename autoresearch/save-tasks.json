@@ -168,5 +168,21 @@
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-hn',\n  name: 'jobs',\n  description: 'HackerNews job stories',\n  domain: 'news.ycombinator.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of jobs' },\n  ],\n  columns: ['rank', 'title', 'url'],\n  func: async (_page, kwargs) => {\n    const limit = Math.min(kwargs.limit ?? 5, 10);\n    const res = await fetch('https://hacker-news.firebaseio.com/v0/jobstories.json');\n    const ids = await res.json();\n    const items = await Promise.all(ids.slice(0, limit).map(async (id: number) => {\n      const r = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);\n      return r.json();\n    }));\n    return items.map((item: any, i: number) => ({\n      rank: i + 1, title: item.title, url: item.url ?? '',\n    }));\n  },\n});\n",
     "judge": { "type": "arrayMinLength", "minLength": 3 },
     "note": "PUBLIC strategy: HackerNews job listings using same Firebase API as other HN adapters"
+  },
+  {
+    "name": "restcountries-list",
+    "site": "test-restcountries",
+    "command": "list",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-restcountries',\n  name: 'list',\n  description: 'REST Countries list',\n  domain: 'restcountries.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of countries' },\n  ],\n  columns: ['name', 'capital', 'region'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://restcountries.com/v3.1/all?fields=name,capital,region');\n    const countries = await res.json();\n    return countries.slice(0, limit).map((c: any) => ({\n      name: c.name?.common ?? '',\n      capital: c.capital?.[0] ?? '',\n      region: c.region ?? '',\n    }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "note": "PUBLIC strategy: REST Countries API — stable, no-auth, returns 250 countries with name/capital/region"
+  },
+  {
+    "name": "nager-holidays",
+    "site": "test-nager",
+    "command": "holidays",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-nager',\n  name: 'holidays',\n  description: 'US public holidays for current year',\n  domain: 'date.nager.at',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of holidays' },\n  ],\n  columns: ['date', 'name', 'type'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const year = new Date().getFullYear();\n    const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/US`);\n    const holidays = await res.json();\n    return holidays.slice(0, limit).map((h: any) => ({\n      date: h.date,\n      name: h.name,\n      type: (h.types || []).join(','),\n    }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "note": "PUBLIC strategy: Nager public holidays API — stable, no-auth, returns US federal holidays by year"
   }
 ]
