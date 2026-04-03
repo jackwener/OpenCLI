@@ -4,7 +4,10 @@
     "site": "test-httpbin",
     "command": "get",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-httpbin',\n  name: 'get',\n  description: 'httpbin echo test',\n  domain: 'httpbin.org',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [],\n  columns: ['origin', 'url'],\n  func: async () => {\n    const res = await fetch('https://httpbin.org/get');\n    const d = await res.json();\n    return [{ origin: d.origin, url: d.url }];\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 1 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 1
+    },
     "note": "Simplest possible: httpbin echo, single row"
   },
   {
@@ -12,57 +15,80 @@
     "site": "test-jsonplaceholder",
     "command": "posts",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-jsonplaceholder',\n  name: 'posts',\n  description: 'JSONPlaceholder posts',\n  domain: 'jsonplaceholder.typicode.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of posts' },\n  ],\n  columns: ['id', 'title'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://jsonplaceholder.typicode.com/posts');\n    const posts = await res.json();\n    return posts.slice(0, limit).map((p: any) => ({ id: p.id, title: p.title }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 }
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    }
   },
   {
     "name": "jsonplaceholder-users",
     "site": "test-jsonplaceholder",
     "command": "users",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-jsonplaceholder',\n  name: 'users',\n  description: 'JSONPlaceholder users',\n  domain: 'jsonplaceholder.typicode.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of users' },\n  ],\n  columns: ['id', 'name', 'email'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://jsonplaceholder.typicode.com/users');\n    const users = await res.json();\n    return users.slice(0, limit).map((u: any) => ({ id: u.id, name: u.name, email: u.email }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 }
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    }
   },
   {
     "name": "hn-top",
     "site": "test-hn",
     "command": "top",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-hn',\n  name: 'top',\n  description: 'HackerNews top stories',\n  domain: 'news.ycombinator.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of stories' },\n  ],\n  columns: ['rank', 'title', 'score'],\n  func: async (_page, kwargs) => {\n    const limit = Math.min(kwargs.limit ?? 5, 10);\n    const res = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json');\n    const ids = await res.json();\n    const items = await Promise.all(ids.slice(0, limit).map(async (id: number) => {\n      const r = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);\n      return r.json();\n    }));\n    return items.map((item: any, i: number) => ({\n      rank: i + 1, title: item.title, score: item.score,\n    }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 }
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    }
   },
   {
     "name": "hn-ask",
     "site": "test-hn",
     "command": "ask",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-hn',\n  name: 'ask',\n  description: 'HackerNews Ask HN stories',\n  domain: 'news.ycombinator.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of stories' },\n  ],\n  columns: ['rank', 'title', 'score'],\n  func: async (_page, kwargs) => {\n    const limit = Math.min(kwargs.limit ?? 5, 10);\n    const res = await fetch('https://hacker-news.firebaseio.com/v0/askstories.json');\n    const ids = await res.json();\n    const items = await Promise.all(ids.slice(0, limit).map(async (id: number) => {\n      const r = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);\n      return r.json();\n    }));\n    return items.map((item: any, i: number) => ({\n      rank: i + 1, title: item.title, score: item.score,\n    }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 }
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    }
   },
   {
     "name": "wiki-summary",
     "site": "test-wiki",
     "command": "summary",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-wiki',\n  name: 'summary',\n  description: 'Wikipedia article summary',\n  domain: 'en.wikipedia.org',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'title', type: 'string', default: 'JavaScript', positional: true, help: 'Article title' },\n  ],\n  columns: ['title', 'extract'],\n  func: async (_page, kwargs) => {\n    const title = encodeURIComponent(kwargs.title);\n    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`);\n    const d = await res.json();\n    return [{ title: d.title, extract: d.extract?.slice(0, 200) }];\n  },\n});\n",
-    "judge": { "type": "contains", "value": "programming language" }
+    "judge": {
+      "type": "contains",
+      "value": "programming language"
+    }
   },
   {
     "name": "lobsters-hot",
     "site": "test-lobsters",
     "command": "hot",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-lobsters',\n  name: 'hot',\n  description: 'Lobsters hottest stories',\n  domain: 'lobste.rs',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of stories' },\n  ],\n  columns: ['title', 'score', 'url'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://lobste.rs/hottest.json');\n    const stories = await res.json();\n    return stories.slice(0, limit).map((s: any) => ({\n      title: s.title, score: s.score, url: s.short_id_url,\n    }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 }
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    }
   },
   {
     "name": "devto-top",
     "site": "test-devto",
     "command": "top",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-devto',\n  name: 'top',\n  description: 'DEV.to top articles',\n  domain: 'dev.to',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of articles' },\n  ],\n  columns: ['title', 'user', 'reactions'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://dev.to/api/articles?per_page=' + limit);\n    const articles = await res.json();\n    return articles.map((a: any) => ({\n      title: a.title, user: a.user?.username, reactions: a.positive_reactions_count,\n    }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 }
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    }
   },
-
   {
     "name": "zhihu-hot-with-top-answer",
     "site": "test-zhihu",
     "command": "hot-detail",
     "adapterFile": "save-adapters/zhihu-hot-detail.ts",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "6-step chain: navigate → fetch hot list API → parse big-int IDs → loop N items → fetch answer API per question → strip HTML → merge"
   },
   {
@@ -70,7 +96,10 @@
     "site": "test-zhihu",
     "command": "search-detail",
     "adapterFile": "save-adapters/zhihu-search-detail.ts",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "7-step chain: navigate → search API → filter by type → extract question IDs → fetch question detail per result → merge stats → format"
   },
   {
@@ -78,7 +107,10 @@
     "site": "test-xhs",
     "command": "search-full",
     "adapterFile": "save-adapters/xhs-search-full.ts",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "6-step chain: navigate → MutationObserver wait → scroll 3x → DOM extract with URL dedup → slice + format"
   },
   {
@@ -86,7 +118,10 @@
     "site": "test-xhs",
     "command": "note-comments",
     "adapterFile": "save-adapters/xhs-note-comments.ts",
-    "judge": { "type": "arrayMinLength", "minLength": 1 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 1
+    },
     "note": "7-step chain: navigate → wait → extract note meta → scroll container 3x → extract comments DOM → merge note+comments → unified output"
   },
   {
@@ -94,7 +129,10 @@
     "site": "test-zhihu",
     "command": "question-full",
     "adapterFile": "save-adapters/zhihu-question-full.ts",
-    "judge": { "type": "arrayMinLength", "minLength": 2 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 2
+    },
     "note": "8-step chain: navigate → wait → fetch question detail → fetch answers → strip HTML → fetch related questions → merge 3 layers → format"
   },
   {
@@ -102,7 +140,10 @@
     "site": "test-xhs",
     "command": "explore-deep",
     "adapterFile": "save-adapters/xhs-explore-deep.ts",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "8-step chain: navigate → MutationObserver wait → adaptive scroll → DOM extract with dedup → parse likes → sort desc → slice → format"
   },
   {
@@ -110,7 +151,10 @@
     "site": "test-hn",
     "command": "new",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-hn',\n  name: 'new',\n  description: 'HackerNews newest stories',\n  domain: 'news.ycombinator.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of stories' },\n  ],\n  columns: ['rank', 'title', 'score'],\n  func: async (_page, kwargs) => {\n    const limit = Math.min(kwargs.limit ?? 5, 10);\n    const res = await fetch('https://hacker-news.firebaseio.com/v0/newstories.json');\n    const ids = await res.json();\n    const items = await Promise.all(ids.slice(0, limit).map(async (id: number) => {\n      const r = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);\n      return r.json();\n    }));\n    return items.map((item: any, i: number) => ({\n      rank: i + 1, title: item.title, score: item.score ?? 0,\n    }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "PUBLIC strategy: HackerNews new stories using same Firebase API as hn-top/hn-ask"
   },
   {
@@ -118,7 +162,10 @@
     "site": "test-jsonplaceholder",
     "command": "todos",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-jsonplaceholder',\n  name: 'todos',\n  description: 'JSONPlaceholder todos',\n  domain: 'jsonplaceholder.typicode.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of todos' },\n  ],\n  columns: ['id', 'title', 'completed'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://jsonplaceholder.typicode.com/todos');\n    const todos = await res.json();\n    return todos.slice(0, limit).map((t: any) => ({ id: t.id, title: t.title, completed: t.completed }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "PUBLIC strategy: JSONPlaceholder todos — same base domain as posts/users, different endpoint"
   },
   {
@@ -126,7 +173,10 @@
     "site": "test-hn",
     "command": "show",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-hn',\n  name: 'show',\n  description: 'HackerNews Show HN stories',\n  domain: 'news.ycombinator.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of stories' },\n  ],\n  columns: ['rank', 'title', 'score'],\n  func: async (_page, kwargs) => {\n    const limit = Math.min(kwargs.limit ?? 5, 10);\n    const res = await fetch('https://hacker-news.firebaseio.com/v0/showstories.json');\n    const ids = await res.json();\n    const items = await Promise.all(ids.slice(0, limit).map(async (id: number) => {\n      const r = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);\n      return r.json();\n    }));\n    return items.map((item: any, i: number) => ({\n      rank: i + 1, title: item.title, score: item.score ?? 0,\n    }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "PUBLIC strategy: HackerNews show stories using same Firebase API as hn-top/hn-ask/hn-new"
   },
   {
@@ -134,7 +184,10 @@
     "site": "test-jsonplaceholder",
     "command": "comments",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-jsonplaceholder',\n  name: 'comments',\n  description: 'JSONPlaceholder comments',\n  domain: 'jsonplaceholder.typicode.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of comments' },\n  ],\n  columns: ['id', 'name', 'email'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://jsonplaceholder.typicode.com/comments');\n    const comments = await res.json();\n    return comments.slice(0, limit).map((c: any) => ({ id: c.id, name: c.name, email: c.email }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "PUBLIC strategy: JSONPlaceholder comments — same base domain as posts/users/todos, different endpoint"
   },
   {
@@ -142,7 +195,10 @@
     "site": "test-jsonplaceholder",
     "command": "albums",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-jsonplaceholder',\n  name: 'albums',\n  description: 'JSONPlaceholder albums',\n  domain: 'jsonplaceholder.typicode.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of albums' },\n  ],\n  columns: ['id', 'userId', 'title'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://jsonplaceholder.typicode.com/albums');\n    const albums = await res.json();\n    return albums.slice(0, limit).map((a: any) => ({ id: a.id, userId: a.userId, title: a.title }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "PUBLIC strategy: JSONPlaceholder albums — same base domain as posts/users/todos/comments, different endpoint"
   },
   {
@@ -150,7 +206,10 @@
     "site": "test-jsonplaceholder",
     "command": "photos",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-jsonplaceholder',\n  name: 'photos',\n  description: 'JSONPlaceholder photos',\n  domain: 'jsonplaceholder.typicode.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of photos' },\n  ],\n  columns: ['id', 'albumId', 'title'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://jsonplaceholder.typicode.com/photos');\n    const photos = await res.json();\n    return photos.slice(0, limit).map((p: any) => ({ id: p.id, albumId: p.albumId, title: p.title }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "PUBLIC strategy: JSONPlaceholder photos — same base domain as posts/users/todos/comments/albums, different endpoint"
   },
   {
@@ -158,7 +217,10 @@
     "site": "test-hn",
     "command": "best",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-hn',\n  name: 'best',\n  description: 'HackerNews best stories',\n  domain: 'news.ycombinator.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of stories' },\n  ],\n  columns: ['rank', 'title', 'score'],\n  func: async (_page, kwargs) => {\n    const limit = Math.min(kwargs.limit ?? 5, 10);\n    const res = await fetch('https://hacker-news.firebaseio.com/v0/beststories.json');\n    const ids = await res.json();\n    const items = await Promise.all(ids.slice(0, limit).map(async (id: number) => {\n      const r = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);\n      return r.json();\n    }));\n    return items.map((item: any, i: number) => ({\n      rank: i + 1, title: item.title, score: item.score ?? 0,\n    }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "PUBLIC strategy: HackerNews best stories using same Firebase API as hn-top/hn-ask/hn-new/hn-show"
   },
   {
@@ -166,7 +228,10 @@
     "site": "test-hn",
     "command": "jobs",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-hn',\n  name: 'jobs',\n  description: 'HackerNews job stories',\n  domain: 'news.ycombinator.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of jobs' },\n  ],\n  columns: ['rank', 'title', 'url'],\n  func: async (_page, kwargs) => {\n    const limit = Math.min(kwargs.limit ?? 5, 10);\n    const res = await fetch('https://hacker-news.firebaseio.com/v0/jobstories.json');\n    const ids = await res.json();\n    const items = await Promise.all(ids.slice(0, limit).map(async (id: number) => {\n      const r = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);\n      return r.json();\n    }));\n    return items.map((item: any, i: number) => ({\n      rank: i + 1, title: item.title, url: item.url ?? '',\n    }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "PUBLIC strategy: HackerNews job listings using same Firebase API as other HN adapters"
   },
   {
@@ -174,7 +239,10 @@
     "site": "test-restcountries",
     "command": "list",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-restcountries',\n  name: 'list',\n  description: 'REST Countries list',\n  domain: 'restcountries.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of countries' },\n  ],\n  columns: ['name', 'capital', 'region'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://restcountries.com/v3.1/all?fields=name,capital,region');\n    const countries = await res.json();\n    return countries.slice(0, limit).map((c: any) => ({\n      name: c.name?.common ?? '',\n      capital: c.capital?.[0] ?? '',\n      region: c.region ?? '',\n    }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "PUBLIC strategy: REST Countries API — stable, no-auth, returns 250 countries with name/capital/region"
   },
   {
@@ -182,7 +250,32 @@
     "site": "test-nager",
     "command": "holidays",
     "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-nager',\n  name: 'holidays',\n  description: 'US public holidays for current year',\n  domain: 'date.nager.at',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of holidays' },\n  ],\n  columns: ['date', 'name', 'type'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const year = new Date().getFullYear();\n    const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/US`);\n    const holidays = await res.json();\n    return holidays.slice(0, limit).map((h: any) => ({\n      date: h.date,\n      name: h.name,\n      type: (h.types || []).join(','),\n    }));\n  },\n});\n",
-    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
     "note": "PUBLIC strategy: Nager public holidays API — stable, no-auth, returns US federal holidays by year"
+  },
+  {
+    "name": "catfact-list",
+    "site": "test-catfact",
+    "command": "facts",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-catfact',\n  name: 'facts',\n  description: 'Random cat facts',\n  domain: 'catfact.ninja',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of facts' },\n  ],\n  columns: ['fact', 'length'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch(`https://catfact.ninja/facts?limit=${limit}`);\n    const d = await res.json();\n    return d.data.map((item: any) => ({\n      fact: item.fact.slice(0, 100),\n      length: item.length,\n    }));\n  },\n});\n",
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
+    "note": "PUBLIC strategy: catfact.ninja facts API — stable, no-auth, returns random cat facts"
+  },
+  {
+    "name": "opentdb-trivia",
+    "site": "test-opentdb",
+    "command": "easy",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-opentdb',\n  name: 'easy',\n  description: 'Easy trivia questions from Open Trivia DB',\n  domain: 'opentdb.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of questions' },\n  ],\n  columns: ['category', 'question', 'answer'],\n  func: async (_page, kwargs) => {\n    const limit = Math.min(kwargs.limit ?? 5, 10);\n    const res = await fetch(`https://opentdb.com/api.php?amount=${limit}&difficulty=easy&type=multiple`);\n    const d = await res.json();\n    return d.results.map((q: any) => ({\n      category: q.category,\n      question: q.question.replace(/&quot;/g, '\"').replace(/&#039;/g, \"'\").slice(0, 80),\n      answer: q.correct_answer,\n    }));\n  },\n});\n",
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    },
+    "note": "PUBLIC strategy: Open Trivia DB API — stable, no-auth, returns trivia questions with correct answers"
   }
 ]
