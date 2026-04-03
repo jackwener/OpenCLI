@@ -96,7 +96,9 @@ function createPageMock(
     installInterceptor: vi.fn().mockResolvedValue(undefined),
     getInterceptedRequests: vi.fn().mockResolvedValue([]),
     waitForCapture: vi.fn().mockResolvedValue(undefined),
-    screenshot: vi.fn().mockResolvedValue(''),
+    installStreamingInterceptor: vi.fn().mockResolvedValue(undefined),
+    getStreamedResponses: vi.fn().mockResolvedValue({ text: '', events: [], done: false, errors: [] }),
+    waitForStreamCapture: vi.fn().mockResolvedValue(undefined),    screenshot: vi.fn().mockResolvedValue(''),
     setFileInput: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };

@@ -34,7 +34,9 @@ function createPageMock(evaluateResult: any): IPage {
     getCookies: vi.fn().mockResolvedValue([]),
     screenshot: vi.fn().mockResolvedValue(''),
     waitForCapture: vi.fn().mockResolvedValue(undefined),
-  };
+    installStreamingInterceptor: vi.fn().mockResolvedValue(undefined),
+    getStreamedResponses: vi.fn().mockResolvedValue({ text: '', events: [], done: false, errors: [] }),
+    waitForStreamCapture: vi.fn().mockResolvedValue(undefined),  };
 }
 
 describe('xiaohongshu creator-note-detail', () => {

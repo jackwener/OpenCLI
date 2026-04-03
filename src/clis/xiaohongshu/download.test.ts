@@ -41,7 +41,9 @@ function createPageMock(evaluateResult: any): IPage {
     getCookies: vi.fn().mockResolvedValue([{ name: 'sid', value: 'secret', domain: '.xiaohongshu.com' }]),
     screenshot: vi.fn().mockResolvedValue(''),
     waitForCapture: vi.fn().mockResolvedValue(undefined),
-  };
+    installStreamingInterceptor: vi.fn().mockResolvedValue(undefined),
+    getStreamedResponses: vi.fn().mockResolvedValue({ text: '', events: [], done: false, errors: [] }),
+    waitForStreamCapture: vi.fn().mockResolvedValue(undefined),  };
 }
 
 describe('xiaohongshu download', () => {
