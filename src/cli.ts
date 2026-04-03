@@ -605,19 +605,25 @@ cli({
         console.log(`🔍 Verifying ${name}...\n`);
         console.log(`  Loading: ${filePath}`);
 
+        // Read adapter to check if it defines a 'limit' arg
+        const adapterSrc = fs.readFileSync(filePath, 'utf-8');
+        const hasLimitArg = /['"]limit['"]/.test(adapterSrc);
+        const limitFlag = hasLimitArg ? ' --limit 3' : '';
+        const verifyCmd = `node dist/main.js ${site} ${command}${limitFlag}`;
+
         try {
-          const output = execSync(`node dist/main.js ${site} ${command} --limit 3`, {
+          const output = execSync(verifyCmd, {
             cwd: path.join(path.dirname(import.meta.url.replace('file://', '')), '..'),
             timeout: 30000,
             encoding: 'utf-8',
             env: process.env,
             stdio: ['pipe', 'pipe', 'pipe'],
           });
-          console.log(`  Executing: opencli ${site} ${command} --limit 3\n`);
+          console.log(`  Executing: opencli ${site} ${command}${limitFlag}\n`);
           console.log(output);
           console.log(`\n  ✓ Adapter works!`);
         } catch (err: any) {
-          console.log(`  Executing: opencli ${site} ${command} --limit 3\n`);
+          console.log(`  Executing: opencli ${site} ${command}${limitFlag}\n`);
           if (err.stdout) console.log(err.stdout);
           if (err.stderr) console.error(err.stderr.slice(0, 500));
           console.log(`\n  ✗ Adapter failed. Fix the code and try again.`);

@@ -1,0 +1,108 @@
+[
+  {
+    "name": "httpbin-get",
+    "site": "test-httpbin",
+    "command": "get",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-httpbin',\n  name: 'get',\n  description: 'httpbin echo test',\n  domain: 'httpbin.org',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [],\n  columns: ['origin', 'url'],\n  func: async () => {\n    const res = await fetch('https://httpbin.org/get');\n    const d = await res.json();\n    return [{ origin: d.origin, url: d.url }];\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 1 },
+    "note": "Simplest possible: httpbin echo, single row"
+  },
+  {
+    "name": "jsonplaceholder-posts",
+    "site": "test-jsonplaceholder",
+    "command": "posts",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-jsonplaceholder',\n  name: 'posts',\n  description: 'JSONPlaceholder posts',\n  domain: 'jsonplaceholder.typicode.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of posts' },\n  ],\n  columns: ['id', 'title'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://jsonplaceholder.typicode.com/posts');\n    const posts = await res.json();\n    return posts.slice(0, limit).map((p: any) => ({ id: p.id, title: p.title }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 3 }
+  },
+  {
+    "name": "jsonplaceholder-users",
+    "site": "test-jsonplaceholder",
+    "command": "users",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-jsonplaceholder',\n  name: 'users',\n  description: 'JSONPlaceholder users',\n  domain: 'jsonplaceholder.typicode.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of users' },\n  ],\n  columns: ['id', 'name', 'email'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://jsonplaceholder.typicode.com/users');\n    const users = await res.json();\n    return users.slice(0, limit).map((u: any) => ({ id: u.id, name: u.name, email: u.email }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 3 }
+  },
+  {
+    "name": "hn-top",
+    "site": "test-hn",
+    "command": "top",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-hn',\n  name: 'top',\n  description: 'HackerNews top stories',\n  domain: 'news.ycombinator.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of stories' },\n  ],\n  columns: ['rank', 'title', 'score'],\n  func: async (_page, kwargs) => {\n    const limit = Math.min(kwargs.limit ?? 5, 10);\n    const res = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json');\n    const ids = await res.json();\n    const items = await Promise.all(ids.slice(0, limit).map(async (id: number) => {\n      const r = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);\n      return r.json();\n    }));\n    return items.map((item: any, i: number) => ({\n      rank: i + 1, title: item.title, score: item.score,\n    }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 3 }
+  },
+  {
+    "name": "hn-ask",
+    "site": "test-hn",
+    "command": "ask",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-hn',\n  name: 'ask',\n  description: 'HackerNews Ask HN stories',\n  domain: 'news.ycombinator.com',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of stories' },\n  ],\n  columns: ['rank', 'title', 'score'],\n  func: async (_page, kwargs) => {\n    const limit = Math.min(kwargs.limit ?? 5, 10);\n    const res = await fetch('https://hacker-news.firebaseio.com/v0/askstories.json');\n    const ids = await res.json();\n    const items = await Promise.all(ids.slice(0, limit).map(async (id: number) => {\n      const r = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);\n      return r.json();\n    }));\n    return items.map((item: any, i: number) => ({\n      rank: i + 1, title: item.title, score: item.score,\n    }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 3 }
+  },
+  {
+    "name": "wiki-summary",
+    "site": "test-wiki",
+    "command": "summary",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-wiki',\n  name: 'summary',\n  description: 'Wikipedia article summary',\n  domain: 'en.wikipedia.org',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'title', type: 'string', default: 'JavaScript', positional: true, help: 'Article title' },\n  ],\n  columns: ['title', 'extract'],\n  func: async (_page, kwargs) => {\n    const title = encodeURIComponent(kwargs.title);\n    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`);\n    const d = await res.json();\n    return [{ title: d.title, extract: d.extract?.slice(0, 200) }];\n  },\n});\n",
+    "judge": { "type": "contains", "value": "programming language" }
+  },
+  {
+    "name": "lobsters-hot",
+    "site": "test-lobsters",
+    "command": "hot",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-lobsters',\n  name: 'hot',\n  description: 'Lobsters hottest stories',\n  domain: 'lobste.rs',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of stories' },\n  ],\n  columns: ['title', 'score', 'url'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://lobste.rs/hottest.json');\n    const stories = await res.json();\n    return stories.slice(0, limit).map((s: any) => ({\n      title: s.title, score: s.score, url: s.short_id_url,\n    }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 3 }
+  },
+  {
+    "name": "devto-top",
+    "site": "test-devto",
+    "command": "top",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-devto',\n  name: 'top',\n  description: 'DEV.to top articles',\n  domain: 'dev.to',\n  strategy: Strategy.PUBLIC,\n  browser: false,\n  args: [\n    { name: 'limit', type: 'int', default: 5, help: 'Number of articles' },\n  ],\n  columns: ['title', 'user', 'reactions'],\n  func: async (_page, kwargs) => {\n    const limit = kwargs.limit ?? 5;\n    const res = await fetch('https://dev.to/api/articles?per_page=' + limit);\n    const articles = await res.json();\n    return articles.map((a: any) => ({\n      title: a.title, user: a.user?.username, reactions: a.positive_reactions_count,\n    }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 3 }
+  },
+
+  {
+    "name": "zhihu-hot-cookie",
+    "site": "test-zhihu",
+    "command": "hot",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-zhihu',\n  name: 'hot',\n  description: '知乎热榜 (cookie strategy)',\n  domain: 'www.zhihu.com',\n  strategy: Strategy.COOKIE,\n  browser: true,\n  args: [\n    { name: 'limit', type: 'int', default: 10, help: 'Number of items' },\n  ],\n  columns: ['rank', 'title', 'heat'],\n  func: async (page, kwargs) => {\n    const limit = kwargs.limit ?? 10;\n    await page.goto('https://www.zhihu.com');\n    await page.wait(2);\n    const result = await page.evaluate(`(async () => {\n      const res = await fetch('https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total?limit=50', {\n        credentials: 'include'\n      });\n      const text = await res.text();\n      const d = JSON.parse(text.replace(/(\"id\"\\s*:\\s*)(\\d{16,})/g, '$1\"$2\"'));\n      return (d?.data || []).map((item) => {\n        const t = item.target || {};\n        return { title: t.title, heat: item.detail_text || '', answer_count: t.answer_count };\n      });\n    })()`);\n    return (result as any[]).slice(0, limit).map((item, i) => ({\n      rank: i + 1, title: item.title, heat: item.heat,\n    }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 5 },
+    "note": "COOKIE strategy: browser navigate + evaluate fetch with credentials"
+  },
+  {
+    "name": "zhihu-search-cookie",
+    "site": "test-zhihu",
+    "command": "search",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-zhihu',\n  name: 'search',\n  description: '知乎搜索 (cookie strategy)',\n  domain: 'www.zhihu.com',\n  strategy: Strategy.COOKIE,\n  browser: true,\n  args: [\n    { name: 'query', type: 'string', default: 'AI', positional: true, help: 'Search query' },\n    { name: 'limit', type: 'int', default: 5, help: 'Number of results' },\n  ],\n  columns: ['rank', 'title', 'type', 'author', 'votes'],\n  func: async (page, kwargs) => {\n    const query = kwargs.query ?? 'AI';\n    const limit = kwargs.limit ?? 5;\n    await page.goto('https://www.zhihu.com');\n    await page.wait(2);\n    const result = await page.evaluate(`(async () => {\n      const strip = (html) => (html || '').replace(/<[^>]+>/g, '').trim();\n      const res = await fetch('https://www.zhihu.com/api/v4/search_v3?q=' + encodeURIComponent('${query}') + '&t=general&offset=0&limit=${limit}', {\n        credentials: 'include'\n      });\n      const d = await res.json();\n      return (d?.data || []).filter(item => item.type === 'search_result').map(item => {\n        const obj = item.object || {};\n        return { type: obj.type, title: strip(obj.title || ''), author: obj.author?.name || '', votes: obj.voteup_count || 0 };\n      });\n    })()`);\n    return (result as any[]).slice(0, limit).map((item, i) => ({\n      rank: i + 1, title: item.title, type: item.type, author: item.author, votes: item.votes,\n    }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "note": "COOKIE strategy: search with query param, HTML stripping, type filtering"
+  },
+  {
+    "name": "zhihu-question-cookie",
+    "site": "test-zhihu",
+    "command": "question",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-zhihu',\n  name: 'question',\n  description: '知乎问题回答 (cookie strategy)',\n  domain: 'www.zhihu.com',\n  strategy: Strategy.COOKIE,\n  browser: true,\n  args: [\n    { name: 'id', type: 'string', default: '19550225', positional: true, help: 'Question ID' },\n    { name: 'limit', type: 'int', default: 5, help: 'Number of answers' },\n  ],\n  columns: ['rank', 'author', 'votes', 'excerpt'],\n  func: async (page, kwargs) => {\n    const qid = kwargs.id ?? '19550225';\n    const limit = kwargs.limit ?? 5;\n    await page.goto('https://www.zhihu.com/question/' + qid);\n    await page.wait(2);\n    const result = await page.evaluate(`(async () => {\n      const strip = (html) => (html || '').replace(/<[^>]+>/g, '').trim();\n      const res = await fetch('https://www.zhihu.com/api/v4/questions/${qid}/answers?limit=${limit}&offset=0&sort_by=default&include=data[*].content,voteup_count,comment_count,author', {\n        credentials: 'include'\n      });\n      const d = await res.json();\n      return (d?.data || []).map(a => ({\n        author: a.author?.name || 'anonymous',\n        votes: a.voteup_count || 0,\n        excerpt: strip(a.content || '').slice(0, 100),\n      }));\n    })()`);\n    return (result as any[]).slice(0, limit).map((a, i) => ({\n      rank: i + 1, author: a.author, votes: a.votes, excerpt: a.excerpt,\n    }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 2 },
+    "note": "COOKIE strategy: multi-step — navigate to question page, fetch answers API with include params, strip HTML"
+  },
+  {
+    "name": "xhs-feed-cookie",
+    "site": "test-xhs",
+    "command": "feed",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-xhs',\n  name: 'feed',\n  description: '小红书推荐 Feed (cookie strategy + DOM extraction)',\n  domain: 'www.xiaohongshu.com',\n  strategy: Strategy.COOKIE,\n  browser: true,\n  args: [\n    { name: 'limit', type: 'int', default: 10, help: 'Number of items' },\n  ],\n  columns: ['rank', 'title', 'author', 'likes'],\n  func: async (page, kwargs) => {\n    const limit = kwargs.limit ?? 10;\n    await page.goto('https://www.xiaohongshu.com/explore');\n    await page.wait(3);\n    const result = await page.evaluate(`(() => {\n      const items = [];\n      document.querySelectorAll('section.note-item, [data-v-a264b01a]').forEach(el => {\n        const titleEl = el.querySelector('.title span, a.title');\n        const authorEl = el.querySelector('.author-wrapper .name, .author .name');\n        const likesEl = el.querySelector('.like-wrapper .count, .interact-container .count');\n        if (titleEl) {\n          items.push({\n            title: titleEl.textContent?.trim() || '',\n            author: authorEl?.textContent?.trim() || '',\n            likes: likesEl?.textContent?.trim() || '0',\n          });\n        }\n      });\n      return items;\n    })()`);\n    return (result as any[]).slice(0, limit).map((item, i) => ({\n      rank: i + 1, title: item.title, author: item.author, likes: item.likes,\n    }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "note": "COOKIE strategy: navigate explore page, wait for render, DOM extraction with multiple selector fallbacks"
+  },
+  {
+    "name": "xhs-search-cookie",
+    "site": "test-xhs",
+    "command": "search",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-xhs',\n  name: 'search',\n  description: '小红书搜索 (cookie strategy + DOM extraction)',\n  domain: 'www.xiaohongshu.com',\n  strategy: Strategy.COOKIE,\n  browser: true,\n  args: [\n    { name: 'query', type: 'string', default: '美食', positional: true, help: 'Search query' },\n    { name: 'limit', type: 'int', default: 10, help: 'Number of results' },\n  ],\n  columns: ['rank', 'title', 'author', 'likes'],\n  func: async (page, kwargs) => {\n    const query = encodeURIComponent(kwargs.query ?? '美食');\n    const limit = kwargs.limit ?? 10;\n    await page.goto('https://www.xiaohongshu.com/search_result?keyword=' + query + '&source=web_search_result_notes');\n    await page.wait(4);\n    const result = await page.evaluate(`(() => {\n      const items = [];\n      document.querySelectorAll('section.note-item, [data-v-a264b01a]').forEach(el => {\n        const titleEl = el.querySelector('.title span, a.title');\n        const authorEl = el.querySelector('.author-wrapper .name, .author .name');\n        const likesEl = el.querySelector('.like-wrapper .count, .interact-container .count');\n        if (titleEl) {\n          items.push({\n            title: titleEl.textContent?.trim() || '',\n            author: authorEl?.textContent?.trim() || '',\n            likes: likesEl?.textContent?.trim() || '0',\n          });\n        }\n      });\n      return items;\n    })()`);\n    return (result as any[]).slice(0, limit).map((item, i) => ({\n      rank: i + 1, title: item.title, author: item.author, likes: item.likes,\n    }));\n  },\n});\n",
+    "judge": { "type": "arrayMinLength", "minLength": 3 },
+    "note": "COOKIE strategy: search with URL params, wait for async render, DOM extraction"
+  },
+  {
+    "name": "xhs-note-cookie",
+    "site": "test-xhs",
+    "command": "note",
+    "adapter": "import { cli, Strategy } from '@jackwener/opencli/registry';\n\ncli({\n  site: 'test-xhs',\n  name: 'note',\n  description: '小红书笔记详情 (cookie strategy + multi-step)',\n  domain: 'www.xiaohongshu.com',\n  strategy: Strategy.COOKIE,\n  browser: true,\n  args: [\n    { name: 'id', type: 'string', default: '6745a82f000000000800b6ed', positional: true, help: 'Note ID' },\n  ],\n  columns: ['title', 'author', 'likes', 'collects', 'comments'],\n  func: async (page, kwargs) => {\n    const noteId = kwargs.id ?? '6745a82f000000000800b6ed';\n    await page.goto('https://www.xiaohongshu.com/explore/' + noteId);\n    await page.wait(3);\n    const result = await page.evaluate(`(() => {\n      const title = document.querySelector('#detail-title, .title')?.textContent?.trim() || '';\n      const author = document.querySelector('.author-container .username, .user-nickname')?.textContent?.trim() || '';\n      const likes = document.querySelector('[data-type=\\\"like\\\"] .count, .like-wrapper .count')?.textContent?.trim() || '0';\n      const collects = document.querySelector('[data-type=\\\"collect\\\"] .count, .collect-wrapper .count')?.textContent?.trim() || '0';\n      const comments = document.querySelector('[data-type=\\\"chat\\\"] .count, .chat-wrapper .count')?.textContent?.trim() || '0';\n      return [{ title, author, likes, collects, comments }];\n    })()`);\n    return result as any[];\n  },\n});\n",
+    "judge": { "type": "nonEmpty" },
+    "note": "COOKIE strategy: multi-step — navigate to note page, extract title/author/metrics from DOM with multiple selector fallbacks"
+  }
+]
