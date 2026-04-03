@@ -23,3 +23,4 @@ docs/.vitepress/cache
 # Database files
 *.db
 autoresearch/results/
+autoresearch-results.tsv

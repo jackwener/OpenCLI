@@ -21,7 +21,7 @@ const TASKS_FILE = join(__dirname, 'save-tasks.json');
 const RESULTS_DIR = join(__dirname, 'results');
 const USER_CLIS_DIR = join(homedir(), '.opencli', 'clis');
 
-interface SedimentTask {
+interface SaveTask {
   name: string;
   site: string;
   command: string;
@@ -62,7 +62,7 @@ function judge(criteria: JudgeCriteria, output: string): boolean {
         // Subtract header row
         const dataLines = lines.length > 1 ? lines.length - 1 : 0;
         return dataLines >= criteria.minLength;
-        }
+      }
       case 'nonEmpty':
         return output.trim().length > 0 && output.trim() !== 'null' && output.trim() !== 'undefined';
       case 'matchesPattern':
@@ -107,7 +107,7 @@ function cleanupAdapter(site: string, command: string): void {
   } catch { /* best effort */ }
 }
 
-function runTask(task: SedimentTask): TaskResult {
+function runTask(task: SaveTask): TaskResult {
   const start = Date.now();
   const { site, command } = task;
   const adapterDir = join(USER_CLIS_DIR, site);
@@ -174,7 +174,7 @@ function main() {
   const args = process.argv.slice(2);
   const singleTask = args.includes('--task') ? args[args.indexOf('--task') + 1] : null;
 
-  const allTasks: SedimentTask[] = JSON.parse(readFileSync(TASKS_FILE, 'utf-8'));
+  const allTasks: SaveTask[] = JSON.parse(readFileSync(TASKS_FILE, 'utf-8'));
   const tasks = singleTask ? allTasks.filter(t => t.name === singleTask) : allTasks;
 
   if (tasks.length === 0) {
