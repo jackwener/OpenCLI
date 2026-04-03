@@ -302,7 +302,7 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
 
   operate.command('state').description('Page state: URL, title, interactive elements with [N] indices')
     .action(operateAction(async (page) => {
-      const snapshot = await page.snapshot({ viewportExpand: 800 });
+      const snapshot = await page.snapshot({ viewportExpand: 2000 });
       const url = await page.getCurrentUrl?.() ?? '';
       console.log(`URL: ${url}\n`);
       console.log(typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot, null, 2));

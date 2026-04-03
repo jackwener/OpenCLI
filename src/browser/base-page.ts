@@ -133,7 +133,7 @@ export abstract class BasePage implements IPage {
 
   async snapshot(opts: SnapshotOptions = {}): Promise<unknown> {
     const snapshotJs = generateSnapshotJs({
-      viewportExpand: opts.viewportExpand ?? 800,
+      viewportExpand: opts.viewportExpand ?? 2000,
       maxDepth: Math.max(1, Math.min(Number(opts.maxDepth) || 50, 200)),
       interactiveOnly: opts.interactive ?? false,
       maxTextLength: opts.maxTextLength ?? 120,
@@ -152,7 +152,11 @@ export abstract class BasePage implements IPage {
         // Non-fatal: diff is best-effort
       }
       return result;
-    } catch {
+    } catch (err) {
+      // Log snapshot failure for debugging, then fallback to basic accessibility tree
+      if (process.env.DEBUG_SNAPSHOT) {
+        console.error('[snapshot] DOM snapshot failed, falling back to accessibility tree:', (err as Error)?.message?.slice(0, 200));
+      }
       return this._basicSnapshot(opts);
     }
   }
