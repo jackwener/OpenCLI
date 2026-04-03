@@ -774,5 +774,75 @@
       "type": "matchesPattern",
       "pattern": "\"title\":"
     }
+  },
+  {
+    "_comment": "=== Edge Cases: SPA lazy load, dynamic content ==="
+  },
+  {
+    "name": "zhihu-rapid-navigate",
+    "steps": [
+      "opencli operate open https://www.zhihu.com/",
+      "opencli operate open https://www.zhihu.com/hot",
+      "opencli operate open https://www.zhihu.com/people/excited-vczh",
+      "opencli operate wait time 2",
+      "opencli operate eval \"location.pathname\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "/people/"
+    }
+  },
+  {
+    "name": "zhihu-hot-click-verify-url",
+    "steps": [
+      "opencli operate open https://www.zhihu.com/hot",
+      "opencli operate eval \"(function(){var a=document.querySelector('.HotItem-content a');if(a){window.location.href=a.href;return 'navigating';}return 'none';})()\"",
+      "opencli operate wait time 3",
+      "opencli operate eval \"location.pathname.startsWith('/question/') ? 'on question page' : 'wrong: '+location.pathname\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "on question page"
+    }
+  },
+  {
+    "name": "zhihu-scroll-lazy-answers",
+    "steps": [
+      "opencli operate open https://www.zhihu.com/hot",
+      "opencli operate eval \"(function(){var a=document.querySelector('.HotItem-content a');if(a){window.location.href=a.href;return 'navigating';}return 'none';})()\"",
+      "opencli operate wait time 3",
+      "opencli operate eval \"document.querySelectorAll('.RichContent-inner').length\"",
+      "opencli operate scroll down --amount 2000",
+      "opencli operate wait time 2",
+      "opencli operate eval \"document.querySelectorAll('.RichContent-inner').length\""
+    ],
+    "judge": {
+      "type": "matchesPattern",
+      "pattern": "\\d+"
+    }
+  },
+  {
+    "name": "zhihu-extract-structured",
+    "steps": [
+      "opencli operate open https://www.zhihu.com/hot",
+      "opencli operate eval \"(function(){var items=document.querySelectorAll('.HotItem-content');var r=[];for(var i=0;i<Math.min(items.length,3);i++){var a=items[i].querySelector('a');var m=items[i].closest('[class*=HotItem]')?.querySelector('[class*=metrics]');r.push({title:(a?.textContent||'').trim().slice(0,40),heat:(m?.textContent||'').trim()});}return JSON.stringify(r);})()\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 3
+    }
+  },
+  {
+    "name": "zhihu-question-answer-chain",
+    "steps": [
+      "opencli operate open https://www.zhihu.com/hot",
+      "opencli operate eval \"(function(){var a=document.querySelector('.HotItem-content a');if(a){window.location.href=a.href;return 'navigating';}return 'none';})()\"",
+      "opencli operate wait time 3",
+      "opencli operate eval \"(function(){var title=document.querySelector('.QuestionHeader-title')?.textContent?.trim()||'';var answers=document.querySelectorAll('.RichContent-inner');var first=answers[0]?.textContent?.trim()?.slice(0,100)||'';var count=answers.length;return JSON.stringify({title:title.slice(0,50),firstAnswer:first,answerCount:count});})()\""
+    ],
+    "judge": {
+      "type": "matchesPattern",
+      "pattern": "\"answerCount\":\\d+"
+    }
   }
 ]

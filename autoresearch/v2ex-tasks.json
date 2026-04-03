@@ -766,5 +766,68 @@
       "type": "matchesPattern",
       "pattern": "\\d+"
     }
+  },
+  {
+    "_comment": "=== Edge Cases: SPA navigation, timing, dynamic content ==="
+  },
+  {
+    "name": "v2ex-rapid-navigate",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate open https://v2ex.com/go/programmer",
+      "opencli operate open https://v2ex.com/go/python",
+      "opencli operate eval \"location.pathname\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "/go/python"
+    }
+  },
+  {
+    "name": "v2ex-eval-after-click",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked';}return 'none';})()\"",
+      "opencli operate wait time 1",
+      "opencli operate eval \"location.pathname.startsWith('/t/') ? 'on topic page' : 'wrong page: '+location.pathname\""
+    ],
+    "judge": {
+      "type": "contains",
+      "value": "on topic page"
+    }
+  },
+  {
+    "name": "v2ex-scroll-and-extract",
+    "steps": [
+      "opencli operate open https://v2ex.com/go/programmer",
+      "opencli operate scroll down --amount 2000",
+      "opencli operate wait time 1",
+      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(-3).map(a=>a.textContent.trim().slice(0,30)))\""
+    ],
+    "judge": {
+      "type": "arrayMinLength",
+      "minLength": 2
+    }
+  },
+  {
+    "name": "v2ex-concurrent-eval",
+    "steps": [
+      "opencli operate open https://v2ex.com/",
+      "opencli operate eval \"JSON.stringify({title:document.title,url:location.href,links:document.querySelectorAll('a').length})\""
+    ],
+    "judge": {
+      "type": "matchesPattern",
+      "pattern": "\"title\":.*\"url\":.*\"links\":"
+    }
+  },
+  {
+    "name": "v2ex-unicode-content",
+    "steps": [
+      "opencli operate open https://v2ex.com/?tab=hot",
+      "opencli operate eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');return a?a.textContent.trim():'none';})()\""
+    ],
+    "judge": {
+      "type": "nonEmpty"
+    }
   }
 ]
