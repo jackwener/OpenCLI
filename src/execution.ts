@@ -21,7 +21,7 @@ import { emitHook, type HookContext } from './hooks.js';
 import { checkDaemonStatus } from './browser/discover.js';
 import { log } from './logger.js';
 import { isElectronApp } from './electron-apps.js';
-import { resolveElectronEndpoint } from './launcher.js';
+import { probeCDP, resolveElectronEndpoint } from './launcher.js';
 
 const _loadedModules = new Set<string>();
 
@@ -159,8 +159,19 @@ export async function executeCommand(
 
       if (electron) {
         // Electron apps: respect manual endpoint override, then try auto-detect
-        cdpEndpoint = process.env.OPENCLI_CDP_ENDPOINT
-          ?? await resolveElectronEndpoint(cmd.site);
+        const manualEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
+        if (manualEndpoint) {
+          const port = Number(new URL(manualEndpoint).port);
+          if (!await probeCDP(port)) {
+            throw new CommandExecutionError(
+              `CDP not reachable at ${manualEndpoint}`,
+              'Check that the app is running with --remote-debugging-port and the endpoint is correct.',
+            );
+          }
+          cdpEndpoint = manualEndpoint;
+        } else {
+          cdpEndpoint = await resolveElectronEndpoint(cmd.site);
+        }
       } else {
         // Browser Bridge: fail-fast when daemon is up but extension is missing.
         // 300ms timeout avoids a full 2s wait on cold-start.
