@@ -25,13 +25,12 @@ cli({
           const columnEl = el.querySelector('.c_chl');
           const dateEl = el.querySelector('.c_time');
           const url = titleEl?.getAttribute('href') || '';
-          const finalUrl = url ? (url.includes('?') ? url + '&from=opencli' : url + '?from=opencli') : '';
           if (!url) return;
           results.push({
             title: cleanText(titleEl?.textContent || ''),
             column: cleanText(columnEl?.textContent || ''),
             date: cleanText(dateEl?.textContent || ''),
-            url: finalUrl,
+            url: url,
           });
         });
         return results;
