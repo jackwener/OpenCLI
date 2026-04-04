@@ -76,8 +76,8 @@ See [`hackernews/top.yaml`](https://github.com/jackwener/opencli/blob/main/src/c
 Create a file like `src/clis/<site>/<command>.ts`:
 
 ```typescript
-import { cli, Strategy } from '../../registry.js';
-import { CommandExecutionError, EmptyResultError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CommandExecutionError, EmptyResultError } from '../../src/errors.js';
 
 cli({
   site: 'mysite',

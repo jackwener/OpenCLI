@@ -5,8 +5,8 @@ Use TypeScript adapters when you need browser-side logic, multi-step flows, DOM 
 ## Basic Structure
 
 ```typescript
-import { cli, Strategy } from '../../registry.js';
-import { CommandExecutionError, EmptyResultError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CommandExecutionError, EmptyResultError } from '../../src/errors.js';
 
 cli({
   site: 'mysite',

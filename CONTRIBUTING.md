@@ -73,7 +73,7 @@ See [`hackernews/top.yaml`](src/clis/hackernews/top.yaml) for a real example.
 Create a file like `src/clis/<site>/<command>.ts`:
 
 ```typescript
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 
 cli({
   site: 'mysite',
