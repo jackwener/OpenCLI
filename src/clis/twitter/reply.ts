@@ -1,63 +1,283 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
+
 import { CommandExecutionError } from '../../errors.js';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 
+const REPLY_FILE_INPUT_SELECTOR = 'input[type="file"][data-testid="fileInput"]';
+const SUPPORTED_IMAGE_EXTENSIONS = new Set([
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.gif',
+  '.webp',
+]);
+const CONTENT_TYPE_TO_EXTENSION: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+};
+
+function resolveImagePath(imagePath: string): string {
+  const absPath = path.resolve(imagePath);
+  if (!fs.existsSync(absPath)) {
+    throw new Error(`Image file not found: ${absPath}`);
+  }
+
+  const ext = path.extname(absPath).toLowerCase();
+  if (!SUPPORTED_IMAGE_EXTENSIONS.has(ext)) {
+    throw new Error(`Unsupported image format "${ext}". Supported: jpg, jpeg, png, gif, webp`);
+  }
+
+  return absPath;
+}
+
+function extractTweetId(url: string): string {
+  let pathname = '';
+  try {
+    pathname = new URL(url).pathname;
+  } catch {
+    throw new Error(`Invalid tweet URL: ${url}`);
+  }
+
+  const match = pathname.match(/\/status\/(\d+)/);
+  if (!match?.[1]) {
+    throw new Error(`Could not extract tweet ID from URL: ${url}`);
+  }
+
+  return match[1];
+}
+
+function buildReplyComposerUrl(url: string): string {
+  return `https://x.com/compose/post?in_reply_to=${extractTweetId(url)}`;
+}
+
+function resolveImageExtension(url: string, contentType: string | null): string {
+  const normalizedContentType = (contentType || '').split(';')[0].trim().toLowerCase();
+  if (normalizedContentType && CONTENT_TYPE_TO_EXTENSION[normalizedContentType]) {
+    return CONTENT_TYPE_TO_EXTENSION[normalizedContentType];
+  }
+
+  try {
+    const pathname = new URL(url).pathname;
+    const ext = path.extname(pathname).toLowerCase();
+    if (SUPPORTED_IMAGE_EXTENSIONS.has(ext)) return ext;
+  } catch {
+    // Fall through to the final error below.
+  }
+
+  throw new Error(
+    `Unsupported remote image format "${normalizedContentType || 'unknown'}". ` +
+    'Supported: jpg, jpeg, png, gif, webp'
+  );
+}
+
+async function downloadRemoteImage(imageUrl: string): Promise<string> {
+  let parsed: URL;
+  try {
+    parsed = new URL(imageUrl);
+  } catch {
+    throw new Error(`Invalid image URL: ${imageUrl}`);
+  }
+
+  if (!/^https?:$/.test(parsed.protocol)) {
+    throw new Error(`Unsupported image URL protocol: ${parsed.protocol}`);
+  }
+
+  const response = await fetch(imageUrl);
+  if (!response.ok) {
+    throw new Error(`Image download failed: HTTP ${response.status}`);
+  }
+
+  const ext = resolveImageExtension(imageUrl, response.headers.get('content-type'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-twitter-reply-'));
+  const tmpPath = path.join(tmpDir, `image${ext}`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  fs.writeFileSync(tmpPath, buffer);
+  return tmpPath;
+}
+
+async function attachReplyImage(page: IPage, absImagePath: string): Promise<void> {
+  if (page.setFileInput) {
+    try {
+      await page.setFileInput([absImagePath], REPLY_FILE_INPUT_SELECTOR);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes('Unknown action') && !msg.includes('not supported')) {
+        throw new Error(`Image upload failed: ${msg}`);
+      }
+    }
+  }
+
+  if (!page.setFileInput) {
+    const ext = path.extname(absImagePath).toLowerCase();
+    const mimeType = ext === '.png'
+      ? 'image/png'
+      : ext === '.gif'
+        ? 'image/gif'
+        : ext === '.webp'
+          ? 'image/webp'
+          : 'image/jpeg';
+    const base64 = fs.readFileSync(absImagePath).toString('base64');
+    const upload = await page.evaluate(`
+      (() => {
+        const input = document.querySelector(${JSON.stringify(REPLY_FILE_INPUT_SELECTOR)});
+        if (!input) return { ok: false, error: 'No file input found on page' };
+
+        const binary = atob(${JSON.stringify(base64)});
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+        const dt = new DataTransfer();
+        const blob = new Blob([bytes], { type: ${JSON.stringify(mimeType)} });
+        dt.items.add(new File([blob], ${JSON.stringify(path.basename(absImagePath))}, { type: ${JSON.stringify(mimeType)} }));
+
+        Object.defineProperty(input, 'files', { value: dt.files, writable: false });
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        return { ok: true };
+      })()
+    `);
+
+    if (!upload?.ok) {
+      throw new Error(`Image upload failed: ${upload?.error ?? 'unknown error'}`);
+    }
+  }
+
+  await page.wait(2);
+  const uploadState = await page.evaluate(`
+    (() => {
+      const previewCount = document.querySelectorAll(
+        '[data-testid="attachments"] img, [data-testid="attachments"] video, [data-testid="tweetPhoto"]'
+      ).length;
+      const hasMedia = previewCount > 0
+        || !!document.querySelector('[data-testid="attachments"]')
+        || !!Array.from(document.querySelectorAll('button,[role="button"]')).find((el) =>
+          /remove media|remove image|remove/i.test((el.getAttribute('aria-label') || '') + ' ' + (el.textContent || ''))
+        );
+      return { ok: hasMedia, previewCount };
+    })()
+  `);
+
+  if (!uploadState?.ok) {
+    throw new Error('Image upload failed: preview did not appear.');
+  }
+}
+
+async function submitReply(page: IPage, text: string): Promise<{ ok: boolean; message: string }> {
+  return page.evaluate(`(async () => {
+      try {
+          const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
+          const boxes = Array.from(document.querySelectorAll('[data-testid="tweetTextarea_0"]'));
+          const box = boxes.find(visible) || boxes[0];
+          if (!box) {
+              return { ok: false, message: 'Could not find the reply text area. Are you logged in?' };
+          }
+
+          box.focus();
+          const textToInsert = ${JSON.stringify(text)};
+          const dataTransfer = new DataTransfer();
+          dataTransfer.setData('text/plain', textToInsert);
+          box.dispatchEvent(new ClipboardEvent('paste', {
+              clipboardData: dataTransfer,
+              bubbles: true,
+              cancelable: true
+          }));
+
+          await new Promise(r => setTimeout(r, 1000));
+
+          const buttons = Array.from(
+              document.querySelectorAll('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]')
+          );
+          const btn = buttons.find((el) => visible(el) && !el.disabled)
+              || buttons.find(visible)
+              || buttons[0];
+          if (!btn) {
+              return { ok: false, message: 'Reply button is disabled or not found.' };
+          }
+          if (btn.disabled) {
+              return { ok: false, message: 'Reply button is disabled or not found.' };
+          }
+
+          btn.click();
+          return { ok: true, message: 'Reply posted successfully.' };
+      } catch (e) {
+          return { ok: false, message: e.toString() };
+      }
+  })()`);
+}
+
 cli({
   site: 'twitter',
   name: 'reply',
-  description: 'Reply to a specific tweet',
+  description: 'Reply to a specific tweet, optionally with a local or remote image',
   domain: 'x.com',
   strategy: Strategy.UI, // Uses the UI directly to input and click post
   browser: true,
   args: [
     { name: 'url', type: 'string', required: true, positional: true, help: 'The URL of the tweet to reply to' },
     { name: 'text', type: 'string', required: true, positional: true, help: 'The text content of your reply' },
+    { name: 'image', help: 'Optional local image path to attach to the reply' },
+    { name: 'image-url', help: 'Optional remote image URL to download and attach to the reply' },
   ],
   columns: ['status', 'message', 'text'],
   func: async (page: IPage | null, kwargs: any) => {
     if (!page) throw new CommandExecutionError('Browser session required for twitter reply');
-
-    // 1. Navigate to the tweet page
-    await page.goto(kwargs.url);
-    await page.wait({ selector: '[data-testid="primaryColumn"]' });
-
-    // 2. Automate typing the reply and clicking reply
-    const result = await page.evaluate(`(async () => {
-        try {
-            // Find the reply text area on the tweet page. 
-            // The placeholder is usually "Post your reply"
-            const box = document.querySelector('[data-testid="tweetTextarea_0"]');
-            if (box) {
-                box.focus();
-                document.execCommand('insertText', false, ${JSON.stringify(kwargs.text)});
-            } else {
-                return { ok: false, message: 'Could not find the reply text area. Are you logged in?' };
-            }
-            
-            // Wait for React state to register the input and enable the button
-            await new Promise(r => setTimeout(r, 1000));
-            
-            // Find the Reply button. It usually shares the same test id tweetButtonInline in this context
-            const btn = document.querySelector('[data-testid="tweetButtonInline"]');
-            if (btn && !btn.disabled) {
-                btn.click();
-                return { ok: true, message: 'Reply posted successfully.' };
-            } else {
-                return { ok: false, message: 'Reply button is disabled or not found.' };
-            }
-        } catch (e) {
-            return { ok: false, message: e.toString() };
-        }
-    })()`);
-
-    if (result.ok) {
-        await page.wait(3); // Wait for network submission to complete
+    if (kwargs.image && kwargs['image-url']) {
+      throw new Error('Use either --image or --image-url, not both.');
     }
 
-    return [{
+    let localImagePath: string | undefined;
+    let cleanupDir: string | undefined;
+    try {
+      if (kwargs.image) {
+        localImagePath = resolveImagePath(kwargs.image);
+      } else if (kwargs['image-url']) {
+        localImagePath = await downloadRemoteImage(kwargs['image-url']);
+        cleanupDir = path.dirname(localImagePath);
+      }
+
+      // Dedicated composer is more reliable for image replies because the media
+      // toolbar and file input are consistently present there.
+      if (localImagePath) {
+        await page.goto(buildReplyComposerUrl(kwargs.url));
+        await page.wait({ selector: '[data-testid="tweetTextarea_0"]' });
+        await page.wait({ selector: REPLY_FILE_INPUT_SELECTOR, timeout: 20 });
+        await attachReplyImage(page, localImagePath);
+      } else {
+        await page.goto(kwargs.url);
+        await page.wait({ selector: '[data-testid="primaryColumn"]' });
+      }
+
+      const result = await submitReply(page, kwargs.text);
+
+      if (result.ok) {
+        await page.wait(3); // Wait for network submission to complete
+      }
+
+      return [{
         status: result.ok ? 'success' : 'failed',
         message: result.message,
-        text: kwargs.text
-    }];
+        text: kwargs.text,
+        ...(kwargs.image ? { image: kwargs.image } : {}),
+        ...(kwargs['image-url'] ? { 'image-url': kwargs['image-url'] } : {}),
+      }];
+    } finally {
+      if (cleanupDir) {
+        fs.rmSync(cleanupDir, { recursive: true, force: true });
+      }
+    }
   }
 });
+
+export const __test__ = {
+  buildReplyComposerUrl,
+  downloadRemoteImage,
+  extractTweetId,
+  resolveImageExtension,
+  resolveImagePath,
+};
