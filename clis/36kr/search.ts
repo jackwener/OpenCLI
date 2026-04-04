@@ -1,5 +1,5 @@
 /**
- * 36kr article search — INTERCEPT strategy.
+ * 36kr article search — DOM scraping.
  *
  * Navigates to the 36kr search results page and scrapes rendered articles.
  */
@@ -12,7 +12,8 @@ cli({
   name: 'search',
   description: '搜索36氪文章',
   domain: 'www.36kr.com',
-  strategy: Strategy.INTERCEPT,
+  strategy: Strategy.PUBLIC,
+  browser: true,
   args: [
     { name: 'query', positional: true, required: true, help: 'Search keyword (e.g. "AI", "OpenAI")' },
     { name: 'limit', type: 'int', default: 20, help: 'Number of results (max 50)' },
@@ -22,11 +23,13 @@ cli({
     const count = Math.min(Number(args.limit) || 20, 50);
     const query = encodeURIComponent(String(args.query ?? ''));
 
-    await page.installInterceptor('36kr.com/api');
     await page.goto(`https://www.36kr.com/search/articles/${query}`);
-    // waitForCapture times out on 36kr (API intercept fails), poll DOM instead
-    const _deadline = Date.now() + 5000;
-    while (Date.now() < _deadline && !(await page.evaluate('document.querySelectorAll("a[href*=\"/p/\"]").length'))) await new Promise(r => setTimeout(r, 300));
+    // Poll DOM until article links appear (36kr renders client-side)
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      if (await page.evaluate('document.querySelectorAll("a[href*=\\"/p/\\"]").length')) break;
+      await new Promise(r => setTimeout(r, 300));
+    }
 
     const domItems: any = await page.evaluate(`
       (() => {

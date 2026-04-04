@@ -1,5 +1,5 @@
 /**
- * 36kr hot-list — INTERCEPT strategy.
+ * 36kr hot-list — DOM scraping.
  *
  * Navigates to the 36kr hot-list page and scrapes rendered article links.
  * Supports category types: renqi (人气), zonghe (综合), shoucang (收藏), catalog (综合热门).
@@ -34,7 +34,8 @@ cli({
   name: 'hot',
   description: '36氪热榜 — trending articles (renqi/zonghe/shoucang/catalog)',
   domain: 'www.36kr.com',
-  strategy: Strategy.INTERCEPT,
+  strategy: Strategy.PUBLIC,
+  browser: true,
   args: [
     { name: 'limit', type: 'int', default: 20, help: 'Number of items (max 50)' },
     {
@@ -58,11 +59,13 @@ cli({
 
     const url = buildHotListUrl(listType);
 
-    await page.installInterceptor('36kr.com/api');
     await page.goto(url);
-    // waitForCapture times out on 36kr (API intercept fails), poll DOM instead
-    const _deadline = Date.now() + 5000;
-    while (Date.now() < _deadline && !(await page.evaluate('document.querySelectorAll("a[href*=\"/p/\"]").length'))) await new Promise(r => setTimeout(r, 300));
+    // Poll DOM until article links appear (36kr renders client-side)
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      if (await page.evaluate('document.querySelectorAll("a[href*=\\"/p/\\"]").length')) break;
+      await new Promise(r => setTimeout(r, 300));
+    }
 
     // Scrape rendered article links from DOM (deduplicated)
     const domItems: any = await page.evaluate(`
