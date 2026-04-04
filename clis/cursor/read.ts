@@ -1,6 +1,6 @@
-import { cli, Strategy } from '../../registry.js';
-import { EmptyResultError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { EmptyResultError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 
 export const readCommand = cli({
   site: 'cursor',

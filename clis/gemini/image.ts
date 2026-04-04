@@ -1,8 +1,8 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { cli, Strategy } from '../../registry.js';
-import type { IPage } from '../../types.js';
-import { saveBase64ToFile } from '../../utils.js';
+import { cli, Strategy } from '../../src/registry.js';
+import type { IPage } from '../../src/types.js';
+import { saveBase64ToFile } from '../../src/utils.js';
 import { GEMINI_DOMAIN, exportGeminiImages, getGeminiVisibleImageUrls, sendGeminiMessage, startNewGeminiChat, waitForGeminiImages } from './utils.js';
 
 function extFromMime(mime: string): string {

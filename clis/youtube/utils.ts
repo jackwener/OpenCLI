@@ -1,7 +1,7 @@
 /**
  * Shared YouTube utilities — URL parsing, video ID extraction, etc.
  */
-import type { IPage } from '../../types.js';
+import type { IPage } from '../../src/types.js';
 
 /**
  * Extract a YouTube video ID from a URL or bare video ID string.

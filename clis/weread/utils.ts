@@ -6,8 +6,8 @@
  * - API (i.weread.qq.com/*): private, Node.js fetch with cookies from browser
  */
 
-import { CliError } from '../../errors.js';
-import type { BrowserCookie, IPage } from '../../types.js';
+import { CliError } from '../../src/errors.js';
+import type { BrowserCookie, IPage } from '../../src/types.js';
 
 export const WEREAD_DOMAIN = 'weread.qq.com';
 export const WEREAD_WEB_ORIGIN = `https://${WEREAD_DOMAIN}`;

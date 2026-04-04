@@ -9,10 +9,6 @@ import yaml from 'js-yaml';
 import { VOLATILE_PARAMS, SEARCH_PARAMS, LIMIT_PARAMS, PAGINATION_PARAMS } from './constants.js';
 import type { ExploreAuthSummary, ExploreEndpointArtifact, ExploreManifest } from './explore.js';
 
-/** Renamed aliases for backward compatibility with local references */
-const SEARCH_PARAM_NAMES = SEARCH_PARAMS;
-const LIMIT_PARAM_NAMES = LIMIT_PARAMS;
-const PAGE_PARAM_NAMES = PAGINATION_PARAMS;
 
 interface RecommendedArg {
   name: string;
@@ -35,9 +31,6 @@ export interface SynthesizeCapability {
   itemPath?: string | null;
   recommendedColumns?: string[];
   recommendedArgs?: RecommendedArg[];
-  recommended_args?: RecommendedArg[];
-  recommendedColumnsLegacy?: string[];
-  recommended_columns?: string[];
   storeHint?: StoreHint;
 }
 
@@ -168,9 +161,9 @@ function buildTemplatedUrl(rawUrl: string, cap: SynthesizeCapability, _endpoint:
 
     u.searchParams.forEach((v, k) => {
       if (VOLATILE_PARAMS.has(k)) return;
-      if (hasKeyword && SEARCH_PARAM_NAMES.has(k)) params.push([k, '${{ args.keyword }}']);
-      else if (LIMIT_PARAM_NAMES.has(k)) params.push([k, '${{ args.limit | default(20) }}']);
-      else if (PAGE_PARAM_NAMES.has(k)) params.push([k, '${{ args.page | default(1) }}']);
+      if (hasKeyword && SEARCH_PARAMS.has(k)) params.push([k, '${{ args.keyword }}']);
+      else if (LIMIT_PARAMS.has(k)) params.push([k, '${{ args.limit | default(20) }}']);
+      else if (PAGINATION_PARAMS.has(k)) params.push([k, '${{ args.page | default(1) }}']);
       else params.push([k, v]);
     });
 
@@ -283,14 +276,7 @@ function buildCandidateYaml(site: string, manifest: ExploreManifestLike, cap: Sy
   };
 }
 
-/** Backward-compatible export for scaffold.ts */
 export function buildCandidate(site: string, targetUrl: string, cap: SynthesizeCapability, endpoint: ExploreEndpointArtifact): { name: string; yaml: CandidateYaml } {
-  // Map old-style field names to new ones
-  const normalizedCap = {
-    ...cap,
-    recommendedArgs: cap.recommendedArgs ?? cap.recommended_args,
-    recommendedColumns: cap.recommendedColumns ?? cap.recommended_columns,
-  };
   const manifest = { target_url: targetUrl, final_url: targetUrl };
-  return buildCandidateYaml(site, manifest, normalizedCap, endpoint);
+  return buildCandidateYaml(site, manifest, cap, endpoint);
 }

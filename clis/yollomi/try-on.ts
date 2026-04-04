@@ -4,8 +4,8 @@
 
 import * as path from 'node:path';
 import chalk from 'chalk';
-import { cli, Strategy } from '../../registry.js';
-import { CliError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CliError } from '../../src/errors.js';
 import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.js';
 
 cli({

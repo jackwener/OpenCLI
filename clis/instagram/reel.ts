@@ -3,9 +3,9 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { Page as BrowserPage } from '../../browser/page.js';
-import { cli, Strategy } from '../../registry.js';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '../../errors.js';
-import type { BrowserCookie, IPage } from '../../types.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '../../src/errors.js';
+import type { BrowserCookie, IPage } from '../../src/types.js';
 import {
   buildClickActionJs,
   buildEnsureComposerOpenJs,

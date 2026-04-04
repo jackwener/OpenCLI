@@ -81,6 +81,13 @@ function buildFetchProbeJs(url: string, opts: {
   `;
 }
 
+/** Strategy → fetch probe options mapping for strategies that support probing. */
+const PROBE_OPTIONS: Partial<Record<Strategy, { credentials?: boolean; extractCsrf?: boolean }>> = {
+  [Strategy.PUBLIC]: {},
+  [Strategy.COOKIE]: { credentials: true },
+  [Strategy.HEADER]: { credentials: true, extractCsrf: true },
+};
+
 /**
  * Probe an endpoint with a specific strategy.
  * Returns whether the probe succeeded and basic response info.
@@ -94,40 +101,15 @@ export async function probeEndpoint(
   const result: ProbeResult = { strategy, success: false };
 
   try {
-    switch (strategy) {
-      case Strategy.PUBLIC: {
-        const resp = await page.evaluate(buildFetchProbeJs(url, {}));
-        result.statusCode = resp?.status;
-        result.success = resp?.ok && resp?.hasData;
-        result.hasData = resp?.hasData;
-        result.responsePreview = resp?.preview;
-        break;
-      }
-
-      case Strategy.COOKIE: {
-        const resp = await page.evaluate(buildFetchProbeJs(url, { credentials: true }));
-        result.statusCode = resp?.status;
-        result.success = resp?.ok && resp?.hasData;
-        result.hasData = resp?.hasData;
-        result.responsePreview = resp?.preview;
-        break;
-      }
-
-      case Strategy.HEADER: {
-        const resp = await page.evaluate(buildFetchProbeJs(url, { credentials: true, extractCsrf: true }));
-        result.statusCode = resp?.status;
-        result.success = resp?.ok && resp?.hasData;
-        result.hasData = resp?.hasData;
-        result.responsePreview = resp?.preview;
-        break;
-      }
-
-      case Strategy.INTERCEPT:
-      case Strategy.UI:
-        // These require specific implementation per-site
-        result.success = false;
-        result.error = `Strategy ${strategy} requires site-specific implementation`;
-        break;
+    const opts = PROBE_OPTIONS[strategy];
+    if (opts) {
+      const resp = await page.evaluate(buildFetchProbeJs(url, opts));
+      result.statusCode = resp?.status;
+      result.success = resp?.ok && resp?.hasData;
+      result.hasData = resp?.hasData;
+      result.responsePreview = resp?.preview;
+    } else {
+      result.error = `Strategy ${strategy} requires site-specific implementation`;
     }
   } catch (err) {
     result.success = false;

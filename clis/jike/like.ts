@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 
 /**
  * 点赞即刻帖子

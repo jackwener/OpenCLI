@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { IPage } from '../../../types.js';
-import { TimeoutError } from '../../../errors.js';
+import type { IPage } from '../../../src/types.js';
+import { TimeoutError } from '../../../src/errors.js';
 import { pollTranscodeWithFetch } from './transcode.js';
 import type { TranscodeResult } from './types.js';
 

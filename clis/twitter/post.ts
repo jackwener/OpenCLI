@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { cli, Strategy } from '../../registry.js';
-import { CommandExecutionError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CommandExecutionError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 
 const MAX_IMAGES = 4;
 const UPLOAD_POLL_MS = 500;

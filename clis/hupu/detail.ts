@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { getHupuThreadUrl, readHupuNextData, stripHtml } from './utils.js';
 
 // JSON数据结构（对应Next.js的__NEXT_DATA__）

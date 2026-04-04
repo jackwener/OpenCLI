@@ -7,7 +7,7 @@
  * - Cookie expiry error codes (code 7, 37)
  * - Verbose logging
  */
-import type { IPage } from '../../types.js';
+import type { IPage } from '../../src/types.js';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 

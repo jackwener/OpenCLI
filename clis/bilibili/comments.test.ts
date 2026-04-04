@@ -9,7 +9,7 @@ vi.mock('./utils.js', async (importOriginal) => ({
   apiGet: mockApiGet,
 }));
 
-import { getRegistry } from '../../registry.js';
+import { getRegistry } from '../../src/registry.js';
 import './comments.js';
 
 describe('bilibili comments', () => {

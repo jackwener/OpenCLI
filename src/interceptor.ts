@@ -137,6 +137,8 @@ export function generateReadInterceptedJs(arrayName: string = '__opencli_interce
  * - Installs temporarily, restores originals in finally block
  * - Resolves a promise on first capture (for immediate await)
  * - Returns captured data directly
+ *
+ * Reuses the shared DISGUISE_FN for consistent toString() disguising.
  */
 export function generateTapInterceptorJs(patternExpr: string): {
   setupVar: string;
@@ -153,12 +155,7 @@ export function generateTapInterceptorJs(patternExpr: string): {
       let captureResolve;
       const capturePromise = new Promise(r => { captureResolve = r; });
       const capturePattern = ${patternExpr};
-      function __disguise(fn, name) {
-        const s = 'function ' + name + '() { [native code] }';
-        Object.defineProperty(fn, 'toString', { value: function() { return s; }, writable: true, configurable: true, enumerable: false });
-        try { Object.defineProperty(fn, 'name', { value: name, configurable: true }); } catch {}
-        return fn;
-      }
+      ${DISGUISE_FN}
     `,
     capturedVar: 'captured',
     promiseVar: 'capturePromise',

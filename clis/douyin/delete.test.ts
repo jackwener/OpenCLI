@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getRegistry } from '../../registry.js';
+import { getRegistry } from '../../src/registry.js';
 import './delete.js';
 
 describe('douyin delete registration', () => {

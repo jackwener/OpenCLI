@@ -9,8 +9,8 @@
  * Requires: logged into creator.xiaohongshu.com in Chrome.
  */
 
-import { cli, Strategy } from '../../registry.js';
-import type { IPage } from '../../types.js';
+import { cli, Strategy } from '../../src/registry.js';
+import type { IPage } from '../../src/types.js';
 
 type CreatorNoteDetailRow = {
   section: string;

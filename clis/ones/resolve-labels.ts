@@ -2,7 +2,7 @@
  * 把 status / project 的 uuid 解析为中文名（团队级接口各查一次或按批）
  */
 
-import type { IPage } from '../../types.js';
+import type { IPage } from '../../src/types.js';
 import { onesFetchInPage } from './common.js';
 import { getTaskProjectRawId } from './task-helpers.js';
 

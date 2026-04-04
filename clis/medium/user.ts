@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { buildMediumUserUrl, loadMediumPosts } from './utils.js';
 
 cli({

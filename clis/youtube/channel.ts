@@ -1,8 +1,8 @@
 /**
  * YouTube channel — get channel info and recent videos via InnerTube API.
  */
-import { cli, Strategy } from '../../registry.js';
-import { CommandExecutionError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CommandExecutionError } from '../../src/errors.js';
 
 cli({
   site: 'youtube',

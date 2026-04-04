@@ -3,7 +3,7 @@
  * Uses the /x/v2/reply/main endpoint which is stable and doesn't depend on DOM structure.
  */
 
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { apiGet, resolveBvid } from './utils.js';
 
 cli({

@@ -1,6 +1,6 @@
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { browserFetch } from './_shared/browser-fetch.js';
-import type { IPage } from '../../types.js';
+import type { IPage } from '../../src/types.js';
 
 cli({
   site: 'douyin',

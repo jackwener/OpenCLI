@@ -16,8 +16,8 @@ vi.mock('../../logger.js', () => ({
   },
 }));
 
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '../../errors.js';
-import { getRegistry } from '../../registry.js';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '../../src/errors.js';
+import { getRegistry } from '../../src/registry.js';
 import {
   classifyXueqiuCommentsResponse,
   collectCommentRows,

@@ -1,8 +1,8 @@
-import { cli, Strategy } from '../../registry.js';
-import { ArgumentError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { ArgumentError } from '../../src/errors.js';
 import { browserFetch } from './_shared/browser-fetch.js';
 import { toUnixSeconds, validateTiming } from './_shared/timing.js';
-import type { IPage } from '../../types.js';
+import type { IPage } from '../../src/types.js';
 
 cli({
   site: 'douyin',

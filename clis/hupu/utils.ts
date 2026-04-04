@@ -1,5 +1,5 @@
-import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { AuthRequiredError, CommandExecutionError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 
 export interface HupuApiResponse {
   code?: number;

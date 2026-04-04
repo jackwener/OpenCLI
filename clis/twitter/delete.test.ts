@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { CommandExecutionError } from '../../errors.js';
-import { getRegistry } from '../../registry.js';
+import { CommandExecutionError } from '../../src/errors.js';
+import { getRegistry } from '../../src/registry.js';
 import { __test__ } from './delete.js';
 import './delete.js';
 

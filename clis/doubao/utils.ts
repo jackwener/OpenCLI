@@ -1,4 +1,4 @@
-import type { IPage } from '../../types.js';
+import type { IPage } from '../../src/types.js';
 
 export const DOUBAO_DOMAIN = 'www.doubao.com';
 export const DOUBAO_CHAT_URL = 'https://www.doubao.com/chat';

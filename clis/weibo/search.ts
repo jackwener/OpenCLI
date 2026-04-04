@@ -1,8 +1,8 @@
 /**
  * Weibo search — browser DOM extraction from search results.
  */
-import { cli, Strategy } from '../../registry.js';
-import { CliError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CliError } from '../../src/errors.js';
 
 cli({
   site: 'weibo',

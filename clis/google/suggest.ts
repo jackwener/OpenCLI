@@ -3,8 +3,8 @@
  * Uses suggestqueries.google.com with client=firefox for pure JSON (not JSONP).
  */
 
-import { cli, Strategy } from '../../registry.js';
-import { CliError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CliError } from '../../src/errors.js';
 
 cli({
   site: 'google',

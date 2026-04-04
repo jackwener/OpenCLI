@@ -1,7 +1,7 @@
-import { AuthRequiredError, EmptyResultError } from '../../errors.js';
+import { AuthRequiredError, EmptyResultError } from '../../src/errors.js';
 import { formatCookieHeader } from '../../download/index.js';
 import { downloadMedia } from '../../download/media-download.js';
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 
 /**
  * band post — Export full content of a Band post: body, comments, and optional photo download.

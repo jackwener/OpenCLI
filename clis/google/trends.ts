@@ -3,8 +3,8 @@
  * Shows daily trending searches for a given region.
  */
 
-import { cli, Strategy } from '../../registry.js';
-import { CliError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CliError } from '../../src/errors.js';
 import { parseRssItems } from './utils.js';
 
 cli({

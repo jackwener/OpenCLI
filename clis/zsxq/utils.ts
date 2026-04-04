@@ -1,5 +1,5 @@
-import { ArgumentError, AuthRequiredError, CliError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { ArgumentError, AuthRequiredError, CliError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 
 export interface ZsxqUser {
   user_id?: number;

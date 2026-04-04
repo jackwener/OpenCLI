@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { SEL, injectTextScript, clickSendScript, pollResponseScript } from './utils.js';
 
 export const askCommand = cli({

@@ -1,5 +1,5 @@
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 
 export const SITE = '1688';
 export const HOME_URL = 'https://www.1688.com/';

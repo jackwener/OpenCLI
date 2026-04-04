@@ -2,9 +2,9 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-import { CommandExecutionError } from '../../errors.js';
-import { cli, Strategy } from '../../registry.js';
-import type { IPage } from '../../types.js';
+import { CommandExecutionError } from '../../src/errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import type { IPage } from '../../src/types.js';
 
 const REPLY_FILE_INPUT_SELECTOR = 'input[type="file"][data-testid="fileInput"]';
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { describe, expect, it, vi } from 'vitest';
 import { executePipeline } from '../../pipeline/index.js';
-import type { IPage } from '../../types.js';
+import type { IPage } from '../../src/types.js';
 
 interface YamlCommand {
   pipeline?: Array<Record<string, unknown>>;

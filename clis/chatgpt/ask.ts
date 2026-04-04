@@ -1,7 +1,7 @@
 import { execSync, spawnSync } from 'node:child_process';
-import { cli, Strategy } from '../../registry.js';
-import { ConfigError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { ConfigError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 import { activateChatGPT, getVisibleChatMessages, selectModel, MODEL_CHOICES, isGenerating } from './ax.js';
 
 export const askCommand = cli({

@@ -5,8 +5,8 @@
  * https://app.cj.sina.com.cn/api/news/pc
  */
 
-import { cli, Strategy } from '../../registry.js';
-import { CliError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CliError } from '../../src/errors.js';
 
 // User-facing type (0-9) → Sina API tag ID
 const TYPE_MAP = [

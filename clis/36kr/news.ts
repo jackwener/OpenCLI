@@ -1,7 +1,7 @@
 /**
  * 36kr latest news — public RSS feed, no browser needed.
  */
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 
 cli({
   site: '36kr',

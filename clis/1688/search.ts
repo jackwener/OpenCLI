@@ -1,6 +1,6 @@
-import { CommandExecutionError, EmptyResultError } from '../../errors.js';
-import { cli, Strategy } from '../../registry.js';
-import type { IPage } from '../../types.js';
+import { CommandExecutionError, EmptyResultError } from '../../src/errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import type { IPage } from '../../src/types.js';
 import {
   FACTORY_BADGE_PATTERNS,
   SERVICE_BADGE_PATTERNS,

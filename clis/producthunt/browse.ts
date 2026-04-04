@@ -4,9 +4,9 @@
  * Navigates to a Product Hunt category page and scrapes the top-rated products.
  * Shows all-time best products for a category (ranked by review score, not daily votes).
  */
-import { cli, Strategy } from '../../registry.js';
-import { CliError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CliError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 import { PRODUCTHUNT_CATEGORY_SLUGS } from './utils.js';
 
 cli({

@@ -16,7 +16,7 @@ vi.mock('./utils.js', async () => {
   };
 });
 
-import { getRegistry } from '../../registry.js';
+import { getRegistry } from '../../src/registry.js';
 import './note-list.js';
 
 describe('notebooklm note-list', () => {

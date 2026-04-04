@@ -1,6 +1,6 @@
-import { cli, Strategy } from '../../registry.js';
-import type { IPage } from '../../types.js';
-import { EmptyResultError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import type { IPage } from '../../src/types.js';
+import { EmptyResultError } from '../../src/errors.js';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import {
   getNotebooklmPageState,

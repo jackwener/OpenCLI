@@ -10,7 +10,7 @@ vi.mock('./_shared/public-api.js', () => ({
   fetchDouyinComments: fetchDouyinCommentsMock,
 }));
 
-import { getRegistry } from '../../registry.js';
+import { getRegistry } from '../../src/registry.js';
 import { DEFAULT_COMMENT_LIMIT, MAX_USER_VIDEOS_LIMIT, normalizeCommentLimit, normalizeUserVideosLimit } from './user-videos.js';
 
 describe('douyin user-videos', () => {

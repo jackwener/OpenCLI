@@ -9,7 +9,7 @@
  *  .experience-content.detail-list → details (company·position / school·major·degree)
  *  .position-content → job being discussed + expectation
  */
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { requirePage, navigateToChat, findFriendByUid, clickCandidateInList } from './utils.js';
 
 cli({

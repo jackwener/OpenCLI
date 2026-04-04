@@ -8,8 +8,8 @@
  * snippets. This approach is resilient to class name changes.
  */
 
-import { cli, Strategy } from '../../registry.js';
-import { CliError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CliError } from '../../src/errors.js';
 
 cli({
   site: 'google',

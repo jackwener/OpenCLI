@@ -1,7 +1,7 @@
 /**
  * Reuters news search — API with HTML fallback.
  */
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 
 cli({
   site: 'reuters',

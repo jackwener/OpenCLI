@@ -1,6 +1,6 @@
-import { cli, Strategy } from '../../registry.js';
-import { SelectorError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { SelectorError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 
 export const sendCommand = cli({
   site: 'cursor',

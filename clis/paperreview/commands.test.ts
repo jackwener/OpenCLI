@@ -26,7 +26,7 @@ vi.mock('./utils.js', async () => {
   };
 });
 
-import { getRegistry } from '../../registry.js';
+import { getRegistry } from '../../src/registry.js';
 import './submit.js';
 import './review.js';
 import './feedback.js';

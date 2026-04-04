@@ -5,7 +5,7 @@
  * returns one summary row per note, suitable for quick review or downstream JSON use.
  */
 
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { fetchCreatorNotes, type CreatorNoteRow } from './creator-notes.js';
 import { fetchCreatorNoteDetailRows, type CreatorNoteDetailRow } from './creator-note-detail.js';
 

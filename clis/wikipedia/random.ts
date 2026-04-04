@@ -1,5 +1,5 @@
-import { CliError } from '../../errors.js';
-import { cli, Strategy } from '../../registry.js';
+import { CliError } from '../../src/errors.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { type WikiSummary, formatSummaryRow, wikiFetch } from './utils.js';
 
 cli({

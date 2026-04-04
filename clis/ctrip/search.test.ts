@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '../../registry.js';
+import { getRegistry } from '../../src/registry.js';
 import './search.js';
 
 describe('ctrip search', () => {

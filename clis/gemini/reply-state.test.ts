@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { IPage } from '../../types.js';
+import type { IPage } from '../../src/types.js';
 import type { GeminiSnapshot } from './utils.js';
 import { __test__, waitForGeminiResponse, waitForGeminiSubmission } from './utils.js';
 

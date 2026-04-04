@@ -1,6 +1,6 @@
-import { cli, Strategy } from '../../registry.js';
-import { ConfigError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { ConfigError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 import { activateChatGPT, selectModel, MODEL_CHOICES } from './ax.js';
 
 export const modelCommand = cli({

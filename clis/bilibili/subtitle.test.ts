@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AuthRequiredError, EmptyResultError } from '../../errors.js';
+import { AuthRequiredError, EmptyResultError } from '../../src/errors.js';
 
 const { mockApiGet } = vi.hoisted(() => ({
   mockApiGet: vi.fn(),
@@ -11,7 +11,7 @@ vi.mock('./utils.js', async (importOriginal) => ({
   apiGet: mockApiGet,
 }));
 
-import { getRegistry } from '../../registry.js';
+import { getRegistry } from '../../src/registry.js';
 import './subtitle.js';
 
 describe('bilibili subtitle', () => {

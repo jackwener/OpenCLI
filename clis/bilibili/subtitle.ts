@@ -1,6 +1,6 @@
-import { cli, Strategy } from '../../registry.js';
-import { AuthRequiredError, CommandExecutionError, EmptyResultError, SelectorError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError, SelectorError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 import { apiGet, resolveBvid } from './utils.js';
 
 cli({

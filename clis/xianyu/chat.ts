@@ -1,5 +1,5 @@
-import { AuthRequiredError, SelectorError } from '../../errors.js';
-import { cli, Strategy } from '../../registry.js';
+import { AuthRequiredError, SelectorError } from '../../src/errors.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { normalizeNumericId } from './utils.js';
 
 function buildChatUrl(itemId: string, peerUserId: string): string {

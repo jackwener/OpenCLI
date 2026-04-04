@@ -1,7 +1,7 @@
 /**
  * Product Hunt latest posts — public Atom feed, no browser needed.
  */
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { fetchFeed, PRODUCTHUNT_CATEGORY_SLUGS } from './utils.js';
 
 cli({

@@ -1,5 +1,5 @@
-import type { IPage } from '../../../types.js';
-import { CommandExecutionError } from '../../../errors.js';
+import type { IPage } from '../../../src/types.js';
+import { CommandExecutionError } from '../../../src/errors.js';
 
 export interface FetchOptions {
   body?: unknown;

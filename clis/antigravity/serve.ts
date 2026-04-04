@@ -12,9 +12,9 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { CDPBridge } from '../../browser/cdp.js';
-import type { IPage } from '../../types.js';
-import { resolveElectronEndpoint } from '../../launcher.js';
-import { EXIT_CODES, getErrorMessage } from '../../errors.js';
+import type { IPage } from '../../src/types.js';
+import { resolveElectronEndpoint } from '../../src/launcher.js';
+import { EXIT_CODES, getErrorMessage } from '../../src/errors.js';
 
 // ─── Types ───────────────────────────────────────────────────────────
 

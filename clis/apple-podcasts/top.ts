@@ -1,5 +1,5 @@
-import { cli, Strategy } from '../../registry.js';
-import { CliError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CliError } from '../../src/errors.js';
 
 // Apple Marketing Tools RSS API — public, no key required
 const CHARTS_URL = 'https://rss.marketingtools.apple.com/api/v2';

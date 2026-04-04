@@ -1,5 +1,5 @@
-import { cli, Strategy } from '../../registry.js';
-import { AuthRequiredError, CliError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { AuthRequiredError, CliError } from '../../src/errors.js';
 
 function stripHtml(html: string): string {
   return html

@@ -1,8 +1,8 @@
 /**
  * Weibo user — get user profile by uid or screen_name.
  */
-import { cli, Strategy } from '../../registry.js';
-import { CommandExecutionError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CommandExecutionError } from '../../src/errors.js';
 
 cli({
   site: 'weibo',

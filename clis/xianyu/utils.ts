@@ -1,4 +1,4 @@
-import { ArgumentError } from '../../errors.js';
+import { ArgumentError } from '../../src/errors.js';
 
 export function normalizeNumericId(value: unknown, label: string, example: string): string {
   const normalized = String(value || '').trim();

@@ -1,9 +1,9 @@
 /**
  * YouTube video metadata — fetch watch HTML and parse bootstrap data without opening the watch UI.
  */
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { extractJsonAssignmentFromHtml, parseVideoId, prepareYoutubeApiPage } from './utils.js';
-import { CommandExecutionError } from '../../errors.js';
+import { CommandExecutionError } from '../../src/errors.js';
 
 cli({
   site: 'youtube',

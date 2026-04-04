@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CliError } from '../../errors.js';
+import { CliError } from '../../src/errors.js';
 import {
   MAX_PDF_BYTES,
   buildReviewUrl,

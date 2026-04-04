@@ -1,6 +1,6 @@
-import { CommandExecutionError } from '../../errors.js';
-import { Strategy, type CliOptions } from '../../registry.js';
-import type { IPage } from '../../types.js';
+import { CommandExecutionError } from '../../src/errors.js';
+import { Strategy, type CliOptions } from '../../src/registry.js';
+import type { IPage } from '../../src/types.js';
 import {
   assertUsableState,
   buildProvenance,

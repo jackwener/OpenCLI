@@ -1,4 +1,4 @@
-import type { IPage } from '../../../types.js';
+import type { IPage } from '../../../src/types.js';
 import { browserFetch } from './browser-fetch.js';
 
 export interface DouyinComment {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { IPage } from '../../types.js';
+import type { IPage } from '../../src/types.js';
 
 const { mockDownloadMedia, mockFormatCookieHeader } = vi.hoisted(() => ({
   mockDownloadMedia: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock('../../download/index.js', () => ({
   formatCookieHeader: mockFormatCookieHeader,
 }));
 
-import { getRegistry } from '../../registry.js';
+import { getRegistry } from '../../src/registry.js';
 import './download.js';
 
 function createPageMock(evaluateResult: any): IPage {

@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { extractXhsUserNotes, normalizeXhsUserId } from './user-helpers.js';
 
 async function readUserSnapshot(page: any) {

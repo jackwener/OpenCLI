@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getRegistry } from '../../registry.js';
+import { getRegistry } from '../../src/registry.js';
 import { __test__ } from './item.js';
 import './item.js';
 

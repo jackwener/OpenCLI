@@ -4,7 +4,7 @@
  * Shows the most recently published day's products (Product Hunt runs on
  * Pacific Time; the feed date may differ from UTC local date by up to 1 day).
  */
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { fetchFeed } from './utils.js';
 
 cli({

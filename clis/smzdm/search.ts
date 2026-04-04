@@ -5,7 +5,7 @@
  * New approach: navigate to `search.smzdm.com/?c=home&s=<keyword>&v=b`
  * and scrape the rendered DOM directly.
  */
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 
 cli({
   site: 'smzdm',

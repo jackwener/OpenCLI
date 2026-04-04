@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { IPage } from '../../types.js';
+import type { IPage } from '../../src/types.js';
 
 const baseline = {
   turns: [{ Role: 'Assistant', Text: '旧回答' }],

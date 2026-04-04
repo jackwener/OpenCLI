@@ -1,8 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
-import type { CliCommand } from '../../registry.js';
-import { getRegistry } from '../../registry.js';
-import type { IPage } from '../../types.js';
+import type { CliCommand } from '../../src/registry.js';
+import { getRegistry } from '../../src/registry.js';
+import type { IPage } from '../../src/types.js';
 
 const { mockHttpDownload, mockLoadDoubanSubjectPhotos, mockMkdirSync } = vi.hoisted(() => ({
   mockHttpDownload: vi.fn(),

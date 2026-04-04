@@ -1,7 +1,7 @@
 /**
  * Weibo comments — get comments on a post.
  */
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 
 cli({
   site: 'weibo',

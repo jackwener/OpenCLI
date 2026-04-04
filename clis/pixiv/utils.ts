@@ -6,8 +6,8 @@
  * not-found (404), and other errors.
  */
 
-import type { IPage } from '../../types.js';
-import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
+import type { IPage } from '../../src/types.js';
+import { AuthRequiredError, CommandExecutionError } from '../../src/errors.js';
 
 const PIXIV_DOMAIN = 'www.pixiv.net';
 

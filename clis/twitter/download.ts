@@ -6,7 +6,7 @@
  *   opencli twitter download --tweet-url https://x.com/xxx/status/123 --output ./twitter
  */
 
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { formatCookieHeader } from '../../download/index.js';
 import { downloadMedia } from '../../download/media-download.js';
 

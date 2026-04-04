@@ -3,7 +3,7 @@
  * Shows high volume/OI ratio trades that may indicate institutional activity.
  * Auth: CSRF token from <meta name="csrf-token"> + session cookies.
  */
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 
 cli({
   site: 'barchart',

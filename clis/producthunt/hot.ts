@@ -3,9 +3,9 @@
  *
  * Navigates to the Product Hunt homepage and scrapes rendered product cards.
  */
-import { cli, Strategy } from '../../registry.js';
-import { CliError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CliError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 import { pickVoteCount } from './utils.js';
 
 cli({

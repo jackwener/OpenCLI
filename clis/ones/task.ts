@@ -1,5 +1,5 @@
-import { cli, Strategy } from '../../registry.js';
-import { CliError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CliError } from '../../src/errors.js';
 import { onesFetchInPage } from './common.js';
 import { formatStamp } from './task-helpers.js';
 

@@ -1,5 +1,5 @@
-import { CommandExecutionError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { CommandExecutionError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 
 const FEED_POST_LINK_SELECTOR = 'a[href*="/home/post/"], a[href*="/p/"]';
 const ARCHIVE_POST_LINK_SELECTOR = 'a[href*="/p/"]';

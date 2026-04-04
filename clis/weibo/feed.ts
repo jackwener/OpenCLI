@@ -1,7 +1,7 @@
 /**
  * Weibo feed — home timeline from followed users.
  */
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { getSelfUid } from './utils.js';
 
 cli({

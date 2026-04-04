@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { canonicalizeProductUrl, normalizeProductId } from './utils.js';
 
 function escapeJsString(value: string): string {

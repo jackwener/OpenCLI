@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { IPage } from '../../types.js';
+import type { IPage } from '../../src/types.js';
 import { __test__, loadSubstackArchive, loadSubstackFeed } from './utils.js';
 
 function createPageMock(evaluateResult: unknown): IPage {

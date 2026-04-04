@@ -8,7 +8,7 @@ vi.mock('./_shared/browser-fetch.js', () => ({
   browserFetch: browserFetchMock,
 }));
 
-import { getRegistry } from '../../registry.js';
+import { getRegistry } from '../../src/registry.js';
 import './hashtag.js';
 
 describe('douyin hashtag', () => {

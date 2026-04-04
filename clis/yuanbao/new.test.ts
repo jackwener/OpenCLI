@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { IPage } from '../../types.js';
-import { AuthRequiredError } from '../../errors.js';
+import type { IPage } from '../../src/types.js';
+import { AuthRequiredError } from '../../src/errors.js';
 import { newCommand } from './new.js';
 
 function createNewPageMock(overrides: {

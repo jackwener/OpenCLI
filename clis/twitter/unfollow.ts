@@ -1,6 +1,6 @@
-import { cli, Strategy } from '../../registry.js';
-import { CommandExecutionError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CommandExecutionError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 
 cli({
   site: 'twitter',

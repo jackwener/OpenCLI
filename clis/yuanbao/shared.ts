@@ -1,5 +1,5 @@
-import type { IPage } from '../../types.js';
-import { AuthRequiredError } from '../../errors.js';
+import type { IPage } from '../../src/types.js';
+import { AuthRequiredError } from '../../src/errors.js';
 
 export const YUANBAO_DOMAIN = 'yuanbao.tencent.com';
 export const YUANBAO_URL = 'https://yuanbao.tencent.com/';

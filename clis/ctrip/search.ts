@@ -1,8 +1,8 @@
 /**
  * 携程旅行搜索 — public destination and hotel suggestion lookup.
  */
-import { ArgumentError, CliError, EmptyResultError } from '../../errors.js';
-import { cli, Strategy } from '../../registry.js';
+import { ArgumentError, CliError, EmptyResultError } from '../../src/errors.js';
+import { cli, Strategy } from '../../src/registry.js';
 
 interface CtripSearchResultItem {
   displayName?: string;

@@ -1,7 +1,7 @@
 /**
  * BOSS直聘 exchange — request phone/wechat exchange with a candidate.
  */
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { requirePage, navigateToChat, bossFetch, findFriendByUid, verbose } from './utils.js';
 
 cli({

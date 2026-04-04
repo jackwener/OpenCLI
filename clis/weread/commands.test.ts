@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CliError } from '../../errors.js';
+import { CliError } from '../../src/errors.js';
 
 const { mockFetchPrivateApi } = vi.hoisted(() => ({
   mockFetchPrivateApi: vi.fn(),
@@ -13,7 +13,7 @@ vi.mock('./utils.js', async () => {
   };
 });
 
-import { getRegistry } from '../../registry.js';
+import { getRegistry } from '../../src/registry.js';
 import './book.js';
 import './highlights.js';
 import './notes.js';

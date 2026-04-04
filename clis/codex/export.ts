@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
-import { cli, Strategy } from '../../registry.js';
-import type { IPage } from '../../types.js';
+import { cli, Strategy } from '../../src/registry.js';
+import type { IPage } from '../../src/types.js';
 
 export const exportCommand = cli({
   site: 'codex',

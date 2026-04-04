@@ -1,5 +1,5 @@
-import { AuthRequiredError, CliError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { AuthRequiredError, CliError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 import { NOTEBOOKLM_DOMAIN } from './shared.js';
 
 export type NotebooklmPageAuth = {

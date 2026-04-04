@@ -1,5 +1,5 @@
-import { AuthRequiredError, EmptyResultError, SelectorError } from '../../errors.js';
-import { cli, Strategy } from '../../registry.js';
+import { AuthRequiredError, EmptyResultError, SelectorError } from '../../src/errors.js';
+import { cli, Strategy } from '../../src/registry.js';
 
 /**
  * band mentions — Show Band notifications where you were @mentioned.

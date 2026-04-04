@@ -1,7 +1,7 @@
-import { cli, Strategy } from '../../registry.js';
-import { CliError } from '../../errors.js';
-import { log } from '../../logger.js';
-import type { IPage } from '../../types.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { CliError } from '../../src/errors.js';
+import { log } from '../../src/logger.js';
+import type { IPage } from '../../src/types.js';
 import {
   buildWebShelfEntries,
   fetchPrivateApi,

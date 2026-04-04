@@ -1,4 +1,4 @@
-import { cli } from '../../registry.js';
+import { cli } from '../../src/registry.js';
 import { createRankingCliOptions } from './rankings.js';
 
 cli(createRankingCliOptions({

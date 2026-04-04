@@ -1,5 +1,5 @@
-import { EmptyResultError } from '../../errors.js';
-import { cli, Strategy, type CommandArgs } from '../../registry.js';
+import { EmptyResultError } from '../../src/errors.js';
+import { cli, Strategy, type CommandArgs } from '../../src/registry.js';
 import { buildTiebaReadItems, type RawTiebaReadPayload } from './utils.js';
 
 type TiebaReadPageMeta = {

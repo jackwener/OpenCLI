@@ -1,4 +1,4 @@
-import { CliError } from '../../errors.js';
+import { CliError } from '../../src/errors.js';
 
 export interface SpotifyCredentials {
   clientId: string;

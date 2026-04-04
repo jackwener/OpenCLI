@@ -2,7 +2,7 @@
  * Sinafinance rolling news feed
  */
 
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 
 cli({
   site: 'sinafinance',

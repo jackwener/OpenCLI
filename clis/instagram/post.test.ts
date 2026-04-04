@@ -4,9 +4,9 @@ import * as path from 'node:path';
 
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
-import { getRegistry } from '../../registry.js';
-import type { IPage } from '../../types.js';
+import { AuthRequiredError, CommandExecutionError } from '../../src/errors.js';
+import { getRegistry } from '../../src/registry.js';
+import type { IPage } from '../../src/types.js';
 import * as privatePublish from './_shared/private-publish.js';
 import { buildClickActionJs, buildEnsureComposerOpenJs, buildInspectUploadStageJs, buildPublishStatusProbeJs } from './post.js';
 import './post.js';

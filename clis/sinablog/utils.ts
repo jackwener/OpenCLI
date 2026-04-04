@@ -1,4 +1,4 @@
-import type { IPage } from '../../types.js';
+import type { IPage } from '../../src/types.js';
 import { clamp } from '../_shared/common.js';
 
 const clampLimit = (limit: number) => clamp(limit || 20, 1, 50);

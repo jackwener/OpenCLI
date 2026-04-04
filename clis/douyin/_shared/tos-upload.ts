@@ -10,7 +10,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { CommandExecutionError } from '../../../errors.js';
+import { CommandExecutionError } from '../../../src/errors.js';
 import type { Sts2Credentials, TosUploadInfo } from './types.js';
 
 export interface TosUploadOptions {

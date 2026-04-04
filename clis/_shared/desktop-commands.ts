@@ -5,9 +5,9 @@
  */
 
 import * as fs from 'node:fs';
-import { cli, Strategy } from '../../registry.js';
-import type { IPage } from '../../types.js';
-import type { CliOptions } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
+import type { IPage } from '../../src/types.js';
+import type { CliOptions } from '../../src/registry.js';
 
 /**
  * Factory: capture DOM HTML + accessibility snapshot.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Strategy, getRegistry } from '../../registry.js';
+import { Strategy, getRegistry } from '../../src/registry.js';
 import './hot.js';
 import './posts.js';
 import './read.js';

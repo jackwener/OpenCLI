@@ -135,40 +135,41 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
   });
 }
 
-// ── Exit code resolution ─────────────────────────────────────────────────────
-
-/**
- * Map any thrown value to a Unix process exit code.
- *
- * - CliError subclasses carry their own exitCode (set in errors.ts).
- * - Generic Error objects are classified by message pattern so that
- *   un-typed auth / not-found errors from adapters still produce
- *   meaningful exit codes for shell scripts.
- */
-function resolveExitCode(err: unknown): number {
-  if (err instanceof CliError) return err.exitCode;
-
-  // Pattern-based fallback for untyped errors thrown by third-party adapters.
-  const msg = getErrorMessage(err);
-  const kind = classifyGenericError(msg);
-  if (kind === 'auth')      return EXIT_CODES.NOPERM;
-  if (kind === 'not-found') return EXIT_CODES.EMPTY_RESULT;
-  if (kind === 'http')      return EXIT_CODES.GENERIC_ERROR;  // HTTP 4xx/5xx → generic; renderer shows details
-  return EXIT_CODES.GENERIC_ERROR;
-}
-
-// ── Error rendering ──────────────────────────────────────────────────────────
+// ── Error classification ─────────────────────────────────────────────────────
 
 const ISSUES_URL = 'https://github.com/jackwener/opencli/issues';
 
+export type GenericErrorKind = 'auth' | 'http' | 'not-found' | 'other';
+
+interface ClassifiedError {
+  kind: GenericErrorKind;
+  icon: string;
+  exitCode: number;
+  hint: string;
+}
+
+const GENERIC_ERROR_MAP: Record<GenericErrorKind, Omit<ClassifiedError, 'kind'>> = {
+  auth:        { icon: '🔒', exitCode: EXIT_CODES.NOPERM,        hint: 'Open Chrome or Chromium, log in to the target site, then retry.' },
+  http:        { icon: '🌐', exitCode: EXIT_CODES.GENERIC_ERROR, hint: 'Check your login status, or the site may be temporarily unavailable.' },
+  'not-found': { icon: '📭', exitCode: EXIT_CODES.EMPTY_RESULT,  hint: 'The resource was not found. The adapter or page structure may have changed.' },
+  other:       { icon: '💥', exitCode: EXIT_CODES.GENERIC_ERROR, hint: '' },
+};
+
 /** Pattern-based classifier for untyped errors thrown by adapters. */
-function classifyGenericError(msg: string): 'auth' | 'http' | 'not-found' | 'other' {
+function classifyGenericError(msg: string): ClassifiedError {
   const m = msg.toLowerCase();
-  if (/not logged in|login required|please log in|未登录|请先登录|authentication required|cookie expired/.test(m)) return 'auth';
-  // Match "HTTP 404", "status: 500", "status 403", bare "404 Not Found", etc.
-  if (/\b(status[: ]+)?[45]\d{2}\b|http[/ ][45]\d{2}/.test(m)) return 'http';
-  if (/not found|未找到|could not find|no .+ found/.test(m)) return 'not-found';
-  return 'other';
+  let kind: GenericErrorKind = 'other';
+  if (/not logged in|login required|please log in|未登录|请先登录|authentication required|cookie expired/.test(m)) kind = 'auth';
+  else if (/\b(status[: ]+)?[45]\d{2}\b|http[/ ][45]\d{2}/.test(m)) kind = 'http';
+  else if (/not found|未找到|could not find|no .+ found/.test(m)) kind = 'not-found';
+  return { kind, ...GENERIC_ERROR_MAP[kind] };
+}
+
+// ── Exit code resolution ─────────────────────────────────────────────────────
+
+function resolveExitCode(err: unknown): number {
+  if (err instanceof CliError) return err.exitCode;
+  return classifyGenericError(getErrorMessage(err)).exitCode;
 }
 
 /** Render a status line for BrowserConnectError based on real-time or kind-derived state. */
@@ -270,22 +271,12 @@ async function renderError(err: unknown, cmdName: string, verbose: boolean): Pro
 
   // ── Generic Error from adapters: classify by message pattern ──────────
   const msg = getErrorMessage(err);
-  const kind = classifyGenericError(msg);
+  const classified = classifyGenericError(msg);
 
-  if (kind === 'auth') {
-    console.error(chalk.red(`🔒 ${msg}`));
-    console.error(chalk.yellow('→ Open Chrome or Chromium, log in to the target site, then retry.'));
-    return;
-  }
-  if (kind === 'http') {
-    console.error(chalk.red(`🌐 ${msg}`));
-    console.error(chalk.yellow('→ Check your login status, or the site may be temporarily unavailable.'));
-    return;
-  }
-  if (kind === 'not-found') {
-    console.error(chalk.red(`📭 ${msg}`));
-    console.error(chalk.yellow('→ The resource was not found. The adapter or page structure may have changed.'));
-    console.error(chalk.dim(`  Report: ${ISSUES_URL}`));
+  if (classified.kind !== 'other') {
+    console.error(chalk.red(`${classified.icon} ${msg}`));
+    console.error(chalk.yellow(`→ ${classified.hint}`));
+    if (classified.kind === 'not-found') console.error(chalk.dim(`  Report: ${ISSUES_URL}`));
     return;
   }
 

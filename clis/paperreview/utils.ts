@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { CliError, getErrorMessage } from '../../errors.js';
+import { CliError, getErrorMessage } from '../../src/errors.js';
 
 export const PAPERREVIEW_DOMAIN = 'paperreview.ai';
 export const PAPERREVIEW_BASE_URL = `https://${PAPERREVIEW_DOMAIN}`;

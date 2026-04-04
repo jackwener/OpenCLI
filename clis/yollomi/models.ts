@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { IMAGE_MODELS, VIDEO_MODELS, TOOL_MODELS } from './utils.js';
 
 cli({

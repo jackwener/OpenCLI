@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { decodeHtmlEntities, getHupuSearchUrl, readHupuSearchData, stripHtml } from './utils.js';
 
 // 搜索结果数据结构

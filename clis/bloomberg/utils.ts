@@ -1,4 +1,4 @@
-import { CliError } from '../../errors.js';
+import { CliError } from '../../src/errors.js';
 
 export const BLOOMBERG_FEEDS = {
   main: 'https://feeds.bloomberg.com/news.rss',

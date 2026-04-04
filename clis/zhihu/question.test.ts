@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '../../registry.js';
-import { AuthRequiredError, CliError } from '../../errors.js';
+import { getRegistry } from '../../src/registry.js';
+import { AuthRequiredError, CliError } from '../../src/errors.js';
 import './question.js';
 
 describe('zhihu question', () => {

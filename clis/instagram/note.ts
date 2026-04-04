@@ -1,6 +1,6 @@
-import { ArgumentError, CommandExecutionError } from '../../errors.js';
-import { cli, Strategy } from '../../registry.js';
-import type { IPage } from '../../types.js';
+import { ArgumentError, CommandExecutionError } from '../../src/errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import type { IPage } from '../../src/types.js';
 
 type InstagramNoteSuccessRow = {
   status: string;

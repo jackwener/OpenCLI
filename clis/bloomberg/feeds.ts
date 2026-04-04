@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { BLOOMBERG_FEEDS } from './utils.js';
 
 cli({

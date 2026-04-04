@@ -7,7 +7,7 @@
  *   opencli weixin download --url "https://mp.weixin.qq.com/s/xxx" --output ./weixin
  */
 
-import { cli, Strategy } from '../../registry.js';
+import { cli, Strategy } from '../../src/registry.js';
 import { downloadArticle } from '../../download/article-download.js';
 
 // ============================================================

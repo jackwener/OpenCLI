@@ -1,5 +1,5 @@
-import { cli, Strategy } from '../../registry.js';
-import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
+import { cli, Strategy } from '../../src/registry.js';
+import { AuthRequiredError, CommandExecutionError } from '../../src/errors.js';
 
 // ── Twitter GraphQL constants ──────────────────────────────────────────
 

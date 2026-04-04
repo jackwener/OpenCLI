@@ -1,5 +1,5 @@
-import { AuthRequiredError, EmptyResultError } from '../../errors.js';
-import { cli, Strategy } from '../../registry.js';
+import { AuthRequiredError, EmptyResultError } from '../../src/errors.js';
+import { cli, Strategy } from '../../src/registry.js';
 
 const MAX_LIMIT = 50;
 

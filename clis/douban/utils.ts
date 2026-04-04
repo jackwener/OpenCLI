@@ -2,8 +2,8 @@
  * Douban adapter utilities.
  */
 
-import { ArgumentError, CliError, EmptyResultError } from '../../errors.js';
-import type { IPage } from '../../types.js';
+import { ArgumentError, CliError, EmptyResultError } from '../../src/errors.js';
+import type { IPage } from '../../src/types.js';
 import { clamp } from '../_shared/common.js';
 
 const DOUBAN_PHOTO_PAGE_SIZE = 30;
