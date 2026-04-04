@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as path from 'node:path';
 import type { IPage } from './types.js';
 
 const {
@@ -50,7 +51,7 @@ vi.mock('./runtime.js', () => ({
   browserSession: mockBrowserSession,
 }));
 
-import { createProgram } from './cli.js';
+import { createProgram, resolveOperateVerifyInvocation } from './cli.js';
 
 describe('built-in browser commands verbose wiring', () => {
   const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -130,4 +131,58 @@ describe('built-in browser commands verbose wiring', () => {
   });
 
   consoleLogSpy.mockClear();
+});
+
+describe('resolveOperateVerifyInvocation', () => {
+  it('prefers the built dist entry when available', () => {
+    const projectRoot = path.join('repo-root');
+    const exists = new Set([
+      path.join(projectRoot, 'dist', 'main.js'),
+    ]);
+
+    expect(resolveOperateVerifyInvocation({
+      projectRoot,
+      fileExists: (candidate) => exists.has(candidate),
+    })).toEqual({
+      binary: process.execPath,
+      args: [path.join(projectRoot, 'dist', 'main.js')],
+      cwd: projectRoot,
+    });
+  });
+
+  it('falls back to the local tsx binary in source checkouts on Windows', () => {
+    const projectRoot = path.join('repo-root');
+    const exists = new Set([
+      path.join(projectRoot, 'src', 'main.ts'),
+      path.join(projectRoot, 'node_modules', '.bin', 'tsx.cmd'),
+    ]);
+
+    expect(resolveOperateVerifyInvocation({
+      projectRoot,
+      platform: 'win32',
+      fileExists: (candidate) => exists.has(candidate),
+    })).toEqual({
+      binary: path.join(projectRoot, 'node_modules', '.bin', 'tsx.cmd'),
+      args: [path.join(projectRoot, 'src', 'main.ts')],
+      cwd: projectRoot,
+      shell: true,
+    });
+  });
+
+  it('falls back to npx tsx when local tsx is unavailable', () => {
+    const projectRoot = path.join('repo-root');
+    const exists = new Set([
+      path.join(projectRoot, 'src', 'main.ts'),
+    ]);
+
+    expect(resolveOperateVerifyInvocation({
+      projectRoot,
+      platform: 'linux',
+      fileExists: (candidate) => exists.has(candidate),
+    })).toEqual({
+      binary: 'npx',
+      args: ['tsx', path.join(projectRoot, 'src', 'main.ts')],
+      cwd: projectRoot,
+    });
+  });
 });

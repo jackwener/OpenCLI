@@ -5,6 +5,9 @@
  * Dynamic adapter commands are registered via commanderAdapter.ts.
  */
 
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { type CliCommand, fullName, getRegistry, strategyLabel } from './registry.js';
@@ -17,6 +20,9 @@ import { loadExternalClis, executeExternalCli, installExternalCli, registerExter
 import { registerAllCommands } from './commanderAdapter.js';
 import { EXIT_CODES, getErrorMessage } from './errors.js';
 import { daemonStatus, daemonStop, daemonRestart } from './commands/daemon.js';
+
+const CLI_FILE = fileURLToPath(import.meta.url);
+const OPENCLI_PROJECT_ROOT = path.resolve(path.dirname(CLI_FILE), '..');
 
 /** Create a browser page for operate commands. Uses 'operate' workspace for session persistence. */
 async function getOperatePage(): Promise<import('./types.js').IPage> {
@@ -623,12 +629,9 @@ cli({
           return;
         }
 
-        const { execSync } = await import('node:child_process');
+        const { execFileSync } = await import('node:child_process');
         const os = await import('node:os');
-        const path = await import('node:path');
         const filePath = path.join(os.homedir(), '.opencli', 'clis', site, `${command}.ts`);
-
-        const fs = await import('node:fs');
         if (!fs.existsSync(filePath)) {
           console.error(`Adapter not found: ${filePath}`);
           console.error(`Run "opencli operate init ${name}" to create it.`);
@@ -643,15 +646,17 @@ cli({
         const adapterSrc = fs.readFileSync(filePath, 'utf-8');
         const hasLimitArg = /['"]limit['"]/.test(adapterSrc);
         const limitFlag = hasLimitArg ? ' --limit 3' : '';
-        const verifyCmd = `node dist/main.js ${site} ${command}${limitFlag}`;
+        const limitArgs = hasLimitArg ? ['--limit', '3'] : [];
+        const invocation = resolveOperateVerifyInvocation();
 
         try {
-          const output = execSync(verifyCmd, {
-            cwd: path.join(path.dirname(import.meta.url.replace('file://', '')), '..'),
+          const output = execFileSync(invocation.binary, [...invocation.args, site, command, ...limitArgs], {
+            cwd: invocation.cwd,
             timeout: 30000,
             encoding: 'utf-8',
             env: process.env,
             stdio: ['pipe', 'pipe', 'pipe'],
+            ...(invocation.shell ? { shell: true } : {}),
           });
           console.log(`  Executing: opencli ${site} ${command}${limitFlag}\n`);
           console.log(output);
@@ -1004,6 +1009,54 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+export interface OperateVerifyInvocation {
+  binary: string;
+  args: string[];
+  cwd: string;
+  shell?: boolean;
+}
+
+export function resolveOperateVerifyInvocation(opts: {
+  projectRoot?: string;
+  platform?: NodeJS.Platform;
+  fileExists?: (path: string) => boolean;
+} = {}): OperateVerifyInvocation {
+  const projectRoot = opts.projectRoot ?? OPENCLI_PROJECT_ROOT;
+  const platform = opts.platform ?? process.platform;
+  const fileExists = opts.fileExists ?? fs.existsSync;
+
+  const distEntry = path.join(projectRoot, 'dist', 'main.js');
+  if (fileExists(distEntry)) {
+    return {
+      binary: process.execPath,
+      args: [distEntry],
+      cwd: projectRoot,
+    };
+  }
+
+  const sourceEntry = path.join(projectRoot, 'src', 'main.ts');
+  if (!fileExists(sourceEntry)) {
+    throw new Error(`Could not find opencli entrypoint under ${projectRoot}. Expected dist/main.js or src/main.ts.`);
+  }
+
+  const localTsxBin = path.join(projectRoot, 'node_modules', '.bin', platform === 'win32' ? 'tsx.cmd' : 'tsx');
+  if (fileExists(localTsxBin)) {
+    return {
+      binary: localTsxBin,
+      args: [sourceEntry],
+      cwd: projectRoot,
+      ...(platform === 'win32' ? { shell: true } : {}),
+    };
+  }
+
+  return {
+    binary: platform === 'win32' ? 'npx.cmd' : 'npx',
+    args: ['tsx', sourceEntry],
+    cwd: projectRoot,
+    ...(platform === 'win32' ? { shell: true } : {}),
+  };
+}
 
 /** Infer a workspace-friendly hostname from a URL, with site override. */
 function inferHost(url: string, site?: string): string {
