@@ -85,7 +85,13 @@ cli({
   columns: ['status', 'message'],
   func: async (page: IPage | null, kwargs: any) => {
     if (!page) throw new CommandExecutionError('Browser session required for twitter delete');
-    const tweetId = extractTweetId(kwargs.url);
+    let tweetId = '';
+    try {
+      tweetId = extractTweetId(kwargs.url);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new CommandExecutionError(message);
+    }
 
     await page.goto(kwargs.url);
     await page.wait({ selector: '[data-testid="primaryColumn"]' }); // Wait for tweet to load completely

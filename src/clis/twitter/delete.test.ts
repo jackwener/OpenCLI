@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { CommandExecutionError } from '../../errors.js';
 import { getRegistry } from '../../registry.js';
 import { __test__ } from './delete.js';
 import './delete.js';
@@ -65,5 +66,26 @@ describe('twitter delete command', () => {
       },
     ]);
     expect(page.wait).toHaveBeenCalledTimes(1);
+  });
+
+  it('normalizes invalid tweet URLs into CommandExecutionError', async () => {
+    const cmd = getRegistry().get('twitter/delete');
+    expect(cmd?.func).toBeTypeOf('function');
+
+    const page = {
+      goto: vi.fn(),
+      wait: vi.fn(),
+      evaluate: vi.fn(),
+    };
+
+    await expect(
+      cmd!.func!(page as any, {
+        url: 'https://x.com/alice/home',
+      }),
+    ).rejects.toThrow(CommandExecutionError);
+
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(page.wait).not.toHaveBeenCalled();
+    expect(page.evaluate).not.toHaveBeenCalled();
   });
 });
