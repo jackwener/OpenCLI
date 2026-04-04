@@ -22,7 +22,6 @@ import { EXIT_CODES, getErrorMessage } from './errors.js';
 import { daemonStatus, daemonStop, daemonRestart } from './commands/daemon.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
-const OPENCLI_PROJECT_ROOT = path.resolve(path.dirname(CLI_FILE), '..');
 
 /** Create a browser page for operate commands. Uses 'operate' workspace for session persistence. */
 async function getOperatePage(): Promise<import('./types.js').IPage> {
@@ -1017,27 +1016,73 @@ export interface OperateVerifyInvocation {
   shell?: boolean;
 }
 
+export function findPackageRoot(startFile: string, fileExists: (path: string) => boolean = fs.existsSync): string {
+  let dir = path.dirname(startFile);
+
+  while (true) {
+    if (fileExists(path.join(dir, 'package.json'))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      throw new Error(`Could not find package.json above ${startFile}`);
+    }
+    dir = parent;
+  }
+}
+
+function getBuiltEntryCandidates(packageRoot: string, readFile: (path: string) => string): string[] {
+  const candidates: string[] = [];
+  try {
+    const pkg = JSON.parse(readFile(path.join(packageRoot, 'package.json'))) as {
+      bin?: string | Record<string, string>;
+      main?: string;
+    };
+
+    if (typeof pkg.bin === 'string') {
+      candidates.push(path.join(packageRoot, pkg.bin));
+    } else if (pkg.bin && typeof pkg.bin === 'object' && typeof pkg.bin.opencli === 'string') {
+      candidates.push(path.join(packageRoot, pkg.bin.opencli));
+    }
+
+    if (typeof pkg.main === 'string') {
+      candidates.push(path.join(packageRoot, pkg.main));
+    }
+  } catch {
+    // Fall through to compatibility candidates below.
+  }
+
+  // Compatibility fallback for partially-built trees or older layouts.
+  candidates.push(
+    path.join(packageRoot, 'dist', 'src', 'main.js'),
+    path.join(packageRoot, 'dist', 'main.js'),
+  );
+
+  return [...new Set(candidates)];
+}
+
 export function resolveOperateVerifyInvocation(opts: {
   projectRoot?: string;
   platform?: NodeJS.Platform;
   fileExists?: (path: string) => boolean;
+  readFile?: (path: string) => string;
 } = {}): OperateVerifyInvocation {
-  const projectRoot = opts.projectRoot ?? OPENCLI_PROJECT_ROOT;
   const platform = opts.platform ?? process.platform;
   const fileExists = opts.fileExists ?? fs.existsSync;
+  const readFile = opts.readFile ?? ((filePath: string) => fs.readFileSync(filePath, 'utf-8'));
+  const projectRoot = opts.projectRoot ?? findPackageRoot(CLI_FILE, fileExists);
 
-  const distEntry = path.join(projectRoot, 'dist', 'main.js');
-  if (fileExists(distEntry)) {
-    return {
-      binary: process.execPath,
-      args: [distEntry],
-      cwd: projectRoot,
-    };
+  for (const builtEntry of getBuiltEntryCandidates(projectRoot, readFile)) {
+    if (fileExists(builtEntry)) {
+      return {
+        binary: process.execPath,
+        args: [builtEntry],
+        cwd: projectRoot,
+      };
+    }
   }
 
   const sourceEntry = path.join(projectRoot, 'src', 'main.ts');
   if (!fileExists(sourceEntry)) {
-    throw new Error(`Could not find opencli entrypoint under ${projectRoot}. Expected dist/main.js or src/main.ts.`);
+    throw new Error(`Could not find opencli entrypoint under ${projectRoot}. Expected built entry from package.json or src/main.ts.`);
   }
 
   const localTsxBin = path.join(projectRoot, 'node_modules', '.bin', platform === 'win32' ? 'tsx.cmd' : 'tsx');

@@ -51,7 +51,7 @@ vi.mock('./runtime.js', () => ({
   browserSession: mockBrowserSession,
 }));
 
-import { createProgram, resolveOperateVerifyInvocation } from './cli.js';
+import { createProgram, findPackageRoot, resolveOperateVerifyInvocation } from './cli.js';
 
 describe('built-in browser commands verbose wiring', () => {
   const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -134,18 +134,36 @@ describe('built-in browser commands verbose wiring', () => {
 });
 
 describe('resolveOperateVerifyInvocation', () => {
-  it('prefers the built dist entry when available', () => {
+  it('prefers the built entry declared in package metadata', () => {
     const projectRoot = path.join('repo-root');
     const exists = new Set([
-      path.join(projectRoot, 'dist', 'main.js'),
+      path.join(projectRoot, 'dist', 'src', 'main.js'),
     ]);
 
     expect(resolveOperateVerifyInvocation({
       projectRoot,
+      readFile: () => JSON.stringify({ bin: { opencli: 'dist/src/main.js' } }),
       fileExists: (candidate) => exists.has(candidate),
     })).toEqual({
       binary: process.execPath,
-      args: [path.join(projectRoot, 'dist', 'main.js')],
+      args: [path.join(projectRoot, 'dist', 'src', 'main.js')],
+      cwd: projectRoot,
+    });
+  });
+
+  it('falls back to compatibility built-entry candidates when package metadata is unavailable', () => {
+    const projectRoot = path.join('repo-root');
+    const exists = new Set([
+      path.join(projectRoot, 'dist', 'src', 'main.js'),
+    ]);
+
+    expect(resolveOperateVerifyInvocation({
+      projectRoot,
+      readFile: () => { throw new Error('no package json'); },
+      fileExists: (candidate) => exists.has(candidate),
+    })).toEqual({
+      binary: process.execPath,
+      args: [path.join(projectRoot, 'dist', 'src', 'main.js')],
       cwd: projectRoot,
     });
   });
@@ -184,5 +202,27 @@ describe('resolveOperateVerifyInvocation', () => {
       args: ['tsx', path.join(projectRoot, 'src', 'main.ts')],
       cwd: projectRoot,
     });
+  });
+});
+
+describe('findPackageRoot', () => {
+  it('walks up from dist/src to the package root', () => {
+    const packageRoot = path.join('repo-root');
+    const cliFile = path.join(packageRoot, 'dist', 'src', 'cli.js');
+    const exists = new Set([
+      path.join(packageRoot, 'package.json'),
+    ]);
+
+    expect(findPackageRoot(cliFile, (candidate) => exists.has(candidate))).toBe(packageRoot);
+  });
+
+  it('walks up from src to the package root', () => {
+    const packageRoot = path.join('repo-root');
+    const cliFile = path.join(packageRoot, 'src', 'cli.ts');
+    const exists = new Set([
+      path.join(packageRoot, 'package.json'),
+    ]);
+
+    expect(findPackageRoot(cliFile, (candidate) => exists.has(candidate))).toBe(packageRoot);
   });
 });
