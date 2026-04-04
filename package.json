@@ -9,25 +9,40 @@
     "node": ">=20.0.0"
   },
   "type": "module",
-  "main": "dist/main.js",
+  "main": "dist/src/main.js",
   "bin": {
-    "opencli": "dist/main.js"
+    "opencli": "dist/src/main.js"
   },
   "exports": {
-    ".": "./dist/main.js",
-    "./registry": "./dist/registry-api.js"
+    ".": "./dist/src/main.js",
+    "./registry": "./dist/src/registry-api.js"
   },
+  "files": [
+    "dist/src/",
+    "dist/registry.*",
+    "dist/errors.*",
+    "dist/types.*",
+    "dist/utils.*",
+    "dist/logger.*",
+    "dist/launcher.*",
+    "dist/browser/",
+    "dist/download/",
+    "dist/pipeline/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "tsx src/main.ts",
     "dev:bun": "bun src/main.ts",
     "build": "npm run clean-dist && tsc && npm run clean-yaml && npm run copy-yaml && npm run build-manifest",
-    "build-manifest": "node dist/build-manifest.js",
+    "build-manifest": "node dist/src/build-manifest.js",
     "clean-dist": "node scripts/clean-dist.cjs",
     "clean-yaml": "node scripts/clean-yaml.cjs",
     "copy-yaml": "node scripts/copy-yaml.cjs",
-    "start": "node dist/main.js",
-    "start:bun": "bun dist/main.js",
-    "postinstall": "node scripts/postinstall.js || true",
+    "start": "node dist/src/main.js",
+    "start:bun": "bun dist/src/main.js",
+    "postinstall": "node scripts/postinstall.js || true; node scripts/fetch-adapters.js || true",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "prepare": "[ -d src ] && npm run build || true",

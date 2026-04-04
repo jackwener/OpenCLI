@@ -4,7 +4,7 @@
     "module": "Node16",
     "moduleResolution": "Node16",
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -12,6 +12,18 @@
     "declaration": true,
     "incremental": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*.ts",
+    "clis/**/*.ts",
+    "registry.ts",
+    "errors.ts",
+    "types.ts",
+    "utils.ts",
+    "logger.ts",
+    "launcher.ts",
+    "browser/**/*.ts",
+    "download/**/*.ts",
+    "pipeline/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "extension"]
 }

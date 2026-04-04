@@ -1,5 +1,5 @@
 /**
- * Copy YAML files from src/clis/ to dist/clis/.
+ * Copy YAML files from clis/ to dist/clis/.
  */
 const { readdirSync, copyFileSync, mkdirSync, existsSync, statSync } = require('fs');
 const path = require('path');
@@ -18,11 +18,11 @@ function walk(src, dst) {
   }
 }
 
-walk('src/clis', 'dist/clis');
+walk('clis', 'dist/clis');
 
 // Copy external CLI registry to dist/
 const extSrc = 'src/external-clis.yaml';
 if (existsSync(extSrc)) {
-  mkdirSync('dist', { recursive: true });
-  copyFileSync(extSrc, 'dist/external-clis.yaml');
+  mkdirSync('dist/src', { recursive: true });
+  copyFileSync(extSrc, 'dist/src/external-clis.yaml');
 }

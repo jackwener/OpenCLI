@@ -972,7 +972,7 @@ cli({
     .description('Start Anthropic-compatible API proxy for Antigravity')
     .option('--port <port>', 'Server port (default: 8082)', '8082')
     .action(async (opts) => {
-      const { startServe } = await import('./clis/antigravity/serve.js');
+      const { startServe } = await import('../clis/antigravity/serve.js');
       await startServe({ port: parseInt(opts.port) });
     });
 

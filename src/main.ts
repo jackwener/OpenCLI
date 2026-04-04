@@ -28,7 +28,7 @@ installNodeNetwork();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const BUILTIN_CLIS = path.resolve(__dirname, 'clis');
+const BUILTIN_CLIS = path.resolve(__dirname, '..', 'clis');
 const USER_CLIS = USER_CLIS_DIR;
 
 // Sequential: plugins must run after built-in discovery so they can override built-in commands.

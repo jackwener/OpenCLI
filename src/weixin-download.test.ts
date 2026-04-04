@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 async function loadModule() {
-  return import('./clis/weixin/download.js');
+  return import('../clis/weixin/download.js');
 }
 
 describe('weixin publish time extraction', () => {

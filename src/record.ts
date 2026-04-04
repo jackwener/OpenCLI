@@ -818,7 +818,7 @@ export function renderRecordSummary(result: RecordResult): string {
   }
   if (result.candidateCount > 0) {
     lines.push('');
-    lines.push(chalk.dim(`  Copy a candidate to src/clis/${result.site}/ and run: npm run build`));
+    lines.push(chalk.dim(`  Copy a candidate to clis/${result.site}/ and run: npm run build`));
   }
   return lines.join('\n');
 }
