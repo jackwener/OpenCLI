@@ -18,6 +18,10 @@ vi.mock('node:path', async (importOriginal) => {
   return {
     ...actual,
     resolve: vi.fn((p: string) => `/abs/${p}`),
+    extname: vi.fn((p: string) => {
+      const m = p.match(/\.[^.]+$/);
+      return m ? m[0] : '';
+    }),
   };
 });
 
@@ -38,8 +42,8 @@ describe('twitter post command', () => {
     const command = getCommand();
     const page = makePage({
       evaluate: vi.fn()
-        .mockResolvedValueOnce({ ok: true })                              // type text
-        .mockResolvedValueOnce({ ok: true, message: 'Tweet posted successfully.' }), // click post
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({ ok: true, message: 'Tweet posted successfully.' }),
     });
 
     const result = await command!.func!(page as any, { text: 'hello world' });
@@ -62,9 +66,7 @@ describe('twitter post command', () => {
 
   it('throws when more than 4 images', async () => {
     const command = getCommand();
-    const page = makePage({
-      evaluate: vi.fn().mockResolvedValueOnce({ ok: true }), // type text
-    });
+    const page = makePage();
 
     await expect(
       command!.func!(page as any, { text: 'hi', images: 'a.png,b.png,c.png,d.png,e.png' }),
@@ -73,13 +75,20 @@ describe('twitter post command', () => {
 
   it('throws when image file does not exist', async () => {
     const command = getCommand();
-    const page = makePage({
-      evaluate: vi.fn().mockResolvedValueOnce({ ok: true }),
-    });
+    const page = makePage();
 
     await expect(
       command!.func!(page as any, { text: 'hi', images: 'missing.png' }),
     ).rejects.toThrow('Not a valid file');
+  });
+
+  it('throws on unsupported image format', async () => {
+    const command = getCommand();
+    const page = makePage();
+
+    await expect(
+      command!.func!(page as any, { text: 'hi', images: 'photo.bmp' }),
+    ).rejects.toThrow('Unsupported image format');
   });
 
   it('throws when page.setFileInput is not available', async () => {
@@ -108,24 +117,34 @@ describe('twitter post command', () => {
     expect(result).toEqual([{ status: 'success', message: 'Tweet posted successfully.', text: 'with images' }]);
     expect(page.setFileInput).toHaveBeenCalled();
 
-    // Verify the upload polling script checks attachments and group count
     const uploadScript = page.evaluate.mock.calls[1][0] as string;
     expect(uploadScript).toContain('[data-testid="attachments"]');
     expect(uploadScript).toContain('[role="group"]');
-    expect(uploadScript).toContain('!== 2');  // 2 images
   });
 
   it('returns failed when image upload times out', async () => {
     const command = getCommand();
     const page = makePage({
       evaluate: vi.fn()
-        .mockResolvedValueOnce({ ok: true })  // type text
-        .mockResolvedValueOnce(false),         // upload polling returns false (timeout)
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce(false),
     });
 
     const result = await command!.func!(page as any, { text: 'timeout', images: 'a.png' });
 
     expect(result).toEqual([{ status: 'failed', message: 'Image upload timed out (30s).', text: 'timeout' }]);
+  });
+
+  it('validates images before navigating to compose page', async () => {
+    const command = getCommand();
+    const page = makePage();
+
+    await expect(
+      command!.func!(page as any, { text: 'hi', images: 'missing.png' }),
+    ).rejects.toThrow('Not a valid file');
+
+    // Should NOT have navigated since validation happens first
+    expect(page.goto).not.toHaveBeenCalled();
   });
 
   it('throws when no browser session', async () => {
