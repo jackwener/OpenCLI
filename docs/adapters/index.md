@@ -9,9 +9,11 @@ Run `opencli list` for the live registry.
 | **[twitter](./browser/twitter)** | `trending` `bookmarks` `profile` `search` `timeline` `thread` `following` `followers` `notifications` `post` `reply` `delete` `like` `likes` `article` `follow` `unfollow` `bookmark` `unbookmark` `download` `accept` `reply-dm` `block` `unblock` `hide-reply` | 🔐 Browser |
 | **[reddit](./browser/reddit)** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `save` `comment` `subscribe` `saved` `upvoted` | 🔐 Browser |
 | **[tieba](./browser/tieba)** | `hot` `posts` `search` `read` | 🔐 Browser |
+| **[hupu](./browser/hupu)** | `hot` `search` `detail` `reply` `like` `unlike` | 🌐 / 🔐 |
 | **[bilibili](./browser/bilibili)** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `dynamic` `ranking` `following` `user-videos` `download` | 🔐 Browser |
 | **[zhihu](./browser/zhihu)** | `hot` `search` `question` `download` | 🔐 Browser |
 | **[xiaohongshu](./browser/xiaohongshu)** | `search` `notifications` `feed` `user` `note` `comments` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | 🔐 Browser |
+| **[xiaoe](./browser/xiaoe)** | `courses` `detail` `catalog` `play-url` `content` | 🔐 Browser |
 | **[xueqiu](./browser/xueqiu)** | `feed` `hot-stock` `hot` `search` `stock` `comments` `watchlist` `earnings-date` `fund-holdings` `fund-snapshot` | 🔐 Browser |
 | **[youtube](./browser/youtube)** | `search` `video` `transcript` | 🔐 Browser |
 | **[v2ex](./browser/v2ex)** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | 🌐 / 🔐 |

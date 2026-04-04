@@ -24,7 +24,9 @@ const BUILTIN_COMMANDS = [
   'generate',
   'cascade',
   'doctor',
-  'setup',
+  'plugin',
+  'install',
+  'register',
   'completion',
 ];
 

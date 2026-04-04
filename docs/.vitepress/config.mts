@@ -54,6 +54,7 @@ export default defineConfig({
                 { text: 'Bilibili', link: '/adapters/browser/bilibili' },
                 { text: 'Zhihu', link: '/adapters/browser/zhihu' },
                 { text: 'Xiaohongshu', link: '/adapters/browser/xiaohongshu' },
+                { text: 'Xiaoe', link: '/adapters/browser/xiaoe' },
                 { text: 'Weibo', link: '/adapters/browser/weibo' },
                 { text: 'YouTube', link: '/adapters/browser/youtube' },
                 { text: 'Xueqiu', link: '/adapters/browser/xueqiu' },

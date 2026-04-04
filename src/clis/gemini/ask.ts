@@ -1,6 +1,6 @@
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { GEMINI_DOMAIN, getGeminiTranscriptLines, sendGeminiMessage, startNewGeminiChat, waitForGeminiResponse } from './utils.js';
+import { GEMINI_DOMAIN, readGeminiSnapshot, sendGeminiMessage, startNewGeminiChat, waitForGeminiResponse, waitForGeminiSubmission } from './utils.js';
 
 function normalizeBooleanFlag(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
@@ -33,9 +33,16 @@ export const askCommand = cli({
 
     if (startFresh) await startNewGeminiChat(page);
 
-    const beforeLines = await getGeminiTranscriptLines(page);
+    const before = await readGeminiSnapshot(page);
     await sendGeminiMessage(page, prompt);
-    const response = await waitForGeminiResponse(page, beforeLines, prompt, timeout);
+    const submissionStartedAt = Date.now();
+    const submitted = await waitForGeminiSubmission(page, before, timeout);
+    if (!submitted) {
+      return [{ response: `💬 ${NO_RESPONSE_PREFIX} No Gemini response within ${timeout}s.` }];
+    }
+
+    const remainingTimeoutSeconds = Math.max(0, timeout - Math.ceil((Date.now() - submissionStartedAt) / 1000));
+    const response = await waitForGeminiResponse(page, submitted, prompt, remainingTimeoutSeconds);
 
     if (!response) {
       return [{ response: `💬 ${NO_RESPONSE_PREFIX} No Gemini response within ${timeout}s.` }];

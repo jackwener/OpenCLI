@@ -62,7 +62,8 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       subCmd.argument(bracket, arg.help ?? '');
       positionalArgs.push(arg);
     } else {
-      const flag = arg.required ? `--${arg.name} <value>` : `--${arg.name} [value]`;
+      const expectsValue = arg.required || arg.valueRequired;
+      const flag = expectsValue ? `--${arg.name} <value>` : `--${arg.name} [value]`;
       if (arg.required) subCmd.requiredOption(flag, arg.help ?? '');
       else if (arg.default != null) subCmd.option(flag, arg.help ?? '', String(arg.default));
       else subCmd.option(flag, arg.help ?? '');
@@ -93,6 +94,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
         const v = optionsRecord[arg.name] ?? optionsRecord[camelName];
         if (v !== undefined) kwargs[arg.name] = normalizeArgValue(arg.type, v, arg.name);
       }
+      cmd.validateArgs?.(kwargs);
 
       const verbose = optionsRecord.verbose === true;
       let format = typeof optionsRecord.format === 'string' ? optionsRecord.format : 'table';

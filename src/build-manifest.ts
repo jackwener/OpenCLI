@@ -33,6 +33,7 @@ export interface ManifestEntry {
     type?: string;
     default?: unknown;
     required?: boolean;
+    valueRequired?: boolean;
     positional?: boolean;
     help?: string;
     choices?: string[];
@@ -62,6 +63,7 @@ function toManifestArgs(args: CliCommand['args']): ManifestEntry['args'] {
     type: arg.type ?? 'str',
     default: arg.default,
     required: !!arg.required,
+    valueRequired: !!arg.valueRequired || undefined,
     positional: arg.positional || undefined,
     help: arg.help ?? '',
     choices: arg.choices,

@@ -5,7 +5,20 @@
  * Everything else is just JS code sent via 'exec'.
  */
 
-export type Action = 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'sessions' | 'set-file-input' | 'cdp';
+export type Action =
+  | 'exec'
+  | 'navigate'
+  | 'tabs'
+  | 'cookies'
+  | 'screenshot'
+  | 'close-window'
+  | 'sessions'
+  | 'set-file-input'
+  | 'insert-text'
+  | 'bind-current'
+  | 'network-capture-start'
+  | 'network-capture-read'
+  | 'cdp';
 
 export interface Command {
   /** Unique request ID */
@@ -26,6 +39,10 @@ export interface Command {
   index?: number;
   /** Cookie domain filter */
   domain?: string;
+  /** Optional hostname/domain to require for current-tab binding */
+  matchDomain?: string;
+  /** Optional pathname prefix to require for current-tab binding */
+  matchPathPrefix?: string;
   /** Screenshot format: png (default) or jpeg */
   format?: 'png' | 'jpeg';
   /** JPEG quality (0-100), only for jpeg format */
@@ -36,6 +53,10 @@ export interface Command {
   files?: string[];
   /** CSS selector for file input element (set-file-input action) */
   selector?: string;
+  /** Raw text payload for insert-text action */
+  text?: string;
+  /** URL substring filter pattern for network capture actions */
+  pattern?: string;
   /** CDP method name for 'cdp' action (e.g. 'Accessibility.getFullAXTree') */
   cdpMethod?: string;
   /** CDP method params for 'cdp' action */

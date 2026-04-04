@@ -17,6 +17,7 @@ export interface Arg {
   type?: string;
   default?: unknown;
   required?: boolean;
+  valueRequired?: boolean;
   positional?: boolean;
   help?: string;
   choices?: string[];
@@ -47,6 +48,7 @@ export interface CliCommand {
   source?: string;
   footerExtra?: (kwargs: CommandArgs) => string | undefined;
   requiredEnv?: RequiredEnv[];
+  validateArgs?: (kwargs: CommandArgs) => void;
   /** Deprecation note shown in help / execution warnings. */
   deprecated?: boolean | string;
   /** Preferred replacement command, if any. */

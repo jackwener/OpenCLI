@@ -139,6 +139,7 @@ export async function executeCommand(
   let kwargs: CommandArgs;
   try {
     kwargs = coerceAndValidateArgs(cmd.args, rawKwargs);
+    cmd.validateArgs?.(kwargs);
   } catch (err) {
     if (err instanceof ArgumentError) throw err;
     throw new ArgumentError(getErrorMessage(err));

@@ -25,7 +25,11 @@ async function getOperatePage(): Promise<import('./types.js').IPage> {
   return bridge.connect({ timeout: 30, workspace: 'operate:default' });
 }
 
-export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
+function applyVerbose(opts: { verbose?: boolean }): void {
+  if (opts.verbose) process.env.OPENCLI_VERBOSE = '1';
+}
+
+export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command {
   const program = new Command();
   // enablePositionalOptions: prevents parent from consuming flags meant for subcommands;
   // prerequisite for passThroughOptions to forward --help/--version to external binaries
@@ -145,7 +149,16 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .option('--wait <s>', '', '3')
     .option('--auto', 'Enable interactive fuzzing')
     .option('--click <labels>', 'Comma-separated labels to click before fuzzing')
-    .action(async (url, opts) => {
+    .option('-v, --verbose', 'Debug output')
+    .action(async (url: string, opts: {
+      site?: string;
+      goal?: string;
+      wait: string;
+      auto?: boolean;
+      click?: string;
+      verbose?: boolean;
+    }) => {
+      applyVerbose(opts);
       const { exploreUrl, renderExploreSummary } = await import('./explore.js');
       const clickLabels = opts.click
         ? opts.click.split(',').map((s: string) => s.trim())
@@ -168,7 +181,9 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .description('Synthesize CLIs from explore')
     .argument('<target>')
     .option('--top <n>', '', '3')
+    .option('-v, --verbose', 'Debug output')
     .action(async (target, opts) => {
+      applyVerbose(opts);
       const { synthesizeFromExplore, renderSynthesizeSummary } = await import('./synthesize.js');
       console.log(renderSynthesizeSummary(synthesizeFromExplore(target, { top: parseInt(opts.top) })));
     });
@@ -179,7 +194,13 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .argument('<url>')
     .option('--goal <text>')
     .option('--site <name>')
-    .action(async (url, opts) => {
+    .option('-v, --verbose', 'Debug output')
+    .action(async (url: string, opts: {
+      goal?: string;
+      site?: string;
+      verbose?: boolean;
+    }) => {
+      applyVerbose(opts);
       const { generateCliFromUrl, renderGenerateSummary } = await import('./generate.js');
       const workspace = `generate:${inferHost(url, opts.site)}`;
       const r = await generateCliFromUrl({
@@ -203,7 +224,15 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .option('--out <dir>', 'Output directory for candidates')
     .option('--poll <ms>', 'Poll interval in milliseconds', '2000')
     .option('--timeout <ms>', 'Auto-stop after N milliseconds (default: 60000)', '60000')
-    .action(async (url, opts) => {
+    .option('-v, --verbose', 'Debug output')
+    .action(async (url: string, opts: {
+      site?: string;
+      out?: string;
+      poll: string;
+      timeout: string;
+      verbose?: boolean;
+    }) => {
+      applyVerbose(opts);
       const { recordSession, renderRecordSummary } = await import('./record.js');
       const result = await recordSession({
         BrowserFactory: getBrowserFactory(),
@@ -222,7 +251,12 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
     .description('Strategy cascade: find simplest working strategy')
     .argument('<url>')
     .option('--site <name>')
-    .action(async (url, opts) => {
+    .option('-v, --verbose', 'Debug output')
+    .action(async (url: string, opts: {
+      site?: string;
+      verbose?: boolean;
+    }) => {
+      applyVerbose(opts);
       const { cascadeProbe, renderCascadeResult } = await import('./cascade.js');
       const workspace = `cascade:${inferHost(url, opts.site)}`;
       const result = await browserSession(getBrowserFactory(), async (page) => {
@@ -650,7 +684,9 @@ cli({
     .description('Diagnose opencli browser bridge connectivity')
     .option('--no-live', 'Skip live browser connectivity test')
     .option('--sessions', 'Show active automation sessions', false)
+    .option('-v, --verbose', 'Debug output')
     .action(async (opts) => {
+      applyVerbose(opts);
       const { runBrowserDoctor, renderBrowserDoctorReport } = await import('./doctor.js');
       const report = await runBrowserDoctor({ live: opts.live, sessions: opts.sessions, cliVersion: PKG_VERSION });
       console.log(renderBrowserDoctorReport(report));
@@ -960,7 +996,11 @@ cli({
     process.exitCode = EXIT_CODES.USAGE_ERROR;
   });
 
-  program.parse();
+  return program;
+}
+
+export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
+  createProgram(BUILTIN_CLIS, USER_CLIS).parse();
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

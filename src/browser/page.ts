@@ -120,6 +120,9 @@ export class Page extends BasePage {
       await sendCommand('close-window', { ...this._wsOpt() });
     } catch {
       // Window may already be closed or daemon may be down
+    } finally {
+      this._tabId = undefined;
+      this._lastUrl = null;
     }
   }
 
@@ -151,6 +154,19 @@ export class Page extends BasePage {
     return base64;
   }
 
+  async startNetworkCapture(pattern: string = ''): Promise<void> {
+    await sendCommand('network-capture-start', {
+      pattern,
+      ...this._cmdOpts(),
+    });
+  }
+
+  async readNetworkCapture(): Promise<unknown[]> {
+    const result = await sendCommand('network-capture-read', {
+      ...this._cmdOpts(),
+    });
+    return Array.isArray(result) ? result : [];
+  }
   /**
    * Set local file paths on a file input element via CDP DOM.setFileInputFiles.
    * Chrome reads the files directly from the local filesystem, avoiding the
@@ -164,6 +180,16 @@ export class Page extends BasePage {
     }) as { count?: number };
     if (!result?.count) {
       throw new Error('setFileInput returned no count — command may not be supported by the extension');
+    }
+  }
+
+  async insertText(text: string): Promise<void> {
+    const result = await sendCommand('insert-text', {
+      text,
+      ...this._cmdOpts(),
+    }) as { inserted?: boolean };
+    if (!result?.inserted) {
+      throw new Error('insertText returned no inserted flag — command may not be supported by the extension');
     }
   }
 
@@ -287,4 +313,3 @@ export class Page extends BasePage {
     });
   }
 }
-

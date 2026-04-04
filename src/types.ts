@@ -56,6 +56,8 @@ export interface IPage {
   getFormState(): Promise<any>;
   wait(options: number | WaitOptions): Promise<void>;
   tabs(): Promise<any>;
+  closeTab?(index?: number): Promise<void>;
+  newTab?(): Promise<void>;
   selectTab(index: number): Promise<void>;
   networkRequests(includeStatic?: boolean): Promise<any>;
   consoleMessages(level?: string): Promise<any>;
@@ -65,11 +67,18 @@ export interface IPage {
   getInterceptedRequests(): Promise<any[]>;
   waitForCapture(timeout?: number): Promise<void>;
   screenshot(options?: ScreenshotOptions): Promise<string>;
+  startNetworkCapture?(pattern?: string): Promise<void>;
+  readNetworkCapture?(): Promise<unknown[]>;
   /**
    * Set local file paths on a file input element via CDP DOM.setFileInputFiles.
    * Chrome reads the files directly — no base64 encoding or payload size limits.
    */
   setFileInput?(files: string[], selector?: string): Promise<void>;
+  /**
+   * Insert text via native CDP Input.insertText into the currently focused element.
+   * Useful for rich editors that ignore synthetic DOM value/text mutations.
+   */
+  insertText?(text: string): Promise<void>;
   closeWindow?(): Promise<void>;
   /** Returns the current page URL, or null if unavailable. */
   getCurrentUrl?(): Promise<string | null>;
