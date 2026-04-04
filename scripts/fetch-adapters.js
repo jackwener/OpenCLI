@@ -212,10 +212,11 @@ function main() {
   // Allow opt-out
   if (process.env.OPENCLI_SKIP_FETCH === '1') return;
 
-  // Only run on global install or when spawned by the CLI's first-run fallback
+  // Only run on global install, explicit trigger, or first-run fallback
   const isGlobal = process.env.npm_config_global === 'true';
+  const isExplicit = process.env.OPENCLI_FETCH === '1';
   const isFirstRun = process.env._OPENCLI_FIRST_RUN === '1';
-  if (!isGlobal && !isFirstRun) return;
+  if (!isGlobal && !isExplicit && !isFirstRun) return;
 
   fetchAdapters();
 }
