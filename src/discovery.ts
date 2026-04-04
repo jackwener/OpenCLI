@@ -37,6 +37,19 @@ function parseStrategy(rawStrategy: string | undefined, fallback: Strategy = Str
 
 import { isRecord } from './utils.js';
 
+/**
+ * Find the package root (directory containing package.json).
+ * Dev: import.meta.url is in src/ → one level up.
+ * Prod: import.meta.url is in dist/src/ → two levels up.
+ */
+function findPackageRoot(): string {
+  let dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  if (!fs.existsSync(path.join(dir, 'package.json'))) {
+    dir = path.resolve(dir, '..');
+  }
+  return dir;
+}
+
 function resolveHostRuntimeModulePath(moduleName: string): string {
   const runtimeDir = path.dirname(fileURLToPath(import.meta.url));
   for (const ext of ['.js', '.ts']) {
@@ -119,7 +132,7 @@ export async function ensureUserCliCompatShims(baseDir: string = USER_OPENCLI_DI
   // Create node_modules/@jackwener/opencli symlink so user TS CLIs can import
   // from '@jackwener/opencli/registry' (the package export).
   // This is needed because ~/.opencli/clis/ is outside opencli's node_modules tree.
-  const opencliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const opencliRoot = findPackageRoot();
   const symlinkDir = path.join(baseDir, 'node_modules', '@jackwener');
   const symlinkPath = path.join(symlinkDir, 'opencli');
   try {
@@ -165,9 +178,7 @@ export async function ensureUserAdapters(): Promise<void> {
   log.info('First run detected — copying adapters (one-time setup)...');
   try {
     const { execFileSync } = await import('node:child_process');
-    // Two levels up: dist/src/ -> dist/ -> project root (only correct in prod/installed mode,
-    // dev mode has catch fallback to built-in adapters)
-    const scriptPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'scripts', 'fetch-adapters.js');
+    const scriptPath = path.join(findPackageRoot(), 'scripts', 'fetch-adapters.js');
     execFileSync(process.execPath, [scriptPath], {
       stdio: 'inherit',
       env: { ...process.env, _OPENCLI_FIRST_RUN: '1' },
