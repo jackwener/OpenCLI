@@ -88,7 +88,6 @@ function normalizeSearchCandidate(
   const priceRange = parsePriceText(priceText || containerText);
   const moq = parseMoqText(firstNonEmpty([
     normalizeInlineText(candidate.moq_text),
-    normalizeInlineText(extractMoqText(candidate.hover_price_text)),
     normalizeInlineText(extractMoqText(containerText)),
   ]));
   const canonicalSellerUrl = canonicalizeSellerUrl(cleanText(candidate.seller_url));
@@ -111,7 +110,7 @@ function normalizeSearchCandidate(
     offer_id: extractOfferId(canonicalItemUrl ?? '') ?? null,
     member_id: extractMemberId(canonicalSellerUrl ?? '') ?? null,
     shop_id: extractShopId(canonicalSellerUrl ?? '') ?? null,
-    title: cleanText(candidate.title) || firstLine(containerText) || null,
+    title: cleanText(candidate.title) || firstWord(containerText) || null,
     item_url: canonicalItemUrl,
     seller_name: cleanText(candidate.seller_name) || null,
     seller_url: canonicalSellerUrl,
@@ -154,7 +153,7 @@ function extractSalesText(text: string | null | undefined): string {
   return match ? cleanText(match[0]) : '';
 }
 
-function firstLine(text: string): string {
+function firstWord(text: string): string {
   return text.split(/\s+/).find(Boolean) ?? '';
 }
 
@@ -398,6 +397,6 @@ export const __test__ = {
   normalizeSearchCandidate,
   extractMoqText,
   extractSalesText,
-  firstLine,
+  firstWord,
   buildDedupeKey,
 };

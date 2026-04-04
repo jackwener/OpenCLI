@@ -31,6 +31,20 @@ describe('1688 search normalization', () => {
     expect(result.return_rate_text).toBe('回头率52%');
   });
 
+  it('does not use hover_price_text as MOQ source', () => {
+    const result = __test__.normalizeSearchCandidate({
+      item_url: 'https://detail.1688.com/offer/887904326744.html',
+      title: 'test',
+      container_text: 'test ¥56.00',
+      price_text: '¥ 56 .00',
+      hover_price_text: '¥56.00 3件起批',
+      moq_text: null,
+    }, 'https://s.1688.com/selloffer/offer_search.htm?charset=utf8&keywords=test');
+    // hover_price_text should not be used for MOQ extraction
+    expect(result.moq_text).toBeNull();
+    expect(result.moq_value).toBeNull();
+  });
+
   it('extracts offer id from mobile detail search links', () => {
     const result = __test__.normalizeSearchCandidate({
       item_url: 'http://detail.m.1688.com/page/index.html?offerId=910933345396&sortType=&pageId=',

@@ -203,7 +203,7 @@ function extractKeywordLine(bodyText: string, keywords: string[]): string | null
 }
 
 function extractSalesText(bodyText: string): string | null {
-  const match = bodyText.match(/(?:全网销量|已售)\s*\d+(?:\.\d+)?\+?[件套个]?/);
+  const match = bodyText.match(/(?:全网销量|已售)\s*\d+(?:\.\d+)?\+?\s*[件套个单]?/);
   return match ? cleanText(match[0]) : null;
 }
 
