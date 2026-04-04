@@ -85,7 +85,9 @@ cli({
     const { tid, replies: includeReplies = false } = kwargs;
 
     const url = getHupuThreadUrl(tid).replace(/-1\.html$/, '.html');
-    const data = await readHupuNextData<NextData>(page, url, 'Read Hupu thread detail');
+    const data = await readHupuNextData<NextData>(page, url, 'Read Hupu thread detail', {
+      expectedTid: String(tid),
+    });
 
     // 检查错误信息（只有当code不是200时才报错）
     const errorInfo = data.props.pageProps.detail_error_info;

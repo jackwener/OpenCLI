@@ -40,24 +40,58 @@ export function getHupuSearchUrl(query: unknown, page: unknown, forum?: unknown,
   return `https://bbs.hupu.com/search?${searchParams.toString()}`;
 }
 
-export async function readHupuNextData<T>(page: IPage, url: string, actionLabel: string): Promise<T> {
+export async function readHupuNextData<T>(
+  page: IPage,
+  url: string,
+  actionLabel: string,
+  options: {
+    expectedTid?: string;
+    timeoutMs?: number;
+  } = {},
+): Promise<T> {
   await page.goto(url);
 
   const result = await page.evaluate(`
     (async () => {
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-      const waitFor = async (predicate, timeoutMs = 5000) => {
+      const expectedTid = ${JSON.stringify(options.expectedTid || '')};
+      const timeoutMs = ${JSON.stringify(options.timeoutMs ?? 5000)};
+      let lastSeenTid = '';
+      let lastSeenHref = '';
+
+      const waitFor = async (predicate, limitMs = timeoutMs) => {
         const start = Date.now();
-        while (Date.now() - start < timeoutMs) {
+        while (Date.now() - start < limitMs) {
           if (predicate()) return true;
           await wait(100);
         }
         return false;
       };
 
-      const ready = await waitFor(() => Boolean(document.getElementById('__NEXT_DATA__')));
+      const ready = await waitFor(() => {
+        const script = document.getElementById('__NEXT_DATA__');
+        if (!script?.textContent) return false;
+
+        lastSeenHref = location.href;
+
+        try {
+          const parsed = JSON.parse(script.textContent);
+          const threadTid = parsed?.props?.pageProps?.detail?.thread?.tid;
+          lastSeenTid = typeof threadTid === 'string' ? threadTid : '';
+
+          if (!expectedTid) return true;
+          return threadTid === expectedTid;
+        } catch {
+          return false;
+        }
+      });
       if (!ready) {
-        return { ok: false, error: '无法找到帖子数据' };
+        return {
+          ok: false,
+          error: expectedTid
+            ? \`帖子数据未就绪或tid不匹配（expected=\${expectedTid}, actual=\${lastSeenTid || 'unknown'}, href=\${lastSeenHref || location.href}）\`
+            : '无法找到帖子数据'
+        };
       }
 
       try {
