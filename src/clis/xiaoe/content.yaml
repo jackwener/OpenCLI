@@ -33,7 +33,7 @@ pipeline:
         });
         return [{
           title: document.title,
-          content: content.substring(0, 10000),
+          content: content,
           content_length: content.length,
           image_count: images.length,
           images: JSON.stringify(images.slice(0, 20)),
