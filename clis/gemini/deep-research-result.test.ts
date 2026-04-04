@@ -7,6 +7,7 @@ const {
   mockGetGeminiConversationList,
   mockGetGeminiPageState,
   mockGetLatestGeminiAssistantResponse,
+  mockReadGeminiSnapshot,
   mockResolveGeminiConversationForQuery,
   mockWaitForGeminiTranscript,
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   mockGetGeminiConversationList: vi.fn(),
   mockGetGeminiPageState: vi.fn(),
   mockGetLatestGeminiAssistantResponse: vi.fn(),
+  mockReadGeminiSnapshot: vi.fn(),
   mockResolveGeminiConversationForQuery: vi.fn(),
   mockWaitForGeminiTranscript: vi.fn(),
 }));
@@ -26,6 +28,7 @@ vi.mock('./utils.js', () => ({
   getGeminiConversationList: mockGetGeminiConversationList,
   getGeminiPageState: mockGetGeminiPageState,
   getLatestGeminiAssistantResponse: mockGetLatestGeminiAssistantResponse,
+  readGeminiSnapshot: mockReadGeminiSnapshot,
   parseGeminiConversationUrl: (value: unknown) => {
     const raw = String(value ?? '').trim();
     return raw.startsWith('https://gemini.google.com/app/') ? raw : null;
@@ -56,6 +59,13 @@ describe('gemini/deep-research-result', () => {
     mockWaitForGeminiTranscript.mockResolvedValue(['line']);
     mockExportGeminiDeepResearchReport.mockResolvedValue({ url: 'https://files.example.com/report.md', source: 'network' });
     mockGetLatestGeminiAssistantResponse.mockResolvedValue('Final answer');
+    mockReadGeminiSnapshot.mockResolvedValue({
+      turns: [],
+      transcriptLines: [],
+      composerHasText: false,
+      isGenerating: false,
+      structuredTurnsTrusted: true,
+    });
   });
 
   it('uses latest conversation when query is empty', async () => {
@@ -127,6 +137,30 @@ describe('gemini/deep-research-result', () => {
     const result = await deepResearchResultCommand.func!(page, { query: 'A title' });
 
     expect(result).toEqual([{ response: 'No Docs URL found. Please check Share & Export -> Export to Docs in Gemini UI.' }]);
+  });
+
+  it('returns waiting message when deep research is still generating', async () => {
+    mockExportGeminiDeepResearchReport.mockResolvedValue({ url: '', source: 'none' });
+    mockReadGeminiSnapshot.mockResolvedValue({
+      turns: [],
+      transcriptLines: [],
+      composerHasText: false,
+      isGenerating: true,
+      structuredTurnsTrusted: true,
+    });
+
+    const result = await deepResearchResultCommand.func!(page, { query: 'A title' });
+
+    expect(result).toEqual([{ response: 'Deep Research is still running. Please wait and retry later.' }]);
+  });
+
+  it('returns waiting message when assistant response indicates research in progress', async () => {
+    mockExportGeminiDeepResearchReport.mockResolvedValue({ url: '', source: 'none' });
+    mockGetLatestGeminiAssistantResponse.mockResolvedValue('正在研究中，请稍候。');
+
+    const result = await deepResearchResultCommand.func!(page, { query: 'A title' });
+
+    expect(result).toEqual([{ response: 'Deep Research is still running. Please wait and retry later.' }]);
   });
 
   it('returns same no-docs message even when assistant response is empty', async () => {

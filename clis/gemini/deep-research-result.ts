@@ -4,13 +4,37 @@ import {
   GEMINI_DOMAIN,
   clickGeminiConversationByTitle,
   exportGeminiDeepResearchReport,
+  getLatestGeminiAssistantResponse,
   getGeminiPageState,
   parseGeminiConversationUrl,
   parseGeminiTitleMatchMode,
+  readGeminiSnapshot,
   resolveGeminiConversationForQuery,
   waitForGeminiTranscript,
   getGeminiConversationList,
 } from './utils.js';
+
+const DEEP_RESEARCH_WAITING_MESSAGE = 'Deep Research is still running. Please wait and retry later.';
+const DEEP_RESEARCH_NO_DOCS_MESSAGE = 'No Docs URL found. Please check Share & Export -> Export to Docs in Gemini UI.';
+
+function isDeepResearchInProgress(text: string): boolean {
+  return /\bresearching(?:\s+websites?)?\b|research in progress|working on your research|正在研究|研究中|调研中|请稍候/i.test(text);
+}
+
+async function resolveDeepResearchExportResponse(page: IPage, timeoutSeconds: number): Promise<string> {
+  const exported = await exportGeminiDeepResearchReport(page, timeoutSeconds);
+  if (exported.url) return exported.url;
+
+  const snapshot = await readGeminiSnapshot(page).catch(() => null);
+  if (snapshot?.isGenerating) return DEEP_RESEARCH_WAITING_MESSAGE;
+
+  const latest = await getLatestGeminiAssistantResponse(page).catch(() => '');
+  if (latest && isDeepResearchInProgress(latest)) {
+    return DEEP_RESEARCH_WAITING_MESSAGE;
+  }
+
+  return DEEP_RESEARCH_NO_DOCS_MESSAGE;
+}
 
 export const deepResearchResultCommand = cli({
   site: 'gemini',
@@ -46,11 +70,7 @@ export const deepResearchResultCommand = cli({
       await page.goto(conversationUrl, { waitUntil: 'load', settleMs: 2500 });
       await page.wait(1);
       await waitForGeminiTranscript(page);
-      const exported = await exportGeminiDeepResearchReport(page, timeoutSeconds);
-      if (exported.url) {
-        return [{ response: exported.url }];
-      }
-      return [{ response: 'No Docs URL found. Please check Share & Export -> Export to Docs in Gemini UI.' }];
+      return [{ response: await resolveDeepResearchExportResponse(page, timeoutSeconds) }];
     }
 
     const conversations = await getGeminiConversationList(page);
@@ -71,10 +91,6 @@ export const deepResearchResultCommand = cli({
       await waitForGeminiTranscript(page);
     }
 
-    const exported = await exportGeminiDeepResearchReport(page, timeoutSeconds);
-    if (exported.url) {
-      return [{ response: exported.url }];
-    }
-    return [{ response: 'No Docs URL found. Please check Share & Export -> Export to Docs in Gemini UI.' }];
+    return [{ response: await resolveDeepResearchExportResponse(page, timeoutSeconds) }];
   },
 });
