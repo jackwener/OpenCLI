@@ -9,8 +9,15 @@ export const GEMINI_DEEP_RESEARCH_DEFAULT_CONFIRM_LABELS = [
   'Start Research',
   'Start deep research',
   'Start Deep Research',
+  'Generate research plan',
+  'Generate Research Plan',
+  'Generate deep research plan',
+  'Generate Deep Research Plan',
   '\u5f00\u59cb\u7814\u7a76',
   '\u5f00\u59cb\u6df1\u5ea6\u7814\u7a76',
+  '\u5f00\u59cb\u8c03\u7814',
+  '\u751f\u6210\u7814\u7a76\u8ba1\u5212',
+  '\u751f\u6210\u8c03\u7814\u8ba1\u5212',
 ];
 
 export interface GeminiPageState {

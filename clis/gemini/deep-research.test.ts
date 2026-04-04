@@ -3,16 +3,20 @@ import type { IPage } from '../../types.js';
 
 const {
   mockGetCurrentGeminiUrl,
+  mockReadGeminiSnapshot,
   mockSelectGeminiTool,
   mockSendGeminiMessage,
   mockStartNewGeminiChat,
+  mockWaitForGeminiSubmission,
   mockWaitForGeminiConfirmButton,
   mockGetLatestGeminiAssistantResponse,
 } = vi.hoisted(() => ({
   mockGetCurrentGeminiUrl: vi.fn<() => Promise<string>>(),
+  mockReadGeminiSnapshot: vi.fn<() => Promise<any>>(),
   mockSelectGeminiTool: vi.fn<() => Promise<string>>(),
   mockSendGeminiMessage: vi.fn<() => Promise<void>>(),
   mockStartNewGeminiChat: vi.fn<() => Promise<void>>(),
+  mockWaitForGeminiSubmission: vi.fn<() => Promise<any>>(),
   mockWaitForGeminiConfirmButton: vi.fn<() => Promise<string>>(),
   mockGetLatestGeminiAssistantResponse: vi.fn<() => Promise<string>>(),
 }));
@@ -21,7 +25,21 @@ vi.mock('./utils.js', () => ({
   GEMINI_DOMAIN: 'gemini.google.com',
   GEMINI_APP_URL: 'https://gemini.google.com/app',
   GEMINI_DEEP_RESEARCH_DEFAULT_TOOL_LABELS: ['Deep Research', 'Deep research', '\u6df1\u5ea6\u7814\u7a76'],
-  GEMINI_DEEP_RESEARCH_DEFAULT_CONFIRM_LABELS: ['Start research', 'Start Research', 'Start deep research', 'Start Deep Research', '\u5f00\u59cb\u7814\u7a76', '\u5f00\u59cb\u6df1\u5ea6\u7814\u7a76'],
+  GEMINI_DEEP_RESEARCH_DEFAULT_CONFIRM_LABELS: [
+    'Start research',
+    'Start Research',
+    'Start deep research',
+    'Start Deep Research',
+    'Generate research plan',
+    'Generate Research Plan',
+    'Generate deep research plan',
+    'Generate Deep Research Plan',
+    '\u5f00\u59cb\u7814\u7a76',
+    '\u5f00\u59cb\u6df1\u5ea6\u7814\u7a76',
+    '\u5f00\u59cb\u8c03\u7814',
+    '\u751f\u6210\u7814\u7a76\u8ba1\u5212',
+    '\u751f\u6210\u8c03\u7814\u8ba1\u5212',
+  ],
   parseGeminiPositiveInt: (value: unknown, fallback: number) => {
     const parsed = Number.parseInt(String(value ?? ''), 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -32,9 +50,11 @@ vi.mock('./utils.js', () => ({
   },
   getCurrentGeminiUrl: mockGetCurrentGeminiUrl,
   getLatestGeminiAssistantResponse: mockGetLatestGeminiAssistantResponse,
+  readGeminiSnapshot: mockReadGeminiSnapshot,
   selectGeminiTool: mockSelectGeminiTool,
   sendGeminiMessage: mockSendGeminiMessage,
   startNewGeminiChat: mockStartNewGeminiChat,
+  waitForGeminiSubmission: mockWaitForGeminiSubmission,
   waitForGeminiConfirmButton: mockWaitForGeminiConfirmButton,
 }));
 
@@ -46,9 +66,22 @@ describe('gemini/deep-research', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetCurrentGeminiUrl.mockResolvedValue('https://gemini.google.com/app/chat');
+    mockReadGeminiSnapshot.mockResolvedValue({
+      turns: [],
+      transcriptLines: [],
+      composerHasText: false,
+      isGenerating: false,
+      structuredTurnsTrusted: true,
+    });
     mockSelectGeminiTool.mockResolvedValue('Deep Research');
     mockSendGeminiMessage.mockResolvedValue();
     mockStartNewGeminiChat.mockResolvedValue();
+    mockWaitForGeminiSubmission.mockResolvedValue({
+      snapshot: { turns: [], transcriptLines: [], composerHasText: false, isGenerating: false, structuredTurnsTrusted: true },
+      preSendAssistantCount: 0,
+      userAnchorTurn: null,
+      reason: 'user_turn',
+    });
     mockWaitForGeminiConfirmButton.mockResolvedValue('Start research');
     mockGetLatestGeminiAssistantResponse.mockResolvedValue('');
   });
@@ -59,9 +92,10 @@ describe('gemini/deep-research', () => {
     expect(mockStartNewGeminiChat).toHaveBeenCalledTimes(1);
     expect(mockSelectGeminiTool).toHaveBeenCalledTimes(1);
     expect(mockSendGeminiMessage).toHaveBeenCalledWith(page, 'research this topic');
+    expect(mockWaitForGeminiSubmission).toHaveBeenCalledTimes(1);
     expect(mockWaitForGeminiConfirmButton).toHaveBeenCalledWith(
       page,
-      expect.arrayContaining(['Start research', 'Start deep research', '\u5f00\u59cb\u7814\u7a76', '\u5f00\u59cb\u6df1\u5ea6\u7814\u7a76']),
+      expect.arrayContaining(['Start research', 'Start deep research', 'Generate research plan', '\u751f\u6210\u7814\u7a76\u8ba1\u5212']),
       30,
     );
     expect(result).toEqual([{ status: 'started', url: 'https://gemini.google.com/app/chat' }]);
@@ -74,7 +108,36 @@ describe('gemini/deep-research', () => {
 
     expect(result).toEqual([{ status: 'tool-not-found', url: 'https://gemini.google.com/app/chat' }]);
     expect(mockSendGeminiMessage).not.toHaveBeenCalled();
+    expect(mockWaitForGeminiSubmission).not.toHaveBeenCalled();
     expect(mockWaitForGeminiConfirmButton).not.toHaveBeenCalled();
+  });
+
+  it('retries send once when first submission cannot be confirmed', async () => {
+    mockWaitForGeminiSubmission.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      snapshot: { turns: [], transcriptLines: [], composerHasText: false, isGenerating: false, structuredTurnsTrusted: true },
+      preSendAssistantCount: 0,
+      userAnchorTurn: null,
+      reason: 'user_turn',
+    });
+
+    const result = await deepResearchCommand.func!(page, { prompt: 'research this topic' });
+
+    expect(mockSelectGeminiTool).toHaveBeenCalledTimes(2);
+    expect(mockReadGeminiSnapshot).toHaveBeenCalledTimes(2);
+    expect(mockSendGeminiMessage).toHaveBeenCalledTimes(2);
+    expect(mockWaitForGeminiSubmission).toHaveBeenCalledTimes(2);
+    expect(result).toEqual([{ status: 'started', url: 'https://gemini.google.com/app/chat' }]);
+  });
+
+  it('returns submit-not-found when submission cannot be confirmed after retry', async () => {
+    mockWaitForGeminiSubmission.mockResolvedValue(null);
+
+    const result = await deepResearchCommand.func!(page, { prompt: 'research this topic' });
+
+    expect(mockSelectGeminiTool).toHaveBeenCalledTimes(2);
+    expect(mockSendGeminiMessage).toHaveBeenCalledTimes(2);
+    expect(mockWaitForGeminiConfirmButton).not.toHaveBeenCalled();
+    expect(result).toEqual([{ status: 'submit-not-found', url: 'https://gemini.google.com/app/chat' }]);
   });
 
   it('returns confirm-not-found when no confirm button is found', async () => {

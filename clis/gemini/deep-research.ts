@@ -8,10 +8,12 @@ import {
   getCurrentGeminiUrl,
   getLatestGeminiAssistantResponse,
   parseGeminiPositiveInt,
+  readGeminiSnapshot,
   resolveGeminiLabels,
   selectGeminiTool,
   sendGeminiMessage,
   startNewGeminiChat,
+  waitForGeminiSubmission,
   waitForGeminiConfirmButton,
 } from './utils.js';
 
@@ -25,8 +27,8 @@ function isGeminiRootAppUrl(url: string): boolean {
 }
 
 function parseDeepResearchProgress(text: string): { isResearching: boolean; waitingForStart: boolean } {
-  const isResearching = /\bresearching(?:\s+websites?)?\b|research in progress|正在研究|研究中/i.test(text);
-  const waitingForStart = /\bstart(?:\s+deep)?\s+research\b|开始研究|开始深度研究|try again without deep research/i.test(text);
+  const isResearching = /\bresearching(?:\s+websites?)?\b|research in progress|working on your research|正在研究|研究中/i.test(text);
+  const waitingForStart = /\bstart(?:\s+deep)?\s+research\b|begin\s+research|generate(?:\s+deep)?\s+research\s+plan|开始研究|开始深度研究|开始调研|生成研究计划|生成调研计划|try again without deep research/i.test(text);
   return { isResearching, waitingForStart };
 }
 
@@ -50,6 +52,7 @@ export const deepResearchCommand = cli({
   func: async (page: IPage, kwargs: any) => {
     const prompt = kwargs.prompt as string;
     const timeout = parseGeminiPositiveInt(kwargs.timeout, 30);
+    const submitTimeout = Math.min(Math.max(timeout, 6), 20);
     await startNewGeminiChat(page);
 
     const toolLabels = resolveGeminiLabels(kwargs.tool, GEMINI_DEEP_RESEARCH_DEFAULT_TOOL_LABELS);
@@ -61,7 +64,21 @@ export const deepResearchCommand = cli({
       return [{ status: 'tool-not-found', url }];
     }
 
+    let baseline = await readGeminiSnapshot(page);
     await sendGeminiMessage(page, prompt);
+    let submitted = await waitForGeminiSubmission(page, baseline, submitTimeout);
+    if (!submitted) {
+      // Retry once when submit did not stick (e.g. composer swallowed Enter/click in this UI state).
+      await selectGeminiTool(page, toolLabels);
+      baseline = await readGeminiSnapshot(page);
+      await sendGeminiMessage(page, prompt);
+      submitted = await waitForGeminiSubmission(page, baseline, submitTimeout);
+    }
+    if (!submitted) {
+      const url = await getCurrentGeminiUrl(page);
+      return [{ status: 'submit-not-found', url }];
+    }
+
     const confirmed = await waitForGeminiConfirmButton(page, confirmLabels, timeout);
     let url = await getCurrentGeminiUrl(page);
     if (confirmed && !isGeminiRootAppUrl(url)) {
