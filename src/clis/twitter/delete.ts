@@ -2,6 +2,76 @@ import { cli, Strategy } from '../../registry.js';
 import { CommandExecutionError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 
+function extractTweetId(url: string): string {
+  let pathname = '';
+  try {
+    pathname = new URL(url).pathname;
+  } catch {
+    throw new Error(`Invalid tweet URL: ${url}`);
+  }
+
+  const match = pathname.match(/\/status\/(\d+)/);
+  if (!match?.[1]) {
+    throw new Error(`Could not extract tweet ID from URL: ${url}`);
+  }
+
+  return match[1];
+}
+
+function buildDeleteScript(tweetId: string): string {
+  return `(async () => {
+      try {
+          const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
+          const tweetId = ${JSON.stringify(tweetId)};
+          const targetArticle = Array.from(document.querySelectorAll('article')).find((article) =>
+              Array.from(article.querySelectorAll('a[href*="/status/"]')).some((link) => {
+                  try {
+                      return new URL(link.href, window.location.origin).pathname.includes('/status/' + tweetId);
+                  } catch {
+                      return false;
+                  }
+              })
+          );
+
+          if (!targetArticle) {
+              return { ok: false, message: 'Could not find the tweet card matching the requested URL.' };
+          }
+
+          const buttons = Array.from(targetArticle.querySelectorAll('button,[role="button"]'));
+          const moreMenu = buttons.find((el) => visible(el) && (el.getAttribute('aria-label') || '').trim() === 'More');
+          if (!moreMenu) {
+              return { ok: false, message: 'Could not find the "More" context menu on the matched tweet. Are you sure you are logged in and looking at a valid tweet?' };
+          }
+
+          moreMenu.click();
+          await new Promise(r => setTimeout(r, 1000));
+
+          const items = Array.from(document.querySelectorAll('[role="menuitem"]'));
+          const deleteBtn = items.find((item) => {
+              const text = (item.textContent || '').trim();
+              return text.includes('Delete') && !text.includes('List');
+          });
+
+          if (!deleteBtn) {
+              return { ok: false, message: 'The matched tweet menu did not contain Delete. This tweet may not belong to you.' };
+          }
+
+          deleteBtn.click();
+          await new Promise(r => setTimeout(r, 1000));
+
+          const confirmBtn = document.querySelector('[data-testid="confirmationSheetConfirm"]');
+          if (confirmBtn) {
+              confirmBtn.click();
+              return { ok: true, message: 'Tweet successfully deleted.' };
+          } else {
+              return { ok: false, message: 'Delete confirmation dialog did not appear.' };
+          }
+      } catch (e) {
+          return { ok: false, message: e.toString() };
+      }
+  })()`;
+}
+
 cli({
   site: 'twitter',
   name: 'delete',
@@ -15,55 +85,12 @@ cli({
   columns: ['status', 'message'],
   func: async (page: IPage | null, kwargs: any) => {
     if (!page) throw new CommandExecutionError('Browser session required for twitter delete');
+    const tweetId = extractTweetId(kwargs.url);
 
     await page.goto(kwargs.url);
     await page.wait({ selector: '[data-testid="primaryColumn"]' }); // Wait for tweet to load completely
 
-    const result = await page.evaluate(`(async () => {
-        try {
-            // Wait for caret button (which has 'More' aria-label) within the main tweet body
-            // Getting the first 'More' usually corresponds to the main displayed tweet of the URL
-            const moreMenu = document.querySelector('[aria-label="More"]');
-            if (!moreMenu) {
-                return { ok: false, message: 'Could not find the "More" context menu on this tweet. Are you sure you are logged in and looking at a valid tweet?' };
-            }
-
-            // Click the 'More' 3 dots button to open the dropdown menu
-            moreMenu.click();
-            await new Promise(r => setTimeout(r, 1000));
-            
-            // Wait for dropdown pop-out to appear and look for the 'Delete' option
-            const items = document.querySelectorAll('[role="menuitem"]');
-            let deleteBtn = null;
-            for (const item of items) {
-                if (item.textContent.includes('Delete') && !item.textContent.includes('List')) {
-                    deleteBtn = item;
-                    break;
-                }
-            }
-            
-            if (!deleteBtn) {
-                // If there's no Delete button, it's not our tweet OR localization is not English.
-                // Assuming English default for now.
-                return { ok: false, message: 'This tweet does not seem to belong to you, or the Delete option is missing (not your tweet).' };
-            }
-
-            // Click Delete
-            deleteBtn.click();
-            await new Promise(r => setTimeout(r, 1000));
-            
-            // Find and click the confirmation 'Delete' prompt inside the modal
-            const confirmBtn = document.querySelector('[data-testid="confirmationSheetConfirm"]');
-            if (confirmBtn) {
-                confirmBtn.click();
-                return { ok: true, message: 'Tweet successfully deleted.' };
-            } else {
-                return { ok: false, message: 'Delete confirmation dialog did not appear.' };
-            }
-        } catch (e) {
-            return { ok: false, message: e.toString() };
-        }
-    })()`);
+    const result = await page.evaluate(buildDeleteScript(tweetId));
 
     if (result.ok) {
         // Wait for the deletion request to be processed
@@ -76,3 +103,8 @@ cli({
     }];
   }
 });
+
+export const __test__ = {
+  buildDeleteScript,
+  extractTweetId,
+};
