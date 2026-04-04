@@ -427,3 +427,4 @@ opencli qwen status                       # 检查 Qwen 页面状态
 opencli qwen new                          # 新建对话
 opencli qwen ask "问题"                   # 提问 (prompt positional)
 ```
+

@@ -7,10 +7,12 @@
 
 ## 输入
 
-| 项目 | 示例 |
-|------|------|
-| **URL** | `https://x.com/jakevin7/lists` |
-| **Goal** | 获取我的 Twitter Lists |
+
+| 项目       | 示例                             |
+| -------- | ------------------------------ |
+| **URL**  | `https://x.com/jakevin7/lists` |
+| **Goal** | 获取我的 Twitter Lists             |
+
 
 ---
 
@@ -31,12 +33,14 @@
 
 从抓包结果中找到**那个**目标 API。看这几个字段：
 
-| 字段 | 关注什么 |
-|------|----------|
-| URL | API 路径 pattern（如 `/i/api/graphql/xxx/ListsManagePinTimeline`） |
-| Method | GET / POST |
-| Headers | 有 Cookie? Bearer? CSRF? 自定义签名? |
-| Response | 数据在哪个路径（如 `data.list.lists`） |
+
+| 字段       | 关注什么                                                          |
+| -------- | ------------------------------------------------------------- |
+| URL      | API 路径 pattern（如 `/i/api/graphql/xxx/ListsManagePinTimeline`） |
+| Method   | GET / POST                                                    |
+| Headers  | 有 Cookie? Bearer? CSRF? 自定义签名?                                |
+| Response | 数据在哪个路径（如 `data.list.lists`）                                  |
+
 
 ### Step 3: 验证接口能复现
 

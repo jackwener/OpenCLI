@@ -22,25 +22,29 @@
 
 ### AI Agent 探索工作流（必须遵循）
 
-| 步骤 | 工具 | 做什么 |
-|------|------|--------|
-| 0. 打开浏览器 | `browser_navigate` | 导航到目标页面 |
-| 1. 观察页面 | `browser_snapshot` | 观察可交互元素（按钮/标签/链接） |
-| 2. 首次抓包 | `browser_network_requests` | 筛选 JSON API 端点，记录 URL pattern |
-| 3. 模拟交互 | `browser_click` + `browser_wait_for` | 点击"字幕""评论""关注"等按钮 |
-| 4. 二次抓包 | `browser_network_requests` | 对比步骤 2，找出新触发的 API |
-| 5. 验证 API | `browser_evaluate` | `fetch(url, {credentials:'include'})` 测试返回结构 |
-| 6. 写代码 | — | 基于确认的 API 写适配器 |
+
+| 步骤        | 工具                                   | 做什么                                          |
+| --------- | ------------------------------------ | -------------------------------------------- |
+| 0. 打开浏览器  | `browser_navigate`                   | 导航到目标页面                                      |
+| 1. 观察页面   | `browser_snapshot`                   | 观察可交互元素（按钮/标签/链接）                            |
+| 2. 首次抓包   | `browser_network_requests`           | 筛选 JSON API 端点，记录 URL pattern                |
+| 3. 模拟交互   | `browser_click` + `browser_wait_for` | 点击"字幕""评论""关注"等按钮                            |
+| 4. 二次抓包   | `browser_network_requests`           | 对比步骤 2，找出新触发的 API                            |
+| 5. 验证 API | `browser_evaluate`                   | `fetch(url, {credentials:'include'})` 测试返回结构 |
+| 6. 写代码    | —                                    | 基于确认的 API 写适配器                               |
+
 
 ### 常犯错误
 
-| ❌ 错误做法 | ✅ 正确做法 |
-|------------|------------|
-| 只用 `opencli explore` 命令，等结果自动出来 | 用浏览器工具打开页面，主动浏览 |
-| 直接在代码里 `fetch(url)`，不看浏览器实际请求 | 先在浏览器中确认 API 可用，再写代码 |
-| 页面打开后直接抓包，期望所有 API 都出现 | 模拟点击交互（展开评论/切换标签/加载更多） |
-| 遇到 HTTP 200 但空数据就放弃 | 检查是否需要 Wbi 签名或 Cookie 鉴权 |
-| 完全依赖 `__INITIAL_STATE__` 拿所有数据 | `__INITIAL_STATE__` 只有首屏数据，深层数据要调 API |
+
+| ❌ 错误做法                          | ✅ 正确做法                                |
+| ------------------------------- | ------------------------------------- |
+| 只用 `opencli explore` 命令，等结果自动出来 | 用浏览器工具打开页面，主动浏览                       |
+| 直接在代码里 `fetch(url)`，不看浏览器实际请求   | 先在浏览器中确认 API 可用，再写代码                  |
+| 页面打开后直接抓包，期望所有 API 都出现          | 模拟点击交互（展开评论/切换标签/加载更多）                |
+| 遇到 HTTP 200 但空数据就放弃             | 检查是否需要 Wbi 签名或 Cookie 鉴权              |
+| 完全依赖 `__INITIAL_STATE__` 拿所有数据  | `__INITIAL_STATE__` 只有首屏数据，深层数据要调 API |
+
 
 ### 实战成功案例：5 分钟实现「关注列表」适配器
 
@@ -59,6 +63,7 @@
 ```
 
 **关键决策点**：
+
 - 直接访问 `fans/follow` 页面（不是首页），页面加载就会触发 following API
 - 看到 URL 里没有 `/wbi/` → 不需要签名 → 直接用 `fetchJson` 而非 `apiGet`
 - API 返回 `code: 0` + 非空 `list` → Tier 2 Cookie 策略确认
@@ -88,12 +93,14 @@ opencli explore https://www.example.com --site mysite
 
 输出到 `.opencli/explore/mysite/`：
 
-| 文件 | 内容 |
-|------|------|
-| `manifest.json` | 站点元数据、框架检测（Vue2/3、React、Next.js、Pinia、Vuex） |
-| `endpoints.json` | 已发现的 API 端点，按评分排序，含 URL pattern、方法、响应类型 |
-| `capabilities.json` | 推理出的功能（`hot`、`search`、`feed`…），含置信度和推荐参数 |
-| `auth.json` | 认证方式检测（Cookie/Header/无认证），策略候选列表 |
+
+| 文件                  | 内容                                          |
+| ------------------- | ------------------------------------------- |
+| `manifest.json`     | 站点元数据、框架检测（Vue2/3、React、Next.js、Pinia、Vuex） |
+| `endpoints.json`    | 已发现的 API 端点，按评分排序，含 URL pattern、方法、响应类型     |
+| `capabilities.json` | 推理出的功能（`hot`、`search`、`feed`…），含置信度和推荐参数    |
+| `auth.json`         | 认证方式检测（Cookie/Header/无认证），策略候选列表            |
+
 
 ### 1b. 手动抓包验证
 
@@ -108,6 +115,7 @@ opencli bilibili hot -v   # 查看已有命令的 pipeline 每步数据流
 ```
 
 关注抓包结果中的关键信息：
+
 - **URL pattern**: `/api/v2/hot?limit=20` → 这就是你要调用的端点
 - **Method**: `GET` / `POST`
 - **Request Headers**: Cookie? Bearer? 自定义签名头（X-s、X-t）?
@@ -166,13 +174,15 @@ opencli cascade https://api.example.com/hot
 
 ### 各策略对比
 
-| Tier | 策略 | 速度 | 复杂度 | 适用场景 | 实例 |
-|------|------|------|--------|---------|------|
-| 1 | `public` | ⚡ ~1s | 最简 | 公开 API，无需登录 | Hacker News, V2EX |
-| 2 | `cookie` | 🔄 ~7s | 简单 | Cookie 认证即可 | Bilibili, Zhihu, Reddit |
-| 3 | `header` | 🔄 ~7s | 中等 | 需要 CSRF token 或 Bearer | Twitter GraphQL |
-| 4 | `intercept` | 🔄 ~10s | 较高 | 请求有复杂签名 | 小红书 (Pinia + XHR) |
-| 5 | `ui` | 🐌 ~15s+ | 最高 | 无 API，纯 DOM 解析 | 遗留网站 |
+
+| Tier | 策略          | 速度       | 复杂度 | 适用场景                   | 实例                      |
+| ---- | ----------- | -------- | --- | ---------------------- | ----------------------- |
+| 1    | `public`    | ⚡ ~1s    | 最简  | 公开 API，无需登录            | Hacker News, V2EX       |
+| 2    | `cookie`    | 🔄 ~7s   | 简单  | Cookie 认证即可            | Bilibili, Zhihu, Reddit |
+| 3    | `header`    | 🔄 ~7s   | 中等  | 需要 CSRF token 或 Bearer | Twitter GraphQL         |
+| 4    | `intercept` | 🔄 ~10s  | 较高  | 请求有复杂签名                | 小红书 (Pinia + XHR)       |
+| 5    | `ui`        | 🐌 ~15s+ | 最高  | 无 API，纯 DOM 解析         | 遗留网站                    |
+
 
 ---
 
@@ -188,6 +198,7 @@ cat src/clis/<site>/feed.ts   # 读最相似的那个
 ```
 
 最高效的方式是 **复制最相似的适配器，然后改 3 个地方**：
+
 1. `name` → 新命令名
 2. API URL → 你在 Step 1 发现的端点
 3. 字段映射 → 对应新 API 的字段
@@ -198,16 +209,19 @@ cat src/clis/<site>/feed.ts   # 读最相似的那个
 
 #### Bilibili (`src/clis/bilibili/utils.ts`)
 
-| 函数 | 用途 | 何时使用 |
-|------|------|----------|
-| `fetchJson(page, url)` | 带 Cookie 的 fetch + JSON 解析 | 普通 Cookie-tier API |
-| `apiGet(page, path, {signed, params})` | 带 Wbi 签名的 API 调用 | URL 含 `/wbi/` 的接口 |
-| `getSelfUid(page)` | 获取当前登录用户的 UID | "我的xxx" 类命令 |
-| `resolveUid(page, input)` | 解析用户输入的 UID(支持数字/URL) | `--uid` 参数处理 |
-| `wbiSign(page, params)` | 底层 Wbi 签名生成 | 通常不直接用，`apiGet` 已封装 |
-| `stripHtml(s)` | 去除 HTML 标签 | 清理富文本字段 |
+
+| 函数                                     | 用途                         | 何时使用                |
+| -------------------------------------- | -------------------------- | ------------------- |
+| `fetchJson(page, url)`                 | 带 Cookie 的 fetch + JSON 解析 | 普通 Cookie-tier API  |
+| `apiGet(page, path, {signed, params})` | 带 Wbi 签名的 API 调用           | URL 含 `/wbi/` 的接口   |
+| `getSelfUid(page)`                     | 获取当前登录用户的 UID              | "我的xxx" 类命令         |
+| `resolveUid(page, input)`              | 解析用户输入的 UID(支持数字/URL)      | `--uid` 参数处理        |
+| `wbiSign(page, params)`                | 底层 Wbi 签名生成                | 通常不直接用，`apiGet` 已封装 |
+| `stripHtml(s)`                         | 去除 HTML 标签                 | 清理富文本字段             |
+
 
 **如何判断需不需要 `apiGet`**？看 Network 请求 URL：
+
 - 含 `/wbi/` 或 `w_rid=` → 必须用 `apiGet(..., { signed: true })`
 - 不含 → 直接用 `fetchJson`
 
@@ -226,14 +240,16 @@ cat src/clis/<site>/feed.ts   # 读最相似的那个
        → ✅ 用 YAML (src/clis/<site>/<name>.yaml)，保存即自动注册
 ```
 
-| 场景 | 选择 | 示例 |
-|------|------|------|
-| 纯 fetch/select/map/limit | YAML | `v2ex/hot.yaml`, `hackernews/top.yaml` |
-| navigate + evaluate(fetch) + map | YAML（评估复杂度） | `zhihu/hot.yaml` |
-| navigate + tap + map | YAML ✅ | `xiaohongshu/feed.yaml`, `xiaohongshu/notifications.yaml` |
-| 有复杂 JS 逻辑（Pinia state 读取、条件分支） | TS | `xiaohongshu/me.ts`, `bilibili/me.ts` |
-| XHR 拦截 + 签名 | TS | `xiaohongshu/search.ts` |
-| GraphQL / 分页 / Wbi 签名 | TS | `bilibili/search.ts`, `twitter/search.ts` |
+
+| 场景                               | 选择          | 示例                                                        |
+| -------------------------------- | ----------- | --------------------------------------------------------- |
+| 纯 fetch/select/map/limit         | YAML        | `v2ex/hot.yaml`, `hackernews/top.yaml`                    |
+| navigate + evaluate(fetch) + map | YAML（评估复杂度） | `zhihu/hot.yaml`                                          |
+| navigate + tap + map             | YAML ✅      | `xiaohongshu/feed.yaml`, `xiaohongshu/notifications.yaml` |
+| 有复杂 JS 逻辑（Pinia state 读取、条件分支）   | TS          | `xiaohongshu/me.ts`, `bilibili/me.ts`                     |
+| XHR 拦截 + 签名                      | TS          | `xiaohongshu/search.ts`                                   |
+| GraphQL / 分页 / Wbi 签名            | TS          | `bilibili/search.ts`, `twitter/search.ts`                 |
+
 
 > **经验法则**：如果你发现 YAML 里嵌了超过 10 行 JS，改用 TS 更可维护。
 
@@ -426,18 +442,20 @@ pipeline:
   - limit: ${{ args.limit | default(20) }}
 ```
 
-> **`tap` 步骤自动完成**：注入 fetch+XHR 双拦截 → 查找 Pinia/Vuex store → 调用 action → 捕获匹配 URL 的响应 → 清理拦截。  
+> `**tap` 步骤自动完成**：注入 fetch+XHR 双拦截 → 查找 Pinia/Vuex store → 调用 action → 捕获匹配 URL 的响应 → 清理拦截。  
 > 如果 store 或 action 找不到，会返回 `hint` 列出所有可用的 store actions，方便调试。
 
-| tap 参数 | 必填 | 说明 |
-|---------|------|------|
-| `store` | ✅ | Pinia store 名称（如 `feed`, `search`, `notification`） |
-| `action` | ✅ | Store action 方法名 |
-| `capture` | ✅ | URL 子串匹配（匹配网络请求 URL） |
-| `args` | ❌ | 传给 action 的参数数组 |
-| `select` | ❌ | 从 captured JSON 中提取的路径（如 `data.items`） |
-| `timeout` | ❌ | 等待网络响应的超时秒数（默认 5s） |
-| `framework` | ❌ | `pinia` 或 `vuex`（默认自动检测） |
+
+| tap 参数      | 必填  | 说明                                                 |
+| ----------- | --- | -------------------------------------------------- |
+| `store`     | ✅   | Pinia store 名称（如 `feed`, `search`, `notification`） |
+| `action`    | ✅   | Store action 方法名                                   |
+| `capture`   | ✅   | URL 子串匹配（匹配网络请求 URL）                               |
+| `args`      | ❌   | 传给 action 的参数数组                                    |
+| `select`    | ❌   | 从 captured JSON 中提取的路径（如 `data.items`）             |
+| `timeout`   | ❌   | 等待网络响应的超时秒数（默认 5s）                                 |
+| `framework` | ❌   | `pinia` 或 `vuex`（默认自动检测）                           |
+
 
 ### 方式 B: TypeScript 适配器（编程式）
 
@@ -677,32 +695,36 @@ cli({
 
 ### 关键要点
 
-| 步骤 | 注意事项 |
-|------|----------|
-| 提取中间 ID | 优先从 `__INITIAL_STATE__` 拿，避免额外 API 调用 |
-| Wbi 签名 | B 站 `/wbi/` 接口**强制校验** `w_rid`，纯 `fetch` 会被 403 |
-| 空值断言 | 即使 HTTP 200，核心字段可能为空串（风控降级） |
-| CDN URL | 常以 `//` 开头，记得补 `https:` |
-| `JSON.stringify` | 拼接 URL 到 evaluate 时必须用它转义，避免注入 |
+
+| 步骤               | 注意事项                                            |
+| ---------------- | ----------------------------------------------- |
+| 提取中间 ID          | 优先从 `__INITIAL_STATE__` 拿，避免额外 API 调用           |
+| Wbi 签名           | B 站 `/wbi/` 接口**强制校验** `w_rid`，纯 `fetch` 会被 403 |
+| 空值断言             | 即使 HTTP 200，核心字段可能为空串（风控降级）                     |
+| CDN URL          | 常以 `//` 开头，记得补 `https:`                         |
+| `JSON.stringify` | 拼接 URL 到 evaluate 时必须用它转义，避免注入                  |
+
 
 ---
 
 ## 常见陷阱
 
-| 陷阱 | 表现 | 解决方案 |
-|------|------|---------|
-| 缺少 `navigate` | evaluate 报 `Target page context` 错误 | 在 evaluate 前加 `navigate:` 步骤 |
-| 嵌套字段访问 | `${{ item.node?.title }}` 不工作 | 在 evaluate 中 flatten 数据，不在模板中用 optional chaining |
-| 缺少 `strategy: public` | 公开 API 也启动浏览器，7s → 1s | 公开 API 加上 `strategy: public` + `browser: false` |
-| evaluate 返回字符串 | map 步骤收到 `""` 而非数组 | pipeline 有 auto-parse，但建议在 evaluate 内 `.map()` 整形 |
-| 搜索参数被 URL 编码 | `${{ args.query }}` 被浏览器二次编码 | 在 evaluate 内用 `encodeURIComponent()` 手动编码 |
-| Cookie 过期 | 返回 401 / 空数据 | 在浏览器里重新登录目标站点 |
-| Extension tab 残留 | Chrome 多出 `chrome-extension://` tab | 已自动清理；若残留，手动关闭即可 |
-| TS evaluate 格式 | `() => {}` 报 `result is not a function` | TS 中 `page.evaluate()` 必须用 IIFE：`(async () => { ... })()` |
-| 页面异步加载 | evaluate 拿到空数据（store state 还没更新） | 在 evaluate 内用 polling 等待数据出现，或增加 `wait` 时间 |
-| YAML 内嵌大段 JS | 调试困难，字符串转义问题 | 超过 10 行 JS 的命令改用 TS adapter |
-| **风控被拦截(伪200)** | 获取到的 JSON 里核心数据是 `""` (空串) | 极易被误判。必须添加断言！无核心数据立刻要求升级鉴权 Tier 并重新配置 Cookie |
-| **API 没找见** | `explore` 工具打分出来的都拿不到深层数据 | 点击页面按钮诱发懒加载数据，再结合 `getInterceptedRequests` 获取 |
+
+| 陷阱                    | 表现                                      | 解决方案                                                      |
+| --------------------- | --------------------------------------- | --------------------------------------------------------- |
+| 缺少 `navigate`         | evaluate 报 `Target page context` 错误     | 在 evaluate 前加 `navigate:` 步骤                              |
+| 嵌套字段访问                | `${{ item.node?.title }}` 不工作           | 在 evaluate 中 flatten 数据，不在模板中用 optional chaining          |
+| 缺少 `strategy: public` | 公开 API 也启动浏览器，7s → 1s                   | 公开 API 加上 `strategy: public` + `browser: false`           |
+| evaluate 返回字符串        | map 步骤收到 `""` 而非数组                      | pipeline 有 auto-parse，但建议在 evaluate 内 `.map()` 整形         |
+| 搜索参数被 URL 编码          | `${{ args.query }}` 被浏览器二次编码            | 在 evaluate 内用 `encodeURIComponent()` 手动编码                 |
+| Cookie 过期             | 返回 401 / 空数据                            | 在浏览器里重新登录目标站点                                             |
+| Extension tab 残留      | Chrome 多出 `chrome-extension://` tab     | 已自动清理；若残留，手动关闭即可                                          |
+| TS evaluate 格式        | `() => {}` 报 `result is not a function` | TS 中 `page.evaluate()` 必须用 IIFE：`(async () => { ... })()` |
+| 页面异步加载                | evaluate 拿到空数据（store state 还没更新）        | 在 evaluate 内用 polling 等待数据出现，或增加 `wait` 时间                |
+| YAML 内嵌大段 JS          | 调试困难，字符串转义问题                            | 超过 10 行 JS 的命令改用 TS adapter                               |
+| **风控被拦截(伪200)**       | 获取到的 JSON 里核心数据是 `""` (空串)              | 极易被误判。必须添加断言！无核心数据立刻要求升级鉴权 Tier 并重新配置 Cookie              |
+| **API 没找见**           | `explore` 工具打分出来的都拿不到深层数据               | 点击页面按钮诱发懒加载数据，再结合 `getInterceptedRequests` 获取             |
+
 
 ---
 
@@ -739,6 +761,7 @@ opencli record <url>
 ```
 
 **拦截器特性**：
+
 - 同时 patch `window.fetch` 和 `XMLHttpRequest`
 - 只捕获 `Content-Type: application/json` 的响应
 - 过滤纯对象少于 2 个 key 的响应（避免 tracking/ping）
@@ -764,12 +787,14 @@ ls  .opencli/record/<site>/candidates/          # 候选 YAML
 
 ### 页面类型与捕获预期
 
-| 页面类型 | 预期捕获量 | 说明 |
-|---------|-----------|------|
-| 列表/搜索页 | 多（5~20+） | 每次搜索/翻页都会触发新请求 |
-| 详情页（只读） | 少（1~5） | 首屏数据一次性返回，后续操作走 form/redirect |
-| SPA 内路由跳转 | 中等 | 路由切换会触发新接口，但首屏请求在注入前已发出 |
-| 需要登录的页面 | 视操作而定 | 确保 Chrome 已登录目标网站 |
+
+| 页面类型      | 预期捕获量    | 说明                            |
+| --------- | -------- | ----------------------------- |
+| 列表/搜索页    | 多（5~20+） | 每次搜索/翻页都会触发新请求                |
+| 详情页（只读）   | 少（1~5）   | 首屏数据一次性返回，后续操作走 form/redirect |
+| SPA 内路由跳转 | 中等       | 路由切换会触发新接口，但首屏请求在注入前已发出       |
+| 需要登录的页面   | 视操作而定    | 确保 Chrome 已登录目标网站             |
+
 
 > **注意**：如果页面在导航完成前就发出了大部分请求（服务端渲染 / SSR 注水），拦截器会错过这些请求。
 > 解决方案：在页面加载完成后，手动触发能产生新请求的操作（搜索、翻页、切 Tab、展开折叠项等）。
@@ -779,6 +804,7 @@ ls  .opencli/record/<site>/candidates/          # 候选 YAML
 生成的候选 YAML 是起点，通常需要转换为 TypeScript（尤其是 tae 等内部系统）：
 
 **候选 YAML 结构**（自动生成）：
+
 ```yaml
 site: tae
 name: getList          # 从 URL path 推断的名称
@@ -795,6 +821,7 @@ pipeline:
 ```
 
 **转换为 TS CLI**（参考 `src/clis/tae/add-expense.ts` 风格）：
+
 ```typescript
 import { cli, Strategy } from '../../registry.js';
 
@@ -830,18 +857,22 @@ cli({
 ```
 
 **转换要点**：
+
 1. URL 中的动态 ID（`procInsId`、`taskId` 等）提取为 `args`
 2. `captured.json` 里的真实 body 结构用于确定正确的数据路径（如 `content.operatorRecords`）
-3. tae 系统统一用 `{ success, content, errorCode, errorMsg }` 外层包裹，取数据要走 `content.*`
+3. tae 系统统一用 `{ success, content, errorCode, errorMsg }` 外层包裹，取数据要走 `content.`*
 4. 认证方式：cookie（`credentials: 'include'`），不需要额外 header
 5. 文件放入 `src/clis/<site>/`，无需手动注册，`npm run build` 后自动发现
 
 ### 故障排查
 
-| 现象 | 原因 | 解法 |
-|------|------|------|
-| 捕获 0 条请求 | 拦截器注入失败，或页面无 JSON API | 检查 daemon 是否运行：`curl localhost:19825/status` |
-| 捕获量少（1~3 条） | 页面是只读详情页，首屏数据已在注入前发出 | 手动操作触发更多请求（搜索/翻页），或换用列表页 |
-| 候选 YAML 为 0 | 捕获到的 JSON 都没有 array 结构 | 直接看 `captured.json` 手写 TS CLI |
-| 新开的 tab 没有被拦截 | 轮询间隔内 tab 已关闭 | 缩短 `--poll 500` |
-| 二次运行 record 时数据不连续 | 正常，每次 `record` 启动都是新的 automation window | 无需处理 |
+
+| 现象                 | 原因                                      | 解法                                           |
+| ------------------ | --------------------------------------- | -------------------------------------------- |
+| 捕获 0 条请求           | 拦截器注入失败，或页面无 JSON API                   | 检查 daemon 是否运行：`curl localhost:19825/status` |
+| 捕获量少（1~3 条）        | 页面是只读详情页，首屏数据已在注入前发出                    | 手动操作触发更多请求（搜索/翻页），或换用列表页                     |
+| 候选 YAML 为 0        | 捕获到的 JSON 都没有 array 结构                  | 直接看 `captured.json` 手写 TS CLI                |
+| 新开的 tab 没有被拦截      | 轮询间隔内 tab 已关闭                           | 缩短 `--poll 500`                              |
+| 二次运行 record 时数据不连续 | 正常，每次 `record` 启动都是新的 automation window | 无需处理                                         |
+
+

@@ -33,11 +33,13 @@ src/
 └── **/*.test.ts                   # 单元测试（当前 32 个文件）
 ```
 
-| 层 | 位置 | 当前文件数 | 运行方式 | 用途 |
-|---|---|---:|---|---|
-| 单元测试 | `src/**/*.test.ts` | 32 | `npx vitest run src/` | 内部模块、pipeline、adapter 工具函数 |
-| E2E 测试 | `tests/e2e/*.test.ts` | 5 | `npx vitest run tests/e2e/` | 真实 CLI 命令执行 |
-| 烟雾测试 | `tests/smoke/*.test.ts` | 1 | `npx vitest run tests/smoke/` | 外部 API 与注册完整性 |
+
+| 层      | 位置                      | 当前文件数 | 运行方式                          | 用途                         |
+| ------ | ----------------------- | ----- | ----------------------------- | -------------------------- |
+| 单元测试   | `src/**/*.test.ts`      | 32    | `npx vitest run src/`         | 内部模块、pipeline、adapter 工具函数 |
+| E2E 测试 | `tests/e2e/*.test.ts`   | 5     | `npx vitest run tests/e2e/`   | 真实 CLI 命令执行                |
+| 烟雾测试   | `tests/smoke/*.test.ts` | 1     | `npx vitest run tests/smoke/` | 外部 API 与注册完整性              |
+
 
 ---
 
@@ -45,11 +47,13 @@ src/
 
 ### 单元测试（32 个文件）
 
-| 领域 | 文件 |
-|---|---|
-| 核心运行时与输出 | `src/browser.test.ts`, `src/browser/dom-snapshot.test.ts`, `src/build-manifest.test.ts`, `src/capabilityRouting.test.ts`, `src/doctor.test.ts`, `src/engine.test.ts`, `src/interceptor.test.ts`, `src/output.test.ts`, `src/plugin.test.ts`, `src/registry.test.ts`, `src/snapshotFormatter.test.ts` |
-| pipeline 与下载 | `src/download/index.test.ts`, `src/pipeline/executor.test.ts`, `src/pipeline/template.test.ts`, `src/pipeline/transform.test.ts` |
+
+| 领域              | 文件                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 核心运行时与输出        | `src/browser.test.ts`, `src/browser/dom-snapshot.test.ts`, `src/build-manifest.test.ts`, `src/capabilityRouting.test.ts`, `src/doctor.test.ts`, `src/engine.test.ts`, `src/interceptor.test.ts`, `src/output.test.ts`, `src/plugin.test.ts`, `src/registry.test.ts`, `src/snapshotFormatter.test.ts`                                                                                                                                                                                                                                                                                                                                                                                              |
+| pipeline 与下载    | `src/download/index.test.ts`, `src/pipeline/executor.test.ts`, `src/pipeline/template.test.ts`, `src/pipeline/transform.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | 站点 / adapter 逻辑 | `src/clis/apple-podcasts/commands.test.ts`, `src/clis/apple-podcasts/utils.test.ts`, `src/clis/bloomberg/utils.test.ts`, `src/clis/chaoxing/utils.test.ts`, `src/clis/coupang/utils.test.ts`, `src/clis/google/utils.test.ts`, `src/clis/grok/ask.test.ts`, `src/clis/twitter/timeline.test.ts`, `src/clis/weread/utils.test.ts`, `src/clis/xiaohongshu/creator-note-detail.test.ts`, `src/clis/xiaohongshu/creator-notes-summary.test.ts`, `src/clis/xiaohongshu/creator-notes.test.ts`, `src/clis/xiaohongshu/search.test.ts`, `src/clis/xiaohongshu/user-helpers.test.ts`, `src/clis/xiaoyuzhou/utils.test.ts`, `src/clis/youtube/transcript-group.test.ts`, `src/clis/zhihu/download.test.ts` |
+
 
 这些测试覆盖的重点包括：
 
@@ -61,20 +65,24 @@ src/
 
 ### E2E 测试（5 个文件）
 
-| 文件 | 当前覆盖范围 |
-|---|---|
-| `tests/e2e/public-commands.test.ts` | `bloomberg`、`apple-podcasts`、`hackernews`、`v2ex`、`xiaoyuzhou`、`google suggest` 等公开命令 |
-| `tests/e2e/browser-public.test.ts` | `bbc`、`bloomberg`、`bilibili`、`weibo`、`zhihu`、`reddit`、`twitter`、`xueqiu`、`reuters`、`youtube`、`smzdm`、`boss`、`ctrip`、`coupang`、`xiaohongshu`、`google`、`yahoo-finance`、`v2ex daily` |
-| `tests/e2e/browser-auth.test.ts` | `bilibili`、`twitter`、`v2ex`、`xueqiu`、`linux-do`、`xiaohongshu` 的需登录命令 graceful failure |
-| `tests/e2e/management.test.ts` | `list`、`validate`、`verify`、`--version`、`--help`、unknown command |
-| `tests/e2e/output-formats.test.ts` | `json` / `yaml` / `csv` / `md` 输出格式校验 |
-| `tests/e2e/plugin-management.test.ts` | `plugin install` / `list` / `update` / `uninstall` 全生命周期 |
+
+| 文件                                    | 当前覆盖范围                                                                                                                                                                            |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/e2e/public-commands.test.ts`   | `bloomberg`、`apple-podcasts`、`hackernews`、`v2ex`、`xiaoyuzhou`、`google suggest` 等公开命令                                                                                              |
+| `tests/e2e/browser-public.test.ts`    | `bbc`、`bloomberg`、`bilibili`、`weibo`、`zhihu`、`reddit`、`twitter`、`xueqiu`、`reuters`、`youtube`、`smzdm`、`boss`、`ctrip`、`coupang`、`xiaohongshu`、`google`、`yahoo-finance`、`v2ex daily` |
+| `tests/e2e/browser-auth.test.ts`      | `bilibili`、`twitter`、`v2ex`、`xueqiu`、`linux-do`、`xiaohongshu` 的需登录命令 graceful failure                                                                                             |
+| `tests/e2e/management.test.ts`        | `list`、`validate`、`verify`、`--version`、`--help`、unknown command                                                                                                                   |
+| `tests/e2e/output-formats.test.ts`    | `json` / `yaml` / `csv` / `md` 输出格式校验                                                                                                                                             |
+| `tests/e2e/plugin-management.test.ts` | `plugin install` / `list` / `update` / `uninstall` 全生命周期                                                                                                                          |
+
 
 ### 烟雾测试（1 个文件）
 
-| 文件 | 当前覆盖范围 |
-|---|---|
+
+| 文件                               | 当前覆盖范围                                                               |
+| -------------------------------- | -------------------------------------------------------------------- |
 | `tests/smoke/api-health.test.ts` | `hackernews`、`v2ex` 公开 API 可用性，`validate` 全量 adapter 校验，以及命令注册表基础完整性 |
+
 
 ### 快速核对命令
 
@@ -190,17 +198,21 @@ it('producthunt me fails gracefully without login', async () => {
 
 ### `ci.yml`
 
-| Job | 触发条件 | 内容 |
-|---|---|---|
-| `build` | push/PR 到 `main`,`dev` | `tsc --noEmit` + `npm run build` |
-| `unit-test` | push/PR 到 `main`,`dev` | Node `20` 与 `22` 双版本运行 `src/` 单元测试，按 `2` shard 并行 |
-| `smoke-test` | `schedule` 或 `workflow_dispatch` | 安装真实 Chrome，`xvfb-run` 执行 `tests/smoke/` |
+
+| Job          | 触发条件                             | 内容                                                |
+| ------------ | -------------------------------- | ------------------------------------------------- |
+| `build`      | push/PR 到 `main`,`dev`           | `tsc --noEmit` + `npm run build`                  |
+| `unit-test`  | push/PR 到 `main`,`dev`           | Node `20` 与 `22` 双版本运行 `src/` 单元测试，按 `2` shard 并行 |
+| `smoke-test` | `schedule` 或 `workflow_dispatch` | 安装真实 Chrome，`xvfb-run` 执行 `tests/smoke/`          |
+
 
 ### `e2e-headed.yml`
 
-| Job | 触发条件 | 内容 |
-|---|---|---|
+
+| Job          | 触发条件                         | 内容                                     |
+| ------------ | ---------------------------- | -------------------------------------- |
 | `e2e-headed` | push/PR 到 `main`,`dev`，或手动触发 | 安装真实 Chrome，`xvfb-run` 执行 `tests/e2e/` |
+
 
 E2E 与 smoke 都使用 `./.github/actions/setup-chrome` 准备真实 Chrome，并通过 `OPENCLI_BROWSER_EXECUTABLE_PATH` 注入浏览器路径。
 
@@ -223,10 +235,12 @@ steps:
 
 opencli 通过 Browser Bridge 扩展连接浏览器：
 
-| 条件 | 模式 | 使用场景 |
-|---|---|---|
+
+| 条件          | 模式           | 使用场景               |
+| ----------- | ------------ | ------------------ |
 | 扩展已安装 / 已连接 | Extension 模式 | 本地用户，连接已登录的 Chrome |
-| 无扩展 token | CLI 自行拉起浏览器 | CI、无登录态或纯自动化场景 |
+| 无扩展 token   | CLI 自行拉起浏览器  | CI、无登录态或纯自动化场景     |
+
 
 CI 中使用 `OPENCLI_BROWSER_EXECUTABLE_PATH` 指定真实 Chrome 路径：
 
@@ -241,12 +255,15 @@ env:
 
 GitHub Actions 的美国 runner 上，部分站点会因为地域限制、登录要求或反爬而返回空数据。当前 E2E 对这些场景采用 warn + pass 策略，避免偶发站点限制把整条 CI 打红。
 
-| 站点 | CI 表现 | 常见原因 |
-|---|---|---|
-| `hackernews`、`bbc`、`v2ex`、`bloomberg` | 通常返回数据 | 公开接口或公开页面 |
-| `yahoo-finance`、`google` | 通常返回数据 | 页面公开，但仍可能受限流影响 |
-| `bilibili`、`zhihu`、`weibo`、`xiaohongshu`、`xueqiu` | 容易空数据 | 地域限制、反爬、登录要求 |
-| `reddit`、`twitter`、`youtube` | 容易空数据 | 登录态、cookie、机器人检测 |
-| `smzdm`、`boss`、`ctrip`、`coupang`、`linux-do` | 结果波动较大 | 地域限制、风控或页面结构变动 |
+
+| 站点                                                | CI 表现  | 常见原因             |
+| ------------------------------------------------- | ------ | ---------------- |
+| `hackernews`、`bbc`、`v2ex`、`bloomberg`             | 通常返回数据 | 公开接口或公开页面        |
+| `yahoo-finance`、`google`                          | 通常返回数据 | 页面公开，但仍可能受限流影响   |
+| `bilibili`、`zhihu`、`weibo`、`xiaohongshu`、`xueqiu` | 容易空数据  | 地域限制、反爬、登录要求     |
+| `reddit`、`twitter`、`youtube`                      | 容易空数据  | 登录态、cookie、机器人检测 |
+| `smzdm`、`boss`、`ctrip`、`coupang`、`linux-do`       | 结果波动较大 | 地域限制、风控或页面结构变动   |
+
 
 > 如果需要更稳定的浏览器 E2E 结果，优先使用具备目标站点网络可达性的 self-hosted runner。
+
