@@ -1,48 +1,37 @@
 #!/usr/bin/env node
 
 /**
- * Fetch official CLI adapters into ~/.opencli/clis/ on postinstall.
+ * Copy official CLI adapters from the installed package to ~/.opencli/clis/.
  *
  * Update strategy (file-level granularity via adapter-manifest.json):
  * - Official files (in new manifest) are unconditionally overwritten
  * - Removed official files (in old manifest but not new) are cleaned up
  * - User-created files (never in any manifest) are preserved
- * - Skips fetch if already installed at the same version
+ * - Skips if already installed at the same version
  *
  * Only runs on global install (npm install -g) or explicit OPENCLI_FETCH=1.
+ * No network calls — copies directly from dist/clis/ in the installed package.
  *
  * This is an ESM script (package.json type: module). No TypeScript, no src/ imports.
  */
 
-import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, cpSync, readFileSync, writeFileSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
-import { homedir, tmpdir } from 'node:os';
-import { randomBytes } from 'node:crypto';
+import { homedir } from 'node:os';
 
-const REPO_URL = 'https://github.com/jackwener/opencli.git';
-const TARBALL_URL = 'https://github.com/jackwener/opencli/archive/refs/heads/main.tar.gz';
 const OPENCLI_DIR = join(homedir(), '.opencli');
 const USER_CLIS_DIR = join(OPENCLI_DIR, 'clis');
 const MANIFEST_PATH = join(OPENCLI_DIR, 'adapter-manifest.json');
+const PACKAGE_ROOT = resolve(import.meta.dirname, '..');
+const BUILTIN_CLIS = join(PACKAGE_ROOT, 'dist', 'clis');
 
 function log(msg) {
   console.log(`[opencli] ${msg}`);
 }
 
-function hasGit() {
-  try {
-    execFileSync('git', ['--version'], { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function getPackageVersion() {
   try {
-    const pkgPath = resolve(import.meta.dirname, '..', 'package.json');
-    return JSON.parse(readFileSync(pkgPath, 'utf-8')).version;
+    return JSON.parse(readFileSync(join(PACKAGE_ROOT, 'package.json'), 'utf-8')).version;
   } catch {
     return 'unknown';
   }
@@ -57,44 +46,6 @@ function readManifest() {
   } catch {
     return null;
   }
-}
-
-/**
- * Clone repo shallowly, return { repoDir, tmpRoot }.
- */
-function cloneRepo() {
-  const tmpRoot = join(tmpdir(), `opencli-fetch-${randomBytes(4).toString('hex')}`);
-  mkdirSync(tmpRoot, { recursive: true });
-
-  if (hasGit()) {
-    log('Fetching adapters via git clone...');
-    const repoDir = join(tmpRoot, 'repo');
-    execFileSync('git', [
-      'clone', '--depth', '1', '--filter=blob:none', '--sparse',
-      REPO_URL, repoDir,
-    ], { stdio: 'pipe', timeout: 60_000 });
-    execFileSync('git', ['sparse-checkout', 'set', 'clis'], {
-      cwd: repoDir,
-      stdio: 'pipe',
-    });
-    return { repoDir, tmpRoot };
-  }
-
-  // Fallback: tarball download
-  log('git not found, fetching adapters via tarball...');
-  const tarball = join(tmpRoot, 'opencli.tar.gz');
-  execFileSync('curl', ['-sL', TARBALL_URL, '-o', tarball], {
-    stdio: 'pipe',
-    timeout: 120_000,
-  });
-  execFileSync('tar', ['xzf', tarball, '-C', tmpRoot], { stdio: 'pipe' });
-
-  // Find extracted directory (opencli-main/)
-  const extracted = readdirSync(tmpRoot).find(f =>
-    f.startsWith('opencli-') && statSync(join(tmpRoot, f)).isDirectory()
-  );
-  if (!extracted) throw new Error('Failed to extract tarball');
-  return { repoDir: join(tmpRoot, extracted), tmpRoot };
 }
 
 /**
@@ -113,14 +64,6 @@ function walkFiles(dir, prefix = '') {
     }
   }
   return results;
-}
-
-function cleanup(tmpRoot) {
-  try {
-    rmSync(tmpRoot, { recursive: true, force: true });
-  } catch {
-    // Best-effort cleanup
-  }
 }
 
 /**
@@ -150,29 +93,19 @@ export function fetchAdapters() {
     return;
   }
 
-  let repoDir, tmpRoot;
-  try {
-    ({ repoDir, tmpRoot } = cloneRepo());
-  } catch (err) {
-    log(`Warning: could not fetch adapters: ${err.message}`);
+  if (!existsSync(BUILTIN_CLIS)) {
+    log('Warning: dist/clis/ not found in package — skipping adapter copy');
     return;
   }
 
-  const srcClis = join(repoDir, 'clis');
-  if (!existsSync(srcClis)) {
-    log('Warning: no clis/ directory found in repo');
-    cleanup(tmpRoot);
-    return;
-  }
-
-  const newOfficialFiles = new Set(walkFiles(srcClis));
+  const newOfficialFiles = new Set(walkFiles(BUILTIN_CLIS));
   const oldOfficialFiles = new Set(oldManifest?.files ?? []);
   mkdirSync(USER_CLIS_DIR, { recursive: true });
 
-  // 1. Copy new official files (unconditionally overwrite)
+  // 1. Copy official files (unconditionally overwrite)
   let copied = 0;
   for (const relPath of newOfficialFiles) {
-    const src = join(srcClis, relPath);
+    const src = join(BUILTIN_CLIS, relPath);
     const dst = join(USER_CLIS_DIR, relPath);
     mkdirSync(dirname(dst), { recursive: true });
     cpSync(src, dst, { force: true });
@@ -203,7 +136,6 @@ export function fetchAdapters() {
 
   log(`Installed ${copied} adapter files to ${USER_CLIS_DIR}` +
     (removed > 0 ? `, removed ${removed} deprecated files` : ''));
-  cleanup(tmpRoot);
 }
 
 function main() {
