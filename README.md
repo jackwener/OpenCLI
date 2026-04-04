@@ -51,6 +51,9 @@ A CLI tool that turns **any website**, **Electron app**, or **local CLI tool** i
 
 ```bash
 npm install -g @jackwener/opencli
+
+# Install AI skills for Claude Code / Cursor
+npx skills add jackwener/opencli
 ```
 
 ### 3. Verify & Try

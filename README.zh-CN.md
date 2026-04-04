@@ -69,6 +69,9 @@ OpenCLI 通过轻量化的 **Browser Bridge** Chrome/Chromium 扩展 + 微型 da
 
 ```bash
 npm install -g @jackwener/opencli
+
+# 安装 AI Skills（Claude Code / Cursor）
+npx skills add jackwener/opencli
 ```
 
 直接使用：
