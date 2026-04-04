@@ -3,18 +3,19 @@
 /**
  * Fetch official CLI adapters into ~/.opencli/clis/ on postinstall.
  *
- * Strategy:
- * - git sparse-checkout clone (fast, minimal bandwidth)
- * - Fallback: GitHub tarball download if git is unavailable
- * - Official files (listed in manifest) are unconditionally overwritten on update
- * - User-created files (not in manifest) are preserved
+ * Update strategy (file-level granularity via adapter-manifest.json):
+ * - Official files (in new manifest) are unconditionally overwritten
+ * - Removed official files (in old manifest but not new) are cleaned up
+ * - User-created files (never in any manifest) are preserved
  * - Skips fetch if already installed at the same version
+ *
+ * Only runs on global install (npm install -g) or explicit OPENCLI_FETCH=1.
  *
  * This is an ESM script (package.json type: module). No TypeScript, no src/ imports.
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, cpSync, readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, cpSync, readFileSync, writeFileSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
@@ -47,10 +48,12 @@ function getPackageVersion() {
   }
 }
 
-function getInstalledVersion() {
+/**
+ * Read existing manifest. Returns { version, files } or null.
+ */
+function readManifest() {
   try {
-    const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8'));
-    return manifest.version;
+    return JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8'));
   } catch {
     return null;
   }
@@ -120,16 +123,29 @@ function cleanup(tmpRoot) {
   }
 }
 
-function main() {
-  // Skip in CI
-  if (process.env.CI || process.env.CONTINUOUS_INTEGRATION) return;
-  // Allow opt-out
-  if (process.env.OPENCLI_SKIP_FETCH === '1') return;
+/**
+ * Remove empty parent directories up to (but not including) stopAt.
+ */
+function pruneEmptyDirs(filePath, stopAt) {
+  let dir = dirname(filePath);
+  while (dir !== stopAt && dir.startsWith(stopAt)) {
+    try {
+      const entries = readdirSync(dir);
+      if (entries.length > 0) break;
+      rmSync(dir);
+      dir = dirname(dir);
+    } catch {
+      break;
+    }
+  }
+}
+
+export function fetchAdapters() {
+  const currentVersion = getPackageVersion();
+  const oldManifest = readManifest();
 
   // Skip if already installed at the same version
-  const currentVersion = getPackageVersion();
-  const installedVersion = getInstalledVersion();
-  if (currentVersion !== 'unknown' && installedVersion === currentVersion) {
+  if (currentVersion !== 'unknown' && oldManifest?.version === currentVersion) {
     log(`Adapters already up to date (v${currentVersion})`);
     return;
   }
@@ -139,7 +155,6 @@ function main() {
     ({ repoDir, tmpRoot } = cloneRepo());
   } catch (err) {
     log(`Warning: could not fetch adapters: ${err.message}`);
-    log('Adapters will be fetched on first run.');
     return;
   }
 
@@ -150,13 +165,13 @@ function main() {
     return;
   }
 
-  // Build manifest of official files
-  const officialFiles = walkFiles(srcClis);
+  const newOfficialFiles = new Set(walkFiles(srcClis));
+  const oldOfficialFiles = new Set(oldManifest?.files ?? []);
   mkdirSync(USER_CLIS_DIR, { recursive: true });
 
-  // Copy official files (unconditionally overwrite)
+  // 1. Copy new official files (unconditionally overwrite)
   let copied = 0;
-  for (const relPath of officialFiles) {
+  for (const relPath of newOfficialFiles) {
     const src = join(srcClis, relPath);
     const dst = join(USER_CLIS_DIR, relPath);
     mkdirSync(dirname(dst), { recursive: true });
@@ -164,15 +179,44 @@ function main() {
     copied++;
   }
 
-  // Write manifest so we know which files are official
+  // 2. Remove files that were official but are no longer (upstream deleted)
+  let removed = 0;
+  for (const relPath of oldOfficialFiles) {
+    if (!newOfficialFiles.has(relPath)) {
+      const dst = join(USER_CLIS_DIR, relPath);
+      try {
+        unlinkSync(dst);
+        pruneEmptyDirs(dst, USER_CLIS_DIR);
+        removed++;
+      } catch {
+        // File may not exist locally
+      }
+    }
+  }
+
+  // 3. Write updated manifest
   writeFileSync(MANIFEST_PATH, JSON.stringify({
     version: currentVersion,
-    files: officialFiles,
+    files: [...newOfficialFiles].sort(),
     updatedAt: new Date().toISOString(),
   }, null, 2));
 
-  log(`Installed ${copied} adapter files to ${USER_CLIS_DIR}`);
+  log(`Installed ${copied} adapter files to ${USER_CLIS_DIR}` +
+    (removed > 0 ? `, removed ${removed} deprecated files` : ''));
   cleanup(tmpRoot);
+}
+
+function main() {
+  // Skip in CI
+  if (process.env.CI || process.env.CONTINUOUS_INTEGRATION) return;
+  // Allow opt-out
+  if (process.env.OPENCLI_SKIP_FETCH === '1') return;
+
+  // Only run on global install, unless explicitly requested
+  const isGlobal = process.env.npm_config_global === 'true';
+  if (!isGlobal && process.env.OPENCLI_FETCH !== '1') return;
+
+  fetchAdapters();
 }
 
 main();

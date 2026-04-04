@@ -16,7 +16,7 @@ if (process.platform !== 'win32') {
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { discoverClis, discoverPlugins, ensureUserCliCompatShims, USER_CLIS_DIR } from './discovery.js';
+import { discoverClis, discoverPlugins, ensureUserCliCompatShims, ensureUserAdapters, USER_CLIS_DIR } from './discovery.js';
 import { getCompletions } from './completion.js';
 import { runCli } from './cli.js';
 import { emitHook } from './hooks.js';
@@ -33,6 +33,7 @@ const USER_CLIS = USER_CLIS_DIR;
 
 // Sequential: plugins must run after built-in discovery so they can override built-in commands.
 await ensureUserCliCompatShims();
+await ensureUserAdapters();
 await discoverClis(BUILTIN_CLIS, USER_CLIS);
 await discoverPlugins();
 
