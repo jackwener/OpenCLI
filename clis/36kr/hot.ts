@@ -60,7 +60,9 @@ cli({
 
     await page.installInterceptor('36kr.com/api');
     await page.goto(url);
-    await page.waitForCapture(6);
+    // waitForCapture times out on 36kr (API intercept fails), poll DOM instead
+    const _deadline = Date.now() + 5000;
+    while (Date.now() < _deadline && !(await page.evaluate('document.querySelectorAll("a[href*=\"/p/\"]").length'))) await new Promise(r => setTimeout(r, 300));
 
     // Scrape rendered article links from DOM (deduplicated)
     const domItems: any = await page.evaluate(`
