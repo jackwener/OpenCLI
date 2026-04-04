@@ -131,12 +131,12 @@ describe('gemini/deep-research-result', () => {
     expect(result).toEqual([{ response: 'No conversation matched: missing' }]);
   });
 
-  it('returns explicit no-docs message when report export url is unavailable', async () => {
+  it('returns pending message when export url is unavailable and completion is not confirmed', async () => {
     mockExportGeminiDeepResearchReport.mockResolvedValue({ url: '', source: 'none' });
 
     const result = await deepResearchResultCommand.func!(page, { query: 'A title' });
 
-    expect(result).toEqual([{ response: 'No Docs URL found. Please check Share & Export -> Export to Docs in Gemini UI.' }]);
+    expect(result).toEqual([{ response: 'Deep Research may still be running or preparing export. Please wait and retry later.' }]);
   });
 
   it('returns waiting message when deep research is still generating', async () => {
@@ -163,12 +163,44 @@ describe('gemini/deep-research-result', () => {
     expect(result).toEqual([{ response: 'Deep Research is still running. Please wait and retry later.' }]);
   });
 
-  it('returns same no-docs message even when assistant response is empty', async () => {
+  it('returns waiting message when transcript indicates in-progress status', async () => {
+    mockExportGeminiDeepResearchReport.mockResolvedValue({ url: '', source: 'none' });
+    mockGetLatestGeminiAssistantResponse.mockResolvedValue('');
+    mockReadGeminiSnapshot.mockResolvedValue({
+      turns: [],
+      transcriptLines: ['生成研究计划中，请稍候。'],
+      composerHasText: false,
+      isGenerating: false,
+      structuredTurnsTrusted: true,
+    });
+
+    const result = await deepResearchResultCommand.func!(page, { query: 'A title' });
+
+    expect(result).toEqual([{ response: 'Deep Research is still running. Please wait and retry later.' }]);
+  });
+
+  it('returns no-docs message when text indicates completed state', async () => {
+    mockExportGeminiDeepResearchReport.mockResolvedValue({ url: '', source: 'none' });
+    mockGetLatestGeminiAssistantResponse.mockResolvedValue('Researching websites... Completed');
+    mockReadGeminiSnapshot.mockResolvedValue({
+      turns: [],
+      transcriptLines: [],
+      composerHasText: false,
+      isGenerating: false,
+      structuredTurnsTrusted: true,
+    });
+
+    const result = await deepResearchResultCommand.func!(page, { query: 'A title' });
+
+    expect(result).toEqual([{ response: 'No Docs URL found. Please check Share & Export -> Export to Docs in Gemini UI.' }]);
+  });
+
+  it('returns pending message when assistant response is empty', async () => {
     mockExportGeminiDeepResearchReport.mockResolvedValue({ url: '', source: 'none' });
     mockGetLatestGeminiAssistantResponse.mockResolvedValue('');
 
     const result = await deepResearchResultCommand.func!(page, { query: 'A title' });
 
-    expect(result).toEqual([{ response: 'No Docs URL found. Please check Share & Export -> Export to Docs in Gemini UI.' }]);
+    expect(result).toEqual([{ response: 'Deep Research may still be running or preparing export. Please wait and retry later.' }]);
   });
 });

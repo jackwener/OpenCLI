@@ -16,9 +16,14 @@ import {
 
 const DEEP_RESEARCH_WAITING_MESSAGE = 'Deep Research is still running. Please wait and retry later.';
 const DEEP_RESEARCH_NO_DOCS_MESSAGE = 'No Docs URL found. Please check Share & Export -> Export to Docs in Gemini UI.';
+const DEEP_RESEARCH_PENDING_MESSAGE = 'Deep Research may still be running or preparing export. Please wait and retry later.';
 
 function isDeepResearchInProgress(text: string): boolean {
-  return /\bresearching(?:\s+websites?)?\b|research in progress|working on your research|正在研究|研究中|调研中|请稍候/i.test(text);
+  return /\bresearching(?:\s+websites?)?\b|research in progress|working on your research|generating research plan|gathering sources|creating report|planning research|正在研究|研究中|调研中|生成研究计划|搜集资料|请稍候|稍候|请等待/i.test(text);
+}
+
+function isDeepResearchCompleted(text: string): boolean {
+  return /\bcompleted\b|research complete|completed research|report completed|已完成|研究完成|完成了研究|报告已完成/i.test(text);
 }
 
 async function resolveDeepResearchExportResponse(page: IPage, timeoutSeconds: number): Promise<string> {
@@ -29,11 +34,26 @@ async function resolveDeepResearchExportResponse(page: IPage, timeoutSeconds: nu
   if (snapshot?.isGenerating) return DEEP_RESEARCH_WAITING_MESSAGE;
 
   const latest = await getLatestGeminiAssistantResponse(page).catch(() => '');
-  if (latest && isDeepResearchInProgress(latest)) {
+  const turnTail = Array.isArray(snapshot?.turns)
+    ? snapshot.turns.slice(-6).map((turn) => String(turn?.Text ?? '')).join('\n')
+    : '';
+  const transcriptTail = Array.isArray(snapshot?.transcriptLines)
+    ? snapshot.transcriptLines.slice(-30).join('\n')
+    : '';
+  const statusText = [latest, turnTail, transcriptTail]
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean)
+    .join('\n');
+
+  if (statusText && isDeepResearchInProgress(statusText) && !isDeepResearchCompleted(statusText)) {
     return DEEP_RESEARCH_WAITING_MESSAGE;
   }
 
-  return DEEP_RESEARCH_NO_DOCS_MESSAGE;
+  if (statusText && isDeepResearchCompleted(statusText)) {
+    return DEEP_RESEARCH_NO_DOCS_MESSAGE;
+  }
+
+  return DEEP_RESEARCH_PENDING_MESSAGE;
 }
 
 export const deepResearchResultCommand = cli({
