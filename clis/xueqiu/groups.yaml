@@ -1,0 +1,37 @@
+site: xueqiu
+name: groups
+description: 获取雪球自选股分组列表
+domain: xueqiu.com
+browser: true
+
+args:
+  category:
+    type: str
+    default: "1"
+    description: "分类：1=自选(默认) 2=持仓 3=关注"
+
+pipeline:
+  - navigate: https://xueqiu.com
+  - evaluate: |
+      (async () => {
+        const category = parseInt(${{ args.category | json }}) || 1;
+        const resp = await fetch(`https://stock.xueqiu.com/v5/stock/portfolio/stock/list.json?size=1&category=${category}&pid=-1`, {credentials: 'include'});
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ' Hint: Not logged in?');
+        const d = await resp.json();
+        if (!d.data) throw new Error('获取失败，可能未登录');
+
+        const groups = d.data.groups || [];
+        // 添加"全部"选项
+        const result = [{ pid: '-1', name: '全部', count: d.data.total || 0 }];
+
+        for (const g of groups) {
+          result.push({
+            pid: String(g.id),
+            name: g.name,
+            count: g.count || 0
+          });
+        }
+        return result;
+      })()
+
+columns: [pid, name, count]
