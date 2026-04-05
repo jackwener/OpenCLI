@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { __test__ } from './assets.js';
+import { __test__ as sharedTest } from './shared.js';
 
 describe('1688 assets normalization', () => {
   it('normalizes gallery and scanned assets into grouped media lists', () => {
@@ -35,7 +36,7 @@ describe('1688 assets normalization', () => {
   });
 
   it('normalizes media urls from style syntax and protocol-relative URLs', () => {
-    expect(__test__.normalizeMediaUrl('url("//img.example.com/1.jpg")')).toBe('https://img.example.com/1.jpg');
-    expect(__test__.normalizeMediaUrl('blob:https://detail.1688.com/1')).toBe('');
+    expect(sharedTest.normalizeMediaUrl('url("//img.example.com/1.jpg")')).toBe('https://img.example.com/1.jpg');
+    expect(sharedTest.normalizeMediaUrl('blob:https://detail.1688.com/1')).toBe('');
   });
 });

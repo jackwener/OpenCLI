@@ -7,7 +7,6 @@ import {
   cleanText,
   extractOfferId,
   gotoAndReadState,
-  normalizeMediaUrl,
   type MediaSource,
   uniqueMediaSources,
 } from './shared.js';
@@ -61,7 +60,6 @@ function scriptToReadAssets(): string {
       ];
       const assets = [];
       const seen = new Set();
-      const visitedRoots = new Set();
 
       const normalizeUrl = (value) => {
         if (typeof value !== 'string') return '';
@@ -256,5 +254,4 @@ cli({
 
 export const __test__ = {
   normalizeAssets,
-  normalizeMediaUrl,
 };
