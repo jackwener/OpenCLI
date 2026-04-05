@@ -13,6 +13,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { IPage } from './types.js';
 import { CliError, getErrorMessage } from './errors.js';
 import type { InternalCliCommand } from './registry.js';
@@ -148,6 +149,64 @@ function redactNetworkRequest(req: unknown): unknown {
   return redacted;
 }
 
+// ── Timeout helper ───────────────────────────────────────────────────────────
+
+/** Timeout for page state collection (prevents hang when CDP connection is stuck). */
+const PAGE_STATE_TIMEOUT_MS = 5_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>(resolve => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
+// ── Source path resolution ───────────────────────────────────────────────────
+
+/**
+ * Resolve the editable source file path for an adapter.
+ *
+ * Priority:
+ * 1. cmd.source (set for FS-scanned YAML/TS and manifest lazy-loaded TS)
+ * 2. cmd._modulePath (set for manifest lazy-loaded TS, points to dist/)
+ *
+ * For dist/ paths, attempt to map back to the original .ts source file.
+ * Skip manifest: prefixed pseudo-paths (YAML commands inlined in manifest).
+ */
+export function resolveAdapterSourcePath(cmd: InternalCliCommand): string | undefined {
+  const candidates: string[] = [];
+
+  // cmd.source may be a real file path or 'manifest:site/name'
+  if (cmd.source && !cmd.source.startsWith('manifest:')) {
+    candidates.push(cmd.source);
+  }
+  if (cmd._modulePath) {
+    candidates.push(cmd._modulePath);
+  }
+
+  for (const candidate of candidates) {
+    // Try to map dist/ compiled JS back to source .ts
+    const sourceTs = mapDistToSource(candidate);
+    if (sourceTs && fs.existsSync(sourceTs)) return sourceTs;
+
+    // Try the candidate directly (YAML files, user clis, etc.)
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  return candidates[0]; // Return best guess even if file doesn't exist
+}
+
+/** Map a dist/clis/xxx.js path back to clis/xxx.ts source. */
+function mapDistToSource(filePath: string): string | null {
+  // dist/clis/site/command.js → clis/site/command.ts
+  const normalized = filePath.replace(/\\/g, '/');
+  const distClisMatch = normalized.match(/^(.*)\/dist\/clis\/(.+)\.js$/);
+  if (distClisMatch) {
+    return path.join(distClisMatch[1], 'clis', distClisMatch[2] + '.ts');
+  }
+  return null;
+}
+
 // ── Diagnostic collection ────────────────────────────────────────────────────
 
 /** Whether diagnostic mode is enabled. */
@@ -155,37 +214,41 @@ export function isDiagnosticEnabled(): boolean {
   return process.env.OPENCLI_DIAGNOSTIC === '1';
 }
 
-/** Safely collect page diagnostic state with redaction and size caps. */
+/** Safely collect page diagnostic state with redaction, size caps, and timeout. */
 async function collectPageState(page: IPage): Promise<RepairContext['page'] | undefined> {
-  try {
-    const [url, snapshot, networkRequests, consoleErrors] = await Promise.all([
-      page.getCurrentUrl?.().catch(() => null) ?? Promise.resolve(null),
-      page.snapshot().catch(() => '(snapshot unavailable)'),
-      page.networkRequests().catch(() => []),
-      page.consoleMessages('error').catch(() => []),
-    ]);
+  const collect = async (): Promise<RepairContext['page'] | undefined> => {
+    try {
+      const [url, snapshot, networkRequests, consoleErrors] = await Promise.all([
+        page.getCurrentUrl?.().catch(() => null) ?? Promise.resolve(null),
+        page.snapshot().catch(() => '(snapshot unavailable)'),
+        page.networkRequests().catch(() => []),
+        page.consoleMessages('error').catch(() => []),
+      ]);
 
-    const rawUrl = url ?? 'unknown';
-    return {
-      url: redactUrl(rawUrl),
-      snapshot: redactText(truncate(snapshot, MAX_SNAPSHOT_CHARS)),
-      networkRequests: (networkRequests as unknown[])
-        .slice(0, MAX_NETWORK_REQUESTS)
-        .map(redactNetworkRequest),
-      consoleErrors: (consoleErrors as unknown[])
-        .slice(0, 50)
-        .map(e => typeof e === 'string' ? redactText(e) : e),
-    };
-  } catch {
-    return undefined;
-  }
+      const rawUrl = url ?? 'unknown';
+      return {
+        url: redactUrl(rawUrl),
+        snapshot: redactText(truncate(snapshot, MAX_SNAPSHOT_CHARS)),
+        networkRequests: (networkRequests as unknown[])
+          .slice(0, MAX_NETWORK_REQUESTS)
+          .map(redactNetworkRequest),
+        consoleErrors: (consoleErrors as unknown[])
+          .slice(0, 50)
+          .map(e => typeof e === 'string' ? redactText(e) : e),
+      };
+    } catch {
+      return undefined;
+    }
+  };
+
+  return withTimeout(collect(), PAGE_STATE_TIMEOUT_MS, undefined);
 }
 
 /** Read adapter source file content with size cap. */
-function readAdapterSource(modulePath: string | undefined): string | undefined {
-  if (!modulePath) return undefined;
+function readAdapterSource(sourcePath: string | undefined): string | undefined {
+  if (!sourcePath) return undefined;
   try {
-    const content = fs.readFileSync(modulePath, 'utf-8');
+    const content = fs.readFileSync(sourcePath, 'utf-8');
     return truncate(content, MAX_SOURCE_CHARS);
   } catch {
     return undefined;
@@ -199,6 +262,7 @@ export function buildRepairContext(
   pageState?: RepairContext['page'],
 ): RepairContext {
   const isCliError = err instanceof CliError;
+  const sourcePath = resolveAdapterSourcePath(cmd);
   return {
     error: {
       code: isCliError ? err.code : 'UNKNOWN',
@@ -209,15 +273,15 @@ export function buildRepairContext(
     adapter: {
       site: cmd.site,
       command: fullName(cmd),
-      sourcePath: cmd._modulePath,
-      source: readAdapterSource(cmd._modulePath),
+      sourcePath,
+      source: readAdapterSource(sourcePath),
     },
     page: pageState,
     timestamp: new Date().toISOString(),
   };
 }
 
-/** Collect full diagnostic context including page state. */
+/** Collect full diagnostic context including page state (with timeout). */
 export async function collectDiagnostic(
   err: unknown,
   cmd: InternalCliCommand,

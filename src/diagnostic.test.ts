@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   buildRepairContext, isDiagnosticEnabled, emitDiagnostic,
-  truncate, redactUrl, redactText, MAX_DIAGNOSTIC_BYTES,
+  truncate, redactUrl, redactText, resolveAdapterSourcePath, MAX_DIAGNOSTIC_BYTES,
   type RepairContext,
 } from './diagnostic.js';
 import { SelectorError, CommandExecutionError } from './errors.js';
@@ -97,6 +97,34 @@ describe('redactText', () => {
 
   it('leaves normal text unchanged', () => {
     expect(redactText('Error: element not found')).toBe('Error: element not found');
+  });
+});
+
+describe('resolveAdapterSourcePath', () => {
+  it('returns source when it is a real file path (not manifest:)', () => {
+    const cmd = makeCmd({ source: '/home/user/.opencli/clis/arxiv/search.yaml' });
+    expect(resolveAdapterSourcePath(cmd as InternalCliCommand)).toBe('/home/user/.opencli/clis/arxiv/search.yaml');
+  });
+
+  it('skips manifest: pseudo-paths and falls back to _modulePath', () => {
+    const cmd = makeCmd({ source: 'manifest:arxiv/search', _modulePath: '/pkg/dist/clis/arxiv/search.js' });
+    // Should try to map dist→source, but since files don't exist on disk, returns _modulePath
+    const result = resolveAdapterSourcePath(cmd as InternalCliCommand);
+    expect(result).toBeDefined();
+    expect(result).not.toContain('manifest:');
+  });
+
+  it('returns undefined when no paths available', () => {
+    const cmd = makeCmd({ source: 'manifest:test/cmd' });
+    expect(resolveAdapterSourcePath(cmd as InternalCliCommand)).toBeUndefined();
+  });
+
+  it('prefers _modulePath mapped to .ts over dist .js', () => {
+    // This test verifies the mapping logic without requiring files on disk
+    const cmd = makeCmd({ _modulePath: '/project/dist/clis/site/cmd.js' });
+    const result = resolveAdapterSourcePath(cmd as InternalCliCommand);
+    // Since neither .ts nor .js exists, returns _modulePath as best guess
+    expect(result).toBe('/project/dist/clis/site/cmd.js');
   });
 });
 
