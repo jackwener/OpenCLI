@@ -8,11 +8,13 @@
  */
 
 import { CliError } from '@jackwener/opencli/errors';
+import { getApiKey, getEmail, getRateLimitMs } from './config.js';
 
 const EUTILS_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
 
 /**
  * Build E-utilities API URL
+ * Automatically includes API key if configured
  */
 export function buildEutilsUrl(
   tool: string,
@@ -21,6 +23,18 @@ export function buildEutilsUrl(
   const searchParams = new URLSearchParams();
   searchParams.append('db', 'pubmed');
   searchParams.append('retmode', 'json');
+
+  // Add API key if available
+  const apiKey = getApiKey();
+  if (apiKey) {
+    searchParams.append('api_key', apiKey);
+  }
+
+  // Add email if available (recommended by NCBI)
+  const email = getEmail();
+  if (email) {
+    searchParams.append('email', email);
+  }
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
@@ -32,7 +46,10 @@ export function buildEutilsUrl(
 }
 
 /**
- * Fetch data from E-utilities API with rate limiting
+ * Fetch data from E-utilities API with dynamic rate limiting
+ * Rate limit adjusts based on API key presence:
+ * - With API key: 100ms delay (10 req/s)
+ * - Without API key: 350ms delay (3 req/s)
  */
 export async function eutilsFetch(
   tool: string,
@@ -40,12 +57,28 @@ export async function eutilsFetch(
 ): Promise<any> {
   const url = buildEutilsUrl(tool, params);
 
-  // Respect rate limits: max 3 requests/second for public access
-  await new Promise(resolve => setTimeout(resolve, 350));
+  // Dynamic rate limiting based on API key
+  const rateLimitMs = getRateLimitMs();
+  await new Promise(resolve => setTimeout(resolve, rateLimitMs));
 
   const resp = await fetch(url);
 
   if (!resp.ok) {
+    // Handle specific error codes
+    if (resp.status === 429) {
+      throw new CliError(
+        'RATE_LIMIT_EXCEEDED',
+        'PubMed API rate limit exceeded',
+        'You are making requests too quickly. Wait a moment and try again, or configure an API key for higher limits: opencli pubmed config set api-key YOUR_KEY'
+      );
+    }
+    if (resp.status === 403) {
+      throw new CliError(
+        'API_KEY_INVALID',
+        'PubMed API key invalid or expired',
+        'Check your API key: opencli pubmed config get'
+      );
+    }
     throw new CliError(
       'FETCH_ERROR',
       `PubMed E-utilities API HTTP ${resp.status}`,
@@ -54,6 +87,46 @@ export async function eutilsFetch(
   }
 
   return resp.json();
+}
+
+/**
+ * Fetch data from E-utilities API as text (for XML responses like EFetch)
+ */
+export async function eutilsFetchText(
+  tool: string,
+  params: Record<string, string | number | boolean | undefined>
+): Promise<string> {
+  const url = buildEutilsUrl(tool, params);
+
+  // Dynamic rate limiting based on API key
+  const rateLimitMs = getRateLimitMs();
+  await new Promise(resolve => setTimeout(resolve, rateLimitMs));
+
+  const resp = await fetch(url);
+
+  if (!resp.ok) {
+    if (resp.status === 429) {
+      throw new CliError(
+        'RATE_LIMIT_EXCEEDED',
+        'PubMed API rate limit exceeded',
+        'You are making requests too quickly. Wait a moment and try again, or configure an API key for higher limits: opencli pubmed config set api-key YOUR_KEY'
+      );
+    }
+    if (resp.status === 403) {
+      throw new CliError(
+        'API_KEY_INVALID',
+        'PubMed API key invalid or expired',
+        'Check your API key: opencli pubmed config get'
+      );
+    }
+    throw new CliError(
+      'FETCH_ERROR',
+      `PubMed E-utilities API HTTP ${resp.status}`,
+      'Check your query parameters or try again later'
+    );
+  }
+
+  return resp.text();
 }
 
 /**

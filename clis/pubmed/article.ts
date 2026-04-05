@@ -2,11 +2,10 @@
  * PubMed Article Details Adapter
  *
  * Get detailed information about a specific PubMed article by PMID.
- * Uses EFetch API to retrieve full metadata including abstract, authors,
- * affiliations, MeSH terms, funding info, and more.
+ * Uses ESummary API to retrieve metadata (ESummary returns JSON, EFetch returns XML).
  *
  * API Documentation:
- * - EFetch: https://www.ncbi.nlm.nih.gov/books/NBK25499/#chapter4.EFetch
+ * - ESummary: https://www.ncbi.nlm.nih.gov/books/NBK25499/#chapter4.ESummary
  */
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
@@ -16,15 +15,11 @@ import {
   extractAuthors,
   extractFirstAuthor,
   extractCorrespondingAuthor,
-  extractAffiliations,
-  extractMeshTerms,
-  extractKeywords,
   extractDoi,
   extractPmcId,
   buildPubMedUrl,
   truncateText,
   formatArticleType,
-  extractJournalInfo,
 } from './utils.js';
 
 cli({
@@ -42,7 +37,7 @@ cli({
       help: 'PubMed ID (e.g., "37780221", "37158692")',
     },
     {
-      name: 'format',
+      name: 'output',
       type: 'string',
       default: 'table',
       help: 'Output format: table (summary) or json (full details)',
@@ -64,15 +59,13 @@ cli({
       );
     }
 
-    // Use EFetch to get full article details
-    const efetchResult = await eutilsFetch('efetch', {
+    // Use ESummary to get article details (returns JSON, unlike EFetch which returns XML)
+    const esummaryResult = await eutilsFetch('esummary', {
       id: pmid,
-      rettype: 'abstract',
     });
 
-    // Parse the article data from the result
-    const articleSet = efetchResult.PubmedArticleSet;
-    if (!articleSet || !Array.isArray(articleSet) || articleSet.length === 0) {
+    const article = esummaryResult.result?.[pmid];
+    if (!article) {
       throw new CliError(
         'NOT_FOUND',
         `Article with PMID ${pmid} not found`,
@@ -80,73 +73,49 @@ cli({
       );
     }
 
-    const pubmedArticle = articleSet[0].MedlineCitation;
-    if (!pubmedArticle) {
-      throw new CliError(
-        'NOT_FOUND',
-        `Article with PMID ${pmid} not found`,
-        'The article may have been removed or the PMID is incorrect'
-      );
-    }
-
-    const article = pubmedArticle.Article;
-    const medlineJournalInfo = pubmedArticle.MedlineJournalInfo;
-    const pubmedData = articleSet[0].PubmedData;
-
     // Extract basic info
-    const title = article?.ArticleTitle || '';
-    const abstract = article?.Abstract?.AbstractText || '';
-    const abstractText = Array.isArray(abstract)
-      ? abstract.map((a: any) => a.value || a).join(' ')
-      : abstract;
+    const title = article.title || '';
+    const abstract = article.abstract || '';
+    const abstractText = typeof abstract === 'string' ? abstract : '';
 
-    // Extract authors and affiliations
-    const authorList = article?.AuthorList;
+    // Extract authors
+    const authorList = article.authors || [];
     const allAuthors = extractAuthors(authorList, 10);
     const firstAuthor = extractFirstAuthor(authorList);
     const correspondingAuthor = extractCorrespondingAuthor(authorList);
-    const affiliations = extractAffiliations(authorList);
 
     // Extract journal info
-    const journal = article?.Journal;
-    const journalInfo = extractJournalInfo(journal);
-    const journalTitle = journalInfo.title || medlineJournalInfo?.MedlineTA || '';
-    const isoAbbreviation = journalInfo.isoAbbreviation || '';
+    const journalTitle = article.fulljournalname || article.source || '';
+    const isoAbbreviation = article.source || '';
 
     // Extract publication date
-    const journalIssue = journal?.JournalIssue;
-    const pubDate = journalIssue?.PubDate;
-    const year = pubDate?.Year || medlineJournalInfo?.DateCompleted?.Year || '';
-    const month = pubDate?.Month || '';
-    const day = pubDate?.Day || '';
-    const fullDate = [year, month, day].filter(Boolean).join(' ');
+    const pubDate = article.pubdate || '';
+    const year = pubDate.split(' ')[0] || '';
+    const fullDate = pubDate;
 
     // Extract volume, issue, pages
-    const volume = journalIssue?.Volume || '';
-    const issue = journalIssue?.Issue || '';
-    const pagination = article?.Pagination?.MedlinePgn || '';
+    const volume = article.volume || '';
+    const issue = article.issue || '';
+    const pagination = article.pages || '';
 
     // Extract article IDs
-    const articleIdList = pubmedData?.ArticleIdList;
-    const doi = extractDoi(articleIdList);
-    const pmcId = extractPmcId(articleIdList);
+    const articleIds = article.articleids || [];
+    const doi = extractDoi(articleIds);
+    const pmcId = extractPmcId(articleIds);
 
-    // Extract MeSH terms and keywords
-    const meshHeadings = pubmedArticle.MeshHeading;
-    const meshTerms = extractMeshTerms(meshHeadings);
-
-    const keywordList = article?.KeywordList;
-    const keywords = extractKeywords(keywordList);
+    // Extract MeSH terms and keywords (from ESummary these may not be available)
+    const meshTerms: string[] = [];
+    const keywords: string[] = [];
 
     // Extract article type
-    const publicationTypeList = article?.PublicationTypeList;
-    const articleType = formatArticleType(publicationTypeList);
+    const pubTypeList = article.pubtype || [];
+    const articleType = formatArticleType(pubTypeList);
 
     // Extract language
-    const language = article?.Language?.[0] || '';
+    const language = article.lang?.[0] || '';
 
     // If JSON format requested, return full structured data
-    if (args.format === 'json') {
+    if (args.output === 'json') {
       return [{
         field: 'data',
         value: JSON.stringify({
@@ -159,7 +128,6 @@ cli({
             corresponding: correspondingAuthor,
             count: authorList?.length || 0,
           },
-          affiliations,
           journal: {
             title: journalTitle,
             isoAbbreviation,
@@ -169,8 +137,6 @@ cli({
           },
           publication: {
             year,
-            month,
-            day,
             fullDate,
           },
           ids: {
@@ -210,10 +176,7 @@ cli({
       { field: 'URL', value: buildPubMedUrl(pmid) },
     ];
 
-    // Add affiliations if available
-    if (affiliations.length > 0) {
-      rows.splice(5, 0, { field: 'Affiliations', value: truncateText(affiliations.slice(0, 3).join('; '), 150) });
-    }
+
 
     return rows;
   },
