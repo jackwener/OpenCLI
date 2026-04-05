@@ -10,7 +10,7 @@ const { mockHttpDownload, mockMkdirSync } = vi.hoisted(() => ({
   mockMkdirSync: vi.fn(),
 }));
 
-vi.mock('../../download/index.js', () => ({
+vi.mock('@jackwener/opencli/download', () => ({
   formatCookieHeader: vi.fn().mockReturnValue('cookie=value'),
   httpDownload: mockHttpDownload,
 }));

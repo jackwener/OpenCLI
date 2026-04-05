@@ -10,7 +10,7 @@ const { mockHttpDownload, mockLoadDoubanSubjectPhotos, mockMkdirSync } = vi.hois
   mockMkdirSync: vi.fn(),
 }));
 
-vi.mock('../../download/index.js', () => ({
+vi.mock('@jackwener/opencli/download', () => ({
   httpDownload: mockHttpDownload,
   sanitizeFilename: vi.fn((value: string) => value.replace(/\s+/g, '_')),
 }));
@@ -23,7 +23,7 @@ vi.mock('./utils.js', async () => {
   };
 });
 
-vi.mock('../../download/progress.js', () => ({
+vi.mock('@jackwener/opencli/download/progress', () => ({
   formatBytes: vi.fn((size: number) => `${size} B`),
 }));
 

@@ -10,8 +10,8 @@ const { mockHttpDownload, logSpy } = vi.hoisted(() => ({
   logSpy: vi.spyOn(console, 'log').mockImplementation(() => undefined),
 }));
 
-vi.mock('../../download/index.js', async () => {
-  const actual = await vi.importActual<object>('../../download/index.js');
+vi.mock('@jackwener/opencli/download', async () => {
+  const actual = await vi.importActual<object>('@jackwener/opencli/download');
   return { ...actual, httpDownload: mockHttpDownload };
 });
 

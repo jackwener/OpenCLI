@@ -29,12 +29,13 @@ function collectTsFiles(dir: string): string[] {
 }
 
 /** Forbidden relative import patterns that should have been replaced.
- * Uses (?:\.\./)+ to catch any depth of ../ traversal. */
+ * Uses (?:\.\./)+ to catch any depth of ../ traversal.
+ * Covers: import/export from, vi.mock(), vi.importActual(). */
 const FORBIDDEN_PATTERNS = [
-  /from\s+['"](?:\.\.\/)+src\//,       // any ../src/ traversal
-  /from\s+['"](?:\.\.\/)+browser\//,   // any ../browser/ traversal
-  /from\s+['"](?:\.\.\/)+download\//,  // any ../download/ traversal
-  /from\s+['"](?:\.\.\/)+pipeline\//,  // any ../pipeline/ traversal
+  /(?:from|mock|importActual)\s*\(?['"](?:\.\.\/)+src\//,
+  /(?:from|mock|importActual)\s*\(?['"](?:\.\.\/)+browser\//,
+  /(?:from|mock|importActual)\s*\(?['"](?:\.\.\/)+download\//,
+  /(?:from|mock|importActual)\s*\(?['"](?:\.\.\/)+pipeline\//,
 ];
 
 describe('adapter imports use package exports', () => {
