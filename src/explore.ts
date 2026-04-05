@@ -159,14 +159,18 @@ function parseNetworkRequests(raw: unknown): NetworkEntry[] {
     return entries;
   }
   if (Array.isArray(raw)) {
-    return raw.filter(e => e && typeof e === 'object').map(e => ({
-      method: (e.method ?? 'GET').toUpperCase(),
-      url: String(e.url ?? e.request?.url ?? e.requestUrl ?? ''),
-      status: e.status ?? e.statusCode ?? null,
-      contentType: e.contentType ?? e.responseContentType ?? e.response?.contentType ?? '',
-      responseBody: e.responseBody ? (typeof e.responseBody === 'string' ? tryParseJson(e.responseBody) : e.responseBody) : undefined,
-      requestHeaders: e.requestHeaders,
-    }));
+    return raw.filter(e => e && typeof e === 'object').map(e => {
+      // Handle both CDPPage (status/responseBody) and daemon/extension (responseStatus/responsePreview) shapes
+      const bodyRaw = e.responseBody ?? e.responsePreview;
+      return {
+        method: (e.method ?? 'GET').toUpperCase(),
+        url: String(e.url ?? e.request?.url ?? e.requestUrl ?? ''),
+        status: e.status ?? e.responseStatus ?? e.statusCode ?? null,
+        contentType: e.contentType ?? e.responseContentType ?? e.response?.contentType ?? '',
+        responseBody: bodyRaw ? (typeof bodyRaw === 'string' ? tryParseJson(bodyRaw) : bodyRaw) : undefined,
+        requestHeaders: e.requestHeaders,
+      };
+    });
   }
   return [];
 }

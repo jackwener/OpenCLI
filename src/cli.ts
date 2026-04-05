@@ -521,10 +521,12 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
             items = captured.map(e => ({
               url: String(e.url ?? ''),
               method: String(e.method ?? 'GET'),
-              status: typeof e.status === 'number' ? e.status : 0,
+              // Handle both CDPPage (status) and daemon/extension (responseStatus) shapes
+              status: typeof e.status === 'number' ? e.status : (typeof e.responseStatus === 'number' ? e.responseStatus : 0),
               size: typeof e.size === 'number' ? e.size : 0,
               ct: String(e.responseContentType ?? ''),
-              body: e.responseBody,
+              // Handle both CDPPage (responseBody) and daemon/extension (responsePreview) shapes
+              body: e.responseBody ?? e.responsePreview,
             }));
           }
         } catch { /* fallback */ }
