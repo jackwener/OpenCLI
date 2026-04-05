@@ -27,6 +27,8 @@ import {
   inferStrategy,
   detectAuthFromContent,
   classifyQueryParams,
+  applyUrlScoreAdjustments,
+  scoreArrayResponse,
 } from './analysis.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -82,11 +84,7 @@ function preferRecordedCandidate(current: RecordedCandidate, next: RecordedCandi
 
 /** Apply shared endpoint score tweaks. */
 function applyCommonEndpointScoreAdjustments(req: RecordedRequest, score: number): number {
-  let adjusted = score;
-  if (req.url.includes('/api/')) adjusted += 3;
-  if (req.url.match(/\/(track|log|analytics|beacon|pixel|stats|metric)/i)) adjusted -= 10;
-  if (req.url.match(/\/(ping|heartbeat|keep.?alive)/i)) adjusted -= 10;
-  return adjusted;
+  return applyUrlScoreAdjustments(req.url, score);
 }
 
 /** Build a candidate-level dedupe key. */
@@ -330,20 +328,7 @@ function generateReadRecordedJs(): string {
 // ── Analysis helpers ───────────────────────────────────────────────────────
 
 function scoreRequest(req: RecordedRequest, arrayResult: ReturnType<typeof findArrayPath> | null): number {
-  let s = 0;
-  if (arrayResult) {
-    s += 10;
-    s += Math.min(arrayResult.items.length, 10);
-    // Bonus for detected semantic fields
-    const sample = arrayResult.items[0];
-    if (sample && typeof sample === 'object') {
-      const keys = Object.keys(sample as object).map(k => k.toLowerCase());
-      for (const aliases of Object.values(FIELD_ROLES)) {
-        if (aliases.some(a => keys.includes(a))) s += 2;
-      }
-    }
-  }
-  return applyCommonEndpointScoreAdjustments(req, s);
+  return applyCommonEndpointScoreAdjustments(req, scoreArrayResponse(arrayResult));
 }
 
 /** Check whether one recorded request is safe to treat as a write candidate. */

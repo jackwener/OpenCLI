@@ -25,6 +25,7 @@ import {
   inferStrategy,
   detectAuthFromHeaders,
   classifyQueryParams,
+  applyUrlScoreAdjustments,
 } from './analysis.js';
 
 // ── Site name detection ────────────────────────────────────────────────────
@@ -194,18 +195,16 @@ function isBooleanRecord(value: unknown): value is Record<string, boolean> {
     && Object.values(value as Record<string, unknown>).every(v => typeof v === 'boolean');
 }
 
-function scoreEndpoint(ep: { contentType: string; responseAnalysis: AnalyzedEndpoint['responseAnalysis']; pattern: string; status: number | null; hasSearchParam: boolean; hasPaginationParam: boolean; hasLimitParam: boolean }): number {
+function scoreEndpoint(ep: { contentType: string; responseAnalysis: AnalyzedEndpoint['responseAnalysis']; pattern: string; url: string; status: number | null; hasSearchParam: boolean; hasPaginationParam: boolean; hasLimitParam: boolean }): number {
   let s = 0;
   if (ep.contentType.includes('json')) s += 10;
   if (ep.responseAnalysis) { s += 5; s += Math.min(ep.responseAnalysis.itemCount, 10); s += Object.keys(ep.responseAnalysis.detectedFields).length * 2; }
-  if (ep.pattern.includes('/api/') || ep.pattern.includes('/x/')) s += 3;
   if (ep.hasSearchParam) s += 3;
   if (ep.hasPaginationParam) s += 2;
   if (ep.hasLimitParam) s += 2;
   if (ep.status === 200) s += 2;
-  // Anti-Bot Empty Value Detection: penalize JSON endpoints returning empty data
   if (ep.responseAnalysis && ep.responseAnalysis.itemCount === 0 && ep.contentType.includes('json')) s -= 3;
-  return s;
+  return applyUrlScoreAdjustments(ep.url, s);
 }
 
 

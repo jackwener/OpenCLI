@@ -7,14 +7,7 @@
 
 import chalk from 'chalk';
 import { fetchDaemonStatus, requestDaemonShutdown } from '../browser/daemon-client.js';
-
-function formatUptime(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m`;
-  return `${Math.floor(seconds)}s`;
-}
+import { formatDuration } from '../download/progress.js';
 
 function formatTimeSince(timestampMs: number): string {
   const seconds = (Date.now() - timestampMs) / 1000;
@@ -33,7 +26,7 @@ export async function daemonStatus(): Promise<void> {
   }
 
   console.log(`Daemon: ${chalk.green('running')} (PID ${status.pid})`);
-  console.log(`Uptime: ${formatUptime(status.uptime)}`);
+  console.log(`Uptime: ${formatDuration(status.uptime * 1000)}`);
   console.log(`Extension: ${status.extensionConnected ? chalk.green('connected') : chalk.yellow('disconnected')}`);
   console.log(`Last CLI request: ${formatTimeSince(status.lastCliRequestTime)}`);
   console.log(`Memory: ${status.memoryMB} MB`);
