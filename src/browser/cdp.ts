@@ -165,6 +165,15 @@ export class CDPBridge implements IBrowserFactory {
 
 class CDPPage extends BasePage {
   private _pageEnabled = false;
+
+  // Network capture state
+  private _networkCapturing = false;
+  private _networkCapturePattern = '';
+  private _networkEntries: Array<{ requestId: string; method: string; url: string; status?: number; contentType?: string; responseBody?: unknown }> = [];
+  private _pendingRequests = new Map<string, { method: string; url: string }>();
+  private _requestHandler: ((params: unknown) => void) | null = null;
+  private _responseHandler: ((params: unknown) => void) | null = null;
+
   constructor(private bridge: CDPBridge) {
     super();
   }
@@ -217,6 +226,61 @@ class CDPPage extends BasePage {
       await saveBase64ToFile(base64, options.path);
     }
     return base64;
+  }
+
+  async startNetworkCapture(pattern: string = ''): Promise<void> {
+    this._networkCapturePattern = pattern;
+    this._networkEntries = [];
+    this._pendingRequests.clear();
+
+    if (!this._networkCapturing) {
+      await this.bridge.send('Network.enable');
+
+      this._requestHandler = (params: unknown) => {
+        const p = params as { requestId: string; request: { method: string; url: string } };
+        const { requestId, request } = p;
+        if (!pattern || request.url.includes(pattern)) {
+          this._pendingRequests.set(requestId, { method: request.method, url: request.url });
+        }
+      };
+
+      this._responseHandler = (params: unknown) => {
+        const p = params as { requestId: string; response: { status: number; headers?: Record<string, string> } };
+        const { requestId, response } = p;
+        const pending = this._pendingRequests.get(requestId);
+        if (pending) {
+          const entry: typeof this._networkEntries[number] = {
+            requestId,
+            ...pending,
+            status: response.status,
+            contentType: response.headers?.['content-type'] || response.headers?.['Content-Type'] || '',
+          };
+          // Try to get response body
+          this.bridge.send('Network.getResponseBody', { requestId }).then((result: unknown) => {
+            const r = result as { body?: string } | undefined;
+            if (r?.body) {
+              try { entry.responseBody = JSON.parse(r.body); } catch { entry.responseBody = r.body; }
+            }
+            this._networkEntries.push(entry);
+          }).catch(() => {
+            this._networkEntries.push(entry);
+          });
+          this._pendingRequests.delete(requestId);
+        }
+      };
+
+      this.bridge.on('Network.requestWillBeSent', this._requestHandler);
+      this.bridge.on('Network.responseReceived', this._responseHandler);
+      this._networkCapturing = true;
+    }
+  }
+
+  async readNetworkCapture(): Promise<unknown[]> {
+    // Small delay to let in-flight getResponseBody calls complete
+    await new Promise(r => setTimeout(r, 100));
+    const entries = [...this._networkEntries];
+    this._networkEntries = [];
+    return entries;
   }
 
   async tabs(): Promise<unknown[]> {

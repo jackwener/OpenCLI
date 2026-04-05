@@ -359,6 +359,7 @@ export async function exploreUrl(
   return browserSession(opts.BrowserFactory, async (page) => {
     return runWithTimeout((async () => {
       // Step 1: Navigate
+      await page.startNetworkCapture?.();
       await page.goto(url);
       await page.wait(waitSeconds);
 
@@ -394,7 +395,9 @@ export async function exploreUrl(
       const metadata = await readPageMetadata(page);
 
       // Step 4: Capture network traffic
-      const rawNetwork = await page.networkRequests(false);
+      const rawNetwork = page.readNetworkCapture
+        ? await page.readNetworkCapture()
+        : await page.networkRequests(false);
       const networkEntries = parseNetworkRequests(rawNetwork);
 
       // Step 5: For JSON endpoints missing a body, carefully re-fetch in-browser via a pristine iframe
