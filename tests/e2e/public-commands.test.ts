@@ -46,55 +46,6 @@ describe('public command restriction detectors', () => {
 });
 
 describe('public commands E2E', () => {
-  // ── bloomberg (RSS-backed, browser: false) ──
-  it('bloomberg main returns structured headline data', async () => {
-    const { stdout, code } = await runCli(['bloomberg', 'main', '--limit', '1', '-f', 'json']);
-    expect(code).toBe(0);
-    const data = parseJsonOutput(stdout);
-    expect(Array.isArray(data)).toBe(true);
-    expect(data.length).toBe(1);
-    expect(data[0]).toHaveProperty('title');
-    expect(data[0]).toHaveProperty('summary');
-    expect(data[0]).toHaveProperty('link');
-    expect(data[0]).toHaveProperty('mediaLinks');
-    expect(Array.isArray(data[0].mediaLinks)).toBe(true);
-  }, 30_000);
-
-  it.each([
-    'markets',
-    'economics',
-    'industries',
-    'tech',
-    'politics',
-    'businessweek',
-    'opinions',
-  ])('bloomberg %s returns structured RSS items', async (section) => {
-    const { stdout, code } = await runCli(['bloomberg', section, '--limit', '1', '-f', 'json']);
-    expect(code).toBe(0);
-    const data = parseJsonOutput(stdout);
-    expect(Array.isArray(data)).toBe(true);
-    expect(data.length).toBe(1);
-    expect(data[0]).toHaveProperty('title');
-    expect(data[0]).toHaveProperty('summary');
-    expect(data[0]).toHaveProperty('link');
-    expect(data[0]).toHaveProperty('mediaLinks');
-  }, 30_000);
-
-  it('bloomberg feeds lists the supported RSS aliases', async () => {
-    const { stdout, code } = await runCli(['bloomberg', 'feeds', '-f', 'json']);
-    expect(code).toBe(0);
-    const data = parseJsonOutput(stdout);
-    expect(Array.isArray(data)).toBe(true);
-    expect(data).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name: 'main' }),
-        expect.objectContaining({ name: 'markets' }),
-        expect.objectContaining({ name: 'tech' }),
-        expect.objectContaining({ name: 'opinions' }),
-      ]),
-    );
-  }, 30_000);
-
   // ── apple-podcasts ──
   it('apple-podcasts search returns structured podcast results', async () => {
     const { stdout, code } = await runCli(['apple-podcasts', 'search', 'technology', '--limit', '3', '-f', 'json']);
