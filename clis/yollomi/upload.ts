@@ -7,10 +7,9 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import chalk from 'chalk';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { YOLLOMI_DOMAIN, ensureOnYollomi, fmtBytes } from './utils.js';
+import { YOLLOMI_DOMAIN, ensureOnYollomi, fmtBytes, writeStatus, writeSuccess } from './utils.js';
 
 const MIME_MAP: Record<string, string> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
@@ -46,7 +45,7 @@ cli({
     const b64 = data.toString('base64');
     const fileName = path.basename(filePath);
 
-    process.stderr.write(chalk.dim(`Uploading ${fileName} (${fmtBytes(data.length)})...\n`));
+    writeStatus(`Uploading ${fileName} (${fmtBytes(data.length)})...`);
     await ensureOnYollomi(page);
 
     const result = await page.evaluate(`
@@ -72,7 +71,7 @@ cli({
     }
 
     const url = result.data.url;
-    process.stderr.write(chalk.green(`Uploaded! Use this URL as input for other commands.\n`));
+    writeSuccess('Uploaded! Use this URL as input for other commands.');
     return [{ status: 'uploaded', file: fileName, size: fmtBytes(data.length), url }];
   },
 });

@@ -4,10 +4,9 @@
  */
 
 import * as path from 'node:path';
-import chalk from 'chalk';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.js';
+import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes, writeStatus } from './utils.js';
 
 cli({
   site: 'yollomi',
@@ -35,7 +34,7 @@ cli({
 
     const body = { modelId, prompt, inputs };
 
-    process.stderr.write(chalk.dim(`Generating video with ${modelId} (may take a while)...\n`));
+    writeStatus(`Generating video with ${modelId} (may take a while)...`);
     const data = await yollomiPost(page, '/api/ai/video', body);
 
     const videoUrl: string = data.video || '';
@@ -52,7 +51,7 @@ cli({
     try {
       const filename = `yollomi_${modelId}_${Date.now()}.mp4`;
       const { path: fp, size } = await downloadOutput(videoUrl, outputDir, filename);
-      if (credits !== undefined) process.stderr.write(chalk.dim(`Credits remaining: ${credits}\n`));
+      if (credits !== undefined) writeStatus(`Credits remaining: ${credits}`);
       return [{ status: 'saved', file: path.relative('.', fp), size: fmtBytes(size), credits: credits ?? '-', url: videoUrl }];
     } catch {
       return [{ status: 'download-failed', file: '-', size: '-', credits: credits ?? '-', url: videoUrl }];

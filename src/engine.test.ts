@@ -79,7 +79,7 @@ cli({
     }
   });
 
-  it('loads user CLI modules via package exports and bare dependency symlinks', async () => {
+  it('loads user CLI modules via package exports symlink', async () => {
     const tempOpencliRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-user-clis-'));
     const userClisDir = path.join(tempOpencliRoot, 'clis');
     const siteDir = path.join(userClisDir, 'legacy-site');
@@ -91,7 +91,7 @@ cli({
       await fs.promises.writeFile(commandPath, `
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import chalk from 'chalk';
+import { htmlToMarkdown } from '@jackwener/opencli/utils';
 
 cli({
   site: 'legacy-site',
@@ -99,16 +99,15 @@ cli({
   description: 'hello command',
   strategy: Strategy.PUBLIC,
   browser: false,
-  func: async () => [{ ok: true, errorName: new CommandExecutionError('boom').name, chalkType: typeof chalk.green }],
+  func: async () => [{ ok: true, errorName: new CommandExecutionError('boom').name, markdown: htmlToMarkdown('<p>hello</p>') }],
 });
 `);
 
       await discoverClis(userClisDir);
 
-      await expect(fs.promises.access(path.join(tempOpencliRoot, 'node_modules', 'chalk'))).resolves.toBeUndefined();
       const cmd = getRegistry().get('legacy-site/hello');
       expect(cmd).toBeDefined();
-      await expect(executeCommand(cmd!, {})).resolves.toEqual([{ ok: true, errorName: 'CommandExecutionError', chalkType: 'function' }]);
+      await expect(executeCommand(cmd!, {})).resolves.toEqual([{ ok: true, errorName: 'CommandExecutionError', markdown: 'hello' }]);
     } finally {
       await fs.promises.rm(tempOpencliRoot, { recursive: true, force: true });
     }

@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import type { IPage } from '@jackwener/opencli/types';
-import TurndownService from 'turndown';
+import { htmlToMarkdown } from '@jackwener/opencli/utils';
 import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import { YUANBAO_DOMAIN, YUANBAO_URL, IS_VISIBLE_JS, authRequired, isOnYuanbao, ensureYuanbaoPage, hasLoginGate } from './shared.js';
 
@@ -40,66 +40,44 @@ function normalizeBooleanFlag(value: unknown, fallback: boolean): boolean {
   return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
 }
 
-function createYuanbaoTurndown(): TurndownService {
-  const td = new TurndownService({
-    headingStyle: 'atx',
-    codeBlockStyle: 'fenced',
-    bulletListMarker: '-',
-  });
-
-  td.addRule('linebreak', {
-    filter: 'br',
-    replacement: () => '\n',
-  });
-
-  td.addRule('table', {
-    filter: 'table',
-    replacement: (content) => `\n\n${content}\n\n`,
-  });
-
-  td.addRule('tableSection', {
-    filter: ['thead', 'tbody', 'tfoot'],
-    replacement: (content) => content,
-  });
-
-  td.addRule('tableRow', {
-    filter: 'tr',
-    replacement: (content, node) => {
-      const element = node as Element;
-      const cells = Array.from(element.children);
-      const isHeaderRow = element.parentElement?.tagName === 'THEAD'
-        || (cells.length > 0 && cells.every((cell) => cell.tagName === 'TH'));
-
-      const row = `${content}\n`;
-      if (!isHeaderRow) return row;
-
-      const separator = `| ${cells.map(() => '---').join(' | ')} |\n`;
-      return `${row}${separator}`;
-    },
-  });
-
-  td.addRule('tableCell', {
-    filter: ['th', 'td'],
-    replacement: (content, node) => {
-      const element = node as Element;
-      const index = element.parentElement ? Array.from(element.parentElement.children).indexOf(element) : 0;
-      const prefix = index === 0 ? '| ' : ' ';
-      return `${prefix}${content.trim()} |`;
-    },
-  });
-
-  return td;
-}
-
-const yuanbaoTurndown = createYuanbaoTurndown();
-
 export function convertYuanbaoHtmlToMarkdown(value: string): string {
-  const markdown = yuanbaoTurndown.turndown(value || '');
-  return markdown
-    .replace(/\u00a0/g, ' ')
-    .replace(/\n{4,}/g, '\n\n\n')
-    .replace(/[ \t]+$/gm, '')
-    .trim();
+  return htmlToMarkdown(value, (td) => {
+    td.addRule('table', {
+      filter: 'table',
+      replacement: (content) => `\n\n${content}\n\n`,
+    });
+
+    td.addRule('tableSection', {
+      filter: ['thead', 'tbody', 'tfoot'],
+      replacement: (content) => content,
+    });
+
+    td.addRule('tableRow', {
+      filter: 'tr',
+      replacement: (content, node) => {
+        const element = node as Element;
+        const cells = Array.from(element.children);
+        const isHeaderRow = element.parentElement?.tagName === 'THEAD'
+          || (cells.length > 0 && cells.every((cell) => cell.tagName === 'TH'));
+
+        const row = `${content}\n`;
+        if (!isHeaderRow) return row;
+
+        const separator = `| ${cells.map(() => '---').join(' | ')} |\n`;
+        return `${row}${separator}`;
+      },
+    });
+
+    td.addRule('tableCell', {
+      filter: ['th', 'td'],
+      replacement: (content, node) => {
+        const element = node as Element;
+        const index = element.parentElement ? Array.from(element.parentElement.children).indexOf(element) : 0;
+        const prefix = index === 0 ? '| ' : ' ';
+        return `${prefix}${content.trim()} |`;
+      },
+    });
+  });
 }
 
 export function sanitizeYuanbaoResponseText(value: string, promptText: string): string {

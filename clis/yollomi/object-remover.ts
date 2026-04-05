@@ -3,10 +3,9 @@
  */
 
 import * as path from 'node:path';
-import chalk from 'chalk';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.js';
+import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes, writeStatus } from './utils.js';
 
 cli({
   site: 'yollomi',
@@ -22,7 +21,7 @@ cli({
   ],
   columns: ['status', 'file', 'size', 'url'],
   func: async (page, kwargs) => {
-    process.stderr.write(chalk.dim('Removing object...\n'));
+    writeStatus('Removing object...');
     const data = await yollomiPost(page, '/api/ai/object-remover', {
       image: kwargs.image as string,
       mask: kwargs.mask as string,

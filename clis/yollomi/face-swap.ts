@@ -4,10 +4,9 @@
  */
 
 import * as path from 'node:path';
-import chalk from 'chalk';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.js';
+import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes, writeStatus } from './utils.js';
 
 cli({
   site: 'yollomi',
@@ -23,7 +22,7 @@ cli({
   ],
   columns: ['status', 'file', 'size', 'url'],
   func: async (page, kwargs) => {
-    process.stderr.write(chalk.dim('Swapping faces...\n'));
+    writeStatus('Swapping faces...');
     const data = await yollomiPost(page, '/api/ai/face-swap', {
       swap_image: kwargs.source as string,
       input_image: kwargs.target as string,

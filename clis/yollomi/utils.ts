@@ -127,6 +127,14 @@ export function fmtBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
 
+export function writeStatus(message: string): void {
+  process.stderr.write(`${message}\n`);
+}
+
+export function writeSuccess(message: string): void {
+  process.stderr.write(`${message}\n`);
+}
+
 /** Per-model API route mapping (matches frontend model.apiEndpoint). */
 export const MODEL_ROUTES: Record<string, string> = {
   'flux':                      '/api/ai/flux',

@@ -4,6 +4,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import TurndownService from 'turndown';
 
 /** Type guard: checks if a value is a non-null, non-array object. */
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -41,4 +42,28 @@ export async function saveBase64ToFile(base64: string, filePath: string): Promis
   const dir = path.dirname(filePath);
   await fs.promises.mkdir(dir, { recursive: true });
   await fs.promises.writeFile(filePath, Buffer.from(base64, 'base64'));
+}
+
+export function createMarkdownConverter(configure?: (td: TurndownService) => void): TurndownService {
+  const td = new TurndownService({
+    headingStyle: 'atx',
+    codeBlockStyle: 'fenced',
+    bulletListMarker: '-',
+  });
+
+  td.addRule('linebreak', {
+    filter: 'br',
+    replacement: () => '\n',
+  });
+
+  if (configure) configure(td);
+  return td;
+}
+
+export function htmlToMarkdown(value: string, configure?: (td: TurndownService) => void): string {
+  return createMarkdownConverter(configure).turndown(value || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\n{4,}/g, '\n\n\n')
+    .replace(/[ \t]+$/gm, '')
+    .trim();
 }

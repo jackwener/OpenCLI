@@ -11,7 +11,6 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
 import { type CliCommand, type InternalCliCommand, type Arg, Strategy, registerCommand } from './registry.js';
@@ -51,55 +50,6 @@ function findPackageRoot(): string {
   return dir;
 }
 
-function getUserModuleLinkPath(baseDir: string, moduleName: string): string {
-  return path.join(baseDir, 'node_modules', ...moduleName.split('/'));
-}
-
-function resolveInstalledPackageRoot(packageRoot: string, moduleName: string): string {
-  const requireFromPackage = createRequire(path.join(packageRoot, 'package.json'));
-  const entryPath = requireFromPackage.resolve(moduleName);
-  let dir = path.dirname(entryPath);
-
-  while (true) {
-    const pkgJsonPath = path.join(dir, 'package.json');
-    try {
-      const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8')) as { name?: string };
-      if (pkgJson.name === moduleName) return dir;
-    } catch {
-      // Keep walking upward until we hit the package root or filesystem root.
-    }
-
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-
-  throw new Error(`Could not find package root for ${moduleName} from resolved entry ${entryPath}`);
-}
-
-async function syncUserModuleLink(baseDir: string, moduleName: string, targetDir: string): Promise<void> {
-  const symlinkPath = getUserModuleLinkPath(baseDir, moduleName);
-  const symlinkDir = path.dirname(symlinkPath);
-
-  let needsUpdate = true;
-  try {
-    const existing = await fs.promises.readlink(symlinkPath);
-    if (existing === targetDir) needsUpdate = false;
-  } catch {
-    // Missing or not a symlink/junction; fall through to recreate it
-  }
-  if (!needsUpdate) return;
-
-  await fs.promises.mkdir(symlinkDir, { recursive: true });
-  try {
-    await fs.promises.rm(symlinkPath, { recursive: true, force: true });
-  } catch {
-    // ignore stale path removal failures; symlink creation will surface the real error
-  }
-  const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
-  await fs.promises.symlink(targetDir, symlinkPath, symlinkType);
-}
-
 /**
  * Ensure ~/.opencli/node_modules/@jackwener/opencli symlink exists so that
  * user CLIs in ~/.opencli/clis/ can `import { cli } from '@jackwener/opencli/registry'`.
@@ -121,27 +71,24 @@ export async function ensureUserCliCompatShims(baseDir: string = USER_OPENCLI_DI
     await fs.promises.writeFile(pkgJsonPath, pkgJsonContent, 'utf-8');
   }
 
-  // Create node_modules symlinks so user adapters copied into ~/.opencli/clis/
-  // can resolve both internal package exports and third-party bare imports.
+  // Create node_modules/@jackwener/opencli symlink pointing to the installed package root.
   const opencliRoot = findPackageRoot();
+  const symlinkDir = path.join(baseDir, 'node_modules', '@jackwener');
+  const symlinkPath = path.join(symlinkDir, 'opencli');
   try {
-    await syncUserModuleLink(baseDir, '@jackwener/opencli', opencliRoot);
-
-    const pkgJsonPath = path.join(opencliRoot, 'package.json');
-    const pkgJson = JSON.parse(await fs.promises.readFile(pkgJsonPath, 'utf-8')) as {
-      dependencies?: Record<string, string>;
-    };
-
-    for (const dep of Object.keys(pkgJson.dependencies ?? {})) {
-      try {
-        const depRoot = resolveInstalledPackageRoot(opencliRoot, dep);
-        await syncUserModuleLink(baseDir, dep, depRoot);
-      } catch (err) {
-        log.warn(`Could not expose dependency ${dep} to user adapters: ${getErrorMessage(err)}`);
-      }
+    let needsUpdate = true;
+    try {
+      const existing = await fs.promises.readlink(symlinkPath);
+      if (existing === opencliRoot) needsUpdate = false;
+    } catch { /* doesn't exist */ }
+    if (needsUpdate) {
+      await fs.promises.mkdir(symlinkDir, { recursive: true });
+      try { await fs.promises.rm(symlinkPath, { recursive: true, force: true }); } catch { /* doesn't exist */ }
+      const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
+      await fs.promises.symlink(opencliRoot, symlinkPath, symlinkType);
     }
   } catch (err) {
-    log.warn(`Could not prepare user adapter module links: ${getErrorMessage(err)}`);
+    log.warn(`Could not create symlink at ${symlinkPath}: ${getErrorMessage(err)}`);
   }
 }
 
