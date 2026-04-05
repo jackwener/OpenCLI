@@ -105,11 +105,16 @@ export async function ensureUserCliCompatShims(baseDir: string = USER_OPENCLI_DI
   const writes: Promise<void>[] = [];
 
   // Root-level shims (both with and without .js extension)
+  // Also generate src/ shims: adapters import ../../src/registry.js etc., which
+  // resolve to ~/.opencli/src/registry.js when running from ~/.opencli/clis/<site>/
+  const srcDir = path.join(baseDir, 'src');
+  await fs.promises.mkdir(srcDir, { recursive: true });
   for (const [shimName, moduleName] of rootShims) {
     const url = pathToFileURL(resolveHostRuntimeModulePath(moduleName)).href;
     const content = `export * from '${url}';\n`;
     writes.push(writeCompatShimIfNeeded(path.join(baseDir, shimName), content));
     writes.push(writeCompatShimIfNeeded(path.join(baseDir, `${shimName}.js`), content));
+    writes.push(writeCompatShimIfNeeded(path.join(srcDir, `${shimName}.js`), content));
   }
 
   // Subdirectory shims

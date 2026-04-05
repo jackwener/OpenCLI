@@ -7,7 +7,14 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const pkgJsonPath = path.resolve(__dirname, '..', 'package.json');
+
+// Dev: __dirname is src/ (one level to root).
+// Prod: __dirname is dist/src/ (two levels to root).
+let _pkgDir = path.resolve(__dirname, '..');
+if (!fs.existsSync(path.join(_pkgDir, 'package.json'))) {
+  _pkgDir = path.resolve(_pkgDir, '..');
+}
+const pkgJsonPath = path.join(_pkgDir, 'package.json');
 
 export const PKG_VERSION: string = (() => {
   try {
