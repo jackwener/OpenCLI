@@ -307,12 +307,20 @@ class CDPPage extends BasePage {
         const p = params as { type: string; args: Array<{ value?: unknown; description?: string }>; timestamp: number };
         const text = (p.args || []).map(a => a.value !== undefined ? String(a.value) : (a.description || '')).join(' ');
         this._consoleMessages.push({ type: p.type, text, timestamp: p.timestamp });
-        // Cap buffer at 500 entries
+        if (this._consoleMessages.length > 500) this._consoleMessages.shift();
+      });
+      // Capture uncaught exceptions as error-level messages
+      this.bridge.on('Runtime.exceptionThrown', (params: unknown) => {
+        const p = params as { timestamp: number; exceptionDetails?: { exception?: { description?: string }; text?: string } };
+        const desc = p.exceptionDetails?.exception?.description || p.exceptionDetails?.text || 'Unknown exception';
+        this._consoleMessages.push({ type: 'error', text: desc, timestamp: p.timestamp });
         if (this._consoleMessages.length > 500) this._consoleMessages.shift();
       });
       this._consoleCapturing = true;
     }
     if (level === 'all') return [...this._consoleMessages];
+    // 'error' level includes both console.error() and uncaught exceptions
+    if (level === 'error') return this._consoleMessages.filter(m => m.type === 'error' || m.type === 'warning');
     return this._consoleMessages.filter(m => m.type === level);
   }
 
