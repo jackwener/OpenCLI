@@ -48,7 +48,7 @@ export interface ManifestEntry {
   /** Relative path from clis/ dir, e.g. 'bilibili/hot.yaml' or 'bilibili/search.js' */
   modulePath?: string;
   /** Pre-navigation control — see CliCommand.navigateBefore */
-  navigateBefore?: boolean | string;
+  navigateBefore?: boolean | string | { url: string; waitUntil?: 'load' | 'none'; settleMs?: number };
 }
 
 import { type YamlCliDefinition, parseYamlArgs } from './yaml-schema.js';

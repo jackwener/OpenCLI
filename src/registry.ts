@@ -31,6 +31,22 @@ export interface RequiredEnv {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- kwargs from CLI parsing are inherently untyped
 export type CommandArgs = Record<string, any>;
 
+/**
+ * Options for navigateBefore when fine-grained control is needed.
+ *
+ * Useful for heavy SPAs where the default `waitUntil: 'load'` + 1s settle
+ * causes timeouts, or when a cookie-seeding navigation to a different
+ * subdomain is required before loading the actual target page.
+ */
+export interface PreNavOptions {
+  /** Primary URL to navigate to. */
+  url: string;
+  /** Override waitUntil behavior ('load' or 'none'). Default: 'load'. */
+  waitUntil?: 'load' | 'none';
+  /** Milliseconds to wait for DOM stability after load. Default: 1000. */
+  settleMs?: number;
+}
+
 export interface CliCommand {
   site: string;
   name: string;
@@ -62,8 +78,9 @@ export interface CliCommand {
    * - `undefined` / `true`: navigate to `https://${domain}` (default)
    * - `false`: skip — adapter handles its own navigation (e.g. boss common.ts)
    * - `string`: navigate to this specific URL instead of the domain root
+   * - `object`: navigate with explicit options (waitUntil, settleMs)
    */
-  navigateBefore?: boolean | string;
+  navigateBefore?: boolean | string | PreNavOptions;
   /** Override the default CLI output format when the user does not pass -f/--format. */
   defaultFormat?: 'table' | 'plain' | 'json' | 'yaml' | 'yml' | 'md' | 'markdown' | 'csv';
 }

@@ -10,7 +10,7 @@
  * 6. Lifecycle hooks (onBeforeExecute / onAfterExecute)
  */
 
-import { type CliCommand, type InternalCliCommand, type Arg, type CommandArgs, Strategy, getRegistry, fullName } from './registry.js';
+import { type CliCommand, type InternalCliCommand, type PreNavOptions, type Arg, type CommandArgs, Strategy, getRegistry, fullName } from './registry.js';
 import type { IPage } from './types.js';
 import { pathToFileURL } from 'node:url';
 import { executePipeline } from './pipeline/index.js';
@@ -108,12 +108,24 @@ async function runCommand(
   );
 }
 
-function resolvePreNav(cmd: CliCommand): string | null {
+interface ResolvedPreNav {
+  url: string;
+  waitUntil?: 'load' | 'none';
+  settleMs?: number;
+}
+
+function resolvePreNav(cmd: CliCommand): ResolvedPreNav | null {
   if (cmd.navigateBefore === false) return null;
-  if (typeof cmd.navigateBefore === 'string') return cmd.navigateBefore;
+
+  if (typeof cmd.navigateBefore === 'object' && cmd.navigateBefore !== null && 'url' in cmd.navigateBefore) {
+    const opts = cmd.navigateBefore as PreNavOptions;
+    return { url: opts.url, waitUntil: opts.waitUntil, settleMs: opts.settleMs };
+  }
+
+  if (typeof cmd.navigateBefore === 'string') return { url: cmd.navigateBefore };
 
   if ((cmd.strategy === Strategy.COOKIE || cmd.strategy === Strategy.HEADER) && cmd.domain) {
-    return `https://${cmd.domain}`;
+    return { url: `https://${cmd.domain}` };
   }
   return null;
 }
@@ -191,17 +203,20 @@ export async function executeCommand(
       ensureRequiredEnv(cmd);
       const BrowserFactory = getBrowserFactory(cmd.site);
       result = await browserSession(BrowserFactory, async (page) => {
-        const preNavUrl = resolvePreNav(cmd);
-        if (preNavUrl) {
+        const preNav = resolvePreNav(cmd);
+        if (preNav) {
           // Navigate directly — the extension's handleNavigate already has a fast-path
           // that skips navigation if the tab is already at the target URL.
           // This avoids an extra exec round-trip (getCurrentUrl) on first command and
           // lets the extension create the automation window with the target URL directly
           // instead of about:blank.
+          const gotoOpts = (preNav.waitUntil || preNav.settleMs)
+            ? { waitUntil: preNav.waitUntil, settleMs: preNav.settleMs }
+            : undefined;
           try {
-            await page.goto(preNavUrl);
+            await page.goto(preNav.url, gotoOpts);
           } catch (err) {
-            if (debug) log.debug(`[pre-nav] Failed to navigate to ${preNavUrl}: ${err instanceof Error ? err.message : err}`);
+            if (debug) log.debug(`[pre-nav] Failed to navigate to ${preNav.url}: ${err instanceof Error ? err.message : err}`);
           }
         }
         return runWithTimeout(runCommand(cmd, page, kwargs, debug), {
