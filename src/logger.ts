@@ -21,6 +21,16 @@ export const log = {
     process.stderr.write(`${chalk.blue('ℹ')}  ${msg}\n`);
   },
 
+  /** Lightweight status line for adapter progress updates */
+  status(msg: string): void {
+    process.stderr.write(`${chalk.dim(msg)}\n`);
+  },
+
+  /** Positive completion/status line without the heavier info prefix */
+  success(msg: string): void {
+    process.stderr.write(`${chalk.green(msg)}\n`);
+  },
+
   /** Warning (always shown) */
   warn(msg: string): void {
     process.stderr.write(`${chalk.yellow('⚠')}  ${msg}\n`);

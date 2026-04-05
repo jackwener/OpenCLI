@@ -10,7 +10,8 @@
 import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes, MODEL_ROUTES, writeStatus } from './utils.js';
+import { log } from '@jackwener/opencli/logger';
+import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes, MODEL_ROUTES } from './utils.js';
 
 function getDimensions(ratio: string): { width: number; height: number } {
   const map: Record<string, [number, number]> = {
@@ -61,7 +62,7 @@ cli({
       if (kwargs.image) body.imageUrl = kwargs.image as string;
     }
 
-    writeStatus(`Generating with ${modelId}...`);
+    log.status(`Generating with ${modelId}...`);
     const data = await yollomiPost(page, apiPath, body);
 
     const images: string[] = data.images || (data.image ? [data.image] : []);
@@ -88,7 +89,7 @@ cli({
       }
     }
 
-    if (data.remainingCredits !== undefined) writeStatus(`Credits remaining: ${data.remainingCredits}`);
+    if (data.remainingCredits !== undefined) log.status(`Credits remaining: ${data.remainingCredits}`);
     return results;
   },
 });

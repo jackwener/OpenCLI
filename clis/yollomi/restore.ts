@@ -5,7 +5,8 @@
 import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes, writeStatus } from './utils.js';
+import { log } from '@jackwener/opencli/logger';
+import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.js';
 
 cli({
   site: 'yollomi',
@@ -20,7 +21,7 @@ cli({
   ],
   columns: ['status', 'file', 'size', 'url'],
   func: async (page, kwargs) => {
-    writeStatus('Restoring photo...');
+    log.status('Restoring photo...');
     const data = await yollomiPost(page, '/api/ai/photo-restoration', { imageUrl: kwargs.image as string });
 
     const url = data.image || (data.images?.[0]);
