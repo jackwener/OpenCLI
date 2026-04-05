@@ -284,7 +284,9 @@ class CDPPage extends BasePage {
   }
 
   async readNetworkCapture(): Promise<unknown[]> {
-    return [...this._networkEntries];
+    const entries = [...this._networkEntries];
+    this._networkEntries = [];
+    return entries;
   }
 
   async tabs(): Promise<unknown[]> {
