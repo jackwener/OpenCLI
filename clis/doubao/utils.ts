@@ -1,4 +1,4 @@
-import type { IPage } from '../../src/types.js';
+import type { IPage } from '@jackwener/opencli/types';
 
 export const DOUBAO_DOMAIN = 'www.doubao.com';
 export const DOUBAO_CHAT_URL = 'https://www.doubao.com/chat';

@@ -1,9 +1,9 @@
 import * as os from 'node:os';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CliCommand } from '../../src/registry.js';
-import { getRegistry } from '../../src/registry.js';
-import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import type { CliCommand } from '@jackwener/opencli/registry';
+import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 
 const { mockHttpDownload, logSpy } = vi.hoisted(() => ({
   mockHttpDownload: vi.fn(),

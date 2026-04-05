@@ -1,5 +1,5 @@
-import { ArgumentError, CommandExecutionError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 
 export const SITE = 'amazon';
 export const DOMAIN = 'amazon.com';

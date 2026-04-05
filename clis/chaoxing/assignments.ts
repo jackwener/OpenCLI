@@ -1,5 +1,5 @@
-import { cli, Strategy } from '../../src/registry.js';
-import { AuthRequiredError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { AuthRequiredError } from '@jackwener/opencli/errors';
 import {
   getCourses, initSession, enterCourse, getTabIframeUrl,
   parseAssignmentsFromDom, sleep,

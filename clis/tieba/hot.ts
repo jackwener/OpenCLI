@@ -1,5 +1,5 @@
-import { EmptyResultError } from '../../src/errors.js';
-import { cli, Strategy } from '../../src/registry.js';
+import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import { normalizeTiebaLimit } from './utils.js';
 
 cli({

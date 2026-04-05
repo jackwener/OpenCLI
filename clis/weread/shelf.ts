@@ -1,7 +1,7 @@
-import { cli, Strategy } from '../../src/registry.js';
-import { CliError } from '../../src/errors.js';
-import { log } from '../../src/logger.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CliError } from '@jackwener/opencli/errors';
+import { log } from '@jackwener/opencli/logger';
+import type { IPage } from '@jackwener/opencli/types';
 import {
   buildWebShelfEntries,
   fetchPrivateApi,

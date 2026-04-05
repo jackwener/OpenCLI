@@ -1,5 +1,5 @@
-import type { IPage } from '../../../src/types.js';
-import { CommandExecutionError } from '../../../src/errors.js';
+import type { IPage } from '@jackwener/opencli/types';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 
 export interface FetchOptions {
   body?: unknown;

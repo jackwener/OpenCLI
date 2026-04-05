@@ -1,5 +1,5 @@
-import { CommandExecutionError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 
 export function buildMediumTagUrl(topic?: string): string {
   return topic ? `https://medium.com/tag/${encodeURIComponent(topic)}` : 'https://medium.com/tag/technology';

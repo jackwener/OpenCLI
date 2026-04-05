@@ -1,4 +1,4 @@
-import type { IPage } from '../../src/types.js';
+import type { IPage } from '@jackwener/opencli/types';
 
 const QUERY_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 

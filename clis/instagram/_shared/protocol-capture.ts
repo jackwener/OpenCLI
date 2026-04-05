@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 
-import type { BrowserCookie, IPage } from '../../../src/types.js';
+import type { BrowserCookie, IPage } from '@jackwener/opencli/types';
 import { resolveInstagramRuntimeInfo } from './runtime-info.js';
 
 const DEFAULT_CAPTURE_VAR = '__opencli_ig_protocol_capture';

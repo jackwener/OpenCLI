@@ -1,6 +1,6 @@
-import { CommandExecutionError } from '../../src/errors.js';
-import { cli, Strategy } from '../../src/registry.js';
-import type { IPage } from '../../src/types.js';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import type { IPage } from '@jackwener/opencli/types';
 import {
   buildDiscussionUrl,
   buildProvenance,

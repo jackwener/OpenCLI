@@ -5,7 +5,7 @@
  * https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/
  */
 
-import { CliError } from '../../src/errors.js';
+import { CliError } from '@jackwener/opencli/errors';
 
 const BASE = 'https://itunes.apple.com';
 

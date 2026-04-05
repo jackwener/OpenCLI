@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import { searchDouban } from './utils.js';
 
 cli({

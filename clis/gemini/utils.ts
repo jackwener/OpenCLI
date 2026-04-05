@@ -1,5 +1,5 @@
-import { CommandExecutionError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 
 export const GEMINI_DOMAIN = 'gemini.google.com';
 export const GEMINI_APP_URL = 'https://gemini.google.com/app';

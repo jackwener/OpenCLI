@@ -1,5 +1,5 @@
-import { AuthRequiredError, CommandExecutionError } from '../../src/errors.js';
-import { cli, Strategy } from '../../src/registry.js';
+import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import { resolveTwitterQueryId } from './shared.js';
 
 const TWEET_RESULT_BY_REST_ID_QUERY_ID = '7xflPyRiUxGVbJd4uWmbfg';

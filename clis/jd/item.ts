@@ -4,7 +4,7 @@
  * 依赖: 需要在 Chrome 已登录京东
  * 用法: opencli jd item 100291143898
  */
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
 function extractAvifImages(imageUrls: string[], maxImages: number): string[] {
   const unique = [...new Set(imageUrls.filter(Boolean))];

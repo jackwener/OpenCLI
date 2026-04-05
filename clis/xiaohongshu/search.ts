@@ -6,8 +6,8 @@
  * Ref: https://github.com/jackwener/opencli/issues/10
  */
 
-import { cli, Strategy } from '../../src/registry.js';
-import { AuthRequiredError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { AuthRequiredError } from '@jackwener/opencli/errors';
 
 /**
  * Wait for search results or login wall using MutationObserver (max 5s).

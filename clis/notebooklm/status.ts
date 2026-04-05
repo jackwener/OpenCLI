@@ -1,5 +1,5 @@
-import { cli, Strategy } from '../../src/registry.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import type { IPage } from '@jackwener/opencli/types';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, NOTEBOOKLM_SITE } from './shared.js';
 import { getNotebooklmPageState } from './utils.js';
 

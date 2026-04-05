@@ -8,7 +8,7 @@
  * Requires: logged into creator.xiaohongshu.com in Chrome.
  */
 
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
   site: 'xiaohongshu',

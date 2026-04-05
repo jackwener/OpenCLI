@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '../../src/registry.js';
+import { getRegistry } from '@jackwener/opencli/registry';
 import './post.js';
 
 vi.mock('node:fs', async (importOriginal) => {

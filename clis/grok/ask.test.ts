@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { IPage } from '../../src/types.js';
+import type { IPage } from '@jackwener/opencli/types';
 import { __test__ } from './ask.js';
 
 describe('grok ask helpers', () => {

@@ -6,7 +6,7 @@
  * round-trips to exactly one.
  */
 
-import type { IPage } from '../../src/types.js';
+import type { IPage } from '@jackwener/opencli/types';
 
 export const DANJUAN_DOMAIN = 'danjuanfunds.com';
 export const DANJUAN_ASSET_PAGE = `https://${DANJUAN_DOMAIN}/my-money`;

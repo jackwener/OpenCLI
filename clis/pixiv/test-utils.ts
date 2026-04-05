@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { IPage } from '../../src/types.js';
+import type { IPage } from '@jackwener/opencli/types';
 
 /**
  * Create a minimal page mock with only the methods commonly used by Pixiv adapters.

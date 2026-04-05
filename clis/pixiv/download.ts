@@ -7,10 +7,10 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { cli, Strategy } from '../../src/registry.js';
-import { formatCookieHeader, httpDownload } from '../../download/index.js';
-import { formatBytes } from '../../download/progress.js';
-import { CommandExecutionError, getErrorMessage } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { formatCookieHeader, httpDownload } from '@jackwener/opencli/download';
+import { formatBytes } from '@jackwener/opencli/download/progress';
+import { CommandExecutionError, getErrorMessage } from '@jackwener/opencli/errors';
 import { pixivFetch } from './utils.js';
 
 cli({

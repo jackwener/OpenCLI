@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '../../src/registry.js';
-import { log } from '../../src/logger.js';
+import { getRegistry } from '@jackwener/opencli/registry';
+import { log } from '@jackwener/opencli/logger';
 import { fetchPrivateApi } from './utils.js';
 import './shelf.js';
 

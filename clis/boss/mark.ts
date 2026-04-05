@@ -5,9 +5,9 @@
  *   1=新招呼, 2=沟通中, 3=已约面, 4=已获取简历, 5=已交换电话,
  *   6=已交换微信, 7=不合适, 8=牛人发起, 11=收藏
  */
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import { requirePage, navigateToChat, bossFetch, findFriendByUid, verbose } from './utils.js';
-import { ArgumentError, EmptyResultError } from '../../src/errors.js';
+import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
 
 const LABEL_MAP: Record<string, number> = {
   '新招呼': 1, '沟通中': 2, '已约面': 3, '已获取简历': 4,

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '../../src/registry.js';
+import { getRegistry } from '@jackwener/opencli/registry';
 import './topics.js';
 
 describe('zsxq topics command', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getRegistry } from '../../src/registry.js';
+import { getRegistry } from '@jackwener/opencli/registry';
 import './stats.js';
 
 describe('douyin stats registration', () => {

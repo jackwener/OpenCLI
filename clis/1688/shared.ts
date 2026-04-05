@@ -1,5 +1,5 @@
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 
 export const SITE = '1688';
 export const HOME_URL = 'https://www.1688.com/';

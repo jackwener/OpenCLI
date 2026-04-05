@@ -2,10 +2,10 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { Page as BrowserPage } from '../../browser/page.js';
-import { cli, Strategy } from '../../src/registry.js';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '../../src/errors.js';
-import type { BrowserCookie, IPage } from '../../src/types.js';
+import { Page as BrowserPage } from '@jackwener/opencli/browser/page';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import type { BrowserCookie, IPage } from '@jackwener/opencli/types';
 import {
   buildClickActionJs,
   buildEnsureComposerOpenJs,

@@ -1,8 +1,8 @@
 /**
  * Weibo post — get a single post by ID.
  */
-import { cli, Strategy } from '../../src/registry.js';
-import { CommandExecutionError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 
 cli({
   site: 'weibo',

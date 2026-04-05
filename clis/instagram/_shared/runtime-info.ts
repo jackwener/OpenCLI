@@ -1,4 +1,4 @@
-import type { BrowserCookie, IPage } from '../../../src/types.js';
+import type { BrowserCookie, IPage } from '@jackwener/opencli/types';
 
 export interface InstagramRuntimeInfo {
   appId: string;

@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { BrowserCookie, IPage } from '../../../src/types.js';
+import type { BrowserCookie, IPage } from '@jackwener/opencli/types';
 import {
   buildInstallInstagramProtocolCaptureJs,
   buildReadInstagramProtocolCaptureJs,

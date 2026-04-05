@@ -6,8 +6,8 @@
  * status endpoint until encode=2 (complete) or a timeout is reached.
  */
 
-import type { IPage } from '../../../src/types.js';
-import { TimeoutError } from '../../../src/errors.js';
+import type { IPage } from '@jackwener/opencli/types';
+import { TimeoutError } from '@jackwener/opencli/errors';
 import { browserFetch } from './browser-fetch.js';
 import type { TranscodeResult } from './types.js';
 

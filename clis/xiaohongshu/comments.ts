@@ -6,8 +6,8 @@
  * the --with-replies flag.
  */
 
-import { cli, Strategy } from '../../src/registry.js';
-import { AuthRequiredError, EmptyResultError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
 
 function parseCommentLimit(raw: unknown, fallback = 20): number {

@@ -3,8 +3,8 @@
  */
 
 import https from 'node:https';
-import type { IPage } from '../../src/types.js';
-import { AuthRequiredError, EmptyResultError } from '../../src/errors.js';
+import type { IPage } from '@jackwener/opencli/types';
+import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
 
 /**
  * Resolve Bilibili short URL / short code to BV ID.

@@ -14,8 +14,8 @@
  *   opencli web read --url "https://..." --download-images false
  */
 
-import { cli, Strategy } from '../../src/registry.js';
-import { downloadArticle } from '../../download/article-download.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { downloadArticle } from '@jackwener/opencli/download/article-download';
 
 cli({
   site: 'web',

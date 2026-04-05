@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import { BLOOMBERG_FEEDS } from './utils.js';
 
 cli({

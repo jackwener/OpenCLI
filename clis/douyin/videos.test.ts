@@ -8,7 +8,7 @@ vi.mock('./_shared/browser-fetch.js', () => ({
   browserFetch: browserFetchMock,
 }));
 
-import { getRegistry } from '../../src/registry.js';
+import { getRegistry } from '@jackwener/opencli/registry';
 import './videos.js';
 
 describe('douyin videos', () => {

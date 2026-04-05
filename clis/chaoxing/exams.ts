@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
   getCourses, initSession, enterCourse, getTabIframeUrl,
   parseExamsFromDom, sleep,

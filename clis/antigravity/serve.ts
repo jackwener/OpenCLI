@@ -11,10 +11,10 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { CDPBridge } from '../../browser/cdp.js';
-import type { IPage } from '../../src/types.js';
-import { resolveElectronEndpoint } from '../../src/launcher.js';
-import { EXIT_CODES, getErrorMessage } from '../../src/errors.js';
+import { CDPBridge } from '@jackwener/opencli/browser/cdp';
+import type { IPage } from '@jackwener/opencli/types';
+import { resolveElectronEndpoint } from '@jackwener/opencli/launcher';
+import { EXIT_CODES, getErrorMessage } from '@jackwener/opencli/errors';
 
 // ─── Types ───────────────────────────────────────────────────────────
 

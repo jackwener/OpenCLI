@@ -1,5 +1,5 @@
-import { cli, Strategy } from '../../src/registry.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import type { IPage } from '@jackwener/opencli/types';
 import { YUANBAO_DOMAIN, YUANBAO_URL, IS_VISIBLE_JS, authRequired, ensureYuanbaoPage, hasLoginGate } from './shared.js';
 
 async function getCurrentUrl(page: IPage): Promise<string> {

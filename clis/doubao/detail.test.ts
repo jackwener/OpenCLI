@@ -12,7 +12,7 @@ vi.mock('./utils.js', async () => {
   };
 });
 
-import { getRegistry } from '../../src/registry.js';
+import { getRegistry } from '@jackwener/opencli/registry';
 import './detail.js';
 
 describe('doubao detail', () => {

@@ -1,6 +1,6 @@
-import { cli, Strategy } from '../../src/registry.js';
-import { ConfigError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ConfigError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 import { activateChatGPT, selectModel, MODEL_CHOICES } from './ax.js';
 
 export const modelCommand = cli({

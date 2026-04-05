@@ -7,7 +7,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CommandExecutionError } from '../../../src/errors.js';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 
 export interface ImageXUploadInfo {
   /** Pre-signed PUT target URL (provided by the apply cover upload API) */

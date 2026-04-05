@@ -1,4 +1,4 @@
-import { cli } from '../../src/registry.js';
+import { cli } from '@jackwener/opencli/registry';
 import { createRankingCliOptions } from './rankings.js';
 
 cli(createRankingCliOptions({

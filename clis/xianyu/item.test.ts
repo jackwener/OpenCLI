@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AuthRequiredError, EmptyResultError, SelectorError } from '../../src/errors.js';
-import { getRegistry } from '../../src/registry.js';
-import type { IPage } from '../../src/types.js';
+import { AuthRequiredError, EmptyResultError, SelectorError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@jackwener/opencli/registry';
+import type { IPage } from '@jackwener/opencli/types';
 import { __test__ } from './item.js';
 import './item.js';
 

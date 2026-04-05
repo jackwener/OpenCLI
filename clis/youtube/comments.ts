@@ -1,8 +1,8 @@
 /**
  * YouTube comments — get video comments via InnerTube API.
  */
-import { cli, Strategy } from '../../src/registry.js';
-import { CommandExecutionError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { parseVideoId } from './utils.js';
 
 cli({

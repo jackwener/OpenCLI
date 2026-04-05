@@ -14,9 +14,9 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { cli, Strategy } from '../../src/registry.js';
-import { ArgumentError, CommandExecutionError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 import type { TosUploadInfo } from './_shared/types.js';
 import { getSts2Credentials } from './_shared/sts2.js';
 import { tosUpload } from './_shared/tos-upload.js';

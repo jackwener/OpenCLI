@@ -50,98 +50,32 @@ function findPackageRoot(): string {
   return dir;
 }
 
-function resolveHostRuntimeModulePath(moduleName: string): string {
-  const runtimeDir = path.dirname(fileURLToPath(import.meta.url));
-  for (const ext of ['.js', '.ts']) {
-    const candidate = path.join(runtimeDir, `${moduleName}${ext}`);
-    if (fs.existsSync(candidate)) return candidate;
-  }
-  return path.join(runtimeDir, `${moduleName}.js`);
-}
-
-async function writeCompatShimIfNeeded(filePath: string, content: string): Promise<void> {
-  try {
-    const existing = await fs.promises.readFile(filePath, 'utf-8');
-    if (existing === content) return;
-  } catch {
-    // Fall through to write missing shim
-  }
-  await fs.promises.writeFile(filePath, content, 'utf-8');
-}
-
 /**
- * Create runtime shim files under ~/.opencli so user CLIs can keep
- * importing ../../registry(.js), ../../errors(.js), etc.
+ * Ensure ~/.opencli/node_modules/@jackwener/opencli symlink exists so that
+ * user CLIs in ~/.opencli/clis/ can `import { cli } from '@jackwener/opencli/registry'`.
  *
- * Adapters use relative imports like `../../registry.js` which, from
- * ~/.opencli/clis/<site>/<cmd>.js, resolve to ~/.opencli/registry.js.
- * We create shim files that re-export from the installed opencli runtime.
+ * This is the sole resolution mechanism — adapters use package exports
+ * (e.g. `@jackwener/opencli/registry`, `@jackwener/opencli/errors`) and
+ * Node.js resolves them through this symlink.
  */
 export async function ensureUserCliCompatShims(baseDir: string = USER_OPENCLI_DIR): Promise<void> {
   await fs.promises.mkdir(baseDir, { recursive: true });
 
-  // Map of shim name → runtime module name (resolved via resolveHostRuntimeModulePath)
-  const rootShims: Array<[string, string]> = [
-    ['registry', 'registry-api'],
-    ['errors', 'errors'],
-    ['types', 'types'],
-    ['utils', 'utils'],
-    ['logger', 'logger'],
-    ['launcher', 'launcher'],
-  ];
-
-  // Subdirectory shims: [subdir, filename, runtime module path relative to src/]
-  const subdirShims: Array<[string, string, string]> = [
-    ['browser', 'cdp', 'browser/cdp'],
-    ['browser', 'page', 'browser/page'],
-    ['browser', 'utils', 'browser/utils'],
-    ['download', 'index', 'download/index'],
-    ['download', 'article-download', 'download/article-download'],
-    ['download', 'media-download', 'download/media-download'],
-    ['download', 'progress', 'download/progress'],
-    ['pipeline', 'index', 'pipeline/index'],
-  ];
-
-  const writes: Promise<void>[] = [];
-
-  // Root-level shims (both with and without .js extension)
-  // Also generate src/ shims: adapters import ../../src/registry.js etc., which
-  // resolve to ~/.opencli/src/registry.js when running from ~/.opencli/clis/<site>/
-  const srcDir = path.join(baseDir, 'src');
-  await fs.promises.mkdir(srcDir, { recursive: true });
-  for (const [shimName, moduleName] of rootShims) {
-    const url = pathToFileURL(resolveHostRuntimeModulePath(moduleName)).href;
-    const content = `export * from '${url}';\n`;
-    writes.push(writeCompatShimIfNeeded(path.join(baseDir, shimName), content));
-    writes.push(writeCompatShimIfNeeded(path.join(baseDir, `${shimName}.js`), content));
-    writes.push(writeCompatShimIfNeeded(path.join(srcDir, `${shimName}.js`), content));
+  // package.json for ESM resolution in ~/.opencli/
+  const pkgJsonPath = path.join(baseDir, 'package.json');
+  const pkgJsonContent = `${JSON.stringify({ name: 'opencli-user-runtime', private: true, type: 'module' }, null, 2)}\n`;
+  try {
+    const existing = await fs.promises.readFile(pkgJsonPath, 'utf-8');
+    if (existing !== pkgJsonContent) await fs.promises.writeFile(pkgJsonPath, pkgJsonContent, 'utf-8');
+  } catch {
+    await fs.promises.writeFile(pkgJsonPath, pkgJsonContent, 'utf-8');
   }
 
-  // Subdirectory shims
-  for (const [subdir, filename, runtimePath] of subdirShims) {
-    const dir = path.join(baseDir, subdir);
-    await fs.promises.mkdir(dir, { recursive: true });
-    const url = pathToFileURL(resolveHostRuntimeModulePath(runtimePath)).href;
-    const content = `export * from '${url}';\n`;
-    writes.push(writeCompatShimIfNeeded(path.join(dir, `${filename}.js`), content));
-  }
-
-  // package.json for ESM resolution
-  writes.push(writeCompatShimIfNeeded(
-    path.join(baseDir, 'package.json'),
-    `${JSON.stringify({ name: 'opencli-user-runtime', private: true, type: 'module' }, null, 2)}\n`,
-  ));
-
-  await Promise.all(writes);
-
-  // Create node_modules/@jackwener/opencli symlink so user TS CLIs can import
-  // from '@jackwener/opencli/registry' (the package export).
-  // This is needed because ~/.opencli/clis/ is outside opencli's node_modules tree.
+  // Create node_modules/@jackwener/opencli symlink pointing to the installed package root.
   const opencliRoot = findPackageRoot();
   const symlinkDir = path.join(baseDir, 'node_modules', '@jackwener');
   const symlinkPath = path.join(symlinkDir, 'opencli');
   try {
-    // Only recreate if symlink is missing or points to wrong target
     let needsUpdate = true;
     try {
       const existing = await fs.promises.readlink(symlinkPath);

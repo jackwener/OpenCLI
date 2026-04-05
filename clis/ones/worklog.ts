@@ -3,8 +3,8 @@
  * so we try common endpoints in sequence.
  */
 
-import { cli, Strategy } from '../../src/registry.js';
-import { CliError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CliError } from '@jackwener/opencli/errors';
 import {
   gotoOnesHome,
   onesFetchInPageWithMeta,

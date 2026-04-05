@@ -10,8 +10,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { IPage } from '../../src/types.js';
-import { CliError } from '../../src/errors.js';
+import type { IPage } from '@jackwener/opencli/types';
+import { CliError } from '@jackwener/opencli/errors';
 
 export const YOLLOMI_DOMAIN = 'yollomi.com';
 

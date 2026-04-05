@@ -1,6 +1,6 @@
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import { browserFetch } from './_shared/browser-fetch.js';
-import type { IPage } from '../../src/types.js';
+import type { IPage } from '@jackwener/opencli/types';
 
 interface LegacyWorkItem {
   aweme_id: string;

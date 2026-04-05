@@ -1,5 +1,5 @@
-import { cli, Strategy } from '../../src/registry.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import type { IPage } from '@jackwener/opencli/types';
 
 const GROK_URL = 'https://grok.com/';
 const RESPONSE_SELECTOR = 'div.message-bubble, [data-testid="message-bubble"]';

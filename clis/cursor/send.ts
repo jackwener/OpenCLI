@@ -1,6 +1,6 @@
-import { cli, Strategy } from '../../src/registry.js';
-import { SelectorError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { SelectorError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 
 export const sendCommand = cli({
   site: 'cursor',

@@ -8,7 +8,7 @@ vi.mock('./utils.js', () => ({
   apiGet: mockApiGet,
 }));
 
-import { getRegistry } from '../../src/registry.js';
+import { getRegistry } from '@jackwener/opencli/registry';
 import './dynamic.js';
 
 describe('bilibili dynamic adapter', () => {

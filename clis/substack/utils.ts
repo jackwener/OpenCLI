@@ -1,5 +1,5 @@
-import { CommandExecutionError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 
 const FEED_POST_LINK_SELECTOR = 'a[href*="/home/post/"], a[href*="/p/"]';
 const ARCHIVE_POST_LINK_SELECTOR = 'a[href*="/p/"]';

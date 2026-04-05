@@ -4,8 +4,8 @@ import * as path from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { getRegistry } from '../../src/registry.js';
-import type { IPage } from '../../src/types.js';
+import { getRegistry } from '@jackwener/opencli/registry';
+import type { IPage } from '@jackwener/opencli/types';
 import './publish.js';
 
 function createPageMock(evaluateResults: any[], overrides: Partial<IPage> = {}): IPage {

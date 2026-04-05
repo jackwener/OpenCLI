@@ -2,7 +2,7 @@
  * peek 列表只有轻量字段，用 batch tasks/info 补全 summary 等（ONES 文档 #7）
  */
 
-import type { IPage } from '../../src/types.js';
+import type { IPage } from '@jackwener/opencli/types';
 import { onesFetchInPage } from './common.js';
 
 const BATCH_SIZE = 40;

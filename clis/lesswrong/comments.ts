@@ -1,5 +1,5 @@
-import { cli, Strategy } from '../../src/registry.js';
-import { EmptyResultError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import {
   DOMAIN,
   SITE,

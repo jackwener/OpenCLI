@@ -8,8 +8,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import chalk from 'chalk';
-import { cli, Strategy } from '../../src/registry.js';
-import { CliError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CliError } from '@jackwener/opencli/errors';
 import { YOLLOMI_DOMAIN, ensureOnYollomi, fmtBytes } from './utils.js';
 
 const MIME_MAP: Record<string, string> = {

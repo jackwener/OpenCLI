@@ -1,4 +1,4 @@
-import type { IPage } from '../../src/types.js';
+import type { IPage } from '@jackwener/opencli/types';
 import { clamp } from '../_shared/common.js';
 
 const clampLimit = (limit: number) => clamp(limit || 20, 1, 50);

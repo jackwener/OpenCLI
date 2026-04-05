@@ -1,8 +1,8 @@
 /**
  * Weibo me — current logged-in user profile.
  */
-import { cli, Strategy } from '../../src/registry.js';
-import { CommandExecutionError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { getSelfUid } from './utils.js';
 
 cli({

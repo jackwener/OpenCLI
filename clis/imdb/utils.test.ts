@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { IPage } from '../../src/types.js';
+import type { IPage } from '@jackwener/opencli/types';
 import {
   extractJsonLd,
   forceEnglishUrl,

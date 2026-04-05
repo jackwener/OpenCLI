@@ -8,9 +8,9 @@
  *   - yt-dlp must be installed: pip install yt-dlp
  */
 
-import { cli, Strategy } from '../../src/registry.js';
-import { checkYtdlp, sanitizeFilename } from '../../download/index.js';
-import { downloadMedia } from '../../download/media-download.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { checkYtdlp, sanitizeFilename } from '@jackwener/opencli/download';
+import { downloadMedia } from '@jackwener/opencli/download/media-download';
 import { resolveBvid } from './utils.js';
 
 cli({

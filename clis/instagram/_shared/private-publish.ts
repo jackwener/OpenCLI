@@ -4,8 +4,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { CommandExecutionError } from '../../../src/errors.js';
-import type { BrowserCookie, IPage } from '../../../src/types.js';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
+import type { BrowserCookie, IPage } from '@jackwener/opencli/types';
 import type { InstagramProtocolCaptureEntry } from './protocol-capture.js';
 import { instagramPrivateApiFetch } from './protocol-capture.js';
 import {

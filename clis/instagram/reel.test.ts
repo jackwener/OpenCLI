@@ -4,9 +4,9 @@ import * as path from 'node:path';
 
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ArgumentError } from '../../src/errors.js';
-import { getRegistry } from '../../src/registry.js';
-import type { IPage } from '../../src/types.js';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@jackwener/opencli/registry';
+import type { IPage } from '@jackwener/opencli/types';
 import './reel.js';
 
 const tempDirs: string[] = [];

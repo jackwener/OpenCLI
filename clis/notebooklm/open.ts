@@ -1,6 +1,6 @@
-import { cli, Strategy } from '../../src/registry.js';
-import type { IPage } from '../../src/types.js';
-import { CliError, EmptyResultError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import type { IPage } from '@jackwener/opencli/types';
+import { CliError, EmptyResultError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import {
   buildNotebooklmNotebookUrl,

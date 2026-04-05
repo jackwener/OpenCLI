@@ -3,8 +3,8 @@
  * Supports top stories (no keyword) and search (with keyword).
  */
 
-import { cli, Strategy } from '../../src/registry.js';
-import { CliError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CliError } from '@jackwener/opencli/errors';
 import { parseRssItems } from './utils.js';
 
 cli({

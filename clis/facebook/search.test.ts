@@ -8,8 +8,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { describe, expect, it, vi } from 'vitest';
-import { executePipeline } from '../../pipeline/index.js';
-import type { IPage } from '../../src/types.js';
+import { executePipeline } from '@jackwener/opencli/pipeline';
+import type { IPage } from '@jackwener/opencli/types';
 
 interface YamlCommand {
   pipeline?: Array<Record<string, unknown>>;

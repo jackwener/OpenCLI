@@ -1,7 +1,7 @@
 /**
  * BOSS直聘 batchgreet — batch greet recommended candidates.
  */
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
   requirePage, navigateToChat, fetchRecommendList,
   clickCandidateInList, typeAndSendMessage, verbose,

@@ -1,6 +1,6 @@
-import { EmptyResultError } from '../../src/errors.js';
-import { cli, Strategy, type CommandArgs } from '../../src/registry.js';
-import type { IPage } from '../../src/types.js';
+import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy, type CommandArgs } from '@jackwener/opencli/registry';
+import type { IPage } from '@jackwener/opencli/types';
 import {
   buildTiebaPostCardsFromPagePc,
   buildTiebaPostItems,

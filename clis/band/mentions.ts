@@ -1,5 +1,5 @@
-import { AuthRequiredError, EmptyResultError, SelectorError } from '../../src/errors.js';
-import { cli, Strategy } from '../../src/registry.js';
+import { AuthRequiredError, EmptyResultError, SelectorError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
 /**
  * band mentions — Show Band notifications where you were @mentioned.

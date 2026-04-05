@@ -2,7 +2,7 @@
  * Sinafinance stock rank
  */
 
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
   site: 'sinafinance',

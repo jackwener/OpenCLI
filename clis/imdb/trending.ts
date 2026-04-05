@@ -1,5 +1,5 @@
-import { CommandExecutionError } from '../../src/errors.js';
-import { cli, Strategy } from '../../src/registry.js';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import { extractJsonLd, forceEnglishUrl, isChallengePage } from './utils.js';
 
 /**

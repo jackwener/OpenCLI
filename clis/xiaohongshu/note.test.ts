@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { IPage } from '../../src/types.js';
-import { getRegistry } from '../../src/registry.js';
+import type { IPage } from '@jackwener/opencli/types';
+import { getRegistry } from '@jackwener/opencli/registry';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
 import './note.js';
 

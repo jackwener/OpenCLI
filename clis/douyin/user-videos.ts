@@ -1,5 +1,5 @@
-import { cli, Strategy } from '../../src/registry.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import type { IPage } from '@jackwener/opencli/types';
 import { fetchDouyinComments, fetchDouyinUserVideos, type DouyinVideo } from './_shared/public-api.js';
 
 export const MAX_USER_VIDEOS_LIMIT = 20;

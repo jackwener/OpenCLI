@@ -1,7 +1,7 @@
 /**
  * Weibo hot search — browser cookie API.
  */
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
   site: 'weibo',

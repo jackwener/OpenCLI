@@ -6,8 +6,8 @@
  *   hq.sinajs.cn        — real-time quote
  */
 
-import { cli, Strategy } from '../../src/registry.js';
-import { CliError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CliError } from '@jackwener/opencli/errors';
 
 const MARKET_CN = '11';
 const MARKET_HK = '31';

@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
-import { cli, Strategy } from '../../src/registry.js';
-import { CommandExecutionError, ConfigError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, ConfigError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 
 export const statusCommand = cli({
   site: 'chatgpt',

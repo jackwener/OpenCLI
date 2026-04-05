@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CliCommand } from '../../src/registry.js';
-import { getRegistry } from '../../src/registry.js';
-import { AuthRequiredError, CommandExecutionError } from '../../src/errors.js';
+import type { CliCommand } from '@jackwener/opencli/registry';
+import { getRegistry } from '@jackwener/opencli/registry';
+import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { createPageMock } from './test-utils.js';
 
 // Mock download dependencies before importing the adapter

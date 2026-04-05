@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { IPage } from '../../src/types.js';
-import { AuthRequiredError, CommandExecutionError, TimeoutError } from '../../src/errors.js';
+import type { IPage } from '@jackwener/opencli/types';
+import { AuthRequiredError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import { __test__ } from './ask.js';
 import { askCommand } from './ask.js';
 

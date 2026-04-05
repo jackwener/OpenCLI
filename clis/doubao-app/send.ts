@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import { injectTextScript, clickSendScript } from './utils.js';
 
 export const sendCommand = cli({

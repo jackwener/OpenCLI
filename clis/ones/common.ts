@@ -3,8 +3,8 @@
  * 文档：https://developer.ones.cn/zh-CN/docs/api/readme/
  */
 
-import type { IPage } from '../../src/types.js';
-import { CliError } from '../../src/errors.js';
+import type { IPage } from '@jackwener/opencli/types';
+import { CliError } from '@jackwener/opencli/errors';
 
 export const API_PREFIX = '/project/api/project';
 

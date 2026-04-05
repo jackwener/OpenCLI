@@ -1,4 +1,4 @@
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import { mergeSearchItems, normalizeSearchItem, sanitizeSearchItems } from './utils.js';
 
 function escapeJsString(value: string): string {

@@ -1,7 +1,7 @@
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import { browserFetch } from './_shared/browser-fetch.js';
-import { CommandExecutionError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 
 cli({
   site: 'douyin',

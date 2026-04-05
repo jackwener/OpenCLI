@@ -1,7 +1,7 @@
 /**
  * BBC News headlines — public RSS feed, no browser needed.
  */
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
   site: 'bbc',

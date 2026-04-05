@@ -4,9 +4,9 @@
  * Navigates to the 36kr hot-list page and scrapes rendered article links.
  * Supports category types: renqi (人气), zonghe (综合), shoucang (收藏), catalog (综合热门).
  */
-import { cli, Strategy } from '../../src/registry.js';
-import { CliError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CliError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 
 const TYPE_MAP: Record<string, string> = {
   renqi:   '人气榜',

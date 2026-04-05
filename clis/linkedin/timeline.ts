@@ -1,6 +1,6 @@
-import { cli, Strategy } from '../../src/registry.js';
-import type { IPage } from '../../src/types.js';
-import { AuthRequiredError, EmptyResultError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import type { IPage } from '@jackwener/opencli/types';
+import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
 
 interface TimelinePost {
   rank?: number;

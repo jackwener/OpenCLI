@@ -1,5 +1,5 @@
-import { AuthRequiredError, CommandExecutionError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 
 export interface HupuApiResponse {
   code?: number;

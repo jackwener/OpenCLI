@@ -6,7 +6,7 @@
  * Action API: https://en.wikipedia.org/w/api.php
  */
 
-import { CliError } from '../../src/errors.js';
+import { CliError } from '@jackwener/opencli/errors';
 
 /** Maximum character length for article extract fields. */
 export const EXTRACT_MAX_LEN = 300;

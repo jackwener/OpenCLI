@@ -1,5 +1,5 @@
-import { cli, Strategy } from '../../src/registry.js';
-import { CliError } from '../../src/errors.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CliError } from '@jackwener/opencli/errors';
 import {
   extractStoryMediaLinks,
   renderStoryBody,

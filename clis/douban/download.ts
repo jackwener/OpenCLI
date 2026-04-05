@@ -1,9 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { formatBytes } from '../../download/progress.js';
-import { httpDownload, sanitizeFilename } from '../../download/index.js';
-import { EmptyResultError } from '../../src/errors.js';
-import { cli, Strategy } from '../../src/registry.js';
+import { formatBytes } from '@jackwener/opencli/download/progress';
+import { httpDownload, sanitizeFilename } from '@jackwener/opencli/download';
+import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import type { DoubanSubjectPhoto, LoadDoubanSubjectPhotosOptions } from './utils.js';
 import { getDoubanPhotoExtension, loadDoubanSubjectPhotos, normalizeDoubanSubjectId } from './utils.js';
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AuthRequiredError } from '../../../src/errors.js';
+import { AuthRequiredError } from '@jackwener/opencli/errors';
 import { getSts2Credentials } from './sts2.js';
 
 describe('douyin sts2 credentials', () => {

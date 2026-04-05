@@ -1,8 +1,8 @@
-import type { IPage } from '../../src/types.js';
-import { cli, Strategy } from '../../src/registry.js';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '../../src/errors.js';
-import { log } from '../../src/logger.js';
-import { isRecord } from '../../src/utils.js';
+import type { IPage } from '@jackwener/opencli/types';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { log } from '@jackwener/opencli/logger';
+import { isRecord } from '@jackwener/opencli/utils';
 
 /**
  * Minimal browser-response shape used by the classifier.

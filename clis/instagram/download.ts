@@ -1,10 +1,10 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { cli, Strategy } from '../../src/registry.js';
-import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError, EXIT_CODES } from '../../src/errors.js';
-import { httpDownload } from '../../download/index.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError, EXIT_CODES } from '@jackwener/opencli/errors';
+import { httpDownload } from '@jackwener/opencli/download';
+import type { IPage } from '@jackwener/opencli/types';
 
 const INSTAGRAM_GRAPHQL_DOC_ID = '8845758582119845';
 const INSTAGRAM_GRAPHQL_APP_ID = '936619743392459';

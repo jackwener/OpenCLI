@@ -6,7 +6,7 @@
  * course pages loaded as iframes.
  */
 
-import type { IPage } from '../../src/types.js';
+import type { IPage } from '@jackwener/opencli/types';
 
 // ── Utilities ────────────────────────────────────────────────────────
 

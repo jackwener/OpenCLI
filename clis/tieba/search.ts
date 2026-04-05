@@ -1,5 +1,5 @@
-import { ArgumentError, EmptyResultError } from '../../src/errors.js';
-import { cli, Strategy, type CommandArgs } from '../../src/registry.js';
+import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy, type CommandArgs } from '@jackwener/opencli/registry';
 import { buildTiebaSearchItems, type RawTiebaSearchItem, normalizeTiebaLimit } from './utils.js';
 
 const MAX_SUPPORTED_PAGE = '1';

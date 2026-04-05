@@ -19,8 +19,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { cli, Strategy } from '../../src/registry.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import type { IPage } from '@jackwener/opencli/types';
 
 const PUBLISH_URL = 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
 const MAX_IMAGES = 9;

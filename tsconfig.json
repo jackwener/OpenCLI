@@ -14,16 +14,7 @@
   },
   "include": [
     "src/**/*.ts",
-    "clis/**/*.ts",
-    "registry.ts",
-    "errors.ts",
-    "types.ts",
-    "utils.ts",
-    "logger.ts",
-    "launcher.ts",
-    "browser/**/*.ts",
-    "download/**/*.ts",
-    "pipeline/**/*.ts"
+    "clis/**/*.ts"
   ],
   "exclude": ["node_modules", "dist", "extension"]
 }

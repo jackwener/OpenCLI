@@ -23,8 +23,8 @@ vi.mock('./utils.js', async () => {
   };
 });
 
-import { getRegistry } from '../../src/registry.js';
-import { CliError } from '../../src/errors.js';
+import { getRegistry } from '@jackwener/opencli/registry';
+import { CliError } from '@jackwener/opencli/errors';
 import './notes-get.js';
 
 describe('notebooklm notes-get', () => {

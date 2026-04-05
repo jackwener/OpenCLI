@@ -1,6 +1,6 @@
-import { cli, Strategy } from '../../src/registry.js';
-import { AuthRequiredError, CommandExecutionError, EmptyResultError, SelectorError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError, SelectorError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 import { apiGet, resolveBvid } from './utils.js';
 
 cli({

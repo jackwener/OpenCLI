@@ -4,12 +4,12 @@
  * BOSS chat uses MQTT (not HTTP) for messaging, so we must go through the UI
  * rather than making direct API calls.
  */
-import { cli, Strategy } from '../../src/registry.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
   requirePage, navigateToChat, findFriendByUid,
   clickCandidateInList, typeAndSendMessage,
 } from './utils.js';
-import { EmptyResultError, SelectorError } from '../../src/errors.js';
+import { EmptyResultError, SelectorError } from '@jackwener/opencli/errors';
 
 cli({
   site: 'boss',

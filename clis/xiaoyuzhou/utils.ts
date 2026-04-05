@@ -6,7 +6,7 @@
  * instead of using their authenticated API.
  */
 
-import { CliError } from '../../src/errors.js';
+import { CliError } from '@jackwener/opencli/errors';
 
 /**
  * Fetch a Xiaoyuzhou page and extract __NEXT_DATA__.props.pageProps.

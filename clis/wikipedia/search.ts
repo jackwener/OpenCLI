@@ -1,5 +1,5 @@
-import { CliError } from '../../src/errors.js';
-import { cli, Strategy } from '../../src/registry.js';
+import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 import { wikiFetch } from './utils.js';
 
 interface WikiSearchResult {

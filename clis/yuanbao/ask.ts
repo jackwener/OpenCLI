@@ -1,7 +1,7 @@
-import { cli, Strategy } from '../../src/registry.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import type { IPage } from '@jackwener/opencli/types';
 import TurndownService from 'turndown';
-import { CommandExecutionError, TimeoutError } from '../../src/errors.js';
+import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import { YUANBAO_DOMAIN, YUANBAO_URL, IS_VISIBLE_JS, authRequired, isOnYuanbao, ensureYuanbaoPage, hasLoginGate } from './shared.js';
 
 const YUANBAO_RESPONSE_POLL_INTERVAL_SECONDS = 2;

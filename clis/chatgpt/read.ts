@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
-import { cli, Strategy } from '../../src/registry.js';
-import { CommandExecutionError, ConfigError, getErrorMessage } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, ConfigError, getErrorMessage } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 import { getVisibleChatMessages } from './ax.js';
 
 export const readCommand = cli({

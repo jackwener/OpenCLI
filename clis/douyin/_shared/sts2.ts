@@ -1,6 +1,6 @@
-import type { IPage } from '../../../src/types.js';
+import type { IPage } from '@jackwener/opencli/types';
 import type { Sts2Credentials } from './types.js';
-import { AuthRequiredError } from '../../../src/errors.js';
+import { AuthRequiredError } from '@jackwener/opencli/errors';
 
 const STS2_URL =
   'https://creator.douyin.com/aweme/mid/video/sts2/?scene=web&aid=1128&cookie_enabled=true&device_platform=web';

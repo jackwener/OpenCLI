@@ -1,5 +1,5 @@
-import { ArgumentError } from '../../src/errors.js';
-import type { IPage } from '../../src/types.js';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import type { IPage } from '@jackwener/opencli/types';
 
 /**
  * Normalize an IMDb title or person input to a bare ID.
