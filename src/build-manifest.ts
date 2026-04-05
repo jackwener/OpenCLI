@@ -6,7 +6,7 @@
  * manifest.json for instant cold-start registration (no runtime YAML parsing).
  *
  * Usage: npx tsx src/build-manifest.ts
- * Output: dist/cli-manifest.json
+ * Output: cli-manifest.json at the package root
  */
 
 import * as fs from 'node:fs';
@@ -15,10 +15,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
 import { getErrorMessage } from './errors.js';
 import { fullName, getRegistry, type CliCommand } from './registry.js';
+import { findPackageRoot, getCliManifestPath } from './package-paths.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CLIS_DIR = path.resolve(__dirname, '..', 'clis');
-const OUTPUT = path.resolve(__dirname, '..', 'cli-manifest.json');
+const PACKAGE_ROOT = findPackageRoot(fileURLToPath(import.meta.url));
+const CLIS_DIR = path.join(PACKAGE_ROOT, 'clis');
+const OUTPUT = getCliManifestPath(CLIS_DIR);
 
 export interface ManifestEntry {
   site: string;
@@ -254,7 +255,7 @@ async function main(): Promise<void> {
   // entry-point loses its executable permission, causing "Permission denied".
   // See: https://github.com/jackwener/opencli/issues/446
   if (process.platform !== 'win32') {
-    const projectRoot = path.resolve(__dirname, '..', '..');
+    const projectRoot = PACKAGE_ROOT;
     const pkgPath = path.resolve(projectRoot, 'package.json');
     try {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
