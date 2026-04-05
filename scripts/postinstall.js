@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * postinstall script — automatically install shell completion files.
+ * postinstall script — install shell completion files and print setup instructions.
  *
  * Detects the user's default shell and writes the completion script to the
- * standard system completion directory so that tab-completion works immediately
- * after `npm install -g`.
+ * standard completion directory.  For zsh and bash, the script prints manual
+ * instructions instead of modifying rc files (~/.zshrc, ~/.bashrc) — this
+ * avoids breaking multi-line shell commands and other fragile rc structures.
+ * Fish completions work automatically without rc changes.
  *
  * Supported shells: bash, zsh, fish.
  *
@@ -13,7 +15,7 @@
  * the main source tree) so that it can run without a build step.
  */
 
-import { mkdirSync, writeFileSync, existsSync, readFileSync, appendFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -69,54 +71,6 @@ function ensureDir(dir) {
   }
 }
 
-/**
- * Ensure fpath contains the custom completions directory in .zshrc.
- *
- * Key detail: the fpath line MUST appear BEFORE the first `compinit` call,
- * otherwise compinit won't scan our completions directory.  This is critical
- * for oh-my-zsh users (source $ZSH/oh-my-zsh.sh calls compinit internally).
- */
-function ensureZshFpath(completionsDir, zshrcPath) {
-  const fpathLine = `fpath=(${completionsDir} $fpath)`;
-  const autoloadLine = `autoload -Uz compinit && compinit`;
-  const marker = '# opencli completion';
-
-  if (!existsSync(zshrcPath)) {
-    writeFileSync(zshrcPath, `${marker}\n${fpathLine}\n${autoloadLine}\n`, 'utf8');
-    return;
-  }
-
-  const content = readFileSync(zshrcPath, 'utf8');
-
-  // Already configured — nothing to do
-  if (content.includes(completionsDir)) {
-    return;
-  }
-
-  // Find the first line that triggers compinit (direct call or oh-my-zsh source)
-  const lines = content.split('\n');
-  let insertIdx = -1;
-  for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
-    // Skip comment-only lines
-    if (trimmed.startsWith('#')) continue;
-    if (/compinit/.test(trimmed) || /source\s+.*oh-my-zsh\.sh/.test(trimmed)) {
-      insertIdx = i;
-      break;
-    }
-  }
-
-  if (insertIdx !== -1) {
-    // Insert fpath BEFORE the compinit / oh-my-zsh source line
-    lines.splice(insertIdx, 0, marker, fpathLine);
-    writeFileSync(zshrcPath, lines.join('\n'), 'utf8');
-  } else {
-    // No compinit found — append fpath + compinit at the end
-    let addition = `\n${marker}\n${fpathLine}\n${autoloadLine}\n`;
-    appendFileSync(zshrcPath, addition, 'utf8');
-  }
-}
-
 // ── Main ───────────────────────────────────────────────────────────────────
 
 function main() {
@@ -147,35 +101,28 @@ function main() {
         ensureDir(completionsDir);
         writeFileSync(completionFile, ZSH_COMPLETION, 'utf8');
 
-        // Ensure fpath is set up in .zshrc
-        const zshrcPath = join(home, '.zshrc');
-        ensureZshFpath(completionsDir, zshrcPath);
-
         console.log(`✓ Zsh completion installed to ${completionFile}`);
-        console.log(`  Restart your shell or run: source ~/.zshrc`);
+        console.log('');
+        console.log('  \x1b[1mTo enable, add these lines to your ~/.zshrc:\x1b[0m');
+        console.log(`    fpath=(${completionsDir} $fpath)`);
+        console.log('    autoload -Uz compinit && compinit');
+        console.log('');
+        console.log('  If you already have compinit (oh-my-zsh, zinit, etc.), just add the fpath line \x1b[1mbefore\x1b[0m it.');
+        console.log('  Then restart your shell or run: \x1b[36mexec zsh\x1b[0m');
         break;
       }
       case 'bash': {
-        // Try system-level first, fall back to user-level
         const userCompDir = join(home, '.bash_completion.d');
         const completionFile = join(userCompDir, 'opencli');
         ensureDir(userCompDir);
         writeFileSync(completionFile, BASH_COMPLETION, 'utf8');
 
-        // Ensure .bashrc sources the completion directory
-        const bashrcPath = join(home, '.bashrc');
-        if (existsSync(bashrcPath)) {
-          const content = readFileSync(bashrcPath, 'utf8');
-          if (!content.includes('.bash_completion.d/opencli')) {
-            appendFileSync(bashrcPath,
-              `\n# opencli completion\n[ -f "${completionFile}" ] && source "${completionFile}"\n`,
-              'utf8'
-            );
-          }
-        }
-
         console.log(`✓ Bash completion installed to ${completionFile}`);
-        console.log(`  Restart your shell or run: source ~/.bashrc`);
+        console.log('');
+        console.log('  \x1b[1mTo enable, add this line to your ~/.bashrc:\x1b[0m');
+        console.log(`    [ -f "${completionFile}" ] && source "${completionFile}"`);
+        console.log('');
+        console.log('  Then restart your shell or run: \x1b[36msource ~/.bashrc\x1b[0m');
         break;
       }
       case 'fish': {
