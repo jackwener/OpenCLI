@@ -10,11 +10,11 @@
  * opencli follows Unix conventions (sysexits.h) for process exit codes:
  *
  *   0   Success
- *   1   Generic / unexpected error
+ *   1   Generic / unexpected error      (ApiError, SelectorError)
  *   2   Argument / usage error          (ArgumentError)
- *  66   No input / empty result         (EmptyResultError)
+ *  66   No input / empty result         (EmptyResultError, PageChangedError)
  *  69   Service unavailable             (BrowserConnectError, AdapterLoadError)
- *  75   Temporary failure, retry later  (TimeoutError)   EX_TEMPFAIL
+ *  75   Temporary failure, retry later  (TimeoutError, NetworkError)   EX_TEMPFAIL
  *  77   Permission denied / auth needed (AuthRequiredError)
  *  78   Configuration error             (ConfigError)
  * 130   Interrupted by Ctrl-C           (set by tui.ts SIGINT handler)
@@ -133,6 +133,43 @@ export class SelectorError extends CliError {
       `Could not find element: ${selector}`,
       hint ?? 'The page UI may have changed. Please report this issue.',
       EXIT_CODES.GENERIC_ERROR,
+    );
+  }
+}
+
+export class NetworkError extends CliError {
+  readonly statusCode?: number;
+  constructor(message: string, statusCode?: number, hint?: string) {
+    super(
+      'NETWORK',
+      message,
+      hint ?? 'Check your network connection, or try again later',
+      EXIT_CODES.TEMPFAIL,
+    );
+    this.statusCode = statusCode;
+  }
+}
+
+export class ApiError extends CliError {
+  readonly apiCode?: number | string;
+  constructor(label: string, apiCode?: number | string, apiMessage?: string, hint?: string) {
+    super(
+      'API_ERROR',
+      `${label}: API error${apiCode !== undefined ? ` code=${apiCode}` : ''}${apiMessage ? ` — ${apiMessage}` : ''}`,
+      hint ?? 'The API returned an unexpected error. The endpoint may have changed.',
+      EXIT_CODES.GENERIC_ERROR,
+    );
+    this.apiCode = apiCode;
+  }
+}
+
+export class PageChangedError extends CliError {
+  constructor(command: string, hint?: string) {
+    super(
+      'PAGE_CHANGED',
+      `${command}: page structure has changed`,
+      hint ?? 'The website may have been updated. Please report this issue so the adapter can be fixed.',
+      EXIT_CODES.EMPTY_RESULT,
     );
   }
 }
