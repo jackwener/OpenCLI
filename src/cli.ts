@@ -512,15 +512,24 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       let items: Array<{ url: string; method: string; status: number; size: number; ct: string; body: unknown }> = [];
       if (page.readNetworkCapture) {
         const raw = await page.readNetworkCapture();
-        // Normalize to the same shape as __opencli_net entries
-        items = (raw as Array<Record<string, unknown>>).map(e => ({
-          url: (e.url as string) || '',
-          method: (e.method as string) || 'GET',
-          status: (e.status as number) || 0,
-          size: e.responseBody ? JSON.stringify(e.responseBody).length : 0,
-          ct: (e.contentType as string) || '',
-          body: e.responseBody ?? null,
-        }));
+        // Normalize daemon/CDP capture entries to __opencli_net shape.
+        // Daemon returns: responseStatus, responseContentType, responsePreview
+        // CDP returns the same shape after PR A fix.
+        items = (raw as Array<Record<string, unknown>>).map(e => {
+          const preview = (e.responsePreview as string) ?? null;
+          let body: unknown = null;
+          if (preview) {
+            try { body = JSON.parse(preview); } catch { body = preview; }
+          }
+          return {
+            url: (e.url as string) || '',
+            method: (e.method as string) || 'GET',
+            status: (e.responseStatus as number) || 0,
+            size: preview ? preview.length : 0,
+            ct: (e.responseContentType as string) || '',
+            body,
+          };
+        });
       } else {
         // Fallback to JS interceptor data
         const requests = await page.evaluate(`(function(){
