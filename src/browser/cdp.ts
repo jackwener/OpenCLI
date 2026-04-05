@@ -166,13 +166,14 @@ export class CDPBridge implements IBrowserFactory {
 class CDPPage extends BasePage {
   private _pageEnabled = false;
 
-  // Network capture state
+  // Network capture state (mirrors extension/src/cdp.ts NetworkCaptureEntry shape)
   private _networkCapturing = false;
   private _networkCapturePattern = '';
-  private _networkEntries: Array<{ requestId: string; method: string; url: string; status?: number; contentType?: string; responseBody?: unknown }> = [];
-  private _pendingRequests = new Map<string, { method: string; url: string }>();
-  private _requestHandler: ((params: unknown) => void) | null = null;
-  private _responseHandler: ((params: unknown) => void) | null = null;
+  private _networkEntries: Array<{
+    url: string; method: string; responseStatus?: number;
+    responseContentType?: string; responsePreview?: string; timestamp: number;
+  }> = [];
+  private _pendingRequests = new Map<string, number>(); // requestId → index in _networkEntries
 
   constructor(private bridge: CDPBridge) {
     super();
@@ -236,51 +237,54 @@ class CDPPage extends BasePage {
     if (!this._networkCapturing) {
       await this.bridge.send('Network.enable');
 
-      this._requestHandler = (params: unknown) => {
-        const p = params as { requestId: string; request: { method: string; url: string } };
-        const { requestId, request } = p;
-        if (!pattern || request.url.includes(pattern)) {
-          this._pendingRequests.set(requestId, { method: request.method, url: request.url });
+      // Step 1: Record request method/url on requestWillBeSent
+      this.bridge.on('Network.requestWillBeSent', (params: unknown) => {
+        const p = params as { requestId: string; request: { method: string; url: string }; timestamp: number };
+        if (!pattern || p.request.url.includes(pattern)) {
+          const idx = this._networkEntries.push({
+            url: p.request.url,
+            method: p.request.method,
+            timestamp: p.timestamp,
+          }) - 1;
+          this._pendingRequests.set(p.requestId, idx);
         }
-      };
+      });
 
-      this._responseHandler = (params: unknown) => {
-        const p = params as { requestId: string; response: { status: number; headers?: Record<string, string> } };
-        const { requestId, response } = p;
-        const pending = this._pendingRequests.get(requestId);
-        if (pending) {
-          const entry: typeof this._networkEntries[number] = {
-            requestId,
-            ...pending,
-            status: response.status,
-            contentType: response.headers?.['content-type'] || response.headers?.['Content-Type'] || '',
-          };
-          // Try to get response body
-          this.bridge.send('Network.getResponseBody', { requestId }).then((result: unknown) => {
-            const r = result as { body?: string } | undefined;
-            if (r?.body) {
-              try { entry.responseBody = JSON.parse(r.body); } catch { entry.responseBody = r.body; }
+      // Step 2: Fill in response metadata on responseReceived
+      this.bridge.on('Network.responseReceived', (params: unknown) => {
+        const p = params as { requestId: string; response: { status: number; mimeType?: string } };
+        const idx = this._pendingRequests.get(p.requestId);
+        if (idx !== undefined) {
+          this._networkEntries[idx].responseStatus = p.response.status;
+          this._networkEntries[idx].responseContentType = p.response.mimeType || '';
+        }
+      });
+
+      // Step 3: Fetch body on loadingFinished (body is only reliably available after this)
+      this.bridge.on('Network.loadingFinished', (params: unknown) => {
+        const p = params as { requestId: string };
+        const idx = this._pendingRequests.get(p.requestId);
+        if (idx !== undefined) {
+          this.bridge.send('Network.getResponseBody', { requestId: p.requestId }).then((result: unknown) => {
+            const r = result as { body?: string; base64Encoded?: boolean } | undefined;
+            if (typeof r?.body === 'string') {
+              this._networkEntries[idx].responsePreview = r.base64Encoded
+                ? `base64:${r.body.slice(0, 4000)}`
+                : r.body.slice(0, 4000);
             }
-            this._networkEntries.push(entry);
           }).catch(() => {
-            this._networkEntries.push(entry);
+            // Body unavailable for some requests (e.g. uploads) — non-fatal
           });
-          this._pendingRequests.delete(requestId);
+          this._pendingRequests.delete(p.requestId);
         }
-      };
+      });
 
-      this.bridge.on('Network.requestWillBeSent', this._requestHandler);
-      this.bridge.on('Network.responseReceived', this._responseHandler);
       this._networkCapturing = true;
     }
   }
 
   async readNetworkCapture(): Promise<unknown[]> {
-    // Small delay to let in-flight getResponseBody calls complete
-    await new Promise(r => setTimeout(r, 100));
-    const entries = [...this._networkEntries];
-    this._networkEntries = [];
-    return entries;
+    return [...this._networkEntries];
   }
 
   async tabs(): Promise<unknown[]> {
