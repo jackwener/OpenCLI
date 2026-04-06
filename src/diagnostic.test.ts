@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { buildRepairContext, isDiagnosticEnabled, emitDiagnostic, type RepairContext } from './diagnostic.js';
+import { buildRepairContext, collectDiagnostic, isDiagnosticEnabled, emitDiagnostic, type RepairContext } from './diagnostic.js';
 import { CliError, SelectorError, CommandExecutionError } from './errors.js';
 import type { InternalCliCommand } from './registry.js';
+import type { IPage } from './types.js';
 
 function makeCmd(overrides: Partial<InternalCliCommand> = {}): InternalCliCommand {
   return {
@@ -96,5 +97,75 @@ describe('emitDiagnostic', () => {
     expect(parsed.error.code).toBe('COMMAND_EXEC');
 
     writeSpy.mockRestore();
+  });
+});
+
+function makePage(overrides: Partial<IPage> = {}): IPage {
+  return {
+    goto: vi.fn(),
+    evaluate: vi.fn(),
+    getCookies: vi.fn(),
+    snapshot: vi.fn().mockResolvedValue('<div>...</div>'),
+    click: vi.fn(),
+    typeText: vi.fn(),
+    pressKey: vi.fn(),
+    scrollTo: vi.fn(),
+    getFormState: vi.fn(),
+    wait: vi.fn(),
+    tabs: vi.fn(),
+    selectTab: vi.fn(),
+    networkRequests: vi.fn().mockResolvedValue([]),
+    consoleMessages: vi.fn().mockResolvedValue([]),
+    scroll: vi.fn(),
+    autoScroll: vi.fn(),
+    installInterceptor: vi.fn(),
+    getInterceptedRequests: vi.fn().mockResolvedValue([]),
+    waitForCapture: vi.fn(),
+    screenshot: vi.fn(),
+    getCurrentUrl: vi.fn().mockResolvedValue('https://example.com/page'),
+    ...overrides,
+  } as IPage;
+}
+
+describe('collectDiagnostic', () => {
+  it('includes intercepted payloads ahead of network request entries', async () => {
+    const page = makePage({
+      networkRequests: vi.fn().mockResolvedValue([{ url: '/api/data', status: 200 }]),
+      getInterceptedRequests: vi.fn().mockResolvedValue([{ items: [{ id: 1 }] }]),
+    });
+
+    const ctx = await collectDiagnostic(new Error('boom'), makeCmd(), page);
+
+    expect(ctx.page?.networkRequests).toEqual([
+      { source: 'interceptor', responseBody: { items: [{ id: 1 }] } },
+      { url: '/api/data', status: 200 },
+    ]);
+  });
+
+  it('preserves the previous network request output when interception is empty', async () => {
+    const page = makePage({
+      networkRequests: vi.fn().mockResolvedValue([{ url: '/api/data', status: 200 }]),
+      getInterceptedRequests: vi.fn().mockResolvedValue([]),
+    });
+
+    const ctx = await collectDiagnostic(new Error('boom'), makeCmd(), page);
+
+    expect(ctx.page?.networkRequests).toEqual([{ url: '/api/data', status: 200 }]);
+  });
+
+  it('swallows intercepted request failures and still returns page state', async () => {
+    const page = makePage({
+      networkRequests: vi.fn().mockResolvedValue([{ url: '/api/data', status: 200 }]),
+      getInterceptedRequests: vi.fn().mockRejectedValue(new Error('interceptor unavailable')),
+    });
+
+    const ctx = await collectDiagnostic(new Error('boom'), makeCmd(), page);
+
+    expect(ctx.page).toEqual({
+      url: 'https://example.com/page',
+      snapshot: '<div>...</div>',
+      networkRequests: [{ url: '/api/data', status: 200 }],
+      consoleErrors: [],
+    });
   });
 });

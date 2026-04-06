@@ -43,16 +43,30 @@ export function isDiagnosticEnabled(): boolean {
   return process.env.OPENCLI_DIAGNOSTIC === '1';
 }
 
+function normalizeInterceptedRequests(interceptedRequests: unknown[]): unknown[] {
+  return interceptedRequests.map(responseBody => ({
+    source: 'interceptor',
+    responseBody,
+  }));
+}
+
 /** Safely collect page diagnostic state. Individual failures are swallowed. */
 async function collectPageState(page: IPage): Promise<RepairContext['page'] | undefined> {
   try {
-    const [url, snapshot, networkRequests, consoleErrors] = await Promise.all([
+    const [url, snapshot, networkRequests, interceptedRequests, consoleErrors] = await Promise.all([
       page.getCurrentUrl?.().catch(() => null) ?? Promise.resolve(null),
       page.snapshot().catch(() => '(snapshot unavailable)'),
       page.networkRequests().catch(() => []),
+      page.getInterceptedRequests().catch(() => []),
       page.consoleMessages('error').catch(() => []),
     ]);
-    return { url: url ?? 'unknown', snapshot, networkRequests, consoleErrors };
+    const capturedResponses = normalizeInterceptedRequests(interceptedRequests);
+    return {
+      url: url ?? 'unknown',
+      snapshot,
+      networkRequests: [...capturedResponses, ...networkRequests],
+      consoleErrors,
+    };
   } catch {
     return undefined;
   }
