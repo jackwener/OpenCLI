@@ -29,10 +29,16 @@ const MAX_SNAPSHOT_CHARS = 100_000;
 const MAX_SOURCE_CHARS = 50_000;
 /** Maximum number of network requests to include. */
 const MAX_NETWORK_REQUESTS = 50;
+/** Maximum number of captured interceptor payloads to include. */
+const MAX_CAPTURED_PAYLOADS = 20;
 /** Maximum characters for a single network request body. */
 const MAX_REQUEST_BODY_CHARS = 4_000;
 /** Maximum characters for error stack trace. */
 const MAX_STACK_CHARS = 5_000;
+/** Maximum nesting depth for arbitrary captured payloads. */
+const MAX_CAPTURED_DEPTH = 4;
+/** Maximum object keys or array items to keep per nesting level. */
+const MAX_CAPTURED_CHILDREN = 20;
 
 // ── Sensitive data patterns ──────────────────────────────────────────────────
 
@@ -80,6 +86,7 @@ export interface RepairContext {
     url: string;
     snapshot: string;
     networkRequests: unknown[];
+    capturedPayloads?: unknown[];
     consoleErrors: unknown[];
   };
   timestamp: string;
@@ -119,6 +126,41 @@ function redactHeaders(headers: Record<string, string> | undefined): Record<stri
   return result;
 }
 
+/** Recursively sanitize arbitrary captured response content for diagnostic output. */
+function sanitizeCapturedValue(value: unknown, depth: number = 0): unknown {
+  if (typeof value === 'string') {
+    return redactText(truncate(value, MAX_REQUEST_BODY_CHARS));
+  }
+  if (value === null || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+  if (depth >= MAX_CAPTURED_DEPTH) {
+    return '[truncated: max depth reached]';
+  }
+  if (Array.isArray(value)) {
+    const items = value
+      .slice(0, MAX_CAPTURED_CHILDREN)
+      .map(item => sanitizeCapturedValue(item, depth + 1));
+    if (value.length > MAX_CAPTURED_CHILDREN) {
+      items.push(`[truncated, ${value.length - MAX_CAPTURED_CHILDREN} items omitted]`);
+    }
+    return items;
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const entries = Object.entries(value);
+  const result: Record<string, unknown> = {};
+  for (const [key, child] of entries.slice(0, MAX_CAPTURED_CHILDREN)) {
+    result[key] = sanitizeCapturedValue(child, depth + 1);
+  }
+  if (entries.length > MAX_CAPTURED_CHILDREN) {
+    result.__truncated__ = `[${entries.length - MAX_CAPTURED_CHILDREN} fields omitted]`;
+  }
+  return result;
+}
+
 /** Redact sensitive data from a single network request entry. */
 function redactNetworkRequest(req: unknown): unknown {
   if (!req || typeof req !== 'object') return req;
@@ -144,6 +186,12 @@ function redactNetworkRequest(req: unknown): unknown {
   // Truncate response body
   if (typeof redacted.body === 'string') {
     redacted.body = truncate(redacted.body, MAX_REQUEST_BODY_CHARS);
+  }
+  if ('responseBody' in redacted) {
+    redacted.responseBody = sanitizeCapturedValue(redacted.responseBody);
+  }
+  if ('responsePreview' in redacted) {
+    redacted.responsePreview = sanitizeCapturedValue(redacted.responsePreview);
   }
 
   return redacted;
@@ -215,9 +263,9 @@ export function isDiagnosticEnabled(): boolean {
 }
 
 function normalizeInterceptedRequests(interceptedRequests: unknown[]): unknown[] {
-  return interceptedRequests.map(responseBody => ({
+  return interceptedRequests.slice(0, MAX_CAPTURED_PAYLOADS).map(responseBody => ({
     source: 'interceptor',
-    responseBody,
+    responseBody: sanitizeCapturedValue(responseBody),
   }));
 }
 
@@ -238,9 +286,10 @@ async function collectPageState(page: IPage): Promise<RepairContext['page'] | un
       return {
         url: redactUrl(rawUrl),
         snapshot: redactText(truncate(snapshot, MAX_SNAPSHOT_CHARS)),
-        networkRequests: [...capturedResponses, ...(networkRequests as unknown[])]
+        networkRequests: (networkRequests as unknown[])
           .slice(0, MAX_NETWORK_REQUESTS)
           .map(redactNetworkRequest),
+        capturedPayloads: capturedResponses,
         consoleErrors: (consoleErrors as unknown[])
           .slice(0, 50)
           .map(e => typeof e === 'string' ? redactText(e) : e),
@@ -307,7 +356,15 @@ export function emitDiagnostic(ctx: RepairContext): void {
 
   // Enforce total output budget — drop page state (largest section) first if over budget
   if (json.length > MAX_DIAGNOSTIC_BYTES && ctx.page) {
-    const trimmed = { ...ctx, page: { ...ctx.page, snapshot: '[omitted: over size budget]', networkRequests: [] } };
+    const trimmed = {
+      ...ctx,
+      page: {
+        ...ctx.page,
+        snapshot: '[omitted: over size budget]',
+        networkRequests: [],
+        capturedPayloads: [],
+      },
+    };
     json = JSON.stringify(trimmed);
   }
   // If still over budget, drop page entirely

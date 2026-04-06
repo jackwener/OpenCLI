@@ -282,7 +282,7 @@ function makePage(overrides: Partial<IPage> = {}): IPage {
 }
 
 describe('collectDiagnostic', () => {
-  it('includes intercepted payloads ahead of network request entries', async () => {
+  it('keeps intercepted payloads in a dedicated capturedPayloads field', async () => {
     const page = makePage({
       networkRequests: vi.fn().mockResolvedValue([{ url: '/api/data', status: 200 }]),
       getInterceptedRequests: vi.fn().mockResolvedValue([{ items: [{ id: 1 }] }]),
@@ -291,8 +291,10 @@ describe('collectDiagnostic', () => {
     const ctx = await collectDiagnostic(new Error('boom'), makeCmd(), page);
 
     expect(ctx.page?.networkRequests).toEqual([
-      { source: 'interceptor', responseBody: { items: [{ id: 1 }] } },
       { url: '/api/data', status: 200 },
+    ]);
+    expect(ctx.page?.capturedPayloads).toEqual([
+      { source: 'interceptor', responseBody: { items: [{ id: 1 }] } },
     ]);
   });
 
@@ -305,6 +307,7 @@ describe('collectDiagnostic', () => {
     const ctx = await collectDiagnostic(new Error('boom'), makeCmd(), page);
 
     expect(ctx.page?.networkRequests).toEqual([{ url: '/api/data', status: 200 }]);
+    expect(ctx.page?.capturedPayloads).toEqual([]);
   });
 
   it('swallows intercepted request failures and still returns page state', async () => {
@@ -319,7 +322,37 @@ describe('collectDiagnostic', () => {
       url: 'https://example.com/page',
       snapshot: '<div>...</div>',
       networkRequests: [{ url: '/api/data', status: 200 }],
+      capturedPayloads: [],
       consoleErrors: [],
     });
+  });
+
+  it('redacts and truncates intercepted payloads recursively', async () => {
+    const page = makePage({
+      getInterceptedRequests: vi.fn().mockResolvedValue([{
+        token: 'token=abc123def456ghi789',
+        nested: {
+          cookie: 'cookie: session=super-secret-cookie-value',
+          body: 'x'.repeat(5000),
+        },
+      }]),
+    });
+
+    const ctx = await collectDiagnostic(new Error('boom'), makeCmd(), page);
+    const payload = ctx.page?.capturedPayloads?.[0] as Record<string, unknown>;
+    const body = ((payload.responseBody as Record<string, unknown>).nested as Record<string, unknown>).body as string;
+
+    expect(payload).toEqual({
+      source: 'interceptor',
+      responseBody: {
+        token: 'token=[REDACTED]',
+        nested: {
+          cookie: 'cookie: [REDACTED]',
+          body,
+        },
+      },
+    });
+    expect(body).toContain('[truncated,');
+    expect(body.length).toBeLessThan(5000);
   });
 });
