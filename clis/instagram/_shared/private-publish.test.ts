@@ -178,6 +178,33 @@ describe('instagram private publish helpers', () => {
     expect(evaluateAttempts).toBe(2);
   });
 
+  it('resolves private publish config when capture metadata is unavailable', async () => {
+    const page = {
+      goto: async () => undefined,
+      wait: async () => undefined,
+      getCookies: async () => [{ name: 'csrftoken', value: 'csrf-cookie', domain: 'instagram.com' }],
+      startNetworkCapture: async () => undefined,
+      readNetworkCapture: async () => [{ url: 'https://www.instagram.com/api/v1/feed/timeline/', method: 'GET' }],
+      evaluate: async () => ({
+        appId: '936619743392459',
+        csrfToken: 'csrf-from-html',
+        instagramAjax: '1036523242',
+      }),
+    } as any;
+
+    await expect(resolveInstagramPrivatePublishConfig(page)).resolves.toEqual({
+      apiContext: {
+        asbdId: '',
+        csrfToken: 'csrf-from-html',
+        igAppId: '936619743392459',
+        igWwwClaim: '',
+        instagramAjax: '1036523242',
+        webSessionId: '',
+      },
+      jazoest: deriveInstagramJazoest('csrf-from-html'),
+    });
+  });
+
   it('builds the single-image configure form body', () => {
     expect(buildConfigureBody({
       uploadId: '1775134280303',

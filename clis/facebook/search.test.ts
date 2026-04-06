@@ -34,13 +34,16 @@ function createMockPage(): IPage {
     tabs: vi.fn().mockResolvedValue([]),
     selectTab: vi.fn(),
     networkRequests: vi.fn().mockResolvedValue([]),
-    consoleMessages: vi.fn().mockResolvedValue(''),
+    consoleMessages: vi.fn().mockResolvedValue([]),
     scroll: vi.fn(),
     autoScroll: vi.fn(),
     installInterceptor: vi.fn(),
     getInterceptedRequests: vi.fn().mockResolvedValue([]),
     waitForCapture: vi.fn().mockResolvedValue(undefined),
     screenshot: vi.fn().mockResolvedValue(''),
+    startNetworkCapture: vi.fn().mockResolvedValue(undefined),
+    readNetworkCapture: vi.fn().mockResolvedValue([]),
+    stopCapture: vi.fn().mockResolvedValue(undefined),
   };
 }
 

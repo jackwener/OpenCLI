@@ -19,6 +19,7 @@ function createChromeMock() {
       return {};
     }),
     onDetach: { addListener: vi.fn() },
+    onEvent: { addListener: vi.fn() },
   };
 
   const scripting = {
@@ -71,5 +72,121 @@ describe('cdp attach recovery', () => {
     expect(result).toBe('ok');
     expect(scripting.executeScript).toHaveBeenCalledTimes(1);
     expect(debuggerApi.attach).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves capture intent across self-detach and rearms after reattach', async () => {
+    const { chrome, debuggerApi } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+
+    await mod.startNetworkCapture(1, '/api/');
+    debuggerApi.sendCommand.mockClear();
+    await mod.detach(1);
+    await mod.ensureAttached(1);
+
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith({ tabId: 1 }, 'Network.enable');
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith({ tabId: 1 }, 'Runtime.enable');
+  });
+
+  it('marks capture unarmed before detach so failed detach cannot block rearm', async () => {
+    const { chrome, debuggerApi } = createChromeMock();
+    debuggerApi.detach.mockRejectedValueOnce(new Error('detach failed'));
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+
+    await mod.startNetworkCapture(1, '/api/');
+    debuggerApi.sendCommand.mockClear();
+    await mod.detach(1);
+    await mod.ensureAttached(1);
+
+    expect(debuggerApi.attach).toHaveBeenCalled();
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith({ tabId: 1 }, 'Network.enable');
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith({ tabId: 1 }, 'Runtime.enable');
+  });
+
+  it('preserves buffered capture data across detach when capture intent remains', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    mod.registerListeners();
+
+    const onEvent = chrome.debugger.onEvent.addListener.mock.calls[0][0] as (source: { tabId?: number }, method: string, params: unknown) => Promise<void>;
+    const onDetach = chrome.debugger.onDetach.addListener.mock.calls[0][0] as (source: { tabId?: number }) => void;
+
+    await mod.startNetworkCapture(1, '/api/');
+    await onEvent({ tabId: 1 }, 'Network.requestWillBeSent', {
+      requestId: '1',
+      request: { url: 'https://x.test/api/items', method: 'GET', headers: {} },
+      timestamp: 1,
+    });
+    await onEvent({ tabId: 1 }, 'Runtime.consoleAPICalled', {
+      type: 'error',
+      args: [{ value: 'boom' }],
+      timestamp: 2,
+    });
+
+    onDetach({ tabId: 1 });
+
+    expect(await mod.readNetworkCapture(1)).toEqual([
+      expect.objectContaining({ url: 'https://x.test/api/items', method: 'GET' }),
+    ]);
+    expect(await mod.readConsoleCapture(1)).toEqual([
+      expect.objectContaining({ level: 'error', text: 'boom' }),
+    ]);
+  });
+
+  it('does not clear console history when restarting network capture', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    mod.registerListeners();
+
+    const onEvent = chrome.debugger.onEvent.addListener.mock.calls[0][0] as (source: { tabId?: number }, method: string, params: unknown) => Promise<void>;
+
+    await mod.startNetworkCapture(1, '/api/');
+    await onEvent({ tabId: 1 }, 'Runtime.consoleAPICalled', {
+      type: 'error',
+      args: [{ value: 'boom' }],
+      timestamp: 2,
+    });
+
+    await mod.startNetworkCapture(1, '/other/');
+
+    expect(await mod.readConsoleCapture(1)).toEqual([
+      expect.objectContaining({ level: 'error', text: 'boom' }),
+    ]);
+  });
+
+  it('rearms capture on read when intent exists but the state is unarmed', async () => {
+    const { chrome, debuggerApi } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+
+    await mod.startNetworkCapture(1, '/api/');
+    debuggerApi.sendCommand.mockClear();
+    await mod.detach(1);
+    await mod.readNetworkCapture(1);
+
+    expect(debuggerApi.attach).toHaveBeenCalled();
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith({ tabId: 1 }, 'Network.enable');
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith({ tabId: 1 }, 'Runtime.enable');
+  });
+
+  it('surfaces rearm failures on read instead of silently returning stale data', async () => {
+    const { chrome, debuggerApi } = createChromeMock();
+    debuggerApi.attach.mockResolvedValueOnce(undefined).mockRejectedValue(new Error('attach failed'));
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+
+    await mod.startNetworkCapture(1, '/api/');
+    await mod.detach(1);
+
+    await expect(mod.readNetworkCapture(1)).rejects.toThrow('attach failed');
   });
 });

@@ -39,6 +39,9 @@ function createPageMock(evaluateResult: any): IPage {
     getCookies: vi.fn().mockResolvedValue([{ name: 'sid', value: 'secret', domain: '.xiaohongshu.com' }]),
     screenshot: vi.fn().mockResolvedValue(''),
     waitForCapture: vi.fn().mockResolvedValue(undefined),
+    startNetworkCapture: vi.fn().mockResolvedValue(undefined),
+    readNetworkCapture: vi.fn().mockResolvedValue([]),
+    stopCapture: vi.fn().mockResolvedValue(undefined),
   };
 }
 

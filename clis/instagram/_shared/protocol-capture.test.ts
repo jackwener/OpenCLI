@@ -33,12 +33,25 @@ describe('instagram protocol capture helpers', () => {
   it('prefers native page network capture when available', async () => {
     const startNetworkCapture = vi.fn().mockResolvedValue(undefined);
     const evaluate = vi.fn();
-    const page = { startNetworkCapture, evaluate } as unknown as IPage;
+    const hasNativeCaptureSupport = vi.fn().mockReturnValue(true);
+    const page = { startNetworkCapture, evaluate, hasNativeCaptureSupport } as unknown as IPage;
 
     await installInstagramProtocolCapture(page);
 
     expect(startNetworkCapture).toHaveBeenCalledTimes(1);
     expect(evaluate).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the page patch when native capture is unavailable after start', async () => {
+    const startNetworkCapture = vi.fn().mockResolvedValue(undefined);
+    const hasNativeCaptureSupport = vi.fn().mockReturnValue(false);
+    const evaluate = vi.fn().mockResolvedValue({ ok: true });
+    const page = { startNetworkCapture, evaluate, hasNativeCaptureSupport } as unknown as IPage;
+
+    await installInstagramProtocolCapture(page);
+
+    expect(startNetworkCapture).toHaveBeenCalledTimes(1);
+    expect(evaluate).toHaveBeenCalledTimes(1);
   });
 
   it('reads and normalizes captured protocol entries', async () => {
@@ -62,7 +75,8 @@ describe('instagram protocol capture helpers', () => {
       { kind: 'cdp', url: 'https://www.instagram.com/rupload_igphoto/test', method: 'POST' },
     ]);
     const evaluate = vi.fn();
-    const page = { readNetworkCapture, evaluate } as unknown as IPage;
+    const hasNativeCaptureSupport = vi.fn().mockReturnValue(true);
+    const page = { readNetworkCapture, evaluate, hasNativeCaptureSupport } as unknown as IPage;
 
     const result = await readInstagramProtocolCapture(page);
 
@@ -71,6 +85,27 @@ describe('instagram protocol capture helpers', () => {
     expect(result).toEqual({
       data: [{ kind: 'cdp', url: 'https://www.instagram.com/rupload_igphoto/test', method: 'POST' }],
       errors: [],
+    });
+  });
+
+  it('falls back to the page patch read when native capture is unavailable after read', async () => {
+    const readNetworkCapture = vi.fn().mockResolvedValue([
+      { url: 'https://www.instagram.com/api/v1/web/resource/', method: 'GET' },
+    ]);
+    const hasNativeCaptureSupport = vi.fn().mockReturnValue(false);
+    const evaluate = vi.fn().mockResolvedValue({
+      data: [{ kind: 'fetch', url: 'https://www.instagram.com/api/v1/media/configure/', method: 'POST' }],
+      errors: ['fallback-used'],
+    });
+    const page = { readNetworkCapture, evaluate, hasNativeCaptureSupport } as unknown as IPage;
+
+    const result = await readInstagramProtocolCapture(page);
+
+    expect(readNetworkCapture).toHaveBeenCalledTimes(1);
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      data: [{ kind: 'fetch', url: 'https://www.instagram.com/api/v1/media/configure/', method: 'POST' }],
+      errors: ['fallback-used'],
     });
   });
 

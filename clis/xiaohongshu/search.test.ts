@@ -30,6 +30,9 @@ function createPageMock(evaluateResults: any[]): IPage {
     getCookies: vi.fn().mockResolvedValue([]),
     screenshot: vi.fn().mockResolvedValue(''),
     waitForCapture: vi.fn().mockResolvedValue(undefined),
+    startNetworkCapture: vi.fn().mockResolvedValue(undefined),
+    readNetworkCapture: vi.fn().mockResolvedValue([]),
+    stopCapture: vi.fn().mockResolvedValue(undefined),
   };
 }
 

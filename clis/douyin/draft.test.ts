@@ -95,9 +95,12 @@ function createPageMock(
     getInterceptedRequests: vi.fn().mockResolvedValue([]),
     waitForCapture: vi.fn().mockResolvedValue(undefined),
     screenshot: vi.fn().mockResolvedValue(''),
+    startNetworkCapture: vi.fn().mockResolvedValue(undefined),
+    readNetworkCapture: vi.fn().mockResolvedValue([]),
+    stopCapture: vi.fn().mockResolvedValue(undefined),
     setFileInput: vi.fn().mockResolvedValue(undefined),
     ...overrides,
-  };
+  } as IPage;
 }
 
 describe('douyin draft registration', () => {

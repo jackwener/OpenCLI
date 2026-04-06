@@ -6,7 +6,25 @@ import {
 } from './diagnostic.js';
 import { SelectorError, CommandExecutionError } from './errors.js';
 import type { InternalCliCommand } from './registry.js';
-import type { IPage } from './types.js';
+import type { ConsoleMessage, IPage } from './types.js';
+
+type Assert<T extends true> = T;
+type IsEqual<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends
+  (<T>() => T extends B ? 1 : 2) ? true : false;
+
+type _ConsoleMessagesReturnType = Assert<
+  IsEqual<Awaited<ReturnType<IPage['consoleMessages']>>, ConsoleMessage[]>
+>;
+type _StartCaptureOptional = Assert<
+  undefined extends IPage['startNetworkCapture'] ? true : false
+>;
+type _ReadCaptureOptional = Assert<
+  undefined extends IPage['readNetworkCapture'] ? true : false
+>;
+type _StopCapturePresent = Assert<
+  'stopCapture' extends keyof IPage ? true : false
+>;
 
 function makeCmd(overrides: Partial<InternalCliCommand> = {}): InternalCliCommand {
   return {
@@ -276,6 +294,9 @@ function makePage(overrides: Partial<IPage> = {}): IPage {
     getInterceptedRequests: vi.fn().mockResolvedValue([]),
     waitForCapture: vi.fn(),
     screenshot: vi.fn(),
+    startNetworkCapture: vi.fn().mockResolvedValue(undefined),
+    readNetworkCapture: vi.fn().mockResolvedValue([]),
+    stopCapture: vi.fn().mockResolvedValue(undefined),
     getCurrentUrl: vi.fn().mockResolvedValue('https://example.com/page'),
     ...overrides,
   } as IPage;
@@ -354,5 +375,26 @@ describe('collectDiagnostic', () => {
     });
     expect(body).toContain('[truncated,');
     expect(body.length).toBeLessThan(5000);
+  });
+
+  it('prefers readNetworkCapture and redacts structured console entries', async () => {
+    const page = makePage({
+      getCurrentUrl: vi.fn().mockResolvedValue('https://example.com/?token=secret'),
+      readNetworkCapture: vi.fn().mockResolvedValue([{ url: 'https://api.test', responseStatus: 500 }]),
+      networkRequests: vi.fn().mockResolvedValue([{ url: 'https://fallback.test' }]),
+      consoleMessages: vi.fn().mockResolvedValue([{ level: 'error', text: 'Bearer abc.def.ghi' }]),
+    });
+
+    const ctx = await collectDiagnostic(new Error('boom'), makeCmd(), page);
+
+    expect(ctx.page).toEqual({
+      url: 'https://example.com/?token=[REDACTED]',
+      snapshot: '<div>...</div>',
+      networkRequests: [{ url: 'https://api.test', responseStatus: 500 }],
+      capturedPayloads: [],
+      consoleErrors: [{ level: 'error', text: 'Bearer [REDACTED]' }],
+    });
+    expect(page.readNetworkCapture).toHaveBeenCalledTimes(1);
+    expect(page.networkRequests).not.toHaveBeenCalled();
   });
 });

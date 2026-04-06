@@ -1,10 +1,41 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeCommand } from './execution.js';
 import { TimeoutError } from './errors.js';
 import { cli, Strategy } from './registry.js';
 import { withTimeoutMs } from './runtime.js';
 
+const { mockBrowserSession, mockGetBrowserFactory } = vi.hoisted(() => ({
+  mockBrowserSession: vi.fn(),
+  mockGetBrowserFactory: vi.fn(() => class MockBrowserFactory {}),
+}));
+
+vi.mock('./runtime.js', async () => {
+  const actual = await vi.importActual<typeof import('./runtime.js')>('./runtime.js');
+  return {
+    ...actual,
+    browserSession: mockBrowserSession,
+    getBrowserFactory: mockGetBrowserFactory,
+  };
+});
+
+vi.mock('./browser/discover.js', () => ({
+  checkDaemonStatus: vi.fn().mockResolvedValue({ running: false, extensionConnected: false }),
+}));
+
 describe('executeCommand — non-browser timeout', () => {
+  const originalDiagnostic = process.env.OPENCLI_DIAGNOSTIC;
+
+  beforeEach(() => {
+    mockBrowserSession.mockReset();
+    mockGetBrowserFactory.mockClear();
+    delete process.env.OPENCLI_DIAGNOSTIC;
+  });
+
+  afterEach(() => {
+    if (originalDiagnostic === undefined) delete process.env.OPENCLI_DIAGNOSTIC;
+    else process.env.OPENCLI_DIAGNOSTIC = originalDiagnostic;
+  });
+
   it('applies timeoutSeconds to non-browser commands', async () => {
     const cmd = cli({
       site: 'test-execution',
@@ -43,5 +74,33 @@ describe('executeCommand — non-browser timeout', () => {
     await expect(
       withTimeoutMs(executeCommand(cmd, {}), 50, 'sentinel timeout'),
     ).rejects.toThrow('sentinel timeout');
+  });
+
+  it('starts and stops capture in diagnostic mode around browser commands', async () => {
+    process.env.OPENCLI_DIAGNOSTIC = '1';
+
+    const startNetworkCapture = vi.fn().mockResolvedValue(undefined);
+    const stopCapture = vi.fn().mockResolvedValue(undefined);
+    const page = {
+      goto: vi.fn(),
+      startNetworkCapture,
+      stopCapture,
+    } as any;
+
+    mockBrowserSession.mockImplementationOnce(async (_factory, fn) => fn(page));
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-diagnostic',
+      description: 'test browser diagnostic lifecycle',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      func: async () => ({ ok: true }),
+    });
+
+    await executeCommand(cmd, {});
+
+    expect(startNetworkCapture).toHaveBeenCalledTimes(1);
+    expect(stopCapture).toHaveBeenCalledTimes(1);
   });
 });

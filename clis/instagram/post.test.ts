@@ -62,11 +62,14 @@ function createPageMock(evaluateResults: unknown[], overrides: Partial<IPage> = 
     getInterceptedRequests: vi.fn().mockResolvedValue([]),
     waitForCapture: vi.fn().mockResolvedValue(undefined),
     screenshot: vi.fn().mockResolvedValue(''),
+    startNetworkCapture: vi.fn().mockResolvedValue(undefined),
+    readNetworkCapture: vi.fn().mockResolvedValue([]),
+    stopCapture: vi.fn().mockResolvedValue(undefined),
     setFileInput: vi.fn().mockResolvedValue(undefined),
     insertText: undefined,
     getCurrentUrl: vi.fn().mockResolvedValue(null),
     ...overrides,
-  };
+  } as IPage;
 }
 
 afterAll(() => {
@@ -708,7 +711,7 @@ describe('instagram post registration', () => {
     ]);
   });
 
-  it('installs and dumps protocol capture when OPENCLI_INSTAGRAM_CAPTURE is enabled', async () => {
+  it('uses native protocol capture and dumps traces when OPENCLI_INSTAGRAM_CAPTURE is enabled', async () => {
     process.env.OPENCLI_INSTAGRAM_CAPTURE = '1';
     const imagePath = createTempImage('capture-enabled.jpg');
     const evaluate = vi.fn(async (js: string) => {
@@ -735,8 +738,10 @@ describe('instagram post registration', () => {
     });
 
     const evaluateCalls = evaluate.mock.calls.map((args) => String(args[0]));
-    expect(evaluateCalls.some((js) => js.includes('__opencli_ig_protocol_capture') && js.includes('PATCH_GUARD'))).toBe(true);
-    expect(evaluateCalls.some((js) => js.includes('const data = Array.isArray(window[') && js.includes('__opencli_ig_protocol_capture'))).toBe(true);
+    expect((page.startNetworkCapture as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
+    expect((page.readNetworkCapture as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
+    expect(evaluateCalls.some((js) => js.includes('__opencli_ig_protocol_capture') && js.includes('PATCH_GUARD'))).toBe(false);
+    expect(evaluateCalls.some((js) => js.includes('const data = Array.isArray(window[') && js.includes('__opencli_ig_protocol_capture'))).toBe(false);
     expect(result).toEqual([
       {
         status: '✅ Posted',

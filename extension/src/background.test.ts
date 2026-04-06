@@ -96,9 +96,20 @@ function createChromeMock() {
       onStartup: { addListener: vi.fn() } as Listener<() => void>,
       onMessage: { addListener: vi.fn() } as Listener<(msg: unknown, sender: unknown, sendResponse: (value: unknown) => void) => void>,
       getManifest: vi.fn(() => ({ version: 'test-version' })),
+      id: 'opencli-test',
     },
     cookies: {
       getAll: vi.fn(async () => []),
+    },
+    debugger: {
+      attach: vi.fn(async () => {}),
+      detach: vi.fn(async () => {}),
+      sendCommand: vi.fn(async (_target: unknown, _method: string) => ({})),
+      onDetach: { addListener: vi.fn() } as Listener<(source: { tabId?: number }) => void>,
+      onEvent: { addListener: vi.fn() } as Listener<(source: { tabId?: number }, method: string, params: unknown) => void>,
+    },
+    scripting: {
+      executeScript: vi.fn(async () => [{ result: { removed: 1 } }]),
     },
   };
 
@@ -275,5 +286,58 @@ describe('background tab isolation', () => {
 
     expect(chrome.windows.remove).toHaveBeenCalledWith(1);
     expect(mod.__test__.getSession('site:notebooklm')).toBeNull();
+  });
+
+  it('best-effort rearms capture after navigate when capture intent exists', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const executor = await import('./cdp');
+    const mod = await import('./background');
+
+    mod.__test__.setAutomationWindowId('site:twitter', 1);
+    await executor.startNetworkCapture(1, '/api/');
+    chrome.debugger.sendCommand.mockClear();
+
+    await mod.__test__.handleNavigate(
+      { id: 'n1', action: 'navigate', url: 'https://x.com/home', workspace: 'site:twitter' },
+      'site:twitter',
+    );
+
+    expect(chrome.debugger.sendCommand).toHaveBeenCalledWith({ tabId: 1 }, 'Network.enable');
+    expect(chrome.debugger.sendCommand).toHaveBeenCalledWith({ tabId: 1 }, 'Runtime.enable');
+  });
+
+  it('routes console-read and capture-stop through the executor', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const executor = await import('./cdp');
+    const mod = await import('./background');
+
+    mod.__test__.setAutomationWindowId('site:twitter', 1);
+    await executor.startNetworkCapture(1, '/api/');
+
+    const consoleResult = await mod.__test__.handleCommand({
+      id: 'console-1',
+      action: 'console-read',
+      workspace: 'site:twitter',
+    });
+    expect(consoleResult).toEqual({
+      id: 'console-1',
+      ok: true,
+      data: [],
+    });
+
+    const stopResult = await mod.__test__.handleCommand({
+      id: 'stop-1',
+      action: 'capture-stop',
+      workspace: 'site:twitter',
+    });
+    expect(stopResult).toEqual({
+      id: 'stop-1',
+      ok: true,
+      data: { stopped: true },
+    });
   });
 });

@@ -32,6 +32,9 @@ function createPageMock(): IPage {
     setFileInput: vi.fn().mockResolvedValue(undefined),
     insertText: vi.fn().mockResolvedValue(undefined),
     getCurrentUrl: vi.fn().mockResolvedValue(null),
+    startNetworkCapture: vi.fn().mockResolvedValue(undefined),
+    readNetworkCapture: vi.fn().mockResolvedValue([]),
+    stopCapture: vi.fn().mockResolvedValue(undefined),
   };
 }
 

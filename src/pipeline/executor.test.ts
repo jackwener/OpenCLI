@@ -22,7 +22,7 @@ function createMockPage(overrides: Partial<IPage> = {}): IPage {
     tabs: vi.fn().mockResolvedValue([]),
     selectTab: vi.fn(),
     networkRequests: vi.fn().mockResolvedValue([]),
-    consoleMessages: vi.fn().mockResolvedValue(''),
+    consoleMessages: vi.fn().mockResolvedValue([]),
     scroll: vi.fn(),
     scrollTo: vi.fn(),
     autoScroll: vi.fn(),
@@ -30,8 +30,11 @@ function createMockPage(overrides: Partial<IPage> = {}): IPage {
     getInterceptedRequests: vi.fn().mockResolvedValue([]),
     screenshot: vi.fn().mockResolvedValue(''),
     waitForCapture: vi.fn().mockResolvedValue(undefined),
+    startNetworkCapture: vi.fn().mockResolvedValue(undefined),
+    readNetworkCapture: vi.fn().mockResolvedValue([]),
+    stopCapture: vi.fn().mockResolvedValue(undefined),
     ...overrides,
-  };
+  } as IPage;
 }
 
 describe('executePipeline', () => {
