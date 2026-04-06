@@ -1,6 +1,14 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import type { IPage } from '@jackwener/opencli/types';
-import { DOUBAO_DOMAIN, getDoubaoTranscriptLines, getDoubaoVisibleTurns, sendDoubaoMessage, waitForDoubaoResponse } from './utils.js';
+import {
+  DOUBAO_DOMAIN,
+  getDoubaoTranscriptLines,
+  getDoubaoVisibleTurns,
+  navigateToConversation,
+  parseDoubaoConversationId,
+  sendDoubaoMessage,
+  waitForDoubaoResponse,
+} from './utils.js';
 
 export const askCommand = cli({
   site: 'doubao',
@@ -13,12 +21,19 @@ export const askCommand = cli({
   timeoutSeconds: 180,
   args: [
     { name: 'text', required: true, positional: true, help: 'Prompt to send' },
+    { name: 'thread', required: false, help: 'Conversation ID (numeric or full URL)' },
     { name: 'timeout', required: false, help: 'Max seconds to wait (default: 60)', default: '60' },
   ],
   columns: ['Role', 'Text'],
   func: async (page: IPage, kwargs: any) => {
     const text = kwargs.text as string;
+    const thread = typeof kwargs.thread === 'string' ? kwargs.thread.trim() : '';
     const timeout = parseInt(kwargs.timeout as string, 10) || 60;
+
+    if (thread) {
+      await navigateToConversation(page, parseDoubaoConversationId(thread));
+    }
+
     const beforeTurns = await getDoubaoVisibleTurns(page);
     const beforeLines = await getDoubaoTranscriptLines(page);
 

@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import type { IPage } from '@jackwener/opencli/types';
-import { DOUBAO_DOMAIN, DOUBAO_CHAT_URL, sendDoubaoMessage } from './utils.js';
+import { DOUBAO_DOMAIN, navigateToConversation, parseDoubaoConversationId, sendDoubaoMessage } from './utils.js';
 
 export const sendCommand = cli({
   site: 'doubao',
@@ -10,10 +10,19 @@ export const sendCommand = cli({
   strategy: Strategy.COOKIE,
   browser: true,
   navigateBefore: false,
-  args: [{ name: 'text', required: true, positional: true, help: 'Message to send' }],
+  args: [
+    { name: 'text', required: true, positional: true, help: 'Message to send' },
+    { name: 'thread', required: false, help: 'Conversation ID (numeric or full URL)' },
+  ],
   columns: ['Status', 'SubmittedBy', 'InjectedText'],
   func: async (page: IPage, kwargs: any) => {
     const text = kwargs.text as string;
+    const thread = typeof kwargs.thread === 'string' ? kwargs.thread.trim() : '';
+
+    if (thread) {
+      await navigateToConversation(page, parseDoubaoConversationId(thread));
+    }
+
     const submittedBy = await sendDoubaoMessage(page, text);
 
     return [{

@@ -28,12 +28,16 @@ Browser adapter for [Doubao Chat](https://www.doubao.com/chat).
 opencli doubao status
 opencli doubao new
 opencli doubao send "帮我总结这段文档"
+opencli doubao send --thread 1234567890123 "补充一句"
 opencli doubao read
+opencli doubao read --thread https://www.doubao.com/chat/1234567890123
 opencli doubao ask "请写一个 Python 快速排序示例" --timeout 90
+opencli doubao ask --thread 1234567890123 "继续刚才那个思路"
 ```
 
 ## Notes
 
 - The adapter targets the web chat page at `https://www.doubao.com/chat`
+- `send`, `read`, and `ask` accept `--thread <id|url>` to operate on a specific existing conversation
 - `new` first tries the visible "New Chat / 新对话" button, then falls back to the new-thread route
 - `ask` uses DOM polling, so very long generations may need a larger `--timeout`
