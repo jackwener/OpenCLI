@@ -52,31 +52,39 @@ function parseEFetchXml(xml: string, pmid: string) {
   const issue = getTag(xml, 'Issue');
   const pagination = getTag(xml, 'MedlinePgn');
 
-  // Publication date
-  const year = getTag(xml, 'Year') || getTag(xml, 'MedlineDate').slice(0, 4);
-  const month = getTag(xml, 'Month');
-  const day = getTag(xml, 'Day');
+  // Publication date - must extract from JournalIssue/PubDate, not DateCompleted/DateRevised
+  const journalIssueMatch = xml.match(/<JournalIssue[^>]*>([\s\S]*?)<\/JournalIssue>/i);
+  const journalIssue = journalIssueMatch ? journalIssueMatch[1] : '';
+  const pubDateMatch = journalIssue.match(/<PubDate>([\s\S]*?)<\/PubDate>/i);
+  const pubDate = pubDateMatch ? pubDateMatch[1] : '';
+
+  const year = getTag(pubDate, 'Year') || getTag(xml, 'MedlineDate').slice(0, 4);
+  const month = getTag(pubDate, 'Month');
+  const day = getTag(pubDate, 'Day');
   const fullDate = [year, month, day].filter(Boolean).join(' ');
 
-  // Authors and affiliations
+  // Authors and affiliations - collect all affiliations for each author
   const authorBlocks = xml.match(/<Author[^>]*>([\s\S]*?)<\/Author>/gi) || [];
-  const authors: Array<{ name: string; affiliation: string }> = authorBlocks.map(block => {
+  const authors: Array<{ name: string; affiliations: string[] }> = authorBlocks.map(block => {
     const lastName = getTag(block, 'LastName');
     const foreName = getTag(block, 'ForeName') || getTag(block, 'Initials');
     const collectiveName = getTag(block, 'CollectiveName');
     const name = collectiveName || `${lastName} ${foreName}`.trim();
-    const affiliation = getTag(block, 'Affiliation');
-    return { name, affiliation };
+    // Get all affiliations for this author (an author can have multiple AffiliationInfo blocks)
+    const affiliationBlocks = block.match(/<AffiliationInfo>([\s\S]*?)<\/AffiliationInfo>/gi) || [];
+    const affiliations = affiliationBlocks
+      .map(info => getTag(info, 'Affiliation'))
+      .filter(Boolean);
+    return { name, affiliations };
   });
 
   const allAuthors = authors.map(a => a.name);
   const firstAuthor = allAuthors[0] || '';
   const correspondingAuthor = allAuthors[allAuthors.length - 1] || '';
 
-  // Unique affiliations
-  const affiliations = [...new Set(
-    authors.map(a => a.affiliation).filter(Boolean)
-  )];
+  // Unique affiliations - flatten all author affiliations and deduplicate
+  const allAffiliations = authors.flatMap(a => a.affiliations);
+  const affiliations = [...new Set(allAffiliations)];
 
   // MeSH terms
   const meshBlocks = xml.match(/<MeshHeading>([\s\S]*?)<\/MeshHeading>/gi) || [];
