@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { findPackageRoot, getBuiltEntryCandidates } from './package-paths.js';
 import { type CliCommand, fullName, getRegistry, strategyLabel } from './registry.js';
 import { serializeCommand, formatArgSummary } from './serialization.js';
 import { render as renderOutput } from './output.js';
@@ -311,10 +312,14 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   operate.command('open').argument('<url>').description('Open URL in automation window')
     .action(operateAction(async (page, url) => {
+      // Start session-level capture before navigation (catches initial requests)
+      await page.startNetworkCapture?.();
       await page.goto(url);
       await page.wait(2);
-      // Auto-inject network interceptor for API discovery
-      try { await page.evaluate(NETWORK_INTERCEPTOR_JS); } catch { /* non-fatal */ }
+      // Fallback: also inject JS interceptor for pages without session capture
+      if (!page.startNetworkCapture) {
+        try { await page.evaluate(NETWORK_INTERCEPTOR_JS); } catch { /* non-fatal */ }
+      }
       console.log(`Navigated to: ${await page.getCurrentUrl?.() ?? url}`);
     }));
 
@@ -504,13 +509,35 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .option('--all', 'Show all requests including static resources')
     .description('Show captured network requests (auto-captured since last open)')
     .action(operateAction(async (page, opts) => {
-      const requests = await page.evaluate(`(function(){
-        var reqs = window.__opencli_net || [];
-        return JSON.stringify(reqs);
-      })()`) as string;
-
       let items: Array<{ url: string; method: string; status: number; size: number; ct: string; body: unknown }> = [];
-      try { items = JSON.parse(requests); } catch { console.log('No network data captured. Run "operate open <url>" first.'); return; }
+      if (page.readNetworkCapture) {
+        const raw = await page.readNetworkCapture();
+        // Normalize daemon/CDP capture entries to __opencli_net shape.
+        // Daemon returns: responseStatus, responseContentType, responsePreview
+        // CDP returns the same shape after PR A fix.
+        items = (raw as Array<Record<string, unknown>>).map(e => {
+          const preview = (e.responsePreview as string) ?? null;
+          let body: unknown = null;
+          if (preview) {
+            try { body = JSON.parse(preview); } catch { body = preview; }
+          }
+          return {
+            url: (e.url as string) || '',
+            method: (e.method as string) || 'GET',
+            status: (e.responseStatus as number) || 0,
+            size: preview ? preview.length : 0,
+            ct: (e.responseContentType as string) || '',
+            body,
+          };
+        });
+      } else {
+        // Fallback to JS interceptor data
+        const requests = await page.evaluate(`(function(){
+          var reqs = window.__opencli_net || [];
+          return JSON.stringify(reqs);
+        })()`) as string;
+        try { items = JSON.parse(requests); } catch { console.log('No network data captured. Run "operate open <url>" first.'); return; }
+      }
 
       if (items.length === 0) { console.log('No requests captured.'); return; }
 
@@ -1016,48 +1043,7 @@ export interface OperateVerifyInvocation {
   shell?: boolean;
 }
 
-export function findPackageRoot(startFile: string, fileExists: (path: string) => boolean = fs.existsSync): string {
-  let dir = path.dirname(startFile);
-
-  while (true) {
-    if (fileExists(path.join(dir, 'package.json'))) return dir;
-    const parent = path.dirname(dir);
-    if (parent === dir) {
-      throw new Error(`Could not find package.json above ${startFile}`);
-    }
-    dir = parent;
-  }
-}
-
-function getBuiltEntryCandidates(packageRoot: string, readFile: (path: string) => string): string[] {
-  const candidates: string[] = [];
-  try {
-    const pkg = JSON.parse(readFile(path.join(packageRoot, 'package.json'))) as {
-      bin?: string | Record<string, string>;
-      main?: string;
-    };
-
-    if (typeof pkg.bin === 'string') {
-      candidates.push(path.join(packageRoot, pkg.bin));
-    } else if (pkg.bin && typeof pkg.bin === 'object' && typeof pkg.bin.opencli === 'string') {
-      candidates.push(path.join(packageRoot, pkg.bin.opencli));
-    }
-
-    if (typeof pkg.main === 'string') {
-      candidates.push(path.join(packageRoot, pkg.main));
-    }
-  } catch {
-    // Fall through to compatibility candidates below.
-  }
-
-  // Compatibility fallback for partially-built trees or older layouts.
-  candidates.push(
-    path.join(packageRoot, 'dist', 'src', 'main.js'),
-    path.join(packageRoot, 'dist', 'main.js'),
-  );
-
-  return [...new Set(candidates)];
-}
+export { findPackageRoot };
 
 export function resolveOperateVerifyInvocation(opts: {
   projectRoot?: string;

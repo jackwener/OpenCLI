@@ -27,6 +27,7 @@ import {
   inferStrategy,
   detectAuthFromContent,
   classifyQueryParams,
+  isNoiseUrl,
 } from './analysis.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -62,7 +63,6 @@ type RecordedCandidateKind = 'read' | 'write';
 export interface RecordedCandidate {
   kind: RecordedCandidateKind;
   req: RecordedRequest;
-  score: number;
   arrayResult: ReturnType<typeof findArrayPath> | null;
 }
 
@@ -73,20 +73,9 @@ interface GeneratedRecordedCandidate {
   yaml: unknown;
 }
 
-/** Keep the stronger candidate when multiple recordings share one bucket. */
-function preferRecordedCandidate(current: RecordedCandidate, next: RecordedCandidate): RecordedCandidate {
-  if (next.score > current.score) return next;
-  if (next.score < current.score) return current;
+/** Keep the later candidate when multiple recordings share one bucket (prefer fresher data). */
+function preferRecordedCandidate(_current: RecordedCandidate, next: RecordedCandidate): RecordedCandidate {
   return next;
-}
-
-/** Apply shared endpoint score tweaks. */
-function applyCommonEndpointScoreAdjustments(req: RecordedRequest, score: number): number {
-  let adjusted = score;
-  if (req.url.includes('/api/')) adjusted += 3;
-  if (req.url.match(/\/(track|log|analytics|beacon|pixel|stats|metric)/i)) adjusted -= 10;
-  if (req.url.match(/\/(ping|heartbeat|keep.?alive)/i)) adjusted -= 10;
-  return adjusted;
 }
 
 /** Build a candidate-level dedupe key. */
@@ -329,23 +318,6 @@ function generateReadRecordedJs(): string {
 
 // ── Analysis helpers ───────────────────────────────────────────────────────
 
-function scoreRequest(req: RecordedRequest, arrayResult: ReturnType<typeof findArrayPath> | null): number {
-  let s = 0;
-  if (arrayResult) {
-    s += 10;
-    s += Math.min(arrayResult.items.length, 10);
-    // Bonus for detected semantic fields
-    const sample = arrayResult.items[0];
-    if (sample && typeof sample === 'object') {
-      const keys = Object.keys(sample as object).map(k => k.toLowerCase());
-      for (const aliases of Object.values(FIELD_ROLES)) {
-        if (aliases.some(a => keys.includes(a))) s += 2;
-      }
-    }
-  }
-  return applyCommonEndpointScoreAdjustments(req, s);
-}
-
 /** Check whether one recorded request is safe to treat as a write candidate. */
 function isWriteCandidate(req: RecordedRequest): boolean {
   return ['POST', 'PUT', 'PATCH'].includes(req.method)
@@ -358,24 +330,18 @@ function isWriteCandidate(req: RecordedRequest): boolean {
     && !Array.isArray(req.responseBody);
 }
 
-/** Score replayable write requests while keeping tracking and heartbeat traffic suppressed. */
-function scoreWriteRequest(req: RecordedRequest): number {
-  return applyCommonEndpointScoreAdjustments(req, 6);
-}
-
-/** Analyze recorded requests into read and write candidates. */
+/** Analyze recorded requests into read and write candidates, filtering out noise. */
 export function analyzeRecordedRequests(requests: RecordedRequest[]): { candidates: RecordedCandidate[] } {
   const candidates: RecordedCandidate[] = [];
   for (const req of requests) {
+    if (isNoiseUrl(req.url)) continue;
     const arrayResult = findArrayPath(req.responseBody);
     if (isWriteCandidate(req)) {
-      const score = scoreWriteRequest(req);
-      if (score > 0) candidates.push({ kind: 'write', req, score, arrayResult: null });
+      candidates.push({ kind: 'write', req, arrayResult: null });
       continue;
     }
     if (arrayResult) {
-      const score = scoreRequest(req, arrayResult);
-      if (score > 0) candidates.push({ kind: 'read', req, score, arrayResult });
+      candidates.push({ kind: 'read', req, arrayResult });
     }
   }
   return { candidates };
@@ -547,9 +513,9 @@ export function generateRecordedCandidates(
     deduped.set(key, current ? preferRecordedCandidate(current, candidate) : candidate);
   }
 
+  // Sort reads by array item count (richer data first), then take top 5
   const selected = [...deduped.values()]
-    .filter((candidate) => candidate.kind === 'read' ? candidate.score >= 8 : candidate.score >= 6)
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => (b.arrayResult?.items.length ?? 0) - (a.arrayResult?.items.length ?? 0))
     .slice(0, 5);
 
   const usedNames = new Set<string>();
@@ -756,14 +722,14 @@ function analyzeAndWrite(
   const candidates: RecordResult['candidates'] = [];
   const usedNames = new Set<string>();
 
-  console.log(chalk.bold('\n  Captured endpoints (scored):\n'));
+  console.log(chalk.bold('\n  Captured endpoints:\n'));
 
-  for (const entry of analysis.candidates.sort((a, b) => b.score - a.score).slice(0, 8)) {
+  for (const entry of analysis.candidates.sort((a, b) => (b.arrayResult?.items.length ?? 0) - (a.arrayResult?.items.length ?? 0)).slice(0, 8)) {
     const itemCount = entry.arrayResult?.items.length ?? 0;
     const strategy = entry.kind === 'write'
       ? 'cookie'
       : inferStrategy(detectAuthFromContent(entry.req.url, entry.req.responseBody));
-    const marker = entry.score >= 15 ? chalk.green('★') : entry.score >= 8 ? chalk.yellow('◆') : chalk.dim('·');
+    const marker = entry.kind === 'write' ? chalk.magenta('✎') : itemCount > 5 ? chalk.green('★') : chalk.dim('·');
     console.log(
       `  ${marker} ${chalk.white(urlToPattern(entry.req.url))}` +
       chalk.dim(` [${strategy}]`) +
@@ -792,7 +758,7 @@ function analyzeAndWrite(
   }
 
   if (candidates.length === 0) {
-    console.log(chalk.yellow('  No high-confidence candidates found.'));
+    console.log(chalk.yellow('  No candidates found.'));
     console.log(chalk.dim('  Tip: make sure you triggered JSON API calls (open lists, search, scroll).'));
   }
 

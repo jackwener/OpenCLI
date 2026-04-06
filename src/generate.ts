@@ -38,7 +38,7 @@ export interface GenerateCliResult {
   };
   synthesize: {
     candidate_count: number;
-    candidates: Array<Pick<SynthesizeCandidateSummary, 'name' | 'strategy' | 'confidence'>>;
+    candidates: Array<Pick<SynthesizeCandidateSummary, 'name' | 'strategy'>>;
   };
 }
 
@@ -71,7 +71,7 @@ function normalizeGoal(goal?: string | null): string | null {
  */
 function selectCandidate(candidates: SynthesizeResult['candidates'], goal?: string | null): SynthesizeCandidateSummary | null {
   if (!candidates.length) return null;
-  if (!goal) return candidates[0]; // highest confidence first
+  if (!goal) return candidates[0];
 
   const normalized = normalizeGoal(goal);
   if (normalized) {
@@ -127,7 +127,6 @@ export async function generateCliFromUrl(opts: GenerateCliOptions): Promise<Gene
       candidates: (synthesizeResult.candidates ?? []).map((c) => ({
         name: c.name,
         strategy: c.strategy,
-        confidence: c.confidence,
       })),
     },
   };
@@ -150,7 +149,7 @@ export function renderGenerateSummary(r: GenerateCliResult): string {
   ];
 
   for (const c of r.synthesize?.candidates ?? []) {
-    lines.push(`    • ${c.name} (${c.strategy}, ${((c.confidence ?? 0) * 100).toFixed(0)}%)`);
+    lines.push(`    • ${c.name} (${c.strategy})`);
   }
 
   const fw = r.explore?.framework ?? {};

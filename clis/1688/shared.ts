@@ -146,6 +146,13 @@ export interface SearchCandidate {
   seller_url: string | null;
 }
 
+export interface MediaSource {
+  type: 'image' | 'video';
+  group: 'main' | 'sku' | 'detail' | 'video' | 'unknown';
+  url: string;
+  source?: string;
+}
+
 export function cleanText(value: unknown): string {
   return typeof value === 'string'
     ? value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim()
@@ -536,6 +543,46 @@ export function limitCandidates<T>(values: T[], limit: number): T[] {
   return values.slice(0, normalizedLimit);
 }
 
+export function normalizeMediaUrl(input: unknown): string {
+  const raw = cleanText(input);
+  if (!raw) return '';
+
+  let value = raw
+    .replace(/^url\((.*)\)$/i, '$1')
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\\u002F/g, '/')
+    .replace(/&amp;/g, '&')
+    .trim();
+
+  if (!value || value.startsWith('data:') || value.startsWith('blob:')) return '';
+  if (value.startsWith('//')) value = `https:${value}`;
+
+  try {
+    const url = new URL(value);
+    return url.toString();
+  } catch {
+    return '';
+  }
+}
+
+export function uniqueMediaSources(values: MediaSource[]): MediaSource[] {
+  const seen = new Set<string>();
+  const result: MediaSource[] = [];
+  for (const value of values) {
+    const url = normalizeMediaUrl(value.url);
+    if (!url) continue;
+    const key = `${value.type}:${url}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({
+      ...value,
+      url,
+      source: cleanText(value.source) || undefined,
+    });
+  }
+  return result;
+}
+
 function normalizeNumericText(value: string): string {
   return value
     .replace(/([¥$€])\s+(?=\d)/g, '$1')
@@ -619,5 +666,7 @@ export const __test__ = {
   cleanText,
   cleanMultilineText,
   uniqueNonEmpty,
+  normalizeMediaUrl,
+  uniqueMediaSources,
   limitCandidates,
 };

@@ -92,9 +92,7 @@ pipeline:
   - fetch:
       url: "https://httpbin.org/get?greeting=hello"
       method: GET
-  - extract:
-      type: json
-      selector: "$.args"
+  - select: "args"
 `;
   writeFile(targetDir, 'hello.yaml', yamlContent);
   files.push('hello.yaml');

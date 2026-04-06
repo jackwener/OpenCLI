@@ -1,6 +1,6 @@
 site: linux-do
 name: topic
-description: linux.do 帖子详情和回复（首页）
+description: linux.do 帖子首页摘要和回复（首屏）
 domain: linux.do
 strategy: cookie
 browser: true
@@ -15,17 +15,12 @@ args:
     type: int
     default: 20
     description: Number of posts
-  main_only:
-    type: bool
-    default: false
-    description: Only return the main post body without truncation
 
 pipeline:
   - navigate: https://linux.do
 
   - evaluate: |
       (async () => {
-        const mainOnly = ${{ args.main_only }};
         const toLocalTime = (utcStr) => {
           if (!utcStr) return '';
           const date = new Date(utcStr);
@@ -50,16 +45,6 @@ pipeline:
           .replace(/\s+/g, ' ')
           .trim();
         const posts = data?.post_stream?.posts || [];
-        if (mainOnly) {
-          const mainPost = posts.find(p => p.post_number === 1);
-          if (!mainPost) return [];
-          return [{
-            author: mainPost.username || '',
-            content: mainPost.cooked || '',
-            likes: mainPost.like_count || 0,
-            created_at: toLocalTime(mainPost.created_at),
-          }];
-        }
         return posts.slice(0, ${{ args.limit }}).map(p => ({
           author: p.username,
           content: strip(p.cooked).slice(0, 200),

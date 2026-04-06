@@ -17,6 +17,7 @@ import { type CliCommand, type InternalCliCommand, type Arg, Strategy, registerC
 import { getErrorMessage } from './errors.js';
 import { log } from './logger.js';
 import type { ManifestEntry } from './build-manifest.js';
+import { findPackageRoot, getCliManifestPath, getFetchAdaptersScriptPath } from './package-paths.js';
 
 /** User runtime directory: ~/.opencli */
 export const USER_OPENCLI_DIR = path.join(os.homedir(), '.opencli');
@@ -37,18 +38,7 @@ function parseStrategy(rawStrategy: string | undefined, fallback: Strategy = Str
 
 import { isRecord } from './utils.js';
 
-/**
- * Find the package root (directory containing package.json).
- * Dev: import.meta.url is in src/ → one level up.
- * Prod: import.meta.url is in dist/src/ → two levels up.
- */
-function findPackageRoot(): string {
-  let dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  if (!fs.existsSync(path.join(dir, 'package.json'))) {
-    dir = path.resolve(dir, '..');
-  }
-  return dir;
-}
+const PACKAGE_ROOT = findPackageRoot(fileURLToPath(import.meta.url));
 
 /**
  * Ensure ~/.opencli/node_modules/@jackwener/opencli symlink exists so that
@@ -72,7 +62,7 @@ export async function ensureUserCliCompatShims(baseDir: string = USER_OPENCLI_DI
   }
 
   // Create node_modules/@jackwener/opencli symlink pointing to the installed package root.
-  const opencliRoot = findPackageRoot();
+  const opencliRoot = PACKAGE_ROOT;
   const symlinkDir = path.join(baseDir, 'node_modules', '@jackwener');
   const symlinkPath = path.join(symlinkDir, 'opencli');
   try {
@@ -118,7 +108,7 @@ export async function ensureUserAdapters(): Promise<void> {
   log.info('First run detected — copying adapters (one-time setup)...');
   try {
     const { execFileSync } = await import('node:child_process');
-    const scriptPath = path.join(findPackageRoot(), 'scripts', 'fetch-adapters.js');
+    const scriptPath = getFetchAdaptersScriptPath(PACKAGE_ROOT);
     execFileSync(process.execPath, [scriptPath], {
       stdio: 'inherit',
       env: { ...process.env, _OPENCLI_FIRST_RUN: '1' },
@@ -137,7 +127,7 @@ export async function ensureUserAdapters(): Promise<void> {
 export async function discoverClis(...dirs: string[]): Promise<void> {
   // Fast path: try manifest first (production / post-build)
   for (const dir of dirs) {
-    const manifestPath = path.resolve(dir, '..', 'cli-manifest.json');
+    const manifestPath = getCliManifestPath(dir);
     try {
       await fs.promises.access(manifestPath);
       const loaded = await loadFromManifest(manifestPath, dir);
@@ -174,7 +164,7 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
           columns: entry.columns,
           pipeline: entry.pipeline,
           timeoutSeconds: entry.timeout,
-          source: `manifest:${entry.site}/${entry.name}`,
+          source: entry.sourceFile ? path.resolve(clisDir, entry.sourceFile) : `manifest:${entry.site}/${entry.name}`,
           deprecated: entry.deprecated,
           replacedBy: entry.replacedBy,
           navigateBefore: entry.navigateBefore,
@@ -196,7 +186,7 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
           args: entry.args ?? [],
           columns: entry.columns,
           timeoutSeconds: entry.timeout,
-          source: modulePath,
+          source: entry.sourceFile ? path.resolve(clisDir, entry.sourceFile) : modulePath,
           deprecated: entry.deprecated,
           replacedBy: entry.replacedBy,
           navigateBefore: entry.navigateBefore,

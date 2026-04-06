@@ -26,7 +26,6 @@ export interface SynthesizeCapability {
   name: string;
   description: string;
   strategy: string;
-  confidence?: number;
   endpoint?: string;
   itemPath?: string | null;
   recommendedColumns?: string[];
@@ -67,7 +66,6 @@ export interface SynthesizeCandidateSummary {
   name: string;
   path: string;
   strategy: string;
-  confidence?: number;
 }
 
 export interface SynthesizeResult {
@@ -98,7 +96,6 @@ export function synthesizeFromExplore(
 
   const site = bundle.manifest.site;
   const capabilities = (bundle.capabilities ?? [])
-    .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))
     .slice(0, opts.top ?? 3);
   const candidates: SynthesizeCandidateSummary[] = [];
 
@@ -108,7 +105,7 @@ export function synthesizeFromExplore(
     const candidate = buildCandidateYaml(site, bundle.manifest, cap, endpoint);
     const filePath = path.join(targetDir, `${candidate.name}.yaml`);
     fs.writeFileSync(filePath, yaml.dump(candidate.yaml, { sortKeys: false, lineWidth: 120 }));
-    candidates.push({ name: candidate.name, path: filePath, strategy: cap.strategy, confidence: cap.confidence });
+    candidates.push({ name: candidate.name, path: filePath, strategy: cap.strategy });
   }
 
   const index = { site, target_url: bundle.manifest.target_url, generated_from: exploreDir, candidate_count: candidates.length, candidates };
@@ -119,7 +116,7 @@ export function synthesizeFromExplore(
 
 export function renderSynthesizeSummary(result: SynthesizeResult): string {
   const lines = ['opencli synthesize: OK', `Site: ${result.site}`, `Source: ${result.explore_dir}`, `Candidates: ${result.candidate_count}`];
-  for (const c of result.candidates ?? []) lines.push(`  • ${c.name} (${c.strategy}, ${((c.confidence ?? 0) * 100).toFixed(0)}% confidence) → ${c.path}`);
+  for (const c of result.candidates ?? []) lines.push(`  • ${c.name} (${c.strategy}) → ${c.path}`);
   return lines.join('\n');
 }
 
@@ -147,7 +144,12 @@ function chooseEndpoint(cap: SynthesizeCapability, endpoints: ExploreEndpointArt
     const match = endpoints.find((endpoint) => endpoint.pattern === endpointPattern || endpoint.url?.includes(endpointPattern));
     if (match) return match;
   }
-  return [...endpoints].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
+  // Fallback: prefer endpoint with most data (item count + detected fields)
+  return [...endpoints].sort((a, b) => {
+    const aKey = (a.itemCount ?? 0) * 10 + Object.keys(a.detectedFields ?? {}).length;
+    const bKey = (b.itemCount ?? 0) * 10 + Object.keys(b.detectedFields ?? {}).length;
+    return bKey - aKey;
+  })[0];
 }
 
 // ── URL templating ─────────────────────────────────────────────────────────

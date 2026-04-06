@@ -25,6 +25,7 @@ import {
   inferStrategy,
   detectAuthFromHeaders,
   classifyQueryParams,
+  isNoiseUrl,
 } from './analysis.js';
 
 // ── Site name detection ────────────────────────────────────────────────────
@@ -67,14 +68,14 @@ interface NetworkEntry {
 
 interface AnalyzedEndpoint {
   pattern: string; method: string; url: string; status: number | null;
-  contentType: string; queryParams: string[]; score: number;
+  contentType: string; queryParams: string[];
   hasSearchParam: boolean; hasPaginationParam: boolean; hasLimitParam: boolean;
   authIndicators: string[];
   responseAnalysis: { itemPath: string | null; itemCount: number; detectedFields: Record<string, string>; sampleFields: string[] } | null;
 }
 
 interface InferredCapability {
-  name: string; description: string; strategy: string; confidence: number;
+  name: string; description: string; strategy: string;
   endpoint: string; itemPath: string | null;
   recommendedColumns: string[];
   recommendedArgs: Array<{ name: string; type: string; required: boolean; default?: unknown }>;
@@ -104,7 +105,6 @@ export interface ExploreEndpointArtifact {
   url: string;
   status: number | null;
   contentType: string;
-  score: number;
   queryParams: string[];
   itemPath: string | null;
   itemCount: number;
@@ -155,13 +155,24 @@ function parseNetworkRequests(raw: unknown): NetworkEntry[] {
     return entries;
   }
   if (Array.isArray(raw)) {
-    return raw.filter(e => e && typeof e === 'object').map(e => ({
-      method: (e.method ?? 'GET').toUpperCase(),
-      url: String(e.url ?? e.request?.url ?? e.requestUrl ?? ''),
-      status: e.status ?? e.statusCode ?? null,
-      contentType: e.contentType ?? e.response?.contentType ?? '',
-      responseBody: e.responseBody, requestHeaders: e.requestHeaders,
-    }));
+    return raw.filter(e => e && typeof e === 'object').map(e => {
+      // Handle both legacy shape (status/contentType/responseBody) and
+      // extension/CDP capture shape (responseStatus/responseContentType/responsePreview)
+      let body = e.responseBody;
+      if (body === undefined && e.responsePreview !== undefined) {
+        const preview = e.responsePreview;
+        if (typeof preview === 'string') {
+          try { body = JSON.parse(preview); } catch { body = preview; }
+        }
+      }
+      return {
+        method: (e.method ?? 'GET').toUpperCase(),
+        url: String(e.url ?? e.request?.url ?? e.requestUrl ?? ''),
+        status: e.status ?? e.responseStatus ?? e.statusCode ?? null,
+        contentType: e.contentType ?? e.responseContentType ?? e.response?.contentType ?? '',
+        responseBody: body, requestHeaders: e.requestHeaders,
+      };
+    });
   }
   return [];
 }
@@ -183,18 +194,29 @@ function isBooleanRecord(value: unknown): value is Record<string, boolean> {
     && Object.values(value as Record<string, unknown>).every(v => typeof v === 'boolean');
 }
 
-function scoreEndpoint(ep: { contentType: string; responseAnalysis: AnalyzedEndpoint['responseAnalysis']; pattern: string; status: number | null; hasSearchParam: boolean; hasPaginationParam: boolean; hasLimitParam: boolean }): number {
-  let s = 0;
-  if (ep.contentType.includes('json')) s += 10;
-  if (ep.responseAnalysis) { s += 5; s += Math.min(ep.responseAnalysis.itemCount, 10); s += Object.keys(ep.responseAnalysis.detectedFields).length * 2; }
-  if (ep.pattern.includes('/api/') || ep.pattern.includes('/x/')) s += 3;
-  if (ep.hasSearchParam) s += 3;
-  if (ep.hasPaginationParam) s += 2;
-  if (ep.hasLimitParam) s += 2;
-  if (ep.status === 200) s += 2;
-  // Anti-Bot Empty Value Detection: penalize JSON endpoints returning empty data
-  if (ep.responseAnalysis && ep.responseAnalysis.itemCount === 0 && ep.contentType.includes('json')) s -= 3;
-  return s;
+/**
+ * Deterministic sort key for endpoint ordering — transparent, observable signals only.
+ * Used by generate/synthesize to pick a stable default candidate.
+ * Not exposed externally; AI agents see the raw metadata and decide for themselves.
+ */
+function endpointSortKey(ep: AnalyzedEndpoint): number {
+  let k = 0;
+  // Prefer endpoints with array data (list APIs are more useful for automation)
+  const items = ep.responseAnalysis?.itemCount ?? 0;
+  if (items > 0) k += 100 + Math.min(items, 50);
+  // Prefer endpoints with detected semantic fields
+  k += Object.keys(ep.responseAnalysis?.detectedFields ?? {}).length * 10;
+  // Prefer API-style paths
+  if (ep.pattern.includes('/api/') || ep.pattern.includes('/x/')) k += 5;
+  // Prefer endpoints with query params (more likely to be parameterized APIs)
+  if (ep.hasSearchParam || ep.hasPaginationParam || ep.hasLimitParam) k += 5;
+  return k;
+}
+
+/** Check whether an endpoint carries useful structured data (any JSON response, not noise). */
+function isUsefulEndpoint(ep: AnalyzedEndpoint): boolean {
+  if (isNoiseUrl(ep.url)) return false;
+  return ep.contentType.includes('json');
 }
 
 
@@ -219,7 +241,7 @@ const INTERACT_FUZZ_JS = interactFuzz.toString();
 
 // ── Analysis helpers (extracted from exploreUrl) ───────────────────────────
 
-/** Filter, deduplicate, and score network endpoints. */
+/** Filter and deduplicate network endpoints, keeping only useful structured-data APIs. */
 function analyzeEndpoints(networkEntries: NetworkEntry[]): { analyzed: AnalyzedEndpoint[]; totalCount: number } {
   const seen = new Map<string, AnalyzedEndpoint>();
   for (const entry of networkEntries) {
@@ -241,13 +263,14 @@ function analyzeEndpoints(networkEntries: NetworkEntry[]): { analyzed: AnalyzedE
       hasLimitParam: hasLimit || qp.some(p => LIMIT_PARAMS.has(p)),
       authIndicators: detectAuthFromHeaders(entry.requestHeaders),
       responseAnalysis: entry.responseBody ? analyzeResponseBody(entry.responseBody) : null,
-      score: 0,
     };
-    ep.score = scoreEndpoint(ep);
     seen.set(key, ep);
   }
 
-  const analyzed = [...seen.values()].filter(ep => ep.score >= 5).sort((a, b) => b.score - a.score);
+  // Filter to useful endpoints; deterministic ordering by observable metadata signals
+  const analyzed = [...seen.values()]
+    .filter(isUsefulEndpoint)
+    .sort((a, b) => endpointSortKey(b) - endpointSortKey(a));
   return { analyzed, totalCount: seen.size };
 }
 
@@ -295,7 +318,7 @@ function inferCapabilitiesFromEndpoints(
     capabilities.push({
       name: capName, description: `${opts.site ?? detectSiteName(opts.url)} ${capName}`,
       strategy: storeHint ? 'store-action' : epStrategy,
-      confidence: Math.min(ep.score / 20, 1.0), endpoint: ep.pattern,
+      endpoint: ep.pattern,
       itemPath: ep.responseAnalysis?.itemPath ?? null,
       recommendedColumns: cols.length ? cols : ['title', 'url'],
       recommendedArgs: args,
@@ -327,7 +350,7 @@ async function writeExploreArtifacts(
     }, null, 2)),
     fs.promises.writeFile(path.join(targetDir, 'endpoints.json'), JSON.stringify(analyzedEndpoints.map(ep => ({
       pattern: ep.pattern, method: ep.method, url: ep.url, status: ep.status,
-      contentType: ep.contentType, score: ep.score, queryParams: ep.queryParams,
+      contentType: ep.contentType, queryParams: ep.queryParams,
       itemPath: ep.responseAnalysis?.itemPath ?? null, itemCount: ep.responseAnalysis?.itemCount ?? 0,
       detectedFields: ep.responseAnalysis?.detectedFields ?? {}, authIndicators: ep.authIndicators,
     })), null, 2)),
@@ -359,6 +382,7 @@ export async function exploreUrl(
   return browserSession(opts.BrowserFactory, async (page) => {
     return runWithTimeout((async () => {
       // Step 1: Navigate
+      await page.startNetworkCapture?.();
       await page.goto(url);
       await page.wait(waitSeconds);
 
@@ -394,7 +418,9 @@ export async function exploreUrl(
       const metadata = await readPageMetadata(page);
 
       // Step 4: Capture network traffic
-      const rawNetwork = await page.networkRequests(false);
+      const rawNetwork = page.readNetworkCapture
+        ? await page.readNetworkCapture()
+        : await page.networkRequests(false);
       const networkEntries = parseNetworkRequests(rawNetwork);
 
       // Step 5: For JSON endpoints missing a body, carefully re-fetch in-browser via a pristine iframe
@@ -472,7 +498,7 @@ export function renderExploreSummary(result: ExploreResult): string {
   ];
   for (const cap of (result.capabilities ?? []).slice(0, 5)) {
     const storeInfo = cap.storeHint ? ` → ${cap.storeHint.store}.${cap.storeHint.action}()` : '';
-    lines.push(`  • ${cap.name} (${cap.strategy}, ${(cap.confidence * 100).toFixed(0)}%)${storeInfo}`);
+    lines.push(`  • ${cap.name} (${cap.strategy})${storeInfo}`);
   }
   const fw = result.framework ?? {};
   const fwNames = Object.entries(fw).filter(([, v]) => v).map(([k]) => k);

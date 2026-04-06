@@ -11,6 +11,7 @@
 | `opencli linux-do tags` | List popular tags |
 | `opencli linux-do search <query>` | Search topics |
 | `opencli linux-do topic <id>` | View topic posts |
+| `opencli linux-do topic-content <id>` | Read the main topic body as Markdown |
 | `opencli linux-do user-topics <username>` | Topics created by a user |
 | `opencli linux-do user-posts <username>` | Replies posted by a user |
 
@@ -147,18 +148,34 @@ Output columns: `rank`, `title`, `views`, `likes`, `replies`, `url`
 
 ## topic
 
-View posts within a topic (first page).
+View summarized first-page posts within a topic.
 
 ```bash
 opencli linux-do topic 1234
 opencli linux-do topic 1234 --limit 50
-opencli linux-do topic 1234 --main_only -f json | jq -r '.[0].content'
 ```
 
 Notes:
-- `--main_only` returns only the main post row and keeps the body untruncated
+- `content` is a plain-text summary extracted from each first-page post
+- Each summary is truncated to 200 characters
+- Use `opencli linux-do topic-content <id>` for the full main post body in Markdown
 
 Output columns: `author`, `content`, `likes`, `created_at`
+
+## topic-content
+
+Read the main topic body as Markdown.
+
+```bash
+opencli linux-do topic-content 1234
+opencli linux-do topic-content 1234 -f json
+```
+
+Notes:
+- Default output prints the Markdown body directly for copy/paste or piping into LLMs
+- Use `-f json` if you want a machine-readable wrapper
+
+Output columns: `content`
 
 ## user-topics
 

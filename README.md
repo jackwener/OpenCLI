@@ -133,7 +133,7 @@ git clone git@github.com:jackwener/opencli.git && cd opencli && npm install && n
 | **twitter** | `trending` `search` `timeline` `bookmarks` `post` `download` `profile` `article` `like` `likes` `notifications` `reply` `reply-dm` `thread` `follow` `unfollow` `followers` `following` `block` `unblock` `bookmark` `unbookmark` `delete` `hide-reply` `accept` |
 | **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `upvoted` `save` `saved` `comment` `subscribe` |
 | **amazon** | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` |
-| **1688** | `search` `item` `store` |
+| **1688** | `search` `item` `assets` `download` `store` |
 | **gemini** | `new` `ask` `image` `deep-research` `deep-research-result` |
 | **yuanbao** | `new` `ask` |
 | **notebooklm** | `status` `list` `open` `current` `get` `history` `summary` `note-list` `notes-get` `source-list` `source-get` `source-fulltext` `source-guide` |
@@ -191,6 +191,7 @@ OpenCLI supports downloading images, videos, and articles from supported platfor
 | **twitter** | Images, Videos | From user media tab or single tweet |
 | **douban** | Images | Poster / still image lists |
 | **pixiv** | Images | Original-quality illustrations, multi-page |
+| **1688** | Images, Videos | Downloads page-visible product media from item pages |
 | **zhihu** | Articles (Markdown) | Exports with optional image download |
 | **weixin** | Articles (Markdown) | WeChat Official Account articles |
 
@@ -200,6 +201,7 @@ For video downloads, install `yt-dlp` first: `brew install yt-dlp`
 opencli xiaohongshu download abc123 --output ./xhs
 opencli bilibili download BV1xxx --output ./bilibili
 opencli twitter download elonmusk --limit 20 --output ./twitter
+opencli 1688 download 841141931191 --output ./1688-downloads
 ```
 
 ## Output Formats

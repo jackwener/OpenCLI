@@ -94,7 +94,7 @@ find tests/smoke -name '*.test.ts' | sort
 
 ```bash
 npm ci                # 安装依赖
-npm run build         # 编译（E2E / smoke 测试需要 dist/main.js）
+npm run build         # 编译（E2E / smoke 测试需要 dist/src/main.js）
 ```
 
 ### 运行命令
@@ -123,7 +123,7 @@ npx vitest src/
 ### 浏览器命令本地测试须知
 
 - opencli 通过 Browser Bridge 扩展连接已运行的 Chrome 浏览器
-- E2E 测试通过 `tests/e2e/helpers.ts` 里的 `runCli()` 调用已构建的 `dist/main.js`
+- E2E 测试通过 `tests/e2e/helpers.ts` 里的 `runCli()` 调用已构建的 `dist/src/main.js`
 - `browser-public.test.ts` 使用 `tryBrowserCommand()`，站点反爬或地域限制导致空数据时会 warn + pass
 - `browser-auth.test.ts` 验证 **graceful failure**，重点是不 crash、不 hang、错误信息可控
 - 如需测试完整登录态，保持 Chrome 登录态并安装 Browser Bridge 扩展，再手动运行对应测试

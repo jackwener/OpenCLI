@@ -213,6 +213,8 @@ opencli jike notifications               # 通知
 ```bash
 opencli linux-do categories --limit 20   # 分类列表
 opencli linux-do category dev 7          # 分类内话题 (slug + id positional)
+opencli linux-do topic 1234              # 帖子首页回复列表
+opencli linux-do topic-content 1234      # 主贴 Markdown 正文
 ```
 
 ## WeRead (微信读书)

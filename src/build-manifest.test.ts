@@ -102,7 +102,7 @@ describe('manifest helper rules', () => {
       }),
     }));
 
-    expect(entries).toEqual([
+    expect(entries).toMatchObject([
       {
         site,
         name: 'dynamic',
@@ -112,7 +112,7 @@ describe('manifest helper rules', () => {
         browser: false,
         aliases: ['metadata'],
         args: [
-          {
+          expect.objectContaining({
             name: 'model',
             type: 'str',
             required: true,
@@ -120,7 +120,7 @@ describe('manifest helper rules', () => {
             help: 'Choose a model',
             choices: ['auto', 'thinking'],
             default: '30',
-          },
+          }),
         ],
         type: 'ts',
         modulePath: `${site}/${site}.js`,
@@ -129,6 +129,8 @@ describe('manifest helper rules', () => {
         replacedBy: 'opencli demo new',
       },
     ]);
+    // Verify sourceFile is included
+    expect(entries[0].sourceFile).toBeDefined();
 
     getRegistry().delete(key);
   });
@@ -152,7 +154,7 @@ describe('manifest helper rules', () => {
       return {};
     });
 
-    expect(entries).toEqual([
+    expect(entries).toMatchObject([
       {
         site,
         name: 'legacy',
@@ -166,6 +168,8 @@ describe('manifest helper rules', () => {
         replacedBy: 'opencli demo new',
       },
     ]);
+    // Verify sourceFile is included
+    expect(entries[0].sourceFile).toBeDefined();
 
     getRegistry().delete(key);
   });

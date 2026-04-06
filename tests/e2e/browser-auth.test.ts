@@ -84,6 +84,10 @@ describe('login-required commands — graceful failure', () => {
     await expectGracefulAuthFailure(['linux-do', 'topic', '1', '-f', 'json']);
   }, 60_000);
 
+  it('linux-do topic-content fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['linux-do', 'topic-content', '1', '-f', 'json']);
+  }, 60_000);
+
   it('linux-do search fails gracefully without login', async () => {
     await expectGracefulAuthFailure(['linux-do', 'search', 'test', '--limit', '3', '-f', 'json']);
   }, 60_000);

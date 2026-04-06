@@ -99,7 +99,7 @@ Usage: `opencli <site> <command> [args] [--limit N] [-f json|yaml|md|csv|table]`
 | **web** | `read` — any URL to Markdown |
 | **weixin** | `download` — 公众号 article to Markdown |
 | **v2ex** (browser) | `daily` `me` `notifications` |
-| **linux-do** (browser) | `hot` `latest` `feed` `search` `categories` `category` `tags` `topic` `user-posts` `user-topics` |
+| **linux-do** (browser) | `hot` `latest` `feed` `search` `categories` `category` `tags` `topic` `topic-content` `user-posts` `user-topics` |
 | **bloomberg** (browser) | `news` — full article reader |
 | **grok** | `ask` |
 | **doubao** | `status` `new` `send` `read` `ask` `detail` `history` `meeting-summary` `meeting-transcript` |
