@@ -94,9 +94,21 @@ function parseEFetchXml(xml: string, pmid: string) {
   }
   const firstAuthors = coFirstAuthors.length > 0 ? coFirstAuthors : [authors[0]].filter(Boolean);
   
-  // For corresponding authors, use the last author (common convention)
-  // In the future, could also check for specific corresponding author indicators
-  const correspondingAuthor = authors[authors.length - 1] || { name: '', affiliations: [], equalContrib: false };
+  // Identify corresponding author: look for author with email in affiliations
+  // Corresponding authors usually have their email in the affiliation text
+  const extractEmail = (affil: string): string => {
+    const emailMatch = affil.match(/[\w.-]+@[\w.-]+\.\w+/);
+    return emailMatch ? emailMatch[0] : '';
+  };
+
+  let correspondingAuthor = authors[authors.length - 1] || { name: '', affiliations: [], equalContrib: false };
+  
+  // Try to find author with email in their affiliations (more accurate than just last author)
+  const authorsWithEmail = authors.filter(a => a.affiliations.some(aff => extractEmail(aff)));
+  if (authorsWithEmail.length > 0) {
+    // Use the last author that has an email (corresponding authors are typically at the end)
+    correspondingAuthor = authorsWithEmail[authorsWithEmail.length - 1];
+  }
 
   // Unique affiliations - flatten all author affiliations and deduplicate
   const allAffiliations = authors.flatMap(a => a.affiliations);
