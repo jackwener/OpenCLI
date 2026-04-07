@@ -1,9 +1,11 @@
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, getErrorMessage } from '@jackwener/opencli/errors';
 import type { IPage } from '@jackwener/opencli/types';
 
 export const SHARE_API = 'https://drive-h.quark.cn/1/clouddrive/share/sharepage';
 export const DRIVE_API = 'https://drive-pc.quark.cn/1/clouddrive/file';
 export const TASK_API = 'https://drive-pc.quark.cn/1/clouddrive/task';
+const QUARK_DOMAIN = 'pan.quark.cn';
+const AUTH_HINT = 'Quark Drive requires a logged-in browser session';
 
 export interface ApiResponse<T = unknown> {
   status: number;
@@ -27,6 +29,25 @@ export interface DriveFile {
   file_name: string;
   size: number;
   dir: boolean;
+}
+
+function isAuthFailure(message: string, status?: number): boolean {
+  if (status === 401 || status === 403) return true;
+  return /not logged in|login required|please log in|authentication required|unauthorized|forbidden|未登录|请先登录|需要登录|登录/.test(message.toLowerCase());
+}
+
+function getErrorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object' || !('status' in error)) return undefined;
+  const status = (error as { status?: unknown }).status;
+  return typeof status === 'number' ? status : undefined;
+}
+
+function unwrapApiData<T>(resp: ApiResponse<T>, action: string): T {
+  if (resp.status === 200) return resp.data;
+  if (isAuthFailure(resp.message, resp.status)) {
+    throw new AuthRequiredError(QUARK_DOMAIN, AUTH_HINT);
+  }
+  throw new CommandExecutionError(`quark: ${action}: ${resp.message}`);
 }
 
 export function extractPwdId(url: string): string {
@@ -58,19 +79,24 @@ export async function fetchJson<T = unknown>(
     return r.json();
   })`;
 
-  return page.evaluate(js) as unknown as ApiResponse<T>;
+  try {
+    return await page.evaluate(js) as unknown as ApiResponse<T>;
+  } catch (error) {
+    if (isAuthFailure(getErrorMessage(error), getErrorStatus(error))) {
+      throw new AuthRequiredError(QUARK_DOMAIN, AUTH_HINT);
+    }
+    throw error;
+  }
 }
 
 export async function apiGet<T = unknown>(page: IPage, url: string): Promise<T> {
   const resp = await fetchJson<T>(page, url);
-  if (resp.status !== 200) throw new CommandExecutionError(`quark: API error: ${resp.message}`);
-  return resp.data;
+  return unwrapApiData(resp, 'API error');
 }
 
 export async function apiPost<T = unknown>(page: IPage, url: string, body: object): Promise<T> {
   const resp = await fetchJson<T>(page, url, { method: 'POST', body });
-  if (resp.status !== 200) throw new CommandExecutionError(`quark: API error: ${resp.message}`);
-  return resp.data;
+  return unwrapApiData(resp, 'API error');
 }
 
 export async function getToken(page: IPage, pwdId: string, passcode = ''): Promise<string> {
@@ -78,8 +104,7 @@ export async function getToken(page: IPage, pwdId: string, passcode = ''): Promi
     method: 'POST',
     body: { pwd_id: pwdId, passcode, support_visit_limit_private_share: true },
   });
-  if (data.status !== 200) throw new CommandExecutionError(`quark: Failed to get token: ${data.message}`);
-  return data.data.stoken;
+  return unwrapApiData(data, 'Failed to get token').stoken;
 }
 
 export async function listMyDrive(page: IPage, pdirFid: string): Promise<DriveFile[]> {
@@ -90,8 +115,7 @@ export async function listMyDrive(page: IPage, pdirFid: string): Promise<DriveFi
   do {
     const url = `${DRIVE_API}/sort?pr=ucpro&fr=pc&pdir_fid=${pdirFid}&_page=${pageNum}&_size=200&_fetch_total=1&_sort=file_type:asc,file_name:asc`;
     const data = await fetchJson<{ list: DriveFile[] }>(page, url);
-    if (data.status !== 200) throw new CommandExecutionError(`quark: Failed to list drive: ${data.message}`);
-    const files = data.data?.list || [];
+    const files = unwrapApiData(data, 'Failed to list drive')?.list || [];
     allFiles.push(...files);
     total = data.metadata?._total || 0;
     pageNum++;
@@ -160,4 +184,3 @@ export async function pollTask(
   }
   return false;
 }
-
