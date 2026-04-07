@@ -95,6 +95,7 @@ export default defineConfig({
                 { text: 'Web (Generic)', link: '/adapters/browser/web' },
                 { text: 'Weixin', link: '/adapters/browser/weixin' },
                 { text: 'Xianyu', link: '/adapters/browser/xianyu' },
+                { text: 'Quark', link: '/adapters/browser/quark' },
               ],
             },
             {
