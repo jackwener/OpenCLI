@@ -195,6 +195,35 @@ async function attachReplyImage(page: IPage, absImagePath: string): Promise<void
   }
 }
 
+async function dryRunFill(page: IPage, text: string): Promise<{ ok: boolean; filled: boolean; submitted: boolean; message: string }> {
+  return page.evaluate(`(async () => {
+    try {
+      const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
+      const boxes = Array.from(document.querySelectorAll('[data-testid="tweetTextarea_0"]'));
+      const box = boxes.find(visible) || boxes[0];
+      if (!box) return { ok: false, filled: false, submitted: false, message: 'Could not find reply text area.' };
+
+      box.focus();
+      const textToInsert = ${JSON.stringify(text)};
+      if (!document.execCommand('insertText', false, textToInsert)) {
+        const dt = new DataTransfer();
+        dt.setData('text/plain', textToInsert);
+        box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+      }
+
+      await new Promise(r => setTimeout(r, 500));
+
+      const buttons = Array.from(
+        document.querySelectorAll('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]')
+      );
+      const btn = buttons.find((el) => visible(el) && !el.disabled);
+      return { ok: true, filled: true, submitted: false, buttonFound: !!btn, message: 'Dry run: text filled, submit skipped.' };
+    } catch (e) {
+      return { ok: false, filled: false, submitted: false, message: e.toString() };
+    }
+  })()`);
+}
+
 async function submitReply(page: IPage, text: string): Promise<{ ok: boolean; message: string }> {
   return page.evaluate(`(async () => {
       try {
@@ -273,6 +302,18 @@ cli({
       if (localImagePath) {
         await page.wait({ selector: REPLY_FILE_INPUT_SELECTOR, timeout: 20 });
         await attachReplyImage(page, localImagePath);
+      }
+
+      // OPENCLI_DRY_RUN: fill the composer but skip the actual submit
+      if (process.env.OPENCLI_DRY_RUN) {
+        const fillResult = await dryRunFill(page, kwargs.text);
+        return [{
+          status: 'dry_run',
+          filled: !!fillResult?.filled,
+          submitted: false,
+          message: fillResult?.message ?? 'dry run complete',
+          text: kwargs.text,
+        }];
       }
 
       const result = await submitReply(page, kwargs.text);

@@ -43,8 +43,8 @@ export interface IterationResult {
 }
 
 /** Parse CLI args into a partial config (missing fields filled by preset or prompts) */
-export function parseArgs(argv: string[]): Partial<AutoResearchConfig> & { preset?: string; task?: string } {
-  const config: Partial<AutoResearchConfig> & { preset?: string; task?: string } = {};
+export function parseArgs(argv: string[]): Partial<AutoResearchConfig> & { preset?: string; task?: string; mode?: string; spec?: string } {
+  const config: Partial<AutoResearchConfig> & { preset?: string; task?: string; mode?: string; spec?: string } = {};
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const next = argv[i + 1];
@@ -59,9 +59,58 @@ export function parseArgs(argv: string[]): Partial<AutoResearchConfig> & { prese
       case '--iterations': config.iterations = parseInt(next, 10); i++; break;
       case '--min-delta': config.minDelta = parseFloat(next); i++; break;
       case '--task': config.task = next; i++; break;
+      case '--mode': config.mode = next; i++; break;
+      case '--spec': config.spec = next; i++; break;
     }
   }
   return config;
+}
+
+/* ── Command Incident Spec (v1) ── */
+
+export type VerifyCheck =
+  | { type: 'exitCode'; expected: number }
+  | { type: 'stdoutContains'; value: string }
+  | { type: 'jsonField'; path: string; matcher: 'nonEmpty' | 'contains' | 'gte' | 'matches'; value?: string }
+  | { type: 'pageEval'; js: string; matcher: 'contains' | 'truthy' | 'equals'; value?: string };
+
+export interface CommandIncidentSpec {
+  name: string;
+  command: string;
+  safety: 'read_only' | 'fill_only' | 'publish';
+  prerequisites?: {
+    auth?: string[];
+    env?: Record<string, string>;
+    browserProfile?: string;
+  };
+  setup?: string[];
+  verify: VerifyCheck[];
+  cleanup?: string[];
+  repairScope: string[];
+  forbidden: string[];
+}
+
+export interface CommandSpecsFile {
+  version: number;
+  kind: 'command_incident';
+  specs: CommandIncidentSpec[];
+}
+
+export type SpecClassification =
+  | 'passed'
+  | 'failed_regression'
+  | 'failed_precondition'
+  | 'failed_infrastructure'
+  | 'skipped';
+
+export interface SpecResult {
+  name: string;
+  classification: SpecClassification;
+  duration: number;
+  failedChecks?: string[];
+  stdout?: string;
+  stderr?: string;
+  exitCode?: number;
 }
 
 /** Extract a number from command output using common patterns */

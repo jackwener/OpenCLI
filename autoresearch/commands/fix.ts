@@ -15,7 +15,9 @@
 import { execSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 import { parseArgs } from '../config.js';
+import type { CommandSpecsFile } from '../config.js';
 import { Engine, type ModifyContext } from '../engine.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -77,10 +79,116 @@ function detectBrokenState(): { verify: string; errors: number; description: str
   return null; // all clean
 }
 
+/** Build incident-mode config for a specific command spec */
+function buildIncidentConfig(specName: string, maxIterations: number) {
+  const specsFile: CommandSpecsFile = JSON.parse(
+    readFileSync(join(__dirname, '..', 'command-specs.json'), 'utf-8')
+  );
+  const spec = specsFile.specs.find(s => s.name === specName);
+  if (!spec) {
+    console.error(`Spec "${specName}" not found in command-specs.json`);
+    process.exit(1);
+  }
+
+  return {
+    config: {
+      goal: `Fix command regression: ${spec.command}`,
+      scope: [...spec.repairScope, 'src/**/*.ts'],
+      metric: 'pass_count',
+      direction: 'higher' as const,
+      verify: `npx tsx autoresearch/eval-cli.ts --spec ${specName} 2>&1 | tail -1`,
+      guard: 'npm run build && npm test',
+      iterations: maxIterations,
+      minDelta: 1,
+    },
+    spec,
+  };
+}
+
+function buildIncidentPrompt(specName: string, ctx: ModifyContext): string {
+  const specsFile: CommandSpecsFile = JSON.parse(
+    readFileSync(join(__dirname, '..', 'command-specs.json'), 'utf-8')
+  );
+  const spec = specsFile.specs.find(s => s.name === specName);
+  if (!spec) return 'Fix the failing command.';
+
+  const forbidden = spec.forbidden.length > 0
+    ? `Do NOT modify: ${spec.forbidden.join(', ')}`
+    : '';
+
+  return `Command \`${spec.command}\` is failing (regression).
+
+Current pass count: ${ctx.currentMetric}. Goal: all verify checks pass.
+
+The command implementation is at: ${spec.repairScope.join(', ')}
+Read the adapter code, understand why the command fails against the live site, and fix it.
+
+Common causes:
+- Site updated DOM selectors
+- URL pattern changed
+- Response format changed
+- Auth/cookie handling broke
+
+${forbidden}
+Fix ONE issue at a time.
+
+${ctx.stuckHint ? `STUCK HINT: ${ctx.stuckHint}` : ''}`;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const maxIterations = args.iterations ?? 20;
+  const mode = args.mode ?? 'repo';
+  const specName = args.spec;
 
+  if (mode === 'incident') {
+    if (!specName) {
+      console.error('Incident mode requires --spec <name>');
+      process.exit(1);
+    }
+
+    console.log(`\n🔧 AutoResearch Fix — Incident Mode: ${specName}\n`);
+
+    const { config } = buildIncidentConfig(specName, maxIterations);
+
+    console.log(`  Command spec: ${specName}`);
+    console.log(`  Verify: ${config.verify}`);
+    console.log(`  Scope: ${config.scope.join(', ')}\n`);
+
+    const logPath = join(ROOT, 'autoresearch-results.tsv');
+    const engine = new Engine(config, logPath, {
+      modify: async (ctx: ModifyContext) => {
+        const prompt = buildIncidentPrompt(specName, ctx);
+        try {
+          const result = execSync(
+            `claude -p --dangerously-skip-permissions --allowedTools "Bash(npm:*),Bash(npx:*),Read,Edit,Write,Glob,Grep" --output-format text --no-session-persistence "${prompt.replace(/"/g, '\\"')}"`,
+            { cwd: ROOT, timeout: 180_000, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+          ).trim();
+          const lines = result.split('\n').filter(l => l.trim());
+          return lines[lines.length - 1]?.trim()?.slice(0, 120) || 'incident fix attempt';
+        } catch {
+          return null;
+        }
+      },
+      onStatus: (msg) => console.log(msg),
+    });
+
+    try {
+      const results = await engine.run();
+      const finalMetric = results[results.length - 1]?.metric ?? 0;
+      if (finalMetric > 0) {
+        console.log(`\n✅ Command spec "${specName}" passing!\n`);
+      } else {
+        console.log(`\n⚠ Command spec "${specName}" still failing after ${maxIterations} iterations.\n`);
+      }
+    } catch (err: any) {
+      console.error(`\n❌ ${err.message}`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  // ── Repo mode (default, existing behavior) ──
   console.log('\n🔧 AutoResearch Fix — Detecting broken state...\n');
 
   const broken = detectBrokenState();

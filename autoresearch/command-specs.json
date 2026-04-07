@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "kind": "command_incident",
+  "specs": [
+    {
+      "name": "weibo-hot-smoke",
+      "command": "opencli weibo hot --limit 5 -f json",
+      "safety": "read_only",
+      "prerequisites": {},
+      "verify": [
+        { "type": "exitCode", "expected": 0 },
+        { "type": "stdoutContains", "value": "[" },
+        { "type": "jsonField", "path": "[0].title", "matcher": "nonEmpty" }
+      ],
+      "repairScope": ["clis/weibo/**/*.ts", "clis/weibo/**/*.yaml"],
+      "forbidden": ["autoresearch/**", "tests/**"]
+    },
+    {
+      "name": "xiaohongshu-search-smoke",
+      "command": "opencli xiaohongshu search 美食 --limit 3 -f json",
+      "safety": "read_only",
+      "prerequisites": {},
+      "verify": [
+        { "type": "exitCode", "expected": 0 },
+        { "type": "stdoutContains", "value": "[" },
+        { "type": "jsonField", "path": "length", "matcher": "gte", "value": "1" }
+      ],
+      "repairScope": ["clis/xiaohongshu/**/*.ts", "clis/xiaohongshu/**/*.yaml"],
+      "forbidden": ["autoresearch/**", "tests/**"]
+    },
+    {
+      "name": "twitter-reply-fill-smoke",
+      "command": "opencli twitter reply https://x.com/elonmusk/status/1909633658498916828 'opencli smoke test'",
+      "safety": "fill_only",
+      "prerequisites": {
+        "auth": ["twitter"]
+      },
+      "verify": [
+        { "type": "exitCode", "expected": 0 },
+        { "type": "stdoutContains", "value": "dry_run" },
+        { "type": "jsonField", "path": "[0].status", "matcher": "contains", "value": "dry_run" }
+      ],
+      "cleanup": [],
+      "repairScope": ["clis/twitter/reply.ts", "clis/twitter/*.yaml"],
+      "forbidden": ["autoresearch/**", "tests/**"]
+    }
+  ]
+}
