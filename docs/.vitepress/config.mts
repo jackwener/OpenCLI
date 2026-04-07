@@ -119,6 +119,8 @@ export default defineConfig({
                 { text: 'LessWrong', link: '/adapters/browser/lesswrong' },
                 { text: 'Lobsters', link: '/adapters/browser/lobsters' },
                 { text: 'Steam', link: '/adapters/browser/steam' },
+                { text: 'Qiita', link: '/adapters/browser/qiita' },
+                { text: 'note.com', link: '/adapters/browser/note' },
               ],
             },
             {

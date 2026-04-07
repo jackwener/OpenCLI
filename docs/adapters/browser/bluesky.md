@@ -10,6 +10,7 @@
 | `opencli bluesky user` | Recent posts from a user |
 | `opencli bluesky trending` | Trending topics |
 | `opencli bluesky search` | Search users |
+| `opencli bluesky search-posts` | Search posts |
 | `opencli bluesky feeds` | Popular feed generators |
 | `opencli bluesky followers` | User's followers |
 | `opencli bluesky following` | Accounts a user follows |
@@ -43,6 +44,9 @@ opencli bluesky thread --uri "at://did:.../app.bsky.feed.post/..."
 
 # Starter packs
 opencli bluesky starter-packs --handle bsky.app
+
+# Search posts
+opencli bluesky search-posts "AI agent" --limit 10
 
 # JSON output
 opencli bluesky profile --handle bsky.app -f json

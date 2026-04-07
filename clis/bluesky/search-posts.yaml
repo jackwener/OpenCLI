@@ -1,0 +1,38 @@
+site: bluesky
+name: search-posts
+description: Search Bluesky posts
+domain: public.api.bsky.app
+strategy: public
+browser: false
+
+args:
+  query:
+    type: str
+    required: true
+    positional: true
+    description: Search query
+  limit:
+    type: int
+    default: 25
+    description: Number of results
+
+pipeline:
+  - fetch:
+      url: https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts
+      params:
+        q: ${{ args.query }}
+        limit: ${{ args.limit }}
+
+  - select: posts
+
+  - map:
+      rank: ${{ index + 1 }}
+      author: ${{ item.author.handle }}
+      text: ${{ item.record.text }}
+      likes: ${{ item.likeCount }}
+      reposts: ${{ item.repostCount }}
+      replies: ${{ item.replyCount }}
+
+  - limit: ${{ args.limit }}
+
+columns: [rank, author, text, likes, reposts, replies]

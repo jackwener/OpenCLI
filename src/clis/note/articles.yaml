@@ -1,0 +1,38 @@
+site: note
+name: articles
+description: List articles by a note.com user
+domain: note.com
+strategy: public
+browser: false
+
+args:
+  username:
+    type: str
+    required: true
+    positional: true
+    description: "note.com username (urlname)"
+  limit:
+    type: int
+    default: 6
+    description: Number of articles
+
+pipeline:
+  - fetch:
+      url: https://note.com/api/v2/creators/${{ args.username }}/contents
+      params:
+        kind: note
+        page: "1"
+
+  - select: data.contents
+
+  - map:
+      rank: ${{ index + 1 }}
+      title: ${{ item.name }}
+      likes: ${{ item.likeCount }}
+      comments: ${{ item.commentCount }}
+      created: "${{ item.publishAt ? item.publishAt.slice(0, 10) : '' }}"
+      url: ${{ item.noteUrl }}
+
+  - limit: ${{ args.limit }}
+
+columns: [rank, title, likes, comments, created, url]

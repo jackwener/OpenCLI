@@ -1,0 +1,30 @@
+site: note
+name: user
+description: Get note.com user profile
+domain: note.com
+strategy: public
+browser: false
+
+args:
+  username:
+    type: str
+    required: true
+    positional: true
+    description: "note.com username (urlname)"
+
+pipeline:
+  - fetch:
+      url: https://note.com/api/v2/creators/${{ args.username }}
+
+  - select: data
+
+  - map:
+      id: ${{ item.urlname }}
+      name: ${{ item.nickname }}
+      bio: ${{ item.profile }}
+      followers: ${{ item.followerCount }}
+      following: ${{ item.followingCount }}
+      articles: ${{ item.noteCount }}
+      url: "https://note.com/${{ item.urlname }}"
+
+columns: [id, name, bio, followers, following, articles, url]

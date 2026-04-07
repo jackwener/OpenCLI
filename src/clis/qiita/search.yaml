@@ -1,0 +1,36 @@
+site: qiita
+name: search
+description: Search Qiita articles
+domain: qiita.com
+strategy: public
+browser: false
+
+args:
+  query:
+    type: str
+    required: true
+    positional: true
+    description: Search query
+  limit:
+    type: int
+    default: 20
+    description: Number of results
+
+pipeline:
+  - fetch:
+      url: https://qiita.com/api/v2/items
+      params:
+        query: ${{ args.query }}
+        per_page: ${{ args.limit }}
+
+  - map:
+      rank: ${{ index + 1 }}
+      title: ${{ item.title }}
+      author: ${{ item.user.id }}
+      likes: ${{ item.likes_count }}
+      tags: ${{ item.tags.map(t => t.name).join(', ') }}
+      url: ${{ item.url }}
+
+  - limit: ${{ args.limit }}
+
+columns: [rank, title, author, likes, tags, url]

@@ -1,0 +1,49 @@
+site: note
+name: search
+description: Search note.com articles
+domain: note.com
+strategy: cookie
+
+args:
+  query:
+    type: str
+    required: true
+    positional: true
+    description: Search query
+  limit:
+    type: int
+    default: 10
+    description: Number of results
+
+pipeline:
+  - navigate: "https://note.com/search?q=${{ args.query }}&context=note&mode=search"
+
+  - evaluate: |
+      (async () => {
+        for (let i = 0; i < 20; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          if (document.querySelectorAll('a[href*="/n/n"]').length > 0) break;
+        }
+        const links = document.querySelectorAll('a[href*="/n/n"]');
+        const seen = new Set();
+        const results = [];
+        for (const a of links) {
+          const href = a.getAttribute('href');
+          if (!href || seen.has(href)) continue;
+          seen.add(href);
+          const title = a.textContent?.trim() || '';
+          if (!title || title.length < 4) continue;
+          const url = href.startsWith('http') ? href : 'https://note.com' + href;
+          results.push({ title, url });
+        }
+        return results;
+      })()
+
+  - map:
+      rank: ${{ index + 1 }}
+      title: ${{ item.title }}
+      url: ${{ item.url }}
+
+  - limit: ${{ args.limit }}
+
+columns: [rank, title, url]

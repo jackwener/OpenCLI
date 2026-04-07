@@ -82,6 +82,8 @@ Run `opencli list` for the live registry.
 | **[lesswrong](./browser/lesswrong)** | `curated` `frontpage` `new` `top` `top-week` `top-month` `top-year` `read` `comments` `user` `user-posts` `tag` `tags` `sequences` `shortform` | 🌐 Public |
 | **[lobsters](./browser/lobsters)** | `hot` `newest` `active` `tag` | 🌐 Public |
 | **[steam](./browser/steam)** | `top-sellers` | 🌐 Public |
+| **[qiita](./browser/qiita)** | `search` `user` `articles` | 🌐 Public |
+| **[note.com](./browser/note)** | `search` `user` `articles` | 🌐 / 🔐 |
 
 ## Desktop Adapters
 

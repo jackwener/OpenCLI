@@ -1,0 +1,28 @@
+site: qiita
+name: user
+description: Get Qiita user profile
+domain: qiita.com
+strategy: public
+browser: false
+
+args:
+  username:
+    type: str
+    required: true
+    positional: true
+    description: Qiita username
+
+pipeline:
+  - fetch:
+      url: https://qiita.com/api/v2/users/${{ args.username }}
+
+  - map:
+      id: ${{ item.id }}
+      name: ${{ item.name }}
+      bio: ${{ item.description }}
+      followers: ${{ item.followers_count }}
+      following: ${{ item.followees_count }}
+      items: ${{ item.items_count }}
+      url: "https://qiita.com/${{ item.id }}"
+
+columns: [id, name, bio, followers, following, items, url]
