@@ -1,0 +1,80 @@
+site: 1point3acres
+name: hot
+description: 1Point3Acres hot topics
+domain: www.1point3acres.com
+strategy: cookie
+browser: true
+navigateBefore: false
+timeout: 45
+
+args:
+  limit:
+    type: int
+    default: 20
+    description: Number of topics
+
+pipeline:
+  - navigate: https://www.1point3acres.com/bbs/forum.php?mod=guide
+
+  - evaluate: |
+      (async () => {
+        const limit = Math.max(1, Math.min(Number(${{ args.limit }}) || 20, 100));
+        const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+        const waitForTopics = async () => {
+          const deadline = Date.now() + 20000;
+          while (Date.now() < deadline) {
+            if (document.querySelector('a.xst')) return;
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+        };
+
+        await waitForTopics();
+
+        if (/just a moment/i.test(document.title) || document.querySelector('#challenge-error-text')) {
+          throw new Error('1Point3Acres is still showing the Cloudflare challenge; open Chrome, pass the challenge, then retry');
+        }
+
+        const rows = Array.from(document.querySelectorAll('a.xst'))
+          .map((link) => {
+            const row = link.closest('tr');
+            if (!row) return null;
+
+            const href = link.getAttribute('href') || '';
+            const threadId = (href.match(/thread-(\d+)-/) || href.match(/[?&]tid=(\d+)/) || [])[1] || '';
+            if (!threadId) return null;
+
+            const byCells = Array.from(row.querySelectorAll('td.by'));
+            const statsCell = row.querySelector('td.num');
+
+            return {
+              id: threadId,
+              title: clean(link.textContent),
+              category: clean(byCells[0]?.textContent),
+              author: clean(byCells[1]?.querySelector('cite')?.textContent || ''),
+              created: clean(byCells[1]?.querySelector('em')?.textContent || ''),
+              replies: clean(statsCell?.querySelector('a.xi2')?.textContent || ''),
+              views: clean(statsCell?.querySelector('em')?.textContent || ''),
+              participants: clean(row.querySelector('th .xi1')?.textContent || ''),
+              last_author: clean(byCells[2]?.querySelector('cite')?.textContent || ''),
+              last_reply: clean(byCells[2]?.querySelector('em')?.textContent || ''),
+              url: new URL(href, location.href).href,
+            };
+          })
+          .filter(Boolean);
+
+        const seen = new Set();
+        const topics = rows.filter((item) => {
+          if (!item.title || seen.has(item.id)) return false;
+          seen.add(item.id);
+          return true;
+        });
+
+        if (!topics.length) {
+          throw new Error('1Point3Acres returned no topics; make sure Chrome is logged in and the Cloudflare challenge has passed');
+        }
+
+        return topics.slice(0, limit).map((item, index) => ({ rank: index + 1, ...item }));
+      })()
+
+columns: [rank, title, category, replies, views, last_reply, url]

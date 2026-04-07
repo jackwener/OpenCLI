@@ -8,6 +8,7 @@ Run `opencli list` for the live registry.
 |------|----------|------|
 | **[twitter](./browser/twitter)** | `trending` `bookmarks` `profile` `search` `timeline` `thread` `following` `followers` `notifications` `post` `reply` `delete` `like` `likes` `article` `follow` `unfollow` `bookmark` `unbookmark` `download` `accept` `reply-dm` `block` `unblock` `hide-reply` | 🔐 Browser |
 | **[reddit](./browser/reddit)** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `save` `comment` `subscribe` `saved` `upvoted` | 🔐 Browser |
+| **[1point3acres](./browser/1point3acres)** | `hot` | 🔐 Browser |
 | **[tieba](./browser/tieba)** | `hot` `posts` `search` `read` | 🔐 Browser |
 | **[hupu](./browser/hupu)** | `hot` `search` `detail` `mentions` `reply` `like` `unlike` | 🌐 / 🔐 |
 | **[bilibili](./browser/bilibili)** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `dynamic` `ranking` `following` `user-videos` `download` | 🔐 Browser |
