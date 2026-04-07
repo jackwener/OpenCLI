@@ -267,16 +267,12 @@ cli({
         cleanupDir = path.dirname(localImagePath);
       }
 
-      // Dedicated composer is more reliable for image replies because the media
-      // toolbar and file input are consistently present there.
+      // Dedicated composer is more reliable than the inline tweet page reply box.
+      await page.goto(buildReplyComposerUrl(kwargs.url), { waitUntil: 'load', settleMs: 2500 });
+      await page.wait({ selector: '[data-testid="tweetTextarea_0"]', timeout: 8 });
       if (localImagePath) {
-        await page.goto(buildReplyComposerUrl(kwargs.url));
-        await page.wait({ selector: '[data-testid="tweetTextarea_0"]' });
         await page.wait({ selector: REPLY_FILE_INPUT_SELECTOR, timeout: 20 });
         await attachReplyImage(page, localImagePath);
-      } else {
-        await page.goto(kwargs.url);
-        await page.wait({ selector: '[data-testid="primaryColumn"]' });
       }
 
       const result = await submitReply(page, kwargs.text);

@@ -40,7 +40,7 @@ function createPageMock(evaluateResults: any[], overrides: Partial<IPage> = {}):
 }
 
 describe('twitter reply command', () => {
-  it('keeps the text-only reply flow working', async () => {
+  it('uses the dedicated reply composer for text-only replies too', async () => {
     const cmd = getRegistry().get('twitter/reply');
     expect(cmd?.func).toBeTypeOf('function');
 
@@ -53,8 +53,11 @@ describe('twitter reply command', () => {
       text: 'text-only reply',
     });
 
-    expect(page.goto).toHaveBeenCalledWith('https://x.com/_kop6/status/2040254679301718161?s=20');
-    expect(page.wait).toHaveBeenCalledWith({ selector: '[data-testid="primaryColumn"]' });
+    expect(page.goto).toHaveBeenCalledWith(
+      'https://x.com/compose/post?in_reply_to=2040254679301718161',
+      { waitUntil: 'load', settleMs: 2500 },
+    );
+    expect(page.wait).toHaveBeenCalledWith({ selector: '[data-testid="tweetTextarea_0"]', timeout: 8 });
     expect(result).toEqual([
       {
         status: 'success',
@@ -86,8 +89,11 @@ describe('twitter reply command', () => {
       image: imagePath,
     });
 
-    expect(page.goto).toHaveBeenCalledWith('https://x.com/compose/post?in_reply_to=2040254679301718161');
-    expect(page.wait).toHaveBeenNthCalledWith(1, { selector: '[data-testid="tweetTextarea_0"]' });
+    expect(page.goto).toHaveBeenCalledWith(
+      'https://x.com/compose/post?in_reply_to=2040254679301718161',
+      { waitUntil: 'load', settleMs: 2500 },
+    );
+    expect(page.wait).toHaveBeenNthCalledWith(1, { selector: '[data-testid="tweetTextarea_0"]', timeout: 8 });
     expect(page.wait).toHaveBeenNthCalledWith(2, { selector: 'input[type="file"][data-testid="fileInput"]', timeout: 20 });
     expect(setFileInput).toHaveBeenCalledWith([imagePath], 'input[type="file"][data-testid="fileInput"]');
     expect(result).toEqual([
