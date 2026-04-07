@@ -72,6 +72,7 @@ Run `opencli list` for the live registry.
 | **[xiaoyuzhou](./browser/xiaoyuzhou)** | `podcast` `podcast-episodes` `episode` | 🌐 Public |
 | **[yahoo-finance](./browser/yahoo-finance)** | `quote` | 🌐 Public |
 | **[arxiv](./browser/arxiv)** | `search` `paper` | 🌐 Public |
+| **[pubmed](./browser/pubmed)** | `search` `article` `author` `citations` `related` | 🌐 Public |
 | **[paperreview](./browser/paperreview)** | `submit` `review` `feedback` | 🌐 Public |
 | **[barchart](./browser/barchart)** | `quote` `options` `greeks` `flow` | 🌐 Public |
 | **[hf](./browser/hf)** | `top` | 🌐 Public |
