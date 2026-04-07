@@ -12,7 +12,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
 import {
-  eutilsFetchText,
+  eutilsFetch,
   buildPubMedUrl,
   truncateText,
   prioritizeArticleType,
@@ -215,12 +215,6 @@ cli({
       help: 'PubMed ID (e.g., "37780221")',
     },
     {
-      name: 'output',
-      type: 'string',
-      default: 'table',
-      help: 'Output format: table (summary) or json (full details)',
-    },
-    {
       name: 'full-abstract',
       type: 'boolean',
       default: false,
@@ -240,11 +234,10 @@ cli({
     }
 
     // Use EFetch to get full article details (XML includes abstract, MeSH, affiliations)
-    const xml = await eutilsFetchText('efetch', {
+    const xml = await eutilsFetch('efetch', {
       id: pmid,
       rettype: 'abstract',
-      retmode: 'xml',
-    });
+    }, 'xml');
 
     if (!xml || xml.includes('<ERROR>') || !xml.includes('<PubmedArticle>')) {
       throw new CliError(
@@ -256,13 +249,6 @@ cli({
 
     const article = parseEFetchXml(xml, pmid);
 
-    if (args.output === 'json') {
-      return [{
-        field: 'data',
-        value: JSON.stringify(article, null, 2),
-      }];
-    }
-
     // Table format - reorganized sections
     // Helper: extract email from affiliation text
     const extractEmail = (affil: string): string => {
@@ -273,12 +259,13 @@ cli({
     const firstAuthors = article.authors.firstAuthors || [article.authors.firstWithAffiliations];
     const corrAuthor = article.authors.correspondingWithAffiliations;
     const corrEmail = corrAuthor.affiliations.map(extractEmail).filter(Boolean)[0] || 'N/A';
+    const firstAuthorNames = firstAuthors.map(a => a.name);
 
     const rows: Array<{ field: string; value: string }> = [
       { field: 'PMID', value: article.pmid },
       { field: 'Title', value: article.title },
       { field: '---', value: '---' },
-      { field: 'Section', value: '第一作者及通讯作者信息' },
+      { field: 'Section', value: 'First Author & Corresponding Author Information' },
     ];
 
     // Add first author(s) - support co-first authors
@@ -303,16 +290,18 @@ cli({
     }
 
     rows.push(
-      { field: 'Corresponding Author', value: corrAuthor.name },
-      { field: 'Corresponding Author Affiliations', value: corrAuthor.affiliations.join('; ') || 'N/A' },
-      { field: 'Corresponding Author Email', value: corrEmail },
+      { field: 'Likely Corresponding Author', value: corrAuthor.name },
+      { field: '  Corresponding Author Affiliations', value: corrAuthor.affiliations.join('; ') || 'N/A' },
+      { field: '  Corresponding Author Email', value: corrEmail },
+      { field: '  (Inferred from email in affiliations, may not be accurate)', value: '' },
       { field: '---', value: '---' },
-      { field: 'Section', value: '所有作者信息' },
+      { field: 'Section', value: 'All Authors Information' },
     );
 
-    // Add each author with their affiliations, mark co-first authors
+    // Add each author with their affiliations, mark co-first authors only
     article.authors.list.forEach((author, index) => {
-      const isCoFirst = (author as any).equalContrib ? ' ★' : '';
+      // Only mark as co-first if this author is in the firstAuthors list
+      const isCoFirst = firstAuthorNames.includes(author.name) ? ' ★' : '';
       rows.push({
         field: `${index + 1}. ${author.name}${isCoFirst}`,
         value: author.affiliations.join('; ') || 'N/A',
@@ -321,7 +310,7 @@ cli({
 
     rows.push(
       { field: '---', value: '---' },
-      { field: 'Section', value: '期刊信息' },
+      { field: 'Section', value: 'Journal Information' },
       { field: 'Journal', value: article.journal.title || article.journal.isoAbbreviation },
       { field: 'Year', value: article.publication.year },
       { field: 'Volume/Issue', value: `${article.journal.volume}${article.journal.issue ? `(${article.journal.issue})` : ''}` },
@@ -329,13 +318,13 @@ cli({
       { field: 'DOI', value: article.ids.doi || 'N/A' },
       { field: 'PMC ID', value: article.ids.pmc || 'N/A' },
       { field: '---', value: '---' },
-      { field: 'Section', value: '文章分类' },
+      { field: 'Section', value: 'Article Classification' },
       { field: 'Article Type', value: article.classification.articleType },
       { field: 'Language', value: article.classification.language },
       { field: 'MeSH Terms', value: article.classification.meshTerms.join(', ') || 'N/A' },
       { field: 'Keywords', value: article.classification.keywords.join(', ') || 'N/A' },
       { field: '---', value: '---' },
-      { field: 'Section', value: '摘要' },
+      { field: 'Section', value: 'Abstract' },
       { field: 'Abstract', value: args['full-abstract'] ? article.abstract || 'N/A' : truncateText(article.abstract, 400) || 'N/A' },
       { field: '---', value: '---' },
       { field: 'URL', value: article.url }

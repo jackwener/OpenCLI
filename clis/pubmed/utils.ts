@@ -5,12 +5,38 @@
  * https://www.ncbi.nlm.nih.gov/books/NBK25501/
  *
  * Rate limits: 3 requests/second without API key, 10 requests/second with API key
+ *
+ * Configuration via environment variables:
+ * - NCBI_API_KEY: Your NCBI API key for higher rate limits
+ * - NCBI_EMAIL: Your email (recommended by NCBI for identification)
  */
 
 import { CliError } from '@jackwener/opencli/errors';
-import { getApiKey, getEmail, getRateLimitMs } from './config.js';
 
 const EUTILS_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
+
+/**
+ * Get API key from environment variable
+ */
+function getApiKey(): string | undefined {
+  return process.env.NCBI_API_KEY;
+}
+
+/**
+ * Get email from environment variable (recommended by NCBI for identification)
+ */
+function getEmail(): string | undefined {
+  return process.env.NCBI_EMAIL;
+}
+
+/**
+ * Get rate limit delay in milliseconds
+ * With API key: 100ms (10 req/s)
+ * Without API key: 350ms (3 req/s)
+ */
+function getRateLimitMs(): number {
+  return getApiKey() ? 100 : 350;
+}
 
 /**
  * Build E-utilities API URL
@@ -54,12 +80,18 @@ export function buildEutilsUrl(
  * Rate limit adjusts based on API key presence:
  * - With API key: 100ms delay (10 req/s)
  * - Without API key: 350ms delay (3 req/s)
+ *
+ * @param tool - E-utilities tool name (esearch, esummary, efetch, etc.)
+ * @param params - Query parameters
+ * @param retmode - Response format: 'json' (default) or 'xml' (for EFetch)
  */
 export async function eutilsFetch(
   tool: string,
-  params: Record<string, string | number | boolean | undefined>
+  params: Record<string, string | number | boolean | undefined>,
+  retmode: 'json' | 'xml' = 'json'
 ): Promise<any> {
-  const url = buildEutilsUrl(tool, params);
+  const mergedParams = { ...params, retmode };
+  const url = buildEutilsUrl(tool, mergedParams);
 
   // Dynamic rate limiting based on API key
   const rateLimitMs = getRateLimitMs();
@@ -73,14 +105,14 @@ export async function eutilsFetch(
       throw new CliError(
         'RATE_LIMIT_EXCEEDED',
         'PubMed API rate limit exceeded',
-        'You are making requests too quickly. Wait a moment and try again, or configure an API key for higher limits: opencli pubmed config set api-key YOUR_KEY'
+        'You are making requests too quickly. Wait a moment and try again, or configure an API key (NCBI_API_KEY environment variable)'
       );
     }
     if (resp.status === 403) {
       throw new CliError(
         'API_KEY_INVALID',
         'PubMed API key invalid or expired',
-        'Check your API key: opencli pubmed config get'
+        'Check your NCBI_API_KEY environment variable'
       );
     }
     throw new CliError(
@@ -90,87 +122,7 @@ export async function eutilsFetch(
     );
   }
 
-  return resp.json();
-}
-
-/**
- * Fetch data from E-utilities API as text (for XML responses like EFetch)
- */
-export async function eutilsFetchText(
-  tool: string,
-  params: Record<string, string | number | boolean | undefined>
-): Promise<string> {
-  const url = buildEutilsUrl(tool, params);
-
-  // Dynamic rate limiting based on API key
-  const rateLimitMs = getRateLimitMs();
-  await new Promise(resolve => setTimeout(resolve, rateLimitMs));
-
-  const resp = await fetch(url);
-
-  if (!resp.ok) {
-    if (resp.status === 429) {
-      throw new CliError(
-        'RATE_LIMIT_EXCEEDED',
-        'PubMed API rate limit exceeded',
-        'You are making requests too quickly. Wait a moment and try again, or configure an API key for higher limits: opencli pubmed config set api-key YOUR_KEY'
-      );
-    }
-    if (resp.status === 403) {
-      throw new CliError(
-        'API_KEY_INVALID',
-        'PubMed API key invalid or expired',
-        'Check your API key: opencli pubmed config get'
-      );
-    }
-    throw new CliError(
-      'FETCH_ERROR',
-      `PubMed E-utilities API HTTP ${resp.status}`,
-      'Check your query parameters or try again later'
-    );
-  }
-
-  return resp.text();
-}
-
-/**
- * Parse PubMed date string to ISO format
- */
-export function parsePubMedDate(dateStr: string): string {
-  if (!dateStr) return '';
-
-  // Handle various PubMed date formats
-  // YYYY, YYYY Mon, YYYY Mon DD, YYYY Mon-DD, YYYY-MM-DD
-  const patterns = [
-    { regex: /^(\d{4})$/, format: (m: RegExpMatchArray) => `${m[1]}-01-01` },
-    { regex: /^(\d{4})\s+([A-Za-z]{3})$/, format: (m: RegExpMatchArray) => {
-      const months: Record<string, string> = {
-        jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
-        jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
-      };
-      const month = months[m[2].toLowerCase()] || '01';
-      return `${m[1]}-${month}-01`;
-    }},
-    { regex: /^(\d{4})\s+([A-Za-z]{3})\s+(\d{1,2})$/, format: (m: RegExpMatchArray) => {
-      const months: Record<string, string> = {
-        jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
-        jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
-      };
-      const month = months[m[2].toLowerCase()] || '01';
-      const day = m[3].padStart(2, '0');
-      return `${m[1]}-${month}-${day}`;
-    }},
-    { regex: /^(\d{4})-(\d{2})-(\d{2})$/, format: (m: RegExpMatchArray) => m[0] }
-  ];
-
-  for (const pattern of patterns) {
-    const match = dateStr.match(pattern.regex);
-    if (match) {
-      return pattern.format(match);
-    }
-  }
-
-  return dateStr;
+  return retmode === 'xml' ? resp.text() : resp.json();
 }
 
 /**
@@ -203,92 +155,6 @@ export function extractAuthors(authorList: any[] | undefined, maxAuthors: number
 }
 
 /**
- * Extract first author
- */
-export function extractFirstAuthor(authorList: any[] | undefined): string {
-  if (!authorList || !Array.isArray(authorList) || authorList.length === 0) {
-    return '';
-  }
-
-  const firstAuthor = authorList[0];
-  // ESummary format: { name, authtype }
-  if (firstAuthor.name) return firstAuthor.name;
-  // EFetch format
-  if (firstAuthor.collectivename) return firstAuthor.collectivename;
-  const lastName = firstAuthor.lastname || '';
-  const foreName = firstAuthor.forename || firstAuthor.initials || '';
-  return `${lastName} ${foreName}`.trim();
-}
-
-/**
- * Extract corresponding author (usually last author in academic papers)
- */
-export function extractCorrespondingAuthor(authorList: any[] | undefined): string {
-  if (!authorList || !Array.isArray(authorList) || authorList.length === 0) {
-    return '';
-  }
-
-  const lastAuthor = authorList[authorList.length - 1];
-  // ESummary format: { name, authtype }
-  if (lastAuthor.name) return lastAuthor.name;
-  // EFetch format
-  if (lastAuthor.collectivename) return lastAuthor.collectivename;
-  const lastName = lastAuthor.lastname || '';
-  const foreName = lastAuthor.forename || lastAuthor.initials || '';
-  return `${lastName} ${foreName}`.trim();
-}
-
-/**
- * Extract author affiliations
- */
-export function extractAffiliations(authorList: any[] | undefined): string[] {
-  if (!authorList || !Array.isArray(authorList)) {
-    return [];
-  }
-
-  const affiliations: string[] = [];
-  authorList.forEach(author => {
-    if (author.affiliation && Array.isArray(author.affiliation)) {
-      author.affiliation.forEach((aff: any) => {
-        if (aff.name) {
-          affiliations.push(aff.name);
-        }
-      });
-    }
-  });
-
-  return [...new Set(affiliations)]; // Remove duplicates
-}
-
-/**
- * Extract MeSH terms
- */
-export function extractMeshTerms(meshHeadingList: any[] | undefined): string[] {
-  if (!meshHeadingList || !Array.isArray(meshHeadingList)) {
-    return [];
-  }
-
-  return meshHeadingList
-    .filter((heading: any) => heading.descriptorname)
-    .map((heading: any) => heading.descriptorname)
-    .slice(0, 10);
-}
-
-/**
- * Extract keywords
- */
-export function extractKeywords(keywordList: any[] | undefined): string[] {
-  if (!keywordList || !Array.isArray(keywordList)) {
-    return [];
-  }
-
-  return keywordList
-    .filter((kw: any) => kw.keyword)
-    .map((kw: any) => kw.keyword)
-    .slice(0, 10);
-}
-
-/**
  * Extract DOI from article IDs
  */
 export function extractDoi(articleIdList: any[] | undefined): string {
@@ -298,18 +164,6 @@ export function extractDoi(articleIdList: any[] | undefined): string {
 
   const doiEntry = articleIdList.find((id: any) => id.idtype === 'doi');
   return doiEntry?.value || '';
-}
-
-/**
- * Extract PMC ID from article IDs
- */
-export function extractPmcId(articleIdList: any[] | undefined): string {
-  if (!articleIdList || !Array.isArray(articleIdList)) {
-    return '';
-  }
-
-  const pmcEntry = articleIdList.find((id: any) => id.idtype === 'pmc');
-  return pmcEntry?.value || '';
 }
 
 /**
@@ -400,7 +254,7 @@ export function prioritizeArticleType(pubTypes: string[]): string {
 
   // Find the highest priority type present in the list
   for (const priorityType of priorityOrder) {
-    const match = pubTypes.find(pt => 
+    const match = pubTypes.find(pt =>
       pt.toLowerCase() === priorityType.toLowerCase()
     );
     if (match) {
@@ -409,31 +263,10 @@ export function prioritizeArticleType(pubTypes: string[]): string {
   }
 
   // If no priority match, return the first non-generic type or the first one
-  const nonGeneric = pubTypes.find(pt => 
+  const nonGeneric = pubTypes.find(pt =>
     pt.toLowerCase() !== 'journal article'
   );
   return nonGeneric || pubTypes[0];
-}
-
-/**
- * Extract journal information
- */
-export function extractJournalInfo(journal: any): {
-  title: string;
-  isoAbbreviation: string;
-  impactFactor?: string;
-} {
-  if (!journal) {
-    return { title: '', isoAbbreviation: '' };
-  }
-
-  const title = journal.title || '';
-  const isoAbbreviation = journal.isoabbreviation || '';
-
-  return {
-    title,
-    isoAbbreviation,
-  };
 }
 
 /**

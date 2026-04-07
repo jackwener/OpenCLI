@@ -115,7 +115,7 @@ cli({
       relevance: '',
       date: 'PDAT',
     };
-    const sort = sortMap[args.sort] || 'PDAT';
+    const sort = sortMap[args.sort] || '';
 
     // Step 1: ESearch - Get PMIDs
     const esearchParams: Record<string, string | number> = {
