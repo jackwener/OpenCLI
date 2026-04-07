@@ -203,7 +203,7 @@ In all stop cases, clearly communicate the situation to the user rather than mak
 4. AI explores: opencli operate open https://www.zhihu.com/hot && opencli operate state
    → Confirms new class name ".HotItem" with child ".HotItem-content"
 
-5. AI patches: Edit clis/zhihu/hot.ts — replace ".HotList-item" with ".HotItem"
+5. AI patches: Edit adapter at RepairContext.adapter.sourcePath — replace ".HotList-item" with ".HotItem"
 
 6. AI verifies: opencli zhihu hot
    → Success: returns hot topics
