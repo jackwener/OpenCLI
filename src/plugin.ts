@@ -1381,11 +1381,7 @@ function parseSource(
  */
 function linkHostOpencli(pluginDir: string): void {
   try {
-    // Determine the host opencli package root from this module's location.
-    // Both dev (tsx src/plugin.ts) and prod (node dist/plugin.js) are one level
-    // deep, so path.dirname + '..' always gives us the package root.
-    const thisFile = fileURLToPath(import.meta.url);
-    const hostRoot = path.resolve(path.dirname(thisFile), '..');
+    const hostRoot = resolveHostOpencliRoot();
 
     const targetLink = path.join(pluginDir, 'node_modules', '@jackwener', 'opencli');
 
@@ -1411,8 +1407,7 @@ function linkHostOpencli(pluginDir: string): void {
  * Resolve the path to the esbuild CLI executable with fallback strategies.
  */
 export function resolveEsbuildBin(): string | null {
-  const thisFile = fileURLToPath(import.meta.url);
-  const hostRoot = path.resolve(path.dirname(thisFile), '..');
+  const hostRoot = resolveHostOpencliRoot();
 
   // Strategy 1 (Windows): prefer the .cmd wrapper which is executable via shell
   if (isWindows) {
@@ -1466,6 +1461,30 @@ export function resolveEsbuildBin(): string | null {
   return null;
 }
 
+function resolveHostOpencliRoot(startFile = fileURLToPath(import.meta.url)): string {
+  let dir = path.dirname(startFile);
+
+  while (true) {
+    const pkgPath = path.join(dir, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+        if (pkg?.name === '@jackwener/opencli') {
+          return dir;
+        }
+      } catch {
+        // Keep walking; a malformed package.json should not hide an ancestor package root.
+      }
+    }
+
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  return path.resolve(path.dirname(startFile), '..');
+}
+
 /**
  * Transpile TS plugin files to JS so they work in production mode.
  * Uses esbuild from the host opencli's node_modules for fast single-file transpilation.
@@ -1512,6 +1531,7 @@ function transpilePluginTs(pluginDir: string): void {
 }
 
 export {
+  resolveHostOpencliRoot as _resolveHostOpencliRoot,
   resolveEsbuildBin as _resolveEsbuildBin,
   getCommitHash as _getCommitHash,
   installDependencies as _installDependencies,

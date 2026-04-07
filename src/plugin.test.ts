@@ -27,6 +27,7 @@ const {
   _readLockFile,
   _readLockFileWithWriter,
   _resolveEsbuildBin,
+  _resolveHostOpencliRoot,
   uninstallPlugin,
   updatePlugin,
   _parseSource,
@@ -400,6 +401,29 @@ describe('resolveEsbuildBin', () => {
     expect(typeof binPath).toBe('string');
     expect(fs.existsSync(binPath!)).toBe(true);
     expect(binPath).toMatch(/esbuild(\.cmd)?$/);
+  });
+});
+
+describe('resolveHostOpencliRoot', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-host-root-test-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('walks up from compiled dist/src files to the package root', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, 'package.json'),
+      JSON.stringify({ name: '@jackwener/opencli' }),
+    );
+    const distSrcDir = path.join(tmpDir, 'dist', 'src');
+    fs.mkdirSync(distSrcDir, { recursive: true });
+
+    expect(_resolveHostOpencliRoot(path.join(distSrcDir, 'plugin.js'))).toBe(tmpDir);
   });
 });
 
