@@ -97,6 +97,7 @@
 - Purpose: Post a new tweet/thread
 - Args:
   - `text`(required; type: string); The text content of the tweet
+  - `images`(optional; type: string); Image paths, comma-separated, max 4 (jpg/png/gif/webp)
 - Usage: `opencli twitter post [options] -f json`
 
 ### profile
@@ -110,6 +111,8 @@
 - Args:
   - `url`(required; type: string); The URL of the tweet to reply to
   - `text`(required; type: string); The text content of your reply
+  - `image`(optional); Optional local image path to attach to the reply
+  - `image-url`(optional); Optional remote image URL to download and attach to the reply
 - Usage: `opencli twitter reply [options] -f json`
 
 ### reply-dm

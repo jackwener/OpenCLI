@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const srcClisDir = path.join(root, 'src', 'clis');
+const srcClisDir = path.join(root, 'clis');
 const skillPath = path.join(root, 'skills', 'opencli-skill', 'SKILL.md');
 
 const IGNORE_BASENAMES = new Set(['utils', 'shared', 'test-utils', 'index']);

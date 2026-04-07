@@ -48,6 +48,12 @@
 - Args: None
 - Usage: `opencli linux-do topic [options] -f json`
 
+### topic-content
+- Purpose: Get the main topic body as Markdown
+- Args:
+  - `id`(required; type: int); Topic ID
+- Usage: `opencli linux-do topic-content [options] -f json`
+
 ### user-posts
 - Purpose: linux.do 用户的帖子
 - Args: None

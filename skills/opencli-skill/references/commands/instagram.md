@@ -39,10 +39,30 @@
 - Args: None
 - Usage: `opencli instagram like [options] -f json`
 
+### note
+- Purpose: Publish a text Instagram note
+- Args:
+  - `content`(required); Note text (max 60 characters)
+- Usage: `opencli instagram note [options] -f json`
+
+### post
+- Purpose: Post an Instagram feed image or mixed-media carousel
+- Args:
+  - `media`(optional)
+  - `content`(optional); Caption text
+- Usage: `opencli instagram post [options] -f json`
+
 ### profile
 - Purpose: Get Instagram user profile info
 - Args: None
 - Usage: `opencli instagram profile [options] -f json`
+
+### reel
+- Purpose: Post an Instagram reel video
+- Args:
+  - `video`(optional); Path to a single .mp4 video file
+  - `content`(optional); Caption text
+- Usage: `opencli instagram reel [options] -f json`
 
 ### save
 - Purpose: Save (bookmark) an Instagram post
@@ -58,6 +78,12 @@
 - Purpose: Search Instagram users
 - Args: None
 - Usage: `opencli instagram search [options] -f json`
+
+### story
+- Purpose: Post a single Instagram story image or video
+- Args:
+  - `media`(optional); Path to a single story image or video file
+- Usage: `opencli instagram story [options] -f json`
 
 ### unfollow
 - Purpose: Unfollow an Instagram user

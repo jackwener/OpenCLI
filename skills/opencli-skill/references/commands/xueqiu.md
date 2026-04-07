@@ -30,6 +30,11 @@
 - Args: None
 - Usage: `opencli xueqiu fund-snapshot [options] -f json`
 
+### groups
+- Purpose: 获取雪球自选股分组列表（含模拟组合）
+- Args: None
+- Usage: `opencli xueqiu groups [options] -f json`
+
 ### hot
 - Purpose: Get Xueqiu hot feed
 - Args: None
@@ -39,6 +44,11 @@
 - Purpose: Get Xueqiu hot stocks ranking
 - Args: None
 - Usage: `opencli xueqiu hot-stock [options] -f json`
+
+### kline
+- Purpose: 获取雪球股票K线（历史行情）数据
+- Args: None
+- Usage: `opencli xueqiu kline [options] -f json`
 
 ### search
 - Purpose: Search Xueqiu stocks (ticker or name)

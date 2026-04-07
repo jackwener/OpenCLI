@@ -10,6 +10,23 @@
   - `new`(optional; default: false)'); Start a new chat first (true/false, default: false)
 - Usage: `opencli gemini ask [options] -f json`
 
+### deep-research
+- Purpose: Start a Gemini Deep Research run and confirm it
+- Args:
+  - `prompt`(required); Prompt to send
+  - `timeout`(optional; type: int; default: 30)'); Max seconds to wait for confirm (default: 30)
+  - `tool`(optional; default: Deep Research)'); Override tool label (default: Deep Research)
+  - `confirm`(optional; default: Start research)'); Override confirm button label (default: Start research)
+- Usage: `opencli gemini deep-research [options] -f json`
+
+### deep-research-result
+- Purpose: Export Deep Research report URL from a Gemini conversation
+- Args:
+  - `query`(optional); Conversation title or URL (optional; defaults to latest conversation)
+  - `match`(optional; default: 'contains'); Match mode
+  - `timeout`(optional; type: int; default: 120); Max seconds to wait for Docs export (default: 120)
+- Usage: `opencli gemini deep-research-result [options] -f json`
+
 ### image
 - Purpose: Generate images with Gemini web and save them locally
 - Args:

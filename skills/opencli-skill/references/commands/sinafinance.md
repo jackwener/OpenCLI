@@ -20,3 +20,9 @@
   - `key`(required; type: string); Stock name or code (e.g. 贵州茅台, 腾讯控股, AAPL)
   - `market`(optional; type: string; default: 'auto'); Market: cn, hk, us, auto (default: auto searches cn → hk → us)
 - Usage: `opencli sinafinance stock [options] -f json`
+
+### stock-rank
+- Purpose: 新浪财经热搜榜
+- Args:
+  - `market`(optional; type: string; default: 'cn'); Market: cn (A股), hk (港股), us (美股), wh (外汇), ft (期货)
+- Usage: `opencli sinafinance stock-rank [options] -f json`

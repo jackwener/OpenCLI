@@ -1,6 +1,6 @@
 ---
 name: opencli-skill
-description: 'Cross-platform web automation skill for search, retrieval, posting, interaction, and downloads. Supports platforms: 36kr, amazon, antigravity, apple-podcasts, arxiv, band, barchart, bbc, bilibili, bloomberg, bluesky, boss, chaoxing, chatgpt, chatwise, codex, coupang, ctrip, cursor, devto, dictionary, discord-app, douban, doubao, doubao-app, douyin, facebook, gemini, google, grok, hackernews, hf, imdb, instagram, jd, jike, jimeng, linkedin, linux-do, lobsters, medium, notebooklm, notion, ones, paperreview, pixiv, producthunt, reddit, reuters, sinablog, sinafinance, smzdm, spotify, stackoverflow, steam, substack, tieba, tiktok, twitter, v2ex, web, weibo, weixin, weread, wikipedia, xiaohongshu, xiaoyuzhou, xueqiu, yahoo-finance, yollomi, youtube, zhihu, zsxq.'
+description: 'Cross-platform web automation skill for search, retrieval, posting, interaction, and downloads. Supports platforms: 1688, 36kr, amazon, antigravity, apple-podcasts, arxiv, band, barchart, bbc, bilibili, bloomberg, bluesky, boss, chaoxing, chatgpt, chatwise, codex, coupang, ctrip, cursor, devto, dictionary, discord-app, douban, doubao, doubao-app, douyin, facebook, gemini, google, grok, hackernews, hf, hupu, imdb, instagram, jd, jianyu, jike, jimeng, lesswrong, linkedin, linux-do, lobsters, medium, notebooklm, notion, ones, paperreview, pixiv, producthunt, reddit, reuters, sinablog, sinafinance, smzdm, spotify, stackoverflow, steam, substack, tieba, tiktok, twitter, v2ex, web, weibo, weixin, weread, wikipedia, xianyu, xiaoe, xiaohongshu, xiaoyuzhou, xueqiu, yahoo-finance, yollomi, youtube, yuanbao, zhihu, zsxq.'
 ---
 
 Use this skill as a platform command router.
@@ -42,10 +42,11 @@ Record workflow (for dynamic/auth-heavy pages):
 - Use record when `explore` cannot fully discover requests due to login state, SPA routing, or interaction-dependent APIs.
 
 <!-- SUPPORTED_PLATFORMS:START -->
-- Total: **73 platforms**, **461 commands**
+- Total: **80 platforms**, **519 commands**
 
+- **1688** (5): assets, download, item, search, store
 - **36kr** (4): article, hot, news, search
-- **amazon** (5): bestsellers, discussion, offer, product, search
+- **amazon** (8): bestsellers, discussion, movers-shakers, new-releases, offer, product, rankings, search
 - **antigravity** (9): dump, extract-code, model, new, read, send, serve, status, ... (+1)
 - **apple-podcasts** (3): episodes, search, top
 - **arxiv** (2): paper, search
@@ -71,18 +72,21 @@ Record workflow (for dynamic/auth-heavy pages):
 - **doubao-app** (7): ask, dump, new, read, screenshot, send, status
 - **douyin** (13): activities, collections, delete, draft, drafts, hashtag, location, profile, ... (+5)
 - **facebook** (10): add-friend, events, feed, friends, groups, join-group, memories, notifications, ... (+2)
-- **gemini** (3): ask, image, new
+- **gemini** (5): ask, deep-research, deep-research-result, image, new
 - **google** (4): news, search, suggest, trends
 - **grok** (1): ask
 - **hackernews** (8): ask, best, jobs, new, search, show, top, user
 - **hf** (1): top
+- **hupu** (7): detail, hot, like, mentions, reply, search, unlike
 - **imdb** (6): person, reviews, search, title, top, trending
-- **instagram** (15): comment, download, explore, follow, followers, following, like, profile, ... (+7)
+- **instagram** (19): comment, download, explore, follow, followers, following, like, note, ... (+11)
 - **jd** (1): item
+- **jianyu** (1): search
 - **jike** (10): comment, create, feed, like, notifications, post, repost, search, ... (+2)
 - **jimeng** (2): generate, history
+- **lesswrong** (16): _helpers, comments, curated, frontpage, new, read, sequences, shortform, ... (+8)
 - **linkedin** (2): search, timeline
-- **linux-do** (10): categories, category, feed, hot, latest, search, tags, topic, ... (+2)
+- **linux-do** (11): categories, category, feed, hot, latest, search, tags, topic, ... (+3)
 - **lobsters** (4): active, hot, newest, tag
 - **medium** (3): feed, search, user
 - **notebooklm** (14): current, get, history, list, note-list, notes-get, open, rpc, ... (+6)
@@ -94,7 +98,7 @@ Record workflow (for dynamic/auth-heavy pages):
 - **reddit** (15): comment, frontpage, hot, popular, read, save, saved, search, ... (+7)
 - **reuters** (1): search
 - **sinablog** (4): article, hot, search, user
-- **sinafinance** (3): news, rolling-news, stock
+- **sinafinance** (4): news, rolling-news, stock, stock-rank
 - **smzdm** (1): search
 - **spotify** (1): spotify
 - **stackoverflow** (4): bounties, hot, search, unanswered
@@ -109,13 +113,16 @@ Record workflow (for dynamic/auth-heavy pages):
 - **weixin** (1): download
 - **weread** (7): book, highlights, notebooks, notes, ranking, search, shelf
 - **wikipedia** (4): random, search, summary, trending
+- **xianyu** (3): chat, item, search
+- **xiaoe** (5): catalog, content, courses, detail, play-url
 - **xiaohongshu** (13): comments, creator-note-detail, creator-notes, creator-notes-summary, creator-profile, creator-stats, download, feed, ... (+5)
 - **xiaoyuzhou** (3): episode, podcast, podcast-episodes
-- **xueqiu** (10): comments, earnings-date, feed, fund-holdings, fund-snapshot, hot, hot-stock, search, ... (+2)
+- **xueqiu** (12): comments, earnings-date, feed, fund-holdings, fund-snapshot, groups, hot, hot-stock, ... (+4)
 - **yahoo-finance** (1): quote
 - **yollomi** (12): background, edit, face-swap, generate, models, object-remover, remove-bg, restore, ... (+4)
 - **youtube** (6): channel, comments, search, transcript, transcript-group, video
-- **zhihu** (4): download, hot, question, search
+- **yuanbao** (2): ask, new
+- **zhihu** (10): answer, comment, download, favorite, follow, hot, like, question, ... (+2)
 - **zsxq** (5): dynamics, groups, search, topic, topics
 
 _Coverage derived from source adapters._
