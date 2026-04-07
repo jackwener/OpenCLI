@@ -158,11 +158,11 @@ All commands support: `--format` / `-f` with `table` `json` `yaml` `md` `csv`
 
 ## Self-Repair
 
-If a command fails due to a site change (selector, API, or response schema), **automatically fix the adapter and retry** instead of reporting failure. Re-run the command with `OPENCLI_DIAGNOSTIC=1` to get structured diagnostic context, then fix the adapter file at `RepairContext.adapter.sourcePath` and retry. Max 3 repair rounds. See the `opencli-repair` skill for the full workflow.
+If a command fails due to a site change (selector, API, or response schema), **automatically fix the adapter and retry** instead of reporting failure. Re-run the command with `OPENCLI_DIAGNOSTIC=1` to get structured diagnostic context, then fix the adapter file at `RepairContext.adapter.sourcePath` and retry. Max 3 repair rounds. See the `opencli-autofix` skill for the full workflow.
 
 ## Related Skills
 
 - **opencli-operate** — Browser automation for AI agents (navigate, click, type, extract via Chrome)
 - **opencli-explorer** — Full guide for creating new adapters (API discovery, auth strategy, YAML/TS writing)
 - **opencli-oneshot** — Quick 4-step template for adding a single command from a URL
-- **opencli-repair** — Diagnose and fix broken adapters when websites change
+- **opencli-autofix** — Automatically fix broken adapters when commands fail

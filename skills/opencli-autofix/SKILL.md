@@ -1,12 +1,12 @@
 ---
-name: opencli-repair
-description: Diagnose and fix broken OpenCLI adapters when websites change. Use when an opencli command fails with SELECTOR, EMPTY_RESULT, API_ERROR, or PAGE_CHANGED errors. Reads structured diagnostic output and uses browser automation to discover what changed and patch the adapter.
+name: opencli-autofix
+description: Automatically fix broken OpenCLI adapters when commands fail. Load this skill when an opencli command fails — it guides you through diagnosing the failure via OPENCLI_DIAGNOSTIC, patching the adapter, and retrying. Works with any AI agent.
 allowed-tools: Bash(opencli:*), Read, Edit, Write
 ---
 
-# OpenCLI Repair — AI-Driven Adapter Self-Repair
+# OpenCLI AutoFix — Automatic Adapter Self-Repair
 
-When an adapter breaks because a website changed its DOM, API, or response schema, use this skill to diagnose the failure and patch the adapter.
+When an `opencli` command fails because a website changed its DOM, API, or response schema, **automatically diagnose, fix the adapter, and retry** — don't just report the error.
 
 ## Safety Boundaries
 

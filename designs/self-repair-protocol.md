@@ -9,7 +9,7 @@
 
 ## Problem Statement
 
-When a Claude agent working in the opencli repo uses `opencli <site> <command>` and the command fails (site changed DOM, API, or response schema), the agent should **automatically repair the adapter and retry** — without human intervention or pre-written spec files. For npm-installed users, agents can explicitly load the `opencli-repair` skill to get the same protocol.
+When an AI agent uses `opencli <site> <command>` and the command fails (site changed DOM, API, or response schema), the agent should **automatically repair the adapter and retry** — without human intervention or pre-written spec files.
 
 ### Why the simpler approach
 
@@ -89,7 +89,6 @@ The agent should recognize non-repairable failures and stop:
 |-----------|--------|----------|
 | Diagnostic output (RepairContext) | ✅ Done | `src/diagnostic.ts` |
 | Diagnostic wiring in execution | ✅ Done | `src/execution.ts` |
-| Repair skill (manual) | ✅ Done | `skills/opencli-repair/SKILL.md` |
 | Error taxonomy (CliError codes) | ✅ Done | `src/errors.ts` |
 | Adapter source resolution | ✅ Done | `src/diagnostic.ts:resolveAdapterSourcePath` |
 
@@ -97,34 +96,28 @@ The agent should recognize non-repairable failures and stop:
 
 | Component | Description |
 |-----------|-------------|
-| `CLAUDE.md` | Project-level instructions for Claude agents working in the opencli repo |
-| `skills/opencli-repair/SKILL.md` (updated) | Safety boundaries, sourcePath-based scope, 3-round limit |
+| `skills/opencli-autofix/SKILL.md` (renamed from `opencli-repair`) | AutoFix skill with safety boundaries, sourcePath-based scope, 3-round limit. The primary delivery mechanism for the self-repair protocol. |
 | `skills/opencli-usage/SKILL.md` (updated) | Self-Repair section for discoverability |
 
-### Delivery channels
+### Delivery mechanism
 
-| Scenario | Mechanism | Auto-loaded? |
-|----------|-----------|-------------|
-| Agent working in opencli repo | `CLAUDE.md` | Yes (Claude Code auto-loads) |
-| Agent using opencli from npm install | `opencli-repair` skill | No (must be explicitly loaded) |
-| Runtime auto-trigger (any agent) | Not yet built (Phase 2) | — |
+The `opencli-autofix` skill is the portable self-repair protocol. Any AI agent — regardless of framework, provider, or working directory — can load this skill to get the full autofix workflow. It is not tied to any specific agent framework or repo location.
 
-- **No code changes** — the diagnostic infrastructure and repair skill already exist
-- **Composable** — `CLAUDE.md` provides the auto-trigger; `opencli-repair` skill provides the detailed workflow
+- **No new runtime code** — the diagnostic infrastructure already exists
+- **No CLAUDE.md dependency** — the skill is the protocol, not a repo-local file
 
 ---
 
-## CLAUDE.md Self-Repair Section
+## The AutoFix Protocol (in the skill)
 
-The CLAUDE.md instructs agents:
+The `opencli-autofix` skill instructs agents:
 
 1. When `opencli <site> <command>` fails, **don't just report the error**
 2. Re-run with `OPENCLI_DIAGNOSTIC=1` to get structured context
 3. Parse the RepairContext (error code, adapter source, DOM snapshot)
 4. Read and fix the adapter at `RepairContext.adapter.sourcePath`
-5. Only edit the file at `RepairContext.adapter.sourcePath`
-6. Retry the original command
-7. Max 3 repair rounds, then stop
+5. Retry the original command
+6. Max 3 repair rounds, then stop
 
 ---
 
@@ -132,7 +125,7 @@ The CLAUDE.md instructs agents:
 
 PR #863 (spec/runner/incident framework) is **not needed for Phase 1**. It becomes useful later as a "hardening layer":
 
-- **Phase 1 (now)**: Self-Repair via CLAUDE.md — agent repairs on the fly
+- **Phase 1 (now)**: Self-Repair via `opencli-autofix` skill — agent repairs on the fly
 - **Phase 2 (later)**: High-frequency failures get hardened into `command-specs.json` for offline regression testing and CI
 
 The spec/runner framework is the "asset layer" — it turns ad-hoc repairs into reusable, verifiable test cases. But it's not the entry point.
@@ -141,7 +134,7 @@ The spec/runner framework is the "asset layer" — it turns ad-hoc repairs into 
 
 ## Usage
 
-No new commands. No new scripts. The agent just uses opencli normally:
+No new commands. No new scripts. The agent loads the `opencli-autofix` skill and uses opencli normally:
 
 ```bash
 # Agent runs a command as part of its task
