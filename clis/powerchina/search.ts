@@ -61,7 +61,7 @@ cli({
   strategy: Strategy.COOKIE,
   browser: true,
   args: [
-    { name: 'query', required: true, positional: true, help: 'Search keyword, e.g. "电梯"' },
+    { name: 'query', required: true, positional: true, help: 'Search keyword, e.g. "procurement"' },
     { name: 'limit', type: 'int', default: 20, help: 'Number of results (max 50)' },
   ],
   columns: ['rank', 'title', 'date', 'url'],
@@ -163,4 +163,3 @@ export const __test__ = {
   buildSearchCandidates,
   dedupeCandidates,
 };
-

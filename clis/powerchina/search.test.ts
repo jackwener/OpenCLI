@@ -3,8 +3,8 @@ import { __test__ } from './search.js';
 
 describe('powerchina search helpers', () => {
   it('builds candidate URLs with keyword variants', () => {
-    const candidates = __test__.buildSearchCandidates('电梯');
-    expect(candidates[0]).toContain('keyword=%E7%94%B5%E6%A2%AF');
+    const candidates = __test__.buildSearchCandidates('procurement');
+    expect(candidates[0]).toContain('keyword=procurement');
     expect(candidates.some((item) => item.includes('/search?keywords='))).toBe(true);
     expect(candidates.some((item) => item === 'https://bid.powerchina.cn/search')).toBe(true);
   });
@@ -23,4 +23,3 @@ describe('powerchina search helpers', () => {
     expect(deduped).toHaveLength(2);
   });
 });
-
