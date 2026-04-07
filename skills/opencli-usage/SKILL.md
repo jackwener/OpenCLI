@@ -158,7 +158,7 @@ All commands support: `--format` / `-f` with `table` `json` `yaml` `md` `csv`
 
 ## Self-Repair
 
-If a command fails due to a site change (selector, API, or response schema), **automatically fix the adapter and retry** instead of reporting failure. Re-run the command with `OPENCLI_DIAGNOSTIC=1` to get structured diagnostic context, read the adapter source, fix it (only files under `clis/`), and retry. Max 3 repair rounds. See the `opencli-repair` skill for the full workflow, or refer to the project's `CLAUDE.md` for the protocol.
+If a command fails due to a site change (selector, API, or response schema), **automatically fix the adapter and retry** instead of reporting failure. Re-run the command with `OPENCLI_DIAGNOSTIC=1` to get structured diagnostic context, then fix the adapter file at `RepairContext.adapter.sourcePath` and retry. Max 3 repair rounds. See the `opencli-repair` skill for the full workflow.
 
 ## Related Skills
 

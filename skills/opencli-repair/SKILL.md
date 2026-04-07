@@ -123,16 +123,6 @@ opencli operate click <N> && opencli operate network
 opencli operate network --detail <index>
 ```
 
-### Auth changed (AUTH_REQUIRED)
-
-```bash
-# Check current auth state
-opencli operate open https://example.com && opencli operate state
-
-# If login page: inspect the login form
-opencli operate state  # Look for login form fields
-```
-
 ## Step 4: Patch the Adapter
 
 Read the adapter source file at the path from `RepairContext.adapter.sourcePath` and make targeted fixes. This path is authoritative — it may be in the repo (`clis/`) or user-local (`~/.opencli/clis/`).

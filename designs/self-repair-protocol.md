@@ -9,7 +9,7 @@
 
 ## Problem Statement
 
-When an AI agent uses `opencli <site> <command>` and the command fails (site changed DOM, API, or response schema), the agent should **automatically repair the adapter and retry** — without human intervention or pre-written spec files.
+When a Claude agent working in the opencli repo uses `opencli <site> <command>` and the command fails (site changed DOM, API, or response schema), the agent should **automatically repair the adapter and retry** — without human intervention or pre-written spec files. For npm-installed users, agents can explicitly load the `opencli-repair` skill to get the same protocol.
 
 ### Why the simpler approach
 
@@ -97,16 +97,20 @@ The agent should recognize non-repairable failures and stop:
 
 | Component | Description |
 |-----------|-------------|
-| `CLAUDE.md` | Project-level instructions that make self-repair automatic for any Claude Code agent |
+| `CLAUDE.md` | Project-level instructions for Claude agents working in the opencli repo |
+| `skills/opencli-repair/SKILL.md` (updated) | Safety boundaries, sourcePath-based scope, 3-round limit |
+| `skills/opencli-usage/SKILL.md` (updated) | Self-Repair section for discoverability |
 
-That's it. **One file.** The entire Self-Repair MVP is a set of instructions that tell the agent to automatically invoke the existing repair infrastructure when a command fails.
+### Delivery channels
 
-### Why CLAUDE.md
+| Scenario | Mechanism | Auto-loaded? |
+|----------|-----------|-------------|
+| Agent working in opencli repo | `CLAUDE.md` | Yes (Claude Code auto-loads) |
+| Agent using opencli from npm install | `opencli-repair` skill | No (must be explicitly loaded) |
+| Runtime auto-trigger (any agent) | Not yet built (Phase 2) | — |
 
-- **Always loaded** — Claude Code reads it automatically for any session in the project
 - **No code changes** — the diagnostic infrastructure and repair skill already exist
-- **Universal** — any agent working in this project gets self-repair behavior
-- **Composable** — works alongside existing skills (agent can load `opencli-repair` for deeper exploration if needed)
+- **Composable** — `CLAUDE.md` provides the auto-trigger; `opencli-repair` skill provides the detailed workflow
 
 ---
 
@@ -118,11 +122,9 @@ The CLAUDE.md instructs agents:
 2. Re-run with `OPENCLI_DIAGNOSTIC=1` to get structured context
 3. Parse the RepairContext (error code, adapter source, DOM snapshot)
 4. Read and fix the adapter at `RepairContext.adapter.sourcePath`
-5. Only edit files under `clis/`
+5. Only edit the file at `RepairContext.adapter.sourcePath`
 6. Retry the original command
 7. Max 3 repair rounds, then stop
-
-This turns every agent session into a self-healing adapter maintenance loop.
 
 ---
 
