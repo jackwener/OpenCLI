@@ -218,6 +218,7 @@ npm link
 | **google** | `news` `search` `suggest` `trends` | 公开 |
 | **amazon** | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` | 浏览器 |
 | **1688** | `search` `item` `assets` `download` `store` | 浏览器 |
+| **gitee** | `trending` `search` `user` | 公开 / 浏览器 |
 | **gemini** | `new` `ask` `image` `deep-research` `deep-research-result` | 浏览器 |
 | **spotify** | `auth` `status` `play` `pause` `next` `prev` `volume` `search` `queue` `shuffle` `repeat` | OAuth API |
 | **notebooklm** | `status` `list` `open` `current` `get` `history` `summary` `note-list` `notes-get` `source-list` `source-get` `source-fulltext` `source-guide` | 浏览器 |

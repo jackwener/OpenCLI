@@ -178,6 +178,7 @@ To load the source Browser Bridge extension:
 | **zhihu** | `hot` `search` `question` `download` `follow` `like` `favorite` `comment` `answer` |
 | **amazon** | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` |
 | **1688** | `search` `item` `assets` `download` `store` |
+| **gitee** | `trending` `search` `user` |
 | **gemini** | `new` `ask` `image` `deep-research` `deep-research-result` |
 | **yuanbao** | `new` `ask` |
 | **notebooklm** | `status` `list` `open` `current` `get` `history` `summary` `note-list` `notes-get` `source-list` `source-get` `source-fulltext` `source-guide` |
