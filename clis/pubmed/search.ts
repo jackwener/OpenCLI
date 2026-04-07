@@ -132,9 +132,9 @@ cli({
     // Map sort options to E-utilities sort values
     const sortMap: Record<string, string> = {
       relevance: '',
-      date: 'PDAT',
+      date: 'pub_date',
       author: 'Author',
-      journal: 'Journal',
+      journal: 'JournalName',
     };
     const sort = sortMap[args.sort] || '';
 

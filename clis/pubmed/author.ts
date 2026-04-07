@@ -113,7 +113,7 @@ cli({
     // Map sort options
     const sortMap: Record<string, string> = {
       relevance: '',
-      date: 'PDAT',
+      date: 'pub_date',
     };
     const sort = sortMap[args.sort] || '';
 
