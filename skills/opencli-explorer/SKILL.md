@@ -1,7 +1,7 @@
 ---
 name: opencli-explorer
-description: Use when creating a new OpenCLI adapter from scratch, adding support for a new website or platform, or exploring a site's API endpoints via browser DevTools. Covers API discovery workflow, authentication strategy selection, TS adapter writing, and testing.
-tags: [opencli, adapter, browser, api-discovery, cli, web-scraping, automation]
+description: Use when creating a new OpenCLI adapter from scratch, adding support for a new website or platform, exploring a site's API endpoints via browser DevTools, or when a user asks to automatically generate a CLI for a website (e.g. "帮我生成 xxx.com 的 cli"). Covers automated generation, API discovery workflow, authentication strategy selection, TS adapter writing, and testing.
+tags: [opencli, adapter, browser, api-discovery, cli, web-scraping, automation, generate]
 ---
 
 # CLI-EXPLORER — 适配器探索式开发完全指南
@@ -12,6 +12,10 @@ tags: [opencli, adapter, browser, api-discovery, cli, web-scraping, automation]
 > [!TIP]
 > **只想为一个具体页面快速生成一个命令？** 看 [opencli-oneshot skill](../opencli-oneshot/SKILL.md)（~150 行，4 步搞定）。
 > 本文档适合从零探索一个新站点的完整流程。
+
+> [!TIP]
+> **想要全自动生成？** 直接运行 `opencli generate <url> [--goal <goal>]`，内部会自动走完 explore → synthesize → cascade → verify 全流程。
+> 返回 `SkillOutput`（success / blocked / needs-human-check）。如果自动生成失败或需要人工介入，再按本文档的手动流程继续。
 
 ---
 

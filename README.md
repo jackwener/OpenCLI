@@ -81,7 +81,7 @@ Use OpenCLI directly when you want a reliable command instead of a live browser 
 
 Use two different entry points depending on the task:
 
-- [`skills/opencli-generate/SKILL.md`](./skills/opencli-generate/SKILL.md): the task-level entry point for requests like "generate a CLI for this site".
+- [`skills/opencli-explorer/SKILL.md`](./skills/opencli-explorer/SKILL.md): the entry point for creating new adapters — supports both fully automated generation (`opencli generate <url>`) and manual exploration workflows.
 - [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md): the low-level control surface for live browsing, debugging, and manual intervention.
 
 Install the packaged skills with:
@@ -94,7 +94,6 @@ Or install only what you need:
 
 ```bash
 npx skills add jackwener/opencli --skill opencli-usage
-npx skills add jackwener/opencli --skill opencli-generate
 npx skills add jackwener/opencli --skill opencli-browser
 npx skills add jackwener/opencli --skill opencli-explorer
 npx skills add jackwener/opencli --skill opencli-oneshot
@@ -102,7 +101,7 @@ npx skills add jackwener/opencli --skill opencli-oneshot
 
 In practice:
 
-- start with `opencli-generate` when the agent needs a reusable command for a site
+- start with `opencli-explorer` when the agent needs a reusable command for a site (it covers both automated and manual flows)
 - use `opencli-browser` when the agent needs to inspect or steer the page directly
 
 Available browser commands include `open`, `state`, `click`, `type`, `select`, `keys`, `wait`, `get`, `screenshot`, `scroll`, `back`, `eval`, `network`, `init`, `verify`, and `close`.

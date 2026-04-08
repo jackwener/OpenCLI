@@ -1,8 +1,8 @@
 /**
- * opencli-generate skill: thin wrapper over generateVerifiedFromUrl.
+ * Generate skill: thin wrapper over generateVerifiedFromUrl.
  *
- * Maps GenerateOutcome → SkillOutput per the skill spec
- * (skills/opencli-generate/SKILL.md).
+ * Maps GenerateOutcome → SkillOutput.
+ * Used by `opencli generate <url>` (automated path in opencli-explorer workflow).
  *
  * Design:
  *   - Input: url + goal? (user intent, not execution strategy)

@@ -69,7 +69,7 @@ opencli bilibili hot --limit 5
 
 按任务类型，AI Agent 有两个不同入口：
 
-- [`skills/opencli-generate/SKILL.md`](./skills/opencli-generate/SKILL.md)：任务级入口，适合“帮我给这个网站生成 CLI”这类请求。
+- [`skills/opencli-explorer/SKILL.md`](./skills/opencli-explorer/SKILL.md)：适配器创建入口，支持全自动生成（`opencli generate <url>`）和手动探索两种流程。
 - [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md)：底层控制入口，适合实时操作页面、debug 和人工介入。
 
 安装全部 OpenCLI skills：
@@ -82,7 +82,6 @@ npx skills add jackwener/opencli
 
 ```bash
 npx skills add jackwener/opencli --skill opencli-usage
-npx skills add jackwener/opencli --skill opencli-generate
 npx skills add jackwener/opencli --skill opencli-browser
 npx skills add jackwener/opencli --skill opencli-explorer
 npx skills add jackwener/opencli --skill opencli-oneshot
@@ -90,7 +89,7 @@ npx skills add jackwener/opencli --skill opencli-oneshot
 
 实际使用上：
 
-- 需要把某个站点收成可复用命令时，优先走 `opencli-generate`
+- 需要把某个站点收成可复用命令时，优先走 `opencli-explorer`（涵盖自动和手动两种路径）
 - 需要直接检查页面、操作页面时，再走 `opencli-browser`
 
 `browser` 可用命令包括：`open`、`state`、`click`、`type`、`select`、`keys`、`wait`、`get`、`screenshot`、`scroll`、`back`、`eval`、`network`、`init`、`verify`、`close`。
