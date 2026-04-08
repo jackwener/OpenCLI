@@ -189,6 +189,10 @@ async function discoverClisFromFs(dir: string): Promise<void> {
       const files = await fs.promises.readdir(siteDir);
       await Promise.all(files.map(async (file) => {
         const filePath = path.join(siteDir, file);
+        if (file.endsWith('.yaml') || file.endsWith('.yml')) {
+          log.warn(`Ignoring YAML adapter ${filePath} — YAML format is no longer supported. Convert to TypeScript using cli() from '@jackwener/opencli/registry'.`);
+          return;
+        }
         if (
           (file.endsWith('.js') && !file.endsWith('.d.js')) ||
           (file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts'))
@@ -227,6 +231,10 @@ async function discoverPluginDir(dir: string, site: string): Promise<void> {
   const fileSet = new Set(files);
   await Promise.all(files.map(async (file) => {
     const filePath = path.join(dir, file);
+    if (file.endsWith('.yaml') || file.endsWith('.yml')) {
+      log.warn(`Ignoring YAML plugin ${filePath} — YAML format is no longer supported. Convert to TypeScript using cli() from '@jackwener/opencli/registry'.`);
+      return;
+    }
     if (file.endsWith('.js') && !file.endsWith('.d.js')) {
       if (!(await isCliModule(filePath))) return;
       await import(pathToFileURL(filePath).href).catch((err) => {

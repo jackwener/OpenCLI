@@ -529,7 +529,7 @@ export function getCommitHash(dir: string): string | undefined {
 
 /**
  * Validate that a downloaded plugin directory is a structurally valid plugin.
- * Checks for at least one command file (.yaml, .yml, .ts, .js) and a valid
+ * Checks for at least one command file (.ts, .js) and a valid
  * package.json if it contains .ts files.
  */
 export function validatePluginStructure(pluginDir: string): ValidationResult {
@@ -540,12 +540,11 @@ export function validatePluginStructure(pluginDir: string): ValidationResult {
   }
 
   const files = fs.readdirSync(pluginDir);
-  const hasYaml = files.some(f => f.endsWith('.yaml') || f.endsWith('.yml'));
   const hasTs = files.some(f => f.endsWith('.ts') && !f.endsWith('.d.ts') && !f.endsWith('.test.ts'));
   const hasJs = files.some(f => f.endsWith('.js') && !f.endsWith('.d.js'));
 
-  if (!hasYaml && !hasTs && !hasJs) {
-    errors.push('No command files found in plugin directory. A plugin must contain at least one .yaml, .ts, or .js command file.');
+  if (!hasTs && !hasJs) {
+    errors.push('No command files found in plugin directory. A plugin must contain at least one .ts or .js command file.');
   }
 
   if (hasTs) {
@@ -1243,7 +1242,6 @@ function scanPluginCommands(dir: string): string[] {
     const names = new Set(
       files
         .filter(f =>
-          f.endsWith('.yaml') || f.endsWith('.yml') ||
           (f.endsWith('.ts') && !f.endsWith('.d.ts') && !f.endsWith('.test.ts')) ||
           (f.endsWith('.js') && !f.endsWith('.d.js'))
         )
