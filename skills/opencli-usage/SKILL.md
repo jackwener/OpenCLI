@@ -1,7 +1,7 @@
 ---
 name: opencli-usage
 description: "Use when running OpenCLI commands to interact with websites (Bilibili, Twitter, Reddit, Xiaohongshu, etc.), desktop apps (Cursor, Notion), or public APIs (HackerNews, arXiv). Covers installation, command reference, and output formats for 79+ adapters."
-version: 1.6.3
+version: 1.6.9
 author: jackwener
 tags: [opencli, cli, browser, web, chrome-extension, cdp, bilibili, twitter, reddit, xiaohongshu, github, youtube, AI, agent, automation]
 ---
@@ -61,6 +61,7 @@ Type legend: 🌐 = Browser (needs Chrome login) · ✅ = Public API (no browser
 
 | Site | Type | Commands |
 |------|------|----------|
+| **1688** | 🌐 | `search` `item` `download` `store` |
 | **36kr** | 🌐 | `hot` `news` `search` `article` |
 | **amazon** | 🌐 | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` |
 | **apple-podcasts** | ✅ | `top` `search` `episodes` |
@@ -86,11 +87,14 @@ Type legend: 🌐 = Browser (needs Chrome login) · ✅ = Public API (no browser
 | **grok** | 🌐 | `ask` |
 | **hackernews** | ✅ | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
 | **hf** | ✅ | `top` |
+| **hupu** | 🌐 | `hot` `search` `detail` `like` `unlike` `reply` `mentions` |
 | **imdb** | ✅ | `top` `trending` `search` `title` `person` `reviews` |
 | **instagram** | 🌐 | `explore` `profile` `search` `user` `followers` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `saved` |
 | **jd** | 🌐 | `item` |
+| **jianyu** | 🌐 | `search` |
 | **jike** | 🌐 | `feed` `search` `create` `like` `comment` `repost` `notifications` `post` `topic` `user` |
 | **jimeng** | 🌐 | `generate` `history` |
+| **lesswrong** | ✅ | `frontpage` `curated` `new` `top` `top-week` `top-month` `top-year` `shortform` `read` `comments` `user` `user-posts` `sequences` `tags` `tag` |
 | **linkedin** | 🌐 | `search` `timeline` |
 | **linux-do** | 🌐 | `hot` `latest` `feed` `search` `categories` `category` `tags` `topic` `topic-content` `user-posts` `user-topics` |
 | **lobsters** | ✅ | `hot` `newest` `active` `tag` |
@@ -100,6 +104,7 @@ Type legend: 🌐 = Browser (needs Chrome login) · ✅ = Public API (no browser
 | **paperreview** | ✅ | `submit` `review` `feedback` |
 | **pixiv** | 🌐 | `ranking` `search` `user` `illusts` `detail` `download` |
 | **producthunt** | ✅ | `today` `hot` `browse` `posts` |
+| **quark** | 🌐 | `ls` `mkdir` `mv` `rename` `rm` `save` `share-tree` |
 | **reddit** | 🌐 | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `save` `comment` `subscribe` `saved` `upvoted` |
 | **reuters** | 🌐 | `search` |
 | **sinablog** | 🌐 | `hot` `search` `article` `user` |
@@ -118,12 +123,15 @@ Type legend: 🌐 = Browser (needs Chrome login) · ✅ = Public API (no browser
 | **weixin** | 🌐 | `download` — 公众号 article to Markdown |
 | **weread** | 🌐 | `shelf` `search` `book` `highlights` `notes` `notebooks` `ranking` |
 | **wikipedia** | ✅ | `search` `summary` `random` `trending` |
+| **xianyu** | 🌐 | `search` `item` `chat` |
+| **xiaoe** | 🌐 | `courses` `catalog` `content` `detail` `play-url` |
 | **xiaohongshu** | 🌐 | `search` `notifications` `feed` `user` `note` `comments` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` |
 | **xiaoyuzhou** | ✅ | `podcast` `podcast-episodes` `episode` |
 | **xueqiu** | 🌐 | `hot-stock` `stock` `watchlist` `feed` `hot` `search` `comments` `earnings-date` `fund-holdings` `fund-snapshot` |
 | **yahoo-finance** | 🌐 | `quote` |
 | **yollomi** | 🌐 | `models` `generate` `video` `upload` `remove-bg` `edit` `background` `face-swap` `object-remover` `restore` `try-on` `upscale` |
 | **youtube** | 🌐 | `search` `video` `transcript` |
+| **yuanbao** | 🌐 | `new` `ask` |
 | **zhihu** | 🌐 | `hot` `search` `question` |
 | **zsxq** | 🌐 | `groups` `dynamics` `topics` `topic` `search` |
 
