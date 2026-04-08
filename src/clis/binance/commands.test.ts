@@ -1,14 +1,18 @@
-import fs from 'node:fs';
-import yaml from 'js-yaml';
+import { getRegistry } from '@jackwener/opencli/registry';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { executePipeline } from '../../pipeline/index.js';
+
+// Import all binance adapters to register them
+import './top.js';
+import './gainers.js';
+import './pairs.js';
 
 type BinanceRow = Record<string, unknown>;
 
 function loadPipeline(name: string): any[] {
-  const file = new URL(`./${name}.yaml`, import.meta.url);
-  const def = yaml.load(fs.readFileSync(file, 'utf-8')) as { pipeline: any[] };
-  return def.pipeline;
+  const cmd = getRegistry().get(`binance/${name}`);
+  if (!cmd?.pipeline) throw new Error(`Command binance/${name} not found or has no pipeline`);
+  return cmd.pipeline;
 }
 
 function mockJsonOnce(payload: unknown) {
@@ -25,7 +29,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('binance YAML adapters', () => {
+describe('binance adapters', () => {
   it('sorts top pairs by numeric quote volume', async () => {
     mockJsonOnce([
       { symbol: 'SMALL', lastPrice: '1', priceChangePercent: '1.2', highPrice: '1', lowPrice: '1', quoteVolume: '9.9' },

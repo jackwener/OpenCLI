@@ -25,11 +25,11 @@ features:
     details: "explore discovers APIs, synthesize generates adapters, cascade finds auth strategies. Built for AI-first workflows."
   - icon: ⚡
     title: Dual-Engine Architecture
-    details: Supports both YAML declarative data pipelines and robust browser runtime TypeScript injections for maximum flexibility.
+    details: Supports both declarative pipeline adapters and robust browser runtime TypeScript injections for maximum flexibility.
   - icon: 🔧
     title: Self-Healing Setup
     details: "opencli doctor auto-starts the daemon and diagnoses extension + live browser connectivity."
   - icon: 📦
     title: Dynamic Loader
-    details: Simply drop .ts or .yaml adapters into the clis/ folder for auto-registration. Zero boilerplate.
+    details: Simply drop .ts adapters into the clis/ folder for auto-registration. Zero boilerplate.
 ---

@@ -62,7 +62,7 @@ describe('built-in browser commands verbose wiring', () => {
 
     mockExploreUrl.mockReset().mockResolvedValue({ ok: true });
     mockRenderExploreSummary.mockReset().mockReturnValue('explore-summary');
-    mockGenerateVerifiedFromUrl.mockReset().mockResolvedValue({ version: 1, status: 'success' });
+    mockGenerateVerifiedFromUrl.mockReset().mockResolvedValue({ status: 'success' });
     mockRenderGenerateVerifiedSummary.mockReset().mockReturnValue('generate-summary');
     mockRecordSession.mockReset().mockResolvedValue({ candidateCount: 1 });
     mockRenderRecordSummary.mockReset().mockReturnValue('record-summary');

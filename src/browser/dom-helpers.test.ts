@@ -3,7 +3,7 @@ import { autoScrollJs, waitForCaptureJs, waitForSelectorJs } from './dom-helpers
 
 describe('autoScrollJs', () => {
   it('returns early without error when document.body is null', async () => {
-    const g = globalThis as any;
+    const g = globalThis as unknown as Record<string, unknown>;
     const origDoc = g.document;
     g.document = { body: null, documentElement: {} };
     g.window = g;
@@ -26,19 +26,20 @@ describe('waitForCaptureJs', () => {
   });
 
   it('resolves "captured" when __opencli_xhr is populated before deadline', async () => {
-    const g = globalThis as any;
-    g.__opencli_xhr = [];
+    const g = globalThis as unknown as Record<string, unknown>;
+    const captured: unknown[] = [];
+    g.__opencli_xhr = captured;
     g.window = g; // stub window for Node eval
     const code = waitForCaptureJs(1000);
     const promise = eval(code) as Promise<string>;
-    g.__opencli_xhr.push({ data: 'test' });
+    captured.push({ data: 'test' });
     await expect(promise).resolves.toBe('captured');
     delete g.__opencli_xhr;
     delete g.window;
   });
 
   it('rejects when __opencli_xhr stays empty past deadline', async () => {
-    const g = globalThis as any;
+    const g = globalThis as unknown as Record<string, unknown>;
     g.__opencli_xhr = [];
     g.window = g;
     const code = waitForCaptureJs(50); // 50ms timeout
@@ -49,7 +50,7 @@ describe('waitForCaptureJs', () => {
   });
 
   it('resolves immediately when __opencli_xhr already has data', async () => {
-    const g = globalThis as any;
+    const g = globalThis as unknown as Record<string, unknown>;
     g.__opencli_xhr = [{ data: 'already here' }];
     g.window = g;
     const code = waitForCaptureJs(1000);
@@ -69,7 +70,7 @@ describe('waitForSelectorJs', () => {
   });
 
   it('resolves "found" immediately when selector already present', async () => {
-    const g = globalThis as any;
+    const g = globalThis as unknown as Record<string, unknown>;
     const fakeEl = { tagName: 'DIV' };
     g.document = { querySelector: (_: string) => fakeEl };
     const code = waitForSelectorJs('[data-testid="primaryColumn"]', 1000);
@@ -78,7 +79,7 @@ describe('waitForSelectorJs', () => {
   });
 
   it('resolves "found" when selector appears after DOM mutation', async () => {
-    const g = globalThis as any;
+    const g = globalThis as unknown as Record<string, unknown>;
     let mutationCallback!: () => void;
     g.MutationObserver = class {
       constructor(cb: () => void) { mutationCallback = cb; }
@@ -99,7 +100,7 @@ describe('waitForSelectorJs', () => {
   });
 
   it('rejects when selector never appears within timeout', async () => {
-    const g = globalThis as any;
+    const g = globalThis as unknown as Record<string, unknown>;
     g.MutationObserver = class {
       constructor(_cb: () => void) {}
       observe() {}

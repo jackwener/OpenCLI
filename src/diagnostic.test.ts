@@ -103,8 +103,8 @@ describe('redactText', () => {
 
 describe('resolveAdapterSourcePath', () => {
   it('returns source when it is a real file path (not manifest:)', () => {
-    const cmd = makeCmd({ source: '/home/user/.opencli/clis/arxiv/search.yaml' });
-    expect(resolveAdapterSourcePath(cmd as InternalCliCommand)).toBe('/home/user/.opencli/clis/arxiv/search.yaml');
+    const cmd = makeCmd({ source: '/home/user/.opencli/clis/arxiv/search.ts' });
+    expect(resolveAdapterSourcePath(cmd as InternalCliCommand)).toBe('/home/user/.opencli/clis/arxiv/search.ts');
   });
 
   it('skips manifest: pseudo-paths and falls back to _modulePath', () => {

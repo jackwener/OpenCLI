@@ -28,7 +28,6 @@ export interface RequiredEnv {
   help?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- kwargs from CLI parsing are inherently untyped
 export type CommandArgs = Record<string, any>;
 
 export interface CliCommand {

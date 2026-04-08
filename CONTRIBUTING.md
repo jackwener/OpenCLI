@@ -26,49 +26,43 @@ npm link
 
 ## Adding a New Site Adapter
 
-This is the most common type of contribution. Start with YAML when possible, and use TypeScript only when you need browser-side logic or multi-step flows.
+All adapters use TypeScript. Use the pipeline API for data-fetching commands, and `func()` for complex browser interactions.
 
-### YAML Adapter (Recommended for data-fetching commands)
+### Pipeline Adapter (Recommended for data-fetching commands)
 
-Create a file like `clis/<site>/<command>.yaml`:
+Create a file like `clis/<site>/<command>.ts`:
 
-```yaml
-site: mysite
-name: trending
-description: Trending posts on MySite
-domain: www.mysite.com
-strategy: public      # public | cookie | header
-browser: false        # true if browser session is needed
+```typescript
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
-args:
-  query:
-    positional: true
-    type: str
-    required: true
-    description: Search keyword
-  limit:
-    type: int
-    default: 20
-    description: Number of items
-
-pipeline:
-  - fetch:
-      url: https://api.mysite.com/trending
-
-  - map:
-      rank: ${{ index + 1 }}
-      title: ${{ item.title }}
-      score: ${{ item.score }}
-      url: ${{ item.url }}
-
-  - limit: ${{ args.limit }}
-
-columns: [rank, title, score, url]
+cli({
+  site: 'mysite',
+  name: 'trending',
+  description: 'Trending posts on MySite',
+  domain: 'www.mysite.com',
+  strategy: Strategy.PUBLIC,
+  browser: false,
+  args: [
+    { name: 'query', positional: true, required: true, help: 'Search keyword' },
+    { name: 'limit', type: 'int', default: 20, help: 'Number of items' },
+  ],
+  columns: ['rank', 'title', 'score', 'url'],
+  pipeline: [
+    { fetch: { url: 'https://api.mysite.com/trending' } },
+    { map: {
+        rank: '${{ index + 1 }}',
+        title: '${{ item.title }}',
+        score: '${{ item.score }}',
+        url: '${{ item.url }}',
+    }},
+    { limit: '${{ args.limit }}' },
+  ],
+});
 ```
 
-See [`hackernews/top.yaml`](clis/hackernews/top.yaml) for a real example.
+See [`hackernews/top.ts`](clis/hackernews/top.ts) for a real example.
 
-### TypeScript Adapter (For complex browser interactions)
+### func() Adapter (For complex browser interactions)
 
 Create a file like `clis/<site>/<command>.ts`:
 
@@ -114,7 +108,7 @@ Use `opencli explore <url>` to discover APIs and see [opencli-explorer skill](./
 ### Validate Your Adapter
 
 ```bash
-# Validate YAML syntax and schema
+# Validate adapter
 opencli validate
 
 # Test your command
@@ -137,16 +131,12 @@ Use **positional** for the primary, required argument of a command (the "what" �
 
 Do **not** convert an argument to positional just because it appears first in the file. If the argument is optional, acts like a filter, or selects a mode/configuration, it should usually stay a named option.
 
-YAML example:
-```yaml
-args:
-  query:
-    positional: true     # ← primary arg, user types it directly
-    type: str
-    required: true
-  limit:
-    type: int            # ← config arg, user types --limit 10
-    default: 20
+Pipeline example:
+```typescript
+args: [
+  { name: 'query', positional: true, required: true, help: 'Search query' },  // ← primary arg
+  { name: 'limit', type: 'int', default: 20, help: 'Max results' },           // ← config arg
+]
 ```
 
 TS example:
@@ -198,7 +188,7 @@ Common scopes: site name (`twitter`, `reddit`) or module name (`browser`, `pipel
    npx tsc --noEmit           # Type check
    npm test                   # Core unit tests
    npm run test:adapter       # Focused adapter tests (if you touched adapter logic)
-   opencli validate           # YAML validation (if applicable)
+   opencli validate           # Adapter validation
    ```
 4. Commit using conventional commit format
 5. Push and open a PR

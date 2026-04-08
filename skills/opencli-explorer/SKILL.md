@@ -1,6 +1,6 @@
 ---
 name: opencli-explorer
-description: Use when creating a new OpenCLI adapter from scratch, adding support for a new website or platform, or exploring a site's API endpoints via browser DevTools. Covers API discovery workflow, authentication strategy selection, YAML/TS adapter writing, and testing.
+description: Use when creating a new OpenCLI adapter from scratch, adding support for a new website or platform, or exploring a site's API endpoints via browser DevTools. Covers API discovery workflow, authentication strategy selection, TS adapter writing, and testing.
 tags: [opencli, adapter, browser, api-discovery, cli, web-scraping, automation]
 ---
 
@@ -77,7 +77,7 @@ tags: [opencli, adapter, browser, api-discovery, cli, web-scraping, automation]
  ┌─────────────┐     ┌─────────────┐     ┌──────────────┐     ┌────────┐
  │ 1. 发现 API  │ ──▶ │ 2. 选择策略  │ ──▶ │ 3. 写适配器   │ ──▶ │ 4. 测试 │
  └─────────────┘     └─────────────┘     └──────────────┘     └────────┘
-   explore             cascade             YAML / TS            run + verify
+   explore             cascade             TS (cli() API)       run + verify
 ```
 
 ---
@@ -123,7 +123,7 @@ opencli bilibili hot -v   # 查看已有命令的 pipeline 每步数据流
 
 在开始死磕复杂的抓包拦截之前，按照以下优先级进行尝试：
 
-1. **后缀爆破法 (`.json`)**: 像 Reddit 这样复杂的网站，只要在其 URL 后加上 `.json`（例如 `/r/all.json`），就能在带 Cookie 的情况下直接利用 `fetch` 拿到极其干净的 REST 数据（Tier 2 Cookie 策略极速秒杀）。另外如功能完备的**雪球 (xueqiu)** 也可以走这种纯 API 的方式极简获取，成为你构建简单 YAML 的黄金标杆。
+1. **后缀爆破法 (`.json`)**: 像 Reddit 这样复杂的网站，只要在其 URL 后加上 `.json`（例如 `/r/all.json`），就能在带 Cookie 的情况下直接利用 `fetch` 拿到极其干净的 REST 数据（Tier 2 Cookie 策略极速秒杀）。另外如功能完备的**雪球 (xueqiu)** 也可以走这种纯 API 的方式极简获取，成为你构建简单 TS pipeline 适配器的黄金标杆。
 2. **全局状态查找法 (`__INITIAL_STATE__`)**: 许多服务端渲染 (SSR) 的网站（如小红书、Bilibili）会将首页或详情页的完整数据挂载到全局 window 对象上。与其去拦截网络请求，不如直接 `page.evaluate('() => window.__INITIAL_STATE__')` 获取整个数据树。
 3. **主动交互触发法 (Active Interaction)**: 很多深层 API（如视频字幕、评论下的回复）是懒加载的。在静态抓包找不到数据时，尝试在 `evaluate` 步骤或手动打断点时，主动去**点击（Click）页面上的对应按钮**（如"CC"、"展开全部"），从而诱发隐藏的 Network Fetch。
 4. **框架探测与 Store Action 截断**: 如果站点使用 Vue + Pinia，可以使用 `tap` 步骤调用 action，让前端框架代替你完成复杂的鉴权签名封装。
@@ -223,25 +223,22 @@ cat clis/<site>/feed.ts   # 读最相似的那个
 
 ## Step 3: 编写适配器
 
-### YAML vs TS？先看决策树
+### 适配器格式：统一使用 TypeScript
+
+所有适配器统一使用 TypeScript `cli()` API。YAML adapter 格式已不再支持。
 
 ```
-你的 pipeline 里有 evaluate 步骤（内嵌 JS 代码）？
-  → ✅ 用 TypeScript (clis/<site>/<name>.ts)，保存即自动动态注册
-  → ❌ 纯声明式（navigate + tap + map + limit）？
-       → ✅ 用 YAML (clis/<site>/<name>.yaml)，保存即自动注册
+所有新适配器 → TypeScript (clis/<site>/<name>.ts)，保存即自动动态注册
 ```
 
-| 场景 | 选择 | 示例 |
+| 场景 | 模式 | 示例 |
 |------|------|------|
-| 纯 fetch/select/map/limit | YAML | `v2ex/hot.yaml`, `hackernews/top.yaml` |
-| navigate + evaluate(fetch) + map | YAML（评估复杂度） | `zhihu/hot.yaml` |
-| navigate + tap + map | YAML ✅ | `xiaohongshu/feed.yaml`, `xiaohongshu/notifications.yaml` |
-| 有复杂 JS 逻辑（Pinia state 读取、条件分支） | TS | `xiaohongshu/me.ts`, `bilibili/me.ts` |
-| XHR 拦截 + 签名 | TS | `xiaohongshu/search.ts` |
-| GraphQL / 分页 / Wbi 签名 | TS | `bilibili/search.ts`, `twitter/search.ts` |
-
-> **经验法则**：如果你发现 YAML 里嵌了超过 10 行 JS，改用 TS 更可维护。
+| 简单 fetch + 数据映射 | TS `cli()` + `func()` | `v2ex/hot.ts`, `hackernews/top.ts` |
+| navigate + evaluate(fetch) + 数据映射 | TS `cli()` + `func()` | `zhihu/hot.ts` |
+| Pinia Store Action 触发 | TS `cli()` + `func()` | `xiaohongshu/feed.ts`, `xiaohongshu/notifications.ts` |
+| 复杂 JS 逻辑（state 读取、条件分支） | TS `cli()` + `func()` | `xiaohongshu/me.ts`, `bilibili/me.ts` |
+| XHR 拦截 + 签名 | TS `cli()` + `func()` | `xiaohongshu/search.ts` |
+| GraphQL / 分页 / Wbi 签名 | TS `cli()` + `func()` | `bilibili/search.ts`, `twitter/search.ts` |
 
 ### 通用模式：分页 API
 
@@ -264,188 +261,185 @@ func: async (page, kwargs) => {
 
 > 大多数站点的 `ps` 上限是 20~50。超过会被静默截断或返回错误。
 
-### 方式 A: YAML Pipeline（声明式，推荐）
+### 方式 A: TS `cli()` + `func()`（标准模式，推荐）
 
-文件路径: `clis/<site>/<name>.yaml`，放入即自动注册。
+文件路径: `clis/<site>/<name>.ts`，放入即自动注册。
 
 #### Tier 1 — 公开 API 模板
 
-```yaml
-# clis/v2ex/hot.yaml
-site: v2ex
-name: hot
-description: V2EX 热门话题
-domain: www.v2ex.com
-strategy: public
-browser: false
+```typescript
+// clis/v2ex/hot.ts
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
-args:
-  limit:
-    type: int
-    default: 20
-
-pipeline:
-  - fetch:
-      url: https://www.v2ex.com/api/topics/hot.json
-
-  - map:
-      rank: ${{ index + 1 }}
-      title: ${{ item.title }}
-      replies: ${{ item.replies }}
-
-  - limit: ${{ args.limit }}
-
-columns: [rank, title, replies]
+cli({
+  site: 'v2ex',
+  name: 'hot',
+  description: 'V2EX 热门话题',
+  domain: 'www.v2ex.com',
+  strategy: Strategy.PUBLIC,
+  browser: false,
+  args: [
+    { name: 'limit', type: 'int', default: 20 },
+  ],
+  columns: ['rank', 'title', 'replies'],
+  func: async (_page, kwargs) => {
+    const res = await fetch('https://www.v2ex.com/api/topics/hot.json');
+    const data = await res.json();
+    return data.slice(0, kwargs.limit).map((item: any, i: number) => ({
+      rank: i + 1,
+      title: item.title,
+      replies: item.replies,
+    }));
+  },
+});
 ```
 
 #### Tier 2 — Cookie 认证模板（最常用）
 
-```yaml
-# clis/zhihu/hot.yaml
-site: zhihu
-name: hot
-description: 知乎热榜
-domain: www.zhihu.com
+```typescript
+// clis/zhihu/hot.ts
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
-pipeline:
-  - navigate: https://www.zhihu.com       # 先加载页面建立 session
-
-  - evaluate: |                            # 在浏览器内发请求，自动带 Cookie
-      (async () => {
-        const res = await fetch('/api/v3/feed/topstory/hot-lists/total?limit=50', {
-          credentials: 'include'
-        });
-        const d = await res.json();
-        return (d?.data || []).map(item => {
-          const t = item.target || {};
-          return {
-            title: t.title,
-            heat: item.detail_text || '',
-            answers: t.answer_count,
-          };
-        });
-      })()
-
-  - map:
-      rank: ${{ index + 1 }}
-      title: ${{ item.title }}
-      heat: ${{ item.heat }}
-      answers: ${{ item.answers }}
-
-  - limit: ${{ args.limit }}
-
-columns: [rank, title, heat, answers]
+cli({
+  site: 'zhihu',
+  name: 'hot',
+  description: '知乎热榜',
+  domain: 'www.zhihu.com',
+  strategy: Strategy.COOKIE,
+  browser: true,
+  args: [
+    { name: 'limit', type: 'int', default: 50 },
+  ],
+  columns: ['rank', 'title', 'heat', 'answers'],
+  func: async (page, kwargs) => {
+    await page.goto('https://www.zhihu.com');  // 先加载页面建立 session
+    const data = await page.evaluate(`(async () => {
+      const res = await fetch('/api/v3/feed/topstory/hot-lists/total?limit=50', {
+        credentials: 'include'
+      });
+      const d = await res.json();
+      return (d?.data || []).map(item => {
+        const t = item.target || {};
+        return {
+          title: t.title,
+          heat: item.detail_text || '',
+          answers: t.answer_count,
+        };
+      });
+    })()`);
+    return (data as any[]).slice(0, kwargs.limit).map((item, i) => ({
+      rank: i + 1,
+      title: item.title,
+      heat: item.heat,
+      answers: item.answers,
+    }));
+  },
+});
 ```
 
-> **关键**: `evaluate` 步骤内的 `fetch` 运行在浏览器页面内，自动携带 `credentials: 'include'`，无需手动处理 Cookie。
+> **关键**: `page.evaluate` 内的 `fetch` 运行在浏览器页面内，自动携带 `credentials: 'include'`，无需手动处理 Cookie。
 
 #### 进阶 — 带搜索参数
 
-```yaml
-# clis/zhihu/search.yaml
-site: zhihu
-name: search
-description: 知乎搜索
+```typescript
+// clis/zhihu/search.ts
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
-args:
-  query:
-    type: str
-    required: true
-    positional: true
-    description: Search query
-  limit:
-    type: int
-    default: 10
-
-pipeline:
-  - navigate: https://www.zhihu.com
-
-  - evaluate: |
-      (async () => {
-        const q = encodeURIComponent('${{ args.query }}');
-        const res = await fetch('/api/v4/search_v3?q=' + q + '&t=general&limit=${{ args.limit }}', {
-          credentials: 'include'
-        });
-        const d = await res.json();
-        return (d?.data || [])
-          .filter(item => item.type === 'search_result')
-          .map(item => ({
-            title: (item.object?.title || '').replace(/<[^>]+>/g, ''),
-            type: item.object?.type || '',
-            author: item.object?.author?.name || '',
-            votes: item.object?.voteup_count || 0,
-          }));
-      })()
-
-  - map:
-      rank: ${{ index + 1 }}
-      title: ${{ item.title }}
-      type: ${{ item.type }}
-      author: ${{ item.author }}
-      votes: ${{ item.votes }}
-
-  - limit: ${{ args.limit }}
-
-columns: [rank, title, type, author, votes]
+cli({
+  site: 'zhihu',
+  name: 'search',
+  description: '知乎搜索',
+  domain: 'www.zhihu.com',
+  strategy: Strategy.COOKIE,
+  browser: true,
+  args: [
+    { name: 'query', type: 'str', required: true, positional: true, help: 'Search query' },
+    { name: 'limit', type: 'int', default: 10 },
+  ],
+  columns: ['rank', 'title', 'type', 'author', 'votes'],
+  func: async (page, kwargs) => {
+    await page.goto('https://www.zhihu.com');
+    const data = await page.evaluate(`(async () => {
+      const q = encodeURIComponent('${kwargs.query}');
+      const res = await fetch('/api/v4/search_v3?q=' + q + '&t=general&limit=${kwargs.limit}', {
+        credentials: 'include'
+      });
+      const d = await res.json();
+      return (d?.data || [])
+        .filter(item => item.type === 'search_result')
+        .map(item => ({
+          title: (item.object?.title || '').replace(/<[^>]+>/g, ''),
+          type: item.object?.type || '',
+          author: item.object?.author?.name || '',
+          votes: item.object?.voteup_count || 0,
+        }));
+    })()`);
+    return (data as any[]).slice(0, kwargs.limit).map((item, i) => ({
+      rank: i + 1,
+      ...item,
+    }));
+  },
+});
 ```
 
-#### Tier 4 — Store Action Bridge（`tap` 步骤，intercept 策略推荐）
+#### Tier 4 — Store Action + Interceptor（intercept 策略）
 
-适用于 Vue + Pinia/Vuex 的网站（如小红书），无须手动写 XHR 拦截代码：
+适用于 Vue + Pinia/Vuex 的网站（如小红书），使用 `installInterceptor` 捕获 store action 触发的请求：
 
-```yaml
-# clis/xiaohongshu/notifications.yaml
-site: xiaohongshu
-name: notifications
-description: "小红书通知"
-domain: www.xiaohongshu.com
-strategy: intercept
-browser: true
+```typescript
+// clis/xiaohongshu/notifications.ts
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
-args:
-  type:
-    type: str
-    default: mentions
-    description: "Notification type: mentions, likes, or connections"
-  limit:
-    type: int
-    default: 20
+cli({
+  site: 'xiaohongshu',
+  name: 'notifications',
+  description: '小红书通知',
+  domain: 'www.xiaohongshu.com',
+  strategy: Strategy.INTERCEPT,
+  browser: true,
+  args: [
+    { name: 'type', type: 'str', default: 'mentions', help: 'Notification type: mentions, likes, or connections' },
+    { name: 'limit', type: 'int', default: 20 },
+  ],
+  columns: ['rank', 'user', 'action', 'content', 'note', 'time'],
+  func: async (page, kwargs) => {
+    await page.goto('https://www.xiaohongshu.com/notification');
+    await page.wait(3);
 
-columns: [rank, user, action, content, note, time]
+    // 安装拦截器捕获包含 '/you/' 的请求
+    await page.installInterceptor('/you/');
 
-pipeline:
-  - navigate: https://www.xiaohongshu.com/notification
-  - wait: 3
-  - tap:
-      store: notification       # Pinia store name
-      action: getNotification   # Store action to call
-      args:                     # Action arguments
-        - ${{ args.type | default('mentions') }}
-      capture: /you/            # URL pattern to capture response
-      select: data.message_list # Extract sub-path from response
-      timeout: 8
-  - map:
-      rank: ${{ index + 1 }}
-      user: ${{ item.user_info.nickname }}
-      action: ${{ item.title }}
-      content: ${{ item.comment_info.content }}
-  - limit: ${{ args.limit | default(20) }}
+    // 通过 Pinia store action 触发 API 请求
+    await page.evaluate(`(async () => {
+      const app = document.querySelector('#app')?.__vue_app__;
+      const pinia = app?.config?.globalProperties?.$pinia;
+      const store = pinia?._s?.get('notification');
+      if (store?.getNotification) {
+        await store.getNotification('${kwargs.type}');
+      }
+    })()`);
+
+    // 获取拦截的请求
+    const requests = await page.getInterceptedRequests();
+    if (!requests?.length) return [];
+
+    let results: any[] = [];
+    for (const req of requests) {
+      const items = req.data?.data?.message_list || [];
+      results.push(...items);
+    }
+
+    return results.slice(0, kwargs.limit).map((item, i) => ({
+      rank: i + 1,
+      user: item.user_info?.nickname || '',
+      action: item.title || '',
+      content: item.comment_info?.content || '',
+    }));
+  },
+});
 ```
 
-> **`tap` 步骤自动完成**：注入 fetch+XHR 双拦截 → 查找 Pinia/Vuex store → 调用 action → 捕获匹配 URL 的响应 → 清理拦截。  
-> 如果 store 或 action 找不到，会返回 `hint` 列出所有可用的 store actions，方便调试。
-
-| tap 参数 | 必填 | 说明 |
-|---------|------|------|
-| `store` | ✅ | Pinia store 名称（如 `feed`, `search`, `notification`） |
-| `action` | ✅ | Store action 方法名 |
-| `capture` | ✅ | URL 子串匹配（匹配网络请求 URL） |
-| `args` | ❌ | 传给 action 的参数数组 |
-| `select` | ❌ | 从 captured JSON 中提取的路径（如 `data.items`） |
-| `timeout` | ❌ | 等待网络响应的超时秒数（默认 5s） |
-| `framework` | ❌ | `pinia` 或 `vuex`（默认自动检测） |
-
-### 方式 B: TypeScript 适配器（编程式）
+### 方式 B: TypeScript 适配器（进阶模式）
 
 适用于需要嵌入 JS 代码读取 Pinia state、XHR 拦截、GraphQL、分页、复杂数据转换等场景。
 
@@ -547,7 +541,7 @@ cli({
 
 ## Step 4: 测试
 
-> **构建通过 ≠ 功能正常**。`npm run build` 只验证 TypeScript / YAML 语法，不验证运行时行为。  
+> **构建通过 ≠ 功能正常**。`npm run build` 只验证 TypeScript 语法，不验证运行时行为。  
 > 每个新命令 **必须实际运行** 并确认输出正确后才算完成。
 
 ### 必做清单
@@ -566,7 +560,7 @@ opencli mysite hot --limit 3 -f json   # JSON 输出确认字段完整
 
 ### tap 步骤调试（intercept 策略专用）
 
-> **不要猜 store name / action name**。先用 evaluate 探索，再写 YAML。
+> **不要猜 store name / action name**。先用 evaluate 探索，再写 TS 适配器。
 
 #### Step 1: 列出所有 Pinia store
 
@@ -601,8 +595,8 @@ opencli evaluate "(() => {
 
 ```
  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌────────┐
- │ 1. navigate  │ ──▶ │ 2. 探索 store │ ──▶ │ 3. 写 YAML   │ ──▶ │ 4. 测试 │
- │    到目标页面  │     │ name/action  │     │    tap 步骤   │     │ 运行验证 │
+ │ 1. navigate  │ ──▶ │ 2. 探索 store │ ──▶ │ 3. 写 TS      │ ──▶ │ 4. 测试 │
+ │    到目标页面  │     │ name/action  │     │  interceptor  │     │ 运行验证 │
  └──────────────┘     └──────────────┘     └──────────────┘     └────────┘
 ```
 
@@ -618,20 +612,20 @@ opencli mysite hot -f csv > data.csv       # 确认 CSV 可导入
 
 ## Step 5: 提交发布
 
-文件放入 `clis/<site>/` 即自动注册（YAML 或 TS 无需手动 import），然后：
+文件放入 `clis/<site>/` 即自动注册（TS 文件无需手动 import），然后：
 
 ```bash
 opencli list | grep mysite                            # 确认注册
 git add clis/mysite/ && git commit -m "feat(mysite): add hot" && git push
 ```
 
-> **架构理念**：OpenCLI 内建 **Zero-Dependency jq** 数据流 — 所有解析在 `evaluate` 的原生 JS 内完成，外层 YAML 用 `select`/`map` 提取，无需依赖系统 `jq` 二进制。
+> **架构理念**：OpenCLI 内建 **Zero-Dependency jq** 数据流 — 所有解析在 `evaluate` 的原生 JS 内完成，TS `func()` 内直接处理数据，无需依赖系统 `jq` 二进制。
 
 ---
 
 ## 进阶模式: 级联请求 (Cascading Requests)
 
-当目标数据需要多步 API 链式获取时（如 `BVID → CID → 字幕列表 → 字幕内容`），必须使用 **TS 适配器**。YAML 无法处理这种多步逻辑。
+当目标数据需要多步 API 链式获取时（如 `BVID → CID → 字幕列表 → 字幕内容`），在 TS `func()` 内按步骤串联即可。
 
 ### 模板代码
 
@@ -697,7 +691,7 @@ cli({
 
 | 陷阱 | 表现 | 解决方案 |
 |------|------|---------|
-| 缺少 `navigate` | evaluate 报 `Target page context` 错误 | 在 evaluate 前加 `navigate:` 步骤 |
+| 缺少 `navigate` | evaluate 报 `Target page context` 错误 | 在 evaluate 前加 `page.goto()` 步骤 |
 | 嵌套字段访问 | `${{ item.node?.title }}` 不工作 | 在 evaluate 中 flatten 数据，不在模板中用 optional chaining |
 | 缺少 `strategy: public` | 公开 API 也启动浏览器，7s → 1s | 公开 API 加上 `strategy: public` + `browser: false` |
 | evaluate 返回字符串 | map 步骤收到 `""` 而非数组 | pipeline 有 auto-parse，但建议在 evaluate 内 `.map()` 整形 |
@@ -706,7 +700,7 @@ cli({
 | Extension tab 残留 | Chrome 多出 `chrome-extension://` tab | 已自动清理；若残留，手动关闭即可 |
 | TS evaluate 格式 | `() => {}` 报 `result is not a function` | TS 中 `page.evaluate()` 必须用 IIFE：`(async () => { ... })()` |
 | 页面异步加载 | evaluate 拿到空数据（store state 还没更新） | 在 evaluate 内用 polling 等待数据出现，或增加 `wait` 时间 |
-| YAML 内嵌大段 JS | 调试困难，字符串转义问题 | 超过 10 行 JS 的命令改用 TS adapter |
+| evaluate 内嵌大段 JS | 调试困难，字符串转义问题 | 把逻辑放在 `func()` 内，用原生 TS 编写 |
 | **风控被拦截(伪200)** | 获取到的 JSON 里核心数据是 `""` (空串) | 极易被误判。必须添加断言！无核心数据立刻要求升级鉴权 Tier 并重新配置 Cookie |
 | **API 没找见** | `explore` 工具打分出来的都拿不到深层数据 | 点击页面按钮诱发懒加载数据，再结合 `getInterceptedRequests` 获取 |
 
@@ -723,11 +717,11 @@ opencli generate https://www.example.com --goal "hot"
 # 或分步执行：
 opencli explore https://www.example.com --site mysite           # 发现 API
 opencli explore https://www.example.com --auto --click "字幕,CC"  # 模拟点击触发懒加载 API
-opencli synthesize mysite                                        # 生成候选 YAML
+opencli synthesize mysite                                        # 生成候选 TS
 opencli verify mysite/hot --smoke                                # 冒烟测试
 ```
 
-生成的候选 YAML 保存在 `.opencli/explore/mysite/candidates/`，可直接复制到 `clis/mysite/` 并微调。
+生成的候选 TS 保存在 `.opencli/explore/mysite/candidates/`，可直接复制到 `clis/mysite/` 并微调。
 
 ## Record Workflow
 
@@ -741,7 +735,7 @@ opencli record <url>
   → 向所有 tab 注入 fetch/XHR 拦截器（幂等，可重复注入）
   → 每 2s 轮询一次：发现新 tab 自动注入，drain 所有 tab 的捕获缓冲区
   → 超时（默认 60s）或按 Enter 停止
-  → 分析捕获到的 JSON 请求：去重 → 评分 → 生成候选 YAML
+  → 分析捕获到的 JSON 请求：去重 → 评分 → 生成候选 TS
 ```
 
 **拦截器特性**：
@@ -765,7 +759,7 @@ opencli record "https://example.com/page" --timeout 120000
 
 # 4. 查看结果
 cat .opencli/record/<site>/captured.json        # 原始捕获
-ls  .opencli/record/<site>/candidates/          # 候选 YAML
+ls  .opencli/record/<site>/candidates/          # 候选 TS
 ```
 
 ### 页面类型与捕获预期
@@ -780,15 +774,16 @@ ls  .opencli/record/<site>/candidates/          # 候选 YAML
 > **注意**：如果页面在导航完成前就发出了大部分请求（服务端渲染 / SSR 注水），拦截器会错过这些请求。
 > 解决方案：在页面加载完成后，手动触发能产生新请求的操作（搜索、翻页、切 Tab、展开折叠项等）。
 
-### 候选 YAML → TS CLI 转换
+### 候选 TS 微调
 
-生成的候选 YAML 是起点，通常需要转换为 TypeScript（尤其是 tae 等内部系统）：
+生成的候选 TS 是起点，通常需要微调（尤其是 tae 等内部系统）：
 
-**候选 YAML 结构**（自动生成）：
-```yaml
-site: tae
-name: getList          # 从 URL path 推断的名称
-strategy: cookie
+**候选结构**（自动生成，可能需要调整）：
+```typescript
+// 自动生成的候选，需要微调
+// site: tae
+// name: getList          # 从 URL path 推断的名称
+// strategy: cookie
 browser: true
 pipeline:
   - navigate: https://...
@@ -848,6 +843,6 @@ cli({
 |------|------|------|
 | 捕获 0 条请求 | 拦截器注入失败，或页面无 JSON API | 检查 daemon 是否运行：`curl localhost:19825/status` |
 | 捕获量少（1~3 条） | 页面是只读详情页，首屏数据已在注入前发出 | 手动操作触发更多请求（搜索/翻页），或换用列表页 |
-| 候选 YAML 为 0 | 捕获到的 JSON 都没有 array 结构 | 直接看 `captured.json` 手写 TS CLI |
+| 候选 TS 为 0 | 捕获到的 JSON 都没有 array 结构 | 直接看 `captured.json` 手写 TS CLI |
 | 新开的 tab 没有被拦截 | 轮询间隔内 tab 已关闭 | 缩短 `--poll 500` |
 | 二次运行 record 时数据不连续 | 正常，每次 `record` 启动都是新的 automation window | 无需处理 |

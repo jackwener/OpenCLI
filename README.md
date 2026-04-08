@@ -1,20 +1,22 @@
 # OpenCLI
 
-> **Make any website, Electron App, or Local Tool your CLI.**
-> Zero risk · Reuse Chrome/Chromium login · AI-powered discovery · Universal CLI Hub
+> **Turn websites, browser sessions, Electron apps, and local tools into deterministic interfaces for humans and AI agents.**
+> Reuse your logged-in browser, automate live workflows, and crystallize repeated actions into reusable CLI commands.
 
 [![中文文档](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87-0F766E?style=flat-square)](./README.zh-CN.md)
 [![npm](https://img.shields.io/npm/v/@jackwener/opencli?style=flat-square)](https://www.npmjs.com/package/@jackwener/opencli)
 [![Node.js Version](https://img.shields.io/node/v/@jackwener/opencli?style=flat-square)](https://nodejs.org)
 [![License](https://img.shields.io/npm/l/@jackwener/opencli?style=flat-square)](./LICENSE)
 
-A CLI tool that turns **any website**, **Electron app**, or **local CLI tool** into a command-line interface — Bilibili, Zhihu, 小红书, Twitter/X, Reddit, YouTube, Antigravity, `gh`, `docker`, and [many more](#built-in-commands) — powered by browser session reuse and AI-native discovery.
+OpenCLI gives you one surface for three different kinds of automation:
 
-**Built for AI Agents** — Load the [`opencli-browser` skill](./skills/opencli-browser/SKILL.md) to give any AI agent (Claude Code, Cursor) direct browser control. Control any website, then crystallize those interactions into reusable CLI commands. Configure `opencli list` in your `AGENT.md` or `.cursorrules` so the AI auto-discovers all available tools.
+- **Use built-in adapters** for sites like Bilibili, Zhihu, Xiaohongshu, Reddit, HackerNews, Twitter/X, and [many more](#built-in-commands).
+- **Drive a live browser directly** with `opencli browser` when an AI agent needs to click, type, extract, or inspect a page in real time.
+- **Generate new adapters** from real browser behavior with `explore`, `synthesize`, `generate`, and `cascade`.
 
-**CLI Hub** — Register any local CLI (`opencli register mycli`) so AI agents can discover and call it alongside built-in commands. Auto-installs missing tools via your package manager (e.g. if `gh` isn't installed, `opencli gh ...` runs `brew install gh` first then re-executes seamlessly).
+It also works as a **CLI hub** for local tools such as `gh`, `docker`, and other binaries you register yourself, plus **desktop app adapters** for Electron apps like Cursor, Codex, Antigravity, ChatGPT, and Notion.
 
-**CLI for Electron Apps** — Turn any Electron application into a CLI tool. Recombine, script, and extend apps like Antigravity Ultra from the terminal. AI agents can now control other AI apps natively.
+## Why OpenCLI
 
 ---
 
@@ -28,7 +30,7 @@ A CLI tool that turns **any website**, **Electron app**, or **local CLI tool** i
 - **AI Agent ready** — `explore` discovers APIs, `synthesize` generates adapters, `cascade` finds auth strategies, `browser` controls the browser directly.
 - **External CLI Hub** — Discover, auto-install, and passthrough commands to any external CLI (gh, obsidian, docker, etc). Zero setup.
 - **Self-healing setup** — `opencli doctor` diagnoses and auto-starts the daemon, extension, and live browser connectivity.
-- **Dynamic Loader** — Simply drop `.ts` or `.yaml` adapters into the `clis/` folder for auto-registration.
+- **Dynamic Loader** — Simply drop `.ts` adapters into the `clis/` folder for auto-registration.
 - **Zero LLM cost** — No tokens consumed at runtime. Run 10,000 times and pay nothing.
 - **Deterministic** — Same command, same output schema, every time. Pipeable, scriptable, CI-friendly.
 - **Broad coverage** — 79+ sites across global and Chinese platforms (Bilibili, Zhihu, Xiaohongshu, Reddit, HackerNews, and more), plus desktop Electron apps via CDP.
@@ -37,90 +39,132 @@ A CLI tool that turns **any website**, **Electron app**, or **local CLI tool** i
 
 ## Quick Start
 
-### 1. Install Browser Bridge Extension
-
-> OpenCLI connects to your browser through a lightweight **Browser Bridge** Chrome/Chromium extension + micro-daemon (zero config, auto-start).
-
-1. Go to the GitHub [Releases page](https://github.com/jackwener/opencli/releases) and download the latest `opencli-extension.zip`.
-2. Unzip the file and open `chrome://extensions`, enable **Developer mode** (top-right toggle).
-3. Click **Load unpacked** and select the unzipped folder.
-
-### 2. Install OpenCLI
-
-**Install via npm (recommended)**
+### 1. Install OpenCLI
 
 ```bash
 npm install -g @jackwener/opencli
+```
 
-# Install AI skills for Claude Code / Cursor
+### 2. Install the Browser Bridge Extension
+
+OpenCLI connects to Chrome/Chromium through a lightweight Browser Bridge extension plus a small local daemon. The daemon auto-starts when needed.
+
+1. Download the latest `opencli-extension.zip` from the GitHub [Releases page](https://github.com/jackwener/opencli/releases).
+2. Unzip it, open `chrome://extensions`, and enable **Developer mode**.
+3. Click **Load unpacked** and select the unzipped folder.
+
+### 3. Verify the setup
+
+```bash
+opencli doctor
+opencli daemon status
+```
+
+### 4. Run your first commands
+
+```bash
+opencli list
+opencli hackernews top --limit 5
+opencli bilibili hot --limit 5
+```
+
+## For Humans
+
+Use OpenCLI directly when you want a reliable command instead of a live browser session:
+
+- `opencli list` shows every registered command.
+- `opencli <site> <command>` runs a built-in or generated adapter.
+- `opencli register mycli` exposes a local CLI through the same discovery surface.
+- `opencli daemon status` and `opencli doctor` help diagnose browser connectivity.
+
+## For AI Agents
+
+Use two different entry points depending on the task:
+
+- [`skills/opencli-generate/SKILL.md`](./skills/opencli-generate/SKILL.md): the task-level entry point for requests like "generate a CLI for this site".
+- [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md): the low-level control surface for live browsing, debugging, and manual intervention.
+
+Install the packaged skills with:
+
+```bash
 npx skills add jackwener/opencli
 ```
 
-### 3. Verify & Try
+Or install only what you need:
 
 ```bash
-opencli doctor          # Check extension + daemon connectivity
-opencli daemon status   # Check daemon state (PID, uptime, memory)
+npx skills add jackwener/opencli --skill opencli-usage
+npx skills add jackwener/opencli --skill opencli-generate
+npx skills add jackwener/opencli --skill opencli-browser
+npx skills add jackwener/opencli --skill opencli-explorer
+npx skills add jackwener/opencli --skill opencli-oneshot
 ```
 
-**Try it out:**
+In practice:
 
-```bash
-opencli list                           # See all commands
-opencli hackernews top --limit 5       # Public API, no browser needed
-opencli bilibili hot --limit 5         # Browser command (requires Extension)
-```
+- start with `opencli-generate` when the agent needs a reusable command for a site
+- use `opencli-browser` when the agent needs to inspect or steer the page directly
 
-### 4. Browser Automation — Make Websites Accessible for AI Agents
+Available browser commands include `open`, `state`, `click`, `type`, `select`, `keys`, `wait`, `get`, `screenshot`, `scroll`, `back`, `eval`, `network`, `init`, `verify`, and `close`.
 
-Point your AI agent (Claude Code, Cursor) to [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md). It has everything needed — full command reference, examples, and workflow.
+## Core Concepts
 
-Available commands: `open`, `state`, `click`, `type`, `select`, `keys`, `wait`, `get`, `screenshot`, `scroll`, `back`, `eval`, `network`, `init`, `verify`, `close`.
+### `browser`: live control
 
-### Update
+Use `opencli browser` when the task is inherently interactive and the agent needs to operate the page directly.
+
+### Built-in adapters: stable commands
+
+Use site-specific commands such as `opencli hackernews top` or `opencli reddit hot` when the capability already exists and you want deterministic output.
+
+### `explore` / `synthesize` / `generate`: create new CLIs
+
+Use these commands when the site you need is not covered yet:
+
+- `explore` inspects the page, network activity, and capability surface.
+- `synthesize` turns exploration artifacts into evaluate-based YAML adapters.
+- `generate` runs the verified generation path and returns either a usable command or a structured explanation of why completion was blocked or needs human review.
+
+### `cascade`: auth strategy discovery
+
+Use `cascade` to probe fallback auth paths such as public endpoints, cookies, and custom headers before you commit to an adapter design.
+
+### CLI Hub and desktop adapters
+
+OpenCLI is not only for websites. It can also:
+
+- expose local binaries like `gh`, `docker`, `obsidian`, or custom tools through `opencli <tool> ...`
+- control Electron desktop apps through dedicated adapters and CDP-backed integrations
+
+## Prerequisites
+
+- **Node.js**: >= 20.0.0 (or **Bun** >= 1.0)
+- **Chrome or Chromium** running and logged into the target site for browser-backed commands
+
+> **Important**: Browser-backed commands reuse your Chrome/Chromium login session. If you get empty data or permission-like failures, first confirm the site is already open and authenticated in Chrome/Chromium.
+
+## Update
 
 ```bash
 npm install -g @jackwener/opencli@latest
 ```
 
-### Install AI Skills
+## For Developers
 
-OpenCLI provides [skills](./skills/) for AI agents (Claude Code, etc.):
-
-```bash
-# Install all OpenCLI skills
-npx skills add jackwener/opencli
-
-# Or install specific skills
-npx skills add jackwener/opencli --skill opencli-usage      # Command reference
-npx skills add jackwener/opencli --skill opencli-browser     # Browser automation for AI agents
-npx skills add jackwener/opencli --skill opencli-explorer    # Adapter development guide
-npx skills add jackwener/opencli --skill opencli-oneshot     # Quick command reference
-```
-
----
-
-### For Developers
-
-**Install from source**
+Install from source:
 
 ```bash
-git clone git@github.com:jackwener/opencli.git && cd opencli && npm install && npm run build && npm link
+git clone git@github.com:jackwener/opencli.git
+cd opencli
+npm install
+npm run build
+npm link
 ```
 
-**Load Source Browser Bridge Extension**
+To load the source Browser Bridge extension:
 
-1. Open `chrome://extensions` and enable **Developer mode** (top-right toggle).
-2. Click **Load unpacked** and select the `extension/` directory from this repository.
-
----
-
-## Prerequisites
-
-- **Node.js**: >= 20.0.0 (or **Bun** >= 1.0)
-- **Chrome or Chromium** running **and logged into the target site** (e.g. bilibili.com, zhihu.com, xiaohongshu.com, goofish.com).
-
-> **⚠️ Important**: Browser commands reuse your Chrome/Chromium login session. You must be logged into the target website in Chrome or Chromium before running commands. If you get empty data or errors, check your login status first.
+1. Open `chrome://extensions` and enable **Developer mode**.
+2. Click **Load unpacked** and select this repository's `extension/` directory.
 
 ## Built-in Commands
 
@@ -251,9 +295,9 @@ opencli plugin uninstall my-tool
 
 | Plugin | Type | Description |
 |--------|------|-------------|
-| [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | YAML | GitHub Trending repositories |
+| [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | TS | GitHub Trending repositories |
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | TS | Multi-platform trending aggregator |
-| [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | YAML | 稀土掘金 (Juejin) hot articles |
+| [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | TS | 稀土掘金 (Juejin) hot articles |
 | [opencli-plugin-vk](https://github.com/flobo3/opencli-plugin-vk) | TS | VK (VKontakte) wall, feed, and search |
 
 See [Plugins Guide](./docs/guide/plugins.md) for creating your own plugin.
@@ -266,7 +310,7 @@ See [Plugins Guide](./docs/guide/plugins.md) for creating your own plugin.
 
 ```bash
 opencli explore https://example.com --site mysite   # Discover APIs + capabilities
-opencli synthesize mysite                            # Generate YAML adapters
+opencli synthesize mysite                            # Generate TS adapters
 opencli generate https://example.com --goal "hot"   # One-shot: explore → synthesize → register
 opencli cascade https://api.example.com/data         # Auto-probe: PUBLIC → COOKIE → HEADER
 ```

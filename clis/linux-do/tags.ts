@@ -1,0 +1,40 @@
+import { cli, Strategy } from '@jackwener/opencli/registry';
+
+cli({
+  site: 'linux-do',
+  name: 'tags',
+  description: 'linux.do 标签列表',
+  domain: 'linux.do',
+  strategy: Strategy.COOKIE,
+  browser: true,
+  args: [
+    { name: 'limit', type: 'int', default: 30, help: 'Number of tags' },
+  ],
+  columns: ['rank', 'name', 'count', 'url'],
+  pipeline: [
+    { navigate: 'https://linux.do' },
+    { evaluate: `(async () => {
+  const res = await fetch('/tags.json', { credentials: 'include' });
+  if (!res.ok) throw new Error('HTTP ' + res.status + ' - 请先登录 linux.do');
+  let data;
+  try { data = await res.json(); } catch { throw new Error('响应不是有效 JSON - 请先登录 linux.do'); }
+  let tags = data?.tags || [];
+  tags.sort((a, b) => (b.count || 0) - (a.count || 0));
+  return tags.slice(0, \${{ args.limit }}).map(t => ({
+    id: t.id,
+    name: t.name || t.id,
+    slug: t.slug,
+    count: t.count || 0,
+  }));
+})()
+` },
+    { map: {
+        rank: '${{ index + 1 }}',
+        name: '${{ item.name }}',
+        count: '${{ item.count }}',
+        slug: '${{ item.slug }}',
+        id: '${{ item.id }}',
+        url: 'https://linux.do/tag/${{ item.slug }}',
+      } },
+  ],
+});

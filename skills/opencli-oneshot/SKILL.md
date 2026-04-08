@@ -1,7 +1,7 @@
 ---
 name: opencli-oneshot
-description: Use when quickly generating a single OpenCLI command from a specific URL and goal description. 4-step process — open page, capture API, write YAML adapter, test. For full site exploration, use opencli-explorer instead.
-tags: [opencli, adapter, quick-start, yaml, cli, one-shot, automation]
+description: Use when quickly generating a single OpenCLI command from a specific URL and goal description. 4-step process — open page, capture API, write TS adapter, test. For full site exploration, use opencli-explorer instead.
+tags: [opencli, adapter, quick-start, ts, cli, one-shot, automation]
 ---
 
 # CLI-ONESHOT — 单点快速 CLI 生成
@@ -60,8 +60,8 @@ fetch('/api/endpoint', {
 }).then(r => r.json())
 ```
 
-如果 fetch 能拿到数据 → 用 YAML 或简单 TS adapter。
-如果 fetch 拿不到（签名/风控）→ 用 intercept 策略。
+如果 fetch 能拿到数据 → 用 TS adapter（`cli()` pipeline 或 `func()`）。
+如果 fetch 拿不到（签名/风控）→ 用 intercept 策略（TS `func()` + `installInterceptor`）。
 
 ### Step 4: 套模板，生成 adapter
 
@@ -72,52 +72,50 @@ fetch('/api/endpoint', {
 ## 认证速查
 
 ```
-fetch(url) 直接能拿到？              → Tier 1: public   (YAML, browser: false)
-fetch(url, {credentials:'include'})？ → Tier 2: cookie   (YAML)
-加 Bearer/CSRF header 后拿到？        → Tier 3: header   (TS)
-都不行，但页面自己能请求成功？          → Tier 4: intercept (TS, installInterceptor)
+fetch(url) 直接能拿到？              → Tier 1: public   (TS pipeline, browser: false)
+fetch(url, {credentials:'include'})？ → Tier 2: cookie   (TS pipeline 或 func())
+加 Bearer/CSRF header 后拿到？        → Tier 3: header   (TS func())
+都不行，但页面自己能请求成功？          → Tier 4: intercept (TS func(), installInterceptor)
 ```
 
 ---
 
 ## 模板
 
-### YAML — Cookie/Public（最简）
+### TS — Cookie/Public（最简，`func()` 模式）
 
-```yaml
-# clis/<site>/<name>.yaml
-site: mysite
-name: mycommand
-description: "一句话描述"
-domain: www.example.com
-strategy: cookie          # 或 public (加 browser: false)
+```typescript
+// clis/<site>/<name>.ts
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
-args:
-  limit:
-    type: int
-    default: 20
-
-pipeline:
-  - navigate: https://www.example.com/target-page
-
-  - evaluate: |
-      (async () => {
-        const res = await fetch('/api/target', { credentials: 'include' });
-        const d = await res.json();
-        return (d.data?.items || []).map(item => ({
-          title: item.title,
-          value: item.value,
-        }));
-      })()
-
-  - map:
-      rank: ${{ index + 1 }}
-      title: ${{ item.title }}
-      value: ${{ item.value }}
-
-  - limit: ${{ args.limit }}
-
-columns: [rank, title, value]
+cli({
+  site: 'mysite',
+  name: 'mycommand',
+  description: '一句话描述',
+  domain: 'www.example.com',
+  strategy: Strategy.COOKIE,   // 或 Strategy.PUBLIC (加 browser: false)
+  browser: true,
+  args: [
+    { name: 'limit', type: 'int', default: 20 },
+  ],
+  columns: ['rank', 'title', 'value'],
+  func: async (page, kwargs) => {
+    await page.goto('https://www.example.com/target-page');
+    const data = await page.evaluate(`(async () => {
+      const res = await fetch('/api/target', { credentials: 'include' });
+      const d = await res.json();
+      return (d.data?.items || []).map(item => ({
+        title: item.title,
+        value: item.value,
+      }));
+    })()`);
+    return (data as any[]).slice(0, kwargs.limit).map((item, i) => ({
+      rank: i + 1,
+      title: item.title || '',
+      value: item.value || '',
+    }));
+  },
+});
 ```
 
 ### TS — Intercept（抓包模式）

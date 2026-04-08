@@ -15,14 +15,13 @@ describe('mapOutcomeToSkillOutput', () => {
 
   it('maps success outcome correctly', () => {
     const outcome: GenerateOutcome = {
-      version: 1,
       status: 'success',
       adapter: {
         site: 'demo',
         name: 'hot',
         command: 'demo/hot',
         strategy: Strategy.PUBLIC,
-        path: '/tmp/demo/hot.yaml',
+        path: '/tmp/demo/hot.verified.ts',
         metadata_path: '/tmp/demo/hot.meta.json',
         reusability: 'verified-artifact',
       },
@@ -36,7 +35,7 @@ describe('mapOutcomeToSkillOutput', () => {
     expect(result.reusability).toBe('verified-artifact');
     expect(result.command).toBe('demo/hot');
     expect(result.strategy).toBe('public');
-    expect(result.path).toBe('/tmp/demo/hot.yaml');
+    expect(result.path).toBe('/tmp/demo/hot.verified.ts');
     expect(result.message).toContain('demo/hot');
     expect(result.reason).toBeUndefined();
     expect(result.suggested_action).toBeUndefined();
@@ -44,7 +43,6 @@ describe('mapOutcomeToSkillOutput', () => {
 
   it('maps blocked outcome with no-viable-api-surface', () => {
     const outcome: GenerateOutcome = {
-      version: 1,
       status: 'blocked',
       reason: 'no-viable-api-surface',
       stage: 'explore',
@@ -64,7 +62,6 @@ describe('mapOutcomeToSkillOutput', () => {
 
   it('maps blocked outcome with auth-too-complex', () => {
     const outcome: GenerateOutcome = {
-      version: 1,
       status: 'blocked',
       reason: 'auth-too-complex',
       stage: 'cascade',
@@ -81,7 +78,6 @@ describe('mapOutcomeToSkillOutput', () => {
 
   it('maps blocked outcome with execution-environment-unavailable', () => {
     const outcome: GenerateOutcome = {
-      version: 1,
       status: 'blocked',
       reason: 'execution-environment-unavailable',
       stage: 'verify',
@@ -98,7 +94,6 @@ describe('mapOutcomeToSkillOutput', () => {
 
   it('maps needs-human-check with unsupported-required-args', () => {
     const outcome: GenerateOutcome = {
-      version: 1,
       status: 'needs-human-check',
       escalation: {
         stage: 'synthesize',
@@ -108,7 +103,7 @@ describe('mapOutcomeToSkillOutput', () => {
         candidate: {
           name: 'detail',
           command: 'demo/detail',
-          path: '/tmp/demo/detail.yaml',
+          path: '/tmp/demo/detail.verified.ts',
           reusability: 'unverified-candidate',
         },
       },
@@ -123,13 +118,12 @@ describe('mapOutcomeToSkillOutput', () => {
     expect(result.reason).toBe('unsupported-required-args');
     expect(result.suggested_action).toBe('ask-for-sample-arg');
     expect(result.reusability).toBe('unverified-candidate');
-    expect(result.path).toBe('/tmp/demo/detail.yaml');
+    expect(result.path).toBe('/tmp/demo/detail.verified.ts');
     expect(result.message).toContain('required args: id');
   });
 
   it('maps needs-human-check with empty-result (inspect-with-browser)', () => {
     const outcome: GenerateOutcome = {
-      version: 1,
       status: 'needs-human-check',
       escalation: {
         stage: 'fallback',
@@ -158,7 +152,6 @@ describe('mapOutcomeToSkillOutput', () => {
 
   it('maps needs-human-check with verify-inconclusive and path', () => {
     const outcome: GenerateOutcome = {
-      version: 1,
       status: 'needs-human-check',
       escalation: {
         stage: 'verify',
@@ -168,7 +161,7 @@ describe('mapOutcomeToSkillOutput', () => {
         candidate: {
           name: 'hot',
           command: 'demo/hot',
-          path: '/tmp/demo/hot.yaml',
+          path: '/tmp/demo/hot.verified.ts',
           reusability: 'unverified-candidate',
         },
       },
@@ -181,13 +174,12 @@ describe('mapOutcomeToSkillOutput', () => {
     expect(result.conclusion).toBe('needs-human-check');
     expect(result.reason).toBe('verify-inconclusive');
     expect(result.suggested_action).toBe('manual-review');
-    expect(result.path).toBe('/tmp/demo/hot.yaml');
-    expect(result.message).toContain('/tmp/demo/hot.yaml');
+    expect(result.path).toBe('/tmp/demo/hot.verified.ts');
+    expect(result.message).toContain('/tmp/demo/hot.verified.ts');
   });
 
   it('output satisfies SkillOutput contract shape', () => {
     const outcome: GenerateOutcome = {
-      version: 1,
       status: 'blocked',
       reason: 'no-viable-candidate',
       stage: 'synthesize',

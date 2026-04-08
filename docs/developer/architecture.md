@@ -1,6 +1,6 @@
 # Architecture
 
-OpenCLI is built on a **Dual-Engine Architecture** that supports both declarative YAML pipelines and programmatic TypeScript adapters.
+OpenCLI is built on a **Dual-Engine Architecture** that supports both declarative pipelines and programmatic TypeScript adapters.
 
 ## High-Level Architecture
 
@@ -17,7 +17,7 @@ OpenCLI is built on a **Dual-Engine Architecture** that supports both declarativ
 ├─────────────────────────────────────────────────────┤
 │                 Adapter Layer                         │
 │  ┌─────────────────┐  ┌──────────────────────────┐  │
-│  │  YAML Pipeline  │  │  TypeScript Adapters     │  │
+│  │    Pipeline     │  │  TypeScript Adapters     │  │
 │  │  (declarative)  │  │  (browser/desktop/AI)    │  │
 │  └─────────────────┘  └──────────────────────────┘  │
 ├─────────────────────────────────────────────────────┤
@@ -35,7 +35,7 @@ OpenCLI is built on a **Dual-Engine Architecture** that supports both declarativ
 Central command registry. All adapters register their commands via the `cli()` function with metadata: site, name, description, domain, strategy, args, columns.
 
 ### Discovery (`src/discovery.ts`)
-CLI discovery and manifest loading. Discovers commands from YAML and TypeScript adapter files, parses YAML pipelines, and registers them into the central registry.
+CLI discovery and manifest loading. Discovers commands from TypeScript adapter files, parses pipelines, and registers them into the central registry.
 
 ### Execution (`src/execution.ts`)
 Command execution: argument validation, lazy loading of adapter modules, and executing the appropriate handler function.
@@ -47,7 +47,7 @@ Bridges the Registry commands to Commander.js subcommands. Handles positional ar
 Manages connections to Chrome via the Browser Bridge WebSocket daemon. Handles JSON-RPC messaging, tab management, and extension/standalone mode switching.
 
 ### Pipeline (`src/pipeline/`)
-The YAML pipeline engine. Processes declarative steps:
+The pipeline engine. Processes declarative steps:
 - **fetch** — HTTP requests with cookie/header strategies
 - **map** — Data transformation with template expressions
 - **limit** — Result truncation
@@ -76,7 +76,7 @@ src/
 ├── main.ts              # Entry point
 ├── cli.ts               # Commander.js CLI setup + built-in commands
 ├── commanderAdapter.ts  # Registry → Commander bridge
-├── discovery.ts         # CLI discovery, manifest loading, YAML parsing
+├── discovery.ts         # CLI discovery, manifest loading
 ├── execution.ts         # Arg validation, command execution
 ├── registry.ts          # Command registry
 ├── serialization.ts     # Command serialization helpers
@@ -84,7 +84,7 @@ src/
 ├── browser/             # Browser Bridge connection
 ├── output.ts            # Output formatting
 ├── doctor.ts            # Diagnostic tool
-├── pipeline/            # YAML pipeline engine
+├── pipeline/            # Pipeline engine
 │   ├── runner.ts
 │   ├── template.ts
 │   ├── transform.ts

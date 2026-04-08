@@ -3,17 +3,13 @@
  * Facebook search must navigate in the pipeline before DOM extraction.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import yaml from 'js-yaml';
 import { describe, expect, it, vi } from 'vitest';
+import { getRegistry } from '@jackwener/opencli/registry';
 import { executePipeline } from '@jackwener/opencli/pipeline';
 import type { IPage } from '@jackwener/opencli/types';
 
-interface YamlCommand {
-  pipeline?: Array<Record<string, unknown>>;
-}
+// Import the adapter to register it
+import './search.js';
 
 /**
  * Minimal browser mock for pipeline execution tests.
@@ -46,11 +42,9 @@ function createMockPage(): IPage {
 
 describe('facebook search pipeline', () => {
   it('navigates to search results before extracting DOM data', async () => {
-    // Load the YAML adapter directly so the regression test covers the shipped command definition.
-    const filePath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'search.yaml');
-    const raw = fs.readFileSync(filePath, 'utf8');
-    const command = yaml.load(raw) as YamlCommand;
-    const pipeline = command.pipeline ?? [];
+    const cmd = getRegistry().get('facebook/search');
+    expect(cmd).toBeDefined();
+    const pipeline = cmd!.pipeline ?? [];
     const page = createMockPage();
 
     await executePipeline(page, pipeline, {

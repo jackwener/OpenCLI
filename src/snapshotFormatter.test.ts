@@ -174,8 +174,8 @@ describe('formatSnapshot', () => {
   describe('basic behavior', () => {
     it('returns empty string for empty/null input', () => {
       expect(formatSnapshot('')).toBe('');
-      expect(formatSnapshot(null as any)).toBe('');
-      expect(formatSnapshot(undefined as any)).toBe('');
+      expect(formatSnapshot(null as unknown as string)).toBe('');
+      expect(formatSnapshot(undefined as unknown as string)).toBe('');
     });
 
     it('strips [ref=...] and [cursor=...] annotations', () => {

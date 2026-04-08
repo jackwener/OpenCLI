@@ -13,15 +13,30 @@ import type { IPage } from '../../types.js';
 import { render } from '../template.js';
 import { generateTapInterceptorJs } from '../../interceptor.js';
 
-export async function stepTap(page: IPage | null, params: any, data: any, args: Record<string, any>): Promise<any> {
-  const cfg = typeof params === 'object' ? params : {};
+interface TapParams {
+  store?: string;
+  action?: string;
+  capture?: string;
+  timeout?: number;
+  select?: string;
+  framework?: string | null;
+  args?: unknown[];
+}
+
+export async function stepTap(
+  page: IPage | null,
+  params: unknown,
+  data: unknown,
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  const cfg: TapParams = typeof params === 'object' && params !== null ? (params as TapParams) : {};
   const storeName = String(render(cfg.store ?? '', { args, data }));
   const actionName = String(render(cfg.action ?? '', { args, data }));
   const capturePattern = String(render(cfg.capture ?? '', { args, data }));
   const timeout = cfg.timeout ?? 5;
   const selectPath = cfg.select ? String(render(cfg.select, { args, data })) : null;
   const framework = cfg.framework ?? null;
-  const actionArgs = cfg.args ?? [];
+  const actionArgs: unknown[] = cfg.args ?? [];
 
   if (!storeName || !actionName) throw new Error('tap: store and action are required');
 
@@ -31,7 +46,7 @@ export async function stepTap(page: IPage | null, params: any, data: any, args: 
     : '';
 
   // Serialize action arguments
-  const actionArgsRendered = actionArgs.map((a: any) => {
+  const actionArgsRendered = actionArgs.map((a) => {
     const rendered = render(a, { args, data });
     return JSON.stringify(rendered);
   });

@@ -8,13 +8,17 @@
 
 export type Runtime = 'bun' | 'node';
 
+/** Shape of `globalThis` when running under Bun. */
+interface BunGlobal {
+  Bun?: { version: string };
+}
+
 /**
  * Detect the current JavaScript runtime.
  */
 export function detectRuntime(): Runtime {
   // Bun always exposes globalThis.Bun (including Bun.version)
-  if (typeof (globalThis as any).Bun !== 'undefined') return 'bun';
-  return 'node';
+  return (globalThis as BunGlobal).Bun !== undefined ? 'bun' : 'node';
 }
 
 /**
@@ -22,10 +26,8 @@ export function detectRuntime(): Runtime {
  * Examples: "v22.13.0" (Node), "1.1.42" (Bun)
  */
 export function getRuntimeVersion(): string {
-  if (detectRuntime() === 'bun') {
-    return (globalThis as any).Bun.version as string;
-  }
-  return process.version; // e.g. "v22.13.0"
+  const bun = (globalThis as BunGlobal).Bun;
+  return bun ? bun.version : process.version;
 }
 
 /**

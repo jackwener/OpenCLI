@@ -132,10 +132,9 @@ npx vitest src/
 
 ## 如何添加新测试
 
-### 新增 YAML Adapter（如 `clis/producthunt/trending.yaml`）
+### 新增 Adapter（如 `clis/producthunt/trending.ts`）
 
-1. `opencli validate` 的 E2E / smoke 测试会覆盖 adapter 结构校验
-2. 根据 adapter 类型，在对应测试文件补一个 `it()` block
+1. 根据 adapter 类型，在对应测试文件补一个 `it()` block
 
 ```typescript
 // 如果 browser: false（公开 API）→ tests/e2e/public-commands.test.ts

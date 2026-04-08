@@ -41,7 +41,7 @@ describe('executePipeline', () => {
   });
 
   it('skips null/invalid steps', async () => {
-    const result = await executePipeline(null, [null, undefined, 42] as any);
+    const result = await executePipeline(null, [null, undefined, 42]);
     expect(result).toBeNull();
   });
 

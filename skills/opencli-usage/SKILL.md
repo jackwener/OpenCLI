@@ -163,6 +163,6 @@ If a command fails due to a site change (selector, API, or response schema), **a
 ## Related Skills
 
 - **opencli-browser** — Browser automation for AI agents (navigate, click, type, extract via Chrome)
-- **opencli-explorer** — Full guide for creating new adapters (API discovery, auth strategy, YAML/TS writing)
+- **opencli-explorer** — Full guide for creating new adapters (API discovery, auth strategy, TS writing)
 - **opencli-oneshot** — Quick 4-step template for adding a single command from a URL
 - **opencli-autofix** — Automatically fix broken adapters when commands fail

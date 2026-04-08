@@ -54,7 +54,7 @@ interface SkillOutput {
   // Structured data
   command?: string;      // e.g. "demo/hot"
   strategy?: string;     // "public" | "cookie"
-  path?: string;         // YAML artifact path
+  path?: string;         // TS artifact path
 
   // Human-readable summary (agent can relay to user directly)
   message: string;

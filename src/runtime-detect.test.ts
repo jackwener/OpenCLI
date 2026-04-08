@@ -19,7 +19,7 @@ describe('runtime-detect', () => {
   });
 
   it('detects the current environment correctly', () => {
-    const isBun = typeof (globalThis as any).Bun !== 'undefined';
+    const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
     const rt = detectRuntime();
     if (isBun) {
       expect(rt).toBe('bun');

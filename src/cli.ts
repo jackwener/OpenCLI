@@ -298,7 +298,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         const page = await getBrowserPage();
         await fn(page, ...args);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = getErrorMessage(err);
         if (msg.includes('Extension not connected') || msg.includes('Daemon')) {
           console.error(`Browser not connected. Run 'opencli doctor' to diagnose.`);
         } else if (msg.includes('attach failed') || msg.includes('chrome-extension://')) {
@@ -693,10 +693,12 @@ cli({
           console.log(`  Executing: opencli ${site} ${command}${limitFlag}\n`);
           console.log(output);
           console.log(`\n  ✓ Adapter works!`);
-        } catch (err: any) {
+        } catch (err) {
           console.log(`  Executing: opencli ${site} ${command}${limitFlag}\n`);
-          if (err.stdout) console.log(err.stdout);
-          if (err.stderr) console.error(err.stderr.slice(0, 500));
+          // execFileSync attaches captured stdout/stderr on its thrown Error.
+          const execErr = err as { stdout?: string | Buffer; stderr?: string | Buffer };
+          if (execErr.stdout) console.log(String(execErr.stdout));
+          if (execErr.stderr) console.error(String(execErr.stderr).slice(0, 500));
           console.log(`\n  ✗ Adapter failed. Fix the code and try again.`);
           process.exitCode = EXIT_CODES.GENERIC_ERROR;
         }

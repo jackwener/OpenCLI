@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { cli, getRegistry, Strategy } from './registry.js';
-import { loadTsManifestEntries, shouldReplaceManifestEntry } from './build-manifest.js';
+import { loadTsManifestEntries } from './build-manifest.js';
 
 describe('manifest helper rules', () => {
   const tempDirs: string[] = [];
@@ -12,52 +12,6 @@ describe('manifest helper rules', () => {
     for (const dir of tempDirs.splice(0)) {
       fs.rmSync(dir, { recursive: true, force: true });
     }
-  });
-
-  it('prefers TS adapters over duplicate YAML adapters', () => {
-    expect(shouldReplaceManifestEntry(
-      {
-        site: 'demo',
-        name: 'search',
-        description: 'yaml',
-        strategy: 'public',
-        browser: false,
-        args: [],
-        type: 'yaml',
-      },
-      {
-        site: 'demo',
-        name: 'search',
-        description: 'ts',
-        strategy: 'public',
-        browser: false,
-        args: [],
-        type: 'ts',
-        modulePath: 'demo/search.js',
-      },
-    )).toBe(true);
-
-    expect(shouldReplaceManifestEntry(
-      {
-        site: 'demo',
-        name: 'search',
-        description: 'ts',
-        strategy: 'public',
-        browser: false,
-        args: [],
-        type: 'ts',
-        modulePath: 'demo/search.js',
-      },
-      {
-        site: 'demo',
-        name: 'search',
-        description: 'yaml',
-        strategy: 'public',
-        browser: false,
-        args: [],
-        type: 'yaml',
-      },
-    )).toBe(false);
   });
 
   it('skips TS files that do not register a cli', () => {

@@ -1,60 +1,60 @@
 # OpenCLI
 
-> **把任何网站、本地工具、Electron 应用变成能够让 AI 调用的命令行！**  
-> 零风控 · 复用 Chrome/Chromium 登录 · AI 自动发现接口 · 全能 CLI 枢纽
+> **把网站、浏览器会话、Electron 应用和本地工具，统一变成适合人类与 AI Agent 使用的确定性接口。**  
+> 复用浏览器登录态，先自动化真实操作，再把高频流程沉淀成可复用的 CLI 命令。
 
 [![English](https://img.shields.io/badge/docs-English-1D4ED8?style=flat-square)](./README.md)
 [![npm](https://img.shields.io/npm/v/@jackwener/opencli?style=flat-square)](https://www.npmjs.com/package/@jackwener/opencli)
 [![Node.js Version](https://img.shields.io/node/v/@jackwener/opencli?style=flat-square)](https://nodejs.org)
 [![License](https://img.shields.io/npm/l/@jackwener/opencli?style=flat-square)](./LICENSE)
 
-OpenCLI 将任何网站、本地 CLI 或 Electron 应用（如 Antigravity）变成命令行工具 — B站、知乎、小红书、Twitter/X、Reddit、YouTube，以及 `gh`、`docker` 等[多种站点与工具](#内置命令) — 复用浏览器登录态，AI 驱动探索。
+OpenCLI 可以用同一套 CLI 做三类事情：
 
-**专为 AI Agent 打造**：加载 [`opencli-browser` skill](./skills/opencli-browser/SKILL.md)，赋予 AI Agent（Claude Code、Cursor 等）直接操控浏览器的能力——操作任意网站，并将这些交互沉淀为可复用的 CLI 命令。在 `AGENT.md` 或 `.cursorrules` 中配置 `opencli list`，AI 即可自动发现并调用所有可用工具。
+- **直接使用现成适配器**：B站、知乎、小红书、Twitter/X、Reddit、HackerNews 等 [79+ 站点](#内置命令) 开箱即用。
+- **直接驱动浏览器**：用 `opencli browser` 让 AI Agent 实时点击、输入、提取、截图、检查页面状态。
+- **把新网站生成成 CLI**：通过 `explore`、`synthesize`、`generate`、`cascade` 从真实页面行为推导出新的适配器。
 
-**opencli 支持 CLI 化所有 electron 应用！最强大更新来袭！**
-CLI all electron！现在支持把所有 electron 应用 CLI 化，从而组合出各种神奇的能力。
-如果你在使用诸如 Antigravity Ultra 等工具时觉得不够灵活或难以扩展，现在通过 OpenCLI 把他 CLI 化，轻松打破界限。
-现在，**AI 可以自己控制自己**！结合 cc/openclaw 就可以远程控制任何 electron 应用！无限玩法！！
+除了网站能力，OpenCLI 还是一个 **CLI 枢纽**：你可以把 `gh`、`docker` 等本地工具统一注册到 `opencli` 下，也可以通过桌面端适配器控制 Cursor、Codex、Antigravity、ChatGPT、Notion 等 Electron 应用。
 
----
+## 为什么是 OpenCLI
 
-## 亮点
+- **同一个心智模型**：网站、浏览器自动化、Electron 应用、本地 CLI 都走同一个入口。
+- **复用真实会话**：浏览器命令直接使用你已经登录的 Chrome/Chromium，而不是重新造一套认证。
+- **输出稳定**：适配器命令返回固定结构，适合 shell、脚本、CI 和 AI Agent 工具调用。
+- **面向 AI Agent**：`browser` 负责实时操作，`explore` 负责探索接口，`synthesize` 负责生成适配器，`cascade` 负责探测认证路径。
+- **运行成本低**：已有命令运行时不消耗模型 token。
+- **天然可扩展**：既能用内置能力，也能注册本地 CLI，或直接往 `clis/` 丢 `.ts` 适配器。
 
-- **CLI All Electron** — 支持把所有 electron 应用（如 Antigravity Ultra）CLI 化，让 AI 控制自己！
-- **浏览器自动化** — `browser` 赋予 AI Agent 直接操控浏览器的能力：点击、输入、提取、截图，任意交互皆可脚本化
-- **网页转 CLI** — 将任意网站变成确定性命令行工具：79+ 预置适配器，或用 `opencli record` 沉淀自己的操作
-- **多站点覆盖** — 79+ 站点，横跨全球与中国平台（B站、知乎、小红书、Reddit、HackerNews 等），并支持通过 CDP 控制桌面 Electron 应用
-- **零风控** — 复用 Chrome/Chromium 登录态，无需存储任何凭证
-- **外部 CLI 枢纽** — 统一发现、自动安装、透传执行 `gh`、`docker` 等本地 CLI
-- **自修复配置** — `opencli doctor` 自动启动 daemon，诊断扩展和浏览器连接状态
-- **AI 原生** — `explore` 自动发现 API，`synthesize` 生成适配器，`cascade` 探测认证策略，`browser` 直接控制浏览器
-- **零 LLM 成本** — 运行时不消耗任何 token，跑一万次不花一分钱
-- **确定性** — 同一命令永远返回同一结构，可管道化、可脚本化、CI 友好
+## 快速开始
 
-## 前置要求
+### 1. 安装 OpenCLI
 
-- **Node.js**: >= 20.0.0
-- **Chrome 或 Chromium** 浏览器正在运行，且**已登录目标网站**（如 bilibili.com、zhihu.com、xiaohongshu.com、goofish.com）
+```bash
+npm install -g @jackwener/opencli
+```
 
-> **⚠️ 重要**：大多数命令复用你的 Chrome/Chromium 登录状态。运行命令前，你必须已在 Chrome 或 Chromium 中打开目标网站并完成登录。如果获取到空数据或报错，请先检查你的浏览器登录状态。
+### 2. 安装 Browser Bridge 扩展
 
-OpenCLI 通过轻量化的 **Browser Bridge** Chrome/Chromium 扩展 + 微型 daemon 与浏览器通信（零配置，自动启动）。
+OpenCLI 通过轻量 Browser Bridge 扩展和本地微型 daemon 与 Chrome/Chromium 通信。daemon 会按需自动启动。
 
-### Browser Bridge 扩展配置
-
-你可以选择以下任一方式安装扩展：
-
-**方式一：下载构建好的安装包（推荐）**
 1. 到 GitHub [Releases 页面](https://github.com/jackwener/opencli/releases) 下载最新的 `opencli-extension.zip`。
-2. 解压后在 Chrome 或 Chromium 中打开 `chrome://extensions`，启用右上角的 **开发者模式**。
-3. 点击 **加载已解压的扩展程序**，选择解压后的文件夹。
+2. 解压后打开 `chrome://extensions`，启用 **开发者模式**。
+3. 点击 **加载已解压的扩展程序**，选择解压后的目录。
 
-**方式二：加载源码（针对开发者）**
-1. 同样在 `chrome://extensions` 开启 **开发者模式**。
-2. 点击 **加载已解压的扩展程序**，选择本仓库代码树中的 `extension/` 文件夹。
+### 3. 验证环境
 
-完成！运行任何 opencli 浏览器命令时，后台微型 daemon 会自动启动与浏览器通信。无需配 API Token，零代码配置。
+```bash
+opencli doctor
+opencli daemon status
+```
+
+### 4. 跑第一个命令
+
+```bash
+opencli list
+opencli hackernews top --limit 5
+opencli bilibili hot --limit 5
+```
 
 如果你需要自定义 daemon 的监听地址或端口，可以新建 `~/.opencli/daemon.yaml`：
 
@@ -76,66 +76,103 @@ port: 19825
 > opencli daemon status     # 查看 daemon 状态
 > opencli daemon stop       # 停止 daemon
 > ```
+## 给人类用户
 
-## 快速开始
+如果你只是想稳定地调用网站或桌面应用能力，主路径很简单：
 
-### npm 全局安装（推荐）
+- `opencli list` 查看当前所有命令
+- `opencli <site> <command>` 调用内置或生成好的适配器
+- `opencli register mycli` 把本地 CLI 接入同一发现入口
+- `opencli doctor` / `opencli daemon status` 处理浏览器连通性问题
+
+## 给 AI Agent
+
+按任务类型，AI Agent 有两个不同入口：
+
+- [`skills/opencli-generate/SKILL.md`](./skills/opencli-generate/SKILL.md)：任务级入口，适合“帮我给这个网站生成 CLI”这类请求。
+- [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md)：底层控制入口，适合实时操作页面、debug 和人工介入。
+
+安装全部 OpenCLI skills：
 
 ```bash
-npm install -g @jackwener/opencli
-
-# 安装 AI Skills（Claude Code / Cursor）
 npx skills add jackwener/opencli
 ```
 
-直接使用：
+或只装需要的 skill：
 
 ```bash
-opencli list                              # 查看所有命令
-opencli list -f yaml                      # 以 YAML 列出所有命令
-opencli hackernews top --limit 5          # 公共 API，无需浏览器
-opencli bilibili hot --limit 5            # 浏览器命令
-opencli zhihu hot -f json                 # JSON 输出
-opencli zhihu hot -f yaml                 # YAML 输出
+npx skills add jackwener/opencli --skill opencli-usage
+npx skills add jackwener/opencli --skill opencli-generate
+npx skills add jackwener/opencli --skill opencli-browser
+npx skills add jackwener/opencli --skill opencli-explorer
+npx skills add jackwener/opencli --skill opencli-oneshot
 ```
 
-### 从源码安装（面向开发者）
+实际使用上：
 
-```bash
-git clone git@github.com:jackwener/opencli.git
-cd opencli 
-npm install
-npm run build
-npm link      # 链接到全局环境
-opencli list  # 可以在任何地方使用了！
-```
+- 需要把某个站点收成可复用命令时，优先走 `opencli-generate`
+- 需要直接检查页面、操作页面时，再走 `opencli-browser`
 
-### 更新
+`browser` 可用命令包括：`open`、`state`、`click`、`type`、`select`、`keys`、`wait`、`get`、`screenshot`、`scroll`、`back`、`eval`、`network`、`init`、`verify`、`close`。
+
+## 核心概念
+
+### `browser`：实时操作
+
+当任务本身就是交互式页面操作时，使用 `opencli browser` 直接驱动浏览器。
+
+### 内置适配器：稳定命令
+
+当某个站点能力已经存在时，优先使用 `opencli hackernews top`、`opencli reddit hot` 这类稳定命令，而不是重新走一遍浏览器操作。
+
+### `explore` / `synthesize` / `generate`：生成新的 CLI
+
+当你需要的网站还没覆盖时：
+
+- `explore` 负责观察页面、网络请求和能力边界
+- `synthesize` 负责把探索结果转成 evaluate-based YAML 适配器
+- `generate` 负责跑通 verified generation 主链路，最后要么给出可直接使用的命令，要么返回结构化的阻塞原因 / 人工介入结果
+
+### `cascade`：认证策略探测
+
+用 `cascade` 去判断某个能力应该优先走公开接口、Cookie 还是自定义 Header，而不是一开始就把适配器写死。
+
+### CLI 枢纽与桌面端适配器
+
+OpenCLI 不只是网站 CLI，还可以：
+
+- 统一代理本地二进制工具，例如 `gh`、`docker`、`obsidian`
+- 通过专门适配器和 CDP 集成控制 Electron 桌面应用
+
+## 前置要求
+
+- **Node.js**: >= 20.0.0
+- 浏览器型命令需要 Chrome 或 Chromium 处于运行中，并已登录目标网站
+
+> **重要**：浏览器型命令直接复用你的 Chrome/Chromium 登录态。如果拿到空数据或出现权限类失败，先确认目标站点已经在浏览器里打开并完成登录。
+
+## 更新
 
 ```bash
 npm install -g @jackwener/opencli@latest
 ```
 
-### 浏览器自动化 — 让 AI Agent 直接控制浏览器
+## 面向开发者
 
-将 [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md) 指向你的 AI Agent（Claude Code、Cursor），即可开箱即用，内含完整命令参考与使用示例。
-
-可用命令：`open`、`state`、`click`、`type`、`select`、`keys`、`wait`、`get`、`screenshot`、`scroll`、`back`、`eval`、`network`、`init`、`verify`、`close`。
-
-### 安装 AI Skills
-
-OpenCLI 提供 [skills](./skills/) 供 AI Agent（Claude Code 等）使用：
+从源码安装：
 
 ```bash
-# 安装所有 OpenCLI skills
-npx skills add jackwener/opencli
-
-# 或安装特定 skill
-npx skills add jackwener/opencli --skill opencli-usage      # 命令参考
-npx skills add jackwener/opencli --skill opencli-browser     # 浏览器自动化（AI Agent 专用）
-npx skills add jackwener/opencli --skill opencli-explorer    # 适配器开发指南
-npx skills add jackwener/opencli --skill opencli-oneshot     # 快速命令参考
+git clone git@github.com:jackwener/opencli.git
+cd opencli
+npm install
+npm run build
+npm link
 ```
+
+加载源码版 Browser Bridge 扩展：
+
+1. 打开 `chrome://extensions` 并启用 **开发者模式**
+2. 点击 **加载已解压的扩展程序**，选择本仓库里的 `extension/` 目录
 
 ## 内置命令
 
@@ -397,7 +434,7 @@ opencli plugin uninstall my-tool                            # 卸载
 # 1. Deep Explore — 网络拦截 → 响应分析 → 能力推理 → 框架检测
 opencli explore https://example.com --site mysite
 
-# 2. Synthesize — 从探索成果物生成 evaluate-based YAML 适配器
+# 2. Synthesize — 从探索成果物生成 evaluate-based TS 适配器
 opencli synthesize mysite
 
 # 3. Generate — 一键完成：探索 → 合成 → 注册

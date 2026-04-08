@@ -27,7 +27,7 @@ describe('createPluginScaffold', () => {
     expect(result.dir).toBe(dir);
     expect(result.files).toContain('opencli-plugin.json');
     expect(result.files).toContain('package.json');
-    expect(result.files).toContain('hello.yaml');
+    expect(result.files).toContain('hello.ts');
     expect(result.files).toContain('greet.ts');
     expect(result.files).toContain('README.md');
 

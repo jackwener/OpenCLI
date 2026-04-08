@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import yaml from 'js-yaml';
 import type { IPage } from './types.js';
 
 const {
@@ -113,7 +112,6 @@ describe('generateVerifiedFromUrl', () => {
       noRegister: true,
     });
 
-    expect(result.version).toBe(1);
     expect(result.status).toBe('blocked');
     expect(result.reason).toBe('no-viable-api-surface');
     expect(result.stage).toBe('explore');
@@ -124,8 +122,8 @@ describe('generateVerifiedFromUrl', () => {
   });
 
   it('returns blocked with auth-too-complex when no PUBLIC/COOKIE probe succeeds', async () => {
-    const candidatePath = path.join(tempDir, 'hot.yaml');
-    fs.writeFileSync(candidatePath, yaml.dump({
+    const candidatePath = path.join(tempDir, 'hot.json');
+    fs.writeFileSync(candidatePath, JSON.stringify({
       site: 'demo',
       name: 'hot',
       description: 'demo hot',
@@ -138,7 +136,7 @@ describe('generateVerifiedFromUrl', () => {
         { fetch: { url: 'https://demo.test/api/hot' } },
         { select: 'data.items' },
       ],
-    }, { sortKeys: false }));
+    }, null, 2));
 
     mockExploreUrl.mockResolvedValue({
       site: 'demo',
@@ -200,10 +198,10 @@ describe('generateVerifiedFromUrl', () => {
   // ── Success outcomes ──────────────────────────────────────────────────────
 
   it('verifies the selected candidate in a single session and registers on success with sidecar metadata', async () => {
-    const hotPath = path.join(tempDir, 'hot.yaml');
-    const searchPath = path.join(tempDir, 'search.yaml');
+    const hotPath = path.join(tempDir, 'hot.json');
+    const searchPath = path.join(tempDir, 'search.json');
 
-    fs.writeFileSync(hotPath, yaml.dump({
+    fs.writeFileSync(hotPath, JSON.stringify({
       site: 'demo',
       name: 'hot',
       description: 'demo hot',
@@ -220,9 +218,9 @@ describe('generateVerifiedFromUrl', () => {
         { map: { rank: '${{ index + 1 }}', title: '${{ item.title }}', url: '${{ item.url }}' } },
         { limit: '${{ args.limit | default(20) }}' },
       ],
-    }, { sortKeys: false }));
+    }, null, 2));
 
-    fs.writeFileSync(searchPath, yaml.dump({
+    fs.writeFileSync(searchPath, JSON.stringify({
       site: 'demo',
       name: 'search',
       description: 'demo search',
@@ -238,7 +236,7 @@ describe('generateVerifiedFromUrl', () => {
         { select: 'payload.items' },
         { map: { title: '${{ item.title }}', url: '${{ item.url }}' } },
       ],
-    }, { sortKeys: false }));
+    }, null, 2));
 
     mockExploreUrl.mockResolvedValue({
       site: 'demo',
@@ -313,7 +311,6 @@ describe('generateVerifiedFromUrl', () => {
     expect(mockExecutePipeline).toHaveBeenCalledTimes(1);
     expect(mockRegisterCommand).toHaveBeenCalledTimes(1);
 
-    expect(result.version).toBe(1);
     expect(result.status).toBe('success');
     expect(result.adapter).toBeDefined();
     expect(result.adapter!.command).toBe('demo/search');
@@ -339,8 +336,8 @@ describe('generateVerifiedFromUrl', () => {
   });
 
   it('writes verified artifact + sidecar metadata for --no-register success', async () => {
-    const candidatePath = path.join(tempDir, 'search.yaml');
-    fs.writeFileSync(candidatePath, yaml.dump({
+    const candidatePath = path.join(tempDir, 'search.json');
+    fs.writeFileSync(candidatePath, JSON.stringify({
       site: 'demo',
       name: 'search',
       description: 'demo search',
@@ -356,7 +353,7 @@ describe('generateVerifiedFromUrl', () => {
         { select: 'payload.items' },
         { map: { title: '${{ item.title }}', url: '${{ item.url }}' } },
       ],
-    }, { sortKeys: false }));
+    }, null, 2));
 
     mockExploreUrl.mockResolvedValue({
       site: 'demo',
@@ -413,7 +410,7 @@ describe('generateVerifiedFromUrl', () => {
     expect(result.status).toBe('success');
     expect(
       path.normalize(result.adapter!.path).endsWith(
-        path.join('verified', 'search.verified.yaml'),
+        path.join('verified', 'search.verified.ts'),
       ),
     ).toBe(true);
     expect(result.adapter?.path).not.toBe(candidatePath);
@@ -430,8 +427,8 @@ describe('generateVerifiedFromUrl', () => {
   // ── needs-human-check outcomes ────────────────────────────────────────────
 
   it('returns needs-human-check with structured escalation when repair exhausted', async () => {
-    const candidatePath = path.join(tempDir, 'hot.yaml');
-    fs.writeFileSync(candidatePath, yaml.dump({
+    const candidatePath = path.join(tempDir, 'hot.json');
+    fs.writeFileSync(candidatePath, JSON.stringify({
       site: 'demo',
       name: 'hot',
       description: 'demo hot',
@@ -448,7 +445,7 @@ describe('generateVerifiedFromUrl', () => {
         { map: { rank: '${{ index + 1 }}', title: '${{ item.title }}', url: '${{ item.url }}' } },
         { limit: '${{ args.limit | default(20) }}' },
       ],
-    }, { sortKeys: false }));
+    }, null, 2));
 
     mockExploreUrl.mockResolvedValue({
       site: 'demo',
@@ -503,7 +500,6 @@ describe('generateVerifiedFromUrl', () => {
     expect(mockExecutePipeline.mock.calls[1]?.[1]).toEqual(expect.arrayContaining([{ select: 'data.items' }]));
 
     // Verify structured escalation contract
-    expect(result.version).toBe(1);
     expect(result.status).toBe('needs-human-check');
     expect(result.escalation).toBeDefined();
     expect(result.escalation!.stage).toBe('fallback');
@@ -520,8 +516,8 @@ describe('generateVerifiedFromUrl', () => {
   });
 
   it('returns needs-human-check with ask-for-sample-arg for unsupported required args', async () => {
-    const candidatePath = path.join(tempDir, 'detail.yaml');
-    fs.writeFileSync(candidatePath, yaml.dump({
+    const candidatePath = path.join(tempDir, 'detail.json');
+    fs.writeFileSync(candidatePath, JSON.stringify({
       site: 'demo',
       name: 'detail',
       description: 'demo detail',
@@ -536,7 +532,7 @@ describe('generateVerifiedFromUrl', () => {
         { fetch: { url: 'https://demo.test/api/detail?id=${{ args.id }}' } },
         { select: 'data.item' },
       ],
-    }, { sortKeys: false }));
+    }, null, 2));
 
     mockExploreUrl.mockResolvedValue({
       site: 'demo',
@@ -592,7 +588,7 @@ describe('generateVerifiedFromUrl', () => {
 
   // ── Contract shape validation ─────────────────────────────────────────────
 
-  it('all outcome statuses include version, status, and stats', async () => {
+  it('all outcome statuses include status and stats', async () => {
     // Test the blocked path - simplest to set up
     mockExploreUrl.mockResolvedValue({
       site: 'demo',
@@ -627,7 +623,6 @@ describe('generateVerifiedFromUrl', () => {
     });
 
     // Every outcome must have these three fields
-    expect(result).toHaveProperty('version', 1);
     expect(result).toHaveProperty('status');
     expect(result).toHaveProperty('stats');
     expect(['success', 'blocked', 'needs-human-check']).toContain(result.status);
@@ -680,7 +675,6 @@ describe('generateVerifiedFromUrl', () => {
 
     expect(hints).toHaveLength(1);
     expect(hints[0]).toEqual({
-      version: 1,
       stage: 'explore',
       continue: false,
       reason: 'no-viable-api-surface',
@@ -736,8 +730,8 @@ describe('generateVerifiedFromUrl', () => {
   });
 
   it('emits explore + synthesize continue hints with candidate on success path', async () => {
-    const hotPath = path.join(tempDir, 'hot.yaml');
-    fs.writeFileSync(hotPath, yaml.dump({
+    const hotPath = path.join(tempDir, 'hot.json');
+    fs.writeFileSync(hotPath, JSON.stringify({
       site: 'demo',
       name: 'hot',
       description: 'demo hot',
@@ -750,7 +744,7 @@ describe('generateVerifiedFromUrl', () => {
         { fetch: { url: 'https://demo.test/api/hot' } },
         { select: 'data.items' },
       ],
-    }, { sortKeys: false }));
+    }, null, 2));
 
     mockExploreUrl.mockResolvedValue({
       site: 'demo',
@@ -825,8 +819,8 @@ describe('generateVerifiedFromUrl', () => {
   });
 
   it('emits cascade stop hint when auth-too-complex', async () => {
-    const hotPath = path.join(tempDir, 'hot.yaml');
-    fs.writeFileSync(hotPath, yaml.dump({
+    const hotPath = path.join(tempDir, 'hot.json');
+    fs.writeFileSync(hotPath, JSON.stringify({
       site: 'demo',
       name: 'hot',
       description: 'demo hot',
@@ -839,7 +833,7 @@ describe('generateVerifiedFromUrl', () => {
         { fetch: { url: 'https://demo.test/api/hot' } },
         { select: 'data.items' },
       ],
-    }, { sortKeys: false }));
+    }, null, 2));
 
     mockExploreUrl.mockResolvedValue({
       site: 'demo',
@@ -902,8 +896,8 @@ describe('generateVerifiedFromUrl', () => {
   });
 
   it('does NOT emit P2 hint for unsupported-required-args (P1-only decision)', async () => {
-    const detailPath = path.join(tempDir, 'detail.yaml');
-    fs.writeFileSync(detailPath, yaml.dump({
+    const detailPath = path.join(tempDir, 'detail.json');
+    fs.writeFileSync(detailPath, JSON.stringify({
       site: 'demo',
       name: 'detail',
       description: 'demo detail',
@@ -918,7 +912,7 @@ describe('generateVerifiedFromUrl', () => {
         { fetch: { url: 'https://demo.test/api/detail?id=${{ args.id }}' } },
         { select: 'data.item' },
       ],
-    }, { sortKeys: false }));
+    }, null, 2));
 
     mockExploreUrl.mockResolvedValue({
       site: 'demo',

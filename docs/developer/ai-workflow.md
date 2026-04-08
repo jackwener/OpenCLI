@@ -32,7 +32,7 @@ Outputs to `.opencli/explore/<site>/`:
 
 ### Step 2: Synthesize
 
-Generate YAML adapters from explore artifacts:
+Generate TS adapters from explore artifacts:
 
 ```bash
 opencli synthesize mysite
@@ -49,8 +49,7 @@ opencli cascade https://api.example.com/data
 ### Step 4: Validate & Test
 
 ```bash
-opencli validate                           # Validate generated YAML
-opencli <site> <command> --limit 3 -f json # Test the command
+opencli <site> <command> --limit 3 -f json  # Test the command
 ```
 
 ## 5-Tier Authentication Strategy
