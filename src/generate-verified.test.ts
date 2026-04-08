@@ -113,7 +113,7 @@ describe('generateVerifiedFromUrl', () => {
       noRegister: true,
     });
 
-    expect(result.version).toBe(1);
+    expect(result.version).toBe(2);
     expect(result.status).toBe('blocked');
     expect(result.reason).toBe('no-viable-api-surface');
     expect(result.stage).toBe('explore');
@@ -313,7 +313,7 @@ describe('generateVerifiedFromUrl', () => {
     expect(mockExecutePipeline).toHaveBeenCalledTimes(1);
     expect(mockRegisterCommand).toHaveBeenCalledTimes(1);
 
-    expect(result.version).toBe(1);
+    expect(result.version).toBe(2);
     expect(result.status).toBe('success');
     expect(result.adapter).toBeDefined();
     expect(result.adapter!.command).toBe('demo/search');
@@ -503,13 +503,13 @@ describe('generateVerifiedFromUrl', () => {
     expect(mockExecutePipeline.mock.calls[1]?.[1]).toEqual(expect.arrayContaining([{ select: 'data.items' }]));
 
     // Verify structured escalation contract
-    expect(result.version).toBe(1);
+    expect(result.version).toBe(2);
     expect(result.status).toBe('needs-human-check');
     expect(result.escalation).toBeDefined();
     expect(result.escalation!.stage).toBe('fallback');
     expect(result.escalation!.reason).toBe('empty-result');
     expect(result.escalation!.confidence).toBe('low');
-    expect(result.escalation!.suggested_action).toBe('inspect-with-operate');
+    expect(result.escalation!.suggested_action).toBe('inspect-with-browser');
     expect(result.escalation!.candidate).toBeDefined();
     expect(result.escalation!.candidate.command).toBe('demo/hot');
     expect(result.escalation!.candidate.reusability).toBe('unverified-candidate');
@@ -627,7 +627,7 @@ describe('generateVerifiedFromUrl', () => {
     });
 
     // Every outcome must have these three fields
-    expect(result).toHaveProperty('version', 1);
+    expect(result).toHaveProperty('version', 2);
     expect(result).toHaveProperty('status');
     expect(result).toHaveProperty('stats');
     expect(['success', 'blocked', 'needs-human-check']).toContain(result.status);

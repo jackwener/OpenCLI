@@ -80,7 +80,7 @@ interface SkillOutput {
 
 **SuggestedAction** (what to do next):
 - `stop` — nothing more to try
-- `inspect-with-operate` — legacy v1 token; use opencli-browser skill to debug
+- `inspect-with-browser` — use opencli-browser skill to debug
 - `ask-for-login` — user needs to log in first
 - `ask-for-sample-arg` — user needs to provide a real argument value
 - `manual-review` — general human review needed
@@ -170,10 +170,10 @@ Receive GenerateOutcome
 ### P2: Early-Hint Contract (`EarlyHint`)
 - Lives **inside the orchestrator**, transparent to skill
 - Drives early exit (cost optimization) before verify stage
-- Skill does not consume `EarlyHint` directly in v1
+- Skill does not consume `EarlyHint` directly in v2
 - May be exposed as optional progress channel in future versions
 
-### v1 Scope
+### v2 Scope
 - JSON API + PUBLIC/COOKIE auth + structured array result + read-only list-like capabilities
 - Single browser session lifecycle (probe + verify share one session)
 - Bounded repair: only itemPath relocation, one attempt

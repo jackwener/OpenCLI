@@ -66,7 +66,7 @@ export type EscalationReason =
 
 export type SuggestedAction =
   | 'stop'                       // nothing more to try
-  | 'inspect-with-operate'       // v1 token retained for compatibility; points humans to the browser skill
+  | 'inspect-with-browser'       // human should use browser skill to debug
   | 'ask-for-login'              // needs human to log in
   | 'ask-for-sample-arg'         // needs human to provide a real arg value
   | 'manual-review';             // general human review needed
@@ -105,6 +105,8 @@ export interface EarlyHint {
 
 export type EarlyHintHandler = (hint: EarlyHint) => void;
 
+export const GENERATE_OUTCOME_VERSION = 1 as const;
+
 // ── Outcome Types ─────────────────────────────────────────────────────────────
 
 type SupportedStrategy = Strategy.PUBLIC | Strategy.COOKIE;
@@ -142,7 +144,7 @@ export interface EscalationContext {
 }
 
 export type GenerateOutcome = {
-  version: 1;
+  version: typeof GENERATE_OUTCOME_VERSION;
   status: 'success' | 'blocked' | 'needs-human-check';
 
   // success path
@@ -408,20 +410,13 @@ function mapVerifyFailureToEscalation(reason: VerifyFailureReason): EscalationRe
 function suggestAction(reason: EscalationReason): SuggestedAction {
   switch (reason) {
     case 'unsupported-required-args': return 'ask-for-sample-arg';
-    case 'timeout': return 'inspect-with-operate';
-    case 'selector-mismatch': return 'inspect-with-operate';
-    case 'empty-result': return 'inspect-with-operate';
-    case 'sparse-fields': return 'inspect-with-operate';
-    case 'non-array-result': return 'inspect-with-operate';
+    case 'timeout': return 'inspect-with-browser';
+    case 'selector-mismatch': return 'inspect-with-browser';
+    case 'empty-result': return 'inspect-with-browser';
+    case 'sparse-fields': return 'inspect-with-browser';
+    case 'non-array-result': return 'inspect-with-browser';
     case 'verify-inconclusive': return 'manual-review';
   }
-}
-
-function renderSuggestedAction(action: SuggestedAction): string {
-  if (action === 'inspect-with-operate') {
-    return 'inspect-with-operate (use opencli-browser)';
-  }
-  return action;
 }
 
 function buildEscalation(
@@ -517,7 +512,7 @@ function classifySessionError(
 ): GenerateOutcome {
   if (error instanceof BrowserConnectError) {
     return {
-      version: 1,
+      version: GENERATE_OUTCOME_VERSION,
       status: 'blocked',
       reason: 'execution-environment-unavailable',
       stage: 'verify',
@@ -528,7 +523,7 @@ function classifySessionError(
   }
   if (error instanceof AuthRequiredError) {
     return {
-      version: 1,
+      version: GENERATE_OUTCOME_VERSION,
       status: 'blocked',
       reason: 'auth-too-complex',
       stage: 'verify',
@@ -538,7 +533,7 @@ function classifySessionError(
     };
   }
   return {
-    version: 1,
+    version: GENERATE_OUTCOME_VERSION,
     status: 'needs-human-check',
     escalation: buildEscalation('verify', 'verify-inconclusive', summary, site, {
       reusability: 'unverified-candidate',
@@ -583,7 +578,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
       confidence: 'high',
     });
     return {
-      version: 1,
+      version: GENERATE_OUTCOME_VERSION,
       status: 'blocked',
       reason: 'no-viable-api-surface',
       stage: 'explore',
@@ -610,7 +605,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
       confidence: 'high',
     });
     return {
-      version: 1,
+      version: GENERATE_OUTCOME_VERSION,
       status: 'blocked',
       reason: 'no-viable-candidate',
       stage: 'synthesize',
@@ -634,7 +629,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
       confidence: 'medium',
     });
     return {
-      version: 1,
+      version: GENERATE_OUTCOME_VERSION,
       status: 'blocked',
       reason: 'no-viable-candidate',
       stage: 'synthesize',
@@ -653,7 +648,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
   // No P2 hint is emitted — this is a P1-only decision per design guardrail.
   if (unsupportedArgs.length > 0) {
     return {
-      version: 1,
+      version: GENERATE_OUTCOME_VERSION,
       status: 'needs-human-check',
       escalation: buildEscalation('synthesize', 'unsupported-required-args', selected, bundle.manifest.site, {
         reusability: 'unverified-candidate',
@@ -695,7 +690,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
           confidence: 'high',
         });
         return {
-          version: 1,
+          version: GENERATE_OUTCOME_VERSION,
           status: 'blocked',
           reason: 'auth-too-complex' as StopReason,
           stage: 'cascade' as Stage,
@@ -739,7 +734,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
           ? await writeVerifiedArtifact(candidate, exploreResult.out_dir, buildMetadata())
           : await registerVerifiedAdapter(candidate, buildMetadata());
         return {
-          version: 1,
+          version: GENERATE_OUTCOME_VERSION,
           status: 'success' as const,
           adapter: {
             site: candidate.site,
@@ -766,7 +761,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
       if ('terminal' in firstAttempt) {
         if (firstAttempt.terminal === 'blocked') {
           return {
-            version: 1,
+            version: GENERATE_OUTCOME_VERSION,
             status: 'blocked',
             reason: firstAttempt.reason ?? 'execution-environment-unavailable',
             stage: 'verify' as Stage,
@@ -776,7 +771,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
           };
         }
         return {
-          version: 1,
+          version: GENERATE_OUTCOME_VERSION,
           status: 'needs-human-check',
           escalation: buildEscalation(
             'verify',
@@ -799,7 +794,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
       if (!repaired) {
         const escalationReason = mapVerifyFailureToEscalation(firstAttempt.reason);
         return {
-          version: 1,
+          version: GENERATE_OUTCOME_VERSION,
           status: 'needs-human-check',
           escalation: buildEscalation('verify', escalationReason, selected, bundle.manifest.site, {
             reusability: 'unverified-candidate',
@@ -832,7 +827,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
           ? await writeVerifiedArtifact(repaired, exploreResult.out_dir, buildMetadata())
           : await registerVerifiedAdapter(repaired, buildMetadata());
         return {
-          version: 1,
+          version: GENERATE_OUTCOME_VERSION,
           status: 'success' as const,
           adapter: {
             site: repaired.site,
@@ -851,7 +846,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
       if ('terminal' in secondAttempt) {
         if (secondAttempt.terminal === 'blocked') {
           return {
-            version: 1,
+            version: GENERATE_OUTCOME_VERSION,
             status: 'blocked',
             reason: secondAttempt.reason ?? 'execution-environment-unavailable',
             stage: 'fallback' as Stage,
@@ -861,7 +856,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
           };
         }
         return {
-          version: 1,
+          version: GENERATE_OUTCOME_VERSION,
           status: 'needs-human-check',
           escalation: buildEscalation(
             'fallback',
@@ -879,7 +874,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
       // ── Repair exhausted ────────────────────────────────────────────────
       const escalationReason = mapVerifyFailureToEscalation(secondAttempt.reason);
       return {
-        version: 1,
+        version: GENERATE_OUTCOME_VERSION,
         status: 'needs-human-check',
         escalation: buildEscalation('fallback', escalationReason, selected, bundle.manifest.site, {
           reusability: 'unverified-candidate',
@@ -915,7 +910,7 @@ export function renderGenerateVerifiedSummary(result: GenerateOutcome): string {
   } else if (result.status === 'needs-human-check' && result.escalation) {
     lines.push(`Stage: ${result.escalation.stage}`);
     lines.push(`Reason: ${result.escalation.reason}`);
-    lines.push(`Suggested action: ${renderSuggestedAction(result.escalation.suggested_action)}`);
+    lines.push(`Suggested action: ${result.escalation.suggested_action}`);
     lines.push(`Candidate: ${result.escalation.candidate.command}`);
     lines.push(`Reusability: ${result.escalation.candidate.reusability}`);
     if (result.message) lines.push(`Message: ${result.message}`);

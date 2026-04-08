@@ -35,15 +35,6 @@ function applyVerbose(opts: { verbose?: boolean }): void {
   if (opts.verbose) process.env.OPENCLI_VERBOSE = '1';
 }
 
-function isDeprecatedOperateInvocation(argv: readonly string[]): boolean {
-  return argv[2] === 'operate';
-}
-
-function warnDeprecatedOperateAlias(argv: readonly string[]): void {
-  if (!isDeprecatedOperateInvocation(argv)) return;
-  console.warn('`opencli operate` is deprecated. Use `opencli browser` instead.');
-}
-
 export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command {
   const program = new Command();
   // enablePositionalOptions: prevents parent from consuming flags meant for subcommands;
@@ -53,11 +44,6 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .description('Make any website your CLI. Zero setup. AI-powered.')
     .version(PKG_VERSION)
     .enablePositionalOptions();
-
-  program.hook('preAction', () => {
-    const rawArgs = (program as Command & { rawArgs?: string[] }).rawArgs ?? process.argv;
-    warnDeprecatedOperateAlias(rawArgs);
-  });
 
   // ── Built-in: list ────────────────────────────────────────────────────────
 
@@ -303,7 +289,6 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   const browser = program
     .command('browser')
-    .alias('operate')
     .description('Browser control — navigate, click, type, extract, wait (no LLM needed)');
 
   /** Wrap browser actions with error handling and optional --json output */
