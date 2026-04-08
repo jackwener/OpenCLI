@@ -14,21 +14,44 @@ type MockTab = {
 class MockWebSocket {
   static OPEN = 1;
   static CONNECTING = 0;
+  static instances: MockWebSocket[] = [];
+
+  url: string;
   readyState = MockWebSocket.CONNECTING;
   onopen: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
   onclose: (() => void) | null = null;
   onerror: (() => void) | null = null;
 
-  constructor(_url: string) {}
+  constructor(url: string) {
+    this.url = url;
+    MockWebSocket.instances.push(this);
+  }
   send(_data: string): void {}
   close(): void {
     this.onclose?.();
   }
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+async function flushPromises(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 function createChromeMock() {
   let nextTabId = 10;
+  const storageState = {
+    daemonHost: 'localhost',
+    daemonPort: 19825,
+  };
   const tabs: MockTab[] = [
     { id: 1, windowId: 1, url: 'https://automation.example', title: 'automation', active: true, status: 'complete' },
     { id: 2, windowId: 2, url: 'https://user.example', title: 'user', active: true, status: 'complete' },
@@ -97,12 +120,21 @@ function createChromeMock() {
       onMessage: { addListener: vi.fn() } as Listener<(msg: unknown, sender: unknown, sendResponse: (value: unknown) => void) => void>,
       getManifest: vi.fn(() => ({ version: 'test-version' })),
     },
+    storage: {
+      local: {
+        get: vi.fn(async (defaults: Record<string, unknown>) => ({
+          ...defaults,
+          ...storageState,
+        })),
+      },
+      onChanged: { addListener: vi.fn() } as Listener<(changes: unknown, area: string) => void>,
+    },
     cookies: {
       getAll: vi.fn(async () => []),
     },
   };
 
-  return { chrome, tabs, query, create, update };
+  return { chrome, tabs, query, create, update, storageState };
 }
 
 describe('background tab isolation', () => {
@@ -110,6 +142,7 @@ describe('background tab isolation', () => {
     vi.resetModules();
     vi.useRealTimers();
     vi.stubGlobal('WebSocket', MockWebSocket);
+    MockWebSocket.instances = [];
   });
 
   afterEach(() => {
@@ -275,5 +308,75 @@ describe('background tab isolation', () => {
 
     expect(chrome.windows.remove).toHaveBeenCalledWith(1);
     expect(mod.__test__.getSession('site:notebooklm')).toBeNull();
+  });
+
+  it('ignores stale websocket close events after reconnecting with new settings', async () => {
+    const { chrome, storageState } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
+
+    const mod = await import('./background');
+
+    await mod.__test__.connect();
+    const firstSocket = MockWebSocket.instances.at(-1)!;
+    firstSocket.readyState = MockWebSocket.OPEN;
+    firstSocket.onopen?.();
+
+    storageState.daemonHost = '127.0.0.1';
+
+    await mod.__test__.connect();
+    const secondSocket = MockWebSocket.instances.at(-1)!;
+    secondSocket.readyState = MockWebSocket.OPEN;
+    secondSocket.onopen?.();
+
+    firstSocket.onclose?.();
+
+    expect(mod.__test__.getConnectionState()).toEqual(expect.objectContaining({
+      ws: secondSocket,
+      wsUrl: 'ws://127.0.0.1:19825/ext',
+      readyState: MockWebSocket.OPEN,
+      reconnecting: false,
+    }));
+  });
+
+  it('ignores stale in-flight connect attempts after settings change', async () => {
+    const { chrome, storageState } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const oldFetch = createDeferred<{ ok: boolean }>();
+    const newFetch = createDeferred<{ ok: boolean }>();
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url === 'http://localhost:19825/ping') return oldFetch.promise;
+      if (url === 'http://127.0.0.1:19825/ping') return newFetch.promise;
+      throw new Error(`Unexpected fetch url: ${url}`);
+    }));
+
+    const mod = await import('./background');
+
+    const firstConnect = mod.__test__.connect();
+    await flushPromises();
+
+    storageState.daemonHost = '127.0.0.1';
+    const secondConnect = mod.__test__.connect();
+    await flushPromises();
+
+    newFetch.resolve({ ok: true });
+    await secondConnect;
+
+    const newSocket = MockWebSocket.instances.at(-1)!;
+    newSocket.readyState = MockWebSocket.OPEN;
+    newSocket.onopen?.();
+
+    oldFetch.resolve({ ok: true });
+    await firstConnect;
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    expect(newSocket.url).toBe('ws://127.0.0.1:19825/ext');
+    expect(mod.__test__.getConnectionState()).toEqual(expect.objectContaining({
+      ws: newSocket,
+      wsUrl: 'ws://127.0.0.1:19825/ext',
+      readyState: MockWebSocket.OPEN,
+      reconnecting: false,
+    }));
   });
 });

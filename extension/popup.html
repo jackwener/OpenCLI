@@ -38,6 +38,64 @@
     .dot.connecting { background: #ff9500; }
     .status-text { font-size: 13px; color: #555; }
     .status-text strong { color: #333; }
+    .settings {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #f5f5f5;
+    }
+    .settings label {
+      display: block;
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 4px;
+      margin-top: 8px;
+    }
+    .settings label:first-of-type { margin-top: 0; }
+    .settings input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      background: #fff;
+      color: #333;
+    }
+    .settings input:focus {
+      outline: none;
+      border-color: #007aff;
+    }
+    .settings button {
+      margin-top: 10px;
+      width: 100%;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 8px;
+      background: #007aff;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .settings button:hover { background: #0066d6; }
+    .settings button:active { opacity: 0.9; }
+    .settings .save-hint {
+      margin-top: 6px;
+      font-size: 11px;
+      color: #34c759;
+      min-height: 16px;
+    }
+    .settings .warning {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: #fff4e5;
+      font-size: 11px;
+      color: #7a4b00;
+      line-height: 1.5;
+    }
     .hint {
       margin-top: 10px;
       padding: 8px 10px;
@@ -72,6 +130,17 @@
   <div class="status-row">
     <span class="dot disconnected" id="dot"></span>
     <span class="status-text" id="status">Checking...</span>
+  </div>
+  <div class="settings">
+    <label for="host">Daemon host</label>
+    <input type="text" id="host" autocomplete="off" spellcheck="false" placeholder="localhost">
+    <label for="port">Daemon port</label>
+    <input type="number" id="port" min="1" max="65535" placeholder="19825">
+    <button type="button" id="save">Save &amp; reconnect</button>
+    <div class="save-hint" id="saveHint"></div>
+    <div class="warning">
+      If you expose the daemon remotely, protect it with a VPN, SSH tunnel, or another authenticated tunnel. The daemon has minimal built-in auth.
+    </div>
   </div>
   <div class="hint" id="hint">
     This is normal. The extension connects automatically when you run any <code>opencli</code> command.

@@ -47,3 +47,7 @@ opencli daemon restart   # Stop + restart
 ```
 
 Override the timeout via the `OPENCLI_DAEMON_TIMEOUT` environment variable (milliseconds). Set to `0` to keep the daemon alive indefinitely.
+
+## Remote Exposure Warning
+
+If you point the extension at a daemon that is reachable over a public tunnel, or any non-local network path, add your own protection layer first. The daemon has minimal built-in auth, so prefer a VPN, SSH tunnel, or another authenticated/private tunnel instead of exposing the port directly to the public internet.

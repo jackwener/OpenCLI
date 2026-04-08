@@ -6,12 +6,33 @@
  */
 
 import type { Command, Result } from './protocol';
-import { DAEMON_WS_URL, DAEMON_PING_URL, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
+import {
+  DEFAULT_DAEMON_HOST,
+  DEFAULT_DAEMON_PORT,
+  WS_RECONNECT_BASE_DELAY,
+  WS_RECONNECT_MAX_DELAY,
+  buildDaemonEndpoints,
+  normalizeDaemonHost,
+} from './protocol';
 import * as executor from './cdp';
+
+const STORAGE_KEYS = { host: 'daemonHost', port: 'daemonPort' } as const;
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
+let connectAttemptId = 0;
+
+async function getDaemonSettings(): Promise<{ host: string; port: number }> {
+  const result = await chrome.storage.local.get({
+    [STORAGE_KEYS.host]: DEFAULT_DAEMON_HOST,
+    [STORAGE_KEYS.port]: DEFAULT_DAEMON_PORT,
+  });
+  const host = normalizeDaemonHost(result[STORAGE_KEYS.host]);
+  let port = typeof result[STORAGE_KEYS.port] === 'number' ? result[STORAGE_KEYS.port] : DEFAULT_DAEMON_PORT;
+  if (!Number.isFinite(port) || port < 1 || port > 65535) port = DEFAULT_DAEMON_PORT;
+  return { host, port };
+}
 
 // ─── Console log forwarding ──────────────────────────────────────────
 // Hook console.log/warn/error to forward logs to daemon via WebSocket.
@@ -42,52 +63,71 @@ console.error = (...args: unknown[]) => { _origError(...args); forwardLog('error
  * call site remains unchanged and the guard can never be accidentally skipped.
  */
 async function connect(): Promise<void> {
-  if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
+  const attemptId = ++connectAttemptId;
+  const { host, port } = await getDaemonSettings();
+  if (attemptId !== connectAttemptId) return;
+  const { ping: pingUrl, ws: wsUrl } = buildDaemonEndpoints(host, port);
+
+  if (ws) {
+    if (ws.url === wsUrl && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+    const previousSocket = ws;
+    ws = null;
+    try {
+      previousSocket.close();
+    } catch { /* ignore */ }
+  }
 
   try {
-    const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1000) });
+    const res = await fetch(pingUrl, { signal: AbortSignal.timeout(1000) });
+    if (attemptId !== connectAttemptId) return;
     if (!res.ok) return; // unexpected response — not our daemon
   } catch {
     return; // daemon not running — skip WebSocket to avoid console noise
   }
 
   try {
-    ws = new WebSocket(DAEMON_WS_URL);
+    const socket = new WebSocket(wsUrl);
+    ws = socket;
+
+    socket.onopen = () => {
+      if (ws !== socket) return;
+      console.log('[opencli] Connected to daemon');
+      reconnectAttempts = 0; // Reset on successful connection
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      // Send version so the daemon can report mismatches to the CLI
+      socket.send(JSON.stringify({ type: 'hello', version: chrome.runtime.getManifest().version }));
+    };
+
+    socket.onmessage = async (event) => {
+      if (ws !== socket) return;
+      try {
+        const command = JSON.parse(event.data as string) as Command;
+        const result = await handleCommand(command);
+        if (ws !== socket || socket.readyState !== WebSocket.OPEN) return;
+        socket.send(JSON.stringify(result));
+      } catch (err) {
+        console.error('[opencli] Message handling error:', err);
+      }
+    };
+
+    socket.onclose = () => {
+      if (ws !== socket) return;
+      console.log('[opencli] Disconnected from daemon');
+      ws = null;
+      scheduleReconnect();
+    };
+
+    socket.onerror = () => {
+      if (ws !== socket) return;
+      socket.close();
+    };
   } catch {
     scheduleReconnect();
     return;
   }
-
-  ws.onopen = () => {
-    console.log('[opencli] Connected to daemon');
-    reconnectAttempts = 0; // Reset on successful connection
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
-    // Send version so the daemon can report mismatches to the CLI
-    ws?.send(JSON.stringify({ type: 'hello', version: chrome.runtime.getManifest().version }));
-  };
-
-  ws.onmessage = async (event) => {
-    try {
-      const command = JSON.parse(event.data as string) as Command;
-      const result = await handleCommand(command);
-      ws?.send(JSON.stringify(result));
-    } catch (err) {
-      console.error('[opencli] Message handling error:', err);
-    }
-  };
-
-  ws.onclose = () => {
-    console.log('[opencli] Disconnected from daemon');
-    ws = null;
-    scheduleReconnect();
-  };
-
-  ws.onerror = () => {
-    ws?.close();
-  };
 }
 
 /**
@@ -250,14 +290,35 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'keepalive') void connect();
 });
 
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if (!changes[STORAGE_KEYS.host] && !changes[STORAGE_KEYS.port]) return;
+  const previousSocket = ws;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  ws = null;
+  try {
+    previousSocket?.close();
+  } catch { /* ignore */ }
+  reconnectAttempts = 0;
+  void connect();
+});
+
 // ─── Popup status API ───────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === 'getStatus') {
-    sendResponse({
-      connected: ws?.readyState === WebSocket.OPEN,
-      reconnecting: reconnectTimer !== null,
+    void getDaemonSettings().then(({ host, port }) => {
+      sendResponse({
+        connected: ws?.readyState === WebSocket.OPEN,
+        reconnecting: reconnectTimer !== null,
+        host,
+        port,
+      });
     });
+    return true;
   }
   return false;
 });
@@ -850,12 +911,21 @@ async function handleBindCurrent(cmd: Command, workspace: string): Promise<Resul
 }
 
 export const __test__ = {
+  connect,
   handleNavigate,
   isTargetUrl,
   handleTabs,
   handleSessions,
   handleBindCurrent,
   resolveTabId,
+  getConnectionState: () => ({
+    ws,
+    wsUrl: ws?.url ?? null,
+    readyState: ws?.readyState ?? null,
+    reconnectAttempts,
+    connectAttemptId,
+    reconnecting: reconnectTimer !== null,
+  }),
   resetWindowIdleTimer,
   getSession: (workspace: string = 'default') => automationSessions.get(workspace) ?? null,
   getAutomationWindowId: (workspace: string = 'default') => automationSessions.get(workspace)?.windowId ?? null,
