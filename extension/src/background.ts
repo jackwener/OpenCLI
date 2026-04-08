@@ -66,7 +66,11 @@ async function connect(): Promise<void> {
       reconnectTimer = null;
     }
     // Send version so the daemon can report mismatches to the CLI
-    ws?.send(JSON.stringify({ type: 'hello', version: chrome.runtime.getManifest().version }));
+    ws?.send(JSON.stringify({
+      type: 'hello',
+      version: chrome.runtime.getManifest().version,
+      extensionId: chrome.runtime.id,
+    }));
   };
 
   ws.onmessage = async (event) => {

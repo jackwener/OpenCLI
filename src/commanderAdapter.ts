@@ -31,6 +31,7 @@ import {
   CommandExecutionError,
 } from './errors.js';
 import { getDaemonHealth } from './browser/daemon-client.js';
+import { MAYBE_BROWSER_SCRAPER_ID } from './browser/extension-detect.js';
 import { isDiagnosticEnabled } from './diagnostic.js';
 
 export function normalizeArgValue(argType: string | undefined, value: unknown, name: string): unknown {
@@ -187,6 +188,7 @@ function renderBridgeStatus(running: boolean, extensionConnected: boolean): void
     console.error(chalk.yellow('  Install the Browser Bridge extension to continue:'));
     console.error(chalk.dim('    1. Download from github.com/jackwener/opencli/releases'));
     console.error(chalk.dim('    2. chrome://extensions → Enable Developer Mode → Load unpacked'));
+    console.error(chalk.dim(`    3. Confirm extension ID: ${MAYBE_BROWSER_SCRAPER_ID}`));
   } else {
     console.error(chalk.yellow('  Connection failed despite extension being active.'));
     console.error(chalk.dim('  Try reloading the extension, or run: opencli doctor'));

@@ -12,6 +12,7 @@ import { Page } from './page.js';
 import { getDaemonHealth } from './daemon-client.js';
 import { DEFAULT_DAEMON_PORT } from '../constants.js';
 import { BrowserConnectError } from '../errors.js';
+import { MAYBE_BROWSER_SCRAPER_ID } from './extension-detect.js';
 
 const DAEMON_SPAWN_TIMEOUT = 10000; // 10s to wait for daemon + extension
 
@@ -78,6 +79,7 @@ export class BrowserBridge implements IBrowserFactory {
         'Install the Browser Bridge:\n' +
         '  1. Download: https://github.com/jackwener/opencli/releases\n' +
         '  2. In Chrome or Chromium, open chrome://extensions → Developer Mode → Load unpacked\n' +
+        `  3. Confirm the extension ID is ${MAYBE_BROWSER_SCRAPER_ID}\n` +
         '  Then run: opencli doctor',
         'extension-not-connected',
       );
@@ -116,6 +118,7 @@ export class BrowserBridge implements IBrowserFactory {
         'Install the Browser Bridge:\n' +
         '  1. Download: https://github.com/jackwener/opencli/releases\n' +
         '  2. In Chrome or Chromium, open chrome://extensions → Developer Mode → Load unpacked\n' +
+        `  3. Confirm the extension ID is ${MAYBE_BROWSER_SCRAPER_ID}\n` +
         '  Then run: opencli doctor',
         'extension-not-connected',
       );

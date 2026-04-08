@@ -94,6 +94,7 @@ describe('daemon-client', () => {
       uptime: 10,
       extensionConnected: true,
       extensionVersion: '1.2.3',
+      extensionExpected: true,
       pending: 0,
       lastCliRequestTime: Date.now(),
       memoryMB: 32,
@@ -105,5 +106,29 @@ describe('daemon-client', () => {
     } as Response);
 
     await expect(getDaemonHealth()).resolves.toEqual({ state: 'ready', status });
+  });
+
+  it('treats a connected but mismatched extension id as no-extension', async () => {
+    const status = {
+      ok: true,
+      pid: 123,
+      uptime: 10,
+      extensionConnected: true,
+      extensionVersion: '1.2.3',
+      extensionId: 'wrongwrongwrongwrongwrongwrongwr',
+      expectedExtensionId: 'gjfgacldoekdalepfgdonkjfngmliogc',
+      extensionExpected: false,
+      lastRejectedExtensionId: 'wrongwrongwrongwrongwrongwrongwr',
+      pending: 0,
+      lastCliRequestTime: Date.now(),
+      memoryMB: 32,
+      port: 19825,
+    };
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(status),
+    } as Response);
+
+    await expect(getDaemonHealth()).resolves.toEqual({ state: 'no-extension', status });
   });
 });

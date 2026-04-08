@@ -24,6 +24,12 @@ import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_IDLE_TIMEOUT } from './constants.js';
 import { EXIT_CODES } from './errors.js';
 import { IdleManager } from './idle-manager.js';
+import {
+  MAYBE_BROWSER_SCRAPER_ID,
+  isExpectedBrowserScraperId,
+  isExpectedExtensionOrigin,
+  parseExtensionIdFromOrigin,
+} from './browser/extension-detect.js';
 
 const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 const IDLE_TIMEOUT = Number(process.env.OPENCLI_DAEMON_TIMEOUT ?? DEFAULT_DAEMON_IDLE_TIMEOUT);
@@ -32,6 +38,8 @@ const IDLE_TIMEOUT = Number(process.env.OPENCLI_DAEMON_TIMEOUT ?? DEFAULT_DAEMON
 
 let extensionWs: WebSocket | null = null;
 let extensionVersion: string | null = null;
+let extensionId: string | null = null;
+let lastRejectedExtensionId: string | null = null;
 const pending = new Map<string, {
   resolve: (data: unknown) => void;
   reject: (error: Error) => void;
@@ -132,6 +140,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       uptime,
       extensionConnected: extensionWs?.readyState === WebSocket.OPEN,
       extensionVersion,
+      extensionId,
+      expectedExtensionId: MAYBE_BROWSER_SCRAPER_ID,
+      extensionExpected: isExpectedBrowserScraperId(extensionId),
+      lastRejectedExtensionId,
       pending: pending.size,
       lastCliRequestTime: idleManager.lastCliRequestTime,
       memoryMB: Math.round(mem.rss / 1024 / 1024 * 10) / 10,
@@ -208,19 +220,22 @@ const wss = new WebSocketServer({
   server: httpServer,
   path: '/ext',
   verifyClient: ({ req }: { req: IncomingMessage }) => {
-    // Block browser-originated WebSocket connections.  Browsers don't
-    // enforce CORS on WebSocket, so a malicious webpage could connect to
-    // ws://localhost:19825/ext and impersonate the Extension.  Real Chrome
-    // Extensions send origin chrome-extension://<id>.
     const origin = req.headers['origin'] as string | undefined;
-    return !origin || origin.startsWith('chrome-extension://');
+    const incomingId = parseExtensionIdFromOrigin(origin);
+    if (!isExpectedExtensionOrigin(origin)) {
+      lastRejectedExtensionId = incomingId;
+      return false;
+    }
+    lastRejectedExtensionId = null;
+    return true;
   },
 });
 
-wss.on('connection', (ws: WebSocket) => {
+wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
   console.error('[daemon] Extension connected');
   extensionWs = ws;
   extensionVersion = null; // cleared until hello message arrives
+  extensionId = parseExtensionIdFromOrigin(req.headers['origin'] as string | undefined);
   idleManager.setExtensionConnected(true);
 
   // ── Heartbeat: ping every 15s, close if 2 pongs missed ──
@@ -251,6 +266,14 @@ wss.on('connection', (ws: WebSocket) => {
       // Handle hello message from extension (version handshake)
       if (msg.type === 'hello') {
         extensionVersion = typeof msg.version === 'string' ? msg.version : null;
+        const incomingId = typeof msg.extensionId === 'string' ? msg.extensionId : null;
+        if (!isExpectedBrowserScraperId(incomingId)) {
+          lastRejectedExtensionId = incomingId;
+          ws.close();
+          return;
+        }
+        extensionId = incomingId;
+        lastRejectedExtensionId = null;
         return;
       }
 
@@ -280,6 +303,7 @@ wss.on('connection', (ws: WebSocket) => {
     if (extensionWs === ws) {
       extensionWs = null;
       extensionVersion = null;
+      extensionId = null;
       idleManager.setExtensionConnected(false);
       // Reject all pending requests since the extension is gone
       for (const [id, p] of pending) {
@@ -295,6 +319,7 @@ wss.on('connection', (ws: WebSocket) => {
     if (extensionWs === ws) {
       extensionWs = null;
       extensionVersion = null;
+      extensionId = null;
       idleManager.setExtensionConnected(false);
       // Reject pending requests in case 'close' does not follow this 'error'
       for (const [, p] of pending) {

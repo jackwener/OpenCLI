@@ -60,6 +60,10 @@ export interface DaemonStatus {
   uptime: number;
   extensionConnected: boolean;
   extensionVersion?: string;
+  extensionId?: string | null;
+  expectedExtensionId?: string;
+  extensionExpected?: boolean;
+  lastRejectedExtensionId?: string | null;
   pending: number;
   lastCliRequestTime: number;
   memoryMB: number;
@@ -103,7 +107,7 @@ export type DaemonHealth =
 export async function getDaemonHealth(opts?: { timeout?: number }): Promise<DaemonHealth> {
   const status = await fetchDaemonStatus(opts);
   if (!status) return { state: 'stopped', status: null };
-  if (!status.extensionConnected) return { state: 'no-extension', status };
+  if (!status.extensionConnected || status.extensionExpected === false) return { state: 'no-extension', status };
   return { state: 'ready', status };
 }
 

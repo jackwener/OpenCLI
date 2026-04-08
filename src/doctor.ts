@@ -8,6 +8,7 @@ import chalk from 'chalk';
 import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { BrowserBridge } from './browser/index.js';
 import { getDaemonHealth, listSessions } from './browser/daemon-client.js';
+import { MAYBE_BROWSER_SCRAPER_ID } from './browser/extension-detect.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 
@@ -101,12 +102,15 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
       'This usually means the Browser Bridge service worker is reconnecting slowly or Chrome suspended it.',
     );
   } else if (daemonRunning && !extensionConnected) {
+    const rejectedId = health.status?.lastRejectedExtensionId;
     issues.push(
       'Daemon is running but the Chrome/Chromium extension is not connected.\n' +
       'Please install the opencli Browser Bridge extension:\n' +
       '  1. Download from https://github.com/jackwener/opencli/releases\n' +
       '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
-      '  3. Click "Load unpacked" → select the extension folder',
+      '  3. Click "Load unpacked" → select the extension folder\n' +
+      `  4. Confirm the extension ID is ${MAYBE_BROWSER_SCRAPER_ID}` +
+      (rejectedId ? `\n  Detected mismatched extension ID: ${rejectedId}` : ''),
     );
   }
   if (connectivity && !connectivity.ok) {
