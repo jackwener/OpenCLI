@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   fetchDaemonStatus,
+  getDaemonHealth,
   isDaemonRunning,
-  isExtensionConnected,
   requestDaemonShutdown,
 } from './daemon-client.js';
 
@@ -82,7 +82,15 @@ describe('daemon-client', () => {
     await expect(isDaemonRunning()).resolves.toBe(true);
   });
 
-  it('isExtensionConnected reflects shared status payload', async () => {
+  it('getDaemonHealth returns stopped when daemon is unreachable', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('ECONNREFUSED'));
+
+    const health = await getDaemonHealth();
+    expect(health.state).toBe('stopped');
+    expect(health.status).toBeNull();
+  });
+
+  it('getDaemonHealth returns no-extension when daemon runs without extension', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       json: () =>
@@ -98,6 +106,32 @@ describe('daemon-client', () => {
         }),
     } as Response);
 
-    await expect(isExtensionConnected()).resolves.toBe(false);
+    const health = await getDaemonHealth();
+    expect(health.state).toBe('no-extension');
+    expect(health.status).not.toBeNull();
+    expect(health.status!.extensionConnected).toBe(false);
+  });
+
+  it('getDaemonHealth returns ready when everything is connected', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          ok: true,
+          pid: 123,
+          uptime: 10,
+          extensionConnected: true,
+          extensionVersion: '1.6.0',
+          pending: 0,
+          lastCliRequestTime: Date.now(),
+          memoryMB: 16,
+          port: 19825,
+        }),
+    } as Response);
+
+    const health = await getDaemonHealth();
+    expect(health.state).toBe('ready');
+    expect(health.status!.extensionConnected).toBe(true);
+    expect(health.status!.extensionVersion).toBe('1.6.0');
   });
 });

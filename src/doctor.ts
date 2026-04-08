@@ -6,9 +6,8 @@
 
 import chalk from 'chalk';
 import { DEFAULT_DAEMON_PORT } from './constants.js';
-import { checkDaemonStatus } from './browser/discover.js';
+import { getDaemonHealth, listSessions } from './browser/daemon-client.js';
 import { BrowserBridge } from './browser/index.js';
-import { listSessions } from './browser/daemon-client.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 
@@ -54,35 +53,28 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
 }
 
 export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
-  // Try to auto-start daemon if it's not running, so we show accurate status.
-  let initialStatus = await checkDaemonStatus();
-  if (!initialStatus.running) {
-    try {
-      const bridge = new BrowserBridge();
-      await bridge.connect({ timeout: 5 });
-      await bridge.close();
-    } catch {
-      // Auto-start failed; we'll report it below.
-    }
-  }
-
-  // Run the live connectivity check — it may also auto-start the daemon as a
-  // side-effect, so we read daemon status only *after* all side-effects settle.
+  // Live connectivity test — bridge.connect() auto-starts the daemon if needed,
+  // so we don't duplicate auto-start logic here.
   let connectivity: ConnectivityResult | undefined;
   if (opts.live) {
     connectivity = await checkConnectivity();
   }
 
-  const status = await checkDaemonStatus();
-  const sessions = opts.sessions && status.running && status.extensionConnected
+  // Single status check *after* any side-effects from the live test have settled.
+  const health = await getDaemonHealth();
+  const running = health.state !== 'stopped';
+  const extensionConnected = health.state === 'ready';
+  const extensionVersion = health.status?.extensionVersion;
+
+  const sessions = opts.sessions && extensionConnected
     ? await listSessions() as Array<{ workspace: string; windowId: number; tabCount: number; idleMsRemaining: number }>
     : undefined;
 
   const issues: string[] = [];
-  if (!status.running) {
+  if (!running) {
     issues.push('Daemon is not running. It should start automatically when you run an opencli browser command.');
   }
-  if (status.running && !status.extensionConnected) {
+  if (health.state === 'no-extension') {
     issues.push(
       'Daemon is running but the Chrome/Chromium extension is not connected.\n' +
       'Please install the opencli Browser Bridge extension:\n' +
@@ -94,12 +86,12 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   if (connectivity && !connectivity.ok) {
     issues.push(`Browser connectivity test failed: ${connectivity.error ?? 'unknown'}`);
   }
-  if (status.extensionVersion && opts.cliVersion) {
-    const extMajor = status.extensionVersion.split('.')[0];
+  if (extensionVersion && opts.cliVersion) {
+    const extMajor = extensionVersion.split('.')[0];
     const cliMajor = opts.cliVersion.split('.')[0];
     if (extMajor !== cliMajor) {
       issues.push(
-        `Extension major version mismatch: extension v${status.extensionVersion} ≠ CLI v${opts.cliVersion}\n` +
+        `Extension major version mismatch: extension v${extensionVersion} ≠ CLI v${opts.cliVersion}\n` +
         '  Download the latest extension from: https://github.com/jackwener/opencli/releases',
       );
     }
@@ -107,9 +99,9 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
 
   return {
     cliVersion: opts.cliVersion,
-    daemonRunning: status.running,
-    extensionConnected: status.extensionConnected,
-    extensionVersion: status.extensionVersion,
+    daemonRunning: running,
+    extensionConnected,
+    extensionVersion,
     connectivity,
     sessions,
     issues,

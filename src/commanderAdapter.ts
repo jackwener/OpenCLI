@@ -30,7 +30,6 @@ import {
   AdapterLoadError,
   CommandExecutionError,
 } from './errors.js';
-import { checkDaemonStatus } from './browser/discover.js';
 
 export function normalizeArgValue(argType: string | undefined, value: unknown, name: string): unknown {
   if (argType !== 'bool' && argType !== 'boolean') return value;
@@ -193,20 +192,15 @@ function renderBridgeStatus(running: boolean, extensionConnected: boolean): void
 }
 
 async function renderError(err: unknown, cmdName: string, verbose: boolean): Promise<void> {
-  // ── BrowserConnectError: real-time diagnosis, kind as fallback ────────
+  // ── BrowserConnectError: use typed kind for diagnosis ─────────────────
   if (err instanceof BrowserConnectError) {
     console.error(chalk.red('🔌 Browser Bridge not connected'));
     console.error();
-    try {
-      // 300ms matches execution.ts — localhost responds in <50ms when running.
-      const status = await checkDaemonStatus({ timeout: 300 });
-      renderBridgeStatus(status.running, status.extensionConnected);
-    } catch (_statusErr) {
-      // checkDaemonStatus itself failed — derive best-guess state from kind.
-      const running = err.kind !== 'daemon-not-running';
-      const extensionConnected = err.kind === 'command-failed';
-      renderBridgeStatus(running, extensionConnected);
-    }
+    // Bridge now throws typed errors with accurate `kind` — no need for
+    // a separate real-time status check that could itself fail or race.
+    const running = err.kind !== 'daemon-not-running';
+    const extensionConnected = err.kind === 'command-failed';
+    renderBridgeStatus(running, extensionConnected);
     return;
   }
 

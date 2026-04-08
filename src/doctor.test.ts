@@ -1,17 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockCheckDaemonStatus, mockListSessions, mockConnect, mockClose } = vi.hoisted(() => ({
-  mockCheckDaemonStatus: vi.fn(),
+const { mockGetDaemonHealth, mockListSessions, mockConnect, mockClose } = vi.hoisted(() => ({
+  mockGetDaemonHealth: vi.fn(),
   mockListSessions: vi.fn(),
   mockConnect: vi.fn(),
   mockClose: vi.fn(),
 }));
 
-vi.mock('./browser/discover.js', () => ({
-  checkDaemonStatus: mockCheckDaemonStatus,
-}));
-
 vi.mock('./browser/daemon-client.js', () => ({
+  getDaemonHealth: mockGetDaemonHealth,
   listSessions: mockListSessions,
 }));
 
@@ -87,25 +84,47 @@ describe('doctor report rendering', () => {
     expect(text).toContain('[SKIP] Connectivity: skipped (--no-live)');
   });
 
-  it('reports consistent status when live check auto-starts the daemon', async () => {
-    // checkDaemonStatus is called twice: once for auto-start check, once for final status.
-    // First call: daemon not running (triggers auto-start attempt)
-    mockCheckDaemonStatus.mockResolvedValueOnce({ running: false, extensionConnected: false });
-    // Auto-start attempt via BrowserBridge.connect fails
-    mockConnect.mockRejectedValueOnce(new Error('Could not start daemon'));
-    // Second call: daemon still not running after failed auto-start
-    mockCheckDaemonStatus.mockResolvedValueOnce({ running: false, extensionConnected: false });
+  it('reports daemon not running when health check returns stopped', async () => {
+    // getDaemonHealth called once (no more double-check)
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
 
     const report = await runBrowserDoctor({ live: false });
 
-    // Status reflects daemon not running
     expect(report.daemonRunning).toBe(false);
     expect(report.extensionConnected).toBe(false);
-    // checkDaemonStatus called twice (initial + final)
-    expect(mockCheckDaemonStatus).toHaveBeenCalledTimes(2);
-    // Should report daemon not running
+    // Only one getDaemonHealth call — no more double status check
+    expect(mockGetDaemonHealth).toHaveBeenCalledTimes(1);
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('Daemon is not running'),
     ]));
+  });
+
+  it('reports extension not connected when health is no-extension', async () => {
+    mockGetDaemonHealth.mockResolvedValueOnce({
+      state: 'no-extension',
+      status: { extensionConnected: false, pid: 123, uptime: 10, ok: true, pending: 0, lastCliRequestTime: Date.now(), memoryMB: 16, port: 19825 },
+    });
+
+    const report = await runBrowserDoctor({ live: false });
+
+    expect(report.daemonRunning).toBe(true);
+    expect(report.extensionConnected).toBe(false);
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('extension is not connected'),
+    ]));
+  });
+
+  it('reports all OK when health is ready', async () => {
+    mockGetDaemonHealth.mockResolvedValueOnce({
+      state: 'ready',
+      status: { extensionConnected: true, extensionVersion: '1.6.2', pid: 123, uptime: 10, ok: true, pending: 0, lastCliRequestTime: Date.now(), memoryMB: 16, port: 19825 },
+    });
+
+    const report = await runBrowserDoctor({ live: false });
+
+    expect(report.daemonRunning).toBe(true);
+    expect(report.extensionConnected).toBe(true);
+    expect(report.extensionVersion).toBe('1.6.2');
+    expect(report.issues).toHaveLength(0);
   });
 });

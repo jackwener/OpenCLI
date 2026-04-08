@@ -100,19 +100,29 @@ export async function requestDaemonShutdown(opts?: { timeout?: number }): Promis
   }
 }
 
+// ── Unified health check ────────────────────────────────────────────────────
+
+export type DaemonHealth =
+  | { state: 'stopped'; status: null }
+  | { state: 'no-extension'; status: DaemonStatus }
+  | { state: 'ready'; status: DaemonStatus };
+
+/**
+ * Single entry point for daemon health checks.
+ * Returns a discriminated union so callers can switch on `state`.
+ */
+export async function getDaemonHealth(opts?: { timeout?: number }): Promise<DaemonHealth> {
+  const status = await fetchDaemonStatus(opts);
+  if (!status) return { state: 'stopped', status: null };
+  if (!status.extensionConnected) return { state: 'no-extension', status };
+  return { state: 'ready', status };
+}
+
 /**
  * Check if daemon is running.
  */
 export async function isDaemonRunning(): Promise<boolean> {
   return (await fetchDaemonStatus()) !== null;
-}
-
-/**
- * Check if daemon is running AND the extension is connected.
- */
-export async function isExtensionConnected(): Promise<boolean> {
-  const status = await fetchDaemonStatus();
-  return !!status?.extensionConnected;
 }
 
 /**

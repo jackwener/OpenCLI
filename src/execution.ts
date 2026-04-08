@@ -18,7 +18,7 @@ import { AdapterLoadError, ArgumentError, BrowserConnectError, CommandExecutionE
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
 import { emitHook, type HookContext } from './hooks.js';
-import { checkDaemonStatus } from './browser/discover.js';
+import { getDaemonHealth } from './browser/daemon-client.js';
 import { log } from './logger.js';
 import { isElectronApp } from './electron-apps.js';
 import { probeCDP, resolveElectronEndpoint } from './launcher.js';
@@ -176,14 +176,15 @@ export async function executeCommand(
       } else {
         // Browser Bridge: fail-fast when daemon is up but extension is missing.
         // 300ms timeout avoids a full 2s wait on cold-start.
-        const status = await checkDaemonStatus({ timeout: 300 });
-        if (status.running && !status.extensionConnected) {
+        const health = await getDaemonHealth({ timeout: 300 });
+        if (health.state === 'no-extension') {
           throw new BrowserConnectError(
             'Browser Bridge extension not connected',
             'Install the Browser Bridge:\n' +
             '  1. Download: https://github.com/jackwener/opencli/releases\n' +
             '  2. In Chrome or Chromium, open chrome://extensions → Developer Mode → Load unpacked\n' +
             '  Then run: opencli doctor',
+            'extension-not-connected',
           );
         }
       }
