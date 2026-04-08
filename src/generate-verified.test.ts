@@ -411,9 +411,17 @@ describe('generateVerifiedFromUrl', () => {
     });
 
     expect(result.status).toBe('success');
-    expect(result.adapter?.path).toMatch(/verified\/search\.verified\.yaml$/);
+    expect(
+      path.normalize(result.adapter!.path).endsWith(
+        path.join('verified', 'search.verified.yaml'),
+      ),
+    ).toBe(true);
     expect(result.adapter?.path).not.toBe(candidatePath);
-    expect(result.adapter?.metadata_path).toMatch(/verified\/search\.verified\.meta\.json$/);
+    expect(
+      path.normalize(result.adapter!.metadata_path!).endsWith(
+        path.join('verified', 'search.verified.meta.json'),
+      ),
+    ).toBe(true);
     expect(fs.existsSync(result.adapter!.path)).toBe(true);
     expect(fs.existsSync(result.adapter!.metadata_path!)).toBe(true);
     expect(mockRegisterCommand).not.toHaveBeenCalled();
