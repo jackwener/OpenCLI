@@ -20,6 +20,7 @@ const TRANSIENT_ERROR_PATTERNS = [
   'no longer exists',
   'CDP connection',
   'Daemon command failed',
+  'No window with id',
 ] as const;
 
 /**
