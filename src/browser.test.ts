@@ -140,7 +140,7 @@ describe('BrowserBridge state', () => {
 
     const bridge = new BrowserBridge();
 
-    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Browser Extension is not connected');
+    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Browser Bridge extension not connected');
   });
 });
 

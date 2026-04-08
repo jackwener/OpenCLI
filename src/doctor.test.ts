@@ -87,6 +87,32 @@ describe('doctor report rendering', () => {
     expect(text).toContain('[SKIP] Connectivity: skipped (--no-live)');
   });
 
+  it('renders unstable extension state when live connectivity and status disagree', () => {
+    const text = strip(renderBrowserDoctorReport({
+      daemonRunning: true,
+      extensionConnected: true,
+      extensionFlaky: true,
+      connectivity: { ok: true, durationMs: 1234 },
+      issues: ['Extension connection is unstable.'],
+    }));
+
+    expect(text).toContain('[WARN] Extension: unstable');
+    expect(text).toContain('Extension connection is unstable.');
+  });
+
+  it('renders unstable daemon state when live connectivity and status disagree', () => {
+    const text = strip(renderBrowserDoctorReport({
+      daemonRunning: false,
+      daemonFlaky: true,
+      extensionConnected: false,
+      connectivity: { ok: true, durationMs: 1234 },
+      issues: ['Daemon connectivity is unstable.'],
+    }));
+
+    expect(text).toContain('[WARN] Daemon: unstable');
+    expect(text).toContain('Daemon connectivity is unstable.');
+  });
+
   it('reports consistent status when live check auto-starts the daemon', async () => {
     // checkDaemonStatus is called twice: once for auto-start check, once for final status.
     // First call: daemon not running (triggers auto-start attempt)
@@ -107,5 +133,58 @@ describe('doctor report rendering', () => {
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('Daemon is not running'),
     ]));
+  });
+
+  it('reports flapping when live check succeeds but final status flips disconnected', async () => {
+    mockCheckDaemonStatus.mockResolvedValueOnce({ running: true, extensionConnected: false });
+    mockConnect.mockResolvedValueOnce({
+      evaluate: vi.fn().mockResolvedValue(2),
+    });
+    mockClose.mockResolvedValueOnce(undefined);
+    mockCheckDaemonStatus.mockResolvedValueOnce({ running: true, extensionConnected: false });
+
+    const report = await runBrowserDoctor({ live: true });
+
+    expect(report.daemonRunning).toBe(true);
+    expect(report.extensionConnected).toBe(false);
+    expect(report.extensionFlaky).toBe(true);
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('Extension connection is unstable'),
+    ]));
+  });
+
+  it('reports daemon flapping when live check succeeds but daemon disappears afterward', async () => {
+    mockCheckDaemonStatus.mockResolvedValueOnce({ running: true, extensionConnected: true });
+    mockConnect.mockResolvedValueOnce({
+      evaluate: vi.fn().mockResolvedValue(2),
+    });
+    mockClose.mockResolvedValueOnce(undefined);
+    mockCheckDaemonStatus.mockResolvedValueOnce({ running: false, extensionConnected: false });
+
+    const report = await runBrowserDoctor({ live: true });
+
+    expect(report.daemonRunning).toBe(false);
+    expect(report.daemonFlaky).toBe(true);
+    expect(report.extensionConnected).toBe(false);
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('Daemon connectivity is unstable'),
+    ]));
+  });
+
+  it('uses the fast default timeout for live connectivity checks', async () => {
+    let timeoutSeen: number | undefined;
+    mockCheckDaemonStatus.mockResolvedValueOnce({ running: true, extensionConnected: true });
+    mockConnect.mockImplementationOnce(async (opts?: { timeout?: number }) => {
+      timeoutSeen = opts?.timeout;
+      return {
+        evaluate: vi.fn().mockResolvedValue(2),
+      };
+    });
+    mockClose.mockResolvedValueOnce(undefined);
+    mockCheckDaemonStatus.mockResolvedValueOnce({ running: true, extensionConnected: true });
+
+    await runBrowserDoctor({ live: true });
+
+    expect(timeoutSeen).toBe(8);
   });
 });

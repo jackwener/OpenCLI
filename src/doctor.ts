@@ -12,6 +12,8 @@ import { listSessions } from './browser/daemon-client.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 
+const DOCTOR_LIVE_TIMEOUT_SECONDS = 8;
+
 export type DoctorOptions = {
   yes?: boolean;
   live?: boolean;
@@ -29,7 +31,9 @@ export type ConnectivityResult = {
 export type DoctorReport = {
   cliVersion?: string;
   daemonRunning: boolean;
+  daemonFlaky?: boolean;
   extensionConnected: boolean;
+  extensionFlaky?: boolean;
   extensionVersion?: string;
   connectivity?: ConnectivityResult;
   sessions?: Array<{ workspace: string; windowId: number; tabCount: number; idleMsRemaining: number }>;
@@ -43,7 +47,7 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
   const start = Date.now();
   try {
     const bridge = new BrowserBridge();
-    const page = await bridge.connect({ timeout: opts?.timeout ?? 8 });
+    const page = await bridge.connect({ timeout: opts?.timeout ?? DOCTOR_LIVE_TIMEOUT_SECONDS });
     // Try a simple eval to verify end-to-end connectivity
     await page.evaluate('1 + 1');
     await bridge.close();
@@ -74,15 +78,29 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   }
 
   const status = await checkDaemonStatus();
+  const daemonFlaky = !!(connectivity?.ok && !status.running);
+  const extensionFlaky = !!(connectivity?.ok && status.running && !status.extensionConnected);
+  const daemonRunning = status.running;
+  const extensionConnected = status.extensionConnected;
   const sessions = opts.sessions && status.running && status.extensionConnected
     ? await listSessions() as Array<{ workspace: string; windowId: number; tabCount: number; idleMsRemaining: number }>
     : undefined;
 
   const issues: string[] = [];
-  if (!status.running) {
+  if (daemonFlaky) {
+    issues.push(
+      'Daemon connectivity is unstable. The live browser test succeeded, but the daemon was no longer running immediately afterward.\n' +
+      'This usually means the daemon crashed or exited right after serving the live probe.',
+    );
+  } else if (!daemonRunning) {
     issues.push('Daemon is not running. It should start automatically when you run an opencli browser command.');
   }
-  if (status.running && !status.extensionConnected) {
+  if (extensionFlaky) {
+    issues.push(
+      'Extension connection is unstable. The live browser test succeeded, but the daemon reported the extension disconnected immediately afterward.\n' +
+      'This usually means the Browser Bridge service worker is reconnecting slowly or Chrome suspended it.',
+    );
+  } else if (daemonRunning && !extensionConnected) {
     issues.push(
       'Daemon is running but the Chrome/Chromium extension is not connected.\n' +
       'Please install the opencli Browser Bridge extension:\n' +
@@ -107,8 +125,10 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
 
   return {
     cliVersion: opts.cliVersion,
-    daemonRunning: status.running,
-    extensionConnected: status.extensionConnected,
+    daemonRunning,
+    daemonFlaky,
+    extensionConnected,
+    extensionFlaky,
     extensionVersion: status.extensionVersion,
     connectivity,
     sessions,
@@ -120,13 +140,23 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
   const lines = [chalk.bold(`opencli v${report.cliVersion ?? 'unknown'} doctor`) + chalk.dim(` (${getRuntimeLabel()})`), ''];
 
   // Daemon status
-  const daemonIcon = report.daemonRunning ? chalk.green('[OK]') : chalk.red('[MISSING]');
-  lines.push(`${daemonIcon} Daemon: ${report.daemonRunning ? `running on port ${DEFAULT_DAEMON_PORT}` : 'not running'}`);
+  const daemonIcon = report.daemonFlaky
+    ? chalk.yellow('[WARN]')
+    : report.daemonRunning ? chalk.green('[OK]') : chalk.red('[MISSING]');
+  const daemonLabel = report.daemonFlaky
+    ? 'unstable (running during live check, then stopped)'
+    : report.daemonRunning ? `running on port ${DEFAULT_DAEMON_PORT}` : 'not running';
+  lines.push(`${daemonIcon} Daemon: ${daemonLabel}`);
 
   // Extension status
-  const extIcon = report.extensionConnected ? chalk.green('[OK]') : chalk.yellow('[MISSING]');
+  const extIcon = report.extensionFlaky
+    ? chalk.yellow('[WARN]')
+    : report.extensionConnected ? chalk.green('[OK]') : chalk.yellow('[MISSING]');
   const extVersion = report.extensionVersion ? chalk.dim(` (v${report.extensionVersion})`) : '';
-  lines.push(`${extIcon} Extension: ${report.extensionConnected ? 'connected' : 'not connected'}${extVersion}`);
+  const extLabel = report.extensionFlaky
+    ? 'unstable (connected during live check, then disconnected)'
+    : report.extensionConnected ? 'connected' : 'not connected';
+  lines.push(`${extIcon} Extension: ${extLabel}${extVersion}`);
 
   // Connectivity
   if (report.connectivity) {

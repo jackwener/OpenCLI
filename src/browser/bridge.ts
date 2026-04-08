@@ -11,6 +11,7 @@ import type { IBrowserFactory } from '../runtime.js';
 import { Page } from './page.js';
 import { fetchDaemonStatus, isExtensionConnected } from './daemon-client.js';
 import { DEFAULT_DAEMON_PORT } from '../constants.js';
+import { BrowserConnectError } from '../errors.js';
 
 const DAEMON_SPAWN_TIMEOUT = 10000; // 10s to wait for daemon + extension
 
@@ -77,9 +78,13 @@ export class BrowserBridge implements IBrowserFactory {
         await new Promise(resolve => setTimeout(resolve, 200));
         if (await isExtensionConnected()) return;
       }
-      throw new Error(
-        'Daemon is running but the Browser Extension is not connected.\n' +
-        'Please install and enable the opencli Browser Bridge extension in Chrome or Chromium.',
+      throw new BrowserConnectError(
+        'Browser Bridge extension not connected',
+        'Install the Browser Bridge:\n' +
+        '  1. Download: https://github.com/jackwener/opencli/releases\n' +
+        '  2. In Chrome or Chromium, open chrome://extensions → Developer Mode → Load unpacked\n' +
+        '  Then run: opencli doctor',
+        'extension-not-connected',
       );
     }
 
@@ -114,16 +119,20 @@ export class BrowserBridge implements IBrowserFactory {
     }
 
     if ((await fetchDaemonStatus()) !== null) {
-      throw new Error(
-        'Daemon is running but the Browser Extension is not connected.\n' +
-        'Please install and enable the opencli Browser Bridge extension in Chrome or Chromium.',
+      throw new BrowserConnectError(
+        'Browser Bridge extension not connected',
+        'Install the Browser Bridge:\n' +
+        '  1. Download: https://github.com/jackwener/opencli/releases\n' +
+        '  2. In Chrome or Chromium, open chrome://extensions → Developer Mode → Load unpacked\n' +
+        '  Then run: opencli doctor',
+        'extension-not-connected',
       );
     }
 
-    throw new Error(
-      'Failed to start opencli daemon. Try running manually:\n' +
-      `  node ${daemonPath}\n` +
-      `Make sure port ${DEFAULT_DAEMON_PORT} is available.`,
+    throw new BrowserConnectError(
+      'Failed to start opencli daemon',
+      `Try running manually:\n  node ${daemonPath}\nMake sure port ${DEFAULT_DAEMON_PORT} is available.`,
+      'daemon-not-running',
     );
   }
 }
