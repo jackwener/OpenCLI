@@ -196,28 +196,34 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   program
     .command('generate')
-    .description('One-shot: explore → synthesize → register')
+    .description('One-shot: explore → synthesize → verify → register')
     .argument('<url>')
     .option('--goal <text>')
     .option('--site <name>')
+    .option('--format <fmt>', 'Output format: table, json', 'table')
+    .option('--no-register', 'Verify the generated adapter without registering it', false)
     .option('-v, --verbose', 'Debug output')
     .action(async (url: string, opts: {
       goal?: string;
       site?: string;
+      format?: string;
+      noRegister?: boolean;
       verbose?: boolean;
     }) => {
       applyVerbose(opts);
-      const { generateCliFromUrl, renderGenerateSummary } = await import('./generate.js');
+      const { generateVerifiedFromUrl, renderGenerateVerifiedSummary } = await import('./generate-verified.js');
       const workspace = `generate:${inferHost(url, opts.site)}`;
-      const r = await generateCliFromUrl({
+      const r = await generateVerifiedFromUrl({
         url,
         BrowserFactory: getBrowserFactory(),
         goal: opts.goal,
         site: opts.site,
         workspace,
+        noRegister: opts.noRegister ?? false,
       });
-      console.log(renderGenerateSummary(r));
-      process.exitCode = r.ok ? EXIT_CODES.SUCCESS : EXIT_CODES.GENERIC_ERROR;
+      if (opts.format === 'json') console.log(JSON.stringify(r, null, 2));
+      else console.log(renderGenerateVerifiedSummary(r));
+      process.exitCode = r.status === 'success' ? EXIT_CODES.SUCCESS : EXIT_CODES.GENERIC_ERROR;
     });
 
   // ── Built-in: record ─────────────────────────────────────────────────────
