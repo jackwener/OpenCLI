@@ -60,7 +60,13 @@
     "test:e2e": "vitest run --project e2e",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "skill:commands:sync": "node scripts/sync-skill-command-reference.mjs",
+    "skill:commands:check": "bash scripts/check-skill-command-reference.sh",
+    "skill:md:sync": "node scripts/sync-skill-md.mjs",
+    "skill:md:check": "bash scripts/check-skill-md.sh",
+    "skill:sync": "node scripts/sync-opencli-skill-docs.mjs",
+    "skill:check": "bash scripts/check-opencli-skill-docs.sh"
   },
   "keywords": [
     "cli",

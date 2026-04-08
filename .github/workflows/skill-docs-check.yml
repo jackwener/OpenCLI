@@ -1,0 +1,31 @@
+name: skill-docs-check
+
+on:
+  pull_request:
+    paths:
+      - 'src/clis/**'
+      - 'skills/opencli-skill/**'
+      - 'scripts/sync-*.mjs'
+      - 'scripts/check-*.sh'
+      - 'package.json'
+      - '.github/workflows/skill-docs-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/clis/**'
+      - 'skills/opencli-skill/**'
+      - 'scripts/sync-*.mjs'
+      - 'scripts/check-*.sh'
+      - 'package.json'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run skill:check

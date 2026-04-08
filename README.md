@@ -98,6 +98,16 @@ npx skills add jackwener/opencli --skill opencli-explorer    # Adapter developme
 npx skills add jackwener/opencli --skill opencli-oneshot     # Quick command reference
 ```
 
+#### OpenCLI Skill (for coding assistants)
+
+If you want a lightweight, prompt-friendly skill package, see:
+- https://github.com/joeseesun/opencli-skill
+
+It focuses on three things:
+- Natural-language routing for common supported platforms
+- Reusing Chrome login session (no API keys)
+- Agent-friendly command examples (`-f json` by default)
+
 ---
 
 ### For Developers
