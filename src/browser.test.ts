@@ -135,8 +135,7 @@ describe('BrowserBridge state', () => {
   });
 
   it('fails fast when daemon is running but extension is disconnected', async () => {
-    vi.spyOn(daemonClient, 'isExtensionConnected').mockResolvedValue(false);
-    vi.spyOn(daemonClient, 'fetchDaemonStatus').mockResolvedValue({ extensionConnected: false } as any);
+    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({ state: 'no-extension', status: { extensionConnected: false } as any });
 
     const bridge = new BrowserBridge();
 

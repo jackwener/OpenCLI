@@ -1,17 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockCheckDaemonStatus, mockListSessions, mockConnect, mockClose } = vi.hoisted(() => ({
-  mockCheckDaemonStatus: vi.fn(),
+const { mockGetDaemonHealth, mockListSessions, mockConnect, mockClose } = vi.hoisted(() => ({
+  mockGetDaemonHealth: vi.fn(),
   mockListSessions: vi.fn(),
   mockConnect: vi.fn(),
   mockClose: vi.fn(),
 }));
 
-vi.mock('./browser/discover.js', () => ({
-  checkDaemonStatus: mockCheckDaemonStatus,
-}));
-
 vi.mock('./browser/daemon-client.js', () => ({
+  getDaemonHealth: mockGetDaemonHealth,
   listSessions: mockListSessions,
 }));
 
@@ -113,35 +110,33 @@ describe('doctor report rendering', () => {
     expect(text).toContain('Daemon connectivity is unstable.');
   });
 
-  it('reports consistent status when live check auto-starts the daemon', async () => {
-    // checkDaemonStatus is called twice: once for auto-start check, once for final status.
-    // First call: daemon not running (triggers auto-start attempt)
-    mockCheckDaemonStatus.mockResolvedValueOnce({ running: false, extensionConnected: false });
-    // Auto-start attempt via BrowserBridge.connect fails
+  it('reports daemon not running when no-live and auto-start fails', async () => {
+    // no-live mode: getDaemonHealth called twice (initial check + final status)
+    // Initial: stopped → triggers auto-start attempt
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
+    // Auto-start fails
     mockConnect.mockRejectedValueOnce(new Error('Could not start daemon'));
-    // Second call: daemon still not running after failed auto-start
-    mockCheckDaemonStatus.mockResolvedValueOnce({ running: false, extensionConnected: false });
+    // Final: still stopped
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
 
     const report = await runBrowserDoctor({ live: false });
 
-    // Status reflects daemon not running
     expect(report.daemonRunning).toBe(false);
     expect(report.extensionConnected).toBe(false);
-    // checkDaemonStatus called twice (initial + final)
-    expect(mockCheckDaemonStatus).toHaveBeenCalledTimes(2);
-    // Should report daemon not running
+    expect(mockGetDaemonHealth).toHaveBeenCalledTimes(2);
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('Daemon is not running'),
     ]));
   });
 
-  it('reports flapping when live check succeeds but final status flips disconnected', async () => {
-    mockCheckDaemonStatus.mockResolvedValueOnce({ running: true, extensionConnected: false });
+  it('reports flapping when live check succeeds but final status shows extension disconnected', async () => {
+    // Live check succeeds
     mockConnect.mockResolvedValueOnce({
       evaluate: vi.fn().mockResolvedValue(2),
     });
     mockClose.mockResolvedValueOnce(undefined);
-    mockCheckDaemonStatus.mockResolvedValueOnce({ running: true, extensionConnected: false });
+    // After live check, getDaemonHealth shows no-extension
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
 
     const report = await runBrowserDoctor({ live: true });
 
@@ -154,12 +149,13 @@ describe('doctor report rendering', () => {
   });
 
   it('reports daemon flapping when live check succeeds but daemon disappears afterward', async () => {
-    mockCheckDaemonStatus.mockResolvedValueOnce({ running: true, extensionConnected: true });
+    // Live check succeeds
     mockConnect.mockResolvedValueOnce({
       evaluate: vi.fn().mockResolvedValue(2),
     });
     mockClose.mockResolvedValueOnce(undefined);
-    mockCheckDaemonStatus.mockResolvedValueOnce({ running: false, extensionConnected: false });
+    // After live check, getDaemonHealth shows stopped
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
 
     const report = await runBrowserDoctor({ live: true });
 
@@ -173,7 +169,6 @@ describe('doctor report rendering', () => {
 
   it('uses the fast default timeout for live connectivity checks', async () => {
     let timeoutSeen: number | undefined;
-    mockCheckDaemonStatus.mockResolvedValueOnce({ running: true, extensionConnected: true });
     mockConnect.mockImplementationOnce(async (opts?: { timeout?: number }) => {
       timeoutSeen = opts?.timeout;
       return {
@@ -181,10 +176,24 @@ describe('doctor report rendering', () => {
       };
     });
     mockClose.mockResolvedValueOnce(undefined);
-    mockCheckDaemonStatus.mockResolvedValueOnce({ running: true, extensionConnected: true });
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'ready', status: { extensionConnected: true } });
 
     await runBrowserDoctor({ live: true });
 
     expect(timeoutSeen).toBe(8);
+  });
+
+  it('skips auto-start in no-live mode when daemon is already running', async () => {
+    // no-live mode but daemon already running (no-extension)
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
+    // Final status: same
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
+
+    const report = await runBrowserDoctor({ live: false });
+
+    // Should NOT have tried auto-start since daemon was already running
+    expect(mockConnect).not.toHaveBeenCalled();
+    expect(report.daemonRunning).toBe(true);
+    expect(report.extensionConnected).toBe(false);
   });
 });
