@@ -253,7 +253,7 @@ describe('commanderAdapter default formats', () => {
   });
 });
 
-describe('commanderAdapter empty result hints', () => {
+describe('commanderAdapter error envelope output', () => {
   const cmd: CliCommand = {
     site: 'xiaohongshu',
     name: 'note',
@@ -272,12 +272,12 @@ describe('commanderAdapter empty result hints', () => {
     process.exitCode = undefined;
   });
 
-  it('prints the adapter hint instead of the generic outdated-adapter message', async () => {
+  it('outputs YAML error envelope with adapter hint to stderr', async () => {
     const program = new Command();
     const siteCmd = program.command('xiaohongshu');
     registerCommandToProgram(siteCmd, cmd);
 
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     mockExecuteCommand.mockRejectedValueOnce(
       new EmptyResultError(
         'xiaohongshu/note',
@@ -287,29 +287,31 @@ describe('commanderAdapter empty result hints', () => {
 
     await program.parseAsync(['node', 'opencli', 'xiaohongshu', 'note', '69ca3927000000001a020fd5']);
 
-    const output = errorSpy.mock.calls.flat().join('\n');
+    const output = stderrSpy.mock.calls.map(c => String(c[0])).join('');
+    expect(output).toContain('ok: false');
+    expect(output).toContain('code: EMPTY_RESULT');
     expect(output).toContain('xsec_token');
-    expect(output).not.toContain('this adapter may be outdated');
 
-    errorSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 
-  it('prints selector-specific hints too', async () => {
+  it('outputs YAML error envelope for selector errors', async () => {
     const program = new Command();
     const siteCmd = program.command('xiaohongshu');
     registerCommandToProgram(siteCmd, cmd);
 
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     mockExecuteCommand.mockRejectedValueOnce(
       new SelectorError('.note-title', 'The note title selector no longer matches the current page.'),
     );
 
     await program.parseAsync(['node', 'opencli', 'xiaohongshu', 'note', '69ca3927000000001a020fd5']);
 
-    const output = errorSpy.mock.calls.flat().join('\n');
+    const output = stderrSpy.mock.calls.map(c => String(c[0])).join('');
+    expect(output).toContain('ok: false');
+    expect(output).toContain('code: SELECTOR');
     expect(output).toContain('selector no longer matches');
-    expect(output).not.toContain('this adapter may be outdated');
 
-    errorSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 });
