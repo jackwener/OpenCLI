@@ -205,13 +205,13 @@ cli({
 - **私人 adapter**（本地使用，无需提 PR）：文件放 `~/.opencli/clis/<site>/<name>.ts`，无需 build
 
 ```bash
-# 推荐：一键验证（自动检查注册 + 运行）
-opencli browser verify <site>/<name>
-
-# 或手动：
-npm run build                              # Repo 场景需要
+# Repo 贡献：build 后直接运行
+npm run build
 opencli list | grep mysite                 # 确认注册
 opencli mysite mycommand --limit 3 -v      # 实际运行
+
+# 私人 adapter（~/.opencli/clis/）：一键验证
+opencli browser verify <site>/<name>
 ```
 
 **Done 标准**：命令运行后返回非空表格，且字段符合预期。
@@ -221,7 +221,7 @@ opencli mysite mycommand --limit 3 -v      # 实际运行
 ## Step 5: 提交发布
 
 ```bash
-opencli browser verify mysite/mycommand    # 最终验证
+npm run build && opencli mysite mycommand --limit 3   # 最终验证（Repo 贡献场景）
 git add clis/mysite/ && git commit -m "feat(mysite): add mycommand" && git push
 ```
 

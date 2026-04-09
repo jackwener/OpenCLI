@@ -283,10 +283,13 @@ cli({
 > - **私人 adapter**（本地使用，无需提 PR）：文件放 `~/.opencli/clis/<site>/<name>.ts`，无需 build
 
 ```bash
-opencli browser verify <site>/<name>      # 一键验证（推荐，自动检查注册+运行）
-# 或手动：
+# Repo 贡献：build 后直接运行
+npm run build
 opencli list | grep mysite                 # 确认注册
 opencli mysite mycommand --limit 3 -v      # 实际运行
+
+# 私人 adapter（~/.opencli/clis/）：一键验证
+opencli browser verify <site>/<name>
 ```
 
 **Done 标准**：命令运行后返回非空表格，且字段符合预期。
@@ -295,4 +298,4 @@ opencli mysite mycommand --limit 3 -v      # 实际运行
 
 ## 就这样，没了
 
-写完文件 → verify → 提交。有问题再看 [opencli-explorer skill](../opencli-explorer/SKILL.md)。
+写完文件 → build + run（Repo 贡献）或 browser verify（私人 adapter）→ 提交。有问题再看 [opencli-explorer skill](../opencli-explorer/SKILL.md)。
