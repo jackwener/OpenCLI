@@ -121,7 +121,7 @@ function filterNavigationRows(query: string, items: Array<{
       const hasQuery = queryTokens.length === 0 || queryTokens.some((token) => haystack.includes(token));
       const hasProcurementHint = PROCUREMENT_TITLE_HINT.test(`${item.title} ${item.contextText}`);
       const hasDate = !!item.date;
-      if (!hasQuery && !hasProcurementHint) return false;
+      if (!hasQuery) return false;
       if (!isLikelyNavigationUrl(item.url)) return true;
       return hasDate && hasProcurementHint;
     });

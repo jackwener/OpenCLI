@@ -42,6 +42,18 @@ describe('jianyu search helpers', () => {
     expect(filtered[0].title).toContain('电梯采购公告');
   });
 
+  it('rejects procurement rows that do not contain query evidence', () => {
+    const filtered = __test__.filterNavigationRows('电梯', [
+      {
+        title: '某项目采购公告',
+        url: 'https://www.jianyu360.cn/notice/detail/123',
+        date: '2026-04-07',
+        contextText: '招标公告 项目编号：ABC-123',
+      },
+    ]);
+    expect(filtered).toHaveLength(0);
+  });
+
   it('parses search-index markdown headings', () => {
     const rows = __test__.parseSearchIndexMarkdown(`
 ## [标题一](http://duckduckgo.com/l/?uddg=https%3A%2F%2Fbeijing.jianyu360.cn%2Fjybx%2F20260401_26033143187897.html)

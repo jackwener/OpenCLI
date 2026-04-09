@@ -314,8 +314,7 @@ function qualityRejectReason(core: ProcurementCoreRecord, query: string): string
 
   const searchable = `${core.title} ${core.snippet} ${core.url}`.toLowerCase();
   const hasQuery = queryMatched(searchable, query);
-  const hasProcurementHint = containsAny(searchable, PROCUREMENT_HINTS);
-  if (!hasQuery && !hasProcurementHint) return 'query_mismatch';
+  if (!hasQuery) return 'query_mismatch';
   return null;
 }
 

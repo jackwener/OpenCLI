@@ -49,6 +49,23 @@ describe('procurement contract helpers', () => {
     )).toThrow('[taxonomy=extraction_drift]');
   });
 
+  it('rejects rows that look like procurement notices but miss the query', () => {
+    expect(() => toProcurementSearchRecords(
+      [
+        {
+          title: '某项目采购公告',
+          url: 'https://example.com/notice/detail?id=1',
+          contextText: '招标公告 项目编号：ABC-123 预算金额：100万元',
+        },
+      ],
+      {
+        site: 'jianyu',
+        query: '电梯',
+        limit: 10,
+      },
+    )).toThrow('[taxonomy=extraction_drift]');
+  });
+
   it('builds detail record with evidence blocks', () => {
     const detail = toProcurementDetailRecord(
       {
