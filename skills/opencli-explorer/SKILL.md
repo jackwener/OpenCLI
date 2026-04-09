@@ -563,7 +563,9 @@ cli({
 > **构建通过 ≠ 功能正常**。`npm run build` 只验证 TypeScript 语法，不验证运行时行为。
 > 每个新命令 **必须实际运行** 并确认输出正确后才算完成。
 
-> **文件路径**：`~/.opencli/clis/<site>/<name>.ts`（opencli 从这里扫描注册，不是项目目录）
+> **两种开发场景**：
+> - **Repo 贡献**（本文档主路径）：文件在 `clis/<site>/<name>.ts`，`npm run build` 后自动发现
+> - **私人 adapter**（本地使用，无需提 PR）：文件放 `~/.opencli/clis/<site>/<name>.ts`，无需 build，直接注册
 
 ### 必做清单
 
@@ -572,10 +574,13 @@ cli({
 opencli browser verify <site>/<name>
 
 # 或手动：
-# 1. 确认命令已注册
+# 1. 构建（repo 开发场景需要）
+npm run build
+
+# 2. 确认命令已注册
 opencli list | grep mysite
 
-# 2. 实际运行命令（最关键！）
+# 3. 实际运行命令（最关键！）
 opencli mysite hot --limit 3 -v        # verbose 查看每步数据流
 opencli mysite hot --limit 3 -f json   # JSON 输出确认字段完整
 ```
@@ -638,7 +643,7 @@ opencli mysite hot -f csv > data.csv       # 确认 CSV 可导入
 
 ## Step 5: 提交发布
 
-文件放入 `~/.opencli/clis/<site>/` 即自动注册（TS 文件无需手动 import），然后：
+文件放入 `clis/<site>/` 即自动注册（TS 文件无需手动 import），然后：
 
 ```bash
 opencli browser verify mysite/hot                     # 验证运行正常（Done 标准：返回非空表格）
@@ -713,6 +718,117 @@ cli({
 
 ---
 
+## 抗变更模式 (Anti-Change Patterns)
+
+网站会频繁修改 CSS class、webpack module ID、GraphQL queryId，导致 adapter 失效。以下是经过 opencli 生产验证的抗变更写法。
+
+### 模式 1：动态 queryId 发现（替代硬编码）
+
+**问题**：Twitter/X 等 SPA 每次部署都会更新 GraphQL queryId，硬编码 fallback 很快失效。
+
+**方案**：优先从 JS bundle 动态扫描，用 `operationName`（稳定）查 `queryId`（易变）。opencli 的 `resolveTwitterQueryId` 实现了三级降级：
+
+```typescript
+// clis/twitter/shared.ts — resolveTwitterQueryId()
+const resolved = await page.evaluate(`async () => {
+  // Tier A: 从 GitHub 维护的配置文件获取（社区维护，更新快）
+  try {
+    const data = await fetch('https://raw.githubusercontent.com/.../placeholder.json')
+      .then(r => r.json());
+    if (data?.[operationName]?.queryId) return data[operationName].queryId;
+  } catch {}
+
+  // Tier B: 扫描已加载的 client-web JS bundle
+  const scripts = performance.getEntriesByType('resource')
+    .filter(r => r.name.includes('client-web') && r.name.endsWith('.js'))
+    .map(r => r.name);
+  for (const url of scripts.slice(0, 15)) {
+    const text = await fetch(url).then(r => r.text());
+    // operationName 稳定，用它来定位 queryId
+    const m = text.match('queryId:"([A-Za-z0-9_-]+)"[^}]{0,200}operationName:"' + operationName + '"');
+    if (m) return m[1];
+  }
+  return null;  // 降级到调用方的 hardcoded fallback
+}`);
+```
+
+**选择正则签名的原则**：
+- 用**业务语义字符串**（`operationName`）定位，不用 module ID
+- 用**多特征组合**减少误匹配（`queryId + operationName` 一起匹配）
+- 提供 `sanitizeQueryId()` 验证格式，防止提取到垃圾值
+
+### 模式 2：语义 DOM 优先级降级（替代 CSS class 硬选）
+
+**问题**：CSS class 命名随前端重构随时变化（如 Google 历史上多次改变搜索结果 class）。
+
+**方案**：按语义元素优先级逐级降级，只在最后才使用 class hint。参考 `clis/web/read.ts`：
+
+```typescript
+// 优先级 1: <article>（标准语义元素）
+const articles = document.querySelectorAll('article');
+contentEl = articles.length === 1 ? articles[0]
+  : [...articles].reduce((max, a) =>
+      (a.textContent?.length || 0) > (max.textContent?.length || 0) ? a : max
+    );
+
+// 优先级 2: [role="main"]（ARIA 语义）
+if (!contentEl) contentEl = document.querySelector('[role="main"]');
+
+// 优先级 3: <main>（HTML5 语义）
+if (!contentEl) contentEl = document.querySelector('main');
+
+// 优先级 4: class-based hint（最后手段）
+if (!contentEl) {
+  const candidates = document.querySelectorAll(
+    'div[class*="content"], div[class*="article"], div[class*="post"]'
+  );
+  contentEl = [...candidates].reduce((max, c) => ...);
+}
+```
+
+多元素时用**文本长度启发式**选最大块，不假设固定 index。
+
+### 模式 3：多选择器有序数组 + 时间戳注释
+
+**问题**：UI 迭代频繁，同一个输入框的选择器在新版本可能完全不同。
+
+**方案**：把选择器按优先级列成有序数组，并注释变更日期和观察依据。参考 `clis/xiaohongshu/publish.ts`：
+
+```typescript
+// New creator center (2026-03) uses contenteditable for the title field.
+// Placeholder observed: "填写标题会有更多赞哦"
+const TITLE_SELECTORS = [
+  '[contenteditable="true"][placeholder*="标题"]',  // 新版（2026-03）
+  '[contenteditable="true"][placeholder*="赞"]',    // 新版备选
+  '[contenteditable="true"][class*="title"]',       // 通用
+  'input[maxlength="20"]',                          // 旧版特征值
+  'input[placeholder*="标题"]',                     // 旧版语义
+];
+// 遍历时第一个命中的即用，天然支持新旧版本兼容
+for (const sel of TITLE_SELECTORS) {
+  const el = document.querySelector(sel);
+  if (el) { /* 使用 el */ break; }
+}
+```
+
+**注释规范**：写下 UI 版本（年月）+ 观察到的具体属性值，下次维护者能快速判断注释是否还有效。
+
+### 模式 4：API 字段多路映射
+
+**问题**：后端 API 经常在驼峰/蛇形之间切换，或加入新字段名兼容旧客户端。
+
+**方案**：用 nullish coalescing 链覆盖所有可能字段名，不假设固定 key。参考 `clis/xiaohongshu/user-helpers.ts`：
+
+```typescript
+// noteId 可能是 noteId / note_id / id，都要覆盖
+const noteId = noteCard.noteId ?? noteCard.note_id ?? entry?.noteId ?? entry?.note_id ?? entry?.id;
+const token  = entry?.xsecToken ?? entry?.xsec_token ?? noteCard.xsecToken ?? noteCard.xsec_token;
+```
+
+**何时使用**：API 字段名有下划线/驼峰混用时，或明确知道 API 历史上改过字段名时。
+
+---
+
 ## 常见陷阱
 
 | 陷阱 | 表现 | 解决方案 |
@@ -732,7 +848,7 @@ cli({
 | **SPA 返回 HTML** | `fetch('/api/xxx')` 返回 HTML 200（`<!DOCTYPE html>`） | 页面 host 是 `app.xxx.com`，真实 API 在 `api.xxx.com`；搜 JS bundle 找 baseURL |
 | **400 缺少上下文 Header** | 带了 Bearer 仍然 400，报 `Missing X-Server-Id` 之类 | 多租户 SaaS 需要业务上下文 ID；先调 `/servers` 或 `/workspaces` 拿 ID 再带上 |
 | **network 命令为空** | `opencli browser network` 没有任何 API 请求 | 重新 `open` 刷新捕获；或检查是否 SPA 且 API 在独立 domain |
-| **文件写错目录** | `opencli list` 找不到命令 | 适配器必须放 `~/.opencli/clis/<site>/`，不是项目 `clis/` 目录 |
+| **文件写错目录** | `opencli list` 找不到命令 | Repo 贡献放 `clis/<site>/` + `npm run build`；私人 adapter 放 `~/.opencli/clis/<site>/`（无需 build） |
 
 ---
 

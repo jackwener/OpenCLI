@@ -116,7 +116,7 @@ localStorage 有 token + Bearer header 能拿到？  → Tier 2.5: localStorage 
 ### TS — Cookie/Public（最简，`func()` 模式）
 
 ```typescript
-// ~/.opencli/clis/<site>/<name>.ts
+// clis/<site>/<name>.ts
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
@@ -152,7 +152,7 @@ cli({
 ### TS — localStorage Bearer（现代 SaaS）
 
 ```typescript
-// ~/.opencli/clis/<site>/<name>.ts
+// clis/<site>/<name>.ts
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
@@ -192,7 +192,7 @@ cli({
 ### TS — Intercept（抓包模式）
 
 ```typescript
-// ~/.opencli/clis/<site>/<name>.ts
+// clis/<site>/<name>.ts
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
@@ -278,7 +278,9 @@ cli({
 
 ## 测试（必做）
 
-> **文件路径**：`~/.opencli/clis/<site>/<name>.ts`（opencli 从这里扫描注册，不是项目目录）
+> **两种开发场景**：
+> - **Repo 贡献**：文件放 `clis/<site>/<name>.ts`，`npm run build` 后自动注册
+> - **私人 adapter**（本地使用，无需提 PR）：文件放 `~/.opencli/clis/<site>/<name>.ts`，无需 build
 
 ```bash
 opencli browser verify <site>/<name>      # 一键验证（推荐，自动检查注册+运行）
