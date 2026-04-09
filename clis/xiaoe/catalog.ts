@@ -41,11 +41,22 @@ cli({
   clickTab('目录');
   await new Promise(function(r) { setTimeout(r, 2000); });
 
+  function getScrollTargets() {
+    return document.querySelectorAll('.scroll-view, .list-wrap, .scroller, #app');
+  }
+  function getMaxScrollHeight(scrollers) {
+    var maxHeight = document.body.scrollHeight;
+    for (var i = 0; i < scrollers.length; i++) {
+      if (scrollers[i].scrollHeight > maxHeight) maxHeight = scrollers[i].scrollHeight;
+    }
+    return maxHeight;
+  }
+
   // 模拟滚动以实现动态加载
-  var prevScrollHeight = 0;
+  var prevMaxScrollHeight = 0;
   for (var sc = 0; sc < 20; sc++) {
     window.scrollTo(0, 999999);
-    var scrollers = document.querySelectorAll('.scroll-view, .list-wrap, .scroller, #app');
+    var scrollers = getScrollTargets();
     for(var si = 0; si < scrollers.length; si++) {
       if(scrollers[si].scrollHeight > scrollers[si].clientHeight) scrollers[si].scrollTop = scrollers[si].scrollHeight;
     }
@@ -60,9 +71,9 @@ cli({
       }
     }
     
-    var h = document.body.scrollHeight;
-    if (sc > 3 && h === prevScrollHeight) break;
-    prevScrollHeight = h;
+    var maxScrollHeight = getMaxScrollHeight(getScrollTargets());
+    if (sc > 3 && maxScrollHeight === prevMaxScrollHeight) break;
+    prevMaxScrollHeight = maxScrollHeight;
   }
   await new Promise(function(r) { setTimeout(r, 1000); });
 
