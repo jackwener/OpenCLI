@@ -40,7 +40,7 @@ cli({
     // Step 4: 断言风控降级（空值断言）
     const subtitles = payload.data?.subtitle?.subtitles || [];
     const url = subtitles[0]?.subtitle_url;
-    if (!url) return [{ error: 'subtitle_url is empty — possible risk-control block', remedy: 'Re-login to Bilibili, then retry' }];
+    if (!url) return [{ error: 'subtitle_url is empty — possible risk-control block', help: 'Re-login to Bilibili, then retry' }];
 
     // Step 5: 拉取最终数据（CDN JSON）
     const items = await page.evaluate(`(async () => {

@@ -167,7 +167,7 @@ cat clis/<site>/feed.ts     # 读最相似的那个
 
 所有适配器统一使用 TypeScript `cli()` API，放入 `clis/<site>/<name>.ts` 即自动注册。
 
-完整模板（Tier 1~4）、分页模式、错误处理规范（`{ error, remedy }` 格式）→ **[adapter-templates.md](references/adapter-templates.md)**
+完整模板（Tier 1~4）、分页模式、错误处理规范（`{ error, help }` 格式）→ **[adapter-templates.md](references/adapter-templates.md)**
 
 **最简结构**（Tier 2 Cookie）：
 
@@ -241,7 +241,7 @@ git add clis/mysite/ && git commit -m "feat(mysite): add mycommand" && git push
 |------|------|---------|
 | 缺少 `navigate` | `Target page context` 错误 | 在 evaluate 前加 `page.goto()` |
 | 缺少 `strategy: public` | 公开 API 也启动浏览器 | 加 `strategy: Strategy.PUBLIC` + `browser: false` |
-| **风控被拦截（伪 200）** | JSON 里核心数据是空串 | 必须断言！返回 `{ error, remedy }` 提示重新登录 |
+| **风控被拦截（伪 200）** | JSON 里核心数据是空串 | 必须断言！返回 `{ error, help }` 提示重新登录 |
 | **SPA 返回 HTML** | `fetch('/api/xxx')` 返回 `<!DOCTYPE html>` | 页面 host 是 `app.xxx.com`，真实 API 在 `api.xxx.com`；搜 JS bundle 找 baseURL |
 | **400 缺少上下文 Header** | 带了 Bearer 仍然 400，报 `Missing X-Server-Id` | 先调 `/servers` 拿业务上下文 ID，加进 headers |
 | **文件写错目录** | `opencli list` 找不到命令 | Repo 贡献放 `clis/<site>/` + build；私人 adapter 放 `~/.opencli/clis/<site>/` |

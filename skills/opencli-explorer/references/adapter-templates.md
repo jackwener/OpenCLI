@@ -119,7 +119,7 @@ cli({
     await page.goto('https://app.slock.ai');
     const data = await page.evaluate(`(async () => {
       const token = localStorage.getItem('slock_access_token');
-      if (!token) return { error: 'Not logged in', remedy: 'Open https://app.slock.ai and log in, then retry' };
+      if (!token) return { error: 'Not logged in', help: 'Open https://app.slock.ai and log in, then retry' };
 
       // 多租户 SaaS：先拿工作空间列表
       const slug = ${JSON.stringify(kwargs.server || null)} || localStorage.getItem('slock_last_server_slug');
@@ -172,7 +172,7 @@ cli({
     await page.goto('https://x.com');
     const data = await page.evaluate(`(async () => {
       const ct0 = document.cookie.match(/ct0=([^;]+)/)?.[1];
-      if (!ct0) return { error: 'Not logged in', remedy: 'Open https://x.com and log in, then retry' };
+      if (!ct0) return { error: 'Not logged in', help: 'Open https://x.com and log in, then retry' };
       const bearer = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
       const res = await fetch('/i/api/graphql/QUERY_ID/ListsManagePinTimeline', {
         headers: {
@@ -349,7 +349,7 @@ const server = servers.find(s => s.slug === slug) || servers[0];
 // clis/mysite/utils.ts
 export async function getServerContext(slug: string | null): Promise<{ token: string; server: any }> {
   const token = localStorage.getItem('mysite_access_token');
-  if (!token) throw { error: 'Not logged in', remedy: 'Open https://app.mysite.com and log in, then retry' };
+  if (!token) throw { error: 'Not logged in', help: 'Open https://app.mysite.com and log in, then retry' };
   const servers = await fetch('https://api.mysite.com/api/servers', {
     headers: { 'Authorization': 'Bearer ' + token }
   }).then(r => r.json());
@@ -380,14 +380,14 @@ func: async (page, kwargs) => {
 
 ## 错误处理规范
 
-### 返回 `{ error, remedy }` 而非 throw
+### 返回 `{ error, help }` 而非 throw
 
 ```typescript
 // ❌ 不推荐：throw 导致 CLI 打印 stack trace，用户不知道怎么修复
 if (!token) throw new Error('Not logged in');
 
-// ✅ 推荐：返回结构化错误，remedy 告诉 AI Agent 或用户下一步怎么做
-if (!token) return [{ error: 'Not logged in', remedy: 'Open https://site.com and log in, then retry' }];
+// ✅ 推荐：返回结构化错误，help 告诉 AI Agent 或用户下一步怎么做
+if (!token) return [{ error: 'Not logged in', help: 'Open https://site.com and log in, then retry' }];
 ```
 
 **字段约定**：
@@ -395,27 +395,27 @@ if (!token) return [{ error: 'Not logged in', remedy: 'Open https://site.com and
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `error` | `string` | 问题描述，事实性，不带感叹号 |
-| `remedy` | `string` | 具体的修复动作，可直接执行 |
+| `help` | `string` | 具体的修复动作，可直接执行 |
 
-**常用 remedy 模板**：
+**常用 help 模板**：
 
 ```typescript
 // 未登录
-{ error: 'Not logged in', remedy: 'Open https://site.com in the browser and log in, then retry' }
+{ error: 'Not logged in', help: 'Open https://site.com in the browser and log in, then retry' }
 
 // 找不到资源
-{ error: `Channel not found: ${kwargs.channel}`, remedy: 'Run `opencli site channels` to see available channels' }
+{ error: `Channel not found: ${kwargs.channel}`, help: 'Run `opencli site channels` to see available channels' }
 
 // 权限不足
-{ error: 'Forbidden (403)', remedy: 'Check that your account has access to this resource' }
+{ error: 'Forbidden (403)', help: 'Check that your account has access to this resource' }
 
 // API 结构变更
-{ error: 'Unexpected response structure', remedy: 'Run `opencli browser network --detail N` to inspect the current API response' }
+{ error: 'Unexpected response structure', help: 'Run `opencli browser network --detail N` to inspect the current API response' }
 
 // 风控降级（伪 200）
-{ error: 'Core data is empty — possible risk-control block', remedy: 'Re-login to the site in the browser, then retry' }
+{ error: 'Core data is empty — possible risk-control block', help: 'Re-login to the site in the browser, then retry' }
 ```
 
 **何时 throw vs 返回 error 对象**：
 - 程序错误（参数类型错、配置缺失）→ `throw`，这是 bug
-- 运行时用户可修复的情况（未登录、找不到资源、API 变更）→ 返回 `{ error, remedy }`
+- 运行时用户可修复的情况（未登录、找不到资源、API 变更）→ 返回 `{ error, help }`
