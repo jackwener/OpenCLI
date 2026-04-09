@@ -16,7 +16,7 @@ cli({
     await page.goto('https://xueqiu.com');
     const url = `https://xueqiu.com/stock/search.json?code=${encodeURIComponent(String(kwargs.query))}&size=${kwargs.limit}`;
     const d = await fetchXueqiuJson(page, url);
-    if ('error' in d) return [d];
+
     return ((d.stocks || []) as any[]).slice(0, kwargs.limit as number).map((s: any) => {
       let symbol = '';
       if (s.exchange === 'SH' || s.exchange === 'SZ' || s.exchange === 'BJ') {

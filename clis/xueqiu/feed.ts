@@ -26,7 +26,7 @@ cli({
     await page.goto('https://xueqiu.com');
     const url = `https://xueqiu.com/v4/statuses/home_timeline.json?page=${kwargs.page}&count=${kwargs.limit}`;
     const d = await fetchXueqiuJson(page, url);
-    if ('error' in d) return [d];
+
     return ((d.home_timeline || d.list || []) as any[]).slice(0, kwargs.limit as number).map((item: any) => {
       const user = item.user || {};
       return {

@@ -24,7 +24,7 @@ cli({
   func: async (page, kwargs) => {
     await page.goto('https://xueqiu.com');
     const d = await fetchXueqiuJson(page, 'https://xueqiu.com/statuses/hot/listV3.json?source=hot&page=1');
-    if ('error' in d) return [d];
+
     return ((d.list || []) as any[]).slice(0, kwargs.limit as number).map((item: any, i: number) => {
       const user = item.user || {};
       return {

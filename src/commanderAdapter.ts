@@ -148,7 +148,7 @@ function renderError(err: unknown, cmdName: string, verbose: boolean): void {
 
   // In verbose mode, include stack trace for debugging
   if (verbose && err instanceof Error && err.stack) {
-    (envelope.error as Record<string, unknown>).stack = err.stack;
+    envelope.error.stack = err.stack;
   }
 
   let output = yaml.dump(envelope, { sortKeys: false, lineWidth: 120, noRefs: true });

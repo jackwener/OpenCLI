@@ -351,7 +351,7 @@ const server = servers.find(s => s.slug === slug) || servers[0];
 // clis/mysite/utils.ts
 export async function getServerContext(slug: string | null): Promise<{ token: string; server: any }> {
   const token = localStorage.getItem('mysite_access_token');
-  if (!token) throw new Error('Not logged in');
+  if (!token) throw new AuthRequiredError('app.mysite.com', 'Not logged in');
   const servers = await fetch('https://api.mysite.com/api/servers', {
     headers: { 'Authorization': 'Bearer ' + token }
   }).then(r => r.json());

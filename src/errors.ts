@@ -147,6 +147,7 @@ export interface ErrorEnvelope {
     message: string;
     help?: string;
     exitCode: number;
+    stack?: string;
   };
 }
 
