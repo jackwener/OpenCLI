@@ -3,6 +3,7 @@
  * Auth: CSRF token from <meta name="csrf-token"> + session cookies.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 
 cli({
   site: 'barchart',
@@ -111,7 +112,7 @@ cli({
       })()
     `);
 
-    if (!data || data.error) return [];
+    if (!data || data.error) throw new CommandExecutionError(data?.error || 'Failed to fetch quote');
 
     const r = data.row || {};
     // API returns formatted strings like "+1.41" and "+0.56%"; use raw if available

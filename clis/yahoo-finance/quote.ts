@@ -2,6 +2,7 @@
  * Yahoo Finance stock quote — multi-strategy API fallback.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 
 cli({
   site: 'yahoo-finance',
@@ -66,7 +67,7 @@ cli({
         return {error: 'Could not fetch quote for ' + sym};
       })()
     `);
-    if (!data || data.error) return [];
+    if (!data || data.error) throw new CommandExecutionError(data?.error || 'Failed to fetch quote');
     return [data];
   },
 });
