@@ -187,7 +187,7 @@ describe('public commands E2E', () => {
     expect(Array.isArray(data)).toBe(true);
     expect(data.length).toBeGreaterThanOrEqual(1);
     expect(data[0]).toHaveProperty('title');
-    expect(data[0]).toHaveProperty('url');
+    // Note: HN job postings may be text-only (no URL) — e.g. "Ask HN: Who is hiring?"
   }, 30_000);
 
   it('hackernews search returns results for query', async () => {

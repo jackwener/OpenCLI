@@ -5,13 +5,20 @@
  */
 
 import { DEFAULT_DAEMON_PORT } from '../constants.js';
+import { readToken, TOKEN_HEADER } from '../token.js';
 import type { BrowserSessionInfo } from '../types.js';
 import { sleep } from '../utils.js';
 import { isTransientBrowserError } from './errors.js';
 
 const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
-const OPENCLI_HEADERS = { 'X-OpenCLI': '1' };
+
+export function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'X-OpenCLI': '1' };
+  const token = readToken();
+  if (token) headers[TOKEN_HEADER] = token;
+  return headers;
+}
 
 let _idCounter = 0;
 
@@ -78,7 +85,7 @@ async function requestDaemon(pathname: string, init?: RequestInit & { timeout?: 
   try {
     return await fetch(`${DAEMON_URL}${pathname}`, {
       ...rest,
-      headers: { ...OPENCLI_HEADERS, ...headers },
+      headers: { ...authHeaders(), ...headers },
       signal: controller.signal,
     });
   } finally {

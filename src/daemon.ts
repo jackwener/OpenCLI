@@ -12,6 +12,7 @@
  *   3. No CORS headers — responses never include Access-Control-Allow-Origin
  *   4. Body size limit — 1 MB max to prevent OOM
  *   5. WebSocket verifyClient — reject upgrade before connection is established
+ *   6. Token auth — random secret in ~/.opencli/token required on all connections
  *
  * Lifecycle:
  *   - Auto-spawned by opencli on first browser command
@@ -24,9 +25,11 @@ import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_IDLE_TIMEOUT } from './constants.js';
 import { EXIT_CODES } from './errors.js';
 import { IdleManager } from './idle-manager.js';
+import { getOrCreateToken, verifyToken, TOKEN_HEADER } from './token.js';
 
 const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 const IDLE_TIMEOUT = Number(process.env.OPENCLI_DAEMON_TIMEOUT ?? DEFAULT_DAEMON_IDLE_TIMEOUT);
+const DAEMON_TOKEN = getOrCreateToken();
 
 // ─── State ───────────────────────────────────────────────────────────
 
@@ -102,7 +105,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   const url = req.url ?? '/';
   const pathname = url.split('?')[0];
 
-  // Health-check endpoint — no X-OpenCLI header required.
+  // Health-check endpoint — no X-OpenCLI header or token required.
   // Used by the extension to silently probe daemon reachability before
   // attempting a WebSocket connection (avoids uncatchable ERR_CONNECTION_REFUSED).
   // Security note: this endpoint is reachable by any client that passes the
@@ -120,6 +123,15 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   // blocked even if Origin check is somehow bypassed.
   if (!req.headers['x-opencli']) {
     jsonResponse(res, 403, { ok: false, error: 'Forbidden: missing X-OpenCLI header' });
+    return;
+  }
+
+  // Token auth — require the shared secret from ~/.opencli/token.
+  // This blocks local processes that don't have filesystem access to the
+  // token file, even if they know the port and X-OpenCLI header.
+  const clientToken = req.headers[TOKEN_HEADER] as string | undefined;
+  if (!verifyToken(clientToken, DAEMON_TOKEN)) {
+    jsonResponse(res, 401, { ok: false, error: 'Unauthorized: invalid or missing token' });
     return;
   }
 
@@ -208,12 +220,24 @@ const wss = new WebSocketServer({
   server: httpServer,
   path: '/ext',
   verifyClient: ({ req }: { req: IncomingMessage }) => {
-    // Block browser-originated WebSocket connections.  Browsers don't
-    // enforce CORS on WebSocket, so a malicious webpage could connect to
-    // ws://localhost:19825/ext and impersonate the Extension.  Real Chrome
-    // Extensions send origin chrome-extension://<id>.
+    // 1. Block browser-originated WebSocket connections.  Browsers don't
+    //    enforce CORS on WebSocket, so a malicious webpage could connect to
+    //    ws://localhost:19825/ext and impersonate the Extension.  Real Chrome
+    //    Extensions send origin chrome-extension://<id>.
     const origin = req.headers['origin'] as string | undefined;
-    return !origin || origin.startsWith('chrome-extension://');
+    if (origin && !origin.startsWith('chrome-extension://')) return false;
+
+    // 2. Token auth — require the shared secret on WebSocket connections too.
+    //    The token is passed via the Sec-WebSocket-Protocol header or a query
+    //    parameter, since custom headers aren't available in the WebSocket
+    //    constructor.
+    const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
+    const tokenFromQuery = url.searchParams.get('token');
+    const tokenFromProtocol = req.headers['sec-websocket-protocol'] as string | undefined;
+    const clientToken = tokenFromQuery ?? tokenFromProtocol;
+    if (!verifyToken(clientToken, DAEMON_TOKEN)) return false;
+
+    return true;
   },
 });
 
