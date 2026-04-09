@@ -38,6 +38,17 @@ Use when `opencli <site> <command>` fails with repairable errors:
 - **COMMAND_EXEC** — runtime error in adapter logic
 - **TIMEOUT** — page loads differently, adapter waits for wrong thing
 
+## Before Entering Repair: "Empty" ≠ "Broken"
+
+`EMPTY_RESULT` — and sometimes a structurally-valid `SELECTOR` that returns nothing — is often **not an adapter bug**. Platforms actively degrade results under anti-scrape heuristics, and a "not found" response from the site doesn't mean the content is actually missing. Rule this out **before** committing to a repair round:
+
+- **Retry with an alternative query or entry point.** If `opencli xiaohongshu search "X"` returns 0 but `opencli xiaohongshu search "X 攻略"` returns 20, the adapter is fine — the platform was shaping results for the first query.
+- **Spot-check in a normal Chrome tab.** If the data is visible in the user's own browser but the adapter comes back empty, the issue is usually authentication state, rate limiting, or a soft block — not a code bug. The fix is `opencli doctor` / re-login, not editing source.
+- **Look for soft 404s.** Sites like xiaohongshu / weibo / douyin return HTTP 200 with an empty payload instead of a real 404 when an item is hidden or deleted. The snapshot will look structurally correct. A retry 2-3 seconds later often distinguishes "temporarily hidden" from "actually gone".
+- **"0 results" from a search is an answer.** If the adapter successfully reached the search endpoint, got an HTTP 200, and the platform returned `results: []`, that is a valid answer — report it to the user as "no matches for this query" rather than patching the adapter.
+
+Only proceed to Step 1 if the empty/selector-missing result is **reproducible across retries and alternative entry points**. Otherwise you're patching a working adapter to chase noise, and the patched version will break the next working path.
+
 ## Step 1: Collect Diagnostic Context
 
 Run the failing command with diagnostic mode enabled:
@@ -98,13 +109,13 @@ Read the diagnostic context and the adapter source. Classify the root cause:
 
 ## Step 3: Explore the Current Website
 
-Use `opencli operate` to inspect the live website. **Never use the broken adapter** — it will just fail again.
+Use `opencli browser` to inspect the live website. **Never use the broken adapter** — it will just fail again.
 
 ### DOM changed (SELECTOR errors)
 
 ```bash
 # Open the page and inspect current DOM
-opencli operate open https://example.com/target-page && opencli operate state
+opencli browser open https://example.com/target-page && opencli browser state
 
 # Look for elements that match the adapter's intent
 # Compare the snapshot with what the adapter expects
@@ -114,13 +125,13 @@ opencli operate open https://example.com/target-page && opencli operate state
 
 ```bash
 # Open page with network interceptor, then trigger the action manually
-opencli operate open https://example.com/target-page && opencli operate state
+opencli browser open https://example.com/target-page && opencli browser state
 
 # Interact to trigger API calls
-opencli operate click <N> && opencli operate network
+opencli browser click <N> && opencli browser network
 
 # Inspect specific API response
-opencli operate network --detail <index>
+opencli browser network --detail <index>
 ```
 
 ## Step 4: Patch the Adapter
@@ -200,7 +211,7 @@ In all stop cases, clearly communicate the situation to the user rather than mak
 
 3. AI reads diagnostic: snapshot shows the page loaded but uses ".HotItem" instead of ".HotList-item"
 
-4. AI explores: opencli operate open https://www.zhihu.com/hot && opencli operate state
+4. AI explores: opencli browser open https://www.zhihu.com/hot && opencli browser state
    → Confirms new class name ".HotItem" with child ".HotItem-content"
 
 5. AI patches: Edit adapter at RepairContext.adapter.sourcePath — replace ".HotList-item" with ".HotItem"

@@ -5,7 +5,7 @@
  */
 
 export interface AutoResearchConfig {
-  /** Plain-language goal, e.g. "Increase operate pass rate to 59/59" */
+  /** Plain-language goal, e.g. "Increase browser pass rate to 59/59" */
   goal: string;
   /** Glob patterns for files the agent can modify */
   scope: string[];

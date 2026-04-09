@@ -202,6 +202,20 @@ describe('xiaohongshu note', () => {
     expect(result.find((r: any) => r.field === 'comments')!.value).toBe('0');
   });
 
+  it('scopes metric selectors to .interact-container to avoid matching comment like buttons', async () => {
+    const page = createPageMock({
+      loginWall: false, notFound: false,
+      title: 'Test', desc: '', author: 'Author', likes: '10', collects: '5', comments: '3', tags: [],
+    });
+
+    await command!.func!(page, { 'note-id': 'abc123' });
+
+    const evaluateScript: string = (page.evaluate as any).mock.calls[0][0];
+    expect(evaluateScript).toContain('.interact-container .like-wrapper .count');
+    expect(evaluateScript).toContain('.interact-container .collect-wrapper .count');
+    expect(evaluateScript).toContain('.interact-container .chat-wrapper .count');
+  });
+
   it('omits tags row when no tags present', async () => {
     const page = createPageMock({
       loginWall: false, notFound: false,

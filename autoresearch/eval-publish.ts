@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Layer 5: Publish Testing — end-to-end content creation via operate commands
+ * Layer 5: Publish Testing — end-to-end content creation via browser commands
  *
  * Tests the full chain: read content → navigate to platform → fill title+body → (optionally) publish → verify → cleanup
  *
@@ -179,12 +179,12 @@ function main() {
 
     // Close browser between tasks for clean state
     if (i < tasks.length - 1) {
-      try { runCommand('opencli operate close'); } catch { /* ignore */ }
+      try { runCommand('opencli browser close'); } catch { /* ignore */ }
     }
   }
 
   // Final close
-  try { runCommand('opencli operate close'); } catch { /* ignore */ }
+  try { runCommand('opencli browser close'); } catch { /* ignore */ }
 
   // Summary
   const totalPassed = results.filter(r => r.passed).length;

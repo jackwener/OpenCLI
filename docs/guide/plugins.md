@@ -26,7 +26,7 @@ opencli plugin uninstall github-trending
 
 ## How Plugins Work
 
-Plugins live in `~/.opencli/plugins/<name>/`. Each subdirectory is scanned at startup for `.yaml`, `.ts`, or `.js` command files — the same formats used by built-in adapters.
+Plugins live in `~/.opencli/plugins/<name>/`. Each subdirectory is scanned at startup for `.ts` or `.js` command files — the same formats used by built-in adapters.
 
 ### Supported Source Formats
 
@@ -140,44 +140,7 @@ OpenCLI records installed plugin versions in `~/.opencli/plugins.lock.json`. Eac
 
 ## Creating a Plugin
 
-### Option 1: YAML Plugin (Simplest)
-
-Zero dependencies, no build step. Just create a `.yaml` file:
-
-```
-my-plugin/
-├── my-command.yaml
-└── README.md
-```
-
-Example `my-command.yaml`:
-
-```yaml
-site: my-plugin
-name: my-command
-description: My custom command
-strategy: public
-browser: false
-
-args:
-  limit:
-    type: int
-    default: 10
-
-pipeline:
-  - fetch:
-      url: https://api.example.com/data
-  - map:
-      title: ${{ item.title }}
-      score: ${{ item.score }}
-  - limit: ${{ args.limit }}
-
-columns: [title, score]
-```
-
-### Option 2: TypeScript Plugin
-
-For richer logic (multi-source aggregation, custom transformations, etc.):
+### Creating a TypeScript Plugin
 
 ```
 my-plugin/
@@ -240,9 +203,9 @@ On startup, if both `my-command.ts` and `my-command.js` exist, the `.js` version
 
 | Repo | Type | Description |
 |------|------|-------------|
-| [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | YAML | GitHub Trending repositories |
+| [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | TS | GitHub Trending repositories |
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | TS | Multi-platform trending aggregator (zhihu, weibo, bilibili, v2ex, stackoverflow, reddit, linux-do) |
-| [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | YAML | 稀土掘金 (Juejin) hot articles, categories, and article feed |
+| [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | TS | 稀土掘金 (Juejin) hot articles, categories, and article feed |
 | [opencli-plugin-rubysec](https://github.com/nullptrKey/opencli-plugin-rubysec) | TS | RubySec advisory archive and advisory article reader |
 
 ## Troubleshooting

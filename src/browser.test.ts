@@ -122,25 +122,36 @@ describe('BrowserBridge state', () => {
 
   it('rejects connect() while already connecting', async () => {
     const bridge = new BrowserBridge();
-    (bridge as any)._state = 'connecting';
+    (bridge as unknown as { _state: string })._state = 'connecting';
 
     await expect(bridge.connect()).rejects.toThrow('Already connecting');
   });
 
   it('rejects connect() while closing', async () => {
     const bridge = new BrowserBridge();
-    (bridge as any)._state = 'closing';
+    (bridge as unknown as { _state: string })._state = 'closing';
 
     await expect(bridge.connect()).rejects.toThrow('Session is closing');
   });
 
   it('fails fast when daemon is running but extension is disconnected', async () => {
-    vi.spyOn(daemonClient, 'isExtensionConnected').mockResolvedValue(false);
-    vi.spyOn(daemonClient, 'fetchDaemonStatus').mockResolvedValue({ extensionConnected: false } as any);
+    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
+      state: 'no-extension',
+      status: {
+        ok: true,
+        pid: 1,
+        uptime: 0,
+        extensionConnected: false,
+        pending: 0,
+        lastCliRequestTime: 0,
+        memoryMB: 0,
+        port: 0,
+      },
+    });
 
     const bridge = new BrowserBridge();
 
-    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Browser Extension is not connected');
+    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Browser Bridge extension not connected');
   });
 });
 

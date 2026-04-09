@@ -16,7 +16,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as readline from 'node:readline';
 import chalk from 'chalk';
-import yaml from 'js-yaml';
+
 import { sendCommand } from './browser/daemon-client.js';
 import type { IPage } from './types.js';
 import { SEARCH_PARAMS, PAGINATION_PARAMS, FIELD_ROLES } from './constants.js';
@@ -584,7 +584,7 @@ export async function recordSession(opts: RecordOptions): Promise<RecordResult> 
       await injectIntoTab(workspace, tab.tabId, injectedTabs);
     }
 
-    console.log(chalk.bold('\n  Recording. Operate the page in the automation window.'));
+    console.log(chalk.bold('\n  Recording. Use the page in the browser automation window.'));
     console.log(chalk.dim(`  Will auto-stop after ${timeoutMs / 1000}s, or press Enter to stop now.\n`));
 
     // Race: Enter key vs timeout
@@ -749,11 +749,11 @@ function analyzeAndWrite(
     if (usedNames.has(entry.name)) continue;
     usedNames.add(entry.name);
 
-    const filePath = path.join(candidatesDir, `${entry.name}.yaml`);
-    fs.writeFileSync(filePath, yaml.dump(entry.yaml, { sortKeys: false, lineWidth: 120 }));
+    const filePath = path.join(candidatesDir, `${entry.name}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(entry.yaml, null, 2));
     candidates.push({ name: entry.name, path: filePath, strategy: entry.strategy });
 
-    console.log(chalk.green(`  ✓ Generated: ${chalk.bold(entry.name)}.yaml  [${entry.strategy}]`));
+    console.log(chalk.green(`  ✓ Generated: ${chalk.bold(entry.name)}.json  [${entry.strategy}]`));
     console.log(chalk.dim(`    → ${filePath}`));
   }
 

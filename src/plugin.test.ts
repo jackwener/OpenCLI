@@ -197,11 +197,11 @@ describe('validatePluginStructure', () => {
     expect(res.errors[0]).toContain('No command files found');
   });
 
-  it('returns valid for YAML plugin', () => {
+  it('returns invalid for YAML-only plugin (YAML no longer supported)', () => {
     fs.writeFileSync(path.join(testDir, 'cmd.yaml'), 'site: test');
     const res = _validatePluginStructure(testDir);
-    expect(res.valid).toBe(true);
-    expect(res.errors).toHaveLength(0);
+    expect(res.valid).toBe(false);
+    expect(res.errors[0]).toContain('No command files found');
   });
 
   it('returns valid for JS plugin', () => {
@@ -436,7 +436,7 @@ describe('listPlugins', () => {
 
   it('lists installed plugins', () => {
     fs.mkdirSync(testDir, { recursive: true });
-    fs.writeFileSync(path.join(testDir, 'hello.yaml'), 'site: test\nname: hello\n');
+    fs.writeFileSync(path.join(testDir, 'hello.js'), 'cli({ site: "test", name: "hello" })');
 
     const plugins = listPlugins();
     const found = plugins.find(p => p.name === '__test-list-plugin__');
@@ -446,7 +446,7 @@ describe('listPlugins', () => {
 
   it('includes version metadata from the lock file', () => {
     fs.mkdirSync(testDir, { recursive: true });
-    fs.writeFileSync(path.join(testDir, 'hello.yaml'), 'site: test\nname: hello\n');
+    fs.writeFileSync(path.join(testDir, 'hello.js'), 'cli({ site: "test", name: "hello" })');
 
     const lock = _readLockFile();
     lock['__test-list-plugin__'] = {
@@ -476,7 +476,7 @@ describe('listPlugins', () => {
     const linkPath = path.join(PLUGINS_DIR, '__test-list-plugin__');
 
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
-    fs.writeFileSync(path.join(localTarget, 'hello.yaml'), 'site: test\nname: hello\n');
+    fs.writeFileSync(path.join(localTarget, 'hello.js'), 'cli({ site: "test", name: "hello" })');
     try { fs.unlinkSync(linkPath); } catch {}
     try { fs.rmSync(linkPath, { recursive: true, force: true }); } catch {}
     fs.symlinkSync(localTarget, linkPath, 'dir');
@@ -509,7 +509,7 @@ describe('uninstallPlugin', () => {
 
   it('removes plugin directory', () => {
     fs.mkdirSync(testDir, { recursive: true });
-    fs.writeFileSync(path.join(testDir, 'test.yaml'), 'site: test');
+    fs.writeFileSync(path.join(testDir, 'test.js'), 'cli({ site: "test", name: "test" })');
 
     uninstallPlugin('__test-uninstall__');
     expect(fs.existsSync(testDir)).toBe(false);
@@ -517,7 +517,7 @@ describe('uninstallPlugin', () => {
 
   it('removes lock entry on uninstall', () => {
     fs.mkdirSync(testDir, { recursive: true });
-    fs.writeFileSync(path.join(testDir, 'test.yaml'), 'site: test');
+    fs.writeFileSync(path.join(testDir, 'test.js'), 'cli({ site: "test", name: "test" })');
 
     const lock = _readLockFile();
     lock['__test-uninstall__'] = {
@@ -546,7 +546,7 @@ describe('updatePlugin', () => {
     const linkPath = path.join(PLUGINS_DIR, '__test-local-update__');
 
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
-    fs.writeFileSync(path.join(localTarget, 'hello.yaml'), 'site: test\nname: hello\n');
+    fs.writeFileSync(path.join(localTarget, 'hello.js'), 'cli({ site: "test", name: "hello" })');
     fs.symlinkSync(localTarget, linkPath, 'dir');
 
     const lock = _readLockFile();
@@ -632,7 +632,7 @@ describe('postInstallMonorepoLifecycle', () => {
       private: true,
       workspaces: ['packages/*'],
     }));
-    fs.writeFileSync(path.join(subDir, 'hello.yaml'), 'site: test\nname: hello\n');
+    fs.writeFileSync(path.join(subDir, 'hello.js'), 'cli({ site: "test", name: "hello" })');
   });
 
   afterEach(() => {
@@ -661,9 +661,9 @@ describe('updateAllPlugins', () => {
     fs.mkdirSync(testDirA, { recursive: true });
     fs.mkdirSync(testDirB, { recursive: true });
     fs.mkdirSync(testDirC, { recursive: true });
-    fs.writeFileSync(path.join(testDirA, 'cmd.yaml'), 'site: a');
-    fs.writeFileSync(path.join(testDirB, 'cmd.yaml'), 'site: b');
-    fs.writeFileSync(path.join(testDirC, 'cmd.yaml'), 'site: c');
+    fs.writeFileSync(path.join(testDirA, 'cmd.js'), 'cli({ site: "a", name: "cmd" })');
+    fs.writeFileSync(path.join(testDirB, 'cmd.js'), 'cli({ site: "b", name: "cmd" })');
+    fs.writeFileSync(path.join(testDirC, 'cmd.js'), 'cli({ site: "c", name: "cmd" })');
 
     const lock = _readLockFile();
     lock['plugin-a'] = {
@@ -702,7 +702,7 @@ describe('updateAllPlugins', () => {
         const cloneUrl = String(args[3]);
         const cloneDir = String(args[4]);
         fs.mkdirSync(cloneDir, { recursive: true });
-        fs.writeFileSync(path.join(cloneDir, 'cmd.yaml'), 'site: test\nname: hello\n');
+        fs.writeFileSync(path.join(cloneDir, 'cmd.js'), 'cli({ site: "test", name: "hello" })');
         if (cloneUrl.includes('plugin-b')) {
           fs.writeFileSync(path.join(cloneDir, 'package.json'), JSON.stringify({ name: 'plugin-b' }));
         }
@@ -807,7 +807,7 @@ describe('monorepo uninstall with symlink', () => {
 
     const subDir = path.join(monoDir, 'packages', 'sub');
     fs.mkdirSync(subDir, { recursive: true });
-    fs.writeFileSync(path.join(subDir, 'cmd.yaml'), 'site: test');
+    fs.writeFileSync(path.join(subDir, 'cmd.js'), 'cli({ site: "test", name: "cmd" })');
 
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
     fs.symlinkSync(subDir, pluginDir, 'dir');
@@ -876,7 +876,7 @@ describe('listPlugins with monorepo metadata', () => {
 
   beforeEach(() => {
     fs.mkdirSync(testSymlinkTarget, { recursive: true });
-    fs.writeFileSync(path.join(testSymlinkTarget, 'hello.yaml'), 'site: test\nname: hello\n');
+    fs.writeFileSync(path.join(testSymlinkTarget, 'hello.js'), 'cli({ site: "test", name: "hello" })');
 
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
     try { fs.unlinkSync(testLink); } catch {}
@@ -920,7 +920,7 @@ describe('installLocalPlugin', () => {
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-local-install-'));
-    fs.writeFileSync(path.join(tmpDir, 'hello.yaml'), 'site: test\nname: hello\n');
+    fs.writeFileSync(path.join(tmpDir, 'hello.js'), 'cli({ site: "test", name: "hello" })');
   });
 
   afterEach(() => {
@@ -1120,7 +1120,7 @@ describe('installPlugin transactional staging', () => {
       if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
         const cloneDir = String(args[args.length - 1]);
         fs.mkdirSync(cloneDir, { recursive: true });
-        fs.writeFileSync(path.join(cloneDir, 'hello.yaml'), 'site: test\nname: hello\n');
+        fs.writeFileSync(path.join(cloneDir, 'hello.js'), 'cli({ site: "test", name: "hello" })');
         fs.writeFileSync(path.join(cloneDir, 'package.json'), JSON.stringify({ name: standaloneName }));
         return '';
       }
@@ -1153,7 +1153,7 @@ describe('installPlugin transactional staging', () => {
             alpha: { path: 'packages/alpha' },
           },
         }));
-        fs.writeFileSync(path.join(alphaDir, 'hello.yaml'), 'site: test\nname: hello\n');
+        fs.writeFileSync(path.join(alphaDir, 'hello.js'), 'cli({ site: "test", name: "hello" })');
         return '';
       }
       if (cmd === 'npm' && Array.isArray(args) && args[0] === 'install') {
@@ -1206,7 +1206,7 @@ describe('installPlugin with existing monorepo', () => {
         [pluginName]: { path: `packages/${pluginName}` },
       },
     }));
-    fs.writeFileSync(path.join(subDir, 'hello.yaml'), 'site: test\nname: hello\n');
+    fs.writeFileSync(path.join(subDir, 'hello.js'), 'cli({ site: "test", name: "hello" })');
 
     mockExecFileSync.mockImplementation((cmd, args) => {
       if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
@@ -1262,7 +1262,7 @@ describe('updatePlugin transactional staging', () => {
 
   it('keeps the existing standalone plugin when staged update preparation fails', () => {
     fs.mkdirSync(standaloneDir, { recursive: true });
-    fs.writeFileSync(path.join(standaloneDir, 'old.yaml'), 'site: old\nname: old\n');
+    fs.writeFileSync(path.join(standaloneDir, 'old.js'), 'cli({ site: "old", name: "old" })');
 
     const lock = _readLockFile();
     lock[standaloneName] = {
@@ -1279,7 +1279,7 @@ describe('updatePlugin transactional staging', () => {
       if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
         const cloneDir = String(args[4]);
         fs.mkdirSync(cloneDir, { recursive: true });
-        fs.writeFileSync(path.join(cloneDir, 'hello.yaml'), 'site: test\nname: hello\n');
+        fs.writeFileSync(path.join(cloneDir, 'hello.js'), 'cli({ site: "test", name: "hello" })');
         fs.writeFileSync(path.join(cloneDir, 'package.json'), JSON.stringify({ name: standaloneName }));
         return '';
       }
@@ -1294,14 +1294,14 @@ describe('updatePlugin transactional staging', () => {
 
     expect(() => updatePlugin(standaloneName)).toThrow('npm install failed');
     expect(fs.existsSync(standaloneDir)).toBe(true);
-    expect(fs.readFileSync(path.join(standaloneDir, 'old.yaml'), 'utf-8')).toContain('site: old');
+    expect(fs.readFileSync(path.join(standaloneDir, 'old.js'), 'utf-8')).toContain('site: "old"');
     expect(_readLockFile()[standaloneName]?.commitHash).toBe('oldhasholdhasholdhasholdhasholdhasholdh');
   });
 
   it('keeps the existing monorepo repo and link when staged update preparation fails', () => {
     const subDir = path.join(monorepoRepoDir, 'packages', monorepoPluginName);
     fs.mkdirSync(subDir, { recursive: true });
-    fs.writeFileSync(path.join(subDir, 'old.yaml'), 'site: old\nname: old\n');
+    fs.writeFileSync(path.join(subDir, 'old.js'), 'cli({ site: "old", name: "old" })');
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
     fs.symlinkSync(subDir, monorepoLink, 'dir');
 
@@ -1332,7 +1332,7 @@ describe('updatePlugin transactional staging', () => {
             [monorepoPluginName]: { path: `packages/${monorepoPluginName}` },
           },
         }));
-        fs.writeFileSync(path.join(alphaDir, 'hello.yaml'), 'site: test\nname: hello\n');
+        fs.writeFileSync(path.join(alphaDir, 'hello.js'), 'cli({ site: "test", name: "hello" })');
         return '';
       }
       if (cmd === 'npm' && Array.isArray(args) && args[0] === 'install') {
@@ -1347,14 +1347,14 @@ describe('updatePlugin transactional staging', () => {
     expect(() => updatePlugin(monorepoPluginName)).toThrow('npm install failed');
     expect(fs.existsSync(monorepoRepoDir)).toBe(true);
     expect(fs.existsSync(monorepoLink)).toBe(true);
-    expect(fs.readFileSync(path.join(subDir, 'old.yaml'), 'utf-8')).toContain('site: old');
+    expect(fs.readFileSync(path.join(subDir, 'old.js'), 'utf-8')).toContain('site: "old"');
     expect(_readLockFile()[monorepoPluginName]?.commitHash).toBe('oldmonooldmonooldmonooldmonooldmonoold');
   });
 
   it('relinks monorepo plugins when the updated manifest moves their subPath', () => {
     const oldSubDir = path.join(monorepoRepoDir, 'packages', 'old-alpha');
     fs.mkdirSync(oldSubDir, { recursive: true });
-    fs.writeFileSync(path.join(oldSubDir, 'old.yaml'), 'site: old\nname: old\n');
+    fs.writeFileSync(path.join(oldSubDir, 'old.js'), 'cli({ site: "old", name: "old" })');
     fs.mkdirSync(PLUGINS_DIR, { recursive: true });
     fs.symlinkSync(oldSubDir, monorepoLink, 'dir');
 
@@ -1381,7 +1381,7 @@ describe('updatePlugin transactional staging', () => {
             [monorepoPluginName]: { path: 'packages/moved-alpha' },
           },
         }));
-        fs.writeFileSync(path.join(movedDir, 'hello.yaml'), 'site: test\nname: hello\n');
+        fs.writeFileSync(path.join(movedDir, 'hello.js'), 'cli({ site: "test", name: "hello" })');
         return '';
       }
       if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
@@ -1403,7 +1403,7 @@ describe('updatePlugin transactional staging', () => {
   it('rolls back the monorepo repo swap when relinking fails', () => {
     const oldSubDir = path.join(monorepoRepoDir, 'packages', 'old-alpha');
     fs.mkdirSync(oldSubDir, { recursive: true });
-    fs.writeFileSync(path.join(oldSubDir, 'old.yaml'), 'site: old\nname: old\n');
+    fs.writeFileSync(path.join(oldSubDir, 'old.js'), 'cli({ site: "old", name: "old" })');
     fs.mkdirSync(monorepoLink, { recursive: true });
     fs.writeFileSync(path.join(monorepoLink, 'blocker.txt'), 'not a symlink');
 
@@ -1430,7 +1430,7 @@ describe('updatePlugin transactional staging', () => {
             [monorepoPluginName]: { path: 'packages/moved-alpha' },
           },
         }));
-        fs.writeFileSync(path.join(movedDir, 'hello.yaml'), 'site: test\nname: hello\n');
+        fs.writeFileSync(path.join(movedDir, 'hello.js'), 'cli({ site: "test", name: "hello" })');
         return '';
       }
       if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
@@ -1440,7 +1440,7 @@ describe('updatePlugin transactional staging', () => {
     });
 
     expect(() => updatePlugin(monorepoPluginName)).toThrow('to be a symlink');
-    expect(fs.existsSync(path.join(monorepoRepoDir, 'packages', 'old-alpha', 'old.yaml'))).toBe(true);
+    expect(fs.existsSync(path.join(monorepoRepoDir, 'packages', 'old-alpha', 'old.js'))).toBe(true);
     expect(fs.existsSync(path.join(monorepoRepoDir, 'packages', 'moved-alpha'))).toBe(false);
     expect(fs.readFileSync(path.join(monorepoLink, 'blocker.txt'), 'utf-8')).toBe('not a symlink');
     expect(_readLockFile()[monorepoPluginName]?.source).toMatchObject({

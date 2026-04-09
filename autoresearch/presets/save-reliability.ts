@@ -1,7 +1,7 @@
 /**
  * Preset: Save as CLI Reliability
  *
- * Optimizes the "Save as CLI" pipeline: operate init → write adapter → run.
+ * Optimizes the "Save as CLI" pipeline: browser init → write adapter → run.
  * Covers PUBLIC (no auth) and COOKIE (browser session) strategies.
  * Metric: number of passing save-tasks.
  */
@@ -9,12 +9,12 @@
 import type { AutoResearchConfig } from '../config.js';
 
 export const saveReliability: AutoResearchConfig = {
-  goal: 'Increase "Save as CLI" pipeline pass rate to 100%. The flow is: operate init creates a scaffold, user writes adapter code, opencli discovers and runs it. Covers both PUBLIC (fetch API) and COOKIE (browser session) strategies. Focus on: init template correctness, user CLI discovery, adapter loading, verify command robustness, and browser session handling.',
+  goal: 'Increase "Save as CLI" pipeline pass rate to 100%. The flow is: browser init creates a scaffold, user writes adapter code, opencli discovers and runs it. Covers both PUBLIC (fetch API) and COOKIE (browser session) strategies. Focus on: init template correctness, user CLI discovery, adapter loading, verify command robustness, and browser session handling.',
   scope: [
     'src/cli.ts',
     'src/discovery.ts',
     'src/registry.ts',
-    'skills/opencli-operate/SKILL.md',
+    'skills/opencli-browser/SKILL.md',
     'autoresearch/save-tasks.json',
     'autoresearch/save-adapters/*.ts',
   ],

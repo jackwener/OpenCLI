@@ -1,0 +1,44 @@
+import { cli, Strategy } from '@jackwener/opencli/registry';
+
+cli({
+  site: 'tiktok',
+  name: 'friends',
+  description: 'Get TikTok friend suggestions',
+  domain: 'www.tiktok.com',
+  args: [
+    { name: 'limit', type: 'int', default: 20, help: 'Number of suggestions' },
+  ],
+  columns: ['index', 'username', 'name'],
+  pipeline: [
+    { navigate: { url: 'https://www.tiktok.com/friends', settleMs: 5000 } },
+    { evaluate: `(() => {
+  const limit = \${{ args.limit }};
+  const links = Array.from(document.querySelectorAll('a[href*="/@"]'))
+    .filter(function(a) {
+      const text = a.textContent.trim();
+      return text.length > 1 && text.length < 80 &&
+        !text.includes('Profile') && !text.includes('More') && !text.includes('Upload');
+    });
+
+  const seen = {};
+  const results = [];
+  for (const a of links) {
+    const match = a.href.match(/@([^/]+)/);
+    const username = match ? match[1] : '';
+    if (!username || seen[username]) continue;
+    seen[username] = true;
+    const raw = a.textContent.trim();
+    const hasFollow = raw.includes('Follow');
+    const name = raw.replace('Follow', '').replace(username, '').replace('@', '').trim();
+    results.push({
+      index: results.length + 1,
+      username: username,
+      name: name || username,
+    });
+    if (results.length >= limit) break;
+  }
+  return results;
+})()
+` },
+  ],
+});

@@ -9,8 +9,9 @@ import * as fs from 'node:fs';
 import type { IPage } from '../types.js';
 import type { IBrowserFactory } from '../runtime.js';
 import { Page } from './page.js';
-import { fetchDaemonStatus, isExtensionConnected } from './daemon-client.js';
+import { getDaemonHealth } from './daemon-client.js';
 import { DEFAULT_DAEMON_PORT } from '../constants.js';
+import { BrowserConnectError } from '../errors.js';
 
 const DAEMON_SPAWN_TIMEOUT = 10000; // 10s to wait for daemon + extension
 
@@ -60,26 +61,25 @@ export class BrowserBridge implements IBrowserFactory {
     const effectiveSeconds = (timeoutSeconds && timeoutSeconds > 0) ? timeoutSeconds : Math.ceil(DAEMON_SPAWN_TIMEOUT / 1000);
     const timeoutMs = effectiveSeconds * 1000;
 
-    // Single status check instead of two separate fetchDaemonStatus() calls
-    const status = await fetchDaemonStatus();
+    const health = await getDaemonHealth();
 
-    // Fast path: extension already connected
-    if (status?.extensionConnected) return;
+    // Fast path: everything ready
+    if (health.state === 'ready') return;
 
     // Daemon running but no extension — wait for extension with progress
-    if (status !== null) {
+    if (health.state === 'no-extension') {
       if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
         process.stderr.write('⏳ Waiting for Chrome/Chromium extension to connect...\n');
         process.stderr.write('   Make sure Chrome or Chromium is open and the OpenCLI extension is enabled.\n');
       }
-      const deadline = Date.now() + timeoutMs;
-      while (Date.now() < deadline) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        if (await isExtensionConnected()) return;
-      }
-      throw new Error(
-        'Daemon is running but the Browser Extension is not connected.\n' +
-        'Please install and enable the opencli Browser Bridge extension in Chrome or Chromium.',
+      if (await this._pollUntilReady(timeoutMs)) return;
+      throw new BrowserConnectError(
+        'Browser Bridge extension not connected',
+        'Install the Browser Bridge:\n' +
+        '  1. Download: https://github.com/jackwener/opencli/releases\n' +
+        '  2. In Chrome or Chromium, open chrome://extensions → Developer Mode → Load unpacked\n' +
+        '  Then run: opencli doctor',
+        'extension-not-connected',
       );
     }
 
@@ -106,24 +106,36 @@ export class BrowserBridge implements IBrowserFactory {
     });
     this._daemonProc.unref();
 
-    // Wait for daemon + extension with faster polling
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      if (await isExtensionConnected()) return;
-    }
+    // Wait for daemon + extension
+    if (await this._pollUntilReady(timeoutMs)) return;
 
-    if ((await fetchDaemonStatus()) !== null) {
-      throw new Error(
-        'Daemon is running but the Browser Extension is not connected.\n' +
-        'Please install and enable the opencli Browser Bridge extension in Chrome or Chromium.',
+    const finalHealth = await getDaemonHealth();
+    if (finalHealth.state === 'no-extension') {
+      throw new BrowserConnectError(
+        'Browser Bridge extension not connected',
+        'Install the Browser Bridge:\n' +
+        '  1. Download: https://github.com/jackwener/opencli/releases\n' +
+        '  2. In Chrome or Chromium, open chrome://extensions → Developer Mode → Load unpacked\n' +
+        '  Then run: opencli doctor',
+        'extension-not-connected',
       );
     }
 
-    throw new Error(
-      'Failed to start opencli daemon. Try running manually:\n' +
-      `  node ${daemonPath}\n` +
-      `Make sure port ${DEFAULT_DAEMON_PORT} is available.`,
+    throw new BrowserConnectError(
+      'Failed to start opencli daemon',
+      `Try running manually:\n  node ${daemonPath}\nMake sure port ${DEFAULT_DAEMON_PORT} is available.`,
+      'daemon-not-running',
     );
+  }
+
+  /** Poll getDaemonHealth() until state is 'ready' or deadline is reached. */
+  private async _pollUntilReady(timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const h = await getDaemonHealth();
+      if (h.state === 'ready') return true;
+    }
+    return false;
   }
 }

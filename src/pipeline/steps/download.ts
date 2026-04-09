@@ -101,32 +101,55 @@ function dedupeCookies(
  *       type: auto
  * ```
  */
+interface DownloadParams {
+  url?: string;
+  dir?: string;
+  filename?: string;
+  concurrency?: number;
+  skip_existing?: boolean;
+  timeout?: number;
+  use_ytdlp?: boolean;
+  ytdlp_args?: unknown;
+  type?: string;
+  progress?: boolean;
+  content?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export async function stepDownload(
   page: IPage | null,
-  params: any,
-  data: any,
-  args: Record<string, any>,
-): Promise<any> {
+  params: unknown,
+  data: unknown,
+  args: Record<string, unknown>,
+): Promise<unknown> {
   // Parse parameters with defaults
-  const urlTemplate = typeof params === 'string' ? params : (params?.url ?? '');
-  const dirTemplate = params?.dir ?? './downloads';
-  const filenameTemplate = params?.filename ?? '';
-  const concurrency = typeof params?.concurrency === 'number' ? params.concurrency : 3;
-  const skipExisting = params?.skip_existing !== false;
-  const timeout = typeof params?.timeout === 'number' ? params.timeout * 1000 : 30000;
-  const useYtdlp = params?.use_ytdlp ?? false;
-  const ytdlpArgs = Array.isArray(params?.ytdlp_args) ? params.ytdlp_args : [];
-  const contentType = params?.type ?? 'auto';
-  const showProgress = params?.progress !== false;
-  const contentTemplate = params?.content;
-  const metadataTemplate = params?.metadata;
+  const p: DownloadParams =
+    typeof params === 'object' && params !== null ? (params as DownloadParams) : {};
+  const urlTemplate = typeof params === 'string' ? params : (p.url ?? '');
+  const dirTemplate = p.dir ?? './downloads';
+  const filenameTemplate = p.filename ?? '';
+  const concurrency = typeof p.concurrency === 'number' ? p.concurrency : 3;
+  const skipExisting = p.skip_existing !== false;
+  const timeout = typeof p.timeout === 'number' ? p.timeout * 1000 : 30000;
+  const useYtdlp = p.use_ytdlp ?? false;
+  const ytdlpArgs: string[] = Array.isArray(p.ytdlp_args)
+    ? p.ytdlp_args.map((v) => String(v))
+    : [];
+  const contentType = p.type ?? 'auto';
+  const showProgress = p.progress !== false;
+  const contentTemplate = p.content;
+  const metadataTemplate = p.metadata;
 
   // Resolve output directory
   const dir = String(render(dirTemplate, { args, data }));
   fs.mkdirSync(dir, { recursive: true });
 
-  // Normalize data to array
-  const items: any[] = Array.isArray(data) ? data : data ? [data] : [];
+  // Normalize data to array. Items are row records (string-keyed) produced by
+  // upstream steps; we treat them as Record<string, unknown> and narrow per-use.
+  const items: Array<Record<string, unknown>> =
+    Array.isArray(data) ? (data as Array<Record<string, unknown>>)
+    : data ? [data as Record<string, unknown>]
+    : [];
   if (items.length === 0) {
     return [];
   }
@@ -171,7 +194,8 @@ export async function stepDownload(
   }
 
   // Process downloads with concurrency
-  const results = await mapConcurrent(items, concurrency, async (item, index): Promise<any> => {
+  type DownloadedItem = Record<string, unknown> & { _download: DownloadResult };
+  const results = await mapConcurrent(items, concurrency, async (item, index): Promise<DownloadedItem> => {
     const startTime = Date.now();
 
     // Render URL

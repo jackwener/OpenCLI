@@ -32,6 +32,7 @@ const BUILTIN_COMMANDS = [
 
 /**
  * Return completion candidates given the current command-line words and cursor index.
+ * Requires full CLI discovery to have been run (uses getRegistry()).
  *
  * @param words  - The argv after 'opencli' (words[0] is the first arg, e.g. site name)
  * @param cursor - 1-based position of the word being completed (1 = first arg)

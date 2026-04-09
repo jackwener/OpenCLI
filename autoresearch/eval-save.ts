@@ -2,7 +2,7 @@
 /**
  * Layer 4: Save as CLI Testing — "Save as CLI" Pipeline
  *
- * Tests the full operate init → write adapter → operate verify flow.
+ * Tests the full browser init → write adapter → browser verify flow.
  * Validates that browser exploration can be crystallized into reusable CLI adapters.
  *
  * Usage:
@@ -55,7 +55,7 @@ function judge(criteria: JudgeCriteria, output: string): boolean {
       case 'contains':
         return output.toLowerCase().includes(criteria.value.toLowerCase());
       case 'arrayMinLength': {
-        // operate verify outputs table text; try JSON parse first, then count non-empty lines
+        // browser verify outputs table text; try JSON parse first, then count non-empty lines
         try {
           const arr = JSON.parse(output);
           if (Array.isArray(arr)) return arr.length >= criteria.minLength;
@@ -121,7 +121,7 @@ function runTask(task: SaveTask): TaskResult {
 
   try {
     // Phase 1: init — create scaffold
-    const initOutput = runCommand(`opencli operate init ${site}/${command}`);
+    const initOutput = runCommand(`opencli browser init ${site}/${command}`);
     if (!existsSync(adapterPath)) {
       return {
         name: task.name, phase: 'init', passed: false,
@@ -141,9 +141,9 @@ function runTask(task: SaveTask): TaskResult {
       writeFileSync(adapterPath, task.adapter, 'utf-8');
     }
 
-    // Phase 3: verify — run the adapter via operate verify
+    // Phase 3: verify — run the adapter via browser verify
     const verifyOutput = runCommand(
-      `opencli operate verify ${site}/${command}`,
+      `opencli browser verify ${site}/${command}`,
       45000, // longer timeout for network calls
     );
 

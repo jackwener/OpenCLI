@@ -26,7 +26,7 @@ npm link
 
 ## Adding a New Site Adapter
 
-This is the most common type of contribution. Start with YAML when possible, and use TypeScript only when you need browser-side logic or multi-step flows.
+This is the most common type of contribution. All adapters use TypeScript with the `cli()` API.
 
 Before you start:
 
@@ -34,44 +34,7 @@ Before you start:
 - Normalize expected adapter failures to `CliError` subclasses instead of raw `Error` whenever possible. Prefer `AuthRequiredError`, `EmptyResultError`, `CommandExecutionError`, `TimeoutError`, and `ArgumentError` so the top-level CLI can render better messages and hints.
 - If you add a new adapter or make a command newly discoverable, update the matching doc page and the user-facing indexes that expose it.
 
-### YAML Adapter (Recommended for data-fetching commands)
-
-Create a file like `clis/<site>/<command>.yaml`:
-
-::: v-pre
-```yaml
-site: mysite
-name: trending
-description: Trending posts on MySite
-domain: www.mysite.com
-strategy: public      # public | cookie | header
-browser: false        # true if browser session is needed
-
-args:
-  limit:
-    type: int
-    default: 20
-    description: Number of items
-
-pipeline:
-  - fetch:
-      url: https://api.mysite.com/trending
-
-  - map:
-      rank: ${{ index + 1 }}
-      title: ${{ item.title }}
-      score: ${{ item.score }}
-      url: ${{ item.url }}
-
-  - limit: ${{ args.limit }}
-
-columns: [rank, title, score, url]
-```
-:::
-
-See [`hackernews/top.yaml`](https://github.com/jackwener/opencli/blob/main/clis/hackernews/top.yaml) for a real example.
-
-### TypeScript Adapter (For complex browser interactions)
+### TypeScript Adapter
 
 Create a file like `clis/<site>/<command>.ts`:
 
@@ -108,7 +71,6 @@ cli({
 ### Validate Your Adapter
 
 ```bash
-opencli validate               # Validate YAML syntax and schema
 opencli <site> <command> --limit 3 -f json   # Test your command
 opencli <site> <command> -v    # Verbose mode for debugging
 ```
@@ -142,7 +104,6 @@ chore: bump vitest to v4
    npx tsc --noEmit           # Type check
    npm test                   # Core unit tests
    npm run test:adapter       # Focused adapter tests (if adapter logic changed)
-   opencli validate           # YAML validation (if applicable)
    ```
 4. Commit using conventional commit format
 5. Push and open a PR

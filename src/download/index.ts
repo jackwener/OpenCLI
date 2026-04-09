@@ -341,7 +341,7 @@ export async function saveDocument(
   content: string,
   destPath: string,
   format: 'json' | 'markdown' | 'html' | 'text' = 'markdown',
-  metadata?: Record<string, any>,
+  metadata?: Record<string, unknown>,
 ): Promise<{ success: boolean; size: number; error?: string }> {
   try {
     const dir = path.dirname(destPath);

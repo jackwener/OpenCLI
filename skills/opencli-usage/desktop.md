@@ -1,14 +1,8 @@
 # Desktop Adapter Commands
 
-Commands that interact with desktop applications via CDP (Chrome DevTools Protocol) on Electron apps, or external CLI tools.
+Commands that interact with desktop applications via CDP (Chrome DevTools Protocol) on Electron apps.
 
-## GitHub (via gh CLI)
-
-```bash
-opencli gh repo list                     # 列出仓库 (passthrough to gh)
-opencli gh pr list --limit 5             # PR 列表
-opencli gh issue list                    # Issue 列表
-```
+> For external CLI passthrough (gh, docker, lark-cli, etc.), see the **External CLI** section in the main SKILL.md.
 
 ## Cursor (desktop — CDP via Electron)
 

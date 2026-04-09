@@ -53,9 +53,9 @@ opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --download-images
 opencli weixin download --url "https://mp.weixin.qq.com/s/xxx" --output ./weixin
 ```
 
-## Pipeline Step (YAML Adapters)
+## Pipeline Step
 
-The `download` step can be used in YAML pipelines:
+The `download` step can be used in pipeline adapters:
 
 ::: v-pre
 ```yaml

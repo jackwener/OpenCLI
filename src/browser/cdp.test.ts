@@ -4,13 +4,13 @@ const { MockWebSocket } = vi.hoisted(() => {
   class MockWebSocket {
     static OPEN = 1;
     readyState = 1;
-    private handlers = new Map<string, Array<(...args: any[]) => void>>();
+    private handlers = new Map<string, Array<(...args: unknown[]) => void>>();
 
     constructor(_url: string) {
       queueMicrotask(() => this.emit('open'));
     }
 
-    on(event: string, handler: (...args: any[]) => void): void {
+    on(event: string, handler: (...args: unknown[]) => void): void {
       const handlers = this.handlers.get(event) ?? [];
       handlers.push(handler);
       this.handlers.set(event, handlers);
@@ -22,7 +22,7 @@ const { MockWebSocket } = vi.hoisted(() => {
       this.readyState = 3;
     }
 
-    private emit(event: string, ...args: any[]): void {
+    private emit(event: string, ...args: unknown[]): void {
       for (const handler of this.handlers.get(event) ?? []) {
         handler(...args);
       }

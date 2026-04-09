@@ -41,9 +41,14 @@ cli({
         const title = clean(document.querySelector('#detail-title, .title'))
         const desc = clean(document.querySelector('#detail-desc, .desc, .note-text'))
         const author = clean(document.querySelector('.username, .author-wrapper .name'))
-        const likes = clean(document.querySelector('.like-wrapper .count'))
-        const collects = clean(document.querySelector('.collect-wrapper .count'))
-        const comments = clean(document.querySelector('.chat-wrapper .count'))
+        // Scope to .interact-container — the post's main interaction bar.
+        // Without scoping, .like-wrapper / .chat-wrapper also match each
+        // comment's like/reply buttons in the comment section, and
+        // querySelector returns the FIRST match (a comment's count, not the
+        // post's). The post's true counts live inside .interact-container.
+        const likes = clean(document.querySelector('.interact-container .like-wrapper .count'))
+        const collects = clean(document.querySelector('.interact-container .collect-wrapper .count'))
+        const comments = clean(document.querySelector('.interact-container .chat-wrapper .count'))
 
         // Try to extract tags/topics
         const tags = []

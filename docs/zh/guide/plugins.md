@@ -26,7 +26,7 @@ opencli plugin uninstall github-trending
 
 ## 插件目录结构
 
-Plugins 存放在 `~/.opencli/plugins/<name>/`。每个子目录都会在启动时扫描 `.yaml`、`.ts`、`.js` 命令文件，格式与内置 adapters 相同。
+Plugins 存放在 `~/.opencli/plugins/<name>/`。每个子目录都会在启动时扫描 `.ts`、`.js` 命令文件，格式与内置 adapters 相同。
 
 ## 安装来源
 
@@ -106,28 +106,33 @@ opencli plugin install github:user/opencli-plugins/polymarket
 
 OpenCLI 会把已安装 plugin 的版本记录到 `~/.opencli/plugins.lock.json`。每条记录会保存 plugin source、当前 git commit hash、安装时间，以及最近一次更新时间。只要有这份元数据，`opencli plugin list` 就会显示对应的短 commit hash。
 
-## YAML plugin 示例
+## Pipeline plugin 示例
 
 ```text
 my-plugin/
-  hot.yaml
+  package.json
+  hot.ts
 ```
 
-```yaml
-site: my-plugin
-name: hot
-description: Example plugin command
-strategy: public
-browser: false
+`hot.ts`:
 
-pipeline:
-  - evaluate: |
-      () => [{ title: 'hello', url: 'https://example.com' }]
+```typescript
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
-columns: [title, url]
+cli({
+  site: 'my-plugin',
+  name: 'hot',
+  description: 'Example plugin command',
+  strategy: Strategy.PUBLIC,
+  browser: false,
+  columns: ['title', 'url'],
+  pipeline: [
+    { evaluate: `() => [{ title: 'hello', url: 'https://example.com' }]` },
+  ],
+});
 ```
 
-## TypeScript plugin 示例
+## func() plugin 示例
 
 ```text
 my-plugin/

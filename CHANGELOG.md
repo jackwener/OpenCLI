@@ -13,7 +13,7 @@
 
 ### Features
 
-* **opencli-operate:** add browser control commands for Claude Code skill ([#614](https://github.com/jackwener/opencli/issues/614))
+* **opencli-browser:** add browser control commands for Claude Code skill ([#614](https://github.com/jackwener/opencli/issues/614))
 * **docs:** add tab completion to getting started guides ([#658](https://github.com/jackwener/opencli/issues/658))
 
 

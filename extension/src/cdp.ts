@@ -92,8 +92,8 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
 
   // Retry attach up to 3 times — other extensions (1Password, Playwright MCP Bridge)
   // can temporarily interfere with chrome.debugger. A short delay usually resolves it.
-  // Normal commands: 2 retries, 500ms delay (fast fail for non-operate use)
-  // Operate commands: 5 retries, 1500ms delay (aggressive, tolerates extension interference)
+  // Normal commands: 2 retries, 500ms delay (fast fail for non-browser use)
+  // Browser commands: 5 retries, 1500ms delay (aggressive, tolerates extension interference)
   const MAX_ATTACH_RETRIES = aggressiveRetry ? 5 : 2;
   const RETRY_DELAY_MS = aggressiveRetry ? 1500 : 500;
   let lastError = '';
@@ -121,8 +121,10 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
             break; // Don't retry if URL became un-debuggable
           }
         } catch {
+          // Tab is gone — don't fail early here.
+          // Later retry layers can re-resolve a fresh automation tab/window.
           lastError = `Tab ${tabId} no longer exists`;
-          break;
+          // Don't break; fall through to retry
         }
       }
     }
@@ -167,7 +169,7 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
 
 export async function evaluate(tabId: number, expression: string, aggressiveRetry: boolean = false): Promise<unknown> {
   // Retry the entire evaluate (attach + command).
-  // Normal: 2 retries. Operate: 3 retries (tolerates extension interference).
+  // Normal: 2 retries. Browser: 3 retries (tolerates extension interference).
   const MAX_EVAL_RETRIES = aggressiveRetry ? 3 : 2;
   for (let attempt = 1; attempt <= MAX_EVAL_RETRIES; attempt++) {
     try {

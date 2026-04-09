@@ -1,11 +1,10 @@
 /**
  * Synthesize candidate CLIs from explore artifacts.
- * Generates evaluate-based YAML pipelines (matching hand-written adapter patterns).
+ * Generates evaluate-based pipelines (matching hand-written adapter patterns).
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import yaml from 'js-yaml';
 import { VOLATILE_PARAMS, SEARCH_PARAMS, LIMIT_PARAMS, PAGINATION_PARAMS } from './constants.js';
 import type { ExploreAuthSummary, ExploreEndpointArtifact, ExploreManifest } from './explore.js';
 
@@ -103,8 +102,8 @@ export function synthesizeFromExplore(
     const endpoint = chooseEndpoint(cap, bundle.endpoints);
     if (!endpoint) continue;
     const candidate = buildCandidateYaml(site, bundle.manifest, cap, endpoint);
-    const filePath = path.join(targetDir, `${candidate.name}.yaml`);
-    fs.writeFileSync(filePath, yaml.dump(candidate.yaml, { sortKeys: false, lineWidth: 120 }));
+    const filePath = path.join(targetDir, `${candidate.name}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(candidate.yaml, null, 2));
     candidates.push({ name: candidate.name, path: filePath, strategy: cap.strategy });
   }
 
@@ -175,7 +174,7 @@ function buildTemplatedUrl(rawUrl: string, cap: SynthesizeCapability, _endpoint:
 
 /**
  * Build inline evaluate script for browser-based fetch+parse.
- * Follows patterns from bilibili/hot.yaml and twitter/trending.yaml.
+ * Follows patterns from bilibili/hot.ts and twitter/trending.ts.
  */
 function buildEvaluateScript(url: string, itemPath: string, endpoint: ExploreEndpointArtifact): string {
   const pathChain = itemPath.split('.').map((p: string) => `?.${p}`).join('');
@@ -201,7 +200,7 @@ function buildEvaluateScript(url: string, itemPath: string, endpoint: ExploreEnd
   ].join('\n');
 }
 
-// ── YAML pipeline generation ───────────────────────────────────────────────
+// ── Pipeline generation ────────────────────────────────────────────────────
 
 function buildCandidateYaml(site: string, manifest: ExploreManifestLike, cap: SynthesizeCapability, endpoint: ExploreEndpointArtifact): { name: string; yaml: CandidateYaml } {
   const needsBrowser = cap.strategy !== 'public';
@@ -233,12 +232,12 @@ function buildCandidateYaml(site: string, manifest: ExploreManifestLike, cap: Sy
     if (cap.itemPath) tapStep.select = cap.itemPath;
     pipeline.push({ tap: tapStep });
   } else if (needsBrowser) {
-    // Browser-based: navigate + evaluate (like bilibili/hot.yaml, twitter/trending.yaml)
+    // Browser-based: navigate + evaluate (like bilibili/hot, twitter/trending)
     pipeline.push({ navigate: manifest.target_url });
     const itemPath = cap.itemPath ?? 'data.data.list';
     pipeline.push({ evaluate: buildEvaluateScript(templatedUrl, itemPath, endpoint) });
   } else {
-    // Public API: direct fetch (like hackernews/top.yaml)
+    // Public API: direct fetch (like hackernews/top)
     pipeline.push({ fetch: { url: templatedUrl } });
     if (cap.itemPath) pipeline.push({ select: cap.itemPath });
   }

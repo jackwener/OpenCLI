@@ -82,7 +82,6 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
 				}
 			} catch {
 				lastError = `Tab ${tabId} no longer exists`;
-				break;
 			}
 		}
 	}
@@ -816,7 +815,7 @@ async function handleExec(cmd, workspace) {
 	};
 	const tabId = await resolveTabId(cmd.tabId, workspace);
 	try {
-		const aggressive = workspace.startsWith("operate:");
+		const aggressive = workspace.startsWith("browser:") || workspace.startsWith("operate:");
 		const data = await evaluateAsync(tabId, cmd.code, aggressive);
 		return {
 			id: cmd.id,
@@ -1114,7 +1113,7 @@ async function handleCdp(cmd, workspace) {
 	};
 	const tabId = await resolveTabId(cmd.tabId, workspace);
 	try {
-		await ensureAttached(tabId, workspace.startsWith("operate:"));
+		await ensureAttached(tabId, workspace.startsWith("browser:") || workspace.startsWith("operate:"));
 		const data = await chrome.debugger.sendCommand({ tabId }, cmd.cdpMethod, cmd.cdpParams ?? {});
 		return {
 			id: cmd.id,

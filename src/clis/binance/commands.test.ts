@@ -1,16 +1,25 @@
-import fs from 'node:fs';
-import yaml from 'js-yaml';
+import { getRegistry } from '@jackwener/opencli/registry';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { executePipeline } from '../../pipeline.js';
+import { executePipeline } from '../../pipeline/index.js';
+
+// Import all binance adapters to register them
+import './top.js';
+import './gainers.js';
+import './pairs.js';
+
+type BinanceRow = Record<string, unknown>;
 
 function loadPipeline(name: string): any[] {
-  const file = new URL(`./${name}.yaml`, import.meta.url);
-  const def = yaml.load(fs.readFileSync(file, 'utf-8')) as { pipeline: any[] };
-  return def.pipeline;
+  const cmd = getRegistry().get(`binance/${name}`);
+  if (!cmd?.pipeline) throw new Error(`Command binance/${name} not found or has no pipeline`);
+  return cmd.pipeline;
 }
 
 function mockJsonOnce(payload: unknown) {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    statusText: 'OK',
     json: vi.fn().mockResolvedValue(payload),
   }));
 }
@@ -20,7 +29,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('binance YAML adapters', () => {
+describe('binance adapters', () => {
   it('sorts top pairs by numeric quote volume', async () => {
     mockJsonOnce([
       { symbol: 'SMALL', lastPrice: '1', priceChangePercent: '1.2', highPrice: '1', lowPrice: '1', quoteVolume: '9.9' },
@@ -28,7 +37,7 @@ describe('binance YAML adapters', () => {
       { symbol: 'MID', lastPrice: '3', priceChangePercent: '3.4', highPrice: '3', lowPrice: '3', quoteVolume: '11.0' },
     ]);
 
-    const result = await executePipeline(null, loadPipeline('top'), { args: { limit: 3 } });
+    const result = await executePipeline(null, loadPipeline('top'), { args: { limit: 3 } }) as BinanceRow[];
 
     expect(result.map((item: any) => item.symbol)).toEqual(['LARGE', 'MID', 'SMALL']);
     expect(result.map((item: any) => item.rank)).toEqual([1, 2, 3]);
@@ -41,7 +50,7 @@ describe('binance YAML adapters', () => {
       { symbol: 'HUNDRED', lastPrice: '1', priceChangePercent: '100.0', quoteVolume: '100' },
     ]);
 
-    const result = await executePipeline(null, loadPipeline('gainers'), { args: { limit: 3 } });
+    const result = await executePipeline(null, loadPipeline('gainers'), { args: { limit: 3 } }) as BinanceRow[];
 
     expect(result.map((item: any) => item.symbol)).toEqual(['HUNDRED', 'TEN', 'NINE']);
   });
@@ -54,7 +63,7 @@ describe('binance YAML adapters', () => {
       ],
     });
 
-    const result = await executePipeline(null, loadPipeline('pairs'), { args: { limit: 10 } });
+    const result = await executePipeline(null, loadPipeline('pairs'), { args: { limit: 10 } }) as BinanceRow[];
 
     expect(result).toEqual([
       { symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT', status: 'TRADING' },
