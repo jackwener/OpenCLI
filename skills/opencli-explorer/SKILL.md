@@ -7,9 +7,16 @@ tags: [opencli, adapter, browser, api-discovery, cli, web-scraping, automation, 
 # CLI-EXPLORER — 适配器探索式开发完全指南
 
 > 从零到发布：API 发现 → 认证策略 → 写适配器 → 测试验证。
->
-> **只想为一个具体页面快速生成一个命令？** 看 [opencli-oneshot skill](../opencli-oneshot/SKILL.md)（4 步搞定）。
-> **想要全自动生成？** `opencli generate <url> [--goal <goal>]`，自动走完全流程后再看本文档处理失败情况。
+
+## 先选路径
+
+| 情况 | 走这里 |
+|------|--------|
+| 只要为一个具体页面生成一个命令 | [opencli-oneshot skill](../opencli-oneshot/SKILL.md) |
+| 想先让机器自动试一遍 | `opencli generate <url> [--goal <goal>]`，失败再回来 |
+| 新站点 / 多个命令 / oneshot 卡住了 | 继续往下读本文档 |
+| 产物要提 PR | 本文档 + `clis/<site>/` + `npm run build` |
+| 只是本地私用，不提 PR | 本文档 + `~/.opencli/clis/<site>/` |
 
 ---
 
@@ -200,6 +207,7 @@ cli({
 
 > **构建通过 ≠ 功能正常**。必须实际运行并确认输出。
 
+<!-- keep in sync with oneshot SKILL.md §测试 -->
 **两种开发场景**：
 - **Repo 贡献**：文件放 `clis/<site>/<name>.ts`，`npm run build` 后自动注册
 - **私人 adapter**（本地使用，无需提 PR）：文件放 `~/.opencli/clis/<site>/<name>.ts`，无需 build

@@ -9,6 +9,12 @@ tags: [opencli, adapter, quick-start, ts, cli, one-shot, automation]
 > 给一个 URL + 一句话描述，4 步生成一个 CLI 命令。
 > 完整探索式开发请看 [opencli-explorer skill](../opencli-explorer/SKILL.md)。
 
+**遇到以下情况立即切换到 explorer，不要在 oneshot 里继续硬撑：**
+- Step 3 验证 fetch 始终拿不到数据（签名/风控，非 cookie/header 能解决的）
+- 需要 Pinia Store Action 触发 API
+- 同一站点要生成 2 个以上命令
+- `opencli browser network` 完全空，JS bundle 里也找不到 baseURL
+
 ---
 
 ## 输入
@@ -278,6 +284,7 @@ cli({
 
 ## 测试（必做）
 
+<!-- keep in sync with explorer SKILL.md §Step4 -->
 > **两种开发场景**：
 > - **Repo 贡献**：文件放 `clis/<site>/<name>.ts`，`npm run build` 后自动注册
 > - **私人 adapter**（本地使用，无需提 PR）：文件放 `~/.opencli/clis/<site>/<name>.ts`，无需 build
