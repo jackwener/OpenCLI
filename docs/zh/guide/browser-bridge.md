@@ -25,7 +25,7 @@ opencli doctor            # 检查扩展 + 守护进程连接
 
 ## Daemon 生命周期
 
-Daemon 在首次运行浏览器命令时自动启动，默认保持 **4 小时**。仅当 CLI 空闲超时**且** Chrome 扩展未连接时才会退出。
+Daemon 在首次运行浏览器命令时自动启动，之后保持常驻运行。
 
 ```bash
 opencli daemon status    # 查看 daemon 状态（PID、运行时长、扩展连接、内存）

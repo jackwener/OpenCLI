@@ -51,7 +51,7 @@ export class BrowserBridge implements IBrowserFactory {
   async close(): Promise<void> {
     if (this._state === 'closed') return;
     this._state = 'closing';
-    // We don't kill the daemon — it auto-exits on idle.
+    // We don't kill the daemon — it's persistent.
     // Just clean up our reference.
     this._page = null;
     this._state = 'closed';

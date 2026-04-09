@@ -38,7 +38,7 @@ The daemon manages the WebSocket connection between your CLI commands and the Ch
 
 ## Daemon Lifecycle
 
-The daemon auto-starts on first browser command and stays alive for **4 hours** by default. It exits only when both conditions are met: no CLI requests for the timeout period AND no Chrome extension connected.
+The daemon auto-starts on first browser command and stays alive persistently.
 
 ```bash
 opencli daemon status    # Check daemon state (PID, uptime, extension, memory)
