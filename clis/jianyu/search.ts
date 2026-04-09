@@ -60,6 +60,13 @@ interface JianyuApiResponse {
   payload?: JianyuApiPayload;
 }
 
+interface JianyuSearchRow {
+  title: string;
+  url: string;
+  date?: string;
+  contextText?: string;
+}
+
 export function buildSearchUrl(query: string): string {
   const url = new URL(SEARCH_ENTRY);
   url.searchParams.set('keywords', query.trim());
@@ -357,7 +364,7 @@ async function fetchDuckDuckGoIndexRows(query: string, limit: number): Promise<A
 }
 
 async function fetchJianyuApiRows(page: any, query: string, limit: number): Promise<{
-  rows: Array<{ title: string; url: string; date?: string; contextText?: string }>;
+  rows: JianyuSearchRow[];
   challenge: boolean;
 }> {
   try {
@@ -440,33 +447,38 @@ async function fetchJianyuApiRows(page: any, query: string, limit: number): Prom
       responses?: unknown[];
     };
 
-    const rows: Array<{ title: string; url: string; date?: string; contextText?: string }> = [];
-    const seen = new Set<string>();
     const responses = Array.isArray(payload?.responses) ? payload.responses : [];
-    for (const response of responses) {
-      if (!response || typeof response !== 'object') continue;
-      const meta = response as { payload?: unknown };
-      const body = meta.payload;
-      if (!body || typeof body !== 'object') continue;
-      const list = (body as JianyuApiPayload).list;
-      if (!Array.isArray(list)) continue;
-      for (const item of list) {
-        const row = normalizeApiRow(item);
-        if (!row) continue;
-        const key = `${row.title}\t${row.url}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        rows.push(row);
-        if (rows.length >= limit) break;
-      }
-      if (rows.length >= limit) break;
-    }
+    const rows = collectApiRowsFromResponses(responses);
 
     const challenge = Boolean(payload?.challenge);
     return { rows, challenge };
   } catch {
     return { rows: [], challenge: false };
   }
+}
+
+function collectApiRowsFromResponses(responses: unknown[]): JianyuSearchRow[] {
+  const rows: JianyuSearchRow[] = [];
+  const seen = new Set<string>();
+
+  for (const response of responses) {
+    if (!response || typeof response !== 'object') continue;
+    const meta = response as { payload?: unknown };
+    const body = meta.payload;
+    if (!body || typeof body !== 'object') continue;
+    const list = (body as JianyuApiPayload).list;
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const row = normalizeApiRow(item);
+      if (!row) continue;
+      const key = `${row.title}\t${row.url}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push(row);
+    }
+  }
+
+  return rows;
 }
 
 cli({
@@ -533,4 +545,6 @@ export const __test__ = {
   unwrapDuckDuckGoUrl,
   extractDateFromJianyuUrl,
   normalizeApiRow,
+  fetchJianyuApiRows,
+  collectApiRowsFromResponses,
 };

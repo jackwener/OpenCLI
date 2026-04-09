@@ -86,4 +86,55 @@ describe('jianyu search helpers', () => {
     expect(normalized?.url).toContain('/jybx/20260310_26030938267551.html');
     expect(normalized?.date).toBe('2026-03-10');
   });
+
+  it('keeps later bucket unique api rows before final filtering and slice', async () => {
+    const page = {
+      goto: async () => {},
+      wait: async () => {},
+      evaluate: async () => ({
+        challenge: false,
+        responses: [
+          {
+            type: 'fType',
+            ok: true,
+            status: 200,
+            payload: {
+              list: [
+                {
+                  noticeTitle: '某项目电梯采购公告',
+                  detailUrl: '/jybx/20260310_26030938267551.html',
+                  publishTime: '2026-03-10 09:00:00',
+                },
+                {
+                  noticeTitle: '某项目电梯采购公告',
+                  detailUrl: '/jybx/20260310_26030938267551.html',
+                  publishTime: '2026-03-10 09:00:00',
+                },
+              ],
+            },
+          },
+          {
+            type: 'eType',
+            ok: true,
+            status: 200,
+            payload: {
+              list: [
+                {
+                  noticeTitle: '另一条电梯采购公告',
+                  detailUrl: '/jybx/20260311_26030938267552.html',
+                  publishTime: '2026-03-11 09:00:00',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    };
+
+    const result = await __test__.fetchJianyuApiRows(page, '电梯', 1);
+    expect(result.challenge).toBe(false);
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[0].title).toContain('电梯采购公告');
+    expect(result.rows[1].title).toContain('另一条电梯采购公告');
+  });
 });
