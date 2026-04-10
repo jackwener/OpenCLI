@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-10T15:26:08.749Z",
+  "timestamp": "2026-04-10T16:35:02.827Z",
   "json_file": "./clis/douban/subject.json",
   "command": "Subject",
   "website": "movie.douban.com",
@@ -7,35 +7,21 @@
     "id": "1292052"
   },
   "success": false,
-  "actions": [
-    {
-      "action": "open",
-      "status": "succeeded"
-    },
-    {
-      "action": "wait",
-      "status": "succeeded"
-    },
-    {
-      "action": "evaluate",
-      "status": "succeeded"
-    }
-  ],
   "data_count": 1,
   "sample_data": [
     {
       "id": "1292052",
-      "title": "",
+      "title": "肖申克的救赎 The Shawshank Redemption",
       "originalTitle": "",
-      "year": "",
-      "rating": 0,
-      "ratingCount": 0,
-      "genres": "",
-      "directors": "",
-      "casts": "",
-      "country": "",
-      "duration": null,
-      "summary": "",
+      "year": "1994",
+      "rating": 9.7,
+      "ratingCount": 3276062,
+      "genres": "剧情,犯罪",
+      "directors": "弗兰克·德拉邦特",
+      "casts": "蒂姆·罗宾斯,摩根·弗里曼,鲍勃·冈顿,威廉·赛德勒,克兰西·布朗",
+      "country": "美国",
+      "duration": 142,
+      "summary": "一场谋杀案使银行家安迪（蒂姆•罗宾斯 Tim Robbins 饰）蒙冤入狱，谋杀妻子及其情人的指控将囚禁他终生。在肖申克监狱的首次现身就让监狱“大哥”瑞德（摩根•弗里曼 Morgan Freeman 饰）对他另眼相看。瑞德帮助他搞到一把石锤和一幅女明星海报，两人渐成患难 之交。很快，安迪在监狱里大显其才，担当监狱图书管理员，并利用自己的金融知识帮助监狱官避税，引起了典狱长的注意，被招致麾下帮助典狱",
       "url": "https://movie.douban.com/subject/1292052"
     }
   ],
@@ -44,8 +30,7 @@
     "opencli_count": 1,
     "match": false,
     "differences": [
-      "Item 1 \"rating\": Grease=\"0\" vs OpenCLI=\"9.7\"",
-      "Item 1 \"ratingCount\": Grease=\"0\" vs OpenCLI=\"3276045\""
+      "Item 1 \"title\": Grease=\"肖申克的救赎 The Shawshank Redemption\" vs OpenCLI=\"肖申克的救赎\""
     ]
   }
 }
