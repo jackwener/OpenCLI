@@ -1,0 +1,36 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://news.ycombinator.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "(async () => { const limit = Math.min({{ limit }} + 10, 50); const res = await fetch('https://hacker-news.firebaseio.com/v0/newstories.json'); const ids = await res.json(); const items = ids.slice(0, limit); const results = []; for (const id of items) { const itemRes = await fetch('https://hacker-news.firebaseio.com/v0/item/' + id + '.json'); const item = await itemRes.json(); if (item.title && !item.deleted && !item.dead) { results.push({ rank: results.length + 1, title: item.title, score: item.score, author: item.by, comments: item.descendants, url: item.url }); if (results.length >= {{ limit }}) break; } } return results; })()"
+      }
+    }
+  ],
+  "api_endpoint": "hackernews-new",
+  "category": "content",
+  "description": "Hacker News newest stories",
+  "is_public": true,
+  "method": "GET",
+  "name": "New",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "title", "type": "string", "description": "标题" },
+    { "name": "score", "type": "number", "description": "得分" },
+    { "name": "author", "type": "string", "description": "作者" },
+    { "name": "comments", "type": "number", "description": "评论数" },
+    { "name": "url", "type": "string", "description": "链接" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of stories" }
+  ],
+  "website_domain": "news.ycombinator.com",
+  "website_id": "website-news.ycombinator.com"
+}

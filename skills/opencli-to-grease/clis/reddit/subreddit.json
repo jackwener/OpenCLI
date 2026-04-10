@@ -1,0 +1,39 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.reddit.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "(async () => { let sub = '{{ name }}'; if (sub.startsWith('r/')) sub = sub.slice(2); const sort = '{{ sort }}'; const time = '{{ time }}'; const limit = {{ limit }}; let url = '/r/' + sub + '/' + sort + '.json?limit=' + limit + '&raw_json=1'; if ((sort === 'top' || sort === 'controversial') && time) { url += '&t=' + time; } const res = await fetch(url, { credentials: 'include' }); const j = await res.json(); return (j?.data?.children || []).slice(0, limit).map((c, i) => ({ rank: i + 1, title: c.data.title, author: c.data.author, upvotes: c.data.score, comments: c.data.num_comments, url: 'https://www.reddit.com' + c.data.permalink })); })()"
+      }
+    }
+  ],
+  "api_endpoint": "reddit-subreddit",
+  "category": "content",
+  "description": "Get posts from a specific Subreddit",
+  "is_public": false,
+  "method": "GET",
+  "name": "Subreddit",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "title", "type": "string", "description": "标题" },
+    { "name": "author", "type": "string", "description": "作者" },
+    { "name": "upvotes", "type": "number", "description": "点赞数" },
+    { "name": "comments", "type": "number", "description": "评论数" },
+    { "name": "url", "type": "string", "description": "链接" }
+  ],
+  "variables": [
+    { "name": "name", "type": "string", "required": true, "help": "Subreddit name" },
+    { "name": "sort", "type": "string", "default": "hot", "help": "Sorting method: hot, new, top, rising, controversial" },
+    { "name": "time", "type": "string", "default": "all", "help": "Time filter for top/controversial: hour, day, week, month, year, all" },
+    { "name": "limit", "type": "int", "default": 15, "help": "Number of posts" }
+  ],
+  "website_domain": "reddit.com",
+  "website_id": "website-reddit.com"
+}

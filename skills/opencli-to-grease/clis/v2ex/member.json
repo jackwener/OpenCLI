@@ -1,0 +1,36 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.v2ex.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "(async () => { const res = await fetch('https://www.v2ex.com/api/members/show.json?username={{ username }}'); const data = await res.json(); if (!data) return []; return [{ username: data.username, tagline: data.tagline || '', website: data.website || '', github: data.github || '', twitter: data.twitter || '', location: data.location || '' }]; })()"
+      }
+    }
+  ],
+  "api_endpoint": "v2ex-member",
+  "category": "content",
+  "description": "V2EX 用户资料",
+  "is_public": true,
+  "method": "GET",
+  "name": "Member",
+  "output_schema": [
+    { "name": "username", "type": "string", "description": "用户名" },
+    { "name": "tagline", "type": "string", "description": "签名" },
+    { "name": "website", "type": "string", "description": "网站" },
+    { "name": "github", "type": "string", "description": "GitHub" },
+    { "name": "twitter", "type": "string", "description": "Twitter" },
+    { "name": "location", "type": "string", "description": "位置" }
+  ],
+  "variables": [
+    { "name": "username", "type": "string", "required": true, "help": "Username" }
+  ],
+  "website_domain": "www.v2ex.com",
+  "website_id": "website-www.v2ex.com"
+}

@@ -1,0 +1,36 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://bsky.app",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "(async () => { const res = await fetch('https://public.api.bsky.app/xrpc/app.bsky.actor.searchActors?q={{ query }}&limit={{ limit }}'); const data = await res.json(); return (data?.actors || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, handle: item.handle, name: item.displayName, followers: item.followersCount, description: item.description })); })()"
+      }
+    }
+  ],
+  "api_endpoint": "bluesky-search",
+  "category": "search",
+  "description": "Search Bluesky users",
+  "is_public": true,
+  "method": "GET",
+  "name": "Search",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "handle", "type": "string", "description": "用户名" },
+    { "name": "name", "type": "string", "description": "显示名称" },
+    { "name": "followers", "type": "number", "description": "粉丝数" },
+    { "name": "description", "type": "string", "description": "简介" }
+  ],
+  "variables": [
+    { "name": "query", "type": "string", "required": true, "help": "Search query" },
+    { "name": "limit", "type": "int", "default": 10, "help": "Number of results" }
+  ],
+  "website_domain": "bsky.app",
+  "website_id": "website-bsky.app"
+}

@@ -1,0 +1,35 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.bilibili.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "(async () => { const res = await fetch('https://api.bilibili.com/x/web-interface/ranking/v2?rid=0&type=all', { credentials: 'include' }); const data = await res.json(); return (data?.data?.list || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, title: item.title, author: item.owner?.name, score: item.stat?.view, url: item.bvid ? 'https://www.bilibili.com/video/' + item.bvid : '' })); })()"
+      }
+    }
+  ],
+  "api_endpoint": "bilibili-ranking",
+  "category": "content",
+  "description": "Get Bilibili video ranking board",
+  "is_public": false,
+  "method": "GET",
+  "name": "Ranking",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "title", "type": "string", "description": "视频标题" },
+    { "name": "author", "type": "string", "description": "作者" },
+    { "name": "score", "type": "number", "description": "播放量" },
+    { "name": "url", "type": "string", "description": "视频链接" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of results" }
+  ],
+  "website_domain": "www.bilibili.com",
+  "website_id": "website-www.bilibili.com"
+}

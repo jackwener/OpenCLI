@@ -1,0 +1,36 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.v2ex.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "(async () => { const res = await fetch('https://www.v2ex.com/api/topics/hot.json'); const data = await res.json(); return (data || []).slice(0, {{ limit }}).map((item, i) => ({ id: item.id, rank: i + 1, title: item.title, node: item.node?.title, replies: item.replies, url: item.url })); })()"
+      }
+    }
+  ],
+  "api_endpoint": "v2ex-hot",
+  "category": "content",
+  "description": "V2EX 热门话题",
+  "is_public": true,
+  "method": "GET",
+  "name": "Hot",
+  "output_schema": [
+    { "name": "id", "type": "string", "description": "ID" },
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "title", "type": "string", "description": "标题" },
+    { "name": "node", "type": "string", "description": "节点" },
+    { "name": "replies", "type": "number", "description": "回复数" },
+    { "name": "url", "type": "string", "description": "链接" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of topics" }
+  ],
+  "website_domain": "www.v2ex.com",
+  "website_id": "website-www.v2ex.com"
+}

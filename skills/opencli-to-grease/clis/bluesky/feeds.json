@@ -1,0 +1,35 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://bsky.app",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "(async () => { const res = await fetch('https://public.api.bsky.app/xrpc/app.bsky.unspecced.getPopularFeedGenerators?limit={{ limit }}'); const data = await res.json(); return (data?.feeds || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, name: item.displayName, likes: item.likeCount, creator: item.creator?.handle, description: item.description })); })()"
+      }
+    }
+  ],
+  "api_endpoint": "bluesky-feeds",
+  "category": "content",
+  "description": "Popular Bluesky feed generators",
+  "is_public": true,
+  "method": "GET",
+  "name": "Feeds",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "name", "type": "string", "description": "名称" },
+    { "name": "likes", "type": "number", "description": "点赞数" },
+    { "name": "creator", "type": "string", "description": "创建者" },
+    { "name": "description", "type": "string", "description": "描述" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of feeds" }
+  ],
+  "website_domain": "bsky.app",
+  "website_id": "website-bsky.app"
+}

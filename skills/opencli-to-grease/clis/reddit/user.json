@@ -1,0 +1,32 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.reddit.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "(async () => { const username = '{{ username }}'; const name = username.startsWith('u/') ? username.slice(2) : username; const res = await fetch('/user/' + name + '/about.json?raw_json=1', { credentials: 'include' }); const d = await res.json(); const u = d?.data || d || {}; const created = u.created_utc ? new Date(u.created_utc * 1000).toISOString().split('T')[0] : '-'; return [{ field: 'Username', value: 'u/' + (u.name || name) }, { field: 'Post Karma', value: String(u.link_karma || 0) }, { field: 'Comment Karma', value: String(u.comment_karma || 0) }, { field: 'Total Karma', value: String(u.total_karma || (u.link_karma||0) + (u.comment_karma||0)) }, { field: 'Account Created', value: created }]; })()"
+      }
+    }
+  ],
+  "api_endpoint": "reddit-user",
+  "category": "content",
+  "description": "View a Reddit user profile",
+  "is_public": false,
+  "method": "GET",
+  "name": "User",
+  "output_schema": [
+    { "name": "field", "type": "string", "description": "字段" },
+    { "name": "value", "type": "string", "description": "值" }
+  ],
+  "variables": [
+    { "name": "username", "type": "string", "required": true, "help": "Reddit username" }
+  ],
+  "website_domain": "reddit.com",
+  "website_id": "website-reddit.com"
+}

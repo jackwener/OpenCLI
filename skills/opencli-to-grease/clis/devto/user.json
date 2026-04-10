@@ -1,0 +1,37 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://dev.to",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "(async () => { const res = await fetch('https://dev.to/api/articles?username={{ username }}&per_page={{ limit }}'); const data = await res.json(); return (data || []).map((item, i) => ({ rank: i + 1, title: item.title, reactions: item.public_reactions_count, comments: item.comments_count, tags: (item.tag_list || []).join(', '), url: item.url })); })()"
+      }
+    }
+  ],
+  "api_endpoint": "devto-user",
+  "category": "content",
+  "description": "Recent DEV.to articles from a specific user",
+  "is_public": true,
+  "method": "GET",
+  "name": "User",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "title", "type": "string", "description": "标题" },
+    { "name": "reactions", "type": "number", "description": "反应数" },
+    { "name": "comments", "type": "number", "description": "评论数" },
+    { "name": "tags", "type": "string", "description": "标签" },
+    { "name": "url", "type": "string", "description": "链接" }
+  ],
+  "variables": [
+    { "name": "username", "type": "string", "required": true, "help": "DEV.to username (e.g. ben, thepracticaldev)" },
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of articles" }
+  ],
+  "website_domain": "dev.to",
+  "website_id": "website-dev.to"
+}

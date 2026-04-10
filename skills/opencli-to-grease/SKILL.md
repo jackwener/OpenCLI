@@ -303,17 +303,20 @@ cli({
 
 ## Test Generated JSON
 
-测试生成的 JSON 文件并对比 OpenCLI 结果：
+测试生成的 JSON 文件并对比 OpenCLI 结果（默认启用对比）：
 
 ```bash
 cd skills/opencli-to-grease
 npm install
 
-# 测试单个文件
-npm run test -- ./clis/36kr/hot.json --compare
+# 测试单个文件（默认对比）
+npm run test -- ./clis/36kr/hot.json
 
 # 带参数测试
-npm run test -- ./clis/zhihu/hot.json --params '{"limit":5}' --compare
+npm run test -- ./clis/zhihu/search.json --params '{"query":"AI","limit":5}'
+
+# 禁用对比
+npm run test -- ./clis/bilibili/hot.json --no-compare
 ```
 
 ### Test Script Options
@@ -323,9 +326,43 @@ npm run test -- <json-file> [options]
 
 Options:
   --cdp <url>       CDP URL (default: http://localhost:9222)
-  --params <json>   Parameters as JSON string
-  --compare         Compare with OpenCLI command results
-  --site <name>     Site name (extracted from JSON domain if not provided)
+  --params <json>   Parameters as JSON string (支持 --params='...' 或 --params '...')
+  --no-compare      禁用 OpenCLI 对比 (默认启用对比)
+  --site <name>     手动指定 OpenCLI 命令名 (默认从 domain 自动提取)
+```
+
+### Test Log Output
+
+每次测试完成后，会在 JSON 文件同目录下生成 `.test` 日志文件：
+
+```
+clis/bilibili/hot.json    → clis/bilibili/hot.test
+clis/zhihu/search.json    → clis/zhihu/search.test
+```
+
+日志文件格式：
+
+```json
+{
+  "timestamp": "2026-04-10T13:20:45.123Z",
+  "json_file": "./clis/bilibili/hot.json",
+  "command": "Hot",
+  "website": "www.bilibili.com",
+  "params": { "limit": 20 },
+  "success": true,
+  "actions": [
+    { "action": "open", "status": "succeeded" },
+    { "action": "evaluate", "status": "succeeded" }
+  ],
+  "data_count": 20,
+  "sample_data": [ ... ],
+  "comparison": {
+    "grease_count": 20,
+    "opencli_count": 20,
+    "match": true,
+    "differences": []
+  }
+}
 ```
 
 ### Prerequisites

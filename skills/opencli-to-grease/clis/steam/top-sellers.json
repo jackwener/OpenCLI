@@ -1,0 +1,35 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://store.steampowered.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "(async () => { const res = await fetch('https://store.steampowered.com/api/featuredcategories/'); const data = await res.json(); return (data?.top_sellers?.items || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, name: item.name, price: item.final_price, discount: item.discount_percent, url: 'https://store.steampowered.com/app/' + item.id })); })()"
+      }
+    }
+  ],
+  "api_endpoint": "steam-top-sellers",
+  "category": "content",
+  "description": "Steam top selling games",
+  "is_public": true,
+  "method": "GET",
+  "name": "TopSellers",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "name", "type": "string", "description": "游戏名称" },
+    { "name": "price", "type": "number", "description": "价格" },
+    { "name": "discount", "type": "number", "description": "折扣" },
+    { "name": "url", "type": "string", "description": "链接" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 10, "help": "Number of games" }
+  ],
+  "website_domain": "store.steampowered.com",
+  "website_id": "website-store.steampowered.com"
+}
