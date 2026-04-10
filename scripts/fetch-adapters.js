@@ -128,7 +128,62 @@ export function fetchAdapters() {
     }
   }
 
-  // 3. Write updated manifest
+  // 3. Clean up legacy compat shim files from ~/.opencli/
+  // These were created by an older approach that placed re-export shims directly
+  // in ~/.opencli/ (e.g., registry.js, errors.js, browser/). The current approach
+  // uses a node_modules/@jackwener/opencli symlink instead.
+  const LEGACY_SHIM_FILES = [
+    'registry.js', 'errors.js', 'utils.js', 'launcher.js', 'logger.js', 'types.js',
+  ];
+  const LEGACY_SHIM_DIRS = [
+    'browser', 'download', 'errors', 'launcher', 'logger', 'pipeline', 'registry', 'types', 'utils',
+  ];
+  let legacyCleaned = 0;
+  for (const file of LEGACY_SHIM_FILES) {
+    const p = join(OPENCLI_DIR, file);
+    try {
+      const content = readFileSync(p, 'utf-8');
+      // Only delete if it's a re-export shim, not a user-created file
+      if (content.includes("export * from 'file://")) {
+        unlinkSync(p);
+        legacyCleaned++;
+      }
+    } catch { /* doesn't exist */ }
+  }
+  for (const dir of LEGACY_SHIM_DIRS) {
+    const p = join(OPENCLI_DIR, dir);
+    try {
+      // Only delete if it contains shim .js files, not user content
+      const entries = readdirSync(p);
+      const allShims = entries.every(e => e.endsWith('.js'));
+      if (allShims && entries.length > 0) {
+        const firstContent = readFileSync(join(p, entries[0]), 'utf-8');
+        if (firstContent.includes("export * from 'file://")) {
+          rmSync(p, { recursive: true });
+          legacyCleaned++;
+        }
+      }
+    } catch { /* doesn't exist or not a directory */ }
+  }
+
+  // 4. Clean up stale .plugins.lock.json.tmp-* files
+  let tmpCleaned = 0;
+  try {
+    for (const entry of readdirSync(OPENCLI_DIR)) {
+      if (entry.startsWith('.plugins.lock.json.tmp-')) {
+        try {
+          unlinkSync(join(OPENCLI_DIR, entry));
+          tmpCleaned++;
+        } catch { /* ignore */ }
+      }
+    }
+  } catch { /* ignore */ }
+
+  if (legacyCleaned > 0 || tmpCleaned > 0) {
+    log(`Cleaned up${legacyCleaned > 0 ? ` ${legacyCleaned} legacy shim files` : ''}${tmpCleaned > 0 ? `${legacyCleaned > 0 ? ',' : ''} ${tmpCleaned} stale tmp files` : ''}`);
+  }
+
+  // 5. Write updated manifest
   writeFileSync(MANIFEST_PATH, JSON.stringify({
     version: currentVersion,
     files: [...newOfficialFiles].sort(),
