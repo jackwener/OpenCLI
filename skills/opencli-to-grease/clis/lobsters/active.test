@@ -1,0 +1,74 @@
+{
+  "timestamp": "2026-04-10T13:38:03.660Z",
+  "json_file": "./clis/lobsters/active.json",
+  "command": "Active",
+  "website": "lobste.rs",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "Favorite programmer website?",
+      "score": 12,
+      "author": "schmudde",
+      "comments": 9,
+      "tags": "ask, programming",
+      "url": "https://lobste.rs/s/iq7i4f/favorite_programmer_website"
+    },
+    {
+      "rank": 2,
+      "title": "What are you doing this weekend?",
+      "score": 10,
+      "author": "caius",
+      "comments": 13,
+      "tags": "ask, programming",
+      "url": "https://lobste.rs/s/rcom8t/what_are_you_doing_this_weekend"
+    },
+    {
+      "rank": 3,
+      "title": "What are your programming \"hunches\" you haven't yet investigated?",
+      "score": 132,
+      "author": "WilhelmVonWeiner",
+      "comments": 216,
+      "tags": "ask, programming",
+      "url": "https://lobste.rs/s/gns27z/what_are_your_programming_hunches_you"
+    },
+    {
+      "rank": 4,
+      "title": "Full Text Search with IndexedDB",
+      "score": 16,
+      "author": "singpolyma",
+      "comments": 10,
+      "tags": "databases, javascript",
+      "url": "https://lobste.rs/s/9xjhfm/full_text_search_with_indexeddb"
+    },
+    {
+      "rank": 5,
+      "title": "Let’s talk about LLMs",
+      "score": 53,
+      "author": "jparise",
+      "comments": 27,
+      "tags": "vibecoding",
+      "url": "https://lobste.rs/s/j2l2ya/let_s_talk_about_llms"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

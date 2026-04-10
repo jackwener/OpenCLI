@@ -1,0 +1,75 @@
+{
+  "timestamp": "2026-04-10T13:35:16.886Z",
+  "json_file": "./clis/reddit/hot.json",
+  "command": "Hot",
+  "website": "www.reddit.com",
+  "params": {
+    "limit": 5,
+    "subreddit": ""
+  },
+  "success": false,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "Trump just dropped a massive, angry tweet attacking everyone who criticized him.",
+      "subreddit": "r/Fauxmoi",
+      "score": 35578,
+      "comments": 7475,
+      "url": "https://www.reddit.com/r/Fauxmoi/comments/1sh51ik/trump_just_dropped_a_massive_angry_tweet/"
+    },
+    {
+      "rank": 2,
+      "title": "Marlon Brando proving he really is The Godfather",
+      "subreddit": "r/BeAmazed",
+      "score": 10065,
+      "comments": 383,
+      "url": "https://www.reddit.com/r/BeAmazed/comments/1shkzmn/marlon_brando_proving_he_really_is_the_godfather/"
+    },
+    {
+      "rank": 3,
+      "title": "Aftermath of the April 7th incident. Damages estimated to be $200 million dollars",
+      "subreddit": "r/interesting",
+      "score": 35262,
+      "comments": 6154,
+      "url": "https://www.reddit.com/r/interesting/comments/1sgx3o1/aftermath_of_the_april_7th_incident_damages/"
+    },
+    {
+      "rank": 4,
+      "title": "Aftermath of the April 7th incident. Damages estimated to be $200 million dollars",
+      "subreddit": "r/SipsTea",
+      "score": 18436,
+      "comments": 4278,
+      "url": "https://www.reddit.com/r/SipsTea/comments/1sgx64e/aftermath_of_the_april_7th_incident_damages/"
+    },
+    {
+      "rank": 5,
+      "title": "Ruin",
+      "subreddit": "r/comics",
+      "score": 11469,
+      "comments": 89,
+      "url": "https://www.reddit.com/r/comics/comments/1shj1w0/ruin/"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": false,
+    "differences": [
+      "Item 1 \"score\": Grease=\"35578\" vs OpenCLI=\"35581\"",
+      "Item 2 \"score\": Grease=\"10065\" vs OpenCLI=\"10015\"",
+      "Item 2 \"comments\": Grease=\"383\" vs OpenCLI=\"381\"",
+      "Item 3 \"score\": Grease=\"35262\" vs OpenCLI=\"35264\""
+    ]
+  }
+}

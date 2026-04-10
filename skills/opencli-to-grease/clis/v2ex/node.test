@@ -1,0 +1,65 @@
+{
+  "timestamp": "2026-04-10T13:41:24.500Z",
+  "json_file": "./clis/v2ex/node.json",
+  "command": "Node",
+  "website": "www.v2ex.com",
+  "params": {
+    "name": "python",
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "爬虫开发工作中，你们是如何基于 AI 进行提效的？",
+      "author": "KingZZZZ",
+      "replies": 17,
+      "url": "https://www.v2ex.com/t/1204542"
+    },
+    {
+      "rank": 2,
+      "title": "发现 Python 一个有意思的小特性，发现很合适搞成面试题。问了 AI 都不行:)，欢迎来挑战~",
+      "author": "xFrank",
+      "replies": 41,
+      "url": "https://www.v2ex.com/t/1202699"
+    },
+    {
+      "rank": 3,
+      "title": "大型 Python 开源项目都不会对变量进行类型注解？",
+      "author": "shadowmeld",
+      "replies": 16,
+      "url": "https://www.v2ex.com/t/1201368"
+    },
+    {
+      "rank": 4,
+      "title": "使用 pycharm 开发 Python ，自定义代码风格，并实时提示",
+      "author": "programMrxu",
+      "replies": 0,
+      "url": "https://www.v2ex.com/t/1200848"
+    },
+    {
+      "rank": 5,
+      "title": "创造了 uv 的 Astral 公司被 OpenAI 收购",
+      "author": "GPLer",
+      "replies": 7,
+      "url": "https://www.v2ex.com/t/1199650"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

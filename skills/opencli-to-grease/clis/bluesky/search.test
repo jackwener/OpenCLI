@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-04-10T13:39:12.963Z",
+  "json_file": "./clis/bluesky/search.json",
+  "command": "Search",
+  "website": "bsky.app",
+  "params": {
+    "query": "AI",
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "handle": "airwars.bsky.social",
+      "name": "Airwars",
+      "description": "The civilian harm watchdog. \n\nWe also run the Open Source Munitions Portal @munitionsportal.bsky.social\n\nDonate: http://airwars.org/about/donate"
+    },
+    {
+      "rank": 2,
+      "handle": "policiasurpresapol.bsky.social",
+      "name": "Polícia Surpresa",
+      "description": "Perfil fack criado por estagiario\nAi de quem acha que não tem polícia vendo"
+    },
+    {
+      "rank": 3,
+      "handle": "inui-mono.bsky.social",
+      "name": "犬居",
+      "description": "20↑🔞／BL／壁打ち／ジャンル雑多／落乱🥷🥚(雑伊/利こま) ／ﾏｯｼｭﾙ(❤️ﾚｲﾌｨﾝ /ﾊﾟﾁｮﾏｸ／❌リバ／／⚠️AI学習禁止⚠️無断転載＆無断使用禁止 ⚠️Reproduction is prohibited."
+    },
+    {
+      "rank": 4,
+      "handle": "meredithmeredith.bsky.social",
+      "name": "Meredith Whittaker ",
+      "description": "President of Signal, Chief Advisor to AI Now Institute "
+    },
+    {
+      "rank": 5,
+      "handle": "fuji-mitsuya.bsky.social",
+      "name": "Fuji Mitsuya",
+      "description": "ﾌｼﾞ ﾐﾂﾔ名義でイラストレーターをしています｜日常・仕事情報・ﾌｧﾝｱｰﾄ等・BLカプ話有｜ 🚫AI学習、無断転載。Reproduction is prohibited. 禁止私自转载、加工・무단 전재는 금지입니다.｜✉DMは仕事専用 / リプは基本返してません。"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-04-10T13:41:01.378Z",
+  "json_file": "./clis/hackernews/new.json",
+  "command": "New",
+  "website": "news.ycombinator.com",
+  "params": {
+    "limit": 5
+  },
+  "success": false,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "failed"
+    }
+  ],
+  "data_count": 0
+}

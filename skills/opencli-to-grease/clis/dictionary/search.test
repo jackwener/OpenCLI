@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-04-10T14:16:03.129Z",
+  "json_file": "./clis/dictionary/search.json",
+  "command": "Search",
+  "website": "api.dictionaryapi.dev",
+  "params": {
+    "word": "serendipity"
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 1,
+  "sample_data": [
+    {
+      "word": "serendipity",
+      "phonetic": "/ˌsɛ.ɹən.ˈdɪ.pɪ.ti/",
+      "type": "noun",
+      "definition": "A combination of events which have come together by chance to make a surprisingly good or wonderful outcome."
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 1,
+    "match": true,
+    "differences": []
+  }
+}

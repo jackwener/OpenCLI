@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-04-10T13:39:09.359Z",
+  "json_file": "./clis/bluesky/feeds.json",
+  "command": "Feeds",
+  "website": "bsky.app",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "name": "Discover",
+      "likes": 38880,
+      "creator": "bsky.app",
+      "description": "Trending content from your personal network"
+    },
+    {
+      "rank": 2,
+      "name": "Popular With Friends",
+      "likes": 41006,
+      "creator": "bsky.app",
+      "description": "A mix of popular content from accounts you follow and content that your follows like."
+    },
+    {
+      "rank": 3,
+      "name": "Mutuals",
+      "likes": 28572,
+      "creator": "skyfeed.xyz",
+      "description": "Posts from users who are following you back"
+    },
+    {
+      "rank": 4,
+      "name": "Science",
+      "likes": 29246,
+      "creator": "bossett.social",
+      "description": "The Science Feed. A curated feed from Bluesky professional scientists,  science communicators, and science/nature photographer/artists. See https://l.bossett.io/vkeNf for more information! 🧪"
+    },
+    {
+      "rank": 5,
+      "name": "Artists: Trending",
+      "likes": 32673,
+      "creator": "bsky.art",
+      "description": "General art feed — image posts from artists across Bluesky, sorted by trending.\r\nFor information on how to post and affiliated accounts, visit: www.bsky.art"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

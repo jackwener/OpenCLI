@@ -1,0 +1,82 @@
+{
+  "timestamp": "2026-04-10T13:40:06.855Z",
+  "json_file": "./clis/reddit/search.json",
+  "command": "Search",
+  "website": "reddit.com",
+  "params": {
+    "query": "AI",
+    "limit": 5,
+    "subreddit": "",
+    "sort": "relevance",
+    "time": "all"
+  },
+  "success": false,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "Samsung AI vs Apple AI",
+      "subreddit": "r/AgentsOfAI",
+      "author": "buildingthevoid",
+      "score": 2021,
+      "comments": 405,
+      "url": "https://www.reddit.com/r/AgentsOfAI/comments/1pyf6ze/samsung_ai_vs_apple_ai/"
+    },
+    {
+      "rank": 2,
+      "title": "\"Ai videos are the future\" Ai videos: (tw)",
+      "subreddit": "r/TeenagersButBetter",
+      "author": "_Idk_who_i_am_6_",
+      "score": 185,
+      "comments": 163,
+      "url": "https://www.reddit.com/r/TeenagersButBetter/comments/1meesxs/ai_videos_are_the_future_ai_videos_tw/"
+    },
+    {
+      "rank": 3,
+      "title": "[HELP] Is this lady AI or AI enhanced at all?",
+      "subreddit": "r/RealOrAI",
+      "author": "AggressiveAd8587",
+      "score": 38,
+      "comments": 45,
+      "url": "https://www.reddit.com/r/RealOrAI/comments/1qi71vr/help_is_this_lady_ai_or_ai_enhanced_at_all/"
+    },
+    {
+      "rank": 4,
+      "title": "How we treated AI in 2023 vs 2025",
+      "subreddit": "r/ChatGPT",
+      "author": "mikeypikey",
+      "score": 30652,
+      "comments": 1016,
+      "url": "https://www.reddit.com/r/ChatGPT/comments/1lwr2m2/how_we_treated_ai_in_2023_vs_2025/"
+    },
+    {
+      "rank": 5,
+      "title": "Freaky AI",
+      "subreddit": "r/FacebookAIslop",
+      "author": "Limp-Bass-2838",
+      "score": 2576,
+      "comments": 79,
+      "url": "https://www.reddit.com/r/FacebookAIslop/comments/1qnpq59/freaky_ai/"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": false,
+    "differences": [
+      "Item 1 \"score\": Grease=\"2021\" vs OpenCLI=\"2025\"",
+      "Item 2 \"score\": Grease=\"185\" vs OpenCLI=\"183\"",
+      "Item 3 \"score\": Grease=\"38\" vs OpenCLI=\"31\""
+    ]
+  }
+}

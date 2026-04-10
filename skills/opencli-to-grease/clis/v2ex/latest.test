@@ -1,0 +1,84 @@
+{
+  "timestamp": "2026-04-10T13:37:48.389Z",
+  "json_file": "./clis/v2ex/latest.json",
+  "command": "Latest",
+  "website": "www.v2ex.com",
+  "params": {
+    "limit": 5
+  },
+  "success": false,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "id": 1205009,
+      "rank": 1,
+      "title": "有没有最近面试的老哥或者面试别人的 hr，三年左右经验的现在面试都问什么",
+      "node": "酷工作",
+      "replies": 0,
+      "url": "https://www.v2ex.com/t/1205009"
+    },
+    {
+      "id": 1205007,
+      "rank": 2,
+      "title": "[开源] Codeg V0.7.0：专注于代码生成的多智能体 IDE，新版本内置“专家技能”，支持 IM 消息通道，支持桌面端、服务端（含 docker）部署",
+      "node": "分享创造",
+      "replies": 0,
+      "url": "https://www.v2ex.com/t/1205007"
+    },
+    {
+      "id": 1205006,
+      "rank": 3,
+      "title": "iPhone 上豆包输入法不用跳转了",
+      "node": "iPhone",
+      "replies": 4,
+      "url": "https://www.v2ex.com/t/1205006"
+    },
+    {
+      "id": 1205005,
+      "rank": 4,
+      "title": "有趣，我也做了一个 SBTI 测试，欢迎来喷",
+      "node": "分享创造",
+      "replies": 0,
+      "url": "https://www.v2ex.com/t/1205005"
+    },
+    {
+      "id": 1205004,
+      "rank": 5,
+      "title": "Copilot Pro+接入的模型有没有问题",
+      "node": "程序员",
+      "replies": 1,
+      "url": "https://www.v2ex.com/t/1205004"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": false,
+    "differences": [
+      "Item 1 \"id\": Grease=\"1205009\" vs OpenCLI=\"1205011\"",
+      "Item 1 \"title\": Grease=\"有没有最近面试的老哥或者面试别人的 hr，三年左右经验的现在面试都问什么\" vs OpenCLI=\"使用 20XOPUS+GPT vibe coding 出来的网站上线了！关注我前两天帖子的朋友可以来\"",
+      "Item 1 \"node\": Grease=\"酷工作\" vs OpenCLI=\"程序员\"",
+      "Item 1 \"url\": Grease=\"https://www.v2ex.com/t/1205009\" vs OpenCLI=\"https://www.v2ex.com/t/1205011\"",
+      "Item 2 \"id\": Grease=\"1205007\" vs OpenCLI=\"1205010\"",
+      "Item 2 \"title\": Grease=\"[开源] Codeg V0.7.0：专注于代码生成的多智能体 IDE，新版本内置“专家技能”，支持 \" vs OpenCLI=\"大厂 AI 能跑团\"",
+      "Item 2 \"node\": Grease=\"分享创造\" vs OpenCLI=\"分享发现\"",
+      "Item 2 \"replies\": Grease=\"0\" vs OpenCLI=\"3\"",
+      "Item 2 \"url\": Grease=\"https://www.v2ex.com/t/1205007\" vs OpenCLI=\"https://www.v2ex.com/t/1205010\"",
+      "Item 3 \"id\": Grease=\"1205006\" vs OpenCLI=\"1205009\"",
+      "Item 3 \"title\": Grease=\"iPhone 上豆包输入法不用跳转了\" vs OpenCLI=\"有没有最近面试的老哥或者面试别人的 hr，三年左右经验的现在面试都问什么\"",
+      "Item 3 \"node\": Grease=\"iPhone\" vs OpenCLI=\"酷工作\"",
+      "Item 3 \"replies\": Grease=\"4\" vs OpenCLI=\"1\"",
+      "Item 3 \"url\": Grease=\"https://www.v2ex.com/t/1205006\" vs OpenCLI=\"https://www.v2ex.com/t/1205009\""
+    ]
+  }
+}

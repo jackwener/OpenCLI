@@ -1,0 +1,65 @@
+{
+  "timestamp": "2026-04-10T13:39:04.152Z",
+  "json_file": "./clis/bluesky/user.json",
+  "command": "User",
+  "website": "bsky.app",
+  "params": {
+    "handle": "bsky.app",
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "text": "More and more organizations, publishers, and creators are abandoning legacy platforms that throttle their reach. Bluesky gives them a direct line to their audiences, without suppression or gatekeeping bsky.app/profile/eff....",
+      "likes": 3899,
+      "reposts": 448,
+      "replies": 163
+    },
+    {
+      "rank": 2,
+      "text": "v1.120 is live!\n\nOn web, you can now search without your mouse! Press \"/\" to focus on the search field, and use your up/down keys to move through the results.\n\nUp/down also works when you mention someone with \"@\" in a post.\n\nWe also fixed bugs like feeds not refreshing and threads jumping on scroll.",
+      "likes": 3063,
+      "reposts": 353,
+      "replies": 185
+    },
+    {
+      "rank": 3,
+      "text": "We've launched an official Japanese account! Give it a follow if you're interested in more Japan-specific information.",
+      "likes": 2815,
+      "reposts": 724,
+      "replies": 70
+    },
+    {
+      "rank": 4,
+      "text": "We're improving our recommendations for people to follow on Bluesky. As this ramps up, you should start seeing more relevant suggestions across the app.",
+      "likes": 1667,
+      "reposts": 151,
+      "replies": 162
+    },
+    {
+      "rank": 5,
+      "text": "Excited to see our friends @surf.social launching social sites powered by the open web!",
+      "likes": 1050,
+      "reposts": 111,
+      "replies": 30
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

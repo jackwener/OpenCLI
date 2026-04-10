@@ -1,0 +1,28 @@
+{
+  "timestamp": "2026-04-10T13:42:13.521Z",
+  "json_file": "./clis/jimeng/history.json",
+  "command": "History",
+  "website": "jimeng.jianying.com",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 0,
+  "sample_data": [],
+  "comparison": {
+    "grease_count": 0,
+    "opencli_count": 0,
+    "match": true,
+    "differences": []
+  }
+}

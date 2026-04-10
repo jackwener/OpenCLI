@@ -1,0 +1,45 @@
+{
+  "timestamp": "2026-04-10T14:25:57.417Z",
+  "json_file": "./clis/pixiv/detail.json",
+  "command": "Detail",
+  "website": "www.pixiv.net",
+  "params": {
+    "id": "143317250"
+  },
+  "success": false,
+  "actions": [
+    {
+      "action": "open",
+      "status": "failed",
+      "error": "waitForMainLoadState(load) timed out after 15000ms"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 1,
+  "sample_data": [
+    {
+      "illust_id": "143317250",
+      "title": "虚月譚",
+      "author": "藤ちょこ（藤原）",
+      "type": "illust",
+      "pages": 1,
+      "bookmarks": 3761,
+      "likes": 2953,
+      "views": 34827,
+      "tags": "御伽鵺, 祝詞鵺, 虚月譚",
+      "created": "2026-04-08",
+      "url": "https://www.pixiv.net/artworks/143317250"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 1,
+    "match": false,
+    "differences": [
+      "Item 1 \"views\": Grease=\"34827\" vs OpenCLI=\"34838\""
+    ]
+  }
+}

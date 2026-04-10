@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-04-10T13:15:58.229Z",
+  "json_file": "./clis/bilibili/dynamic.json",
+  "command": "Dynamic",
+  "website": "www.bilibili.com",
+  "params": {
+    "limit": 15
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 15,
+  "sample_data": [
+    {
+      "id": "1189650368417497097",
+      "author": "哔哩哔哩会员购",
+      "text": "",
+      "likes": 181,
+      "url": "https://t.bilibili.com/1189650368417497097"
+    },
+    {
+      "id": "1189648401380147235",
+      "author": "国米的32号",
+      "text": "叁贰足球人格测试！！",
+      "likes": 6,
+      "url": "https://t.bilibili.com/1189648401380147235"
+    },
+    {
+      "id": "1189639802836746328",
+      "author": "哔哩哔哩会员购",
+      "text": "",
+      "likes": 299,
+      "url": "https://t.bilibili.com/1189639802836746328"
+    },
+    {
+      "id": "1189626917933809696",
+      "author": "哔哩哔哩会员购",
+      "text": "",
+      "likes": 362,
+      "url": "https://t.bilibili.com/1189626917933809696"
+    },
+    {
+      "id": "1189609278507319335",
+      "author": "哔哩哔哩会员购",
+      "text": "",
+      "likes": 115,
+      "url": "https://t.bilibili.com/1189609278507319335"
+    }
+  ],
+  "comparison": {
+    "grease_count": 15,
+    "opencli_count": 15,
+    "match": true,
+    "differences": []
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-04-10T13:40:55.988Z",
+  "json_file": "./clis/jike/topic.json",
+  "command": "Topic",
+  "website": "m.okjike.com",
+  "params": {
+    "id": "553870e8e4b0cafb0a1bef68",
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 0,
+  "sample_data": []
+}

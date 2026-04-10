@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-04-10T13:34:56.708Z",
+  "json_file": "./clis/zhihu/hot.json",
+  "command": "Hot",
+  "website": "www.zhihu.com",
+  "params": {
+    "limit": 10
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 10,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "警方通报全红婵遭网暴案，群主徐某变换昵称多次发表侮辱言论，被行拘十日并处罚款，此事件有哪些警示意义？",
+      "heat": "459 万热度",
+      "answers": 218,
+      "url": "https://www.zhihu.com/question/2026016241375003473"
+    },
+    {
+      "rank": 2,
+      "title": "女儿动用「人脉」，用玩偶凑满一桌为爸爸庆生，爸爸笑称「高朋满座，胜友如云」，家长的捧场对孩子有多重要？",
+      "heat": "290 万热度",
+      "answers": 102,
+      "url": "https://www.zhihu.com/question/2025270618837333903"
+    },
+    {
+      "rank": 3,
+      "title": "小米食堂发布「小米」冰激凌，有标准版、Pro 版、Max 版三种版本，怎样看待小米把产品思维刻进日常？",
+      "heat": "164 万热度",
+      "answers": 58,
+      "url": "https://www.zhihu.com/question/2025963750629423063"
+    },
+    {
+      "rank": 4,
+      "title": "《王者荣耀世界》已正式公测，PC 端玩家体验怎么样？玩过的玩家如何评价这款游戏？",
+      "heat": "157 万热度",
+      "answers": 499,
+      "url": "https://www.zhihu.com/question/2025884903422654200"
+    },
+    {
+      "rank": 5,
+      "title": "如何评价 DiskGenius 这款软件？",
+      "heat": "151 万热度",
+      "answers": 213,
+      "url": "https://www.zhihu.com/question/47503655"
+    }
+  ],
+  "comparison": {
+    "grease_count": 10,
+    "opencli_count": 10,
+    "match": true,
+    "differences": []
+  }
+}

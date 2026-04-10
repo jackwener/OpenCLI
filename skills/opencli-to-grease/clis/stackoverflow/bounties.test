@@ -1,0 +1,45 @@
+{
+  "timestamp": "2026-04-10T13:41:30.319Z",
+  "json_file": "./clis/stackoverflow/bounties.json",
+  "command": "Bounties",
+  "website": "stackoverflow.com",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 2,
+  "sample_data": [
+    {
+      "rank": 1,
+      "bounty": 50,
+      "title": "DMG-acid2 test ROM failing",
+      "score": 0,
+      "answers": 0,
+      "url": "https://stackoverflow.com/questions/79921813/dmg-acid2-test-rom-failing"
+    },
+    {
+      "rank": 2,
+      "bounty": 50,
+      "title": "The application could not be installed. Installation failed due to: &#39;Error code: &#39;UNKNOWN&#39;, message=&#39;Unknown failure: &#39;[CDS]close[0]",
+      "score": 7,
+      "answers": 4,
+      "url": "https://stackoverflow.com/questions/78506430/the-application-could-not-be-installed-installation-failed-due-to-error-code"
+    }
+  ],
+  "comparison": {
+    "grease_count": 2,
+    "opencli_count": 2,
+    "match": true,
+    "differences": []
+  }
+}

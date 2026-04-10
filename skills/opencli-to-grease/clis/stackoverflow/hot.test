@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-04-10T13:38:20.083Z",
+  "json_file": "./clis/stackoverflow/hot.json",
+  "command": "Hot",
+  "website": "stackoverflow.com",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "Having One Init Function for Structs of Different Data Types",
+      "score": 0,
+      "answers": 0,
+      "url": "https://stackoverflow.com/questions/79923518/having-one-init-function-for-structs-of-different-data-types"
+    },
+    {
+      "rank": 2,
+      "title": "Map not rendering with Leaflet.js",
+      "score": 0,
+      "answers": 1,
+      "url": "https://stackoverflow.com/questions/79923512/map-not-rendering-with-leaflet-js"
+    },
+    {
+      "rank": 3,
+      "title": "Rounding corners with \\includegraphics{} for Beamer",
+      "score": 0,
+      "answers": 0,
+      "url": "https://stackoverflow.com/questions/79923521/rounding-corners-with-includegraphics-for-beamer"
+    },
+    {
+      "rank": 4,
+      "title": "I want to write an System Monitering in C",
+      "score": 0,
+      "answers": 2,
+      "url": "https://stackoverflow.com/questions/79923457/i-want-to-write-an-system-monitering-in-c"
+    },
+    {
+      "rank": 5,
+      "title": "Best Programming Language for Backend Development in Modern Projects (2026)",
+      "score": 0,
+      "answers": 3,
+      "url": "https://stackoverflow.com/questions/79923490/best-programming-language-for-backend-development-in-modern-projects-2026"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

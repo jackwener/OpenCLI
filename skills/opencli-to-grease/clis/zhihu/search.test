@@ -1,0 +1,38 @@
+{
+  "timestamp": "2026-04-10T13:32:45.370Z",
+  "json_file": "./clis/zhihu/search.json",
+  "command": "Search",
+  "website": "www.zhihu.com",
+  "params": {
+    "query": "AI",
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 1,
+  "sample_data": [
+    {
+      "rank": 1,
+      "type": "answer",
+      "title": "ai代替程序员已经代替到什么程度了？",
+      "author": "老杨",
+      "votes": 9,
+      "url": "https://www.zhihu.com/question/1943057024997913208/answer/2023839122364613253"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 1,
+    "match": true,
+    "differences": []
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "timestamp": "2026-04-10T13:37:08.015Z",
+  "json_file": "./clis/pixiv/ranking.json",
+  "command": "Ranking",
+  "website": "www.pixiv.net",
+  "params": {
+    "limit": 5,
+    "mode": "daily",
+    "page": 1
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "虚月譚",
+      "author": "藤ちょこ（藤原）",
+      "illust_id": 143317250,
+      "pages": "1",
+      "url": "https://www.pixiv.net/artworks/143317250"
+    },
+    {
+      "rank": 2,
+      "title": "第一王子と妻の日常",
+      "author": "魔木",
+      "illust_id": 143317402,
+      "pages": "3",
+      "url": "https://www.pixiv.net/artworks/143317402"
+    },
+    {
+      "rank": 3,
+      "title": "私の魔法の先生は魔法が使えない（続）その61",
+      "author": "あれっくす",
+      "illust_id": 143279383,
+      "pages": "6",
+      "url": "https://www.pixiv.net/artworks/143279383"
+    },
+    {
+      "rank": 4,
+      "title": "ちからもち",
+      "author": "清順(トンボ）　",
+      "illust_id": 143335197,
+      "pages": "1",
+      "url": "https://www.pixiv.net/artworks/143335197"
+    },
+    {
+      "rank": 5,
+      "title": "超かぐお絵描きまとめ１",
+      "author": "みゃま",
+      "illust_id": 143306685,
+      "pages": "37",
+      "url": "https://www.pixiv.net/artworks/143306685"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "timestamp": "2026-04-10T13:38:40.437Z",
+  "json_file": "./clis/hupu/hot.json",
+  "command": "Hot",
+  "website": "bbs.hupu.com",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "【活动】你的篮球人格是什么？来测测你的BSTI&gt;&gt;&gt;",
+      "url": "https://bbs.hupu.com/638368947.html"
+    },
+    {
+      "rank": 2,
+      "title": "四代目上身!木叶的黄色闪电又是多少人的童年?",
+      "url": "https://bbs.hupu.com/638371069.html"
+    },
+    {
+      "rank": 3,
+      "title": "同居了快2年了，51准备订婚。然后昨晚她睡着了手机没关，我没忍住看了看，这2年她没上班，刚上班一个多月。然后。。。jr们骂醒我。我好难受，不知道该怎么办。",
+      "url": "https://bbs.hupu.com/638365750.html"
+    },
+    {
+      "rank": 4,
+      "title": "一栗小莎子剃光头，曾经是多么青春靓丽的一个女孩子呀",
+      "url": "https://bbs.hupu.com/638370732.html"
+    },
+    {
+      "rank": 5,
+      "title": "【活动】综合多个维度来看，你心中的顶级朝代是？",
+      "url": "https://bbs.hupu.com/638370189.html"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

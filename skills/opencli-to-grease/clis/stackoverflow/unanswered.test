@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-04-10T13:38:32.554Z",
+  "json_file": "./clis/stackoverflow/unanswered.json",
+  "command": "Unanswered",
+  "website": "stackoverflow.com",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "Android ndk gdb loaded shared libraries are missing *.oat",
+      "score": 123,
+      "answers": 0,
+      "url": "https://stackoverflow.com/questions/48615324/android-ndk-gdb-loaded-shared-libraries-are-missing-oat"
+    },
+    {
+      "rank": 2,
+      "title": "How do I write a TDBCtrlGrid VCL Style custom class?",
+      "score": 74,
+      "answers": 0,
+      "url": "https://stackoverflow.com/questions/11033956/how-do-i-write-a-tdbctrlgrid-vcl-style-custom-class"
+    },
+    {
+      "rank": 3,
+      "title": "Materialize the Value for a Type that has One Inhabitant",
+      "score": 68,
+      "answers": 1,
+      "url": "https://stackoverflow.com/questions/32170982/materialize-the-value-for-a-type-that-has-one-inhabitant"
+    },
+    {
+      "rank": 4,
+      "title": "Google OAuth 2 Refresh Token is Missing for Web App but Present for localhost",
+      "score": 62,
+      "answers": 1,
+      "url": "https://stackoverflow.com/questions/53342863/google-oauth-2-refresh-token-is-missing-for-web-app-but-present-for-localhost"
+    },
+    {
+      "rank": 5,
+      "title": "Per-element atomicity of vector load/store and gather/scatter?",
+      "score": 62,
+      "answers": 0,
+      "url": "https://stackoverflow.com/questions/46012574/per-element-atomicity-of-vector-load-store-and-gather-scatter"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

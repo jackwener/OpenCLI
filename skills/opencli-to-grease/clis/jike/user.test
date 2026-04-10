@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-04-10T13:40:41.773Z",
+  "json_file": "./clis/jike/user.json",
+  "command": "User",
+  "website": "m.okjike.com",
+  "params": {
+    "username": "wenhao1996",
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 0,
+  "sample_data": []
+}

@@ -1,0 +1,75 @@
+{
+  "timestamp": "2026-04-10T13:40:37.717Z",
+  "json_file": "./clis/reddit/subreddit.json",
+  "command": "Subreddit",
+  "website": "reddit.com",
+  "params": {
+    "name": "programming",
+    "limit": 5,
+    "sort": "hot",
+    "time": "all"
+  },
+  "success": false,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "Announcement: Temporary LLM Content Ban",
+      "author": "ChemicalRascal",
+      "upvotes": 2691,
+      "comments": 283,
+      "url": "https://www.reddit.com/r/programming/comments/1s9jkzi/announcement_temporary_llm_content_ban/"
+    },
+    {
+      "rank": 2,
+      "title": "State of the Subreddit (January 2027): Mods applications and rules updates",
+      "author": "ketralnis",
+      "upvotes": 129,
+      "comments": 94,
+      "url": "https://www.reddit.com/r/programming/comments/1qoxwdt/state_of_the_subreddit_january_2027_mods/"
+    },
+    {
+      "rank": 3,
+      "title": "The AWS Lambda 'Kiss of Death'",
+      "author": "tkyjonathan",
+      "upvotes": 220,
+      "comments": 39,
+      "url": "https://www.reddit.com/r/programming/comments/1sgzwez/the_aws_lambda_kiss_of_death/"
+    },
+    {
+      "rank": 4,
+      "title": "How NASA Built Artemis II’s Fault-Tolerant Computer",
+      "author": "Successful_Bowl2564",
+      "upvotes": 450,
+      "comments": 76,
+      "url": "https://www.reddit.com/r/programming/comments/1sgnbec/how_nasa_built_artemis_iis_faulttolerant_computer/"
+    },
+    {
+      "rank": 5,
+      "title": "I built a microkernel from scratch in Rust (5-part series: boot, IPC, preemption, virtual memory)",
+      "author": "amitbahree",
+      "upvotes": 41,
+      "comments": 9,
+      "url": "https://www.reddit.com/r/programming/comments/1sh6n4d/i_built_a_microkernel_from_scratch_in_rust_5part/"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": false,
+    "differences": [
+      "Item 1 \"upvotes\": Grease=\"2691\" vs OpenCLI=\"2689\"",
+      "Item 3 \"upvotes\": Grease=\"220\" vs OpenCLI=\"219\""
+    ]
+  }
+}

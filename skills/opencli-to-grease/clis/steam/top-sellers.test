@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-04-10T13:45:33.599Z",
+  "json_file": "./clis/steam/top-sellers.json",
+  "command": "TopSellers",
+  "website": "store.steampowered.com",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "name": "Crimson Desert",
+      "price": 6999,
+      "discount": 0,
+      "url": "https://store.steampowered.com/app/3321460"
+    },
+    {
+      "rank": 2,
+      "name": "Guilty Gear -Strive- Season Pass 5",
+      "price": 2499,
+      "discount": 0,
+      "url": "https://store.steampowered.com/app/4413190"
+    },
+    {
+      "rank": 3,
+      "name": "Slay the Spire 2",
+      "price": 2499,
+      "discount": 0,
+      "url": "https://store.steampowered.com/app/2868840"
+    },
+    {
+      "rank": 4,
+      "name": "Road to Vostok",
+      "price": 1499,
+      "discount": 25,
+      "url": "https://store.steampowered.com/app/1963610"
+    },
+    {
+      "rank": 5,
+      "name": "Forza Horizon 6",
+      "price": 6999,
+      "discount": 0,
+      "url": "https://store.steampowered.com/app/2483190"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

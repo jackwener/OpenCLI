@@ -1,0 +1,74 @@
+{
+  "timestamp": "2026-04-10T13:34:18.725Z",
+  "json_file": "./clis/devto/top.json",
+  "command": "Top",
+  "website": "dev.to",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "You’re a Real Software Developer Only If…",
+      "author": "sylwia-lask",
+      "reactions": 70,
+      "comments": 46,
+      "tags": "jokes, devlive",
+      "url": "https://dev.to/sylwia-lask/youre-a-real-software-developer-only-if-2mo8"
+    },
+    {
+      "rank": 2,
+      "title": "Unlocking Casual Fun: AI-Powered 'Vibe Coding' for Quick, Niche Apps",
+      "author": "maria_from_mlh",
+      "reactions": 47,
+      "comments": 9,
+      "tags": "sideprojects, ai, vibecoding, gemini",
+      "url": "https://dev.to/maria_from_mlh/unlocking-casual-fun-ai-powered-vibe-coding-for-quick-niche-apps-ml5"
+    },
+    {
+      "rank": 3,
+      "title": "Skills Are the New CLI",
+      "author": "helderberto",
+      "reactions": 12,
+      "comments": 1,
+      "tags": "ai, development, software, programming",
+      "url": "https://dev.to/helderberto/skills-are-the-new-cli-225e"
+    },
+    {
+      "rank": 4,
+      "title": "There's an Entire Ecosystem Yet to Be Built",
+      "author": "dayhaysoos",
+      "reactions": 6,
+      "comments": 0,
+      "tags": "entire, ai, tools, codereview",
+      "url": "https://dev.to/dayhaysoos/theres-an-entire-ecosystem-yet-to-be-built-b6k"
+    },
+    {
+      "rank": 5,
+      "title": "47 Blog Posts, Zero Traffic: What I Learned About SEO the Hard Way",
+      "author": "ifs_space",
+      "reactions": 6,
+      "comments": 1,
+      "tags": "buildinpublic, seo, startup, ai",
+      "url": "https://dev.to/ifs_space/47-blog-posts-zero-traffic-what-i-learned-about-seo-the-hard-way-5cl3"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

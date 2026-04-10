@@ -1,0 +1,75 @@
+{
+  "timestamp": "2026-04-10T13:41:15.101Z",
+  "json_file": "./clis/devto/tag.json",
+  "command": "Tag",
+  "website": "dev.to",
+  "params": {
+    "tag": "javascript",
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "Four Bugs We Found in Our Node.js Rate Limiter (And How We Fixed Them)",
+      "author": "iwtxokhtd83",
+      "reactions": 1,
+      "comments": 0,
+      "tags": "node, npm, javascript",
+      "url": "https://dev.to/iwtxokhtd83/four-bugs-we-found-in-our-nodejs-rate-limiter-and-how-we-fixed-them-2c0f"
+    },
+    {
+      "rank": 2,
+      "title": "How to Add Comments to an Astro Site (Lazy-Loaded, Zero JS by Default)",
+      "author": "yoni_ryabinski_da05ba8c9c",
+      "reactions": 0,
+      "comments": 0,
+      "tags": "astro, javascript, webdev, tutorial",
+      "url": "https://dev.to/yoni_ryabinski_da05ba8c9c/how-to-add-comments-to-an-astro-site-lazy-loaded-zero-js-by-default-hba"
+    },
+    {
+      "rank": 3,
+      "title": "You Probably Don't Need a Timezone Library Anymore",
+      "author": "sendotltd",
+      "reactions": 0,
+      "comments": 0,
+      "tags": "javascript, webdev, tutorial, showdev",
+      "url": "https://dev.to/sendotltd/you-probably-dont-need-a-timezone-library-anymore-5hb7"
+    },
+    {
+      "rank": 4,
+      "title": "pnpm vs npm vs Yarn 2026: Which Package Manager Should You Use?",
+      "author": "jake_kim_bd3065a6816799db",
+      "reactions": 1,
+      "comments": 0,
+      "tags": "javascript, node, npm, webdev",
+      "url": "https://dev.to/jake_kim_bd3065a6816799db/pnpm-vs-npm-vs-yarn-2026-which-package-manager-should-you-use-2ako"
+    },
+    {
+      "rank": 5,
+      "title": "From Idea to Paid SaaS in 24 Hours — The Claude Code Blueprint Is Live",
+      "author": "myogeshchavan97",
+      "reactions": 2,
+      "comments": 0,
+      "tags": "nextjs, javascript, react, webdev",
+      "url": "https://dev.to/myogeshchavan97/from-idea-to-paid-saas-in-24-hours-the-claude-code-blueprint-is-live-221k"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

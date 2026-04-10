@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-04-10T13:16:05.795Z",
+  "json_file": "./clis/bilibili/ranking.json",
+  "command": "Ranking",
+  "website": "www.bilibili.com",
+  "params": {
+    "limit": 20
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 20,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "我嫁给你是来享福的，不是来吃苦的！别再被这句话洗脑了！",
+      "author": "晓艳教英语",
+      "score": 3489360,
+      "url": "https://www.bilibili.com/video/BV1o7DYB2Exe"
+    },
+    {
+      "rank": 2,
+      "title": "《百米自由搏击》",
+      "author": "伤心欲茄222",
+      "score": 6158954,
+      "url": "https://www.bilibili.com/video/BV1ktDpBFEQN"
+    },
+    {
+      "rank": 3,
+      "title": "【檀健次】【B站独家】「多见一次」个人巡回演唱会大电影",
+      "author": "檀健次",
+      "score": 1212248,
+      "url": "https://www.bilibili.com/video/BV115DEBpENi"
+    },
+    {
+      "rank": 4,
+      "title": "北约对美国的反抗",
+      "author": "燕三嘤嘤嘤",
+      "score": 2221049,
+      "url": "https://www.bilibili.com/video/BV1TTDzBUECQ"
+    },
+    {
+      "rank": 5,
+      "title": "“至此，已成仙品！！！”",
+      "author": "wrizedm",
+      "score": 3675330,
+      "url": "https://www.bilibili.com/video/BV1QpSoBqEF8"
+    }
+  ],
+  "comparison": {
+    "grease_count": 20,
+    "opencli_count": 20,
+    "match": true,
+    "differences": []
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "timestamp": "2026-04-10T13:38:55.831Z",
+  "json_file": "./clis/devto/user.json",
+  "command": "User",
+  "website": "dev.to",
+  "params": {
+    "username": "ben",
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "Meme Monday",
+      "reactions": 20,
+      "comments": 27,
+      "tags": "discuss, watercooler, jokes",
+      "url": "https://dev.to/ben/meme-monday-3lh9"
+    },
+    {
+      "rank": 2,
+      "title": "Big performance upgrade in DEV/Forem tag queries shipped yesterday. Breath of fresh air 🙂",
+      "reactions": 35,
+      "comments": 4,
+      "tags": "database, news, performance",
+      "url": "https://dev.to/ben/big-performance-upgrade-in-devforem-tag-queries-shipped-yesterday-breath-of-fresh-air-2pp0"
+    },
+    {
+      "rank": 3,
+      "title": "I'm such a slow typer",
+      "reactions": 7,
+      "comments": 1,
+      "tags": "",
+      "url": "https://dev.to/ben/im-such-a-slow-typer-361f"
+    },
+    {
+      "rank": 4,
+      "title": "Meme Monday",
+      "reactions": 33,
+      "comments": 27,
+      "tags": "discuss, watercooler, jokes",
+      "url": "https://dev.to/ben/meme-monday-o5i"
+    },
+    {
+      "rank": 5,
+      "title": "I'm so sick of my editor telling me how great I am. Not that I'm not great.",
+      "reactions": 5,
+      "comments": 3,
+      "tags": "",
+      "url": "https://dev.to/ben/im-so-sick-of-my-editor-telling-me-how-great-i-am-not-that-im-not-great-2oam"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

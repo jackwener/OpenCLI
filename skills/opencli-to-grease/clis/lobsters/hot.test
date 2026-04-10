@@ -1,0 +1,74 @@
+{
+  "timestamp": "2026-04-10T13:34:12.285Z",
+  "json_file": "./clis/lobsters/hot.json",
+  "command": "Hot",
+  "website": "lobste.rs",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "Favorite programmer website?",
+      "score": 12,
+      "author": "schmudde",
+      "comments": 8,
+      "tags": "ask, programming",
+      "url": "https://lobste.rs/s/iq7i4f/favorite_programmer_website"
+    },
+    {
+      "rank": 2,
+      "title": "What are your programming \"hunches\" you haven't yet investigated?",
+      "score": 132,
+      "author": "WilhelmVonWeiner",
+      "comments": 216,
+      "tags": "ask, programming",
+      "url": "https://lobste.rs/s/gns27z/what_are_your_programming_hunches_you"
+    },
+    {
+      "rank": 3,
+      "title": "What are you doing this weekend?",
+      "score": 10,
+      "author": "caius",
+      "comments": 13,
+      "tags": "ask, programming",
+      "url": "https://lobste.rs/s/rcom8t/what_are_you_doing_this_weekend"
+    },
+    {
+      "rank": 4,
+      "title": "Incremental compilation with LLVM",
+      "score": 25,
+      "author": "rcalixte",
+      "comments": 1,
+      "tags": "zig",
+      "url": "https://lobste.rs/s/tbud4j/incremental_compilation_with_llvm"
+    },
+    {
+      "rank": 5,
+      "title": "maki - the efficient coder (AI agent)",
+      "score": 7,
+      "author": "msangi",
+      "comments": 6,
+      "tags": "vibecoding",
+      "url": "https://lobste.rs/s/0vuzbv/maki_efficient_coder_ai_agent"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

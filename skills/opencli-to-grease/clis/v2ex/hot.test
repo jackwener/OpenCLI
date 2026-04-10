@@ -1,0 +1,71 @@
+{
+  "timestamp": "2026-04-10T13:33:02.594Z",
+  "json_file": "./clis/v2ex/hot.json",
+  "command": "Hot",
+  "website": "www.v2ex.com",
+  "params": {
+    "limit": 5
+  },
+  "success": false,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "id": 1204888,
+      "rank": 1,
+      "title": "[V 友专属｜ claude 模型中转站免费送 20 刀 已稳定运行一个月 支持 claude-opus-4-6",
+      "node": "推广",
+      "replies": 223,
+      "url": "https://www.v2ex.com/t/1204888"
+    },
+    {
+      "id": 1204785,
+      "rank": 2,
+      "title": "你的 SBTI 是什么？",
+      "node": "推广",
+      "replies": 195,
+      "url": "https://www.v2ex.com/t/1204785"
+    },
+    {
+      "id": 1204799,
+      "rank": 3,
+      "title": "看中了蔚来 ET5T 的电车， 75 度租电，大家觉得如何",
+      "node": "电动汽车",
+      "replies": 104,
+      "url": "https://www.v2ex.com/t/1204799"
+    },
+    {
+      "id": 1204774,
+      "rank": 4,
+      "title": "明显感觉最近出来旅游的玩的人比以前多，是我的错觉吗",
+      "node": "生活",
+      "replies": 91,
+      "url": "https://www.v2ex.com/t/1204774"
+    },
+    {
+      "id": 1204809,
+      "rank": 5,
+      "title": "昨天得知爷爷去世了，我好像没有想象中难过",
+      "node": "生活",
+      "replies": 83,
+      "url": "https://www.v2ex.com/t/1204809"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": false,
+    "differences": [
+      "Item 1 \"replies\": Grease=\"223\" vs OpenCLI=\"228\""
+    ]
+  }
+}

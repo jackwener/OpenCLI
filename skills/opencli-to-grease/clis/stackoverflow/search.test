@@ -1,0 +1,65 @@
+{
+  "timestamp": "2026-04-10T13:38:26.769Z",
+  "json_file": "./clis/stackoverflow/search.json",
+  "command": "Search",
+  "website": "stackoverflow.com",
+  "params": {
+    "query": "javascript",
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "How can I remove a specific item from an array in JavaScript?",
+      "score": 12253,
+      "answers": 51,
+      "url": "https://stackoverflow.com/questions/5767325/how-can-i-remove-a-specific-item-from-an-array-in-javascript"
+    },
+    {
+      "rank": 2,
+      "title": "What does &quot;use strict&quot; do in JavaScript, and what is the reasoning behind it?",
+      "score": 8541,
+      "answers": 32,
+      "url": "https://stackoverflow.com/questions/1335851/what-does-use-strict-do-in-javascript-and-what-is-the-reasoning-behind-it"
+    },
+    {
+      "rank": 3,
+      "title": "How do I check if an element is hidden in jQuery?",
+      "score": 8741,
+      "answers": 67,
+      "url": "https://stackoverflow.com/questions/178325/how-do-i-check-if-an-element-is-hidden-in-jquery"
+    },
+    {
+      "rank": 4,
+      "title": "How do I redirect to another webpage?",
+      "score": 7694,
+      "answers": 58,
+      "url": "https://stackoverflow.com/questions/503093/how-do-i-redirect-to-another-webpage"
+    },
+    {
+      "rank": 5,
+      "title": "How do I remove a property from a JavaScript object?",
+      "score": 7586,
+      "answers": 40,
+      "url": "https://stackoverflow.com/questions/208105/how-do-i-remove-a-property-from-a-javascript-object"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

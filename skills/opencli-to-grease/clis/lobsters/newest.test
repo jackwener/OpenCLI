@@ -1,0 +1,74 @@
+{
+  "timestamp": "2026-04-10T13:37:59.770Z",
+  "json_file": "./clis/lobsters/newest.json",
+  "command": "Newest",
+  "website": "lobste.rs",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "succeeded"
+    }
+  ],
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "Why Aren't We uv Yet?",
+      "score": 1,
+      "author": "aleyan",
+      "comments": 0,
+      "tags": "python",
+      "url": "https://lobste.rs/s/xfbwic/why_aren_t_we_uv_yet"
+    },
+    {
+      "rank": 2,
+      "title": "Stable quantum logical operations with qubits made of neutral atoms",
+      "score": 1,
+      "author": "runxiyu",
+      "comments": 1,
+      "tags": "science",
+      "url": "https://lobste.rs/s/jy9ebr/stable_quantum_logical_operations_with"
+    },
+    {
+      "rank": 3,
+      "title": "Git Repositories as a Module System",
+      "score": 3,
+      "author": "iamalnewkirk",
+      "comments": 0,
+      "tags": "devops, programming",
+      "url": "https://lobste.rs/s/gfuvjw/git_repositories_as_module_system"
+    },
+    {
+      "rank": 4,
+      "title": "watgo - a WebAssembly Toolkit for Go - Eli Bendersky's website",
+      "score": 1,
+      "author": "cgrinds",
+      "comments": 0,
+      "tags": "go, wasm",
+      "url": "https://lobste.rs/s/pulywh/watgo_webassembly_toolkit_for_go_eli"
+    },
+    {
+      "rank": 5,
+      "title": "Installing every* Firefox extension",
+      "score": 9,
+      "author": "freddyb",
+      "comments": 1,
+      "tags": "browsers",
+      "url": "https://lobste.rs/s/3ukqqt/installing_every_firefox_extension"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

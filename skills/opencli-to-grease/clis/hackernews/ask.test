@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-04-10T13:22:46.818Z",
+  "json_file": "./clis/hackernews/ask.json",
+  "command": "Ask",
+  "website": "news.ycombinator.com",
+  "params": {
+    "limit": 20
+  },
+  "success": false,
+  "actions": [
+    {
+      "action": "open",
+      "status": "succeeded"
+    },
+    {
+      "action": "evaluate",
+      "status": "failed"
+    }
+  ],
+  "data_count": 0
+}
