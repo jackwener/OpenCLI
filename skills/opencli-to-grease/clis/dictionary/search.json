@@ -3,7 +3,7 @@
     {
       "action": "open",
       "argument": {
-        "url": "https://api.dictionaryapi.dev",
+        "url": "https://dictionaryapi.dev",
         "waitUntil": "load"
       }
     },
