@@ -13,9 +13,15 @@
  * Return a self-contained JS string that, when evaluated in a page context,
  * applies all stealth patches. Safe to call multiple times — the guard flag
  * ensures patches are applied only once.
+ *
+ * The generated string is pure static (no dynamic parameters), so we cache
+ * it after the first call to avoid re-building ~350 lines on every goto().
  */
+let _cachedStealthJs: string | undefined;
+
 export function generateStealthJs(): string {
-  return `
+  if (_cachedStealthJs !== undefined) return _cachedStealthJs;
+  return (_cachedStealthJs = `
     (() => {
       // Guard: prevent double-injection across separate CDP evaluations.
       // We cannot use a closure variable (each eval is a fresh scope), and
@@ -350,5 +356,5 @@ export function generateStealthJs(): string {
 
       return 'applied';
     })()
-  `;
+  `);
 }
