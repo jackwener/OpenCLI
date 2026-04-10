@@ -524,10 +524,15 @@ async function main(): Promise<void> {
   let extractedData: unknown[] | null = null;
   if (taskResult?.extractData) {
     const parsed = JSON.parse(taskResult.extractData);
-    // extractData is [[items]], unwrap the outer array
-    extractedData = Array.isArray(parsed) && parsed.length > 0 && Array.isArray(parsed[0])
-      ? parsed[0]
-      : parsed;
+    // extractData is an array of results from all evaluate actions
+    // The last evaluate result is the final processed data
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      // Take the last item as the final result
+      const lastResult = parsed[parsed.length - 1];
+      extractedData = Array.isArray(lastResult) ? lastResult : [lastResult];
+    } else {
+      extractedData = parsed;
+    }
   }
 
   // Clear debug task
@@ -537,7 +542,7 @@ async function main(): Promise<void> {
   // Run OpenCLI comparison if requested
   let compare: CompareResult | undefined;
 
-  if (shouldCompare && extractedData) {
+  if (shouldCompare) {
     const site = siteOverride || extractSiteFromDomain(grease.website_domain);
     const command = toKebabCase(grease.name);
 
@@ -547,8 +552,27 @@ async function main(): Promise<void> {
 
     const opencliResult = await runOpenCliCommand(site, command, params, grease.variables);
 
-    if (opencliResult.success) {
+    if (!extractedData) {
+      // GreaseAI failed, still generate comparison with error info
+      compare = {
+        greaseCount: 0,
+        opencliCount: opencliResult.success ? opencliResult.data.length : 0,
+        match: false,
+        sampleMatch: false,
+        differences: ['GreaseAI returned no data'],
+      };
+    } else if (opencliResult.success) {
       compare = compareResults(extractedData, opencliResult.data);
+    } else {
+      // OpenCLI failed, still generate comparison with error info
+      const greaseItems = Array.isArray(extractedData) ? extractedData : [extractedData];
+      compare = {
+        greaseCount: greaseItems.length,
+        opencliCount: 0,
+        match: false,
+        sampleMatch: false,
+        differences: [`OpenCLI failed: ${opencliResult.error || 'Unknown error'}`],
+      };
     }
   }
 

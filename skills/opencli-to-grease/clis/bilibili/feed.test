@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-04-10T16:46:05.142Z",
+  "json_file": "./clis/bilibili/feed.json",
+  "command": "Feed",
+  "website": "www.bilibili.com",
+  "params": {
+    "limit": 5,
+    "type": "all"
+  },
+  "success": true,
+  "data_count": 2,
+  "sample_data": [
+    {
+      "rank": 1,
+      "author": "未来英语面试指导",
+      "title": "超级推荐！原来小学英语课堂这么有趣！",
+      "type": "video",
+      "url": "https://www.bilibili.com/video/BV14VQPBDEeu/"
+    },
+    {
+      "rank": 2,
+      "author": "电视儿童飞飞",
+      "title": "先婚后爱【梧桐雨】全28集  徐露/邱心志/潘虹/李宗翰/傅淼 reaction",
+      "type": "video",
+      "url": "https://www.bilibili.com/video/BV1DeDvBCEVk/"
+    }
+  ],
+  "comparison": {
+    "grease_count": 2,
+    "opencli_count": 2,
+    "match": true,
+    "differences": []
+  }
+}

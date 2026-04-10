@@ -8,7 +8,7 @@ user-invocable: true
 
 Converts OpenCLI CLI commands to GreaseAI-compatible JSON format for browser automation workflows.
 
-> **Dependency**: Requires [greasedev/automator@1b2f456](https://github.com/greasedev/automator/commit/1b2f456) which adds `driver-layer` export.
+> **Dependency**: Requires [greasedev/automator@7024108](https://github.com/greasedev/automator/commit/7024108) which adds `driver-layer` export and `async (intermediate) => {}` pattern.
 
 ## Output Directory Structure
 
@@ -50,7 +50,7 @@ GreaseAI JSON structure:
     },
     {
       "action": "evaluate",
-      "argument": { "script": "(async () => { ... })()" }
+      "argument": { "script": "async (intermediate) => { ... }" }
     }
   ],
   "api_endpoint": "{domain}-{command}",
@@ -134,7 +134,7 @@ args: [
 | Action | Argument | Purpose |
 |--------|----------|---------|
 | `open` | `{ url, waitUntil }` | Navigate to URL |
-| `evaluate` | `{ script }` | Execute JS, supports `{{ param }}` templates |
+| `evaluate` | `{ script }` | Execute JS, uses `async (intermediate) => {}` pattern |
 | `click` | `{ target }` | Click element by description |
 | `input` | `{ target, text, delay, withReturn }` | Type text into input |
 | `extract` | `{ target, contentType }` | Extract content |
@@ -142,6 +142,59 @@ args: [
 | `wait` | `{ target }` or `{ time }` | Wait for condition or time |
 | `goBack` | `{}` | Navigate back |
 | `close` | `{}` | Close page |
+
+### evaluate Script Pattern (greasedev/automator@7024108)
+
+> **Dependency**: Requires [greasedev/automator@7024108](https://github.com/greasedev/automator/commit/7024108)
+
+evaluate action uses **arrow function pattern** to receive intermediateResults:
+
+```javascript
+// Step 1: First evaluate - intermediate is empty {}
+{
+  "action": "evaluate",
+  "argument": {
+    "script": "async (intermediate) => { const keyword = \"{{ query }}\"; ... return { data, keyword }; }"
+  }
+}
+
+// Step 2: Second evaluate - intermediate has previous results
+{
+  "action": "evaluate",
+  "argument": {
+    "script": "async (intermediate) => { const data = intermediate.data; ... return processedResults; }"
+  }
+}
+```
+
+**Key Points**:
+- All evaluate scripts use `async (intermediate) => {}` format
+- First evaluate receives empty `{}` intermediate
+- Return value is saved to intermediateResults for next evaluate
+- Use `intermediate.xxx` to reference previous evaluate's return
+- `{{ xxx }}` is replaced with task params (before script execution)
+- Last evaluate's return is the final output
+
+**Multi-Step Example** (WBI signing + result processing):
+```json
+{
+  "actions": [
+    { "action": "open", "argument": { "url": "https://..." } },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { /* fetch API with signing */ return { results, searchType }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const results = intermediate.results; /* process */ return finalArray; }"
+      }
+    }
+  ]
+}
+```
 
 ---
 

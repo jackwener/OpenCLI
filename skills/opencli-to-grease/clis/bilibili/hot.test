@@ -1,58 +1,48 @@
 {
-  "timestamp": "2026-04-10T13:14:40.697Z",
+  "timestamp": "2026-04-10T18:31:44.002Z",
   "json_file": "./clis/bilibili/hot.json",
   "command": "Hot",
   "website": "www.bilibili.com",
   "params": {
-    "limit": 20
+    "limit": 5
   },
   "success": true,
-  "actions": [
-    {
-      "action": "open",
-      "status": "succeeded"
-    },
-    {
-      "action": "evaluate",
-      "status": "succeeded"
-    }
-  ],
-  "data_count": 20,
+  "data_count": 5,
   "sample_data": [
-    {
-      "title": "五年了，他还是坐上了这个位置…",
-      "author": "小潮院长",
-      "play": 714341,
-      "danmaku": 15142
-    },
     {
       "title": "“至此，已成仙品！！！”",
       "author": "wrizedm",
-      "play": 3673820,
-      "danmaku": 864
+      "play": 3892599,
+      "danmaku": 900
+    },
+    {
+      "title": "《体检是你的谎言》",
+      "author": "郑凯伦伦伦",
+      "play": 5896254,
+      "danmaku": 2155
+    },
+    {
+      "title": "剥蒜的情谊128.0",
+      "author": "NinthA-",
+      "play": 717421,
+      "danmaku": 320
+    },
+    {
+      "title": "我炸人",
+      "author": "-雪忆-",
+      "play": 181563,
+      "danmaku": 221
     },
     {
       "title": "我嫁给你是来享福的，不是来吃苦的！别再被这句话洗脑了！",
       "author": "晓艳教英语",
-      "play": 3488713,
-      "danmaku": 4422
-    },
-    {
-      "title": "当你给up主投了6182个币，对方能提现出多少？大概买5斤肋排还不够",
-      "author": "健人鑫",
-      "play": 639761,
-      "danmaku": 1250
-    },
-    {
-      "title": "你爱人一定有人形态的，对吧…",
-      "author": "Mr-Ferret",
-      "play": 818631,
-      "danmaku": 306
+      "play": 3619882,
+      "danmaku": 4632
     }
   ],
   "comparison": {
-    "grease_count": 20,
-    "opencli_count": 20,
+    "grease_count": 5,
+    "opencli_count": 5,
     "match": true,
     "differences": []
   }

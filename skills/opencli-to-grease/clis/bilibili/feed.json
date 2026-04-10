@@ -1,0 +1,36 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.bilibili.com",
+        "waitUntil": "networkidle"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 20; const type = \"{{ type }}\" || 'all'; const typeMap = { all: 'all', video: 'video', article: 'article' }; const resp = await fetch('https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?timezone_offset=-480&type=' + (typeMap[type] ?? 'all') + '&page=1', { credentials: 'include' }); const payload = await resp.json(); const items = payload?.data?.items ?? []; const rows = []; for (let i = 0; i < Math.min(items.length, limit); i++) { const item = items[i]; const modules = item.modules ?? {}; const authorModule = modules.module_author ?? {}; const dynamicModule = modules.module_dynamic ?? {}; const major = dynamicModule.major ?? {}; let title = ''; let url = ''; let itemType = item.type ?? ''; if (major.archive) { title = major.archive.title ?? ''; url = major.archive.jump_url ? 'https:' + major.archive.jump_url : ''; itemType = 'video'; } else if (major.article) { title = major.article.title ?? ''; url = major.article.jump_url ? 'https:' + major.article.jump_url : ''; itemType = 'article'; } else if (dynamicModule.desc) { const descText = dynamicModule.desc.text ?? ''; title = descText.replace(/<[^>]*>/g, '').slice(0, 60); url = item.id_str ? 'https://t.bilibili.com/' + item.id_str : ''; itemType = 'dynamic'; } if (!title) continue; rows.push({ rank: rows.length + 1, author: authorModule.name ?? '', title, type: itemType, url }); } return rows; }"
+      }
+    }
+  ],
+  "api_endpoint": "bilibili-feed",
+  "category": "auth",
+  "description": "关注的人的动态时间线",
+  "is_public": false,
+  "method": "POST",
+  "name": "Feed",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "author", "type": "string", "description": "作者" },
+    { "name": "title", "type": "string", "description": "标题" },
+    { "name": "type", "type": "string", "description": "类型: video/article/dynamic" },
+    { "name": "url", "type": "string", "description": "链接" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of results" },
+    { "name": "type", "type": "string", "default": "all", "help": "Filter: all, video, article" }
+  ],
+  "website_domain": "www.bilibili.com",
+  "website_id": "website-bilibili"
+}

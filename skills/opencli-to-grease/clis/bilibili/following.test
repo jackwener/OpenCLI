@@ -1,0 +1,58 @@
+{
+  "timestamp": "2026-04-10T16:45:45.529Z",
+  "json_file": "./clis/bilibili/following.json",
+  "command": "Following",
+  "website": "www.bilibili.com",
+  "params": {
+    "uid": 2,
+    "limit": 5,
+    "page": 1
+  },
+  "success": false,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "mid": 37054820,
+      "name": "我开开",
+      "sign": "",
+      "following": "已关注",
+      "fans": ""
+    },
+    {
+      "mid": 3546727422364508,
+      "name": "DRAKSTREET",
+      "sign": "带你了解更多时尚潮流\n我是Drakos 还在努力的潮牌主理人\n感谢您的收看！",
+      "following": "已关注",
+      "fans": ""
+    },
+    {
+      "mid": 3461573769169342,
+      "name": "大鱼游戏队长",
+      "sign": "大鱼喜欢玩蛋仔！",
+      "following": "已关注",
+      "fans": "bilibili 知名游戏UP主"
+    },
+    {
+      "mid": 1858208733,
+      "name": "李砍柴",
+      "sign": "把世界讲成好懂的样子\n\n合：likanchai1985",
+      "following": "已关注",
+      "fans": "专栏优质UP主"
+    },
+    {
+      "mid": 352853757,
+      "name": "房东张三",
+      "sign": "感谢你们的关注！",
+      "following": "已关注",
+      "fans": ""
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli bilibili following \"2\" --limit 5 --page \"1\" -f json\nok: false\nerror:\n  code: UNKNOWN\n  message: |-\n    TypeError: Failed to fetch\n        at <anonymous>:2:25\n        at <anonymous>:4:7\n  exitCode: 1\n# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 for repair context\n# OPENCLI_DIAGNOSTIC=1 bilibili/following\n"
+    ]
+  }
+}

@@ -1,63 +1,53 @@
 {
-  "timestamp": "2026-04-10T13:15:58.229Z",
+  "timestamp": "2026-04-10T18:33:51.225Z",
   "json_file": "./clis/bilibili/dynamic.json",
   "command": "Dynamic",
   "website": "www.bilibili.com",
   "params": {
-    "limit": 15
+    "limit": 5
   },
   "success": true,
-  "actions": [
-    {
-      "action": "open",
-      "status": "succeeded"
-    },
-    {
-      "action": "evaluate",
-      "status": "succeeded"
-    }
-  ],
-  "data_count": 15,
+  "data_count": 5,
   "sample_data": [
     {
-      "id": "1189650368417497097",
+      "id": "1189701650342739976",
       "author": "哔哩哔哩会员购",
       "text": "",
-      "likes": 181,
-      "url": "https://t.bilibili.com/1189650368417497097"
+      "likes": 350,
+      "url": "https://t.bilibili.com/1189701650342739976"
     },
     {
-      "id": "1189648401380147235",
-      "author": "国米的32号",
-      "text": "叁贰足球人格测试！！",
-      "likes": 6,
-      "url": "https://t.bilibili.com/1189648401380147235"
-    },
-    {
-      "id": "1189639802836746328",
+      "id": "1189691342405500950",
       "author": "哔哩哔哩会员购",
       "text": "",
-      "likes": 299,
-      "url": "https://t.bilibili.com/1189639802836746328"
+      "likes": 423,
+      "url": "https://t.bilibili.com/1189691342405500950"
     },
     {
-      "id": "1189626917933809696",
+      "id": "1189681034532225059",
       "author": "哔哩哔哩会员购",
       "text": "",
-      "likes": 362,
-      "url": "https://t.bilibili.com/1189626917933809696"
+      "likes": 474,
+      "url": "https://t.bilibili.com/1189681034532225059"
     },
     {
-      "id": "1189609278507319335",
-      "author": "哔哩哔哩会员购",
-      "text": "",
-      "likes": 115,
-      "url": "https://t.bilibili.com/1189609278507319335"
+      "id": "1189674385869373479",
+      "author": "未来英语面试指导",
+      "text": "超级推荐！原来小学英语课堂这么有趣！",
+      "likes": 0,
+      "url": "https://t.bilibili.com/1189674385869373479"
+    },
+    {
+      "id": "1189674222665859091",
+      "author": "电视儿童飞飞",
+      "text": "先婚后爱【梧桐雨】全28集  徐露/邱心志/潘虹/李宗翰/傅淼 reaction",
+      "likes": 13,
+      "url": "https://t.bilibili.com/1189674222665859091"
     }
   ],
   "comparison": {
-    "grease_count": 15,
-    "opencli_count": 15,
+    "grease_count": 5,
+    "opencli_count": 5,
     "match": true,
     "differences": []
   }

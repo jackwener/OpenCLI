@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const res = await fetch('https://api.bilibili.com/x/web-interface/ranking/v2?rid=0&type=all', { credentials: 'include' }); const data = await res.json(); return (data?.data?.list || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, title: item.title, author: item.owner?.name, score: item.stat?.view, url: item.bvid ? 'https://www.bilibili.com/video/' + item.bvid : '' })); })()"
+        "script": "async (intermediate) => { const res = await fetch('https://api.bilibili.com/x/web-interface/ranking/v2?rid=0&type=all', { credentials: 'include' }); const data = await res.json(); return (data?.data?.list || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, title: item.title, author: item.owner?.name, score: item.stat?.view, url: item.bvid ? 'https://www.bilibili.com/video/' + item.bvid : '' })); }"
       }
     }
   ],

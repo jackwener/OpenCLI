@@ -1,0 +1,54 @@
+{
+  "timestamp": "2026-04-10T16:46:11.916Z",
+  "json_file": "./clis/bilibili/history.json",
+  "command": "History",
+  "website": "www.bilibili.com",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "《饼饼游戏》1-999合集",
+      "author": "藕饼动画",
+      "progress": "2:22/31:35 (7%)",
+      "url": "https://www.bilibili.com/video/BV1pgSSBYEwm"
+    },
+    {
+      "rank": 2,
+      "title": "当MC所有物品都可以压缩，该怎样生存呢？",
+      "author": "邱小牛er",
+      "progress": "0:09/5:30 (3%)",
+      "url": "https://www.bilibili.com/video/BV1Gr421M7EL"
+    },
+    {
+      "rank": 3,
+      "title": "MC我的世界：永生套装",
+      "author": "MC豪豪崽",
+      "progress": "11:11/15:18 (73%)",
+      "url": "https://www.bilibili.com/video/BV1Z997BmE6j"
+    },
+    {
+      "rank": 4,
+      "title": "绅士刑警【古畑任三郎】全三季+9部SP(特别篇+完结篇)+番外",
+      "author": "电视儿童飞飞",
+      "progress": "3:00/117:33 (3%)",
+      "url": "https://www.bilibili.com/video/BV1sKwTzJEgD"
+    },
+    {
+      "rank": 5,
+      "title": "就问，都装下了吗？？？",
+      "author": "可爱糖悠悠哈",
+      "progress": "0:00/1:01 (0%)",
+      "url": "https://www.bilibili.com/video/BV1MzvfBeEb7"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

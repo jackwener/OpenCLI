@@ -1,0 +1,35 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.bilibili.com",
+        "waitUntil": "networkidle"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = Math.min({{ limit }} || 20, 30); const resp = await fetch('https://api.bilibili.com/x/web-interface/history/cursor?ps=' + limit + '&type=archive', { credentials: 'include' }); const payload = await resp.json(); const list = payload?.data?.list ?? []; const formatDuration = (seconds) => { const m = Math.floor(seconds / 60); const s = seconds % 60; return m + ':' + s.toString().padStart(2, '0'); }; return list.slice(0, {{ limit }} || 20).map((item, i) => { const progress = item.progress ?? 0; const duration = item.duration ?? 0; let progressStr; if (progress < 0 || progress >= duration) { progressStr = '已看完'; } else { const pct = duration > 0 ? Math.round(progress / duration * 100) : 0; progressStr = formatDuration(progress) + '/' + formatDuration(duration) + ' (' + pct + '%)'; } return { rank: i + 1, title: item.title ?? '', author: item.author_name ?? '', progress: progressStr, url: item.history?.bvid ? 'https://www.bilibili.com/video/' + item.history.bvid : '' }; }); }"
+      }
+    }
+  ],
+  "api_endpoint": "bilibili-history",
+  "category": "auth",
+  "description": "我的观看历史",
+  "is_public": false,
+  "method": "GET",
+  "name": "History",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "title", "type": "string", "description": "视频标题" },
+    { "name": "author", "type": "string", "description": "作者" },
+    { "name": "progress", "type": "string", "description": "观看进度" },
+    { "name": "url", "type": "string", "description": "视频链接" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of results" }
+  ],
+  "website_domain": "www.bilibili.com",
+  "website_id": "website-bilibili"
+}

@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const res = await fetch('https://api.bilibili.com/x/web-interface/popular?ps={{ limit }}&pn=1', { credentials: 'include' }); const data = await res.json(); return (data?.data?.list || []).map((item) => ({ title: item.title, author: item.owner?.name, play: item.stat?.view, danmaku: item.stat?.danmaku })); })()"
+        "script": "async (intermediate) => { const res = await fetch('https://api.bilibili.com/x/web-interface/popular?ps={{ limit }}&pn=1', { credentials: 'include' }); const data = await res.json(); return (data?.data?.list || []).map((item) => ({ title: item.title, author: item.owner?.name, play: item.stat?.view, danmaku: item.stat?.danmaku })); }"
       }
     }
   ],

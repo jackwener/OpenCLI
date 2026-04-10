@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-04-10T18:26:30.549Z",
+  "json_file": "./clis/bilibili/search.json",
+  "command": "Search",
+  "website": "www.bilibili.com",
+  "params": {
+    "query": "AI",
+    "limit": 5,
+    "type": "video",
+    "page": 1
+  },
+  "success": true,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "【AI教程】目前B站最全最细的AI大模型零基础全套教程，2026最新版，包含所有干货！七天就能从小白到大神！少走99%的弯路！存下吧！很难找全的！！",
+      "author": "大模型开发",
+      "score": 390247,
+      "url": "https://www.bilibili.com/video/BV1UQPZzqEN6"
+    },
+    {
+      "rank": 2,
+      "title": "【整整600集】清华大学196小时讲完的AI人工智能从入门到精通全套教程，全程干货无废话！学完变大佬！这还学不会，我退出IT圈！机器学习-深度学习-opencv",
+      "author": "IT界扛霸子",
+      "score": 631519,
+      "url": "https://www.bilibili.com/video/BV1qZSLBYEpa"
+    },
+    {
+      "rank": 3,
+      "title": "【熠辉】面向新手的Vibe Coding实战课",
+      "author": "熠辉IndieDev",
+      "score": 49278,
+      "url": ""
+    },
+    {
+      "rank": 4,
+      "title": "【全748集】这绝对是2026讲的最好的AI智能应用零基础入门教程，七天就能从小白到大神！全程干货无废话！让你少走 99% 的弯路！AI应用|LLM|AI教程",
+      "author": "AI智能应用-",
+      "score": 8566,
+      "url": "https://www.bilibili.com/video/BV1DRDeB3E2e"
+    },
+    {
+      "rank": 5,
+      "title": "菩提临世真人AI版（1-60集全集完整版）一口气看到爽",
+      "author": "欣欣放映官",
+      "score": 122685,
+      "url": "https://www.bilibili.com/video/BV1zm97BQEfH"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}
