@@ -1,7 +1,7 @@
 ---
 name: opencli-autofix
-description: Automatically fix broken OpenCLI adapters when commands fail. Load this skill when an opencli command fails — it guides you through diagnosing the failure via OPENCLI_DIAGNOSTIC, patching the adapter, and retrying. Works with any AI agent.
-allowed-tools: Bash(opencli:*), Read, Edit, Write
+description: Automatically fix broken OpenCLI adapters when commands fail. Load this skill when an opencli command fails — it guides you through diagnosing the failure via OPENCLI_DIAGNOSTIC, patching the adapter, retrying, and filing an upstream GitHub issue after a verified fix. Works with any AI agent.
+allowed-tools: Bash(opencli:*), Bash(gh:*), Read, Edit, Write
 ---
 
 # OpenCLI AutoFix — Automatic Adapter Self-Repair
@@ -186,6 +186,60 @@ opencli <site> <command> [args...]
 
 If it still fails, go back to Step 1 and collect fresh diagnostics. You have a budget of **3 repair rounds** (diagnose → fix → retry). If the same error persists after a fix, try a different approach. After 3 rounds, stop and report what was tried.
 
+## Step 6: File an Upstream Issue
+
+If the retry **passes**, the local adapter has drifted from upstream. File a GitHub issue so the fix flows back to `jackwener/OpenCLI`.
+
+**Do NOT file for:**
+- `AUTH_REQUIRED`, `BROWSER_CONNECT`, `ARGUMENT`, `CONFIG` — environment/usage issues, not adapter bugs
+- CAPTCHA or rate limiting — not fixable upstream
+- Failures you couldn't actually fix (3 rounds exhausted)
+
+**Only file after a verified local fix** — the retry must pass first.
+
+**Procedure:**
+
+1. Prepare the issue content from the RepairContext you already have:
+   - **Title:** `[autofix] <site>/<command>: <error_code>` (e.g. `[autofix] zhihu/hot: SELECTOR`)
+   - **Body** (use this template):
+
+```markdown
+## Summary
+OpenCLI autofix repaired this adapter locally, and the retry passed.
+
+## Adapter
+- Site: `<site>`
+- Command: `<command>`
+- OpenCLI version: `<version from opencli --version>`
+
+## Original failure
+- Error code: `<error_code>`
+
+\```text
+<error_message>
+\```
+
+## Local fix summary
+
+\```text
+<1-2 sentence description of what you changed and why>
+\```
+
+_Issue filed by OpenCLI autofix after a verified local repair._
+```
+
+2. **Ask the user before filing.** Show them the draft title and body. Only proceed if they confirm.
+
+3. If the user approves and `gh auth status` succeeds:
+
+```bash
+gh issue create --repo jackwener/OpenCLI \
+  --title "[autofix] <site>/<command>: <error_code>" \
+  --body "<the body above>"
+```
+
+If `gh` is not installed or not authenticated, tell the user and skip — do not error out.
+
 ## When to Stop
 
 **Hard stops (do not modify code):**
@@ -218,4 +272,8 @@ In all stop cases, clearly communicate the situation to the user rather than mak
 
 6. AI verifies: opencli zhihu hot
    → Success: returns hot topics
+
+7. AI prepares upstream issue draft, shows it to the user
+
+8. User approves → AI runs: gh issue create --repo jackwener/OpenCLI --title "[autofix] zhihu/hot: SELECTOR" --body "..."
 ```
