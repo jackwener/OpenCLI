@@ -1,32 +1,54 @@
 {
-  "timestamp": "2026-04-10T13:37:27.438Z",
+  "timestamp": "2026-04-10T16:31:51.845Z",
   "json_file": "./clis/douban/top250.json",
   "command": "Top250",
   "website": "movie.douban.com",
   "params": {
     "limit": 10
   },
-  "success": false,
-  "actions": [
+  "success": true,
+  "data_count": 10,
+  "sample_data": [
     {
-      "action": "open",
-      "status": "succeeded"
+      "rank": 1,
+      "id": "1292052",
+      "title": "肖申克的救赎",
+      "rating": 9.7,
+      "url": "https://movie.douban.com/subject/1292052/"
     },
     {
-      "action": "evaluate",
-      "status": "succeeded"
+      "rank": 2,
+      "id": "1291546",
+      "title": "霸王别姬",
+      "rating": 9.6,
+      "url": "https://movie.douban.com/subject/1291546/"
+    },
+    {
+      "rank": 3,
+      "id": "1292722",
+      "title": "泰坦尼克号",
+      "rating": 9.5,
+      "url": "https://movie.douban.com/subject/1292722/"
+    },
+    {
+      "rank": 4,
+      "id": "1292720",
+      "title": "阿甘正传",
+      "rating": 9.5,
+      "url": "https://movie.douban.com/subject/1292720/"
+    },
+    {
+      "rank": 5,
+      "id": "1291561",
+      "title": "千与千寻",
+      "rating": 9.4,
+      "url": "https://movie.douban.com/subject/1291561/"
     }
   ],
-  "data_count": 1,
-  "sample_data": [
-    {}
-  ],
   "comparison": {
-    "grease_count": 1,
+    "grease_count": 10,
     "opencli_count": 10,
-    "match": false,
-    "differences": [
-      "Count mismatch: GreaseAI=1, OpenCLI=10"
-    ]
+    "match": true,
+    "differences": []
   }
 }

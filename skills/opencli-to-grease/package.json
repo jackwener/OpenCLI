@@ -11,8 +11,8 @@
     "clean": "rm -rf dist clis"
   },
   "dependencies": {
-    "automator": "greasedev/automator#1b2f456",
-    "dotenv": "^17.4.1"
+    "dotenv": "^16.4.5",
+    "grease-driver-layer": "github:greasedev/automator#1ba58c3"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

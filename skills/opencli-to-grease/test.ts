@@ -1,31 +1,40 @@
 /**
  * GreaseAI JSON Test Script
  *
- * Tests a single GreaseAI JSON file using the automator and compares
+ * Tests a single GreaseAI JSON file using runTask and compares
  * with OpenCLI command execution results.
  *
  * Usage:
- *   npx ts-node test.ts <json-file> [options]
+ *   npm run test -- <json-file> [options]
  *
  * Options:
  *   --cdp <url>       CDP URL (default: http://localhost:9222)
  *   --params <json>   Parameters as JSON string (e.g. '{"limit":10}')
- *   --compare         Compare with OpenCLI command results
+ *   --no-compare      Skip comparison with OpenCLI command results
  *   --site <name>     Site name for OpenCLI command (extracted from JSON if not provided)
  *
  * Environment:
  *   CDP_URL           Chrome DevTools Protocol URL
  *
  * Example:
- *   npx ts-node test.ts ./grease-output/www.zhihu.com-hot.json --compare
- *   npx ts-node test.ts ./www.bilibili.com-hot.json --params '{"limit":5}' --compare
+ *   npm run test -- ./clis/36kr/hot.json
+ *   npm run test -- ./clis/zhihu/search.json --params '{"query":"AI","limit":5}'
  */
 
 import fs from 'node:fs';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { config } from 'dotenv';
-import { Automator } from 'automator/driver-layer';
+import {
+  runTask,
+  setDebugTask,
+  getDebugTaskResult,
+  clearDebugTask,
+  clearDebugTaskResult,
+  type BrowserTask,
+  type GAction,
+  type DebugTaskResult,
+} from 'grease-driver-layer/driver-layer';
 
 // Load .env file
 config();
@@ -37,6 +46,8 @@ const execAsync = promisify(exec);
 interface GreaseAction {
   action: string;
   argument: Record<string, unknown>;
+  selectors?: Array<{ selector: string; reason?: string }>;
+  xpath?: string;
 }
 
 interface GreaseVariable {
@@ -54,21 +65,10 @@ interface GreaseOutput {
   is_public: boolean;
   method?: string;
   name: string;
+  output_schema?: Array<{ name: string; type: string; description: string }>;
   variables?: GreaseVariable[];
   website_domain: string;
   website_id: string;
-}
-
-interface ActionResponse {
-  success: 'succeeded' | 'failed';
-  extract_data?: unknown;
-  url?: string;
-}
-
-interface ActionResult {
-  action: string;
-  result?: ActionResponse;
-  error?: string;
 }
 
 interface BrowserState {
@@ -87,6 +87,23 @@ interface CompareResult {
   match: boolean;
   sampleMatch: boolean;
   differences: string[];
+}
+
+interface TestLog {
+  timestamp: string;
+  json_file: string;
+  command: string;
+  website: string;
+  params: Record<string, unknown>;
+  success: boolean;
+  data_count: number;
+  sample_data?: unknown[];
+  comparison?: {
+    grease_count: number;
+    opencli_count: number;
+    match: boolean;
+    differences: string[];
+  };
 }
 
 // ── Functions ──
@@ -111,49 +128,42 @@ async function getBrowserContextId(cdpUrl: string): Promise<string> {
   return stateData[0]?.browserContextId;
 }
 
-async function executeActions(
-  automator: any,
-  actions: GreaseAction[],
-  params: Record<string, unknown>
-): Promise<ActionResult[]> {
-  const results: ActionResult[] = [];
+/**
+ * Create debug task from GreaseAI JSON
+ */
+function createDebugTask(
+  grease: GreaseOutput,
+  params: Record<string, unknown>,
+  cdpUrl: string,
+  browserContextId: string
+): BrowserTask {
+  // Convert GreaseAction to GAction
+  const actions: GAction[] = grease.actions.map(a => ({
+    action: a.action as GAction['action'],
+    argument: a.argument,
+    selectors: a.selectors,
+    xpath: a.xpath,
+  }));
 
-  for (let i = 0; i < actions.length; i++) {
-    const action = actions[i];
-    console.log(`\nStep ${i + 1}: ${action.action}`);
+  const urlObj = new URL(cdpUrl);
 
-    try {
-      const result = await automator.executeAction(action, params) as ActionResponse;
-      console.log(`  Status: ${result.success}`);
+  const task: BrowserTask = {
+    _id: 'debug-task',
+    screenshot_type: 'none',
+    status: 'waiting',
+    user_id: 'debug-user',
+    params,
+    browser_instance_id: 'dev-browser-config',
+    browser_instance_info: {
+      browser_config_id: 'dev-browser-config',
+    },
+    browser_operation: {
+      name: grease.name,
+      actions,
+    },
+  };
 
-      if (result.extract_data) {
-        const data = result.extract_data;
-        const dataCount = Array.isArray(data) ? data.length : 1;
-        console.log(`  Data extracted: ${dataCount} items`);
-
-        // Show first few items
-        if (Array.isArray(data) && data.length > 0) {
-          const preview = data.slice(0, 3);
-          console.log(`  Preview (first 3):`);
-          for (const item of preview) {
-            console.log(`    - ${JSON.stringify(item).slice(0, 100)}...`);
-          }
-        }
-      }
-
-      if (result.url) {
-        console.log(`  URL: ${result.url}`);
-      }
-
-      results.push({ action: action.action, result });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`  Error: ${message}`);
-      results.push({ action: action.action, error: message });
-    }
-  }
-
-  return results;
+  return task;
 }
 
 /**
@@ -165,29 +175,21 @@ async function runOpenCliCommand(
   params: Record<string, unknown>,
   greaseVariables?: GreaseVariable[]
 ): Promise<OpenCliResult> {
-  // Build command string
   let cmdStr = `opencli ${site} ${command}`;
 
-  // Separate positional and optional arguments
   const positionalArgs: string[] = [];
   const optionalArgs: string[] = [];
 
-  // Check which args are positional from grease variables
-  // Positional args are: required fields OR known positional names
   const positionalNames = (greaseVariables || [])
     .filter(v => v.required)
     .map(v => v.name);
 
-  // Common positional argument names (regardless of required status)
   const commonPositionalNames = ['query', 'keyword', 'word', 'username', 'name', 'id', 'handle', 'url', 'subreddit', 'tag'];
 
-  // Add parameters
   for (const [key, value] of Object.entries(params)) {
-    // Skip empty values but keep required values
     if (value === undefined || value === null) continue;
     if (value === '' && !positionalNames.includes(key)) continue;
 
-    // Handle positional arguments (no -- prefix)
     const isPositional = positionalNames.includes(key) || commonPositionalNames.includes(key);
     if (isPositional && value !== '') {
       positionalArgs.push(`"${value}"`);
@@ -200,10 +202,7 @@ async function runOpenCliCommand(
     }
   }
 
-  // Add positional args first, then optional
   cmdStr += ' ' + positionalArgs.join(' ') + ' ' + optionalArgs.join(' ');
-
-  // Add JSON format
   cmdStr += ' -f json';
 
   console.log(`\nRunning OpenCLI: ${cmdStr}`);
@@ -215,7 +214,6 @@ async function runOpenCliCommand(
       console.log(`  stderr: ${stderr.slice(0, 200)}`);
     }
 
-    // Parse JSON output
     const data = JSON.parse(stdout);
     const items = Array.isArray(data) ? data : [data];
 
@@ -234,8 +232,7 @@ async function runOpenCliCommand(
  */
 function compareResults(
   greaseData: unknown,
-  opencliData: unknown[],
-  greaseColumns?: string[]
+  opencliData: unknown[]
 ): CompareResult {
   const greaseItems = Array.isArray(greaseData) ? greaseData : [greaseData];
   const differences: string[] = [];
@@ -243,12 +240,10 @@ function compareResults(
   const greaseCount = greaseItems.length;
   const opencliCount = opencliData.length;
 
-  // Check count match
   if (greaseCount !== opencliCount) {
     differences.push(`Count mismatch: GreaseAI=${greaseCount}, OpenCLI=${opencliCount}`);
   }
 
-  // Sample comparison (first 3 items)
   const sampleMatch = greaseCount > 0 && opencliCount > 0;
   if (sampleMatch) {
     const greaseSample = greaseItems.slice(0, 3);
@@ -258,8 +253,7 @@ function compareResults(
       const gItem = greaseSample[i] as Record<string, unknown>;
       const oItem = opencliSample[i] as Record<string, unknown>;
 
-      // Compare key fields
-      const keysToCompare = greaseColumns || Object.keys(gItem);
+      const keysToCompare = Object.keys(gItem);
       for (const key of keysToCompare) {
         const gVal = String(gItem[key] ?? '').slice(0, 50);
         const oVal = String(oItem[key] ?? '').slice(0, 50);
@@ -302,7 +296,7 @@ function printCompareSummary(compare: CompareResult): void {
 
 function printResultSummary(
   grease: GreaseOutput,
-  results: ActionResult[],
+  extractedData: unknown | null,
   compare?: CompareResult
 ): boolean {
   console.log('\n' + '='.repeat(60));
@@ -312,23 +306,14 @@ function printResultSummary(
   console.log(`\nCommand: ${grease.name}`);
   console.log(`Website: ${grease.website_domain}`);
   console.log(`Category: ${grease.category}`);
-  console.log(`Actions executed: ${results.length}`);
 
-  const succeeded = results.filter(r => r.result?.success === 'succeeded').length;
-  const failed = results.filter(r => r.error || r.result?.success === 'failed').length;
+  if (extractedData) {
+    const dataCount = Array.isArray(extractedData) ? extractedData.length : 1;
+    console.log(`\nData returned: ${dataCount} items`);
 
-  console.log(`\nSucceeded: ${succeeded}`);
-  console.log(`Failed: ${failed}`);
-
-  // Check if we got data
-  const evalResult = results.find(r => r.action === 'evaluate');
-  if (evalResult?.result?.extract_data) {
-    const data = evalResult.result.extract_data;
-    console.log(`\nData returned: ${Array.isArray(data) ? data.length : 1} items`);
-
-    if (Array.isArray(data) && data.length > 0) {
+    if (Array.isArray(extractedData) && extractedData.length > 0) {
       console.log('\nSample data (GreaseAI):');
-      const sample = data.slice(0, 5);
+      const sample = extractedData.slice(0, 5);
       for (let i = 0; i < sample.length; i++) {
         const item = sample[i] as Record<string, unknown>;
         const display = Object.entries(item)
@@ -346,32 +331,33 @@ function printResultSummary(
     console.log('\n' + '='.repeat(60));
   }
 
-  return failed === 0 && (!compare || compare.match);
+  const success = !!extractedData && (!compare || compare.match);
+  return success;
 }
 
 function printUsage(): void {
   console.log(`
 GreaseAI JSON Test Script
 
-Tests a single GreaseAI JSON file using the automator and optionally
+Tests a single GreaseAI JSON file using runTask and optionally
 compares with OpenCLI command execution results.
 
 Usage:
-  npx ts-node test.ts <json-file> [options]
+  npm run test -- <json-file> [options]
 
 Options:
   --cdp <url>       CDP URL (default: http://localhost:9222)
   --params <json>   Parameters as JSON string
-  --no-compare      Skip comparison with OpenCLI command results (default: compare)
+  --no-compare      Skip comparison with OpenCLI command results
   --site <name>     Site name (extracted from JSON domain if not provided)
 
 Environment:
   CDP_URL           Chrome DevTools Protocol URL
 
 Examples:
-  npx ts-node test.ts ./grease-output/www.zhihu.com-hot.json
-  npx ts-node test.ts ./www.bilibili.com-hot.json --params '{"limit":5}'
-  npx ts-node test.ts ./output.json --cdp http://localhost:9223 --no-compare
+  npm run test -- ./clis/36kr/hot.json
+  npm run test -- ./clis/zhihu/search.json --params '{"query":"AI","limit":5}'
+  npm run test -- ./output.json --cdp http://localhost:9223 --no-compare
 
 Prerequisites:
   1. Chrome running with remote debugging: chrome --remote-debugging-port=9222
@@ -381,11 +367,9 @@ Prerequisites:
 }
 
 function extractSiteFromDomain(domain: string): string {
-  // Remove www. prefix and common suffixes
   let site = domain.replace(/^www\./, '').replace(/^m\./, '');
   site = site.replace(/\.(com|cn|net|org|rs|io|dev|app|to|me|co|info|tv)$/, '');
 
-  // Special mappings for domain -> OpenCLI command name
   const mappings: Record<string, string> = {
     'lobste': 'lobsters',
     'dev': 'devto',
@@ -404,48 +388,19 @@ function extractSiteFromDomain(domain: string): string {
 }
 
 function toKebabCase(name: string): string {
-  // Convert PascalCase/CamelCase to kebab-case
-  // e.g., "TopSellers" -> "top-sellers", "Hot" -> "hot"
   return name
     .replace(/([a-z])([A-Z])/g, '$1-$2')
     .toLowerCase();
-}
-
-interface TestLog {
-  timestamp: string;
-  json_file: string;
-  command: string;
-  website: string;
-  params: Record<string, unknown>;
-  success: boolean;
-  actions: {
-    action: string;
-    status: 'succeeded' | 'failed';
-    error?: string;
-  }[];
-  data_count: number;
-  sample_data?: unknown[];
-  comparison?: {
-    grease_count: number;
-    opencli_count: number;
-    match: boolean;
-    differences: string[];
-  };
 }
 
 function writeTestLog(
   jsonFile: string,
   grease: GreaseOutput,
   params: Record<string, unknown>,
-  results: ActionResult[],
+  extractedData: unknown | null,
   compare?: CompareResult
 ): void {
-  const succeeded = results.filter(r => r.result?.success === 'succeeded').length;
-  const failed = results.filter(r => r.error || r.result?.success === 'failed').length;
-  const success = failed === 0 && (!compare || compare.match);
-
-  const evalResult = results.find(r => r.action === 'evaluate');
-  const data = evalResult?.result?.extract_data;
+  const success = !!extractedData && (!compare || compare.match);
 
   const log: TestLog = {
     timestamp: new Date().toISOString(),
@@ -454,13 +409,8 @@ function writeTestLog(
     website: grease.website_domain,
     params,
     success,
-    actions: results.map(r => ({
-      action: r.action,
-      status: r.result?.success === 'succeeded' ? 'succeeded' : 'failed',
-      error: r.error,
-    })),
-    data_count: Array.isArray(data) ? data.length : (data ? 1 : 0),
-    sample_data: Array.isArray(data) ? data.slice(0, 5) : (data ? [data] : undefined),
+    data_count: Array.isArray(extractedData) ? extractedData.length : (extractedData ? 1 : 0),
+    sample_data: Array.isArray(extractedData) ? extractedData.slice(0, 5) : (extractedData ? [extractedData] : undefined),
     comparison: compare ? {
       grease_count: compare.greaseCount,
       opencli_count: compare.opencliCount,
@@ -469,7 +419,6 @@ function writeTestLog(
     } : undefined,
   };
 
-  // Write log file next to the JSON file
   const logFile = jsonFile.replace(/\.json$/, '.test');
   fs.writeFileSync(logFile, JSON.stringify(log, null, 2));
   console.log(`\nTest log written to: ${logFile}`);
@@ -497,7 +446,6 @@ async function main(): Promise<void> {
   const paramsStr = args.find(a => a.startsWith('--params'));
   let params: Record<string, unknown> = {};
   if (paramsStr) {
-    // Handle both --params='...' and --params '...' formats
     const idx = args.indexOf(paramsStr);
     if (paramsStr.includes('=')) {
       params = JSON.parse(paramsStr.split('=')[1]);
@@ -506,7 +454,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const shouldCompare = !args.includes('--no-compare'); // Default to compare
+  const shouldCompare = !args.includes('--no-compare');
   const siteOverride = args.find(a => a.startsWith('--site'))?.split('=')[1];
 
   console.log('\nGreaseAI JSON Test');
@@ -549,36 +497,47 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Initialize automator
-  const taskId = `test-${grease.name.toLowerCase()}`;
-  const automator = new Automator(taskId);
+  // Set CDP_URL environment variable for runTask
+  process.env.CDP_URL = cdpUrlValue;
 
-  const urlObj = new URL(cdpUrlValue);
-  await automator.init({
-    browser_instance_id: 'test-instance',
-    cdp: {
-      host: urlObj.hostname || 'localhost',
-      port: parseInt(urlObj.port) || 9222,
-      url: cdpUrlValue,
-    },
-    browser_context_id: browserContextId,
-  });
+  // Create and set debug task
+  const task = createDebugTask(grease, params, cdpUrlValue, browserContextId);
+  setDebugTask(task);
 
-  console.log('Automator initialized');
+  console.log('\nDebug task set:');
+  console.log(`  - Task ID: ${task._id}`);
+  console.log(`  - Operation: ${task.browser_operation.name}`);
+  console.log(`  - Actions: ${task.browser_operation.actions.length}`);
 
-  // Execute actions
-  console.log('\nExecuting GreaseAI actions...');
-  const results = await executeActions(automator, grease.actions, params);
+  // Run task using runTask
+  console.log('\nExecuting task with runTask...');
 
-  // Get GreaseAI data
-  const evalResult = results.find(r => r.action === 'evaluate');
-  const greaseData = evalResult?.result?.extract_data;
+  try {
+    await runTask('debug-task');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`\nrunTask error: ${message}`);
+  }
+
+  // Get debug task results
+  const taskResult = getDebugTaskResult();
+  let extractedData: unknown[] | null = null;
+  if (taskResult?.extractData) {
+    const parsed = JSON.parse(taskResult.extractData);
+    // extractData is [[items]], unwrap the outer array
+    extractedData = Array.isArray(parsed) && parsed.length > 0 && Array.isArray(parsed[0])
+      ? parsed[0]
+      : parsed;
+  }
+
+  // Clear debug task
+  clearDebugTask();
+  clearDebugTaskResult();
 
   // Run OpenCLI comparison if requested
-  let opencliResult: OpenCliResult | undefined;
   let compare: CompareResult | undefined;
 
-  if (shouldCompare && greaseData) {
+  if (shouldCompare && extractedData) {
     const site = siteOverride || extractSiteFromDomain(grease.website_domain);
     const command = toKebabCase(grease.name);
 
@@ -586,21 +545,18 @@ async function main(): Promise<void> {
     console.log('OPENCLI COMPARISON');
     console.log('-'.repeat(40));
 
-    opencliResult = await runOpenCliCommand(site, command, params, grease.variables);
+    const opencliResult = await runOpenCliCommand(site, command, params, grease.variables);
 
     if (opencliResult.success) {
-      compare = compareResults(greaseData, opencliResult.data);
+      compare = compareResults(extractedData, opencliResult.data);
     }
   }
 
   // Print summary
-  const success = printResultSummary(grease, results, compare);
+  const success = printResultSummary(grease, extractedData, compare);
 
   // Write test log
-  writeTestLog(jsonFile, grease, params, results, compare);
-
-  // Cleanup
-  await automator.cleanup();
+  writeTestLog(jsonFile, grease, params, extractedData, compare);
 
   process.exit(success ? 0 : 1);
 }
