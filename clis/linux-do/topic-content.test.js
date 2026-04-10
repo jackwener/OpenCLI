@@ -51,9 +51,9 @@ describe('linux-do topic-content', () => {
         expect(command?.columns).toEqual(['content']);
     });
     it('keeps topic adapter as a summarized first-page reader after the split', () => {
-        const topicTs = fs.readFileSync(new URL('./topic.ts', import.meta.url), 'utf8');
-        expect(topicTs).not.toContain('main_only');
-        expect(topicTs).toContain('slice(0, 200)');
-        expect(topicTs).toContain('帖子首页摘要和回复');
+        const topicSource = fs.readFileSync(new URL('./topic.js', import.meta.url), 'utf8');
+        expect(topicSource).not.toContain('main_only');
+        expect(topicSource).toContain('slice(0, 200)');
+        expect(topicSource).toContain('帖子首页摘要和回复');
     });
 });

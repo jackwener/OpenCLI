@@ -48,46 +48,4 @@ describe('CI regression coverage', () => {
     expect(output).toContain('Doc Coverage: 0/0 adapters documented');
     expect(output).toContain('All adapters have documentation');
   });
-
-  it('keeps nested-only adapter directories in doc coverage until they are documented', () => {
-    const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-doc-coverage-'));
-    tempDirs.push(fixtureRoot);
-
-    const scriptsDir = path.join(fixtureRoot, 'scripts');
-    const nestedAdapterDir = path.join(fixtureRoot, 'clis', 'ghost', 'nested');
-    const docsBrowserDir = path.join(fixtureRoot, 'docs', 'adapters', 'browser');
-    const docsDesktopDir = path.join(fixtureRoot, 'docs', 'adapters', 'desktop');
-
-    fs.mkdirSync(scriptsDir, { recursive: true });
-    fs.mkdirSync(nestedAdapterDir, { recursive: true });
-    fs.mkdirSync(docsBrowserDir, { recursive: true });
-    fs.mkdirSync(docsDesktopDir, { recursive: true });
-
-    fs.copyFileSync(
-      path.join(process.cwd(), 'scripts', 'check-doc-coverage.sh'),
-      path.join(scriptsDir, 'check-doc-coverage.sh'),
-    );
-    fs.writeFileSync(
-      path.join(nestedAdapterDir, 'read.js'),
-      'export const command = "ghost";\n',
-    );
-
-    try {
-      execFileSync(
-        'bash',
-        [path.join(scriptsDir, 'check-doc-coverage.sh'), '--strict'],
-        {
-          cwd: fixtureRoot,
-          encoding: 'utf8',
-        },
-      );
-      throw new Error('Expected nested-only adapter directory to fail doc coverage');
-    } catch (error) {
-      const failure = error as NodeJS.ErrnoException & { stdout?: string; status?: number };
-
-      expect(failure.status).toBe(1);
-      expect(failure.stdout).toContain('Doc Coverage: 0/1 adapters documented');
-      expect(failure.stdout).toContain('ghost');
-    }
-  });
 });

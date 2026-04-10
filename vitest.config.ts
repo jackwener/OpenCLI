@@ -23,7 +23,7 @@ export default defineConfig({
       {
         test: {
           name: 'adapter',
-          include: ['src/clis/**/*.test.ts'],
+          include: ['clis/**/*.test.js', 'src/clis/**/*.test.ts'],
           sequence: { groupOrder: 1 },
         },
       },
