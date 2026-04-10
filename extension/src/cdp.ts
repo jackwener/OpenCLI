@@ -33,6 +33,7 @@ type NetworkCaptureState = {
   patterns: string[];
   entries: NetworkCaptureEntry[];
   requestToIndex: Map<string, number>;
+  pendingBodyFetches: Set<Promise<void>>;
   consoleErrors: ConsoleMessage[];
   consoleOther: ConsoleMessage[];
   armed: boolean;
@@ -338,6 +339,7 @@ function normalizeHeaders(headers: unknown): Record<string, string> {
 function resetNetworkBuffers(state: NetworkCaptureState): void {
   state.entries = [];
   state.requestToIndex.clear();
+  state.pendingBodyFetches = new Set();
 }
 
 function resetConsoleBuffers(state: NetworkCaptureState): void {
@@ -380,6 +382,7 @@ async function armCapture(tabId: number): Promise<void> {
     patterns,
     entries: existing?.entries ?? [],
     requestToIndex: existing?.requestToIndex ?? new Map(),
+    pendingBodyFetches: existing?.pendingBodyFetches ?? new Set(),
     consoleErrors: existing?.consoleErrors ?? [],
     consoleOther: existing?.consoleOther ?? [],
     armed: true,
@@ -446,6 +449,9 @@ async function ensureCaptureReadable(tabId: number): Promise<NetworkCaptureState
 export async function readNetworkCapture(tabId: number): Promise<NetworkCaptureEntry[]> {
   const state = await ensureCaptureReadable(tabId);
   if (!state) return [];
+  if (state.pendingBodyFetches.size > 0) {
+    await Promise.allSettled([...state.pendingBodyFetches]);
+  }
   const entries = state.entries.slice();
   state.entries = [];
   state.requestToIndex.clear();
@@ -573,19 +579,25 @@ export function registerListeners(): void {
       if (stateEntryIndex === undefined) return;
       const entry = state.entries[stateEntryIndex];
       if (!entry) return;
-      try {
-        const body = await chrome.debugger.sendCommand({ tabId }, 'Network.getResponseBody', { requestId }) as {
-          body?: string;
-          base64Encoded?: boolean;
-        };
-        if (typeof body?.body === 'string') {
-          entry.responsePreview = body.base64Encoded
-            ? `base64:${body.body.slice(0, 4000)}`
-            : body.body.slice(0, 4000);
+      const bodyFetch = (async () => {
+        try {
+          const body = await chrome.debugger.sendCommand({ tabId }, 'Network.getResponseBody', { requestId }) as {
+            body?: string;
+            base64Encoded?: boolean;
+          };
+          if (typeof body?.body === 'string') {
+            entry.responsePreview = body.base64Encoded
+              ? `base64:${body.body.slice(0, 4000)}`
+              : body.body.slice(0, 4000);
+          }
+        } catch {
+          // Optional; bodies are unavailable for some requests (e.g. uploads).
         }
-      } catch {
-        // Optional; bodies are unavailable for some requests (e.g. uploads).
-      }
+      })();
+      state.pendingBodyFetches.add(bodyFetch);
+      void bodyFetch.finally(() => {
+        state.pendingBodyFetches.delete(bodyFetch);
+      });
       return;
     }
 

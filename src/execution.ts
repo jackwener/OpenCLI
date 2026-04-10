@@ -25,6 +25,24 @@ import { probeCDP, resolveElectronEndpoint } from './launcher.js';
 
 const _loadedModules = new Set<string>();
 
+type CaptureAwarePage = IPage & {
+  hasNativeCaptureSupport?: () => boolean | undefined;
+};
+
+function hasNativeCaptureSupport(page: IPage): boolean | undefined {
+  return (page as CaptureAwarePage).hasNativeCaptureSupport?.();
+}
+
+async function startDiagnosticCapture(page: IPage): Promise<void> {
+  await (page as CaptureCapablePage).startNetworkCapture();
+  if (hasNativeCaptureSupport(page) !== false) return;
+  try {
+    await page.installInterceptor('');
+  } catch {
+    // The legacy interceptor is best-effort compatibility for stale extensions.
+  }
+}
+
 export function coerceAndValidateArgs(cmdArgs: Arg[], kwargs: CommandArgs): CommandArgs {
   const result: CommandArgs = { ...kwargs };
 
@@ -196,7 +214,7 @@ export async function executeCommand(
         }
         if (diagnosticEnabled) {
           try {
-            await capturePage.startNetworkCapture();
+            await startDiagnosticCapture(page);
           } catch (err) {
             if (debug) log.debug(`[capture] Failed to start capture: ${err instanceof Error ? err.message : err}`);
           }

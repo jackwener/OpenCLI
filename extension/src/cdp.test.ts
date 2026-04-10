@@ -180,6 +180,57 @@ describe('cdp attach recovery', () => {
     expect(debuggerApi.sendCommand).toHaveBeenCalledWith({ tabId: 1 }, 'Runtime.enable');
   });
 
+  it('waits for in-flight response body fetches before draining network capture', async () => {
+    const { chrome, debuggerApi } = createChromeMock();
+    let resolveBody: ((value: unknown) => void) | undefined;
+    debuggerApi.sendCommand.mockImplementation(async (_target: unknown, method: string) => {
+      if (method === 'Runtime.evaluate') return { result: { value: 'ok' } };
+      if (method === 'Network.getResponseBody') {
+        return await new Promise((resolve) => {
+          resolveBody = resolve;
+        });
+      }
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    mod.registerListeners();
+
+    const onEvent = chrome.debugger.onEvent.addListener.mock.calls[0][0] as (source: { tabId?: number }, method: string, params: unknown) => Promise<void>;
+
+    await mod.startNetworkCapture(1, '/api/');
+    await onEvent({ tabId: 1 }, 'Network.requestWillBeSent', {
+      requestId: '1',
+      request: { url: 'https://x.test/api/items', method: 'GET', headers: {} },
+      timestamp: 1,
+    });
+    await onEvent({ tabId: 1 }, 'Network.responseReceived', {
+      requestId: '1',
+      response: { status: 200, mimeType: 'application/json', headers: {} },
+    });
+    await onEvent({ tabId: 1 }, 'Network.loadingFinished', { requestId: '1' });
+
+    let settled = false;
+    const readPromise = mod.readNetworkCapture(1).then((entries) => {
+      settled = true;
+      return entries;
+    });
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    resolveBody?.({ body: '{"ok":true}', base64Encoded: false });
+
+    await expect(readPromise).resolves.toEqual([
+      expect.objectContaining({
+        url: 'https://x.test/api/items',
+        responseStatus: 200,
+        responsePreview: '{"ok":true}',
+      }),
+    ]);
+  });
+
   it('surfaces rearm failures on read instead of silently returning stale data', async () => {
     const { chrome, debuggerApi } = createChromeMock();
     debuggerApi.attach.mockResolvedValueOnce(undefined).mockRejectedValue(new Error('attach failed'));

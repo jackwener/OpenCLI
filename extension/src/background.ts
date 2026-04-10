@@ -627,7 +627,7 @@ async function handleNavigate(cmd: Command, workspace: string): Promise<Result> 
 
   if (executor.hasCaptureIntent(tabId)) {
     try {
-      await executor.ensureAttached(tabId);
+      await executor.ensureAttached(tabId, true);
     } catch (error) {
       console.warn(`[opencli] failed to reattach after navigate: ${error}`);
     }

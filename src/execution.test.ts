@@ -80,10 +80,13 @@ describe('executeCommand — non-browser timeout', () => {
     process.env.OPENCLI_DIAGNOSTIC = '1';
 
     const startNetworkCapture = vi.fn().mockResolvedValue(undefined);
+    const installInterceptor = vi.fn().mockResolvedValue(undefined);
     const stopCapture = vi.fn().mockResolvedValue(undefined);
     const page = {
       goto: vi.fn(),
       startNetworkCapture,
+      hasNativeCaptureSupport: vi.fn().mockReturnValue(false),
+      installInterceptor,
       stopCapture,
     } as any;
 
@@ -101,6 +104,7 @@ describe('executeCommand — non-browser timeout', () => {
     await executeCommand(cmd, {});
 
     expect(startNetworkCapture).toHaveBeenCalledTimes(1);
+    expect(installInterceptor).toHaveBeenCalledWith('');
     expect(stopCapture).toHaveBeenCalledTimes(1);
   });
 });

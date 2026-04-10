@@ -282,6 +282,10 @@ function redactConsoleEntry(entry: unknown): unknown {
   };
 }
 
+function hasNativeCaptureSupport(page: IPage): boolean | undefined {
+  return (page as IPage & { hasNativeCaptureSupport?: () => boolean | undefined }).hasNativeCaptureSupport?.();
+}
+
 /** Safely collect page diagnostic state with redaction, size caps, and timeout. */
 async function collectPageState(page: IPage): Promise<RepairContext['page'] | undefined> {
   const collect = async (): Promise<RepairContext['page'] | undefined> => {
@@ -293,19 +297,23 @@ async function collectPageState(page: IPage): Promise<RepairContext['page'] | un
         page.getInterceptedRequests().catch(() => []),
         page.consoleMessages('error').catch(() => []),
       ]);
+      const intercepted = interceptedRequests as unknown[];
+      const interceptedPayloads = normalizeInterceptedRequests(intercepted);
+      const interceptedNetworkFallback = hasNativeCaptureSupport(page) === false && interceptedPayloads.length > 0
+        ? interceptedPayloads
+        : null;
       const networkRequests = Array.isArray(capturedNetworkRequests) && capturedNetworkRequests.length > 0
         ? capturedNetworkRequests
-        : await page.networkRequests().catch(() => []);
+        : interceptedNetworkFallback ?? await page.networkRequests().catch(() => []);
 
       const rawUrl = url ?? 'unknown';
-      const capturedResponses = normalizeInterceptedRequests(interceptedRequests as unknown[]);
       return {
         url: redactUrl(rawUrl),
         snapshot: redactText(truncate(snapshot, MAX_SNAPSHOT_CHARS)),
         networkRequests: (networkRequests as unknown[])
           .slice(0, MAX_NETWORK_REQUESTS)
           .map(redactNetworkRequest),
-        capturedPayloads: capturedResponses,
+        capturedPayloads: interceptedPayloads,
         consoleErrors: (consoleErrors as unknown[])
           .slice(0, 50)
           .map(redactConsoleEntry),

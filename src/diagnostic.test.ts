@@ -396,4 +396,23 @@ describe('collectDiagnostic', () => {
     expect(page.readNetworkCapture).toHaveBeenCalledTimes(1);
     expect(page.networkRequests).not.toHaveBeenCalled();
   });
+
+  it('prefers intercepted payloads over perf fallback when native capture is unsupported', async () => {
+    const page = makePage({
+      readNetworkCapture: vi.fn().mockResolvedValue([]),
+      networkRequests: vi.fn().mockResolvedValue([{ url: 'https://fallback.test' }]),
+      getInterceptedRequests: vi.fn().mockResolvedValue([{ items: [{ id: 1 }] }]),
+      hasNativeCaptureSupport: vi.fn().mockReturnValue(false),
+    } as Partial<IPage> & { hasNativeCaptureSupport: () => boolean });
+
+    const ctx = await collectDiagnostic(new Error('boom'), makeCmd(), page as IPage);
+
+    expect(ctx.page?.networkRequests).toEqual([
+      { source: 'interceptor', responseBody: { items: [{ id: 1 }] } },
+    ]);
+    expect(ctx.page?.capturedPayloads).toEqual([
+      { source: 'interceptor', responseBody: { items: [{ id: 1 }] } },
+    ]);
+    expect(page.networkRequests).not.toHaveBeenCalled();
+  });
 });

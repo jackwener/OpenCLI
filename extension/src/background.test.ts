@@ -345,6 +345,7 @@ describe('background tab isolation', () => {
     vi.stubGlobal('chrome', chrome);
 
     const executor = await import('./cdp');
+    const ensureAttachedSpy = vi.spyOn(executor, 'ensureAttached');
     const mod = await import('./background');
 
     mod.__test__.setAutomationWindowId('site:twitter', 1);
@@ -356,6 +357,7 @@ describe('background tab isolation', () => {
       'site:twitter',
     );
 
+    expect(ensureAttachedSpy).toHaveBeenLastCalledWith(1, true);
     expect(chrome.debugger.sendCommand).toHaveBeenCalledWith({ tabId: 1 }, 'Network.enable');
     expect(chrome.debugger.sendCommand).toHaveBeenCalledWith({ tabId: 1 }, 'Runtime.enable');
   });
