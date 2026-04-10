@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const limit = Math.min({{ limit }} + 10, 50); const res = await fetch('https://hacker-news.firebaseio.com/v0/jobstories.json'); const ids = await res.json(); const items = ids.slice(0, limit); const results = []; for (const id of items) { const itemRes = await fetch('https://hacker-news.firebaseio.com/v0/item/' + id + '.json'); const item = await itemRes.json(); if (item.title && !item.deleted && !item.dead) { results.push({ rank: results.length + 1, title: item.title, author: item.by, url: item.url }); if (results.length >= {{ limit }}) break; } } return results; })()"
+        "script": "async (intermediate) => { const limit = Math.min({{ limit }} + 10, 50); const res = await fetch('https://hacker-news.firebaseio.com/v0/jobstories.json'); const ids = await res.json(); const items = ids.slice(0, limit); const results = []; for (const id of items) { const itemRes = await fetch('https://hacker-news.firebaseio.com/v0/item/' + id + '.json'); const item = await itemRes.json(); if (item.title && !item.deleted && !item.dead) { results.push({ rank: results.length + 1, title: item.title, author: item.by, url: item.url }); if (results.length >= {{ limit }}) break; } } return results; }"
       }
     }
   ],
@@ -21,13 +21,34 @@
   "method": "GET",
   "name": "Jobs",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of job postings" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of job postings"
+    }
   ],
   "website_domain": "news.ycombinator.com",
   "website_id": "website-news.ycombinator.com"

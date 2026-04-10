@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const res = await fetch('https://hacker-news.firebaseio.com/v0/user/{{ username }}.json'); const data = await res.json(); if (!data) return []; return [{ username: data.id, karma: data.karma, created: data.created ? new Date(data.created * 1000).toISOString().slice(0, 10) : '', about: data.about || '' }]; })()"
+        "script": "async (intermediate) => { const res = await fetch('https://hacker-news.firebaseio.com/v0/user/{{ username }}.json'); const data = await res.json(); if (!data) return []; return [{ username: data.id, karma: data.karma, created: data.created ? new Date(data.created * 1000).toISOString().slice(0, 10) : '', about: data.about || '' }]; }"
       }
     }
   ],
@@ -21,13 +21,34 @@
   "method": "GET",
   "name": "User",
   "output_schema": [
-    { "name": "username", "type": "string", "description": "用户名" },
-    { "name": "karma", "type": "number", "description": "积分" },
-    { "name": "created", "type": "string", "description": "创建时间" },
-    { "name": "about", "type": "string", "description": "简介" }
+    {
+      "name": "username",
+      "type": "string",
+      "description": "用户名"
+    },
+    {
+      "name": "karma",
+      "type": "number",
+      "description": "积分"
+    },
+    {
+      "name": "created",
+      "type": "string",
+      "description": "创建时间"
+    },
+    {
+      "name": "about",
+      "type": "string",
+      "description": "简介"
+    }
   ],
   "variables": [
-    { "name": "username", "type": "string", "required": true, "help": "HN username" }
+    {
+      "name": "username",
+      "type": "string",
+      "required": true,
+      "help": "HN username"
+    }
   ],
   "website_domain": "news.ycombinator.com",
   "website_id": "website-news.ycombinator.com"

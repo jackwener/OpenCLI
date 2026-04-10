@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const res = await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent('{{ word }}')); const data = await res.json(); if (!data || !data[0]) return []; const item = data[0]; const phonetic = item.phonetic || (item.phonetics && item.phonetics.find(p => p.text)?.text) || ''; const type = (item.meanings && item.meanings[0] && item.meanings[0].partOfSpeech) || 'N/A'; const definition = (item.meanings && item.meanings[0] && item.meanings[0].definitions && item.meanings[0].definitions[0] && item.meanings[0].definitions[0].definition) || 'No definition found'; return [{ word: item.word, phonetic, type, definition }]; })()"
+        "script": "async (intermediate) => { const res = await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent('{{ word }}')); const data = await res.json(); if (!data || !data[0]) return []; const item = data[0]; const phonetic = item.phonetic || (item.phonetics && item.phonetics.find(p => p.text)?.text) || ''; const type = (item.meanings && item.meanings[0] && item.meanings[0].partOfSpeech) || 'N/A'; const definition = (item.meanings && item.meanings[0] && item.meanings[0].definitions && item.meanings[0].definitions[0] && item.meanings[0].definitions[0].definition) || 'No definition found'; return [{ word: item.word, phonetic, type, definition }]; }"
       }
     }
   ],
@@ -21,13 +21,34 @@
   "method": "GET",
   "name": "Search",
   "output_schema": [
-    { "name": "word", "type": "string", "description": "单词" },
-    { "name": "phonetic", "type": "string", "description": "发音" },
-    { "name": "type", "type": "string", "description": "词性" },
-    { "name": "definition", "type": "string", "description": "定义" }
+    {
+      "name": "word",
+      "type": "string",
+      "description": "单词"
+    },
+    {
+      "name": "phonetic",
+      "type": "string",
+      "description": "发音"
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "description": "词性"
+    },
+    {
+      "name": "definition",
+      "type": "string",
+      "description": "定义"
+    }
   ],
   "variables": [
-    { "name": "word", "type": "string", "required": true, "help": "Word to define (e.g., serendipity)" }
+    {
+      "name": "word",
+      "type": "string",
+      "required": true,
+      "help": "Word to define (e.g., serendipity)"
+    }
   ],
   "website_domain": "api.dictionaryapi.dev",
   "website_id": "website-api.dictionaryapi.dev"

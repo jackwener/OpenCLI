@@ -9,12 +9,14 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 3 }
+      "argument": {
+        "time": 3
+      }
     },
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const id = '{{ id }}'; console.log('Evaluate script running, URL:', window.location.href); const titleEl = document.querySelector('span[property=\"v:itemreviewed\"]'); console.log('titleEl:', titleEl ? 'found' : 'null'); const title = titleEl?.textContent?.trim() || ''; const yearEl = document.querySelector('.year'); const year = yearEl?.textContent?.trim().replace(/[()（）]/g, '') || ''; const ratingEl = document.querySelector('strong[property=\"v:average\"]'); const rating = parseFloat(ratingEl?.textContent || '0'); const ratingCountEl = document.querySelector('span[property=\"v:votes\"]'); const ratingCount = parseInt(ratingCountEl?.textContent || '0', 10); const genreEls = document.querySelectorAll('span[property=\"v:genre\"]'); const genres = Array.from(genreEls).map(el => el.textContent?.trim()).filter(Boolean).join(','); const directorEls = document.querySelectorAll('a[rel=\"v:directedBy\"]'); const directors = Array.from(directorEls).map(el => el.textContent?.trim()).filter(Boolean).join(','); const castEls = document.querySelectorAll('a[rel=\"v:starring\"]'); const casts = Array.from(castEls).slice(0, 5).map(el => el.textContent?.trim()).filter(Boolean).join(','); const infoEl = document.querySelector('#info'); const infoText = infoEl?.textContent || ''; let country = ''; const countryMatch = infoText.match(/制片国家\\/地区:\\s*([^\\n]+)/); if (countryMatch && countryMatch[1]) { country = countryMatch[1].trim(); } const durationEl = document.querySelector('span[property=\"v:runtime\"]'); let durationRaw = durationEl?.textContent?.trim() || ''; if (!durationRaw) { const durationMatch = infoText.match(/片长:\\s*([^\\n]+)/); if (durationMatch && durationMatch[1]) { durationRaw = durationMatch[1].trim(); } } const durationNumMatch = durationRaw.match(/(\\d+)/); const duration = durationNumMatch && durationNumMatch[1] ? parseInt(durationNumMatch[1], 10) : null; const summaryEl = document.querySelector('span[property=\"v:summary\"]'); const summary = summaryEl?.textContent?.trim() || ''; return [{ id, title, originalTitle: '', year, rating, ratingCount, genres, directors, casts, country, duration, summary: summary.substring(0, 200), url: 'https://movie.douban.com/subject/' + id }]; })()"
+        "script": "async (intermediate) => { const id = '{{ id }}'; console.log('Evaluate script running, URL:', window.location.href); const titleEl = document.querySelector('span[property=\"v:itemreviewed\"]'); console.log('titleEl:', titleEl ? 'found' : 'null'); const title = titleEl?.textContent?.trim() || ''; const yearEl = document.querySelector('.year'); const year = yearEl?.textContent?.trim().replace(/[()（）]/g, '') || ''; const ratingEl = document.querySelector('strong[property=\"v:average\"]'); const rating = parseFloat(ratingEl?.textContent || '0'); const ratingCountEl = document.querySelector('span[property=\"v:votes\"]'); const ratingCount = parseInt(ratingCountEl?.textContent || '0', 10); const genreEls = document.querySelectorAll('span[property=\"v:genre\"]'); const genres = Array.from(genreEls).map(el => el.textContent?.trim()).filter(Boolean).join(','); const directorEls = document.querySelectorAll('a[rel=\"v:directedBy\"]'); const directors = Array.from(directorEls).map(el => el.textContent?.trim()).filter(Boolean).join(','); const castEls = document.querySelectorAll('a[rel=\"v:starring\"]'); const casts = Array.from(castEls).slice(0, 5).map(el => el.textContent?.trim()).filter(Boolean).join(','); const infoEl = document.querySelector('#info'); const infoText = infoEl?.textContent || ''; let country = ''; const countryMatch = infoText.match(/制片国家\\/地区:\\s*([^\\n]+)/); if (countryMatch && countryMatch[1]) { country = countryMatch[1].trim(); } const durationEl = document.querySelector('span[property=\"v:runtime\"]'); let durationRaw = durationEl?.textContent?.trim() || ''; if (!durationRaw) { const durationMatch = infoText.match(/片长:\\s*([^\\n]+)/); if (durationMatch && durationMatch[1]) { durationRaw = durationMatch[1].trim(); } } const durationNumMatch = durationRaw.match(/(\\d+)/); const duration = durationNumMatch && durationNumMatch[1] ? parseInt(durationNumMatch[1], 10) : null; const summaryEl = document.querySelector('span[property=\"v:summary\"]'); const summary = summaryEl?.textContent?.trim() || ''; return [{ id, title, originalTitle: '', year, rating, ratingCount, genres, directors, casts, country, duration, summary: summary.substring(0, 200), url: 'https://movie.douban.com/subject/' + id }]; }"
       }
     }
   ],
@@ -25,22 +27,79 @@
   "method": "GET",
   "name": "Subject",
   "output_schema": [
-    { "name": "id", "type": "string", "description": "ID" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "originalTitle", "type": "string", "description": "原标题" },
-    { "name": "year", "type": "string", "description": "年份" },
-    { "name": "rating", "type": "number", "description": "评分" },
-    { "name": "ratingCount", "type": "number", "description": "评分人数" },
-    { "name": "genres", "type": "string", "description": "类型" },
-    { "name": "directors", "type": "string", "description": "导演" },
-    { "name": "casts", "type": "string", "description": "演员" },
-    { "name": "country", "type": "string", "description": "国家" },
-    { "name": "duration", "type": "number", "description": "时长" },
-    { "name": "summary", "type": "string", "description": "简介" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "id",
+      "type": "string",
+      "description": "ID"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "originalTitle",
+      "type": "string",
+      "description": "原标题"
+    },
+    {
+      "name": "year",
+      "type": "string",
+      "description": "年份"
+    },
+    {
+      "name": "rating",
+      "type": "number",
+      "description": "评分"
+    },
+    {
+      "name": "ratingCount",
+      "type": "number",
+      "description": "评分人数"
+    },
+    {
+      "name": "genres",
+      "type": "string",
+      "description": "类型"
+    },
+    {
+      "name": "directors",
+      "type": "string",
+      "description": "导演"
+    },
+    {
+      "name": "casts",
+      "type": "string",
+      "description": "演员"
+    },
+    {
+      "name": "country",
+      "type": "string",
+      "description": "国家"
+    },
+    {
+      "name": "duration",
+      "type": "number",
+      "description": "时长"
+    },
+    {
+      "name": "summary",
+      "type": "string",
+      "description": "简介"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "id", "type": "string", "required": true, "help": "电影 ID" }
+    {
+      "name": "id",
+      "type": "string",
+      "required": true,
+      "help": "电影 ID"
+    }
   ],
   "website_domain": "movie.douban.com",
   "website_id": "website-movie.douban.com"

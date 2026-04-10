@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const res = await fetch('https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor={{ handle }}&limit={{ limit }}'); const data = await res.json(); return (data?.feed || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, text: item.post?.record?.text || '', likes: item.post?.likeCount || 0, reposts: item.post?.repostCount || 0, replies: item.post?.replyCount || 0 })); })()"
+        "script": "async (intermediate) => { const res = await fetch('https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor={{ handle }}&limit={{ limit }}'); const data = await res.json(); return (data?.feed || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, text: item.post?.record?.text || '', likes: item.post?.likeCount || 0, reposts: item.post?.repostCount || 0, replies: item.post?.replyCount || 0 })); }"
       }
     }
   ],
@@ -21,15 +21,45 @@
   "method": "GET",
   "name": "User",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "text", "type": "string", "description": "内容" },
-    { "name": "likes", "type": "number", "description": "点赞数" },
-    { "name": "reposts", "type": "number", "description": "转发数" },
-    { "name": "replies", "type": "number", "description": "回复数" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "text",
+      "type": "string",
+      "description": "内容"
+    },
+    {
+      "name": "likes",
+      "type": "number",
+      "description": "点赞数"
+    },
+    {
+      "name": "reposts",
+      "type": "number",
+      "description": "转发数"
+    },
+    {
+      "name": "replies",
+      "type": "number",
+      "description": "回复数"
+    }
   ],
   "variables": [
-    { "name": "handle", "type": "string", "required": true, "help": "Bluesky handle (e.g. bsky.app)" },
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of posts" }
+    {
+      "name": "handle",
+      "type": "string",
+      "required": true,
+      "help": "Bluesky handle (e.g. bsky.app)"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of posts"
+    }
   ],
   "website_domain": "bsky.app",
   "website_id": "website-bsky.app"

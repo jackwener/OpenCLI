@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const res = await fetch('https://lobste.rs/active.json'); const data = await res.json(); return (data || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, title: item.title, score: item.score, author: item.submitter_user, comments: item.comment_count, tags: (item.tags || []).join(', '), url: item.comments_url })); })()"
+        "script": "async (intermediate) => { const res = await fetch('https://lobste.rs/active.json'); const data = await res.json(); return (data || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, title: item.title, score: item.score, author: item.submitter_user, comments: item.comment_count, tags: (item.tags || []).join(', '), url: item.comments_url })); }"
       }
     }
   ],
@@ -21,16 +21,49 @@
   "method": "GET",
   "name": "Active",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "score", "type": "number", "description": "得分" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "comments", "type": "number", "description": "评论数" },
-    { "name": "tags", "type": "string", "description": "标签" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "score",
+      "type": "number",
+      "description": "得分"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "comments",
+      "type": "number",
+      "description": "评论数"
+    },
+    {
+      "name": "tags",
+      "type": "string",
+      "description": "标签"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of stories" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of stories"
+    }
   ],
   "website_domain": "lobste.rs",
   "website_id": "website-lobste.rs"

@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const res = await fetch('https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total?limit=50', { credentials: 'include' }); const text = await res.text(); const d = JSON.parse(text.replace(/(\"id\"\\s*:\\s*)(\\d{16,})/g, '$1\"$2\"')); return (d?.data || []).map((item, i) => { const t = item.target || {}; const questionId = t.id == null ? '' : String(t.id); return { rank: i + 1, title: t.title, heat: item.detail_text || '', answers: t.answer_count, url: 'https://www.zhihu.com/question/' + questionId }; }).slice(0, {{ limit }}); })()"
+        "script": "async (intermediate) => { const res = await fetch('https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total?limit=50', { credentials: 'include' }); const text = await res.text(); const d = JSON.parse(text.replace(/(\"id\"\\s*:\\s*)(\\d{16,})/g, '$1\"$2\"')); return (d?.data || []).map((item, i) => { const t = item.target || {}; const questionId = t.id == null ? '' : String(t.id); return { rank: i + 1, title: t.title, heat: item.detail_text || '', answers: t.answer_count, url: 'https://www.zhihu.com/question/' + questionId }; }).slice(0, {{ limit }}); }"
       }
     }
   ],
@@ -21,14 +21,39 @@
   "method": "GET",
   "name": "Hot",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "heat", "type": "string", "description": "热度" },
-    { "name": "answers", "type": "number", "description": "回答数" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "heat",
+      "type": "string",
+      "description": "热度"
+    },
+    {
+      "name": "answers",
+      "type": "number",
+      "description": "回答数"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of items to return" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of items to return"
+    }
   ],
   "website_domain": "www.zhihu.com",
   "website_id": "website-www.zhihu.com"

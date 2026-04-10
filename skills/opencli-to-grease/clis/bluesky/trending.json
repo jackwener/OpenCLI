@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const res = await fetch('https://public.api.bsky.app/xrpc/app.bsky.unspecced.getTrendingTopics'); const data = await res.json(); return (data?.topics || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, topic: item.topic, link: item.link })); })()"
+        "script": "async (intermediate) => { const res = await fetch('https://public.api.bsky.app/xrpc/app.bsky.unspecced.getTrendingTopics'); const data = await res.json(); return (data?.topics || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, topic: item.topic, link: item.link })); }"
       }
     }
   ],
@@ -21,12 +21,29 @@
   "method": "GET",
   "name": "Trending",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "topic", "type": "string", "description": "话题" },
-    { "name": "link", "type": "string", "description": "链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "topic",
+      "type": "string",
+      "description": "话题"
+    },
+    {
+      "name": "link",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of topics" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of topics"
+    }
   ],
   "website_domain": "bsky.app",
   "website_id": "website-bsky.app"

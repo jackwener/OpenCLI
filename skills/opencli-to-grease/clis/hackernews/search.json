@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const sort = '{{ sort }}'; const endpoint = sort === 'date' ? 'search_by_date' : 'search'; const res = await fetch('https://hn.algolia.com/api/v1/' + endpoint + '?query={{ query }}&tags=story&hitsPerPage={{ limit }}'); const data = await res.json(); return (data?.hits || []).map((item, i) => ({ rank: i + 1, title: item.title, score: item.points, author: item.author, comments: item.num_comments, url: item.url })); })()"
+        "script": "async (intermediate) => { const sort = '{{ sort }}'; const endpoint = sort === 'date' ? 'search_by_date' : 'search'; const res = await fetch('https://hn.algolia.com/api/v1/' + endpoint + '?query={{ query }}&tags=story&hitsPerPage={{ limit }}'); const data = await res.json(); return (data?.hits || []).map((item, i) => ({ rank: i + 1, title: item.title, score: item.points, author: item.author, comments: item.num_comments, url: item.url })); }"
       }
     }
   ],
@@ -21,17 +21,56 @@
   "method": "GET",
   "name": "Search",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "score", "type": "number", "description": "得分" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "comments", "type": "number", "description": "评论数" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "score",
+      "type": "number",
+      "description": "得分"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "comments",
+      "type": "number",
+      "description": "评论数"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "query", "type": "string", "required": true, "help": "Search query" },
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of results" },
-    { "name": "sort", "type": "string", "default": "relevance", "help": "Sort by relevance or date" }
+    {
+      "name": "query",
+      "type": "string",
+      "required": true,
+      "help": "Search query"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of results"
+    },
+    {
+      "name": "sort",
+      "type": "string",
+      "default": "relevance",
+      "help": "Sort by relevance or date"
+    }
   ],
   "website_domain": "news.ycombinator.com",
   "website_id": "website-news.ycombinator.com"

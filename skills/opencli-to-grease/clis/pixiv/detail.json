@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const id = '{{ id }}'; const res = await fetch('https://www.pixiv.net/ajax/illust/' + id, { credentials: 'include' }); if (!res.ok) { if (res.status === 401 || res.status === 403) throw new Error('Authentication required — please log in to Pixiv in Chrome'); if (res.status === 404) throw new Error('Illustration not found: ' + id); throw new Error('Pixiv request failed (HTTP ' + res.status + ')'); } const data = await res.json(); const b = data?.body; if (!b) throw new Error('Illustration not found'); return [{ illust_id: b.illustId, title: b.illustTitle, author: b.userName, type: b.illustType === 0 ? 'illust' : b.illustType === 1 ? 'manga' : b.illustType === 2 ? 'ugoira' : String(b.illustType), pages: b.pageCount, bookmarks: b.bookmarkCount, likes: b.likeCount, views: b.viewCount, tags: (b.tags?.tags || []).map(t => t.tag).join(', '), created: b.createDate?.split('T')[0] || '', url: 'https://www.pixiv.net/artworks/' + b.illustId }]; })()"
+        "script": "async (intermediate) => { const id = '{{ id }}'; const res = await fetch('https://www.pixiv.net/ajax/illust/' + id, { credentials: 'include' }); if (!res.ok) { if (res.status === 401 || res.status === 403) throw new Error('Authentication required — please log in to Pixiv in Chrome'); if (res.status === 404) throw new Error('Illustration not found: ' + id); throw new Error('Pixiv request failed (HTTP ' + res.status + ')'); } const data = await res.json(); const b = data?.body; if (!b) throw new Error('Illustration not found'); return [{ illust_id: b.illustId, title: b.illustTitle, author: b.userName, type: b.illustType === 0 ? 'illust' : b.illustType === 1 ? 'manga' : b.illustType === 2 ? 'ugoira' : String(b.illustType), pages: b.pageCount, bookmarks: b.bookmarkCount, likes: b.likeCount, views: b.viewCount, tags: (b.tags?.tags || []).map(t => t.tag).join(', '), created: b.createDate?.split('T')[0] || '', url: 'https://www.pixiv.net/artworks/' + b.illustId }]; }"
       }
     }
   ],
@@ -21,20 +21,69 @@
   "method": "GET",
   "name": "Detail",
   "output_schema": [
-    { "name": "illust_id", "type": "string", "description": "作品ID" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "type", "type": "string", "description": "类型" },
-    { "name": "pages", "type": "number", "description": "页数" },
-    { "name": "bookmarks", "type": "number", "description": "收藏数" },
-    { "name": "likes", "type": "number", "description": "点赞数" },
-    { "name": "views", "type": "number", "description": "浏览数" },
-    { "name": "tags", "type": "string", "description": "标签" },
-    { "name": "created", "type": "string", "description": "创建日期" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "illust_id",
+      "type": "string",
+      "description": "作品ID"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "description": "类型"
+    },
+    {
+      "name": "pages",
+      "type": "number",
+      "description": "页数"
+    },
+    {
+      "name": "bookmarks",
+      "type": "number",
+      "description": "收藏数"
+    },
+    {
+      "name": "likes",
+      "type": "number",
+      "description": "点赞数"
+    },
+    {
+      "name": "views",
+      "type": "number",
+      "description": "浏览数"
+    },
+    {
+      "name": "tags",
+      "type": "string",
+      "description": "标签"
+    },
+    {
+      "name": "created",
+      "type": "string",
+      "description": "创建日期"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "id", "type": "string", "required": true, "help": "Illustration ID" }
+    {
+      "name": "id",
+      "type": "string",
+      "required": true,
+      "help": "Illustration ID"
+    }
   ],
   "website_domain": "www.pixiv.net",
   "website_id": "website-www.pixiv.net"

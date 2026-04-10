@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const mode = '{{ mode }}'; const page = {{ page }}; const limit = {{ limit }}; const res = await fetch('https://www.pixiv.net/ranking.php?mode=' + mode + '&p=' + page + '&format=json', { credentials: 'include' }); if (!res.ok) { if (res.status === 401 || res.status === 403) throw new Error('Authentication required — please log in to Pixiv in Chrome'); throw new Error('Pixiv request failed (HTTP ' + res.status + ')'); } const data = await res.json(); const items = (data?.contents || []).slice(0, limit); return items.map((item) => ({ rank: item.rank, title: item.title, author: item.user_name, illust_id: item.illust_id, pages: item.illust_page_count, bookmarks: item.illust_bookmark_count, url: 'https://www.pixiv.net/artworks/' + item.illust_id })); })()"
+        "script": "async (intermediate) => { const mode = '{{ mode }}'; const page = {{ page }}; const limit = {{ limit }}; const res = await fetch('https://www.pixiv.net/ranking.php?mode=' + mode + '&p=' + page + '&format=json', { credentials: 'include' }); if (!res.ok) { if (res.status === 401 || res.status === 403) throw new Error('Authentication required — please log in to Pixiv in Chrome'); throw new Error('Pixiv request failed (HTTP ' + res.status + ')'); } const data = await res.json(); const items = (data?.contents || []).slice(0, limit); return items.map((item) => ({ rank: item.rank, title: item.title, author: item.user_name, illust_id: item.illust_id, pages: item.illust_page_count, bookmarks: item.illust_bookmark_count, url: 'https://www.pixiv.net/artworks/' + item.illust_id })); }"
       }
     }
   ],
@@ -21,18 +21,61 @@
   "method": "GET",
   "name": "Ranking",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "illust_id", "type": "string", "description": "作品ID" },
-    { "name": "pages", "type": "number", "description": "页数" },
-    { "name": "bookmarks", "type": "number", "description": "收藏数" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "illust_id",
+      "type": "string",
+      "description": "作品ID"
+    },
+    {
+      "name": "pages",
+      "type": "number",
+      "description": "页数"
+    },
+    {
+      "name": "bookmarks",
+      "type": "number",
+      "description": "收藏数"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "mode", "type": "string", "default": "daily", "help": "Ranking mode (daily/weekly/monthly/rookie/original/male/female/daily_r18/weekly_r18)" },
-    { "name": "page", "type": "int", "default": 1, "help": "Page number" },
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of results" }
+    {
+      "name": "mode",
+      "type": "string",
+      "default": "daily",
+      "help": "Ranking mode (daily/weekly/monthly/rookie/original/male/female/daily_r18/weekly_r18)"
+    },
+    {
+      "name": "page",
+      "type": "int",
+      "default": 1,
+      "help": "Page number"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of results"
+    }
   ],
   "website_domain": "www.pixiv.net",
   "website_id": "website-www.pixiv.net"

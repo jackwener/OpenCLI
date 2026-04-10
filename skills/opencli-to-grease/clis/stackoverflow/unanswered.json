@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const res = await fetch('https://api.stackexchange.com/2.3/questions/unanswered?order=desc&sort=votes&site=stackoverflow'); const data = await res.json(); return (data?.items || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, title: item.title, score: item.score, answers: item.answer_count, url: item.link })); })()"
+        "script": "async (intermediate) => { const res = await fetch('https://api.stackexchange.com/2.3/questions/unanswered?order=desc&sort=votes&site=stackoverflow'); const data = await res.json(); return (data?.items || []).slice(0, {{ limit }}).map((item, i) => ({ rank: i + 1, title: item.title, score: item.score, answers: item.answer_count, url: item.link })); }"
       }
     }
   ],
@@ -21,14 +21,39 @@
   "method": "GET",
   "name": "Unanswered",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "score", "type": "number", "description": "得分" },
-    { "name": "answers", "type": "number", "description": "回答数" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "score",
+      "type": "number",
+      "description": "得分"
+    },
+    {
+      "name": "answers",
+      "type": "number",
+      "description": "回答数"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 10, "help": "Max number of results" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 10,
+      "help": "Max number of results"
+    }
   ],
   "website_domain": "stackoverflow.com",
   "website_id": "website-stackoverflow.com"

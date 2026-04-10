@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const q = encodeURIComponent('{{ query }}'); const sub = '{{ subreddit }}' || ''; const sort = '{{ sort }}'; const time = '{{ time }}'; const limit = {{ limit }}; const basePath = sub ? '/r/' + sub + '/search.json' : '/search.json'; const params = 'q=' + q + '&sort=' + sort + '&t=' + time + '&limit=' + limit + '&restrict_sr=' + (sub ? 'on' : 'off') + '&raw_json=1'; const res = await fetch(basePath + '?' + params, { credentials: 'include' }); const d = await res.json(); return (d?.data?.children || []).slice(0, limit).map((c, i) => ({ rank: i + 1, title: c.data.title, subreddit: c.data.subreddit_name_prefixed, author: c.data.author, score: c.data.score, comments: c.data.num_comments, url: 'https://www.reddit.com' + c.data.permalink })); })()"
+        "script": "async (intermediate) => { const q = encodeURIComponent('{{ query }}'); const sub = '{{ subreddit }}' || ''; const sort = '{{ sort }}'; const time = '{{ time }}'; const limit = {{ limit }}; const basePath = sub ? '/r/' + sub + '/search.json' : '/search.json'; const params = 'q=' + q + '&sort=' + sort + '&t=' + time + '&limit=' + limit + '&restrict_sr=' + (sub ? 'on' : 'off') + '&raw_json=1'; const res = await fetch(basePath + '?' + params, { credentials: 'include' }); const d = await res.json(); return (d?.data?.children || []).slice(0, limit).map((c, i) => ({ rank: i + 1, title: c.data.title, subreddit: c.data.subreddit_name_prefixed, author: c.data.author, score: c.data.score, comments: c.data.num_comments, url: 'https://www.reddit.com' + c.data.permalink })); }"
       }
     }
   ],
@@ -21,20 +21,73 @@
   "method": "GET",
   "name": "Search",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "subreddit", "type": "string", "description": "子版块" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "score", "type": "number", "description": "得分" },
-    { "name": "comments", "type": "number", "description": "评论数" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "subreddit",
+      "type": "string",
+      "description": "子版块"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "score",
+      "type": "number",
+      "description": "得分"
+    },
+    {
+      "name": "comments",
+      "type": "number",
+      "description": "评论数"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "query", "type": "string", "required": true, "help": "Search query" },
-    { "name": "subreddit", "type": "string", "default": "", "help": "Search within a specific subreddit" },
-    { "name": "sort", "type": "string", "default": "relevance", "help": "Sort order: relevance, hot, top, new, comments" },
-    { "name": "time", "type": "string", "default": "all", "help": "Time filter: hour, day, week, month, year, all" },
-    { "name": "limit", "type": "int", "default": 15, "help": "Number of results" }
+    {
+      "name": "query",
+      "type": "string",
+      "required": true,
+      "help": "Search query"
+    },
+    {
+      "name": "subreddit",
+      "type": "string",
+      "default": "",
+      "help": "Search within a specific subreddit"
+    },
+    {
+      "name": "sort",
+      "type": "string",
+      "default": "relevance",
+      "help": "Sort order: relevance, hot, top, new, comments"
+    },
+    {
+      "name": "time",
+      "type": "string",
+      "default": "all",
+      "help": "Time filter: hour, day, week, month, year, all"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 15,
+      "help": "Number of results"
+    }
   ],
   "website_domain": "reddit.com",
   "website_id": "website-reddit.com"

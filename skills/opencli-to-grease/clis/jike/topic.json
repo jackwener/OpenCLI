@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { try { const el = document.querySelector('script[type=\"application/json\"]'); if (!el) return []; const data = JSON.parse(el.textContent); const pageProps = data?.props?.pageProps || {}; const posts = pageProps.posts || []; return posts.slice(0, {{ limit }}).map(p => ({ content: (p.content || '').replace(/\\n/g, ' ').slice(0, 80), author: p.user?.screenName || '', likes: p.likeCount || 0, comments: p.commentCount || 0, time: p.actionTime || p.createdAt || '', url: 'https://web.okjike.com/originalPost/' + (p.id || '') })); } catch (e) { return []; } })()"
+        "script": "async (intermediate) => { try { const el = document.querySelector('script[type=\"application/json\"]'); if (!el) return []; const data = JSON.parse(el.textContent); const pageProps = data?.props?.pageProps || {}; const posts = pageProps.posts || []; return posts.slice(0, {{ limit }}).map(p => ({ content: (p.content || '').replace(/\\n/g, ' ').slice(0, 80), author: p.user?.screenName || '', likes: p.likeCount || 0, comments: p.commentCount || 0, time: p.actionTime || p.createdAt || '', url: 'https://web.okjike.com/originalPost/' + (p.id || '') })); } catch (e) { return []; } }"
       }
     }
   ],
@@ -21,16 +21,50 @@
   "method": "GET",
   "name": "Topic",
   "output_schema": [
-    { "name": "content", "type": "string", "description": "内容" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "likes", "type": "number", "description": "点赞数" },
-    { "name": "comments", "type": "number", "description": "评论数" },
-    { "name": "time", "type": "string", "description": "时间" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "content",
+      "type": "string",
+      "description": "内容"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "likes",
+      "type": "number",
+      "description": "点赞数"
+    },
+    {
+      "name": "comments",
+      "type": "number",
+      "description": "评论数"
+    },
+    {
+      "name": "time",
+      "type": "string",
+      "description": "时间"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "id", "type": "string", "required": true, "help": "Topic ID (from topic URL, e.g. 553870e8e4b0cafb0a1bef68)" },
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of posts" }
+    {
+      "name": "id",
+      "type": "string",
+      "required": true,
+      "help": "Topic ID (from topic URL, e.g. 553870e8e4b0cafb0a1bef68)"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of posts"
+    }
   ],
   "website_domain": "m.okjike.com",
   "website_id": "website-m.okjike.com"

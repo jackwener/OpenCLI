@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const limit = {{ limit }}; const res = await fetch('/r/popular.json?limit=' + limit + '&raw_json=1', { credentials: 'include' }); const d = await res.json(); return (d?.data?.children || []).map((c, i) => ({ rank: i + 1, title: c.data.title, subreddit: c.data.subreddit_name_prefixed, score: c.data.score, comments: c.data.num_comments, url: 'https://www.reddit.com' + c.data.permalink })); })()"
+        "script": "async (intermediate) => { const limit = {{ limit }}; const res = await fetch('/r/popular.json?limit=' + limit + '&raw_json=1', { credentials: 'include' }); const d = await res.json(); return (d?.data?.children || []).map((c, i) => ({ rank: i + 1, title: c.data.title, subreddit: c.data.subreddit_name_prefixed, score: c.data.score, comments: c.data.num_comments, url: 'https://www.reddit.com' + c.data.permalink })); }"
       }
     }
   ],
@@ -21,15 +21,44 @@
   "method": "GET",
   "name": "Popular",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "subreddit", "type": "string", "description": "子版块" },
-    { "name": "score", "type": "number", "description": "得分" },
-    { "name": "comments", "type": "number", "description": "评论数" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "subreddit",
+      "type": "string",
+      "description": "子版块"
+    },
+    {
+      "name": "score",
+      "type": "number",
+      "description": "得分"
+    },
+    {
+      "name": "comments",
+      "type": "number",
+      "description": "评论数"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of posts" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of posts"
+    }
   ],
   "website_domain": "reddit.com",
   "website_id": "website-reddit.com"

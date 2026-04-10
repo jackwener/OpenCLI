@@ -10,7 +10,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "(async () => { const limit = {{ limit }}; const res = await fetch('/mweb/v1/get_history?aid=513695&device_platform=web&region=cn&da_version=3.3.11&web_version=7.5.0&aigc_features=app_lip_sync', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cursor: '', count: limit, need_page_item: true, need_aigc_data: true, aigc_mode_list: ['workbench'] }) }); const data = await res.json(); const items = data?.data?.history_list || []; return items.slice(0, limit).map(item => { const params = item.aigc_image_params?.text2image_params || {}; const images = item.image?.large_images || []; return { prompt: params.prompt || item.common_attr?.title || 'N/A', model: params.model_config?.model_name || 'unknown', status: item.common_attr?.status === 102 ? 'completed' : 'pending', image_url: images[0]?.image_url || '', created_at: new Date((item.common_attr?.create_time || 0) * 1000).toLocaleString('zh-CN') }; }); })()"
+        "script": "async (intermediate) => { const limit = {{ limit }}; const res = await fetch('/mweb/v1/get_history?aid=513695&device_platform=web&region=cn&da_version=3.3.11&web_version=7.5.0&aigc_features=app_lip_sync', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cursor: '', count: limit, need_page_item: true, need_aigc_data: true, aigc_mode_list: ['workbench'] }) }); const data = await res.json(); const items = data?.data?.history_list || []; return items.slice(0, limit).map(item => { const params = item.aigc_image_params?.text2image_params || {}; const images = item.image?.large_images || []; return { prompt: params.prompt || item.common_attr?.title || 'N/A', model: params.model_config?.model_name || 'unknown', status: item.common_attr?.status === 102 ? 'completed' : 'pending', image_url: images[0]?.image_url || '', created_at: new Date((item.common_attr?.create_time || 0) * 1000).toLocaleString('zh-CN') }; }); }"
       }
     }
   ],
@@ -21,14 +21,39 @@
   "method": "POST",
   "name": "History",
   "output_schema": [
-    { "name": "prompt", "type": "string", "description": "提示词" },
-    { "name": "model", "type": "string", "description": "模型" },
-    { "name": "status", "type": "string", "description": "状态" },
-    { "name": "image_url", "type": "string", "description": "图片链接" },
-    { "name": "created_at", "type": "string", "description": "创建时间" }
+    {
+      "name": "prompt",
+      "type": "string",
+      "description": "提示词"
+    },
+    {
+      "name": "model",
+      "type": "string",
+      "description": "模型"
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "description": "状态"
+    },
+    {
+      "name": "image_url",
+      "type": "string",
+      "description": "图片链接"
+    },
+    {
+      "name": "created_at",
+      "type": "string",
+      "description": "创建时间"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 5, "help": "Number of results" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 5,
+      "help": "Number of results"
+    }
   ],
   "website_domain": "jimeng.jianying.com",
   "website_id": "website-jimeng.jianying.com"
