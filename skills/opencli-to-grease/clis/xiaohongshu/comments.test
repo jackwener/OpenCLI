@@ -1,22 +1,20 @@
 {
-  "timestamp": "2026-04-11T08:28:45.215Z",
+  "timestamp": "2026-04-11T08:53:09.867Z",
   "json_file": "./clis/xiaohongshu/comments.json",
   "command": "Comments",
   "website": "www.xiaohongshu.com",
   "params": {
-    "note-id": "69ccbfb00000000028009654",
-    "limit": 3,
+    "note_id": "69aadbcb000000002202f131",
+    "limit": 5,
     "with_replies": false
   },
-  "success": false,
+  "success": true,
   "data_count": 0,
   "sample_data": [],
   "comparison": {
     "grease_count": 0,
     "opencli_count": 0,
-    "match": false,
-    "differences": [
-      "OpenCLI failed: Command failed: opencli xiaohongshu comments  --note-id \"69ccbfb00000000028009654\" --limit 3 --with-replies \"false\" -f json\nerror: unknown option '--note-id'\n"
-    ]
+    "match": true,
+    "differences": []
   }
 }
