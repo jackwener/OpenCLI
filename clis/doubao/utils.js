@@ -1,3 +1,5 @@
+import { CliError } from '@jackwener/opencli/errors';
+
 export const DOUBAO_DOMAIN = 'www.doubao.com';
 export const DOUBAO_CHAT_URL = 'https://www.doubao.com/chat';
 export const DOUBAO_NEW_CHAT_URL = 'https://www.doubao.com/chat/new-thread/create-by-msg';
@@ -608,9 +610,30 @@ export async function getDoubaoConversationList(page) {
         Url: `${DOUBAO_CHAT_URL}/${item.id}`,
     }));
 }
+function buildInvalidDoubaoThreadError() {
+    return new CliError('INVALID_INPUT', 'Invalid Doubao thread id or URL', 'Pass a numeric conversation ID or a full https://www.doubao.com/chat/<id> URL.');
+}
 export function parseDoubaoConversationId(input) {
-    const match = input.match(/(\d{10,})/);
-    return match ? match[1] : input;
+    const raw = typeof input === 'string' ? input.trim() : '';
+    if (!raw) {
+        throw buildInvalidDoubaoThreadError();
+    }
+    if (/^\d{10,}$/.test(raw)) {
+        return raw;
+    }
+    let parsedUrl;
+    try {
+        parsedUrl = new URL(raw);
+    }
+    catch {
+        throw buildInvalidDoubaoThreadError();
+    }
+    const pathname = parsedUrl.pathname.replace(/\/+$/, '');
+    const match = pathname.match(/^\/chat\/(\d{10,})$/);
+    if (parsedUrl.origin === 'https://www.doubao.com' && match) {
+        return match[1];
+    }
+    throw buildInvalidDoubaoThreadError();
 }
 function getConversationDetailScript() {
     return `
@@ -651,9 +674,17 @@ function getConversationDetailScript() {
 export async function navigateToConversation(page, conversationId) {
     const url = `${DOUBAO_CHAT_URL}/${conversationId}`;
     const currentUrl = await page.evaluate('window.location.href').catch(() => '');
-    if (typeof currentUrl === 'string' && currentUrl.includes(`/chat/${conversationId}`)) {
-        await page.wait(1);
-        return;
+    if (typeof currentUrl === 'string') {
+        try {
+            const current = new URL(currentUrl);
+            if (current.origin === 'https://www.doubao.com' && current.pathname.replace(/\/+$/, '') === `/chat/${conversationId}`) {
+                await page.wait(1);
+                return;
+            }
+        }
+        catch {
+            // Ignore malformed current URLs and fall through to explicit navigation.
+        }
     }
     await page.goto(url, { waitUntil: 'load', settleMs: 3000 });
     await page.wait(2);

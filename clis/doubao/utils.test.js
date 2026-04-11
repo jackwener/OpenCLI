@@ -1,11 +1,28 @@
-import { describe, expect, it } from 'vitest';
-import { mergeTranscriptSnapshots, parseDoubaoConversationId } from './utils.js';
+import { describe, expect, it, vi } from 'vitest';
+import { mergeTranscriptSnapshots, navigateToConversation, parseDoubaoConversationId } from './utils.js';
 describe('parseDoubaoConversationId', () => {
     it('extracts the numeric id from a full conversation URL', () => {
         expect(parseDoubaoConversationId('https://www.doubao.com/chat/1234567890123')).toBe('1234567890123');
     });
     it('keeps a raw id unchanged', () => {
         expect(parseDoubaoConversationId('1234567890123')).toBe('1234567890123');
+    });
+    it('rejects partial numeric ids', () => {
+        expect(() => parseDoubaoConversationId('123')).toThrowError('Invalid Doubao thread id or URL');
+    });
+    it('rejects non-doubao chat urls', () => {
+        expect(() => parseDoubaoConversationId('https://example.com/chat/1234567890123')).toThrowError('Invalid Doubao thread id or URL');
+    });
+});
+describe('navigateToConversation', () => {
+    it('does not treat a longer current conversation id as an exact match', async () => {
+        const page = {
+            evaluate: vi.fn().mockResolvedValue('https://www.doubao.com/chat/12345678901234'),
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+        };
+        await navigateToConversation(page, '1234567890123');
+        expect(page.goto).toHaveBeenCalledWith('https://www.doubao.com/chat/1234567890123', { waitUntil: 'load', settleMs: 3000 });
     });
 });
 describe('mergeTranscriptSnapshots', () => {

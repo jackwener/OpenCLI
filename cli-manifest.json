@@ -4224,6 +4224,12 @@
         "help": "Prompt to send"
       },
       {
+        "name": "thread",
+        "type": "str",
+        "required": false,
+        "help": "Conversation ID (numeric or full URL)"
+      },
+      {
         "name": "timeout",
         "type": "str",
         "default": "60",
@@ -4381,7 +4387,14 @@
     "domain": "www.doubao.com",
     "strategy": "cookie",
     "browser": true,
-    "args": [],
+    "args": [
+      {
+        "name": "thread",
+        "type": "str",
+        "required": false,
+        "help": "Conversation ID (numeric or full URL)"
+      }
+    ],
     "columns": [
       "Role",
       "Text"
@@ -4405,6 +4418,12 @@
         "required": true,
         "positional": true,
         "help": "Message to send"
+      },
+      {
+        "name": "thread",
+        "type": "str",
+        "required": false,
+        "help": "Conversation ID (numeric or full URL)"
       }
     ],
     "columns": [
