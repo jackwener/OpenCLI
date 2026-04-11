@@ -11,11 +11,12 @@ describe('zsxq topic command', () => {
         const mockPage = {
             goto: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn()
-                .mockResolvedValueOnce(true)
+                .mockResolvedValueOnce(true) // ensureZsxqAuth
+                .mockResolvedValueOnce('12345') // getActiveGroupId
                 .mockResolvedValueOnce({
                 ok: true,
                 status: 404,
-                url: 'https://api.zsxq.com/v2/topics/404',
+                url: 'https://api.zsxq.com/v2/groups/12345/topics/404',
                 data: null,
             }),
         };
@@ -24,6 +25,6 @@ describe('zsxq topic command', () => {
             message: 'Topic 404 not found',
         });
         expect(mockPage.goto).toHaveBeenCalledWith('https://wx.zsxq.com');
-        expect(mockPage.evaluate).toHaveBeenCalledTimes(2);
+        expect(mockPage.evaluate).toHaveBeenCalledTimes(3);
     });
 });
