@@ -352,6 +352,28 @@ cli({
 }
 ```
 
+### Step 5: Test Generated JSON (Required)
+
+**所有 JSON 文件必须生成测试日志**，验证转换结果正确：
+
+```bash
+# 基本测试
+npm run test -- ./clis/36kr/hot.json
+
+# 带参数测试
+npm run test -- ./clis/zhihu/search.json --params '{"query":"AI","limit":5}'
+```
+
+测试完成后会生成 `.test` 日志文件：
+- `clis/36kr/hot.json` → `clis/36kr/hot.test`
+- 日志中包含 `comparison.match` 字段，确认与 OpenCLI 结果一致
+
+**如果测试失败**：
+1. 检查 `evaluate` script 是否使用 `async (intermediate) => {}` 模式
+2. 检查 `{{ xxx }}` 模板是否正确替换
+3. 检查 API 是否需要 WBI 签名或其他认证
+4. 调整脚本后重新测试直到 `match: true`
+
 ---
 
 ## Test Generated JSON
@@ -454,6 +476,25 @@ clis/zhihu/search.json    → clis/zhihu/search.test
 | `tsconfig.json` | TypeScript configuration |
 | `clis/` | Output directory (mirrors OpenCLI clis structure) |
 
+### Test Requirements (Mandatory)
+
+**转换后必须测试**：
+- 每个 JSON 文件必须有对应的 `.test` 日志文件
+- 测试日志必须显示 `comparison.match: true`
+- 如果测试不通过，必须修复 JSON 文件
+
+**提交前检查**：
+```bash
+# 确认所有 JSON 都有 .test 文件
+ls clis/bilibili/*.json | wc -l
+ls clis/bilibili/*.test | wc -l
+# 数量应相等
+
+# 检查测试结果
+grep -l '"match": true' clis/bilibili/*.test | wc -l
+# 应等于 JSON 文件数量
+```
+
 ---
 
 ## Troubleshooting
@@ -464,3 +505,6 @@ clis/zhihu/search.json    → clis/zhihu/search.test
 | Complex evaluate code | Extract fetch call, simplify script |
 | Template mismatch | Replace `${{ args.xxx }}` with `{{ xxx }}` |
 | Multiple API calls | Chain evaluate actions |
+| networkidle timeout | Change waitUntil to `load` |
+| API returns -403 | Check if API needs different auth or use simpler endpoint |
+| StagehandEvalError | Convert IIFE to `async (intermediate) => {}` pattern |
