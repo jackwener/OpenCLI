@@ -55,6 +55,7 @@ interface GreaseVariable {
   type?: string;
   default?: unknown;
   required?: boolean;
+  test?: unknown;  // Test value from .test.ts files
 }
 
 interface GreaseOutput {
@@ -458,6 +459,22 @@ async function main(): Promise<void> {
     }
   }
 
+  // Load JSON early to get test values from variables
+  console.log('\nLoading GreaseAI JSON...');
+  const grease = await loadGreaseJson(jsonFile);
+
+  // If no params provided, use test values from variables
+  if (Object.keys(params).length === 0 && grease.variables) {
+    for (const v of grease.variables) {
+      if (v.test !== undefined) {
+        params[v.name] = v.test;
+      }
+    }
+    if (Object.keys(params).length > 0) {
+      console.log(`\nUsing test values from JSON variables: ${JSON.stringify(params)}`);
+    }
+  }
+
   const shouldCompare = !args.includes('--no-compare');
   const siteOverride = args.find(a => a.startsWith('--site'))?.split('=')[1];
 
@@ -467,10 +484,6 @@ async function main(): Promise<void> {
   console.log(`CDP: ${cdpUrlValue}`);
   console.log(`Params: ${JSON.stringify(params)}`);
   console.log(`Compare: ${shouldCompare}`);
-
-  // Load JSON
-  console.log('\nLoading GreaseAI JSON...');
-  const grease = await loadGreaseJson(jsonFile);
 
   console.log(`\nCommand: ${grease.name}`);
   console.log(`Description: ${grease.description}`);

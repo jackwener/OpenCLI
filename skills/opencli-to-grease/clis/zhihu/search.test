@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-11T09:35:35.746Z",
+  "timestamp": "2026-04-11T10:03:42.688Z",
   "json_file": "./clis/zhihu/search.json",
   "command": "Search",
   "website": "www.zhihu.com",
@@ -15,7 +15,7 @@
       "type": "article",
       "title": "一个简单故事讲清楚7个AI核心概念：大语言模型，Prompt，Agent，SKill，MCP，IDE，Claude code",
       "author": "<em>AI</em>大模型入门",
-      "votes": 18,
+      "votes": 19,
       "url": "https://zhuanlan.zhihu.com/p/2015747793763992374"
     }
   ],
