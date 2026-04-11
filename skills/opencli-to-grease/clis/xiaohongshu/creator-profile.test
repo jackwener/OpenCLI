@@ -1,10 +1,12 @@
 {
-  "timestamp": "2026-04-11T04:10:27.243Z",
+  "timestamp": "2026-04-11T08:21:35.584Z",
   "json_file": "./clis/xiaohongshu/creator-profile.json",
   "command": "CreatorProfile",
   "website": "creator.xiaohongshu.com",
-  "params": {},
-  "success": true,
+  "params": {
+    "limit": 3
+  },
+  "success": false,
   "data_count": 7,
   "sample_data": [
     {
@@ -30,8 +32,10 @@
   ],
   "comparison": {
     "grease_count": 7,
-    "opencli_count": 7,
-    "match": true,
-    "differences": []
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli xiaohongshu creator-profile  --limit 3 -f json\nerror: unknown option '--limit'\n"
+    ]
   }
 }

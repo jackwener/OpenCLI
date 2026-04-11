@@ -1,39 +1,25 @@
 {
-  "timestamp": "2026-04-11T04:00:08.882Z",
+  "timestamp": "2026-04-11T08:22:01.942Z",
   "json_file": "./clis/xiaohongshu/note.json",
   "command": "Note",
   "website": "www.xiaohongshu.com",
   "params": {
-    "note_id": "690780260000000007033d5a"
+    "limit": 3
   },
-  "success": true,
-  "data_count": 6,
+  "success": false,
+  "data_count": 1,
   "sample_data": [
     {
-      "field": "title",
-      "value": "安全限制"
-    },
-    {
-      "field": "author",
-      "value": ""
-    },
-    {
-      "field": "content",
-      "value": "url is invalid"
-    },
-    {
-      "field": "likes",
-      "value": "0"
-    },
-    {
-      "field": "collects",
-      "value": "0"
+      "field": "error",
+      "value": "Note not found or unavailable"
     }
   ],
   "comparison": {
-    "grease_count": 6,
-    "opencli_count": 6,
-    "match": true,
-    "differences": []
+    "grease_count": 1,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli xiaohongshu note  --limit 3 -f json\nerror: unknown option '--limit'\n"
+    ]
   }
 }

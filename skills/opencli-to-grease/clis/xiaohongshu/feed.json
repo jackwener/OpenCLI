@@ -9,26 +9,24 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 2000 }
-    },
-    {
-      "action": "scroll",
-      "argument": { "target": "page" }
-    },
-    {
-      "action": "scroll",
-      "argument": { "target": "page" }
+      "argument": { "time": 3000 }
     },
     {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const limit = {{ limit }} || 20; const wait = (ms) => new Promise(r => setTimeout(r, ms)); await wait(1000); const initialState = window.__INITIAL_STATE__; const items = []; const seen = new Set(); const addItems = (feedItems) => { if (!Array.isArray(feedItems)) return; for (const item of feedItems) { const noteId = item?.id || item?.noteId; if (!noteId || seen.has(noteId)) continue; seen.add(noteId); const noteCard = item?.note_card || item; items.push({ id: noteId, title: noteCard?.display_title || '', type: noteCard?.type || '', author: noteCard?.user?.nickname || '', likes: noteCard?.interact_info?.liked_count || 0, url: 'https://www.xiaohongshu.com/explore/' + noteId }); if (items.length >= limit) break; } }; if (initialState?.homefeed?.data?.items) addItems(initialState.homefeed.data.items); if (initialState?.feed?.homefeed?.data?.items) addItems(initialState.feed.homefeed.data.items); if (items.length === 0) { const sections = document.querySelectorAll('section.note-item, .feeds-page section'); sections.forEach(section => { const link = section.querySelector('a[href*=\"/explore/\"]'); const href = link?.getAttribute('href') || ''; const match = href.match(/\\/explore\\/([a-f0-9]+)/); const noteId = match?.[1] || ''; if (!noteId || seen.has(noteId)) return; seen.add(noteId); const titleEl = section.querySelector('.title, .note-title, a.title, .footer .title span'); const nameEl = section.querySelector('a.author .name, .name, .author-name'); const likesEl = section.querySelector('.count, .like-count, .like-wrapper .count'); items.push({ id: noteId, title: (titleEl?.textContent || '').trim(), type: '', author: (nameEl?.textContent || '').trim(), likes: (likesEl?.textContent || '').trim(), url: 'https://www.xiaohongshu.com/explore/' + noteId }); }); } return { items, limit }; }"
+        "script": "async (intermediate) => { const limit = {{ limit }} || 20; const app = document.querySelector('#app'); const pinia = app?.__vue_app__?.config?.globalProperties?.$pinia; const feedStore = pinia?._s?.get('feed'); if (!feedStore) return { error: 'Feed store not found', limit }; const feeds = feedStore.feeds || []; return { feeds, limit }; }"
       }
     },
     {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const limit = intermediate.limit || 20; const items = intermediate.items || []; if (!items.length) return [{ rank: 0, title: 'No feed items found', author: '', likes: 0, type: '', url: '' }]; return items.slice(0, limit).map((item, i) => ({ rank: i + 1, ...item })); }"
+        "script": "async (intermediate) => { const limit = intermediate.limit || 20; if (intermediate.error) return []; const feeds = intermediate.feeds || []; const results = feeds.map(item => { const noteCard = item?.noteCard || {}; return { id: item?.id || '', title: noteCard?.displayTitle || '', type: noteCard?.type || '', author: noteCard?.user?.nickname || '', likes: noteCard?.interactInfo?.likedCount || 0, url: 'https://www.xiaohongshu.com/explore/' + (item?.id || '') }; }); return { results, limit }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = intermediate.limit || 20; const results = intermediate.results || []; if (!results.length) return []; return results.slice(0, limit); }"
       }
     }
   ],
@@ -39,11 +37,11 @@
   "method": "GET",
   "name": "Feed",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "id", "type": "string", "description": "笔记ID" },
     { "name": "title", "type": "string", "description": "标题" },
+    { "name": "type", "type": "string", "description": "类型" },
     { "name": "author", "type": "string", "description": "作者" },
     { "name": "likes", "type": "number", "description": "点赞数" },
-    { "name": "type", "type": "string", "description": "类型" },
     { "name": "url", "type": "string", "description": "链接" }
   ],
   "variables": [

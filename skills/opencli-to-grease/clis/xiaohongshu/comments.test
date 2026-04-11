@@ -1,20 +1,21 @@
 {
-  "timestamp": "2026-04-11T04:02:38.876Z",
+  "timestamp": "2026-04-11T08:19:59.903Z",
   "json_file": "./clis/xiaohongshu/comments.json",
   "command": "Comments",
   "website": "www.xiaohongshu.com",
   "params": {
-    "note_id": "690780260000000007033d5a",
-    "limit": 5,
+    "limit": 3,
     "with_replies": false
   },
-  "success": true,
+  "success": false,
   "data_count": 0,
   "sample_data": [],
   "comparison": {
     "grease_count": 0,
     "opencli_count": 0,
-    "match": true,
-    "differences": []
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli xiaohongshu comments  --limit 3 --with-replies \"false\" -f json\nerror: missing required argument 'note-id'\n"
+    ]
   }
 }

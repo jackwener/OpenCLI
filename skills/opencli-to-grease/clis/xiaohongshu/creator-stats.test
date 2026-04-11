@@ -1,28 +1,29 @@
 {
-  "timestamp": "2026-04-11T04:10:49.439Z",
+  "timestamp": "2026-04-11T08:21:41.533Z",
   "json_file": "./clis/xiaohongshu/creator-stats.json",
   "command": "CreatorStats",
   "website": "creator.xiaohongshu.com",
   "params": {
+    "limit": 3,
     "period": "seven"
   },
-  "success": true,
+  "success": false,
   "data_count": 9,
   "sample_data": [
     {
       "metric": "观看数 (views)",
-      "total": 18,
-      "trend": "10 → 1 → 1 → 1 → 5 → 0 → 0"
+      "total": 8,
+      "trend": "1 → 1 → 1 → 5 → 0 → 0 → 0"
     },
     {
       "metric": "平均观看时长 (avg view time ms)",
-      "total": 83,
-      "trend": "57 → 0 → 6 → 8 → 12 → 0 → 0"
+      "total": 26,
+      "trend": "0 → 6 → 8 → 12 → 0 → 0 → 0"
     },
     {
       "metric": "主页访问 (home views)",
-      "total": 1,
-      "trend": "1 → 0 → 0 → 0 → 0 → 0 → 0"
+      "total": 0,
+      "trend": "0 → 0 → 0 → 0 → 0 → 0 → 0"
     },
     {
       "metric": "点赞数 (likes)",
@@ -37,8 +38,10 @@
   ],
   "comparison": {
     "grease_count": 9,
-    "opencli_count": 9,
-    "match": true,
-    "differences": []
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli xiaohongshu creator-stats  --limit 3 --period \"seven\" -f json\nerror: unknown option '--limit'\n"
+    ]
   }
 }

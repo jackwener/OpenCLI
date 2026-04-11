@@ -1,14 +1,14 @@
 {
-  "timestamp": "2026-04-11T08:06:17.825Z",
+  "timestamp": "2026-04-11T08:22:15.778Z",
   "json_file": "./clis/xiaohongshu/notifications.json",
   "command": "Notifications",
   "website": "www.xiaohongshu.com",
   "params": {
-    "limit": 5,
+    "limit": 3,
     "type": "mentions"
   },
   "success": false,
-  "data_count": 5,
+  "data_count": 3,
   "sample_data": [
     {
       "rank": 1,
@@ -33,30 +33,14 @@
       "content": "欢迎常来",
       "note": "国庆日程表｜在乡村玩一场桌游",
       "time": 1761150218
-    },
-    {
-      "rank": 4,
-      "user": "多多（秒睡梦）",
-      "action": "评论了你的笔记",
-      "content": "交友",
-      "note": "康康我的小红书新头像 🗣",
-      "time": 1760601725
-    },
-    {
-      "rank": 5,
-      "user": "姚洪雨",
-      "action": "回复了你的评论",
-      "content": "[得意R][得意R]",
-      "note": "入选2024年的第二届威尼斯国际水彩节",
-      "time": 1729080156
     }
   ],
   "comparison": {
-    "grease_count": 5,
+    "grease_count": 3,
     "opencli_count": 1,
     "match": false,
     "differences": [
-      "Count mismatch: GreaseAI=5, OpenCLI=1"
+      "Count mismatch: GreaseAI=3, OpenCLI=1"
     ]
   }
 }
