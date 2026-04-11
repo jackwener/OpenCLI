@@ -25,5 +25,5 @@ features:
     details: explore 发现 API，synthesize 生成适配器，cascade 查找认证策略。为 AI 优先工作流而生。
   - icon: ⚡
     title: 双引擎架构
-    details: 同时支持 YAML 声明式数据管道和强大的浏览器运行时 TypeScript 注入。
+    details: 同时支持声明式数据管道和强大的浏览器运行时 JavaScript 注入。
 ---

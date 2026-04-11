@@ -120,7 +120,7 @@ Use site-specific commands such as `opencli hackernews top` or `opencli reddit h
 Use these commands when the site you need is not covered yet:
 
 - `explore` inspects the page, network activity, and capability surface.
-- `synthesize` turns exploration artifacts into evaluate-based YAML adapters.
+- `synthesize` turns exploration artifacts into evaluate-based JS adapters.
 - `generate` runs the verified generation path and returns either a usable command or a structured explanation of why completion was blocked or needs human review.
 
 ### `cascade`: auth strategy discovery
@@ -320,10 +320,10 @@ opencli plugin uninstall my-tool
 
 | Plugin | Type | Description |
 |--------|------|-------------|
-| [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | TS | GitHub Trending repositories |
-| [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | TS | Multi-platform trending aggregator |
-| [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | TS | 稀土掘金 (Juejin) hot articles |
-| [opencli-plugin-vk](https://github.com/flobo3/opencli-plugin-vk) | TS | VK (VKontakte) wall, feed, and search |
+| [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | JS | GitHub Trending repositories |
+| [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | JS | Multi-platform trending aggregator |
+| [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | JS | 稀土掘金 (Juejin) hot articles |
+| [opencli-plugin-vk](https://github.com/flobo3/opencli-plugin-vk) | JS | VK (VKontakte) wall, feed, and search |
 
 See [Plugins Guide](./docs/guide/plugins.md) for creating your own plugin.
 
@@ -335,7 +335,7 @@ See [Plugins Guide](./docs/guide/plugins.md) for creating your own plugin.
 
 ```bash
 opencli explore https://example.com --site mysite   # Discover APIs + capabilities
-opencli synthesize mysite                            # Generate TS adapters
+opencli synthesize mysite                            # Generate JS adapters
 opencli generate https://example.com --goal "hot"   # One-shot: explore → synthesize → register
 opencli cascade https://api.example.com/data         # Auto-probe: PUBLIC → COOKIE → HEADER
 ```
