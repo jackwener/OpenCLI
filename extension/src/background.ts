@@ -230,6 +230,11 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
 // Evict identity mappings when tabs are closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   identity.evictTab(tabId);
+  for (const session of automationSessions.values()) {
+    if (session.preferredTabId === tabId) {
+      session.preferredTabId = null;
+    }
+  }
 });
 
 // ─── Lifecycle events ────────────────────────────────────────────────

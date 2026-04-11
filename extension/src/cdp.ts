@@ -63,6 +63,7 @@ async function cleanupForeignExtensionSurface(tabId: number): Promise<void> {
 }
 
 export async function ensureAttached(tabId: number, aggressiveRetry: boolean = false): Promise<void> {
+  let reattached = false;
   // Verify the tab URL is debuggable before attempting attach
   try {
     const tab = await chrome.tabs.get(tabId);
@@ -104,6 +105,7 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
       // Force detach first to clear any stale state from other extensions
       try { await chrome.debugger.detach({ tabId }); } catch { /* ignore */ }
       await chrome.debugger.attach({ tabId }, '1.3');
+      reattached = true;
       lastError = '';
       break; // Success
     } catch (e: unknown) {
@@ -150,7 +152,7 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
   attached.add(tabId);
 
   const state = networkCaptures.get(tabId);
-  if (captureIntents.has(tabId) && !state?.armed) {
+  if (captureIntents.has(tabId) && (reattached || !state?.armed)) {
     try {
       // armCapture() re-enables Runtime/Network and reinstalls listeners, so
       // the generic Runtime.enable call below is intentionally skipped here.
@@ -424,7 +426,6 @@ export async function startNetworkCapture(
   const existing = networkCaptures.get(tabId);
   if (existing) {
     existing.patterns = patterns;
-    resetNetworkBuffers(existing);
   }
 
   await ensureAttached(tabId);
@@ -432,7 +433,6 @@ export async function startNetworkCapture(
   const state = networkCaptures.get(tabId);
   if (state?.armed) return;
   await armCapture(tabId);
-  resetNetworkBuffers(networkCaptures.get(tabId)!);
 }
 
 async function ensureCaptureReadable(tabId: number): Promise<NetworkCaptureState | undefined> {
@@ -502,12 +502,16 @@ export function registerListeners(): void {
   });
   chrome.debugger.onDetach.addListener((source) => {
     if (source.tabId) {
-      attached.delete(source.tabId);
+      const wasAttached = attached.delete(source.tabId);
+      const preserveCapture = captureIntents.has(source.tabId) && !wasAttached;
+      if (!preserveCapture) {
+        captureIntents.delete(source.tabId);
+      }
       const state = networkCaptures.get(source.tabId);
       if (!state) return;
       state.armed = false;
       state.requestToIndex.clear();
-      if (!captureIntents.has(source.tabId)) {
+      if (!preserveCapture) {
         resetNetworkBuffers(state);
         resetConsoleBuffers(state);
         networkCaptures.delete(source.tabId);

@@ -113,6 +113,35 @@ describe('executeCommand — non-browser timeout', () => {
     expect(stopCapture.mock.invocationCallOrder[0]).toBeLessThan(closeWindow.mock.invocationCallOrder[0]);
   });
 
+  it('does not retry stopCapture after closeWindow is attempted on the success path', async () => {
+    process.env.OPENCLI_DIAGNOSTIC = '1';
+
+    const stopCapture = vi.fn().mockRejectedValue(new Error('cleanup failed'));
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const page = {
+      goto: vi.fn(),
+      startNetworkCapture: vi.fn().mockResolvedValue(undefined),
+      hasNativeCaptureSupport: vi.fn().mockReturnValue(true),
+      stopCapture,
+      closeWindow,
+    } as any;
+
+    mockBrowserSession.mockImplementationOnce(async (_factory, fn) => fn(page));
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-diagnostic-stop-once',
+      description: 'test diagnostic cleanup does not retry after closing window',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      func: async () => ({ ok: true }),
+    });
+
+    await expect(executeCommand(cmd, {})).resolves.toEqual({ ok: true });
+    expect(stopCapture).toHaveBeenCalledTimes(1);
+    expect(closeWindow).toHaveBeenCalledTimes(1);
+  });
+
   it('does not re-run custom validation when args are already prepared', async () => {
     const validateArgs = vi.fn();
     const cmd: CliCommand = {
@@ -130,5 +159,27 @@ describe('executeCommand — non-browser timeout', () => {
     await executeCommand(cmd, kwargs, false, { prepared: true });
 
     expect(validateArgs).toHaveBeenCalledTimes(1);
+  });
+
+  it('tolerates diagnostic mode pages that do not implement capture methods', async () => {
+    process.env.OPENCLI_DIAGNOSTIC = '1';
+
+    const page = {
+      goto: vi.fn(),
+      closeWindow: vi.fn().mockResolvedValue(undefined),
+    } as any;
+
+    mockBrowserSession.mockImplementationOnce(async (_factory, fn) => fn(page));
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-diagnostic-no-capture',
+      description: 'test browser diagnostic compatibility without capture methods',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      func: async () => ({ ok: true }),
+    });
+
+    await expect(executeCommand(cmd, {})).resolves.toEqual({ ok: true });
   });
 });

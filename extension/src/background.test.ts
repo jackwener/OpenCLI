@@ -381,6 +381,27 @@ describe('background tab isolation', () => {
     }));
   });
 
+  it('clears preferredTabId when a remembered owned-session tab is closed', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession('operate:default', {
+      windowId: 1,
+      owned: true,
+      preferredTabId: 1,
+    });
+
+    const onRemoved = chrome.tabs.onRemoved.addListener.mock.calls[0]?.[0];
+    onRemoved?.(1);
+
+    expect(mod.__test__.getSession('operate:default')).toEqual(expect.objectContaining({
+      windowId: 1,
+      owned: true,
+      preferredTabId: null,
+    }));
+  });
+
   it('routes console-read and capture-stop through the executor', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);

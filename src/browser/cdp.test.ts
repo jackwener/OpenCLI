@@ -185,6 +185,27 @@ describe('CDPBridge capture', () => {
     ]);
   });
 
+  it('does not clear network history when restarting network capture', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+
+    const bridge = new CDPBridge();
+    vi.spyOn(bridge, 'send').mockResolvedValue({});
+
+    const page = await bridge.connect() as any;
+    await page.startNetworkCapture('/api/');
+    page._onRequestWillBeSent({
+      requestId: '1',
+      request: { url: 'https://x.test/api/items', method: 'GET' },
+      timestamp: 1,
+    });
+
+    await page.startNetworkCapture('/other/');
+
+    await expect(page.readNetworkCapture()).resolves.toEqual([
+      { url: 'https://x.test/api/items', method: 'GET', timestamp: 1 },
+    ]);
+  });
+
   it('matches pipe-delimited capture patterns like the daemon path', async () => {
     vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
 

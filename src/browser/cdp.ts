@@ -316,12 +316,14 @@ class CDPPage extends BasePage {
   }
 
   async startNetworkCapture(pattern: string = ''): Promise<void> {
-    this._captureGeneration += 1;
+    if (!this._networkCapturing) {
+      this._captureGeneration += 1;
+      this._networkEntries = [];
+      this._pendingRequests.clear();
+      this._pendingBodyFetches.clear();
+    }
     this._networkCapturePattern = pattern;
     this._networkCaptureFilters = parseCapturePattern(pattern);
-    this._networkEntries = [];
-    this._pendingRequests.clear();
-    this._pendingBodyFetches.clear();
     await this.ensureConsoleCapture();
     await this.bridge.send('Network.enable');
     if (!this._networkListenersInstalled) {

@@ -11,7 +11,7 @@
  */
 
 import { type CliCommand, type InternalCliCommand, type Arg, type CommandArgs, getRegistry, fullName } from './registry.js';
-import type { CaptureCapablePage, IPage } from './types.js';
+import type { IPage } from './types.js';
 import { pathToFileURL } from 'node:url';
 import { executePipeline } from './pipeline/index.js';
 import { AdapterLoadError, ArgumentError, CommandExecutionError, getErrorMessage } from './errors.js';
@@ -34,7 +34,7 @@ function hasNativeCaptureSupport(page: IPage): boolean | undefined {
 }
 
 async function startDiagnosticCapture(page: IPage): Promise<void> {
-  await (page as CaptureCapablePage).startNetworkCapture();
+  await page.startNetworkCapture?.();
   if (hasNativeCaptureSupport(page) !== false) return;
   try {
     await page.installInterceptor('');
@@ -194,9 +194,9 @@ export async function executeCommand(
       ensureRequiredEnv(cmd);
       const BrowserFactory = getBrowserFactory(cmd.site);
       result = await browserSession(BrowserFactory, async (page) => {
-        const capturePage = page as CaptureCapablePage;
         const diagnosticEnabled = isDiagnosticEnabled();
         let captureStopped = false;
+        let closeWindowAttempted = false;
         const preNavUrl = resolvePreNav(cmd);
         if (preNavUrl) {
           // Navigate directly — the extension's handleNavigate already has a fast-path
@@ -224,7 +224,7 @@ export async function executeCommand(
           });
           if (diagnosticEnabled) {
             try {
-              await capturePage.stopCapture();
+              await page.stopCapture?.();
               captureStopped = true;
             } catch (err) {
               if (debug) log.debug(`[capture] Failed to stop capture: ${err instanceof Error ? err.message : err}`);
@@ -232,6 +232,7 @@ export async function executeCommand(
           }
           // Adapter commands are one-shot — close the automation window immediately
           // instead of waiting for the 30s idle timeout.
+          closeWindowAttempted = true;
           await page.closeWindow?.().catch(() => {});
           return result;
         } catch (err) {
@@ -244,9 +245,9 @@ export async function executeCommand(
           }
           throw err;
         } finally {
-          if (diagnosticEnabled && !captureStopped) {
+          if (diagnosticEnabled && !captureStopped && !closeWindowAttempted) {
             try {
-              await capturePage.stopCapture();
+              await page.stopCapture?.();
             } catch (err) {
               if (debug) log.debug(`[capture] Failed to stop capture: ${err instanceof Error ? err.message : err}`);
             }
