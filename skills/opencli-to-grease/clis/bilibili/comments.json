@@ -1,0 +1,43 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.bilibili.com",
+        "waitUntil": "networkidle"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const bvid = \"{{ bvid }}\"; const limit = Math.min({{ limit }} || 20, 50); const MIXIN_KEY_ENC_TAB = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52]; function md5(text) { function safeAdd(x, y) { const lsw = (x & 0xFFFF) + (y & 0xFFFF); const msw = (x >> 16) + (y >> 16) + (lsw >> 16); return (msw << 16) | (lsw & 0xFFFF); } function bitRotateLeft(num, cnt) { return (num << cnt) | (num >>> (32 - cnt)); } function md5cmn(q, a, b, x, s, t) { return safeAdd(bitRotateLeft(safeAdd(safeAdd(a, q), safeAdd(x, t)), s), b); } function md5ff(a, b, c, d, x, s, t) { return md5cmn((b & c) | ((~b) & d), a, b, x, s, t); } function md5gg(a, b, c, d, x, s, t) { return md5cmn((b & d) | (c & (~d)), a, b, x, s, t); } function md5hh(a, b, c, d, x, s, t) { return md5cmn(b ^ c ^ d, a, b, x, s, t); } function md5ii(a, b, c, d, x, s, t) { return md5cmn(c ^ (b | (~d)), a, b, x, s, t); } function binlMD5(x, len) { x[len >> 5] |= 0x80 << (len % 32); x[(((len + 64) >>> 9) << 4) + 14] = len; let a = 1732584193, b = -271733879, c = -1732584194, d = 271733878; for (let i = 0; i < x.length; i += 16) { const olda = a, oldb = b, oldc = c, oldd = d; a = md5ff(a, b, c, d, x[i], 7, -680876936); d = md5ff(d, a, b, c, x[i + 1], 12, -389564586); c = md5ff(c, d, a, b, x[i + 2], 17, 606105819); b = md5ff(b, c, d, a, x[i + 3], 22, -1044525330); a = md5ff(a, b, c, d, x[i + 4], 7, -176418897); d = md5ff(d, a, b, c, x[i + 5], 12, 1200080426); c = md5ff(c, d, a, b, x[i + 6], 17, -1473231341); b = md5ff(b, c, d, a, x[i + 7], 22, -45705983); a = md5ff(a, b, c, d, x[i + 8], 7, 1770035416); d = md5ff(d, a, b, c, x[i + 9], 12, -1958414417); c = md5ff(c, d, a, b, x[i + 10], 17, -42063); b = md5ff(b, c, d, a, x[i + 11], 22, -1990404162); a = md5ff(a, b, c, d, x[i + 12], 7, 1804603682); d = md5ff(d, a, b, c, x[i + 13], 12, -40341101); c = md5ff(c, d, a, b, x[i + 14], 17, -1502002290); b = md5ff(b, c, d, a, x[i + 15], 22, 1236535329); a = md5gg(a, b, c, d, x[i], 5, -165796510); d = md5gg(d, a, b, c, x[i + 1], 9, -1069501632); c = md5gg(c, d, a, b, x[i + 2], 14, 643717713); b = md5gg(b, c, d, a, x[i + 3], 20, -373897302); a = md5gg(a, b, c, d, x[i + 4], 5, -701558691); d = md5gg(d, a, b, c, x[i + 5], 9, 38016083); c = md5gg(c, d, a, b, x[i + 6], 14, -660478335); b = md5gg(b, c, d, a, x[i + 7], 20, -405537848); a = md5gg(a, b, c, d, x[i + 8], 5, 568446438); d = md5gg(d, a, b, c, x[i + 9], 9, -1019803690); c = md5gg(c, d, a, b, x[i + 10], 14, -187363961); b = md5gg(b, c, d, a, x[i + 11], 20, 1163531501); a = md5gg(a, b, c, d, x[i + 12], 5, -1444681467); d = md5gg(d, a, b, c, x[i + 13], 9, -51403784); c = md5gg(c, d, a, b, x[i + 14], 14, 1735328473); b = md5gg(b, c, d, a, x[i + 15], 20, -1926607734); a = md5hh(a, b, c, d, x[i], 4, -378558); d = md5hh(d, a, b, c, x[i + 1], 11, -2022574463); c = md5hh(c, d, a, b, x[i + 2], 16, 1839030562); b = md5hh(b, c, d, a, x[i + 3], 23, -35309556); a = md5hh(a, b, c, d, x[i + 4], 4, -1530992060); d = md5hh(d, a, b, c, x[i + 5], 11, 1272893353); c = md5hh(c, d, a, b, x[i + 6], 16, -155497632); b = md5hh(b, c, d, a, x[i + 7], 23, -1094730640); a = md5hh(a, b, c, d, x[i + 8], 4, 681279174); d = md5hh(d, a, b, c, x[i + 9], 11, -358537222); c = md5hh(c, d, a, b, x[i + 10], 16, -660478335); b = md5hh(b, c, d, a, x[i + 11], 23, -405537848); a = md5hh(a, b, c, d, x[i + 12], 4, 568446438); d = md5hh(d, a, b, c, x[i + 13], 11, -1019803690); c = md5hh(c, d, a, b, x[i + 14], 16, -187363961); b = md5hh(b, c, d, a, x[i + 15], 23, 1163531501); a = md5ii(a, b, c, d, x[i], 6, -1444681467); d = md5ii(d, a, b, c, x[i + 1], 10, -51403784); c = md5ii(c, d, a, b, x[i + 2], 15, 1735328473); b = md5ii(b, c, d, a, x[i + 3], 21, -1926607734); a = md5ii(a, b, c, d, x[i + 4], 6, -378558); d = md5ii(d, a, b, c, x[i + 5], 10, -2022574463); c = md5ii(c, d, a, b, x[i + 6], 15, 1839030562); b = md5ii(b, c, d, a, x[i + 7], 21, -35309556); a = md5ii(a, b, c, d, x[i + 8], 6, 681279174); d = md5ii(d, a, b, c, x[i + 9], 10, -358537222); c = md5ii(c, d, a, b, x[i + 10], 15, -660478335); b = md5ii(b, c, d, a, x[i + 11], 21, -405537848); a = md5ii(a, b, c, d, x[i + 12], 6, 568446438); d = md5ii(d, a, b, c, x[i + 13], 10, -1019803690); c = md5ii(c, d, a, b, x[i + 14], 15, -187363961); b = md5ii(b, c, d, a, x[i + 15], 21, 1163531501); a = safeAdd(a, olda); b = safeAdd(b, oldb); c = safeAdd(c, oldc); d = safeAdd(d, oldd); } return [a, b, c, d]; } function binl2hex(binarray) { const hexTab = '0123456789abcdef'; let str = ''; for (let i = 0; i < binarray.length * 4; i++) { str += hexTab.charAt((binarray[i >> 2] >> ((i % 4) * 8 + 4)) & 0xF) + hexTab.charAt((binarray[i >> 2] >> ((i % 4) * 8)) & 0xF); } return str; } function str2binl(str) { const bin = []; const mask = (1 << 8) - 1; for (let i = 0; i < str.length * 8; i += 8) { bin[i >> 5] |= (str.charCodeAt(i / 8) & mask) << (i % 32); } return bin; } const bin = str2binl(text); const md5bin = binlMD5(bin, text.length * 8); return binl2hex(md5bin); } function getMixinKey(imgKey, subKey) { const raw = imgKey + subKey; return MIXIN_KEY_ENC_TAB.map(i => raw[i] || '').join('').slice(0, 32); } async function getWbiKeys() { const navRes = await fetch('https://api.bilibili.com/x/web-interface/nav', { credentials: 'include' }); const nav = await navRes.json(); const wbiImg = nav?.data?.wbi_img ?? {}; const imgUrl = wbiImg.img_url ?? ''; const subUrl = wbiImg.sub_url ?? ''; const imgKey = imgUrl.split('/').pop()?.split('.')[0] ?? ''; const subKey = subUrl.split('/').pop()?.split('.')[0] ?? ''; return { imgKey, subKey }; } async function wbiSign(params) { const { imgKey, subKey } = await getWbiKeys(); const mixinKey = getMixinKey(imgKey, subKey); const wts = Math.floor(Date.now() / 1000); const allParams = { ...params, wts: String(wts) }; const sorted = {}; for (const key of Object.keys(allParams).sort()) { sorted[key] = String(allParams[key]).replace(/[!'()*]/g, ''); } const query = new URLSearchParams(sorted).toString().replace(/\\+/g, '%20'); const wRid = md5(query + mixinKey); sorted.w_rid = wRid; return sorted; } async function signedFetch(path, params) { const signedParams = await wbiSign(params); const qs = new URLSearchParams(signedParams).toString().replace(/\\+/g, '%20'); const res = await fetch('https://api.bilibili.com' + path + '?' + qs, { credentials: 'include' }); return await res.json(); } const view = await signedFetch('/x/web-interface/view', { bvid }); const aid = view?.data?.aid; if (!aid) return { error: 'Cannot resolve aid for bvid: ' + bvid }; const payload = await signedFetch('/x/v2/reply/main', { oid: aid, type: 1, mode: 3, ps: limit }); const replies = payload?.data?.replies ?? []; return { replies: replies.slice(0, limit), limit }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const replies = intermediate.replies; if (!replies || replies.length === 0) return []; return replies.map((r, i) => ({ rank: i + 1, author: r.member?.uname ?? '', text: (r.content?.message ?? '').replace(/\\n/g, ' ').trim(), likes: r.like ?? 0, replies: r.rcount ?? 0, time: new Date(r.ctime * 1000).toISOString().slice(0, 16).replace('T', ' ') })); }"
+      }
+    }
+  ],
+  "api_endpoint": "bilibili-comments",
+  "category": "auth",
+  "description": "获取 B站视频评论（使用官方 API + WBI 签名）",
+  "is_public": false,
+  "method": "GET",
+  "name": "Comments",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "author", "type": "string", "description": "评论者" },
+    { "name": "text", "type": "string", "description": "评论内容" },
+    { "name": "likes", "type": "number", "description": "点赞数" },
+    { "name": "replies", "type": "number", "description": "回复数" },
+    { "name": "time", "type": "string", "description": "发布时间" }
+  ],
+  "variables": [
+    { "name": "bvid", "type": "string", "required": true, "help": "Video BV ID (e.g. BV1WtAGzYEBm)" },
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of comments (max 50)" }
+  ],
+  "website_domain": "www.bilibili.com",
+  "website_id": "website-bilibili"
+}
