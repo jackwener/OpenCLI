@@ -1013,16 +1013,22 @@ cli({
 
       if (opts.all) {
         try {
-          const entries = await fs.promises.readdir(userClisDir, { withFileTypes: true });
-          const dirs = entries.filter(e => e.isDirectory());
-          if (dirs.length === 0) {
+          // Only reset official site overrides, preserve user-created custom sites
+          const builtinEntries = await fs.promises.readdir(BUILTIN_CLIS, { withFileTypes: true });
+          const officialSites = new Set(builtinEntries.filter(e => e.isDirectory()).map(e => e.name));
+
+          const userEntries = await fs.promises.readdir(userClisDir, { withFileTypes: true });
+          const overrides = userEntries.filter(e => e.isDirectory() && officialSites.has(e.name));
+          if (overrides.length === 0) {
             console.log('No local overrides to reset.');
             return;
           }
-          for (const dir of dirs) {
+          for (const dir of overrides) {
             fs.rmSync(path.join(userClisDir, dir.name), { recursive: true, force: true });
           }
-          console.log(styleText('green', `✅ Reset ${dirs.length} site(s). All adapters now use official baseline.`));
+          const customCount = userEntries.filter(e => e.isDirectory() && !officialSites.has(e.name)).length;
+          console.log(styleText('green', `✅ Reset ${overrides.length} official site override(s).`) +
+            (customCount > 0 ? ` ${customCount} custom site(s) preserved.` : ''));
         } catch {
           console.log('No local overrides to reset.');
         }
