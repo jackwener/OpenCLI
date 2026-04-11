@@ -1041,6 +1041,15 @@ cli({
         return;
       }
 
+      // Only allow resetting official site overrides, not custom sites
+      const builtinSiteDir = path.join(BUILTIN_CLIS, site);
+      try {
+        await fs.promises.access(builtinSiteDir);
+      } catch {
+        console.error(styleText('yellow', `Site "${site}" is custom, not an official adapter override. Use "opencli adapter eject" only for official sites.`));
+        return;
+      }
+
       const userSiteDir = path.join(userClisDir, site);
       try {
         await fs.promises.access(userSiteDir);
