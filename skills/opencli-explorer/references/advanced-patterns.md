@@ -133,7 +133,7 @@ opencli mysite hot -f csv > data.csv       # 确认 CSV 可导入
 
 **问题**：Twitter/X 每次部署都会更新 GraphQL queryId，硬编码很快失效。
 
-**方案**：优先从 JS bundle 动态扫描，用 `operationName`（稳定）查 `queryId`（易变）。参考 `clis/twitter/shared.ts`：
+**方案**：优先从 JS bundle 动态扫描，用 `operationName`（稳定）查 `queryId`（易变）。参考 `clis/twitter/shared.js`：
 
 ```typescript
 const resolved = await page.evaluate(`async () => {
@@ -165,7 +165,7 @@ const resolved = await page.evaluate(`async () => {
 
 **问题**：CSS class 随前端重构随时变化。
 
-**方案**：按语义元素优先级逐级降级，只在最后才用 class hint。参考 `clis/web/read.ts`：
+**方案**：按语义元素优先级逐级降级，只在最后才用 class hint。参考 `clis/web/read.js`：
 
 ```typescript
 // 优先级 1: <article>（标准语义）
@@ -198,7 +198,7 @@ if (!contentEl) {
 
 **问题**：UI 迭代频繁，同一个输入框的选择器在新版本可能完全不同。
 
-**方案**：把选择器按优先级列成有序数组，注释变更日期和观察依据。参考 `clis/xiaohongshu/publish.ts`：
+**方案**：把选择器按优先级列成有序数组，注释变更日期和观察依据。参考 `clis/xiaohongshu/publish.js`：
 
 ```typescript
 // New creator center (2026-03) uses contenteditable for the title field.
@@ -222,7 +222,7 @@ for (const sel of TITLE_SELECTORS) {
 
 **问题**：后端 API 经常在驼峰/蛇形之间切换，或加入新字段名兼容旧客户端。
 
-**方案**：用 nullish coalescing 链覆盖所有可能字段名。参考 `clis/xiaohongshu/user-helpers.ts`：
+**方案**：用 nullish coalescing 链覆盖所有可能字段名。参考 `clis/xiaohongshu/user-helpers.js`：
 
 ```typescript
 // noteId 可能是 noteId / note_id / id，都要覆盖

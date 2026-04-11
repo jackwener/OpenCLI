@@ -48,11 +48,11 @@ export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
 
 For a new Electron adapter, implement these commands first in `clis/<app>/`:
 
-- `status.ts` — verify the app is reachable through CDP
-- `dump.ts` — inspect DOM and snapshot structure before guessing selectors
-- `read.ts` — extract the visible context you actually need
-- `send.ts` — inject text and submit through the real editor
-- `new.ts` — create a new session, tab, thread, or document
+- `status.js` — verify the app is reachable through CDP
+- `dump.js` — inspect DOM and snapshot structure before guessing selectors
+- `read.js` — extract the visible context you actually need
+- `send.js` — inject text and submit through the real editor
+- `new.js` — create a new session, tab, thread, or document
 
 This is the standard baseline because it gives you:
 - a connection check

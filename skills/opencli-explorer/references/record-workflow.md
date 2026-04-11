@@ -76,7 +76,7 @@ ls  .opencli/record/<site>/candidates/          # 候选 TS
 //       })()
 ```
 
-**转换为 TS CLI**（参考 `clis/tae/add-expense.ts` 风格）：
+**转换为 JS CLI**（参考 `clis/tae/add-expense.js` 风格）：
 
 ```typescript
 import { cli, Strategy } from '@jackwener/opencli/registry';

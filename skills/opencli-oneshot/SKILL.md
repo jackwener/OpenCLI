@@ -119,10 +119,10 @@ localStorage 有 token + Bearer header 能拿到？  → Tier 2.5: localStorage 
 
 ## 模板
 
-### TS — Cookie/Public（最简，`func()` 模式）
+### JS — Cookie/Public（最简，`func()` 模式）
 
-```typescript
-// clis/<site>/<name>.ts
+```javascript
+// clis/<site>/<name>.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
@@ -155,10 +155,10 @@ cli({
 });
 ```
 
-### TS — localStorage Bearer（现代 SaaS）
+### JS — localStorage Bearer（现代 SaaS）
 
-```typescript
-// clis/<site>/<name>.ts
+```javascript
+// clis/<site>/<name>.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
@@ -195,10 +195,10 @@ cli({
 });
 ```
 
-### TS — Intercept（抓包模式）
+### JS — Intercept（抓包模式）
 
-```typescript
-// clis/<site>/<name>.ts
+```javascript
+// clis/<site>/<name>.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
@@ -288,8 +288,8 @@ cli({
 
 <!-- keep in sync with explorer SKILL.md §Step4 -->
 > **两种开发场景**：
-> - **Repo 贡献**：文件放 `clis/<site>/<name>.ts`，`npm run build` 后自动注册
-> - **私人 adapter**（本地使用，无需提 PR）：文件放 `~/.opencli/clis/<site>/<name>.ts`，无需 build
+> - **Repo 贡献**：文件放 `clis/<site>/<name>.js`，`npm run build` 后自动注册
+> - **私人 adapter**（本地使用，无需提 PR）：文件放 `~/.opencli/clis/<site>/<name>.js`，无需 build
 
 ```bash
 # Repo 贡献：build 后直接运行

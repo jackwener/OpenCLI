@@ -69,7 +69,7 @@ This outputs a `RepairContext` JSON between `___OPENCLI_DIAGNOSTIC___` markers i
   "adapter": {
     "site": "example",
     "command": "example/search",
-    "sourcePath": "/path/to/clis/example/search.ts",
+    "sourcePath": "/path/to/clis/example/search.js",
     "source": "// full adapter source code"
   },
   "page": {

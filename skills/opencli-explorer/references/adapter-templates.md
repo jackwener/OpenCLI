@@ -20,7 +20,7 @@ localStorage 有 token + Bearer header 能拿到？  → Tier 2.5: localStorage 
 ## Tier 1 — 公开 API
 
 ```typescript
-// clis/v2ex/hot.ts
+// clis/v2ex/hot.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
@@ -51,7 +51,7 @@ cli({
 ## Tier 2 — Cookie 认证（最常用）
 
 ```typescript
-// clis/zhihu/hot.ts
+// clis/zhihu/hot.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
@@ -100,7 +100,7 @@ cli({
 适用于 JWT 存 `localStorage`、API 在独立 domain（如 `api.xxx.com`）的 SaaS：
 
 ```typescript
-// clis/slock/channels.ts
+// clis/slock/channels.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError } from '@jackwener/opencli/errors';
 
@@ -155,7 +155,7 @@ cli({
 ## Tier 3 — Header 认证（Twitter GraphQL）
 
 ```typescript
-// clis/twitter/lists.ts
+// clis/twitter/lists.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError } from '@jackwener/opencli/errors';
 
@@ -207,7 +207,7 @@ cli({
 ## Tier 4 — Intercept（Pinia Store 触发）
 
 ```typescript
-// clis/xiaohongshu/notifications.ts
+// clis/xiaohongshu/notifications.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
@@ -262,7 +262,7 @@ cli({
 不依赖 Pinia，通用于任何请求有签名的场景：
 
 ```typescript
-// clis/xiaohongshu/user.ts
+// clis/xiaohongshu/user.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
@@ -333,7 +333,7 @@ func: async (page, kwargs) => {
 
 ## 同站点多 adapter：提取 utils.ts
 
-同一站点写第二个 adapter 时，如果发现要复制 auth context 解析逻辑，就应该提取 `clis/<site>/utils.ts`。
+同一站点写第二个 adapter 时，如果发现要复制 auth context 解析逻辑，就应该提取 `clis/<site>/utils.js`。
 
 **判断标准**：两个 adapter 里出现了几乎相同的这几行：
 
@@ -348,7 +348,7 @@ const server = servers.find(s => s.slug === slug) || servers[0];
 **正确做法**：提取成 helper，所有 adapter import 复用：
 
 ```typescript
-// clis/mysite/utils.ts
+// clis/mysite/utils.js
 export async function getServerContext(slug: string | null): Promise<{ token: string; server: any }> {
   const token = localStorage.getItem('mysite_access_token');
   if (!token) return { error: 'Not logged in' };
@@ -361,7 +361,7 @@ export async function getServerContext(slug: string | null): Promise<{ token: st
 ```
 
 ```typescript
-// clis/mysite/channels.ts — import 复用
+// clis/mysite/channels.js — import 复用
 import { getServerContext } from './utils.js';
 
 func: async (page, kwargs) => {
@@ -376,7 +376,7 @@ func: async (page, kwargs) => {
 }
 ```
 
-> **现有参考**：`clis/bilibili/utils.ts` 里的 `fetchJson` / `apiGet` / `getSelfUid` 是同类实践。
+> **现有参考**：`clis/bilibili/utils.js` 里的 `fetchJson` / `apiGet` / `getSelfUid` 是同类实践。
 > `clis/slock/` 三个 adapter（tasks / members / send）都有重复的 server 解析逻辑，是反例。
 
 ---
