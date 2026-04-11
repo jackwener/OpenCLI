@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-04-11T04:05:55.878Z",
+  "json_file": "./clis/xiaohongshu/user.json",
+  "command": "User",
+  "website": "www.xiaohongshu.com",
+  "params": {
+    "id": "5f0d8a120000000001001e47",
+    "limit": 5
+  },
+  "success": false,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "results": [],
+      "userId": "5f0d8a120000000001001e47"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli xiaohongshu user \"5f0d8a120000000001001e47\" --limit 5 -f json\nok: false\nerror:\n  code: UNKNOWN\n  message: No public notes found for this Xiaohongshu user.\n  exitCode: 1\n# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 for repair context\n# OPENCLI_DIAGNOSTIC=1 xiaohongshu/user\n"
+    ]
+  }
+}

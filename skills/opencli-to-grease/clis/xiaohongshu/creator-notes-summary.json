@@ -1,0 +1,52 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://creator.xiaohongshu.com/statistics/data-analysis?type=0&page_size=10&page_num=1",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 3; const pageSize = Math.min(Math.max(limit, 3), 10); const formatPostTime = (ts) => { if (!ts) return ''; const CST_OFFSET_MS = 8 * 60 * 60 * 1000; const date = new Date(ts + CST_OFFSET_MS); const pad = (v) => String(v).padStart(2, '0'); const year = date.getUTCFullYear(); const month = pad(date.getUTCMonth() + 1); const day = pad(date.getUTCDate()); const hour = pad(date.getUTCHours()); const minute = pad(date.getUTCMinutes()); return year + '年' + month + '月' + day + '日 ' + hour + ':' + minute; }; const buildNoteDetailUrl = (noteId) => noteId ? 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=' + encodeURIComponent(noteId) : ''; const toPercentString = (v) => v == null ? '' : v + '%'; try { const resp = await fetch('/api/galaxy/creator/datacenter/note/analyze/list?type=0&page_size=' + pageSize + '&page_num=1', { credentials: 'include' }); if (!resp.ok) return { error: 'HTTP ' + resp.status }; const data = await resp.json(); const items = data?.data?.note_infos ?? []; if (!items.length) return { error: 'No notes found' }; const summaries = []; for (let i = 0; i < Math.min(items.length, limit); i++) { const note = items[i]; const noteId = note.id ?? ''; let detail = { views: note.read_count ?? 0, likes: note.like_count ?? 0, collects: note.fav_count ?? 0, comments: note.comment_count ?? 0, shares: 0, avgViewTime: '', riseFans: 0, topSource: '', topSourcePct: '', topInterest: '', topInterestPct: '' }; if (noteId) { try { const detailResp = await fetch('/api/galaxy/creator/datacenter/note/audience?note_id=' + noteId, { credentials: 'include' }); if (detailResp.ok) { const detailJson = await detailResp.json(); const sourceItems = detailJson?.data?.source ?? []; const sortedSources = [...sourceItems].sort((a, b) => (b.value_with_double ?? 0) - (a.value_with_double ?? 0)); if (sortedSources[0]) { detail.topSource = sortedSources[0].title || ''; detail.topSourcePct = toPercentString(sortedSources[0].value_with_double); } } } catch {} } summaries.push({ rank: i + 1, id: noteId, title: note.title ?? '', date: formatPostTime(note.post_time), views: String(detail.views), likes: String(detail.likes), collects: String(detail.collects), comments: String(detail.comments), shares: String(detail.shares), avg_view_time: detail.avgViewTime, rise_fans: String(detail.riseFans), top_source: detail.topSource, top_source_pct: detail.topSourcePct, top_interest: detail.topInterest, top_interest_pct: detail.topInterestPct, url: buildNoteDetailUrl(noteId) }); } return { summaries }; } catch (e) { return { error: e.message }; } }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { if (intermediate.error) return [{ rank: 0, id: '', title: 'Error: ' + intermediate.error, date: '', views: '', likes: '', collects: '', comments: '', shares: '', avg_view_time: '', rise_fans: '', top_source: '', top_source_pct: '', top_interest: '', top_interest_pct: '', url: '' }]; return intermediate.summaries || []; }"
+      }
+    }
+  ],
+  "api_endpoint": "xiaohongshu-creator-notes-summary",
+  "category": "auth",
+  "description": "小红书最近笔记批量摘要 (列表 + 单篇关键数据汇总)",
+  "is_public": false,
+  "method": "GET",
+  "name": "CreatorNotesSummary",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "id", "type": "string", "description": "笔记ID" },
+    { "name": "title", "type": "string", "description": "标题" },
+    { "name": "date", "type": "string", "description": "发布日期" },
+    { "name": "views", "type": "string", "description": "观看数" },
+    { "name": "likes", "type": "string", "description": "点赞数" },
+    { "name": "collects", "type": "string", "description": "收藏数" },
+    { "name": "comments", "type": "string", "description": "评论数" },
+    { "name": "shares", "type": "string", "description": "分享数" },
+    { "name": "avg_view_time", "type": "string", "description": "平均观看时长" },
+    { "name": "rise_fans", "type": "string", "description": "涨粉数" },
+    { "name": "top_source", "type": "string", "description": "主要来源" },
+    { "name": "top_source_pct", "type": "string", "description": "来源占比" },
+    { "name": "top_interest", "type": "string", "description": "主要兴趣" },
+    { "name": "top_interest_pct", "type": "string", "description": "兴趣占比" },
+    { "name": "url", "type": "string", "description": "详情链接" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 3, "help": "Number of recent notes to summarize" }
+  ],
+  "website_domain": "creator.xiaohongshu.com",
+  "website_id": "website-creator.xiaohongshu.com"
+}

@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-04-11T04:03:52.697Z",
+  "json_file": "./clis/xiaohongshu/creator-note-detail.json",
+  "command": "CreatorNoteDetail",
+  "website": "creator.xiaohongshu.com",
+  "params": {
+    "note_id": "683a9b1c000000000e03123a"
+  },
+  "success": false,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "section": "error",
+      "metric": "no_data",
+      "value": "Check note_id and login status",
+      "extra": ""
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli creator.xiaohongshu creator-note-detail \"683a9b1c000000000e03123a\"  -f json\nerror: unknown command 'creator.xiaohongshu'\n"
+    ]
+  }
+}

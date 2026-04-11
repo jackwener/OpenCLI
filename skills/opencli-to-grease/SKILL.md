@@ -231,6 +231,56 @@ GreaseAI uses `{{ variable }}` for template placeholders (double braces):
 | `${{ args.keyword }}` | `{{ keyword }}` |
 | `{username}` | `{{ username }}` |
 
+### Intermediate Results in Non-evaluate Actions
+
+**在 open、click、input 等非 evaluate 操作中也可以引用中间结果**，使用 `${key}` 语法：
+
+```json
+{
+  "actions": [
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { return { noteId: 'xxx', userId: 'yyy' }; }"
+      }
+    },
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.xiaohongshu.com/user/profile/${userId}/${noteId}"
+      }
+    }
+  ]
+}
+```
+
+**Key Points**:
+- `${key}` 在任何 action 的 argument 中都可以使用
+- 引用的是前一个 evaluate 返回的对象字段
+- 替换发生在 action 执行前，由 driver-layer 自动处理
+- 与 `{{ xxx }}` 不同：`{{ }}` 替换 task params，`${}` 替换 intermediate results
+
+**Example - Dynamic URL Navigation**:
+```json
+{
+  "actions": [
+    { "action": "open", "argument": { "url": "https://creator.xiaohongshu.com/statistics/data-analysis" } },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const notes = await fetch('/api/notes/list').then(r => r.json()); return { firstNoteId: notes.data[0]?.id }; }"
+      }
+    },
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://creator.xiaohongshu.com/statistics/note-detail?noteId=${firstNoteId}"
+      }
+    }
+  ]
+}
+```
+
 ---
 
 ## AI-Driven Conversion Workflow

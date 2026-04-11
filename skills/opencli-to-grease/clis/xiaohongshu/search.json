@@ -1,0 +1,57 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.xiaohongshu.com/search_result?keyword={{ query }}&source=web_search_result_notes",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const waitResult = await new Promise((resolve) => { const detect = () => { if (document.querySelector('section.note-item')) return 'content'; if (/登录后查看搜索结果/.test(document.body?.innerText || '')) return 'login_wall'; return null; }; const found = detect(); if (found) return resolve(found); const observer = new MutationObserver(() => { const result = detect(); if (result) { observer.disconnect(); resolve(result); } }); observer.observe(document.body, { childList: true, subtree: true }); setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 5000); }); return { waitResult }; }"
+      }
+    },
+    {
+      "action": "scroll",
+      "argument": { "target": "page" }
+    },
+    {
+      "action": "scroll",
+      "argument": { "target": "page" }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { if (intermediate.waitResult === 'login_wall') return { error: 'Search results blocked by login wall' }; const normalizeUrl = (href) => { if (!href) return ''; if (href.startsWith('http://') || href.startsWith('https://')) return href; if (href.startsWith('/')) return 'https://www.xiaohongshu.com' + href; return ''; }; const cleanText = (value) => (value || '').replace(/\\s+/g, ' ').trim(); const results = []; const seen = new Set(); document.querySelectorAll('section.note-item').forEach(el => { if (el.classList.contains('query-note-item')) return; const titleEl = el.querySelector('.title, .note-title, a.title, .footer .title span'); const nameEl = el.querySelector('a.author .name, .name, .author-name, .nick-name, a.author'); const likesEl = el.querySelector('.count, .like-count, .like-wrapper .count'); const detailLinkEl = el.querySelector('a.cover.mask') || el.querySelector('a[href*=\"/search_result/\"]') || el.querySelector('a[href*=\"/explore/\"]') || el.querySelector('a[href*=\"/note/\"]'); const url = normalizeUrl(detailLinkEl?.getAttribute('href') || ''); if (!url) return; const key = url; if (seen.has(key)) return; seen.add(key); results.push({ title: cleanText(titleEl?.textContent || ''), author: cleanText(nameEl?.textContent || ''), likes: cleanText(likesEl?.textContent || '0'), url }); }); return { results }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 20; const noteIdToDate = (url) => { const match = url.match(/\\/(?:search_result|explore|note)\\/([0-9a-f]{24})(?=[?#\\/]|$)/i); if (!match) return ''; const hex = match[1].substring(0, 8); const ts = parseInt(hex, 16); if (!ts || ts < 1_000_000_000 || ts > 4_000_000_000) return ''; return new Date((ts + 8 * 3600) * 1000).toISOString().slice(0, 10); }; if (intermediate.error) return [{ rank: 0, title: '', author: '', likes: '', published_at: '', url: '', error: intermediate.error }]; const results = intermediate.results || []; return results.filter(item => item.title).slice(0, limit).map((item, i) => ({ rank: i + 1, title: item.title, author: item.author, likes: item.likes, published_at: noteIdToDate(item.url), url: item.url })); }"
+      }
+    }
+  ],
+  "api_endpoint": "xiaohongshu-search",
+  "category": "auth",
+  "description": "搜索小红书笔记",
+  "is_public": false,
+  "method": "GET",
+  "name": "Search",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "title", "type": "string", "description": "标题" },
+    { "name": "author", "type": "string", "description": "作者" },
+    { "name": "likes", "type": "string", "description": "点赞数" },
+    { "name": "published_at", "type": "string", "description": "发布日期" },
+    { "name": "url", "type": "string", "description": "链接" }
+  ],
+  "variables": [
+    { "name": "query", "type": "string", "required": true, "help": "Search keyword" },
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of results" }
+  ],
+  "website_domain": "www.xiaohongshu.com",
+  "website_id": "website-xiaohongshu"
+}

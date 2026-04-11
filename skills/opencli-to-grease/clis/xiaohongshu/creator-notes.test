@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-04-11T04:04:48.200Z",
+  "json_file": "./clis/xiaohongshu/creator-notes.json",
+  "command": "CreatorNotes",
+  "website": "creator.xiaohongshu.com",
+  "params": {
+    "user_id": "5f0d8a120000000001001e47",
+    "limit": 5
+  },
+  "success": false,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "rank": 0,
+      "id": "",
+      "title": "No notes found",
+      "date": "",
+      "views": 0,
+      "likes": 0,
+      "collects": 0,
+      "comments": 0,
+      "url": "",
+      "error": "Check login status"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli xiaohongshu creator-notes  --user-id \"5f0d8a120000000001001e47\" --limit 5 -f json\nerror: unknown option '--user-id'\n"
+    ]
+  }
+}

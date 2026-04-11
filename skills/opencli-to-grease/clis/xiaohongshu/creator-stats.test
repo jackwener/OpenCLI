@@ -1,0 +1,44 @@
+{
+  "timestamp": "2026-04-11T04:10:49.439Z",
+  "json_file": "./clis/xiaohongshu/creator-stats.json",
+  "command": "CreatorStats",
+  "website": "creator.xiaohongshu.com",
+  "params": {
+    "period": "seven"
+  },
+  "success": true,
+  "data_count": 9,
+  "sample_data": [
+    {
+      "metric": "观看数 (views)",
+      "total": 18,
+      "trend": "10 → 1 → 1 → 1 → 5 → 0 → 0"
+    },
+    {
+      "metric": "平均观看时长 (avg view time ms)",
+      "total": 83,
+      "trend": "57 → 0 → 6 → 8 → 12 → 0 → 0"
+    },
+    {
+      "metric": "主页访问 (home views)",
+      "total": 1,
+      "trend": "1 → 0 → 0 → 0 → 0 → 0 → 0"
+    },
+    {
+      "metric": "点赞数 (likes)",
+      "total": 0,
+      "trend": "0 → 0 → 0 → 0 → 0 → 0 → 0"
+    },
+    {
+      "metric": "收藏数 (collects)",
+      "total": 0,
+      "trend": "0 → 0 → 0 → 0 → 0 → 0 → 0"
+    }
+  ],
+  "comparison": {
+    "grease_count": 9,
+    "opencli_count": 9,
+    "match": true,
+    "differences": []
+  }
+}

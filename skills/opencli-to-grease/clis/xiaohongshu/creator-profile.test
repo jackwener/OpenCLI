@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-04-11T04:10:27.243Z",
+  "json_file": "./clis/xiaohongshu/creator-profile.json",
+  "command": "CreatorProfile",
+  "website": "creator.xiaohongshu.com",
+  "params": {},
+  "success": true,
+  "data_count": 7,
+  "sample_data": [
+    {
+      "field": "Name",
+      "value": "暴哥"
+    },
+    {
+      "field": "Followers",
+      "value": 12
+    },
+    {
+      "field": "Following",
+      "value": 56
+    },
+    {
+      "field": "Likes & Collects",
+      "value": 18
+    },
+    {
+      "field": "Creator Level",
+      "value": 1
+    }
+  ],
+  "comparison": {
+    "grease_count": 7,
+    "opencli_count": 7,
+    "match": true,
+    "differences": []
+  }
+}

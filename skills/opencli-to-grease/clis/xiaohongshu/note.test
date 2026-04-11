@@ -1,0 +1,39 @@
+{
+  "timestamp": "2026-04-11T04:00:08.882Z",
+  "json_file": "./clis/xiaohongshu/note.json",
+  "command": "Note",
+  "website": "www.xiaohongshu.com",
+  "params": {
+    "note_id": "690780260000000007033d5a"
+  },
+  "success": true,
+  "data_count": 6,
+  "sample_data": [
+    {
+      "field": "title",
+      "value": "安全限制"
+    },
+    {
+      "field": "author",
+      "value": ""
+    },
+    {
+      "field": "content",
+      "value": "url is invalid"
+    },
+    {
+      "field": "likes",
+      "value": "0"
+    },
+    {
+      "field": "collects",
+      "value": "0"
+    }
+  ],
+  "comparison": {
+    "grease_count": 6,
+    "opencli_count": 6,
+    "match": true,
+    "differences": []
+  }
+}

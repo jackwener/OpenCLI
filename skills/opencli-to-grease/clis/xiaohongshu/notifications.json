@@ -1,0 +1,47 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.xiaohongshu.com/notification",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 3000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const type = \"{{ type }}\" || 'mentions'; const limit = {{ limit }} || 20; const wait = (ms) => new Promise(r => setTimeout(r, ms)); await wait(1000); const initialState = window.__INITIAL_STATE__; let notifications = []; const extractMessages = (messageList) => { if (!Array.isArray(messageList)) return []; return messageList.map(item => ({ user: item?.user_info?.nickname || '', action: item?.title || '', content: (item?.comment_info?.content || '').replace(/\\s+/g, ' ').trim(), note: (item?.item_info?.content || '').replace(/\\s+/g, ' ').trim(), time: item?.time || '' })); }; if (initialState?.['/you/']?.data?.message_list) { notifications = extractMessages(initialState['/you/'].data.message_list); } if (!notifications.length && initialState?.notification?.data?.message_list) { notifications = extractMessages(initialState.notification.data.message_list); } if (!notifications.length) { const sections = document.querySelectorAll('.notification-item, .message-item, .msg-item'); sections.forEach(section => { const userEl = section.querySelector('.user-name, .nickname, .user-info .name'); const actionEl = section.querySelector('.action, .title, .msg-title'); const contentEl = section.querySelector('.content, .msg-content, .comment-content'); const noteEl = section.querySelector('.note-content, .item-content'); const timeEl = section.querySelector('.time, .date'); notifications.push({ user: (userEl?.textContent || '').trim(), action: (actionEl?.textContent || '').trim(), content: (contentEl?.textContent || '').trim(), note: (noteEl?.textContent || '').trim(), time: (timeEl?.textContent || '').trim() }); }); } return { notifications, type, limit }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = intermediate.limit || 20; const notifications = intermediate.notifications || []; if (!notifications.length || (notifications.length === 1 && !notifications[0].user && !notifications[0].action)) return [{ rank: 0, user: '', action: '', content: 'No notifications found', note: '', time: '' }]; return notifications.slice(0, limit).map((n, i) => ({ rank: i + 1, ...n })); }"
+      }
+    }
+  ],
+  "api_endpoint": "xiaohongshu-notifications",
+  "category": "auth",
+  "description": "小红书通知",
+  "is_public": false,
+  "method": "GET",
+  "name": "Notifications",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "user", "type": "string", "description": "用户" },
+    { "name": "action", "type": "string", "description": "动作" },
+    { "name": "content", "type": "string", "description": "内容" },
+    { "name": "note", "type": "string", "description": "笔记" },
+    { "name": "time", "type": "string", "description": "时间" }
+  ],
+  "variables": [
+    { "name": "type", "type": "string", "default": "mentions", "help": "Notification type: mentions, likes, or connections" },
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of notifications to return" }
+  ],
+  "website_domain": "www.xiaohongshu.com",
+  "website_id": "website-xiaohongshu"
+}

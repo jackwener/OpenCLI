@@ -198,7 +198,9 @@ async function runOpenCliCommand(
     } else if (key === 'sort' || key === 'time' || key === 'mode' || key === 'page') {
       optionalArgs.push(`--${key} "${value}"`);
     } else {
-      optionalArgs.push(`--${key} "${value}"`);
+      // Convert underscores to hyphens for CLI flags (OpenCLI convention)
+      const flagName = key.replace(/_/g, '-');
+      optionalArgs.push(`--${flagName} "${value}"`);
     }
   }
 
@@ -368,6 +370,8 @@ Prerequisites:
 
 function extractSiteFromDomain(domain: string): string {
   let site = domain.replace(/^www\./, '').replace(/^m\./, '');
+  // Handle creator.* subdomains - use parent domain name
+  site = site.replace(/^creator\./, '');
   site = site.replace(/\.(com|cn|net|org|rs|io|dev|app|to|me|co|info|tv)$/, '');
 
   const mappings: Record<string, string> = {

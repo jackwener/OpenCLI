@@ -1,0 +1,66 @@
+{
+  "timestamp": "2026-04-11T04:03:39.961Z",
+  "json_file": "./clis/xiaohongshu/search.json",
+  "command": "Search",
+  "website": "www.xiaohongshu.com",
+  "params": {
+    "query": "AI",
+    "limit": 5
+  },
+  "success": false,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "3步让你的AI建模！港大团队开源神级AI工具",
+      "author": "超级大威03-25",
+      "likes": "2301",
+      "published_at": "2026-03-25",
+      "url": "https://www.xiaohongshu.com/search_result/69c321f8000000001b0013a7?xsec_token=ABP8iT9-67HnXCae9Szea6vj3n4EGQiVfKUKtn5wYRYOw=&xsec_source="
+    },
+    {
+      "rank": 2,
+      "title": "李飞飞：K12教育简直是在浪费时间，AI太快",
+      "author": "木南之南01-17",
+      "likes": "1469",
+      "published_at": "2026-01-17",
+      "url": "https://www.xiaohongshu.com/search_result/696ac7ca000000000a03c77e?xsec_token=ABmD1WzCf_UtkHrgxNLlCApX1BdoBET_Hqwup5Kd68jC8=&xsec_source="
+    },
+    {
+      "rank": 3,
+      "title": "用AI还原李莲英的一天，看大太监一天忙什么",
+      "author": "AI史来嗨2025-09-12",
+      "likes": "1327",
+      "published_at": "2025-09-11",
+      "url": "https://www.xiaohongshu.com/search_result/68c233fc000000001b030253?xsec_token=ABachqNbu-g38SzoeMNKOzrp-YkwArTR-2AvyZkbSUS-s=&xsec_source="
+    },
+    {
+      "rank": 4,
+      "title": "Clawdbot之父透露使用AI编程的独门秘技！",
+      "author": "智东西01-30",
+      "likes": "91",
+      "published_at": "2026-01-30",
+      "url": "https://www.xiaohongshu.com/search_result/697ca3ba000000001a028ae9?xsec_token=ABN5v4sZqjC8tP4qtREszEZ7JpLzTw4sdIAaDUjMvSTl8=&xsec_source="
+    },
+    {
+      "rank": 5,
+      "title": "纽约时报爆：俩兄弟用AI干出18亿公司！",
+      "author": "机器之心04-03",
+      "likes": "601",
+      "published_at": "2026-04-03",
+      "url": "https://www.xiaohongshu.com/search_result/69cfa44300000000210106c8?xsec_token=ABlIA-Git2LGY9y3C6ahf7dFE7NaR_L9OeWFmuL6vqZFY=&xsec_source="
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": false,
+    "differences": [
+      "Item 3 \"title\": Grease=\"用AI还原李莲英的一天，看大太监一天忙什么\" vs OpenCLI=\"Clawdbot之父透露使用AI编程的独门秘技！\"",
+      "Item 3 \"author\": Grease=\"AI史来嗨2025-09-12\" vs OpenCLI=\"智东西01-30\"",
+      "Item 3 \"likes\": Grease=\"1327\" vs OpenCLI=\"91\"",
+      "Item 3 \"published_at\": Grease=\"2025-09-11\" vs OpenCLI=\"2026-01-30\"",
+      "Item 3 \"url\": Grease=\"https://www.xiaohongshu.com/search_result/68c233fc\" vs OpenCLI=\"https://www.xiaohongshu.com/search_result/697ca3ba\""
+    ]
+  }
+}

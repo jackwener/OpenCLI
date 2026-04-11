@@ -1,0 +1,30 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://creator.xiaohongshu.com/new/home",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { try { const resp = await fetch('/api/galaxy/creator/home/personal_info', { credentials: 'include' }); if (!resp.ok) return [{ field: 'error', value: 'HTTP ' + resp.status }]; const data = await resp.json(); if (!data?.data) return [{ field: 'error', value: 'Unexpected response structure' }]; const d = data.data; const grow = d.grow_info || {}; return [ { field: 'Name', value: d.name ?? '' }, { field: 'Followers', value: d.fans_count ?? 0 }, { field: 'Following', value: d.follow_count ?? 0 }, { field: 'Likes & Collects', value: d.faved_count ?? 0 }, { field: 'Creator Level', value: grow.level ?? 0 }, { field: 'Level Progress', value: (grow.fans_count ?? 0) + '/' + (grow.max_fans_count ?? 0) + ' fans' }, { field: 'Bio', value: (d.personal_desc ?? '').replace(/\\n/g, ' | ') } ]; } catch (e) { return [{ field: 'error', value: e.message }]; } }"
+      }
+    }
+  ],
+  "api_endpoint": "xiaohongshu-creator-profile",
+  "category": "auth",
+  "description": "小红书创作者账号信息 (粉丝/关注/获赞/成长等级)",
+  "is_public": false,
+  "method": "GET",
+  "name": "CreatorProfile",
+  "output_schema": [
+    { "name": "field", "type": "string", "description": "字段名" },
+    { "name": "value", "type": "string", "description": "字段值" }
+  ],
+  "variables": [],
+  "website_domain": "creator.xiaohongshu.com",
+  "website_id": "website-creator.xiaohongshu.com"
+}

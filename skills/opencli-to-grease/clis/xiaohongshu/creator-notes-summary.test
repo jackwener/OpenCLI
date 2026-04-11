@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-04-11T04:13:41.164Z",
+  "json_file": "./clis/xiaohongshu/creator-notes-summary.json",
+  "command": "CreatorNotesSummary",
+  "website": "creator.xiaohongshu.com",
+  "params": {
+    "limit": 3
+  },
+  "success": false,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "rank": 0,
+      "id": "",
+      "title": "Error: HTTP 406",
+      "date": "",
+      "views": "",
+      "likes": "",
+      "collects": "",
+      "comments": "",
+      "shares": "",
+      "avg_view_time": "",
+      "rise_fans": "",
+      "top_source": "",
+      "top_source_pct": "",
+      "top_interest": "",
+      "top_interest_pct": "",
+      "url": ""
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 3,
+    "match": false,
+    "differences": [
+      "Count mismatch: GreaseAI=1, OpenCLI=3",
+      "Item 1 \"rank\": Grease=\"0\" vs OpenCLI=\"1\"",
+      "Item 1 \"title\": Grease=\"Error: HTTP 406\" vs OpenCLI=\"没人觉得九寨英迪格的甜糌粑巨好吃吗？\""
+    ]
+  }
+}

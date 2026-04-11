@@ -1,0 +1,42 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.xiaohongshu.com/search_result/{{ note_id }}",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 3000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const loginWall = /登录后查看|请登录/.test(document.body.innerText || ''); const notFound = /页面不见了|笔记不存在|无法浏览/.test(document.body.innerText || ''); const clean = (el) => (el?.textContent || '').replace(/\\s+/g, ' ').trim(); const title = clean(document.querySelector('#detail-title, .title')); const desc = clean(document.querySelector('#detail-desc, .desc, .note-text')); const author = clean(document.querySelector('.username, .author-wrapper .name')); const likes = clean(document.querySelector('.interact-container .like-wrapper .count')); const collects = clean(document.querySelector('.interact-container .collect-wrapper .count')); const comments = clean(document.querySelector('.interact-container .chat-wrapper .count')); const tags = []; document.querySelectorAll('#detail-desc a.tag, #detail-desc a[href*=\"search_result\"]').forEach(el => { const t = (el.textContent || '').trim(); if (t) tags.push(t); }); return { loginWall, notFound, title, desc, author, likes, collects, comments, tags }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { if (intermediate.loginWall) return [{ field: 'error', value: 'Note content requires login' }]; if (intermediate.notFound) return [{ field: 'error', value: 'Note not found or unavailable' }]; const d = intermediate; const numOrZero = (v) => /^\\d+/.test(v) ? v : '0'; if (!d.title && !d.author) return [{ field: 'error', value: 'The note page loaded without visible content' }]; const rows = [ { field: 'title', value: d.title || '' }, { field: 'author', value: d.author || '' }, { field: 'content', value: d.desc || '' }, { field: 'likes', value: numOrZero(d.likes || '') }, { field: 'collects', value: numOrZero(d.collects || '') }, { field: 'comments', value: numOrZero(d.comments || '') } ]; if (d.tags?.length) rows.push({ field: 'tags', value: d.tags.join(', ') }); return rows; }"
+      }
+    }
+  ],
+  "api_endpoint": "xiaohongshu-note",
+  "category": "auth",
+  "description": "获取小红书笔记正文和互动数据",
+  "is_public": false,
+  "method": "GET",
+  "name": "Note",
+  "output_schema": [
+    { "name": "field", "type": "string", "description": "字段名" },
+    { "name": "value", "type": "string", "description": "字段值" }
+  ],
+  "variables": [
+    { "name": "note_id", "type": "string", "required": true, "help": "Note ID (24-char hex, e.g. 682b429d00000000010302a3)" }
+  ],
+  "website_domain": "www.xiaohongshu.com",
+  "website_id": "website-xiaohongshu"
+}

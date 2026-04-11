@@ -1,0 +1,81 @@
+{
+  "timestamp": "2026-04-11T04:04:10.098Z",
+  "json_file": "./clis/xiaohongshu/feed.json",
+  "command": "Feed",
+  "website": "www.xiaohongshu.com",
+  "params": {
+    "limit": 20
+  },
+  "success": false,
+  "data_count": 14,
+  "sample_data": [
+    {
+      "rank": 1,
+      "id": "69ca94ba000000001a02c25d",
+      "title": "是不是垃圾班级，你请个假就知道了",
+      "type": "",
+      "author": "吉吉老师",
+      "likes": "1051",
+      "url": "https://www.xiaohongshu.com/explore/69ca94ba000000001a02c25d"
+    },
+    {
+      "rank": 2,
+      "id": "69ce7ace0000000020038f45",
+      "title": "Komm, süßes Kreuz - Matthew Passion",
+      "type": "",
+      "author": "meesterdavidgitaar",
+      "likes": "945",
+      "url": "https://www.xiaohongshu.com/explore/69ce7ace0000000020038f45"
+    },
+    {
+      "rank": 3,
+      "id": "69ccf6eb000000001a02ad3b",
+      "title": "我们为何如此期待《塞尔达 时之笛》重制？",
+      "type": "",
+      "author": "Switch游戏官",
+      "likes": "322",
+      "url": "https://www.xiaohongshu.com/explore/69ccf6eb000000001a02ad3b"
+    },
+    {
+      "rank": 4,
+      "id": "69d7a4120000000023007810",
+      "title": "哆啦A梦:一罐能夸大别人坏习惯的喷雾，让雄",
+      "type": "",
+      "author": "蓝白动漫",
+      "likes": "3040",
+      "url": "https://www.xiaohongshu.com/explore/69d7a4120000000023007810"
+    },
+    {
+      "rank": 5,
+      "id": "69c92c26000000002301723c",
+      "title": "阿里什么时候上glm5.1版本",
+      "type": "",
+      "author": "顽强的豆芽",
+      "likes": "8",
+      "url": "https://www.xiaohongshu.com/explore/69c92c26000000002301723c"
+    }
+  ],
+  "comparison": {
+    "grease_count": 14,
+    "opencli_count": 20,
+    "match": false,
+    "differences": [
+      "Count mismatch: GreaseAI=14, OpenCLI=20",
+      "Item 1 \"id\": Grease=\"69ca94ba000000001a02c25d\" vs OpenCLI=\"69b61c94000000001b003c71\"",
+      "Item 1 \"title\": Grease=\"是不是垃圾班级，你请个假就知道了\" vs OpenCLI=\"看似只是合上电闸，其实是电力行业最紧张的一瞬间\"",
+      "Item 1 \"author\": Grease=\"吉吉老师\" vs OpenCLI=\"有搞头\"",
+      "Item 1 \"likes\": Grease=\"1051\" vs OpenCLI=\"241\"",
+      "Item 1 \"url\": Grease=\"https://www.xiaohongshu.com/explore/69ca94ba000000\" vs OpenCLI=\"https://www.xiaohongshu.com/explore/69b61c94000000\"",
+      "Item 2 \"id\": Grease=\"69ce7ace0000000020038f45\" vs OpenCLI=\"69d79f550000000023017c8a\"",
+      "Item 2 \"title\": Grease=\"Komm, süßes Kreuz - Matthew Passion\" vs OpenCLI=\"世界上第一台彩色电视如何工作的\"",
+      "Item 2 \"author\": Grease=\"meesterdavidgitaar\" vs OpenCLI=\"怪叔科普\"",
+      "Item 2 \"likes\": Grease=\"945\" vs OpenCLI=\"130\"",
+      "Item 2 \"url\": Grease=\"https://www.xiaohongshu.com/explore/69ce7ace000000\" vs OpenCLI=\"https://www.xiaohongshu.com/explore/69d79f55000000\"",
+      "Item 3 \"id\": Grease=\"69ccf6eb000000001a02ad3b\" vs OpenCLI=\"69d753e4000000001a0234f5\"",
+      "Item 3 \"title\": Grease=\"我们为何如此期待《塞尔达 时之笛》重制？\" vs OpenCLI=\"这四个月，你过得还好吗？我们不太好。\"",
+      "Item 3 \"author\": Grease=\"Switch游戏官\" vs OpenCLI=\"祝你生8个儿子呀。\"",
+      "Item 3 \"likes\": Grease=\"322\" vs OpenCLI=\"380\"",
+      "Item 3 \"url\": Grease=\"https://www.xiaohongshu.com/explore/69ccf6eb000000\" vs OpenCLI=\"https://www.xiaohongshu.com/explore/69d753e4000000\""
+    ]
+  }
+}

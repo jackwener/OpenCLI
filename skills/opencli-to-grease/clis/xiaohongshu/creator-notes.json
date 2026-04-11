@@ -1,0 +1,51 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://creator.xiaohongshu.com/statistics/data-analysis?type=0&page_size=20&page_num=1",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 20; const pageSize = Math.min(Math.max(limit, 10), 20); const formatPostTime = (ts) => { if (!ts) return ''; const CST_OFFSET_MS = 8 * 60 * 60 * 1000; const date = new Date(ts + CST_OFFSET_MS); const pad = (v) => String(v).padStart(2, '0'); return date.getUTCFullYear() + '年' + pad(date.getUTCMonth() + 1) + '月' + pad(date.getUTCDate()) + '日 ' + pad(date.getUTCHours()) + ':' + pad(date.getUTCMinutes()); }; const buildNoteDetailUrl = (noteId) => noteId ? 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=' + encodeURIComponent(noteId) : ''; try { const resp = await fetch('/api/galaxy/creator/datacenter/note/analyze/list?type=0&page_size=' + pageSize + '&page_num=1', { credentials: 'include' }); if (!resp.ok) return { error: 'HTTP ' + resp.status, fallback: true }; const data = await resp.json(); const items = data?.data?.note_infos ?? []; if (!items.length) return { error: 'No notes from API', fallback: true }; return { notes: items.map(item => ({ id: item.id ?? '', title: item.title ?? '', date: formatPostTime(item.post_time), views: item.read_count ?? 0, likes: item.like_count ?? 0, collects: item.fav_count ?? 0, comments: item.comment_count ?? 0, url: buildNoteDetailUrl(item.id) })) }; } catch (e) { return { error: e.message, fallback: true }; } }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 20; if (intermediate.error && intermediate.fallback) { const noteIdRe = /\"noteId\":\"([0-9a-f]{24})\"/; const domCards = Array.from(document.querySelectorAll('div.note[data-impression], div.note')).map(card => { const impression = card.getAttribute('data-impression') || ''; const id = impression.match(noteIdRe)?.[1] || ''; const title = (card.querySelector('.title, .raw')?.innerText || '').trim(); const dateText = (card.querySelector('.time_status, .time')?.innerText || '').trim(); const date = dateText.replace(/^发布于\\s*/, ''); const metrics = Array.from(card.querySelectorAll('.icon_list .icon')).map(el => parseInt((el.innerText || '').trim(), 10)).filter(v => Number.isFinite(v)); return { id, title, date, metrics }; }); const results = domCards.filter(c => c.title && c.date).map(c => ({ id: c.id, title: c.title, date: c.date, views: c.metrics[0] ?? 0, likes: c.metrics[2] ?? 0, collects: c.metrics[3] ?? 0, comments: c.metrics[1] ?? 0, url: c.id ? 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=' + c.id : '' })); return { notes: results.slice(0, limit) }; } return intermediate; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 20; const notes = intermediate.notes || []; if (!notes.length) return [{ rank: 0, id: '', title: 'No notes found', date: '', views: 0, likes: 0, collects: 0, comments: 0, url: '', error: 'Check login status' }]; return notes.slice(0, limit).map((n, i) => ({ rank: i + 1, id: n.id, title: n.title, date: n.date, views: n.views, likes: n.likes, collects: n.collects, comments: n.comments, url: n.url })); }"
+      }
+    }
+  ],
+  "api_endpoint": "xiaohongshu-creator-notes",
+  "category": "auth",
+  "description": "小红书创作者笔记列表 + 每篇数据 (标题/日期/观看/点赞/收藏/评论)",
+  "is_public": false,
+  "method": "GET",
+  "name": "CreatorNotes",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "id", "type": "string", "description": "笔记ID" },
+    { "name": "title", "type": "string", "description": "标题" },
+    { "name": "date", "type": "string", "description": "发布日期" },
+    { "name": "views", "type": "number", "description": "观看数" },
+    { "name": "likes", "type": "number", "description": "点赞数" },
+    { "name": "collects", "type": "number", "description": "收藏数" },
+    { "name": "comments", "type": "number", "description": "评论数" },
+    { "name": "url", "type": "string", "description": "详情链接" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of notes to return" }
+  ],
+  "website_domain": "creator.xiaohongshu.com",
+  "website_id": "website-creator.xiaohongshu.com"
+}
