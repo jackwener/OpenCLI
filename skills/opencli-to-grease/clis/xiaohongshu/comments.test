@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-04-11T08:53:09.867Z",
+  "timestamp": "2026-04-11T09:09:40.923Z",
   "json_file": "./clis/xiaohongshu/comments.json",
   "command": "Comments",
   "website": "www.xiaohongshu.com",
   "params": {
-    "note_id": "69aadbcb000000002202f131",
+    "note-id": "69aadbcb000000002202f131",
     "limit": 5,
-    "with_replies": false
+    "with-replies": false
   },
   "success": true,
   "data_count": 0,
