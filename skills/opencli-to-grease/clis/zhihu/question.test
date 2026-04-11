@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-04-11T09:36:40.121Z",
+  "json_file": "./clis/zhihu/question.json",
+  "command": "Question",
+  "website": "www.zhihu.com",
+  "params": {
+    "id": "620842299",
+    "limit": 3
+  },
+  "success": false,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "__httpError": 404
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli zhihu question \"620842299\" --limit 3 -f json\nok: false\nerror:\n  code: FETCH_ERROR\n  message: Zhihu question answers request failed (HTTP 404)\n  help: Try again later or rerun with -v for more detail\n  exitCode: 1\n"
+    ]
+  }
+}

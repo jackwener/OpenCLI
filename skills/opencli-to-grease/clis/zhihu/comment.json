@@ -1,0 +1,86 @@
+{
+  "actions": [
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const target = '{{ target }}'; let targetKind = 'answer'; let questionId = null; let answerId = null; let targetUrl = target; if (target.startsWith('answer:')) { const match = target.match(/answer:(\\d+):(\\d+)/); questionId = match ? match[1] : null; answerId = match ? match[2] : null; targetUrl = 'https://www.zhihu.com/question/' + questionId + '/answer/' + answerId; } else if (target.startsWith('article:')) { const match = target.match(/article:(\\d+)/); const articleId = match ? match[1] : null; targetUrl = 'https://zhuanlan.zhihu.com/p/' + articleId; targetKind = 'article'; } else if (target.includes('/question/') && target.includes('/answer/')) { const match = target.match(/\\/question\\/(\\d+)\\/answer\\/(\\d+)/); questionId = match ? match[1] : null; answerId = match ? match[2] : null; } else if (target.includes('zhuanlan.zhihu.com/p/')) { const match = target.match(/\\/p\\/(\\d+)/); const articleId = match ? match[1] : null; targetKind = 'article'; } return { targetUrl, targetKind, questionId, answerId }; }"
+      }
+    },
+    {
+      "action": "open",
+      "argument": {
+        "url": "${targetUrl}",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const target = '{{ target }}'; const text = '{{ text }}'; const targetKind = intermediate.targetKind; const questionId = intermediate.questionId; const answerId = intermediate.answerId; let scope = document; if (targetKind === 'answer') { const block = Array.from(document.querySelectorAll('article, .AnswerItem, [data-zop-question-answer]')).find((node) => { const dataAnswerId = node.getAttribute('data-answerid') || node.getAttribute('data-zop-question-answer') || ''; if (dataAnswerId && dataAnswerId.includes(answerId)) return true; return Array.from(node.querySelectorAll('a[href*=\"/answer/\"]')).some((link) => { const href = link.getAttribute('href') || ''; return href.includes('/question/' + questionId + '/answer/' + answerId); }); }); if (!block) return { status: 'error', outcome: 'not_found', message: 'Answer not found', target_type: targetKind, target }; scope = block; } else { scope = document.querySelector('article') || document.querySelector('.Post-Main') || document.querySelector('[itemprop=\"articleBody\"]') || document; } const topLevelCandidates = Array.from(scope.querySelectorAll('[contenteditable=\"true\"], textarea')).map((editor) => { const container = editor.closest('form, .CommentEditor, .CommentForm, .CommentsV2-footer, [data-comment-editor]') || editor.parentElement; const replyHint = editor.getAttribute('data-reply-to') || ''; const editorText = 'value' in editor ? editor.value || '' : (editor.textContent || ''); const nestedReply = Boolean(container?.closest('[data-comment-id], .CommentItem')); return { editor, container, replyHint, text: editorText, nestedReply }; }).filter((candidate) => candidate.container && !candidate.nestedReply); if (topLevelCandidates.length !== 1) return { status: 'error', outcome: 'unsafe', message: 'Comment composer not uniquely identified', target_type: targetKind, target }; const candidate = topLevelCandidates[0]; if (candidate.replyHint || candidate.text.trim()) return { status: 'error', outcome: 'unsafe', message: 'Comment composer not fresh and empty', target_type: targetKind, target }; const editor = candidate.editor; editor.focus(); if ('value' in editor) { editor.value = ''; editor.dispatchEvent(new Event('input', { bubbles: true })); editor.value = text; editor.dispatchEvent(new Event('input', { bubbles: true })); } else { editor.textContent = ''; document.execCommand('insertText', false, text); editor.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' })); } await new Promise((resolve) => setTimeout(resolve, 200)); const submitScope = candidate.container || scope; const submit = Array.from(submitScope.querySelectorAll('button')).find((node) => /发布|评论|发送/.test(node.textContent || '')); if (!submit) return { status: 'error', outcome: 'missing', message: 'Submit button not found', target_type: targetKind, target }; submit.click(); await new Promise((resolve) => setTimeout(resolve, 1200)); const createdLink = Array.from(scope.querySelectorAll('a[href*=\"/comment/\"]')).find((node) => { const href = node.getAttribute('href') || ''; return href.includes('/comment/'); }); if (createdLink) { return { status: 'success', outcome: 'created', message: 'Comment created', target_type: targetKind, target, created_url: new URL(createdLink.getAttribute('href') || '', location.origin).href }; } return { status: 'success', outcome: 'created', message: 'Comment created (fallback verification)', target_type: targetKind, target }; }"
+      }
+    }
+  ],
+  "api_endpoint": "zhihu-comment",
+  "category": "action",
+  "description": "Create a top-level comment on a Zhihu answer or article",
+  "is_public": false,
+  "method": "POST",
+  "name": "Comment",
+  "output_schema": [
+    {
+      "name": "status",
+      "type": "string",
+      "description": "操作状态"
+    },
+    {
+      "name": "outcome",
+      "type": "string",
+      "description": "操作结果"
+    },
+    {
+      "name": "message",
+      "type": "string",
+      "description": "消息"
+    },
+    {
+      "name": "target_type",
+      "type": "string",
+      "description": "目标类型"
+    },
+    {
+      "name": "target",
+      "type": "string",
+      "description": "目标"
+    },
+    {
+      "name": "created_url",
+      "type": "string",
+      "description": "创建的评论链接"
+    }
+  ],
+  "variables": [
+    {
+      "name": "target",
+      "type": "string",
+      "required": true,
+      "help": "Zhihu target URL or typed target (answer:123:456 or article:123)",
+      "test": "answer:1:2"
+    },
+    {
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "help": "Comment text",
+      "test": "hello"
+    },
+    {
+      "name": "execute",
+      "type": "boolean",
+      "default": false,
+      "help": "Actually perform the write action",
+      "test": false
+    }
+  ],
+  "website_domain": "zhihu.com",
+  "website_id": "website-zhihu.com"
+}

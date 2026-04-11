@@ -1,0 +1,63 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.zhihu.com/question/{{ id }}",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const questionId = '{{ id }}'; const limit = {{ limit }}; const strip = (html) => (html || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim(); const url = 'https://www.zhihu.com/api/v4/questions/' + questionId + '/answers?limit=' + limit + '&offset=0&sort_by=default&include=data[*].content,voteup_count,comment_count,author'; const res = await fetch(url, { credentials: 'include' }); if (!res.ok) return { __httpError: res.status }; const data = await res.json(); return (data?.data || []).map((item, i) => ({ rank: i + 1, author: item.author?.name || 'anonymous', votes: item.voteup_count || 0, content: strip(item.content || '').substring(0, 200) })); }"
+      }
+    }
+  ],
+  "api_endpoint": "zhihu-question",
+  "category": "content",
+  "description": "知乎问题详情和回答",
+  "is_public": false,
+  "method": "GET",
+  "name": "Question",
+  "output_schema": [
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "votes",
+      "type": "number",
+      "description": "赞同数"
+    },
+    {
+      "name": "content",
+      "type": "string",
+      "description": "回答内容摘要"
+    }
+  ],
+  "variables": [
+    {
+      "name": "id",
+      "type": "string",
+      "required": true,
+      "help": "Question ID (numeric)",
+      "test": "2021881398772981878"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 5,
+      "help": "Number of answers",
+      "test": 3
+    }
+  ],
+  "website_domain": "www.zhihu.com",
+  "website_id": "website-www.zhihu.com"
+}

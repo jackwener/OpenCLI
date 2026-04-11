@@ -1,0 +1,96 @@
+{
+  "actions": [
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const target = '{{ target }}'; let targetKind = 'answer'; let questionId = null; let answerId = null; let targetUrl = target; if (target.startsWith('answer:')) { const match = target.match(/answer:(\\d+):(\\d+)/); questionId = match ? match[1] : null; answerId = match ? match[2] : null; targetUrl = 'https://www.zhihu.com/question/' + questionId + '/answer/' + answerId; } else if (target.startsWith('article:')) { const match = target.match(/article:(\\d+)/); const articleId = match ? match[1] : null; targetUrl = 'https://zhuanlan.zhihu.com/p/' + articleId; targetKind = 'article'; } else if (target.includes('/question/') && target.includes('/answer/')) { const match = target.match(/\\/question\\/(\\d+)\\/answer\\/(\\d+)/); questionId = match ? match[1] : null; answerId = match ? match[2] : null; } else if (target.includes('zhuanlan.zhihu.com/p/')) { const match = target.match(/\\/p\\/(\\d+)/); const articleId = match ? match[1] : null; targetKind = 'article'; } return { targetUrl, targetKind, questionId, answerId }; }"
+      }
+    },
+    {
+      "action": "open",
+      "argument": {
+        "url": "${targetUrl}",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const target = '{{ target }}'; const collectionName = '{{ collection }}'; const collectionId = '{{ collection-id }}'; const targetKind = intermediate.targetKind; const questionId = intermediate.questionId; const answerId = intermediate.answerId; const normalizeCollectionName = (value) => String(value || '').replace(/\\s+/g, ' ').replace(/\\s+\\d+\\s*(条内容|个内容|items?)$/i, '').replace(/\\s+(公开|私密|默认)$/i, '').trim(); let scope = document; if (targetKind === 'answer') { const block = Array.from(document.querySelectorAll('article, .AnswerItem, [data-zop-question-answer]')).find((node) => { const dataAnswerId = node.getAttribute('data-answerid') || node.getAttribute('data-zop-question-answer') || ''; if (dataAnswerId && dataAnswerId.includes(answerId)) return true; return Array.from(node.querySelectorAll('a[href*=\"/answer/\"]')).some((link) => { const href = link.getAttribute('href') || ''; return href.includes('/question/' + questionId + '/answer/' + answerId); }); }); if (!block) return { status: 'error', outcome: 'not_found', message: 'Answer not found', target_type: targetKind, target }; scope = block; } else { scope = document.querySelector('article') || document.querySelector('.Post-Main') || document.querySelector('[itemprop=\"articleBody\"]') || document; } const favoriteButton = Array.from(scope.querySelectorAll('button')).find((node) => /收藏/.test(node.textContent || '')); if (!favoriteButton) return { status: 'error', outcome: 'missing', message: 'Favorite button not found', target_type: targetKind, target }; favoriteButton.click(); await new Promise((resolve) => setTimeout(resolve, 600)); const chooserRows = Array.from(document.querySelectorAll('[role=\"dialog\"] li, [role=\"dialog\"] [role=\"checkbox\"], [role=\"dialog\"] button')).map((node) => { const nodeText = (node.textContent || '').trim(); const nodeId = node.getAttribute('data-id') || node.getAttribute('data-collection-id') || ''; const selected = node.getAttribute('aria-checked') === 'true' || node.getAttribute('aria-pressed') === 'true' || /已选|已收藏/.test(nodeText); return nodeText ? { id: nodeId, name: nodeText, selected } : null; }).filter(Boolean); if (chooserRows.length === 0) return { status: 'error', outcome: 'missing', message: 'Favorite chooser did not open', target_type: targetKind, target }; const wantedId = collectionId || null; const wantedName = collectionName || null; const matchingRows = chooserRows.filter((row) => (wantedId ? row.id === wantedId : normalizeCollectionName(row.name) === normalizeCollectionName(wantedName || ''))); if (matchingRows.length !== 1) return { status: 'error', outcome: 'ambiguous', message: 'Collection not uniquely identified', target_type: targetKind, target }; const targetRow = matchingRows[0]; if (targetRow.selected) { const closeButton = Array.from(document.querySelectorAll('[role=\"dialog\"] button, [role=\"dialog\"] [role=\"button\"]')).find((node) => { const btnText = (node.textContent || '').trim(); const aria = node.getAttribute('aria-label') || ''; return /关闭|取消|收起/.test(btnText) || /关闭|cancel|close/i.test(aria); }); closeButton && closeButton.click(); return { status: 'success', outcome: 'already_applied', message: 'Already favorited', target_type: targetKind, target, collection_name: collectionName || targetRow.name, collection_id: targetRow.id }; } const row = Array.from(document.querySelectorAll('[role=\"dialog\"] li, [role=\"dialog\"] [role=\"checkbox\"], [role=\"dialog\"] button')).find((node) => { const nodeText = (node.textContent || '').trim(); const nodeId = node.getAttribute('data-id') || node.getAttribute('data-collection-id') || ''; return wantedId ? nodeId === wantedId : normalizeCollectionName(nodeText) === normalizeCollectionName(wantedName || ''); }); row && row.click(); await new Promise((resolve) => setTimeout(resolve, 300)); const submit = Array.from(document.querySelectorAll('[role=\"dialog\"] button')).find((node) => /完成|确定|保存/.test(node.textContent || '')); submit && submit.click(); await new Promise((resolve) => setTimeout(resolve, 500)); return { status: 'success', outcome: 'applied', message: 'Favorited ' + targetKind, target_type: targetKind, target, collection_name: collectionName || targetRow.name, collection_id: targetRow.id }; }"
+      }
+    }
+  ],
+  "api_endpoint": "zhihu-favorite",
+  "category": "action",
+  "description": "Favorite a Zhihu answer or article into a specific collection",
+  "is_public": false,
+  "method": "POST",
+  "name": "Favorite",
+  "output_schema": [
+    {
+      "name": "status",
+      "type": "string",
+      "description": "操作状态"
+    },
+    {
+      "name": "outcome",
+      "type": "string",
+      "description": "操作结果"
+    },
+    {
+      "name": "message",
+      "type": "string",
+      "description": "消息"
+    },
+    {
+      "name": "target_type",
+      "type": "string",
+      "description": "目标类型"
+    },
+    {
+      "name": "target",
+      "type": "string",
+      "description": "目标"
+    },
+    {
+      "name": "collection_name",
+      "type": "string",
+      "description": "收藏夹名称"
+    },
+    {
+      "name": "collection_id",
+      "type": "string",
+      "description": "收藏夹ID"
+    }
+  ],
+  "variables": [
+    {
+      "name": "target",
+      "type": "string",
+      "required": true,
+      "help": "Zhihu target URL or typed target (answer:123:456 or article:123)",
+      "test": "article:1"
+    },
+    {
+      "name": "collection",
+      "type": "string",
+      "help": "Collection name",
+      "test": "默认收藏夹"
+    },
+    {
+      "name": "collection-id",
+      "type": "string",
+      "help": "Stable collection id",
+      "test": "fav-b"
+    },
+    {
+      "name": "execute",
+      "type": "boolean",
+      "default": false,
+      "help": "Actually perform the write action",
+      "test": false
+    }
+  ],
+  "website_domain": "zhihu.com",
+  "website_id": "website-zhihu.com"
+}

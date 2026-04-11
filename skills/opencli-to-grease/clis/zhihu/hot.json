@@ -52,7 +52,8 @@
       "name": "limit",
       "type": "int",
       "default": 20,
-      "help": "Number of items to return"
+      "help": "Number of items to return",
+      "test": 5
     }
   ],
   "website_domain": "www.zhihu.com",

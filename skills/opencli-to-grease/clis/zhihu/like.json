@@ -1,0 +1,74 @@
+{
+  "actions": [
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const target = '{{ target }}'; let targetKind = 'answer'; let questionId = null; let answerId = null; let targetUrl = target; if (target.startsWith('answer:')) { const match = target.match(/answer:(\\d+):(\\d+)/); questionId = match ? match[1] : null; answerId = match ? match[2] : null; targetUrl = 'https://www.zhihu.com/question/' + questionId + '/answer/' + answerId; } else if (target.startsWith('article:')) { const match = target.match(/article:(\\d+)/); const articleId = match ? match[1] : null; targetUrl = 'https://zhuanlan.zhihu.com/p/' + articleId; targetKind = 'article'; } else if (target.includes('/question/') && target.includes('/answer/')) { const match = target.match(/\\/question\\/(\\d+)\\/answer\\/(\\d+)/); questionId = match ? match[1] : null; answerId = match ? match[2] : null; } else if (target.includes('zhuanlan.zhihu.com/p/')) { const match = target.match(/\\/p\\/(\\d+)/); const articleId = match ? match[1] : null; targetKind = 'article'; } return { targetUrl, targetKind, questionId, answerId }; }"
+      }
+    },
+    {
+      "action": "open",
+      "argument": {
+        "url": "${targetUrl}",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const target = '{{ target }}'; const targetKind = intermediate.targetKind; const questionId = intermediate.questionId; const answerId = intermediate.answerId; let btn = null; if (targetKind === 'answer') { const block = Array.from(document.querySelectorAll('article, .AnswerItem, [data-zop-question-answer]')).find((node) => { const dataAnswerId = node.getAttribute('data-answerid') || node.getAttribute('data-zop-question-answer') || ''; if (dataAnswerId && dataAnswerId.includes(answerId)) return true; return Array.from(node.querySelectorAll('a[href*=\"/answer/\"]')).some((link) => { const href = link.getAttribute('href') || ''; return href.includes('/question/' + questionId + '/answer/' + answerId); }); }); if (!block) return { status: 'error', outcome: 'not_found', message: 'Answer not found', target_type: targetKind, target }; const candidates = Array.from(block?.querySelectorAll('button') || []).filter((node) => { const text = (node.textContent || '').trim(); const inCommentItem = Boolean(node.closest('[data-comment-id], .CommentItem')); return /赞同|赞/.test(text) && node.hasAttribute('aria-pressed') && !inCommentItem; }); if (candidates.length !== 1) return { status: 'error', outcome: 'ambiguous', message: 'Like button not uniquely identified', target_type: targetKind, target }; btn = candidates[0]; } else { const articleRoot = document.querySelector('article') || document.querySelector('.Post-Main') || document.querySelector('[itemprop=\"articleBody\"]') || document; const candidates = Array.from(articleRoot.querySelectorAll('button')).filter((node) => { const text = (node.textContent || '').trim(); return /赞同|赞/.test(text) && node.hasAttribute('aria-pressed'); }); if (candidates.length !== 1) return { status: 'error', outcome: 'ambiguous', message: 'Like button not uniquely identified', target_type: targetKind, target }; btn = candidates[0]; } if (!btn) return { status: 'error', outcome: 'missing', message: 'Like button not found', target_type: targetKind, target }; if (btn.getAttribute('aria-pressed') === 'true') return { status: 'success', outcome: 'already_applied', message: 'Already liked ' + targetKind, target_type: targetKind, target }; btn.click(); await new Promise((resolve) => setTimeout(resolve, 1200)); if (btn.getAttribute('aria-pressed') === 'true') return { status: 'success', outcome: 'applied', message: 'Liked ' + targetKind, target_type: targetKind, target }; return { status: 'error', outcome: 'unknown', message: 'Like click dispatched but state not verified', target_type: targetKind, target }; }"
+      }
+    }
+  ],
+  "api_endpoint": "zhihu-like",
+  "category": "action",
+  "description": "Like a Zhihu answer or article",
+  "is_public": false,
+  "method": "POST",
+  "name": "Like",
+  "output_schema": [
+    {
+      "name": "status",
+      "type": "string",
+      "description": "操作状态"
+    },
+    {
+      "name": "outcome",
+      "type": "string",
+      "description": "操作结果"
+    },
+    {
+      "name": "message",
+      "type": "string",
+      "description": "消息"
+    },
+    {
+      "name": "target_type",
+      "type": "string",
+      "description": "目标类型"
+    },
+    {
+      "name": "target",
+      "type": "string",
+      "description": "目标"
+    }
+  ],
+  "variables": [
+    {
+      "name": "target",
+      "type": "string",
+      "required": true,
+      "help": "Zhihu target URL or typed target (answer:123:456 or article:123)",
+      "test": "article:9"
+    },
+    {
+      "name": "execute",
+      "type": "boolean",
+      "default": false,
+      "help": "Actually perform the write action",
+      "test": false
+    }
+  ],
+  "website_domain": "zhihu.com",
+  "website_id": "website-zhihu.com"
+}

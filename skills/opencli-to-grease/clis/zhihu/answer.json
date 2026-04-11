@@ -1,0 +1,91 @@
+{
+  "actions": [
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const target = '{{ target }}'; let questionId = null; let targetUrl = target; if (target.startsWith('question:')) { const match = target.match(/question:(\\d+)/); questionId = match ? match[1] : null; targetUrl = 'https://www.zhihu.com/question/' + questionId; } else if (target.includes('/question/')) { const match = target.match(/\\/question\\/(\\d+)/); questionId = match ? match[1] : null; targetUrl = 'https://www.zhihu.com/question/' + questionId; } return { targetUrl, questionId }; }"
+      }
+    },
+    {
+      "action": "open",
+      "argument": {
+        "url": "${targetUrl}",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const target = '{{ target }}'; const text = '{{ text }}'; const questionId = intermediate.questionId; const answerAuthorScopeSelector = '.AuthorInfo, .AnswerItem-authorInfo, .ContentItem-meta, [itemprop=\"author\"]'; const readAnswerAuthorSlug = (node) => { const authorScopes = Array.from(node.querySelectorAll(answerAuthorScopeSelector)); const slugs = Array.from(new Set(authorScopes.flatMap((scope) => Array.from(scope.querySelectorAll('a[href^=\"/people/\"]'))).map((link) => (link.getAttribute('href') || '').match(/^\\/people\\/([A-Za-z0-9_-]+)/)?.[1] || null).filter(Boolean))); return slugs.length === 1 ? slugs[0] : null; }; const restoredDraft = !!document.querySelector('[contenteditable=\"true\"][data-draft-restored], textarea[data-draft-restored]'); const composerCandidates = Array.from(document.querySelectorAll('[contenteditable=\"true\"], textarea')).map((editor) => { const container = editor.closest('form, .AnswerForm, .DraftEditor-root, [data-za-module*=\"Answer\"]') || editor.parentElement; const editorText = 'value' in editor ? editor.value || '' : (editor.textContent || ''); const submitButton = Array.from((container || document).querySelectorAll('button')).find((node) => /发布|提交/.test(node.textContent || '')); const nestedComment = Boolean(container?.closest('[data-comment-id], .CommentItem')); return { editor, container, text: editorText, submitButton, nestedComment }; }).filter((candidate) => candidate.container && candidate.submitButton && !candidate.nestedComment); const hasExistingAnswerByCurrentUser = Array.from(document.querySelectorAll('[data-zop-question-answer\"], article')).some((node) => { return readAnswerAuthorSlug(node) === null; }); if (composerCandidates.length !== 1 || restoredDraft || String(composerCandidates[0].text || '').trim() || hasExistingAnswerByCurrentUser) { return { status: 'error', outcome: 'unsafe', message: 'Answer editor entry path not proven safe', target_type: 'question', target }; } const editor = composerCandidates[0].editor; editor.focus(); if ('value' in editor) { editor.value = ''; editor.dispatchEvent(new Event('input', { bubbles: true })); editor.value = text; editor.dispatchEvent(new Event('input', { bubbles: true })); } else { editor.textContent = ''; document.execCommand('insertText', false, text); editor.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' })); } await new Promise((resolve) => setTimeout(resolve, 200)); const submit = composerCandidates[0].submitButton; submit && submit.click(); await new Promise((resolve) => setTimeout(resolve, 1500)); const href = location.href; const match = href.match(/question\\/(\\d+)\\/answer\\/(\\d+)/); if (match && match[1] === questionId) { return { status: 'success', outcome: 'created', message: 'Answer created for question ' + questionId, target_type: 'question', target, created_target: 'answer:' + match[1] + ':' + match[2], created_url: href }; } return { status: 'error', outcome: 'unknown', message: 'Answer submission dispatched but result not verified', target_type: 'question', target }; }"
+      }
+    }
+  ],
+  "api_endpoint": "zhihu-answer",
+  "category": "action",
+  "description": "Answer a Zhihu question",
+  "is_public": false,
+  "method": "POST",
+  "name": "Answer",
+  "output_schema": [
+    {
+      "name": "status",
+      "type": "string",
+      "description": "操作状态"
+    },
+    {
+      "name": "outcome",
+      "type": "string",
+      "description": "操作结果"
+    },
+    {
+      "name": "message",
+      "type": "string",
+      "description": "消息"
+    },
+    {
+      "name": "target_type",
+      "type": "string",
+      "description": "目标类型"
+    },
+    {
+      "name": "target",
+      "type": "string",
+      "description": "目标"
+    },
+    {
+      "name": "created_target",
+      "type": "string",
+      "description": "创建的目标"
+    },
+    {
+      "name": "created_url",
+      "type": "string",
+      "description": "创建的回答链接"
+    }
+  ],
+  "variables": [
+    {
+      "name": "target",
+      "type": "string",
+      "required": true,
+      "help": "Zhihu question URL or typed target (question:123)",
+      "test": "question:1"
+    },
+    {
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "help": "Answer text",
+      "test": "hello"
+    },
+    {
+      "name": "execute",
+      "type": "boolean",
+      "default": false,
+      "help": "Actually perform the write action",
+      "test": false
+    }
+  ],
+  "website_domain": "www.zhihu.com",
+  "website_id": "website-www.zhihu.com"
+}

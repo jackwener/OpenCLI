@@ -111,7 +111,7 @@ columns: ['rank', 'title', 'author', 'play', 'danmaku']
 
 ### variables 格式
 
-从 OpenCLI `args` 字段生成，包含 `help` 描述：
+从 OpenCLI `args` 字段生成，包含 `help` 描述和 `test` 测试值：
 
 ```typescript
 // OpenCLI
@@ -122,10 +122,33 @@ args: [
 
 // GreaseAI
 "variables": [
-  { "name": "limit", "type": "int", "default": 20, "help": "Number of videos" },
-  { "name": "keyword", "type": "string", "required": true, "help": "Search keyword" }
+  { "name": "limit", "type": "int", "default": 20, "help": "Number of videos", "test": 5 },
+  { "name": "keyword", "type": "string", "required": true, "help": "Search keyword", "test": "AI" }
 ]
 ```
+
+### test 字段说明
+
+每个 variable 应包含 `test` 字段，提供测试时使用的参数值：
+
+- **来源**: 从 OpenCLI 源文件的 `.test.ts` 测试文件中提取
+- **用途**: 用于自动化测试，无需手动指定参数
+- **示例**: 
+  - `clis/zhihu/question.test.ts` 使用 `{ id: '2021881398772981878', limit: 3 }`
+  - 则 `question.json` 的 variables 应添加 `"test": "2021881398772981878"` 和 `"test": 3`
+
+**测试命令会自动读取 test 字段**:
+```bash
+# 无需手动指定参数
+npm run test -- ./clis/zhihu/question.json
+
+# test.ts 会自动使用 variables 中的 test 值构建 params
+```
+
+**提取 test 值的方法**:
+1. 查找对应的 `.test.ts` 文件
+2. 找到测试用例中的参数值（如 `cmd!.func!(page, { id: 'xxx', limit: 3 })`)
+3. 将这些值作为 `test` 字段添加到 variables
 
 ---
 

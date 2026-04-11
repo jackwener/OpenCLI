@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-04-11T09:34:41.809Z",
+  "json_file": "./clis/zhihu/comment.json",
+  "command": "Comment",
+  "website": "zhihu.com",
+  "params": {
+    "execute": false
+  },
+  "success": false,
+  "data_count": 0,
+  "comparison": {
+    "grease_count": 0,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "GreaseAI returned no data"
+    ]
+  }
+}

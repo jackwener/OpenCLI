@@ -1,0 +1,74 @@
+{
+  "actions": [
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const target = '{{ target }}'; const targetKind = target.startsWith('question:') ? 'question' : target.startsWith('answer:') ? 'answer' : target.startsWith('user:') ? 'user' : target.includes('/question/') ? (target.includes('/answer/') ? 'answer' : 'question') : target.includes('/people/') ? 'user' : 'unknown'; let targetUrl = target; if (targetKind === 'question') { const match = target.match(/question:(\\d+)/) || target.match(/\\/question\\/(\\d+)/); const questionId = match ? match[1] : null; targetUrl = 'https://www.zhihu.com/question/' + questionId; } else if (targetKind === 'answer') { const match = target.match(/answer:(\\d+):(\\d+)/) || target.match(/\\/question\\/(\\d+)\\/answer\\/(\\d+)/); const questionId = match ? match[1] : null; const answerId = match ? match[2] : null; targetUrl = 'https://www.zhihu.com/question/' + questionId + '/answer/' + answerId; } else if (targetKind === 'user') { const match = target.match(/user:([A-Za-z0-9_-]+)/) || target.match(/\\/people\\/([A-Za-z0-9_-]+)/); const slug = match ? match[1] : null; targetUrl = 'https://www.zhihu.com/people/' + slug; } return { targetUrl, targetKind }; }"
+      }
+    },
+    {
+      "action": "open",
+      "argument": {
+        "url": "${targetUrl}",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const target = '{{ target }}'; const targetKind = intermediate.targetKind; const mainRoot = document.querySelector('main') || document; let followBtn = null; if (targetKind === 'question') { const questionRoots = Array.from(mainRoot.querySelectorAll('.QuestionHeader, .Question-main, [data-zop-question-id], [class*=\"QuestionHeader\"]')); const scopedRoots = questionRoots.length ? questionRoots : [mainRoot]; const candidates = Array.from(new Set(scopedRoots.flatMap((root) => Array.from(root.querySelectorAll('button, a'))))).filter((node) => { const text = (node.textContent || '').trim(); const inAside = Boolean(node.closest('aside, [data-testid*=\"recommend\"], .Recommendations')); const inAnswerBlock = Boolean(node.closest('article, .AnswerItem, [data-zop-question-answer]')); return /关注问题|已关注/.test(text) && !inAside && !inAnswerBlock; }); if (candidates.length !== 1) return { status: 'error', outcome: 'ambiguous', message: 'Question follow control was not uniquely anchored', target_type: targetKind, target }; followBtn = candidates[0]; } else { const candidates = Array.from(mainRoot.querySelectorAll('button, a')).filter((node) => { const text = (node.textContent || '').trim(); const inAside = Boolean(node.closest('aside, [data-testid*=\"recommend\"], .Recommendations')); return /关注|已关注/.test(text) && !/邀请|收藏|评论/.test(text) && !inAside; }); if (candidates.length !== 1) return { status: 'error', outcome: 'ambiguous', message: 'User follow control was not uniquely anchored', target_type: targetKind, target }; followBtn = candidates[0]; } if (!followBtn) return { status: 'error', outcome: 'missing', message: 'Follow button not found', target_type: targetKind, target }; const alreadyFollowing = (followBtn.textContent || '').includes('已关注') || followBtn.getAttribute('aria-pressed') === 'true'; if (alreadyFollowing) return { status: 'success', outcome: 'already_applied', message: 'Already following ' + targetKind, target_type: targetKind, target }; followBtn.click(); await new Promise((resolve) => setTimeout(resolve, 1000)); const nowFollowing = (followBtn.textContent || '').includes('已关注') || followBtn.getAttribute('aria-pressed') === 'true'; if (nowFollowing) return { status: 'success', outcome: 'applied', message: 'Followed ' + targetKind, target_type: targetKind, target }; return { status: 'error', outcome: 'unknown', message: 'Follow click dispatched but state not verified', target_type: targetKind, target }; }"
+      }
+    }
+  ],
+  "api_endpoint": "zhihu-follow",
+  "category": "action",
+  "description": "Follow a Zhihu user or question",
+  "is_public": false,
+  "method": "POST",
+  "name": "Follow",
+  "output_schema": [
+    {
+      "name": "status",
+      "type": "string",
+      "description": "操作状态"
+    },
+    {
+      "name": "outcome",
+      "type": "string",
+      "description": "操作结果"
+    },
+    {
+      "name": "message",
+      "type": "string",
+      "description": "消息"
+    },
+    {
+      "name": "target_type",
+      "type": "string",
+      "description": "目标类型"
+    },
+    {
+      "name": "target",
+      "type": "string",
+      "description": "目标"
+    }
+  ],
+  "variables": [
+    {
+      "name": "target",
+      "type": "string",
+      "required": true,
+      "help": "Zhihu target URL or typed target (e.g., question:123, answer:123:456, user:slug)",
+      "test": "question:123"
+    },
+    {
+      "name": "execute",
+      "type": "boolean",
+      "default": false,
+      "help": "Actually perform the write action",
+      "test": false
+    }
+  ],
+  "website_domain": "www.zhihu.com",
+  "website_id": "website-www.zhihu.com"
+}

@@ -1,63 +1,53 @@
 {
-  "timestamp": "2026-04-10T13:34:56.708Z",
+  "timestamp": "2026-04-11T09:34:51.123Z",
   "json_file": "./clis/zhihu/hot.json",
   "command": "Hot",
   "website": "www.zhihu.com",
   "params": {
-    "limit": 10
+    "limit": 5
   },
   "success": true,
-  "actions": [
-    {
-      "action": "open",
-      "status": "succeeded"
-    },
-    {
-      "action": "evaluate",
-      "status": "succeeded"
-    }
-  ],
-  "data_count": 10,
+  "data_count": 5,
   "sample_data": [
     {
       "rank": 1,
-      "title": "警方通报全红婵遭网暴案，群主徐某变换昵称多次发表侮辱言论，被行拘十日并处罚款，此事件有哪些警示意义？",
-      "heat": "459 万热度",
-      "answers": 218,
-      "url": "https://www.zhihu.com/question/2026016241375003473"
+      "title": "贵阳女孩玩「拼豆」在熨烫时触电离世，当好玩和要命只有一线之隔，谁该为网红玩具「带病」流行负责？",
+      "heat": "816 万热度",
+      "answers": 203,
+      "url": "https://www.zhihu.com/question/2025878815226754715"
     },
     {
       "rank": 2,
-      "title": "女儿动用「人脉」，用玩偶凑满一桌为爸爸庆生，爸爸笑称「高朋满座，胜友如云」，家长的捧场对孩子有多重要？",
-      "heat": "290 万热度",
-      "answers": 102,
-      "url": "https://www.zhihu.com/question/2025270618837333903"
+      "title": "20 块的古董「有线耳机」成最火时尚单品，销量暴涨 20%，它为什么能翻红？戳中年轻人哪些心理？",
+      "heat": "399 万热度",
+      "answers": 74,
+      "url": "https://www.zhihu.com/question/2022392046053331729"
     },
     {
       "rank": 3,
-      "title": "小米食堂发布「小米」冰激凌，有标准版、Pro 版、Max 版三种版本，怎样看待小米把产品思维刻进日常？",
-      "heat": "164 万热度",
-      "answers": 58,
-      "url": "https://www.zhihu.com/question/2025963750629423063"
+      "title": "全球有多少城市能撑起来14日游？",
+      "heat": "324 万热度",
+      "answers": 107,
+      "url": "https://www.zhihu.com/question/2022030259973882382"
     },
     {
       "rank": 4,
-      "title": "《王者荣耀世界》已正式公测，PC 端玩家体验怎么样？玩过的玩家如何评价这款游戏？",
-      "heat": "157 万热度",
-      "answers": 499,
-      "url": "https://www.zhihu.com/question/2025884903422654200"
+      "title": "国博首次完整展出李静训墓文物，为什么说一个 9 岁女孩的墓葬，能撑起一部隋代史？",
+      "heat": "270 万热度",
+      "answers": 26,
+      "url": "https://www.zhihu.com/question/2025597264505169632"
     },
     {
       "rank": 5,
-      "title": "如何评价 DiskGenius 这款软件？",
-      "heat": "151 万热度",
-      "answers": 213,
-      "url": "https://www.zhihu.com/question/47503655"
+      "title": "OpenAI 创始人奥尔特曼住所遭燃烧瓶袭击，具体是怎么回事？",
+      "heat": "191 万热度",
+      "answers": 27,
+      "url": "https://www.zhihu.com/question/2026136705757902456"
     }
   ],
   "comparison": {
-    "grease_count": 10,
-    "opencli_count": 10,
+    "grease_count": 5,
+    "opencli_count": 5,
     "match": true,
     "differences": []
   }
