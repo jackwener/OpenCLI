@@ -1,26 +1,57 @@
 {
-  "timestamp": "2026-04-11T04:05:55.878Z",
+  "timestamp": "2026-04-11T07:36:48.846Z",
   "json_file": "./clis/xiaohongshu/user.json",
   "command": "User",
   "website": "www.xiaohongshu.com",
   "params": {
-    "id": "5f0d8a120000000001001e47",
+    "id": "62675d910000000010009f5a",
     "limit": 5
   },
   "success": false,
-  "data_count": 1,
+  "data_count": 5,
   "sample_data": [
     {
-      "results": [],
-      "userId": "5f0d8a120000000001001e47"
+      "id": "692dad2e000000001e023d4b",
+      "title": "没人觉得九寨英迪格的甜糌粑巨好吃吗？",
+      "type": "normal",
+      "likes": "1",
+      "url": "https://www.xiaohongshu.com/user/profile/62675d910000000010009f5a/692dad2e000000001e023d4b?xsec_token=AB4ZyzF-eRzU3AyHNEUIt3j5qplkYDNNRGDFVKrf-7R7k%3D&xsec_source=pc_user"
+    },
+    {
+      "id": "692be4dd000000001e022c1d",
+      "title": "巴厘之旅",
+      "type": "normal",
+      "likes": "1",
+      "url": "https://www.xiaohongshu.com/user/profile/62675d910000000010009f5a/692be4dd000000001e022c1d?xsec_token=ABdmwI-2sfD7Kn922vHWiytrQEFSpgInqtObbd5VbzNc8%3D&xsec_source=pc_user"
+    },
+    {
+      "id": "68f26b080000000004014918",
+      "title": "成色好一点也才2700 用个三年没问题吧。最近几年这种旗舰机型CPU内存完全是过",
+      "type": "normal",
+      "likes": "1",
+      "url": "https://www.xiaohongshu.com/user/profile/62675d910000000010009f5a/68f26b080000000004014918?xsec_token=ABE2J9I4IwsuC6xzCb5qG_5c6Z49uqTRM0u8sly2djVzE%3D&xsec_source=pc_user"
+    },
+    {
+      "id": "68e917c20000000004023847",
+      "title": "康康我的小红书新头像 🗣",
+      "type": "normal",
+      "likes": "3",
+      "url": "https://www.xiaohongshu.com/user/profile/62675d910000000010009f5a/68e917c20000000004023847?xsec_token=ABZxfOafcAl7NQjmoRDwk3bB32YfjMhbinlj-xpwfOCdk%3D&xsec_source=pc_user"
+    },
+    {
+      "id": "68e917940000000005038f03",
+      "title": "坚持几周也会快速掉秤",
+      "type": "normal",
+      "likes": "6",
+      "url": "https://www.xiaohongshu.com/user/profile/62675d910000000010009f5a/68e917940000000005038f03?xsec_token=ABZxfOafcAl7NQjmoRDwk3bJfsEcMwNhCmMVGehLuJA4g%3D&xsec_source=pc_user"
     }
   ],
   "comparison": {
-    "grease_count": 1,
+    "grease_count": 5,
     "opencli_count": 0,
     "match": false,
     "differences": [
-      "OpenCLI failed: Command failed: opencli xiaohongshu user \"5f0d8a120000000001001e47\" --limit 5 -f json\nok: false\nerror:\n  code: UNKNOWN\n  message: No public notes found for this Xiaohongshu user.\n  exitCode: 1\n# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 for repair context\n# OPENCLI_DIAGNOSTIC=1 xiaohongshu/user\n"
+      "OpenCLI failed: Command failed: opencli xiaohongshu user \"62675d910000000010009f5a\" --limit 5 -f json\nok: false\nerror:\n  code: UNKNOWN\n  message: No public notes found for this Xiaohongshu user.\n  exitCode: 1\n# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 for repair context\n# OPENCLI_DIAGNOSTIC=1 xiaohongshu/user\n"
     ]
   }
 }
