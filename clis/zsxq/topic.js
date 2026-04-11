@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { browserJsonRequest, ensureZsxqAuth, ensureZsxqPage, fetchFirstJson, getCommentsFromResponse, getTopicFromResponse, getTopicUrl, summarizeComments, toTopicRow, } from './utils.js';
+import { getActiveGroupId, browserJsonRequest, ensureZsxqAuth, ensureZsxqPage, fetchFirstJson, getCommentsFromResponse, getTopicFromResponse, getTopicUrl, summarizeComments, toTopicRow, } from './utils.js';
 cli({
     site: 'zsxq',
     name: 'topic',
@@ -10,6 +10,7 @@ cli({
     browser: true,
     args: [
         { name: 'id', required: true, positional: true, help: 'Topic ID' },
+        { name: 'group_id', help: 'Group ID (optional; defaults to active group in Chrome)' },
         { name: 'comment_limit', type: 'int', default: 20, help: 'Number of comments to fetch' },
     ],
     columns: ['topic_id', 'type', 'author', 'title', 'comments', 'likes', 'comment_preview', 'url'],
@@ -17,8 +18,9 @@ cli({
         await ensureZsxqPage(page);
         await ensureZsxqAuth(page);
         const topicId = String(kwargs.id);
+        const groupId = String(kwargs.group_id || await getActiveGroupId(page));
         const commentLimit = Math.max(1, Number(kwargs.comment_limit) || 20);
-        const detailUrl = `https://api.zsxq.com/v2/topics/${topicId}`;
+        const detailUrl = `https://api.zsxq.com/v2/groups/${groupId}/topics/${topicId}`;
         const detailResp = await browserJsonRequest(page, detailUrl);
         if (detailResp.status === 404) {
             throw new CliError('NOT_FOUND', `Topic ${topicId} not found`);
@@ -27,7 +29,7 @@ cli({
             throw new CliError('FETCH_ERROR', detailResp.error || `Failed to fetch topic ${topicId}`, `Checked endpoint: ${detailUrl}`);
         }
         const commentsResp = await fetchFirstJson(page, [
-            `https://api.zsxq.com/v2/topics/${topicId}/comments?sort=asc&count=${commentLimit}`,
+            `https://api.zsxq.com/v2/groups/${groupId}/topics/${topicId}/comments?sort=asc&count=${commentLimit}`,
         ]);
         const topic = getTopicFromResponse(detailResp.data);
         if (!topic)
