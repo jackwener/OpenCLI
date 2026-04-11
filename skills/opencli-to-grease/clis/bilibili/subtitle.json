@@ -4,7 +4,7 @@
       "action": "open",
       "argument": {
         "url": "https://www.bilibili.com/video/{{ bvid }}/",
-        "waitUntil": "networkidle"
+        "waitUntil": "load"
       }
     },
     {
