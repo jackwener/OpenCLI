@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-04-11T01:25:21.179Z",
+  "json_file": "./clis/bilibili/user-videos.json",
+  "command": "UserVideos",
+  "website": "www.bilibili.com",
+  "params": {
+    "uid": "175432930",
+    "limit": 5,
+    "order": "pubdate",
+    "page": 1
+  },
+  "success": true,
+  "data_count": 0,
+  "sample_data": [],
+  "comparison": {
+    "grease_count": 0,
+    "opencli_count": 0,
+    "match": true,
+    "differences": []
+  }
+}

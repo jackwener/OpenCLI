@@ -1,57 +1,69 @@
 {
-  "timestamp": "2026-04-10T18:26:30.549Z",
+  "timestamp": "2026-04-11T01:24:13.472Z",
   "json_file": "./clis/bilibili/search.json",
   "command": "Search",
   "website": "www.bilibili.com",
   "params": {
-    "query": "AI",
+    "keyword": "test",
     "limit": 5,
     "type": "video",
     "page": 1
   },
-  "success": true,
+  "success": false,
   "data_count": 5,
   "sample_data": [
     {
       "rank": 1,
-      "title": "【AI教程】目前B站最全最细的AI大模型零基础全套教程，2026最新版，包含所有干货！七天就能从小白到大神！少走99%的弯路！存下吧！很难找全的！！",
-      "author": "大模型开发",
-      "score": 390247,
-      "url": "https://www.bilibili.com/video/BV1UQPZzqEN6"
+      "title": "【2020年9月合集 全107集】Excel Power Query 零基础入门到M函数  Excel PowerQuery教程",
+      "author": "孙兴华zz",
+      "score": 1283180,
+      "url": "https://www.bilibili.com/video/BV1oa4y1j75e"
     },
     {
       "rank": 2,
-      "title": "【整整600集】清华大学196小时讲完的AI人工智能从入门到精通全套教程，全程干货无废话！学完变大佬！这还学不会，我退出IT圈！机器学习-深度学习-opencv",
-      "author": "IT界扛霸子",
-      "score": 631519,
-      "url": "https://www.bilibili.com/video/BV1qZSLBYEpa"
+      "title": "30分钟入门Excel Power Query，最强数据处理/数据分析神器，Excel高阶应用，文员/行政/电商/数据分析/财会/金融/数据处理神器",
+      "author": "之了学吧",
+      "score": 44781,
+      "url": "https://www.bilibili.com/video/BV11NetzpE3h"
     },
     {
       "rank": 3,
-      "title": "【熠辉】面向新手的Vibe Coding实战课",
-      "author": "熠辉IndieDev",
-      "score": 49278,
+      "title": "Power Query-M语言进阶应用-朱仕平",
+      "author": "朱仕平Excel学习视频",
+      "score": 1674,
       "url": ""
     },
     {
       "rank": 4,
-      "title": "【全748集】这绝对是2026讲的最好的AI智能应用零基础入门教程，七天就能从小白到大神！全程干货无废话！让你少走 99% 的弯路！AI应用|LLM|AI教程",
-      "author": "AI智能应用-",
-      "score": 8566,
-      "url": "https://www.bilibili.com/video/BV1DRDeB3E2e"
+      "title": "【Excel技巧】Excel Power Query教程_数据整理｜数据分析｜表连接与数据透视图",
+      "author": "三味书院",
+      "score": 75019,
+      "url": "https://www.bilibili.com/video/BV1wS411w7Wz"
     },
     {
       "rank": 5,
-      "title": "菩提临世真人AI版（1-60集全集完整版）一口气看到爽",
-      "author": "欣欣放映官",
-      "score": 122685,
-      "url": "https://www.bilibili.com/video/BV1zm97BQEfH"
+      "title": "SSRS Report 第八讲 from Cube MDX query",
+      "author": "翔哥开播啦",
+      "score": 1331,
+      "url": "https://www.bilibili.com/video/BV1HE411j7LJ"
     }
   ],
   "comparison": {
     "grease_count": 5,
     "opencli_count": 5,
-    "match": true,
-    "differences": []
+    "match": false,
+    "differences": [
+      "Item 1 \"title\": Grease=\"【2020年9月合集 全107集】Excel Power Query 零基础入门到M函数  Exce\" vs OpenCLI=\"不要进入这个实验室！看到不对劲请立即回头！我的世界恐怖地图《Test Subject || 恐怖实验\"",
+      "Item 1 \"author\": Grease=\"孙兴华zz\" vs OpenCLI=\"轻秋秋秋秋秋秋\"",
+      "Item 1 \"score\": Grease=\"1283180\" vs OpenCLI=\"292936\"",
+      "Item 1 \"url\": Grease=\"https://www.bilibili.com/video/BV1oa4y1j75e\" vs OpenCLI=\"https://www.bilibili.com/video/BV1wFYfzPEVN\"",
+      "Item 2 \"title\": Grease=\"30分钟入门Excel Power Query，最强数据处理/数据分析神器，Excel高阶应用，文员\" vs OpenCLI=\"🤣又挖到一张究极血腥的MC恐怖地图！我的世界《Test Subject》恐怖地图实况解说！快来感受\"",
+      "Item 2 \"author\": Grease=\"之了学吧\" vs OpenCLI=\"宇靈_NIGHT_\"",
+      "Item 2 \"score\": Grease=\"44781\" vs OpenCLI=\"74535\"",
+      "Item 2 \"url\": Grease=\"https://www.bilibili.com/video/BV11NetzpE3h\" vs OpenCLI=\"https://www.bilibili.com/video/BV1uN411s7Kb\"",
+      "Item 3 \"title\": Grease=\"Power Query-M语言进阶应用-朱仕平\" vs OpenCLI=\"阿Test：百万up主的涨粉秘诀\"",
+      "Item 3 \"author\": Grease=\"朱仕平Excel学习视频\" vs OpenCLI=\"阿Test正经比比\"",
+      "Item 3 \"score\": Grease=\"1674\" vs OpenCLI=\"1438918\""
+    ]
   }
 }

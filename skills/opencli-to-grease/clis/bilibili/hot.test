@@ -1,48 +1,48 @@
 {
-  "timestamp": "2026-04-10T18:31:44.002Z",
+  "timestamp": "2026-04-11T01:23:59.157Z",
   "json_file": "./clis/bilibili/hot.json",
   "command": "Hot",
   "website": "www.bilibili.com",
   "params": {
-    "limit": 5
+    "limit": 20
   },
   "success": true,
-  "data_count": 5,
+  "data_count": 20,
   "sample_data": [
     {
       "title": "“至此，已成仙品！！！”",
       "author": "wrizedm",
-      "play": 3892599,
-      "danmaku": 900
+      "play": 3998295,
+      "danmaku": 923
     },
     {
-      "title": "《体检是你的谎言》",
-      "author": "郑凯伦伦伦",
-      "play": 5896254,
-      "danmaku": 2155
-    },
-    {
-      "title": "剥蒜的情谊128.0",
-      "author": "NinthA-",
-      "play": 717421,
-      "danmaku": 320
+      "title": "从没有如此讨厌过方块",
+      "author": "纪夫Junly",
+      "play": 119639,
+      "danmaku": 673
     },
     {
       "title": "我炸人",
       "author": "-雪忆-",
-      "play": 181563,
-      "danmaku": 221
+      "play": 245325,
+      "danmaku": 237
     },
     {
-      "title": "我嫁给你是来享福的，不是来吃苦的！别再被这句话洗脑了！",
-      "author": "晓艳教英语",
-      "play": 3619882,
-      "danmaku": 4632
+      "title": "五年了，他还是坐上了这个位置…",
+      "author": "小潮院长",
+      "play": 2243838,
+      "danmaku": 20901
+    },
+    {
+      "title": "用船制作的跑酷？",
+      "author": "求要饭的酒芳NINE",
+      "play": 2049320,
+      "danmaku": 2912
     }
   ],
   "comparison": {
-    "grease_count": 5,
-    "opencli_count": 5,
+    "grease_count": 20,
+    "opencli_count": 20,
     "match": true,
     "differences": []
   }

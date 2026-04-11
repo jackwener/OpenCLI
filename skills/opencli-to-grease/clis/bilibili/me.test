@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-04-11T01:29:10.266Z",
+  "json_file": "./clis/bilibili/me.json",
+  "command": "Me",
+  "website": "www.bilibili.com",
+  "params": {},
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "name": "baoge_pmb",
+      "uid": 175432930,
+      "level": 4,
+      "coins": 1415,
+      "followers": 0,
+      "following": 0
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 1,
+    "match": true,
+    "differences": []
+  }
+}

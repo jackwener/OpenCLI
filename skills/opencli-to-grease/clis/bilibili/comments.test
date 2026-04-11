@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-04-11T01:24:28.307Z",
+  "json_file": "./clis/bilibili/comments.json",
+  "command": "Comments",
+  "website": "www.bilibili.com",
+  "params": {
+    "bvid": "BV1WtAGzYEBm",
+    "limit": 5
+  },
+  "success": true,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "author": "爱AI的小智",
+      "text": "就凭经常要充电就感觉麻烦的很",
+      "likes": 1,
+      "replies": 1,
+      "time": "2026-04-08 12:58"
+    },
+    {
+      "rank": 2,
+      "author": "lakon42",
+      "text": "针对不推荐范围这个问题，我反而建议所有带眼镜人士，注意，是需要日常佩戴眼镜人士，不要买带光栅或者说光波导眼睛，因佩戴时间比其他人群更长，有几率影响视力，有论文数据，非要买的话，建议买g1那款",
+      "likes": 4,
+      "replies": 1,
+      "time": "2026-03-29 14:51"
+    },
+    {
+      "rank": 3,
+      "author": "C绿L茶H",
+      "text": "其实这几年我是有点想买的[笑哭]成功劝退我。因为也不是很急的东西，还是等多几年看看。",
+      "likes": 2,
+      "replies": 1,
+      "time": "2026-03-24 14:18"
+    },
+    {
+      "rank": 4,
+      "author": "從你视界路过",
+      "text": "程序推荐吗？会不会没有很强的上下文能力？或者记忆力。[笑哭]",
+      "likes": 0,
+      "replies": 1,
+      "time": "2026-04-01 14:08"
+    },
+    {
+      "rank": 5,
+      "author": "mini-Nity",
+      "text": "当时租赁试了2天夸克S1眼睛，它最惊艳的是听音乐，音质还可以而且其他人听不到声音，我觉得它依据这个技术单独出一个耳机真的会火。其他的就是第一视角拍摄，对画质没什么要求的可以入手。其他的没什么了，就试了差不多3个小时就放回盒子里再没拿出来，使用场景太少了。",
+      "likes": 7,
+      "replies": 5,
+      "time": "2026-03-24 08:53"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

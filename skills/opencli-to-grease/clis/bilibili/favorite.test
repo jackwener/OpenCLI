@@ -1,0 +1,55 @@
+{
+  "timestamp": "2026-04-11T01:25:10.407Z",
+  "json_file": "./clis/bilibili/favorite.json",
+  "command": "Favorite",
+  "website": "www.bilibili.com",
+  "params": {
+    "limit": 5,
+    "page": 1
+  },
+  "success": true,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "已失效视频",
+      "author": "科技老涛",
+      "plays": 395760,
+      "url": "https://www.bilibili.com/video/BV1rX4y167Xf"
+    },
+    {
+      "rank": 2,
+      "title": "塞尔达大师模式三颗心拔大师剑后 再用30分钟去剑之试炼开光大师之剑",
+      "author": "刺猬索尼子",
+      "plays": 9794,
+      "url": "https://www.bilibili.com/video/BV1ow411a7zt"
+    },
+    {
+      "rank": 3,
+      "title": "寒风呼呼的地吹，野蔷薇村下雪了！",
+      "author": "ptfeel",
+      "plays": 280,
+      "url": "https://www.bilibili.com/video/BV1KM4y1Q7sG"
+    },
+    {
+      "rank": 4,
+      "title": "野蔷薇村的故事-野餐原速",
+      "author": "ptfeel",
+      "plays": 506,
+      "url": "https://www.bilibili.com/video/BV1cM411e7M1"
+    },
+    {
+      "rank": 5,
+      "title": "秋天是个收获们季节",
+      "author": "ptfeel",
+      "plays": 87,
+      "url": "https://www.bilibili.com/video/BV1te4y1w7EW"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

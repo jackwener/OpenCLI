@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-04-11T01:26:16.180Z",
+  "json_file": "./clis/bilibili/subtitle.json",
+  "command": "Subtitle",
+  "website": "www.bilibili.com",
+  "params": {
+    "bvid": "BV1GJ411x7h7",
+    "lang": ""
+  },
+  "success": true,
+  "data_count": 47,
+  "sample_data": [
+    {
+      "index": 1,
+      "from": "0.12s",
+      "to": "5.12s",
+      "content": "永不放弃你——瑞克·艾斯里"
+    },
+    {
+      "index": 2,
+      "from": "18.55s",
+      "to": "22.27s",
+      "content": "我们对爱情并不陌生"
+    },
+    {
+      "index": 3,
+      "from": "22.85s",
+      "to": "25.78s",
+      "content": "你知道规则我也一样"
+    },
+    {
+      "index": 4,
+      "from": "26.90s",
+      "to": "30.88s",
+      "content": "我想要一份实打实的承诺"
+    },
+    {
+      "index": 5,
+      "from": "31.16s",
+      "to": "34.95s",
+      "content": "你再不会从其他男人那得到它"
+    }
+  ],
+  "comparison": {
+    "grease_count": 47,
+    "opencli_count": 47,
+    "match": true,
+    "differences": []
+  }
+}
