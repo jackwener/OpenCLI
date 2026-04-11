@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-04-11T04:03:52.697Z",
+  "timestamp": "2026-04-11T04:16:49.291Z",
   "json_file": "./clis/xiaohongshu/creator-note-detail.json",
   "command": "CreatorNoteDetail",
   "website": "creator.xiaohongshu.com",
   "params": {
-    "note_id": "683a9b1c000000000e03123a"
+    "note-id": "683a9b1c000000000e03123a"
   },
   "success": false,
   "data_count": 1,
@@ -21,7 +21,7 @@
     "opencli_count": 0,
     "match": false,
     "differences": [
-      "OpenCLI failed: Command failed: opencli creator.xiaohongshu creator-note-detail \"683a9b1c000000000e03123a\"  -f json\nerror: unknown command 'creator.xiaohongshu'\n"
+      "OpenCLI failed: Command failed: opencli xiaohongshu creator-note-detail \"683a9b1c000000000e03123a\"  -f json\nok: false\nerror:\n  code: UNKNOWN\n  message: No note detail data found. Check note_id and login status for creator.xiaohongshu.com.\n  exitCode: 1\n# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 for repair context\n# OPENCLI_DIAGNOSTIC=1 xiaohongshu/creator-note-detail\n"
     ]
   }
 }

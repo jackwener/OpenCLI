@@ -20,7 +20,7 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const limit = intermediate.limit || 20; const notifications = intermediate.notifications || []; if (!notifications.length || (notifications.length === 1 && !notifications[0].user && !notifications[0].action)) return [{ rank: 0, user: '', action: '', content: 'No notifications found', note: '', time: '' }]; return notifications.slice(0, limit).map((n, i) => ({ rank: i + 1, ...n })); }"
+        "script": "async (intermediate) => { const limit = intermediate.limit || 20; const notifications = intermediate.notifications || []; if (!notifications.length) return []; return notifications.slice(0, limit).map((n, i) => ({ rank: i + 1, ...n })); }"
       }
     }
   ],

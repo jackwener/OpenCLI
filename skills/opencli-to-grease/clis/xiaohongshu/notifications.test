@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-11T02:59:57.960Z",
+  "timestamp": "2026-04-11T04:17:06.915Z",
   "json_file": "./clis/xiaohongshu/notifications.json",
   "command": "Notifications",
   "website": "www.xiaohongshu.com",
@@ -8,23 +8,14 @@
     "type": "mentions"
   },
   "success": false,
-  "data_count": 1,
-  "sample_data": [
-    {
-      "rank": 0,
-      "user": "",
-      "action": "",
-      "content": "No notifications found",
-      "note": "",
-      "time": ""
-    }
-  ],
+  "data_count": 0,
+  "sample_data": [],
   "comparison": {
-    "grease_count": 1,
+    "grease_count": 0,
     "opencli_count": 1,
     "match": false,
     "differences": [
-      "Item 1 \"rank\": Grease=\"0\" vs OpenCLI=\"1\""
+      "Count mismatch: GreaseAI=0, OpenCLI=1"
     ]
   }
 }

@@ -3,14 +3,14 @@
     {
       "action": "open",
       "argument": {
-        "url": "https://creator.xiaohongshu.com/statistics/note-detail?noteId={{ note_id }}",
+        "url": "https://creator.xiaohongshu.com/statistics/note-detail?noteId={{ note-id }}",
         "waitUntil": "load"
       }
     },
     {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const noteId = \"{{ note_id }}\"; const norm = (v) => (v || '').trim(); const domData = (() => { const sections = Array.from(document.querySelectorAll('.shell-container')).map(container => { const containerText = norm(container.innerText); const title = containerText.startsWith('互动数据') ? '互动数据' : containerText.includes('基础数据') ? '基础数据' : ''; const metrics = Array.from(container.querySelectorAll('.block-container.block')).map(block => ({ label: norm(block.querySelector('.des')?.innerText), value: norm(block.querySelector('.content')?.innerText), extra: norm(block.querySelector('.text-with-fans')?.innerText) })).filter(m => m.label && m.value); return { title, metrics }; }).filter(s => s.title && s.metrics.length > 0); return { title: norm(document.querySelector('.note-title')?.innerText), infoText: norm(document.querySelector('.note-info-content')?.innerText), sections }; })(); const rows = [{ section: '笔记信息', metric: 'note_id', value: noteId, extra: '' }, { section: '笔记信息', metric: 'title', value: domData.title, extra: '' }, { section: '笔记信息', metric: 'published_at', value: domData.infoText.match(/\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}\\b/)?.[0] ?? '', extra: '' }]; const validSections = new Set(['基础数据', '互动数据']); const validMetrics = new Set(['曝光数', '观看数', '封面点击率', '平均观看时长', '涨粉数', '点赞数', '评论数', '收藏数', '分享数']); for (const section of domData.sections) { if (!validSections.has(section.title)) continue; for (const metric of section.metrics) { if (!validMetrics.has(metric.label)) continue; rows.push({ section: section.title, metric: metric.label, value: metric.value, extra: metric.extra }); } } return { rows, noteId }; }"
+        "script": "async (intermediate) => { const noteId = \"{{ note-id }}\"; const norm = (v) => (v || '').trim(); const domData = (() => { const sections = Array.from(document.querySelectorAll('.shell-container')).map(container => { const containerText = norm(container.innerText); const title = containerText.startsWith('互动数据') ? '互动数据' : containerText.includes('基础数据') ? '基础数据' : ''; const metrics = Array.from(container.querySelectorAll('.block-container.block')).map(block => ({ label: norm(block.querySelector('.des')?.innerText), value: norm(block.querySelector('.content')?.innerText), extra: norm(block.querySelector('.text-with-fans')?.innerText) })).filter(m => m.label && m.value); return { title, metrics }; }).filter(s => s.title && s.metrics.length > 0); return { title: norm(document.querySelector('.note-title')?.innerText), infoText: norm(document.querySelector('.note-info-content')?.innerText), sections }; })(); const rows = [{ section: '笔记信息', metric: 'note_id', value: noteId, extra: '' }, { section: '笔记信息', metric: 'title', value: domData.title, extra: '' }, { section: '笔记信息', metric: 'published_at', value: domData.infoText.match(/\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}\\b/)?.[0] ?? '', extra: '' }]; const validSections = new Set(['基础数据', '互动数据']); const validMetrics = new Set(['曝光数', '观看数', '封面点击率', '平均观看时长', '涨粉数', '点赞数', '评论数', '收藏数', '分享数']); for (const section of domData.sections) { if (!validSections.has(section.title)) continue; for (const metric of section.metrics) { if (!validMetrics.has(metric.label)) continue; rows.push({ section: section.title, metric: metric.label, value: metric.value, extra: metric.extra }); } } return { rows, noteId }; }"
       }
     },
     {
@@ -39,7 +39,7 @@
     { "name": "extra", "type": "string", "description": "附加信息" }
   ],
   "variables": [
-    { "name": "note_id", "type": "string", "required": true, "help": "Note ID (from creator-notes or note-detail page URL)" }
+    { "name": "note-id", "type": "string", "required": true, "help": "Note ID (from creator-notes or note-detail page URL)" }
   ],
   "website_domain": "creator.xiaohongshu.com",
   "website_id": "website-creator.xiaohongshu.com"

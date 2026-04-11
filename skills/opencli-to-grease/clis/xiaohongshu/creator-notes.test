@@ -1,11 +1,10 @@
 {
-  "timestamp": "2026-04-11T04:04:48.200Z",
+  "timestamp": "2026-04-11T04:17:23.931Z",
   "json_file": "./clis/xiaohongshu/creator-notes.json",
   "command": "CreatorNotes",
   "website": "creator.xiaohongshu.com",
   "params": {
-    "user_id": "5f0d8a120000000001001e47",
-    "limit": 5
+    "limit": 3
   },
   "success": false,
   "data_count": 1,
@@ -25,10 +24,15 @@
   ],
   "comparison": {
     "grease_count": 1,
-    "opencli_count": 0,
+    "opencli_count": 3,
     "match": false,
     "differences": [
-      "OpenCLI failed: Command failed: opencli xiaohongshu creator-notes  --user-id \"5f0d8a120000000001001e47\" --limit 5 -f json\nerror: unknown option '--user-id'\n"
+      "Count mismatch: GreaseAI=1, OpenCLI=3",
+      "Item 1 \"rank\": Grease=\"0\" vs OpenCLI=\"1\"",
+      "Item 1 \"title\": Grease=\"No notes found\" vs OpenCLI=\"没人觉得九寨英迪格的甜糌粑巨好吃吗？\"",
+      "Item 1 \"views\": Grease=\"0\" vs OpenCLI=\"146\"",
+      "Item 1 \"likes\": Grease=\"0\" vs OpenCLI=\"1\"",
+      "Item 1 \"collects\": Grease=\"0\" vs OpenCLI=\"1\""
     ]
   }
 }
