@@ -128,7 +128,24 @@ export function fetchAdapters() {
     }
   }
 
-  // 3. Clean up legacy compat shim files from ~/.opencli/
+  // 3. Clean up stale .ts adapter files left by older versions (pre-1.7.1)
+  // Older versions shipped adapters as .ts; current versions use .js only.
+  let tsCleaned = 0;
+  for (const relPath of walkFiles(USER_CLIS_DIR)) {
+    if (relPath.endsWith('.ts') && !relPath.endsWith('.d.ts')) {
+      const jsCounterpart = relPath.replace(/\.ts$/, '.js');
+      if (newOfficialFiles.has(jsCounterpart)) {
+        try {
+          unlinkSync(join(USER_CLIS_DIR, relPath));
+          pruneEmptyDirs(join(USER_CLIS_DIR, relPath), USER_CLIS_DIR);
+          tsCleaned++;
+        } catch { /* ignore */ }
+      }
+    }
+  }
+  if (tsCleaned > 0) log(`Cleaned up ${tsCleaned} stale .ts adapter files`);
+
+  // 4. Clean up legacy compat shim files from ~/.opencli/
   // These were created by an older approach that placed re-export shims directly
   // in ~/.opencli/ (e.g., registry.js, errors.js, browser/). The current approach
   // uses a node_modules/@jackwener/opencli symlink instead.
@@ -172,7 +189,7 @@ export function fetchAdapters() {
     } catch { /* doesn't exist or not a directory */ }
   }
 
-  // 4. Clean up stale .plugins.lock.json.tmp-* files
+  // 5. Clean up stale .plugins.lock.json.tmp-* files
   let tmpCleaned = 0;
   try {
     for (const entry of readdirSync(OPENCLI_DIR)) {
@@ -189,7 +206,7 @@ export function fetchAdapters() {
     log(`Cleaned up${legacyCleaned > 0 ? ` ${legacyCleaned} legacy shim files` : ''}${tmpCleaned > 0 ? `${legacyCleaned > 0 ? ',' : ''} ${tmpCleaned} stale tmp files` : ''}`);
   }
 
-  // 5. Write updated manifest
+  // 6. Write updated manifest
   writeFileSync(MANIFEST_PATH, JSON.stringify({
     version: currentVersion,
     files: [...newOfficialFiles].sort(),
