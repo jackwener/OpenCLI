@@ -61,7 +61,7 @@ jobs:
         run: npm ci
 
       - name: Run unit tests (Node ${{ matrix.node-version }}, shard ${{ matrix.shard }}/2)
-        run: npm test -- --reporter=verbose --shard=${{ matrix.shard }}/2
+        run: npx vitest run --project unit --project extension --reporter=verbose --shard=${{ matrix.shard }}/2
 
   # ── Bun compatibility check ──
   bun-test:

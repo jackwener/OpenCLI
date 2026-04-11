@@ -18,7 +18,6 @@ npm run build
 # 4. Run a few checks
 npx tsc --noEmit
 npm test
-npm run test:adapter
 
 # 5. Link globally (optional, for testing `opencli` command)
 npm link
@@ -102,8 +101,8 @@ chore: bump vitest to v4
 3. Run the checks:
    ```bash
    npx tsc --noEmit           # Type check
-   npm test                   # Core unit tests
-   npm run test:adapter       # Focused adapter tests (if adapter logic changed)
+   npm test                   # Default local gate: unit + extension + adapter
+   npm run test:adapter       # Adapter-only project (optional while iterating on adapters)
    ```
 4. Commit using conventional commit format
 5. Push and open a PR
