@@ -168,7 +168,7 @@ export function getTopicFromResponse(payload) {
     const data = unwrapRespData(payload);
     if (Array.isArray(data))
         return data[0] ?? null;
-    if (typeof data.topic_id === 'number')
+    if (typeof data.topic_id === 'number' || typeof data.topic_id === 'string')
         return data;
     const record = asRecord(data);
     if (!record)
