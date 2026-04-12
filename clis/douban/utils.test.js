@@ -1,5 +1,64 @@
+import vm from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
-import { getDoubanPhotoExtension, loadDoubanSubjectPhotos, normalizeDoubanSubjectId, promoteDoubanPhotoUrl, resolveDoubanPhotoAssetUrl, } from './utils.js';
+import { getDoubanPhotoExtension, inferDoubanSearchResultType, loadDoubanSubjectPhotos, normalizeDoubanSubjectId, promoteDoubanPhotoUrl, resolveDoubanPhotoAssetUrl, searchDouban, } from './utils.js';
+
+function createFakeNode(text = '', attrs = {}) {
+    return {
+        textContent: text,
+        getAttribute(name) {
+            return attrs[name] || '';
+        },
+    };
+}
+function createFakeSearchItem({ title, url, rating, abstract, cover }) {
+    return {
+        querySelector(selector) {
+            if (selector === '.title-text, .title a, a[title]') {
+                return createFakeNode(title, { href: url, title });
+            }
+            if (selector === '.rating_nums') {
+                return createFakeNode(rating);
+            }
+            if (selector === '.meta.abstract, .meta, .abstract, p') {
+                return createFakeNode(abstract);
+            }
+            if (selector === 'img') {
+                return createFakeNode('', { src: cover });
+            }
+            return null;
+        },
+    };
+}
+async function runSearchEvaluate(script, rawItems, domItems) {
+    const document = {
+        querySelector(selector) {
+            if (selector === '.item-root .title-text, .item-root .title a') {
+                return domItems[0]?.querySelector('.title-text, .title a, a[title]') || null;
+            }
+            return null;
+        },
+        querySelectorAll(selector) {
+            if (selector === '.item-root') {
+                return domItems;
+            }
+            return [];
+        },
+    };
+    return vm.runInNewContext(script, {
+        Map,
+        Promise,
+        document,
+        window: { __DATA__: { items: rawItems } },
+        location: {
+            href: 'https://search.douban.com/movie/subject_search?search_text=%E5%B0%84%E9%9B%95%E8%8B%B1%E9%9B%84%E4%BC%A0',
+            origin: 'https://search.douban.com',
+        },
+        setTimeout(fn) {
+            fn();
+            return 0;
+        },
+    });
+}
 describe('douban utils', () => {
     it('normalizes valid subject ids', () => {
         expect(normalizeDoubanSubjectId(' 30382501 ')).toBe('30382501');
@@ -60,5 +119,66 @@ describe('douban utils', () => {
     it('keeps image extensions when download urls contain query params', () => {
         expect(getDoubanPhotoExtension('https://img1.doubanio.com/view/photo/l/public/p2913450214.webp?foo=1')).toBe('.webp');
         expect(getDoubanPhotoExtension('https://img1.doubanio.com/view/photo/l/public/p2913450214.jpeg')).toBe('.jpeg');
+    });
+    it('maps tv series results to tvshow in searchDouban output', async () => {
+        const domItems = [
+            createFakeSearchItem({
+                title: '射雕英雄传‎ (2017)',
+                url: 'https://movie.douban.com/subject/26663086/',
+                rating: '7.9',
+                abstract: '中国大陆 / 剧情 / 武侠 / 古装 / 45分钟',
+                cover: 'https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2411844029.webp',
+            }),
+            createFakeSearchItem({
+                title: '射雕英雄传：侠之大者‎ (2025)',
+                url: 'https://movie.douban.com/subject/36289423/',
+                rating: '5.2',
+                abstract: '中国大陆 / 武侠 / 146分钟',
+                cover: 'https://img1.doubanio.com/view/photo/s_ratio_poster/public/p2917502509.webp',
+            }),
+        ];
+        const rawItems = [
+            {
+                id: 26663086,
+                labels: [{ text: '剧集' }, { text: '可播放' }],
+                more_url: "onclick=\"moreurl(this,{from:'mv_subject_search',subject_id:'26663086',is_tv:'1'})\"",
+            },
+            {
+                id: 36289423,
+                labels: [{ text: '可播放' }],
+                more_url: "onclick=\"moreurl(this,{from:'mv_subject_search',subject_id:'36289423',is_tv:'0'})\"",
+            },
+        ];
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ blocked: false, title: '射雕英雄传 - 电影 - 豆瓣搜索', href: 'https://search.douban.com/movie/subject_search?search_text=%E5%B0%84%E9%9B%95%E8%8B%B1%E9%9B%84%E4%BC%A0' })
+                .mockImplementationOnce((script) => runSearchEvaluate(script, rawItems, domItems)),
+        };
+        await expect(searchDouban(page, 'movie', '射雕英雄传', 20)).resolves.toMatchObject([
+            { id: '26663086', type: 'tvshow', title: '射雕英雄传‎ (2017)' },
+            { id: '36289423', type: 'movie', title: '射雕英雄传：侠之大者‎ (2025)' },
+        ]);
+    });
+});
+describe('inferDoubanSearchResultType', () => {
+    it('returns tvshow for movie search results marked as TV', () => {
+        expect(inferDoubanSearchResultType('movie', {
+            moreUrl: "onclick=\"moreurl(this,{is_tv:'1'})\"",
+            labels: [{ text: '剧集' }],
+        })).toBe('tvshow');
+    });
+    it('returns movie when a movie search result has no TV signal', () => {
+        expect(inferDoubanSearchResultType('movie', {
+            moreUrl: "onclick=\"moreurl(this,{is_tv:'0'})\"",
+            labels: [{ text: '可播放' }],
+        })).toBe('movie');
+    });
+    it('preserves non-movie search types', () => {
+        expect(inferDoubanSearchResultType('book', {
+            moreUrl: '',
+            labels: [{ text: '图书' }],
+        })).toBe('book');
     });
 });

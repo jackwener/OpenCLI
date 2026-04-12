@@ -293,17 +293,42 @@ export async function loadDoubanMovieHot(page, limit) {
   `);
     return Array.isArray(data) ? data : [];
 }
+export function inferDoubanSearchResultType(searchType, item = {}) {
+    const fallbackType = String(searchType || '').trim() || 'movie';
+    if (fallbackType !== 'movie') {
+        return fallbackType;
+    }
+    const moreUrl = String(item.moreUrl || item.more_url || '').trim();
+    const isTv = moreUrl.match(/is_tv:\s*['"]?([01])['"]?/)?.[1] || '';
+    if (isTv === '1') {
+        return 'tvshow';
+    }
+    const labels = Array.isArray(item.labels)
+        ? item.labels
+            .map((label) => typeof label === 'string' ? label.trim() : String(label?.text || '').trim())
+            .filter(Boolean)
+        : [];
+    return labels.includes('剧集') ? 'tvshow' : fallbackType;
+}
 export async function searchDouban(page, type, keyword, limit) {
     const safeLimit = clampLimit(limit);
     await page.goto(`https://search.douban.com/${encodeURIComponent(type)}/subject_search?search_text=${encodeURIComponent(keyword)}`);
     await page.wait(2);
     await ensureDoubanReady(page);
+    const inferDoubanSearchResultTypeSource = inferDoubanSearchResultType.toString();
     const data = await page.evaluate(`
     (async () => {
       const type = ${JSON.stringify(type)};
+      const inferDoubanSearchResultType = ${inferDoubanSearchResultTypeSource};
       const normalize = (value) => (value || '').replace(/\\s+/g, ' ').trim();
       const seen = new Set();
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const rawItems = Array.isArray(window.__DATA__?.items) ? window.__DATA__.items : [];
+      const rawItemsById = new Map(
+        rawItems
+          .map((item) => [String(item?.id || '').trim(), item])
+          .filter(([id]) => id),
+      );
 
       for (let i = 0; i < 20; i += 1) {
         if (document.querySelector('.item-root .title-text, .item-root .title a')) break;
@@ -321,14 +346,16 @@ export async function searchDouban(page, type, keyword, limit) {
         if (!url.startsWith('http')) url = 'https://search.douban.com' + url;
         if (!url.includes('/subject/') || seen.has(url)) continue;
         seen.add(url);
+        const id = url.match(/subject\\/(\\d+)/)?.[1] || '';
+        const rawItem = rawItemsById.get(id) || {};
         const ratingText = normalize(el.querySelector('.rating_nums')?.textContent);
         const abstract = normalize(
           el.querySelector('.meta.abstract, .meta, .abstract, p')?.textContent,
         );
         results.push({
           rank: results.length + 1,
-          id: url.match(/subject\\/(\\d+)/)?.[1] || '',
-          type,
+          id,
+          type: inferDoubanSearchResultType(type, rawItem),
           title,
           rating: ratingText.includes('.') ? parseFloat(ratingText) : 0,
           abstract: abstract.slice(0, 100) + (abstract.length > 100 ? '...' : ''),
