@@ -7826,6 +7826,202 @@
     "sourceFile": "jimeng/workspaces.js"
   },
   {
+    "site": "ke",
+    "name": "chengjiao",
+    "description": "贝壳找房成交记录",
+    "domain": "ke.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "default": "bj",
+        "required": false,
+        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山)"
+      },
+      {
+        "name": "district",
+        "type": "str",
+        "required": false,
+        "help": "区域拼音，如 chaoyang, haidian"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量"
+      }
+    ],
+    "columns": [
+      "title",
+      "community",
+      "layout",
+      "area",
+      "deal_price",
+      "unit_price",
+      "deal_date"
+    ],
+    "type": "js",
+    "modulePath": "ke/chengjiao.js",
+    "sourceFile": "ke/chengjiao.js"
+  },
+  {
+    "site": "ke",
+    "name": "ershoufang",
+    "description": "贝壳找房二手房列表",
+    "domain": "ke.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "default": "bj",
+        "required": false,
+        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山)"
+      },
+      {
+        "name": "district",
+        "type": "str",
+        "required": false,
+        "help": "区域拼音，如 chaoyang, haidian, tianhe"
+      },
+      {
+        "name": "min-price",
+        "type": "int",
+        "required": false,
+        "help": "最低总价（万元）"
+      },
+      {
+        "name": "max-price",
+        "type": "int",
+        "required": false,
+        "help": "最高总价（万元）"
+      },
+      {
+        "name": "rooms",
+        "type": "int",
+        "required": false,
+        "help": "几居室 (1-5)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量"
+      }
+    ],
+    "columns": [
+      "title",
+      "community",
+      "layout",
+      "area",
+      "direction",
+      "total_price",
+      "unit_price",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ke/ershoufang.js",
+    "sourceFile": "ke/ershoufang.js"
+  },
+  {
+    "site": "ke",
+    "name": "xiaoqu",
+    "description": "贝壳找房小区列表",
+    "domain": "ke.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "default": "bj",
+        "required": false,
+        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山)"
+      },
+      {
+        "name": "district",
+        "type": "str",
+        "required": false,
+        "help": "区域拼音，如 chaoyang, haidian"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量"
+      }
+    ],
+    "columns": [
+      "name",
+      "district",
+      "avg_price",
+      "year",
+      "on_sale"
+    ],
+    "type": "js",
+    "modulePath": "ke/xiaoqu.js",
+    "sourceFile": "ke/xiaoqu.js"
+  },
+  {
+    "site": "ke",
+    "name": "zufang",
+    "description": "贝壳找房租房列表",
+    "domain": "ke.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "default": "bj",
+        "required": false,
+        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山)"
+      },
+      {
+        "name": "district",
+        "type": "str",
+        "required": false,
+        "help": "区域拼音，如 chaoyang, haidian"
+      },
+      {
+        "name": "min-price",
+        "type": "int",
+        "required": false,
+        "help": "最低月租（元）"
+      },
+      {
+        "name": "max-price",
+        "type": "int",
+        "required": false,
+        "help": "最高月租（元）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量"
+      }
+    ],
+    "columns": [
+      "title",
+      "community",
+      "area",
+      "layout",
+      "price",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ke/zufang.js",
+    "sourceFile": "ke/zufang.js"
+  },
+  {
     "site": "lesswrong",
     "name": "comments",
     "description": "Top comments on a post",
