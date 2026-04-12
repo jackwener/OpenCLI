@@ -1,19 +1,21 @@
 {
-  "timestamp": "2026-04-11T10:00:48.561Z",
+  "timestamp": "2026-04-11T11:25:18.206Z",
   "json_file": "./clis/zhihu/like.json",
   "command": "Like",
   "website": "zhihu.com",
   "params": {
+    "target": "https://www.zhihu.com/question/2025583790332855723/answer/2025603013339878947",
     "execute": false
   },
-  "success": false,
-  "data_count": 0,
-  "comparison": {
-    "grease_count": 0,
-    "opencli_count": 0,
-    "match": false,
-    "differences": [
-      "GreaseAI returned no data"
-    ]
-  }
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "success",
+      "outcome": "preview",
+      "message": "Like button found (not clicked - execute=false)",
+      "target_type": "answer",
+      "target": "https://www.zhihu.com/question/2025583790332855723/answer/2025603013339878947"
+    }
+  ]
 }

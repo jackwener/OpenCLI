@@ -1,19 +1,21 @@
 {
-  "timestamp": "2026-04-11T10:00:39.625Z",
+  "timestamp": "2026-04-11T10:44:08.564Z",
   "json_file": "./clis/zhihu/follow.json",
   "command": "Follow",
   "website": "www.zhihu.com",
   "params": {
+    "target": "https://www.zhihu.com/question/2025583790332855723",
     "execute": false
   },
-  "success": false,
-  "data_count": 0,
-  "comparison": {
-    "grease_count": 0,
-    "opencli_count": 0,
-    "match": false,
-    "differences": [
-      "GreaseAI returned no data"
-    ]
-  }
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "success",
+      "outcome": "preview",
+      "message": "Follow button found (not clicked - execute=false)",
+      "target_type": "question",
+      "target": "https://www.zhihu.com/question/2025583790332855723"
+    }
+  ]
 }

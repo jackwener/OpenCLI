@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-11T10:03:15.061Z",
+  "timestamp": "2026-04-11T10:55:48.428Z",
   "json_file": "./clis/zhihu/question.json",
   "command": "Question",
   "website": "www.zhihu.com",
@@ -16,11 +16,5 @@
       "votes": 0,
       "content": "有很多， 知乎是第一个"
     }
-  ],
-  "comparison": {
-    "grease_count": 1,
-    "opencli_count": 1,
-    "match": true,
-    "differences": []
-  }
+  ]
 }

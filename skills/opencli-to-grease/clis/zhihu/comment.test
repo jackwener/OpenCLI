@@ -1,19 +1,23 @@
 {
-  "timestamp": "2026-04-11T10:00:37.224Z",
+  "timestamp": "2026-04-11T10:50:52.909Z",
   "json_file": "./clis/zhihu/comment.json",
   "command": "Comment",
   "website": "zhihu.com",
   "params": {
+    "target": "https://www.zhihu.com/question/2025706051010307038/answer/2026359460281467058",
+    "text": "hello",
     "execute": false
   },
-  "success": false,
-  "data_count": 0,
-  "comparison": {
-    "grease_count": 0,
-    "opencli_count": 0,
-    "match": false,
-    "differences": [
-      "GreaseAI returned no data"
-    ]
-  }
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "success",
+      "outcome": "preview",
+      "message": "Comment prepared (not submitted - execute=false)",
+      "target_type": "answer",
+      "target": "https://www.zhihu.com/question/2025706051010307038/answer/2026359460281467058",
+      "prepared_text": "hello"
+    }
+  ]
 }

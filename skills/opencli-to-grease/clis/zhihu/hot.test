@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-11T10:03:33.194Z",
+  "timestamp": "2026-04-11T10:20:43.863Z",
   "json_file": "./clis/zhihu/hot.json",
   "command": "Hot",
   "website": "www.zhihu.com",
@@ -12,43 +12,37 @@
     {
       "rank": 1,
       "title": "20 块的古董「有线耳机」成最火时尚单品，销量暴涨 20%，它为什么能翻红？戳中年轻人哪些心理？",
-      "heat": "445 万热度",
-      "answers": 95,
+      "heat": "451 万热度",
+      "answers": 106,
       "url": "https://www.zhihu.com/question/2022392046053331729"
     },
     {
       "rank": 2,
       "title": "贵阳女孩玩「拼豆」在熨烫时触电离世，当好玩和要命只有一线之隔，谁该为网红玩具「带病」流行负责？",
-      "heat": "391 万热度",
-      "answers": 208,
+      "heat": "399 万热度",
+      "answers": 209,
       "url": "https://www.zhihu.com/question/2025878815226754715"
     },
     {
       "rank": 3,
       "title": "全球有多少城市能撑起来14日游？",
-      "heat": "338 万热度",
-      "answers": 114,
+      "heat": "347 万热度",
+      "answers": 120,
       "url": "https://www.zhihu.com/question/2022030259973882382"
     },
     {
       "rank": 4,
       "title": "国博首次完整展出李静训墓文物，为什么说一个 9 岁女孩的墓葬，能撑起一部隋代史？",
-      "heat": "294 万热度",
-      "answers": 26,
+      "heat": "306 万热度",
+      "answers": 28,
       "url": "https://www.zhihu.com/question/2025597264505169632"
     },
     {
       "rank": 5,
       "title": "OpenAI 创始人奥尔特曼住所遭燃烧瓶袭击，具体是怎么回事？",
-      "heat": "238 万热度",
-      "answers": 32,
+      "heat": "243 万热度",
+      "answers": 36,
       "url": "https://www.zhihu.com/question/2026136705757902456"
     }
-  ],
-  "comparison": {
-    "grease_count": 5,
-    "opencli_count": 5,
-    "match": true,
-    "differences": []
-  }
+  ]
 }

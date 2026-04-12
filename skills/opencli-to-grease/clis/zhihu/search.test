@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-11T10:03:42.688Z",
+  "timestamp": "2026-04-11T10:20:47.878Z",
   "json_file": "./clis/zhihu/search.json",
   "command": "Search",
   "website": "www.zhihu.com",
@@ -18,11 +18,5 @@
       "votes": 19,
       "url": "https://zhuanlan.zhihu.com/p/2015747793763992374"
     }
-  ],
-  "comparison": {
-    "grease_count": 1,
-    "opencli_count": 1,
-    "match": true,
-    "differences": []
-  }
+  ]
 }

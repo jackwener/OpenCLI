@@ -1,19 +1,23 @@
 {
-  "timestamp": "2026-04-11T10:00:36.035Z",
+  "timestamp": "2026-04-11T10:31:59.840Z",
   "json_file": "./clis/zhihu/answer.json",
   "command": "Answer",
   "website": "www.zhihu.com",
   "params": {
+    "target": "https://www.zhihu.com/question/2019722609273631935",
+    "text": "关键是有没有提升生产力",
     "execute": false
   },
-  "success": false,
-  "data_count": 0,
-  "comparison": {
-    "grease_count": 0,
-    "opencli_count": 0,
-    "match": false,
-    "differences": [
-      "GreaseAI returned no data"
-    ]
-  }
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "success",
+      "outcome": "preview",
+      "message": "Answer prepared (not submitted - execute=false)",
+      "target_type": "question",
+      "target": "https://www.zhihu.com/question/2019722609273631935",
+      "prepared_text": "关键是有没有提升生产力"
+    }
+  ]
 }

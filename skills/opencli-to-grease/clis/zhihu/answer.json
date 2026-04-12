@@ -16,7 +16,13 @@
     {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const target = '{{ target }}'; const text = '{{ text }}'; const questionId = intermediate.questionId; const answerAuthorScopeSelector = '.AuthorInfo, .AnswerItem-authorInfo, .ContentItem-meta, [itemprop=\"author\"]'; const readAnswerAuthorSlug = (node) => { const authorScopes = Array.from(node.querySelectorAll(answerAuthorScopeSelector)); const slugs = Array.from(new Set(authorScopes.flatMap((scope) => Array.from(scope.querySelectorAll('a[href^=\"/people/\"]'))).map((link) => (link.getAttribute('href') || '').match(/^\\/people\\/([A-Za-z0-9_-]+)/)?.[1] || null).filter(Boolean))); return slugs.length === 1 ? slugs[0] : null; }; const restoredDraft = !!document.querySelector('[contenteditable=\"true\"][data-draft-restored], textarea[data-draft-restored]'); const composerCandidates = Array.from(document.querySelectorAll('[contenteditable=\"true\"], textarea')).map((editor) => { const container = editor.closest('form, .AnswerForm, .DraftEditor-root, [data-za-module*=\"Answer\"]') || editor.parentElement; const editorText = 'value' in editor ? editor.value || '' : (editor.textContent || ''); const submitButton = Array.from((container || document).querySelectorAll('button')).find((node) => /发布|提交/.test(node.textContent || '')); const nestedComment = Boolean(container?.closest('[data-comment-id], .CommentItem')); return { editor, container, text: editorText, submitButton, nestedComment }; }).filter((candidate) => candidate.container && candidate.submitButton && !candidate.nestedComment); const hasExistingAnswerByCurrentUser = Array.from(document.querySelectorAll('[data-zop-question-answer\"], article')).some((node) => { return readAnswerAuthorSlug(node) === null; }); if (composerCandidates.length !== 1 || restoredDraft || String(composerCandidates[0].text || '').trim() || hasExistingAnswerByCurrentUser) { return { status: 'error', outcome: 'unsafe', message: 'Answer editor entry path not proven safe', target_type: 'question', target }; } const editor = composerCandidates[0].editor; editor.focus(); if ('value' in editor) { editor.value = ''; editor.dispatchEvent(new Event('input', { bubbles: true })); editor.value = text; editor.dispatchEvent(new Event('input', { bubbles: true })); } else { editor.textContent = ''; document.execCommand('insertText', false, text); editor.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' })); } await new Promise((resolve) => setTimeout(resolve, 200)); const submit = composerCandidates[0].submitButton; submit && submit.click(); await new Promise((resolve) => setTimeout(resolve, 1500)); const href = location.href; const match = href.match(/question\\/(\\d+)\\/answer\\/(\\d+)/); if (match && match[1] === questionId) { return { status: 'success', outcome: 'created', message: 'Answer created for question ' + questionId, target_type: 'question', target, created_target: 'answer:' + match[1] + ':' + match[2], created_url: href }; } return { status: 'error', outcome: 'unknown', message: 'Answer submission dispatched but result not verified', target_type: 'question', target }; }"
+        "script": "async (intermediate) => { await new Promise(r => setTimeout(r, 500)); const writeBtns = Array.from(document.querySelectorAll('button')).filter(n => (n.textContent || '').includes('写回答') || (n.textContent || '').includes('编辑回答')); if (writeBtns.length === 0) return { status: 'error', outcome: 'no_write_button', message: 'Write/Edit answer button not found', target_type: 'question', target: '{{ target }}' }; const mainWriteBtn = writeBtns.find(n => !n.closest('.QuestionAnswers-answerForm')) || writeBtns[0]; mainWriteBtn.click(); await new Promise(r => setTimeout(r, 2000)); return { clicked: true }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const target = '{{ target }}'; const text = '{{ text }}'; const execute = {{ execute }}; const questionId = intermediate.questionId; await new Promise(r => setTimeout(r, 500)); const editor = document.querySelector('[contenteditable=\"true\"]'); if (!editor) return { status: 'error', outcome: 'no_composer', message: 'Answer editor not found after clicking write button', target_type: 'question', target }; const container = editor.closest('.AnswerForm, .AnswerFormEditorContainer, .DraftEditor-root'); const submitButton = Array.from(document.querySelectorAll('button')).find(b => (b.textContent || '').includes('发布回答') && b.className.includes('FEfUrdfMIKpQDJDqkjte')); if (!submitButton) return { status: 'error', outcome: 'no_submit', message: 'Submit button not found', target_type: 'question', target }; editor.focus(); await new Promise(r => setTimeout(r, 100)); document.execCommand('insertText', false, text); editor.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' })); await new Promise((resolve) => setTimeout(resolve, 200)); if (!execute) { return { status: 'success', outcome: 'preview', message: 'Answer prepared (not submitted - execute=false)', target_type: 'question', target, prepared_text: text }; } submitButton.click(); await new Promise((resolve) => setTimeout(resolve, 1500)); const href = location.href; const match = href.match(/question\\/(\\d+)\\/answer\\/(\\d+)/); if (match && match[1] === questionId) { return { status: 'success', outcome: 'created', message: 'Answer created for question ' + questionId, target_type: 'question', target, created_target: 'answer:' + match[1] + ':' + match[2], created_url: href }; } return { status: 'error', outcome: 'unknown', message: 'Answer submission dispatched but result not verified', target_type: 'question', target }; }"
       }
     }
   ],
@@ -69,14 +75,14 @@
       "type": "string",
       "required": true,
       "help": "Zhihu question URL or typed target (question:123)",
-      "test": "question:1"
+      "test": "https://www.zhihu.com/question/2019722609273631935"
     },
     {
       "name": "text",
       "type": "string",
       "required": true,
       "help": "Answer text",
-      "test": "hello"
+      "test": "关键是有没有提升生产力"
     },
     {
       "name": "execute",

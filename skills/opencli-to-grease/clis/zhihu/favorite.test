@@ -1,19 +1,23 @@
 {
-  "timestamp": "2026-04-11T10:00:38.433Z",
+  "timestamp": "2026-04-11T10:39:47.093Z",
   "json_file": "./clis/zhihu/favorite.json",
   "command": "Favorite",
   "website": "zhihu.com",
   "params": {
+    "target": "https://www.zhihu.com/question/2025583790332855723/answer/2025603013339878947",
+    "collection": "默认收藏夹",
+    "collection-id": "fav-b",
     "execute": false
   },
-  "success": false,
-  "data_count": 0,
-  "comparison": {
-    "grease_count": 0,
-    "opencli_count": 0,
-    "match": false,
-    "differences": [
-      "GreaseAI returned no data"
-    ]
-  }
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "success",
+      "outcome": "preview",
+      "message": "Favorite button found (not clicked - execute=false)",
+      "target_type": "answer",
+      "target": "https://www.zhihu.com/question/2025583790332855723/answer/2025603013339878947"
+    }
+  ]
 }
