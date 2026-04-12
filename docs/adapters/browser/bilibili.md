@@ -12,6 +12,7 @@
 | `opencli bilibili favorite` | |
 | `opencli bilibili history` | |
 | `opencli bilibili feed` | |
+| `opencli bilibili feed-detail` | |
 | `opencli bilibili subtitle` | |
 | `opencli bilibili dynamic` | |
 | `opencli bilibili ranking` | |
