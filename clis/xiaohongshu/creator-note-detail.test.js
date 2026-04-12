@@ -256,4 +256,36 @@ describe('xiaohongshu creator-note-detail', () => {
             { section: '互动数据', metric: '分享数', value: '0', extra: '粉丝占比 0%' },
         ]);
     });
+    it('waits between creator detail API fetches to avoid burst traffic', async () => {
+        const cmd = getRegistry().get('xiaohongshu/creator-note-detail');
+        const domData = {
+            title: '示例笔记',
+            infoText: '示例笔记\n2026-03-19 12:00\n切换笔记',
+            sections: [
+                {
+                    title: '基础数据',
+                    metrics: [
+                        { label: '曝光数', value: '100', extra: '粉丝占比 10%' },
+                        { label: '观看数', value: '50', extra: '粉丝占比 20%' },
+                        { label: '封面点击率', value: '12%', extra: '粉丝 11%' },
+                        { label: '平均观看时长', value: '30秒', extra: '粉丝 31秒' },
+                        { label: '涨粉数', value: '2', extra: '' },
+                    ],
+                },
+                {
+                    title: '互动数据',
+                    metrics: [
+                        { label: '点赞数', value: '8', extra: '粉丝占比 25%' },
+                        { label: '评论数', value: '1', extra: '粉丝占比 0%' },
+                        { label: '收藏数', value: '3', extra: '粉丝占比 50%' },
+                        { label: '分享数', value: '0', extra: '粉丝占比 0%' },
+                    ],
+                },
+            ],
+        };
+        const page = createPageMock([domData, null, null, null, null]);
+        await cmd.func(page, { 'note-id': 'demo-note-id' });
+        expect(page.wait).toHaveBeenCalledWith(expect.objectContaining({ time: expect.any(Number) }));
+        expect(page.wait.mock.calls.length).toBeGreaterThanOrEqual(4);
+    });
 });

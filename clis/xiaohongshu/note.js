@@ -9,7 +9,7 @@
  * when the user is logged in via cookies.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
 cli({
     site: 'xiaohongshu',
@@ -17,6 +17,7 @@ cli({
     description: '获取小红书笔记正文和互动数据',
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,
+    navigateBefore: false,
     args: [
         { name: 'note-id', required: true, positional: true, help: 'Note ID or full URL (preserves xsec_token for access)' },
     ],
@@ -26,11 +27,14 @@ cli({
         const noteId = parseNoteId(raw);
         const url = buildNoteUrl(raw);
         await page.goto(url);
-        await page.wait(3);
+        await page.wait({ time: 2 + Math.random() * 3 });
         const data = await page.evaluate(`
       (() => {
-        const loginWall = /登录后查看|请登录/.test(document.body.innerText || '')
-        const notFound = /页面不见了|笔记不存在|无法浏览/.test(document.body.innerText || '')
+        const bodyText = document.body?.innerText || ''
+        const loginWall = /登录后查看|请登录/.test(bodyText)
+        const notFound = /页面不见了|笔记不存在|无法浏览/.test(bodyText)
+        const securityBlock = /安全限制|访问链接异常/.test(bodyText)
+          || /website-login\\/error|error_code=300017|error_code=300031/.test(location.href)
 
         const clean = (el) => (el?.textContent || '').replace(/\\s+/g, ' ').trim()
 
@@ -53,11 +57,16 @@ cli({
           if (t) tags.push(t)
         })
 
-        return { loginWall, notFound, title, desc, author, likes, collects, comments, tags }
+        return { pageUrl: location.href, securityBlock, loginWall, notFound, title, desc, author, likes, collects, comments, tags }
       })()
     `);
         if (!data || typeof data !== 'object') {
             throw new EmptyResultError('xiaohongshu/note', 'Unexpected evaluate response');
+        }
+        if (data.securityBlock) {
+            throw new CliError('SECURITY_BLOCK', 'Xiaohongshu security block: the note detail page was blocked by risk control.', /^https?:\/\//.test(raw)
+                ? 'The page may be temporarily restricted. Try again later or from a different session.'
+                : 'Try using a full URL from search results (with xsec_token) instead of a bare note ID.');
         }
         if (data.loginWall) {
             throw new AuthRequiredError('www.xiaohongshu.com', 'Note content requires login');

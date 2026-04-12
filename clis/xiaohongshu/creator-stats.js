@@ -15,6 +15,7 @@ cli({
     domain: 'creator.xiaohongshu.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    navigateBefore: false,
     args: [
         {
             name: 'period',

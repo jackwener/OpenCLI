@@ -50,6 +50,7 @@ cli({
     domain: 'creator.xiaohongshu.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    navigateBefore: false,
     args: [
         { name: 'limit', type: 'int', default: 3, help: 'Number of recent notes to summarize' },
     ],
@@ -63,6 +64,9 @@ cli({
         }
         const results = [];
         for (const [index, note] of notes.entries()) {
+            if (index > 0) {
+                await page.wait({ time: 1 + Math.random() * 2 });
+            }
             if (!note.id) {
                 results.push({
                     rank: index + 1,

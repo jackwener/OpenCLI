@@ -70,4 +70,34 @@ describe('xiaohongshu download', () => {
             filenamePrefix: '69bc166f000000001a02069a',
         }));
     });
+    it('throws SECURITY_BLOCK with bare-id guidance before starting downloads', async () => {
+        const page = createPageMock({
+            pageUrl: 'https://www.xiaohongshu.com/website-login/error?error_code=300017',
+            securityBlock: true,
+            noteId: '69bc166f000000001a02069a',
+            media: [],
+        });
+        await expect(command.func(page, { 'note-id': '69bc166f000000001a02069a', output: './out' })).rejects.toMatchObject({
+            code: 'SECURITY_BLOCK',
+            hint: expect.stringContaining('xsec_token'),
+        });
+        expect(mockDownloadMedia).not.toHaveBeenCalled();
+        expect(page.wait).toHaveBeenCalledWith(expect.objectContaining({ time: expect.any(Number) }));
+    });
+    it('throws SECURITY_BLOCK with retry guidance for blocked full URLs', async () => {
+        const page = createPageMock({
+            pageUrl: 'https://www.xiaohongshu.com/website-login/error?error_code=300031',
+            securityBlock: true,
+            noteId: '69bc166f000000001a02069a',
+            media: [],
+        });
+        await expect(command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/explore/69bc166f000000001a02069a?xsec_token=abc&xsec_source=pc_search',
+            output: './out',
+        })).rejects.toMatchObject({
+            code: 'SECURITY_BLOCK',
+            hint: expect.stringContaining('Try again later'),
+        });
+        expect(mockDownloadMedia).not.toHaveBeenCalled();
+    });
 });

@@ -333,6 +333,7 @@ cli({
     domain: 'creator.xiaohongshu.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    navigateBefore: false,
     args: [
         { name: 'title', required: true, help: '笔记标题 (最多20字)' },
         { name: 'content', required: true, positional: true, help: '笔记正文' },

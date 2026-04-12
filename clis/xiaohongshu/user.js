@@ -26,6 +26,7 @@ cli({
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    navigateBefore: false,
     args: [
         { name: 'id', type: 'string', required: true, positional: true, help: 'User id or profile URL' },
         { name: 'limit', type: 'int', default: 15, help: 'Number of notes to return' },

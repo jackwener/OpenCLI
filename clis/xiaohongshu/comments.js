@@ -6,7 +6,7 @@
  * the --with-replies flag.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
 function parseCommentLimit(raw, fallback = 20) {
     const n = Number(raw);
@@ -20,6 +20,7 @@ cli({
     description: '获取小红书笔记评论（支持楼中楼子回复）',
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,
+    navigateBefore: false,
     args: [
         { name: 'note-id', required: true, positional: true, help: 'Note ID or full URL (preserves xsec_token for access)' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of top-level comments (max 50)' },
@@ -32,21 +33,27 @@ cli({
         const raw = String(kwargs['note-id']);
         const noteId = parseNoteId(raw);
         await page.goto(buildNoteUrl(raw));
-        await page.wait(3);
+        await page.wait({ time: 2 + Math.random() * 3 });
         const data = await page.evaluate(`
       (async () => {
         const wait = (ms) => new Promise(r => setTimeout(r, ms))
         const withReplies = ${withReplies}
 
         // Check login state
-        const loginWall = /登录后查看|请登录/.test(document.body.innerText || '')
+        const bodyText = document.body?.innerText || ''
+        const loginWall = /登录后查看|请登录/.test(bodyText)
+        const securityBlock = /安全限制|访问链接异常/.test(bodyText)
+          || /website-login\\/error|error_code=300017|error_code=300031/.test(location.href)
 
         // Scroll the note container to trigger comment loading
         const scroller = document.querySelector('.note-scroller') || document.querySelector('.container')
         if (scroller) {
           for (let i = 0; i < 3; i++) {
+            const beforeCount = scroller.querySelectorAll('.parent-comment').length
             scroller.scrollTo(0, scroller.scrollHeight)
-            await wait(1000)
+            await wait(800 + Math.random() * 1200)
+            const afterCount = scroller.querySelectorAll('.parent-comment').length
+            if (afterCount <= beforeCount) break
           }
         }
 
@@ -72,7 +79,7 @@ cli({
               const text = clean(el)
               el.click()
               clickedTexts.add(text)
-              await wait(300)
+              await wait(200 + Math.random() * 300)
             }
           }
         }
@@ -105,11 +112,16 @@ cli({
           }
         }
 
-        return { loginWall, results }
+        return { pageUrl: location.href, securityBlock, loginWall, results }
       })()
     `);
         if (!data || typeof data !== 'object') {
             throw new EmptyResultError('xiaohongshu/comments', 'Unexpected evaluate response');
+        }
+        if (data.securityBlock) {
+            throw new CliError('SECURITY_BLOCK', 'Xiaohongshu security block: the note detail page was blocked by risk control.', /^https?:\/\//.test(raw)
+                ? 'The page may be temporarily restricted. Try again later or from a different session.'
+                : 'Try using a full URL from search results (with xsec_token) instead of a bare note ID.');
         }
         if (data.loginWall) {
             throw new AuthRequiredError('www.xiaohongshu.com', 'Note comments require login');

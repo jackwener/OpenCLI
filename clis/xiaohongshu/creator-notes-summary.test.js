@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { summarizeCreatorNote } from './creator-notes-summary.js';
+import { getRegistry } from '@jackwener/opencli/registry';
+import * as creatorNotesModule from './creator-notes.js';
+import * as creatorDetailModule from './creator-note-detail.js';
 import './creator-notes-summary.js';
 describe('xiaohongshu creator-notes-summary', () => {
     it('summarizes note list row and detail rows into one compact row', () => {
@@ -45,5 +48,40 @@ describe('xiaohongshu creator-notes-summary', () => {
             top_interest_pct: '13%',
             url: 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=cccccccccccccccccccccccc',
         });
+    });
+    it('waits between note detail fetches after the first note', async () => {
+        const cmd = getRegistry().get('xiaohongshu/creator-notes-summary');
+        const page = {
+            wait: vi.fn().mockResolvedValue(undefined),
+        };
+        vi.spyOn(creatorNotesModule, 'fetchCreatorNotes').mockResolvedValue([
+            {
+                id: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+                title: 'n1',
+                date: '2026年03月18日 20:01',
+                views: 1,
+                likes: 1,
+                collects: 1,
+                comments: 1,
+                url: 'u1',
+            },
+            {
+                id: 'bbbbbbbbbbbbbbbbbbbbbbbb',
+                title: 'n2',
+                date: '2026年03月19日 20:01',
+                views: 2,
+                likes: 2,
+                collects: 2,
+                comments: 2,
+                url: 'u2',
+            },
+        ]);
+        vi.spyOn(creatorDetailModule, 'fetchCreatorNoteDetailRows').mockResolvedValue([
+            { section: '笔记信息', metric: 'published_at', value: '2026-03-18 20:01', extra: '' },
+            { section: '基础数据', metric: '观看数', value: '1', extra: '' },
+        ]);
+        await cmd.func(page, { limit: 2 });
+        expect(page.wait).toHaveBeenCalledWith(expect.objectContaining({ time: expect.any(Number) }));
+        expect(page.wait.mock.calls).toHaveLength(1);
     });
 });

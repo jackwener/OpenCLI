@@ -106,6 +106,34 @@ describe('xiaohongshu note', () => {
         const page = createPageMock({ loginWall: true, notFound: false });
         await expect(command.func(page, { 'note-id': 'abc123' })).rejects.toThrow('Note content requires login');
     });
+    it('throws SECURITY_BLOCK with bare-id guidance when risk control blocks the note page', async () => {
+        const page = createPageMock({
+            pageUrl: 'https://www.xiaohongshu.com/website-login/error?error_code=300017',
+            securityBlock: true,
+            loginWall: false,
+            notFound: false,
+        });
+        await expect(command.func(page, { 'note-id': '69c131c9000000002800be4c' })).rejects.toMatchObject({
+            code: 'SECURITY_BLOCK',
+            message: 'Xiaohongshu security block: the note detail page was blocked by risk control.',
+            hint: expect.stringContaining('xsec_token'),
+        });
+        expect(page.wait).toHaveBeenCalledWith(expect.objectContaining({ time: expect.any(Number) }));
+    });
+    it('throws SECURITY_BLOCK with retry guidance when a full URL is blocked', async () => {
+        const page = createPageMock({
+            pageUrl: 'https://www.xiaohongshu.com/website-login/error?error_code=300031',
+            securityBlock: true,
+            loginWall: false,
+            notFound: false,
+        });
+        await expect(command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/69c131c9000000002800be4c?xsec_token=abc',
+        })).rejects.toMatchObject({
+            code: 'SECURITY_BLOCK',
+            hint: expect.stringContaining('Try again later'),
+        });
+    });
     it('throws EmptyResultError when note is not found', async () => {
         const page = createPageMock({ loginWall: false, notFound: true });
         await expect(command.func(page, { 'note-id': 'abc123' })).rejects.toThrow('returned no data');

@@ -14815,7 +14815,8 @@
     ],
     "type": "js",
     "modulePath": "xiaohongshu/comments.js",
-    "sourceFile": "xiaohongshu/comments.js"
+    "sourceFile": "xiaohongshu/comments.js",
+    "navigateBefore": false
   },
   {
     "site": "xiaohongshu",
@@ -14841,7 +14842,8 @@
     ],
     "type": "js",
     "modulePath": "xiaohongshu/creator-note-detail.js",
-    "sourceFile": "xiaohongshu/creator-note-detail.js"
+    "sourceFile": "xiaohongshu/creator-note-detail.js",
+    "navigateBefore": false
   },
   {
     "site": "xiaohongshu",
@@ -14872,7 +14874,8 @@
     ],
     "type": "js",
     "modulePath": "xiaohongshu/creator-notes-summary.js",
-    "sourceFile": "xiaohongshu/creator-notes-summary.js"
+    "sourceFile": "xiaohongshu/creator-notes-summary.js",
+    "navigateBefore": false
   },
   {
     "site": "xiaohongshu",
@@ -14908,7 +14911,8 @@
     "timeout": 180,
     "type": "js",
     "modulePath": "xiaohongshu/creator-notes-summary.js",
-    "sourceFile": "xiaohongshu/creator-notes-summary.js"
+    "sourceFile": "xiaohongshu/creator-notes-summary.js",
+    "navigateBefore": false
   },
   {
     "site": "xiaohongshu",
@@ -14924,7 +14928,8 @@
     ],
     "type": "js",
     "modulePath": "xiaohongshu/creator-profile.js",
-    "sourceFile": "xiaohongshu/creator-profile.js"
+    "sourceFile": "xiaohongshu/creator-profile.js",
+    "navigateBefore": false
   },
   {
     "site": "xiaohongshu",
@@ -14953,7 +14958,8 @@
     ],
     "type": "js",
     "modulePath": "xiaohongshu/creator-stats.js",
-    "sourceFile": "xiaohongshu/creator-stats.js"
+    "sourceFile": "xiaohongshu/creator-stats.js",
+    "navigateBefore": false
   },
   {
     "site": "xiaohongshu",
@@ -14986,7 +14992,8 @@
     ],
     "type": "js",
     "modulePath": "xiaohongshu/download.js",
-    "sourceFile": "xiaohongshu/download.js"
+    "sourceFile": "xiaohongshu/download.js",
+    "navigateBefore": false
   },
   {
     "site": "xiaohongshu",
@@ -15037,7 +15044,8 @@
     ],
     "type": "js",
     "modulePath": "xiaohongshu/note.js",
-    "sourceFile": "xiaohongshu/note.js"
+    "sourceFile": "xiaohongshu/note.js",
+    "navigateBefore": false
   },
   {
     "site": "xiaohongshu",
@@ -15121,7 +15129,8 @@
     ],
     "type": "js",
     "modulePath": "xiaohongshu/publish.js",
-    "sourceFile": "xiaohongshu/publish.js"
+    "sourceFile": "xiaohongshu/publish.js",
+    "navigateBefore": false
   },
   {
     "site": "xiaohongshu",
@@ -15156,7 +15165,8 @@
     ],
     "type": "js",
     "modulePath": "xiaohongshu/search.js",
-    "sourceFile": "xiaohongshu/search.js"
+    "sourceFile": "xiaohongshu/search.js",
+    "navigateBefore": false
   },
   {
     "site": "xiaohongshu",
@@ -15190,7 +15200,8 @@
     ],
     "type": "js",
     "modulePath": "xiaohongshu/user.js",
-    "sourceFile": "xiaohongshu/user.js"
+    "sourceFile": "xiaohongshu/user.js",
+    "navigateBefore": false
   },
   {
     "site": "xiaoyuzhou",

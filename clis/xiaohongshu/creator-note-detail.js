@@ -253,6 +253,7 @@ async function captureNoteDetailPayload(page, noteId) {
     let captured = 0;
     // Try to fetch each API endpoint through the page context (uses the browser's cookies)
     for (const { suffix, key } of DETAIL_API_ENDPOINTS) {
+        await page.wait({ time: 0.5 + Math.random() });
         const apiUrl = `${suffix}?note_id=${noteId}`;
         try {
             const data = await page.evaluate(`
@@ -325,6 +326,7 @@ cli({
     domain: 'creator.xiaohongshu.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    navigateBefore: false,
     args: [
         { name: 'note-id', positional: true, type: 'string', required: true, help: 'Note ID (from creator-notes or note-detail page URL)' },
     ],

@@ -53,6 +53,7 @@ cli({
     description: '搜索小红书笔记',
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,
+    navigateBefore: false,
     args: [
         { name: 'query', required: true, positional: true, help: 'Search keyword' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of results' },

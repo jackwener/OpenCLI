@@ -65,9 +65,45 @@ describe('xiaohongshu comments', () => {
         const page = createPageMock({ loginWall: true, results: [] });
         await expect(command.func(page, { 'note-id': 'abc123', limit: 5 })).rejects.toThrow('Note comments require login');
     });
+    it('throws SECURITY_BLOCK with bare-id guidance when risk control blocks the comments page', async () => {
+        const page = createPageMock({
+            pageUrl: 'https://www.xiaohongshu.com/website-login/error?error_code=300017',
+            securityBlock: true,
+            loginWall: false,
+            results: [],
+        });
+        await expect(command.func(page, { 'note-id': 'abc123', limit: 5 })).rejects.toMatchObject({
+            code: 'SECURITY_BLOCK',
+            hint: expect.stringContaining('xsec_token'),
+        });
+        expect(page.wait).toHaveBeenCalledWith(expect.objectContaining({ time: expect.any(Number) }));
+    });
+    it('throws SECURITY_BLOCK with retry guidance when a full URL comments page is blocked', async () => {
+        const page = createPageMock({
+            pageUrl: 'https://www.xiaohongshu.com/website-login/error?error_code=300031',
+            securityBlock: true,
+            loginWall: false,
+            results: [],
+        });
+        await expect(command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/69aadbcb000000002202f131?xsec_token=abc&xsec_source=pc_search',
+            limit: 5,
+        })).rejects.toMatchObject({
+            code: 'SECURITY_BLOCK',
+            hint: expect.stringContaining('Try again later'),
+        });
+    });
     it('returns empty array when no comments are found', async () => {
         const page = createPageMock({ loginWall: false, results: [] });
         await expect(command.func(page, { 'note-id': 'abc123', limit: 5 })).resolves.toEqual([]);
+    });
+    it('uses condition-based comment scrolling instead of a fixed blind loop', async () => {
+        const page = createPageMock({ loginWall: false, results: [] });
+        await command.func(page, { 'note-id': 'abc123', limit: 5 });
+        const script = page.evaluate.mock.calls[0][0];
+        expect(script).toContain("const beforeCount = scroller.querySelectorAll('.parent-comment').length");
+        expect(script).toContain("const afterCount = scroller.querySelectorAll('.parent-comment').length");
+        expect(script).toContain('if (afterCount <= beforeCount) break');
     });
     it('respects the limit for top-level comments', async () => {
         const manyComments = Array.from({ length: 10 }, (_, i) => ({
