@@ -142,6 +142,10 @@ OpenCLI 不只是网站 CLI，还可以：
 | `OPENCLI_CDP_TARGET` | — | 按 URL 子串过滤 CDP target（如 `detail.1688.com`） |
 | `OPENCLI_VERBOSE` | `false` | 启用详细日志（`-v` 也可以） |
 | `OPENCLI_DIAGNOSTIC` | `false` | 设为 `1` 时在失败时输出结构化诊断上下文 |
+| `OPENCLI_SKIP_FETCH` | — | 设为 `1` 跳过 `npm install -g` 时的适配器同步 |
+| `OUTPUT` | — | 覆盖输出格式：`json`、`yaml` 或 `table` |
+| `DEBUG` | — | 设为 `opencli` 开启内部调试日志 |
+| `DEBUG_SNAPSHOT` | — | 设为 `1` 输出 DOM 快照调试信息 |
 
 ## 更新
 
