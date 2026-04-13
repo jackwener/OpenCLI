@@ -1,0 +1,35 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://creator.douyin.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 5000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const aweme_id = \"{{ aweme_id }}\"; const url = 'https://creator.douyin.com/web/api/media/aweme/delete/?aid=1128'; const res = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aweme_id: aweme_id }) }).then(r => r.json()); if (res && res.status_code !== 0) { return [{ status: 'API错误 ' + res.status_code + ': ' + (res.status_msg || '') }]; } return [{ status: '已删除 ' + aweme_id }]; }"
+      }
+    }
+  ],
+  "api_endpoint": "douyin-delete",
+  "category": "action",
+  "description": "删除作品",
+  "is_public": false,
+  "method": "POST",
+  "name": "Delete",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "状态" }
+  ],
+  "variables": [
+    { "name": "aweme_id", "type": "string", "required": true, "help": "作品 ID" }
+  ],
+  "website_domain": "creator.douyin.com",
+  "website_id": "website-creator.douyin.com"
+}

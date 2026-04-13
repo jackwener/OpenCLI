@@ -1,0 +1,42 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://creator.douyin.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 5000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 20; const page = {{ page }} || 1; const status = \"{{ status }}\" || 'all'; const statusMap = { all: 0, published: 1, reviewing: 3, scheduled: 0 }; const statusNum = statusMap[status] ?? 0; const url = 'https://creator.douyin.com/janus/douyin/creator/pc/work_list?page_size=' + limit + '&page_num=' + page + '&status=' + statusNum; const res = await fetch(url, { method: 'GET', credentials: 'include', headers: { 'Content-Type': 'application/json' } }).then(r => r.json()); const normalizeStatus = (s, publicTime) => { if (typeof s === 'number') return s; if (!s) return publicTime && publicTime > Date.now() / 1000 ? 'scheduled' : 'published'; if (s.is_delete) return 'deleted'; if (s.is_prohibited) return 'prohibited'; if (s.in_reviewing) return 'reviewing'; if (s.is_private) return 'private'; if (publicTime && publicTime > Date.now() / 1000) return 'scheduled'; return 'published'; }; let items = res.data?.work_list ?? res.aweme_list ?? []; if (status === 'scheduled') { items = items.filter(v => (v.public_time ?? 0) > Date.now() / 1000); } return items.map(v => ({ aweme_id: v.aweme_id, title: v.desc ?? '', status: normalizeStatus(v.status, v.public_time), play_count: v.statistics?.play_count ?? 0, digg_count: v.statistics?.digg_count ?? 0, create_time: new Date((v.create_time ?? v.public_time ?? 0) * 1000).toLocaleString('zh-CN', { timeZone: 'Asia/Tokyo' }) })); }"
+      }
+    }
+  ],
+  "api_endpoint": "douyin-videos",
+  "category": "content",
+  "description": "获取作品列表",
+  "is_public": false,
+  "method": "GET",
+  "name": "Videos",
+  "output_schema": [
+    { "name": "aweme_id", "type": "string", "description": "作品ID" },
+    { "name": "title", "type": "string", "description": "标题" },
+    { "name": "status", "type": "string", "description": "状态" },
+    { "name": "play_count", "type": "number", "description": "播放量" },
+    { "name": "digg_count", "type": "number", "description": "点赞数" },
+    { "name": "create_time", "type": "string", "description": "创建时间" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 20, "help": "每页数量" },
+    { "name": "page", "type": "int", "default": 1, "help": "页码" },
+    { "name": "status", "type": "string", "default": "all", "help": "状态筛选" }
+  ],
+  "website_domain": "creator.douyin.com",
+  "website_id": "website-creator.douyin.com"
+}

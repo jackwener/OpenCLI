@@ -1,0 +1,37 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://creator.douyin.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 5000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const url = 'https://creator.douyin.com/web/api/media/user/info/?aid=1128'; const res = await fetch(url, { method: 'GET', credentials: 'include', headers: { 'Content-Type': 'application/json' } }).then(r => r.json()); const u = res.user_info ?? res.user; if (!u) return [{ uid: '', nickname: '获取失败，请确认已登录', follower_count: 0, following_count: 0, aweme_count: 0 }]; return [{ uid: u.uid, nickname: u.nickname, follower_count: u.follower_count, following_count: u.following_count, aweme_count: u.aweme_count }]; }"
+      }
+    }
+  ],
+  "api_endpoint": "douyin-profile",
+  "category": "content",
+  "description": "获取账号信息",
+  "is_public": false,
+  "method": "GET",
+  "name": "Profile",
+  "output_schema": [
+    { "name": "uid", "type": "string", "description": "用户ID" },
+    { "name": "nickname", "type": "string", "description": "昵称" },
+    { "name": "follower_count", "type": "number", "description": "粉丝数" },
+    { "name": "following_count", "type": "number", "description": "关注数" },
+    { "name": "aweme_count", "type": "number", "description": "作品数" }
+  ],
+  "variables": [],
+  "website_domain": "creator.douyin.com",
+  "website_id": "website-creator.douyin.com"
+}

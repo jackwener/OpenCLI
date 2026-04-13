@@ -1,0 +1,36 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://creator.douyin.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 5000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const aweme_id = \"{{ aweme_id }}\"; const now = Math.floor(Date.now() / 1000); const sevenDaysAgo = now - 7 * 86400; const url = 'https://creator.douyin.com/janus/douyin/creator/data/item_analysis/metrics_trend'; const res = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aweme_id: aweme_id, start_time: sevenDaysAgo, end_time: now, metrics: ['play_count', 'like_count', 'comment_count', 'share_count'] }) }).then(r => r.json()); const data = res.data ?? {}; return Object.entries(data).map(([metric, value]) => ({ metric, value })); }"
+      }
+    }
+  ],
+  "api_endpoint": "douyin-stats",
+  "category": "content",
+  "description": "作品数据分析",
+  "is_public": false,
+  "method": "POST",
+  "name": "Stats",
+  "output_schema": [
+    { "name": "metric", "type": "string", "description": "指标" },
+    { "name": "value", "type": "number", "description": "数值" }
+  ],
+  "variables": [
+    { "name": "aweme_id", "type": "string", "required": true, "help": "作品ID" }
+  ],
+  "website_domain": "creator.douyin.com",
+  "website_id": "website-creator.douyin.com"
+}

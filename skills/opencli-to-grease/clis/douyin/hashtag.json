@@ -1,0 +1,40 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://creator.douyin.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 5000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const action = \"{{ action }}\"; const keyword = \"{{ keyword }}\"; const cover = \"{{ cover }}\"; const limit = {{ limit }} || 10; if (action === 'search') { const url = 'https://creator.douyin.com/aweme/v1/challenge/search/?keyword=' + encodeURIComponent(keyword) + '&count=' + limit + '&aid=1128'; const res = await fetch(url, { method: 'GET', credentials: 'include', headers: { 'Content-Type': 'application/json' } }).then(r => r.json()); return (res.challenge_list ?? []).map(c => ({ name: c.challenge_info.cha_name, id: c.challenge_info.cid, view_count: c.challenge_info.view_count })); } if (action === 'suggest') { const url = 'https://creator.douyin.com/web/api/media/hashtag/rec/?cover_uri=' + encodeURIComponent(cover) + '&aid=1128'; const res = await fetch(url, { method: 'GET', credentials: 'include', headers: { 'Content-Type': 'application/json' } }).then(r => r.json()); return (res.hashtag_list ?? []).map(h => ({ name: h.name, id: h.id, view_count: h.view_count })); } if (action === 'hot') { const url = 'https://creator.douyin.com/aweme/v1/hotspot/recommend/?' + (keyword ? 'keyword=' + encodeURIComponent(keyword) + '&' : '') + 'aid=1128'; const res = await fetch(url, { method: 'GET', credentials: 'include', headers: { 'Content-Type': 'application/json' } }).then(r => r.json()); const items = res.hotspot_list ?? res.all_sentences?.map(h => ({ sentence: h.word ?? '', hot_value: h.hot_value, sentence_id: h.sentence_id ?? '' })) ?? []; return items.slice(0, limit).map(h => ({ name: h.sentence, id: 'sentence_id' in h ? h.sentence_id : '', view_count: h.hot_value })); } return []; }"
+      }
+    }
+  ],
+  "api_endpoint": "douyin-hashtag",
+  "category": "content",
+  "description": "话题搜索 / AI推荐 / 热点词",
+  "is_public": false,
+  "method": "GET",
+  "name": "Hashtag",
+  "output_schema": [
+    { "name": "name", "type": "string", "description": "话题名称" },
+    { "name": "id", "type": "string", "description": "话题ID" },
+    { "name": "view_count", "type": "number", "description": "播放量" }
+  ],
+  "variables": [
+    { "name": "action", "type": "string", "required": true, "help": "search=关键词搜索 suggest=AI推荐 hot=热点词" },
+    { "name": "keyword", "type": "string", "default": "", "help": "搜索关键词" },
+    { "name": "cover", "type": "string", "default": "", "help": "封面URI" },
+    { "name": "limit", "type": "int", "default": 10, "help": "数量限制" }
+  ],
+  "website_domain": "creator.douyin.com",
+  "website_id": "website-creator.douyin.com"
+}

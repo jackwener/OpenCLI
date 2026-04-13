@@ -1,0 +1,35 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://creator.douyin.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 5000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const url = 'https://creator.douyin.com/web/api/media/activity/get/?aid=1128'; const res = await fetch(url, { method: 'GET', credentials: 'include', headers: { 'Content-Type': 'application/json' } }).then(r => r.json()); const items = (res.activity_list ?? []).map(a => ({ activity_id: a.activity_id, title: a.title ?? a.activity_name ?? '', end_time: typeof a.end_time === 'number' ? new Date(a.end_time * 1000).toLocaleString('zh-CN', { timeZone: 'Asia/Tokyo' }) : (a.show_end_time ?? '') })); return items; }"
+      }
+    }
+  ],
+  "api_endpoint": "douyin-activities",
+  "category": "content",
+  "description": "官方活动列表",
+  "is_public": false,
+  "method": "GET",
+  "name": "Activities",
+  "output_schema": [
+    { "name": "activity_id", "type": "string", "description": "活动ID" },
+    { "name": "title", "type": "string", "description": "标题" },
+    { "name": "end_time", "type": "string", "description": "结束时间" }
+  ],
+  "variables": [],
+  "website_domain": "creator.douyin.com",
+  "website_id": "website-creator.douyin.com"
+}

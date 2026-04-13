@@ -1,0 +1,37 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://creator.douyin.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 5000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const aweme_id = \"{{ aweme_id }}\"; const reschedule = \"{{ reschedule }}\"; const caption = \"{{ caption }}\"; if (reschedule) { const newTime = typeof reschedule === 'string' ? (reschedule.includes('T') ? Math.floor(new Date(reschedule).getTime() / 1000) : parseInt(reschedule)) : reschedule; const res = await fetch('https://creator.douyin.com/web/api/media/update/timer/?aid=1128', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aweme_id: aweme_id, publish_time: newTime }) }).then(r => r.json()); if (res && res.status_code !== 0) { return [{ status: '定时发布API错误 ' + res.status_code + ': ' + (res.status_msg || '') }]; } } if (caption) { const res = await fetch('https://creator.douyin.com/web/api/media/update/desc/?aid=1128', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aweme_id: aweme_id, desc: caption }) }).then(r => r.json()); if (res && res.status_code !== 0) { return [{ status: '正文更新API错误 ' + res.status_code + ': ' + (res.status_msg || '') }]; } } return [{ status: '更新成功' }]; }"
+      }
+    }
+  ],
+  "api_endpoint": "douyin-update",
+  "category": "action",
+  "description": "更新视频信息",
+  "is_public": false,
+  "method": "POST",
+  "name": "Update",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "状态" }
+  ],
+  "variables": [
+    { "name": "aweme_id", "type": "string", "required": true, "help": "作品ID" },
+    { "name": "reschedule", "type": "string", "default": "", "help": "新的发布时间" },
+    { "name": "caption", "type": "string", "default": "", "help": "新的正文内容" }
+  ],
+  "website_domain": "creator.douyin.com",
+  "website_id": "website-creator.douyin.com"
+}

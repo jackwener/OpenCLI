@@ -1,0 +1,44 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.douyin.com/user/{{ sec_uid }}",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 5000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const secUid = \"{{ sec_uid }}\"; const limit = Math.min(20, Math.max(1, {{ limit }} || 20)); const withComments = {{ with_comments }} !== false; const commentLimit = Math.min(10, Math.max(1, {{ comment_limit }} || 10)); const videoParams = new URLSearchParams({ sec_user_id: secUid, max_cursor: '0', count: String(limit), aid: '6383' }); const videoRes = await fetch('https://www.douyin.com/aweme/v1/web/aweme/post/?' + videoParams.toString(), { method: 'GET', credentials: 'include', headers: { 'Content-Type': 'application/json', referer: 'https://www.douyin.com/' } }).then(r => r.json()); const awemeList = (videoRes.aweme_list || []).slice(0, limit); const results = []; for (let i = 0; i < awemeList.length; i++) { const v = awemeList[i]; const playUrl = v.video?.play_addr?.url_list?.[0] ?? ''; let topComments = []; if (withComments) { try { const commentParams = new URLSearchParams({ aweme_id: v.aweme_id, count: String(commentLimit), cursor: '0', aid: '6383' }); const commentRes = await fetch('https://www.douyin.com/aweme/v1/web/comment/list/?' + commentParams.toString(), { method: 'GET', credentials: 'include', headers: { 'Content-Type': 'application/json', referer: 'https://www.douyin.com/' } }).then(r => r.json()); topComments = (commentRes.comments || []).slice(0, commentLimit).map(c => ({ text: c.text || '', digg_count: c.digg_count ?? 0, nickname: c.user?.nickname || '' })); } catch (e) {} } results.push({ index: i + 1, aweme_id: v.aweme_id, title: v.desc ?? '', duration: Math.round((v.video?.duration ?? 0) / 1000), digg_count: v.statistics?.digg_count ?? 0, play_url: playUrl, top_comments: topComments }); } return results; }"
+      }
+    }
+  ],
+  "api_endpoint": "douyin-user-videos",
+  "category": "content",
+  "description": "获取指定用户的视频列表（含下载地址和热门评论）",
+  "is_public": false,
+  "method": "GET",
+  "name": "UserVideos",
+  "output_schema": [
+    { "name": "index", "type": "number", "description": "序号" },
+    { "name": "aweme_id", "type": "string", "description": "作品ID" },
+    { "name": "title", "type": "string", "description": "标题" },
+    { "name": "duration", "type": "number", "description": "时长(秒)" },
+    { "name": "digg_count", "type": "number", "description": "点赞数" },
+    { "name": "play_url", "type": "string", "description": "播放链接" },
+    { "name": "top_comments", "type": "array", "description": "热门评论" }
+  ],
+  "variables": [
+    { "name": "sec_uid", "type": "string", "required": true, "help": "用户 sec_uid" },
+    { "name": "limit", "type": "int", "default": 20, "help": "获取数量" },
+    { "name": "with_comments", "type": "bool", "default": true, "help": "包含热门评论" },
+    { "name": "comment_limit", "type": "int", "default": 10, "help": "评论数量" }
+  ],
+  "website_domain": "www.douyin.com",
+  "website_id": "website-www.douyin.com"
+}

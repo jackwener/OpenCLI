@@ -1,0 +1,37 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://creator.douyin.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 5000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 20; const url = 'https://creator.douyin.com/web/api/media/aweme/draft/?aid=1128'; const res = await fetch(url, { method: 'GET', credentials: 'include', headers: { 'Content-Type': 'application/json' } }).then(r => r.json()); const items = (res.aweme_list ?? []).slice(0, limit).map(v => ({ aweme_id: v.aweme_id, title: v.desc, create_time: new Date(v.create_time * 1000).toLocaleString('zh-CN', { timeZone: 'Asia/Tokyo' }) })); return items; }"
+      }
+    }
+  ],
+  "api_endpoint": "douyin-drafts",
+  "category": "content",
+  "description": "获取草稿列表",
+  "is_public": false,
+  "method": "GET",
+  "name": "Drafts",
+  "output_schema": [
+    { "name": "aweme_id", "type": "string", "description": "作品ID" },
+    { "name": "title", "type": "string", "description": "标题" },
+    { "name": "create_time", "type": "string", "description": "创建时间" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 20, "help": "数量限制" }
+  ],
+  "website_domain": "creator.douyin.com",
+  "website_id": "website-creator.douyin.com"
+}
