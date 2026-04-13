@@ -4144,12 +4144,13 @@
     ],
     "type": "js",
     "modulePath": "douban/search.js",
-    "sourceFile": "douban/search.js"
+    "sourceFile": "douban/search.js",
+    "navigateBefore": false
   },
   {
     "site": "douban",
     "name": "subject",
-    "description": "获取电影详情",
+    "description": "获取豆瓣条目详情",
     "domain": "movie.douban.com",
     "strategy": "cookie",
     "browser": true,
@@ -4159,13 +4160,37 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "电影 ID"
+        "help": "豆瓣条目 ID"
+      },
+      {
+        "name": "type",
+        "type": "str",
+        "default": "movie",
+        "required": false,
+        "help": "条目类型（movie=电影, book=图书）",
+        "choices": [
+          "movie",
+          "book"
+        ]
       }
     ],
     "columns": [
       "id",
+      "type",
       "title",
+      "subtitle",
       "originalTitle",
+      "authors",
+      "translators",
+      "publisher",
+      "publishDate",
+      "publishYear",
+      "pageCount",
+      "binding",
+      "price",
+      "series",
+      "isbn10",
+      "isbn13",
       "year",
       "rating",
       "ratingCount",
@@ -4179,7 +4204,8 @@
     ],
     "type": "js",
     "modulePath": "douban/subject.js",
-    "sourceFile": "douban/subject.js"
+    "sourceFile": "douban/subject.js",
+    "navigateBefore": false
   },
   {
     "site": "douban",

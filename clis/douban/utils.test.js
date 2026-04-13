@@ -1,6 +1,16 @@
 import vm from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
-import { getDoubanPhotoExtension, inferDoubanSearchResultType, loadDoubanSubjectPhotos, normalizeDoubanSubjectId, promoteDoubanPhotoUrl, resolveDoubanPhotoAssetUrl, searchDouban, } from './utils.js';
+import {
+    getDoubanPhotoExtension,
+    inferDoubanSearchResultType,
+    loadDoubanSubjectDetail,
+    loadDoubanSubjectPhotos,
+    normalizeDoubanBookSubject,
+    normalizeDoubanSubjectId,
+    promoteDoubanPhotoUrl,
+    resolveDoubanPhotoAssetUrl,
+    searchDouban,
+} from './utils.js';
 
 function createFakeNode(text = '', attrs = {}) {
     return {
@@ -10,17 +20,21 @@ function createFakeNode(text = '', attrs = {}) {
         },
     };
 }
+
 function createFakeSearchItem({ title, url, rating, abstract, cover }) {
     return {
         querySelector(selector) {
-            if (selector === '.title-text, .title a, a[title]') {
+            if (selector === '.title-text, .title a, .title h3 a, h3 a, a[title]') {
                 return createFakeNode(title, { href: url, title });
             }
             if (selector === '.rating_nums') {
                 return createFakeNode(rating);
             }
-            if (selector === '.meta.abstract, .meta, .abstract, p') {
+            if (selector === '.meta.abstract, .meta, .abstract, .subject-abstract, p') {
                 return createFakeNode(abstract);
+            }
+            if (selector === 'a[href*="/subject/"]') {
+                return createFakeNode('', { href: url });
             }
             if (selector === 'img') {
                 return createFakeNode('', { src: cover });
@@ -29,11 +43,15 @@ function createFakeSearchItem({ title, url, rating, abstract, cover }) {
         },
     };
 }
+
 async function runSearchEvaluate(script, rawItems, domItems) {
     const document = {
         querySelector(selector) {
             if (selector === '.item-root .title-text, .item-root .title a') {
-                return domItems[0]?.querySelector('.title-text, .title a, a[title]') || null;
+                return domItems[0]?.querySelector('.title-text, .title a, .title h3 a, h3 a, a[title]') || null;
+            }
+            if (selector === '.item-root .title-text, .item-root .title a, .result-list .result-item h3 a') {
+                return domItems[0]?.querySelector('.title-text, .title a, .title h3 a, h3 a, a[title]') || null;
             }
             return null;
         },
@@ -41,9 +59,13 @@ async function runSearchEvaluate(script, rawItems, domItems) {
             if (selector === '.item-root') {
                 return domItems;
             }
+            if (selector === '.item-root, .result-list .result-item') {
+                return domItems;
+            }
             return [];
         },
     };
+
     return vm.runInNewContext(script, {
         Map,
         Promise,
@@ -59,20 +81,25 @@ async function runSearchEvaluate(script, rawItems, domItems) {
         },
     });
 }
+
 describe('douban utils', () => {
     it('normalizes valid subject ids', () => {
         expect(normalizeDoubanSubjectId(' 30382501 ')).toBe('30382501');
     });
+
     it('rejects invalid subject ids', () => {
         expect(() => normalizeDoubanSubjectId('tt30382501')).toThrow('Invalid Douban subject ID');
     });
+
     it('promotes thumbnail urls to large photo urls', () => {
         expect(promoteDoubanPhotoUrl('https://img1.doubanio.com/view/photo/m/public/p2913450214.webp')).toBe('https://img1.doubanio.com/view/photo/l/public/p2913450214.webp');
         expect(promoteDoubanPhotoUrl('https://img9.doubanio.com/view/photo/s_ratio_poster/public/p2578474613.jpg')).toBe('https://img9.doubanio.com/view/photo/l/public/p2578474613.jpg');
     });
+
     it('rejects non-http photo urls during promotion', () => {
         expect(promoteDoubanPhotoUrl('data:image/gif;base64,abc')).toBe('');
     });
+
     it('prefers lazy-loaded photo urls over data placeholders', () => {
         expect(resolveDoubanPhotoAssetUrl([
             '',
@@ -80,9 +107,11 @@ describe('douban utils', () => {
             'data:image/gif;base64,abc',
         ], 'https://movie.douban.com/subject/30382501/photos?type=Rb')).toBe('https://img1.doubanio.com/view/photo/m/public/p2913450214.webp');
     });
+
     it('drops unsupported non-http photo urls when no real image url exists', () => {
         expect(resolveDoubanPhotoAssetUrl(['data:image/gif;base64,abc', 'blob:https://movie.douban.com/example'], 'https://movie.douban.com/subject/30382501/photos?type=Rb')).toBe('');
     });
+
     it('removes the default photo cap when scanning for an exact photo id', async () => {
         const evaluate = vi.fn()
             .mockResolvedValueOnce({ blocked: false, title: 'Some Movie', href: 'https://movie.douban.com/subject/30382501/photos?type=Rb' })
@@ -116,10 +145,12 @@ describe('douban utils', () => {
         expect(scanScript).toContain(`const limit = ${Number.MAX_SAFE_INTEGER};`);
         expect(scanScript).toContain('for (let pageIndex = 0; photos.length < limit; pageIndex += 1)');
     });
+
     it('keeps image extensions when download urls contain query params', () => {
         expect(getDoubanPhotoExtension('https://img1.doubanio.com/view/photo/l/public/p2913450214.webp?foo=1')).toBe('.webp');
         expect(getDoubanPhotoExtension('https://img1.doubanio.com/view/photo/l/public/p2913450214.jpeg')).toBe('.jpeg');
     });
+
     it('maps tv series results to tvshow in searchDouban output', async () => {
         const domItems = [
             createFakeSearchItem({
@@ -161,7 +192,149 @@ describe('douban utils', () => {
             { id: '36289423', type: 'movie', title: '射雕英雄传：侠之大者‎ (2025)' },
         ]);
     });
+
+    it('normalizes douban book subject raw data into structured fields', () => {
+        const normalized = normalizeDoubanBookSubject({
+            id: '2567698',
+            title: '小狗钱钱',
+            subtitle: '让孩子和家长共同成长的财商童话',
+            originalTitle: 'Ein Hund namens Money',
+            infoText: `
+作者: [德] 博多·舍费尔
+出版社: 南海出版公司
+副标题: 让孩子和家长共同成长的财商童话
+原作名: Ein Hund namens Money
+译者: 王钟欣 / 余茜
+出版年: 2014-1-1
+页数: 208
+定价: 26.00元
+装帧: 平装
+丛书: 新经典文库·爱心树童书
+ISBN: 9787544270871
+      `,
+            rating: '8.9',
+            ratingCount: '12345',
+            summary: '理财启蒙故事',
+            cover: 'https://img9.doubanio.com/view/subject/l/public/s29618581.jpg',
+            url: 'https://book.douban.com/subject/2567698/',
+        });
+        expect(normalized).toMatchObject({
+            id: '2567698',
+            type: 'book',
+            title: '小狗钱钱',
+            subtitle: '让孩子和家长共同成长的财商童话',
+            originalTitle: 'Ein Hund namens Money',
+            authors: ['[德] 博多·舍费尔'],
+            translators: ['王钟欣', '余茜'],
+            publisher: '南海出版公司',
+            publishDate: '2014-1-1',
+            publishYear: '2014',
+            pageCount: 208,
+            binding: '平装',
+            price: '26.00元',
+            series: '新经典文库·爱心树童书',
+            isbn13: '9787544270871',
+            rating: 8.9,
+            ratingCount: 12345,
+            summary: '理财启蒙故事',
+            cover: 'https://img9.doubanio.com/view/subject/l/public/s29618581.jpg',
+            url: 'https://book.douban.com/subject/2567698/',
+        });
+    });
+
+    it('loads book subject details from book.douban.com when type=book', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ blocked: false, title: '小狗钱钱 (豆瓣)', href: 'https://book.douban.com/subject/2567698/' })
+                .mockResolvedValueOnce({
+                id: '2567698',
+                title: '小狗钱钱',
+                subtitle: '',
+                originalTitle: '',
+                infoText: `
+作者: [德] 博多·舍费尔
+出版社: 南海出版公司
+出版年: 2014-1-1
+ISBN: 9787544270871
+        `,
+                rating: '8.9',
+                ratingCount: '12345',
+                summary: '理财启蒙故事',
+                cover: 'https://img9.doubanio.com/view/subject/l/public/s29618581.jpg',
+                url: 'https://book.douban.com/subject/2567698/',
+            }),
+        };
+        const detail = await loadDoubanSubjectDetail(page, '2567698', 'book');
+        expect(page.goto).toHaveBeenCalledWith('https://book.douban.com/subject/2567698/', {
+            waitUntil: 'load',
+            settleMs: 1500,
+        });
+        expect(page.wait).toHaveBeenCalledWith({ selector: 'h1 span, #info', timeout: 8 });
+        expect(detail).toMatchObject({
+            id: '2567698',
+            type: 'book',
+            title: '小狗钱钱',
+            authors: ['[德] 博多·舍费尔'],
+            publisher: '南海出版公司',
+            isbn13: '9787544270871',
+            rating: 8.9,
+            ratingCount: 12345,
+            url: 'https://book.douban.com/subject/2567698/',
+        });
+    });
+
+    it('retries transient detached navigation errors when loading douban search results', async () => {
+        const page = {
+            goto: vi.fn()
+                .mockRejectedValueOnce(new Error('Detached while handling command'))
+                .mockResolvedValueOnce(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({
+                blocked: false,
+                title: '经济学思维 - 豆瓣搜索',
+                href: 'https://search.douban.com/book/subject_search?search_text=%E7%BB%8F%E6%B5%8E%E5%AD%A6%E6%80%9D%E7%BB%B4&cat=1001',
+            })
+                .mockResolvedValueOnce([
+                {
+                    rank: 1,
+                    id: '26895402',
+                    type: 'book',
+                    title: '经济学思维',
+                    rating: 7.9,
+                    abstract: '李子畅 / 中信出版社 / 2016-7',
+                    url: 'https://book.douban.com/subject/26895402/',
+                    cover: 'https://img1.doubanio.com/view/subject/m/public/s29000000.jpg',
+                },
+            ]),
+        };
+        const results = await searchDouban(page, 'book', '经济学思维', 3);
+        expect(page.goto).toHaveBeenNthCalledWith(1, 'https://search.douban.com/book/subject_search?search_text=%E7%BB%8F%E6%B5%8E%E5%AD%A6%E6%80%9D%E7%BB%B4&cat=1001', {
+            waitUntil: 'load',
+            settleMs: 1500,
+        });
+        expect(page.goto).toHaveBeenCalledTimes(2);
+        expect(page.wait).toHaveBeenCalledWith({
+            selector: '.item-root .title-text, .item-root .title a, .result-list .result-item h3 a',
+            timeout: 8,
+        });
+        expect(results).toEqual([
+            {
+                rank: 1,
+                id: '26895402',
+                type: 'book',
+                title: '经济学思维',
+                rating: 7.9,
+                abstract: '李子畅 / 中信出版社 / 2016-7',
+                url: 'https://book.douban.com/subject/26895402/',
+                cover: 'https://img1.doubanio.com/view/subject/m/public/s29000000.jpg',
+            },
+        ]);
+    });
 });
+
 describe('inferDoubanSearchResultType', () => {
     it('returns tvshow for movie search results marked as TV', () => {
         expect(inferDoubanSearchResultType('movie', {
@@ -169,12 +342,14 @@ describe('inferDoubanSearchResultType', () => {
             labels: [{ text: '剧集' }],
         })).toBe('tvshow');
     });
+
     it('returns movie when a movie search result has no TV signal', () => {
         expect(inferDoubanSearchResultType('movie', {
             moreUrl: "onclick=\"moreurl(this,{is_tv:'0'})\"",
             labels: [{ text: '可播放' }],
         })).toBe('movie');
     });
+
     it('preserves non-movie search types', () => {
         expect(inferDoubanSearchResultType('book', {
             moreUrl: '',
