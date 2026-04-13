@@ -573,6 +573,18 @@ export function validatePluginStructure(pluginDir: string): ValidationResult {
   return { valid: errors.length === 0, errors };
 }
 
+/** Check whether a directory has its own production dependencies in package.json. */
+function hasOwnDependencies(dir: string): boolean {
+  const pkgPath = path.join(dir, 'package.json');
+  if (!fs.existsSync(pkgPath)) return false;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+    return pkg.dependencies != null && Object.keys(pkg.dependencies).length > 0;
+  } catch {
+    return false;
+  }
+}
+
 function installDependencies(dir: string): void {
   const pkgJsonPath = path.join(dir, 'package.json');
   if (!fs.existsSync(pkgJsonPath)) return;
@@ -607,11 +619,20 @@ function postInstallLifecycle(pluginDir: string): void {
 }
 
 /**
- * Monorepo lifecycle: install shared deps once at repo root, then finalize each sub-plugin.
+ * Monorepo lifecycle: install shared deps at repo root, then install and finalize each sub-plugin.
+ *
+ * The root install covers monorepos that use npm workspaces to hoist dependencies.
+ * For monorepos that do NOT use workspaces, sub-plugins may declare their own
+ * production dependencies in their package.json.  We install those per sub-plugin
+ * so that runtime imports (e.g. `undici`) can be resolved from the sub-plugin
+ * directory.  When the root already satisfies all deps this is a fast no-op.
  */
 function postInstallMonorepoLifecycle(repoDir: string, pluginDirs: string[]): void {
   installDependencies(repoDir);
   for (const pluginDir of pluginDirs) {
+    if (pluginDir !== repoDir && hasOwnDependencies(pluginDir)) {
+      installDependencies(pluginDir);
+    }
     finalizePluginRuntime(pluginDir);
   }
 }

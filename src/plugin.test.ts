@@ -639,7 +639,7 @@ describe('postInstallMonorepoLifecycle', () => {
     fs.rmSync(repoDir, { recursive: true, force: true });
   });
 
-  it('installs dependencies once at the monorepo root, not in each sub-plugin', () => {
+  it('installs dependencies at the monorepo root and skips sub-plugins without own dependencies', () => {
     _postInstallMonorepoLifecycle(repoDir, [subDir]);
 
     const npmCalls = mockExecFileSync.mock.calls.filter(
@@ -649,6 +649,26 @@ describe('postInstallMonorepoLifecycle', () => {
     expect(npmCalls).toHaveLength(1);
     expect(npmCalls[0][2]).toMatchObject({ cwd: repoDir });
     expect(npmCalls.some(([, , opts]) => opts?.cwd === subDir)).toBe(false);
+  });
+
+  it('also installs dependencies in sub-plugins that declare their own production dependencies', () => {
+    // Give the sub-plugin its own production dependencies
+    fs.writeFileSync(path.join(subDir, 'package.json'), JSON.stringify({
+      name: 'opencli-plugin-alpha',
+      version: '1.0.0',
+      type: 'module',
+      dependencies: { undici: '^8.0.0' },
+    }));
+
+    _postInstallMonorepoLifecycle(repoDir, [subDir]);
+
+    const npmCalls = mockExecFileSync.mock.calls.filter(
+      ([cmd, args]) => cmd === 'npm' && Array.isArray(args) && args[0] === 'install',
+    );
+
+    expect(npmCalls).toHaveLength(2);
+    expect(npmCalls[0][2]).toMatchObject({ cwd: repoDir });
+    expect(npmCalls[1][2]).toMatchObject({ cwd: subDir });
   });
 });
 
