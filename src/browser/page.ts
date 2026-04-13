@@ -123,6 +123,11 @@ export class Page extends BasePage {
     }
   }
 
+  /** Open a URL as a new tab in the user's existing Chrome window (not the automation window). */
+  async openUserTab(url: string): Promise<void> {
+    await sendCommand('tabs', { op: 'open-user-tab', url, ...this._wsOpt() });
+  }
+
   async tabs(): Promise<unknown[]> {
     const result = await sendCommand('tabs', { op: 'list', ...this._wsOpt() });
     return Array.isArray(result) ? result : [];

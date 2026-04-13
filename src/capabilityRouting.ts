@@ -11,6 +11,7 @@ export const BROWSER_ONLY_STEPS = new Set([
   'evaluate',
   'intercept',
   'tap',
+  'open-user-tab',
 ]);
 
 function pipelineNeedsBrowserSession(pipeline: Record<string, unknown>[]): boolean {

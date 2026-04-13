@@ -71,6 +71,8 @@ export interface IPage {
    */
   setFileInput?(files: string[], selector?: string): Promise<void>;
   closeWindow?(): Promise<void>;
+  /** Open a URL as a new tab in the user's existing Chrome window (not the automation window). */
+  openUserTab?(url: string): Promise<void>;
   /** Returns the current page URL, or null if unavailable. */
   getCurrentUrl?(): Promise<string | null>;
   /** Returns the active tab ID, or undefined if not yet resolved. */

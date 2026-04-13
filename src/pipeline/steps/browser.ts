@@ -74,3 +74,9 @@ export async function stepEvaluate(page: IPage | null, params: unknown, data: un
   }
   return result;
 }
+
+export async function stepOpenUserTab(page: IPage | null, params: unknown, data: unknown, args: Record<string, unknown>): Promise<unknown> {
+  const url = String(render(params, { args, data }));
+  await page!.openUserTab?.(url);
+  return data;
+}

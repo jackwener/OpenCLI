@@ -595,6 +595,20 @@ async function handleTabs(cmd: Command, workspace: string): Promise<Result> {
       await chrome.tabs.update(target.id, { active: true });
       return { id: cmd.id, ok: true, data: { selected: target.id } };
     }
+    case 'open-user-tab': {
+      if (!cmd.url || !isSafeNavigationUrl(cmd.url)) {
+        return { id: cmd.id, ok: false, error: 'Missing or invalid URL' };
+      }
+      // Find a user window that is NOT an automation window
+      const automationWindowIds = new Set([...automationSessions.values()].map(s => s.windowId));
+      const allWindows = await chrome.windows.getAll({ windowTypes: ['normal'] });
+      const userWindow = allWindows.find(w => w.id !== undefined && !automationWindowIds.has(w.id));
+      if (!userWindow?.id) {
+        return { id: cmd.id, ok: false, error: 'No existing Chrome window found. Open a Chrome window first.' };
+      }
+      const tab = await chrome.tabs.create({ windowId: userWindow.id, url: cmd.url, active: true });
+      return { id: cmd.id, ok: true, data: { tabId: tab.id, windowId: userWindow.id } };
+    }
     default:
       return { id: cmd.id, ok: false, error: `Unknown tabs op: ${cmd.op}` };
   }
