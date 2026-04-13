@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-04-13T06:55:27.140Z",
+  "json_file": "./clis/tiktok/notifications.json",
+  "command": "Notifications",
+  "website": "www.tiktok.com",
+  "params": {
+    "limit": 5,
+    "type": "all"
+  },
+  "success": true,
+  "data_count": 0,
+  "sample_data": [],
+  "comparison": {
+    "grease_count": 0,
+    "opencli_count": 0,
+    "match": true,
+    "differences": []
+  }
+}

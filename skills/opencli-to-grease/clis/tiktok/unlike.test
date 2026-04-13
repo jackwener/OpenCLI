@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-04-13T07:28:11.156Z",
+  "json_file": "./clis/tiktok/unlike.json",
+  "command": "Unlike",
+  "website": "www.tiktok.com",
+  "params": {
+    "url": "https://www.tiktok.com/@funnydogsa/video/7464138181466803502"
+  },
+  "success": false,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "Like button not found - make sure you are logged in",
+      "likes": "-",
+      "url": "https://www.tiktok.com/@funnydogsa/video/7464138181466803502"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli tiktok unlike \"https://www.tiktok.com/@funnydogsa/video/7464138181466803502\"  -f json\nok: false\nerror:\n  code: UNKNOWN\n  message: |-\n    Error: Like button not found - make sure you are logged in\n        at <anonymous>:4:19\n        at <anonymous>:18:3\n  exitCode: 1\n# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 for repair context\n# OPENCLI_DIAGNOSTIC=1 tiktok/unlike\n"
+    ]
+  }
+}

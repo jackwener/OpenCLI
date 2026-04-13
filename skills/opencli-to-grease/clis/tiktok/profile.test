@@ -1,0 +1,29 @@
+{
+  "timestamp": "2026-04-13T06:50:33.063Z",
+  "json_file": "./clis/tiktok/profile.json",
+  "command": "Profile",
+  "website": "www.tiktok.com",
+  "params": {
+    "username": "tiktok"
+  },
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "username": "tiktok",
+      "name": "TikTok",
+      "bio": "One TikTok can make a big impact",
+      "followers": 93700000,
+      "following": 3,
+      "likes": 457100000,
+      "videos": 1423,
+      "verified": "Yes"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 1,
+    "match": true,
+    "differences": []
+  }
+}

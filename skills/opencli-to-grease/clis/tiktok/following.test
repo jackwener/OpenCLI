@@ -1,0 +1,44 @@
+{
+  "timestamp": "2026-04-13T06:51:51.124Z",
+  "json_file": "./clis/tiktok/following.json",
+  "command": "Following",
+  "website": "www.tiktok.com",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "index": 1,
+      "username": "tatemcrae",
+      "name": "tate mcraeFollow"
+    },
+    {
+      "index": 2,
+      "username": "badbunny",
+      "name": "Bad BunnyFollow"
+    },
+    {
+      "index": 3,
+      "username": "therock",
+      "name": "The RockFollow"
+    },
+    {
+      "index": 4,
+      "username": "livbedumb",
+      "name": "Olivia RodrigoFollow"
+    },
+    {
+      "index": 5,
+      "username": "rauwalejandro",
+      "name": "rauwalejandroFollow"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

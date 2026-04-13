@@ -1,0 +1,44 @@
+{
+  "timestamp": "2026-04-13T06:53:45.133Z",
+  "json_file": "./clis/tiktok/friends.json",
+  "command": "Friends",
+  "website": "www.tiktok.com",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "index": 1,
+      "username": "tatemcrae",
+      "name": "tate mcrae"
+    },
+    {
+      "index": 2,
+      "username": "badbunny",
+      "name": "Bad Bunny"
+    },
+    {
+      "index": 3,
+      "username": "therock",
+      "name": "The Rock"
+    },
+    {
+      "index": 4,
+      "username": "livbedumb",
+      "name": "Olivia Rodrigo"
+    },
+    {
+      "index": 5,
+      "username": "rauwalejandro",
+      "name": "rauwalejandro"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

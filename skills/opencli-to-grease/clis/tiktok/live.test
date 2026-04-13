@@ -1,0 +1,59 @@
+{
+  "timestamp": "2026-04-13T07:27:53.118Z",
+  "json_file": "./clis/tiktok/live.json",
+  "command": "Live",
+  "website": "www.tiktok.com",
+  "params": {
+    "limit": 5
+  },
+  "success": false,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "index": 1,
+      "streamer": "c2getemm_",
+      "viewers": "127",
+      "url": "https://www.tiktok.com/@c2getemm_/live"
+    },
+    {
+      "index": 2,
+      "streamer": "djplc",
+      "viewers": "119",
+      "url": "https://www.tiktok.com/@djplc/live"
+    },
+    {
+      "index": 3,
+      "streamer": "nghimbochu03",
+      "viewers": "85",
+      "url": "https://www.tiktok.com/@nghimbochu03/live"
+    },
+    {
+      "index": 4,
+      "streamer": "holyspiritchannel",
+      "viewers": "264",
+      "url": "https://www.tiktok.com/@holyspiritchannel/live"
+    },
+    {
+      "index": 5,
+      "streamer": "bigkeeneofficial",
+      "viewers": "200",
+      "url": "https://www.tiktok.com/@bigkeeneofficial/live"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": false,
+    "differences": [
+      "Item 1 \"streamer\": Grease=\"c2getemm_\" vs OpenCLI=\"strivemotion\"",
+      "Item 1 \"viewers\": Grease=\"127\" vs OpenCLI=\"97\"",
+      "Item 1 \"url\": Grease=\"https://www.tiktok.com/@c2getemm_/live\" vs OpenCLI=\"https://www.tiktok.com/@strivemotion/live\"",
+      "Item 2 \"streamer\": Grease=\"djplc\" vs OpenCLI=\"nolimit_k223\"",
+      "Item 2 \"viewers\": Grease=\"119\" vs OpenCLI=\"110\"",
+      "Item 2 \"url\": Grease=\"https://www.tiktok.com/@djplc/live\" vs OpenCLI=\"https://www.tiktok.com/@nolimit_k223/live\"",
+      "Item 3 \"streamer\": Grease=\"nghimbochu03\" vs OpenCLI=\"will46shelby\"",
+      "Item 3 \"viewers\": Grease=\"85\" vs OpenCLI=\"115\"",
+      "Item 3 \"url\": Grease=\"https://www.tiktok.com/@nghimbochu03/live\" vs OpenCLI=\"https://www.tiktok.com/@will46shelby/live\""
+    ]
+  }
+}

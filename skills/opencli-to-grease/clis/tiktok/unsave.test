@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-04-13T07:28:48.145Z",
+  "json_file": "./clis/tiktok/unsave.json",
+  "command": "Unsave",
+  "website": "www.tiktok.com",
+  "params": {
+    "url": "https://www.tiktok.com/@funnydogsa/video/7464138181466803502"
+  },
+  "success": false,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "Favorites button not found - make sure you are logged in",
+      "url": "https://www.tiktok.com/@funnydogsa/video/7464138181466803502"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli tiktok unsave \"https://www.tiktok.com/@funnydogsa/video/7464138181466803502\"  -f json\nok: false\nerror:\n  code: UNKNOWN\n  message: |-\n    Error: Favorites button not found - make sure you are logged in\n        at <anonymous>:5:19\n        at <anonymous>:16:3\n  exitCode: 1\n# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 for repair context\n# OPENCLI_DIAGNOSTIC=1 tiktok/unsave\n"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-04-13T07:28:59.141Z",
+  "json_file": "./clis/tiktok/comment.json",
+  "command": "Comment",
+  "website": "www.tiktok.com",
+  "params": {
+    "url": "https://www.tiktok.com/@funnydogsa/video/7464138181466803502",
+    "text": "nice"
+  },
+  "success": false,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "Comment input not found - make sure you are logged in",
+      "url": "https://www.tiktok.com/@funnydogsa/video/7464138181466803502",
+      "text": "nice"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli tiktok comment \"https://www.tiktok.com/@funnydogsa/video/7464138181466803502\" \"nice\"  -f json\nok: false\nerror:\n  code: UNKNOWN\n  message: |-\n    Error: Comment input not found - make sure you are logged in\n        at <anonymous>:20:21\n        at <anonymous>:41:3\n  exitCode: 1\n# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 for repair context\n# OPENCLI_DIAGNOSTIC=1 tiktok/comment\n"
+    ]
+  }
+}

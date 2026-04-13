@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-04-13T07:18:23.149Z",
+  "json_file": "./clis/tiktok/unfollow.json",
+  "command": "Unfollow",
+  "website": "www.tiktok.com",
+  "params": {
+    "username": "funnydogsa"
+  },
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "Not following this user",
+      "username": "funnydogsa"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 1,
+    "match": true,
+    "differences": []
+  }
+}

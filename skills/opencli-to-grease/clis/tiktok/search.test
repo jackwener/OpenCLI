@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-04-13T06:50:19.243Z",
+  "json_file": "./clis/tiktok/search.json",
+  "command": "Search",
+  "website": "www.tiktok.com",
+  "params": {
+    "query": "funny",
+    "limit": 3
+  },
+  "success": true,
+  "data_count": 3,
+  "sample_data": [
+    {
+      "rank": 1,
+      "desc": "The end 😂😂#fun #funny #funnyvideos #funnyvideo #fyp #fypシ #fail #foryou #failvideo #fy #failarmy #",
+      "author": "lisafunny27",
+      "url": "https://www.tiktok.com/@lisafunny27/video/7143934871629499694",
+      "plays": 85000000,
+      "likes": 6100000,
+      "comments": 15600,
+      "shares": 188100
+    },
+    {
+      "rank": 2,
+      "desc": "#funnyvideos #funny #funnybaby #funnykids #cutebaby #cute #baby #babies #kids #laugh #babiesoftiktok",
+      "author": "funny.laeliababy",
+      "url": "https://www.tiktok.com/@funny.laeliababy/video/7275743041552469290",
+      "plays": 25500000,
+      "likes": 1300000,
+      "comments": 9425,
+      "shares": 160900
+    },
+    {
+      "rank": 3,
+      "desc": "Husky interesting funny moment 😂 most interesting funny video 🤣😂 #huskysoftiktok #funnypets #funn",
+      "author": "animalfailscentral",
+      "url": "https://www.tiktok.com/@animalfailscentral/video/7628095939118517526",
+      "plays": 25900,
+      "likes": 1016,
+      "comments": 16,
+      "shares": 61
+    }
+  ],
+  "comparison": {
+    "grease_count": 3,
+    "opencli_count": 3,
+    "match": true,
+    "differences": []
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-04-13T07:18:14.125Z",
+  "json_file": "./clis/tiktok/follow.json",
+  "command": "Follow",
+  "website": "www.tiktok.com",
+  "params": {
+    "username": "funnydogsa"
+  },
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "Follow button not found",
+      "username": "funnydogsa"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 1,
+    "match": true,
+    "differences": []
+  }
+}
