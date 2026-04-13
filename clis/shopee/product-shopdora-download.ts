@@ -4,9 +4,9 @@ import {
   CommandExecutionError,
   getErrorMessage,
 } from '@jackwener/opencli/errors';
+import { bindCurrentTab } from '@jackwener/opencli/browser/daemon-client';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import type { IPage } from '@jackwener/opencli/types';
-import { bindCurrentTab } from '../../src/browser/daemon-client.js';
 import { clearLocalStorageForUrlHost, simulateHumanBehavior, waitRandomDuration } from './shared.js';
 
 const EXPORT_REVIEW_BUTTON_SELECTOR =

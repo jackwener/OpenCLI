@@ -7,6 +7,8 @@ const {
   PRODUCT_FIELDS,
   mergeProductDetails,
   hasMeaningfulProductData,
+  firstUrlFromSrcset,
+  pickImageUrlFromAttributes,
   bindShopeeProductTab,
   ensureShopeeProductPage,
 } =
@@ -70,21 +72,43 @@ describe('shopee product adapter', () => {
     });
     expect(thumbnailField).toMatchObject({
       type: 'list',
-      fields: [{ name: 'thumbnail_url', type: 'attribute', attribute: 'src' }],
+      fields: [{ name: 'thumbnail_url', type: 'attribute', attribute: 'src', transform: 'image_src' }],
     });
     expect(attrOptionsField).toMatchObject({
       type: 'list',
       fields: expect.arrayContaining([
-        expect.objectContaining({ name: 'image_url', type: 'attribute', attribute: 'src' }),
+        expect.objectContaining({ name: 'title', type: 'text' }),
+        expect.objectContaining({ name: 'image_url', type: 'attribute', attribute: 'src', transform: 'image_src' }),
         expect.objectContaining({ name: 'is_selected', transform: 'selected_class' }),
       ]),
     });
     expect(specOptionsField).toMatchObject({
       type: 'list',
       fields: expect.arrayContaining([
+        expect.objectContaining({ name: 'title', type: 'text' }),
         expect.objectContaining({ name: 'is_selected', transform: 'selected_class' }),
       ]),
     });
+  });
+});
+
+describe('shopee attr option image helpers', () => {
+  it('parses the first url from srcset values', () => {
+    expect(
+      firstUrlFromSrcset(
+        'https://down-sg.img.susercontent.com/file/sg-11134207-7rdwc-mcj4nu2ezjl22d@resize_w24_nl.webp 1x, https://down-sg.img.susercontent.com/file/sg-11134207-7rdwc-mcj4nu2ezjl22d@resize_w48_nl.webp 2x',
+      ),
+    ).toBe('https://down-sg.img.susercontent.com/file/sg-11134207-7rdwc-mcj4nu2ezjl22d@resize_w24_nl.webp');
+  });
+
+  it('prefers the direct img src for shopee picture button attrs', () => {
+    expect(
+      pickImageUrlFromAttributes({
+        src: 'https://down-sg.img.susercontent.com/file/sg-11134207-7rdwc-mcj4nu2ezjl22d',
+        srcset:
+          'https://down-sg.img.susercontent.com/file/sg-11134207-7rdwc-mcj4nu2ezjl22d@resize_w24_nl 1x, https://down-sg.img.susercontent.com/file/sg-11134207-7rdwc-mcj4nu2ezjl22d@resize_w48_nl 2x',
+      }),
+    ).toBe('https://down-sg.img.susercontent.com/file/sg-11134207-7rdwc-mcj4nu2ezjl22d');
   });
 });
 

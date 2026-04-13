@@ -2,9 +2,9 @@ import {
   CommandExecutionError,
   EmptyResultError,
 } from '@jackwener/opencli/errors';
+import { bindCurrentTab } from '@jackwener/opencli/browser/daemon-client';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import type { IPage } from '@jackwener/opencli/types';
-import { bindCurrentTab } from '../../src/browser/daemon-client.js';
 import { clearLocalStorageForUrlHost, simulateHumanBehavior } from './shared.js';
 
 type ShopeeField = {
@@ -13,8 +13,49 @@ type ShopeeField = {
   type?: 'text' | 'attribute' | 'list';
   attribute?: string;
   fields?: ShopeeField[];
-  transform?: 'absolute_url' | 'selected_class';
+  transform?: 'absolute_url' | 'selected_class' | 'image_src';
 };
+
+const DIRECT_IMAGE_ATTRIBUTES = [
+  'src',
+  'data-src',
+  'data-lazy-src',
+  'data-original',
+  'data-img-src',
+] as const;
+
+const SRCSET_IMAGE_ATTRIBUTES = [
+  'srcset',
+  'data-srcset',
+  'data-lazy-srcset',
+] as const;
+
+function firstUrlFromSrcset(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const candidate = raw
+    .split(',')
+    .map((part) => part.trim())
+    .find(Boolean);
+  if (!candidate) return '';
+  return candidate.split(/\s+/)[0]?.trim() ?? '';
+}
+
+function pickImageUrlFromAttributes(
+  attributes: Partial<Record<typeof DIRECT_IMAGE_ATTRIBUTES[number] | typeof SRCSET_IMAGE_ATTRIBUTES[number], unknown>>,
+): string {
+  for (const key of DIRECT_IMAGE_ATTRIBUTES) {
+    const value = String(attributes[key] ?? '').trim();
+    if (value) return value;
+  }
+
+  for (const key of SRCSET_IMAGE_ATTRIBUTES) {
+    const value = firstUrlFromSrcset(attributes[key]);
+    if (value) return value;
+  }
+
+  return '';
+}
 
 const PRODUCT_FIELDS: ShopeeField[] = [
   { name: 'title', selector: 'h1.vR6K3w > span' },
@@ -31,6 +72,7 @@ const PRODUCT_FIELDS: ShopeeField[] = [
     selector: '.xxW0BG .HJ5l1F .center.Oj2Oo7 > img.rWN4DK, .xxW0BG .HJ5l1F .center.Oj2Oo7 > img, .UdI7e2 picture img.fMm3P2, .UdI7e2 picture img',
     type: 'attribute',
     attribute: 'src',
+    transform: 'image_src',
   },
   {
     name: 'video_url',
@@ -56,15 +98,17 @@ const PRODUCT_FIELDS: ShopeeField[] = [
         selector: '',
         type: 'attribute',
         attribute: 'src',
+        transform: 'image_src',
       },
     ],
   },
   { name: 'first_variant_name', selector: '.j7HL5Q button:first-of-type span.ZivAAW' },
   {
     name: 'first_variant_image_url',
-    selector: '.j7HL5Q button:first-of-type img',
+    selector: '.j7HL5Q button:first-of-type picture, .j7HL5Q button:first-of-type img',
     type: 'attribute',
     attribute: 'src',
+    transform: 'image_src',
   },
   {
     name: 'attr_options',
@@ -72,8 +116,9 @@ const PRODUCT_FIELDS: ShopeeField[] = [
     type: 'list',
     fields: [
       { name: 'name', selector: '.ZivAAW', type: 'text' },
+      { name: 'title', selector: '.ZivAAW', type: 'text' },
       { name: 'label', selector: '', type: 'attribute', attribute: 'aria-label' },
-      { name: 'image_url', selector: 'img', type: 'attribute', attribute: 'src' },
+      { name: 'image_url', selector: 'picture, img', type: 'attribute', attribute: 'src', transform: 'image_src' },
       { name: 'is_disabled', selector: '', type: 'attribute', attribute: 'aria-disabled' },
       {
         name: 'is_selected',
@@ -90,6 +135,7 @@ const PRODUCT_FIELDS: ShopeeField[] = [
     type: 'list',
     fields: [
       { name: 'name', selector: '.ZivAAW', type: 'text' },
+      { name: 'title', selector: '.ZivAAW', type: 'text' },
       { name: 'label', selector: '', type: 'attribute', attribute: 'aria-label' },
       { name: 'is_disabled', selector: '', type: 'attribute', attribute: 'aria-disabled' },
       {
@@ -138,6 +184,7 @@ const PRODUCT_FIELDS: ShopeeField[] = [
     selector: '#sll2-pdp-product-shop .uLQaPg picture img.Qm507c, #sll2-pdp-product-shop .uLQaPg picture img',
     type: 'attribute',
     attribute: 'src',
+    transform: 'image_src',
   },
   { name: 'shop_last_active', selector: '#sll2-pdp-product-shop .mMlpiZ .Fsv0YO' },
   { name: 'shop_rating_count', selector: '#sll2-pdp-product-shop .NGzCXN > :nth-child(1) .Cs6w3G' },
@@ -204,7 +251,7 @@ async function ensureShopeeProductPage(
   bindFn: BindCurrentTabFn = bindCurrentTab,
 ): Promise<boolean> {
   const reusedExistingTab = await bindShopeeProductTab(productUrl, bindFn);
-  // await clearLocalStorageForUrlHost(page, productUrl);
+  await clearLocalStorageForUrlHost(page, productUrl);
   await page.goto(productUrl, { waitUntil: 'load' });
   return reusedExistingTab;
 }
@@ -225,10 +272,44 @@ async function extractProductDetails(page: IPage, productUrl: string): Promise<R
           const text = toScalar(value);
           return text.startsWith('/') ? baseOrigin + text : text;
         }
+        if (field.transform === 'image_src') {
+          return toScalar(value);
+        }
         if (field.transform === 'selected_class') {
           return /selection-box-selected/.test(toScalar(value)) ? 'true' : 'false';
         }
         return value;
+      };
+      const firstUrlFromSrcset = ${firstUrlFromSrcset.toString()};
+      const pickImageUrlFromAttributes = ${pickImageUrlFromAttributes.toString()};
+      const extractImageUrl = (target) => {
+        const candidates = [target];
+        if (typeof target?.querySelector === 'function') {
+          candidates.push(
+            target.querySelector('img'),
+            target.querySelector('picture img'),
+            target.querySelector('source'),
+            target.querySelector('picture source'),
+          );
+        }
+
+        for (const node of candidates) {
+          if (!(node instanceof Element)) continue;
+          const attrs = {
+            src: node.getAttribute('src') || '',
+            'data-src': node.getAttribute('data-src') || '',
+            'data-lazy-src': node.getAttribute('data-lazy-src') || '',
+            'data-original': node.getAttribute('data-original') || '',
+            'data-img-src': node.getAttribute('data-img-src') || '',
+            srcset: node.getAttribute('srcset') || '',
+            'data-srcset': node.getAttribute('data-srcset') || '',
+            'data-lazy-srcset': node.getAttribute('data-lazy-srcset') || '',
+          };
+          const value = pickImageUrlFromAttributes(attrs);
+          if (value) return value;
+        }
+
+        return '';
       };
       const isMeaningfulValue = (value) => {
         if (Array.isArray(value)) return value.some(isMeaningfulValue);
@@ -264,6 +345,9 @@ async function extractProductDetails(page: IPage, productUrl: string): Promise<R
         if (!target) return '';
 
         if (field.type === 'attribute') {
+          if (field.transform === 'image_src') {
+            return extractImageUrl(target);
+          }
           const attrName = typeof field.attribute === 'string' && field.attribute.trim()
             ? field.attribute.trim()
             : target instanceof HTMLAnchorElement
@@ -365,6 +449,8 @@ export const __test__ = {
   PRODUCT_FIELDS,
   mergeProductDetails,
   hasMeaningfulProductData,
+  firstUrlFromSrcset,
+  pickImageUrlFromAttributes,
   bindShopeeProductTab,
   ensureShopeeProductPage,
 };

@@ -22,6 +22,7 @@
     "./logger": "./dist/src/logger.js",
     "./launcher": "./dist/src/launcher.js",
     "./browser/cdp": "./dist/src/browser/cdp.js",
+    "./browser/daemon-client": "./dist/src/browser/daemon-client.js",
     "./browser/page": "./dist/src/browser/page.js",
     "./browser/utils": "./dist/src/browser/utils.js",
     "./download": "./dist/src/download/index.js",
