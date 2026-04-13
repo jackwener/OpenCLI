@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-04-13T15:12:06.967Z",
+  "json_file": "./clis/douyin/profile.json",
+  "command": "Profile",
+  "website": "creator.douyin.com",
+  "params": {},
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "uid": "82182639518",
+      "nickname": "暴哥",
+      "follower_count": 88,
+      "following_count": 328,
+      "aweme_count": 5
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 1,
+    "match": true,
+    "differences": []
+  }
+}

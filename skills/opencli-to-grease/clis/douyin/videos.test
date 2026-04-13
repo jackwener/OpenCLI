@@ -1,0 +1,61 @@
+{
+  "timestamp": "2026-04-13T15:12:32.082Z",
+  "json_file": "./clis/douyin/videos.json",
+  "command": "Videos",
+  "website": "creator.douyin.com",
+  "params": {
+    "limit": 5,
+    "page": 1,
+    "status": "all"
+  },
+  "success": true,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "aweme_id": "7095413243824327948",
+      "title": "",
+      "status": "published",
+      "play_count": 585,
+      "digg_count": 17,
+      "create_time": "2022/5/9 02:07:30"
+    },
+    {
+      "aweme_id": "6953218685620227332",
+      "title": "从连续颠一次到现在上百次，学会了克服困难的方式方法",
+      "status": "published",
+      "play_count": 667,
+      "digg_count": 17,
+      "create_time": "2021/4/20 21:39:45"
+    },
+    {
+      "aweme_id": "6936547405772983584",
+      "title": "和幼儿园小朋友来了场友谊赛",
+      "status": "published",
+      "play_count": 400,
+      "digg_count": 13,
+      "create_time": "2021/3/6 23:26:42"
+    },
+    {
+      "aweme_id": "6910767303411895555",
+      "title": "让我们猜猜这是卖啥的 #这是高手",
+      "status": "published",
+      "play_count": 109,
+      "digg_count": 3,
+      "create_time": "2020/12/27 12:06:59"
+    },
+    {
+      "aweme_id": "6863661308957428999",
+      "title": "国米成都球迷组织聚会#嗨翻全场",
+      "status": "published",
+      "play_count": 156,
+      "digg_count": 3,
+      "create_time": "2020/8/22 13:31:23"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-04-13T15:12:39.556Z",
+  "json_file": "./clis/douyin/drafts.json",
+  "command": "Drafts",
+  "website": "creator.douyin.com",
+  "params": {
+    "limit": 5
+  },
+  "success": false,
+  "data_count": 0,
+  "sample_data": [],
+  "comparison": {
+    "grease_count": 0,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli douyin drafts  --limit 5 -f json\nok: false\nerror:\n  code: COMMAND_EXEC\n  message: 'Douyin API error 1: Url doesn''t match'\n  exitCode: 1\n"
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-04-13T15:16:24.521Z",
+  "json_file": "./clis/douyin/delete.json",
+  "command": "Delete",
+  "website": "creator.douyin.com",
+  "params": {
+    "aweme_id": "test123"
+  },
+  "success": false,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "API错误 18: No item permission"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli douyin delete \"test123\"  -f json\nok: false\nerror:\n  code: COMMAND_EXEC\n  message: 'Douyin API error 18: No item permission'\n  exitCode: 1\n"
+    ]
+  }
+}

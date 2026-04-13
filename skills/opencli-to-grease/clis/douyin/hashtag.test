@@ -1,0 +1,47 @@
+{
+  "timestamp": "2026-04-13T15:13:18.231Z",
+  "json_file": "./clis/douyin/hashtag.json",
+  "command": "Hashtag",
+  "website": "creator.douyin.com",
+  "params": {
+    "action": "hot",
+    "limit": 5,
+    "keyword": "",
+    "cover": ""
+  },
+  "success": true,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "name": "中纪委连打“三虎”",
+      "id": "2464585",
+      "view_count": 12036805
+    },
+    {
+      "name": "五一出游穿搭",
+      "id": "2464580",
+      "view_count": 12002149
+    },
+    {
+      "name": "我国一季度多领域成绩单亮眼",
+      "id": "2465166",
+      "view_count": 11653472
+    },
+    {
+      "name": "这夏放心去野吧",
+      "id": "2464871",
+      "view_count": 11358249
+    },
+    {
+      "name": "自带丁达尔滤镜的春日OOTD",
+      "id": "2464500",
+      "view_count": 10725670
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

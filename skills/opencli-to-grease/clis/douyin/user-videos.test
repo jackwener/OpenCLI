@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-04-13T15:15:16.502Z",
+  "json_file": "./clis/douyin/user-videos.json",
+  "command": "UserVideos",
+  "website": "www.douyin.com",
+  "params": {
+    "sec_uid": "MS4wLjABAAAA1R7H8GjA7qY9c8d",
+    "limit": 3,
+    "with_comments": true,
+    "comment_limit": 10
+  },
+  "success": false,
+  "data_count": 3,
+  "sample_data": [
+    {
+      "index": 1,
+      "aweme_id": "7095413243824327948",
+      "title": "",
+      "duration": 164,
+      "digg_count": 17,
+      "play_url": "https://v9-v2-mps-cdn.douyinvod.com/5aa1a66668623d67ee8d82c5daaaef88/69dd3357/video/cn/mps/realtime/v1/r/p/v0300fg10000c9rvcajc77u3drnhi5ug/27f19d3c190f43f9b3030ba45a85542b/1c4e02cea5f3a904ed90afeef2d546f8/mp4/main.mp4?a=6383&ch=10&cr=3&dr=0&lr=all&cd=0%7C0%7C0%7C3&cv=1&br=466&bt=466&cs=0&ds=3&eid=64256&ft=8ZhzyJqeffPdO.~SN1jNvAq-antLjrK.-APnRkalghXoUjVhWL6&mime_type=video_mp4&qs=0&rc=ZTc4ZDdlNjY8Nmk8Zmc0OkBpajhrdTY6ZmR5PDMzNGkzM0AvMjUyXi0tX2MxLS4wNmMvYSNyZmthcjRnYG9gLS1kLTBzcw%3D%3D&btag=80000e00028000&codec=h264&cquery=100x_102u_100o_101r_100B&definition=720p&dy_q=1776093315&feature_id=a0bda0ab39a0229d088573ba250e1030&format=mp4&item_id=7095413243824327948&l=202604132315158551A5537EB6E6E1EB9E&logo_type=&sign_params=codec%2Cdefinition%2Cformat%2Citem_id%2Clogo_type",
+      "top_comments": [
+        {
+          "text": "小暴加油[赞][赞][赞][赞]",
+          "digg_count": 0,
+          "nickname": "黄小丫"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "aweme_id": "6953218685620227332",
+      "title": "从连续颠一次到现在上百次，学会了克服困难的方式方法",
+      "duration": 107,
+      "digg_count": 17,
+      "play_url": "https://v26-web.douyinvod.com/90d2ec6a08633926d3d21b28912d26df/69dd331e/video/tos/cn/tos-cn-ve-0015c800/27a386b4685a453f8b609ad4fadcd049/?a=6383&ch=10&cr=3&dr=0&lr=all&cd=0%7C0%7C0%7C3&br=1885&bt=1885&cs=0&ds=3&ft=pEaFx4hZffPdO.~SN1jNvAq-antLjrK.-APnRkalghXoUjVhWL6&mime_type=video_mp4&qs=0&rc=M2loZmg3OWUzO2Y5N2VpZkBpamZubnNqNGlmNDMzNGkzM0A2L2JeMTUuXjAxLWMvMDYvYSMuYzYtcTZiaHNgLS1kLS9zcw%3D%3D&btag=80000e00028000&cquery=102u_100o_101r_100B_100x&dy_q=1776093315&l=202604132315158551A5537EB6E6E1EB9E",
+      "top_comments": []
+    },
+    {
+      "index": 3,
+      "aweme_id": "6936547405772983584",
+      "title": "和幼儿园小朋友来了场友谊赛",
+      "duration": 61,
+      "digg_count": 13,
+      "play_url": "https://v26-web.douyinvod.com/556b8884adb5bdfc4254fa9442123673/69dd32ef/video/tos/cn/tos-cn-ve-0015c800/43ed3bd2dd0d4443acdbe72a742a074d/?a=6383&ch=10&cr=3&dr=0&lr=all&cd=0%7C0%7C0%7C3&cv=1&br=3187&bt=3187&cs=0&ds=3&ft=pEaFx4hZffPdO.~SN1jNvAq-antLjrK.-APnRkalghXoUjVhWL6&mime_type=video_mp4&qs=0&rc=M2k5Ozg7PDNmZDU3OmZoZEBpMzg7O2c4cmVzNDMzZ2kzM0BiXzYuNTAtNV4xMDBgYWEwYSNob15hcWA1Li5gLS0wLTBzcw%3D%3D&btag=80000e00028000&cquery=101r_100B_100x_102u_100o&dy_q=1776093315&l=202604132315158551A5537EB6E6E1EB9E",
+      "top_comments": []
+    }
+  ],
+  "comparison": {
+    "grease_count": 3,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli douyin user-videos \"MS4wLjABAAAA1R7H8GjA7qY9c8d\" --limit 3 --with-comments \"true\" --comment-limit \"10\" -f json\nerror: unknown option '--with-comments'\n(Did you mean --with_comments?)\n"
+    ]
+  }
+}

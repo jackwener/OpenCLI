@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-04-13T15:12:17.515Z",
+  "json_file": "./clis/douyin/collections.json",
+  "command": "Collections",
+  "website": "creator.douyin.com",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "data_count": 0,
+  "sample_data": [],
+  "comparison": {
+    "grease_count": 0,
+    "opencli_count": 0,
+    "match": true,
+    "differences": []
+  }
+}

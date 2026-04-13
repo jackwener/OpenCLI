@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-04-13T15:13:35.702Z",
+  "json_file": "./clis/douyin/stats.json",
+  "command": "Stats",
+  "website": "creator.douyin.com",
+  "params": {
+    "aweme_id": "7095413243824327948"
+  },
+  "success": false,
+  "data_count": 0,
+  "sample_data": [],
+  "comparison": {
+    "grease_count": 0,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli douyin stats \"7095413243824327948\"  -f json\nok: false\nerror:\n  code: COMMAND_EXEC\n  message: 'Douyin API error 4: '\n  exitCode: 1\n"
+    ]
+  }
+}

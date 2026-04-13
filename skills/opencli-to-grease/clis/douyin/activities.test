@@ -1,0 +1,42 @@
+{
+  "timestamp": "2026-04-13T15:12:12.568Z",
+  "json_file": "./clis/douyin/activities.json",
+  "command": "Activities",
+  "website": "creator.douyin.com",
+  "params": {},
+  "success": true,
+  "data_count": 17,
+  "sample_data": [
+    {
+      "activity_id": "7627876273683059739",
+      "title": "全民买手请回答！发种草图文享激励",
+      "end_time": "2026.06.30"
+    },
+    {
+      "activity_id": "7628127538942120987",
+      "title": "纠结买啥求推荐？发文求助享激励",
+      "end_time": "2026.06.30"
+    },
+    {
+      "activity_id": "7628093316186018862",
+      "title": "晒出你的购物攻略！发图文享激励",
+      "end_time": "2026.06.30"
+    },
+    {
+      "activity_id": "7627885103628473382",
+      "title": "安利你买到的好物！发图文享激励",
+      "end_time": "2026.06.30"
+    },
+    {
+      "activity_id": "7627879733234717722",
+      "title": "纠结买不买？发文字求助享激励",
+      "end_time": "2026.06.30"
+    }
+  ],
+  "comparison": {
+    "grease_count": 17,
+    "opencli_count": 17,
+    "match": true,
+    "differences": []
+  }
+}

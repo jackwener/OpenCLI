@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-04-13T15:12:57.474Z",
+  "json_file": "./clis/douyin/location.json",
+  "command": "Location",
+  "website": "creator.douyin.com",
+  "params": {
+    "query": "北京",
+    "limit": 5
+  },
+  "success": false,
+  "data_count": 0,
+  "comparison": {
+    "grease_count": 0,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "GreaseAI returned no data"
+    ]
+  }
+}

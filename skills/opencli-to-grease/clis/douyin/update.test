@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-04-13T15:16:44.574Z",
+  "json_file": "./clis/douyin/update.json",
+  "command": "Update",
+  "website": "creator.douyin.com",
+  "params": {
+    "aweme_id": "test123",
+    "caption": "test",
+    "reschedule": ""
+  },
+  "success": false,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "正文更新API错误 5: 参数不合法"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli douyin update \"test123\" --caption \"test\" -f json\nok: false\nerror:\n  code: COMMAND_EXEC\n  message: 'Douyin API error 5: 参数不合法'\n  exitCode: 1\n"
+    ]
+  }
+}
