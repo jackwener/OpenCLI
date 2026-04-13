@@ -11,6 +11,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { execSync, execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { PLUGINS_DIR } from './discovery.js';
 import { getErrorMessage, PluginError } from './errors.js';
@@ -589,6 +590,44 @@ function installDependencies(dir: string): void {
   }
 }
 
+function getMissingRuntimeDependencies(pluginDir: string): string[] {
+  const pkgJsonPath = path.join(pluginDir, 'package.json');
+  if (!fs.existsSync(pkgJsonPath)) return [];
+
+  let pkg: Record<string, unknown>;
+  try {
+    pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8')) as Record<string, unknown>;
+  } catch {
+    return [];
+  }
+
+  const declaredDeps = [
+    ...Object.keys((pkg.dependencies as Record<string, unknown> | undefined) ?? {}),
+    ...Object.keys((pkg.optionalDependencies as Record<string, unknown> | undefined) ?? {}),
+  ];
+  if (declaredDeps.length === 0) return [];
+
+  const requireFromPlugin = createRequire(path.join(pluginDir, '__opencli_plugin__.cjs'));
+  return declaredDeps.filter((dep) => {
+    try {
+      requireFromPlugin.resolve(dep);
+      return false;
+    } catch {
+      return true;
+    }
+  });
+}
+
+function ensurePluginRuntimeDependencies(pluginDir: string): void {
+  const missing = getMissingRuntimeDependencies(pluginDir);
+  if (missing.length === 0) return;
+
+  log.debug(
+    `Installing plugin-local dependencies in ${pluginDir} because root install did not resolve: ${missing.join(', ')}`
+  );
+  installDependencies(pluginDir);
+}
+
 function finalizePluginRuntime(pluginDir: string): void {
   // Symlink host opencli so TS plugins resolve '@jackwener/opencli/registry'
   // against the running host, not a stale npm-published version.
@@ -612,6 +651,7 @@ function postInstallLifecycle(pluginDir: string): void {
 function postInstallMonorepoLifecycle(repoDir: string, pluginDirs: string[]): void {
   installDependencies(repoDir);
   for (const pluginDir of pluginDirs) {
+    ensurePluginRuntimeDependencies(pluginDir);
     finalizePluginRuntime(pluginDir);
   }
 }

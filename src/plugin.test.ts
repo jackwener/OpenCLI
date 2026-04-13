@@ -650,6 +650,26 @@ describe('postInstallMonorepoLifecycle', () => {
     expect(npmCalls[0][2]).toMatchObject({ cwd: repoDir });
     expect(npmCalls.some(([, , opts]) => opts?.cwd === subDir)).toBe(false);
   });
+
+  it('falls back to plugin-local install when sub-plugin dependencies are unresolved from the repo root', () => {
+    fs.writeFileSync(path.join(subDir, 'package.json'), JSON.stringify({
+      name: 'alpha-plugin',
+      type: 'module',
+      dependencies: {
+        undici: '^7.0.0',
+      },
+    }));
+
+    _postInstallMonorepoLifecycle(repoDir, [subDir]);
+
+    const npmCalls = mockExecFileSync.mock.calls.filter(
+      ([cmd, args]) => cmd === 'npm' && Array.isArray(args) && args[0] === 'install',
+    );
+
+    expect(npmCalls).toHaveLength(2);
+    expect(npmCalls[0][2]).toMatchObject({ cwd: repoDir });
+    expect(npmCalls[1][2]).toMatchObject({ cwd: subDir });
+  });
 });
 
 describe('updateAllPlugins', () => {
