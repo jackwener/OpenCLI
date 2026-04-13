@@ -22,7 +22,7 @@ cli({
     strategy: Strategy.COOKIE,
     navigateBefore: false,
     args: [
-        { name: 'note-id', required: true, positional: true, help: 'Note ID or full URL (preserves xsec_token for access)' },
+        { name: 'note-id', required: true, positional: true, help: 'Full Xiaohongshu note URL with xsec_token' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of top-level comments (max 50)' },
         { name: 'with-replies', type: 'boolean', default: false, help: 'Include nested replies (楼中楼)' },
     ],
@@ -32,7 +32,7 @@ cli({
         const withReplies = Boolean(kwargs['with-replies']);
         const raw = String(kwargs['note-id']);
         const noteId = parseNoteId(raw);
-        await page.goto(buildNoteUrl(raw));
+        await page.goto(buildNoteUrl(raw, { commandName: 'xiaohongshu comments' }));
         await page.wait({ time: 2 + Math.random() * 3 });
         const data = await page.evaluate(`
       (async () => {

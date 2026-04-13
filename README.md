@@ -272,7 +272,8 @@ OpenCLI supports downloading images, videos, and articles from supported platfor
 For video downloads, install `yt-dlp` first: `brew install yt-dlp`
 
 ```bash
-opencli xiaohongshu download abc123 --output ./xhs
+opencli xiaohongshu download "https://www.xiaohongshu.com/search_result/<id>?xsec_token=..." --output ./xhs
+opencli xiaohongshu download "https://xhslink.com/..." --output ./xhs
 opencli bilibili download BV1xxx --output ./bilibili
 opencli twitter download elonmusk --limit 20 --output ./twitter
 opencli 1688 download 841141931191 --output ./1688-downloads

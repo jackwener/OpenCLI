@@ -4,9 +4,7 @@
  * Extracts title, author, description text, and engagement metrics
  * (likes, collects, comment count) via DOM extraction.
  *
- * Supports both bare note IDs and full URLs (with xsec_token).
- * Bare IDs now use /search_result/<id> which works without xsec_token
- * when the user is logged in via cookies.
+ * Requires a full Xiaohongshu note URL with xsec_token.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
@@ -19,13 +17,13 @@ cli({
     strategy: Strategy.COOKIE,
     navigateBefore: false,
     args: [
-        { name: 'note-id', required: true, positional: true, help: 'Note ID or full URL (preserves xsec_token for access)' },
+        { name: 'note-id', required: true, positional: true, help: 'Full Xiaohongshu note URL with xsec_token' },
     ],
     columns: ['field', 'value'],
     func: async (page, kwargs) => {
         const raw = String(kwargs['note-id']);
         const noteId = parseNoteId(raw);
-        const url = buildNoteUrl(raw);
+        const url = buildNoteUrl(raw, { commandName: 'xiaohongshu note' });
         await page.goto(url);
         await page.wait({ time: 2 + Math.random() * 3 });
         const data = await page.evaluate(`

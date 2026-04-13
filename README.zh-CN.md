@@ -338,7 +338,8 @@ brew install yt-dlp
 
 ```bash
 # 下载小红书笔记中的图片/视频
-opencli xiaohongshu download abc123 --output ./xhs
+opencli xiaohongshu download "https://www.xiaohongshu.com/search_result/<id>?xsec_token=..." --output ./xhs
+opencli xiaohongshu download "https://xhslink.com/..." --output ./xhs
 
 # 下载B站视频（需要 yt-dlp）
 opencli bilibili download BV1xxx --output ./bilibili

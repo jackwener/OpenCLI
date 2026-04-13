@@ -25,7 +25,8 @@
     ],
     "type": "js",
     "modulePath": "1688/assets.js",
-    "sourceFile": "1688/assets.js"
+    "sourceFile": "1688/assets.js",
+    "navigateBefore": "https://www.1688.com"
   },
   {
     "site": "1688",
@@ -58,7 +59,8 @@
     ],
     "type": "js",
     "modulePath": "1688/download.js",
-    "sourceFile": "1688/download.js"
+    "sourceFile": "1688/download.js",
+    "navigateBefore": "https://www.1688.com"
   },
   {
     "site": "1688",
@@ -174,7 +176,8 @@
     ],
     "type": "js",
     "modulePath": "36kr/article.js",
-    "sourceFile": "36kr/article.js"
+    "sourceFile": "36kr/article.js",
+    "navigateBefore": true
   },
   {
     "site": "36kr",
@@ -519,7 +522,8 @@
     ],
     "type": "js",
     "modulePath": "antigravity/dump.js",
-    "sourceFile": "antigravity/dump.js"
+    "sourceFile": "antigravity/dump.js",
+    "navigateBefore": true
   },
   {
     "site": "antigravity",
@@ -534,7 +538,8 @@
     ],
     "type": "js",
     "modulePath": "antigravity/extract-code.js",
-    "sourceFile": "antigravity/extract-code.js"
+    "sourceFile": "antigravity/extract-code.js",
+    "navigateBefore": true
   },
   {
     "site": "antigravity",
@@ -557,7 +562,8 @@
     ],
     "type": "js",
     "modulePath": "antigravity/model.js",
-    "sourceFile": "antigravity/model.js"
+    "sourceFile": "antigravity/model.js",
+    "navigateBefore": true
   },
   {
     "site": "antigravity",
@@ -572,7 +578,8 @@
     ],
     "type": "js",
     "modulePath": "antigravity/new.js",
-    "sourceFile": "antigravity/new.js"
+    "sourceFile": "antigravity/new.js",
+    "navigateBefore": true
   },
   {
     "site": "antigravity",
@@ -595,7 +602,8 @@
     ],
     "type": "js",
     "modulePath": "antigravity/read.js",
-    "sourceFile": "antigravity/read.js"
+    "sourceFile": "antigravity/read.js",
+    "navigateBefore": true
   },
   {
     "site": "antigravity",
@@ -619,7 +627,8 @@
     ],
     "type": "js",
     "modulePath": "antigravity/send.js",
-    "sourceFile": "antigravity/send.js"
+    "sourceFile": "antigravity/send.js",
+    "navigateBefore": true
   },
   {
     "site": "antigravity",
@@ -636,7 +645,8 @@
     ],
     "type": "js",
     "modulePath": "antigravity/status.js",
-    "sourceFile": "antigravity/status.js"
+    "sourceFile": "antigravity/status.js",
+    "navigateBefore": true
   },
   {
     "site": "antigravity",
@@ -650,7 +660,8 @@
     "timeout": 86400,
     "type": "js",
     "modulePath": "antigravity/watch.js",
-    "sourceFile": "antigravity/watch.js"
+    "sourceFile": "antigravity/watch.js",
+    "navigateBefore": true
   },
   {
     "site": "apple-podcasts",
@@ -824,7 +835,8 @@
     ],
     "type": "js",
     "modulePath": "band/bands.js",
-    "sourceFile": "band/bands.js"
+    "sourceFile": "band/bands.js",
+    "navigateBefore": "https://www.band.us"
   },
   {
     "site": "band",
@@ -872,7 +884,8 @@
     ],
     "type": "js",
     "modulePath": "band/mentions.js",
-    "sourceFile": "band/mentions.js"
+    "sourceFile": "band/mentions.js",
+    "navigateBefore": true
   },
   {
     "site": "band",
@@ -998,7 +1011,8 @@
     ],
     "type": "js",
     "modulePath": "barchart/flow.js",
-    "sourceFile": "barchart/flow.js"
+    "sourceFile": "barchart/flow.js",
+    "navigateBefore": "https://www.barchart.com"
   },
   {
     "site": "barchart",
@@ -1045,7 +1059,8 @@
     ],
     "type": "js",
     "modulePath": "barchart/greeks.js",
-    "sourceFile": "barchart/greeks.js"
+    "sourceFile": "barchart/greeks.js",
+    "navigateBefore": "https://www.barchart.com"
   },
   {
     "site": "barchart",
@@ -1098,7 +1113,8 @@
     ],
     "type": "js",
     "modulePath": "barchart/options.js",
-    "sourceFile": "barchart/options.js"
+    "sourceFile": "barchart/options.js",
+    "navigateBefore": "https://www.barchart.com"
   },
   {
     "site": "barchart",
@@ -1134,7 +1150,8 @@
     ],
     "type": "js",
     "modulePath": "barchart/quote.js",
-    "sourceFile": "barchart/quote.js"
+    "sourceFile": "barchart/quote.js",
+    "navigateBefore": "https://www.barchart.com"
   },
   {
     "site": "bbc",
@@ -1195,7 +1212,8 @@
     ],
     "type": "js",
     "modulePath": "bilibili/comments.js",
-    "sourceFile": "bilibili/comments.js"
+    "sourceFile": "bilibili/comments.js",
+    "navigateBefore": "https://www.bilibili.com"
   },
   {
     "site": "bilibili",
@@ -1235,7 +1253,8 @@
     ],
     "type": "js",
     "modulePath": "bilibili/download.js",
-    "sourceFile": "bilibili/download.js"
+    "sourceFile": "bilibili/download.js",
+    "navigateBefore": "https://www.bilibili.com"
   },
   {
     "site": "bilibili",
@@ -1262,7 +1281,8 @@
     ],
     "type": "js",
     "modulePath": "bilibili/dynamic.js",
-    "sourceFile": "bilibili/dynamic.js"
+    "sourceFile": "bilibili/dynamic.js",
+    "navigateBefore": "https://www.bilibili.com"
   },
   {
     "site": "bilibili",
@@ -1296,46 +1316,90 @@
     ],
     "type": "js",
     "modulePath": "bilibili/favorite.js",
-    "sourceFile": "bilibili/favorite.js"
+    "sourceFile": "bilibili/favorite.js",
+    "navigateBefore": "https://www.bilibili.com"
   },
   {
     "site": "bilibili",
     "name": "feed",
-    "description": "关注的人的动态时间线",
+    "description": "动态时间线（不传 uid 查关注时间线，传 uid 查指定用户动态）",
     "domain": "www.bilibili.com",
     "strategy": "cookie",
     "browser": true,
     "args": [
       {
+        "name": "uid",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "用户 UID 或用户名（不传则显示关注时间线）"
+      },
+      {
         "name": "limit",
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of results"
+        "help": "Max results to return"
       },
       {
         "name": "type",
         "type": "str",
         "default": "all",
         "required": false,
-        "help": "Filter: all, video, article"
+        "help": "Filter: all, video, article, draw, text"
+      },
+      {
+        "name": "pages",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Number of pages to fetch (each ~20 items)"
       }
     ],
     "columns": [
       "rank",
+      "time",
       "author",
       "title",
       "type",
+      "likes",
       "url"
     ],
     "type": "js",
     "modulePath": "bilibili/feed.js",
-    "sourceFile": "bilibili/feed.js"
+    "sourceFile": "bilibili/feed.js",
+    "navigateBefore": "https://www.bilibili.com"
+  },
+  {
+    "site": "bilibili",
+    "name": "feed-detail",
+    "description": "查看 Bilibili 动态详情（支持充电专属内容）",
+    "domain": "www.bilibili.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "动态 ID（从 feed 命令的 url 中获取）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "bilibili/feed.js",
+    "sourceFile": "bilibili/feed.js",
+    "navigateBefore": "https://www.bilibili.com"
   },
   {
     "site": "bilibili",
     "name": "following",
     "description": "获取 Bilibili 用户的关注列表",
+    "domain": "www.bilibili.com",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -1370,7 +1434,8 @@
     ],
     "type": "js",
     "modulePath": "bilibili/following.js",
-    "sourceFile": "bilibili/following.js"
+    "sourceFile": "bilibili/following.js",
+    "navigateBefore": "https://www.bilibili.com"
   },
   {
     "site": "bilibili",
@@ -1397,7 +1462,8 @@
     ],
     "type": "js",
     "modulePath": "bilibili/history.js",
-    "sourceFile": "bilibili/history.js"
+    "sourceFile": "bilibili/history.js",
+    "navigateBefore": "https://www.bilibili.com"
   },
   {
     "site": "bilibili",
@@ -1424,7 +1490,8 @@
     ],
     "type": "js",
     "modulePath": "bilibili/hot.js",
-    "sourceFile": "bilibili/hot.js"
+    "sourceFile": "bilibili/hot.js",
+    "navigateBefore": "https://www.bilibili.com"
   },
   {
     "site": "bilibili",
@@ -1444,7 +1511,8 @@
     ],
     "type": "js",
     "modulePath": "bilibili/me.js",
-    "sourceFile": "bilibili/me.js"
+    "sourceFile": "bilibili/me.js",
+    "navigateBefore": "https://www.bilibili.com"
   },
   {
     "site": "bilibili",
@@ -1471,7 +1539,8 @@
     ],
     "type": "js",
     "modulePath": "bilibili/ranking.js",
-    "sourceFile": "bilibili/ranking.js"
+    "sourceFile": "bilibili/ranking.js",
+    "navigateBefore": "https://www.bilibili.com"
   },
   {
     "site": "bilibili",
@@ -1519,7 +1588,8 @@
     ],
     "type": "js",
     "modulePath": "bilibili/search.js",
-    "sourceFile": "bilibili/search.js"
+    "sourceFile": "bilibili/search.js",
+    "navigateBefore": "https://www.bilibili.com"
   },
   {
     "site": "bilibili",
@@ -1550,7 +1620,8 @@
     ],
     "type": "js",
     "modulePath": "bilibili/subtitle.js",
-    "sourceFile": "bilibili/subtitle.js"
+    "sourceFile": "bilibili/subtitle.js",
+    "navigateBefore": true
   },
   {
     "site": "bilibili",
@@ -1599,7 +1670,342 @@
     ],
     "type": "js",
     "modulePath": "bilibili/user-videos.js",
-    "sourceFile": "bilibili/user-videos.js"
+    "sourceFile": "bilibili/user-videos.js",
+    "navigateBefore": "https://www.bilibili.com"
+  },
+  {
+    "site": "binance",
+    "name": "asks",
+    "description": "Order book ask prices for a trading pair",
+    "domain": "data-api.binance.vision",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "symbol",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Trading pair symbol (e.g. BTCUSDT, ETHUSDT)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of price levels (5, 10, 20, 50, 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "ask_price",
+      "ask_qty"
+    ],
+    "type": "js",
+    "modulePath": "binance/asks.js",
+    "sourceFile": "binance/asks.js"
+  },
+  {
+    "site": "binance",
+    "name": "depth",
+    "description": "Order book bid prices for a trading pair",
+    "domain": "data-api.binance.vision",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "symbol",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Trading pair symbol (e.g. BTCUSDT, ETHUSDT)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of price levels (5, 10, 20, 50, 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "bid_price",
+      "bid_qty"
+    ],
+    "type": "js",
+    "modulePath": "binance/depth.js",
+    "sourceFile": "binance/depth.js"
+  },
+  {
+    "site": "binance",
+    "name": "gainers",
+    "description": "Top gaining trading pairs by 24h price change",
+    "domain": "data-api.binance.vision",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of trading pairs"
+      }
+    ],
+    "columns": [
+      "rank",
+      "symbol",
+      "price",
+      "change_24h",
+      "volume"
+    ],
+    "type": "js",
+    "modulePath": "binance/gainers.js",
+    "sourceFile": "binance/gainers.js"
+  },
+  {
+    "site": "binance",
+    "name": "klines",
+    "description": "Candlestick/kline data for a trading pair",
+    "domain": "data-api.binance.vision",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "symbol",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Trading pair symbol (e.g. BTCUSDT, ETHUSDT)"
+      },
+      {
+        "name": "interval",
+        "type": "str",
+        "default": "1d",
+        "required": false,
+        "help": "Kline interval (1m, 5m, 15m, 1h, 4h, 1d, 1w, 1M)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of klines (max 1000)"
+      }
+    ],
+    "columns": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume"
+    ],
+    "type": "js",
+    "modulePath": "binance/klines.js",
+    "sourceFile": "binance/klines.js"
+  },
+  {
+    "site": "binance",
+    "name": "losers",
+    "description": "Top losing trading pairs by 24h price change",
+    "domain": "data-api.binance.vision",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of trading pairs"
+      }
+    ],
+    "columns": [
+      "rank",
+      "symbol",
+      "price",
+      "change_24h",
+      "volume"
+    ],
+    "type": "js",
+    "modulePath": "binance/losers.js",
+    "sourceFile": "binance/losers.js"
+  },
+  {
+    "site": "binance",
+    "name": "pairs",
+    "description": "List active trading pairs on Binance",
+    "domain": "data-api.binance.vision",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of trading pairs"
+      }
+    ],
+    "columns": [
+      "symbol",
+      "base",
+      "quote",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "binance/pairs.js",
+    "sourceFile": "binance/pairs.js"
+  },
+  {
+    "site": "binance",
+    "name": "price",
+    "description": "Quick price check for a trading pair",
+    "domain": "data-api.binance.vision",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "symbol",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Trading pair symbol (e.g. BTCUSDT, ETHUSDT)"
+      }
+    ],
+    "columns": [
+      "symbol",
+      "price",
+      "change",
+      "change_pct",
+      "high",
+      "low",
+      "volume",
+      "quote_volume",
+      "trades"
+    ],
+    "type": "js",
+    "modulePath": "binance/price.js",
+    "sourceFile": "binance/price.js"
+  },
+  {
+    "site": "binance",
+    "name": "prices",
+    "description": "Latest prices for all trading pairs",
+    "domain": "data-api.binance.vision",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of prices"
+      }
+    ],
+    "columns": [
+      "rank",
+      "symbol",
+      "price"
+    ],
+    "type": "js",
+    "modulePath": "binance/prices.js",
+    "sourceFile": "binance/prices.js"
+  },
+  {
+    "site": "binance",
+    "name": "ticker",
+    "description": "24h ticker statistics for top trading pairs by volume",
+    "domain": "data-api.binance.vision",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of tickers"
+      }
+    ],
+    "columns": [
+      "symbol",
+      "price",
+      "change_pct",
+      "high",
+      "low",
+      "volume",
+      "quote_vol",
+      "trades"
+    ],
+    "type": "js",
+    "modulePath": "binance/ticker.js",
+    "sourceFile": "binance/ticker.js"
+  },
+  {
+    "site": "binance",
+    "name": "top",
+    "description": "Top trading pairs by 24h volume on Binance",
+    "domain": "data-api.binance.vision",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of trading pairs"
+      }
+    ],
+    "columns": [
+      "rank",
+      "symbol",
+      "price",
+      "change_24h",
+      "high",
+      "low",
+      "volume"
+    ],
+    "type": "js",
+    "modulePath": "binance/top.js",
+    "sourceFile": "binance/top.js"
+  },
+  {
+    "site": "binance",
+    "name": "trades",
+    "description": "Recent trades for a trading pair",
+    "domain": "data-api.binance.vision",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "symbol",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Trading pair symbol (e.g. BTCUSDT, ETHUSDT)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of trades (max 1000)"
+      }
+    ],
+    "columns": [
+      "id",
+      "price",
+      "qty",
+      "quote_qty",
+      "buyer_maker"
+    ],
+    "type": "js",
+    "modulePath": "binance/trades.js",
+    "sourceFile": "binance/trades.js"
   },
   {
     "site": "bloomberg",
@@ -1772,7 +2178,8 @@
     ],
     "type": "js",
     "modulePath": "bloomberg/news.js",
-    "sourceFile": "bloomberg/news.js"
+    "sourceFile": "bloomberg/news.js",
+    "navigateBefore": "https://www.bloomberg.com"
   },
   {
     "site": "bloomberg",
@@ -2727,7 +3134,8 @@
     "timeout": 90,
     "type": "js",
     "modulePath": "chaoxing/assignments.js",
-    "sourceFile": "chaoxing/assignments.js"
+    "sourceFile": "chaoxing/assignments.js",
+    "navigateBefore": "https://mooc2-ans.chaoxing.com"
   },
   {
     "site": "chaoxing",
@@ -2776,7 +3184,49 @@
     "timeout": 90,
     "type": "js",
     "modulePath": "chaoxing/exams.js",
-    "sourceFile": "chaoxing/exams.js"
+    "sourceFile": "chaoxing/exams.js",
+    "navigateBefore": "https://mooc2-ans.chaoxing.com"
+  },
+  {
+    "site": "chatgpt",
+    "name": "image",
+    "description": "Generate images with ChatGPT web and save them locally",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Image prompt to send to ChatGPT"
+      },
+      {
+        "name": "op",
+        "type": "str",
+        "default": "/Users/yuhan/Pictures/chatgpt",
+        "required": false,
+        "help": "Output directory"
+      },
+      {
+        "name": "sd",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Skip download shorthand; only show ChatGPT link"
+      }
+    ],
+    "columns": [
+      "status",
+      "file",
+      "link"
+    ],
+    "timeout": 240,
+    "type": "js",
+    "modulePath": "chatgpt/image.js",
+    "sourceFile": "chatgpt/image.js",
+    "navigateBefore": false
   },
   {
     "site": "chatgpt-app",
@@ -2964,7 +3414,8 @@
     ],
     "type": "js",
     "modulePath": "chatwise/ask.js",
-    "sourceFile": "chatwise/ask.js"
+    "sourceFile": "chatwise/ask.js",
+    "navigateBefore": true
   },
   {
     "site": "chatwise",
@@ -2988,7 +3439,8 @@
     ],
     "type": "js",
     "modulePath": "chatwise/export.js",
-    "sourceFile": "chatwise/export.js"
+    "sourceFile": "chatwise/export.js",
+    "navigateBefore": true
   },
   {
     "site": "chatwise",
@@ -3004,7 +3456,8 @@
     ],
     "type": "js",
     "modulePath": "chatwise/history.js",
-    "sourceFile": "chatwise/history.js"
+    "sourceFile": "chatwise/history.js",
+    "navigateBefore": true
   },
   {
     "site": "chatwise",
@@ -3028,7 +3481,8 @@
     ],
     "type": "js",
     "modulePath": "chatwise/model.js",
-    "sourceFile": "chatwise/model.js"
+    "sourceFile": "chatwise/model.js",
+    "navigateBefore": true
   },
   {
     "site": "chatwise",
@@ -3043,7 +3497,8 @@
     ],
     "type": "js",
     "modulePath": "chatwise/read.js",
-    "sourceFile": "chatwise/read.js"
+    "sourceFile": "chatwise/read.js",
+    "navigateBefore": true
   },
   {
     "site": "chatwise",
@@ -3067,7 +3522,8 @@
     ],
     "type": "js",
     "modulePath": "chatwise/send.js",
-    "sourceFile": "chatwise/send.js"
+    "sourceFile": "chatwise/send.js",
+    "navigateBefore": true
   },
   {
     "site": "cnki",
@@ -3134,7 +3590,8 @@
     ],
     "type": "js",
     "modulePath": "codex/ask.js",
-    "sourceFile": "codex/ask.js"
+    "sourceFile": "codex/ask.js",
+    "navigateBefore": true
   },
   {
     "site": "codex",
@@ -3158,7 +3615,8 @@
     ],
     "type": "js",
     "modulePath": "codex/export.js",
-    "sourceFile": "codex/export.js"
+    "sourceFile": "codex/export.js",
+    "navigateBefore": true
   },
   {
     "site": "codex",
@@ -3174,7 +3632,8 @@
     ],
     "type": "js",
     "modulePath": "codex/extract-diff.js",
-    "sourceFile": "codex/extract-diff.js"
+    "sourceFile": "codex/extract-diff.js",
+    "navigateBefore": true
   },
   {
     "site": "codex",
@@ -3190,7 +3649,8 @@
     ],
     "type": "js",
     "modulePath": "codex/history.js",
-    "sourceFile": "codex/history.js"
+    "sourceFile": "codex/history.js",
+    "navigateBefore": true
   },
   {
     "site": "codex",
@@ -3214,7 +3674,8 @@
     ],
     "type": "js",
     "modulePath": "codex/model.js",
-    "sourceFile": "codex/model.js"
+    "sourceFile": "codex/model.js",
+    "navigateBefore": true
   },
   {
     "site": "codex",
@@ -3229,7 +3690,8 @@
     ],
     "type": "js",
     "modulePath": "codex/read.js",
-    "sourceFile": "codex/read.js"
+    "sourceFile": "codex/read.js",
+    "navigateBefore": true
   },
   {
     "site": "codex",
@@ -3253,7 +3715,8 @@
     ],
     "type": "js",
     "modulePath": "codex/send.js",
-    "sourceFile": "codex/send.js"
+    "sourceFile": "codex/send.js",
+    "navigateBefore": true
   },
   {
     "site": "coupang",
@@ -3285,7 +3748,8 @@
     ],
     "type": "js",
     "modulePath": "coupang/add-to-cart.js",
-    "sourceFile": "coupang/add-to-cart.js"
+    "sourceFile": "coupang/add-to-cart.js",
+    "navigateBefore": "https://www.coupang.com"
   },
   {
     "site": "coupang",
@@ -3337,7 +3801,8 @@
     ],
     "type": "js",
     "modulePath": "coupang/search.js",
-    "sourceFile": "coupang/search.js"
+    "sourceFile": "coupang/search.js",
+    "navigateBefore": "https://www.coupang.com"
   },
   {
     "site": "ctrip",
@@ -3402,7 +3867,8 @@
     ],
     "type": "js",
     "modulePath": "cursor/ask.js",
-    "sourceFile": "cursor/ask.js"
+    "sourceFile": "cursor/ask.js",
+    "navigateBefore": true
   },
   {
     "site": "cursor",
@@ -3426,7 +3892,8 @@
     ],
     "type": "js",
     "modulePath": "cursor/composer.js",
-    "sourceFile": "cursor/composer.js"
+    "sourceFile": "cursor/composer.js",
+    "navigateBefore": true
   },
   {
     "site": "cursor",
@@ -3450,7 +3917,8 @@
     ],
     "type": "js",
     "modulePath": "cursor/export.js",
-    "sourceFile": "cursor/export.js"
+    "sourceFile": "cursor/export.js",
+    "navigateBefore": true
   },
   {
     "site": "cursor",
@@ -3465,7 +3933,8 @@
     ],
     "type": "js",
     "modulePath": "cursor/extract-code.js",
-    "sourceFile": "cursor/extract-code.js"
+    "sourceFile": "cursor/extract-code.js",
+    "navigateBefore": true
   },
   {
     "site": "cursor",
@@ -3481,7 +3950,8 @@
     ],
     "type": "js",
     "modulePath": "cursor/history.js",
-    "sourceFile": "cursor/history.js"
+    "sourceFile": "cursor/history.js",
+    "navigateBefore": true
   },
   {
     "site": "cursor",
@@ -3505,7 +3975,8 @@
     ],
     "type": "js",
     "modulePath": "cursor/model.js",
-    "sourceFile": "cursor/model.js"
+    "sourceFile": "cursor/model.js",
+    "navigateBefore": true
   },
   {
     "site": "cursor",
@@ -3521,7 +3992,8 @@
     ],
     "type": "js",
     "modulePath": "cursor/read.js",
-    "sourceFile": "cursor/read.js"
+    "sourceFile": "cursor/read.js",
+    "navigateBefore": true
   },
   {
     "site": "cursor",
@@ -3545,7 +4017,8 @@
     ],
     "type": "js",
     "modulePath": "cursor/send.js",
-    "sourceFile": "cursor/send.js"
+    "sourceFile": "cursor/send.js",
+    "navigateBefore": true
   },
   {
     "site": "devto",
@@ -3733,7 +4206,33 @@
     ],
     "type": "js",
     "modulePath": "discord-app/channels.js",
-    "sourceFile": "discord-app/channels.js"
+    "sourceFile": "discord-app/channels.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "discord-app",
+    "name": "delete",
+    "description": "Delete a message by its ID in the active Discord channel",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "message_id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "The ID of the message to delete (visible via Developer Mode or the read command)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "discord-app/delete.js",
+    "sourceFile": "discord-app/delete.js",
+    "navigateBefore": true
   },
   {
     "site": "discord-app",
@@ -3750,7 +4249,8 @@
     ],
     "type": "js",
     "modulePath": "discord-app/members.js",
-    "sourceFile": "discord-app/members.js"
+    "sourceFile": "discord-app/members.js",
+    "navigateBefore": true
   },
   {
     "site": "discord-app",
@@ -3775,7 +4275,8 @@
     ],
     "type": "js",
     "modulePath": "discord-app/read.js",
-    "sourceFile": "discord-app/read.js"
+    "sourceFile": "discord-app/read.js",
+    "navigateBefore": true
   },
   {
     "site": "discord-app",
@@ -3800,7 +4301,8 @@
     ],
     "type": "js",
     "modulePath": "discord-app/search.js",
-    "sourceFile": "discord-app/search.js"
+    "sourceFile": "discord-app/search.js",
+    "navigateBefore": true
   },
   {
     "site": "discord-app",
@@ -3823,7 +4325,8 @@
     ],
     "type": "js",
     "modulePath": "discord-app/send.js",
-    "sourceFile": "discord-app/send.js"
+    "sourceFile": "discord-app/send.js",
+    "navigateBefore": true
   },
   {
     "site": "discord-app",
@@ -3839,7 +4342,8 @@
     ],
     "type": "js",
     "modulePath": "discord-app/servers.js",
-    "sourceFile": "discord-app/servers.js"
+    "sourceFile": "discord-app/servers.js",
+    "navigateBefore": true
   },
   {
     "site": "discord-app",
@@ -3856,7 +4360,8 @@
     ],
     "type": "js",
     "modulePath": "discord-app/status.js",
-    "sourceFile": "discord-app/status.js"
+    "sourceFile": "discord-app/status.js",
+    "navigateBefore": true
   },
   {
     "site": "douban",
@@ -3886,7 +4391,8 @@
     ],
     "type": "js",
     "modulePath": "douban/book-hot.js",
-    "sourceFile": "douban/book-hot.js"
+    "sourceFile": "douban/book-hot.js",
+    "navigateBefore": "https://book.douban.com"
   },
   {
     "site": "douban",
@@ -3939,7 +4445,8 @@
     ],
     "type": "js",
     "modulePath": "douban/download.js",
-    "sourceFile": "douban/download.js"
+    "sourceFile": "douban/download.js",
+    "navigateBefore": "https://movie.douban.com"
   },
   {
     "site": "douban",
@@ -3987,7 +4494,8 @@
     ],
     "type": "js",
     "modulePath": "douban/marks.js",
-    "sourceFile": "douban/marks.js"
+    "sourceFile": "douban/marks.js",
+    "navigateBefore": "https://movie.douban.com"
   },
   {
     "site": "douban",
@@ -4017,7 +4525,8 @@
     ],
     "type": "js",
     "modulePath": "douban/movie-hot.js",
-    "sourceFile": "douban/movie-hot.js"
+    "sourceFile": "douban/movie-hot.js",
+    "navigateBefore": "https://movie.douban.com"
   },
   {
     "site": "douban",
@@ -4057,7 +4566,8 @@
     ],
     "type": "js",
     "modulePath": "douban/photos.js",
-    "sourceFile": "douban/photos.js"
+    "sourceFile": "douban/photos.js",
+    "navigateBefore": "https://movie.douban.com"
   },
   {
     "site": "douban",
@@ -4098,7 +4608,8 @@
     ],
     "type": "js",
     "modulePath": "douban/reviews.js",
-    "sourceFile": "douban/reviews.js"
+    "sourceFile": "douban/reviews.js",
+    "navigateBefore": "https://movie.douban.com"
   },
   {
     "site": "douban",
@@ -4144,7 +4655,8 @@
     ],
     "type": "js",
     "modulePath": "douban/search.js",
-    "sourceFile": "douban/search.js"
+    "sourceFile": "douban/search.js",
+    "navigateBefore": "https://search.douban.com"
   },
   {
     "site": "douban",
@@ -4179,7 +4691,8 @@
     ],
     "type": "js",
     "modulePath": "douban/subject.js",
-    "sourceFile": "douban/subject.js"
+    "sourceFile": "douban/subject.js",
+    "navigateBefore": "https://movie.douban.com"
   },
   {
     "site": "douban",
@@ -4206,7 +4719,8 @@
     ],
     "type": "js",
     "modulePath": "douban/top250.js",
-    "sourceFile": "douban/top250.js"
+    "sourceFile": "douban/top250.js",
+    "navigateBefore": "https://movie.douban.com"
   },
   {
     "site": "doubao",
@@ -4465,7 +4979,8 @@
     ],
     "type": "js",
     "modulePath": "doubao-app/ask.js",
-    "sourceFile": "doubao-app/ask.js"
+    "sourceFile": "doubao-app/ask.js",
+    "navigateBefore": true
   },
   {
     "site": "doubao-app",
@@ -4481,7 +4996,8 @@
     ],
     "type": "js",
     "modulePath": "doubao-app/dump.js",
-    "sourceFile": "doubao-app/dump.js"
+    "sourceFile": "doubao-app/dump.js",
+    "navigateBefore": true
   },
   {
     "site": "doubao-app",
@@ -4496,7 +5012,8 @@
     ],
     "type": "js",
     "modulePath": "doubao-app/new.js",
-    "sourceFile": "doubao-app/new.js"
+    "sourceFile": "doubao-app/new.js",
+    "navigateBefore": true
   },
   {
     "site": "doubao-app",
@@ -4512,7 +5029,8 @@
     ],
     "type": "js",
     "modulePath": "doubao-app/read.js",
-    "sourceFile": "doubao-app/read.js"
+    "sourceFile": "doubao-app/read.js",
+    "navigateBefore": true
   },
   {
     "site": "doubao-app",
@@ -4535,7 +5053,8 @@
     ],
     "type": "js",
     "modulePath": "doubao-app/screenshot.js",
-    "sourceFile": "doubao-app/screenshot.js"
+    "sourceFile": "doubao-app/screenshot.js",
+    "navigateBefore": true
   },
   {
     "site": "doubao-app",
@@ -4559,7 +5078,8 @@
     ],
     "type": "js",
     "modulePath": "doubao-app/send.js",
-    "sourceFile": "doubao-app/send.js"
+    "sourceFile": "doubao-app/send.js",
+    "navigateBefore": true
   },
   {
     "site": "doubao-app",
@@ -4576,7 +5096,8 @@
     ],
     "type": "js",
     "modulePath": "doubao-app/status.js",
-    "sourceFile": "doubao-app/status.js"
+    "sourceFile": "doubao-app/status.js",
+    "navigateBefore": true
   },
   {
     "site": "douyin",
@@ -4593,7 +5114,8 @@
     ],
     "type": "js",
     "modulePath": "douyin/activities.js",
-    "sourceFile": "douyin/activities.js"
+    "sourceFile": "douyin/activities.js",
+    "navigateBefore": "https://creator.douyin.com"
   },
   {
     "site": "douyin",
@@ -4618,7 +5140,8 @@
     ],
     "type": "js",
     "modulePath": "douyin/collections.js",
-    "sourceFile": "douyin/collections.js"
+    "sourceFile": "douyin/collections.js",
+    "navigateBefore": "https://creator.douyin.com"
   },
   {
     "site": "douyin",
@@ -4641,7 +5164,8 @@
     ],
     "type": "js",
     "modulePath": "douyin/delete.js",
-    "sourceFile": "douyin/delete.js"
+    "sourceFile": "douyin/delete.js",
+    "navigateBefore": "https://creator.douyin.com"
   },
   {
     "site": "douyin",
@@ -4723,7 +5247,8 @@
     ],
     "type": "js",
     "modulePath": "douyin/drafts.js",
-    "sourceFile": "douyin/drafts.js"
+    "sourceFile": "douyin/drafts.js",
+    "navigateBefore": "https://creator.douyin.com"
   },
   {
     "site": "douyin",
@@ -4774,7 +5299,8 @@
     ],
     "type": "js",
     "modulePath": "douyin/hashtag.js",
-    "sourceFile": "douyin/hashtag.js"
+    "sourceFile": "douyin/hashtag.js",
+    "navigateBefore": "https://creator.douyin.com"
   },
   {
     "site": "douyin",
@@ -4807,7 +5333,8 @@
     ],
     "type": "js",
     "modulePath": "douyin/location.js",
-    "sourceFile": "douyin/location.js"
+    "sourceFile": "douyin/location.js",
+    "navigateBefore": "https://creator.douyin.com"
   },
   {
     "site": "douyin",
@@ -4826,7 +5353,8 @@
     ],
     "type": "js",
     "modulePath": "douyin/profile.js",
-    "sourceFile": "douyin/profile.js"
+    "sourceFile": "douyin/profile.js",
+    "navigateBefore": "https://creator.douyin.com"
   },
   {
     "site": "douyin",
@@ -4946,7 +5474,8 @@
     ],
     "type": "js",
     "modulePath": "douyin/publish.js",
-    "sourceFile": "douyin/publish.js"
+    "sourceFile": "douyin/publish.js",
+    "navigateBefore": "https://creator.douyin.com"
   },
   {
     "site": "douyin",
@@ -4970,7 +5499,8 @@
     ],
     "type": "js",
     "modulePath": "douyin/stats.js",
-    "sourceFile": "douyin/stats.js"
+    "sourceFile": "douyin/stats.js",
+    "navigateBefore": "https://creator.douyin.com"
   },
   {
     "site": "douyin",
@@ -5007,7 +5537,8 @@
     ],
     "type": "js",
     "modulePath": "douyin/update.js",
-    "sourceFile": "douyin/update.js"
+    "sourceFile": "douyin/update.js",
+    "navigateBefore": "https://creator.douyin.com"
   },
   {
     "site": "douyin",
@@ -5057,7 +5588,8 @@
     ],
     "type": "js",
     "modulePath": "douyin/user-videos.js",
-    "sourceFile": "douyin/user-videos.js"
+    "sourceFile": "douyin/user-videos.js",
+    "navigateBefore": "https://www.douyin.com"
   },
   {
     "site": "douyin",
@@ -5105,7 +5637,8 @@
     ],
     "type": "js",
     "modulePath": "douyin/videos.js",
-    "sourceFile": "douyin/videos.js"
+    "sourceFile": "douyin/videos.js",
+    "navigateBefore": "https://creator.douyin.com"
   },
   {
     "site": "facebook",
@@ -5129,7 +5662,8 @@
     ],
     "type": "js",
     "modulePath": "facebook/add-friend.js",
-    "sourceFile": "facebook/add-friend.js"
+    "sourceFile": "facebook/add-friend.js",
+    "navigateBefore": "https://www.facebook.com"
   },
   {
     "site": "facebook",
@@ -5153,7 +5687,8 @@
     ],
     "type": "js",
     "modulePath": "facebook/events.js",
-    "sourceFile": "facebook/events.js"
+    "sourceFile": "facebook/events.js",
+    "navigateBefore": "https://www.facebook.com"
   },
   {
     "site": "facebook",
@@ -5181,7 +5716,8 @@
     ],
     "type": "js",
     "modulePath": "facebook/feed.js",
-    "sourceFile": "facebook/feed.js"
+    "sourceFile": "facebook/feed.js",
+    "navigateBefore": "https://www.facebook.com"
   },
   {
     "site": "facebook",
@@ -5206,7 +5742,8 @@
     ],
     "type": "js",
     "modulePath": "facebook/friends.js",
-    "sourceFile": "facebook/friends.js"
+    "sourceFile": "facebook/friends.js",
+    "navigateBefore": "https://www.facebook.com"
   },
   {
     "site": "facebook",
@@ -5232,7 +5769,8 @@
     ],
     "type": "js",
     "modulePath": "facebook/groups.js",
-    "sourceFile": "facebook/groups.js"
+    "sourceFile": "facebook/groups.js",
+    "navigateBefore": "https://www.facebook.com"
   },
   {
     "site": "facebook",
@@ -5256,7 +5794,8 @@
     ],
     "type": "js",
     "modulePath": "facebook/join-group.js",
-    "sourceFile": "facebook/join-group.js"
+    "sourceFile": "facebook/join-group.js",
+    "navigateBefore": "https://www.facebook.com"
   },
   {
     "site": "facebook",
@@ -5282,7 +5821,8 @@
     ],
     "type": "js",
     "modulePath": "facebook/memories.js",
-    "sourceFile": "facebook/memories.js"
+    "sourceFile": "facebook/memories.js",
+    "navigateBefore": "https://www.facebook.com"
   },
   {
     "site": "facebook",
@@ -5307,7 +5847,8 @@
     ],
     "type": "js",
     "modulePath": "facebook/notifications.js",
-    "sourceFile": "facebook/notifications.js"
+    "sourceFile": "facebook/notifications.js",
+    "navigateBefore": "https://www.facebook.com"
   },
   {
     "site": "facebook",
@@ -5334,7 +5875,8 @@
     ],
     "type": "js",
     "modulePath": "facebook/profile.js",
-    "sourceFile": "facebook/profile.js"
+    "sourceFile": "facebook/profile.js",
+    "navigateBefore": "https://www.facebook.com"
   },
   {
     "site": "facebook",
@@ -5367,7 +5909,8 @@
     ],
     "type": "js",
     "modulePath": "facebook/search.js",
-    "sourceFile": "facebook/search.js"
+    "sourceFile": "facebook/search.js",
+    "navigateBefore": "https://www.facebook.com"
   },
   {
     "site": "gemini",
@@ -5527,7 +6070,7 @@
       {
         "name": "op",
         "type": "str",
-        "default": "/Users/jakevin/tmp/gemini-images",
+        "default": "/Users/yuhan/tmp/gemini-images",
         "required": false,
         "help": "Output directory shorthand"
       },
@@ -5840,7 +6383,8 @@
     ],
     "type": "js",
     "modulePath": "grok/ask.js",
-    "sourceFile": "grok/ask.js"
+    "sourceFile": "grok/ask.js",
+    "navigateBefore": "https://grok.com"
   },
   {
     "site": "hackernews",
@@ -6179,7 +6723,8 @@
     ],
     "type": "js",
     "modulePath": "hupu/hot.js",
-    "sourceFile": "hupu/hot.js"
+    "sourceFile": "hupu/hot.js",
+    "navigateBefore": "https://bbs.hupu.com"
   },
   {
     "site": "hupu",
@@ -6620,7 +7165,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/comment.js",
-    "sourceFile": "instagram/comment.js"
+    "sourceFile": "instagram/comment.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "instagram",
@@ -6640,7 +7186,7 @@
       {
         "name": "path",
         "type": "str",
-        "default": "/Users/jakevin/Downloads/Instagram",
+        "default": "/Users/yuhan/Downloads/Instagram",
         "required": false,
         "help": "Download directory"
       }
@@ -6676,7 +7222,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/explore.js",
-    "sourceFile": "instagram/explore.js"
+    "sourceFile": "instagram/explore.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "instagram",
@@ -6700,7 +7247,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/follow.js",
-    "sourceFile": "instagram/follow.js"
+    "sourceFile": "instagram/follow.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "instagram",
@@ -6734,7 +7282,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/followers.js",
-    "sourceFile": "instagram/followers.js"
+    "sourceFile": "instagram/followers.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "instagram",
@@ -6768,7 +7317,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/following.js",
-    "sourceFile": "instagram/following.js"
+    "sourceFile": "instagram/following.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "instagram",
@@ -6800,7 +7350,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/like.js",
-    "sourceFile": "instagram/like.js"
+    "sourceFile": "instagram/like.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "instagram",
@@ -6826,7 +7377,8 @@
     "timeout": 120,
     "type": "js",
     "modulePath": "instagram/note.js",
-    "sourceFile": "instagram/note.js"
+    "sourceFile": "instagram/note.js",
+    "navigateBefore": true
   },
   {
     "site": "instagram",
@@ -6859,7 +7411,8 @@
     "timeout": 300,
     "type": "js",
     "modulePath": "instagram/post.js",
-    "sourceFile": "instagram/post.js"
+    "sourceFile": "instagram/post.js",
+    "navigateBefore": true
   },
   {
     "site": "instagram",
@@ -6888,7 +7441,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/profile.js",
-    "sourceFile": "instagram/profile.js"
+    "sourceFile": "instagram/profile.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "instagram",
@@ -6921,7 +7475,8 @@
     "timeout": 600,
     "type": "js",
     "modulePath": "instagram/reel.js",
-    "sourceFile": "instagram/reel.js"
+    "sourceFile": "instagram/reel.js",
+    "navigateBefore": true
   },
   {
     "site": "instagram",
@@ -6953,7 +7508,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/save.js",
-    "sourceFile": "instagram/save.js"
+    "sourceFile": "instagram/save.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "instagram",
@@ -6981,7 +7537,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/saved.js",
-    "sourceFile": "instagram/saved.js"
+    "sourceFile": "instagram/saved.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "instagram",
@@ -7016,7 +7573,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/search.js",
-    "sourceFile": "instagram/search.js"
+    "sourceFile": "instagram/search.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "instagram",
@@ -7042,7 +7600,8 @@
     "timeout": 300,
     "type": "js",
     "modulePath": "instagram/story.js",
-    "sourceFile": "instagram/story.js"
+    "sourceFile": "instagram/story.js",
+    "navigateBefore": true
   },
   {
     "site": "instagram",
@@ -7066,7 +7625,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/unfollow.js",
-    "sourceFile": "instagram/unfollow.js"
+    "sourceFile": "instagram/unfollow.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "instagram",
@@ -7098,7 +7658,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/unlike.js",
-    "sourceFile": "instagram/unlike.js"
+    "sourceFile": "instagram/unlike.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "instagram",
@@ -7130,7 +7691,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/unsave.js",
-    "sourceFile": "instagram/unsave.js"
+    "sourceFile": "instagram/unsave.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "instagram",
@@ -7165,7 +7727,8 @@
     ],
     "type": "js",
     "modulePath": "instagram/user.js",
-    "sourceFile": "instagram/user.js"
+    "sourceFile": "instagram/user.js",
+    "navigateBefore": "https://www.instagram.com"
   },
   {
     "site": "jd",
@@ -7285,7 +7848,8 @@
     ],
     "type": "js",
     "modulePath": "jd/item.js",
-    "sourceFile": "jd/item.js"
+    "sourceFile": "jd/item.js",
+    "navigateBefore": "https://item.jd.com"
   },
   {
     "site": "jd",
@@ -7390,7 +7954,8 @@
     ],
     "type": "js",
     "modulePath": "jianyu/detail.js",
-    "sourceFile": "jianyu/detail.js"
+    "sourceFile": "jianyu/detail.js",
+    "navigateBefore": "https://www.jianyu360.cn"
   },
   {
     "site": "jianyu",
@@ -7426,7 +7991,8 @@
     ],
     "type": "js",
     "modulePath": "jianyu/search.js",
-    "sourceFile": "jianyu/search.js"
+    "sourceFile": "jianyu/search.js",
+    "navigateBefore": "https://www.jianyu360.cn"
   },
   {
     "site": "jike",
@@ -7457,7 +8023,8 @@
     ],
     "type": "js",
     "modulePath": "jike/comment.js",
-    "sourceFile": "jike/comment.js"
+    "sourceFile": "jike/comment.js",
+    "navigateBefore": true
   },
   {
     "site": "jike",
@@ -7481,7 +8048,8 @@
     ],
     "type": "js",
     "modulePath": "jike/create.js",
-    "sourceFile": "jike/create.js"
+    "sourceFile": "jike/create.js",
+    "navigateBefore": true
   },
   {
     "site": "jike",
@@ -7509,7 +8077,8 @@
     ],
     "type": "js",
     "modulePath": "jike/feed.js",
-    "sourceFile": "jike/feed.js"
+    "sourceFile": "jike/feed.js",
+    "navigateBefore": "https://web.okjike.com"
   },
   {
     "site": "jike",
@@ -7533,7 +8102,8 @@
     ],
     "type": "js",
     "modulePath": "jike/like.js",
-    "sourceFile": "jike/like.js"
+    "sourceFile": "jike/like.js",
+    "navigateBefore": true
   },
   {
     "site": "jike",
@@ -7559,7 +8129,8 @@
     ],
     "type": "js",
     "modulePath": "jike/notifications.js",
-    "sourceFile": "jike/notifications.js"
+    "sourceFile": "jike/notifications.js",
+    "navigateBefore": "https://web.okjike.com"
   },
   {
     "site": "jike",
@@ -7586,7 +8157,8 @@
     ],
     "type": "js",
     "modulePath": "jike/post.js",
-    "sourceFile": "jike/post.js"
+    "sourceFile": "jike/post.js",
+    "navigateBefore": "https://m.okjike.com"
   },
   {
     "site": "jike",
@@ -7617,7 +8189,8 @@
     ],
     "type": "js",
     "modulePath": "jike/repost.js",
-    "sourceFile": "jike/repost.js"
+    "sourceFile": "jike/repost.js",
+    "navigateBefore": true
   },
   {
     "site": "jike",
@@ -7652,7 +8225,8 @@
     ],
     "type": "js",
     "modulePath": "jike/search.js",
-    "sourceFile": "jike/search.js"
+    "sourceFile": "jike/search.js",
+    "navigateBefore": "https://web.okjike.com"
   },
   {
     "site": "jike",
@@ -7687,7 +8261,8 @@
     ],
     "type": "js",
     "modulePath": "jike/topic.js",
-    "sourceFile": "jike/topic.js"
+    "sourceFile": "jike/topic.js",
+    "navigateBefore": "https://m.okjike.com"
   },
   {
     "site": "jike",
@@ -7722,7 +8297,8 @@
     ],
     "type": "js",
     "modulePath": "jike/user.js",
-    "sourceFile": "jike/user.js"
+    "sourceFile": "jike/user.js",
+    "navigateBefore": "https://m.okjike.com"
   },
   {
     "site": "jimeng",
@@ -7762,7 +8338,8 @@
     ],
     "type": "js",
     "modulePath": "jimeng/generate.js",
-    "sourceFile": "jimeng/generate.js"
+    "sourceFile": "jimeng/generate.js",
+    "navigateBefore": "https://jimeng.jianying.com"
   },
   {
     "site": "jimeng",
@@ -7789,7 +8366,8 @@
     ],
     "type": "js",
     "modulePath": "jimeng/history.js",
-    "sourceFile": "jimeng/history.js"
+    "sourceFile": "jimeng/history.js",
+    "navigateBefore": "https://jimeng.jianying.com"
   },
   {
     "site": "jimeng",
@@ -7805,7 +8383,8 @@
     ],
     "type": "js",
     "modulePath": "jimeng/new.js",
-    "sourceFile": "jimeng/new.js"
+    "sourceFile": "jimeng/new.js",
+    "navigateBefore": "https://jimeng.jianying.com"
   },
   {
     "site": "jimeng",
@@ -7823,7 +8402,8 @@
     ],
     "type": "js",
     "modulePath": "jimeng/workspaces.js",
-    "sourceFile": "jimeng/workspaces.js"
+    "sourceFile": "jimeng/workspaces.js",
+    "navigateBefore": "https://jimeng.jianying.com"
   },
   {
     "site": "ke",
@@ -7865,7 +8445,8 @@
     ],
     "type": "js",
     "modulePath": "ke/chengjiao.js",
-    "sourceFile": "ke/chengjiao.js"
+    "sourceFile": "ke/chengjiao.js",
+    "navigateBefore": "https://ke.com"
   },
   {
     "site": "ke",
@@ -7926,7 +8507,8 @@
     ],
     "type": "js",
     "modulePath": "ke/ershoufang.js",
-    "sourceFile": "ke/ershoufang.js"
+    "sourceFile": "ke/ershoufang.js",
+    "navigateBefore": "https://ke.com"
   },
   {
     "site": "ke",
@@ -7966,7 +8548,8 @@
     ],
     "type": "js",
     "modulePath": "ke/xiaoqu.js",
-    "sourceFile": "ke/xiaoqu.js"
+    "sourceFile": "ke/xiaoqu.js",
+    "navigateBefore": "https://ke.com"
   },
   {
     "site": "ke",
@@ -8019,7 +8602,8 @@
     ],
     "type": "js",
     "modulePath": "ke/zufang.js",
-    "sourceFile": "ke/zufang.js"
+    "sourceFile": "ke/zufang.js",
+    "navigateBefore": "https://ke.com"
   },
   {
     "site": "lesswrong",
@@ -8535,7 +9119,8 @@
     ],
     "type": "js",
     "modulePath": "linkedin/search.js",
-    "sourceFile": "linkedin/search.js"
+    "sourceFile": "linkedin/search.js",
+    "navigateBefore": "https://www.linkedin.com"
   },
   {
     "site": "linkedin",
@@ -8566,7 +9151,8 @@
     ],
     "type": "js",
     "modulePath": "linkedin/timeline.js",
-    "sourceFile": "linkedin/timeline.js"
+    "sourceFile": "linkedin/timeline.js",
+    "navigateBefore": "https://www.linkedin.com"
   },
   {
     "site": "linux-do",
@@ -8600,7 +9186,8 @@
     ],
     "type": "js",
     "modulePath": "linux-do/categories.js",
-    "sourceFile": "linux-do/categories.js"
+    "sourceFile": "linux-do/categories.js",
+    "navigateBefore": "https://linux.do"
   },
   {
     "site": "linux-do",
@@ -8644,7 +9231,8 @@
     "replacedBy": "opencli linux-do feed --category <id-or-name>",
     "type": "js",
     "modulePath": "linux-do/category.js",
-    "sourceFile": "linux-do/category.js"
+    "sourceFile": "linux-do/category.js",
+    "navigateBefore": "https://linux.do"
   },
   {
     "site": "linux-do",
@@ -8735,7 +9323,8 @@
     ],
     "type": "js",
     "modulePath": "linux-do/categories.js",
-    "sourceFile": "linux-do/categories.js"
+    "sourceFile": "linux-do/categories.js",
+    "navigateBefore": "https://linux.do"
   },
   {
     "site": "linux-do",
@@ -8780,7 +9369,8 @@
     "replacedBy": "opencli linux-do feed --view top --period <period>",
     "type": "js",
     "modulePath": "linux-do/hot.js",
-    "sourceFile": "linux-do/hot.js"
+    "sourceFile": "linux-do/hot.js",
+    "navigateBefore": "https://linux.do"
   },
   {
     "site": "linux-do",
@@ -8810,7 +9400,8 @@
     "replacedBy": "opencli linux-do feed --view latest",
     "type": "js",
     "modulePath": "linux-do/latest.js",
-    "sourceFile": "linux-do/latest.js"
+    "sourceFile": "linux-do/latest.js",
+    "navigateBefore": "https://linux.do"
   },
   {
     "site": "linux-do",
@@ -8845,7 +9436,8 @@
     ],
     "type": "js",
     "modulePath": "linux-do/search.js",
-    "sourceFile": "linux-do/search.js"
+    "sourceFile": "linux-do/search.js",
+    "navigateBefore": "https://linux.do"
   },
   {
     "site": "linux-do",
@@ -8871,7 +9463,8 @@
     ],
     "type": "js",
     "modulePath": "linux-do/tags.js",
-    "sourceFile": "linux-do/tags.js"
+    "sourceFile": "linux-do/tags.js",
+    "navigateBefore": "https://linux.do"
   },
   {
     "site": "linux-do",
@@ -8904,7 +9497,8 @@
     ],
     "type": "js",
     "modulePath": "linux-do/topic.js",
-    "sourceFile": "linux-do/topic.js"
+    "sourceFile": "linux-do/topic.js",
+    "navigateBefore": "https://linux.do"
   },
   {
     "site": "linux-do",
@@ -8927,7 +9521,8 @@
     ],
     "type": "js",
     "modulePath": "linux-do/topic-content.js",
-    "sourceFile": "linux-do/topic-content.js"
+    "sourceFile": "linux-do/topic-content.js",
+    "navigateBefore": "https://linux.do"
   },
   {
     "site": "linux-do",
@@ -8962,7 +9557,8 @@
     ],
     "type": "js",
     "modulePath": "linux-do/user-posts.js",
-    "sourceFile": "linux-do/user-posts.js"
+    "sourceFile": "linux-do/user-posts.js",
+    "navigateBefore": "https://linux.do"
   },
   {
     "site": "linux-do",
@@ -8998,7 +9594,8 @@
     ],
     "type": "js",
     "modulePath": "linux-do/user-topics.js",
-    "sourceFile": "linux-do/user-topics.js"
+    "sourceFile": "linux-do/user-topics.js",
+    "navigateBefore": "https://linux.do"
   },
   {
     "site": "lobsters",
@@ -9120,6 +9717,129 @@
     "sourceFile": "lobsters/tag.js"
   },
   {
+    "site": "maimai",
+    "name": "search-talents",
+    "description": "Search for candidates on Maimai with multi-dimensional filters",
+    "domain": "maimai.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (e.g., \"Java\", \"产品经理\")"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Page number (0-based)"
+      },
+      {
+        "name": "size",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Results per page"
+      },
+      {
+        "name": "positions",
+        "type": "str",
+        "required": false,
+        "help": "Positions (e.g., \"运营\", \"Java 开发工程师\")"
+      },
+      {
+        "name": "companies",
+        "type": "str",
+        "required": false,
+        "help": "Companies, comma-separated (e.g., \"百度\", \"字节跳动，阿里巴巴\")"
+      },
+      {
+        "name": "schools",
+        "type": "str",
+        "required": false,
+        "help": "Schools, comma-separated (e.g., \"北京大学\", \"清华大学，复旦大学\")"
+      },
+      {
+        "name": "provinces",
+        "type": "str",
+        "required": false,
+        "help": "Provinces (e.g., \"北京\", \"上海\")"
+      },
+      {
+        "name": "cities",
+        "type": "str",
+        "required": false,
+        "help": "Cities (e.g., \"北京市\", \"上海市\")"
+      },
+      {
+        "name": "worktimes",
+        "type": "str",
+        "required": false,
+        "help": "Work years: 1=1-3y, 2=3-5y, 3=5-10y, 4=10+y"
+      },
+      {
+        "name": "degrees",
+        "type": "str",
+        "required": false,
+        "help": "Education: 1=大专，2=本科，3=硕士，4=博士，5=MBA"
+      },
+      {
+        "name": "professions",
+        "type": "str",
+        "required": false,
+        "help": "Industries: 01=互联网，02=金融，03=电子，04=通信"
+      },
+      {
+        "name": "is_211",
+        "type": "int",
+        "required": false,
+        "help": "211 university: 0=any, 1=211"
+      },
+      {
+        "name": "is_985",
+        "type": "int",
+        "required": false,
+        "help": "985 university: 0=any, 1=985"
+      },
+      {
+        "name": "sortby",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Sort: 0=relevance, 1=activity, 2=work_years, 3=education"
+      },
+      {
+        "name": "is_direct_chat",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Direct chat: 0=any, 1=available"
+      }
+    ],
+    "columns": [
+      "name",
+      "job_title",
+      "company",
+      "historical_companies",
+      "location",
+      "work_year",
+      "school",
+      "degree",
+      "active_status",
+      "age",
+      "tags",
+      "mutual_friends"
+    ],
+    "type": "js",
+    "modulePath": "maimai/search-talents.js",
+    "sourceFile": "maimai/search-talents.js",
+    "navigateBefore": "https://maimai.cn"
+  },
+  {
     "site": "medium",
     "name": "feed",
     "description": "Medium 热门文章 Feed",
@@ -9152,7 +9872,8 @@
     ],
     "type": "js",
     "modulePath": "medium/feed.js",
-    "sourceFile": "medium/feed.js"
+    "sourceFile": "medium/feed.js",
+    "navigateBefore": "https://medium.com"
   },
   {
     "site": "medium",
@@ -9188,7 +9909,8 @@
     ],
     "type": "js",
     "modulePath": "medium/search.js",
-    "sourceFile": "medium/search.js"
+    "sourceFile": "medium/search.js",
+    "navigateBefore": "https://medium.com"
   },
   {
     "site": "medium",
@@ -9223,7 +9945,8 @@
     ],
     "type": "js",
     "modulePath": "medium/user.js",
-    "sourceFile": "medium/user.js"
+    "sourceFile": "medium/user.js",
+    "navigateBefore": "https://medium.com"
   },
   {
     "site": "mubu",
@@ -9761,7 +10484,8 @@
     ],
     "type": "js",
     "modulePath": "notion/export.js",
-    "sourceFile": "notion/export.js"
+    "sourceFile": "notion/export.js",
+    "navigateBefore": true
   },
   {
     "site": "notion",
@@ -9778,7 +10502,8 @@
     ],
     "type": "js",
     "modulePath": "notion/favorites.js",
-    "sourceFile": "notion/favorites.js"
+    "sourceFile": "notion/favorites.js",
+    "navigateBefore": true
   },
   {
     "site": "notion",
@@ -9801,7 +10526,8 @@
     ],
     "type": "js",
     "modulePath": "notion/new.js",
-    "sourceFile": "notion/new.js"
+    "sourceFile": "notion/new.js",
+    "navigateBefore": true
   },
   {
     "site": "notion",
@@ -9817,7 +10543,8 @@
     ],
     "type": "js",
     "modulePath": "notion/read.js",
-    "sourceFile": "notion/read.js"
+    "sourceFile": "notion/read.js",
+    "navigateBefore": true
   },
   {
     "site": "notion",
@@ -9841,7 +10568,8 @@
     ],
     "type": "js",
     "modulePath": "notion/search.js",
-    "sourceFile": "notion/search.js"
+    "sourceFile": "notion/search.js",
+    "navigateBefore": true
   },
   {
     "site": "notion",
@@ -9857,7 +10585,8 @@
     ],
     "type": "js",
     "modulePath": "notion/sidebar.js",
-    "sourceFile": "notion/sidebar.js"
+    "sourceFile": "notion/sidebar.js",
+    "navigateBefore": true
   },
   {
     "site": "notion",
@@ -9874,7 +10603,8 @@
     ],
     "type": "js",
     "modulePath": "notion/status.js",
-    "sourceFile": "notion/status.js"
+    "sourceFile": "notion/status.js",
+    "navigateBefore": true
   },
   {
     "site": "notion",
@@ -9897,7 +10627,8 @@
     ],
     "type": "js",
     "modulePath": "notion/write.js",
-    "sourceFile": "notion/write.js"
+    "sourceFile": "notion/write.js",
+    "navigateBefore": true
   },
   {
     "site": "ones",
@@ -10364,7 +11095,8 @@
     ],
     "type": "js",
     "modulePath": "pixiv/detail.js",
-    "sourceFile": "pixiv/detail.js"
+    "sourceFile": "pixiv/detail.js",
+    "navigateBefore": "https://www.pixiv.net"
   },
   {
     "site": "pixiv",
@@ -10397,7 +11129,8 @@
     ],
     "type": "js",
     "modulePath": "pixiv/download.js",
-    "sourceFile": "pixiv/download.js"
+    "sourceFile": "pixiv/download.js",
+    "navigateBefore": "https://www.pixiv.net"
   },
   {
     "site": "pixiv",
@@ -10433,7 +11166,8 @@
     ],
     "type": "js",
     "modulePath": "pixiv/illusts.js",
-    "sourceFile": "pixiv/illusts.js"
+    "sourceFile": "pixiv/illusts.js",
+    "navigateBefore": "https://www.pixiv.net"
   },
   {
     "site": "pixiv",
@@ -10486,7 +11220,8 @@
     ],
     "type": "js",
     "modulePath": "pixiv/ranking.js",
-    "sourceFile": "pixiv/ranking.js"
+    "sourceFile": "pixiv/ranking.js",
+    "navigateBefore": "https://www.pixiv.net"
   },
   {
     "site": "pixiv",
@@ -10555,7 +11290,8 @@
     ],
     "type": "js",
     "modulePath": "pixiv/search.js",
-    "sourceFile": "pixiv/search.js"
+    "sourceFile": "pixiv/search.js",
+    "navigateBefore": "https://www.pixiv.net"
   },
   {
     "site": "pixiv",
@@ -10585,7 +11321,8 @@
     ],
     "type": "js",
     "modulePath": "pixiv/user.js",
-    "sourceFile": "pixiv/user.js"
+    "sourceFile": "pixiv/user.js",
+    "navigateBefore": "https://www.pixiv.net"
   },
   {
     "site": "producthunt",
@@ -10619,7 +11356,8 @@
     ],
     "type": "js",
     "modulePath": "producthunt/browse.js",
-    "sourceFile": "producthunt/browse.js"
+    "sourceFile": "producthunt/browse.js",
+    "navigateBefore": true
   },
   {
     "site": "producthunt",
@@ -10645,7 +11383,8 @@
     ],
     "type": "js",
     "modulePath": "producthunt/hot.js",
-    "sourceFile": "producthunt/hot.js"
+    "sourceFile": "producthunt/hot.js",
+    "navigateBefore": true
   },
   {
     "site": "producthunt",
@@ -10749,7 +11488,8 @@
     ],
     "type": "js",
     "modulePath": "quark/ls.js",
-    "sourceFile": "quark/ls.js"
+    "sourceFile": "quark/ls.js",
+    "navigateBefore": "https://pan.quark.cn"
   },
   {
     "site": "quark",
@@ -10781,7 +11521,8 @@
     ],
     "type": "js",
     "modulePath": "quark/mkdir.js",
-    "sourceFile": "quark/mkdir.js"
+    "sourceFile": "quark/mkdir.js",
+    "navigateBefore": "https://pan.quark.cn"
   },
   {
     "site": "quark",
@@ -10816,7 +11557,8 @@
     "timeout": 120,
     "type": "js",
     "modulePath": "quark/mv.js",
-    "sourceFile": "quark/mv.js"
+    "sourceFile": "quark/mv.js",
+    "navigateBefore": "https://pan.quark.cn"
   },
   {
     "site": "quark",
@@ -10842,7 +11584,8 @@
     ],
     "type": "js",
     "modulePath": "quark/rename.js",
-    "sourceFile": "quark/rename.js"
+    "sourceFile": "quark/rename.js",
+    "navigateBefore": "https://pan.quark.cn"
   },
   {
     "site": "quark",
@@ -10862,7 +11605,8 @@
     ],
     "type": "js",
     "modulePath": "quark/rm.js",
-    "sourceFile": "quark/rm.js"
+    "sourceFile": "quark/rm.js",
+    "navigateBefore": "https://pan.quark.cn"
   },
   {
     "site": "quark",
@@ -10918,7 +11662,8 @@
     "timeout": 120,
     "type": "js",
     "modulePath": "quark/save.js",
-    "sourceFile": "quark/save.js"
+    "sourceFile": "quark/save.js",
+    "navigateBefore": "https://pan.quark.cn"
   },
   {
     "site": "quark",
@@ -10952,7 +11697,8 @@
     ],
     "type": "js",
     "modulePath": "quark/share-tree.js",
-    "sourceFile": "quark/share-tree.js"
+    "sourceFile": "quark/share-tree.js",
+    "navigateBefore": "https://pan.quark.cn"
   },
   {
     "site": "reddit",
@@ -10983,7 +11729,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/comment.js",
-    "sourceFile": "reddit/comment.js"
+    "sourceFile": "reddit/comment.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -11011,7 +11758,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/frontpage.js",
-    "sourceFile": "reddit/frontpage.js"
+    "sourceFile": "reddit/frontpage.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -11045,7 +11793,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/hot.js",
-    "sourceFile": "reddit/hot.js"
+    "sourceFile": "reddit/hot.js",
+    "navigateBefore": "https://www.reddit.com"
   },
   {
     "site": "reddit",
@@ -11073,7 +11822,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/popular.js",
-    "sourceFile": "reddit/popular.js"
+    "sourceFile": "reddit/popular.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -11134,7 +11884,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/read.js",
-    "sourceFile": "reddit/read.js"
+    "sourceFile": "reddit/read.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -11165,7 +11916,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/save.js",
-    "sourceFile": "reddit/save.js"
+    "sourceFile": "reddit/save.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -11192,7 +11944,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/saved.js",
-    "sourceFile": "reddit/saved.js"
+    "sourceFile": "reddit/saved.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -11248,7 +12001,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/search.js",
-    "sourceFile": "reddit/search.js"
+    "sourceFile": "reddit/search.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -11296,7 +12050,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/subreddit.js",
-    "sourceFile": "reddit/subreddit.js"
+    "sourceFile": "reddit/subreddit.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -11327,7 +12082,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/subscribe.js",
-    "sourceFile": "reddit/subscribe.js"
+    "sourceFile": "reddit/subscribe.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -11358,7 +12114,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/upvote.js",
-    "sourceFile": "reddit/upvote.js"
+    "sourceFile": "reddit/upvote.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -11385,7 +12142,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/upvoted.js",
-    "sourceFile": "reddit/upvoted.js"
+    "sourceFile": "reddit/upvoted.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -11409,7 +12167,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/user.js",
-    "sourceFile": "reddit/user.js"
+    "sourceFile": "reddit/user.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -11442,7 +12201,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/user-comments.js",
-    "sourceFile": "reddit/user-comments.js"
+    "sourceFile": "reddit/user-comments.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -11476,7 +12236,8 @@
     ],
     "type": "js",
     "modulePath": "reddit/user-posts.js",
-    "sourceFile": "reddit/user-posts.js"
+    "sourceFile": "reddit/user-posts.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reuters",
@@ -11510,7 +12271,8 @@
     ],
     "type": "js",
     "modulePath": "reuters/search.js",
-    "sourceFile": "reuters/search.js"
+    "sourceFile": "reuters/search.js",
+    "navigateBefore": "https://www.reuters.com"
   },
   {
     "site": "sinablog",
@@ -11538,7 +12300,8 @@
     ],
     "type": "js",
     "modulePath": "sinablog/article.js",
-    "sourceFile": "sinablog/article.js"
+    "sourceFile": "sinablog/article.js",
+    "navigateBefore": "https://blog.sina.com.cn"
   },
   {
     "site": "sinablog",
@@ -11566,7 +12329,8 @@
     ],
     "type": "js",
     "modulePath": "sinablog/hot.js",
-    "sourceFile": "sinablog/hot.js"
+    "sourceFile": "sinablog/hot.js",
+    "navigateBefore": "https://blog.sina.com.cn"
   },
   {
     "site": "sinablog",
@@ -11636,7 +12400,8 @@
     ],
     "type": "js",
     "modulePath": "sinablog/user.js",
-    "sourceFile": "sinablog/user.js"
+    "sourceFile": "sinablog/user.js",
+    "navigateBefore": "https://blog.sina.com.cn"
   },
   {
     "site": "sinafinance",
@@ -11687,7 +12452,8 @@
     ],
     "type": "js",
     "modulePath": "sinafinance/rolling-news.js",
-    "sourceFile": "sinafinance/rolling-news.js"
+    "sourceFile": "sinafinance/rolling-news.js",
+    "navigateBefore": "https://finance.sina.com.cn/roll"
   },
   {
     "site": "sinafinance",
@@ -11798,7 +12564,8 @@
     ],
     "type": "js",
     "modulePath": "smzdm/search.js",
-    "sourceFile": "smzdm/search.js"
+    "sourceFile": "smzdm/search.js",
+    "navigateBefore": "https://www.smzdm.com"
   },
   {
     "site": "spotify",
@@ -12205,7 +12972,8 @@
     ],
     "type": "js",
     "modulePath": "substack/feed.js",
-    "sourceFile": "substack/feed.js"
+    "sourceFile": "substack/feed.js",
+    "navigateBefore": "https://substack.com"
   },
   {
     "site": "substack",
@@ -12239,7 +13007,8 @@
     ],
     "type": "js",
     "modulePath": "substack/publication.js",
-    "sourceFile": "substack/publication.js"
+    "sourceFile": "substack/publication.js",
+    "navigateBefore": "https://substack.com"
   },
   {
     "site": "substack",
@@ -12650,7 +13419,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/comment.js",
-    "sourceFile": "tiktok/comment.js"
+    "sourceFile": "tiktok/comment.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -12676,7 +13446,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/explore.js",
-    "sourceFile": "tiktok/explore.js"
+    "sourceFile": "tiktok/explore.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -12700,7 +13471,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/follow.js",
-    "sourceFile": "tiktok/follow.js"
+    "sourceFile": "tiktok/follow.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -12725,7 +13497,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/following.js",
-    "sourceFile": "tiktok/following.js"
+    "sourceFile": "tiktok/following.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -12750,7 +13523,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/friends.js",
-    "sourceFile": "tiktok/friends.js"
+    "sourceFile": "tiktok/friends.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -12775,7 +13549,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/like.js",
-    "sourceFile": "tiktok/like.js"
+    "sourceFile": "tiktok/like.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -12801,7 +13576,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/live.js",
-    "sourceFile": "tiktok/live.js"
+    "sourceFile": "tiktok/live.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -12839,7 +13615,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/notifications.js",
-    "sourceFile": "tiktok/notifications.js"
+    "sourceFile": "tiktok/notifications.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -12869,7 +13646,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/profile.js",
-    "sourceFile": "tiktok/profile.js"
+    "sourceFile": "tiktok/profile.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -12893,7 +13671,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/save.js",
-    "sourceFile": "tiktok/save.js"
+    "sourceFile": "tiktok/save.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -12930,7 +13709,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/search.js",
-    "sourceFile": "tiktok/search.js"
+    "sourceFile": "tiktok/search.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -12954,7 +13734,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/unfollow.js",
-    "sourceFile": "tiktok/unfollow.js"
+    "sourceFile": "tiktok/unfollow.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -12979,7 +13760,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/unlike.js",
-    "sourceFile": "tiktok/unlike.js"
+    "sourceFile": "tiktok/unlike.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -13003,7 +13785,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/unsave.js",
-    "sourceFile": "tiktok/unsave.js"
+    "sourceFile": "tiktok/unsave.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "tiktok",
@@ -13035,7 +13818,8 @@
     ],
     "type": "js",
     "modulePath": "tiktok/user.js",
-    "sourceFile": "tiktok/user.js"
+    "sourceFile": "tiktok/user.js",
+    "navigateBefore": "https://www.tiktok.com"
   },
   {
     "site": "twitter",
@@ -13069,7 +13853,8 @@
     "timeout": 600,
     "type": "js",
     "modulePath": "twitter/accept.js",
-    "sourceFile": "twitter/accept.js"
+    "sourceFile": "twitter/accept.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13095,7 +13880,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/article.js",
-    "sourceFile": "twitter/article.js"
+    "sourceFile": "twitter/article.js",
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -13119,7 +13905,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/block.js",
-    "sourceFile": "twitter/block.js"
+    "sourceFile": "twitter/block.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13143,7 +13930,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/bookmark.js",
-    "sourceFile": "twitter/bookmark.js"
+    "sourceFile": "twitter/bookmark.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13169,7 +13957,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/bookmarks.js",
-    "sourceFile": "twitter/bookmarks.js"
+    "sourceFile": "twitter/bookmarks.js",
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -13193,7 +13982,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/delete.js",
-    "sourceFile": "twitter/delete.js"
+    "sourceFile": "twitter/delete.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13239,7 +14029,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/download.js",
-    "sourceFile": "twitter/download.js"
+    "sourceFile": "twitter/download.js",
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -13263,7 +14054,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/follow.js",
-    "sourceFile": "twitter/follow.js"
+    "sourceFile": "twitter/follow.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13296,7 +14088,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/followers.js",
-    "sourceFile": "twitter/followers.js"
+    "sourceFile": "twitter/followers.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13329,7 +14122,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/following.js",
-    "sourceFile": "twitter/following.js"
+    "sourceFile": "twitter/following.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13353,7 +14147,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/hide-reply.js",
-    "sourceFile": "twitter/hide-reply.js"
+    "sourceFile": "twitter/hide-reply.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13377,7 +14172,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/like.js",
-    "sourceFile": "twitter/like.js"
+    "sourceFile": "twitter/like.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13411,7 +14207,42 @@
     ],
     "type": "js",
     "modulePath": "twitter/likes.js",
-    "sourceFile": "twitter/likes.js"
+    "sourceFile": "twitter/likes.js",
+    "navigateBefore": "https://x.com"
+  },
+  {
+    "site": "twitter",
+    "name": "lists",
+    "description": "Get Twitter/X lists for a user",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": false,
+        "positional": true,
+        "help": ""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "name",
+      "members",
+      "followers",
+      "mode"
+    ],
+    "type": "js",
+    "modulePath": "twitter/lists.js",
+    "sourceFile": "twitter/lists.js",
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -13438,7 +14269,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/notifications.js",
-    "sourceFile": "twitter/notifications.js"
+    "sourceFile": "twitter/notifications.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13469,7 +14301,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/post.js",
-    "sourceFile": "twitter/post.js"
+    "sourceFile": "twitter/post.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13502,7 +14335,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/profile.js",
-    "sourceFile": "twitter/profile.js"
+    "sourceFile": "twitter/profile.js",
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -13546,7 +14380,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/reply.js",
-    "sourceFile": "twitter/reply.js"
+    "sourceFile": "twitter/reply.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13587,7 +14422,8 @@
     "timeout": 600,
     "type": "js",
     "modulePath": "twitter/reply-dm.js",
-    "sourceFile": "twitter/reply-dm.js"
+    "sourceFile": "twitter/reply-dm.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13634,7 +14470,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/search.js",
-    "sourceFile": "twitter/search.js"
+    "sourceFile": "twitter/search.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13669,7 +14506,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/thread.js",
-    "sourceFile": "twitter/thread.js"
+    "sourceFile": "twitter/thread.js",
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -13711,7 +14549,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/timeline.js",
-    "sourceFile": "twitter/timeline.js"
+    "sourceFile": "twitter/timeline.js",
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -13737,7 +14576,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/trending.js",
-    "sourceFile": "twitter/trending.js"
+    "sourceFile": "twitter/trending.js",
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -13761,7 +14601,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/unblock.js",
-    "sourceFile": "twitter/unblock.js"
+    "sourceFile": "twitter/unblock.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13785,7 +14626,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/unbookmark.js",
-    "sourceFile": "twitter/unbookmark.js"
+    "sourceFile": "twitter/unbookmark.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -13809,7 +14651,8 @@
     ],
     "type": "js",
     "modulePath": "twitter/unfollow.js",
-    "sourceFile": "twitter/unfollow.js"
+    "sourceFile": "twitter/unfollow.js",
+    "navigateBefore": true
   },
   {
     "site": "v2ex",
@@ -13825,7 +14668,8 @@
     ],
     "type": "js",
     "modulePath": "v2ex/daily.js",
-    "sourceFile": "v2ex/daily.js"
+    "sourceFile": "v2ex/daily.js",
+    "navigateBefore": "https://www.v2ex.com"
   },
   {
     "site": "v2ex",
@@ -13899,7 +14743,8 @@
     ],
     "type": "js",
     "modulePath": "v2ex/me.js",
-    "sourceFile": "v2ex/me.js"
+    "sourceFile": "v2ex/me.js",
+    "navigateBefore": "https://www.v2ex.com"
   },
   {
     "site": "v2ex",
@@ -14013,7 +14858,8 @@
     ],
     "type": "js",
     "modulePath": "v2ex/notifications.js",
-    "sourceFile": "v2ex/notifications.js"
+    "sourceFile": "v2ex/notifications.js",
+    "navigateBefore": "https://www.v2ex.com"
   },
   {
     "site": "v2ex",
@@ -14191,16 +15037,28 @@
     ],
     "type": "js",
     "modulePath": "weibo/comments.js",
-    "sourceFile": "weibo/comments.js"
+    "sourceFile": "weibo/comments.js",
+    "navigateBefore": "https://weibo.com"
   },
   {
     "site": "weibo",
     "name": "feed",
-    "description": "Weibo home timeline (posts from followed users)",
+    "description": "Fetch Weibo timeline (for-you or following)",
     "domain": "weibo.com",
     "strategy": "cookie",
     "browser": true,
     "args": [
+      {
+        "name": "type",
+        "type": "str",
+        "default": "for-you",
+        "required": false,
+        "help": "Timeline type: for-you (algorithmic) or following (chronological)",
+        "choices": [
+          "for-you",
+          "following"
+        ]
+      },
       {
         "name": "limit",
         "type": "int",
@@ -14220,7 +15078,8 @@
     ],
     "type": "js",
     "modulePath": "weibo/feed.js",
-    "sourceFile": "weibo/feed.js"
+    "sourceFile": "weibo/feed.js",
+    "navigateBefore": "https://weibo.com"
   },
   {
     "site": "weibo",
@@ -14248,7 +15107,8 @@
     ],
     "type": "js",
     "modulePath": "weibo/hot.js",
-    "sourceFile": "weibo/hot.js"
+    "sourceFile": "weibo/hot.js",
+    "navigateBefore": "https://weibo.com"
   },
   {
     "site": "weibo",
@@ -14269,7 +15129,8 @@
     ],
     "type": "js",
     "modulePath": "weibo/me.js",
-    "sourceFile": "weibo/me.js"
+    "sourceFile": "weibo/me.js",
+    "navigateBefore": "https://weibo.com"
   },
   {
     "site": "weibo",
@@ -14293,7 +15154,8 @@
     ],
     "type": "js",
     "modulePath": "weibo/post.js",
-    "sourceFile": "weibo/post.js"
+    "sourceFile": "weibo/post.js",
+    "navigateBefore": "https://weibo.com"
   },
   {
     "site": "weibo",
@@ -14327,7 +15189,8 @@
     ],
     "type": "js",
     "modulePath": "weibo/search.js",
-    "sourceFile": "weibo/search.js"
+    "sourceFile": "weibo/search.js",
+    "navigateBefore": "https://weibo.com"
   },
   {
     "site": "weibo",
@@ -14358,7 +15221,8 @@
     ],
     "type": "js",
     "modulePath": "weibo/user.js",
-    "sourceFile": "weibo/user.js"
+    "sourceFile": "weibo/user.js",
+    "navigateBefore": "https://weibo.com"
   },
   {
     "site": "weixin",
@@ -14398,7 +15262,8 @@
     ],
     "type": "js",
     "modulePath": "weixin/download.js",
-    "sourceFile": "weixin/download.js"
+    "sourceFile": "weixin/download.js",
+    "navigateBefore": "https://mp.weixin.qq.com"
   },
   {
     "site": "weread",
@@ -14426,7 +15291,8 @@
     ],
     "type": "js",
     "modulePath": "weread/book.js",
-    "sourceFile": "weread/book.js"
+    "sourceFile": "weread/book.js",
+    "navigateBefore": "https://weread.qq.com"
   },
   {
     "site": "weread",
@@ -14458,7 +15324,8 @@
     ],
     "type": "js",
     "modulePath": "weread/highlights.js",
-    "sourceFile": "weread/highlights.js"
+    "sourceFile": "weread/highlights.js",
+    "navigateBefore": "https://weread.qq.com"
   },
   {
     "site": "weread",
@@ -14476,7 +15343,8 @@
     ],
     "type": "js",
     "modulePath": "weread/notebooks.js",
-    "sourceFile": "weread/notebooks.js"
+    "sourceFile": "weread/notebooks.js",
+    "navigateBefore": "https://weread.qq.com"
   },
   {
     "site": "weread",
@@ -14509,7 +15377,8 @@
     ],
     "type": "js",
     "modulePath": "weread/notes.js",
-    "sourceFile": "weread/notes.js"
+    "sourceFile": "weread/notes.js",
+    "navigateBefore": "https://weread.qq.com"
   },
   {
     "site": "weread",
@@ -14605,7 +15474,8 @@
     ],
     "type": "js",
     "modulePath": "weread/shelf.js",
-    "sourceFile": "weread/shelf.js"
+    "sourceFile": "weread/shelf.js",
+    "navigateBefore": "https://weread.qq.com"
   },
   {
     "site": "wikipedia",
@@ -14873,7 +15743,8 @@
     ],
     "type": "js",
     "modulePath": "xiaoe/catalog.js",
-    "sourceFile": "xiaoe/catalog.js"
+    "sourceFile": "xiaoe/catalog.js",
+    "navigateBefore": "https://h5.xet.citv.cn"
   },
   {
     "site": "xiaoe",
@@ -14898,7 +15769,8 @@
     ],
     "type": "js",
     "modulePath": "xiaoe/content.js",
-    "sourceFile": "xiaoe/content.js"
+    "sourceFile": "xiaoe/content.js",
+    "navigateBefore": "https://h5.xet.citv.cn"
   },
   {
     "site": "xiaoe",
@@ -14915,7 +15787,8 @@
     ],
     "type": "js",
     "modulePath": "xiaoe/courses.js",
-    "sourceFile": "xiaoe/courses.js"
+    "sourceFile": "xiaoe/courses.js",
+    "navigateBefore": "https://study.xiaoe-tech.com"
   },
   {
     "site": "xiaoe",
@@ -14942,7 +15815,8 @@
     ],
     "type": "js",
     "modulePath": "xiaoe/detail.js",
-    "sourceFile": "xiaoe/detail.js"
+    "sourceFile": "xiaoe/detail.js",
+    "navigateBefore": "https://h5.xet.citv.cn"
   },
   {
     "site": "xiaoe",
@@ -14969,7 +15843,8 @@
     ],
     "type": "js",
     "modulePath": "xiaoe/play-url.js",
-    "sourceFile": "xiaoe/play-url.js"
+    "sourceFile": "xiaoe/play-url.js",
+    "navigateBefore": "https://h5.xet.citv.cn"
   },
   {
     "site": "xiaohongshu",
@@ -14984,7 +15859,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Note ID or full URL (preserves xsec_token for access)"
+        "help": "Full Xiaohongshu note URL with xsec_token"
       },
       {
         "name": "limit",
@@ -15171,7 +16046,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Note ID, full URL, or short link"
+        "help": "Full Xiaohongshu note URL with xsec_token, or xhslink short link"
       },
       {
         "name": "output",
@@ -15217,7 +16092,8 @@
     ],
     "type": "js",
     "modulePath": "xiaohongshu/feed.js",
-    "sourceFile": "xiaohongshu/feed.js"
+    "sourceFile": "xiaohongshu/feed.js",
+    "navigateBefore": true
   },
   {
     "site": "xiaohongshu",
@@ -15232,7 +16108,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Note ID or full URL (preserves xsec_token for access)"
+        "help": "Full Xiaohongshu note URL with xsec_token"
       }
     ],
     "columns": [
@@ -15277,7 +16153,8 @@
     ],
     "type": "js",
     "modulePath": "xiaohongshu/notifications.js",
-    "sourceFile": "xiaohongshu/notifications.js"
+    "sourceFile": "xiaohongshu/notifications.js",
+    "navigateBefore": true
   },
   {
     "site": "xiaohongshu",
@@ -15565,7 +16442,8 @@
     ],
     "type": "js",
     "modulePath": "xueqiu/earnings-date.js",
-    "sourceFile": "xueqiu/earnings-date.js"
+    "sourceFile": "xueqiu/earnings-date.js",
+    "navigateBefore": "https://xueqiu.com"
   },
   {
     "site": "xueqiu",
@@ -15599,7 +16477,8 @@
     ],
     "type": "js",
     "modulePath": "xueqiu/feed.js",
-    "sourceFile": "xueqiu/feed.js"
+    "sourceFile": "xueqiu/feed.js",
+    "navigateBefore": "https://xueqiu.com"
   },
   {
     "site": "xueqiu",
@@ -15668,7 +16547,8 @@
     ],
     "type": "js",
     "modulePath": "xueqiu/groups.js",
-    "sourceFile": "xueqiu/groups.js"
+    "sourceFile": "xueqiu/groups.js",
+    "navigateBefore": "https://xueqiu.com"
   },
   {
     "site": "xueqiu",
@@ -15695,7 +16575,8 @@
     ],
     "type": "js",
     "modulePath": "xueqiu/hot.js",
-    "sourceFile": "xueqiu/hot.js"
+    "sourceFile": "xueqiu/hot.js",
+    "navigateBefore": "https://xueqiu.com"
   },
   {
     "site": "xueqiu",
@@ -15730,7 +16611,8 @@
     ],
     "type": "js",
     "modulePath": "xueqiu/hot-stock.js",
-    "sourceFile": "xueqiu/hot-stock.js"
+    "sourceFile": "xueqiu/hot-stock.js",
+    "navigateBefore": "https://xueqiu.com"
   },
   {
     "site": "xueqiu",
@@ -15765,7 +16647,8 @@
     ],
     "type": "js",
     "modulePath": "xueqiu/kline.js",
-    "sourceFile": "xueqiu/kline.js"
+    "sourceFile": "xueqiu/kline.js",
+    "navigateBefore": "https://xueqiu.com"
   },
   {
     "site": "xueqiu",
@@ -15800,7 +16683,8 @@
     ],
     "type": "js",
     "modulePath": "xueqiu/search.js",
-    "sourceFile": "xueqiu/search.js"
+    "sourceFile": "xueqiu/search.js",
+    "navigateBefore": "https://xueqiu.com"
   },
   {
     "site": "xueqiu",
@@ -15827,7 +16711,8 @@
     ],
     "type": "js",
     "modulePath": "xueqiu/stock.js",
-    "sourceFile": "xueqiu/stock.js"
+    "sourceFile": "xueqiu/stock.js",
+    "navigateBefore": "https://xueqiu.com"
   },
   {
     "site": "xueqiu",
@@ -15860,7 +16745,8 @@
     ],
     "type": "js",
     "modulePath": "xueqiu/watchlist.js",
-    "sourceFile": "xueqiu/watchlist.js"
+    "sourceFile": "xueqiu/watchlist.js",
+    "navigateBefore": "https://xueqiu.com"
   },
   {
     "site": "yahoo-finance",
@@ -15892,7 +16778,8 @@
     ],
     "type": "js",
     "modulePath": "yahoo-finance/quote.js",
-    "sourceFile": "yahoo-finance/quote.js"
+    "sourceFile": "yahoo-finance/quote.js",
+    "navigateBefore": "https://finance.yahoo.com"
   },
   {
     "site": "yollomi",
@@ -15939,7 +16826,8 @@
     ],
     "type": "js",
     "modulePath": "yollomi/background.js",
-    "sourceFile": "yollomi/background.js"
+    "sourceFile": "yollomi/background.js",
+    "navigateBefore": "https://yollomi.com"
   },
   {
     "site": "yollomi",
@@ -15998,7 +16886,8 @@
     ],
     "type": "js",
     "modulePath": "yollomi/edit.js",
-    "sourceFile": "yollomi/edit.js"
+    "sourceFile": "yollomi/edit.js",
+    "navigateBefore": "https://yollomi.com"
   },
   {
     "site": "yollomi",
@@ -16043,7 +16932,8 @@
     ],
     "type": "js",
     "modulePath": "yollomi/face-swap.js",
-    "sourceFile": "yollomi/face-swap.js"
+    "sourceFile": "yollomi/face-swap.js",
+    "navigateBefore": "https://yollomi.com"
   },
   {
     "site": "yollomi",
@@ -16111,7 +17001,8 @@
     ],
     "type": "js",
     "modulePath": "yollomi/generate.js",
-    "sourceFile": "yollomi/generate.js"
+    "sourceFile": "yollomi/generate.js",
+    "navigateBefore": "https://yollomi.com"
   },
   {
     "site": "yollomi",
@@ -16189,7 +17080,8 @@
     ],
     "type": "js",
     "modulePath": "yollomi/object-remover.js",
-    "sourceFile": "yollomi/object-remover.js"
+    "sourceFile": "yollomi/object-remover.js",
+    "navigateBefore": "https://yollomi.com"
   },
   {
     "site": "yollomi",
@@ -16229,7 +17121,8 @@
     ],
     "type": "js",
     "modulePath": "yollomi/remove-bg.js",
-    "sourceFile": "yollomi/remove-bg.js"
+    "sourceFile": "yollomi/remove-bg.js",
+    "navigateBefore": "https://yollomi.com"
   },
   {
     "site": "yollomi",
@@ -16269,7 +17162,8 @@
     ],
     "type": "js",
     "modulePath": "yollomi/restore.js",
-    "sourceFile": "yollomi/restore.js"
+    "sourceFile": "yollomi/restore.js",
+    "navigateBefore": "https://yollomi.com"
   },
   {
     "site": "yollomi",
@@ -16326,7 +17220,8 @@
     ],
     "type": "js",
     "modulePath": "yollomi/try-on.js",
-    "sourceFile": "yollomi/try-on.js"
+    "sourceFile": "yollomi/try-on.js",
+    "navigateBefore": "https://yollomi.com"
   },
   {
     "site": "yollomi",
@@ -16352,7 +17247,8 @@
     ],
     "type": "js",
     "modulePath": "yollomi/upload.js",
-    "sourceFile": "yollomi/upload.js"
+    "sourceFile": "yollomi/upload.js",
+    "navigateBefore": "https://yollomi.com"
   },
   {
     "site": "yollomi",
@@ -16404,7 +17300,8 @@
     ],
     "type": "js",
     "modulePath": "yollomi/upscale.js",
-    "sourceFile": "yollomi/upscale.js"
+    "sourceFile": "yollomi/upscale.js",
+    "navigateBefore": "https://yollomi.com"
   },
   {
     "site": "yollomi",
@@ -16472,7 +17369,8 @@
     ],
     "type": "js",
     "modulePath": "yollomi/video.js",
-    "sourceFile": "yollomi/video.js"
+    "sourceFile": "yollomi/video.js",
+    "navigateBefore": "https://yollomi.com"
   },
   {
     "site": "youtube",
@@ -16503,7 +17401,8 @@
     ],
     "type": "js",
     "modulePath": "youtube/channel.js",
-    "sourceFile": "youtube/channel.js"
+    "sourceFile": "youtube/channel.js",
+    "navigateBefore": "https://www.youtube.com"
   },
   {
     "site": "youtube",
@@ -16538,7 +17437,8 @@
     ],
     "type": "js",
     "modulePath": "youtube/comments.js",
-    "sourceFile": "youtube/comments.js"
+    "sourceFile": "youtube/comments.js",
+    "navigateBefore": "https://www.youtube.com"
   },
   {
     "site": "youtube",
@@ -16595,7 +17495,8 @@
     ],
     "type": "js",
     "modulePath": "youtube/search.js",
-    "sourceFile": "youtube/search.js"
+    "sourceFile": "youtube/search.js",
+    "navigateBefore": "https://www.youtube.com"
   },
   {
     "site": "youtube",
@@ -16628,7 +17529,8 @@
     ],
     "type": "js",
     "modulePath": "youtube/transcript.js",
-    "sourceFile": "youtube/transcript.js"
+    "sourceFile": "youtube/transcript.js",
+    "navigateBefore": "https://www.youtube.com"
   },
   {
     "site": "youtube",
@@ -16652,7 +17554,8 @@
     ],
     "type": "js",
     "modulePath": "youtube/video.js",
-    "sourceFile": "youtube/video.js"
+    "sourceFile": "youtube/video.js",
+    "navigateBefore": "https://www.youtube.com"
   },
   {
     "site": "yuanbao",
@@ -16765,7 +17668,8 @@
     ],
     "type": "js",
     "modulePath": "zhihu/answer.js",
-    "sourceFile": "zhihu/answer.js"
+    "sourceFile": "zhihu/answer.js",
+    "navigateBefore": true
   },
   {
     "site": "zhihu",
@@ -16814,7 +17718,8 @@
     ],
     "type": "js",
     "modulePath": "zhihu/comment.js",
-    "sourceFile": "zhihu/comment.js"
+    "sourceFile": "zhihu/comment.js",
+    "navigateBefore": true
   },
   {
     "site": "zhihu",
@@ -16854,7 +17759,8 @@
     ],
     "type": "js",
     "modulePath": "zhihu/download.js",
-    "sourceFile": "zhihu/download.js"
+    "sourceFile": "zhihu/download.js",
+    "navigateBefore": "https://zhuanlan.zhihu.com"
   },
   {
     "site": "zhihu",
@@ -16901,7 +17807,8 @@
     ],
     "type": "js",
     "modulePath": "zhihu/favorite.js",
-    "sourceFile": "zhihu/favorite.js"
+    "sourceFile": "zhihu/favorite.js",
+    "navigateBefore": true
   },
   {
     "site": "zhihu",
@@ -16934,7 +17841,8 @@
     ],
     "type": "js",
     "modulePath": "zhihu/follow.js",
-    "sourceFile": "zhihu/follow.js"
+    "sourceFile": "zhihu/follow.js",
+    "navigateBefore": true
   },
   {
     "site": "zhihu",
@@ -16960,7 +17868,8 @@
     ],
     "type": "js",
     "modulePath": "zhihu/hot.js",
-    "sourceFile": "zhihu/hot.js"
+    "sourceFile": "zhihu/hot.js",
+    "navigateBefore": "https://www.zhihu.com"
   },
   {
     "site": "zhihu",
@@ -16993,7 +17902,8 @@
     ],
     "type": "js",
     "modulePath": "zhihu/like.js",
-    "sourceFile": "zhihu/like.js"
+    "sourceFile": "zhihu/like.js",
+    "navigateBefore": true
   },
   {
     "site": "zhihu",
@@ -17026,7 +17936,8 @@
     ],
     "type": "js",
     "modulePath": "zhihu/question.js",
-    "sourceFile": "zhihu/question.js"
+    "sourceFile": "zhihu/question.js",
+    "navigateBefore": "https://www.zhihu.com"
   },
   {
     "site": "zhihu",
@@ -17061,7 +17972,8 @@
     ],
     "type": "js",
     "modulePath": "zhihu/search.js",
-    "sourceFile": "zhihu/search.js"
+    "sourceFile": "zhihu/search.js",
+    "navigateBefore": "https://www.zhihu.com"
   },
   {
     "site": "zsxq",
@@ -17090,7 +18002,8 @@
     ],
     "type": "js",
     "modulePath": "zsxq/dynamics.js",
-    "sourceFile": "zsxq/dynamics.js"
+    "sourceFile": "zsxq/dynamics.js",
+    "navigateBefore": "https://wx.zsxq.com"
   },
   {
     "site": "zsxq",
@@ -17119,7 +18032,8 @@
     ],
     "type": "js",
     "modulePath": "zsxq/groups.js",
-    "sourceFile": "zsxq/groups.js"
+    "sourceFile": "zsxq/groups.js",
+    "navigateBefore": "https://wx.zsxq.com"
   },
   {
     "site": "zsxq",
@@ -17162,7 +18076,8 @@
     ],
     "type": "js",
     "modulePath": "zsxq/search.js",
-    "sourceFile": "zsxq/search.js"
+    "sourceFile": "zsxq/search.js",
+    "navigateBefore": "https://wx.zsxq.com"
   },
   {
     "site": "zsxq",
@@ -17178,6 +18093,12 @@
         "required": true,
         "positional": true,
         "help": "Topic ID"
+      },
+      {
+        "name": "group_id",
+        "type": "str",
+        "required": false,
+        "help": "Group ID (optional; defaults to active group in Chrome)"
       },
       {
         "name": "comment_limit",
@@ -17199,7 +18120,8 @@
     ],
     "type": "js",
     "modulePath": "zsxq/topic.js",
-    "sourceFile": "zsxq/topic.js"
+    "sourceFile": "zsxq/topic.js",
+    "navigateBefore": "https://wx.zsxq.com"
   },
   {
     "site": "zsxq",
@@ -17235,6 +18157,7 @@
     ],
     "type": "js",
     "modulePath": "zsxq/topics.js",
-    "sourceFile": "zsxq/topics.js"
+    "sourceFile": "zsxq/topics.js",
+    "navigateBefore": "https://wx.zsxq.com"
   }
 ]

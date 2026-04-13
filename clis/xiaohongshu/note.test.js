@@ -36,6 +36,9 @@ describe('parseNoteId', () => {
     it('extracts ID from /note/ URL', () => {
         expect(parseNoteId('https://www.xiaohongshu.com/note/69c131c9000000002800be4c')).toBe('69c131c9000000002800be4c');
     });
+    it('extracts ID from signed /user/profile/<user>/<note> URL', () => {
+        expect(parseNoteId('https://www.xiaohongshu.com/user/profile/user123/69c131c9000000002800be4c?xsec_token=abc&xsec_source=pc_user')).toBe('69c131c9000000002800be4c');
+    });
     it('returns raw string when no URL pattern matches', () => {
         expect(parseNoteId('69c131c9000000002800be4c')).toBe('69c131c9000000002800be4c');
     });
@@ -48,8 +51,14 @@ describe('buildNoteUrl', () => {
         const url = 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok';
         expect(buildNoteUrl(url)).toBe(url);
     });
-    it('constructs /search_result/ URL for bare note ID', () => {
-        expect(buildNoteUrl('abc123')).toBe('https://www.xiaohongshu.com/search_result/abc123');
+    it('rejects signed URLs from non-xiaohongshu hosts', () => {
+        expect(() => buildNoteUrl('https://example.com/?xsec_token=tok')).toThrow(/xiaohongshu/i);
+    });
+    it('rejects signed URLs with an empty xsec_token value', () => {
+        expect(() => buildNoteUrl('https://www.xiaohongshu.com/search_result/69c131c9000000002800be4c?xsec_token=')).toThrow(/xsec_token|signed url/i);
+    });
+    it('rejects bare note IDs because xiaohongshu now requires a signed URL', () => {
+        expect(() => buildNoteUrl('abc123')).toThrow(/xsec_token|signed url/i);
     });
 });
 describe('xiaohongshu note', () => {
@@ -58,7 +67,7 @@ describe('xiaohongshu note', () => {
         expect(command).toBeDefined();
         expect(command.func).toBeTypeOf('function');
     });
-    it('returns note content as field/value rows', async () => {
+    it('returns note content as field/value rows for signed full URLs', async () => {
         const page = createPageMock({
             loginWall: false,
             notFound: false,
@@ -70,8 +79,9 @@ describe('xiaohongshu note', () => {
             comments: '45',
             tags: ['#尚界Z7', '#鸿蒙智行'],
         });
-        const result = (await command.func(page, { 'note-id': '69c131c9000000002800be4c' }));
-        expect(page.goto.mock.calls[0][0]).toContain('/search_result/69c131c9000000002800be4c');
+        const signedUrl = 'https://www.xiaohongshu.com/search_result/69c131c9000000002800be4c?xsec_token=abc';
+        const result = (await command.func(page, { 'note-id': signedUrl }));
+        expect(page.goto.mock.calls[0][0]).toBe(signedUrl);
         expect(result).toEqual([
             { field: 'title', value: '尚界Z7实车体验' },
             { field: 'author', value: '小红薯用户' },
@@ -81,6 +91,18 @@ describe('xiaohongshu note', () => {
             { field: 'comments', value: '45' },
             { field: 'tags', value: '#尚界Z7, #鸿蒙智行' },
         ]);
+    });
+    it('rejects bare note IDs before browser navigation', async () => {
+        const page = createPageMock({
+            loginWall: false, notFound: false,
+            title: 'Test', desc: '', author: '', likes: '0', collects: '0', comments: '0', tags: [],
+        });
+        await expect(command.func(page, { 'note-id': '69c131c9000000002800be4c' })).rejects.toMatchObject({
+            code: 'ARGUMENT',
+            message: expect.stringContaining('signed URL'),
+            hint: expect.stringContaining('xsec_token'),
+        });
+        expect(page.goto).not.toHaveBeenCalled();
     });
     it('parses note ID from full /explore/ URL', async () => {
         const page = createPageMock({
@@ -102,23 +124,20 @@ describe('xiaohongshu note', () => {
         // Should navigate to the full URL as-is, not strip the token
         expect(page.goto.mock.calls[0][0]).toBe(fullUrl);
     });
+    it('preserves signed /user/profile/<user>/<note> URLs for navigation', async () => {
+        const page = createPageMock({
+            loginWall: false, notFound: false,
+            title: 'Test', desc: '', author: '', likes: '0', collects: '0', comments: '0', tags: [],
+        });
+        const fullUrl = 'https://www.xiaohongshu.com/user/profile/user123/69c131c9000000002800be4c?xsec_token=abc&xsec_source=pc_user';
+        await command.func(page, { 'note-id': fullUrl });
+        expect(page.goto.mock.calls[0][0]).toBe(fullUrl);
+    });
     it('throws AuthRequiredError on login wall', async () => {
         const page = createPageMock({ loginWall: true, notFound: false });
-        await expect(command.func(page, { 'note-id': 'abc123' })).rejects.toThrow('Note content requires login');
-    });
-    it('throws SECURITY_BLOCK with bare-id guidance when risk control blocks the note page', async () => {
-        const page = createPageMock({
-            pageUrl: 'https://www.xiaohongshu.com/website-login/error?error_code=300017',
-            securityBlock: true,
-            loginWall: false,
-            notFound: false,
-        });
-        await expect(command.func(page, { 'note-id': '69c131c9000000002800be4c' })).rejects.toMatchObject({
-            code: 'SECURITY_BLOCK',
-            message: 'Xiaohongshu security block: the note detail page was blocked by risk control.',
-            hint: expect.stringContaining('xsec_token'),
-        });
-        expect(page.wait).toHaveBeenCalledWith(expect.objectContaining({ time: expect.any(Number) }));
+        await expect(command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
+        })).rejects.toThrow('Note content requires login');
     });
     it('throws SECURITY_BLOCK with retry guidance when a full URL is blocked', async () => {
         const page = createPageMock({
@@ -136,7 +155,9 @@ describe('xiaohongshu note', () => {
     });
     it('throws EmptyResultError when note is not found', async () => {
         const page = createPageMock({ loginWall: false, notFound: true });
-        await expect(command.func(page, { 'note-id': 'abc123' })).rejects.toThrow('returned no data');
+        await expect(command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
+        })).rejects.toThrow('returned no data');
     });
     it('throws an empty-result error when the note page renders as an empty shell', async () => {
         const page = createPageMock({
@@ -151,7 +172,9 @@ describe('xiaohongshu note', () => {
             tags: [],
         });
         try {
-            await command.func(page, { 'note-id': '69ca3927000000001a020fd5' });
+            await command.func(page, {
+                'note-id': 'https://www.xiaohongshu.com/search_result/69ca3927000000001a020fd5?xsec_token=abc',
+            });
             throw new Error('expected xiaohongshu note to fail on an empty shell page');
         }
         catch (error) {
@@ -193,7 +216,9 @@ describe('xiaohongshu note', () => {
             title: 'New note', desc: 'Just posted', author: 'Author',
             likes: '赞', collects: '收藏', comments: '评论', tags: [],
         });
-        const result = (await command.func(page, { 'note-id': 'abc123' }));
+        const result = (await command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
+        }));
         expect(result.find((r) => r.field === 'likes').value).toBe('0');
         expect(result.find((r) => r.field === 'collects').value).toBe('0');
         expect(result.find((r) => r.field === 'comments').value).toBe('0');
@@ -203,7 +228,7 @@ describe('xiaohongshu note', () => {
             loginWall: false, notFound: false,
             title: 'Test', desc: '', author: 'Author', likes: '10', collects: '5', comments: '3', tags: [],
         });
-        await command.func(page, { 'note-id': 'abc123' });
+        await command.func(page, { 'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok' });
         const evaluateScript = page.evaluate.mock.calls[0][0];
         expect(evaluateScript).toContain('.interact-container .like-wrapper .count');
         expect(evaluateScript).toContain('.interact-container .collect-wrapper .count');
@@ -215,7 +240,9 @@ describe('xiaohongshu note', () => {
             title: 'No tags', desc: 'Content', author: 'Author',
             likes: '1', collects: '2', comments: '3', tags: [],
         });
-        const result = (await command.func(page, { 'note-id': 'abc123' }));
+        const result = (await command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
+        }));
         expect(result.find((r) => r.field === 'tags')).toBeUndefined();
         expect(result).toHaveLength(6);
     });

@@ -722,12 +722,12 @@ opencli xiaoe play-url <id>              # 播放地址
 
 ```bash
 opencli xiaohongshu search "美食"              # 搜索笔记 (query positional)
-opencli xiaohongshu note <note-id-or-url>      # 读取笔记正文和互动数据
-opencli xiaohongshu comments <note-id>         # 笔记评论
+opencli xiaohongshu note <signed-note-url>     # 读取笔记正文和互动数据
+opencli xiaohongshu comments <signed-note-url> # 笔记评论
 opencli xiaohongshu notifications              # 通知（mentions/likes/connections）
 opencli xiaohongshu feed --limit 10            # 推荐 Feed
 opencli xiaohongshu user xxx                   # 用户主页 (id positional)
-opencli xiaohongshu download <note-id>         # 下载笔记图片/视频
+opencli xiaohongshu download <signed-url-or-short-link> # 下载笔记图片/视频
 opencli xiaohongshu publish                    # 发布笔记
 opencli xiaohongshu creator-notes --limit 10   # 创作者笔记列表
 opencli xiaohongshu creator-note-detail --note-id xxx  # 笔记详情

@@ -2,10 +2,9 @@
  * Xiaohongshu download — download images and videos from a note.
  *
  * Usage:
- *   opencli xiaohongshu download <note-id-or-url> --output ./xhs
+ *   opencli xiaohongshu download <signed-note-url-or-shortlink> --output ./xhs
  *
- * Accepts a bare note ID, a full xiaohongshu.com URL (with xsec_token),
- * or a short link (http://xhslink.com/...).
+ * Accepts a full xiaohongshu.com URL with xsec_token or an xhslink short link.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { formatCookieHeader } from '@jackwener/opencli/download';
@@ -20,7 +19,7 @@ cli({
     strategy: Strategy.COOKIE,
     navigateBefore: false,
     args: [
-        { name: 'note-id', positional: true, required: true, help: 'Note ID, full URL, or short link' },
+        { name: 'note-id', positional: true, required: true, help: 'Full Xiaohongshu note URL with xsec_token, or xhslink short link' },
         { name: 'output', default: './xiaohongshu-downloads', help: 'Output directory' },
     ],
     columns: ['index', 'type', 'status', 'size'],
@@ -28,7 +27,7 @@ cli({
         const rawInput = String(kwargs['note-id']);
         const output = kwargs.output;
         const noteId = parseNoteId(rawInput);
-        await page.goto(buildNoteUrl(rawInput));
+        await page.goto(buildNoteUrl(rawInput, { allowShortLink: true, commandName: 'xiaohongshu download' }));
         await page.wait({ time: 1 + Math.random() * 2 });
         // Extract note info and media URLs
         const data = await page.evaluate(`
@@ -51,9 +50,9 @@ cli({
           seenMedia.add(key);
           result.media.push({ type, url });
         };
-        const locationMatch = (location.pathname || '').match(/\\/(?:explore|note|search_result|discovery\\/item)\\/([a-f0-9]+)/i);
+        const locationMatch = (location.pathname || '').match(/\\/(?:explore|note|search_result|discovery\\/item)\\/([a-f0-9]+)|\\/user\\/profile\\/[^/?#]+\\/([a-f0-9]+)/i);
         if (locationMatch) {
-          result.noteId = locationMatch[1];
+          result.noteId = locationMatch[1] || locationMatch[2];
         }
 
         // Get title
