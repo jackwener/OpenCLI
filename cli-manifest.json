@@ -9226,6 +9226,203 @@
     "sourceFile": "medium/user.js"
   },
   {
+    "site": "mubu",
+    "name": "doc",
+    "description": "读取幕布文档内容（默认输出 Markdown，可用 --output text 输出纯文本）",
+    "domain": "mubu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "文档 ID"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "md",
+        "required": false,
+        "help": "输出格式：md（默认，缩进列表 Markdown，适合导入 Obsidian）或 text（纯文本，适合终端阅读）"
+      }
+    ],
+    "columns": [
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "mubu/doc.js",
+    "sourceFile": "mubu/doc.js",
+    "navigateBefore": "https://mubu.com"
+  },
+  {
+    "site": "mubu",
+    "name": "docs",
+    "description": "列出幕布文档（默认根目录，--starred 查看快速访问列表）",
+    "domain": "mubu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "folder",
+        "type": "str",
+        "default": "0",
+        "required": false,
+        "help": "文件夹 ID（默认根目录 0）"
+      },
+      {
+        "name": "starred",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "只显示快速访问的文档和文件夹"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "最多显示条数"
+      }
+    ],
+    "columns": [
+      "type",
+      "id",
+      "name",
+      "updated",
+      "stared"
+    ],
+    "type": "js",
+    "modulePath": "mubu/docs.js",
+    "sourceFile": "mubu/docs.js",
+    "navigateBefore": "https://mubu.com"
+  },
+  {
+    "site": "mubu",
+    "name": "notes",
+    "description": "读取幕布速记（默认今天）。支持 --date/--month/--year/--from/--to 指定时间范围，--list 为概览模式（日期+条数）。",
+    "domain": "mubu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "list",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "概览模式：只输出日期和条数，不含速记内容。可与任意时间范围参数组合。"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "单日，格式 YYYY-MM-DD。不指定时间范围则默认今天（系统本地时间）。"
+      },
+      {
+        "name": "month",
+        "type": "str",
+        "required": false,
+        "help": "整月，格式 YYYY-MM。"
+      },
+      {
+        "name": "year",
+        "type": "int",
+        "required": false,
+        "help": "整年，格式 YYYY（整数）。"
+      },
+      {
+        "name": "from",
+        "type": "str",
+        "required": false,
+        "help": "范围起始日，格式 YYYY-MM-DD。须与 --to 同时使用。"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": false,
+        "help": "范围截止日，格式 YYYY-MM-DD。须与 --from 同时使用。"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "md",
+        "required": false,
+        "help": "输出格式：md（默认，Markdown）或 text（纯文本）"
+      }
+    ],
+    "columns": [
+      "date",
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "mubu/notes.js",
+    "sourceFile": "mubu/notes.js",
+    "navigateBefore": "https://mubu.com"
+  },
+  {
+    "site": "mubu",
+    "name": "recent",
+    "description": "最近编辑的幕布文档",
+    "domain": "mubu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "最多显示条数"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "updated"
+    ],
+    "type": "js",
+    "modulePath": "mubu/recent.js",
+    "sourceFile": "mubu/recent.js",
+    "navigateBefore": "https://mubu.com"
+  },
+  {
+    "site": "mubu",
+    "name": "search",
+    "description": "全局搜索幕布文档和文件夹（标题+内容，服务端全量匹配）。结果含 type/id/name/path/hits/snippet 字段。",
+    "domain": "mubu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "最多显示条数（默认 100，结果被截断时用 --limit N 调大）"
+      }
+    ],
+    "columns": [
+      "type",
+      "id",
+      "name",
+      "path",
+      "hits",
+      "snippet"
+    ],
+    "type": "js",
+    "modulePath": "mubu/search.js",
+    "sourceFile": "mubu/search.js",
+    "navigateBefore": "https://mubu.com"
+  },
+  {
     "site": "notebooklm",
     "name": "current",
     "description": "Show metadata for the currently opened NotebookLM notebook tab",
