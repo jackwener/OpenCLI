@@ -1,38 +1,54 @@
 {
-  "timestamp": "2026-04-11T08:21:31.784Z",
+  "timestamp": "2026-04-13T02:26:24.266Z",
   "json_file": "./clis/xiaohongshu/creator-notes.json",
   "command": "CreatorNotes",
   "website": "creator.xiaohongshu.com",
   "params": {
-    "limit": 3
+    "limit": 5
   },
   "success": false,
-  "data_count": 1,
+  "data_count": 3,
   "sample_data": [
     {
-      "rank": 0,
-      "id": "",
-      "title": "No notes found",
-      "date": "",
-      "views": 0,
-      "likes": 0,
+      "rank": 1,
+      "id": "692dad2e000000001e023d4b",
+      "title": "没人觉得九寨英迪格的甜糌粑巨好吃吗？",
+      "date": "2025年12月01日 22:58",
+      "views": 148,
+      "likes": 1,
+      "collects": 1,
+      "comments": 0,
+      "url": "https://creator.xiaohongshu.com/statistics/note-detail?noteId=692dad2e000000001e023d4b"
+    },
+    {
+      "rank": 2,
+      "id": "692be4dd000000001e022c1d",
+      "title": "巴厘之旅",
+      "date": "2025年11月30日 14:31",
+      "views": 3,
+      "likes": 1,
       "collects": 0,
       "comments": 0,
-      "url": "",
-      "error": "Check login status"
+      "url": "https://creator.xiaohongshu.com/statistics/note-detail?noteId=692be4dd000000001e022c1d"
+    },
+    {
+      "rank": 3,
+      "id": "68f26b080000000004014918",
+      "title": "",
+      "date": "2025年10月18日 00:12",
+      "views": 20,
+      "likes": 1,
+      "collects": 0,
+      "comments": 0,
+      "url": "https://creator.xiaohongshu.com/statistics/note-detail?noteId=68f26b080000000004014918"
     }
   ],
   "comparison": {
-    "grease_count": 1,
-    "opencli_count": 3,
+    "grease_count": 3,
+    "opencli_count": 5,
     "match": false,
     "differences": [
-      "Count mismatch: GreaseAI=1, OpenCLI=3",
-      "Item 1 \"rank\": Grease=\"0\" vs OpenCLI=\"1\"",
-      "Item 1 \"title\": Grease=\"No notes found\" vs OpenCLI=\"没人觉得九寨英迪格的甜糌粑巨好吃吗？\"",
-      "Item 1 \"views\": Grease=\"0\" vs OpenCLI=\"146\"",
-      "Item 1 \"likes\": Grease=\"0\" vs OpenCLI=\"1\"",
-      "Item 1 \"collects\": Grease=\"0\" vs OpenCLI=\"1\""
+      "Count mismatch: GreaseAI=3, OpenCLI=5"
     ]
   }
 }

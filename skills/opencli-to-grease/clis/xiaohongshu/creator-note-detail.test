@@ -1,19 +1,49 @@
 {
-  "timestamp": "2026-04-11T08:20:17.661Z",
+  "timestamp": "2026-04-13T02:09:25.581Z",
   "json_file": "./clis/xiaohongshu/creator-note-detail.json",
   "command": "CreatorNoteDetail",
   "website": "creator.xiaohongshu.com",
   "params": {
-    "limit": 3
+    "note-id": "692dad2e000000001e023d4b"
   },
-  "success": false,
-  "data_count": 0,
+  "success": true,
+  "data_count": 12,
+  "sample_data": [
+    {
+      "section": "笔记信息",
+      "metric": "note_id",
+      "value": "692dad2e000000001e023d4b",
+      "extra": ""
+    },
+    {
+      "section": "笔记信息",
+      "metric": "title",
+      "value": "没人觉得九寨英迪格的甜糌粑巨好吃吗？",
+      "extra": ""
+    },
+    {
+      "section": "笔记信息",
+      "metric": "published_at",
+      "value": "2025-12-01 22:58",
+      "extra": ""
+    },
+    {
+      "section": "基础数据",
+      "metric": "曝光数",
+      "value": "832",
+      "extra": "粉丝占比 0.1%"
+    },
+    {
+      "section": "基础数据",
+      "metric": "观看数",
+      "value": "148",
+      "extra": "粉丝占比 0%"
+    }
+  ],
   "comparison": {
-    "grease_count": 0,
-    "opencli_count": 0,
-    "match": false,
-    "differences": [
-      "GreaseAI returned no data"
-    ]
+    "grease_count": 12,
+    "opencli_count": 12,
+    "match": true,
+    "differences": []
   }
 }

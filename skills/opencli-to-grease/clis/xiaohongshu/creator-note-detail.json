@@ -8,27 +8,25 @@
       }
     },
     {
+      "action": "wait",
+      "argument": { "time": 2000 }
+    },
+    {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const noteId = \"{{ note-id }}\"; const norm = (v) => (v || '').trim(); const domData = (() => { const sections = Array.from(document.querySelectorAll('.shell-container')).map(container => { const containerText = norm(container.innerText); const title = containerText.startsWith('互动数据') ? '互动数据' : containerText.includes('基础数据') ? '基础数据' : ''; const metrics = Array.from(container.querySelectorAll('.block-container.block')).map(block => ({ label: norm(block.querySelector('.des')?.innerText), value: norm(block.querySelector('.content')?.innerText), extra: norm(block.querySelector('.text-with-fans')?.innerText) })).filter(m => m.label && m.value); return { title, metrics }; }).filter(s => s.title && s.metrics.length > 0); return { title: norm(document.querySelector('.note-title')?.innerText), infoText: norm(document.querySelector('.note-info-content')?.innerText), sections }; })(); const rows = [{ section: '笔记信息', metric: 'note_id', value: noteId, extra: '' }, { section: '笔记信息', metric: 'title', value: domData.title, extra: '' }, { section: '笔记信息', metric: 'published_at', value: domData.infoText.match(/\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}\\b/)?.[0] ?? '', extra: '' }]; const validSections = new Set(['基础数据', '互动数据']); const validMetrics = new Set(['曝光数', '观看数', '封面点击率', '平均观看时长', '涨粉数', '点赞数', '评论数', '收藏数', '分享数']); for (const section of domData.sections) { if (!validSections.has(section.title)) continue; for (const metric of section.metrics) { if (!validMetrics.has(metric.label)) continue; rows.push({ section: section.title, metric: metric.label, value: metric.value, extra: metric.extra }); } } return { rows, noteId }; }"
+        "script": "async (intermediate) => { const noteId = \"{{ note-id }}\"; history.pushState({}, '', location.href); window.dispatchEvent(new PopStateEvent('popstate')); await new Promise(r => setTimeout(r, 2000)); return { noteId, triggered: true }; }"
       }
     },
     {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const noteId = intermediate.noteId; const rows = intermediate.rows; const toPercentString = (v) => v == null ? '' : v + '%'; const endpoints = [ { suffix: '/api/galaxy/creator/datacenter/note/base', key: 'noteBase' }, { suffix: '/api/galaxy/creator/datacenter/note/audience', key: 'audienceSource' } ]; const payload = {}; for (const { suffix, key } of endpoints) { const apiUrl = suffix + '?note_id=' + noteId; try { const resp = await fetch(apiUrl, { credentials: 'include' }); if (!resp.ok) continue; const json = await resp.json(); payload[key] = json.data ?? {}; } catch {} } const formatTrendTimestamp = (ts, granularity) => { if (!ts) return ''; const CST_OFFSET_MS = 8 * 60 * 60 * 1000; const date = new Date(ts + CST_OFFSET_MS); const pad = (v) => String(v).padStart(2, '0'); if (granularity === 'hour') return pad(date.getUTCMonth() + 1) + '-' + pad(date.getUTCDate()) + ' ' + pad(date.getUTCHours()) + ':00'; return date.getUTCFullYear() + '-' + pad(date.getUTCMonth() + 1) + '-' + pad(date.getUTCDate()); }; const formatTrendSeries = (points, granularity) => { if (!points?.length) return ''; return points.map(p => { const label = formatTrendTimestamp(p.date, granularity); const value = p.count_with_double ?? p.count; return label && value != null ? label + '=' + value : ''; }).filter(Boolean).join(' | '); }; const buckets = [ { label: '按小时', granularity: 'hour', data: payload?.noteBase?.hour }, { label: '按天', granularity: 'day', data: payload?.noteBase?.day } ]; const seriesConfig = [ { key: 'imp_list', label: '曝光数' }, { key: 'view_list', label: '观看数' }, { key: 'like_list', label: '点赞数' }, { key: 'collect_list', label: '收藏数' } ]; for (const bucket of buckets) { for (const series of seriesConfig) { const points = bucket.data?.[series.key]; const formatted = formatTrendSeries(points, bucket.granularity); if (!formatted) continue; rows.push({ section: '趋势数据', metric: bucket.label + '/' + series.label, value: points.length + ' points', extra: formatted }); } } const sourceItems = payload?.audienceSource?.source ?? []; for (const item of sourceItems) { if (!item.title) continue; rows.push({ section: '观看来源', metric: item.title, value: toPercentString(item.value_with_double), extra: '' }); } return { rows }; }"
-      }
-    },
-    {
-      "action": "evaluate",
-      "argument": {
-        "script": "async (intermediate) => { const rows = intermediate.rows || []; const hasCoreMetric = rows.some(r => r.section !== '笔记信息' && r.value); if (!hasCoreMetric) return [{ section: 'error', metric: 'no_data', value: 'Check note_id and login status', extra: '' }]; return rows; }"
+        "script": "async (intermediate) => { const noteId = intermediate.noteId; const norm = (v) => (v || '').trim(); const domData = (() => { const sections = Array.from(document.querySelectorAll('.shell-container, .data-block-container')).map(container => { const containerText = norm(container.innerText); const title = containerText.includes('互动数据') ? '互动数据' : containerText.includes('基础数据') ? '基础数据' : ''; const metrics = Array.from(container.querySelectorAll('.block-container.block, .data-item, .metric-item')).map(block => ({ label: norm(block.querySelector('.des, .label, .metric-label')?.innerText), value: norm(block.querySelector('.content, .value, .metric-value')?.innerText), extra: norm(block.querySelector('.text-with-fans, .extra')?.innerText) })).filter(m => m.label && m.value); return { title, metrics }; }).filter(s => s.title && s.metrics.length > 0); const infoText = norm(document.querySelector('.note-info-content, .note-info')?.innerText); let noteTitle = ''; const pageTitle = document.title || ''; const titleMatch = pageTitle.match(/(.+) - 笔记数据详情/); if (titleMatch && titleMatch[1] && !titleMatch[1].includes('创作服务平台')) { noteTitle = titleMatch[1].trim(); } if (!noteTitle) { const noteLink = document.querySelector('a[href*=\"/explore/\"], a[href*=\"/discovery/item/\"]'); if (noteLink) { noteTitle = norm(noteLink.innerText) || noteLink.getAttribute('title') || ''; } } if (!noteTitle) { const notePreview = document.querySelector('.note-preview-title, .note-card .title, [class*=noteTitle]'); if (notePreview) { noteTitle = norm(notePreview.innerText); } } return { title: noteTitle || norm(document.querySelector('.note-title')?.innerText), infoText, sections }; })(); const rows = [{ section: '笔记信息', metric: 'note_id', value: noteId, extra: '' }, { section: '笔记信息', metric: 'title', value: domData.title, extra: '' }, { section: '笔记信息', metric: 'published_at', value: domData.infoText.match(/\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}\\b/)?.[0] ?? '', extra: '' }]; const validSections = new Set(['基础数据', '互动数据']); const validMetrics = new Set(['曝光数', '观看数', '封面点击率', '平均观看时长', '涨粉数', '点赞数', '评论数', '收藏数', '分享数']); for (const section of domData.sections) { if (!validSections.has(section.title)) continue; for (const metric of section.metrics) { if (!validMetrics.has(metric.label)) continue; rows.push({ section: section.title, metric: metric.label, value: metric.value, extra: metric.extra }); } } return rows; }"
       }
     }
   ],
   "api_endpoint": "xiaohongshu-creator-note-detail",
   "category": "auth",
-  "description": "小红书单篇笔记详情页数据 (笔记信息 + 核心/互动数据 + 观看来源 + 趋势数据)",
+  "description": "小红书单篇笔记详情页数据 (笔记信息 + 核心/互动数据)",
   "is_public": false,
   "method": "GET",
   "name": "CreatorNoteDetail",
@@ -39,7 +37,7 @@
     { "name": "extra", "type": "string", "description": "附加信息" }
   ],
   "variables": [
-    { "name": "note-id", "type": "string", "required": true, "help": "Note ID (from creator-notes or note-detail page URL)" }
+    { "name": "note-id", "type": "string", "required": true, "help": "Note ID (from creator-notes or note-detail page URL)", "test": "692dad2e000000001e023d4b" }
   ],
   "website_domain": "creator.xiaohongshu.com",
   "website_id": "website-creator.xiaohongshu.com"
