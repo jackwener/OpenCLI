@@ -10,6 +10,8 @@ const {
   SECONDARY_FILTER_INPUT_SELECTOR,
   CONFIRM_EXPORT_BUTTON_SELECTOR,
   normalizeShopeeReviewUrl,
+  bindShopeeProductTab,
+  ensureShopeeProductPage,
   buildEnsureCheckboxStateScript,
   buildWaitForExportReviewReadyScript,
 } =
@@ -49,34 +51,71 @@ describe('shopee product-shopdora-download adapter', () => {
     expect(buildWaitForExportReviewReadyScript(30000, 1000)).toContain('Export Review');
   });
 
+  it('binds to the matching existing browser tab using the shopee workspace', async () => {
+    const bindFn = vi.fn(async () => ({ tabId: 2 }));
+
+    await expect(
+      bindShopeeProductTab(
+        'https://shopee.sg/Jeep-EW121-True-Wireless-Bluetooth-5.4-Earbuds-i.1058254930.25483790400',
+        bindFn,
+      ),
+    ).resolves.toBe(true);
+
+    expect(bindFn).toHaveBeenCalledWith('site:shopee', {
+      matchUrl: 'https://shopee.sg/Jeep-EW121-True-Wireless-Bluetooth-5.4-Earbuds-i.1058254930.25483790400',
+    });
+  });
+
+  it('reuses the matched tab, clears localStorage, and reloads the product page', async () => {
+    const page = {
+      goto: vi.fn(async () => {}),
+      evaluate: vi.fn(async () => ({ ok: true, host: 'shopee.sg' })),
+    } as unknown as IPage;
+    const bindFn = vi.fn(async () => ({ tabId: 2 }));
+
+    await expect(
+      ensureShopeeProductPage(page, 'https://shopee.sg/product-i.1.2', bindFn),
+    ).resolves.toBe(true);
+
+    expect(page.goto).toHaveBeenNthCalledWith(1, 'https://shopee.sg', { waitUntil: 'load' });
+    expect(page.evaluate).toHaveBeenCalledWith(expect.stringContaining('localStorage.clear()'));
+    expect(page.goto).toHaveBeenNthCalledWith(2, 'https://shopee.sg/product-i.1.2', { waitUntil: 'load' });
+  });
+
   it('navigates, downloads the file, and returns the local file url', async () => {
     const downloadedFile = '/tmp/opencli-shopee-product-shopdora-download-test/reviews.csv';
     const goto = vi.fn<NonNullable<IPage['goto']>>().mockResolvedValue(undefined);
     const wait = vi.fn<NonNullable<IPage['wait']>>().mockResolvedValue(undefined);
     const click = vi.fn<NonNullable<IPage['click']>>().mockResolvedValue(undefined);
+    const scroll = vi.fn<NonNullable<IPage['scroll']>>().mockResolvedValue(undefined);
     const evaluate = vi.fn<NonNullable<IPage['evaluate']>>()
-      .mockResolvedValueOnce({ ok: true, changed: false, checked: true })
-      .mockResolvedValueOnce({ ok: true, changed: false, checked: false })
-      .mockResolvedValueOnce({ ok: true, text: 'Export Review' });
+      .mockResolvedValueOnce({ ok: true, host: 'shopee.sg' })
+      .mockResolvedValue({ ok: true, text: 'Export Review' });
     const waitForDownload = vi.fn<NonNullable<NonNullable<IPage['waitForDownload']>>>()
       .mockResolvedValue({ filename: downloadedFile });
 
-    const page = { goto, wait, click, evaluate, waitForDownload } as unknown as IPage;
+    const page = { goto, wait, click, scroll, evaluate, waitForDownload } as unknown as IPage;
 
     const result = await command!.func!(page, {
       url: 'https://shopee.sg/Jeep-EW121-True-Wireless-Bluetooth-5.4-Earbuds-i.1058254930.25483790400',
     });
 
-    expect(goto).toHaveBeenCalledWith(
+    expect(goto).toHaveBeenNthCalledWith(1, 'https://shopee.sg', { waitUntil: 'load' });
+    expect(goto).toHaveBeenNthCalledWith(
+      2,
       'https://shopee.sg/Jeep-EW121-True-Wireless-Bluetooth-5.4-Earbuds-i.1058254930.25483790400',
       { waitUntil: 'load' },
     );
+    expect(evaluate).toHaveBeenNthCalledWith(1, expect.stringContaining('localStorage.clear()'));
     expect(wait).toHaveBeenCalledWith({ selector: EXPORT_REVIEW_BUTTON_SELECTOR, timeout: 15 });
     expect(click).toHaveBeenCalledWith(EXPORT_REVIEW_BUTTON_SELECTOR);
     expect(click).toHaveBeenCalledWith(CONFIRM_EXPORT_BUTTON_SELECTOR);
-    expect(evaluate).toHaveBeenNthCalledWith(1, expect.stringContaining(DETAIL_FILTER_INPUT_SELECTOR));
-    expect(evaluate).toHaveBeenNthCalledWith(2, expect.stringContaining(SECONDARY_FILTER_INPUT_SELECTOR));
-    expect(evaluate).toHaveBeenNthCalledWith(3, expect.stringContaining('.putButton .common-btn.en_common-btn'));
+    expect(scroll).toHaveBeenCalled();
+    expect(evaluate).toHaveBeenCalledWith(expect.stringContaining(EXPORT_REVIEW_BUTTON_SELECTOR));
+    expect(evaluate).toHaveBeenCalledWith(expect.stringContaining(DETAIL_FILTER_INPUT_SELECTOR));
+    expect(evaluate).toHaveBeenCalledWith(expect.stringContaining(SECONDARY_FILTER_INPUT_SELECTOR));
+    expect(evaluate).toHaveBeenCalledWith(expect.stringContaining(CONFIRM_EXPORT_BUTTON_SELECTOR));
+    expect(evaluate).toHaveBeenCalledWith(expect.stringContaining('.putButton .common-btn.en_common-btn'));
     expect(waitForDownload).toHaveBeenCalledWith({
       startedAfterMs: expect.any(Number),
       timeoutMs: 30000,
@@ -88,5 +127,23 @@ describe('shopee product-shopdora-download adapter', () => {
       local_path: downloadedFile,
       product_url: 'https://shopee.sg/Jeep-EW121-True-Wireless-Bluetooth-5.4-Earbuds-i.1058254930.25483790400',
     }]);
+  });
+
+  it('falls back to clearing the target host and reopening the product page when no existing product tab is found', async () => {
+    const page = {
+      goto: vi.fn(async () => {}),
+      evaluate: vi.fn(async () => ({ ok: true, host: 'shopee.sg' })),
+    } as unknown as IPage;
+    const bindFn = vi.fn(async () => {
+      throw new Error('not found');
+    });
+
+    await expect(
+      ensureShopeeProductPage(page, 'https://shopee.sg/product-i.1.2', bindFn),
+    ).resolves.toBe(false);
+
+    expect(page.goto).toHaveBeenNthCalledWith(1, 'https://shopee.sg', { waitUntil: 'load' });
+    expect(page.evaluate).toHaveBeenCalledWith(expect.stringContaining('localStorage.clear()'));
+    expect(page.goto).toHaveBeenNthCalledWith(2, 'https://shopee.sg/product-i.1.2', { waitUntil: 'load' });
   });
 });

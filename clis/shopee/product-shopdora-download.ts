@@ -6,6 +6,8 @@ import {
 } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import type { IPage } from '@jackwener/opencli/types';
+import { bindCurrentTab } from '../../src/browser/daemon-client.js';
+import { clearLocalStorageForUrlHost, simulateHumanBehavior, waitRandomDuration } from './shared.js';
 
 const EXPORT_REVIEW_BUTTON_SELECTOR =
   'div > div:nth-of-type(1) > div:nth-of-type(2) > div > div.common-btn.en_common-btn';
@@ -19,6 +21,13 @@ const SECONDARY_FILTER_INPUT_SELECTOR =
   'div:nth-of-type(1) > div:nth-of-type(2) > span:nth-of-type(2) > label > input.t-checkbox__former';
 const CONFIRM_EXPORT_BUTTON_SELECTOR =
   'div > div:nth-of-type(5) > div:nth-of-type(2) > button:nth-of-type(2)';
+
+const SHOPEE_WORKSPACE = 'site:shopee';
+
+type BindCurrentTabFn = (
+  workspace: string,
+  opts?: { matchDomain?: string; matchPathPrefix?: string; matchUrl?: string },
+) => Promise<unknown>;
 
 function normalizeShopeeReviewUrl(value: unknown): string {
   const raw = String(value ?? '').trim();
@@ -68,6 +77,29 @@ function buildEnsureCheckboxStateScript(selector: string, checked: boolean): str
       };
     })()
   `;
+}
+
+async function bindShopeeProductTab(
+  productUrl: string,
+  bindFn: BindCurrentTabFn = bindCurrentTab,
+): Promise<boolean> {
+  try {
+    await bindFn(SHOPEE_WORKSPACE, { matchUrl: productUrl });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureShopeeProductPage(
+  page: IPage,
+  productUrl: string,
+  bindFn: BindCurrentTabFn = bindCurrentTab,
+): Promise<boolean> {
+  const reusedExistingTab = await bindShopeeProductTab(productUrl, bindFn);
+  // await clearLocalStorageForUrlHost(page, productUrl);
+  await page.goto(productUrl, { waitUntil: 'load' });
+  return reusedExistingTab;
 }
 
 function buildWaitForExportReviewReadyScript(timeoutMs: number, pollIntervalMs: number): string {
@@ -164,10 +196,16 @@ async function applyCheckboxStep(
   label: string,
 ): Promise<void> {
   await page.wait({ selector: inputSelector, timeout: 10 });
+  await simulateHumanBehavior(page, {
+    selector: labelSelector,
+    scrollRangePx: [30, 120],
+    preWaitRangeMs: [250, 700],
+    postWaitRangeMs: [150, 450],
+  });
   await clickSelector(page, labelSelector, `${label} label`);
-  await page.wait({ time: 0.4 });
+  await waitRandomDuration(page, [250, 650]);
   await ensureCheckboxState(page, inputSelector, checked, label);
-  await page.wait({ time: 0.4 });
+  await waitRandomDuration(page, [250, 700]);
 }
 
 cli({
@@ -202,12 +240,18 @@ cli({
       );
     }
 
-    await page.goto(productUrl, { waitUntil: 'load' });
+    await ensureShopeeProductPage(page, productUrl);
     await page.wait({ selector: EXPORT_REVIEW_BUTTON_SELECTOR, timeout: 15 });
-    await page.wait(1);
+    await simulateHumanBehavior(page, {
+      selector: EXPORT_REVIEW_BUTTON_SELECTOR,
+      scrollRangePx: [60, 180],
+      preWaitRangeMs: [500, 1200],
+      postWaitRangeMs: [300, 800],
+      allowReverseScroll: false,
+    });
 
     await clickSelector(page, EXPORT_REVIEW_BUTTON_SELECTOR, 'Export Review');
-    await page.wait({ time: 1.2 });
+    await waitRandomDuration(page, [900, 1600]);
 
     await applyCheckboxStep(
       page,
@@ -225,6 +269,12 @@ cli({
     );
 
     await page.wait({ selector: CONFIRM_EXPORT_BUTTON_SELECTOR, timeout: 10 });
+    await simulateHumanBehavior(page, {
+      selector: CONFIRM_EXPORT_BUTTON_SELECTOR,
+      scrollRangePx: [20, 100],
+      preWaitRangeMs: [250, 700],
+      postWaitRangeMs: [200, 500],
+    });
     const downloadStartedAtMs = Date.now();
     await clickSelector(page, CONFIRM_EXPORT_BUTTON_SELECTOR, 'export confirm button');
     await waitForExportReviewReady(page);
@@ -256,6 +306,8 @@ export const __test__ = {
   SECONDARY_FILTER_INPUT_SELECTOR,
   CONFIRM_EXPORT_BUTTON_SELECTOR,
   normalizeShopeeReviewUrl,
+  bindShopeeProductTab,
+  ensureShopeeProductPage,
   buildEnsureCheckboxStateScript,
   buildWaitForExportReviewReadyScript,
 };

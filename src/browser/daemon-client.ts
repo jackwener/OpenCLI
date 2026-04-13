@@ -31,6 +31,7 @@ export interface DaemonCommand {
   domain?: string;
   matchDomain?: string;
   matchPathPrefix?: string;
+  matchUrl?: string;
   format?: 'png' | 'jpeg';
   quality?: number;
   fullPage?: boolean;
@@ -179,6 +180,9 @@ export async function listSessions(): Promise<BrowserSessionInfo[]> {
   return Array.isArray(result) ? result : [];
 }
 
-export async function bindCurrentTab(workspace: string, opts: { matchDomain?: string; matchPathPrefix?: string } = {}): Promise<unknown> {
+export async function bindCurrentTab(
+  workspace: string,
+  opts: { matchDomain?: string; matchPathPrefix?: string; matchUrl?: string } = {},
+): Promise<unknown> {
   return sendCommand('bind-current', { workspace, ...opts });
 }

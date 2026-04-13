@@ -12,6 +12,7 @@ describe('extension manifest regression', () => {
     };
 
     expect(manifest.permissions).toContain('cookies');
+    expect(manifest.permissions).toContain('downloads');
     expect(manifest.host_permissions).toContain('<all_urls>');
   });
 });

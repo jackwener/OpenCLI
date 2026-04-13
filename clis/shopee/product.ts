@@ -4,6 +4,8 @@ import {
 } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import type { IPage } from '@jackwener/opencli/types';
+import { bindCurrentTab } from '../../src/browser/daemon-client.js';
+import { clearLocalStorageForUrlHost, simulateHumanBehavior } from './shared.js';
 
 type ShopeeField = {
   name: string;
@@ -158,6 +160,13 @@ const PRODUCT_COLUMNS = [
   ...PRODUCT_FIELDS.map((field) => field.name),
 ];
 
+const SHOPEE_WORKSPACE = 'site:shopee';
+
+type BindCurrentTabFn = (
+  workspace: string,
+  opts?: { matchDomain?: string; matchPathPrefix?: string; matchUrl?: string },
+) => Promise<unknown>;
+
 function mergeProductDetails(
   current: Record<string, unknown>,
   incoming: Record<string, unknown>,
@@ -175,6 +184,29 @@ function mergeProductDetails(
 
 function hasMeaningfulProductData(row: Record<string, unknown>): boolean {
   return PRODUCT_FIELDS.some((field) => String(row[field.name] ?? '').trim() !== '');
+}
+
+async function bindShopeeProductTab(
+  productUrl: string,
+  bindFn: BindCurrentTabFn = bindCurrentTab,
+): Promise<boolean> {
+  try {
+    await bindFn(SHOPEE_WORKSPACE, { matchUrl: productUrl });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureShopeeProductPage(
+  page: IPage,
+  productUrl: string,
+  bindFn: BindCurrentTabFn = bindCurrentTab,
+): Promise<boolean> {
+  const reusedExistingTab = await bindShopeeProductTab(productUrl, bindFn);
+  // await clearLocalStorageForUrlHost(page, productUrl);
+  await page.goto(productUrl, { waitUntil: 'load' });
+  return reusedExistingTab;
 }
 
 async function extractProductDetails(page: IPage, productUrl: string): Promise<Record<string, unknown>> {
@@ -257,6 +289,15 @@ async function extractProductDetails(page: IPage, productUrl: string): Promise<R
   let lastSnapshot = '';
 
   for (let round = 0; round < 5; round += 1) {
+    if (round === 0) {
+      await simulateHumanBehavior(page, {
+        selector: 'h1.vR6K3w > span, .shopdoraPirceList span',
+        scrollRangePx: [80, 220],
+        preWaitRangeMs: [350, 900],
+        postWaitRangeMs: [300, 800],
+      });
+    }
+
     const batch = await page.evaluate(script);
     const nextRow = typeof batch === 'object' && batch ? batch as Record<string, unknown> : {};
     merged = mergeProductDetails(merged, nextRow);
@@ -268,8 +309,12 @@ async function extractProductDetails(page: IPage, productUrl: string): Promise<R
     lastSnapshot = snapshot;
 
     if (round < 4) {
-      await page.scroll('down', 1200);
-      await page.wait(1);
+      await simulateHumanBehavior(page, {
+        selector: round < 2 ? '.j7HL5Q button, .detail-info .item-main' : '#sll2-pdp-product-shop',
+        scrollRangePx: [900, 1400],
+        preWaitRangeMs: [220, 700],
+        postWaitRangeMs: [450, 1200],
+      });
     }
   }
 
@@ -301,7 +346,7 @@ cli({
     }
 
     const productUrl = args.url;
-    await page.goto(productUrl, { waitUntil: 'load' });
+    await ensureShopeeProductPage(page, productUrl);
     const row = await extractProductDetails(page, productUrl);
 
     if (!hasMeaningfulProductData(row)) {
@@ -320,4 +365,6 @@ export const __test__ = {
   PRODUCT_FIELDS,
   mergeProductDetails,
   hasMeaningfulProductData,
+  bindShopeeProductTab,
+  ensureShopeeProductPage,
 };

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './product.js';
 
@@ -7,6 +7,8 @@ const {
   PRODUCT_FIELDS,
   mergeProductDetails,
   hasMeaningfulProductData,
+  bindShopeeProductTab,
+  ensureShopeeProductPage,
 } =
   await import('./product.js').then((m) => (m as typeof import('./product.js')).__test__);
 
@@ -108,5 +110,68 @@ describe('hasMeaningfulProductData', () => {
 
   it('returns true once any mapped product field has content', () => {
     expect(hasMeaningfulProductData({ title: 'Wireless Earbuds' })).toBe(true);
+  });
+});
+
+describe('bindShopeeProductTab', () => {
+  it('binds to the matching existing browser tab using the shopee workspace', async () => {
+    const bindFn = vi.fn(async () => ({ tabId: 2 }));
+
+    await expect(
+      bindShopeeProductTab(
+        'https://shopee.sg/Jeep-EW121-True-Wireless-Bluetooth-5.4-Earbuds-i.1058254930.25483790400',
+        bindFn,
+      ),
+    ).resolves.toBe(true);
+
+    expect(bindFn).toHaveBeenCalledWith('site:shopee', {
+      matchUrl: 'https://shopee.sg/Jeep-EW121-True-Wireless-Bluetooth-5.4-Earbuds-i.1058254930.25483790400',
+    });
+  });
+
+  it('returns false when no existing browser tab matches the product url', async () => {
+    const bindFn = vi.fn(async () => {
+      throw new Error('No visible tab matching target');
+    });
+
+    await expect(
+      bindShopeeProductTab('https://shopee.sg/product-i.1.2', bindFn),
+    ).resolves.toBe(false);
+  });
+});
+
+describe('ensureShopeeProductPage', () => {
+  it('reuses the matched tab, clears localStorage, and reloads the product page', async () => {
+    const page = {
+      goto: vi.fn(async () => {}),
+      evaluate: vi.fn(async () => ({ ok: true, host: 'shopee.sg' })),
+    } as unknown as import('@jackwener/opencli/types').IPage;
+    const bindFn = vi.fn(async () => ({ tabId: 2 }));
+
+    await expect(
+      ensureShopeeProductPage(page, 'https://shopee.sg/product-i.1.2', bindFn),
+    ).resolves.toBe(true);
+
+    expect(page.goto).toHaveBeenNthCalledWith(1, 'https://shopee.sg', { waitUntil: 'load' });
+    expect(page.evaluate).toHaveBeenCalledWith(expect.stringContaining('localStorage.clear()'));
+    expect(page.goto).toHaveBeenNthCalledWith(2, 'https://shopee.sg/product-i.1.2', { waitUntil: 'load' });
+  });
+
+  it('falls back to clearing the target host and opening the product url when no existing tab is found', async () => {
+    const page = {
+      goto: vi.fn(async () => {}),
+      evaluate: vi.fn(async () => ({ ok: true, host: 'shopee.sg' })),
+    } as unknown as import('@jackwener/opencli/types').IPage;
+    const bindFn = vi.fn(async () => {
+      throw new Error('not found');
+    });
+
+    await expect(
+      ensureShopeeProductPage(page, 'https://shopee.sg/product-i.1.2', bindFn),
+    ).resolves.toBe(false);
+
+    expect(page.goto).toHaveBeenNthCalledWith(1, 'https://shopee.sg', { waitUntil: 'load' });
+    expect(page.evaluate).toHaveBeenCalledWith(expect.stringContaining('localStorage.clear()'));
+    expect(page.goto).toHaveBeenNthCalledWith(2, 'https://shopee.sg/product-i.1.2', { waitUntil: 'load' });
   });
 });
