@@ -1,6 +1,6 @@
 /**
  * E2E tests for core browser commands (bilibili, zhihu, v2ex, IMDb).
- * These use OPENCLI_HEADLESS=1 to launch a headless Chromium.
+ * These launch a headless Chromium via the daemon.
  *
  * NOTE: Some sites may block headless browsers with bot detection.
  * Tests are wrapped with tryBrowserCommand() which allows graceful failure.

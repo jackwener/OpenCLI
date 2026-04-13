@@ -214,11 +214,10 @@ export async function typeAndSendMessage(page, text) {
     return true;
 }
 /**
- * Verbose log helper — prints when OPENCLI_VERBOSE is set, with DEBUG=opencli
- * kept as a compatibility fallback.
+ * Verbose log helper — prints when OPENCLI_VERBOSE is set (via -v flag or env var).
  */
 export function verbose(msg) {
-    if (process.env.OPENCLI_VERBOSE || process.env.DEBUG?.includes('opencli')) {
+    if (process.env.OPENCLI_VERBOSE) {
         console.error(`[opencli:boss] ${msg}`);
     }
 }

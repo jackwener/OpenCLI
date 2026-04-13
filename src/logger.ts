@@ -8,7 +8,7 @@
 import { styleText } from 'node:util';
 
 function isVerbose(): boolean {
-  return !!process.env.OPENCLI_VERBOSE || !!process.env.DEBUG?.includes('opencli');
+  return !!process.env.OPENCLI_VERBOSE;
 }
 
 export const log = {
@@ -37,7 +37,7 @@ export const log = {
     process.stderr.write(`${styleText('red', '✖')}  ${msg}\n`);
   },
 
-  /** Verbose output (shown when -v flag, OPENCLI_VERBOSE, or DEBUG=opencli is set) */
+  /** Verbose output (shown when -v flag or OPENCLI_VERBOSE is set) */
   verbose(msg: string): void {
     if (isVerbose()) {
       process.stderr.write(`${styleText('dim', '[verbose]')} ${msg}\n`);

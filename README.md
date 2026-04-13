@@ -154,9 +154,6 @@ OpenCLI is not only for websites. It can also:
 | `OPENCLI_CDP_TARGET` | — | Filter CDP targets by URL substring (e.g. `detail.1688.com`) |
 | `OPENCLI_VERBOSE` | `false` | Enable verbose logging (`-v` flag also works) |
 | `OPENCLI_DIAGNOSTIC` | `false` | Set to `1` to capture structured diagnostic context on failures |
-| `OUTPUT` | — | Override output format: `json`, `yaml`, or `table` |
-| `DEBUG` | — | Set to `opencli` for internal debug logging |
-| `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |
 
 ## Update
 

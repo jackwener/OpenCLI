@@ -136,12 +136,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             npx vitest run tests/smoke/ --reporter=verbose
-        env:
-          OPENCLI_BROWSER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
       - name: Run smoke tests (macOS / Windows)
         if: runner.os != 'Linux'
         run: npx vitest run tests/smoke/ --reporter=verbose
-        env:
-          OPENCLI_BROWSER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
     timeout-minutes: 15

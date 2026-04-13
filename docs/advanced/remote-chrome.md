@@ -63,10 +63,4 @@ steps:
 ```
 :::
 
-Set the browser executable path:
-::: v-pre
-```yaml
-env:
-  OPENCLI_BROWSER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-```
-:::
+Set up Chrome using the setup-chrome action (the CI workflow handles the path automatically).

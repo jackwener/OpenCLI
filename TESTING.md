@@ -208,7 +208,7 @@ it('producthunt me fails gracefully without login', async () => {
 |---|---|---|
 | `e2e-headed` | push/PR 到 `main`,`dev`，或手动触发 | 安装真实 Chrome，`xvfb-run` 执行 `tests/e2e/` |
 
-E2E 与 smoke 都使用 `./.github/actions/setup-chrome` 准备真实 Chrome，并通过 `OPENCLI_BROWSER_EXECUTABLE_PATH` 注入浏览器路径。
+E2E 与 smoke 都使用 `./.github/actions/setup-chrome` 准备真实 Chrome。
 
 ### Sharding
 
@@ -232,13 +232,6 @@ opencli 通过 Browser Bridge 扩展连接浏览器：
 |---|---|---|
 | 扩展已安装 / 已连接 | Extension 模式 | 本地用户，连接已登录的 Chrome |
 | 无扩展 token | CLI 自行拉起浏览器 | CI、无登录态或纯自动化场景 |
-
-CI 中使用 `OPENCLI_BROWSER_EXECUTABLE_PATH` 指定真实 Chrome 路径：
-
-```yaml
-env:
-  OPENCLI_BROWSER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-```
 
 ---
 

@@ -30,11 +30,9 @@ function resolveColumns(rows: Record<string, unknown>[], opts: RenderOptions): s
 export function render(data: unknown, opts: RenderOptions = {}): void {
   let fmt = opts.fmt ?? 'table';
   // Non-TTY auto-downgrade only when format was NOT explicitly passed by user.
-  // Priority: explicit -f (any value) > OUTPUT env var > TTY auto-detect > table
+  // Priority: explicit -f (any value) > TTY auto-detect > table
   if (!opts.fmtExplicit) {
-    const envFmt = process.env.OUTPUT?.trim().toLowerCase();
-    if (envFmt) fmt = envFmt;
-    else if (fmt === 'table' && !process.stdout.isTTY) fmt = 'yaml';
+    if (fmt === 'table' && !process.stdout.isTTY) fmt = 'yaml';
   }
   if (data === null || data === undefined) {
     console.log(data);
