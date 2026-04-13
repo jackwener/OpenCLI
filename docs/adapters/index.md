@@ -95,7 +95,7 @@ Run `opencli list` for the live registry.
 | **[Cursor](./desktop/cursor.md)**           | Control Cursor IDE            | `status` `send` `read` `new` `dump` `composer` `model` `extract-code` `ask` `screenshot` `history` `export` |
 | **[Codex](./desktop/codex.md)**             | Drive OpenAI Codex CLI agent  | `status` `send` `read` `new` `extract-diff` `model` `ask` `screenshot` `history` `export`                   |
 | **[Antigravity](./desktop/antigravity.md)** | Control Antigravity Ultra     | `status` `send` `read` `new` `dump` `extract-code` `model` `watch`                                          |
-| **[ChatGPT](./desktop/chatgpt.md)**         | Automate ChatGPT macOS app    | `status` `new` `send` `read` `ask` `model`                                                                  |
+| **[ChatGPT App](./desktop/chatgpt-app.md)** | Automate ChatGPT macOS app    | `status` `new` `send` `read` `ask` `model`                                                                  |
 | **[ChatWise](./desktop/chatwise.md)**       | Multi-LLM client              | `status` `new` `send` `read` `ask` `model` `history` `export` `screenshot`                                  |
 | **[Notion](./desktop/notion.md)**           | Search, read, write pages     | `status` `search` `read` `new` `write` `sidebar` `favorites` `export`                                       |
 | **[Discord](./desktop/discord.md)**         | Desktop messages & channels   | `status` `send` `read` `channels` `servers` `search` `members`                                              |

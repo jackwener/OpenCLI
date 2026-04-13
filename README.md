@@ -246,7 +246,7 @@ Control Electron desktop apps directly from the terminal. Each adapter has its o
 | **Cursor** | Control Cursor IDE — Composer, chat, code extraction | [Doc](./docs/adapters/desktop/cursor.md) |
 | **Codex** | Drive OpenAI Codex CLI agent headlessly | [Doc](./docs/adapters/desktop/codex.md) |
 | **Antigravity** | Control Antigravity Ultra from terminal | [Doc](./docs/adapters/desktop/antigravity.md) |
-| **ChatGPT** | Automate ChatGPT macOS desktop app | [Doc](./docs/adapters/desktop/chatgpt.md) |
+| **ChatGPT App** | Automate ChatGPT macOS desktop app | [Doc](./docs/adapters/desktop/chatgpt-app.md) |
 | **ChatWise** | Multi-LLM client (GPT-4, Claude, Gemini) | [Doc](./docs/adapters/desktop/chatwise.md) |
 | **Notion** | Search, read, write Notion pages | [Doc](./docs/adapters/desktop/notion.md) |
 | **Discord** | Discord Desktop — messages, channels, servers | [Doc](./docs/adapters/desktop/discord.md) |

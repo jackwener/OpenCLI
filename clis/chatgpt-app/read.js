@@ -3,7 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, ConfigError, getErrorMessage } from '@jackwener/opencli/errors';
 import { getVisibleChatMessages } from './ax.js';
 export const readCommand = cli({
-    site: 'chatgpt',
+    site: 'chatgpt-app',
     name: 'read',
     description: 'Read the last visible message from the focused ChatGPT Desktop window',
     domain: 'localhost',

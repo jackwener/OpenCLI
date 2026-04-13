@@ -3,7 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { getErrorMessage } from '@jackwener/opencli/errors';
 import { activateChatGPT, selectModel, MODEL_CHOICES } from './ax.js';
 export const sendCommand = cli({
-    site: 'chatgpt',
+    site: 'chatgpt-app',
     name: 'send',
     description: 'Send a message to the active ChatGPT Desktop App window',
     domain: 'localhost',

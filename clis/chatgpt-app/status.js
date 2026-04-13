@@ -2,7 +2,7 @@ import { execSync } from 'node:child_process';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, ConfigError } from '@jackwener/opencli/errors';
 export const statusCommand = cli({
-    site: 'chatgpt',
+    site: 'chatgpt-app',
     name: 'status',
     description: 'Check if ChatGPT Desktop App is running natively on macOS',
     domain: 'localhost',

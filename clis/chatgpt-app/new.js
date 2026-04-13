@@ -2,7 +2,7 @@ import { execSync } from 'node:child_process';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ConfigError, getErrorMessage } from '@jackwener/opencli/errors';
 export const newCommand = cli({
-    site: 'chatgpt',
+    site: 'chatgpt-app',
     name: 'new',
     description: 'Open a new chat in ChatGPT Desktop App',
     domain: 'localhost',

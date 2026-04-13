@@ -3,7 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ConfigError } from '@jackwener/opencli/errors';
 import { activateChatGPT, getVisibleChatMessages, selectModel, MODEL_CHOICES, isGenerating } from './ax.js';
 export const askCommand = cli({
-    site: 'chatgpt',
+    site: 'chatgpt-app',
     name: 'ask',
     description: 'Send a prompt and wait for the AI response (send + wait + read)',
     domain: 'localhost',

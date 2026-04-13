@@ -6,19 +6,19 @@
 
 | Command | Description |
 |---------|-------------|
-| `opencli chatgptweb image <prompt>` | Generate images in ChatGPT web and optionally save them locally |
+| `opencli chatgpt image <prompt>` | Generate images in ChatGPT web and optionally save them locally |
 
 ## Usage Examples
 
 ```bash
 # Generate an image and save it to the default directory
-opencli chatgptweb image "a cyberpunk city at night"
+opencli chatgpt image "a cyberpunk city at night"
 
 # Save to a custom output directory
-opencli chatgptweb image "a robot sketching on paper" --op ~/Downloads/chatgpt-images
+opencli chatgpt image "a robot sketching on paper" --op ~/Downloads/chatgpt-images
 
 # Only generate in ChatGPT and print the conversation link
-opencli chatgptweb image "a tiny watercolor fox" --sd true
+opencli chatgpt image "a tiny watercolor fox" --sd true
 ```
 
 ## Options

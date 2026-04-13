@@ -2,7 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ConfigError } from '@jackwener/opencli/errors';
 import { activateChatGPT, selectModel, MODEL_CHOICES } from './ax.js';
 export const modelCommand = cli({
-    site: 'chatgpt',
+    site: 'chatgpt-app',
     name: 'model',
     description: 'Switch ChatGPT Desktop model/mode (auto, instant, thinking, 5.2-instant, 5.2-thinking)',
     domain: 'localhost',
