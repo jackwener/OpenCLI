@@ -14,6 +14,7 @@ const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
 const OPENCLI_HEADERS = { 'X-OpenCLI': '1' };
 
 let _idCounter = 0;
+const boundTabIds = new Map<string, number>();
 
 function generateId(): string {
   return `cmd_${Date.now()}_${++_idCounter}`;
@@ -180,9 +181,20 @@ export async function listSessions(): Promise<BrowserSessionInfo[]> {
   return Array.isArray(result) ? result : [];
 }
 
+export function getBoundTabId(workspace: string): number | undefined {
+  return boundTabIds.get(workspace);
+}
+
 export async function bindCurrentTab(
   workspace: string,
   opts: { matchDomain?: string; matchPathPrefix?: string; matchUrl?: string } = {},
 ): Promise<unknown> {
-  return sendCommand('bind-current', { workspace, ...opts });
+  const result = await sendCommand('bind-current', { workspace, ...opts });
+  if (result && typeof result === 'object' && 'tabId' in result) {
+    const tabId = Number((result as { tabId?: unknown }).tabId);
+    if (Number.isFinite(tabId) && tabId > 0) {
+      boundTabIds.set(workspace, tabId);
+    }
+  }
+  return result;
 }

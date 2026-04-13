@@ -203,9 +203,9 @@ async function applyCheckboxStep(
     postWaitRangeMs: [150, 450],
   });
   await clickSelector(page, labelSelector, `${label} label`);
-  await waitRandomDuration(page, [250, 650]);
+  await waitRandomDuration(page, [1500, 3500]);
   await ensureCheckboxState(page, inputSelector, checked, label);
-  await waitRandomDuration(page, [250, 700]);
+  await waitRandomDuration(page, [2000, 5000]);
 }
 
 cli({
@@ -249,9 +249,9 @@ cli({
       postWaitRangeMs: [300, 800],
       allowReverseScroll: false,
     });
-
+    await waitRandomDuration(page, [3000, 5000]);
     await clickSelector(page, EXPORT_REVIEW_BUTTON_SELECTOR, 'Export Review');
-    await waitRandomDuration(page, [900, 1600]);
+    await waitRandomDuration(page, [2000, 6000]);
 
     await applyCheckboxStep(
       page,

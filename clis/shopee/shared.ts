@@ -9,7 +9,7 @@ type HumanBehaviorOptions = {
   allowReverseScroll?: boolean;
 };
 
-const RANDOM_DELAY_MULTIPLIER = 2;
+const RANDOM_DELAY_MULTIPLIER = 1;
 
 function normalizeRange(range: readonly [number, number]): [number, number] {
   const [rawMin, rawMax] = range;
@@ -33,7 +33,7 @@ export async function waitRandomDuration(
   range: readonly [number, number],
 ): Promise<number> {
   const seconds = millisecondsToSeconds(randomInRange(range) * RANDOM_DELAY_MULTIPLIER);
-  await page.wait(seconds);
+  await page.wait({ time: seconds });
   return seconds;
 }
 

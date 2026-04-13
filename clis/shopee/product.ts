@@ -16,19 +16,15 @@ type ShopeeField = {
   transform?: 'absolute_url' | 'selected_class' | 'image_src';
 };
 
-const DIRECT_IMAGE_ATTRIBUTES = [
-  'src',
-  'data-src',
-  'data-lazy-src',
-  'data-original',
-  'data-img-src',
-] as const;
-
-const SRCSET_IMAGE_ATTRIBUTES = [
-  'srcset',
-  'data-srcset',
-  'data-lazy-srcset',
-] as const;
+type ShopeeImageAttributeKey =
+  | 'src'
+  | 'data-src'
+  | 'data-lazy-src'
+  | 'data-original'
+  | 'data-img-src'
+  | 'srcset'
+  | 'data-srcset'
+  | 'data-lazy-srcset';
 
 function firstUrlFromSrcset(value: unknown): string {
   const raw = String(value ?? '').trim();
@@ -42,14 +38,27 @@ function firstUrlFromSrcset(value: unknown): string {
 }
 
 function pickImageUrlFromAttributes(
-  attributes: Partial<Record<typeof DIRECT_IMAGE_ATTRIBUTES[number] | typeof SRCSET_IMAGE_ATTRIBUTES[number], unknown>>,
+  attributes: Partial<Record<ShopeeImageAttributeKey, unknown>>,
 ): string {
-  for (const key of DIRECT_IMAGE_ATTRIBUTES) {
+  const directImageAttributes = [
+    'src',
+    'data-src',
+    'data-lazy-src',
+    'data-original',
+    'data-img-src',
+  ] as const;
+  const srcsetImageAttributes = [
+    'srcset',
+    'data-srcset',
+    'data-lazy-srcset',
+  ] as const;
+
+  for (const key of directImageAttributes) {
     const value = String(attributes[key] ?? '').trim();
     if (value) return value;
   }
 
-  for (const key of SRCSET_IMAGE_ATTRIBUTES) {
+  for (const key of srcsetImageAttributes) {
     const value = firstUrlFromSrcset(attributes[key]);
     if (value) return value;
   }
@@ -251,7 +260,8 @@ async function ensureShopeeProductPage(
   bindFn: BindCurrentTabFn = bindCurrentTab,
 ): Promise<boolean> {
   const reusedExistingTab = await bindShopeeProductTab(productUrl, bindFn);
-  await clearLocalStorageForUrlHost(page, productUrl);
+  // Temporarily skip localStorage clearing while debugging the Shopee flow.
+  // await clearLocalStorageForUrlHost(page, productUrl);
   await page.goto(productUrl, { waitUntil: 'load' });
   return reusedExistingTab;
 }

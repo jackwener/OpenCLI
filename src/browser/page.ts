@@ -11,7 +11,7 @@
  */
 
 import type { BrowserCookie, BrowserDownloadResult, DownloadWaitOptions, ScreenshotOptions } from '../types.js';
-import { sendCommand } from './daemon-client.js';
+import { getBoundTabId, sendCommand } from './daemon-client.js';
 import { wrapForEval } from './utils.js';
 import { saveBase64ToFile } from '../utils.js';
 import { generateStealthJs } from './stealth.js';
@@ -42,9 +42,10 @@ export class Page extends BasePage {
 
   /** Helper: spread workspace + tabId into command params */
   private _cmdOpts(): Record<string, unknown> {
+    const effectiveTabId = this._tabId ?? getBoundTabId(this.workspace);
     return {
       workspace: this.workspace,
-      ...(this._tabId !== undefined && { tabId: this._tabId }),
+      ...(effectiveTabId !== undefined && { tabId: effectiveTabId }),
     };
   }
 
