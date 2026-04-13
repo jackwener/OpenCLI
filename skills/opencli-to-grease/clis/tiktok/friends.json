@@ -1,0 +1,37 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.tiktok.com/friends",
+        "waitUntil": "networkidle"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 8000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 20; const links = Array.from(document.querySelectorAll('a[href*=\"/@\"]')).filter(function(a) { const text = a.textContent.trim(); return text.length > 1 && text.length < 80 && !text.includes('Profile') && !text.includes('More') && !text.includes('Upload'); }); const seen = {}; const results = []; for (const a of links) { const match = a.href.match(/@([^/]+)/); const username = match ? match[1] : ''; if (!username || seen[username]) continue; seen[username] = true; const raw = a.textContent.trim(); const hasFollow = raw.includes('Follow'); const name = raw.replace('Follow', '').replace(username, '').replace('@', '').trim(); results.push({ index: results.length + 1, username: username, name: name || username }); if (results.length >= limit) break; } return results; }"
+      }
+    }
+  ],
+  "api_endpoint": "tiktok-friends",
+  "category": "content",
+  "description": "Get TikTok friend suggestions",
+  "is_public": true,
+  "method": "GET",
+  "name": "Friends",
+  "output_schema": [
+    { "name": "index", "type": "number", "description": "序号" },
+    { "name": "username", "type": "string", "description": "用户名" },
+    { "name": "name", "type": "string", "description": "昵称" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of suggestions" }
+  ],
+  "website_domain": "www.tiktok.com",
+  "website_id": "website-tiktok"
+}

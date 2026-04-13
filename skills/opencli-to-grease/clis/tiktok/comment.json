@@ -1,0 +1,38 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "{{ url }}",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 6000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const url = \"{{ url }}\"; const commentText = \"{{ text }}\"; const wait = (ms) => new Promise(r => setTimeout(r, ms)); const commentIcon = document.querySelector('[data-e2e=\"comment-icon\"]'); if (commentIcon) { const cBtn = commentIcon.closest('button') || commentIcon.closest('[role=\"button\"]') || commentIcon; cBtn.click(); await wait(3000); } const beforeCount = document.querySelectorAll('[data-e2e=\"comment-level-1\"]').length; const input = document.querySelector('[data-e2e=\"comment-input\"] [contenteditable=\"true\"]') || document.querySelector('[contenteditable=\"true\"]'); if (!input) return [{ status: 'Comment input not found - make sure you are logged in', url: url, text: commentText }]; input.focus(); document.execCommand('insertText', false, commentText); await wait(1000); const btns = Array.from(document.querySelectorAll('[data-e2e=\"comment-post\", button')); const postBtn = btns.find(function(b) { var t = b.textContent.trim(); return t === 'Post' || t === '发布' || t === '发送'; }); if (!postBtn) return [{ status: 'Post button not found', url: url, text: commentText }]; postBtn.click(); await wait(3000); const afterCount = document.querySelectorAll('[data-e2e=\"comment-level-1\"]').length; const posted = afterCount > beforeCount; return [{ status: posted ? 'Commented' : 'Comment may have failed', url: url, text: commentText }]; }"
+      }
+    }
+  ],
+  "api_endpoint": "tiktok-comment",
+  "category": "action",
+  "description": "Comment on a TikTok video",
+  "is_public": false,
+  "method": "POST",
+  "name": "Comment",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "状态" },
+    { "name": "url", "type": "string", "description": "视频链接" },
+    { "name": "text", "type": "string", "description": "评论内容" }
+  ],
+  "variables": [
+    { "name": "url", "type": "string", "required": true, "help": "TikTok video URL", "test": "https://www.tiktok.com/@funnydogsa/video/7464138181466803502" },
+    { "name": "text", "type": "string", "required": true, "help": "Comment text" }
+  ],
+  "website_domain": "www.tiktok.com",
+  "website_id": "website-tiktok"
+}

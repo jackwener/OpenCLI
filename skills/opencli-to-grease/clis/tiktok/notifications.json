@@ -1,0 +1,37 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.tiktok.com/following",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 5000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 15; const type = \"{{ type }}\" || 'all'; const wait = (ms) => new Promise(r => setTimeout(r, ms)); const inboxIcon = document.querySelector('[data-e2e=\"inbox-icon\"]'); if (inboxIcon) inboxIcon.click(); await wait(1500); if (type !== 'all') { const tab = document.querySelector('[data-e2e=\"' + type + '\"]'); if (tab) { tab.click(); await wait(1500); } } const items = document.querySelectorAll('[data-e2e=\"inbox-list\"] > div, [data-e2e=\"inbox-list\"] [role=\"button\"]'); return Array.from(items).filter(el => el.textContent.trim().length > 5).slice(0, limit).map((el, i) => ({ index: i + 1, text: el.textContent.trim().replace(/\\s+/g, ' ').substring(0, 150) })); }"
+      }
+    }
+  ],
+  "api_endpoint": "tiktok-notifications",
+  "category": "content",
+  "description": "Get TikTok notifications (likes, comments, mentions, followers)",
+  "is_public": false,
+  "method": "GET",
+  "name": "Notifications",
+  "output_schema": [
+    { "name": "index", "type": "number", "description": "序号" },
+    { "name": "text", "type": "string", "description": "通知内容" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 15, "help": "Number of notifications" },
+    { "name": "type", "type": "string", "default": "all", "help": "Notification type (all, likes, comments, mentions, followers)" }
+  ],
+  "website_domain": "www.tiktok.com",
+  "website_id": "website-tiktok"
+}

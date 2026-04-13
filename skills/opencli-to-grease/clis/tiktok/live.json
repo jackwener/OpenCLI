@@ -1,0 +1,38 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.tiktok.com/live",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 10000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 10; await new Promise(r => setTimeout(r, 3000)); const items = document.querySelectorAll('[data-e2e=\"live-side-nav-item\"]'); if (items.length > 0) { return Array.from(items).slice(0, limit).map(function(el, i) { const nameEl = el.querySelector('[data-e2e=\"live-side-nav-name\"]'); const countEl = el.querySelector('[data-e2e=\"person-count\"]'); const link = el.querySelector('a'); return { index: i + 1, streamer: nameEl ? nameEl.textContent.trim() : '', viewers: countEl ? countEl.textContent.trim() : '-', url: link ? link.href : '' }; }); } const cards = document.querySelectorAll('[data-e2e=\"discover-list-live-card\"]'); if (cards.length > 0) { return Array.from(cards).slice(0, limit).map(function(card, i) { const text = card.textContent.trim().replace(/\\s+/g, ' '); const link = card.querySelector('a[href*=\"/live\"]'); const viewerMatch = text.match(/(\\d[\\d,.]*)\\s*watching/); return { index: i + 1, streamer: text.replace(/LIVE.*$/, '').trim().substring(0, 40), viewers: viewerMatch ? viewerMatch[1] : '-', url: link ? link.href : '' }; }); } const liveLinks = Array.from(document.querySelectorAll('a[href*=\"/live\"]')).filter(a => a.href.includes('/@')); return Array.from(liveLinks).slice(0, limit).map(function(link, i) { const match = link.href.match(/@([^/]+)/); const streamer = match ? match[1] : link.textContent.trim().substring(0, 30); return { index: i + 1, streamer: streamer, viewers: '-', url: link.href }; }); }"
+      }
+    }
+  ],
+  "api_endpoint": "tiktok-live",
+  "category": "content",
+  "description": "Browse live streams on TikTok",
+  "is_public": true,
+  "method": "GET",
+  "name": "Live",
+  "output_schema": [
+    { "name": "index", "type": "number", "description": "序号" },
+    { "name": "streamer", "type": "string", "description": "主播" },
+    { "name": "viewers", "type": "string", "description": "观众数" },
+    { "name": "url", "type": "string", "description": "直播间链接" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 10, "help": "Number of streams" }
+  ],
+  "website_domain": "www.tiktok.com",
+  "website_id": "website-tiktok"
+}

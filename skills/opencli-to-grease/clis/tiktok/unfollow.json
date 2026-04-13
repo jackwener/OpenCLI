@@ -1,0 +1,36 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.tiktok.com/@{{ username }}",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 6000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const username = \"{{ username }}\"; const buttons = Array.from(document.querySelectorAll('button, [role=\"button\"]')); const followingBtn = buttons.find(function(b) { var text = b.textContent.trim(); return text === 'Following' || text === '已关注' || text === 'Friends' || text === '互关'; }); if (!followingBtn) { return [{ status: 'Not following this user', username: username }]; } followingBtn.click(); await new Promise(r => setTimeout(r, 2000)); var allBtns = Array.from(document.querySelectorAll('button')); var confirm = allBtns.find(function(b) { var t = b.textContent.trim(); return t === 'Unfollow' || t === '取消关注'; }); if (confirm) { confirm.click(); await new Promise(r => setTimeout(r, 1500)); } return [{ status: 'Unfollowed', username: username }]; }"
+      }
+    }
+  ],
+  "api_endpoint": "tiktok-unfollow",
+  "category": "action",
+  "description": "Unfollow a TikTok user",
+  "is_public": false,
+  "method": "POST",
+  "name": "Unfollow",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "状态" },
+    { "name": "username", "type": "string", "description": "用户名" }
+  ],
+  "variables": [
+    { "name": "username", "type": "string", "required": true, "help": "TikTok username (without @)", "test": "funnydogsa" }
+  ],
+  "website_domain": "www.tiktok.com",
+  "website_id": "website-tiktok"
+}

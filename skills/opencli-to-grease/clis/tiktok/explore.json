@@ -1,0 +1,38 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.tiktok.com/explore",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 5000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 20; const links = Array.from(document.querySelectorAll('a[href*=\"/video/\"]')); const seen = new Set(); const results = []; for (const a of links) { const href = a.href; if (seen.has(href)) continue; seen.add(href); const match = href.match(/@([^/]+)\\/video\\/(\\d+)/); results.push({ rank: results.length + 1, author: match ? match[1] : '', views: a.textContent.trim() || '-', url: href }); if (results.length >= limit) break; } return results; }"
+      }
+    }
+  ],
+  "api_endpoint": "tiktok-explore",
+  "category": "content",
+  "description": "Get trending TikTok videos from explore page",
+  "is_public": true,
+  "method": "GET",
+  "name": "Explore",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "author", "type": "string", "description": "作者" },
+    { "name": "views", "type": "string", "description": "观看数" },
+    { "name": "url", "type": "string", "description": "视频链接" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of videos" }
+  ],
+  "website_domain": "www.tiktok.com",
+  "website_id": "website-tiktok"
+}

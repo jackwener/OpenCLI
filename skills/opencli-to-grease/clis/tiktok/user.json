@@ -1,0 +1,38 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.tiktok.com/@{{ username }}",
+        "waitUntil": "networkidle"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 10000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 10; const username = \"{{ username }}\"; const links = Array.from(document.querySelectorAll('a[href*=\"/video/\"]')); const seen = {}; const results = []; for (const a of links) { const href = a.href; if (seen[href]) continue; seen[href] = true; results.push({ index: results.length + 1, views: a.textContent.trim() || '-', url: href }); if (results.length >= limit) break; } if (results.length === 0) return [{ index: 0, views: 'No videos found', url: '' }]; return results; }"
+      }
+    }
+  ],
+  "api_endpoint": "tiktok-user",
+  "category": "content",
+  "description": "Get recent videos from a TikTok user",
+  "is_public": true,
+  "method": "GET",
+  "name": "User",
+  "output_schema": [
+    { "name": "index", "type": "number", "description": "序号" },
+    { "name": "views", "type": "string", "description": "观看数" },
+    { "name": "url", "type": "string", "description": "视频链接" }
+  ],
+  "variables": [
+    { "name": "username", "type": "string", "required": true, "help": "TikTok username (without @)", "test": "funnydogsa" },
+    { "name": "limit", "type": "int", "default": 10, "help": "Number of videos" }
+  ],
+  "website_domain": "www.tiktok.com",
+  "website_id": "website-tiktok"
+}

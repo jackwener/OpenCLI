@@ -1,0 +1,36 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "{{ url }}",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 6000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const url = \"{{ url }}\"; const btn = document.querySelector('[data-e2e=\"bookmark-icon\"]') || document.querySelector('[data-e2e=\"collect-icon\"]'); if (!btn) return [{ status: 'Favorites button not found - make sure you are logged in', url: url }]; const container = btn.closest('button') || btn.closest('[role=\"button\"]') || btn; const aria = (container.getAttribute('aria-label') || '').toLowerCase(); if (aria.includes('add to favorites') || aria.includes('收藏')) { if (!aria.includes('remove') && !aria.includes('取消')) { return [{ status: 'Not in Favorites', url: url }]; } } container.click(); await new Promise(r => setTimeout(r, 2000)); return [{ status: 'Removed from Favorites', url: url }]; }"
+      }
+    }
+  ],
+  "api_endpoint": "tiktok-unsave",
+  "category": "action",
+  "description": "Remove a TikTok video from Favorites",
+  "is_public": false,
+  "method": "POST",
+  "name": "Unsave",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "状态" },
+    { "name": "url", "type": "string", "description": "视频链接" }
+  ],
+  "variables": [
+    { "name": "url", "type": "string", "required": true, "help": "TikTok video URL", "test": "https://www.tiktok.com/@funnydogsa/video/7464138181466803502" }
+  ],
+  "website_domain": "www.tiktok.com",
+  "website_id": "website-tiktok"
+}

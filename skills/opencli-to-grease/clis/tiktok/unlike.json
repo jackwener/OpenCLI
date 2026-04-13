@@ -1,0 +1,37 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.tiktok.com/{{ url }}",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 6000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const url = \"{{ url }}\"; const btn = document.querySelector('[data-e2e=\"like-icon\"]'); if (!btn) return [{ status: 'Like button not found - make sure you are logged in', likes: '-', url: url }]; const container = btn.closest('button') || btn.closest('[role=\"button\"]') || btn; const aria = (container.getAttribute('aria-label') || '').toLowerCase(); const color = window.getComputedStyle(btn).color; const isLiked = aria.includes('unlike') || aria.includes('取消点赞') || (color && (color.includes('255, 65') || color.includes('fe2c55'))); if (!isLiked) { const count = document.querySelector('[data-e2e=\"like-count\"]'); return [{ status: 'Not liked', likes: count ? count.textContent.trim() : '-', url: url }]; } container.click(); await new Promise(r => setTimeout(r, 2000)); const count = document.querySelector('[data-e2e=\"like-count\"]'); return [{ status: 'Unliked', likes: count ? count.textContent.trim() : '-', url: url }]; }"
+      }
+    }
+  ],
+  "api_endpoint": "tiktok-unlike",
+  "category": "action",
+  "description": "Unlike a TikTok video",
+  "is_public": false,
+  "method": "POST",
+  "name": "Unlike",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "状态" },
+    { "name": "likes", "type": "string", "description": "点赞数" },
+    { "name": "url", "type": "string", "description": "视频链接" }
+  ],
+  "variables": [
+    { "name": "url", "type": "string", "required": true, "help": "TikTok video URL", "test": "https://www.tiktok.com/@funnydogsa/video/7464138181466803502" }
+  ],
+  "website_domain": "www.tiktok.com",
+  "website_id": "website-tiktok"
+}

@@ -1,0 +1,42 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.tiktok.com/explore",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 6000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const username = \"{{ username }}\"; const res = await fetch('https://www.tiktok.com/@' + encodeURIComponent(username), { credentials: 'include' }); if (!res.ok) return [{ username: username, name: '', bio: 'User not found', followers: 0, following: 0, likes: 0, videos: 0, verified: 'No' }]; const html = await res.text(); const idx = html.indexOf('__UNIVERSAL_DATA_FOR_REHYDRATION__'); if (idx === -1) return [{ username: username, name: '', bio: 'Could not parse profile data', followers: 0, following: 0, likes: 0, videos: 0, verified: 'No' }]; const start = html.indexOf('>', idx) + 1; const end = html.indexOf('</script>', start); const data = JSON.parse(html.substring(start, end)); const ud = data['__DEFAULT_SCOPE__'] && data['__DEFAULT_SCOPE__']['webapp.user-detail']; const u = ud && ud.userInfo && ud.userInfo.user; const s = ud && ud.userInfo && ud.userInfo.stats; if (!u) return [{ username: username, name: '', bio: 'User not found', followers: 0, following: 0, likes: 0, videos: 0, verified: 'No' }]; return [{ username: u.uniqueId || username, name: u.nickname || '', bio: (u.signature || '').replace(/\\n/g, ' ').substring(0, 120), followers: s && s.followerCount || 0, following: s && s.followingCount || 0, likes: s && s.heartCount || 0, videos: s && s.videoCount || 0, verified: u.verified ? 'Yes' : 'No' }]; }"
+      }
+    }
+  ],
+  "api_endpoint": "tiktok-profile",
+  "category": "content",
+  "description": "Get TikTok user profile info",
+  "is_public": true,
+  "method": "GET",
+  "name": "Profile",
+  "output_schema": [
+    { "name": "username", "type": "string", "description": "用户名" },
+    { "name": "name", "type": "string", "description": "昵称" },
+    { "name": "followers", "type": "number", "description": "粉丝数" },
+    { "name": "following", "type": "number", "description": "关注数" },
+    { "name": "likes", "type": "number", "description": "获赞数" },
+    { "name": "videos", "type": "number", "description": "视频数" },
+    { "name": "verified", "type": "string", "description": "认证状态" },
+    { "name": "bio", "type": "string", "description": "简介" }
+  ],
+  "variables": [
+    { "name": "username", "type": "string", "required": true, "help": "TikTok username (without @)", "test": "funnydogsa" }
+  ],
+  "website_domain": "www.tiktok.com",
+  "website_id": "website-tiktok"
+}
