@@ -255,17 +255,18 @@ cli({
 
     await applyCheckboxStep(
       page,
-      DETAIL_FILTER_LABEL_SELECTOR,
-      DETAIL_FILTER_INPUT_SELECTOR,
-      true,
-      'detail filter',
-    );
-    await applyCheckboxStep(
-      page,
       SECONDARY_FILTER_LABEL_SELECTOR,
       SECONDARY_FILTER_INPUT_SELECTOR,
       false,
       'secondary filter',
+    );
+
+    await applyCheckboxStep(
+      page,
+      DETAIL_FILTER_LABEL_SELECTOR,
+      DETAIL_FILTER_INPUT_SELECTOR,
+      true,
+      'detail filter',
     );
 
     await page.wait({ selector: CONFIRM_EXPORT_BUTTON_SELECTOR, timeout: 10 });
