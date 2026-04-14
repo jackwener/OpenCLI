@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "stackoverflow-hot",
-  "category": "content",
+  "category": "scrape",
   "description": "Hot Stack Overflow questions",
   "is_public": true,
   "method": "GET",

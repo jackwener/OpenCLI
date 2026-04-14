@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "bluesky-feeds",
-  "category": "content",
+  "category": "scrape",
   "description": "Popular Bluesky feed generators",
   "is_public": true,
   "method": "GET",

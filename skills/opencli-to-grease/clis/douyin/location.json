@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 5000 }
+      "argument": {
+        "time": 5000
+      }
     },
     {
       "action": "evaluate",
@@ -19,20 +21,46 @@
     }
   ],
   "api_endpoint": "douyin-location",
-  "category": "content",
+  "category": "scrape",
   "description": "地理位置 POI 搜索",
   "is_public": false,
   "method": "GET",
   "name": "Location",
   "output_schema": [
-    { "name": "poi_id", "type": "string", "description": "POI ID" },
-    { "name": "name", "type": "string", "description": "地点名称" },
-    { "name": "address", "type": "string", "description": "地址" },
-    { "name": "city", "type": "string", "description": "城市" }
+    {
+      "name": "poi_id",
+      "type": "string",
+      "description": "POI ID"
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "description": "地点名称"
+    },
+    {
+      "name": "address",
+      "type": "string",
+      "description": "地址"
+    },
+    {
+      "name": "city",
+      "type": "string",
+      "description": "城市"
+    }
   ],
   "variables": [
-    { "name": "query", "type": "string", "required": true, "help": "地名关键词" },
-    { "name": "limit", "type": "int", "default": 20, "help": "数量限制" }
+    {
+      "name": "query",
+      "type": "string",
+      "required": true,
+      "help": "地名关键词"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "数量限制"
+    }
   ],
   "website_domain": "creator.douyin.com",
   "website_id": "website-creator.douyin.com"

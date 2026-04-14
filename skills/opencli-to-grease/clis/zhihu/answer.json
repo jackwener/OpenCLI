@@ -27,7 +27,7 @@
     }
   ],
   "api_endpoint": "zhihu-answer",
-  "category": "action",
+  "category": "interact",
   "description": "Answer a Zhihu question",
   "is_public": false,
   "method": "POST",

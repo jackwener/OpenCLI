@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 10000 }
+      "argument": {
+        "time": 10000
+      }
     },
     {
       "action": "evaluate",
@@ -19,19 +21,40 @@
     }
   ],
   "api_endpoint": "tiktok-live",
-  "category": "content",
+  "category": "scrape",
   "description": "Browse live streams on TikTok",
   "is_public": true,
   "method": "GET",
   "name": "Live",
   "output_schema": [
-    { "name": "index", "type": "number", "description": "序号" },
-    { "name": "streamer", "type": "string", "description": "主播" },
-    { "name": "viewers", "type": "string", "description": "观众数" },
-    { "name": "url", "type": "string", "description": "直播间链接" }
+    {
+      "name": "index",
+      "type": "number",
+      "description": "序号"
+    },
+    {
+      "name": "streamer",
+      "type": "string",
+      "description": "主播"
+    },
+    {
+      "name": "viewers",
+      "type": "string",
+      "description": "观众数"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "直播间链接"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 10, "help": "Number of streams" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 10,
+      "help": "Number of streams"
+    }
   ],
   "website_domain": "www.tiktok.com",
   "website_id": "website-tiktok"

@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "devto-user",
-  "category": "content",
+  "category": "scrape",
   "description": "Recent DEV.to articles from a specific user",
   "is_public": true,
   "method": "GET",

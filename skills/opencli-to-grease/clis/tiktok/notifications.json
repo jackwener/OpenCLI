@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 5000 }
+      "argument": {
+        "time": 5000
+      }
     },
     {
       "action": "evaluate",
@@ -19,18 +21,36 @@
     }
   ],
   "api_endpoint": "tiktok-notifications",
-  "category": "content",
+  "category": "scrape",
   "description": "Get TikTok notifications (likes, comments, mentions, followers)",
   "is_public": false,
   "method": "GET",
   "name": "Notifications",
   "output_schema": [
-    { "name": "index", "type": "number", "description": "序号" },
-    { "name": "text", "type": "string", "description": "通知内容" }
+    {
+      "name": "index",
+      "type": "number",
+      "description": "序号"
+    },
+    {
+      "name": "text",
+      "type": "string",
+      "description": "通知内容"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 15, "help": "Number of notifications" },
-    { "name": "type", "type": "string", "default": "all", "help": "Notification type (all, likes, comments, mentions, followers)" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 15,
+      "help": "Number of notifications"
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "default": "all",
+      "help": "Notification type (all, likes, comments, mentions, followers)"
+    }
   ],
   "website_domain": "www.tiktok.com",
   "website_id": "website-tiktok"

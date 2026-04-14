@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 5000 }
+      "argument": {
+        "time": 5000
+      }
     },
     {
       "action": "evaluate",
@@ -19,15 +21,27 @@
     }
   ],
   "api_endpoint": "douyin-activities",
-  "category": "content",
+  "category": "scrape",
   "description": "官方活动列表",
   "is_public": false,
   "method": "GET",
   "name": "Activities",
   "output_schema": [
-    { "name": "activity_id", "type": "string", "description": "活动ID" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "end_time", "type": "string", "description": "结束时间" }
+    {
+      "name": "activity_id",
+      "type": "string",
+      "description": "活动ID"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "end_time",
+      "type": "string",
+      "description": "结束时间"
+    }
   ],
   "variables": [],
   "website_domain": "creator.douyin.com",

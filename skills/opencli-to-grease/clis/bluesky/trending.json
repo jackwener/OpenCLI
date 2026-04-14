@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "bluesky-trending",
-  "category": "content",
+  "category": "scrape",
   "description": "Trending topics on Bluesky",
   "is_public": true,
   "method": "GET",

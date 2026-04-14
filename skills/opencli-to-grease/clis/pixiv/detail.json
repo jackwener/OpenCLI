@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "pixiv-detail",
-  "category": "content",
+  "category": "scrape",
   "description": "View illustration details (tags, stats, URLs)",
   "is_public": false,
   "method": "GET",

@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "lobsters-newest",
-  "category": "content",
+  "category": "scrape",
   "description": "Lobste.rs newest stories",
   "is_public": true,
   "method": "GET",

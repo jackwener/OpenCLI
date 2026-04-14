@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "pixiv-ranking",
-  "category": "content",
+  "category": "scrape",
   "description": "Pixiv illustration rankings (daily/weekly/monthly)",
   "is_public": false,
   "method": "GET",

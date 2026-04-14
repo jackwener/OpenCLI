@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 3000 }
+      "argument": {
+        "time": 3000
+      }
     },
     {
       "action": "evaluate",
@@ -19,7 +21,7 @@
     }
   ],
   "api_endpoint": "jimeng-history",
-  "category": "content",
+  "category": "scrape",
   "description": "即梦AI 查看最近生成的作品",
   "is_public": false,
   "method": "POST",

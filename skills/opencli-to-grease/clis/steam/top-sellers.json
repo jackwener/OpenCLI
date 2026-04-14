@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "steam-top-sellers",
-  "category": "content",
+  "category": "scrape",
   "description": "Steam top selling games",
   "is_public": true,
   "method": "GET",

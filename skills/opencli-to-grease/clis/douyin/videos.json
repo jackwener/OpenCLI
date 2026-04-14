@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 5000 }
+      "argument": {
+        "time": 5000
+      }
     },
     {
       "action": "evaluate",
@@ -19,23 +21,62 @@
     }
   ],
   "api_endpoint": "douyin-videos",
-  "category": "content",
+  "category": "scrape",
   "description": "获取作品列表",
   "is_public": false,
   "method": "GET",
   "name": "Videos",
   "output_schema": [
-    { "name": "aweme_id", "type": "string", "description": "作品ID" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "status", "type": "string", "description": "状态" },
-    { "name": "play_count", "type": "number", "description": "播放量" },
-    { "name": "digg_count", "type": "number", "description": "点赞数" },
-    { "name": "create_time", "type": "string", "description": "创建时间" }
+    {
+      "name": "aweme_id",
+      "type": "string",
+      "description": "作品ID"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "description": "状态"
+    },
+    {
+      "name": "play_count",
+      "type": "number",
+      "description": "播放量"
+    },
+    {
+      "name": "digg_count",
+      "type": "number",
+      "description": "点赞数"
+    },
+    {
+      "name": "create_time",
+      "type": "string",
+      "description": "创建时间"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 20, "help": "每页数量" },
-    { "name": "page", "type": "int", "default": 1, "help": "页码" },
-    { "name": "status", "type": "string", "default": "all", "help": "状态筛选" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "每页数量"
+    },
+    {
+      "name": "page",
+      "type": "int",
+      "default": 1,
+      "help": "页码"
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "default": "all",
+      "help": "状态筛选"
+    }
   ],
   "website_domain": "creator.douyin.com",
   "website_id": "website-creator.douyin.com"

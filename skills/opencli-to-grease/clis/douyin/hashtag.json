@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 5000 }
+      "argument": {
+        "time": 5000
+      }
     },
     {
       "action": "evaluate",
@@ -19,21 +21,53 @@
     }
   ],
   "api_endpoint": "douyin-hashtag",
-  "category": "content",
+  "category": "scrape",
   "description": "话题搜索 / AI推荐 / 热点词",
   "is_public": false,
   "method": "GET",
   "name": "Hashtag",
   "output_schema": [
-    { "name": "name", "type": "string", "description": "话题名称" },
-    { "name": "id", "type": "string", "description": "话题ID" },
-    { "name": "view_count", "type": "number", "description": "播放量" }
+    {
+      "name": "name",
+      "type": "string",
+      "description": "话题名称"
+    },
+    {
+      "name": "id",
+      "type": "string",
+      "description": "话题ID"
+    },
+    {
+      "name": "view_count",
+      "type": "number",
+      "description": "播放量"
+    }
   ],
   "variables": [
-    { "name": "action", "type": "string", "required": true, "help": "search=关键词搜索 suggest=AI推荐 hot=热点词" },
-    { "name": "keyword", "type": "string", "default": "", "help": "搜索关键词" },
-    { "name": "cover", "type": "string", "default": "", "help": "封面URI" },
-    { "name": "limit", "type": "int", "default": 10, "help": "数量限制" }
+    {
+      "name": "action",
+      "type": "string",
+      "required": true,
+      "help": "search=关键词搜索 suggest=AI推荐 hot=热点词"
+    },
+    {
+      "name": "keyword",
+      "type": "string",
+      "default": "",
+      "help": "搜索关键词"
+    },
+    {
+      "name": "cover",
+      "type": "string",
+      "default": "",
+      "help": "封面URI"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 10,
+      "help": "数量限制"
+    }
   ],
   "website_domain": "creator.douyin.com",
   "website_id": "website-creator.douyin.com"

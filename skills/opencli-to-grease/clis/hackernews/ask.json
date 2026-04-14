@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "hackernews-ask",
-  "category": "content",
+  "category": "scrape",
   "description": "Hacker News Ask HN posts",
   "is_public": true,
   "method": "GET",

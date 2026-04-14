@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 5000 }
+      "argument": {
+        "time": 5000
+      }
     },
     {
       "action": "evaluate",
@@ -19,18 +21,35 @@
     }
   ],
   "api_endpoint": "tiktok-following",
-  "category": "content",
+  "category": "scrape",
   "description": "List accounts you follow on TikTok",
   "is_public": false,
   "method": "GET",
   "name": "Following",
   "output_schema": [
-    { "name": "index", "type": "number", "description": "序号" },
-    { "name": "username", "type": "string", "description": "用户名" },
-    { "name": "name", "type": "string", "description": "昵称" }
+    {
+      "name": "index",
+      "type": "number",
+      "description": "序号"
+    },
+    {
+      "name": "username",
+      "type": "string",
+      "description": "用户名"
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "description": "昵称"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of accounts" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of accounts"
+    }
   ],
   "website_domain": "www.tiktok.com",
   "website_id": "website-tiktok"

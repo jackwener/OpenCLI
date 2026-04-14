@@ -21,7 +21,7 @@
     }
   ],
   "api_endpoint": "zhihu-favorite",
-  "category": "action",
+  "category": "interact",
   "description": "Favorite a Zhihu answer or article into a specific collection",
   "is_public": false,
   "method": "POST",
@@ -91,6 +91,6 @@
       "test": false
     }
   ],
-  "website_domain": "zhihu.com",
-  "website_id": "website-zhihu.com"
+  "website_domain": "www.zhihu.com",
+  "website_id": "website-www.zhihu.com"
 }

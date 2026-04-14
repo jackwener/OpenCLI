@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "stackoverflow-bounties",
-  "category": "content",
+  "category": "scrape",
   "description": "Active bounties on Stack Overflow",
   "is_public": true,
   "method": "GET",

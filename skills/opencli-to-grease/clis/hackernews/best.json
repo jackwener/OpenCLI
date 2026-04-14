@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "hackernews-best",
-  "category": "content",
+  "category": "scrape",
   "description": "Hacker News best stories",
   "is_public": true,
   "method": "GET",

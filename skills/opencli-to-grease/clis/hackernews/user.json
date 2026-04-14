@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "hackernews-user",
-  "category": "content",
+  "category": "scrape",
   "description": "Hacker News user profile",
   "is_public": true,
   "method": "GET",

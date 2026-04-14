@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "reddit-subreddit",
-  "category": "content",
+  "category": "scrape",
   "description": "Get posts from a specific Subreddit",
   "is_public": false,
   "method": "GET",

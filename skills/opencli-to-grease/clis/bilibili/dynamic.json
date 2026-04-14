@@ -15,20 +15,45 @@
     }
   ],
   "api_endpoint": "bilibili-dynamic",
-  "category": "content",
+  "category": "scrape",
   "description": "Get Bilibili user dynamic feed",
   "is_public": false,
   "method": "GET",
   "name": "Dynamic",
   "output_schema": [
-    { "name": "id", "type": "string", "description": "动态ID" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "text", "type": "string", "description": "动态内容" },
-    { "name": "likes", "type": "number", "description": "点赞数" },
-    { "name": "url", "type": "string", "description": "动态链接" }
+    {
+      "name": "id",
+      "type": "string",
+      "description": "动态ID"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "text",
+      "type": "string",
+      "description": "动态内容"
+    },
+    {
+      "name": "likes",
+      "type": "number",
+      "description": "点赞数"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "动态链接"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 15, "help": "Number of results" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 15,
+      "help": "Number of results"
+    }
   ],
   "website_domain": "www.bilibili.com",
   "website_id": "website-www.bilibili.com"

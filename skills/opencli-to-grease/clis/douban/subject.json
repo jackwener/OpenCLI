@@ -21,7 +21,7 @@
     }
   ],
   "api_endpoint": "douban-subject",
-  "category": "content",
+  "category": "scrape",
   "description": "获取电影详情",
   "is_public": false,
   "method": "GET",

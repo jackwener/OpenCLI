@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 5000 }
+      "argument": {
+        "time": 5000
+      }
     },
     {
       "action": "evaluate",
@@ -19,17 +21,37 @@
     }
   ],
   "api_endpoint": "douyin-profile",
-  "category": "content",
+  "category": "scrape",
   "description": "获取账号信息",
   "is_public": false,
   "method": "GET",
   "name": "Profile",
   "output_schema": [
-    { "name": "uid", "type": "string", "description": "用户ID" },
-    { "name": "nickname", "type": "string", "description": "昵称" },
-    { "name": "follower_count", "type": "number", "description": "粉丝数" },
-    { "name": "following_count", "type": "number", "description": "关注数" },
-    { "name": "aweme_count", "type": "number", "description": "作品数" }
+    {
+      "name": "uid",
+      "type": "string",
+      "description": "用户ID"
+    },
+    {
+      "name": "nickname",
+      "type": "string",
+      "description": "昵称"
+    },
+    {
+      "name": "follower_count",
+      "type": "number",
+      "description": "粉丝数"
+    },
+    {
+      "name": "following_count",
+      "type": "number",
+      "description": "关注数"
+    },
+    {
+      "name": "aweme_count",
+      "type": "number",
+      "description": "作品数"
+    }
   ],
   "variables": [],
   "website_domain": "creator.douyin.com",

@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "reddit-frontpage",
-  "category": "content",
+  "category": "scrape",
   "description": "Reddit Frontpage / r/all",
   "is_public": false,
   "method": "GET",

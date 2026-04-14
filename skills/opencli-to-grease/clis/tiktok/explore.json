@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 5000 }
+      "argument": {
+        "time": 5000
+      }
     },
     {
       "action": "evaluate",
@@ -19,19 +21,40 @@
     }
   ],
   "api_endpoint": "tiktok-explore",
-  "category": "content",
+  "category": "scrape",
   "description": "Get trending TikTok videos from explore page",
   "is_public": true,
   "method": "GET",
   "name": "Explore",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "views", "type": "string", "description": "观看数" },
-    { "name": "url", "type": "string", "description": "视频链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "views",
+      "type": "string",
+      "description": "观看数"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "视频链接"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of videos" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of videos"
+    }
   ],
   "website_domain": "www.tiktok.com",
   "website_id": "website-tiktok"

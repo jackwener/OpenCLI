@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 5000 }
+      "argument": {
+        "time": 5000
+      }
     },
     {
       "action": "evaluate",
@@ -19,16 +21,25 @@
     }
   ],
   "api_endpoint": "douyin-delete",
-  "category": "action",
+  "category": "interact",
   "description": "删除作品",
   "is_public": false,
   "method": "POST",
   "name": "Delete",
   "output_schema": [
-    { "name": "status", "type": "string", "description": "状态" }
+    {
+      "name": "status",
+      "type": "string",
+      "description": "状态"
+    }
   ],
   "variables": [
-    { "name": "aweme_id", "type": "string", "required": true, "help": "作品 ID" }
+    {
+      "name": "aweme_id",
+      "type": "string",
+      "required": true,
+      "help": "作品 ID"
+    }
   ],
   "website_domain": "creator.douyin.com",
   "website_id": "website-creator.douyin.com"

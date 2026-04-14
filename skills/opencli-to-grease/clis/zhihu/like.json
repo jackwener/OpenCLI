@@ -21,7 +21,7 @@
     }
   ],
   "api_endpoint": "zhihu-like",
-  "category": "action",
+  "category": "interact",
   "description": "Like a Zhihu answer or article",
   "is_public": false,
   "method": "POST",
@@ -69,6 +69,6 @@
       "test": false
     }
   ],
-  "website_domain": "zhihu.com",
-  "website_id": "website-zhihu.com"
+  "website_domain": "www.zhihu.com",
+  "website_id": "website-www.zhihu.com"
 }

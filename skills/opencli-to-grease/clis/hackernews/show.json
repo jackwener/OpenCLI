@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "hackernews-show",
-  "category": "content",
+  "category": "scrape",
   "description": "Hacker News Show HN posts",
   "is_public": true,
   "method": "GET",

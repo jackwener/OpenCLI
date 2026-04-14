@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "hackernews-top",
-  "category": "content",
+  "category": "scrape",
   "description": "Hacker News top stories",
   "is_public": true,
   "method": "GET",

@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "jike-topic",
-  "category": "content",
+  "category": "scrape",
   "description": "即刻话题/圈子帖子",
   "is_public": false,
   "method": "GET",

@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 6000 }
+      "argument": {
+        "time": 6000
+      }
     },
     {
       "action": "evaluate",
@@ -19,19 +21,42 @@
     }
   ],
   "api_endpoint": "tiktok-comment",
-  "category": "action",
+  "category": "interact",
   "description": "Comment on a TikTok video",
   "is_public": false,
   "method": "POST",
   "name": "Comment",
   "output_schema": [
-    { "name": "status", "type": "string", "description": "状态" },
-    { "name": "url", "type": "string", "description": "视频链接" },
-    { "name": "text", "type": "string", "description": "评论内容" }
+    {
+      "name": "status",
+      "type": "string",
+      "description": "状态"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "视频链接"
+    },
+    {
+      "name": "text",
+      "type": "string",
+      "description": "评论内容"
+    }
   ],
   "variables": [
-    { "name": "url", "type": "string", "required": true, "help": "TikTok video URL", "test": "https://www.tiktok.com/@funnydogsa/video/7464138181466803502" },
-    { "name": "text", "type": "string", "required": true, "help": "Comment text" }
+    {
+      "name": "url",
+      "type": "string",
+      "required": true,
+      "help": "TikTok video URL",
+      "test": "https://www.tiktok.com/@funnydogsa/video/7464138181466803502"
+    },
+    {
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "help": "Comment text"
+    }
   ],
   "website_domain": "www.tiktok.com",
   "website_id": "website-tiktok"

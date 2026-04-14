@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "bluesky-user",
-  "category": "content",
+  "category": "scrape",
   "description": "Get recent posts from a Bluesky user",
   "is_public": true,
   "method": "GET",

@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 5000 }
+      "argument": {
+        "time": 5000
+      }
     },
     {
       "action": "evaluate",
@@ -19,17 +21,30 @@
     }
   ],
   "api_endpoint": "douyin-stats",
-  "category": "content",
+  "category": "scrape",
   "description": "作品数据分析",
   "is_public": false,
   "method": "POST",
   "name": "Stats",
   "output_schema": [
-    { "name": "metric", "type": "string", "description": "指标" },
-    { "name": "value", "type": "number", "description": "数值" }
+    {
+      "name": "metric",
+      "type": "string",
+      "description": "指标"
+    },
+    {
+      "name": "value",
+      "type": "number",
+      "description": "数值"
+    }
   ],
   "variables": [
-    { "name": "aweme_id", "type": "string", "required": true, "help": "作品ID" }
+    {
+      "name": "aweme_id",
+      "type": "string",
+      "required": true,
+      "help": "作品ID"
+    }
   ],
   "website_domain": "creator.douyin.com",
   "website_id": "website-creator.douyin.com"

@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "lobsters-active",
-  "category": "content",
+  "category": "scrape",
   "description": "Lobste.rs most active discussions",
   "is_public": true,
   "method": "GET",

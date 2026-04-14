@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "devto-top",
-  "category": "content",
+  "category": "scrape",
   "description": "Top DEV.to articles of the day",
   "is_public": true,
   "method": "GET",

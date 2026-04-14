@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "devto-tag",
-  "category": "content",
+  "category": "scrape",
   "description": "Latest DEV.to articles for a specific tag",
   "is_public": true,
   "method": "GET",

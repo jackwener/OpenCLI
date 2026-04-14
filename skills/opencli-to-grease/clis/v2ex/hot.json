@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "v2ex-hot",
-  "category": "content",
+  "category": "scrape",
   "description": "V2EX 热门话题",
   "is_public": true,
   "method": "GET",

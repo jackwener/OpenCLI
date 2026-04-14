@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 5000 }
+      "argument": {
+        "time": 5000
+      }
     },
     {
       "action": "evaluate",
@@ -19,25 +21,73 @@
     }
   ],
   "api_endpoint": "douyin-user-videos",
-  "category": "content",
+  "category": "scrape",
   "description": "获取指定用户的视频列表（含下载地址和热门评论）",
   "is_public": false,
   "method": "GET",
   "name": "UserVideos",
   "output_schema": [
-    { "name": "index", "type": "number", "description": "序号" },
-    { "name": "aweme_id", "type": "string", "description": "作品ID" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "duration", "type": "number", "description": "时长(秒)" },
-    { "name": "digg_count", "type": "number", "description": "点赞数" },
-    { "name": "play_url", "type": "string", "description": "播放链接" },
-    { "name": "top_comments", "type": "array", "description": "热门评论" }
+    {
+      "name": "index",
+      "type": "number",
+      "description": "序号"
+    },
+    {
+      "name": "aweme_id",
+      "type": "string",
+      "description": "作品ID"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "duration",
+      "type": "number",
+      "description": "时长(秒)"
+    },
+    {
+      "name": "digg_count",
+      "type": "number",
+      "description": "点赞数"
+    },
+    {
+      "name": "play_url",
+      "type": "string",
+      "description": "播放链接"
+    },
+    {
+      "name": "top_comments",
+      "type": "array",
+      "description": "热门评论"
+    }
   ],
   "variables": [
-    { "name": "sec_uid", "type": "string", "required": true, "help": "用户 sec_uid" },
-    { "name": "limit", "type": "int", "default": 20, "help": "获取数量" },
-    { "name": "with_comments", "type": "bool", "default": true, "help": "包含热门评论" },
-    { "name": "comment_limit", "type": "int", "default": 10, "help": "评论数量" }
+    {
+      "name": "sec_uid",
+      "type": "string",
+      "required": true,
+      "help": "用户 sec_uid"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "获取数量"
+    },
+    {
+      "name": "with_comments",
+      "type": "bool",
+      "default": true,
+      "help": "包含热门评论"
+    },
+    {
+      "name": "comment_limit",
+      "type": "int",
+      "default": 10,
+      "help": "评论数量"
+    }
   ],
   "website_domain": "www.douyin.com",
   "website_id": "website-www.douyin.com"

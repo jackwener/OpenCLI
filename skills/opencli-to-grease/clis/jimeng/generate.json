@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 5000 }
+      "argument": {
+        "time": 5000
+      }
     },
     {
       "action": "evaluate",
@@ -19,21 +21,52 @@
     }
   ],
   "api_endpoint": "jimeng-generate",
-  "category": "action",
+  "category": "interact",
   "description": "即梦AI 文生图 — 输入 prompt 生成图片",
   "is_public": false,
   "method": "POST",
   "name": "Generate",
   "output_schema": [
-    { "name": "status", "type": "string", "description": "状态" },
-    { "name": "prompt", "type": "string", "description": "描述" },
-    { "name": "image_count", "type": "number", "description": "图片数量" },
-    { "name": "image_urls", "type": "string", "description": "图片链接" }
+    {
+      "name": "status",
+      "type": "string",
+      "description": "状态"
+    },
+    {
+      "name": "prompt",
+      "type": "string",
+      "description": "描述"
+    },
+    {
+      "name": "image_count",
+      "type": "number",
+      "description": "图片数量"
+    },
+    {
+      "name": "image_urls",
+      "type": "string",
+      "description": "图片链接"
+    }
   ],
   "variables": [
-    { "name": "prompt", "type": "string", "required": true, "help": "图片描述 prompt" },
-    { "name": "model", "type": "string", "default": "high_aes_general_v50", "help": "模型选择" },
-    { "name": "wait", "type": "int", "default": 40, "help": "等待生成完成的秒数" }
+    {
+      "name": "prompt",
+      "type": "string",
+      "required": true,
+      "help": "图片描述 prompt"
+    },
+    {
+      "name": "model",
+      "type": "string",
+      "default": "high_aes_general_v50",
+      "help": "模型选择"
+    },
+    {
+      "name": "wait",
+      "type": "int",
+      "default": 40,
+      "help": "等待生成完成的秒数"
+    }
   ],
   "website_domain": "jimeng.jianying.com",
   "website_id": "website-jimeng.jianying.com"

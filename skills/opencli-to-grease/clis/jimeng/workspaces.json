@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 3000 }
+      "argument": {
+        "time": 3000
+      }
     },
     {
       "action": "evaluate",
@@ -19,16 +21,32 @@
     }
   ],
   "api_endpoint": "jimeng-workspaces",
-  "category": "content",
+  "category": "scrape",
   "description": "即梦AI 查看所有工作区（会话窗口）",
   "is_public": false,
   "method": "POST",
   "name": "Workspaces",
   "output_schema": [
-    { "name": "workspace_id", "type": "string", "description": "工作区ID" },
-    { "name": "name", "type": "string", "description": "名称" },
-    { "name": "is_pinned", "type": "string", "description": "是否置顶" },
-    { "name": "updated_at", "type": "string", "description": "更新时间" }
+    {
+      "name": "workspace_id",
+      "type": "string",
+      "description": "工作区ID"
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "description": "名称"
+    },
+    {
+      "name": "is_pinned",
+      "type": "string",
+      "description": "是否置顶"
+    },
+    {
+      "name": "updated_at",
+      "type": "string",
+      "description": "更新时间"
+    }
   ],
   "variables": [],
   "website_domain": "jimeng.jianying.com",

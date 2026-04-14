@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "v2ex-latest",
-  "category": "content",
+  "category": "scrape",
   "description": "V2EX 最新话题",
   "is_public": true,
   "method": "GET",

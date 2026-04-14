@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "lobsters-hot",
-  "category": "content",
+  "category": "scrape",
   "description": "Lobste.rs hottest stories",
   "is_public": true,
   "method": "GET",

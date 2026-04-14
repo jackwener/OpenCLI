@@ -15,17 +15,37 @@
     }
   ],
   "api_endpoint": "bilibili-hot",
-  "category": "content",
+  "category": "scrape",
   "description": "B站热门视频",
   "is_public": false,
   "method": "GET",
   "name": "Hot",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "视频标题" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "play", "type": "number", "description": "播放量" },
-    { "name": "danmaku", "type": "number", "description": "弹幕数" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "视频标题"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "play",
+      "type": "number",
+      "description": "播放量"
+    },
+    {
+      "name": "danmaku",
+      "type": "number",
+      "description": "弹幕数"
+    }
   ],
   "variables": [
     {

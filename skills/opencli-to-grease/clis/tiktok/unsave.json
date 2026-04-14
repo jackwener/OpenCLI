@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 6000 }
+      "argument": {
+        "time": 6000
+      }
     },
     {
       "action": "evaluate",
@@ -19,17 +21,31 @@
     }
   ],
   "api_endpoint": "tiktok-unsave",
-  "category": "action",
+  "category": "interact",
   "description": "Remove a TikTok video from Favorites",
   "is_public": false,
   "method": "POST",
   "name": "Unsave",
   "output_schema": [
-    { "name": "status", "type": "string", "description": "状态" },
-    { "name": "url", "type": "string", "description": "视频链接" }
+    {
+      "name": "status",
+      "type": "string",
+      "description": "状态"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "视频链接"
+    }
   ],
   "variables": [
-    { "name": "url", "type": "string", "required": true, "help": "TikTok video URL", "test": "https://www.tiktok.com/@funnydogsa/video/7464138181466803502" }
+    {
+      "name": "url",
+      "type": "string",
+      "required": true,
+      "help": "TikTok video URL",
+      "test": "https://www.tiktok.com/@funnydogsa/video/7464138181466803502"
+    }
   ],
   "website_domain": "www.tiktok.com",
   "website_id": "website-tiktok"

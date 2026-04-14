@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 5000 }
+      "argument": {
+        "time": 5000
+      }
     },
     {
       "action": "evaluate",
@@ -19,18 +21,37 @@
     }
   ],
   "api_endpoint": "douyin-update",
-  "category": "action",
+  "category": "interact",
   "description": "更新视频信息",
   "is_public": false,
   "method": "POST",
   "name": "Update",
   "output_schema": [
-    { "name": "status", "type": "string", "description": "状态" }
+    {
+      "name": "status",
+      "type": "string",
+      "description": "状态"
+    }
   ],
   "variables": [
-    { "name": "aweme_id", "type": "string", "required": true, "help": "作品ID" },
-    { "name": "reschedule", "type": "string", "default": "", "help": "新的发布时间" },
-    { "name": "caption", "type": "string", "default": "", "help": "新的正文内容" }
+    {
+      "name": "aweme_id",
+      "type": "string",
+      "required": true,
+      "help": "作品ID"
+    },
+    {
+      "name": "reschedule",
+      "type": "string",
+      "default": "",
+      "help": "新的发布时间"
+    },
+    {
+      "name": "caption",
+      "type": "string",
+      "default": "",
+      "help": "新的正文内容"
+    }
   ],
   "website_domain": "creator.douyin.com",
   "website_id": "website-creator.douyin.com"

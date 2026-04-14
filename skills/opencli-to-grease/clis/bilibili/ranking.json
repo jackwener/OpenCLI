@@ -15,20 +15,45 @@
     }
   ],
   "api_endpoint": "bilibili-ranking",
-  "category": "content",
+  "category": "scrape",
   "description": "Get Bilibili video ranking board",
   "is_public": false,
   "method": "GET",
   "name": "Ranking",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "视频标题" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "score", "type": "number", "description": "播放量" },
-    { "name": "url", "type": "string", "description": "视频链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "视频标题"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "score",
+      "type": "number",
+      "description": "播放量"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "视频链接"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of results" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of results"
+    }
   ],
   "website_domain": "www.bilibili.com",
   "website_id": "website-www.bilibili.com"

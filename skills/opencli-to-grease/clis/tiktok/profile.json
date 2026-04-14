@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 6000 }
+      "argument": {
+        "time": 6000
+      }
     },
     {
       "action": "evaluate",
@@ -19,23 +21,61 @@
     }
   ],
   "api_endpoint": "tiktok-profile",
-  "category": "content",
+  "category": "scrape",
   "description": "Get TikTok user profile info",
   "is_public": true,
   "method": "GET",
   "name": "Profile",
   "output_schema": [
-    { "name": "username", "type": "string", "description": "用户名" },
-    { "name": "name", "type": "string", "description": "昵称" },
-    { "name": "followers", "type": "number", "description": "粉丝数" },
-    { "name": "following", "type": "number", "description": "关注数" },
-    { "name": "likes", "type": "number", "description": "获赞数" },
-    { "name": "videos", "type": "number", "description": "视频数" },
-    { "name": "verified", "type": "string", "description": "认证状态" },
-    { "name": "bio", "type": "string", "description": "简介" }
+    {
+      "name": "username",
+      "type": "string",
+      "description": "用户名"
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "description": "昵称"
+    },
+    {
+      "name": "followers",
+      "type": "number",
+      "description": "粉丝数"
+    },
+    {
+      "name": "following",
+      "type": "number",
+      "description": "关注数"
+    },
+    {
+      "name": "likes",
+      "type": "number",
+      "description": "获赞数"
+    },
+    {
+      "name": "videos",
+      "type": "number",
+      "description": "视频数"
+    },
+    {
+      "name": "verified",
+      "type": "string",
+      "description": "认证状态"
+    },
+    {
+      "name": "bio",
+      "type": "string",
+      "description": "简介"
+    }
   ],
   "variables": [
-    { "name": "username", "type": "string", "required": true, "help": "TikTok username (without @)", "test": "funnydogsa" }
+    {
+      "name": "username",
+      "type": "string",
+      "required": true,
+      "help": "TikTok username (without @)",
+      "test": "funnydogsa"
+    }
   ],
   "website_domain": "www.tiktok.com",
   "website_id": "website-tiktok"

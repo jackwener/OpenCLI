@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "v2ex-member",
-  "category": "content",
+  "category": "scrape",
   "description": "V2EX 用户资料",
   "is_public": true,
   "method": "GET",

@@ -15,7 +15,7 @@
     }
   ],
   "api_endpoint": "stackoverflow-unanswered",
-  "category": "content",
+  "category": "scrape",
   "description": "Top voted unanswered questions on Stack Overflow",
   "is_public": true,
   "method": "GET",

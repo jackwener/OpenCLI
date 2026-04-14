@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 3000 }
+      "argument": {
+        "time": 3000
+      }
     },
     {
       "action": "evaluate",
@@ -19,14 +21,22 @@
     }
   ],
   "api_endpoint": "jimeng-new",
-  "category": "action",
+  "category": "interact",
   "description": "即梦AI 新建会话（workspace）",
   "is_public": false,
   "method": "POST",
   "name": "New",
   "output_schema": [
-    { "name": "workspace_id", "type": "string", "description": "工作区ID" },
-    { "name": "workspace_url", "type": "string", "description": "工作区链接" }
+    {
+      "name": "workspace_id",
+      "type": "string",
+      "description": "工作区ID"
+    },
+    {
+      "name": "workspace_url",
+      "type": "string",
+      "description": "工作区链接"
+    }
   ],
   "variables": [],
   "website_domain": "jimeng.jianying.com",

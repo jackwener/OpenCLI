@@ -21,7 +21,7 @@
     }
   ],
   "api_endpoint": "zhihu-follow",
-  "category": "action",
+  "category": "interact",
   "description": "Follow a Zhihu user or question",
   "is_public": false,
   "method": "POST",
