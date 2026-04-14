@@ -20,7 +20,7 @@ const SECONDARY_FILTER_LABEL_SELECTOR =
 const SECONDARY_FILTER_INPUT_SELECTOR =
   'div:nth-of-type(1) > div:nth-of-type(2) > span:nth-of-type(2) > label > input.t-checkbox__former';
 const CONFIRM_EXPORT_BUTTON_SELECTOR =
-  'div > div:nth-of-type(5) > div:nth-of-type(2) > button:nth-of-type(2)';
+  '.review .button button:last-of-type';
 
 const SHOPEE_WORKSPACE = 'site:shopee';
 
@@ -279,15 +279,14 @@ cli({
       'secondary filter',
     );
 
-    // const appliedDetailFilter = await applyCheckboxStep(
-    //   page,
-    //   DETAIL_FILTER_LABEL_SELECTOR,
-    //   DETAIL_FILTER_INPUT_SELECTOR,
-    //   true,
-    //   'detail filter',
-    //   { allowMissing: true },
-    // );
-    const appliedDetailFilter = false
+    const appliedDetailFilter = await applyCheckboxStep(
+      page,
+      DETAIL_FILTER_LABEL_SELECTOR,
+      DETAIL_FILTER_INPUT_SELECTOR,
+      true,
+      'detail filter',
+      { allowMissing: true },
+    );
 
     logStep('waiting for export confirm button');
     await page.wait({ selector: CONFIRM_EXPORT_BUTTON_SELECTOR, timeout: 10 });
