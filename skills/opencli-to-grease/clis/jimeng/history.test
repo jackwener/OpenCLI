@@ -1,22 +1,12 @@
 {
-  "timestamp": "2026-04-10T13:42:13.521Z",
+  "timestamp": "2026-04-14T02:51:05.455Z",
   "json_file": "./clis/jimeng/history.json",
   "command": "History",
   "website": "jimeng.jianying.com",
   "params": {
-    "limit": 5
+    "limit": 3
   },
   "success": true,
-  "actions": [
-    {
-      "action": "open",
-      "status": "succeeded"
-    },
-    {
-      "action": "evaluate",
-      "status": "succeeded"
-    }
-  ],
   "data_count": 0,
   "sample_data": [],
   "comparison": {

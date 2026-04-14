@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-04-14T02:50:51.287Z",
+  "json_file": "./clis/jimeng/new.json",
+  "command": "New",
+  "website": "jimeng.jianying.com",
+  "params": {},
+  "success": false,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "workspace_id": "11572441783820",
+      "workspace_url": "https://jimeng.jianying.com/ai-tool/generate?type=image&workspace=11572441783820"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 1,
+    "match": false,
+    "differences": [
+      "Item 1 \"workspace_id\": Grease=\"11572441783820\" vs OpenCLI=\"11572725725708\""
+    ]
+  }
+}

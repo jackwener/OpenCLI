@@ -1,0 +1,40 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://jimeng.jianying.com/ai-tool/generate?type=image&workspace=0",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 5000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const prompt = \"{{ prompt }}\"; const waitSec = {{ wait }} || 40; const beforeImgs = document.querySelectorAll('img[src*=\"dreamina-sign\"], img[src*=\"tb4s082cfz\"]').length; const editors = document.querySelectorAll('[contenteditable=\"true\"]'); const editor = editors[0]; if (!editor) return [{ status: 'failed', prompt: prompt, image_count: 0, image_urls: 'Editor not found' }]; editor.focus(); await new Promise(r => setTimeout(r, 200)); document.execCommand('selectAll'); await new Promise(r => setTimeout(r, 100)); document.execCommand('delete'); await new Promise(r => setTimeout(r, 200)); document.execCommand('insertText', false, prompt); await new Promise(r => setTimeout(r, 500)); const btn = document.querySelector('.lv-btn.lv-btn-primary[class*=\"circle\"]'); if (!btn) return [{ status: 'failed', prompt: prompt, image_count: 0, image_urls: 'Generate button not found' }]; btn.click(); let newImgs = []; for (let i = 0; i < waitSec; i++) { await new Promise(r => setTimeout(r, 1000)); const allImgs = document.querySelectorAll('img[src*=\"dreamina-sign\"], img[src*=\"tb4s082cfz\"]'); if (allImgs.length > beforeImgs) { newImgs = Array.from(allImgs).slice(0, allImgs.length - beforeImgs); break; } } if (newImgs.length === 0) { return [{ status: 'timeout', prompt: prompt, image_count: 0, image_urls: 'Generation may still be in progress' }]; } const urls = newImgs.map(img => img.src); return [{ status: 'success', prompt: prompt.substring(0, 80), image_count: urls.length, image_urls: urls.join('\\n') }]; }"
+      }
+    }
+  ],
+  "api_endpoint": "jimeng-generate",
+  "category": "action",
+  "description": "即梦AI 文生图 — 输入 prompt 生成图片",
+  "is_public": false,
+  "method": "POST",
+  "name": "Generate",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "状态" },
+    { "name": "prompt", "type": "string", "description": "描述" },
+    { "name": "image_count", "type": "number", "description": "图片数量" },
+    { "name": "image_urls", "type": "string", "description": "图片链接" }
+  ],
+  "variables": [
+    { "name": "prompt", "type": "string", "required": true, "help": "图片描述 prompt" },
+    { "name": "model", "type": "string", "default": "high_aes_general_v50", "help": "模型选择" },
+    { "name": "wait", "type": "int", "default": 40, "help": "等待生成完成的秒数" }
+  ],
+  "website_domain": "jimeng.jianying.com",
+  "website_id": "website-jimeng.jianying.com"
+}

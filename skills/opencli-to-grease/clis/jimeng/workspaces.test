@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-04-14T02:50:39.233Z",
+  "json_file": "./clis/jimeng/workspaces.json",
+  "command": "Workspaces",
+  "website": "jimeng.jianying.com",
+  "params": {},
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "workspace_id": "0",
+      "name": "default",
+      "is_pinned": "yes",
+      "updated_at": "2025/7/30 18:32:37"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 1,
+    "match": true,
+    "differences": []
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://jimeng.jianying.com/ai-tool/generate?type=image&workspace=0",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 3000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const resp = await fetch('/mweb/v1/workspace/create?aid=513695', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }).then(r => r.json()); if (resp.ret === '1014' || resp.ret === 1014) { return [{ workspace_id: '', workspace_url: 'Not logged in — open jimeng.jianying.com in Chrome and sign in first' }]; } if (resp.ret !== '0' && resp.ret !== 0) { return [{ workspace_id: '', workspace_url: 'workspace/create failed: ret=' + resp.ret + ' errmsg=' + (resp.errmsg || '') }]; } const wsId = resp.data?.workspace_id; if (!wsId) { return [{ workspace_id: '', workspace_url: 'workspace/create returned no workspace_id' }]; } return [{ workspace_id: String(wsId), workspace_url: 'https://jimeng.jianying.com/ai-tool/generate?type=image&workspace=' + wsId }]; }"
+      }
+    }
+  ],
+  "api_endpoint": "jimeng-new",
+  "category": "action",
+  "description": "即梦AI 新建会话（workspace）",
+  "is_public": false,
+  "method": "POST",
+  "name": "New",
+  "output_schema": [
+    { "name": "workspace_id", "type": "string", "description": "工作区ID" },
+    { "name": "workspace_url", "type": "string", "description": "工作区链接" }
+  ],
+  "variables": [],
+  "website_domain": "jimeng.jianying.com",
+  "website_id": "website-jimeng.jianying.com"
+}

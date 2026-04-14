@@ -1,0 +1,29 @@
+{
+  "timestamp": "2026-04-14T02:59:05.663Z",
+  "json_file": "./clis/jimeng/generate.json",
+  "command": "Generate",
+  "website": "jimeng.jianying.com",
+  "params": {
+    "prompt": "a cute cat",
+    "wait": 20,
+    "model": "high_aes_general_v50"
+  },
+  "success": false,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "success",
+      "prompt": "a cute cat",
+      "image_count": 6,
+      "image_urls": "https://p11-dreamina-sign.byteimg.com/tos-cn-i-tb4s082cfz/8d211bd9251e45e2a519e3585f844be9~tplv-tb4s082cfz-aigc_resize_mark:480:480.webp?lk3s=7c3bb0db&x-expires=1778112000&x-signature=BhZPYP0oj%2B79rOqWXshXYCxgNss%3D&format=.webp\nhttps://p26-dreamina-sign.byteimg.com/tos-cn-i-tb4s082cfz/199807d9a34041a798978bfd899b67b9~tplv-tb4s082cfz-aigc_resize_mark:480:480.webp?lk3s=7c3bb0db&x-expires=1778112000&x-signature=RN%2FwkQiAU7yE9RQRd4UdVdloO6g%3D&format=.webp\nhttps://p26-dreamina-sign.byteimg.com/tos-cn-i-tb4s082cfz/2be1d0e72fba42e7a9638ddcbc744086~tplv-tb4s082cfz-aigc_resize_mark:480:480.webp?lk3s=7c3bb0db&x-expires=1778112000&x-signature=2%2BlAMppyqBs4LezUdn0sxbHLCaA%3D&format=.webp\nhttps://p26-dreamina-sign.byteimg.com/tos-cn-i-tb4s082cfz/e5314ea29eba475282ba16fe0a69fb26~tplv-tb4s082cfz-aigc_resize_mark:480:480.webp?lk3s=7c3bb0db&x-expires=1778112000&x-signature=uts2hGQ3IDTrswMk0cuwS%2BlWKRY%3D&format=.webp\nhttps://p26-dreamina-sign.byteimg.com/tos-cn-i-tb4s082cfz/19da8d2d881f493c8de3984ad3d8b6d1~tplv-tb4s082cfz-resize:202:360.webp?lk3s=8e790bc3&x-expires=1807671503&x-signature=ymQ%2BXcYlX3pU97PM934LNXAiFMc%3D\nhttps://p11-dreamina-sign.byteimg.com/tos-cn-i-tb4s082cfz/19da8d2d881f493c8de3984ad3d8b6d1~tplv-tb4s082cfz-resize:202:360.webp?lk3s=8e790bc3&x-expires=1807671503&x-signature=WqxR9%2Fb9Ge4V5TTUUBiccQct2l4%3D"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli jimeng generate \"a cute cat\" --wait \"20\" --model \"high_aes_general_v50\" -f json\nok: false\nerror:\n  code: UNKNOWN\n  message: 'Page not found: 0E7E8097EC0B8789E4833BFFAD91ABEE — stale page identity'\n  exitCode: 1\n# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 for repair context\n# OPENCLI_DIAGNOSTIC=1 jimeng/generate\n"
+    ]
+  }
+}

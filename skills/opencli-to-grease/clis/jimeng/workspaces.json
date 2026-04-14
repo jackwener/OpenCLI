@@ -1,0 +1,36 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://jimeng.jianying.com/ai-tool/generate?type=image&workspace=0",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 3000 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const res = await fetch('/mweb/v1/workspace/list?aid=513695&web_version=7.5.0&da_version=3.3.12', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }).then(r => r.json()); if (res.ret === '1014' || res.ret === 1014) { return [{ workspace_id: '', name: 'Not logged in', is_pinned: '', updated_at: '' }]; } if (res.ret !== '0' && res.ret !== 0) { return [{ workspace_id: '', name: 'workspace/list failed: ret=' + res.ret, is_pinned: '', updated_at: '' }]; } return (res.data?.workspaces || []).map(ws => ({ workspace_id: String(ws.workspace_id), name: ws.name || '', is_pinned: ws.is_pinned ? 'yes' : 'no', updated_at: ws.update_time ? new Date(ws.update_time).toLocaleString('zh-CN') : '' })); }"
+      }
+    }
+  ],
+  "api_endpoint": "jimeng-workspaces",
+  "category": "content",
+  "description": "即梦AI 查看所有工作区（会话窗口）",
+  "is_public": false,
+  "method": "POST",
+  "name": "Workspaces",
+  "output_schema": [
+    { "name": "workspace_id", "type": "string", "description": "工作区ID" },
+    { "name": "name", "type": "string", "description": "名称" },
+    { "name": "is_pinned", "type": "string", "description": "是否置顶" },
+    { "name": "updated_at", "type": "string", "description": "更新时间" }
+  ],
+  "variables": [],
+  "website_domain": "jimeng.jianying.com",
+  "website_id": "website-jimeng.jianying.com"
+}
