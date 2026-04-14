@@ -261,6 +261,8 @@ opencli google trends                     # 趋势
 ```bash
 opencli grok ask --prompt "问题"         # 提问 Grok（兼容默认路径）
 opencli grok ask --prompt "问题" --web   # 显式 grok.com consumer web UI 路径
+opencli grok image "赛博朋克机械猫头鹰"    # 生成图片并返回 URL
+opencli grok image "水彩灯塔" --out /tmp/grok-img  # 下载生成结果到本地
 ```
 
 ## Hacker News ✅

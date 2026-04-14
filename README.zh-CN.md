@@ -216,7 +216,7 @@ npm link
 | **sinafinance** | `news` | 🌐 公开 |
 | **barchart** | `quote` `options` `greeks` `flow` | 浏览器 |
 | **chaoxing** | `assignments` `exams` | 浏览器 |
-| **grok** | `ask` | 浏览器 |
+| **grok** | `ask` `image` | 浏览器 |
 | **hf** | `top` | 公开 |
 | **jike** | `feed` `search` `create` `like` `comment` `repost` `notifications` `post` `topic` `user` | 浏览器 |
 | **jimeng** | `generate` `history` | 浏览器 |

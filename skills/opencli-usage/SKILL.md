@@ -84,7 +84,7 @@ Type legend: 🌐 = Browser (needs Chrome login) · ✅ = Public API (no browser
 | **facebook** | 🌐 | `feed` `profile` `search` `friends` `groups` `events` `notifications` `memories` `add-friend` `join-group` |
 | **gemini** | 🌐 | `ask` `new` `image` `deep-research` `deep-research-result` |
 | **google** | ✅ | `news` `search` `suggest` `trends` |
-| **grok** | 🌐 | `ask` |
+| **grok** | 🌐 | `ask` `image` |
 | **hackernews** | ✅ | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
 | **hf** | ✅ | `top` |
 | **hupu** | 🌐 | `hot` `search` `detail` `like` `unlike` `reply` `mentions` |
