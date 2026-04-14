@@ -29,7 +29,7 @@
   "api_endpoint": "zhihu-answer",
   "category": "interact",
   "description": "Answer a Zhihu question",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Answer",
   "output_schema": [

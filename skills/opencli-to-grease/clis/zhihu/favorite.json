@@ -23,7 +23,7 @@
   "api_endpoint": "zhihu-favorite",
   "category": "interact",
   "description": "Favorite a Zhihu answer or article into a specific collection",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Favorite",
   "output_schema": [

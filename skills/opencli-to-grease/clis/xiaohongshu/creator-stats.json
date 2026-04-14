@@ -17,16 +17,33 @@
   "api_endpoint": "xiaohongshu-creator-stats",
   "category": "auth",
   "description": "小红书创作者数据总览 (观看/点赞/收藏/评论/分享/涨粉，含每日趋势)",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "CreatorStats",
   "output_schema": [
-    { "name": "metric", "type": "string", "description": "指标" },
-    { "name": "total", "type": "number", "description": "总数" },
-    { "name": "trend", "type": "string", "description": "趋势" }
+    {
+      "name": "metric",
+      "type": "string",
+      "description": "指标"
+    },
+    {
+      "name": "total",
+      "type": "number",
+      "description": "总数"
+    },
+    {
+      "name": "trend",
+      "type": "string",
+      "description": "趋势"
+    }
   ],
   "variables": [
-    { "name": "period", "type": "string", "default": "seven", "help": "Stats period: seven or thirty" }
+    {
+      "name": "period",
+      "type": "string",
+      "default": "seven",
+      "help": "Stats period: seven or thirty"
+    }
   ],
   "website_domain": "creator.xiaohongshu.com",
   "website_id": "website-creator.xiaohongshu.com"

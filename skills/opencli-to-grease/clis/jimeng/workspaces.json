@@ -23,7 +23,7 @@
   "api_endpoint": "jimeng-workspaces",
   "category": "scrape",
   "description": "即梦AI 查看所有工作区（会话窗口）",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Workspaces",
   "output_schema": [

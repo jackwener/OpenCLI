@@ -23,7 +23,7 @@
   "api_endpoint": "jimeng-new",
   "category": "interact",
   "description": "即梦AI 新建会话（workspace）",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "New",
   "output_schema": [

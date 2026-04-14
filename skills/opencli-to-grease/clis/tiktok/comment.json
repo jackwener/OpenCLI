@@ -23,7 +23,7 @@
   "api_endpoint": "tiktok-comment",
   "category": "interact",
   "description": "Comment on a TikTok video",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Comment",
   "output_schema": [

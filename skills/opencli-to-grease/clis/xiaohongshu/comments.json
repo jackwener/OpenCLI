@@ -22,11 +22,15 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 3000 }
+      "argument": {
+        "time": 3000
+      }
     },
     {
       "action": "scroll",
-      "argument": { "target": ".note-scroller" }
+      "argument": {
+        "target": ".note-scroller"
+      }
     },
     {
       "action": "evaluate",
@@ -44,22 +48,65 @@
   "api_endpoint": "xiaohongshu-comments",
   "category": "auth",
   "description": "获取小红书笔记评论（支持楼中楼子回复）",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Comments",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "author", "type": "string", "description": "评论者" },
-    { "name": "text", "type": "string", "description": "评论内容" },
-    { "name": "likes", "type": "number", "description": "点赞数" },
-    { "name": "time", "type": "string", "description": "发布时间" },
-    { "name": "is_reply", "type": "boolean", "description": "是否为回复" },
-    { "name": "reply_to", "type": "string", "description": "回复对象" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "评论者"
+    },
+    {
+      "name": "text",
+      "type": "string",
+      "description": "评论内容"
+    },
+    {
+      "name": "likes",
+      "type": "number",
+      "description": "点赞数"
+    },
+    {
+      "name": "time",
+      "type": "string",
+      "description": "发布时间"
+    },
+    {
+      "name": "is_reply",
+      "type": "boolean",
+      "description": "是否为回复"
+    },
+    {
+      "name": "reply_to",
+      "type": "string",
+      "description": "回复对象"
+    }
   ],
   "variables": [
-    { "name": "note-id", "type": "string", "required": true, "help": "Note ID or full URL (preserves xsec_token for access)" },
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of top-level comments (max 50)" },
-    { "name": "with-replies", "type": "boolean", "default": false, "help": "Include nested replies (楼中楼)" }
+    {
+      "name": "note-id",
+      "type": "string",
+      "required": true,
+      "help": "Note ID or full URL (preserves xsec_token for access)"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of top-level comments (max 50)"
+    },
+    {
+      "name": "with-replies",
+      "type": "boolean",
+      "default": false,
+      "help": "Include nested replies (楼中楼)"
+    }
   ],
   "website_domain": "www.xiaohongshu.com",
   "website_id": "website-xiaohongshu"

@@ -23,7 +23,7 @@
   "api_endpoint": "zhihu-like",
   "category": "interact",
   "description": "Like a Zhihu answer or article",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Like",
   "output_schema": [

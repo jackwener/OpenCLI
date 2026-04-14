@@ -54,7 +54,7 @@ GreaseAI JSON structure:
     }
   ],
   "api_endpoint": "{domain}-{command}",
-  "category": "auth|search|content|action",
+  "category": "interact|search|scrape|auth|payment|other",
   "description": "命令描述",
   "is_public": true,
   "method": "GET|POST",
@@ -408,7 +408,7 @@ cli({
     }
   ],
   "api_endpoint": "36kr-hot",
-  "category": "content",
+  "category": "scrape",
   "description": "36氪热榜",
   "is_public": false,
   "method": "GET",

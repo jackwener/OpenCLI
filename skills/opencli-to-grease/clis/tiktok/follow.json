@@ -23,7 +23,7 @@
   "api_endpoint": "tiktok-follow",
   "category": "interact",
   "description": "Follow a TikTok user",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Follow",
   "output_schema": [

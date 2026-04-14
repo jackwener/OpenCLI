@@ -23,7 +23,7 @@
   "api_endpoint": "zhihu-follow",
   "category": "interact",
   "description": "Follow a Zhihu user or question",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Follow",
   "output_schema": [

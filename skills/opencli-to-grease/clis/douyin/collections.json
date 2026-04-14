@@ -23,7 +23,7 @@
   "api_endpoint": "douyin-collections",
   "category": "scrape",
   "description": "合集列表",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Collections",
   "output_schema": [

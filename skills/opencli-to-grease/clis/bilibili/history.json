@@ -17,18 +17,43 @@
   "api_endpoint": "bilibili-history",
   "category": "auth",
   "description": "我的观看历史",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "History",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "视频标题" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "progress", "type": "string", "description": "观看进度" },
-    { "name": "url", "type": "string", "description": "视频链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "视频标题"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "progress",
+      "type": "string",
+      "description": "观看进度"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "视频链接"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of results" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of results"
+    }
   ],
   "website_domain": "www.bilibili.com",
   "website_id": "website-bilibili"

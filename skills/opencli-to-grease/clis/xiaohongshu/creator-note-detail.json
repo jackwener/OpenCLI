@@ -9,7 +9,9 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 2000 }
+      "argument": {
+        "time": 2000
+      }
     },
     {
       "action": "evaluate",
@@ -27,17 +29,39 @@
   "api_endpoint": "xiaohongshu-creator-note-detail",
   "category": "auth",
   "description": "小红书单篇笔记详情页数据 (笔记信息 + 核心/互动数据)",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "CreatorNoteDetail",
   "output_schema": [
-    { "name": "section", "type": "string", "description": "分类" },
-    { "name": "metric", "type": "string", "description": "指标" },
-    { "name": "value", "type": "string", "description": "值" },
-    { "name": "extra", "type": "string", "description": "附加信息" }
+    {
+      "name": "section",
+      "type": "string",
+      "description": "分类"
+    },
+    {
+      "name": "metric",
+      "type": "string",
+      "description": "指标"
+    },
+    {
+      "name": "value",
+      "type": "string",
+      "description": "值"
+    },
+    {
+      "name": "extra",
+      "type": "string",
+      "description": "附加信息"
+    }
   ],
   "variables": [
-    { "name": "note-id", "type": "string", "required": true, "help": "Note ID (from creator-notes or note-detail page URL)", "test": "692dad2e000000001e023d4b" }
+    {
+      "name": "note-id",
+      "type": "string",
+      "required": true,
+      "help": "Note ID (from creator-notes or note-detail page URL)",
+      "test": "692dad2e000000001e023d4b"
+    }
   ],
   "website_domain": "creator.xiaohongshu.com",
   "website_id": "website-creator.xiaohongshu.com"

@@ -23,7 +23,7 @@
   "api_endpoint": "jimeng-generate",
   "category": "interact",
   "description": "即梦AI 文生图 — 输入 prompt 生成图片",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Generate",
   "output_schema": [

@@ -17,7 +17,7 @@
   "api_endpoint": "zhihu-search",
   "category": "search",
   "description": "知乎搜索",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Search",
   "output_schema": [

@@ -23,7 +23,7 @@
   "api_endpoint": "douyin-stats",
   "category": "scrape",
   "description": "作品数据分析",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Stats",
   "output_schema": [

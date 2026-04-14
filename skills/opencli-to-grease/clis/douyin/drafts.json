@@ -23,7 +23,7 @@
   "api_endpoint": "douyin-drafts",
   "category": "scrape",
   "description": "获取草稿列表",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Drafts",
   "output_schema": [

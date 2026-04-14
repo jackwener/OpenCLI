@@ -23,18 +23,44 @@
   "api_endpoint": "bilibili-subtitle",
   "category": "auth",
   "description": "获取 Bilibili 视频的字幕",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Subtitle",
   "output_schema": [
-    { "name": "index", "type": "number", "description": "序号" },
-    { "name": "from", "type": "string", "description": "开始时间" },
-    { "name": "to", "type": "string", "description": "结束时间" },
-    { "name": "content", "type": "string", "description": "字幕内容" }
+    {
+      "name": "index",
+      "type": "number",
+      "description": "序号"
+    },
+    {
+      "name": "from",
+      "type": "string",
+      "description": "开始时间"
+    },
+    {
+      "name": "to",
+      "type": "string",
+      "description": "结束时间"
+    },
+    {
+      "name": "content",
+      "type": "string",
+      "description": "字幕内容"
+    }
   ],
   "variables": [
-    { "name": "bvid", "type": "string", "required": true, "help": "Video BV ID (e.g. BV1WtAGzYEBm)" },
-    { "name": "lang", "type": "string", "default": "", "help": "Subtitle language code (zh-CN, en-US, ai-zh), default first" }
+    {
+      "name": "bvid",
+      "type": "string",
+      "required": true,
+      "help": "Video BV ID (e.g. BV1WtAGzYEBm)"
+    },
+    {
+      "name": "lang",
+      "type": "string",
+      "default": "",
+      "help": "Subtitle language code (zh-CN, en-US, ai-zh), default first"
+    }
   ],
   "website_domain": "www.bilibili.com",
   "website_id": "website-bilibili"

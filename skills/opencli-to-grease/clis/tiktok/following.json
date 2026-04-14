@@ -23,7 +23,7 @@
   "api_endpoint": "tiktok-following",
   "category": "scrape",
   "description": "List accounts you follow on TikTok",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Following",
   "output_schema": [

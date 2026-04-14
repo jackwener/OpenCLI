@@ -23,7 +23,7 @@
   "api_endpoint": "douyin-videos",
   "category": "scrape",
   "description": "获取作品列表",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Videos",
   "output_schema": [

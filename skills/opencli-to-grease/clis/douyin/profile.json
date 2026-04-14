@@ -23,7 +23,7 @@
   "api_endpoint": "douyin-profile",
   "category": "scrape",
   "description": "获取账号信息",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Profile",
   "output_schema": [

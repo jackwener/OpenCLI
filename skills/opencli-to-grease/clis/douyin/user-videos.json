@@ -23,7 +23,7 @@
   "api_endpoint": "douyin-user-videos",
   "category": "scrape",
   "description": "获取指定用户的视频列表（含下载地址和热门评论）",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "UserVideos",
   "output_schema": [

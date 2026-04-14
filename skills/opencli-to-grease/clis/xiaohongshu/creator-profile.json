@@ -17,12 +17,20 @@
   "api_endpoint": "xiaohongshu-creator-profile",
   "category": "auth",
   "description": "小红书创作者账号信息 (粉丝/关注/获赞/成长等级)",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "CreatorProfile",
   "output_schema": [
-    { "name": "field", "type": "string", "description": "字段名" },
-    { "name": "value", "type": "string", "description": "字段值" }
+    {
+      "name": "field",
+      "type": "string",
+      "description": "字段名"
+    },
+    {
+      "name": "value",
+      "type": "string",
+      "description": "字段值"
+    }
   ],
   "variables": [],
   "website_domain": "creator.xiaohongshu.com",

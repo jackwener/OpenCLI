@@ -23,7 +23,7 @@
   "api_endpoint": "douban-subject",
   "category": "scrape",
   "description": "获取电影详情",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Subject",
   "output_schema": [

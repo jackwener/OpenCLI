@@ -23,22 +23,66 @@
   "api_endpoint": "bilibili-user-videos",
   "category": "auth",
   "description": "查看指定用户的投稿视频",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "UserVideos",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "视频标题" },
-    { "name": "plays", "type": "number", "description": "播放量" },
-    { "name": "likes", "type": "number", "description": "点赞数" },
-    { "name": "date", "type": "string", "description": "发布日期" },
-    { "name": "url", "type": "string", "description": "视频链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "视频标题"
+    },
+    {
+      "name": "plays",
+      "type": "number",
+      "description": "播放量"
+    },
+    {
+      "name": "likes",
+      "type": "number",
+      "description": "点赞数"
+    },
+    {
+      "name": "date",
+      "type": "string",
+      "description": "发布日期"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "视频链接"
+    }
   ],
   "variables": [
-    { "name": "uid", "type": "string", "required": true, "help": "User UID or username" },
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of results" },
-    { "name": "order", "type": "string", "default": "pubdate", "help": "Sort: pubdate, click, stow" },
-    { "name": "page", "type": "int", "default": 1, "help": "Page number" }
+    {
+      "name": "uid",
+      "type": "string",
+      "required": true,
+      "help": "User UID or username"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of results"
+    },
+    {
+      "name": "order",
+      "type": "string",
+      "default": "pubdate",
+      "help": "Sort: pubdate, click, stow"
+    },
+    {
+      "name": "page",
+      "type": "int",
+      "default": 1,
+      "help": "Page number"
+    }
   ],
   "website_domain": "www.bilibili.com",
   "website_id": "website-bilibili"

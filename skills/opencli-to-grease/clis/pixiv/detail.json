@@ -17,7 +17,7 @@
   "api_endpoint": "pixiv-detail",
   "category": "scrape",
   "description": "View illustration details (tags, stats, URLs)",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Detail",
   "output_schema": [

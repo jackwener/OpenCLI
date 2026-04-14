@@ -23,7 +23,7 @@
   "api_endpoint": "douyin-hashtag",
   "category": "scrape",
   "description": "话题搜索 / AI推荐 / 热点词",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Hashtag",
   "output_schema": [

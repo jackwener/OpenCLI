@@ -23,7 +23,7 @@
   "api_endpoint": "douyin-update",
   "category": "interact",
   "description": "更新视频信息",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Update",
   "output_schema": [

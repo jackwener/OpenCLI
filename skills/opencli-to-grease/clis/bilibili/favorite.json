@@ -23,19 +23,49 @@
   "api_endpoint": "bilibili-favorite",
   "category": "auth",
   "description": "我的默认收藏夹",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Favorite",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "视频标题" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "plays", "type": "number", "description": "播放量" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "视频标题"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "plays",
+      "type": "number",
+      "description": "播放量"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of results" },
-    { "name": "page", "type": "int", "default": 1, "help": "Page number" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of results"
+    },
+    {
+      "name": "page",
+      "type": "int",
+      "default": 1,
+      "help": "Page number"
+    }
   ],
   "website_domain": "www.bilibili.com",
   "website_id": "website-bilibili"

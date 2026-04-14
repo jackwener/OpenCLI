@@ -29,7 +29,7 @@
   "api_endpoint": "zhihu-comment",
   "category": "interact",
   "description": "Create a top-level comment on a Zhihu answer or article",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Comment",
   "output_schema": [

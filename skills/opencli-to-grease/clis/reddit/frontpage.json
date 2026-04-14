@@ -17,7 +17,7 @@
   "api_endpoint": "reddit-frontpage",
   "category": "scrape",
   "description": "Reddit Frontpage / r/all",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Frontpage",
   "output_schema": [

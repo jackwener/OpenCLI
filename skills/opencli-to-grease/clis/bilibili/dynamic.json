@@ -17,7 +17,7 @@
   "api_endpoint": "bilibili-dynamic",
   "category": "scrape",
   "description": "Get Bilibili user dynamic feed",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Dynamic",
   "output_schema": [

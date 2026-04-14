@@ -17,7 +17,7 @@
   "api_endpoint": "reddit-subreddit",
   "category": "scrape",
   "description": "Get posts from a specific Subreddit",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Subreddit",
   "output_schema": [

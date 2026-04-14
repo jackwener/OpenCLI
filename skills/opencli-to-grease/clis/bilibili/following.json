@@ -17,20 +17,55 @@
   "api_endpoint": "bilibili-following",
   "category": "auth",
   "description": "获取 Bilibili 用户的关注列表",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Following",
   "output_schema": [
-    { "name": "mid", "type": "number", "description": "用户ID" },
-    { "name": "name", "type": "string", "description": "用户名" },
-    { "name": "sign", "type": "string", "description": "签名" },
-    { "name": "following", "type": "string", "description": "关注状态" },
-    { "name": "fans", "type": "string", "description": "认证信息" }
+    {
+      "name": "mid",
+      "type": "number",
+      "description": "用户ID"
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "description": "用户名"
+    },
+    {
+      "name": "sign",
+      "type": "string",
+      "description": "签名"
+    },
+    {
+      "name": "following",
+      "type": "string",
+      "description": "关注状态"
+    },
+    {
+      "name": "fans",
+      "type": "string",
+      "description": "认证信息"
+    }
   ],
   "variables": [
-    { "name": "uid", "type": "number", "required": true, "help": "目标用户 ID" },
-    { "name": "page", "type": "int", "default": 1, "help": "页码" },
-    { "name": "limit", "type": "int", "default": 50, "help": "每页数量 (最大 50)" }
+    {
+      "name": "uid",
+      "type": "number",
+      "required": true,
+      "help": "目标用户 ID"
+    },
+    {
+      "name": "page",
+      "type": "int",
+      "default": 1,
+      "help": "页码"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 50,
+      "help": "每页数量 (最大 50)"
+    }
   ],
   "website_domain": "www.bilibili.com",
   "website_id": "website-bilibili"

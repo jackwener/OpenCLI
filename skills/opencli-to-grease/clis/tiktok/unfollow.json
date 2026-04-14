@@ -23,7 +23,7 @@
   "api_endpoint": "tiktok-unfollow",
   "category": "interact",
   "description": "Unfollow a TikTok user",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Unfollow",
   "output_schema": [

@@ -17,7 +17,7 @@
   "api_endpoint": "hupu-hot",
   "category": "scrape",
   "description": "虎扑热门帖子",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Hot",
   "output_schema": [

@@ -23,7 +23,7 @@
   "api_endpoint": "tiktok-unlike",
   "category": "interact",
   "description": "Unlike a TikTok video",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Unlike",
   "output_schema": [

@@ -23,7 +23,7 @@
   "api_endpoint": "tiktok-notifications",
   "category": "scrape",
   "description": "Get TikTok notifications (likes, comments, mentions, followers)",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Notifications",
   "output_schema": [

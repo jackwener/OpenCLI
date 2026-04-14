@@ -17,19 +17,49 @@
   "api_endpoint": "bilibili-feed",
   "category": "auth",
   "description": "关注的人的动态时间线",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Feed",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "author", "type": "string", "description": "作者" },
-    { "name": "title", "type": "string", "description": "标题" },
-    { "name": "type", "type": "string", "description": "类型: video/article/dynamic" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题"
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "description": "类型: video/article/dynamic"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of results" },
-    { "name": "type", "type": "string", "default": "all", "help": "Filter: all, video, article" }
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of results"
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "default": "all",
+      "help": "Filter: all, video, article"
+    }
   ],
   "website_domain": "www.bilibili.com",
   "website_id": "website-bilibili"

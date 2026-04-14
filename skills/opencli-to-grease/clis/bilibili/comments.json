@@ -23,20 +23,54 @@
   "api_endpoint": "bilibili-comments",
   "category": "auth",
   "description": "获取 B站视频评论（使用官方 API + WBI 签名）",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Comments",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "author", "type": "string", "description": "评论者" },
-    { "name": "text", "type": "string", "description": "评论内容" },
-    { "name": "likes", "type": "number", "description": "点赞数" },
-    { "name": "replies", "type": "number", "description": "回复数" },
-    { "name": "time", "type": "string", "description": "发布时间" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "评论者"
+    },
+    {
+      "name": "text",
+      "type": "string",
+      "description": "评论内容"
+    },
+    {
+      "name": "likes",
+      "type": "number",
+      "description": "点赞数"
+    },
+    {
+      "name": "replies",
+      "type": "number",
+      "description": "回复数"
+    },
+    {
+      "name": "time",
+      "type": "string",
+      "description": "发布时间"
+    }
   ],
   "variables": [
-    { "name": "bvid", "type": "string", "required": true, "help": "Video BV ID (e.g. BV1WtAGzYEBm)" },
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of comments (max 50)" }
+    {
+      "name": "bvid",
+      "type": "string",
+      "required": true,
+      "help": "Video BV ID (e.g. BV1WtAGzYEBm)"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of comments (max 50)"
+    }
   ],
   "website_domain": "www.bilibili.com",
   "website_id": "website-bilibili"

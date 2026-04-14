@@ -23,7 +23,7 @@
   "api_endpoint": "douyin-activities",
   "category": "scrape",
   "description": "官方活动列表",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Activities",
   "output_schema": [

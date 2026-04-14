@@ -17,7 +17,7 @@
   "api_endpoint": "zhihu-hot",
   "category": "scrape",
   "description": "知乎热榜",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Hot",
   "output_schema": [

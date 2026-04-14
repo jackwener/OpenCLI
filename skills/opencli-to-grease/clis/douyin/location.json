@@ -23,7 +23,7 @@
   "api_endpoint": "douyin-location",
   "category": "scrape",
   "description": "地理位置 POI 搜索",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Location",
   "output_schema": [

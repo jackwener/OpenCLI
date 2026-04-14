@@ -23,7 +23,7 @@
   "api_endpoint": "douyin-delete",
   "category": "interact",
   "description": "删除作品",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Delete",
   "output_schema": [

@@ -23,7 +23,7 @@
   "api_endpoint": "douban-top250",
   "category": "scrape",
   "description": "豆瓣电影 Top250",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Top250",
   "output_schema": [

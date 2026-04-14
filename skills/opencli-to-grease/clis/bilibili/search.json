@@ -23,21 +23,61 @@
   "api_endpoint": "bilibili-search",
   "category": "auth",
   "description": "Search Bilibili videos or users",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Search",
   "output_schema": [
-    { "name": "rank", "type": "number", "description": "排名" },
-    { "name": "title", "type": "string", "description": "标题/用户名" },
-    { "name": "author", "type": "string", "description": "作者/签名" },
-    { "name": "score", "type": "number", "description": "播放量/粉丝数" },
-    { "name": "url", "type": "string", "description": "链接" }
+    {
+      "name": "rank",
+      "type": "number",
+      "description": "排名"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "description": "标题/用户名"
+    },
+    {
+      "name": "author",
+      "type": "string",
+      "description": "作者/签名"
+    },
+    {
+      "name": "score",
+      "type": "number",
+      "description": "播放量/粉丝数"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "链接"
+    }
   ],
   "variables": [
-    { "name": "query", "type": "string", "required": true, "help": "Search keyword" },
-    { "name": "type", "type": "string", "default": "video", "help": "video or user" },
-    { "name": "page", "type": "int", "default": 1, "help": "Result page" },
-    { "name": "limit", "type": "int", "default": 20, "help": "Number of results" }
+    {
+      "name": "query",
+      "type": "string",
+      "required": true,
+      "help": "Search keyword"
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "default": "video",
+      "help": "video or user"
+    },
+    {
+      "name": "page",
+      "type": "int",
+      "default": 1,
+      "help": "Result page"
+    },
+    {
+      "name": "limit",
+      "type": "int",
+      "default": 20,
+      "help": "Number of results"
+    }
   ],
   "website_domain": "www.bilibili.com",
   "website_id": "website-bilibili"

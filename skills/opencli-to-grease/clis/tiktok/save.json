@@ -23,7 +23,7 @@
   "api_endpoint": "tiktok-save",
   "category": "interact",
   "description": "Add a TikTok video to Favorites",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Save",
   "output_schema": [

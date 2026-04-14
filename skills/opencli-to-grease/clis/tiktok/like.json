@@ -23,7 +23,7 @@
   "api_endpoint": "tiktok-like",
   "category": "interact",
   "description": "Like a TikTok video",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Like",
   "output_schema": [

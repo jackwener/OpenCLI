@@ -23,7 +23,7 @@
   "api_endpoint": "tiktok-unsave",
   "category": "interact",
   "description": "Remove a TikTok video from Favorites",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "Unsave",
   "output_schema": [

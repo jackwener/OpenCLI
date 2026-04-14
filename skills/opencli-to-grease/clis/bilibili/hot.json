@@ -17,7 +17,7 @@
   "api_endpoint": "bilibili-hot",
   "category": "scrape",
   "description": "B站热门视频",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Hot",
   "output_schema": [

@@ -23,7 +23,7 @@
   "api_endpoint": "jimeng-history",
   "category": "scrape",
   "description": "即梦AI 查看最近生成的作品",
-  "is_public": false,
+  "is_public": true,
   "method": "POST",
   "name": "History",
   "output_schema": [
