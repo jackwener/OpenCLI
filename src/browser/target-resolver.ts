@@ -189,3 +189,18 @@ export function typeResolvedJs(text: string): string {
     })()
   `;
 }
+
+/**
+ * Generate JS for scrollTo that uses the unified resolver.
+ * Assumes resolveTargetJs has been called and __resolved is set.
+ */
+export function scrollResolvedJs(): string {
+  return `
+    (() => {
+      const el = window.__resolved;
+      if (!el) throw new Error('No resolved element');
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      return { scrolled: true, tag: el.tagName.toLowerCase(), text: (el.textContent || '').trim().slice(0, 80) };
+    })()
+  `;
+}
