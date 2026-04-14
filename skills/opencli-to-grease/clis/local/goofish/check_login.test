@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-04-14T14:04:14.846Z",
+  "json_file": "./clis/local/goofish/check_login.json",
+  "command": "Check Login",
+  "website": "www.goofish.com",
+  "params": {},
+  "success": false,
+  "data_count": 0,
+  "comparison": {
+    "grease_count": 0,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "GreaseAI returned no data"
+    ]
+  }
+}

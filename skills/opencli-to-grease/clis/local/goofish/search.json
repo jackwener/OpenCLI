@@ -1,0 +1,64 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.goofish.com/search"
+      }
+    },
+    {
+      "action": "waitTarget",
+      "argument": {
+        "condition": "appear",
+        "target": "the search input field"
+      }
+    },
+    {
+      "action": "input",
+      "argument": {
+        "delay": 20,
+        "target": "the search input field",
+        "text": "{{ querystring }}",
+        "withReturn": true
+      }
+    },
+    {
+      "action": "waitTarget",
+      "argument": {
+        "condition": "appear",
+        "target": "all search results"
+      }
+    },
+    {
+      "action": "extract",
+      "argument": {
+        "contentType": "link",
+        "ignoreErrors": false,
+        "target": "all search results"
+      }
+    }
+  ],
+  "api_endpoint": "search-wb7yqg",
+  "category": "search",
+  "description": "Search",
+  "is_public": true,
+  "method": "POST",
+  "name": "Search",
+  "variables": [
+    {
+      "name": "querystring",
+      "type": "string",
+      "required": true,
+      "help": "搜索关键词"
+    }
+  ],
+  "output_schema": [
+    {
+      "name": "results",
+      "type": "string",
+      "description": "搜索结果列表"
+    }
+  ],
+  "website_domain": "www.goofish.com",
+  "website_id": "website-www.goofish.com"
+}

@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-04-14T14:03:03.847Z",
+  "json_file": "./clis/local/goofish/search.json",
+  "command": "Search",
+  "website": "www.goofish.com",
+  "params": {
+    "querystring": "iphone"
+  },
+  "success": false,
+  "data_count": 0,
+  "comparison": {
+    "grease_count": 0,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "GreaseAI returned no data"
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "{{ goods_url }}"
+      }
+    },
+    {
+      "action": "waitTarget",
+      "argument": {
+        "condition": "appear",
+        "target": "聊一聊"
+      }
+    },
+    {
+      "action": "click",
+      "argument": {
+        "target": "聊一聊"
+      }
+    },
+    {
+      "action": "waitTarget",
+      "argument": {
+        "condition": "appear",
+        "target": "All messages in the message list"
+      }
+    },
+    {
+      "action": "extract",
+      "argument": {
+        "contentType": "text",
+        "ignoreErrors": false,
+        "target": "All messages in the message list"
+      }
+    }
+  ],
+  "api_endpoint": "get-message-8o1vdh",
+  "category": "interact",
+  "description": "Get Message",
+  "is_public": true,
+  "method": "POST",
+  "name": "Get Message",
+  "variables": [
+    {
+      "name": "goods_url",
+      "type": "string",
+      "required": true,
+      "help": "商品页面URL"
+    }
+  ],
+  "output_schema": [
+    {
+      "name": "messages",
+      "type": "string",
+      "description": "消息列表内容"
+    }
+  ],
+  "website_domain": "www.goofish.com",
+  "website_id": "website-www.goofish.com"
+}

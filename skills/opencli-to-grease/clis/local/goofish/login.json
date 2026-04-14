@@ -1,0 +1,68 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.goofish.com"
+      }
+    },
+    {
+      "action": "click",
+      "argument": {
+        "target": "密码登录按钮"
+      }
+    },
+    {
+      "action": "input",
+      "argument": {
+        "delay": 20,
+        "target": "手机号输入框",
+        "text": "{{ username }}",
+        "withReturn": false
+      }
+    },
+    {
+      "action": "input",
+      "argument": {
+        "delay": 20,
+        "target": "密码输入框",
+        "text": "{{ password }}",
+        "withReturn": false
+      }
+    },
+    {
+      "action": "click",
+      "argument": {
+        "target": "同意隐私政策"
+      }
+    },
+    {
+      "action": "click",
+      "argument": {
+        "target": "密码登录弹出框中的登录按钮"
+      }
+    }
+  ],
+  "api_endpoint": "login-unbav4",
+  "category": "auth",
+  "description": "Login",
+  "is_public": true,
+  "method": "POST",
+  "name": "Login",
+  "variables": [
+    {
+      "name": "username",
+      "type": "string",
+      "required": true,
+      "help": "用户名/手机号"
+    },
+    {
+      "name": "password",
+      "type": "string",
+      "required": true,
+      "help": "登录密码"
+    }
+  ],
+  "website_domain": "www.goofish.com",
+  "website_id": "website-www.goofish.com"
+}

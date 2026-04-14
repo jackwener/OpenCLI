@@ -1,0 +1,40 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.goofish.com/personal"
+      }
+    },
+    {
+      "action": "waitTarget",
+      "argument": {
+        "condition": "appear",
+        "target": "nick name"
+      }
+    },
+    {
+      "action": "extract",
+      "argument": {
+        "contentType": "text",
+        "ignoreErrors": true,
+        "target": "nick name"
+      }
+    }
+  ],
+  "api_endpoint": "check-login-m98qi9",
+  "category": "auth",
+  "description": "Check Login",
+  "is_public": true,
+  "method": "POST",
+  "name": "Check Login",
+  "output_schema": [
+    {
+      "name": "nick",
+      "type": "string",
+      "description": "用户昵称"
+    }
+  ],
+  "website_domain": "www.goofish.com",
+  "website_id": "website-www.goofish.com"
+}

@@ -1,0 +1,61 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "{{ goods_url }}"
+      }
+    },
+    {
+      "action": "waitTarget",
+      "argument": {
+        "condition": "appear",
+        "target": "聊一聊"
+      }
+    },
+    {
+      "action": "click",
+      "argument": {
+        "target": "聊一聊"
+      }
+    },
+    {
+      "action": "waitTarget",
+      "argument": {
+        "condition": "appear",
+        "target": "the message input field"
+      }
+    },
+    {
+      "action": "input",
+      "argument": {
+        "delay": 20,
+        "target": "the message input field",
+        "text": "{{ message }}",
+        "withReturn": true
+      }
+    }
+  ],
+  "api_endpoint": "inquire-qioe4s",
+  "category": "interact",
+  "description": "Inquire",
+  "is_public": true,
+  "method": "POST",
+  "name": "Inquire",
+  "variables": [
+    {
+      "name": "goods_url",
+      "type": "string",
+      "required": true,
+      "help": "商品页面URL"
+    },
+    {
+      "name": "message",
+      "type": "string",
+      "required": true,
+      "help": "咨询消息内容"
+    }
+  ],
+  "website_domain": "www.goofish.com",
+  "website_id": "website-www.goofish.com"
+}

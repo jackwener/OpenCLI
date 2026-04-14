@@ -1,0 +1,70 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "{{ goods_url }}"
+      }
+    },
+    {
+      "action": "waitTarget",
+      "argument": {
+        "condition": "appear",
+        "target": "立即购买"
+      }
+    },
+    {
+      "action": "click",
+      "argument": {
+        "target": "立即购买"
+      }
+    },
+    {
+      "action": "waitTarget",
+      "argument": {
+        "condition": "appear",
+        "target": "确认购买"
+      }
+    },
+    {
+      "action": "click",
+      "argument": {
+        "target": "确认购买"
+      }
+    },
+    {
+      "action": "waitTarget",
+      "argument": {
+        "condition": "appear",
+        "target": "使用闲鱼APP扫码付款"
+      }
+    },
+    {
+      "action": "screenshot",
+      "argument": {}
+    }
+  ],
+  "api_endpoint": "payment-hsv65e",
+  "category": "payment",
+  "description": "Payment",
+  "is_public": true,
+  "method": "POST",
+  "name": "Payment",
+  "variables": [
+    {
+      "name": "goods_url",
+      "type": "string",
+      "required": true,
+      "help": "商品页面URL"
+    }
+  ],
+  "output_schema": [
+    {
+      "name": "screenshot",
+      "type": "string",
+      "description": "支付二维码截图"
+    }
+  ],
+  "website_domain": "www.goofish.com",
+  "website_id": "website-www.goofish.com"
+}
