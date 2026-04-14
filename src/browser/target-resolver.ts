@@ -46,19 +46,44 @@ export function resolveTargetJs(ref: string): string {
           };
         }
 
-        // ── Fingerprint verification ──
+        // ── Fingerprint verification (identity vector) ──
         const fp = identity[ref];
         if (fp) {
           const tag = el.tagName.toLowerCase();
           const text = (el.textContent || '').trim().slice(0, 30);
           const role = el.getAttribute('role') || '';
+          const ariaLabel = el.getAttribute('aria-label') || '';
+          const id = el.id || '';
+          const testId = el.getAttribute('data-testid') || el.getAttribute('data-test') || '';
 
+          // Hard fail: tag must always match
           const tagMatch = fp.tag === tag;
-          const roleMatch = !fp.role || fp.role === role;
-          // Text: allow prefix match (page text can grow)
-          const textMatch = !fp.text || text.startsWith(fp.text) || fp.text.startsWith(text);
 
-          if (!tagMatch || (!roleMatch && !textMatch)) {
+          // Soft signals: each non-empty stored field that mismatches counts against
+          var mismatches = 0;
+          var checks = 0;
+          if (fp.id) { checks++; if (fp.id !== id) mismatches++; }
+          if (fp.testId) { checks++; if (fp.testId !== testId) mismatches++; }
+          if (fp.ariaLabel) { checks++; if (fp.ariaLabel !== ariaLabel) mismatches++; }
+          if (fp.role) { checks++; if (fp.role !== role) mismatches++; }
+          if (fp.text) {
+            checks++;
+            // Text: allow prefix match (page text can grow)
+            if (!text.startsWith(fp.text) && !fp.text.startsWith(text)) mismatches++;
+          }
+
+          // Stale if tag changed, or if any uniquely identifying field (id/testId) changed,
+          // or if majority of soft signals mismatch
+          var isStale = !tagMatch;
+          if (!isStale && checks > 0) {
+            // id and testId are strong identifiers — any mismatch on these is decisive
+            if (fp.id && fp.id !== id) isStale = true;
+            else if (fp.testId && fp.testId !== testId) isStale = true;
+            // For remaining signals, stale if more than half mismatch
+            else if (mismatches > checks / 2) isStale = true;
+          }
+
+          if (isStale) {
             return {
               ok: false,
               code: 'stale_ref',

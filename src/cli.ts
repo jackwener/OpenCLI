@@ -20,6 +20,7 @@ import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
 import { EXIT_CODES, getErrorMessage } from './errors.js';
+import { TargetError } from './browser/target-errors.js';
 import { daemonStop } from './commands/daemon.js';
 import { log } from './logger.js';
 
@@ -304,6 +305,13 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           log.error(`Browser not connected. Run 'opencli doctor' to diagnose.`);
         } else if (msg.includes('attach failed') || msg.includes('chrome-extension://')) {
           log.error(`Browser attach failed — another extension may be interfering. Try disabling 1Password.`);
+        } else if (err instanceof TargetError) {
+          log.error(`[${err.code}] ${err.message}`);
+          if (err.hint) log.error(`Hint: ${err.hint}`);
+          if (err.candidates?.length) {
+            log.error('Candidates:');
+            err.candidates.forEach((c, i) => log.error(`  ${i + 1}. ${c}`));
+          }
         } else {
           log.error(msg);
         }
