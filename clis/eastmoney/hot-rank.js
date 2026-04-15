@@ -17,25 +17,28 @@ cli({
     const data = await page.evaluate(`
       (() => {
         const cleanText = (el) => (el?.textContent || '').replace(/\\s+/g, ' ').trim();
-        const items = document.querySelectorAll('#rankCont a[href*="list,"], #rankCont .stocklist li, #rankCont tbody tr');
+        const rows = document.querySelectorAll('table.rank_table tbody tr');
         const results = [];
         const seen = new Set();
-        items.forEach((el, idx) => {
-          const href = el.getAttribute('href') || el.querySelector('a')?.getAttribute('href') || '';
-          const symbolMatch = href.match(/,(\\d{6})\\.?/);
+        let rank = 0;
+        rows.forEach((row) => {
+          const codeEl = row.querySelector('a.stock_code');
+          const href = codeEl?.getAttribute('href') || '';
+          const symbolMatch = href.match(/(\\d{6})/);
           if (!symbolMatch) return;
           const symbol = symbolMatch[1];
           if (seen.has(symbol)) return;
           seen.add(symbol);
-          const spans = el.querySelectorAll('span, td');
+          rank++;
+          const tds = row.querySelectorAll('td');
           results.push({
-            rank: idx + 1,
+            rank,
             symbol,
-            name: cleanText(el.querySelector('.name, .stockname, [class*="name"]') || spans[1]),
-            price: cleanText(el.querySelector('.price, [class*="price"]') || spans[2]),
-            changePercent: cleanText(el.querySelector('.change, [class*="change"]') || spans[3]),
-            heat: cleanText(el.querySelector('.heat, [class*="heat"], [class*="count"]') || spans[4]),
-            url: href.startsWith('http') ? href : 'https://guba.eastmoney.com' + href,
+            name: row.querySelector('td.nametd a[title]')?.getAttribute('title') || cleanText(row.querySelector('td.nametd')),
+            price: tds[6] ? cleanText(tds[6]) : '',
+            changePercent: tds[8] ? cleanText(tds[8]) : '',
+            heat: cleanText(row.querySelector('td.fans')),
+            url: 'https://guba.eastmoney.com/list,' + symbol + '.html',
           });
         });
         return results;

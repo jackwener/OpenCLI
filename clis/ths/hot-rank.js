@@ -12,32 +12,32 @@ cli({
   args: [
     { name: 'limit', type: 'int', default: 20, help: '返回数量' },
   ],
-  columns: ['rank', 'symbol', 'name', 'price', 'changePercent', 'heat', 'tags', 'url'],
+  columns: ['rank', 'symbol', 'name', 'changePercent', 'heat', 'tags', 'url'],
   func: async (page, kwargs) => {
     await page.goto(THS_HOT_URL);
     await page.wait({ timeout: 15000 });
     const data = await page.evaluate(`
       (() => {
         const cleanText = (el) => (el?.textContent || '').replace(/\\s+/g, ' ').trim();
-        const items = document.querySelectorAll('.hot-list li, .rank-list li, .stock-item, [class*="rank"] [class*="item"]');
+        const cards = document.querySelectorAll('div.pt-22.pb-24.bgc-white.border');
         const results = [];
         const seen = new Set();
-        let rank = 0;
-        items.forEach((el) => {
-          const symbol = cleanText(el.querySelector('[class*="code"], [class*="symbol"]'));
-          const name = cleanText(el.querySelector('[class*="name"]'));
-          if (!symbol || !name || seen.has(symbol)) return;
-          seen.add(symbol);
-          rank++;
-          const tagEls = el.querySelectorAll('[class*="tag"], [class*="concept"], [class*="label"]');
+        cards.forEach((card, idx) => {
+          const row = card.querySelector('div.flex.bgc-white');
+          if (!row) return;
+          const nameEl = row.querySelector('span.ellipsis');
+          const name = cleanText(nameEl);
+          if (!name || seen.has(name)) return;
+          seen.add(name);
+          const tagEls = card.querySelectorAll('div.tag.PFSC-R');
           const tags = Array.from(tagEls).map(t => cleanText(t)).filter(Boolean).join(',');
+          const rankEl = row.querySelector('div.THSMF-M.bold');
           results.push({
-            rank,
-            symbol,
+            rank: cleanText(rankEl) || String(idx + 1),
+            symbol: '',
             name,
-            price: cleanText(el.querySelector('[class*="price"]')),
-            changePercent: cleanText(el.querySelector('[class*="change"], [class*="percent"]')),
-            heat: cleanText(el.querySelector('[class*="heat"], [class*="count"]')),
+            changePercent: cleanText(row.querySelector('div.range')),
+            heat: cleanText(row.querySelector('div.col4 > span')),
             tags,
             url: '',
           });
