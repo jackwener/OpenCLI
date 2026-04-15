@@ -69,17 +69,27 @@ export class BrowserBridge implements IBrowserFactory {
 
     // Daemon running but no extension
     if (health.state === 'no-extension') {
-      // Check if daemon is stale (version mismatch = started by older CLI)
+      // Detect stale daemon: version mismatch OR missing daemonVersion (pre-version daemon)
       const daemonVersion = health.status?.daemonVersion;
-      const isStale = daemonVersion && daemonVersion !== PKG_VERSION;
+      const isStale = !daemonVersion || daemonVersion !== PKG_VERSION;
 
       if (isStale) {
         // Stale daemon — restart it so extension gets a fresh WebSocket endpoint
+        const reason = daemonVersion
+          ? `v${daemonVersion} ≠ v${PKG_VERSION}`
+          : `pre-version daemon, CLI is v${PKG_VERSION}`;
         if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
-          process.stderr.write(`⚠️  Stale daemon detected (v${daemonVersion} ≠ v${PKG_VERSION}). Restarting...\n`);
+          process.stderr.write(`⚠️  Stale daemon detected (${reason}). Restarting...\n`);
         }
-        await requestDaemonShutdown();
-        await new Promise(resolve => setTimeout(resolve, 500));
+        const stopped = await requestDaemonShutdown();
+        if (stopped) {
+          // Verify port is actually released before spawning
+          await this._waitForDaemonStop(3000);
+        } else {
+          if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
+            process.stderr.write('⚠️  Daemon did not respond to shutdown request.\n');
+          }
+        }
         // Fall through to the "No daemon — spawn one" path below
       } else {
         // Same version — wait for extension to connect
@@ -144,6 +154,17 @@ export class BrowserBridge implements IBrowserFactory {
       `Try running manually:\n  node ${daemonPath}\nMake sure port ${DEFAULT_DAEMON_PORT} is available.`,
       'daemon-not-running',
     );
+  }
+
+  /** Poll until daemon is fully stopped (port released). */
+  private async _waitForDaemonStop(timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const h = await getDaemonHealth();
+      if (h.state === 'stopped') return true;
+    }
+    return false;
   }
 
   /** Poll getDaemonHealth() until state is 'ready' or deadline is reached. */

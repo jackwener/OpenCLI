@@ -133,10 +133,13 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     );
   } else if (daemonRunning && !extensionConnected) {
     const daemonVersion = health.status?.daemonVersion;
-    const isStale = daemonVersion && opts.cliVersion && daemonVersion !== opts.cliVersion;
+    const isStale = opts.cliVersion && (!daemonVersion || daemonVersion !== opts.cliVersion);
     if (isStale) {
+      const reason = daemonVersion
+        ? `daemon v${daemonVersion} ≠ CLI v${opts.cliVersion}`
+        : `daemon predates version reporting, CLI is v${opts.cliVersion}`;
       issues.push(
-        `Stale daemon detected: daemon v${daemonVersion} ≠ CLI v${opts.cliVersion}.\n` +
+        `Stale daemon detected: ${reason}.\n` +
         'The daemon was started by an older CLI version and may have missed the extension registration.\n' +
         '  Quick fix: opencli daemon stop && opencli doctor',
       );
