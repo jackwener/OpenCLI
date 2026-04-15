@@ -56,6 +56,7 @@ export interface ArticleDownloadResult {
   publish_time: string;
   status: string;
   size: string;
+  saved: string;
 }
 
 const DEFAULT_LABELS: Required<FrontmatterLabels> = {
@@ -212,6 +213,7 @@ export async function downloadArticle(
       publish_time: '-',
       status: 'failed — no title',
       size: '-',
+      saved: '-',
     }];
   }
 
@@ -222,6 +224,7 @@ export async function downloadArticle(
       publish_time: data.publishTime || '-',
       status: 'failed — no content',
       size: '-',
+      saved: '-',
     }];
   }
 
@@ -268,5 +271,6 @@ export async function downloadArticle(
     publish_time: data.publishTime || '-',
     status: 'success',
     size: formatBytes(size),
+    saved: filePath,
   }];
 }

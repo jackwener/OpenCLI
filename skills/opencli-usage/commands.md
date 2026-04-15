@@ -671,7 +671,7 @@ opencli v2ex notifications --limit 10    # 通知
 ## Web 🌐
 
 ```bash
-opencli web read --url "https://..."     # 抓取任意网页并导出为 Markdown
+opencli web read --url "https://..."     # 抓取任意网页并导出为 Markdown（默认保存到 ./web-articles/，可用 --output 修改）
 ```
 
 ## Weibo (微博) 🌐
@@ -689,7 +689,7 @@ opencli weibo comments <mid>            # 微博评论
 ## Weixin (微信公众号) 🌐
 
 ```bash
-opencli weixin download --url "https://mp.weixin.qq.com/s/xxx"  # 下载公众号文章为 Markdown
+opencli weixin download --url "https://mp.weixin.qq.com/s/xxx"  # 下载公众号文章为 Markdown（默认保存到 ./weixin-articles/，可用 --output 修改）
 ```
 
 ## WeRead (微信读书) 🌐
