@@ -1,19 +1,55 @@
 {
-  "timestamp": "2026-04-14T14:03:03.847Z",
+  "timestamp": "2026-04-14T16:16:20.583Z",
   "json_file": "./clis/local/goofish/search.json",
   "command": "Search",
   "website": "www.goofish.com",
   "params": {
-    "querystring": "iphone"
+    "querystring": "iPhone"
   },
   "success": false,
-  "data_count": 0,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "links": [
+        "https://www.goofish.com/item?id=1043270689006&categoryId=126862528",
+        "https://www.goofish.com/item?id=1043306165683&categoryId=126862528",
+        "https://www.goofish.com/item?id=1043352233915&categoryId=126862528",
+        "https://www.goofish.com/item?id=1040352051353&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042038563543&categoryId=126862528",
+        "https://www.goofish.com/item?id=1041663747332&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042782958216&categoryId=126862528",
+        "https://www.goofish.com/item?id=1044601908590&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042775238470&categoryId=126862528",
+        "https://www.goofish.com/item?id=1044594936913&categoryId=126862528",
+        "https://www.goofish.com/item?id=1036321405768&categoryId=126862528",
+        "https://www.goofish.com/item?id=1032273424988&categoryId=126862528",
+        "https://www.goofish.com/item?id=1043740401067&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042793185805&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042024036770&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042040323264&categoryId=126862528",
+        "https://www.goofish.com/item?id=1043470293112&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042040147975&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042780278854&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042773478384&categoryId=126862528",
+        "https://www.goofish.com/item?id=1044572440140&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042974233517&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042041815403&categoryId=126862528",
+        "https://www.goofish.com/item?id=1044602296916&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042775970905&categoryId=126862528",
+        "https://www.goofish.com/item?id=1043898764254&categoryId=126862528",
+        "https://www.goofish.com/item?id=1044602608873&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042524698901&categoryId=126862528",
+        "https://www.goofish.com/item?id=1042780542158&categoryId=126862528",
+        "https://www.goofish.com/item?id=1043353853641&categoryId=126862528"
+      ]
+    }
+  ],
   "comparison": {
-    "grease_count": 0,
+    "grease_count": 1,
     "opencli_count": 0,
     "match": false,
     "differences": [
-      "GreaseAI returned no data"
+      "OpenCLI failed: Command failed: opencli goofish search \"iPhone\"  -f json\nerror: unknown command 'goofish'\n"
     ]
   }
 }

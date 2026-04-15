@@ -410,7 +410,7 @@ cli({
   "api_endpoint": "36kr-hot",
   "category": "scrape",
   "description": "36氪热榜",
-  "is_public": false,
+  "is_public": true,
   "method": "GET",
   "name": "Hot",
   "variables": [
@@ -433,8 +433,8 @@ cli({
 # 基本测试
 npm run test -- ./clis/36kr/hot.json
 
-# 带参数测试
-npm run test -- ./clis/zhihu/search.json --params '{"query":"AI","limit":5}'
+# 带参数测试 - 用等号连接避免 shell 解析问题
+npm run test -- ./clis/zhihu/search.json --params='{"query":"AI","limit":5}'
 ```
 
 测试完成后会生成 `.test` 日志文件：
@@ -457,15 +457,17 @@ npm run test -- ./clis/zhihu/search.json --params '{"query":"AI","limit":5}'
 cd skills/opencli-to-grease
 npm install
 
-# 测试单个文件（默认对比）
+# 测试单个文件（默认对比）- 注意 npm run test 必须加 -- 分隔参数
 npm run test -- ./clis/36kr/hot.json
 
-# 带参数测试
-npm run test -- ./clis/zhihu/search.json --params '{"query":"AI","limit":5}'
+# 带参数测试 - 参数用等号连接避免空格问题
+npm run test -- ./clis/zhihu/search.json --params='{"query":"AI","limit":5}'
 
 # 禁用对比
 npm run test -- ./clis/bilibili/hot.json --no-compare
 ```
+
+> **重要**: npm 脚本参数传递必须使用 `--` 分隔符，参数格式用 `--params='...'` (等号连接，避免 shell 空格解析问题)
 
 ### Test Script Options
 

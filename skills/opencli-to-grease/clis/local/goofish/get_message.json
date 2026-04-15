@@ -3,7 +3,8 @@
     {
       "action": "open",
       "argument": {
-        "url": "{{ goods_url }}"
+        "url": "{{ goods_url }}",
+        "waitUntil": "networkidle"
       }
     },
     {
@@ -51,7 +52,7 @@
   ],
   "output_schema": [
     {
-      "name": "messages",
+      "name": "text",
       "type": "string",
       "description": "消息列表内容"
     }

@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-04-14T16:43:06.289Z",
+  "json_file": "./clis/local/goofish/inquire.json",
+  "command": "Inquire",
+  "website": "www.goofish.com",
+  "params": {
+    "goods_url": "https://www.goofish.com/item?id=1043270689006",
+    "message": "hello"
+  },
+  "success": true,
+  "data_count": 0,
+  "sample_data": []
+}

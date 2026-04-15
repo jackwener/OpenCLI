@@ -3,7 +3,8 @@
     {
       "action": "open",
       "argument": {
-        "url": "{{ goods_url }}"
+        "url": "{{ goods_url }}",
+        "waitUntil": "networkidle"
       }
     },
     {

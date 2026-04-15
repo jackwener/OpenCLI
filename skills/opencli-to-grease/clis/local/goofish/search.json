@@ -3,7 +3,8 @@
     {
       "action": "open",
       "argument": {
-        "url": "https://www.goofish.com/search"
+        "url": "https://www.goofish.com/search",
+        "waitUntil": "networkidle"
       }
     },
     {
@@ -20,6 +21,12 @@
         "target": "the search input field",
         "text": "{{ querystring }}",
         "withReturn": true
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const maxWait = 5000; const startTime = Date.now(); while (Date.now() - startTime < maxWait) { if (!document.body) { await new Promise(r => setTimeout(r, 100)); continue; } const loadingText = document.body.innerText.includes('加载中...'); if (!loadingText) break; await new Promise(r => setTimeout(r, 500)); } return { waited: Date.now() - startTime }; }"
       }
     },
     {
@@ -54,7 +61,7 @@
   ],
   "output_schema": [
     {
-      "name": "results",
+      "name": "links",
       "type": "string",
       "description": "搜索结果列表"
     }

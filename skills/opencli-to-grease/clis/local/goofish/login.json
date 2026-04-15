@@ -3,7 +3,8 @@
     {
       "action": "open",
       "argument": {
-        "url": "https://www.goofish.com"
+        "url": "https://www.goofish.com",
+        "waitUntil": "networkidle"
       }
     },
     {

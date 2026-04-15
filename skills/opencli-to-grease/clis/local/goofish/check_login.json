@@ -3,7 +3,8 @@
     {
       "action": "open",
       "argument": {
-        "url": "https://www.goofish.com/personal"
+        "url": "https://www.goofish.com/personal",
+        "waitUntil": "networkidle"
       }
     },
     {
@@ -30,7 +31,7 @@
   "name": "Check Login",
   "output_schema": [
     {
-      "name": "nick",
+      "name": "text",
       "type": "string",
       "description": "用户昵称"
     }
