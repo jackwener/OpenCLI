@@ -21,11 +21,18 @@ cli({
         const cleanText = (el) => (el?.textContent || '').replace(/\\s+/g, ' ').trim();
         const items = document.querySelectorAll('.hot-list li, .rank-list li, .stock-item, [class*="rank"] [class*="item"]');
         const results = [];
-        items.forEach((el, idx) => {
+        const seen = new Set();
+        let rank = 0;
+        items.forEach((el) => {
+          const symbol = cleanText(el.querySelector('[class*="code"], [class*="symbol"]'));
+          const name = cleanText(el.querySelector('[class*="name"]'));
+          if (!symbol || !name || seen.has(symbol)) return;
+          seen.add(symbol);
+          rank++;
           results.push({
-            rank: idx + 1,
-            symbol: cleanText(el.querySelector('[class*="code"], [class*="symbol"]')),
-            name: cleanText(el.querySelector('[class*="name"]')),
+            rank,
+            symbol,
+            name,
             price: cleanText(el.querySelector('[class*="price"]')),
             changePercent: cleanText(el.querySelector('[class*="change"], [class*="percent"]')),
             heat: cleanText(el.querySelector('[class*="heat"], [class*="count"], [class*="search"]')),
