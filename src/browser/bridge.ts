@@ -81,16 +81,19 @@ export class BrowserBridge implements IBrowserFactory {
         if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
           process.stderr.write(`⚠️  Stale daemon detected (${reason}). Restarting...\n`);
         }
-        const stopped = await requestDaemonShutdown();
-        if (stopped) {
-          // Verify port is actually released before spawning
-          await this._waitForDaemonStop(3000);
-        } else {
-          if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
-            process.stderr.write('⚠️  Daemon did not respond to shutdown request.\n');
-          }
+        const shutdownAccepted = await requestDaemonShutdown();
+        const portReleased = shutdownAccepted && await this._waitForDaemonStop(3000);
+
+        if (!portReleased) {
+          // Stale daemon replacement failed — don't blindly spawn on an occupied port
+          throw new BrowserConnectError(
+            'Stale daemon could not be replaced',
+            `A stale daemon (${reason}) is running but did not shut down.\n` +
+            '  Run manually: opencli daemon stop && opencli doctor',
+            'daemon-not-running',
+          );
         }
-        // Fall through to the "No daemon — spawn one" path below
+        // Port released — fall through to spawn a fresh daemon
       } else {
         // Same version — wait for extension to connect
         if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {

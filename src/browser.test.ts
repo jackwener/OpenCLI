@@ -144,7 +144,28 @@ describe('BrowserBridge state', () => {
     await expect(bridge.connect()).rejects.toThrow('Session is closing');
   });
 
-  it('fails fast when daemon is running but extension is disconnected', async () => {
+  it('fails fast when daemon is running but extension is disconnected (same version)', async () => {
+    const { PKG_VERSION } = await import('./version.js');
+    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
+      state: 'no-extension',
+      status: {
+        ok: true,
+        pid: 1,
+        uptime: 0,
+        daemonVersion: PKG_VERSION,
+        extensionConnected: false,
+        pending: 0,
+        memoryMB: 0,
+        port: 0,
+      },
+    });
+
+    const bridge = new BrowserBridge();
+
+    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Browser Bridge extension not connected');
+  });
+
+  it('attempts stale daemon replacement when daemonVersion is missing', async () => {
     vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
       state: 'no-extension',
       status: {
@@ -157,10 +178,32 @@ describe('BrowserBridge state', () => {
         port: 0,
       },
     });
+    vi.spyOn(daemonClient, 'requestDaemonShutdown').mockResolvedValue(false);
 
     const bridge = new BrowserBridge();
 
-    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Browser Bridge extension not connected');
+    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Stale daemon could not be replaced');
+  });
+
+  it('attempts stale daemon replacement when daemonVersion mismatches', async () => {
+    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
+      state: 'no-extension',
+      status: {
+        ok: true,
+        pid: 1,
+        uptime: 0,
+        daemonVersion: '0.0.1',
+        extensionConnected: false,
+        pending: 0,
+        memoryMB: 0,
+        port: 0,
+      },
+    });
+    vi.spyOn(daemonClient, 'requestDaemonShutdown').mockResolvedValue(false);
+
+    const bridge = new BrowserBridge();
+
+    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Stale daemon could not be replaced');
   });
 });
 
