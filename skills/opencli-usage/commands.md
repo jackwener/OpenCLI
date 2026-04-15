@@ -755,6 +755,7 @@ opencli xiaohongshu creator-stats              # 创作者数据统计
 opencli xiaoyuzhou podcast 12345          # 播客资料 (id positional)
 opencli xiaoyuzhou podcast-episodes 12345 # 播客剧集列表 (id positional)
 opencli xiaoyuzhou episode 12345          # 单集详情 (id positional)
+opencli xiaoyuzhou download 12345         # 下载单集音频 (id positional)
 ```
 
 ## Xueqiu (雪球) 🌐

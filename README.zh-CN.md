@@ -208,7 +208,7 @@ npm link
 | **quark** | `ls` `mkdir` `mv` `rename` `rm` `save` `share-tree` | 浏览器 |
 | **uiverse** | `code` `preview` | 浏览器 |
 | **apple-podcasts** | `search` `episodes` `top` | 公开 |
-| **xiaoyuzhou** | `podcast` `podcast-episodes` `episode` | 公开 |
+| **xiaoyuzhou** | `podcast` `podcast-episodes` `episode` `download` | 公开 |
 | **zhihu** | `hot` `search` `question` `download` `follow` `like` `favorite` `comment` `answer` | 浏览器 |
 | **weixin** | `download` | 浏览器 |
 | **youtube** | `search` `video` `transcript` | 浏览器 |
@@ -320,6 +320,7 @@ OpenCLI 支持从各平台下载图片、视频和文章。
 | **Twitter/X** | 图片、视频 | 从用户媒体页或单条推文下载 |
 | **Pixiv** | 图片 | 下载原始画质插画，支持多页作品 |
 | **1688** | 图片、视频 | 下载商品页中可见的商品素材 |
+| **小宇宙** | 音频 | 从公开单集数据中下载音频文件 |
 | **知乎** | 文章（Markdown） | 导出文章，可选下载图片到本地 |
 | **微信公众号** | 文章（Markdown） | 导出微信公众号文章为 Markdown |
 | **豆瓣** | 图片 | 下载电影条目的海报 / 剧照图片 |
@@ -357,6 +358,9 @@ opencli douban download 30382501 --output ./douban
 
 # 下载 1688 商品页中的图片 / 视频素材
 opencli 1688 download 841141931191 --output ./1688-downloads
+
+# 下载小宇宙单集音频
+opencli xiaoyuzhou download 69b3b675772ac2295bfc01d0 --output ./xiaoyuzhou
 
 # 导出知乎文章为 Markdown
 opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --output ./zhihu

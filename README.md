@@ -205,6 +205,7 @@ To load the source Browser Bridge extension:
 | **xiaoe** | `courses` `detail` `catalog` `play-url` `content` |
 | **quark** | `ls` `mkdir` `mv` `rename` `rm` `save` `share-tree` |
 | **uiverse** | `code` `preview` |
+| **xiaoyuzhou** | `podcast` `podcast-episodes` `episode` `download` |
 
 87+ adapters in total — **[→ see all supported sites & commands](./docs/adapters/index.md)**
 
@@ -257,6 +258,7 @@ OpenCLI supports downloading images, videos, and articles from supported platfor
 | **douban** | Images | Poster / still image lists |
 | **pixiv** | Images | Original-quality illustrations, multi-page |
 | **1688** | Images, Videos | Downloads page-visible product media from item pages |
+| **xiaoyuzhou** | Audio | Downloads episode audio from public episode payloads |
 | **zhihu** | Articles (Markdown) | Exports with optional image download |
 | **weixin** | Articles (Markdown) | WeChat Official Account articles |
 
@@ -268,6 +270,7 @@ opencli xiaohongshu download "https://xhslink.com/..." --output ./xhs
 opencli bilibili download BV1xxx --output ./bilibili
 opencli twitter download elonmusk --limit 20 --output ./twitter
 opencli 1688 download 841141931191 --output ./1688-downloads
+opencli xiaoyuzhou download 69b3b675772ac2295bfc01d0 --output ./xiaoyuzhou
 ```
 
 ## Output Formats

@@ -15548,6 +15548,40 @@
   },
   {
     "site": "xiaoyuzhou",
+    "name": "download",
+    "description": "Download Xiaoyuzhou episode audio",
+    "domain": "www.xiaoyuzhoufm.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Episode ID (eid from podcast-episodes output)"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "./xiaoyuzhou-downloads",
+        "required": false,
+        "help": "Output directory"
+      }
+    ],
+    "columns": [
+      "title",
+      "podcast",
+      "status",
+      "size",
+      "file"
+    ],
+    "type": "js",
+    "modulePath": "xiaoyuzhou/download.js",
+    "sourceFile": "xiaoyuzhou/download.js"
+  },
+  {
+    "site": "xiaoyuzhou",
     "name": "episode",
     "description": "View details of a Xiaoyuzhou podcast episode",
     "domain": "www.xiaoyuzhoufm.com",

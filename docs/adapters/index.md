@@ -75,7 +75,7 @@ Run `opencli list` for the live registry.
 | **[devto](./browser/devto.md)**                   | `top` `tag` `user`                                                                                                                             | 🌐 Public    |
 | **[dictionary](./browser/dictionary.md)**         | `search` `synonyms` `examples`                                                                                                                 | 🌐 Public    |
 | **[apple-podcasts](./browser/apple-podcasts.md)** | `search` `episodes` `top`                                                                                                                      | 🌐 Public    |
-| **[xiaoyuzhou](./browser/xiaoyuzhou.md)**         | `podcast` `podcast-episodes` `episode`                                                                                                         | 🌐 Public    |
+| **[xiaoyuzhou](./browser/xiaoyuzhou.md)**         | `podcast` `podcast-episodes` `episode` `download`                                                                                              | 🌐 Public    |
 | **[yahoo-finance](./browser/yahoo-finance.md)**   | `quote`                                                                                                                                        | 🌐 Public    |
 | **[arxiv](./browser/arxiv.md)**                   | `search` `paper`                                                                                                                               | 🌐 Public    |
 | **[paperreview](./browser/paperreview.md)**       | `submit` `review` `feedback`                                                                                                                   | 🌐 Public    |
