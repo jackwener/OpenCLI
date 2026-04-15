@@ -116,6 +116,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   const sessions = opts.sessions && health.state === 'ready'
     ? await listSessions() as Array<{ workspace: string; windowId: number; tabCount: number; idleMsRemaining: number }>
     : undefined;
+  const extensionVersion = health.status?.extensionVersion;
 
   const issues: string[] = [];
   if (daemonFlaky) {
@@ -154,10 +155,16 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
       );
     }
   }
+  if (extensionConnected && !extensionVersion) {
+    issues.push(
+      'Extension is connected but did not report a version.\n' +
+      '  This usually means an outdated Browser Bridge extension.\n' +
+      '  Reload or reinstall the extension from: https://github.com/jackwener/opencli/releases',
+    );
+  }
   if (connectivity && !connectivity.ok) {
     issues.push(`Browser connectivity test failed: ${connectivity.error ?? 'unknown'}`);
   }
-  const extensionVersion = health.status?.extensionVersion;
   const extensionCompatRange = health.status?.extensionCompatRange;
   if (extensionVersion && opts.cliVersion && extensionCompatRange) {
     if (!satisfiesRange(opts.cliVersion, extensionCompatRange)) {
@@ -216,13 +223,17 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
   lines.push(`${daemonIcon} Daemon: ${daemonLabel}`);
 
   // Extension status
-  const extIcon = report.extensionFlaky
+  const extIcon = report.extensionFlaky || (report.extensionConnected && !report.extensionVersion)
     ? styleText('yellow', '[WARN]')
     : report.extensionConnected ? styleText('green', '[OK]') : styleText('yellow', '[MISSING]');
   const extUpdateHint = report.extensionVersion && report.latestExtensionVersion && isNewerVersion(report.latestExtensionVersion, report.extensionVersion)
     ? styleText('yellow', ` → v${report.latestExtensionVersion} available`)
     : '';
-  const extVersion = report.extensionVersion ? styleText('dim', ` (v${report.extensionVersion})`) + extUpdateHint : '';
+  const extVersion = !report.extensionConnected
+    ? ''
+    : report.extensionVersion
+      ? styleText('dim', ` (v${report.extensionVersion})`) + extUpdateHint
+      : styleText('dim', ' (version unknown)');
   const extLabel = report.extensionFlaky
     ? 'unstable (connected during live check, then disconnected)'
     : report.extensionConnected ? 'connected' : 'not connected';

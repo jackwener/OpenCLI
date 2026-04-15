@@ -341,6 +341,10 @@ export async function readNetworkCapture(tabId: number): Promise<NetworkCaptureE
   return entries;
 }
 
+export function hasActiveNetworkCapture(tabId: number): boolean {
+  return networkCaptures.has(tabId);
+}
+
 export async function detach(tabId: number): Promise<void> {
   if (!attached.has(tabId)) return;
   attached.delete(tabId);

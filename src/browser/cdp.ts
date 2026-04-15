@@ -240,7 +240,7 @@ class CDPPage extends BasePage {
     return base64;
   }
 
-  async startNetworkCapture(pattern: string = ''): Promise<void> {
+  async startNetworkCapture(pattern: string = ''): Promise<boolean> {
     // Always update the filter pattern
     this._networkCapturePattern = pattern;
 
@@ -298,6 +298,7 @@ class CDPPage extends BasePage {
 
       this._networkCapturing = true;
     }
+    return true;
   }
 
   async readNetworkCapture(): Promise<unknown[]> {

@@ -90,3 +90,125 @@ export async function prepareYoutubeApiPage(page) {
     await page.goto('https://www.youtube.com', { waitUntil: 'none' });
     await page.wait(2);
 }
+/**
+ * Inline InnerTube browse API helper for use inside page.evaluate() strings.
+ * Inject via FETCH_BROWSE_FN, then call: fetchBrowse(apiKey, body)
+ */
+export const FETCH_BROWSE_FN = `
+async function fetchBrowse(apiKey, body) {
+  const resp = await fetch('/youtubei/v1/browse?key=' + apiKey + '&prettyPrint=false', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) return { error: 'InnerTube browse API returned HTTP ' + resp.status };
+  return resp.json();
+}
+`;
+/**
+ * Extract video objects from playlistVideoRenderer items (playlists, watch-later).
+ * Pure function — inject into page.evaluate() via: extractPlaylistVideos.toString()
+ */
+export function extractPlaylistVideos(items) {
+    return items
+        .filter(i => i.playlistVideoRenderer)
+        .map(i => {
+        const v = i.playlistVideoRenderer;
+        const infoRuns = v.videoInfo?.runs || [];
+        return {
+            rank: parseInt(v.index?.simpleText || '0', 10),
+            title: v.title?.runs?.[0]?.text || '',
+            channel: v.shortBylineText?.runs?.[0]?.text || '',
+            duration: v.lengthText?.simpleText || '',
+            views: infoRuns[0]?.text || '',
+            published: infoRuns[2]?.text || '',
+            url: 'https://www.youtube.com/watch?v=' + v.videoId,
+        };
+    });
+}
+/**
+ * Normalize a subscribed channel entry from YouTube's channelRenderer payload.
+ * Different surfaces/locales may expose the handle in channelHandleText, canonicalBaseUrl,
+ * or, in some variants, overload one of the count fields with an @handle string.
+ */
+export function extractSubscriptionChannel(channelRenderer) {
+    const readText = (value) => {
+        if (!value)
+            return '';
+        if (typeof value.simpleText === 'string')
+            return value.simpleText.trim();
+        if (Array.isArray(value.runs)) {
+            return value.runs
+                .map((run) => run?.text || '')
+                .join('')
+                .trim();
+        }
+        return '';
+    };
+    const ch = channelRenderer || {};
+    const name = readText(ch.title);
+    const baseUrl = ch.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl || '';
+    const channelId = ch.channelId || ch.navigationEndpoint?.browseEndpoint?.browseId || '';
+    const subscriberCountText = readText(ch.subscriberCountText);
+    const videoCountText = readText(ch.videoCountText);
+    const handle = [
+        readText(ch.channelHandleText),
+        baseUrl.startsWith('/@') ? baseUrl.slice(1) : '',
+        subscriberCountText.startsWith('@') ? subscriberCountText : '',
+        videoCountText.startsWith('@') ? videoCountText : '',
+    ].find(Boolean) || '';
+    const subscribers = [
+        !subscriberCountText.startsWith('@') ? subscriberCountText : '',
+        !videoCountText.startsWith('@') ? videoCountText : '',
+    ].find(Boolean) || '';
+    const url = baseUrl
+        ? 'https://www.youtube.com' + baseUrl
+        : channelId ? 'https://www.youtube.com/channel/' + channelId : '';
+    return { name, handle, subscribers, url };
+}
+/**
+ * Inline @handle → channelId resolver for use inside page.evaluate() strings.
+ * Inject via RESOLVE_CHANNEL_HANDLE_FN, then call: resolveChannelHandle(input, apiKey, context)
+ */
+export const RESOLVE_CHANNEL_HANDLE_FN = `
+async function resolveChannelHandle(input, apiKey, context) {
+  if (!input.startsWith('@')) return input;
+  const resp = await fetch('/youtubei/v1/navigation/resolve_url?key=' + apiKey + '&prettyPrint=false', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ context, url: 'https://www.youtube.com/' + input }),
+  });
+  if (!resp.ok) return input;
+  const data = await resp.json().catch(() => ({}));
+  return data.endpoint?.browseEndpoint?.browseId || input;
+}
+`;
+/**
+ * Inline SAPISIDHASH helper for use inside page.evaluate() strings.
+ * YouTube write APIs (like, subscribe) require:
+ *   Authorization: SAPISIDHASH {time}_{SHA1(time + " " + SAPISID + " " + origin)}
+ */
+export const SAPISID_HASH_FN = `
+async function getSapisidHash(origin) {
+  const cookies = document.cookie.split('; ');
+  let sapisid = '';
+  for (const c of cookies) {
+    const eq = c.indexOf('=');
+    if (eq === -1) continue;
+    const name = c.slice(0, eq);
+    const val = c.slice(eq + 1);
+    if (name === '__Secure-3PAPISID' || name === 'SAPISID') {
+      sapisid = val;
+      if (name === '__Secure-3PAPISID') break;
+    }
+  }
+  if (!sapisid) return null;
+  const time = Math.floor(Date.now() / 1000);
+  const msgBuffer = new TextEncoder().encode(time + ' ' + sapisid + ' ' + origin);
+  const hashBuffer = await crypto.subtle.digest('SHA-1', msgBuffer);
+  const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return 'SAPISIDHASH ' + time + '_' + hashHex;
+}
+`;

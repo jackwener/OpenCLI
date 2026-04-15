@@ -32,11 +32,12 @@ describe('doctor report rendering', () => {
     const text = strip(renderBrowserDoctorReport({
       daemonRunning: true,
       extensionConnected: true,
+      extensionVersion: '1.6.8',
       issues: [],
     }));
 
     expect(text).toContain('[OK] Daemon: running on port 19825');
-    expect(text).toContain('[OK] Extension: connected');
+    expect(text).toContain('[OK] Extension: connected (v1.6.8)');
     expect(text).toContain('Everything looks good!');
   });
 
@@ -61,6 +62,18 @@ describe('doctor report rendering', () => {
 
     expect(text).toContain('[OK] Daemon: running on port 19825');
     expect(text).toContain('[MISSING] Extension: not connected');
+  });
+
+  it('renders a warning when the extension version is unknown', () => {
+    const text = strip(renderBrowserDoctorReport({
+      daemonRunning: true,
+      extensionConnected: true,
+      issues: ['Extension is connected but did not report a version.'],
+    }));
+
+    expect(text).toContain('[WARN] Extension: connected (version unknown)');
+    expect(text).toContain('Extension is connected but did not report a version.');
+    expect(text).not.toContain('Everything looks good!');
   });
 
   it('renders connectivity OK when live test succeeds', () => {
@@ -111,12 +124,8 @@ describe('doctor report rendering', () => {
   });
 
   it('reports daemon not running when no-live and auto-start fails', async () => {
-    // no-live mode: getDaemonHealth called twice (initial check + final status)
-    // Initial: stopped → triggers auto-start attempt
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
-    // Auto-start fails
     mockConnect.mockRejectedValueOnce(new Error('Could not start daemon'));
-    // Final: still stopped
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
 
     const report = await runBrowserDoctor({ live: false });
@@ -130,12 +139,10 @@ describe('doctor report rendering', () => {
   });
 
   it('reports flapping when live check succeeds but final status shows extension disconnected', async () => {
-    // Live check succeeds
     mockConnect.mockResolvedValueOnce({
       evaluate: vi.fn().mockResolvedValue(2),
     });
     mockClose.mockResolvedValueOnce(undefined);
-    // After live check, getDaemonHealth shows no-extension
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
 
     const report = await runBrowserDoctor({ live: true });
@@ -149,12 +156,10 @@ describe('doctor report rendering', () => {
   });
 
   it('reports daemon flapping when live check succeeds but daemon disappears afterward', async () => {
-    // Live check succeeds
     mockConnect.mockResolvedValueOnce({
       evaluate: vi.fn().mockResolvedValue(2),
     });
     mockClose.mockResolvedValueOnce(undefined);
-    // After live check, getDaemonHealth shows stopped
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
 
     const report = await runBrowserDoctor({ live: true });
@@ -184,16 +189,32 @@ describe('doctor report rendering', () => {
   });
 
   it('skips auto-start in no-live mode when daemon is already running', async () => {
-    // no-live mode but daemon already running (no-extension)
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
-    // Final status: same
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
 
     const report = await runBrowserDoctor({ live: false });
 
-    // Should NOT have tried auto-start since daemon was already running
     expect(mockConnect).not.toHaveBeenCalled();
     expect(report.daemonRunning).toBe(true);
     expect(report.extensionConnected).toBe(false);
+  });
+
+  it('reports an issue when the extension is connected but does not report a version', async () => {
+    const status = {
+      state: 'ready' as const,
+      status: {
+        extensionConnected: true,
+        extensionVersion: undefined,
+      },
+    };
+    mockGetDaemonHealth
+      .mockResolvedValueOnce(status)
+      .mockResolvedValueOnce(status);
+
+    const report = await runBrowserDoctor({ live: false });
+
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('did not report a version'),
+    ]));
   });
 });

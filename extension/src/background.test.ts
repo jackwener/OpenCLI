@@ -195,6 +195,46 @@ describe('background tab isolation', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  it('keeps the debugger attached during navigation when network capture is active', async () => {
+    const { chrome, tabs } = createChromeMock();
+    const onUpdatedListeners: Array<(id: number, info: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => void> = [];
+    chrome.tabs.onUpdated.addListener = vi.fn((fn) => { onUpdatedListeners.push(fn); });
+    chrome.tabs.onUpdated.removeListener = vi.fn((fn) => {
+      const idx = onUpdatedListeners.indexOf(fn);
+      if (idx >= 0) onUpdatedListeners.splice(idx, 1);
+    });
+    chrome.tabs.update = vi.fn(async (tabId: number, updates: { active?: boolean; url?: string }) => {
+      const tab = tabs.find((entry) => entry.id === tabId);
+      if (!tab) throw new Error(`Unknown tab ${tabId}`);
+      if (updates.active !== undefined) tab.active = updates.active;
+      if (updates.url !== undefined) tab.url = updates.url;
+      tab.status = 'complete';
+      for (const listener of [...onUpdatedListeners]) {
+        listener(tabId, { status: 'complete', url: tab.url }, tab as chrome.tabs.Tab);
+      }
+      return tab;
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const detachMock = vi.fn(async () => {});
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => true),
+      detach: detachMock,
+    }));
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId('site:eos', 1);
+
+    const result = await mod.__test__.handleNavigate(
+      { id: 'capture-nav', action: 'navigate', url: 'https://eos.douyin.com/livesite/live/current', workspace: 'site:eos' },
+      'site:eos',
+    );
+
+    expect(result.ok).toBe(true);
+    expect(detachMock).not.toHaveBeenCalled();
+  });
+
   it('keeps hash routes distinct when comparing target URLs', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);

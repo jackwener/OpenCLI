@@ -543,13 +543,17 @@ async function handleNavigate(cmd: Command, workspace: string): Promise<Result> 
     return pageScopedResult(cmd.id, tabId, { title: beforeTab.title, url: beforeTab.url, timedOut: false });
   }
 
-  // Detach any existing debugger before top-level navigation.
+  // Detach any existing debugger before top-level navigation unless network
+  // capture is already armed on this tab. Otherwise we would clear the capture
+  // state right before the page load we are trying to observe.
   // Some sites (observed on creator.xiaohongshu.com flows) can invalidate the
   // current inspected target during navigation, which leaves a stale CDP attach
   // state and causes the next Runtime.evaluate to fail with
   // "Inspected target navigated or closed". Resetting here forces a clean
-  // re-attach after navigation.
-  await executor.detach(tabId);
+  // re-attach after navigation when capture is not active.
+  if (!executor.hasActiveNetworkCapture(tabId)) {
+    await executor.detach(tabId);
+  }
 
   await chrome.tabs.update(tabId, { url: targetUrl });
 

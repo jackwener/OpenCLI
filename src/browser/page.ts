@@ -17,6 +17,14 @@ import { generateStealthJs } from './stealth.js';
 import { waitForDomStableJs } from './dom-helpers.js';
 import { BasePage } from './base-page.js';
 import { classifyBrowserError } from './errors.js';
+import { log } from '../logger.js';
+
+function isUnsupportedNetworkCaptureError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  const normalized = message.toLowerCase();
+  return (normalized.includes('unknown action') && normalized.includes('network-capture'))
+    || (normalized.includes('network capture') && normalized.includes('not supported'));
+}
 
 /**
  * Page — implements IPage by talking to the daemon via HTTP.
@@ -28,6 +36,8 @@ export class Page extends BasePage {
 
   /** Active page identity (targetId), set after navigate and used in all subsequent commands */
   private _page: string | undefined;
+  private _networkCaptureUnsupported = false;
+  private _networkCaptureWarned = false;
 
   /** Helper: spread workspace into command params */
   private _wsOpt(): { workspace: string } {
@@ -99,6 +109,16 @@ export class Page extends BasePage {
     return undefined;
   }
 
+  private _markUnsupportedNetworkCapture(): void {
+    this._networkCaptureUnsupported = true;
+    if (this._networkCaptureWarned) return;
+    this._networkCaptureWarned = true;
+    log.warn(
+      'Browser Bridge extension does not support network capture; continuing without it. ' +
+      'Explore output may miss API endpoints until you reload or reinstall the extension.',
+    );
+  }
+
   async evaluate(js: string): Promise<unknown> {
     const code = wrapForEval(js);
     try {
@@ -125,6 +145,8 @@ export class Page extends BasePage {
     } finally {
       this._page = undefined;
       this._lastUrl = null;
+      this._networkCaptureUnsupported = false;
+      this._networkCaptureWarned = false;
     }
   }
 
@@ -156,18 +178,33 @@ export class Page extends BasePage {
     return base64;
   }
 
-  async startNetworkCapture(pattern: string = ''): Promise<void> {
-    await sendCommand('network-capture-start', {
-      pattern,
-      ...this._cmdOpts(),
-    });
+  async startNetworkCapture(pattern: string = ''): Promise<boolean> {
+    if (this._networkCaptureUnsupported) return false;
+    try {
+      await sendCommand('network-capture-start', {
+        pattern,
+        ...this._cmdOpts(),
+      });
+      return true;
+    } catch (err) {
+      if (!isUnsupportedNetworkCaptureError(err)) throw err;
+      this._markUnsupportedNetworkCapture();
+      return false;
+    }
   }
 
   async readNetworkCapture(): Promise<unknown[]> {
-    const result = await sendCommand('network-capture-read', {
-      ...this._cmdOpts(),
-    });
-    return Array.isArray(result) ? result : [];
+    if (this._networkCaptureUnsupported) return [];
+    try {
+      const result = await sendCommand('network-capture-read', {
+        ...this._cmdOpts(),
+      });
+      return Array.isArray(result) ? result : [];
+    } catch (err) {
+      if (!isUnsupportedNetworkCaptureError(err)) throw err;
+      this._markUnsupportedNetworkCapture();
+      return [];
+    }
   }
   /**
    * Set local file paths on a file input element via CDP DOM.setFileInputFiles.

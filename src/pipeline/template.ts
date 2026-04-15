@@ -7,6 +7,7 @@ import vm from 'node:vm';
 export interface RenderContext {
   args?: Record<string, unknown>;
   data?: unknown;
+  root?: unknown;
   item?: unknown;
   index?: number;
 }
@@ -34,6 +35,7 @@ export function evalExpr(expr: string, ctx: RenderContext): unknown {
   const args = ctx.args ?? {};
   const item = ctx.item ?? {};
   const data = ctx.data;
+  const root = ctx.root;
   const index = ctx.index ?? 0;
 
   // ── Pipe filters: expr | filter1(arg) | filter2 ──
@@ -55,12 +57,12 @@ export function evalExpr(expr: string, ctx: RenderContext): unknown {
   if (/^\d+(\.\d+)?$/.test(expr)) return Number(expr);
 
   // Try resolving as a simple dotted path (item.foo.bar, args.limit, index)
-  const resolved = resolvePath(expr, { args, item, data, index });
+  const resolved = resolvePath(expr, { args, item, data, root, index });
   if (resolved !== null && resolved !== undefined) return resolved;
 
   // Fallback: evaluate as JS in a sandboxed VM.
   // Handles ||, ??, arithmetic, ternary, method calls, etc. natively.
-  return evalJsExpr(expr, { args, item, data, index });
+  return evalJsExpr(expr, { args, item, data, root, index });
 }
 
 /**
@@ -151,6 +153,7 @@ export function resolvePath(pathStr: string, ctx: RenderContext): unknown {
   const args = ctx.args ?? {};
   const item = ctx.item ?? {};
   const data = ctx.data;
+  const root = ctx.root;
   const index = ctx.index ?? 0;
   const parts = pathStr.split('.');
   const rootName = parts[0];
@@ -159,6 +162,7 @@ export function resolvePath(pathStr: string, ctx: RenderContext): unknown {
   if (rootName === 'args') { obj = args; rest = parts.slice(1); }
   else if (rootName === 'item') { obj = item; rest = parts.slice(1); }
   else if (rootName === 'data') { obj = data; rest = parts.slice(1); }
+  else if (rootName === 'root') { obj = root; rest = parts.slice(1); }
   else if (rootName === 'index') return index;
   else { obj = item; rest = parts; }
   for (const part of rest) {
@@ -256,6 +260,7 @@ function getReusableContext(): { sandbox: Record<string, unknown>; context: vm.C
     args: {},
     item: {},
     data: null,
+    root: null,
     index: 0,
     encodeURIComponent,
     decodeURIComponent,
@@ -275,7 +280,7 @@ function getReusableContext(): { sandbox: Record<string, unknown>; context: vm.C
 
 /** Properties that are part of the sandbox's initial shape and safe to keep. */
 const SANDBOX_WHITELIST = new Set([
-  'args', 'item', 'data', 'index',
+  'args', 'item', 'data', 'root', 'index',
   'encodeURIComponent', 'decodeURIComponent',
   'JSON', 'Math', 'Number', 'String', 'Boolean', 'Array', 'Date',
 ]);
@@ -303,6 +308,7 @@ function evalJsExpr(expr: string, ctx: RenderContext): unknown {
     sandbox.args = sanitizeContext(ctx.args ?? {});
     sandbox.item = sanitizeContext(ctx.item ?? {});
     sandbox.data = sanitizeContext(ctx.data);
+    sandbox.root = sanitizeContext(ctx.root);
     sandbox.index = ctx.index ?? 0;
     return script.runInContext(context, { timeout: 50 });
   } catch {
