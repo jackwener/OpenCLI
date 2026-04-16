@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import type { IPage } from './types.js';
 
@@ -13,6 +15,9 @@ const {
   mockRenderCascadeResult,
   mockGetBrowserFactory,
   mockBrowserSession,
+  mockBrowserConnect,
+  mockBrowserClose,
+  browserState,
 } = vi.hoisted(() => ({
   mockExploreUrl: vi.fn(),
   mockRenderExploreSummary: vi.fn(),
@@ -24,6 +29,9 @@ const {
   mockRenderCascadeResult: vi.fn(),
   mockGetBrowserFactory: vi.fn(() => ({ name: 'BrowserFactory' })),
   mockBrowserSession: vi.fn(),
+  mockBrowserConnect: vi.fn(),
+  mockBrowserClose: vi.fn(),
+  browserState: { page: null as IPage | null },
 }));
 
 vi.mock('./explore.js', () => ({
@@ -51,6 +59,16 @@ vi.mock('./runtime.js', () => ({
   browserSession: mockBrowserSession,
 }));
 
+vi.mock('./browser/index.js', () => {
+  mockBrowserConnect.mockImplementation(async () => browserState.page as IPage);
+  return {
+    BrowserBridge: class {
+      connect = mockBrowserConnect;
+      close = mockBrowserClose;
+    },
+  };
+});
+
 import { createProgram, findPackageRoot, resolveBrowserVerifyInvocation } from './cli.js';
 
 describe('built-in browser commands verbose wiring', () => {
@@ -58,7 +76,9 @@ describe('built-in browser commands verbose wiring', () => {
 
   beforeEach(() => {
     delete process.env.OPENCLI_VERBOSE;
+    delete process.env.OPENCLI_CACHE_DIR;
     process.exitCode = undefined;
+    vi.clearAllMocks();
 
     mockExploreUrl.mockReset().mockResolvedValue({ ok: true });
     mockRenderExploreSummary.mockReset().mockReturnValue('explore-summary');
@@ -69,6 +89,7 @@ describe('built-in browser commands verbose wiring', () => {
     mockCascadeProbe.mockReset().mockResolvedValue({ ok: true });
     mockRenderCascadeResult.mockReset().mockReturnValue('cascade-summary');
     mockGetBrowserFactory.mockClear();
+    mockBrowserClose.mockReset().mockResolvedValue(undefined);
     mockBrowserSession.mockReset().mockImplementation(async (_factory, fn) => {
       const page = {
         goto: vi.fn(),
@@ -76,6 +97,10 @@ describe('built-in browser commands verbose wiring', () => {
       } as unknown as IPage;
       return fn(page);
     });
+    browserState.page = {
+      evaluate: vi.fn(),
+      readNetworkCapture: vi.fn().mockResolvedValue([]),
+    } as unknown as IPage;
   });
 
   it('enables OPENCLI_VERBOSE for explore via the real CLI command', async () => {
@@ -212,6 +237,66 @@ describe('resolveBrowserVerifyInvocation', () => {
       args: ['tsx', path.join(projectRoot, 'src', 'main.ts')],
       cwd: projectRoot,
     });
+  });
+});
+
+describe('browser network snapshot caching', () => {
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    const tempCacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-network-cache-'));
+    process.env.OPENCLI_CACHE_DIR = tempCacheDir;
+    consoleLogSpy.mockClear();
+    consoleErrorSpy.mockClear();
+  });
+
+  it('reuses the last listed snapshot for --detail without consuming a new capture batch', async () => {
+    const readNetworkCapture = vi.fn().mockResolvedValueOnce([
+      {
+        url: 'https://api.example.com/items',
+        method: 'GET',
+        responseStatus: 200,
+        responseContentType: 'application/json',
+        responsePreview: JSON.stringify({ items: [{ id: 1, title: 'cached item' }] }),
+      },
+    ]);
+    browserState.page = {
+      evaluate: vi.fn(),
+      readNetworkCapture,
+    } as unknown as IPage;
+
+    await createProgram('', '').parseAsync(['node', 'opencli', 'browser', 'network']);
+    await createProgram('', '').parseAsync(['node', 'opencli', 'browser', 'network', '--detail', '0']);
+
+    expect(readNetworkCapture).toHaveBeenCalledTimes(1);
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('Showing cached request [0]');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('https://api.example.com/items');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('cached item');
+  });
+
+  it('reports an out-of-range detail index against the last listed snapshot', async () => {
+    const readNetworkCapture = vi.fn().mockResolvedValueOnce([
+      {
+        url: 'https://api.example.com/items',
+        method: 'GET',
+        responseStatus: 200,
+        responseContentType: 'application/json',
+        responsePreview: JSON.stringify({ ok: true }),
+      },
+    ]);
+    browserState.page = {
+      evaluate: vi.fn(),
+      readNetworkCapture,
+    } as unknown as IPage;
+
+    await createProgram('', '').parseAsync(['node', 'opencli', 'browser', 'network']);
+    await createProgram('', '').parseAsync(['node', 'opencli', 'browser', 'network', '--detail', '9']);
+
+    expect(readNetworkCapture).toHaveBeenCalledTimes(1);
+    expect(process.exitCode).toBeDefined();
+    expect(consoleErrorSpy.mock.calls.flat().join('\n')).toContain('not found in the last "browser network" result');
   });
 });
 
