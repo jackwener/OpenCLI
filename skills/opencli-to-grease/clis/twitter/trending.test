@@ -1,0 +1,49 @@
+{
+  "timestamp": "2026-04-16T12:35:43.459Z",
+  "json_file": "./clis/twitter/trending.json",
+  "command": "Trending",
+  "website": "x.com",
+  "params": {
+    "limit": 5
+  },
+  "success": true,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "topic": "Pope",
+      "tweets": "N/A",
+      "category": "Politics · Trending"
+    },
+    {
+      "rank": 2,
+      "topic": "Kawhi",
+      "tweets": "N/A",
+      "category": "Sports · Trending"
+    },
+    {
+      "rank": 3,
+      "topic": "Good Thursday",
+      "tweets": "N/A",
+      "category": "Only on X · Trending"
+    },
+    {
+      "rank": 4,
+      "topic": "Darby",
+      "tweets": "N/A",
+      "category": "Sports · Trending"
+    },
+    {
+      "rank": 5,
+      "topic": "Al Horford",
+      "tweets": "N/A",
+      "category": "Sports · Trending"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": true,
+    "differences": []
+  }
+}

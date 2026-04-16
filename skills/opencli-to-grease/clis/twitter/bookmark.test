@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-04-16T12:53:12.392Z",
+  "json_file": "./clis/twitter/bookmark.json",
+  "command": "Bookmark",
+  "website": "x.com",
+  "params": {
+    "url": "https://x.com/elonmusk/status/2044315118583066738"
+  },
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "ok": true,
+      "message": "Tweet successfully bookmarked."
+    }
+  ]
+}

@@ -178,6 +178,18 @@ async function runOpenCliCommand(
 ): Promise<OpenCliResult> {
   let cmdStr = `opencli ${site} ${command}`;
 
+  // Special handling: Twitter reply expects URL but GreaseAI uses tweet_id
+  // Convert tweet_id to full URL for OpenCLI comparison
+  let mappedParams = params;
+  if (site === 'twitter' && command === 'reply' && params.tweet_id) {
+    const tweetId = String(params.tweet_id);
+    // OpenCLI expects full tweet URL, construct from tweet_id
+    mappedParams = {
+      ...params,
+      tweet_id: `https://x.com/elonmusk/status/${tweetId}`
+    };
+  }
+
   const positionalArgs: string[] = [];
   const optionalArgs: string[] = [];
 
@@ -186,7 +198,7 @@ async function runOpenCliCommand(
     .filter(v => v.required === true)
     .map(v => v.name);
 
-  for (const [key, value] of Object.entries(params)) {
+  for (const [key, value] of Object.entries(mappedParams)) {
     if (value === undefined || value === null) continue;
     if (value === '' && !requiredNames.includes(key)) continue;
 
@@ -386,6 +398,7 @@ function extractSiteFromDomain(domain: string): string {
     'jimeng.jianying': 'jimeng',
     'movie.douban': 'douban',
     'bbs.hupu': 'hupu',
+    'x': 'twitter',
   };
 
   return mappings[site] || site;

@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-04-16T12:53:23.399Z",
+  "json_file": "./clis/twitter/unfollow.json",
+  "command": "Unfollow",
+  "website": "x.com",
+  "params": {
+    "username": "elonmusk"
+  },
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "ok": true,
+      "message": "Successfully unfollowed @elonmusk."
+    }
+  ]
+}

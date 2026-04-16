@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-04-16T12:55:52.758Z",
+  "json_file": "./clis/twitter/article.json",
+  "command": "Article",
+  "website": "x.com",
+  "params": {
+    "tweet_id": "2044315118583066738"
+  },
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "title": "",
+      "author": "",
+      "content": "",
+      "url": "",
+      "error": "Tweet has no article content"
+    }
+  ]
+}

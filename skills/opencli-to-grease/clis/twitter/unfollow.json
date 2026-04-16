@@ -1,0 +1,33 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": { "url": "https://x.com/{{ username }}", "waitUntil": "load" }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 3 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const username = '{{ username }}'.replace(/^@/, ''); try { let attempts = 0; let unfollowBtn = null; let followTestId = null; while (attempts < 20) { followTestId = document.querySelector('[data-testid$=\"-follow\"]'); if (followTestId) return { ok: true, message: 'Already not following @' + username + '.' }; unfollowBtn = document.querySelector('[data-testid$=\"-unfollow\"]'); if (unfollowBtn) break; await new Promise(r => setTimeout(r, 500)); attempts++; } if (!unfollowBtn) return { ok: false, message: 'Could not find Unfollow button. Are you logged in?' }; unfollowBtn.click(); await new Promise(r => setTimeout(r, 1500)); const verify = document.querySelector('[data-testid$=\"-follow\"]'); if (verify) return { ok: true, message: 'Successfully unfollowed @' + username + '.' }; return { ok: false, message: 'Unfollow action initiated but UI did not update.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
+      }
+    }
+  ],
+  "api_endpoint": "twitter-unfollow",
+  "category": "interact",
+  "description": "Unfollow a Twitter user",
+  "is_public": true,
+  "method": "POST",
+  "name": "Unfollow",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "状态" },
+    { "name": "message", "type": "string", "description": "消息" }
+  ],
+  "variables": [
+    { "name": "username", "type": "string", "required": true, "help": "Twitter screen name (without @)", "test": "elonmusk" }
+  ],
+  "website_domain": "x.com",
+  "website_id": "website-x.com"
+}

@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-04-16T12:56:22.286Z",
+  "json_file": "./clis/twitter/unblock.json",
+  "command": "Unblock",
+  "website": "x.com",
+  "params": {
+    "username": "elonmusk"
+  },
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "ok": false,
+      "message": "Could not find Unblock button. Are you logged in?"
+    }
+  ]
+}

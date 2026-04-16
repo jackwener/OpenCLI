@@ -1,0 +1,33 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": { "url": "{{ url }}", "waitUntil": "load" }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 3 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const url = '{{ url }}'; try { let attempts = 0; let bookmarkBtn = null; let removeBtn = null; while (attempts < 20) { removeBtn = document.querySelector('[data-testid=\"removeBookmark\"]'); if (removeBtn) return { ok: true, message: 'Tweet is already bookmarked.' }; bookmarkBtn = document.querySelector('[data-testid=\"bookmark\"]'); if (bookmarkBtn) break; await new Promise(r => setTimeout(r, 500)); attempts++; } if (!bookmarkBtn) return { ok: false, message: 'Could not find Bookmark button. Are you logged in?' }; bookmarkBtn.click(); await new Promise(r => setTimeout(r, 1000)); const verify = document.querySelector('[data-testid=\"removeBookmark\"]'); if (verify) return { ok: true, message: 'Tweet successfully bookmarked.' }; return { ok: false, message: 'Bookmark action initiated but UI did not update.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
+      }
+    }
+  ],
+  "api_endpoint": "twitter-bookmark",
+  "category": "interact",
+  "description": "Bookmark a tweet",
+  "is_public": true,
+  "method": "POST",
+  "name": "Bookmark",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "状态" },
+    { "name": "message", "type": "string", "description": "消息" }
+  ],
+  "variables": [
+    { "name": "url", "type": "string", "required": true, "help": "Tweet URL to bookmark", "test": "https://x.com/elonmusk/status/2044315118583066738" }
+  ],
+  "website_domain": "x.com",
+  "website_id": "website-x.com"
+}

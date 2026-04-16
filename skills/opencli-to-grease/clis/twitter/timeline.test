@@ -1,0 +1,82 @@
+{
+  "timestamp": "2026-04-16T12:37:28.382Z",
+  "json_file": "./clis/twitter/timeline.json",
+  "command": "Timeline",
+  "website": "x.com",
+  "params": {
+    "limit": 5,
+    "type": "for-you"
+  },
+  "success": false,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "id": "2044315118583066738",
+      "author": "elonmusk",
+      "text": "Congrats to the @Tesla_AI chip design team on taping out AI5!\n\nAI6, Dojo3 &amp; other exciting chips in work. https://t.co/hm54TdIzBx",
+      "likes": 112539,
+      "retweets": 11546,
+      "replies": 6530,
+      "views": 17452058,
+      "created_at": "Wed Apr 15 07:21:20 +0000 2026",
+      "url": "https://x.com/elonmusk/status/2044315118583066738"
+    },
+    {
+      "id": "2044462381997363334",
+      "author": "RohOnChain",
+      "text": "This 2 hour Stanford lecture will teach you more about how LLMs like ChatGPT &amp; Claude are built than most people working at top AI companies learn in their entire careers.\n\nBookmark this &amp; give 2 hours today, no matter what. It'll be the most productive thing you do this week. https://t.co/M40bJuyrFx",
+      "likes": 13134,
+      "retweets": 2217,
+      "replies": 93,
+      "views": 1359600,
+      "created_at": "Wed Apr 15 17:06:30 +0000 2026",
+      "url": "https://x.com/RohOnChain/status/2044462381997363334"
+    },
+    {
+      "id": "2044307061320888579",
+      "author": "yanhua1010",
+      "text": "Claude Code创始人Boris Cherny 讲解Anthropic内部如何使用它（中英双语字幕），建议收藏👇 https://t.co/4RFYsIxUv5",
+      "likes": 843,
+      "retweets": 185,
+      "replies": 14,
+      "views": 55763,
+      "created_at": "Wed Apr 15 06:49:19 +0000 2026",
+      "url": "https://x.com/yanhua1010/status/2044307061320888579"
+    },
+    {
+      "id": "2044541615943852440",
+      "author": "github",
+      "text": "These days you can access AI agents that execute commands, browse the web, and coordinate with other agents. But you should always make sure they're safe to use! 👀\n\nSeason 4 of GitHub's Secure Code Game lets you test your knowledge by hacking one yourself. Get started in minutes right from your browser with GitHub Codespaces (for free!). 👇\nhttps://t.co/YUbCLbipQo",
+      "likes": 318,
+      "retweets": 48,
+      "replies": 29,
+      "views": 37187,
+      "created_at": "Wed Apr 15 22:21:21 +0000 2026",
+      "url": "https://x.com/github/status/2044541615943852440"
+    },
+    {
+      "id": "2044255685031129474",
+      "author": "JiaweiShen2568",
+      "text": "这是我见过最好的Claude Code+Obsidian的教学视频!\n\n花一个小时看完，你将学会用 Obsidian 打造第二大脑——让 AI 记住你所有的想法，帮你挖掘规律、生成创意、落地执行。\n\n这视频里重点是把Claude Code 接到你的本地 Obsidian vault，让它读写 Markdown 笔记、按规则整理知识库。官方的定义是像一个能读代码库、改文件、跑命令、接开发工具的 agentic coding tool。\n\n和open claw有些相似，都是试图让AI帮人类完成自动化的工作流.\n\n不过我认为如果是搭个人知识库 / 第二大脑 / 本地 Markdown 工作流的话Obsidian + Claude Code比openclaw更合适\n\n@qingyue820 😙\n\n其实互联网这种地方的学习资料\n99%的人只会收藏转发或点赞\n收藏就当学了，点了等于干了\n沉下心学习58分钟什么的，除了从业者有丁点可能\n对其他网友而言不存在的",
+      "likes": 1506,
+      "retweets": 310,
+      "replies": 13,
+      "views": 82486,
+      "created_at": "Wed Apr 15 03:25:10 +0000 2026",
+      "url": "https://x.com/JiaweiShen2568/status/2044255685031129474"
+    }
+  ],
+  "comparison": {
+    "grease_count": 5,
+    "opencli_count": 5,
+    "match": false,
+    "differences": [
+      "Item 1 \"likes\": Grease=\"112539\" vs OpenCLI=\"112548\"",
+      "Item 1 \"views\": Grease=\"17452058\" vs OpenCLI=\"17452991\"",
+      "Item 2 \"likes\": Grease=\"13134\" vs OpenCLI=\"13141\"",
+      "Item 2 \"retweets\": Grease=\"2217\" vs OpenCLI=\"2218\"",
+      "Item 2 \"views\": Grease=\"1359600\" vs OpenCLI=\"1360236\"",
+      "Item 3 \"views\": Grease=\"55763\" vs OpenCLI=\"55771\""
+    ]
+  }
+}

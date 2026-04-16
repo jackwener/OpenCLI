@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-04-16T12:36:36.470Z",
+  "json_file": "./clis/twitter/search.json",
+  "command": "Search",
+  "website": "x.com",
+  "params": {
+    "query": "AI",
+    "limit": 5,
+    "filter": "top"
+  },
+  "success": false,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "id": "",
+      "author": "",
+      "text": "",
+      "created_at": "",
+      "likes": 0,
+      "views": "0",
+      "url": "",
+      "error": "HTTP 404"
+    }
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 5,
+    "match": false,
+    "differences": [
+      "Count mismatch: GreaseAI=1, OpenCLI=5",
+      "Item 1 \"likes\": Grease=\"0\" vs OpenCLI=\"41312\"",
+      "Item 1 \"views\": Grease=\"0\" vs OpenCLI=\"5593497\""
+    ]
+  }
+}

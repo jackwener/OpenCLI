@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-04-16T13:58:46.537Z",
+  "json_file": "./clis/twitter/likes.json",
+  "command": "Likes",
+  "website": "x.com",
+  "params": {
+    "username": "elonmusk",
+    "limit": 5
+  },
+  "success": true,
+  "data_count": 0,
+  "sample_data": [],
+  "comparison": {
+    "grease_count": 0,
+    "opencli_count": 0,
+    "match": true,
+    "differences": []
+  }
+}

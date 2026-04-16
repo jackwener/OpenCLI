@@ -1,0 +1,42 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": { "url": "https://x.com", "waitUntil": "load" }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { let tweetId = '{{ tweet_id }}'; const urlMatch = tweetId.match(/\\/status\\/(\\d+)/); if (urlMatch) tweetId = urlMatch[1]; const limit = {{ limit }} || 50; const ct0 = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('ct0='))?.split('=')[1]; if (!ct0) return { error: 'Not logged into x.com (no ct0 cookie)' }; const bearer = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA'; const headers = { 'Authorization': 'Bearer ' + decodeURIComponent(bearer), 'X-Csrf-Token': ct0, 'X-Twitter-Auth-Type': 'OAuth2Session', 'X-Twitter-Active-User': 'yes' }; const features = JSON.stringify({ responsive_web_graphql_exclude_directive_enabled: true, verified_phone_label_enabled: false, creator_subscriptions_tweet_preview_api_enabled: true, responsive_web_graphql_timeline_navigation_enabled: true, responsive_web_graphql_skip_user_profile_image_extensions_enabled: false, longform_notetweets_consumption_enabled: true, longform_notetweets_rich_text_read_enabled: true, longform_notetweets_inline_media_enabled: true, freedom_of_speech_not_reach_fetch_enabled: true }); const fieldToggles = JSON.stringify({ withArticleRichContentState: true, withArticlePlainText: false }); let queryId = 'nBS-WpgA6ZG0CyNHD517JQ'; try { const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json'); if (ghResp.ok) { const data = await ghResp.json(); if (data?.TweetDetail?.queryId) queryId = data.TweetDetail.queryId; } } catch {} const vars = JSON.stringify({ focalTweetId: tweetId, referrer: 'tweet', with_rux_injections: false, includePromotedContent: false, rankingMode: 'Recency', withCommunity: true, withQuickPromoteEligibilityTweetFields: true, withBirdwatchNotes: true, withVoice: true }); const url = '/i/api/graphql/' + queryId + '/TweetDetail?variables=' + encodeURIComponent(vars) + '&features=' + encodeURIComponent(features) + '&fieldToggles=' + encodeURIComponent(fieldToggles); const resp = await fetch(url, { headers, credentials: 'include' }); if (!resp.ok) return { error: 'HTTP ' + resp.status }; const d = await resp.json(); const tweets = []; const seen = new Set(); const instructions = d?.data?.threaded_conversation_with_injections_v2?.instructions || d?.data?.tweetResult?.result?.timeline?.instructions || []; for (const inst of instructions) { for (const entry of inst.entries || []) { const c = entry.content; if (c?.entryType === 'TimelineTimelineCursor' || c?.__typename === 'TimelineTimelineCursor') continue; if (entry.entryId?.startsWith('cursor-bottom-') || entry.entryId?.startsWith('cursor-showMore-')) continue; const tw = c?.itemContent?.tweet_results?.result; if (tw) { const t = tw.tweet || tw; if (!t.rest_id || seen.has(t.rest_id)) continue; seen.add(t.rest_id); const l = t.legacy || {}; const u = t.core?.user_results?.result; const screenName = u?.legacy?.screen_name || u?.core?.screen_name || 'unknown'; const noteText = t.note_tweet?.note_tweet_results?.result?.text; tweets.push({ id: t.rest_id, author: screenName, text: noteText || l.full_text || '', likes: l.favorite_count || 0, retweets: l.retweet_count || 0, in_reply_to: l.in_reply_to_status_id_str || undefined, created_at: l.created_at || '', url: 'https://x.com/' + screenName + '/status/' + t.rest_id }); continue; } for (const item of c?.items || []) { const nested = item.item?.itemContent?.tweet_results?.result; if (nested) { const t = nested.tweet || nested; if (!t.rest_id || seen.has(t.rest_id)) continue; seen.add(t.rest_id); const l = t.legacy || {}; const u = t.core?.user_results?.result; const screenName = u?.legacy?.screen_name || u?.core?.screen_name || 'unknown'; const noteText = t.note_tweet?.note_tweet_results?.result?.text; tweets.push({ id: t.rest_id, author: screenName, text: noteText || l.full_text || '', likes: l.favorite_count || 0, retweets: l.retweet_count || 0, in_reply_to: l.in_reply_to_status_id_str || undefined, created_at: l.created_at || '', url: 'https://x.com/' + screenName + '/status/' + t.rest_id }); } } } } return { tweets: tweets.slice(0, limit) }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { if (intermediate.error) return [{ id: '', author: '', text: '', likes: 0, retweets: 0, in_reply_to: '', created_at: '', url: '', error: intermediate.error }]; return intermediate.tweets || []; }"
+      }
+    }
+  ],
+  "api_endpoint": "twitter-thread",
+  "category": "auth",
+  "description": "Get a tweet thread (original + all replies)",
+  "is_public": true,
+  "method": "GET",
+  "name": "Thread",
+  "output_schema": [
+    { "name": "id", "type": "string", "description": "推文ID" },
+    { "name": "author", "type": "string", "description": "作者" },
+    { "name": "text", "type": "string", "description": "内容" },
+    { "name": "likes", "type": "number", "description": "点赞数" },
+    { "name": "retweets", "type": "number", "description": "转推数" },
+    { "name": "in_reply_to", "type": "string", "description": "回复ID" },
+    { "name": "created_at", "type": "string", "description": "创建时间" },
+    { "name": "url", "type": "string", "description": "链接" }
+  ],
+  "variables": [
+    { "name": "tweet_id", "type": "string", "required": true, "help": "Tweet ID or URL", "test": "2044315118583066738" },
+    { "name": "limit", "type": "int", "default": 50, "help": "Number of tweets", "test": 5 }
+  ],
+  "website_domain": "x.com",
+  "website_id": "website-x.com"
+}

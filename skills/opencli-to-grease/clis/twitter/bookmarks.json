@@ -1,0 +1,41 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": { "url": "https://x.com", "waitUntil": "load" }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 20; const ct0 = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('ct0='))?.split('=')[1]; if (!ct0) return { error: 'Not logged into x.com (no ct0 cookie)' }; const bearer = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA'; const headers = { 'Authorization': 'Bearer ' + decodeURIComponent(bearer), 'X-Csrf-Token': ct0, 'X-Twitter-Auth-Type': 'OAuth2Session', 'X-Twitter-Active-User': 'yes' }; let queryId = 'Fy0QMy4q_aZCpkO0PnyLYw'; try { const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json'); if (ghResp.ok) { const data = await ghResp.json(); if (data?.Bookmarks?.queryId) queryId = data.Bookmarks.queryId; } } catch {} const features = JSON.stringify({ rweb_video_screen_enabled: false, profile_label_improvements_pcf_label_in_post_enabled: true, responsive_web_profile_redirect_enabled: false, rweb_tipjar_consumption_enabled: false, verified_phone_label_enabled: false, creator_subscriptions_tweet_preview_api_enabled: true, responsive_web_graphql_timeline_navigation_enabled: true, responsive_web_graphql_skip_user_profile_image_extensions_enabled: false, premium_content_api_read_enabled: false, communities_web_enable_tweet_community_results_fetch: true, c9s_tweet_anatomy_moderator_badge_enabled: true, articles_preview_enabled: true, responsive_web_edit_tweet_api_enabled: true, graphql_is_translatable_rweb_tweet_is_translatable_enabled: true, view_counts_everywhere_api_enabled: true, longform_notetweets_consumption_enabled: true, responsive_web_twitter_article_tweet_consumption_enabled: true, tweet_awards_web_tipping_enabled: false, content_disclosure_indicator_enabled: true, content_disclosure_ai_generated_indicator_enabled: true, freedom_of_speech_not_reach_fetch_enabled: true, standardized_nudges_misinfo: true, tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled: true, longform_notetweets_rich_text_read_enabled: true, longform_notetweets_inline_media_enabled: false, responsive_web_enhance_cards_enabled: false }); const vars = JSON.stringify({ count: limit, includePromotedContent: false }); const url = '/i/api/graphql/' + queryId + '/Bookmarks?variables=' + encodeURIComponent(vars) + '&features=' + encodeURIComponent(features); const resp = await fetch(url, { headers, credentials: 'include' }); if (!resp.ok) return { error: 'HTTP ' + resp.status }; const d = await resp.json(); const tweets = []; const seen = new Set(); const instructions = d?.data?.bookmark_timeline_v2?.timeline?.instructions || d?.data?.bookmark_timeline?.timeline?.instructions || []; for (const inst of instructions) { for (const entry of inst.entries || []) { const content = entry.content; if (content?.entryType === 'TimelineTimelineCursor' || content?.__typename === 'TimelineTimelineCursor') continue; if (entry.entryId?.startsWith('cursor-bottom-') || entry.entryId?.startsWith('cursor-showMore-')) continue; const result = content?.itemContent?.tweet_results?.result; if (result) { const tw = result.tweet || result; if (!tw.rest_id || seen.has(tw.rest_id)) continue; seen.add(tw.rest_id); const l = tw.legacy || {}; const u = tw.core?.user_results?.result; const screenName = u?.legacy?.screen_name || u?.core?.screen_name || 'unknown'; const displayName = u?.legacy?.name || u?.core?.name || ''; const noteText = tw.note_tweet?.note_tweet_results?.result?.text; tweets.push({ id: tw.rest_id, author: screenName, name: displayName, text: noteText || l.full_text || '', likes: l.favorite_count || 0, retweets: l.retweet_count || 0, created_at: l.created_at || '', url: 'https://x.com/' + screenName + '/status/' + tw.rest_id }); continue; } for (const item of content?.items || []) { const nested = item.item?.itemContent?.tweet_results?.result; if (nested) { const tw = nested.tweet || nested; if (!tw.rest_id || seen.has(tw.rest_id)) continue; seen.add(tw.rest_id); const l = tw.legacy || {}; const u = tw.core?.user_results?.result; const screenName = u?.legacy?.screen_name || u?.core?.screen_name || 'unknown'; const displayName = u?.legacy?.name || u?.core?.name || ''; const noteText = tw.note_tweet?.note_tweet_results?.result?.text; tweets.push({ id: tw.rest_id, author: screenName, name: displayName, text: noteText || l.full_text || '', likes: l.favorite_count || 0, retweets: l.retweet_count || 0, created_at: l.created_at || '', url: 'https://x.com/' + screenName + '/status/' + tw.rest_id }); } } } } return { tweets: tweets.slice(0, limit) }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { if (intermediate.error) return [{ id: '', author: '', name: '', text: '', likes: 0, retweets: 0, created_at: '', url: '', error: intermediate.error }]; return intermediate.tweets || []; }"
+      }
+    }
+  ],
+  "api_endpoint": "twitter-bookmarks",
+  "category": "auth",
+  "description": "Fetch Twitter/X bookmarks",
+  "is_public": true,
+  "method": "GET",
+  "name": "Bookmarks",
+  "output_schema": [
+    { "name": "id", "type": "string", "description": "推文ID" },
+    { "name": "author", "type": "string", "description": "作者" },
+    { "name": "name", "type": "string", "description": "昵称" },
+    { "name": "text", "type": "string", "description": "内容" },
+    { "name": "likes", "type": "number", "description": "点赞数" },
+    { "name": "retweets", "type": "number", "description": "转推数" },
+    { "name": "created_at", "type": "string", "description": "创建时间" },
+    { "name": "url", "type": "string", "description": "链接" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of bookmarks", "test": 5 }
+  ],
+  "website_domain": "x.com",
+  "website_id": "website-x.com"
+}

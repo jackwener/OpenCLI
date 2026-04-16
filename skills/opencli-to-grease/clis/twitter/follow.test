@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-04-16T12:53:16.841Z",
+  "json_file": "./clis/twitter/follow.json",
+  "command": "Follow",
+  "website": "x.com",
+  "params": {
+    "username": "elonmusk"
+  },
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "ok": true,
+      "message": "Successfully followed @elonmusk."
+    }
+  ]
+}

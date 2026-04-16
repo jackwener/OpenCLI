@@ -1,0 +1,34 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": { "url": "https://x.com/compose/tweet", "waitUntil": "load" }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 3 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const text = '{{ text }}'; try { const box = document.querySelector('[data-testid=\"tweetTextarea_0\"]'); if (!box) return { ok: false, message: 'Could not find the tweet composer text area.' }; box.focus(); const dt = new DataTransfer(); dt.setData('text/plain', text); box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); await new Promise(r => setTimeout(r, 1000)); const btn = document.querySelector('[data-testid=\"tweetButton\"]') || document.querySelector('[data-testid=\"tweetButtonInline\"]'); if (btn && !btn.disabled) { btn.click(); await new Promise(r => setTimeout(r, 3000)); return { ok: true, message: 'Tweet posted successfully.' }; } return { ok: false, message: 'Tweet button is disabled or not found.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
+      }
+    }
+  ],
+  "api_endpoint": "twitter-post",
+  "category": "interact",
+  "description": "Post a new tweet",
+  "is_public": true,
+  "method": "POST",
+  "name": "Post",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "状态" },
+    { "name": "message", "type": "string", "description": "消息" },
+    { "name": "text", "type": "string", "description": "内容" }
+  ],
+  "variables": [
+    { "name": "text", "type": "string", "required": true, "help": "The text content of the tweet", "test": "Hello world from GreaseAI!" }
+  ],
+  "website_domain": "x.com",
+  "website_id": "website-x.com"
+}

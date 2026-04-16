@@ -1,0 +1,33 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": { "url": "{{ url }}", "waitUntil": "load" }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 3 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const url = '{{ url }}'; try { let attempts = 0; let likeBtn = null; let unlikeBtn = null; while (attempts < 20) { unlikeBtn = document.querySelector('[data-testid=\"unlike\"]'); likeBtn = document.querySelector('[data-testid=\"like\"]'); if (unlikeBtn || likeBtn) break; await new Promise(r => setTimeout(r, 500)); attempts++; } if (unlikeBtn) return { ok: true, message: 'Tweet is already liked.' }; if (!likeBtn) return { ok: false, message: 'Could not find the Like button. Are you logged in?' }; likeBtn.click(); await new Promise(r => setTimeout(r, 1000)); const verifyBtn = document.querySelector('[data-testid=\"unlike\"]'); if (verifyBtn) return { ok: true, message: 'Tweet successfully liked.' }; return { ok: false, message: 'Like action was initiated but UI did not update.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
+      }
+    }
+  ],
+  "api_endpoint": "twitter-like",
+  "category": "interact",
+  "description": "Like a specific tweet",
+  "is_public": true,
+  "method": "POST",
+  "name": "Like",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "状态" },
+    { "name": "message", "type": "string", "description": "消息" }
+  ],
+  "variables": [
+    { "name": "url", "type": "string", "required": true, "help": "The URL of the tweet to like", "test": "https://x.com/elonmusk/status/2044315118583066738" }
+  ],
+  "website_domain": "x.com",
+  "website_id": "website-x.com"
+}

@@ -1,0 +1,40 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://x.com/explore/tabs/trending",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 20; const ct0 = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('ct0='))?.split('=')[1]; if (!ct0) return { error: 'Not logged into x.com (no ct0 cookie)' }; await new Promise(r => setTimeout(r, 2000)); const items = []; const cells = document.querySelectorAll('[data-testid=\"trend\"]'); cells.forEach((cell) => { if (items.length >= limit) return; const text = cell.textContent || ''; if (text.includes('Promoted')) return; const container = cell.querySelector(':scope > div'); if (!container) return; const divs = container.children; if (divs.length < 2) return; const topic = divs[1].textContent.trim(); if (!topic) return; const catText = divs[0].textContent.trim(); const category = catText.replace(/^\\d+\\s*/, '').replace(/^\\xB7\\s*/, '').trim(); let tweets = 'N/A'; for (let j = 2; j < divs.length; j++) { if (divs[j].matches('[data-testid=\"caret\"]') || divs[j].querySelector('[data-testid=\"caret\"]')) continue; const t = divs[j].textContent.trim(); if (t && /\\d/.test(t)) { tweets = t; break; } } items.push({ rank: items.length + 1, topic, tweets, category }); }); return { results: items }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { if (intermediate.error) return [{ rank: 0, topic: '', tweets: '', category: '', error: intermediate.error }]; return intermediate.results || []; }"
+      }
+    }
+  ],
+  "api_endpoint": "twitter-trending",
+  "category": "auth",
+  "description": "Twitter/X trending topics",
+  "is_public": true,
+  "method": "GET",
+  "name": "Trending",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "topic", "type": "string", "description": "话题" },
+    { "name": "tweets", "type": "string", "description": "帖子数" },
+    { "name": "category", "type": "string", "description": "分类" }
+  ],
+  "variables": [
+    { "name": "limit", "type": "int", "default": 20, "help": "Number of trends to show", "test": 5 }
+  ],
+  "website_domain": "x.com",
+  "website_id": "website-x.com"
+}

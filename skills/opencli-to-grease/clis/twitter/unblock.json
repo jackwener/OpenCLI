@@ -1,0 +1,33 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": { "url": "https://x.com/{{ username }}", "waitUntil": "load" }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 3 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const username = '{{ username }}'.replace(/^@/, ''); try { let attempts = 0; let unblockBtn = null; while (attempts < 20) { unblockBtn = document.querySelector('[data-testid=\"unblock\"]'); if (unblockBtn) break; const moreBtn = document.querySelector('[data-testid=\"userActions\"]') || document.querySelector('button[aria-label*=\"More\"]'); if (moreBtn && !document.querySelector('[data-testid=\"unblock\"]')) { moreBtn.click(); await new Promise(r => setTimeout(r, 500)); } await new Promise(r => setTimeout(r, 500)); attempts++; } const blockBtn = document.querySelector('[data-testid=\"block\"]'); if (blockBtn) return { ok: true, message: 'Already not blocked @' + username + '.' }; if (!unblockBtn) return { ok: false, message: 'Could not find Unblock button. Are you logged in?' }; unblockBtn.click(); await new Promise(r => setTimeout(r, 1500)); const verify = document.querySelector('[data-testid=\"block\"]'); if (verify) return { ok: true, message: 'Successfully unblocked @' + username + '.' }; return { ok: false, message: 'Unblock action initiated but UI did not update.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
+      }
+    }
+  ],
+  "api_endpoint": "twitter-unblock",
+  "category": "interact",
+  "description": "Unblock a Twitter user",
+  "is_public": true,
+  "method": "POST",
+  "name": "Unblock",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "状态" },
+    { "name": "message", "type": "string", "description": "消息" }
+  ],
+  "variables": [
+    { "name": "username", "type": "string", "required": true, "help": "Twitter screen name (without @)", "test": "elonmusk" }
+  ],
+  "website_domain": "x.com",
+  "website_id": "website-x.com"
+}

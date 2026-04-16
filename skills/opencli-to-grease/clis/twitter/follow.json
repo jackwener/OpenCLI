@@ -1,0 +1,33 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": { "url": "https://x.com/{{ username }}", "waitUntil": "load" }
+    },
+    {
+      "action": "wait",
+      "argument": { "time": 3 }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const username = '{{ username }}'.replace(/^@/, ''); try { let attempts = 0; let followBtn = null; let unfollowTestId = null; while (attempts < 20) { unfollowTestId = document.querySelector('[data-testid$=\"-unfollow\"]'); if (unfollowTestId) return { ok: true, message: 'Already following @' + username + '.' }; followBtn = document.querySelector('[data-testid$=\"-follow\"]'); if (followBtn) break; await new Promise(r => setTimeout(r, 500)); attempts++; } if (!followBtn) return { ok: false, message: 'Could not find Follow button. Are you logged in?' }; followBtn.click(); await new Promise(r => setTimeout(r, 1500)); const verify = document.querySelector('[data-testid$=\"-unfollow\"]'); if (verify) return { ok: true, message: 'Successfully followed @' + username + '.' }; return { ok: false, message: 'Follow action initiated but UI did not update.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
+      }
+    }
+  ],
+  "api_endpoint": "twitter-follow",
+  "category": "interact",
+  "description": "Follow a Twitter user",
+  "is_public": true,
+  "method": "POST",
+  "name": "Follow",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "状态" },
+    { "name": "message", "type": "string", "description": "消息" }
+  ],
+  "variables": [
+    { "name": "username", "type": "string", "required": true, "help": "Twitter screen name (without @)", "test": "elonmusk" }
+  ],
+  "website_domain": "x.com",
+  "website_id": "website-x.com"
+}
