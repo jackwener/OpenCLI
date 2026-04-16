@@ -2,16 +2,18 @@
   "actions": [
     {
       "action": "open",
-      "argument": { "url": "https://x.com/compose/tweet", "waitUntil": "load" }
-    },
-    {
-      "action": "wait",
-      "argument": { "time": 3 }
+      "argument": { "url": "https://x.com/compose/post", "waitUntil": "load" }
     },
     {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const text = '{{ text }}'; const submit = {{ submit }}; try { const box = document.querySelector('[data-testid=\"tweetTextarea_0\"]'); if (!box) return { ok: false, message: 'Could not find the tweet composer text area.' }; box.focus(); const dt = new DataTransfer(); dt.setData('text/plain', text); box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); await new Promise(r => setTimeout(r, 1000)); if (!submit) { return { ok: true, message: 'Text entered (not submitted).', text: text, submitted: false }; } const btn = document.querySelector('[data-testid=\"tweetButton\"]') || document.querySelector('[data-testid=\"tweetButtonInline\"]'); if (btn && !btn.disabled) { btn.click(); await new Promise(r => setTimeout(r, 3000)); return { ok: true, message: 'Tweet posted successfully.', text: text, submitted: true }; } return { ok: false, message: 'Tweet button is disabled or not found.', text: text, submitted: false }; } catch (e) { return { ok: false, message: String(e) }; } }"
+        "script": "async (intermediate) => { for (let i = 0; i < 10; i++) { const box = document.querySelector('[data-testid=\"tweetTextarea_0\"]'); if (box) return { ready: true }; await new Promise(r => setTimeout(r, 500)); } return { ready: false }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { if (!intermediate.ready) return { ok: false, message: 'Could not find the tweet composer text area.' }; const text = '{{ text }}'; const submit = {{ submit }}; try { const box = document.querySelector('[data-testid=\"tweetTextarea_0\"]'); box.focus(); const dt = new DataTransfer(); dt.setData('text/plain', text); box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); await new Promise(r => setTimeout(r, 1000)); if (!submit) { return { ok: true, message: 'Text entered (not submitted).', text: text, submitted: false }; } const btn = document.querySelector('[data-testid=\"tweetButton\"]') || document.querySelector('[data-testid=\"tweetButtonInline\"]'); if (btn && !btn.disabled) { btn.click(); await new Promise(r => setTimeout(r, 3000)); return { ok: true, message: 'Tweet posted successfully.', text: text, submitted: true }; } return { ok: false, message: 'Tweet button is disabled or not found.', text: text, submitted: false }; } catch (e) { return { ok: false, message: String(e) }; } }"
       }
     }
   ],

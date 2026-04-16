@@ -5,13 +5,15 @@
       "argument": { "url": "https://x.com/compose/post?in_reply_to={{ tweet_id }}", "waitUntil": "load" }
     },
     {
-      "action": "wait",
-      "argument": { "selector": "[data-testid=\"tweetTextarea_0\"]", "timeout": 15 }
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0); for (let i = 0; i < 10; i++) { const boxes = Array.from(document.querySelectorAll('[data-testid=\"tweetTextarea_0\"]')); const box = boxes.find(visible) || boxes[0]; if (box) return { ready: true }; await new Promise(r => setTimeout(r, 500)); } return { ready: false }; }"
+      }
     },
     {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const text = '{{ text }}'; const submit = {{ submit }}; try { const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0); const boxes = Array.from(document.querySelectorAll('[data-testid=\"tweetTextarea_0\"]')); const box = boxes.find(visible) || boxes[0]; if (!box) return { ok: false, message: 'Could not find the reply text area. Are you logged in?' }; box.focus(); if (!document.execCommand('insertText', false, text)) { const dataTransfer = new DataTransfer(); dataTransfer.setData('text/plain', text); box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dataTransfer, bubbles: true, cancelable: true })); } await new Promise(r => setTimeout(r, 1000)); if (!submit) { return { ok: true, message: 'Reply text entered (not submitted).', text: text, submitted: false }; } const buttons = Array.from(document.querySelectorAll('[data-testid=\"tweetButton\"], [data-testid=\"tweetButtonInline\"]')); const btn = buttons.find((el) => visible(el) && !el.disabled); if (!btn) return { ok: false, message: 'Reply button is disabled or not found.', text: text, submitted: false }; btn.click(); await new Promise(r => setTimeout(r, 3000)); return { ok: true, message: 'Reply posted successfully.', text: text, submitted: true }; } catch (e) { return { ok: false, message: String(e) }; } }"
+        "script": "async (intermediate) => { if (!intermediate.ready) return { ok: false, message: 'Could not find the reply text area. Are you logged in?' }; const text = '{{ text }}'; const submit = {{ submit }}; const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0); try { const boxes = Array.from(document.querySelectorAll('[data-testid=\"tweetTextarea_0\"]')); const box = boxes.find(visible) || boxes[0]; box.focus(); if (!document.execCommand('insertText', false, text)) { const dataTransfer = new DataTransfer(); dataTransfer.setData('text/plain', text); box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dataTransfer, bubbles: true, cancelable: true })); } await new Promise(r => setTimeout(r, 1000)); if (!submit) { return { ok: true, message: 'Reply text entered (not submitted).', text: text, submitted: false }; } const buttons = Array.from(document.querySelectorAll('[data-testid=\"tweetButton\"], [data-testid=\"tweetButtonInline\"]')); const btn = buttons.find((el) => visible(el) && !el.disabled); if (!btn) return { ok: false, message: 'Reply button is disabled or not found.', text: text, submitted: false }; btn.click(); await new Promise(r => setTimeout(r, 3000)); return { ok: true, message: 'Reply posted successfully.', text: text, submitted: true }; } catch (e) { return { ok: false, message: String(e) }; } }"
       }
     }
   ],

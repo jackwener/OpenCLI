@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-16T14:35:54.325Z",
+  "timestamp": "2026-04-16T14:48:50.282Z",
   "json_file": "block.json",
   "command": "Block",
   "website": "x.com",
@@ -11,13 +11,7 @@
   "sample_data": [
     {
       "ok": true,
-      "message": "Already blocking @elonmusk."
+      "message": "Successfully blocked @elonmusk."
     }
-  ],
-  "comparison": {
-    "grease_count": 1,
-    "opencli_count": 1,
-    "match": true,
-    "differences": []
-  }
+  ]
 }

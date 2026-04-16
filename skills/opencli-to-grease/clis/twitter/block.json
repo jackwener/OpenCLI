@@ -5,13 +5,15 @@
       "argument": { "url": "https://x.com/{{ username }}", "waitUntil": "load" }
     },
     {
-      "action": "wait",
-      "argument": { "selector": "[data-testid=\"primaryColumn\"]" }
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { for (let i = 0; i < 10; i++) { const moreBtn = document.querySelector('[data-testid=\"userActions\"]'); const blockedIndicator = document.querySelector('[data-testid$=\"-unblock\"]'); if (moreBtn || blockedIndicator) return { ready: true }; await new Promise(r => setTimeout(r, 500)); } return { ready: false }; }"
+      }
     },
     {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const username = '{{ username }}'.replace(/^@/, ''); try { let attempts = 0; while (attempts < 20) { const blockedIndicator = document.querySelector('[data-testid$=\"-unblock\"]'); if (blockedIndicator) return { ok: true, message: 'Already blocking @' + username + '.' }; const moreBtn = document.querySelector('[data-testid=\"userActions\"]'); if (moreBtn) break; await new Promise(r => setTimeout(r, 500)); attempts++; } const moreBtn = document.querySelector('[data-testid=\"userActions\"]'); if (!moreBtn) return { ok: false, message: 'Could not find user actions menu. Are you logged in?' }; moreBtn.click(); await new Promise(r => setTimeout(r, 1000)); const menuItems = document.querySelectorAll('[role=\"menuitem\"]'); let blockItem = null; for (const item of menuItems) { if (item.textContent && item.textContent.includes('Block')) { blockItem = item; break; } } if (!blockItem) return { ok: false, message: 'Could not find Block option in menu.' }; blockItem.click(); await new Promise(r => setTimeout(r, 1000)); const confirmBtn = document.querySelector('[data-testid=\"confirmationSheetConfirm\"]'); if (confirmBtn) { confirmBtn.click(); await new Promise(r => setTimeout(r, 1500)); } const verify = document.querySelector('[data-testid$=\"-unblock\"]'); if (verify) return { ok: true, message: 'Successfully blocked @' + username + '.' }; return { ok: false, message: 'Block action initiated but UI did not update.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
+        "script": "async (intermediate) => { if (!intermediate.ready) return { ok: false, message: 'Could not find user actions menu. Are you logged in?' }; const username = '{{ username }}'.replace(/^@/, ''); try { const blockedIndicator = document.querySelector('[data-testid$=\"-unblock\"]'); if (blockedIndicator) return { ok: true, message: 'Already blocking @' + username + '.' }; const moreBtn = document.querySelector('[data-testid=\"userActions\"]'); if (!moreBtn) return { ok: false, message: 'Could not find user actions menu. Are you logged in?' }; moreBtn.click(); await new Promise(r => setTimeout(r, 1000)); const menuItems = document.querySelectorAll('[role=\"menuitem\"]'); let blockItem = null; for (const item of menuItems) { if (item.textContent && item.textContent.includes('Block')) { blockItem = item; break; } } if (!blockItem) return { ok: false, message: 'Could not find Block option in menu.' }; blockItem.click(); await new Promise(r => setTimeout(r, 1000)); const confirmBtn = document.querySelector('[data-testid=\"confirmationSheetConfirm\"]'); if (confirmBtn) { confirmBtn.click(); await new Promise(r => setTimeout(r, 1500)); } const verify = document.querySelector('[data-testid$=\"-unblock\"]'); if (verify) return { ok: true, message: 'Successfully blocked @' + username + '.' }; return { ok: false, message: 'Block action initiated but UI did not update.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
       }
     }
   ],
