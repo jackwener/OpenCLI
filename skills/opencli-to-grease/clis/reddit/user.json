@@ -37,7 +37,8 @@
       "name": "username",
       "type": "string",
       "required": true,
-      "help": "Reddit username"
+      "help": "Reddit username",
+      "test": "spez"
     }
   ],
   "website_domain": "reddit.com",

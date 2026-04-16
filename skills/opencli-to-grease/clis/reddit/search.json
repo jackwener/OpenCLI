@@ -62,7 +62,8 @@
       "name": "query",
       "type": "string",
       "required": true,
-      "help": "Search query"
+      "help": "Search query",
+      "test": "AI"
     },
     {
       "name": "subreddit",
@@ -86,7 +87,8 @@
       "name": "limit",
       "type": "int",
       "default": 15,
-      "help": "Number of results"
+      "help": "Number of results",
+      "test": 5
     }
   ],
   "website_domain": "reddit.com",

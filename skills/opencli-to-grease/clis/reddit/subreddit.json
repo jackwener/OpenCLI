@@ -57,7 +57,8 @@
       "name": "name",
       "type": "string",
       "required": true,
-      "help": "Subreddit name"
+      "help": "Subreddit name",
+      "test": "programming"
     },
     {
       "name": "sort",
@@ -75,7 +76,8 @@
       "name": "limit",
       "type": "int",
       "default": 15,
-      "help": "Number of posts"
+      "help": "Number of posts",
+      "test": 5
     }
   ],
   "website_domain": "reddit.com",

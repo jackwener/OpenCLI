@@ -62,7 +62,8 @@
       "name": "limit",
       "type": "int",
       "default": 15,
-      "help": "Number of posts"
+      "help": "Number of posts",
+      "test": 5
     }
   ],
   "website_domain": "reddit.com",

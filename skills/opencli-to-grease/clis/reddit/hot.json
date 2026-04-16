@@ -57,13 +57,15 @@
       "name": "subreddit",
       "type": "string",
       "default": "",
-      "help": "Subreddit name (e.g. programming). Empty for frontpage"
+      "help": "Subreddit name (e.g. programming). Empty for frontpage",
+      "test": "programming"
     },
     {
       "name": "limit",
       "type": "int",
       "default": 20,
-      "help": "Number of posts"
+      "help": "Number of posts",
+      "test": 5
     }
   ],
   "website_domain": "www.reddit.com",

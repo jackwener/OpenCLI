@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-10T13:45:58.734Z",
+  "timestamp": "2026-04-16T04:22:29.787Z",
   "json_file": "./clis/reddit/user.json",
   "command": "User",
   "website": "reddit.com",
@@ -7,16 +7,6 @@
     "username": "spez"
   },
   "success": false,
-  "actions": [
-    {
-      "action": "open",
-      "status": "succeeded"
-    },
-    {
-      "action": "evaluate",
-      "status": "succeeded"
-    }
-  ],
   "data_count": 5,
   "sample_data": [
     {
@@ -25,15 +15,15 @@
     },
     {
       "field": "Post Karma",
-      "value": "182285"
+      "value": "182287"
     },
     {
       "field": "Comment Karma",
-      "value": "754949"
+      "value": "755099"
     },
     {
       "field": "Total Karma",
-      "value": "937234"
+      "value": "937386"
     },
     {
       "field": "Account Created",

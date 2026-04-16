@@ -181,18 +181,17 @@ async function runOpenCliCommand(
   const positionalArgs: string[] = [];
   const optionalArgs: string[] = [];
 
-  const positionalNames = (greaseVariables || [])
-    .filter(v => v.required)
+  // Only truly required variables become positional args
+  const requiredNames = (greaseVariables || [])
+    .filter(v => v.required === true)
     .map(v => v.name);
-
-  const commonPositionalNames = ['query', 'keyword', 'word', 'username', 'name', 'id', 'handle', 'url', 'subreddit', 'tag'];
 
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === null) continue;
-    if (value === '' && !positionalNames.includes(key)) continue;
+    if (value === '' && !requiredNames.includes(key)) continue;
 
-    const isPositional = positionalNames.includes(key) || commonPositionalNames.includes(key);
-    if (isPositional && value !== '') {
+    // Only required params are positional, others are flags
+    if (requiredNames.includes(key) && value !== '') {
       positionalArgs.push(`"${value}"`);
     } else if (key === 'limit') {
       optionalArgs.push(`--limit ${value}`);

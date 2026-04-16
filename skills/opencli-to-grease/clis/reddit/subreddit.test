@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-10T13:40:37.717Z",
+  "timestamp": "2026-04-16T04:23:01.230Z",
   "json_file": "./clis/reddit/subreddit.json",
   "command": "Subreddit",
   "website": "reddit.com",
@@ -10,57 +10,47 @@
     "time": "all"
   },
   "success": false,
-  "actions": [
-    {
-      "action": "open",
-      "status": "succeeded"
-    },
-    {
-      "action": "evaluate",
-      "status": "succeeded"
-    }
-  ],
   "data_count": 5,
   "sample_data": [
     {
       "rank": 1,
       "title": "Announcement: Temporary LLM Content Ban",
       "author": "ChemicalRascal",
-      "upvotes": 2691,
-      "comments": 283,
+      "upvotes": 2713,
+      "comments": 303,
       "url": "https://www.reddit.com/r/programming/comments/1s9jkzi/announcement_temporary_llm_content_ban/"
     },
     {
       "rank": 2,
       "title": "State of the Subreddit (January 2027): Mods applications and rules updates",
       "author": "ketralnis",
-      "upvotes": 129,
-      "comments": 94,
+      "upvotes": 125,
+      "comments": 96,
       "url": "https://www.reddit.com/r/programming/comments/1qoxwdt/state_of_the_subreddit_january_2027_mods/"
     },
     {
       "rank": 3,
-      "title": "The AWS Lambda 'Kiss of Death'",
-      "author": "tkyjonathan",
-      "upvotes": 220,
-      "comments": 39,
-      "url": "https://www.reddit.com/r/programming/comments/1sgzwez/the_aws_lambda_kiss_of_death/"
+      "title": "Direct Win32 API, Weird-Shaped Windows, and Why They Mostly Disappeared",
+      "author": "nccwarp9",
+      "upvotes": 364,
+      "comments": 159,
+      "url": "https://www.reddit.com/r/programming/comments/1sm01ev/direct_win32_api_weirdshaped_windows_and_why_they/"
     },
     {
       "rank": 4,
-      "title": "How NASA Built Artemis II’s Fault-Tolerant Computer",
-      "author": "Successful_Bowl2564",
-      "upvotes": 450,
-      "comments": 76,
-      "url": "https://www.reddit.com/r/programming/comments/1sgnbec/how_nasa_built_artemis_iis_faulttolerant_computer/"
+      "title": "Things you didn't know about (Postgres) indexes",
+      "author": "NotTreeFiddy",
+      "upvotes": 158,
+      "comments": 20,
+      "url": "https://www.reddit.com/r/programming/comments/1sm5d83/things_you_didnt_know_about_postgres_indexes/"
     },
     {
       "rank": 5,
-      "title": "I built a microkernel from scratch in Rust (5-part series: boot, IPC, preemption, virtual memory)",
-      "author": "amitbahree",
-      "upvotes": 41,
-      "comments": 9,
-      "url": "https://www.reddit.com/r/programming/comments/1sh6n4d/i_built_a_microkernel_from_scratch_in_rust_5part/"
+      "title": "JEP 534: Compact Object Headers by Default",
+      "author": "BlueGoliath",
+      "upvotes": 26,
+      "comments": 3,
+      "url": "https://www.reddit.com/r/programming/comments/1smh53x/jep_534_compact_object_headers_by_default/"
     }
   ],
   "comparison": {
@@ -68,8 +58,9 @@
     "opencli_count": 5,
     "match": false,
     "differences": [
-      "Item 1 \"upvotes\": Grease=\"2691\" vs OpenCLI=\"2689\"",
-      "Item 3 \"upvotes\": Grease=\"220\" vs OpenCLI=\"219\""
+      "Item 1 \"upvotes\": Grease=\"2713\" vs OpenCLI=\"2720\"",
+      "Item 2 \"upvotes\": Grease=\"125\" vs OpenCLI=\"130\"",
+      "Item 3 \"upvotes\": Grease=\"364\" vs OpenCLI=\"367\""
     ]
   }
 }

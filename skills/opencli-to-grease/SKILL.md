@@ -462,12 +462,13 @@ npm run test -- ./clis/36kr/hot.json
 
 # 带参数测试 - 参数用等号连接避免空格问题
 npm run test -- ./clis/zhihu/search.json --params='{"query":"AI","limit":5}'
-
-# 禁用对比
-npm run test -- ./clis/bilibili/hot.json --no-compare
 ```
 
 > **重要**: npm 脚本参数传递必须使用 `--` 分隔符，参数格式用 `--params='...'` (等号连接，避免 shell 空格解析问题)
+
+> **注意**: 默认启用 OpenCLI 对比验证结果准确性。**非必要不要使用 `--no-compare`**，仅在以下情况使用：
+> - `clis/local/` 目录下的本地私有命令（OpenCLI 中不存在）
+> - OpenCLI 命令尚未实现或不可用
 
 ### Test Script Options
 
@@ -477,7 +478,7 @@ npm run test -- <json-file> [options]
 Options:
   --cdp <url>       CDP URL (default: http://localhost:9222)
   --params <json>   Parameters as JSON string (支持 --params='...' 或 --params '...')
-  --no-compare      禁用 OpenCLI 对比 (默认启用对比)
+  --no-compare      禁用 OpenCLI 对比 (仅在 local 命令等特殊情况使用)
   --site <name>     手动指定 OpenCLI 命令名 (默认从 domain 自动提取)
 ```
 

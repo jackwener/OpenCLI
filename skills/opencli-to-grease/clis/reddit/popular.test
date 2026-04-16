@@ -1,81 +1,64 @@
 {
-  "timestamp": "2026-04-10T13:17:36.101Z",
+  "timestamp": "2026-04-16T04:22:03.889Z",
   "json_file": "./clis/reddit/popular.json",
   "command": "Popular",
   "website": "reddit.com",
   "params": {
-    "limit": 20
+    "limit": 5
   },
   "success": false,
-  "actions": [
-    {
-      "action": "open",
-      "status": "succeeded"
-    },
-    {
-      "action": "evaluate",
-      "status": "succeeded"
-    }
-  ],
-  "data_count": 20,
+  "data_count": 5,
   "sample_data": [
     {
       "rank": 1,
-      "title": "Ruin",
-      "subreddit": "r/comics",
-      "score": 10260,
-      "comments": 82,
-      "url": "https://www.reddit.com/r/comics/comments/1shj1w0/ruin/"
+      "title": "Pete Hegseth quotes fake Pulp Fiction Bible verse during Pentagon sermon",
+      "subreddit": "r/politics",
+      "score": 17436,
+      "comments": 1031,
+      "url": "https://www.reddit.com/r/politics/comments/1smn6rk/pete_hegseth_quotes_fake_pulp_fiction_bible_verse/"
     },
     {
       "rank": 2,
-      "title": "Trump just dropped a massive, angry tweet attacking everyone who criticized him.",
-      "subreddit": "r/Fauxmoi",
-      "score": 35271,
-      "comments": 7421,
-      "url": "https://www.reddit.com/r/Fauxmoi/comments/1sh51ik/trump_just_dropped_a_massive_angry_tweet/"
+      "title": "What game has a learning curve that puts you off?",
+      "subreddit": "r/pcmasterrace",
+      "score": 12040,
+      "comments": 4086,
+      "url": "https://www.reddit.com/r/pcmasterrace/comments/1smfoda/what_game_has_a_learning_curve_that_puts_you_off/"
     },
     {
       "rank": 3,
-      "title": "Aftermath of the April 7th incident. Damages estimated to be $200 million dollars",
-      "subreddit": "r/interesting",
-      "score": 35148,
-      "comments": 6133,
-      "url": "https://www.reddit.com/r/interesting/comments/1sgx3o1/aftermath_of_the_april_7th_incident_damages/"
+      "title": "Billboard in my very red area",
+      "subreddit": "r/pics",
+      "score": 11228,
+      "comments": 320,
+      "url": "https://www.reddit.com/r/pics/comments/1sms99u/billboard_in_my_very_red_area/"
     },
     {
       "rank": 4,
-      "title": "Aftermath of the April 7th incident. Damages estimated to be $200 million dollars",
-      "subreddit": "r/SipsTea",
-      "score": 18394,
-      "comments": 4271,
-      "url": "https://www.reddit.com/r/SipsTea/comments/1sgx64e/aftermath_of_the_april_7th_incident_damages/"
+      "title": "Israeli settler harasses a woman outside of Hebron",
+      "subreddit": "r/pics",
+      "score": 76772,
+      "comments": 6261,
+      "url": "https://www.reddit.com/r/pics/comments/1smanff/israeli_settler_harasses_a_woman_outside_of_hebron/"
     },
     {
       "rank": 5,
-      "title": "[OC] Got bit by a spider a few days ago",
-      "subreddit": "r/pics",
-      "score": 18239,
-      "comments": 4038,
-      "url": "https://www.reddit.com/r/pics/comments/1shf8zm/oc_got_bit_by_a_spider_a_few_days_ago/"
+      "title": "Zelenskyy: return of draft-age Ukrainian men from abroad is a matter of fairness",
+      "subreddit": "r/worldnews",
+      "score": 18815,
+      "comments": 5725,
+      "url": "https://www.reddit.com/r/worldnews/comments/1sm1l4n/zelenskyy_return_of_draftage_ukrainian_men_from/"
     }
   ],
   "comparison": {
-    "grease_count": 20,
-    "opencli_count": 20,
+    "grease_count": 5,
+    "opencli_count": 5,
     "match": false,
     "differences": [
-      "Item 1 \"score\": Grease=\"10260\" vs OpenCLI=\"10245\"",
-      "Item 2 \"title\": Grease=\"Trump just dropped a massive, angry tweet attackin\" vs OpenCLI=\"Marlon Brando proving he really is The Godfather\"",
-      "Item 2 \"subreddit\": Grease=\"r/Fauxmoi\" vs OpenCLI=\"r/BeAmazed\"",
-      "Item 2 \"score\": Grease=\"35271\" vs OpenCLI=\"6567\"",
-      "Item 2 \"comments\": Grease=\"7421\" vs OpenCLI=\"240\"",
-      "Item 2 \"url\": Grease=\"https://www.reddit.com/r/Fauxmoi/comments/1sh51ik/\" vs OpenCLI=\"https://www.reddit.com/r/BeAmazed/comments/1shkzmn\"",
-      "Item 3 \"title\": Grease=\"Aftermath of the April 7th incident. Damages estim\" vs OpenCLI=\"Just strangers\"",
-      "Item 3 \"subreddit\": Grease=\"r/interesting\" vs OpenCLI=\"r/pics\"",
-      "Item 3 \"score\": Grease=\"35148\" vs OpenCLI=\"23845\"",
-      "Item 3 \"comments\": Grease=\"6133\" vs OpenCLI=\"387\"",
-      "Item 3 \"url\": Grease=\"https://www.reddit.com/r/interesting/comments/1sgx\" vs OpenCLI=\"https://www.reddit.com/r/pics/comments/1shfodg/jus\""
+      "Item 1 \"score\": Grease=\"17436\" vs OpenCLI=\"17438\"",
+      "Item 2 \"score\": Grease=\"12040\" vs OpenCLI=\"12035\"",
+      "Item 3 \"score\": Grease=\"11228\" vs OpenCLI=\"11201\"",
+      "Item 3 \"comments\": Grease=\"320\" vs OpenCLI=\"318\""
     ]
   }
 }

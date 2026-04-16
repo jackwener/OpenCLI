@@ -1,79 +1,69 @@
 {
-  "timestamp": "2026-04-10T13:17:58.978Z",
+  "timestamp": "2026-04-16T04:18:12.813Z",
   "json_file": "./clis/reddit/frontpage.json",
   "command": "Frontpage",
   "website": "reddit.com",
   "params": {
-    "limit": 15
+    "limit": 5
   },
   "success": false,
-  "actions": [
-    {
-      "action": "open",
-      "status": "succeeded"
-    },
-    {
-      "action": "evaluate",
-      "status": "succeeded"
-    }
-  ],
-  "data_count": 15,
+  "data_count": 5,
   "sample_data": [
     {
       "rank": 1,
-      "title": "Ruin",
-      "subreddit": "r/comics",
-      "author": "MrLovens",
-      "upvotes": 10266,
-      "comments": 82,
-      "url": "https://www.reddit.com/r/comics/comments/1shj1w0/ruin/"
+      "title": "Billboard in my very red area",
+      "subreddit": "r/pics",
+      "author": "clumsypeach1",
+      "upvotes": 9942,
+      "comments": 282,
+      "url": "https://www.reddit.com/r/pics/comments/1sms99u/billboard_in_my_very_red_area/"
     },
     {
       "rank": 2,
-      "title": "Marlon Brando proving he really is The Godfather",
-      "subreddit": "r/BeAmazed",
-      "author": "AdvancedJackfruit347",
-      "upvotes": 6597,
-      "comments": 240,
-      "url": "https://www.reddit.com/r/BeAmazed/comments/1shkzmn/marlon_brando_proving_he_really_is_the_godfather/"
+      "title": "Johnny Somali just got 6 months in a South Korean labor prison for doing a lap dance on a monument honoring wartime sexual abuse victims. He traveled the world disrespecting every country he visited for content. South Korea said no, you work here now.",
+      "subreddit": "r/SipsTea",
+      "author": "This_Proof_5153",
+      "upvotes": 28442,
+      "comments": 2615,
+      "url": "https://www.reddit.com/r/SipsTea/comments/1smnt74/johnny_somali_just_got_6_months_in_a_south_korean/"
     },
     {
       "rank": 3,
-      "title": "Just strangers",
-      "subreddit": "r/pics",
-      "author": "Ashtaroo",
-      "upvotes": 23829,
-      "comments": 387,
-      "url": "https://www.reddit.com/r/pics/comments/1shfodg/just_strangers/"
+      "title": "Pete Hegseth quotes fake Pulp Fiction Bible verse during Pentagon sermon",
+      "subreddit": "r/politics",
+      "author": "goteamnick",
+      "upvotes": 17305,
+      "comments": 1024,
+      "url": "https://www.reddit.com/r/politics/comments/1smn6rk/pete_hegseth_quotes_fake_pulp_fiction_bible_verse/"
     },
     {
       "rank": 4,
-      "title": "Wife discovered her hubby is having sex with the minors.",
-      "subreddit": "r/interestingasfuck",
-      "author": "mrwahed",
-      "upvotes": 27691,
-      "comments": 1102,
-      "url": "https://www.reddit.com/r/interestingasfuck/comments/1shftgg/wife_discovered_her_hubby_is_having_sex_with_the/"
+      "title": "Police search you house &amp; you notice dents on your car",
+      "subreddit": "r/interesting",
+      "author": "ZookeepergameIcy6089",
+      "upvotes": 35612,
+      "comments": 1585,
+      "url": "https://www.reddit.com/r/interesting/comments/1smk97x/police_search_you_house_you_notice_dents_on_your/"
     },
     {
       "rank": 5,
-      "title": "Italy expels Muslim leader who defended marriage to 9-year-old girl.",
-      "subreddit": "r/worldnews",
-      "author": "Blue05D",
-      "upvotes": 11833,
-      "comments": 858,
-      "url": "https://www.reddit.com/r/worldnews/comments/1shgxzr/italy_expels_muslim_leader_who_defended_marriage/"
+      "title": "Senate Democratic leader Chuck Schumer (D-Tel Aviv) votes NO on Bernie Sanders’ measures to block arms sales to Israel",
+      "subreddit": "r/WhitePeopleTwitter",
+      "author": "MoreMotivation",
+      "upvotes": 9118,
+      "comments": 343,
+      "url": "https://www.reddit.com/r/WhitePeopleTwitter/comments/1smoe5n/senate_democratic_leader_chuck_schumer_dtel_aviv/"
     }
   ],
   "comparison": {
-    "grease_count": 15,
-    "opencli_count": 15,
+    "grease_count": 5,
+    "opencli_count": 5,
     "match": false,
     "differences": [
-      "Item 1 \"upvotes\": Grease=\"10266\" vs OpenCLI=\"10272\"",
-      "Item 2 \"upvotes\": Grease=\"6597\" vs OpenCLI=\"6634\"",
-      "Item 2 \"comments\": Grease=\"240\" vs OpenCLI=\"241\"",
-      "Item 3 \"upvotes\": Grease=\"23829\" vs OpenCLI=\"23874\""
+      "Item 1 \"upvotes\": Grease=\"9942\" vs OpenCLI=\"9944\"",
+      "Item 2 \"upvotes\": Grease=\"28442\" vs OpenCLI=\"28444\"",
+      "Item 3 \"upvotes\": Grease=\"17305\" vs OpenCLI=\"17319\"",
+      "Item 3 \"comments\": Grease=\"1024\" vs OpenCLI=\"1025\""
     ]
   }
 }
