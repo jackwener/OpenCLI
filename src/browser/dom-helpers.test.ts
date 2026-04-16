@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { autoScrollJs, waitForCaptureJs, waitForSelectorJs } from './dom-helpers.js';
+import { autoScrollJs, clickJs, typeTextJs, waitForCaptureJs, waitForSelectorJs } from './dom-helpers.js';
 
 describe('autoScrollJs', () => {
   it('returns early without error when document.body is null', async () => {
@@ -110,5 +110,93 @@ describe('waitForSelectorJs', () => {
     await expect(eval(code) as Promise<string>).rejects.toThrow('Selector not found: #missing');
     delete g.document;
     delete g.MutationObserver;
+  });
+});
+
+describe('ref-or-selector helpers', () => {
+  it('clickJs falls back to a CSS selector when ref-style lookup would be invalid', () => {
+    const g = globalThis as any;
+    const calls: string[] = [];
+    const clicked: string[] = [];
+    const fakeEl = {
+      scrollIntoView: () => {},
+      getBoundingClientRect: () => ({ left: 10, top: 20, width: 30, height: 40 }),
+      click: () => { clicked.push('clicked'); },
+    };
+    g.document = {
+      querySelector: (selector: string) => {
+        calls.push(selector);
+        if (selector === '[data-opencli-ref="[data-test-id="primary-button"]"]') {
+          throw new SyntaxError('invalid selector');
+        }
+        if (selector === '[data-ref="[data-test-id="primary-button"]"]') {
+          throw new SyntaxError('invalid selector');
+        }
+        if (selector === '[data-test-id="primary-button"]') {
+          return fakeEl;
+        }
+        return null;
+      },
+      querySelectorAll: () => [],
+    };
+
+    const result = eval(clickJs('[data-test-id="primary-button"]')) as { status: string };
+
+    expect(result).toEqual({ status: 'clicked', x: 25, y: 40, w: 30, h: 40 });
+    expect(clicked).toEqual(['clicked']);
+    expect(calls).toContain('[data-test-id="primary-button"]');
+    delete g.document;
+  });
+
+  it('typeTextJs falls back to a CSS selector when ref-style lookup would be invalid', () => {
+    const g = globalThis as any;
+    const calls: string[] = [];
+    let assignedValue = '';
+    class FakeInputElement {
+      value = '';
+      focus() {}
+      dispatchEvent() { return true; }
+    }
+    Object.defineProperty(FakeInputElement.prototype, 'value', {
+      get() {
+        return assignedValue;
+      },
+      set(value: string) {
+        assignedValue = value;
+      },
+      configurable: true,
+    });
+    g.HTMLInputElement = FakeInputElement;
+    g.HTMLTextAreaElement = class {};
+    g.Event = class {
+      constructor(_type: string, _init?: unknown) {}
+    };
+    const fakeInput = new FakeInputElement();
+    g.document = {
+      querySelector: (selector: string) => {
+        calls.push(selector);
+        if (selector === '[data-opencli-ref="[data-test-id="date-input"]"]') {
+          throw new SyntaxError('invalid selector');
+        }
+        if (selector === '[data-ref="[data-test-id="date-input"]"]') {
+          throw new SyntaxError('invalid selector');
+        }
+        if (selector === '[data-test-id="date-input"]') {
+          return fakeInput;
+        }
+        return null;
+      },
+      querySelectorAll: () => [],
+    };
+
+    const result = eval(typeTextJs('[data-test-id="date-input"]', '2026-01-21'));
+
+    expect(result).toBe('typed');
+    expect(assignedValue).toBe('2026-01-21');
+    expect(calls).toContain('[data-test-id="date-input"]');
+    delete g.document;
+    delete g.HTMLInputElement;
+    delete g.HTMLTextAreaElement;
+    delete g.Event;
   });
 });

@@ -9,8 +9,11 @@
 function resolveElementJs(safeRef: string, selectorSet: string): string {
   return `
       const ref = ${safeRef};
-      let el = document.querySelector('[data-opencli-ref="' + ref + '"]');
-      if (!el) el = document.querySelector('[data-ref="' + ref + '"]');
+      let el = null;
+      try { el = document.querySelector('[data-opencli-ref="' + ref + '"]'); } catch {}
+      if (!el) {
+        try { el = document.querySelector('[data-ref="' + ref + '"]'); } catch {}
+      }
       if (!el && ref.match(/^[a-zA-Z#.\\[]/)) {
         try { el = document.querySelector(ref); } catch {}
       }

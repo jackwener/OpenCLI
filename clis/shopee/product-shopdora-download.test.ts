@@ -5,9 +5,9 @@ import type { IPage } from '@jackwener/opencli/types';
 import './product-shopdora-download.js';
 
 const {
+  EXPORT_DIALOG_SELECTOR,
   EXPORT_REVIEW_BUTTON_SELECTOR,
   DETAIL_FILTER_INPUT_SELECTOR,
-  SECONDARY_FILTER_INPUT_SELECTOR,
   TIME_PERIOD_START_INPUT_SELECTOR,
   TIME_PERIOD_START_MONTH_OFFSET,
   TIME_PERIOD_START_DAY_OFFSET,
@@ -16,6 +16,7 @@ const {
   bindShopeeProductTab,
   ensureShopeeProductPage,
   buildEnsureCheckboxStateScript,
+  buildResolveTargetSelectorScript,
   buildReadInputValueScript,
   buildDispatchEnterOnInputScript,
   computeShiftedDateFromInputValue,
@@ -34,7 +35,7 @@ describe('shopee product-shopdora-download adapter', () => {
     expect(command!.domain).toBe('shopee.sg');
     expect(command!.strategy).toBe('cookie');
     expect(command!.navigateBefore).toBe(false);
-    expect(command!.timeoutSeconds).toBe(300);
+    expect(command!.timeoutSeconds).toBe(600);
     expect(command!.columns).toEqual(['status', 'message', 'local_url', 'local_path', 'product_url', 'shopdora_login_message']);
     expect(typeof command!.func).toBe('function');
   });
@@ -53,12 +54,14 @@ describe('shopee product-shopdora-download adapter', () => {
   });
 
   it('builds DOM scripts around the recorded export workflow', () => {
-    expect(buildEnsureCheckboxStateScript(DETAIL_FILTER_INPUT_SELECTOR, true)).toContain(DETAIL_FILTER_INPUT_SELECTOR);
-    expect(buildEnsureCheckboxStateScript(SECONDARY_FILTER_INPUT_SELECTOR, false)).toContain('checkbox_not_found');
-    expect(TIME_PERIOD_START_INPUT_SELECTOR).toContain('.t-range-input__inner-left .t-input__inner');
+    expect(buildEnsureCheckboxStateScript(DETAIL_FILTER_INPUT_SELECTOR, true)).toContain('download-review-images-input');
+    expect(buildResolveTargetSelectorScript('download-review-images-input')).toContain('Download review images');
+    expect(buildResolveTargetSelectorScript('time-period-start-input')).toContain('Time Period');
+    expect(buildResolveTargetSelectorScript('confirm-export-button')).toContain('Download');
+    expect(TIME_PERIOD_START_INPUT_SELECTOR).toContain('time-period-start-input');
     expect(TIME_PERIOD_START_MONTH_OFFSET).toBe(-3);
     expect(TIME_PERIOD_START_DAY_OFFSET).toBe(7);
-    expect(buildReadInputValueScript(TIME_PERIOD_START_INPUT_SELECTOR)).toContain(TIME_PERIOD_START_INPUT_SELECTOR);
+    expect(buildReadInputValueScript(TIME_PERIOD_START_INPUT_SELECTOR)).toContain('time-period-start-input');
     expect(buildDispatchEnterOnInputScript(TIME_PERIOD_START_INPUT_SELECTOR)).toContain("new KeyboardEvent('keydown'");
     expect(buildDispatchEnterOnInputScript(TIME_PERIOD_START_INPUT_SELECTOR)).toContain("new KeyboardEvent('keypress'");
     expect(buildDispatchEnterOnInputScript(TIME_PERIOD_START_INPUT_SELECTOR)).toContain("new KeyboardEvent('keyup'");
@@ -81,9 +84,16 @@ describe('shopee product-shopdora-download adapter', () => {
     const pressKey = vi.fn<NonNullable<IPage['pressKey']>>().mockResolvedValue(undefined);
     const nativeKeyPress = vi.fn<NonNullable<NonNullable<IPage['nativeKeyPress']>>>().mockResolvedValue(undefined);
     const wait = vi.fn<NonNullable<IPage['wait']>>().mockResolvedValue(undefined);
-    const evaluate = vi.fn<NonNullable<IPage['evaluate']>>()
-      .mockResolvedValueOnce({ ok: true, value: '2026-04-14' })
-      .mockResolvedValueOnce({ ok: true });
+    const evaluate = vi.fn<NonNullable<IPage['evaluate']>>().mockImplementation(async (script) => {
+      const source = String(script ?? '');
+      if (source.includes('const target = "time-period-start-input";')) {
+        return { ok: true, selector: TIME_PERIOD_START_INPUT_SELECTOR };
+      }
+      if (source.includes("new KeyboardEvent('keydown'")) {
+        return { ok: true };
+      }
+      return { ok: true, value: '2026-04-14' };
+    });
     const page = { click, typeText, pressKey, nativeKeyPress, wait, evaluate } as unknown as IPage;
 
     await expect(
@@ -91,7 +101,8 @@ describe('shopee product-shopdora-download adapter', () => {
     ).resolves.toBe('2026-01-21');
 
     expect(click).toHaveBeenCalledWith(TIME_PERIOD_START_INPUT_SELECTOR);
-    expect(evaluate).toHaveBeenCalledWith(expect.stringContaining(TIME_PERIOD_START_INPUT_SELECTOR));
+    expect(evaluate).toHaveBeenNthCalledWith(1, expect.stringContaining('const target = "time-period-start-input";'));
+    expect(evaluate).toHaveBeenCalledWith(expect.stringContaining('time-period-start-input'));
     expect(typeText).toHaveBeenCalledWith(TIME_PERIOD_START_INPUT_SELECTOR, '2026-01-21');
     expect(evaluate).toHaveBeenCalledWith(expect.stringContaining("new KeyboardEvent('keydown'"));
     expect(nativeKeyPress).toHaveBeenCalledWith('Enter');
@@ -142,10 +153,25 @@ describe('shopee product-shopdora-download adapter', () => {
       if (source.includes('.shopdoraLoginPage') && source.includes('.pageDetailLoginTitle') && !source.includes('.putButton .common-btn.en_common-btn')) {
         return { hasShopdoraLoginPage: false, hasPageDetailLoginTitle: false };
       }
+      if (source.includes('const target = "export-review-button";')) {
+        return { ok: true, selector: EXPORT_REVIEW_BUTTON_SELECTOR };
+      }
+      if (source.includes('const target = "time-period-start-input";')) {
+        return { ok: true, selector: TIME_PERIOD_START_INPUT_SELECTOR };
+      }
+      if (source.includes('const target = "download-review-images-label";')) {
+        return { ok: true, selector: '[data-opencli-shopee-product-shopdora-download-target="download-review-images-label"]' };
+      }
+      if (source.includes('const target = "download-review-images-input";')) {
+        return { ok: true, selector: DETAIL_FILTER_INPUT_SELECTOR };
+      }
+      if (source.includes('const target = "confirm-export-button";')) {
+        return { ok: true, selector: CONFIRM_EXPORT_BUTTON_SELECTOR };
+      }
       if (source.includes("new KeyboardEvent('keydown'")) {
         return { ok: true };
       }
-      if (source.includes(TIME_PERIOD_START_INPUT_SELECTOR)) {
+      if (source.includes('value: input.value') && source.includes('time-period-start-input')) {
         return { ok: true, value: '2026-04-14' };
       }
       if (source.includes('.putButton .common-btn.en_common-btn')) {
@@ -168,21 +194,21 @@ describe('shopee product-shopdora-download adapter', () => {
       'https://shopee.sg/Jeep-EW121-True-Wireless-Bluetooth-5.4-Earbuds-i.1058254930.25483790400',
       { waitUntil: 'load' },
     );
-    expect(wait).toHaveBeenCalledWith({ selector: EXPORT_REVIEW_BUTTON_SELECTOR, timeout: 15 });
+    expect(wait).toHaveBeenCalledWith({ selector: '.putButton .common-btn.en_common-btn', timeout: 15 });
     expect(click).toHaveBeenCalledWith(EXPORT_REVIEW_BUTTON_SELECTOR);
     expect(click).toHaveBeenCalledWith(TIME_PERIOD_START_INPUT_SELECTOR);
     expect(click).toHaveBeenCalledWith(CONFIRM_EXPORT_BUTTON_SELECTOR);
     expect(typeText).toHaveBeenCalledWith(TIME_PERIOD_START_INPUT_SELECTOR, '2026-01-21');
     expect(pressKey).toHaveBeenCalledWith('Enter');
     expect(scroll).toHaveBeenCalled();
-    expect(evaluate).toHaveBeenCalledWith(expect.stringContaining(EXPORT_REVIEW_BUTTON_SELECTOR));
-    expect(wait).toHaveBeenCalledWith({ selector: TIME_PERIOD_START_INPUT_SELECTOR, timeout: 10 });
-    expect(evaluate).toHaveBeenCalledWith(expect.stringContaining(DETAIL_FILTER_INPUT_SELECTOR));
-    expect(evaluate).toHaveBeenCalledWith(expect.stringContaining(CONFIRM_EXPORT_BUTTON_SELECTOR));
+    expect(evaluate).toHaveBeenCalledWith(expect.stringContaining('export-review-button'));
+    expect(wait).toHaveBeenCalledWith({ selector: EXPORT_DIALOG_SELECTOR, timeout: 10 });
+    expect(evaluate).toHaveBeenCalledWith(expect.stringContaining('download-review-images-input'));
+    expect(evaluate).toHaveBeenCalledWith(expect.stringContaining('confirm-export-button'));
     expect(evaluate).toHaveBeenCalledWith(expect.stringContaining('.putButton .common-btn.en_common-btn'));
     expect(waitForDownload).toHaveBeenCalledWith({
       startedAfterMs: expect.any(Number),
-      timeoutMs: 300000,
+      timeoutMs: 600000,
     });
     expect(result).toEqual([{
       status: 'success',
@@ -197,16 +223,7 @@ describe('shopee product-shopdora-download adapter', () => {
   it('skips the detail filter when it is unavailable and continues downloading', async () => {
     const downloadedFile = '/tmp/opencli-shopee-product-shopdora-download-test/reviews-no-detail.csv';
     const goto = vi.fn<NonNullable<IPage['goto']>>().mockResolvedValue(undefined);
-    const wait = vi.fn<NonNullable<IPage['wait']>>().mockImplementation(async (options) => {
-      if (
-        typeof options === 'object'
-        && options !== null
-        && 'selector' in options
-        && options.selector === DETAIL_FILTER_INPUT_SELECTOR
-      ) {
-        throw new Error('Selector not found');
-      }
-    });
+    const wait = vi.fn<NonNullable<IPage['wait']>>().mockResolvedValue(undefined);
     const click = vi.fn<NonNullable<IPage['click']>>().mockResolvedValue(undefined);
     const typeText = vi.fn<NonNullable<IPage['typeText']>>().mockResolvedValue(undefined);
     const pressKey = vi.fn<NonNullable<IPage['pressKey']>>().mockResolvedValue(undefined);
@@ -216,10 +233,22 @@ describe('shopee product-shopdora-download adapter', () => {
       if (source.includes('.shopdoraLoginPage') && source.includes('.pageDetailLoginTitle') && !source.includes('.putButton .common-btn.en_common-btn')) {
         return { hasShopdoraLoginPage: false, hasPageDetailLoginTitle: false };
       }
+      if (source.includes('const target = "export-review-button";')) {
+        return { ok: true, selector: EXPORT_REVIEW_BUTTON_SELECTOR };
+      }
+      if (source.includes('const target = "time-period-start-input";')) {
+        return { ok: true, selector: TIME_PERIOD_START_INPUT_SELECTOR };
+      }
+      if (source.includes('const target = "download-review-images-label";') || source.includes('const target = "download-review-images-input";')) {
+        return { ok: false, error: 'target_not_found' };
+      }
+      if (source.includes('const target = "confirm-export-button";')) {
+        return { ok: true, selector: CONFIRM_EXPORT_BUTTON_SELECTOR };
+      }
       if (source.includes("new KeyboardEvent('keydown'")) {
         return { ok: true };
       }
-      if (source.includes(TIME_PERIOD_START_INPUT_SELECTOR)) {
+      if (source.includes('value: input.value') && source.includes('time-period-start-input')) {
         return { ok: true, value: '2026-04-14' };
       }
       if (source.includes('.putButton .common-btn.en_common-btn')) {
@@ -239,7 +268,7 @@ describe('shopee product-shopdora-download adapter', () => {
     expect(click).toHaveBeenCalledWith(CONFIRM_EXPORT_BUTTON_SELECTOR);
     expect(waitForDownload).toHaveBeenCalledWith({
       startedAfterMs: expect.any(Number),
-      timeoutMs: 300000,
+      timeoutMs: 600000,
     });
     expect(result).toEqual([{
       status: 'success',
@@ -264,10 +293,25 @@ describe('shopee product-shopdora-download adapter', () => {
       if (source.includes('.shopdoraLoginPage') && source.includes('.pageDetailLoginTitle') && !source.includes('.putButton .common-btn.en_common-btn')) {
         return { hasShopdoraLoginPage: false, hasPageDetailLoginTitle: true };
       }
+      if (source.includes('const target = "export-review-button";')) {
+        return { ok: true, selector: EXPORT_REVIEW_BUTTON_SELECTOR };
+      }
+      if (source.includes('const target = "time-period-start-input";')) {
+        return { ok: true, selector: TIME_PERIOD_START_INPUT_SELECTOR };
+      }
+      if (source.includes('const target = "download-review-images-label";')) {
+        return { ok: true, selector: '[data-opencli-shopee-product-shopdora-download-target="download-review-images-label"]' };
+      }
+      if (source.includes('const target = "download-review-images-input";')) {
+        return { ok: true, selector: DETAIL_FILTER_INPUT_SELECTOR };
+      }
+      if (source.includes('const target = "confirm-export-button";')) {
+        return { ok: true, selector: CONFIRM_EXPORT_BUTTON_SELECTOR };
+      }
       if (source.includes("new KeyboardEvent('keydown'")) {
         return { ok: true };
       }
-      if (source.includes(TIME_PERIOD_START_INPUT_SELECTOR)) {
+      if (source.includes('value: input.value') && source.includes('time-period-start-input')) {
         return { ok: true, value: '2026-04-14' };
       }
       if (source.includes('.putButton .common-btn.en_common-btn')) {
@@ -309,6 +353,9 @@ describe('shopee product-shopdora-download adapter', () => {
           ? { hasShopdoraLoginPage: false, hasPageDetailLoginTitle: false }
           : { hasShopdoraLoginPage: true, hasPageDetailLoginTitle: false };
       }
+      if (source.includes('const target = "export-review-button";')) {
+        return { ok: true, selector: EXPORT_REVIEW_BUTTON_SELECTOR };
+      }
       return { ok: true };
     });
     const waitForDownload = vi.fn<NonNullable<NonNullable<IPage['waitForDownload']>>>()
@@ -326,7 +373,7 @@ describe('shopee product-shopdora-download adapter', () => {
       shopdora_login_message: 'Shopdora 未登录',
     }]);
 
-    expect(wait).not.toHaveBeenCalledWith({ selector: TIME_PERIOD_START_INPUT_SELECTOR, timeout: 10 });
+    expect(wait).not.toHaveBeenCalledWith({ selector: EXPORT_DIALOG_SELECTOR, timeout: 10 });
     expect(typeText).not.toHaveBeenCalled();
     expect(waitForDownload).not.toHaveBeenCalled();
   });

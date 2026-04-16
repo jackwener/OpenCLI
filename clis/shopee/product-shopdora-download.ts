@@ -15,22 +15,25 @@ import {
   waitRandomDuration,
 } from './shared.js';
 
+const RESOLVED_TARGET_ATTRIBUTE = 'data-opencli-shopee-product-shopdora-download-target';
+const EXPORT_DIALOG_SELECTOR = '.t-dialog__body .review';
+const EXPORT_REVIEW_BUTTON_TEXT = 'Export Review';
+const REVIEW_IMAGES_CHECKBOX_LABEL_TEXT = 'Download review images';
+const TIME_PERIOD_TITLE_TEXT = 'Time Period';
+const CONFIRM_EXPORT_BUTTON_TEXT = 'Download';
+
 const EXPORT_REVIEW_BUTTON_SELECTOR =
-  'div > div:nth-of-type(1) > div:nth-of-type(2) > div > div.common-btn.en_common-btn';
+  `[${RESOLVED_TARGET_ATTRIBUTE}="export-review-button"]`;
 const DETAIL_FILTER_LABEL_SELECTOR =
-  'div > div:nth-of-type(4) > div:nth-of-type(2) > label > span.t-checkbox__input:nth-of-type(1)';
+  `[${RESOLVED_TARGET_ATTRIBUTE}="download-review-images-label"]`;
 const DETAIL_FILTER_INPUT_SELECTOR =
-  'div > div:nth-of-type(4) > div:nth-of-type(2) > label > input.t-checkbox__former';
-const SECONDARY_FILTER_LABEL_SELECTOR =
-  'div:nth-of-type(1) > div:nth-of-type(2) > span:nth-of-type(2) > label > span.t-checkbox__input:nth-of-type(1)';
-const SECONDARY_FILTER_INPUT_SELECTOR =
-  'div:nth-of-type(1) > div:nth-of-type(2) > span:nth-of-type(2) > label > input.t-checkbox__former';
+  `[${RESOLVED_TARGET_ATTRIBUTE}="download-review-images-input"]`;
 const TIME_PERIOD_START_INPUT_SELECTOR =
-  '.review .t-range-input__inner .t-range-input__inner-left .t-input__inner';
+  `[${RESOLVED_TARGET_ATTRIBUTE}="time-period-start-input"]`;
 const TIME_PERIOD_START_MONTH_OFFSET = -3;
 const TIME_PERIOD_START_DAY_OFFSET = 7;
 const CONFIRM_EXPORT_BUTTON_SELECTOR =
-  '.review .button button:last-of-type';
+  `[${RESOLVED_TARGET_ATTRIBUTE}="confirm-export-button"]`;
 
 const SHOPEE_WORKSPACE = 'site:shopee';
 const EXPORT_DOWNLOAD_TIMEOUT_SECONDS = 600;
@@ -89,6 +92,99 @@ function buildEnsureCheckboxStateScript(selector: string, checked: boolean): str
       };
     })()
   `;
+}
+
+function buildResolveTargetSelectorScript(target: 'export-review-button' | 'download-review-images-label' | 'download-review-images-input' | 'time-period-start-input' | 'confirm-export-button'): string {
+  return `
+    (() => {
+      const target = ${JSON.stringify(target)};
+      const attr = ${JSON.stringify(RESOLVED_TARGET_ATTRIBUTE)};
+      const normalizeText = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+      const mark = (name, element) => {
+        if (!(element instanceof HTMLElement)) return { ok: false, error: 'target_not_found' };
+        element.setAttribute(attr, name);
+        return { ok: true, selector: '[' + attr + '="' + name + '"]' };
+      };
+      const findCheckboxLabel = (labelText) => {
+        const root = findDialogRoot() || document;
+        const wanted = normalizeText(labelText);
+        const labels = Array.from(root.querySelectorAll('label.t-checkbox'));
+        return labels.find((label) => {
+          const text = normalizeText(label.querySelector('.t-checkbox__label')?.textContent || label.textContent || '');
+          return text === wanted;
+        }) || null;
+      };
+      const findDialogRoot = () => {
+        const roots = Array.from(document.querySelectorAll(${JSON.stringify(EXPORT_DIALOG_SELECTOR)}));
+        if (roots.length === 1) return roots[0];
+        return roots.find((root) => normalizeText(root.textContent).includes(${JSON.stringify(TIME_PERIOD_TITLE_TEXT)})) || null;
+      };
+      const findReviewBlockByTitle = (titleText) => {
+        const root = findDialogRoot();
+        if (!(root instanceof HTMLElement)) return null;
+        const wanted = normalizeText(titleText);
+        const rows = Array.from(root.querySelectorAll('.reviewText'));
+        return rows.find((row) => {
+          const title = normalizeText(row.querySelector('.reviewTitle')?.textContent || '');
+          return title.startsWith(wanted);
+        }) || null;
+      };
+      const findButtonByText = (scope, text) => {
+        if (!(scope instanceof HTMLElement) && scope !== document) return null;
+        const wanted = normalizeText(text);
+        const buttons = Array.from(scope.querySelectorAll('button, .common-btn.en_common-btn, [role="button"]'));
+        return buttons.find((element) => normalizeText(element.textContent).includes(wanted)) || null;
+      };
+
+      if (target === 'export-review-button') {
+        const button = findButtonByText(document, ${JSON.stringify(EXPORT_REVIEW_BUTTON_TEXT)});
+        return mark(target, button);
+      }
+
+      if (target === 'download-review-images-label') {
+        const label = findCheckboxLabel(${JSON.stringify(REVIEW_IMAGES_CHECKBOX_LABEL_TEXT)});
+        return mark(target, label);
+      }
+
+      if (target === 'download-review-images-input') {
+        const label = findCheckboxLabel(${JSON.stringify(REVIEW_IMAGES_CHECKBOX_LABEL_TEXT)});
+        const input = label?.querySelector('input.t-checkbox__former') || null;
+        return mark(target, input);
+      }
+
+      if (target === 'time-period-start-input') {
+        const row = findReviewBlockByTitle(${JSON.stringify(TIME_PERIOD_TITLE_TEXT)});
+        const input = row?.querySelector('.t-range-input__inner-left input.t-input__inner') || null;
+        return mark(target, input);
+      }
+
+      if (target === 'confirm-export-button') {
+        const root = findDialogRoot();
+        const button = findButtonByText(root || document, ${JSON.stringify(CONFIRM_EXPORT_BUTTON_TEXT)});
+        return mark(target, button);
+      }
+
+      return { ok: false, error: 'unknown_target' };
+    })()
+  `;
+}
+
+async function resolveTargetSelector(
+  page: IPage,
+  target: 'export-review-button' | 'download-review-images-label' | 'download-review-images-input' | 'time-period-start-input' | 'confirm-export-button',
+  label: string,
+): Promise<string> {
+  const result = await page.evaluate(buildResolveTargetSelectorScript(target));
+  if (
+    !result
+    || typeof result !== 'object'
+    || !(result as { ok?: boolean; selector?: string }).ok
+    || typeof (result as { selector?: string }).selector !== 'string'
+  ) {
+    throw new CommandExecutionError(`Shopee product-shopdora-download could not resolve ${label}`);
+  }
+
+  return (result as { selector: string }).selector;
 }
 
 async function bindShopeeProductTab(
@@ -293,10 +389,11 @@ function computeShiftedDateFromInputValue(
 }
 
 async function setComputedTimePeriodStartValue(page: IPage): Promise<string> {
-  await clickSelector(page, TIME_PERIOD_START_INPUT_SELECTOR, 'time-period start input');
+  const inputSelector = await resolveTargetSelector(page, 'time-period-start-input', 'time-period start input');
+  await clickSelector(page, inputSelector, 'time-period start input');
   await waitRandomDuration(page, [300, 900]);
 
-  const inputState = await page.evaluate(buildReadInputValueScript(TIME_PERIOD_START_INPUT_SELECTOR));
+  const inputState = await page.evaluate(buildReadInputValueScript(inputSelector));
   if (!inputState || typeof inputState !== 'object' || !(inputState as { ok?: boolean }).ok) {
     throw new CommandExecutionError('Shopee product-shopdora-download could not read the time-period start date');
   }
@@ -304,7 +401,7 @@ async function setComputedTimePeriodStartValue(page: IPage): Promise<string> {
   const nextValue = computeShiftedDateFromInputValue(String((inputState as { value?: unknown }).value ?? ''));
 
   try {
-    await page.typeText(TIME_PERIOD_START_INPUT_SELECTOR, nextValue);
+    await page.typeText(inputSelector, nextValue);
   } catch (error) {
     throw new CommandExecutionError(
       'Shopee product-shopdora-download could not set the time-period start date',
@@ -314,7 +411,7 @@ async function setComputedTimePeriodStartValue(page: IPage): Promise<string> {
 
   await waitRandomDuration(page, [200, 700]);
 
-  const enterDispatchResult = await page.evaluate(buildDispatchEnterOnInputScript(TIME_PERIOD_START_INPUT_SELECTOR));
+  const enterDispatchResult = await page.evaluate(buildDispatchEnterOnInputScript(inputSelector));
   if (!enterDispatchResult || typeof enterDispatchResult !== 'object' || !(enterDispatchResult as { ok?: boolean }).ok) {
     throw new CommandExecutionError('Shopee product-shopdora-download could not trigger Enter on the time-period start date');
   }
@@ -348,14 +445,15 @@ async function clickSelector(page: IPage, selector: string, label: string): Prom
 
 async function applyCheckboxStep(
   page: IPage,
-  labelSelector: string,
-  inputSelector: string,
   checked: boolean,
   label: string,
   opts: { allowMissing?: boolean } = {},
 ): Promise<boolean> {
+  let labelSelector: string;
+  let inputSelector: string;
   try {
-    await page.wait({ selector: inputSelector, timeout: 10 });
+    labelSelector = await resolveTargetSelector(page, 'download-review-images-label', `${label} label`);
+    inputSelector = await resolveTargetSelector(page, 'download-review-images-input', label);
   } catch (error) {
     if (opts.allowMissing) {
       return false;
@@ -410,16 +508,17 @@ cli({
 
     await ensureShopeeProductPage(page, productUrl);
     const initialShopdoraLoginState = await readShopdoraLoginState(page);
-    await page.wait({ selector: EXPORT_REVIEW_BUTTON_SELECTOR, timeout: 15 });
+    await page.wait({ selector: '.putButton .common-btn.en_common-btn', timeout: 15 });
+    const exportReviewButtonSelector = await resolveTargetSelector(page, 'export-review-button', 'Export Review button');
     await simulateHumanBehavior(page, {
-      selector: EXPORT_REVIEW_BUTTON_SELECTOR,
+      selector: exportReviewButtonSelector,
       scrollRangePx: [60, 180],
       preWaitRangeMs: [500, 1200],
       postWaitRangeMs: [300, 800],
       allowReverseScroll: false,
     });
     await waitRandomDuration(page, [3000, 5000]);
-    await clickSelector(page, EXPORT_REVIEW_BUTTON_SELECTOR, 'Export Review');
+    await clickSelector(page, exportReviewButtonSelector, 'Export Review');
     await waitRandomDuration(page, [2000, 6000]);
 
     const postExportShopdoraLoginState = await readShopdoraLoginState(page);
@@ -436,9 +535,10 @@ cli({
     const shopdoraLoginMessage =
       postExportShopdoraLoginState.loginMessage || initialShopdoraLoginState.loginMessage;
 
-    await page.wait({ selector: TIME_PERIOD_START_INPUT_SELECTOR, timeout: 10 });
+    await page.wait({ selector: EXPORT_DIALOG_SELECTOR, timeout: 10 });
+    const timePeriodStartInputSelector = await resolveTargetSelector(page, 'time-period-start-input', 'time-period start input');
     await simulateHumanBehavior(page, {
-      selector: TIME_PERIOD_START_INPUT_SELECTOR,
+      selector: timePeriodStartInputSelector,
       scrollRangePx: [20, 80],
       preWaitRangeMs: [250, 600],
       postWaitRangeMs: [150, 400],
@@ -448,22 +548,20 @@ cli({
 
     const appliedDetailFilter = await applyCheckboxStep(
       page,
-      DETAIL_FILTER_LABEL_SELECTOR,
-      DETAIL_FILTER_INPUT_SELECTOR,
       true,
       'detail filter',
       { allowMissing: true },
     );
 
-    await page.wait({ selector: CONFIRM_EXPORT_BUTTON_SELECTOR, timeout: 10 });
+    const confirmExportButtonSelector = await resolveTargetSelector(page, 'confirm-export-button', 'export confirm button');
     await simulateHumanBehavior(page, {
-      selector: CONFIRM_EXPORT_BUTTON_SELECTOR,
+      selector: confirmExportButtonSelector,
       scrollRangePx: [20, 100],
       preWaitRangeMs: [250, 700],
       postWaitRangeMs: [200, 500],
     });
     const downloadStartedAtMs = Date.now();
-    await clickSelector(page, CONFIRM_EXPORT_BUTTON_SELECTOR, 'export confirm button');
+    await clickSelector(page, confirmExportButtonSelector, 'export confirm button');
     await waitForExportReviewReady(page);
 
     const download = await page.waitForDownload({
@@ -492,11 +590,10 @@ cli({
 });
 
 export const __test__ = {
+  EXPORT_DIALOG_SELECTOR,
   EXPORT_REVIEW_BUTTON_SELECTOR,
   DETAIL_FILTER_LABEL_SELECTOR,
   DETAIL_FILTER_INPUT_SELECTOR,
-  SECONDARY_FILTER_LABEL_SELECTOR,
-  SECONDARY_FILTER_INPUT_SELECTOR,
   TIME_PERIOD_START_INPUT_SELECTOR,
   TIME_PERIOD_START_MONTH_OFFSET,
   TIME_PERIOD_START_DAY_OFFSET,
@@ -505,6 +602,7 @@ export const __test__ = {
   bindShopeeProductTab,
   ensureShopeeProductPage,
   buildEnsureCheckboxStateScript,
+  buildResolveTargetSelectorScript,
   buildReadInputValueScript,
   buildDispatchEnterOnInputScript,
   computeShiftedDateFromInputValue,
