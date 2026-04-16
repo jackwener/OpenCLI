@@ -36,8 +36,11 @@ import {
   type DebugTaskResult,
 } from 'grease-driver-layer/driver-layer';
 
-// Load .env file
-config();
+// Load .env file from script directory
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+config({ path: resolve(__dirname, '.env') });
 
 const execAsync = promisify(exec);
 
