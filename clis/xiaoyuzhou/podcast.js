@@ -1,18 +1,23 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { fetchPageProps, formatDate } from './utils.js';
+import { loadXiaoyuzhouCredentials, requestXiaoyuzhouJson } from './auth.js';
+import { formatDate } from './utils.js';
 cli({
     site: 'xiaoyuzhou',
     name: 'podcast',
     description: 'View a Xiaoyuzhou podcast profile',
     domain: 'www.xiaoyuzhoufm.com',
-    strategy: Strategy.PUBLIC,
+    strategy: Strategy.LOCAL,
     browser: false,
     args: [{ name: 'id', positional: true, required: true, help: 'Podcast ID (from xiaoyuzhoufm.com URL)' }],
     columns: ['title', 'author', 'description', 'subscribers', 'episodes', 'updated'],
     func: async (_page, args) => {
-        const pageProps = await fetchPageProps(`/podcast/${args.id}`);
-        const p = pageProps.podcast;
+        const credentials = loadXiaoyuzhouCredentials();
+        const response = await requestXiaoyuzhouJson('/v1/podcast/get', {
+            query: { pid: args.id },
+            credentials,
+        });
+        const p = response.data;
         if (!p)
             throw new CliError('NOT_FOUND', 'Podcast not found', 'Please check the ID');
         return [{

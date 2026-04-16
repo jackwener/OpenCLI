@@ -4,14 +4,14 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
 import { httpDownload, sanitizeFilename } from '@jackwener/opencli/download';
 import { formatBytes } from '@jackwener/opencli/download/progress';
-import { fetchPageProps } from './utils.js';
+import { loadXiaoyuzhouCredentials, requestXiaoyuzhouJson } from './auth.js';
 
 cli({
     site: 'xiaoyuzhou',
     name: 'download',
     description: 'Download Xiaoyuzhou episode audio',
     domain: 'www.xiaoyuzhoufm.com',
-    strategy: Strategy.PUBLIC,
+    strategy: Strategy.LOCAL,
     browser: false,
     args: [
         { name: 'id', positional: true, required: true, help: 'Episode ID (eid from podcast-episodes output)' },
@@ -19,8 +19,12 @@ cli({
     ],
     columns: ['title', 'podcast', 'status', 'size', 'file'],
     func: async (_page, args) => {
-        const pageProps = await fetchPageProps(`/episode/${args.id}`);
-        const ep = pageProps.episode;
+        const credentials = loadXiaoyuzhouCredentials();
+        const response = await requestXiaoyuzhouJson('/v1/episode/get', {
+            query: { eid: args.id },
+            credentials,
+        });
+        const ep = response.data;
         if (!ep) {
             throw new CliError('NOT_FOUND', 'Episode not found', 'Please check the ID');
         }

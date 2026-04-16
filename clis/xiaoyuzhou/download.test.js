@@ -2,17 +2,19 @@ import path from 'node:path';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 
-const { mockFetchPageProps, mockHttpDownload, mockMkdirSync } = vi.hoisted(() => ({
-    mockFetchPageProps: vi.fn(),
+const { mockRequestJson, mockLoadCredentials, mockHttpDownload, mockMkdirSync } = vi.hoisted(() => ({
+    mockRequestJson: vi.fn(),
+    mockLoadCredentials: vi.fn(),
     mockHttpDownload: vi.fn(),
     mockMkdirSync: vi.fn(),
 }));
 
-vi.mock('./utils.js', async () => {
-    const actual = await vi.importActual('./utils.js');
+vi.mock('./auth.js', async () => {
+    const actual = await vi.importActual('./auth.js');
     return {
         ...actual,
-        fetchPageProps: mockFetchPageProps,
+        requestXiaoyuzhouJson: mockRequestJson,
+        loadXiaoyuzhouCredentials: mockLoadCredentials,
     };
 });
 
@@ -44,14 +46,17 @@ beforeAll(() => {
 
 describe('xiaoyuzhou download', () => {
     beforeEach(() => {
-        mockFetchPageProps.mockReset();
+        mockRequestJson.mockReset();
+        mockLoadCredentials.mockReset();
         mockHttpDownload.mockReset();
         mockMkdirSync.mockReset();
+        mockLoadCredentials.mockReturnValue({});
     });
 
     it('downloads audio from media.source.url into an episode subdirectory', async () => {
-        mockFetchPageProps.mockResolvedValue({
-            episode: {
+        mockRequestJson.mockResolvedValue({
+            credentials: {},
+            data: {
                 title: 'Hello World',
                 podcast: { title: 'OpenCLI FM' },
                 media: {
@@ -68,7 +73,10 @@ describe('xiaoyuzhou download', () => {
             output: '/tmp/xiaoyuzhou-test',
         });
 
-        expect(mockFetchPageProps).toHaveBeenCalledWith('/episode/ep123');
+        expect(mockRequestJson).toHaveBeenCalledWith('/v1/episode/get', {
+            query: { eid: 'ep123' },
+            credentials: {},
+        });
         expect(toPosixPath(mockMkdirSync.mock.calls[0][0])).toBe('/tmp/xiaoyuzhou-test/ep123');
         expect(mockMkdirSync.mock.calls[0][1]).toEqual({ recursive: true });
         expect(mockHttpDownload).toHaveBeenCalledWith('https://media.xyzcdn.net/audio/hello-world.mp3?sign=abc', expect.stringContaining('/tmp/xiaoyuzhou-test/ep123/ep123_Hello_World.mp3'), {
@@ -84,8 +92,9 @@ describe('xiaoyuzhou download', () => {
     });
 
     it('preserves non-mp3 extensions from media.source.url', async () => {
-        mockFetchPageProps.mockResolvedValue({
-            episode: {
+        mockRequestJson.mockResolvedValue({
+            credentials: {},
+            data: {
                 title: 'Lossless Episode',
                 podcast: { title: 'OpenCLI FM' },
                 media: {
@@ -107,8 +116,9 @@ describe('xiaoyuzhou download', () => {
     });
 
     it('throws when media.source.url is missing', async () => {
-        mockFetchPageProps.mockResolvedValue({
-            episode: {
+        mockRequestJson.mockResolvedValue({
+            credentials: {},
+            data: {
                 title: 'No Audio',
                 podcast: { title: 'OpenCLI FM' },
                 media: {},
