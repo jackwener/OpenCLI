@@ -6,12 +6,12 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 3 }
+      "argument": { "selector": "[data-testid=\"tweetTextarea_0\"]", "timeout": 15 }
     },
     {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const text = '{{ text }}'; try { const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0); const boxes = Array.from(document.querySelectorAll('[data-testid=\"tweetTextarea_0\"]')); const box = boxes.find(visible) || boxes[0]; if (!box) return { ok: false, message: 'Could not find the reply text area. Are you logged in?' }; box.focus(); if (!document.execCommand('insertText', false, text)) { const dataTransfer = new DataTransfer(); dataTransfer.setData('text/plain', text); box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dataTransfer, bubbles: true, cancelable: true })); } await new Promise(r => setTimeout(r, 1000)); const buttons = Array.from(document.querySelectorAll('[data-testid=\"tweetButton\"], [data-testid=\"tweetButtonInline\"]')); const btn = buttons.find((el) => visible(el) && !el.disabled); if (!btn) return { ok: false, message: 'Reply button is disabled or not found.' }; btn.click(); await new Promise(r => setTimeout(r, 3000)); return { ok: true, message: 'Reply posted successfully.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
+        "script": "async (intermediate) => { const text = '{{ text }}'; const submit = {{ submit }}; try { const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0); const boxes = Array.from(document.querySelectorAll('[data-testid=\"tweetTextarea_0\"]')); const box = boxes.find(visible) || boxes[0]; if (!box) return { ok: false, message: 'Could not find the reply text area. Are you logged in?' }; box.focus(); if (!document.execCommand('insertText', false, text)) { const dataTransfer = new DataTransfer(); dataTransfer.setData('text/plain', text); box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dataTransfer, bubbles: true, cancelable: true })); } await new Promise(r => setTimeout(r, 1000)); if (!submit) { return { ok: true, message: 'Reply text entered (not submitted).', text: text, submitted: false }; } const buttons = Array.from(document.querySelectorAll('[data-testid=\"tweetButton\"], [data-testid=\"tweetButtonInline\"]')); const btn = buttons.find((el) => visible(el) && !el.disabled); if (!btn) return { ok: false, message: 'Reply button is disabled or not found.', text: text, submitted: false }; btn.click(); await new Promise(r => setTimeout(r, 3000)); return { ok: true, message: 'Reply posted successfully.', text: text, submitted: true }; } catch (e) { return { ok: false, message: String(e) }; } }"
       }
     }
   ],
@@ -24,11 +24,13 @@
   "output_schema": [
     { "name": "status", "type": "string", "description": "状态" },
     { "name": "message", "type": "string", "description": "消息" },
-    { "name": "text", "type": "string", "description": "内容" }
+    { "name": "text", "type": "string", "description": "内容" },
+    { "name": "submitted", "type": "boolean", "description": "是否已提交" }
   ],
   "variables": [
     { "name": "tweet_id", "type": "string", "required": true, "help": "Tweet ID or URL", "test": "2044315118583066738" },
-    { "name": "text", "type": "string", "required": true, "help": "The text content of your reply", "test": "Great tweet!" }
+    { "name": "text", "type": "string", "required": true, "help": "The text content of your reply", "test": "Great tweet!" },
+    { "name": "submit", "type": "boolean", "default": true, "help": "Whether to submit the reply (false = only enter text)", "test": false }
   ],
   "website_domain": "x.com",
   "website_id": "website-x.com"

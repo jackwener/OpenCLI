@@ -1,25 +1,20 @@
 {
-  "timestamp": "2026-04-16T13:03:19.403Z",
-  "json_file": "./clis/twitter/post.json",
+  "timestamp": "2026-04-16T14:39:40.294Z",
+  "json_file": "post.json",
   "command": "Post",
   "website": "x.com",
   "params": {
-    "text": "Hello world from GreaseAI!"
+    "text": "Hello world from GreaseAI!",
+    "submit": false
   },
-  "success": false,
+  "success": true,
   "data_count": 1,
   "sample_data": [
     {
-      "ok": false,
-      "message": "Could not find the tweet composer text area."
+      "ok": true,
+      "message": "Text entered (not submitted).",
+      "text": "Hello world from GreaseAI!",
+      "submitted": false
     }
-  ],
-  "comparison": {
-    "grease_count": 1,
-    "opencli_count": 1,
-    "match": false,
-    "differences": [
-      "Item 1 \"message\": Grease=\"Could not find the tweet composer text area.\" vs OpenCLI=\"Tweet posted successfully.\""
-    ]
-  }
+  ]
 }

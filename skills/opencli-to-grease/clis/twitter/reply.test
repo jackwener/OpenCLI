@@ -1,26 +1,21 @@
 {
-  "timestamp": "2026-04-16T14:16:47.369Z",
-  "json_file": "./clis/twitter/reply.json",
+  "timestamp": "2026-04-16T14:40:17.290Z",
+  "json_file": "reply.json",
   "command": "Reply",
   "website": "x.com",
   "params": {
     "tweet_id": "2044315118583066738",
-    "text": "Great tweet!"
+    "text": "Great tweet!",
+    "submit": false
   },
-  "success": false,
+  "success": true,
   "data_count": 1,
   "sample_data": [
     {
-      "ok": false,
-      "message": "Could not find the reply text area. Are you logged in?"
+      "ok": true,
+      "message": "Reply text entered (not submitted).",
+      "text": "Great tweet!",
+      "submitted": false
     }
-  ],
-  "comparison": {
-    "grease_count": 1,
-    "opencli_count": 1,
-    "match": false,
-    "differences": [
-      "Item 1 \"message\": Grease=\"Could not find the reply text area. Are you logged\" vs OpenCLI=\"Reply posted successfully.\""
-    ]
-  }
+  ]
 }
