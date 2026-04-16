@@ -6,6 +6,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
@@ -26,12 +27,47 @@ import { daemonStatus, daemonStop } from './commands/daemon.js';
 import { log } from './logger.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
+const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
+
+type BrowserNetworkItem = {
+  url: string;
+  method: string;
+  status: number;
+  size: number;
+  ct: string;
+  body: unknown;
+};
+
+function getBrowserNetworkCacheDir(): string {
+  return process.env.OPENCLI_CACHE_DIR || path.join(os.homedir(), '.opencli', 'cache');
+}
+
+function getBrowserNetworkCachePath(workspace: string = DEFAULT_BROWSER_WORKSPACE): string {
+  const safeWorkspace = workspace.replace(/[^a-zA-Z0-9_-]+/g, '_');
+  return path.join(getBrowserNetworkCacheDir(), 'browser-network', `${safeWorkspace}.json`);
+}
+
+function loadBrowserNetworkCache(workspace: string = DEFAULT_BROWSER_WORKSPACE): BrowserNetworkItem[] | null {
+  try {
+    const raw = fs.readFileSync(getBrowserNetworkCachePath(workspace), 'utf-8');
+    const parsed = JSON.parse(raw) as { items?: BrowserNetworkItem[] } | null;
+    return Array.isArray(parsed?.items) ? parsed.items : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveBrowserNetworkCache(items: BrowserNetworkItem[], workspace: string = DEFAULT_BROWSER_WORKSPACE): void {
+  const target = getBrowserNetworkCachePath(workspace);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, JSON.stringify({ items, savedAt: new Date().toISOString() }), 'utf-8');
+}
 
 /** Create a browser page for browser commands. Uses a dedicated browser workspace for session persistence. */
 async function getBrowserPage(): Promise<import('./types.js').IPage> {
   const { BrowserBridge } = await import('./browser/index.js');
   const bridge = new BrowserBridge();
-  return bridge.connect({ timeout: 30, workspace: 'browser:default' });
+  return bridge.connect({ timeout: 30, workspace: DEFAULT_BROWSER_WORKSPACE });
 }
 
 function applyVerbose(opts: { verbose?: boolean }): void {
@@ -522,7 +558,26 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .option('--all', 'Show all requests including static resources')
     .description('Show captured network requests (auto-captured since last open)')
     .action(browserAction(async (page, opts) => {
-      let items: Array<{ url: string; method: string; status: number; size: number; ct: string; body: unknown }> = [];
+      if (opts.detail !== undefined) {
+        const cached = loadBrowserNetworkCache();
+        const idx = parseInt(opts.detail, 10);
+        if (cached) {
+          const req = cached[idx];
+          if (!req) {
+            console.error(`Request #${idx} not found in the last "browser network" result. ${cached.length} requests were listed.`);
+            process.exitCode = EXIT_CODES.USAGE_ERROR;
+            return;
+          }
+          console.log(`Showing cached request [${idx}] from the last "browser network" result.\n`);
+          console.log(`${req.method} ${req.url}`);
+          console.log(`Status: ${req.status} | Size: ${req.size} | Type: ${req.ct}`);
+          console.log('---');
+          console.log(typeof req.body === 'string' ? req.body : JSON.stringify(req.body, null, 2));
+          return;
+        }
+      }
+
+      let items: BrowserNetworkItem[] = [];
       if (page.readNetworkCapture) {
         const raw = await page.readNetworkCapture();
         // Normalize daemon/CDP capture entries to __opencli_net shape.
@@ -549,7 +604,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           var reqs = window.__opencli_net || [];
           return JSON.stringify(reqs);
         })()`) as string;
-        try { items = JSON.parse(requests); } catch { console.log('No network data captured. Run "browser open <url>" first.'); return; }
+        try { items = JSON.parse(requests) as BrowserNetworkItem[]; } catch { console.log('No network data captured. Run "browser open <url>" first.'); return; }
       }
 
       if (items.length === 0) { console.log('No requests captured.'); return; }
@@ -563,6 +618,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         );
       }
 
+      if (items.length === 0) { console.log('No requests captured.'); return; }
+
       if (opts.detail !== undefined) {
         const idx = parseInt(opts.detail, 10);
         const req = items[idx];
@@ -572,13 +629,14 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         console.log('---');
         console.log(typeof req.body === 'string' ? req.body : JSON.stringify(req.body, null, 2));
       } else {
+        saveBrowserNetworkCache(items);
         console.log(`Captured ${items.length} API requests:\n`);
         items.forEach((r, i) => {
           const bodyPreview = r.body ? (typeof r.body === 'string' ? r.body.slice(0, 60) : JSON.stringify(r.body).slice(0, 60)) : '';
           console.log(`  [${i}] ${r.method} ${r.status} ${r.url.slice(0, 80)}`);
           if (bodyPreview) console.log(`      ${bodyPreview}...`);
         });
-        console.log(`\nUse --detail <index> to see full response body.`);
+        console.log(`\nUse --detail <index> to inspect the same snapshot.`);
       }
     }));
 
