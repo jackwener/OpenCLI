@@ -6,12 +6,12 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 3 }
+      "argument": { "selector": "[data-testid=\"primaryColumn\"]" }
     },
     {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const username = '{{ username }}'.replace(/^@/, ''); try { let attempts = 0; let unblockBtn = null; while (attempts < 20) { unblockBtn = document.querySelector('[data-testid=\"unblock\"]'); if (unblockBtn) break; const moreBtn = document.querySelector('[data-testid=\"userActions\"]') || document.querySelector('button[aria-label*=\"More\"]'); if (moreBtn && !document.querySelector('[data-testid=\"unblock\"]')) { moreBtn.click(); await new Promise(r => setTimeout(r, 500)); } await new Promise(r => setTimeout(r, 500)); attempts++; } const blockBtn = document.querySelector('[data-testid=\"block\"]'); if (blockBtn) return { ok: true, message: 'Already not blocked @' + username + '.' }; if (!unblockBtn) return { ok: false, message: 'Could not find Unblock button. Are you logged in?' }; unblockBtn.click(); await new Promise(r => setTimeout(r, 1500)); const verify = document.querySelector('[data-testid=\"block\"]'); if (verify) return { ok: true, message: 'Successfully unblocked @' + username + '.' }; return { ok: false, message: 'Unblock action initiated but UI did not update.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
+        "script": "async (intermediate) => { const username = '{{ username }}'.replace(/^@/, ''); try { let attempts = 0; let unblockBtn = null; while (attempts < 20) { const followBtn = document.querySelector('[data-testid$=\"-follow\"]'); if (followBtn) return { ok: true, message: 'Not blocking @' + username + ' (already unblocked).' }; unblockBtn = document.querySelector('[data-testid$=\"-unblock\"]'); if (unblockBtn) break; await new Promise(r => setTimeout(r, 500)); attempts++; } if (!unblockBtn) return { ok: false, message: 'Could not find Unblock button. Are you logged in?' }; unblockBtn.click(); await new Promise(r => setTimeout(r, 1000)); const confirmBtn = document.querySelector('[data-testid=\"confirmationSheetConfirm\"]'); if (confirmBtn) { confirmBtn.click(); await new Promise(r => setTimeout(r, 1000)); } const verify = document.querySelector('[data-testid$=\"-follow\"]'); if (verify) return { ok: true, message: 'Successfully unblocked @' + username + '.' }; return { ok: false, message: 'Unblock action initiated but UI did not update.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
       }
     }
   ],
