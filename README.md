@@ -210,7 +210,7 @@ To load the source Browser Bridge extension:
 
 87+ adapters in total — **[→ see all supported sites & commands](./docs/adapters/index.md)**
 
-`*` `opencli xiaoyuzhou podcast` / `podcast-episodes` / `episode` / `download` / `transcript` require local Xiaoyuzhou credentials in `~/.opencli/xiaoyuzhou.json`.
+`*` `opencli xiaoyuzhou podcast`, `podcast-episodes`, `episode`, `download`, and `transcript` require local Xiaoyuzhou credentials in `~/.opencli/xiaoyuzhou.json`.
 
 ## CLI Hub
 
@@ -277,7 +277,7 @@ opencli xiaoyuzhou download 69b3b675772ac2295bfc01d0 --output ./xiaoyuzhou
 opencli xiaoyuzhou transcript 69dd0c98e2c8be31551f6a33 --output ./xiaoyuzhou-transcripts
 ```
 
-`opencli xiaoyuzhou podcast` / `podcast-episodes` / `episode` / `download` / `transcript` require local Xiaoyuzhou credentials in `~/.opencli/xiaoyuzhou.json`.
+`opencli xiaoyuzhou download` and `transcript` require local Xiaoyuzhou credentials in `~/.opencli/xiaoyuzhou.json`.
 
 ## Output Formats
 

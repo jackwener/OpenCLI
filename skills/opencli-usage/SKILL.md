@@ -126,9 +126,8 @@ Type legend: 🌐 = Browser (needs Chrome login) · ✅ = Public API (no browser
 | **xianyu** | 🌐 | `search` `item` `chat` |
 | **xiaoe** | 🌐 | `courses` `catalog` `content` `detail` `play-url` |
 | **xiaohongshu** | 🌐 | `search` `notifications` `feed` `user` `note` `comments` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` |
-| **xiaoyuzhou** | ✅ | `podcast*` `podcast-episodes*` `episode*` |
+| **xiaoyuzhou** | 🔑 | `podcast` `podcast-episodes` `episode` `download` `transcript` |
 | **nowcoder** | ✅🌐 | Public: `hot` `trending` `topics` `recommend` `creators` `companies` `jobs` · Browser: `search` `suggest` `experience` `referral` `salary` `papers` `practice` `notifications` `detail` |
-| **xiaoyuzhou** | ✅ | `podcast*` `podcast-episodes*` `episode*` `download*` `transcript*` |
 | **xueqiu** | 🌐 | `hot-stock` `stock` `watchlist` `feed` `hot` `search` `comments` `earnings-date` `fund-holdings` `fund-snapshot` |
 | **yahoo-finance** | 🌐 | `quote` |
 | **yollomi** | 🌐 | `models` `generate` `video` `upload` `remove-bg` `edit` `background` `face-swap` `object-remover` `restore` `try-on` `upscale` |
@@ -137,7 +136,7 @@ Type legend: 🌐 = Browser (needs Chrome login) · ✅ = Public API (no browser
 | **zhihu** | 🌐 | `hot` `search` `question` |
 | **zsxq** | 🌐 | `groups` `dynamics` `topics` `topic` `search` |
 
-`*` `opencli xiaoyuzhou podcast` / `podcast-episodes` / `episode` / `download` / `transcript` require local Xiaoyuzhou credentials in `~/.opencli/xiaoyuzhou.json`.
+`opencli xiaoyuzhou podcast`, `podcast-episodes`, `episode`, `download`, and `transcript` require local Xiaoyuzhou credentials in `~/.opencli/xiaoyuzhou.json`.
 
 ### Desktop Apps (CDP/Electron)
 

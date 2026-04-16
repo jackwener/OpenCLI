@@ -269,7 +269,7 @@ npm link
 
 87+ 适配器 — **[→ 查看完整命令列表](./docs/adapters/index.md)**
 
-`*` `opencli xiaoyuzhou podcast` / `podcast-episodes` / `episode` / `download` / `transcript` 需要本地小宇宙凭证：`~/.opencli/xiaoyuzhou.json`。
+`*` `opencli xiaoyuzhou podcast`、`podcast-episodes`、`episode`、`download`、`transcript` 需要本地小宇宙凭证：`~/.opencli/xiaoyuzhou.json`。
 
 ### 外部 CLI 枢纽
 
@@ -323,7 +323,7 @@ OpenCLI 支持从各平台下载图片、视频和文章。
 | **Twitter/X** | 图片、视频 | 从用户媒体页或单条推文下载 |
 | **Pixiv** | 图片 | 下载原始画质插画，支持多页作品 |
 | **1688** | 图片、视频 | 下载商品页中可见的商品素材 |
-| **小宇宙** | 音频、转录 | 从公开单集数据下载音频，并使用本地凭证下载转录 JSON / 文本 |
+| **小宇宙** | 音频、转录 | 使用本地凭证下载单集音频和转录 JSON / 文本 |
 | **知乎** | 文章（Markdown） | 导出文章，可选下载图片到本地 |
 | **微信公众号** | 文章（Markdown） | 导出微信公众号文章为 Markdown |
 | **豆瓣** | 图片 | 下载电影条目的海报 / 剧照图片 |
@@ -378,7 +378,7 @@ opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --download-images
 opencli weixin download --url "https://mp.weixin.qq.com/s/xxx" --output ./weixin
 ```
 
-`opencli xiaoyuzhou podcast` / `podcast-episodes` / `episode` / `download` / `transcript` 需要本地小宇宙凭证：`~/.opencli/xiaoyuzhou.json`。
+`opencli xiaoyuzhou download` 和 `transcript` 需要本地小宇宙凭证：`~/.opencli/xiaoyuzhou.json`。
 
 
 
