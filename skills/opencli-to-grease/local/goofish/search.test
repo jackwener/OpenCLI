@@ -1,55 +1,97 @@
 {
-  "timestamp": "2026-04-14T16:16:20.583Z",
-  "json_file": "./clis/local/goofish/search.json",
+  "timestamp": "2026-04-16T16:35:53.507Z",
+  "json_file": "local/goofish/search.json",
   "command": "Search",
   "website": "www.goofish.com",
   "params": {
     "querystring": "iPhone"
   },
-  "success": false,
+  "success": true,
   "data_count": 1,
   "sample_data": [
     {
-      "links": [
-        "https://www.goofish.com/item?id=1043270689006&categoryId=126862528",
-        "https://www.goofish.com/item?id=1043306165683&categoryId=126862528",
-        "https://www.goofish.com/item?id=1043352233915&categoryId=126862528",
-        "https://www.goofish.com/item?id=1040352051353&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042038563543&categoryId=126862528",
-        "https://www.goofish.com/item?id=1041663747332&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042782958216&categoryId=126862528",
-        "https://www.goofish.com/item?id=1044601908590&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042775238470&categoryId=126862528",
-        "https://www.goofish.com/item?id=1044594936913&categoryId=126862528",
-        "https://www.goofish.com/item?id=1036321405768&categoryId=126862528",
-        "https://www.goofish.com/item?id=1032273424988&categoryId=126862528",
-        "https://www.goofish.com/item?id=1043740401067&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042793185805&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042024036770&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042040323264&categoryId=126862528",
-        "https://www.goofish.com/item?id=1043470293112&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042040147975&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042780278854&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042773478384&categoryId=126862528",
-        "https://www.goofish.com/item?id=1044572440140&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042974233517&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042041815403&categoryId=126862528",
-        "https://www.goofish.com/item?id=1044602296916&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042775970905&categoryId=126862528",
-        "https://www.goofish.com/item?id=1043898764254&categoryId=126862528",
-        "https://www.goofish.com/item?id=1044602608873&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042524698901&categoryId=126862528",
-        "https://www.goofish.com/item?id=1042780542158&categoryId=126862528",
-        "https://www.goofish.com/item?id=1043353853641&categoryId=126862528"
+      "results": [
+        {
+          "title": "发闲置",
+          "url": "https://www.goofish.com/publish"
+        },
+        {
+          "title": "10消息",
+          "url": "https://www.goofish.com/im"
+        },
+        {
+          "title": "反馈",
+          "url": "https://www.goofish.com/feedback?from=search"
+        },
+        {
+          "title": "客服",
+          "url": "https://alimebot.goofish.com/intl/index.htm?from=wkbRssQuvW"
+        },
+        {
+          "title": "阿里巴巴集团",
+          "url": "https://www.alibabagroup.com/"
+        },
+        {
+          "title": "淘宝",
+          "url": "https://www.taobao.com/"
+        },
+        {
+          "title": "天猫",
+          "url": "https://www.tmall.com/"
+        },
+        {
+          "title": "1688",
+          "url": "https://www.1688.com/"
+        },
+        {
+          "title": "一淘",
+          "url": "https://www.etao.com/"
+        },
+        {
+          "title": "阿里健康",
+          "url": "https://www.alihealth.cn/"
+        },
+        {
+          "title": "全球速卖通",
+          "url": "https://www.aliexpress.com/"
+        },
+        {
+          "title": "阿里巴巴国际站",
+          "url": "https://www.alibaba.com/"
+        },
+        {
+          "title": "高德",
+          "url": "https://mobile.amap.com/"
+        },
+        {
+          "title": "飞猪",
+          "url": "https://www.fliggy.com/"
+        },
+        {
+          "title": "优酷",
+          "url": "https://www.youku.com/"
+        },
+        {
+          "title": "大麦",
+          "url": "https://www.damai.cn/"
+        },
+        {
+          "title": "阿里影业",
+          "url": "https://www.alibabapictures.com/"
+        },
+        {
+          "title": "钉钉",
+          "url": "https://www.dingtalk.com/"
+        },
+        {
+          "title": "支付宝",
+          "url": "https://www.alipay.com/"
+        },
+        {
+          "title": "阿里妈妈",
+          "url": "https://www.alimama.com/"
+        }
       ]
     }
-  ],
-  "comparison": {
-    "grease_count": 1,
-    "opencli_count": 0,
-    "match": false,
-    "differences": [
-      "OpenCLI failed: Command failed: opencli goofish search \"iPhone\"  -f json\nerror: unknown command 'goofish'\n"
-    ]
-  }
+  ]
 }
