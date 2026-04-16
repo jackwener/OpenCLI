@@ -81,13 +81,15 @@
       "name": "query",
       "type": "string",
       "required": true,
-      "help": "Search keyword"
+      "help": "Search keyword",
+      "test": "美食"
     },
     {
       "name": "limit",
       "type": "int",
       "default": 20,
-      "help": "Number of results"
+      "help": "Number of results",
+      "test": 5
     }
   ],
   "website_domain": "www.xiaohongshu.com",

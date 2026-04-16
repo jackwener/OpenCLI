@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-11T10:20:47.878Z",
+  "timestamp": "2026-04-15T03:19:57.943Z",
   "json_file": "./clis/zhihu/search.json",
   "command": "Search",
   "website": "www.zhihu.com",
@@ -8,15 +8,23 @@
     "limit": 5
   },
   "success": true,
-  "data_count": 1,
+  "data_count": 2,
   "sample_data": [
     {
       "rank": 1,
       "type": "article",
       "title": "一个简单故事讲清楚7个AI核心概念：大语言模型，Prompt，Agent，SKill，MCP，IDE，Claude code",
       "author": "<em>AI</em>大模型入门",
-      "votes": 19,
+      "votes": 25,
       "url": "https://zhuanlan.zhihu.com/p/2015747793763992374"
+    },
+    {
+      "rank": 2,
+      "type": "answer",
+      "title": "人工智能会取代哪些岗位？",
+      "author": "IIIIIIIIIIIII",
+      "votes": 1936,
+      "url": "https://www.zhihu.com/question/2019355746328932969/answer/2019930790151102944"
     }
   ]
 }

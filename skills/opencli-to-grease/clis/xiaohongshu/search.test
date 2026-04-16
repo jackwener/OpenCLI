@@ -1,45 +1,76 @@
 {
-  "timestamp": "2026-04-11T08:22:20.023Z",
+  "timestamp": "2026-04-16T12:13:17.484Z",
   "json_file": "./clis/xiaohongshu/search.json",
   "command": "Search",
   "website": "www.xiaohongshu.com",
   "params": {
-    "limit": 3
+    "query": "美食",
+    "limit": 5
   },
   "success": false,
-  "data_count": 3,
+  "data_count": 5,
   "sample_data": [
     {
       "rank": 1,
-      "title": "很细｜Query Rewriting工作流程详解🔥",
-      "author": "红鲤鱼与胖头鱼｜AI驱动2025-12-08",
-      "likes": "81",
-      "published_at": "2025-12-08",
-      "url": "https://www.xiaohongshu.com/search_result/69364a94000000001e0012a1?xsec_token=ABXOyfAF_1Ry8Hj9QF84UdnsMPlgSJguWnvPlgmOKODUc=&xsec_source="
+      "title": "烤青岛啤酒！！这个世界终究还是癫了😵‍💫",
+      "author": "周美丽2025-05-25",
+      "likes": "675",
+      "published_at": "2025-05-25",
+      "url": "https://www.xiaohongshu.com/search_result/683284a8000000002202d219?xsec_token=ABYHGu1kC3XeLJrLMhbdrxc9S3jW_m5C4PuadE6fDUwB4=&xsec_source="
     },
     {
       "rank": 2,
-      "title": "每日记雅思单词—query",
-      "author": "爱学习发大财2025-02-02",
-      "likes": "36",
-      "published_at": "2025-02-02",
-      "url": "https://www.xiaohongshu.com/search_result/679f0986000000001902dc1f?xsec_token=ABp3ruONVLa0la-dhyqVkwO0F8NGxq3IS0wd5GsVc_RIE=&xsec_source="
+      "title": "成都爱吃面的老辈子些 还记得那个小伙子吗",
+      "author": "红星兔丁吃转成都2024-12-29",
+      "likes": "4037",
+      "published_at": "2024-12-29",
+      "url": "https://www.xiaohongshu.com/search_result/67714cfe0000000013001220?xsec_token=ABuRTyDlvGNJGEa-Kk4-K6IeTk-RMvnhKJDU8fw7KNmJ8=&xsec_source="
     },
     {
       "rank": 3,
-      "title": "claude code源码分析-query模块",
-      "author": "奔跑的圆点04-01",
-      "likes": "2",
-      "published_at": "2026-04-01",
-      "url": "https://www.xiaohongshu.com/search_result/69cbf8ea000000002102e47e?xsec_token=ABEjLkNIkwU0Fpd0asPMXDNNx9HBOghI9JLERstpBKRao=&xsec_source="
+      "title": "好家伙垃圾桶果冻",
+      "author": "一颗板栗🌰2025-05-20",
+      "likes": "3030",
+      "published_at": "2025-05-19",
+      "url": "https://www.xiaohongshu.com/search_result/682b429d000000002001c1c0?xsec_token=ABh1Y1xaWFL3qTeioavcjrH-Bf-jt2fqsEO2ng3CIK93Y=&xsec_source="
+    },
+    {
+      "rank": 4,
+      "title": "土耳其：视觉暴击！食材塞到快要溢出来",
+      "author": "世界美食主理人01-02",
+      "likes": "386",
+      "published_at": "2026-01-02",
+      "url": "https://www.xiaohongshu.com/search_result/6957e898000000001e038c36?xsec_token=AB1v6cS5he-kvORLmmPZo9XX0DoSEoIFcG4p69e4EYriQ=&xsec_source="
+    },
+    {
+      "rank": 5,
+      "title": "劲道十足",
+      "author": "挑食的Tony2025-04-17",
+      "likes": "6527",
+      "published_at": "2025-04-17",
+      "url": "https://www.xiaohongshu.com/search_result/680055fa000000001c0312ee?xsec_token=ABub-vNFk2G32OLfgr6xSmA_Tba0kswxV_KAB0o4HJAMU=&xsec_source="
     }
   ],
   "comparison": {
-    "grease_count": 3,
-    "opencli_count": 0,
+    "grease_count": 5,
+    "opencli_count": 5,
     "match": false,
     "differences": [
-      "OpenCLI failed: Command failed: opencli xiaohongshu search  --limit 3 -f json\nerror: missing required argument 'query'\n"
+      "Item 1 \"title\": Grease=\"烤青岛啤酒！！这个世界终究还是癫了😵‍💫\" vs OpenCLI=\"成都爱吃面的老辈子些 还记得那个小伙子吗\"",
+      "Item 1 \"author\": Grease=\"周美丽2025-05-25\" vs OpenCLI=\"红星兔丁吃转成都2024-12-29\"",
+      "Item 1 \"likes\": Grease=\"675\" vs OpenCLI=\"4037\"",
+      "Item 1 \"published_at\": Grease=\"2025-05-25\" vs OpenCLI=\"2024-12-29\"",
+      "Item 1 \"url\": Grease=\"https://www.xiaohongshu.com/search_result/683284a8\" vs OpenCLI=\"https://www.xiaohongshu.com/search_result/67714cfe\"",
+      "Item 2 \"title\": Grease=\"成都爱吃面的老辈子些 还记得那个小伙子吗\" vs OpenCLI=\"好家伙垃圾桶果冻\"",
+      "Item 2 \"author\": Grease=\"红星兔丁吃转成都2024-12-29\" vs OpenCLI=\"一颗板栗🌰2025-05-20\"",
+      "Item 2 \"likes\": Grease=\"4037\" vs OpenCLI=\"3030\"",
+      "Item 2 \"published_at\": Grease=\"2024-12-29\" vs OpenCLI=\"2025-05-19\"",
+      "Item 2 \"url\": Grease=\"https://www.xiaohongshu.com/search_result/67714cfe\" vs OpenCLI=\"https://www.xiaohongshu.com/search_result/682b429d\"",
+      "Item 3 \"title\": Grease=\"好家伙垃圾桶果冻\" vs OpenCLI=\"土耳其：视觉暴击！食材塞到快要溢出来\"",
+      "Item 3 \"author\": Grease=\"一颗板栗🌰2025-05-20\" vs OpenCLI=\"世界美食主理人01-02\"",
+      "Item 3 \"likes\": Grease=\"3030\" vs OpenCLI=\"386\"",
+      "Item 3 \"published_at\": Grease=\"2025-05-19\" vs OpenCLI=\"2026-01-02\"",
+      "Item 3 \"url\": Grease=\"https://www.xiaohongshu.com/search_result/682b429d\" vs OpenCLI=\"https://www.xiaohongshu.com/search_result/6957e898\""
     ]
   }
 }
