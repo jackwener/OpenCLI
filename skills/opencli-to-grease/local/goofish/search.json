@@ -30,14 +30,7 @@
       }
     },
     {
-      "action": "waitTarget",
-      "argument": {
-        "condition": "appear",
-        "target": "all search results"
-      }
-    },
-    {
-      "action": "extract",
+      "action": "extractList",
       "argument": {
         "contentType": "link",
         "ignoreErrors": false,
@@ -56,7 +49,8 @@
       "name": "querystring",
       "type": "string",
       "required": true,
-      "help": "搜索关键词"
+      "help": "搜索关键词",
+      "test": "iphone"
     }
   ],
   "output_schema": [

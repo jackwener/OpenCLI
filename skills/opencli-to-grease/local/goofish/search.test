@@ -1,97 +1,46 @@
 {
-  "timestamp": "2026-04-16T16:35:53.507Z",
+  "timestamp": "2026-04-17T03:55:27.094Z",
   "json_file": "local/goofish/search.json",
   "command": "Search",
   "website": "www.goofish.com",
   "params": {
-    "querystring": "iPhone"
+    "querystring": "iphone"
   },
-  "success": true,
-  "data_count": 1,
+  "success": false,
+  "data_count": 20,
   "sample_data": [
     {
-      "results": [
-        {
-          "title": "发闲置",
-          "url": "https://www.goofish.com/publish"
-        },
-        {
-          "title": "10消息",
-          "url": "https://www.goofish.com/im"
-        },
-        {
-          "title": "反馈",
-          "url": "https://www.goofish.com/feedback?from=search"
-        },
-        {
-          "title": "客服",
-          "url": "https://alimebot.goofish.com/intl/index.htm?from=wkbRssQuvW"
-        },
-        {
-          "title": "阿里巴巴集团",
-          "url": "https://www.alibabagroup.com/"
-        },
-        {
-          "title": "淘宝",
-          "url": "https://www.taobao.com/"
-        },
-        {
-          "title": "天猫",
-          "url": "https://www.tmall.com/"
-        },
-        {
-          "title": "1688",
-          "url": "https://www.1688.com/"
-        },
-        {
-          "title": "一淘",
-          "url": "https://www.etao.com/"
-        },
-        {
-          "title": "阿里健康",
-          "url": "https://www.alihealth.cn/"
-        },
-        {
-          "title": "全球速卖通",
-          "url": "https://www.aliexpress.com/"
-        },
-        {
-          "title": "阿里巴巴国际站",
-          "url": "https://www.alibaba.com/"
-        },
-        {
-          "title": "高德",
-          "url": "https://mobile.amap.com/"
-        },
-        {
-          "title": "飞猪",
-          "url": "https://www.fliggy.com/"
-        },
-        {
-          "title": "优酷",
-          "url": "https://www.youku.com/"
-        },
-        {
-          "title": "大麦",
-          "url": "https://www.damai.cn/"
-        },
-        {
-          "title": "阿里影业",
-          "url": "https://www.alibabapictures.com/"
-        },
-        {
-          "title": "钉钉",
-          "url": "https://www.dingtalk.com/"
-        },
-        {
-          "title": "支付宝",
-          "url": "https://www.alipay.com/"
-        },
-        {
-          "title": "阿里妈妈",
-          "url": "https://www.alimama.com/"
-        }
+      "links": [
+        "https://www.goofish.com/item?id=986363121800&categoryId=126862807"
+      ]
+    },
+    {
+      "links": [
+        "https://www.goofish.com/item?id=985210978688&categoryId=126860292"
+      ]
+    },
+    {
+      "links": [
+        "https://www.goofish.com/item?id=1037709384476&categoryId=126918005"
+      ]
+    },
+    {
+      "links": [
+        "https://www.goofish.com/item?id=922694646346&categoryId=126860475"
+      ]
+    },
+    {
+      "links": [
+        "https://www.goofish.com/item?id=625437244144&categoryId=126862902"
       ]
     }
-  ]
+  ],
+  "comparison": {
+    "grease_count": 20,
+    "opencli_count": 0,
+    "match": false,
+    "differences": [
+      "OpenCLI failed: Command failed: opencli goofish search \"iphone\"  -f json\nerror: unknown command 'goofish'\n"
+    ]
+  }
 }
