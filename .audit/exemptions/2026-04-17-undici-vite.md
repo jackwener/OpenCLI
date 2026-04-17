@@ -131,11 +131,81 @@ npm audit
 
 ---
 
+---
+
+## 3. `extension/` 的 `vite` CVE 容忍（TOLERATE，非豁免）
+
+同 §2（主项目 vite）性质一致，分别记录是因为 extension 有独立的 `package.json`。
+
+| 项目 | 值 |
+|------|---|
+| 类型 | 开发依赖（extension/devDependencies） |
+| 相关 CVE | GHSA-4w7w-66w2-5vf9（MODERATE）+ GHSA-p9ff-h696-f583（HIGH，WebSocket 任意文件读） |
+| 受影响版本范围 | vite `<=6.4.1` |
+| 修复版本 | `vite@6.4.2`（10 天，不合规） |
+| **当前锁定版本** | `vite@6.4.1`（exact，符合 §4.2） |
+
+**容忍依据**：两个 CVE 触发条件都是"启动 vite dev server"（HTTP 或 WebSocket）。extension 的 `package.json` scripts 只有：
+- `dev`: `vite build --watch` — watch 模式的 build，**不启 dev server**
+- `build`: `vite build` — 一次性构建，**不启 dev server**
+- `package:release`: 打包脚本
+- `typecheck`: `tsc --noEmit`
+
+**触发路径不可达**。验收用 `npm audit` 记录，不作阻断。
+
+**撤销条件**：同 §2 — vite 6.4.2+ 过 90d 门槛或 dev server 开始被使用。
+
+---
+
+## 4. `extension/` 的 `typecheck` 已知差异（ACCEPTED BUILD-TIME WARNING）
+
+| 项目 | 值 |
+|------|---|
+| 类型 | 开发工具链差异 |
+| 现象 | `cd extension && npm run typecheck` 报 5 处 TS2339 |
+| 位置 | `extension/src/cdp.ts:379`, `:380`, `:408`, `:409`, `:426` |
+| 错误 | `Property 'requestId' does not exist on type 'Object'` 等 |
+| 根因 | TypeScript 5.9.3 strict 模式对 `chrome.debugger.onEvent.addListener` 回调 `params: Object` 的访问比 TS 6 更严格 |
+
+**不修复的理由**：
+- 修 5 处代码等于在 fork 里打 local patch，增加上游 sync 冲突风险
+- `vite build` 用 esbuild 转译，**不跑 tsc**，所以 build 仍 PASS
+- extension 无代码单元测试（无 vitest）
+- 功能验证走 Phase 5 的 `opencli doctor` + Phase 6 的 E2E 下载
+
+**验证替代**：
+```bash
+cd extension
+npm run build    # 必过
+ls -la dist/background.js  # 必须存在且 gzip ~8.7KB
+```
+
+**撤销条件**：
+- upstream 修源码让 TS 5.9 strict 过
+- 或 extension 升到 TS 6（要等 TS 6 >= 90d）
+- 或 @types/chrome 升级给 `params` 更精确类型
+
+---
+
+## 5. `extension/dist/background.js` 与上游 repo 的 2 行差异（UPSTREAM BUG，不是偏离）
+
+自编 `dist/background.js` 与 repo 已提交版本差 2 行：
+- `resolveCommandTabId`：自编 `return void 0`（= undefined），repo 为 `return cmd.tabId`
+- `handleTabs` / `select` case：自编少一个 `cmd.tabId === void 0` 条件判断
+
+**诊断**：`extension/src/background.ts:422` 当前源代码是 `return undefined`。repo 中的 `dist/background.js` 用的是**旧版源代码**构建的，upstream 修改源码后**忘了重新 commit dist**。自编产物与当前源码一致，更正确。
+
+**不是本审计范围的偏离**，仅记录为日后 sync 的参考：upstream repo 的 dist 可能周期性滞后于 source，自编永远更可靠。
+
+---
+
 ## 复审节奏
 
-按 CLAUDE.md §4.2 的 3 个月节奏，**2026-07-17** 前须审视此文件的两项状态：
+按 CLAUDE.md §4.2 的 3 个月节奏，**2026-07-17** 前须审视此文件的所有条目：
 
 - [ ] undici：是否可取消豁免标签（升级到新的已合规版本）
-- [ ] vite：是否已有新 vitepress 放宽约束
+- [ ] vite（主项目）：是否已有新 vitepress 放宽约束
+- [ ] vite（extension）：是否有新稳定版且 extension 依旧不启 dev server
+- [ ] typescript 5.9 → 6：是否升级时 extension typecheck 可自然过
 
 复审动作可由 spec §7.8 的季度复审 checklist 统一调度。

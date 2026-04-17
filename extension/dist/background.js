@@ -648,7 +648,7 @@ function setWorkspaceSession(workspace, session) {
 }
 async function resolveCommandTabId(cmd) {
   if (cmd.page) return resolveTabId$1(cmd.page);
-  return cmd.tabId;
+  return void 0;
 }
 async function resolveTab(tabId, workspace, initialUrl) {
   if (tabId !== void 0) {
@@ -855,7 +855,7 @@ async function handleTabs(cmd, workspace) {
       return { id: cmd.id, ok: true, data: { closed: closedPage } };
     }
     case "select": {
-      if (cmd.index === void 0 && cmd.page === void 0 && cmd.tabId === void 0)
+      if (cmd.index === void 0 && cmd.page === void 0)
         return { id: cmd.id, ok: false, error: "Missing index or page" };
       const cmdTabId = await resolveCommandTabId(cmd);
       if (cmdTabId !== void 0) {
