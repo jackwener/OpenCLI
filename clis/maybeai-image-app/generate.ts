@@ -1,10 +1,11 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { API_ARGS, INPUT_ARGS, addGenerateOptions, buildAppBody, maybeAiAppPost } from './common.js';
+import { addGenerateOptions, INPUT_ARGS, readJsonObjectInput, WORKFLOW_ARGS } from './common.js';
+import { executeGenerate } from './engine.js';
 
 cli({
   site: 'maybeai-image-app',
   name: 'generate',
-  description: 'Generate images with an explicit MaybeAI app via the MaybeAI app API',
+  description: 'Generate images with an explicit MaybeAI app and run workflows directly',
   strategy: Strategy.PUBLIC,
   browser: false,
   defaultFormat: 'json',
@@ -12,10 +13,8 @@ cli({
     { name: 'app', positional: true, required: true, help: 'MaybeAI app id, e.g. gen-main' },
     ...INPUT_ARGS,
     { name: 'task-id', help: 'Optional workflow task id for tracing' },
-    ...API_ARGS,
+    { name: 'debug', help: 'Include workflow debug details' },
+    ...WORKFLOW_ARGS,
   ],
-  func: async (_page, kwargs) => {
-    const body = addGenerateOptions(buildAppBody(String(kwargs.app), kwargs), kwargs);
-    return maybeAiAppPost('/api/v1/image-app/generate', body, kwargs);
-  },
+  func: async (_page, kwargs) => executeGenerate(String(kwargs.app), addGenerateOptions({ input: readJsonObjectInput(kwargs) }, kwargs).input as Record<string, unknown>, kwargs, !!kwargs.debug),
 });

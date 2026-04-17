@@ -1,13 +1,21 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { API_ARGS, maybeAiAppGet } from './common.js';
+import { listApps } from './catalog.js';
+import { inferImageKind } from './resolver.js';
 
 cli({
   site: 'maybeai-image-app',
   name: 'apps',
-  description: 'List MaybeAI image apps available through the MaybeAI app API',
+  description: 'List local MaybeAI image apps available in opencli',
   strategy: Strategy.PUBLIC,
   browser: false,
-  args: [...API_ARGS],
   columns: ['group', 'app', 'kind', 'title', 'inputs', 'output'],
-  func: async (_page, kwargs) => maybeAiAppGet('/api/v1/image-app/apps', kwargs),
+  func: async () =>
+    listApps().map(app => ({
+      group: app.group,
+      app: app.id,
+      kind: inferImageKind(app.id),
+      title: app.title,
+      inputs: app.fields.map(field => field.key),
+      output: app.output.multiple ? 'images[]' : 'image',
+    })),
 });

@@ -9695,29 +9695,10 @@
   {
     "site": "maybeai-image-app",
     "name": "apps",
-    "description": "List MaybeAI image apps available through the MaybeAI app API",
+    "description": "List local MaybeAI image apps available in opencli",
     "strategy": "public",
     "browser": false,
-    "args": [
-      {
-        "name": "api-url",
-        "type": "str",
-        "required": false,
-        "help": "MaybeAI app API URL; defaults to MAYBEAI_APP_API_URL or http://127.0.0.1:7010"
-      },
-      {
-        "name": "auth-token",
-        "type": "str",
-        "required": false,
-        "help": "User auth token; defaults to MAYBEAI_AUTH_TOKEN"
-      },
-      {
-        "name": "user-id",
-        "type": "str",
-        "required": false,
-        "help": "User id; defaults to MAYBEAI_USER_ID"
-      }
-    ],
+    "args": [],
     "columns": [
       "group",
       "app",
@@ -9733,7 +9714,7 @@
   {
     "site": "maybeai-image-app",
     "name": "generate",
-    "description": "Generate images with an explicit MaybeAI app via the MaybeAI app API",
+    "description": "Generate images with an explicit MaybeAI app and run workflows directly",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -9775,10 +9756,16 @@
         "help": "Optional workflow task id for tracing"
       },
       {
-        "name": "api-url",
+        "name": "debug",
         "type": "str",
         "required": false,
-        "help": "MaybeAI app API URL; defaults to MAYBEAI_APP_API_URL or http://127.0.0.1:7010"
+        "help": "Include workflow debug details"
+      },
+      {
+        "name": "playground-url",
+        "type": "str",
+        "required": false,
+        "help": "Workflow playground URL; defaults to MAYBEAI_PLAYGROUND_URL"
       },
       {
         "name": "auth-token",
@@ -9791,6 +9778,12 @@
         "type": "str",
         "required": false,
         "help": "User id; defaults to MAYBEAI_USER_ID"
+      },
+      {
+        "name": "service",
+        "type": "str",
+        "required": false,
+        "help": "Workflow service; defaults to MAYBEAI_SERVICE or e-commerce"
       }
     ],
     "type": "ts",
@@ -9800,7 +9793,7 @@
   {
     "site": "maybeai-image-app",
     "name": "models",
-    "description": "Show MaybeAI image model priority and supported aspect ratios from the API",
+    "description": "Show local MaybeAI image model priority and supported aspect ratios",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -9810,24 +9803,6 @@
         "required": false,
         "positional": true,
         "help": "Optional model id"
-      },
-      {
-        "name": "api-url",
-        "type": "str",
-        "required": false,
-        "help": "MaybeAI app API URL; defaults to MAYBEAI_APP_API_URL or http://127.0.0.1:7010"
-      },
-      {
-        "name": "auth-token",
-        "type": "str",
-        "required": false,
-        "help": "User auth token; defaults to MAYBEAI_AUTH_TOKEN"
-      },
-      {
-        "name": "user-id",
-        "type": "str",
-        "required": false,
-        "help": "User id; defaults to MAYBEAI_USER_ID"
       }
     ],
     "type": "ts",
@@ -9837,7 +9812,7 @@
   {
     "site": "maybeai-image-app",
     "name": "options",
-    "description": "List supported platforms, countries, categories, angles, ratios, resolutions, models, and image kinds",
+    "description": "List local supported platforms, countries, categories, angles, ratios, resolutions, models, and image kinds",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -9847,24 +9822,6 @@
         "required": false,
         "positional": true,
         "help": "Optional option kind"
-      },
-      {
-        "name": "api-url",
-        "type": "str",
-        "required": false,
-        "help": "MaybeAI app API URL; defaults to MAYBEAI_APP_API_URL or http://127.0.0.1:7010"
-      },
-      {
-        "name": "auth-token",
-        "type": "str",
-        "required": false,
-        "help": "User auth token; defaults to MAYBEAI_AUTH_TOKEN"
-      },
-      {
-        "name": "user-id",
-        "type": "str",
-        "required": false,
-        "help": "User id; defaults to MAYBEAI_USER_ID"
       }
     ],
     "type": "ts",
@@ -9874,7 +9831,7 @@
   {
     "site": "maybeai-image-app",
     "name": "payload",
-    "description": "Build backend workflow variables for a MaybeAI image app through the API",
+    "description": "Build local workflow variables for a MaybeAI image app",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -9908,24 +9865,6 @@
         "type": "str",
         "required": false,
         "help": "Alias of --input-file"
-      },
-      {
-        "name": "api-url",
-        "type": "str",
-        "required": false,
-        "help": "MaybeAI app API URL; defaults to MAYBEAI_APP_API_URL or http://127.0.0.1:7010"
-      },
-      {
-        "name": "auth-token",
-        "type": "str",
-        "required": false,
-        "help": "User auth token; defaults to MAYBEAI_AUTH_TOKEN"
-      },
-      {
-        "name": "user-id",
-        "type": "str",
-        "required": false,
-        "help": "User id; defaults to MAYBEAI_USER_ID"
       }
     ],
     "type": "ts",
@@ -9935,7 +9874,7 @@
   {
     "site": "maybeai-image-app",
     "name": "resolve",
-    "description": "Resolve MaybeAI image app defaults and platform/model rules through the API",
+    "description": "Resolve local MaybeAI image app defaults and platform/model rules",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -9969,24 +9908,6 @@
         "type": "str",
         "required": false,
         "help": "Alias of --input-file"
-      },
-      {
-        "name": "api-url",
-        "type": "str",
-        "required": false,
-        "help": "MaybeAI app API URL; defaults to MAYBEAI_APP_API_URL or http://127.0.0.1:7010"
-      },
-      {
-        "name": "auth-token",
-        "type": "str",
-        "required": false,
-        "help": "User auth token; defaults to MAYBEAI_AUTH_TOKEN"
-      },
-      {
-        "name": "user-id",
-        "type": "str",
-        "required": false,
-        "help": "User id; defaults to MAYBEAI_USER_ID"
       }
     ],
     "type": "ts",
@@ -9996,7 +9917,7 @@
   {
     "site": "maybeai-image-app",
     "name": "rules",
-    "description": "Show platform-aware ratio, resolution, angle, and source rules from the API",
+    "description": "Show local platform-aware ratio, resolution, angle, and source rules",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -10006,24 +9927,6 @@
         "required": false,
         "positional": true,
         "help": "Optional platform, e.g. Amazon"
-      },
-      {
-        "name": "api-url",
-        "type": "str",
-        "required": false,
-        "help": "MaybeAI app API URL; defaults to MAYBEAI_APP_API_URL or http://127.0.0.1:7010"
-      },
-      {
-        "name": "auth-token",
-        "type": "str",
-        "required": false,
-        "help": "User auth token; defaults to MAYBEAI_AUTH_TOKEN"
-      },
-      {
-        "name": "user-id",
-        "type": "str",
-        "required": false,
-        "help": "User id; defaults to MAYBEAI_USER_ID"
       }
     ],
     "type": "ts",
@@ -10033,7 +9936,7 @@
   {
     "site": "maybeai-image-app",
     "name": "run",
-    "description": "Select app and compose normalized input locally, then call the MaybeAI image app API",
+    "description": "Select app and compose normalized input locally, then run workflows directly",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -10210,7 +10113,7 @@
         "name": "dry-run",
         "type": "str",
         "required": false,
-        "help": "Return selected app and request body without calling API"
+        "help": "Return selected app and generated workflow input without running workflow"
       },
       {
         "name": "task-id",
@@ -10225,10 +10128,16 @@
         "help": "Minimum confidence required to auto run, default 0.3"
       },
       {
-        "name": "api-url",
+        "name": "debug",
         "type": "str",
         "required": false,
-        "help": "MaybeAI app API URL; defaults to MAYBEAI_APP_API_URL or http://127.0.0.1:7010"
+        "help": "Include workflow debug details"
+      },
+      {
+        "name": "playground-url",
+        "type": "str",
+        "required": false,
+        "help": "Workflow playground URL; defaults to MAYBEAI_PLAYGROUND_URL"
       },
       {
         "name": "auth-token",
@@ -10241,6 +10150,12 @@
         "type": "str",
         "required": false,
         "help": "User id; defaults to MAYBEAI_USER_ID"
+      },
+      {
+        "name": "service",
+        "type": "str",
+        "required": false,
+        "help": "Workflow service; defaults to MAYBEAI_SERVICE or e-commerce"
       }
     ],
     "type": "ts",
@@ -10250,7 +10165,7 @@
   {
     "site": "maybeai-image-app",
     "name": "schema",
-    "description": "Show unified input schema and backend variable mapping for a MaybeAI image app",
+    "description": "Show local unified input schema and backend variable mapping for a MaybeAI image app",
     "strategy": "public",
     "browser": false,
     "args": [
@@ -10260,24 +10175,6 @@
         "required": true,
         "positional": true,
         "help": "MaybeAI app id, e.g. gen-main"
-      },
-      {
-        "name": "api-url",
-        "type": "str",
-        "required": false,
-        "help": "MaybeAI app API URL; defaults to MAYBEAI_APP_API_URL or http://127.0.0.1:7010"
-      },
-      {
-        "name": "auth-token",
-        "type": "str",
-        "required": false,
-        "help": "User auth token; defaults to MAYBEAI_AUTH_TOKEN"
-      },
-      {
-        "name": "user-id",
-        "type": "str",
-        "required": false,
-        "help": "User id; defaults to MAYBEAI_USER_ID"
       }
     ],
     "type": "ts",
@@ -10464,25 +10361,7 @@
         "name": "dry-run",
         "type": "str",
         "required": false,
-        "help": "Return selected app and request body without calling API"
-      },
-      {
-        "name": "api-url",
-        "type": "str",
-        "required": false,
-        "help": "MaybeAI app API URL; defaults to MAYBEAI_APP_API_URL or http://127.0.0.1:7010"
-      },
-      {
-        "name": "auth-token",
-        "type": "str",
-        "required": false,
-        "help": "User auth token; defaults to MAYBEAI_AUTH_TOKEN"
-      },
-      {
-        "name": "user-id",
-        "type": "str",
-        "required": false,
-        "help": "User id; defaults to MAYBEAI_USER_ID"
+        "help": "Return selected app and generated workflow input without running workflow"
       }
     ],
     "type": "ts",

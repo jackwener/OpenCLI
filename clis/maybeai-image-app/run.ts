@@ -1,12 +1,13 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { API_ARGS, INPUT_ARGS, maybeAiAppPost } from './common.js';
+import { INPUT_ARGS, WORKFLOW_ARGS } from './common.js';
+import { executeGenerate } from './engine.js';
 import { assertRunnablePlan, buildImageAppPlan, RUN_EXTRA_ARGS } from './planner.js';
 
 cli({
   site: 'maybeai-image-app',
   name: 'run',
-  description: 'Select app and compose normalized input locally, then call the MaybeAI image app API',
+  description: 'Select app and compose normalized input locally, then run workflows directly',
   strategy: Strategy.PUBLIC,
   browser: false,
   defaultFormat: 'json',
@@ -16,7 +17,8 @@ cli({
     ...RUN_EXTRA_ARGS,
     { name: 'task-id', help: 'Optional workflow task id for tracing' },
     { name: 'min-confidence', help: 'Minimum confidence required to auto run, default 0.3' },
-    ...API_ARGS,
+    { name: 'debug', help: 'Include workflow debug details' },
+    ...WORKFLOW_ARGS,
   ],
   func: async (_page, kwargs) => {
     const plan = buildImageAppPlan([String(kwargs.intent ?? '')], kwargs);
@@ -29,6 +31,6 @@ cli({
       );
     }
     assertRunnablePlan(plan);
-    return maybeAiAppPost(plan.apiPath, plan.requestBody, kwargs);
+    return executeGenerate(plan.selectedApp, plan.input, kwargs, !!kwargs.debug);
   },
 });

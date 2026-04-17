@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { API_ARGS, INPUT_ARGS } from './common.js';
+import { INPUT_ARGS } from './common.js';
 import { buildImageAppPlan, RUN_EXTRA_ARGS } from './planner.js';
 
 cli({
@@ -13,7 +13,6 @@ cli({
     { name: 'intent', positional: true, required: false, help: 'Natural language intent, e.g. 帮我换模特' },
     ...INPUT_ARGS,
     ...RUN_EXTRA_ARGS,
-    ...API_ARGS,
   ],
   func: async (_page, kwargs) => buildImageAppPlan([String(kwargs.intent ?? '')], kwargs),
 });

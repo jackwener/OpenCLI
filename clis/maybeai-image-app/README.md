@@ -4,14 +4,14 @@
 
 - 自然语言识别具体 app
 - 从自然语言和 flags 里组合结构化参数
-- 调用 `maybe-uni/cli/maybeai-app` 的 `/api/v1/image-app/generate`
+- 直接串联 MaybeAI workflow：prompt workflow → image workflow
 
-`maybeai-app` 后端负责：
+`maybeai-app` 后端不再是运行依赖；同一套规则已内置在 `opencli/clis/maybeai-image-app`：
 
-- 校验结构化参数
-- 应用平台 / 模型默认值
-- 串联 prompt workflow + image workflow
-- 返回图片结果和 task id
+- app 字段定义
+- 平台 / 国家 / 类目 / 角度规则
+- 模型默认值和固定模型策略
+- workflow artifact 编排
 
 ## 常用命令
 
@@ -31,6 +31,7 @@ opencli maybeai-image-app run "给这个商品生成淘宝主图 https://example
   --platform Taobao \
   --market China \
   --category Electronics \
+  --playground-url https://play-be.omnimcp.ai \
   --auth-token $MAYBEAI_AUTH_TOKEN \
   --user-id $MAYBEAI_USER_ID
 ```
@@ -47,3 +48,4 @@ opencli maybeai-image-app run "帮我换模特 https://example.com/product.jpg h
 - 自然语言入口优先用 `run`
 - 需要调试识别逻辑时用 `select`
 - 已知 app 和完整结构化参数时用 `generate`
+- `run` / `generate` 会直接调用 `/api/v1/workflow/detail/public` 和 `/api/v1/workflow/run`

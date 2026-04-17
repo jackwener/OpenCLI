@@ -54,8 +54,7 @@ export interface ImageAppPlan {
     missingFields: string[];
   }>;
   shouldAskUser: boolean;
-  apiPath: '/api/v1/image-app/generate';
-  requestBody: Record<string, unknown>;
+  generateRequest: Record<string, unknown>;
 }
 
 const APPS: AppDefinition[] = [
@@ -174,7 +173,7 @@ export const RUN_EXTRA_ARGS = [
   { name: 'engine', help: 'Image model id' },
   { name: 'background', help: 'Background option for edit apps' },
   { name: 'similarity', help: 'Similarity value for fission/modification apps' },
-  { name: 'dry-run', help: 'Return selected app and request body without calling API' },
+  { name: 'dry-run', help: 'Return selected app and generated workflow input without running workflow' },
 ];
 
 export function buildImageAppPlan(positionals: string[], kwargs: Record<string, unknown>): ImageAppPlan {
@@ -186,7 +185,7 @@ export function buildImageAppPlan(positionals: string[], kwargs: Record<string, 
   const candidates = scoreApps(intent, input);
   const selectedCandidate = candidates.find(candidate => candidate.app === selectedApp.app) ?? buildCandidate(selectedApp, input, 1, ['explicit app']);
   const missingFields = getMissingFields(selectedApp, input);
-  const requestBody = addGenerateOptions({ app: selectedApp.app, input }, kwargs);
+  const generateRequest = addGenerateOptions({ app: selectedApp.app, input }, kwargs);
 
   return {
     intent,
@@ -199,8 +198,7 @@ export function buildImageAppPlan(positionals: string[], kwargs: Record<string, 
     missingFields,
     candidates,
     shouldAskUser: selectedCandidate.confidence < readMinConfidence(kwargs) || missingFields.length > 0,
-    apiPath: '/api/v1/image-app/generate',
-    requestBody,
+    generateRequest,
   };
 }
 
