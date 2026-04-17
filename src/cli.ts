@@ -598,6 +598,33 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
     }));
 
+  // ── Cookies ──
+
+  browser.command('cookies')
+    .option('--domain <domain>', 'Filter cookies by domain')
+    .option('--url <url>', 'Filter cookies by URL')
+    .option('--name <name>', 'Filter cookies by name (client-side)')
+    .option('-f, --format <fmt>', 'Output format: table, json, yaml, csv, md', 'table')
+    .description('List browser cookies (including HttpOnly)')
+    .action(browserAction(async (page, opts) => {
+      const cookies = await page.getCookies({
+        domain: opts.domain,
+        url: opts.url,
+      });
+
+      let rows = cookies;
+      if (opts.name) {
+        rows = rows.filter((c) => c.name === opts.name);
+      }
+
+      if (rows.length === 0) {
+        console.log(styleText('dim', '(no cookies)'));
+        return;
+      }
+
+      renderOutput(rows, { fmt: opts.format, columns: ['name', 'value', 'domain', 'path', 'secure', 'httpOnly', 'expirationDate'] });
+    }));
+
   // ── Init (adapter scaffolding) ──
 
   browser.command('init')

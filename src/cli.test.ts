@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as path from 'node:path';
 import type { IPage } from './types.js';
 
@@ -13,6 +13,7 @@ const {
   mockRenderCascadeResult,
   mockGetBrowserFactory,
   mockBrowserSession,
+  mockBrowserBridgeConnect,
 } = vi.hoisted(() => ({
   mockExploreUrl: vi.fn(),
   mockRenderExploreSummary: vi.fn(),
@@ -24,6 +25,7 @@ const {
   mockRenderCascadeResult: vi.fn(),
   mockGetBrowserFactory: vi.fn(() => ({ name: 'BrowserFactory' })),
   mockBrowserSession: vi.fn(),
+  mockBrowserBridgeConnect: vi.fn(),
 }));
 
 vi.mock('./explore.js', () => ({
@@ -49,6 +51,12 @@ vi.mock('./cascade.js', () => ({
 vi.mock('./runtime.js', () => ({
   getBrowserFactory: mockGetBrowserFactory,
   browserSession: mockBrowserSession,
+}));
+
+vi.mock('./browser/index.js', () => ({
+  BrowserBridge: function BrowserBridgeMock() {
+    return { connect: mockBrowserBridgeConnect };
+  },
 }));
 
 import { createProgram, findPackageRoot, resolveBrowserVerifyInvocation } from './cli.js';
@@ -234,5 +242,89 @@ describe('findPackageRoot', () => {
     ]);
 
     expect(findPackageRoot(cliFile, (candidate) => exists.has(candidate))).toBe(packageRoot);
+  });
+});
+
+describe('browser cookies command', () => {
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  function mockPage(cookies: unknown[]) {
+    mockBrowserBridgeConnect.mockReset().mockResolvedValue({
+      getCookies: vi.fn().mockResolvedValue(cookies),
+    } as unknown as IPage);
+  }
+
+  function hasLogContaining(text: string) {
+    return consoleLogSpy.mock.calls.some((call) => typeof call[0] === 'string' && call[0].includes(text));
+  }
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    consoleLogSpy.mockClear();
+  });
+
+  afterAll(() => {
+    consoleLogSpy.mockRestore();
+  });
+
+  it('outputs cookies in table format by default', async () => {
+    mockPage([
+      { name: 'session', value: 'abc', domain: '.example.com', path: '/', secure: true, httpOnly: true, expirationDate: 1893456000 },
+    ]);
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', 'cookies']);
+
+    expect(mockBrowserBridgeConnect).toHaveBeenCalledWith(expect.objectContaining({ workspace: 'browser:default' }));
+    expect(hasLogContaining('session')).toBe(true);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('filters by domain and url', async () => {
+    mockPage([]);
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', 'cookies', '--domain', '.example.com', '--url', 'https://example.com']);
+
+    const page = await mockBrowserBridgeConnect.mock.results[0].value;
+    expect(page.getCookies).toHaveBeenCalledWith({ domain: '.example.com', url: 'https://example.com' });
+  });
+
+  it('filters by name client-side', async () => {
+    mockPage([
+      { name: 'session', value: 'abc', domain: '.example.com' },
+      { name: 'token', value: 'xyz', domain: '.example.com' },
+    ]);
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', 'cookies', '--name', 'token']);
+
+    expect(hasLogContaining('token')).toBe(true);
+    expect(hasLogContaining('session')).toBe(false);
+  });
+
+  it('outputs json when --format json is passed', async () => {
+    mockPage([
+      { name: 'session', value: 'abc', domain: '.example.com', path: '/', secure: true, httpOnly: true },
+    ]);
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', 'cookies', '--format', 'json']);
+
+    const jsonCalls = consoleLogSpy.mock.calls
+      .map((call) => call[0])
+      .filter((text) => typeof text === 'string' && text.includes('"name": "session"'));
+    expect(jsonCalls.length).toBeGreaterThan(0);
+    expect(jsonCalls[0]).toContain('"httpOnly": true');
+  });
+
+  it('handles empty result gracefully', async () => {
+    mockPage([]);
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', 'cookies']);
+
+    expect(hasLogContaining('(no cookies)')).toBe(true);
+    expect(process.exitCode).toBeUndefined();
   });
 });
