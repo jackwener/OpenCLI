@@ -142,7 +142,7 @@ Type legend: 🌐 = Browser (needs Chrome login) · ✅ = Public API (no browser
 
 | App | Commands |
 |-----|----------|
-| **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` |
+| **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` `serve` |
 | **chatgpt** | `status` `new` `send` `read` `ask` `model` |
 | **chatwise** | `status` `new` `send` `read` `ask` `model` `history` `export` `screenshot` |
 | **codex** | `status` `send` `read` `new` `dump` `extract-diff` `model` `ask` `screenshot` `history` `export` |

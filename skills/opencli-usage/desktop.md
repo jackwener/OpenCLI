@@ -92,7 +92,7 @@ opencli doubao-app send "message"        # 发送消息
 
 ```bash
 opencli antigravity status              # 检查 CDP 连接状态
-opencli antigravity serve               # 启动 Anthropic 兼容 API 代理
+opencli antigravity serve --timeout 300 # 启动 Anthropic 兼容 API 代理，等待回复最多 300s
 opencli antigravity dump                # 导出 DOM 调试信息
 opencli antigravity extract-code        # 提取对话中的代码块
 opencli antigravity model <name>        # 切换底层模型
@@ -101,3 +101,5 @@ opencli antigravity read                # 读取聊天记录
 opencli antigravity send "hello"        # 发送文本到当前聊天框
 opencli antigravity watch               # 流式监听增量消息
 ```
+
+也可以通过 `OPENCLI_ANTIGRAVITY_TIMEOUT=300` 设置 `serve` 的默认等待时长（单位：秒）。
