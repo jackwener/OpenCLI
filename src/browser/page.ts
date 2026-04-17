@@ -4,58 +4,66 @@
  * All browser operations are ultimately 'exec' (JS evaluation via CDP)
  * plus a few native Chrome Extension APIs (tabs, cookies, navigate).
  *
- * IMPORTANT: After goto(), we remember the tabId returned by the navigate
- * action and pass it to all subsequent commands. This avoids the issue
- * where resolveTabId() in the extension picks a chrome:// or
- * chrome-extension:// tab that can't be debugged.
+ * IMPORTANT: After goto(), we remember the page identity (targetId) returned
+ * by the navigate action and pass it to all subsequent commands. This ensures
+ * page-scoped operations target the correct page without guessing.
  */
 
 import type { BrowserCookie, ScreenshotOptions } from '../types.js';
-import { sendCommand } from './daemon-client.js';
+import { sendCommand, sendCommandFull } from './daemon-client.js';
 import { wrapForEval } from './utils.js';
 import { saveBase64ToFile } from '../utils.js';
 import { generateStealthJs } from './stealth.js';
 import { waitForDomStableJs } from './dom-helpers.js';
 import { BasePage } from './base-page.js';
+import { classifyBrowserError } from './errors.js';
+import { log } from '../logger.js';
 
-export function isRetryableSettleError(err: unknown): boolean {
+function isUnsupportedNetworkCaptureError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
-  return message.includes('Inspected target navigated or closed')
-    || (message.includes('-32000') && message.toLowerCase().includes('target'));
+  const normalized = message.toLowerCase();
+  return (normalized.includes('unknown action') && normalized.includes('network-capture'))
+    || (normalized.includes('network capture') && normalized.includes('not supported'));
 }
 
 /**
  * Page — implements IPage by talking to the daemon via HTTP.
  */
 export class Page extends BasePage {
-  constructor(private readonly workspace: string = 'default') {
+  private readonly _idleTimeout: number | undefined;
+
+  constructor(private readonly workspace: string = 'default', idleTimeout?: number) {
     super();
+    this._idleTimeout = idleTimeout;
   }
 
-  /** Active tab ID, set after navigate and used in all subsequent commands */
-  private _tabId: number | undefined;
+  /** Active page identity (targetId), set after navigate and used in all subsequent commands */
+  private _page: string | undefined;
+  private _networkCaptureUnsupported = false;
+  private _networkCaptureWarned = false;
 
   /** Helper: spread workspace into command params */
-  private _wsOpt(): { workspace: string } {
-    return { workspace: this.workspace };
+  private _wsOpt(): { workspace: string; idleTimeout?: number } {
+    return { workspace: this.workspace, ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }) };
   }
 
-  /** Helper: spread workspace + tabId into command params */
+  /** Helper: spread workspace + page identity into command params */
   private _cmdOpts(): Record<string, unknown> {
     return {
       workspace: this.workspace,
-      ...(this._tabId !== undefined && { tabId: this._tabId }),
+      ...(this._page !== undefined && { page: this._page }),
+      ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
     };
   }
 
   async goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number }): Promise<void> {
-    const result = await sendCommand('navigate', {
+    const result = await sendCommandFull('navigate', {
       url,
       ...this._cmdOpts(),
-    }) as { tabId?: number };
-    // Remember the tabId and URL for subsequent calls
-    if (result?.tabId) {
-      this._tabId = result.tabId;
+    });
+    // Remember the page identity (targetId) for subsequent calls
+    if (result.page) {
+      this._page = result.page;
     }
     this._lastUrl = url;
     // Inject stealth + settle in a single round-trip instead of two sequential exec calls.
@@ -70,15 +78,16 @@ export class Page extends BasePage {
       try {
         await sendCommand('exec', combinedOpts);
       } catch (err) {
-        if (!isRetryableSettleError(err)) throw err;
-        // SPA client-side redirects can invalidate the CDP target after
-        // chrome.tabs reports 'complete'. Wait briefly for the new document
-        // to load, then retry the settle probe once.
+        const advice = classifyBrowserError(err);
+        // Only settle-retry on target navigation (SPA client-side redirects).
+        // Extension/daemon errors are already retried by sendCommandRaw —
+        // retrying them here would silently swallow real failures.
+        if (advice.kind !== 'target-navigation') throw err;
         try {
-          await new Promise((r) => setTimeout(r, 200));
+          await new Promise((r) => setTimeout(r, advice.delayMs));
           await sendCommand('exec', combinedOpts);
         } catch (retryErr) {
-          if (!isRetryableSettleError(retryErr)) throw retryErr;
+          if (classifyBrowserError(retryErr).kind !== 'target-navigation') throw retryErr;
         }
       }
     } else {
@@ -94,8 +103,19 @@ export class Page extends BasePage {
     }
   }
 
-  getActiveTabId(): number | undefined {
-    return this._tabId;
+  /** Get the active page identity (targetId) */
+  getActivePage(): string | undefined {
+    return this._page;
+  }
+
+  private _markUnsupportedNetworkCapture(): void {
+    this._networkCaptureUnsupported = true;
+    if (this._networkCaptureWarned) return;
+    this._networkCaptureWarned = true;
+    log.warn(
+      'Browser Bridge extension does not support network capture; continuing without it. ' +
+      'Explore output may miss API endpoints until you reload or reinstall the extension.',
+    );
   }
 
   async evaluate(js: string): Promise<unknown> {
@@ -103,8 +123,9 @@ export class Page extends BasePage {
     try {
       return await sendCommand('exec', { code, ...this._cmdOpts() });
     } catch (err) {
-      if (!isRetryableSettleError(err)) throw err;
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      const advice = classifyBrowserError(err);
+      if (advice.kind !== 'target-navigation') throw err;
+      await new Promise((resolve) => setTimeout(resolve, advice.delayMs));
       return sendCommand('exec', { code, ...this._cmdOpts() });
     }
   }
@@ -121,8 +142,10 @@ export class Page extends BasePage {
     } catch {
       // Window may already be closed or daemon may be down
     } finally {
-      this._tabId = undefined;
+      this._page = undefined;
       this._lastUrl = null;
+      this._networkCaptureUnsupported = false;
+      this._networkCaptureWarned = false;
     }
   }
 
@@ -132,8 +155,8 @@ export class Page extends BasePage {
   }
 
   async selectTab(index: number): Promise<void> {
-    const result = await sendCommand('tabs', { op: 'select', index, ...this._wsOpt() }) as { selected?: number };
-    if (result?.selected) this._tabId = result.selected;
+    const result = await sendCommandFull('tabs', { op: 'select', index, ...this._wsOpt() });
+    if (result.page) this._page = result.page;
   }
 
   /**
@@ -154,18 +177,33 @@ export class Page extends BasePage {
     return base64;
   }
 
-  async startNetworkCapture(pattern: string = ''): Promise<void> {
-    await sendCommand('network-capture-start', {
-      pattern,
-      ...this._cmdOpts(),
-    });
+  async startNetworkCapture(pattern: string = ''): Promise<boolean> {
+    if (this._networkCaptureUnsupported) return false;
+    try {
+      await sendCommand('network-capture-start', {
+        pattern,
+        ...this._cmdOpts(),
+      });
+      return true;
+    } catch (err) {
+      if (!isUnsupportedNetworkCaptureError(err)) throw err;
+      this._markUnsupportedNetworkCapture();
+      return false;
+    }
   }
 
   async readNetworkCapture(): Promise<unknown[]> {
-    const result = await sendCommand('network-capture-read', {
-      ...this._cmdOpts(),
-    });
-    return Array.isArray(result) ? result : [];
+    if (this._networkCaptureUnsupported) return [];
+    try {
+      const result = await sendCommand('network-capture-read', {
+        ...this._cmdOpts(),
+      });
+      return Array.isArray(result) ? result : [];
+    } catch (err) {
+      if (!isUnsupportedNetworkCaptureError(err)) throw err;
+      this._markUnsupportedNetworkCapture();
+      return [];
+    }
   }
   /**
    * Set local file paths on a file input element via CDP DOM.setFileInputFiles.

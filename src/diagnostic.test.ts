@@ -103,13 +103,13 @@ describe('redactText', () => {
 
 describe('resolveAdapterSourcePath', () => {
   it('returns source when it is a real file path (not manifest:)', () => {
-    const cmd = makeCmd({ source: '/home/user/.opencli/clis/arxiv/search.yaml' });
-    expect(resolveAdapterSourcePath(cmd as InternalCliCommand)).toBe('/home/user/.opencli/clis/arxiv/search.yaml');
+    const cmd = makeCmd({ source: '/home/user/.opencli/clis/arxiv/search.js' });
+    expect(resolveAdapterSourcePath(cmd as InternalCliCommand)).toBe('/home/user/.opencli/clis/arxiv/search.js');
   });
 
   it('skips manifest: pseudo-paths and falls back to _modulePath', () => {
-    const cmd = makeCmd({ source: 'manifest:arxiv/search', _modulePath: '/pkg/dist/clis/arxiv/search.js' });
-    // Should try to map dist→source, but since files don't exist on disk, returns _modulePath
+    const cmd = makeCmd({ source: 'manifest:arxiv/search', _modulePath: '/pkg/clis/arxiv/search.js' });
+    // Should try to map to source, but since files don't exist on disk, returns _modulePath
     const result = resolveAdapterSourcePath(cmd as InternalCliCommand);
     expect(result).toBeDefined();
     expect(result).not.toContain('manifest:');
@@ -120,12 +120,11 @@ describe('resolveAdapterSourcePath', () => {
     expect(resolveAdapterSourcePath(cmd as InternalCliCommand)).toBeUndefined();
   });
 
-  it('prefers _modulePath mapped to .ts over dist .js', () => {
-    // This test verifies the mapping logic without requiring files on disk
-    const cmd = makeCmd({ _modulePath: '/project/dist/clis/site/cmd.js' });
+  it('returns _modulePath when it is the only path available', () => {
+    const cmd = makeCmd({ _modulePath: '/project/clis/site/cmd.js' });
     const result = resolveAdapterSourcePath(cmd as InternalCliCommand);
-    // Since neither .ts nor .js exists, returns _modulePath as best guess
-    expect(result).toBe('/project/dist/clis/site/cmd.js');
+    // Since file doesn't exist, returns _modulePath as best guess
+    expect(result).toBe('/project/clis/site/cmd.js');
   });
 });
 

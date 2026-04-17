@@ -1,6 +1,6 @@
 /**
- * Remove dist/ before a fresh build so deleted adapters do not leave stale
- * compiled files behind in dist/clis/.
+ * Remove dist/ before a fresh build so deleted source modules do not leave
+ * stale compiled files behind.
  */
 const { existsSync, rmSync } = require('fs');
 

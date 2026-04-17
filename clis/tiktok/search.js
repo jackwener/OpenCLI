@@ -1,0 +1,39 @@
+import { cli } from '@jackwener/opencli/registry';
+cli({
+    site: 'tiktok',
+    name: 'search',
+    description: 'Search TikTok videos',
+    domain: 'www.tiktok.com',
+    args: [
+        { name: 'query', required: true, positional: true, help: 'Search query' },
+        { name: 'limit', type: 'int', default: 10, help: 'Number of results' },
+    ],
+    columns: ['rank', 'desc', 'author', 'url', 'plays', 'likes', 'comments', 'shares'],
+    pipeline: [
+        { navigate: { url: 'https://www.tiktok.com/explore', settleMs: 5000 } },
+        { evaluate: `(async () => {
+  const query = \${{ args.query | json }};
+  const limit = \${{ args.limit }};
+  const res = await fetch('/api/search/general/full/?keyword=' + encodeURIComponent(query) + '&offset=0&count=' + limit + '&aid=1988', { credentials: 'include' });
+  if (!res.ok) throw new Error('Search failed: HTTP ' + res.status);
+  const data = await res.json();
+  const items = (data.data || []).filter(function(i) { return i.type === 1 && i.item; });
+  return items.slice(0, limit).map(function(i, idx) {
+    var v = i.item;
+    var a = v.author || {};
+    var s = v.stats || {};
+    return {
+      rank: idx + 1,
+      desc: (v.desc || '').replace(/\\n/g, ' ').substring(0, 100),
+      author: a.uniqueId || '',
+      url: (a.uniqueId && v.id) ? 'https://www.tiktok.com/@' + a.uniqueId + '/video/' + v.id : '',
+      plays: s.playCount || 0,
+      likes: s.diggCount || 0,
+      comments: s.commentCount || 0,
+      shares: s.shareCount || 0,
+    };
+  });
+})()
+` },
+    ],
+});

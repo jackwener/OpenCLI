@@ -9,14 +9,21 @@ export default defineConfig({
         test: {
           name: 'unit',
           include: ['src/**/*.test.ts'],
-          exclude: ['clis/**/*.test.ts'],
+          exclude: ['clis/**/*.test.{ts,js}'],
+          sequence: { groupOrder: 0 },
+        },
+      },
+      {
+        test: {
+          name: 'extension',
+          include: ['extension/src/**/*.test.ts'],
           sequence: { groupOrder: 0 },
         },
       },
       {
         test: {
           name: 'adapter',
-          include: ['clis/**/*.test.ts'],
+          include: ['clis/**/*.test.{ts,js}'],
           sequence: { groupOrder: 1 },
         },
       },
@@ -32,7 +39,7 @@ export default defineConfig({
             'tests/e2e/plugin-management.test.ts',
             // Extended browser tests (20+ sites) — opt-in only:
             //   OPENCLI_E2E=1 npx vitest run
-            ...(includeExtendedE2e ? ['tests/e2e/browser-public-extended.test.ts', 'tests/e2e/browser-auth.test.ts'] : []),
+            ...(includeExtendedE2e ? ['tests/e2e/browser-public-extended.test.ts', 'tests/e2e/browser-auth.test.ts', 'tests/e2e/douban.test.ts'] : []),
           ],
           maxWorkers: 2,
           sequence: { groupOrder: 2 },

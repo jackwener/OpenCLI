@@ -183,9 +183,9 @@ function redactNetworkRequest(req: unknown): unknown {
     redacted.responseHeaders = redactHeaders(redacted.responseHeaders as Record<string, string>);
   }
 
-  // Truncate response body
+  // Redact and truncate response body
   if (typeof redacted.body === 'string') {
-    redacted.body = truncate(redacted.body, MAX_REQUEST_BODY_CHARS);
+    redacted.body = redactText(truncate(redacted.body, MAX_REQUEST_BODY_CHARS));
   }
   if ('responseBody' in redacted) {
     redacted.responseBody = sanitizeCapturedValue(redacted.responseBody);
@@ -215,10 +215,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
  * Resolve the editable source file path for an adapter.
  *
  * Priority:
- * 1. cmd.source (set for FS-scanned YAML/TS and manifest lazy-loaded TS)
- * 2. cmd._modulePath (set for manifest lazy-loaded TS, points to dist/)
+ * 1. cmd.source (set for FS-scanned JS and manifest lazy-loaded JS)
+ * 2. cmd._modulePath (set for manifest lazy-loaded JS)
  *
- * For dist/ paths, attempt to map back to the original .ts source file.
  * Skip manifest: prefixed pseudo-paths (YAML commands inlined in manifest).
  */
 export function resolveAdapterSourcePath(cmd: InternalCliCommand): string | undefined {
@@ -233,26 +232,10 @@ export function resolveAdapterSourcePath(cmd: InternalCliCommand): string | unde
   }
 
   for (const candidate of candidates) {
-    // Try to map dist/ compiled JS back to source .ts
-    const sourceTs = mapDistToSource(candidate);
-    if (sourceTs && fs.existsSync(sourceTs)) return sourceTs;
-
-    // Try the candidate directly (YAML files, user clis, etc.)
     if (fs.existsSync(candidate)) return candidate;
   }
 
   return candidates[0]; // Return best guess even if file doesn't exist
-}
-
-/** Map a dist/clis/xxx.js path back to clis/xxx.ts source. */
-function mapDistToSource(filePath: string): string | null {
-  // dist/clis/site/command.js → clis/site/command.ts
-  const normalized = filePath.replace(/\\/g, '/');
-  const distClisMatch = normalized.match(/^(.*)\/dist\/clis\/(.+)\.js$/);
-  if (distClisMatch) {
-    return path.join(distClisMatch[1], 'clis', distClisMatch[2] + '.ts');
-  }
-  return null;
 }
 
 // ── Diagnostic collection ────────────────────────────────────────────────────

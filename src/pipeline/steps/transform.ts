@@ -41,7 +41,7 @@ export async function stepMap(_page: IPage | null, params: unknown, data: unknow
     const row: Record<string, unknown> = {};
     for (const [key, template] of Object.entries(templateParams)) {
       if (key === 'select') continue;
-      row[key] = render(template, { args, data: source, item, index: i });
+      row[key] = render(template, { args, data: source, root: data, item, index: i });
     }
     result.push(row);
   }

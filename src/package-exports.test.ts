@@ -16,15 +16,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const CLIS_DIR = path.join(ROOT, 'clis');
 
-/** Recursively collect all .ts files in a directory. */
-function collectTsFiles(dir: string, opts?: { excludeTests?: boolean }): string[] {
+/** Recursively collect all JS adapter files in a directory. */
+function collectAdapterFiles(dir: string, opts?: { excludeTests?: boolean }): string[] {
   const results: string[] = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      results.push(...collectTsFiles(full, opts));
-    } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts')) {
-      if (opts?.excludeTests && (entry.name.endsWith('.test.ts') || entry.name === 'test-utils.ts')) continue;
+      results.push(...collectAdapterFiles(full, opts));
+    } else if (entry.name.endsWith('.js') && !entry.name.endsWith('.d.js')) {
+      if (opts?.excludeTests && (entry.name.endsWith('.test.js') || entry.name.startsWith('test-'))) continue;
       results.push(full);
     }
   }
@@ -57,8 +57,8 @@ const FORBIDDEN_PATTERNS = [
 ];
 
 describe('adapter imports use package exports', () => {
-  const adapterFiles = collectTsFiles(CLIS_DIR);
-  const runtimeAdapterFiles = collectTsFiles(CLIS_DIR, { excludeTests: true });
+  const adapterFiles = collectAdapterFiles(CLIS_DIR);
+  const runtimeAdapterFiles = collectAdapterFiles(CLIS_DIR, { excludeTests: true });
 
   it('found adapter files to check', () => {
     expect(adapterFiles.length).toBeGreaterThan(100);
@@ -84,7 +84,7 @@ describe('adapter imports use package exports', () => {
 
     for (const file of runtimeAdapterFiles) {
       const source = fs.readFileSync(file, 'utf-8');
-      const module = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      const module = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
 
       for (const stmt of module.statements) {
         if (!ts.isImportDeclaration(stmt) && !ts.isExportDeclaration(stmt)) continue;

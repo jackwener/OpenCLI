@@ -1,7 +1,10 @@
 {
   "name": "opencli-extension",
-  "version": "1.6.8",
+  "version": "1.0.0",
   "private": true,
+  "opencli": {
+    "compatRange": ">=1.7.0"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite build --watch",

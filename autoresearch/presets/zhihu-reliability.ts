@@ -1,7 +1,7 @@
 /**
  * Preset: Zhihu Command Reliability
  *
- * Optimizes opencli operate commands against the Zhihu test suite.
+ * Optimizes opencli browser commands against the Zhihu test suite.
  * 60 tasks across 8 difficulty layers (atomic → complex long chain).
  * Zhihu is a React SPA with lazy loading, making it harder than V2EX.
  */
@@ -9,7 +9,7 @@
 import type { AutoResearchConfig } from '../config.js';
 
 export const zhihuReliability: AutoResearchConfig = {
-  goal: 'Increase Zhihu operate command pass rate to 60/60 (100%)',
+  goal: 'Increase Zhihu browser command pass rate to 60/60 (100%)',
   scope: [
     'src/browser/dom-snapshot.ts',
     'src/browser/dom-helpers.ts',

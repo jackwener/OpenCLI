@@ -1,4 +1,4 @@
-import { Strategy, type CliCommand } from './registry.js';
+import type { CliCommand } from './registry.js';
 
 /** Pipeline steps that require a live browser session. */
 export const BROWSER_ONLY_STEPS = new Set([
@@ -24,6 +24,9 @@ export function shouldUseBrowserSession(cmd: CliCommand): boolean {
   if (!cmd.browser) return false;
   if (cmd.func) return true;
   if (!cmd.pipeline || cmd.pipeline.length === 0) return true;
-  if (cmd.strategy !== Strategy.PUBLIC) return true;
+  // normalizeCommand sets navigateBefore to a URL string (needs pre-nav) or
+  // boolean true (needs authenticated context, no specific URL). Either way
+  // the pipeline requires a browser session even if no step is browser-only.
+  if (cmd.navigateBefore) return true;
   return pipelineNeedsBrowserSession(cmd.pipeline as Record<string, unknown>[]);
 }

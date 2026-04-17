@@ -1,0 +1,38 @@
+import { cli } from '@jackwener/opencli/registry';
+cli({
+    site: 'facebook',
+    name: 'friends',
+    description: 'Get Facebook friend suggestions',
+    domain: 'www.facebook.com',
+    args: [
+        { name: 'limit', type: 'int', default: 10, help: 'Number of friend suggestions' },
+    ],
+    columns: ['index', 'name', 'mutual'],
+    pipeline: [
+        { navigate: { url: 'https://www.facebook.com/friends', settleMs: 3000 } },
+        { evaluate: `(() => {
+  const limit = \${{ args.limit }};
+  const items = document.querySelectorAll('[role="listitem"]');
+  return Array.from(items)
+    .slice(0, limit)
+    .map((el, i) => {
+      const text = el.textContent.trim().replace(/\\s+/g, ' ');
+      // Extract mutual info if present (before name extraction to avoid pollution)
+      const mutualMatch = text.match(/([\\d,]+)\\s*位.*(?:关注|共同|mutual)/);
+      // Extract name: remove mutual info, action buttons, etc.
+      let name = text
+        .replace(/[\\d,]+\\s*位.*(?:关注了|共同好友|mutual friends?)/, '')
+        .replace(/加好友.*/, '').replace(/Add [Ff]riend.*/, '')
+        .replace(/移除$/, '').replace(/Remove$/, '')
+        .trim();
+      return {
+        index: i + 1,
+        name: name.substring(0, 50),
+        mutual: mutualMatch ? mutualMatch[1] : '-',
+      };
+    })
+    .filter(item => item.name.length > 0);
+})()
+` },
+    ],
+});

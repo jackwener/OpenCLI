@@ -4,7 +4,6 @@ import * as os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawnSync, execFileSync } from 'node:child_process';
 import yaml from 'js-yaml';
-import chalk from 'chalk';
 import { log } from './logger.js';
 import { EXIT_CODES, getErrorMessage } from './errors.js';
 
@@ -144,26 +143,26 @@ function runInstallCommand(cmd: string): void {
 
 export function installExternalCli(cli: ExternalCliConfig): boolean {
   if (!cli.install) {
-    console.error(chalk.red(`No auto-install command configured for '${cli.name}'.`));
-    console.error(`Please install '${cli.binary}' manually.`);
+    log.error(`No auto-install command configured for '${cli.name}'.`);
+    log.info(`Please install '${cli.binary}' manually.`);
     return false;
   }
 
   const cmd = getInstallCmd(cli.install);
   if (!cmd) {
-    console.error(chalk.red(`No install command for your platform (${os.platform()}) for '${cli.name}'.`));
-    if (cli.homepage) console.error(`See: ${cli.homepage}`);
+    log.error(`No install command for your platform (${os.platform()}) for '${cli.name}'.`);
+    if (cli.homepage) log.info(`See: ${cli.homepage}`);
     return false;
   }
 
-  console.log(chalk.cyan(`🔹 '${cli.name}' is not installed. Auto-installing...`));
-  console.log(chalk.dim(`$ ${cmd}`));
+  log.info(`'${cli.name}' is not installed. Auto-installing...`);
+  log.verbose(`$ ${cmd}`);
   try {
     runInstallCommand(cmd);
-    console.log(chalk.green(`✅ Installed '${cli.name}' successfully.\n`));
+    log.success(`Installed '${cli.name}' successfully.`);
     return true;
   } catch (err) {
-    console.error(chalk.red(`❌ Failed to install '${cli.name}': ${getErrorMessage(err)}`));
+    log.error(`Failed to install '${cli.name}': ${getErrorMessage(err)}`);
     return false;
   }
 }
@@ -188,7 +187,7 @@ export function executeExternalCli(name: string, args: string[], preloaded?: Ext
   // 3. Passthrough execution with stdio inherited
   const result = spawnSync(cli.binary, args, { stdio: 'inherit' });
   if (result.error) {
-    console.error(chalk.red(`Failed to execute '${cli.binary}': ${result.error.message}`));
+    log.error(`Failed to execute '${cli.binary}': ${result.error.message}`);
     process.exitCode = EXIT_CODES.GENERIC_ERROR;
     return;
   }
@@ -233,14 +232,14 @@ export function registerExternalCli(name: string, opts?: RegisterOptions): void 
 
   if (existingIndex >= 0) {
     items[existingIndex] = { ...items[existingIndex], ...newItem };
-    console.log(chalk.green(`Updated '${name}' in user registry.`));
+    log.success(`Updated '${name}' in user registry.`);
   } else {
     items.push(newItem);
-    console.log(chalk.green(`Registered '${name}' in user registry.`));
+    log.success(`Registered '${name}' in user registry.`);
   }
 
   const dump = yaml.dump(items, { indent: 2, sortKeys: true });
   fs.writeFileSync(userPath, dump, 'utf8');
   _cachedExternalClis = null; // Invalidate cache so next load reflects the change
-  console.log(chalk.dim(userPath));
+  log.verbose(userPath);
 }

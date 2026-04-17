@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { cli, getRegistry, Strategy } from './registry.js';
-import { loadTsManifestEntries, shouldReplaceManifestEntry } from './build-manifest.js';
+import { loadManifestEntries } from './build-manifest.js';
 
 describe('manifest helper rules', () => {
   const tempDirs: string[] = [];
@@ -14,59 +14,13 @@ describe('manifest helper rules', () => {
     }
   });
 
-  it('prefers TS adapters over duplicate YAML adapters', () => {
-    expect(shouldReplaceManifestEntry(
-      {
-        site: 'demo',
-        name: 'search',
-        description: 'yaml',
-        strategy: 'public',
-        browser: false,
-        args: [],
-        type: 'yaml',
-      },
-      {
-        site: 'demo',
-        name: 'search',
-        description: 'ts',
-        strategy: 'public',
-        browser: false,
-        args: [],
-        type: 'ts',
-        modulePath: 'demo/search.js',
-      },
-    )).toBe(true);
-
-    expect(shouldReplaceManifestEntry(
-      {
-        site: 'demo',
-        name: 'search',
-        description: 'ts',
-        strategy: 'public',
-        browser: false,
-        args: [],
-        type: 'ts',
-        modulePath: 'demo/search.js',
-      },
-      {
-        site: 'demo',
-        name: 'search',
-        description: 'yaml',
-        strategy: 'public',
-        browser: false,
-        args: [],
-        type: 'yaml',
-      },
-    )).toBe(false);
-  });
-
   it('skips TS files that do not register a cli', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-manifest-'));
     tempDirs.push(dir);
     const file = path.join(dir, 'utils.ts');
     fs.writeFileSync(file, `export function helper() { return 'noop'; }`);
 
-    return expect(loadTsManifestEntries(file, 'demo', async () => ({}))).resolves.toEqual([]);
+    return expect(loadManifestEntries(file, 'demo', async () => ({}))).resolves.toEqual([]);
   });
 
   it('builds TS manifest entries from exported runtime commands', async () => {
@@ -77,7 +31,7 @@ describe('manifest helper rules', () => {
     const file = path.join(dir, `${site}.ts`);
     fs.writeFileSync(file, `export const command = cli({ site: '${site}', name: 'dynamic' });`);
 
-    const entries = await loadTsManifestEntries(file, site, async () => ({
+    const entries = await loadManifestEntries(file, site, async () => ({
       command: cli({
         site,
         name: 'dynamic',
@@ -122,7 +76,7 @@ describe('manifest helper rules', () => {
             default: '30',
           }),
         ],
-        type: 'ts',
+        type: 'js',
         modulePath: `${site}/${site}.js`,
         navigateBefore: 'https://example.com/session',
         deprecated: 'legacy command',
@@ -143,7 +97,7 @@ describe('manifest helper rules', () => {
     const file = path.join(dir, `${site}.ts`);
     fs.writeFileSync(file, `cli({ site: '${site}', name: 'legacy' });`);
 
-    const entries = await loadTsManifestEntries(file, site, async () => {
+    const entries = await loadManifestEntries(file, site, async () => {
       cli({
         site,
         name: 'legacy',
@@ -162,7 +116,7 @@ describe('manifest helper rules', () => {
         strategy: 'cookie',
         browser: true,
         args: [],
-        type: 'ts',
+        type: 'js',
         modulePath: `${site}/${site}.js`,
         deprecated: 'legacy is deprecated',
         replacedBy: 'opencli demo new',
@@ -183,7 +137,7 @@ describe('manifest helper rules', () => {
     const file = path.join(dir, `${site}.ts`);
     fs.writeFileSync(file, `export const screen = cli({ site: '${site}', name: 'screen' });`);
 
-    const entries = await loadTsManifestEntries(file, site, async () => ({
+    const entries = await loadManifestEntries(file, site, async () => ({
       screen: cli({
         site,
         name: 'screen',

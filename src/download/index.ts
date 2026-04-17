@@ -15,6 +15,7 @@ import { isBinaryInstalled } from '../external.js';
 import type { BrowserCookie } from '../types.js';
 import { getErrorMessage } from '../errors.js';
 import { fetchWithNodeNetwork } from '../node-network.js';
+import { log } from '../logger.js';
 
 export type { BrowserCookie } from '../types.js';
 
@@ -267,7 +268,7 @@ export async function ytdlpDownload(
       if (fs.existsSync(cookiesFile)) {
         args.push('--cookies', cookiesFile);
       } else {
-        console.error(`[download] Cookies file not found: ${cookiesFile}, falling back to browser cookies`);
+        log.warn(`[download] Cookies file not found: ${cookiesFile}, falling back to browser cookies`);
         args.push('--cookies-from-browser', 'chrome');
       }
     } else {
@@ -341,7 +342,7 @@ export async function saveDocument(
   content: string,
   destPath: string,
   format: 'json' | 'markdown' | 'html' | 'text' = 'markdown',
-  metadata?: Record<string, any>,
+  metadata?: Record<string, unknown>,
 ): Promise<{ success: boolean; size: number; error?: string }> {
   try {
     const dir = path.dirname(destPath);

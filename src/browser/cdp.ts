@@ -65,7 +65,11 @@ export class CDPBridge implements IBrowserFactory {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(wsUrl);
       const timeoutMs = (opts?.timeout ?? 10) * 1000;
-      const timeout = setTimeout(() => reject(new Error('CDP connect timeout')), timeoutMs);
+      const timeout = setTimeout(() => {
+        this._ws = null;
+        ws.close();
+        reject(new Error('CDP connect timeout'));
+      }, timeoutMs);
 
       ws.on('open', async () => {
         clearTimeout(timeout);
@@ -73,7 +77,11 @@ export class CDPBridge implements IBrowserFactory {
         try {
           await this.send('Page.enable');
           await this.send('Page.addScriptToEvaluateOnNewDocument', { source: generateStealthJs() });
-        } catch {}
+        } catch (err) {
+          ws.close();
+          reject(err instanceof Error ? err : new Error(String(err)));
+          return;
+        }
         resolve(new CDPPage(this));
       });
 
@@ -232,19 +240,21 @@ class CDPPage extends BasePage {
     return base64;
   }
 
-  async startNetworkCapture(pattern: string = ''): Promise<void> {
+  async startNetworkCapture(pattern: string = ''): Promise<boolean> {
+    // Always update the filter pattern
     this._networkCapturePattern = pattern;
-    this._networkEntries = [];
-    this._pendingRequests.clear();
-    this._pendingBodyFetches.clear();
 
+    // Reset state only on first start; avoid wiping entries if already capturing
     if (!this._networkCapturing) {
+      this._networkEntries = [];
+      this._pendingRequests.clear();
+      this._pendingBodyFetches.clear();
       await this.bridge.send('Network.enable');
 
       // Step 1: Record request method/url on requestWillBeSent
       this.bridge.on('Network.requestWillBeSent', (params: unknown) => {
         const p = params as { requestId: string; request: { method: string; url: string }; timestamp: number };
-        if (!pattern || p.request.url.includes(pattern)) {
+        if (!this._networkCapturePattern || p.request.url.includes(this._networkCapturePattern)) {
           const idx = this._networkEntries.push({
             url: p.request.url,
             method: p.request.method,
@@ -288,6 +298,7 @@ class CDPPage extends BasePage {
 
       this._networkCapturing = true;
     }
+    return true;
   }
 
   async readNetworkCapture(): Promise<unknown[]> {

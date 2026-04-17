@@ -168,6 +168,7 @@ function main() {
   console.log('');
   console.log('  Then run \x1b[36mopencli doctor\x1b[0m to verify.');
   console.log('');
+
 }
 
 main();

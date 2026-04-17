@@ -134,7 +134,7 @@ export class Engine {
     if (diff === '0') return null; // no changes
 
     try {
-      execStrict(`git commit -m "experiment(operate): ${description.replace(/"/g, '\\"')}"`);
+      execStrict(`git commit -m "experiment(browser): ${description.replace(/"/g, '\\"')}"`);
       return exec('git rev-parse --short HEAD');
     } catch {
       // Hook failure

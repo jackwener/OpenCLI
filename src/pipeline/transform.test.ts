@@ -71,6 +71,22 @@ describe('stepMap', () => {
       { title: 'Two', rank: 2 },
     ]);
   });
+
+  it('keeps data bound to the selected source and exposes root separately', async () => {
+    const result = await stepMap(null, {
+      select: 'bids',
+      bid_price: '${{ data[index][0] }}',
+      ask_price: '${{ root.asks[index][0] }}',
+    }, {
+      bids: [['100', '2'], ['99', '3']],
+      asks: [['101', '1'], ['102', '4']],
+    }, {});
+
+    expect(result).toEqual([
+      { bid_price: '100', ask_price: '101' },
+      { bid_price: '99', ask_price: '102' },
+    ]);
+  });
 });
 
 describe('stepFilter', () => {

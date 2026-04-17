@@ -1,12 +1,12 @@
 {
   "name": "@jackwener/opencli",
-  "version": "1.6.8",
+  "version": "1.7.4",
   "publishConfig": {
     "access": "public"
   },
   "description": "Make any website or Electron App your CLI. AI-powered.",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=21.0.0"
   },
   "type": "module",
   "main": "dist/src/main.js",
@@ -32,8 +32,8 @@
   },
   "files": [
     "dist/src/",
-    "dist/clis/",
-    "dist/cli-manifest.json",
+    "clis/",
+    "cli-manifest.json",
     "scripts/",
     "README.md",
     "LICENSE"
@@ -41,20 +41,19 @@
   "scripts": {
     "dev": "tsx src/main.ts",
     "dev:bun": "bun src/main.ts",
-    "build": "npm run clean-dist && tsc && npm run clean-yaml && npm run copy-yaml && npm run build-manifest",
+    "build": "npm run clean-dist && tsc && npm run copy-yaml && npm run build-manifest",
     "build-manifest": "node dist/src/build-manifest.js",
     "clean-dist": "node scripts/clean-dist.cjs",
-    "clean-yaml": "node scripts/clean-yaml.cjs",
     "copy-yaml": "node scripts/copy-yaml.cjs",
     "start": "node dist/src/main.js",
     "start:bun": "bun dist/src/main.js",
+    "preuninstall": "node -e \"fetch('http://127.0.0.1:'+(process.env.OPENCLI_DAEMON_PORT||'19825')+'/shutdown',{method:'POST',headers:{'X-OpenCLI':'1'},signal:AbortSignal.timeout(3000)}).catch(()=>{})\" || true",
     "postinstall": "node scripts/postinstall.js || true; node scripts/fetch-adapters.js || true",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
     "prepare": "[ -d src ] && npm run build || true",
     "prepublishOnly": "npm run build",
-    "test": "vitest run --project unit",
-    "test:bun": "bun vitest run --project unit",
+    "test": "vitest run --project unit --project extension --project adapter",
+    "test:bun": "bun vitest run --project unit --project extension --project adapter",
     "test:adapter": "vitest run --project adapter",
     "test:all": "vitest run",
     "test:e2e": "vitest run --project e2e",
@@ -75,7 +74,6 @@
     "url": "git+https://github.com/jackwener/opencli.git"
   },
   "dependencies": {
-    "chalk": "^5.3.0",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.3",
     "js-yaml": "^4.1.0",

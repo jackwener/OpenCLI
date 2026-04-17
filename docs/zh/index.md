@@ -15,15 +15,21 @@ hero:
 
 features:
   - icon: 🖥️
-    title: CLI 所有 Electron 应用
-    details: 将任何 Electron 应用变成 CLI 工具 — Cursor、Codex、Antigravity、ChatGPT、Notion 等。AI 可以原生控制自身。
+    title: 桌面应用控制
+    details: 通过 CDP 直接在终端驱动 Electron 应用（Cursor、Codex、ChatGPT、Notion 等）。
+  - icon: 🌐
+    title: 浏览器自动化
+    details: AI Agent 直接控制浏览器：点击、输入、提取、截图 — 任何交互，完全可编程。
   - icon: 🔐
     title: 账号安全
     details: 复用 Chrome 登录态，凭证永远不会离开浏览器 — 无 token，无密码泄露。
   - icon: 🤖
     title: AI Agent 就绪
     details: explore 发现 API，synthesize 生成适配器，cascade 查找认证策略。为 AI 优先工作流而生。
-  - icon: ⚡
-    title: 双引擎架构
-    details: 同时支持 YAML 声明式数据管道和强大的浏览器运行时 TypeScript 注入。
+  - icon: 💰
+    title: 零 LLM 成本
+    details: 运行时不消耗模型 token。跑 10,000 次也不花一分钱。
+  - icon: 🔁
+    title: 确定性输出
+    details: 相同命令，相同输出结构，每次一致。可管道、可脚本、CI 友好。
 ---

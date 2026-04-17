@@ -54,7 +54,7 @@ const CAPABILITY_ALIASES: Record<string, string[]> = {
 /**
  * Normalize a goal string to a standard capability name.
  */
-function normalizeGoal(goal?: string | null): string | null {
+export function normalizeGoal(goal?: string | null): string | null {
   if (!goal) return null;
   const lower = goal.trim().toLowerCase();
   for (const [cap, aliases] of Object.entries(CAPABILITY_ALIASES)) {
@@ -66,7 +66,7 @@ function normalizeGoal(goal?: string | null): string | null {
 /**
  * Select the best candidate matching the user's goal.
  */
-function selectCandidate(candidates: SynthesizeResult['candidates'], goal?: string | null): SynthesizeCandidateSummary | null {
+export function selectCandidate(candidates: SynthesizeResult['candidates'], goal?: string | null): SynthesizeCandidateSummary | null {
   if (!candidates.length) return null;
   if (!goal) return candidates[0];
 

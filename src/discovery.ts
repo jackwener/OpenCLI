@@ -1,10 +1,10 @@
 /**
- * CLI discovery: finds YAML/TS CLI definitions and registers them.
+ * CLI discovery: finds JS CLI definitions and registers them.
  *
  * Supports two modes:
  * 1. FAST PATH (manifest): If a pre-compiled cli-manifest.json exists,
- *    registers all YAML commands instantly without runtime YAML parsing.
- *    TS modules are loaded lazily only when their command is executed.
+ *    registers commands instantly. JS modules are loaded lazily only
+ *    when their command is executed.
  * 2. FALLBACK (filesystem scan): Traditional runtime discovery for development.
  */
 
@@ -12,12 +12,11 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import yaml from 'js-yaml';
-import { type CliCommand, type InternalCliCommand, type Arg, Strategy, registerCommand } from './registry.js';
+import { type InternalCliCommand, Strategy, registerCommand } from './registry.js';
 import { getErrorMessage } from './errors.js';
 import { log } from './logger.js';
 import type { ManifestEntry } from './build-manifest.js';
-import { findPackageRoot, getCliManifestPath, getFetchAdaptersScriptPath } from './package-paths.js';
+import { findPackageRoot, getCliManifestPath } from './package-paths.js';
 
 /** User runtime directory: ~/.opencli */
 export const USER_OPENCLI_DIR = path.join(os.homedir(), '.opencli');
@@ -28,15 +27,11 @@ export const PLUGINS_DIR = path.join(USER_OPENCLI_DIR, 'plugins');
 /** Matches files that register commands via cli() or lifecycle hooks */
 const PLUGIN_MODULE_PATTERN = /\b(?:cli|onStartup|onBeforeExecute|onAfterExecute)\s*\(/;
 
-import { type YamlCliDefinition, parseYamlArgs } from './yaml-schema.js';
-
 function parseStrategy(rawStrategy: string | undefined, fallback: Strategy = Strategy.COOKIE): Strategy {
   if (!rawStrategy) return fallback;
   const key = rawStrategy.toUpperCase() as keyof typeof Strategy;
   return Strategy[key] ?? fallback;
 }
-
-import { isRecord } from './utils.js';
 
 const PACKAGE_ROOT = findPackageRoot(fileURLToPath(import.meta.url));
 
@@ -82,42 +77,15 @@ export async function ensureUserCliCompatShims(baseDir: string = USER_OPENCLI_DI
   }
 }
 
-const ADAPTER_MANIFEST_PATH = path.join(USER_OPENCLI_DIR, 'adapter-manifest.json');
-
 /**
- * First-run fallback: if postinstall was skipped (--ignore-scripts) or failed,
- * trigger adapter fetch on first CLI invocation when ~/.opencli/clis/ is empty.
+ * Ensure the user adapters directory exists.
+ *
+ * With smart sync, ~/.opencli/clis/ only holds files that differ from the
+ * package baseline (upstream-synced cache + autofix output + user overrides).
+ * Built-in adapters are loaded directly from the installed package.
  */
 export async function ensureUserAdapters(): Promise<void> {
-  // If adapter manifest already exists, adapters were fetched — nothing to do
-  try {
-    await fs.promises.access(ADAPTER_MANIFEST_PATH);
-    return;
-  } catch {
-    // No manifest — first run or postinstall was skipped
-  }
-
-  // Check if clis dir has any content (could be manually populated)
-  try {
-    const entries = await fs.promises.readdir(USER_CLIS_DIR);
-    if (entries.length > 0) return;
-  } catch {
-    // Dir doesn't exist — needs fetch
-  }
-
-  log.info('First run detected — copying adapters (one-time setup)...');
-  try {
-    const { execFileSync } = await import('node:child_process');
-    const scriptPath = getFetchAdaptersScriptPath(PACKAGE_ROOT);
-    execFileSync(process.execPath, [scriptPath], {
-      stdio: 'inherit',
-      env: { ...process.env, _OPENCLI_FIRST_RUN: '1' },
-      timeout: 120_000,
-    });
-  } catch (err) {
-    log.warn(`Could not fetch adapters on first run: ${getErrorMessage(err)}`);
-    log.warn('Built-in adapters from the package will be used.');
-  }
+  await fs.promises.mkdir(USER_CLIS_DIR, { recursive: true });
 }
 
 /**
@@ -141,7 +109,6 @@ export async function discoverClis(...dirs: string[]): Promise<void> {
 
 /**
  * Fast-path: register commands from pre-compiled manifest.
- * YAML pipelines are inlined — zero YAML parsing at runtime.
  * TS modules are deferred — loaded lazily on first execution.
  */
 async function loadFromManifest(manifestPath: string, clisDir: string): Promise<boolean> {
@@ -149,52 +116,29 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
     const raw = await fs.promises.readFile(manifestPath, 'utf-8');
     const manifest = JSON.parse(raw) as ManifestEntry[];
     for (const entry of manifest) {
-      if (entry.type === 'yaml') {
-        // YAML pipelines fully inlined in manifest — register directly
-        const strategy = parseStrategy(entry.strategy);
-        const cmd: CliCommand = {
-          site: entry.site,
-          name: entry.name,
-          aliases: entry.aliases,
-          description: entry.description ?? '',
-          domain: entry.domain,
-          strategy,
-          browser: entry.browser,
-          args: entry.args ?? [],
-          columns: entry.columns,
-          pipeline: entry.pipeline,
-          timeoutSeconds: entry.timeout,
-          source: entry.sourceFile ? path.resolve(clisDir, entry.sourceFile) : `manifest:${entry.site}/${entry.name}`,
-          deprecated: entry.deprecated,
-          replacedBy: entry.replacedBy,
-          navigateBefore: entry.navigateBefore,
-        };
-        registerCommand(cmd);
-      } else if (entry.type === 'ts' && entry.modulePath) {
-        // TS adapters: register a lightweight stub.
-        // The actual module is loaded lazily on first executeCommand().
-        const strategy = parseStrategy(entry.strategy ?? 'cookie');
-        const modulePath = path.resolve(clisDir, entry.modulePath);
-        const cmd: InternalCliCommand = {
-          site: entry.site,
-          name: entry.name,
-          aliases: entry.aliases,
-          description: entry.description ?? '',
-          domain: entry.domain,
-          strategy,
-          browser: entry.browser ?? true,
-          args: entry.args ?? [],
-          columns: entry.columns,
-          timeoutSeconds: entry.timeout,
-          source: entry.sourceFile ? path.resolve(clisDir, entry.sourceFile) : modulePath,
-          deprecated: entry.deprecated,
-          replacedBy: entry.replacedBy,
-          navigateBefore: entry.navigateBefore,
-          _lazy: true,
-          _modulePath: modulePath,
-        };
-        registerCommand(cmd);
-      }
+      if (!entry.modulePath) continue;
+      const modulePath = path.resolve(clisDir, entry.modulePath);
+      const cmd: InternalCliCommand = {
+        site: entry.site,
+        name: entry.name,
+        aliases: entry.aliases,
+        description: entry.description ?? '',
+        domain: entry.domain,
+        strategy: parseStrategy(entry.strategy),
+        browser: entry.browser,
+        args: entry.args ?? [],
+        columns: entry.columns,
+        pipeline: entry.pipeline,
+        timeoutSeconds: entry.timeout,
+        source: entry.sourceFile ? path.resolve(clisDir, entry.sourceFile) : modulePath,
+        deprecated: entry.deprecated,
+        replacedBy: entry.replacedBy,
+        navigateBefore: entry.navigateBefore,
+        _lazy: true,
+        _modulePath: modulePath,
+      };
+      // normalizeCommand inside registerCommand handles strategy → browser/navigateBefore
+      registerCommand(cmd);
     }
     return true;
   } catch (err) {
@@ -219,11 +163,14 @@ async function discoverClisFromFs(dir: string): Promise<void> {
       await Promise.all(files.map(async (file) => {
         const filePath = path.join(siteDir, file);
         if (file.endsWith('.yaml') || file.endsWith('.yml')) {
-          await registerYamlCli(filePath, site);
-        } else if (
-          (file.endsWith('.js') && !file.endsWith('.d.js')) ||
-          (file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts'))
-        ) {
+          log.warn(`Ignoring YAML adapter ${filePath} — YAML format is no longer supported. Convert to JavaScript using cli() from '@jackwener/opencli/registry'.`);
+          return;
+        }
+        if (file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts')) {
+          log.warn(`Ignoring TypeScript adapter ${filePath} — .ts adapters are no longer loaded. Rename to .js or convert to JavaScript.`);
+          return;
+        }
+        if (file.endsWith('.js') && !file.endsWith('.d.js') && !file.endsWith('.test.js')) {
           if (!(await isCliModule(filePath))) return;
           await import(pathToFileURL(filePath).href).catch((err) => {
             log.warn(`Failed to load module ${filePath}: ${getErrorMessage(err)}`);
@@ -232,47 +179,6 @@ async function discoverClisFromFs(dir: string): Promise<void> {
       }));
     });
   await Promise.all(sitePromises);
-}
-
-async function registerYamlCli(filePath: string, defaultSite: string): Promise<void> {
-  try {
-    const raw = await fs.promises.readFile(filePath, 'utf-8');
-    const def = yaml.load(raw) as YamlCliDefinition | null;
-    if (!isRecord(def)) return;
-    const cliDef = def as YamlCliDefinition;
-
-    const site = cliDef.site ?? defaultSite;
-    const name = cliDef.name ?? path.basename(filePath, path.extname(filePath));
-    const strategyStr = cliDef.strategy ?? (cliDef.browser === false ? 'public' : 'cookie');
-    const strategy = parseStrategy(strategyStr);
-    const browser = cliDef.browser ?? (strategy !== Strategy.PUBLIC);
-
-    const args = parseYamlArgs(cliDef.args);
-
-    const cmd: CliCommand = {
-      site,
-      name,
-      aliases: isRecord(cliDef) && Array.isArray((cliDef as Record<string, unknown>).aliases)
-        ? ((cliDef as Record<string, unknown>).aliases as unknown[]).filter((value): value is string => typeof value === 'string')
-        : undefined,
-      description: cliDef.description ?? '',
-      domain: cliDef.domain,
-      strategy,
-      browser,
-      args,
-      columns: cliDef.columns,
-      pipeline: cliDef.pipeline,
-      timeoutSeconds: cliDef.timeout,
-      source: filePath,
-      deprecated: (cliDef as Record<string, unknown>).deprecated as boolean | string | undefined,
-      replacedBy: (cliDef as Record<string, unknown>).replacedBy as string | undefined,
-      navigateBefore: cliDef.navigateBefore,
-    };
-
-    registerCommand(cmd);
-  } catch (err) {
-    log.warn(`Failed to load ${filePath}: ${getErrorMessage(err)}`);
-  }
 }
 
 /**
@@ -291,7 +197,7 @@ export async function discoverPlugins(): Promise<void> {
 }
 
 /**
- * Flat scan: read yaml/ts files directly in a plugin directory.
+ * Flat scan: read ts/js files directly in a plugin directory.
  * Unlike discoverClisFromFs, this does NOT expect nested site subdirectories.
  */
 async function discoverPluginDir(dir: string, site: string): Promise<void> {
@@ -300,8 +206,10 @@ async function discoverPluginDir(dir: string, site: string): Promise<void> {
   await Promise.all(files.map(async (file) => {
     const filePath = path.join(dir, file);
     if (file.endsWith('.yaml') || file.endsWith('.yml')) {
-      await registerYamlCli(filePath, site);
-    } else if (file.endsWith('.js') && !file.endsWith('.d.js')) {
+      log.warn(`Ignoring YAML plugin ${filePath} — YAML format is no longer supported. Convert to JavaScript using cli() from '@jackwener/opencli/registry'.`);
+      return;
+    }
+    if (file.endsWith('.js') && !file.endsWith('.d.js')) {
       if (!(await isCliModule(filePath))) return;
       await import(pathToFileURL(filePath).href).catch((err) => {
         log.warn(`Plugin ${site}/${file}: ${getErrorMessage(err)}`);

@@ -7,8 +7,8 @@
  *   <name>/
  *     opencli-plugin.json   — manifest with name, version, description
  *     package.json          — ESM package with opencli peer dependency
- *     hello.yaml            — sample YAML command
-   *     greet.ts              — sample TS command using the current registry API
+ *     hello.ts              — sample pipeline command
+ *     greet.ts              — sample TS command using func()
  *     README.md             — basic documentation
  */
 
@@ -76,26 +76,29 @@ export function createPluginScaffold(name: string, opts: ScaffoldOptions = {}): 
   writeFile(targetDir, 'package.json', JSON.stringify(pkg, null, 2) + '\n');
   files.push('package.json');
 
-  // hello.yaml — sample YAML command
-  const yamlContent = `# Sample YAML command for ${name}
-# See: https://github.com/jackwener/opencli#yaml-commands
+  // hello.ts — sample pipeline command
+  const helloContent = `/**
+ * Sample pipeline command for ${name}.
+ * Demonstrates the declarative pipeline API.
+ */
 
-site: ${name}
-name: hello
-description: "A sample YAML command"
-strategy: public
-browser: false
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
-domain: https://httpbin.org
-
-pipeline:
-  - fetch:
-      url: "https://httpbin.org/get?greeting=hello"
-      method: GET
-  - select: "args"
+cli({
+  site: '${name}',
+  name: 'hello',
+  description: 'A sample pipeline command',
+  strategy: Strategy.PUBLIC,
+  browser: false,
+  columns: ['greeting'],
+  pipeline: [
+    { fetch: { url: 'https://httpbin.org/get?greeting=hello' } },
+    { select: 'args' },
+  ],
+});
 `;
-  writeFile(targetDir, 'hello.yaml', yamlContent);
-  files.push('hello.yaml');
+  writeFile(targetDir, 'hello.ts', helloContent);
+  files.push('hello.ts');
 
   // greet.ts — sample TS command using registry API
   const tsContent = `/**
@@ -140,8 +143,8 @@ opencli plugin install github:<user>/opencli-plugin-${name}
 
 | Command | Type | Description |
 |---------|------|-------------|
-| \`${name}/hello\` | YAML | Sample YAML command |
-| \`${name}/greet\` | TypeScript | Sample TS command |
+| \`${name}/hello\` | Pipeline | Sample pipeline command |
+| \`${name}/greet\` | TypeScript | Sample TS command with func() |
 
 ## Development
 

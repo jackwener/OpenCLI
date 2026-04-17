@@ -48,8 +48,8 @@ Agent runs: opencli <site> <command> [args...]
 **Only modify the adapter file identified by `RepairContext.adapter.sourcePath`.**
 
 The diagnostic resolves the actual editable source path at runtime — it may be:
-- `clis/<site>/*.ts` — repo-local adapters (dev/source checkout)
-- `~/.opencli/clis/<site>/*.ts` — user-local adapters (npm install scenario)
+- `clis/<site>/*.js` — repo-local adapters (dev/source checkout)
+- `~/.opencli/clis/<site>/*.js` — user-local adapters (npm install scenario)
 
 The agent must use the path from the diagnostic, not guess a repo-relative path. This is critical for npm-installed users where `clis/` is not in the repo.
 
@@ -117,7 +117,9 @@ The `opencli-autofix` skill instructs agents:
 3. Parse the RepairContext (error code, adapter source, DOM snapshot)
 4. Read and fix the adapter at `RepairContext.adapter.sourcePath`
 5. Retry the original command
-6. Max 3 repair rounds, then stop
+6. If the retry passes, ask whether to file an upstream GitHub issue for `jackwener/OpenCLI`
+7. If approved and `gh` is available, file the issue using a structured summary
+8. Max 3 repair rounds, then stop
 
 ---
 
@@ -145,5 +147,7 @@ opencli weibo hot --limit 5 -f json
 # 2. Reads the diagnostic context
 # 3. Fixes the adapter at RepairContext.adapter.sourcePath
 # 4. Retries: opencli weibo hot --limit 5 -f json
-# 5. Continues with the task
+# 5. If retry passes, asks whether to file an upstream issue
+# 6. If approved, runs `gh issue create --repo jackwener/OpenCLI ...`
+# 7. Continues with the task
 ```

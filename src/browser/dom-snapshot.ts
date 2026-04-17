@@ -616,6 +616,7 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   const lines = [];
   const hiddenInteractives = [];
   const currentHashes = [];
+  const refIdentity = {};
   let iframeCount = 0;
 
   function walk(el, depth, parentPropagatingRect) {
@@ -750,11 +751,20 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
     // Scroll marker
     if (isScrollable && !interactive) line += '|scroll|';
 
-    // Interactive index + data-ref
+    // Interactive index + data-ref + fingerprint
     if (interactive) {
       interactiveIndex++;
       if (ANNOTATE_REFS) el.setAttribute('data-opencli-ref', '' + interactiveIndex);
       line += isScrollable ? '|scroll[' + interactiveIndex + ']|' : '[' + interactiveIndex + ']';
+      // Store fingerprint for stale-ref detection
+      refIdentity['' + interactiveIndex] = {
+        tag: tag,
+        role: el.getAttribute('role') || '',
+        text: (el.textContent || '').trim().slice(0, 30),
+        ariaLabel: el.getAttribute('aria-label') || '',
+        id: el.id || '',
+        testId: el.getAttribute('data-testid') || el.getAttribute('data-test') || '',
+      };
     }
 
     // Tag + attributes
@@ -838,6 +848,8 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
 
   // Store hashes on window for next diff snapshot
   try { window.__opencli_prev_hashes = JSON.stringify(currentHashes); } catch {}
+  // Store ref identity map for stale-ref detection by target resolver
+  try { window.__opencli_ref_identity = refIdentity; } catch {}
 
   return lines.join('\\n');
 })()

@@ -5,8 +5,6 @@
 /** Default daemon port for HTTP/WebSocket communication with browser extension */
 export const DEFAULT_DAEMON_PORT = 19825;
 
-/** Default idle timeout before daemon auto-exits (ms). Override via OPENCLI_DAEMON_TIMEOUT env var. */
-export const DEFAULT_DAEMON_IDLE_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours
 
 /** URL query params that are volatile/ephemeral and should be stripped from patterns */
 export const VOLATILE_PARAMS = new Set([

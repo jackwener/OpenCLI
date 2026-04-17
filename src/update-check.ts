@@ -12,17 +12,28 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import chalk from 'chalk';
+import { styleText } from 'node:util';
 import { PKG_VERSION } from './version.js';
 
 const CACHE_DIR = path.join(os.homedir(), '.opencli');
 const CACHE_FILE = path.join(CACHE_DIR, 'update-check.json');
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
 const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@jackwener/opencli/latest';
+const GITHUB_RELEASES_URL = 'https://api.github.com/repos/jackwener/OpenCLI/releases?per_page=20';
 
 interface UpdateCache {
   lastCheck: number;
   latestVersion: string;
+  latestExtensionVersion?: string;
+}
+
+interface GitHubReleaseAsset {
+  name: string;
+}
+
+interface GitHubRelease {
+  tag_name: string;
+  assets?: GitHubReleaseAsset[];
 }
 
 // Read cache once at module load — shared by both exported functions
@@ -34,10 +45,12 @@ const _cache: UpdateCache | null = (() => {
   }
 })();
 
-function writeCache(latestVersion: string): void {
+function writeCache(latestVersion: string, latestExtensionVersion?: string): void {
   try {
     fs.mkdirSync(CACHE_DIR, { recursive: true });
-    fs.writeFileSync(CACHE_FILE, JSON.stringify({ lastCheck: Date.now(), latestVersion }), 'utf-8');
+    const data: UpdateCache = { lastCheck: Date.now(), latestVersion };
+    if (latestExtensionVersion) data.latestExtensionVersion = latestExtensionVersion;
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(data), 'utf-8');
   } catch {
     // Best-effort; never fail
   }
@@ -76,13 +89,44 @@ export function registerUpdateNoticeOnExit(): void {
     if (!isNewer(_cache.latestVersion, PKG_VERSION)) return;
     try {
       process.stderr.write(
-        chalk.yellow(`\n  Update available: v${PKG_VERSION} → v${_cache.latestVersion}\n`) +
-        chalk.dim(`  Run: npm install -g @jackwener/opencli\n\n`),
+        styleText('yellow', `\n  Update available: v${PKG_VERSION} → v${_cache.latestVersion}\n`) +
+        styleText('dim', `  Run: npm install -g @jackwener/opencli\n\n`),
       );
     } catch {
       // Ignore broken pipe (stderr closed before process exits)
     }
   });
+}
+
+function extractLatestExtensionVersionFromReleases(releases: GitHubRelease[]): string | undefined {
+  for (const release of releases) {
+    for (const asset of release.assets ?? []) {
+      const assetMatch = asset.name.match(/^opencli-extension-v(.+)\.zip$/);
+      if (assetMatch) return assetMatch[1];
+    }
+
+    const tagMatch = release.tag_name.match(/^ext-v(.+)$/);
+    if (tagMatch) return tagMatch[1];
+  }
+  return undefined;
+}
+
+/** Fetch the latest extension version from GitHub Releases. */
+async function fetchLatestExtensionVersion(): Promise<string | undefined> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(GITHUB_RELEASES_URL, {
+      signal: controller.signal,
+      headers: { 'User-Agent': `opencli/${PKG_VERSION}`, Accept: 'application/vnd.github+json' },
+    });
+    clearTimeout(timer);
+    if (!res.ok) return undefined;
+    const releases = await res.json() as GitHubRelease[];
+    return extractLatestExtensionVersionFromReleases(releases);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -105,10 +149,23 @@ export function checkForUpdateBackground(): void {
       if (!res.ok) return;
       const data = await res.json() as { version?: string };
       if (typeof data.version === 'string') {
-        writeCache(data.version);
+        const extVersion = await fetchLatestExtensionVersion();
+        writeCache(data.version, extVersion);
       }
     } catch {
       // Network error: silently skip, try again next run
     }
   })();
 }
+
+/**
+ * Get the cached latest extension version (if available).
+ * Used by `opencli doctor` to report extension updates.
+ */
+export function getCachedLatestExtensionVersion(): string | undefined {
+  return _cache?.latestExtensionVersion;
+}
+
+export {
+  extractLatestExtensionVersionFromReleases as _extractLatestExtensionVersionFromReleases,
+};

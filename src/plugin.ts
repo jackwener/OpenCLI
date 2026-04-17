@@ -13,8 +13,9 @@ import * as path from 'node:path';
 import { execSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { PLUGINS_DIR } from './discovery.js';
-import { getErrorMessage } from './errors.js';
+import { getErrorMessage, PluginError } from './errors.js';
 import { log } from './logger.js';
+import { isRecord } from './utils.js';
 import {
   readPluginManifest,
   isMonorepo,
@@ -100,9 +101,7 @@ function toLocalPluginSource(pluginDir: string): string {
   return toStoredPluginSource({ kind: 'local', path: pluginDir });
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
+// isRecord is imported from './utils.js'
 
 function normalizeLegacyMonorepo(
   value: unknown,
@@ -218,37 +217,11 @@ function moveDir(src: string, dest: string, fsOps: MoveDirFsOps = fs): void {
   }
 }
 
-type PromoteDirFsOps = MoveDirFsOps & Pick<typeof fs, 'existsSync' | 'mkdirSync'>;
+type ReplaceDirFsOps = MoveDirFsOps & Pick<typeof fs, 'existsSync' | 'mkdirSync'>;
 
 function createSiblingTempPath(dest: string, kind: 'tmp' | 'bak'): string {
   const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return path.join(path.dirname(dest), `.${path.basename(dest)}.${kind}-${suffix}`);
-}
-
-/**
- * Promote a prepared staging directory into its final location.
- * The final path is only exposed after the directory has been fully prepared.
- */
-function promoteDir(stagingDir: string, dest: string, fsOps: PromoteDirFsOps = fs): void {
-  if (fsOps.existsSync(dest)) {
-    throw new Error(`Destination already exists: ${dest}`);
-  }
-
-  fsOps.mkdirSync(path.dirname(dest), { recursive: true });
-  const tempDest = createSiblingTempPath(dest, 'tmp');
-
-  try {
-    moveDir(stagingDir, tempDest, fsOps);
-    fsOps.renameSync(tempDest, dest);
-  } catch (err) {
-    try { fsOps.rmSync(tempDest, { recursive: true, force: true }); } catch {}
-    throw err;
-  }
-}
-
-function replaceDir(stagingDir: string, dest: string, fsOps: PromoteDirFsOps = fs): void {
-  const replacement = beginReplaceDir(stagingDir, dest, fsOps);
-  replacement.finalize();
 }
 
 function cloneRepoToTemp(cloneUrl: string): string {
@@ -263,7 +236,7 @@ function cloneRepoToTemp(cloneUrl: string): string {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
   } catch (err) {
-    throw new Error(`Failed to clone plugin: ${getErrorMessage(err)}`);
+    throw new PluginError(`Failed to clone plugin: ${getErrorMessage(err)}`, 'Check the repository URL and your network connection.');
   }
 
   return tmpCloneDir;
@@ -293,6 +266,14 @@ function pathExistsSync(p: string): boolean {
   } catch {
     return false;
   }
+}
+
+function resolveRepoContainedPath(repoRoot: string, subPath: string): string {
+  const resolved = path.resolve(repoRoot, subPath);
+  if (!resolved.startsWith(repoRoot + path.sep) && resolved !== repoRoot) {
+    throw new PluginError(`Plugin path "${subPath}" escapes repo root.`);
+  }
+  return resolved;
 }
 
 function removePathSync(p: string): void {
@@ -352,7 +333,7 @@ function runTransaction<T>(work: (tx: Transaction) => T): T {
 function beginReplaceDir(
   stagingDir: string,
   dest: string,
-  fsOps: PromoteDirFsOps = fs,
+  fsOps: ReplaceDirFsOps = fs,
 ): TransactionHandle {
   const destExisted = fsOps.existsSync(dest);
   fsOps.mkdirSync(path.dirname(dest), { recursive: true });
@@ -529,7 +510,7 @@ export function getCommitHash(dir: string): string | undefined {
 
 /**
  * Validate that a downloaded plugin directory is a structurally valid plugin.
- * Checks for at least one command file (.yaml, .yml, .ts, .js) and a valid
+ * Checks for at least one command file (.ts, .js) and a valid
  * package.json if it contains .ts files.
  */
 export function validatePluginStructure(pluginDir: string): ValidationResult {
@@ -540,12 +521,11 @@ export function validatePluginStructure(pluginDir: string): ValidationResult {
   }
 
   const files = fs.readdirSync(pluginDir);
-  const hasYaml = files.some(f => f.endsWith('.yaml') || f.endsWith('.yml'));
   const hasTs = files.some(f => f.endsWith('.ts') && !f.endsWith('.d.ts') && !f.endsWith('.test.ts'));
   const hasJs = files.some(f => f.endsWith('.js') && !f.endsWith('.d.js'));
 
-  if (!hasYaml && !hasTs && !hasJs) {
-    errors.push('No command files found in plugin directory. A plugin must contain at least one .yaml, .ts, or .js command file.');
+  if (!hasTs && !hasJs) {
+    errors.push('No command files found in plugin directory. A plugin must contain at least one .ts or .js command file.');
   }
 
   if (hasTs) {
@@ -567,6 +547,18 @@ export function validatePluginStructure(pluginDir: string): ValidationResult {
   return { valid: errors.length === 0, errors };
 }
 
+/** Check whether a directory has its own production dependencies in package.json. */
+function hasOwnDependencies(dir: string): boolean {
+  const pkgPath = path.join(dir, 'package.json');
+  if (!fs.existsSync(pkgPath)) return false;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+    return pkg.dependencies != null && Object.keys(pkg.dependencies).length > 0;
+  } catch {
+    return false;
+  }
+}
+
 function installDependencies(dir: string): void {
   const pkgJsonPath = path.join(dir, 'package.json');
   if (!fs.existsSync(pkgJsonPath)) return;
@@ -579,7 +571,7 @@ function installDependencies(dir: string): void {
       ...(isWindows && { shell: true }),
     });
   } catch (err) {
-    throw new Error(`npm install failed in ${dir}: ${getErrorMessage(err)}`);
+    throw new PluginError(`npm install failed in ${dir}: ${getErrorMessage(err)}`, 'Check your network connection and npm configuration.');
   }
 }
 
@@ -601,11 +593,20 @@ function postInstallLifecycle(pluginDir: string): void {
 }
 
 /**
- * Monorepo lifecycle: install shared deps once at repo root, then finalize each sub-plugin.
+ * Monorepo lifecycle: install shared deps at repo root, then install and finalize each sub-plugin.
+ *
+ * The root install covers monorepos that use npm workspaces to hoist dependencies.
+ * For monorepos that do NOT use workspaces, sub-plugins may declare their own
+ * production dependencies in their package.json.  We install those per sub-plugin
+ * so that runtime imports (e.g. `undici`) can be resolved from the sub-plugin
+ * directory.  When the root already satisfies all deps this is a fast no-op.
  */
 function postInstallMonorepoLifecycle(repoDir: string, pluginDirs: string[]): void {
   installDependencies(repoDir);
   for (const pluginDir of pluginDirs) {
+    if (pluginDir !== repoDir && hasOwnDependencies(pluginDir)) {
+      installDependencies(pluginDir);
+    }
     finalizePluginRuntime(pluginDir);
   }
 }
@@ -613,7 +614,7 @@ function postInstallMonorepoLifecycle(repoDir: string, pluginDirs: string[]): vo
 function ensureStandalonePluginReady(pluginDir: string): void {
   const validation = validatePluginStructure(pluginDir);
   if (!validation.valid) {
-    throw new Error(`Invalid plugin structure:\n- ${validation.errors.join('\n- ')}`);
+    throw new PluginError(`Invalid plugin structure:\n- ${validation.errors.join('\n- ')}`);
   }
 
   postInstallLifecycle(pluginDir);
@@ -636,7 +637,7 @@ function publishStandalonePlugin(
   stagingDir: string,
   targetDir: string,
   writeLock: (commitHash: string | undefined) => void,
-): void {
+  ): void {
   runTransaction((tx) => {
     tx.track(beginReplaceDir(stagingDir, targetDir));
     writeLock(getCommitHash(targetDir));
@@ -664,7 +665,7 @@ function publishMonorepoPlugins(
     const commitHash = getCommitHash(repoDir);
     for (const plugin of plugins) {
       const linkPath = path.join(pluginsDir, plugin.name);
-      const subDir = path.join(repoDir, plugin.subPath);
+      const subDir = resolveRepoContainedPath(repoDir, plugin.subPath);
       tx.track(beginReplaceSymlink(subDir, linkPath));
     }
 
@@ -736,7 +737,7 @@ function installSinglePlugin(
   const targetDir = path.join(PLUGINS_DIR, pluginName);
 
   if (fs.existsSync(targetDir)) {
-    throw new Error(`Plugin "${pluginName}" is already installed at ${targetDir}`);
+    throw new PluginError(`Plugin "${pluginName}" is already installed at ${targetDir}`, 'Use "opencli plugin uninstall" first, or pick a different name.');
   }
 
   ensureStandalonePluginReady(cloneDir);
@@ -761,19 +762,20 @@ function installSinglePlugin(
  */
 function installLocalPlugin(localPath: string, name: string): string {
   if (!fs.existsSync(localPath)) {
-    throw new Error(`Local plugin path does not exist: ${localPath}`);
+    throw new PluginError(`Local plugin path does not exist: ${localPath}`);
   }
 
   const stat = fs.statSync(localPath);
   if (!stat.isDirectory()) {
-    throw new Error(`Local plugin path is not a directory: ${localPath}`);
+    throw new PluginError(`Local plugin path is not a directory: ${localPath}`);
   }
 
   const manifest = readPluginManifest(localPath);
 
   if (manifest?.opencli && !checkCompatibility(manifest.opencli)) {
-    throw new Error(
-      `Plugin requires opencli ${manifest.opencli}, but current version is incompatible.`
+    throw new PluginError(
+      `Plugin requires opencli ${manifest.opencli}, but current version is incompatible.`,
+      'Upgrade opencli to a compatible version.',
     );
   }
 
@@ -781,12 +783,12 @@ function installLocalPlugin(localPath: string, name: string): string {
   const targetDir = path.join(PLUGINS_DIR, pluginName);
 
   if (fs.existsSync(targetDir)) {
-    throw new Error(`Plugin "${pluginName}" is already installed at ${targetDir}`);
+    throw new PluginError(`Plugin "${pluginName}" is already installed at ${targetDir}`, 'Use "opencli plugin uninstall" first, or pick a different name.');
   }
 
   const validation = validatePluginStructure(localPath);
   if (!validation.valid) {
-    throw new Error(`Invalid plugin structure:\n- ${validation.errors.join('\n- ')}`);
+    throw new PluginError(`Invalid plugin structure:\n- ${validation.errors.join('\n- ')}`);
   }
 
   fs.mkdirSync(PLUGINS_DIR, { recursive: true });
@@ -848,7 +850,7 @@ function installMonorepo(
   const effectiveManifest = repoAlreadyInstalled ? readPluginManifest(repoDir) : manifest;
 
   if (!effectiveManifest || !isMonorepo(effectiveManifest)) {
-    throw new Error(`Monorepo manifest missing or invalid at ${repoRoot}`);
+    throw new PluginError(`Monorepo manifest missing or invalid at ${repoRoot}`);
   }
 
   let pluginsToInstall = getEnabledPlugins(effectiveManifest);
@@ -860,9 +862,9 @@ function installMonorepo(
       // Check if it exists but is disabled
       const disabled = effectiveManifest.plugins?.[subPlugin];
       if (disabled) {
-        throw new Error(`Sub-plugin "${subPlugin}" is disabled in the manifest.`);
+        throw new PluginError(`Sub-plugin "${subPlugin}" is disabled in the manifest.`);
       }
-      throw new Error(
+      throw new PluginError(
         `Sub-plugin "${subPlugin}" not found in monorepo. Available: ${Object.keys(effectiveManifest.plugins ?? {}).join(', ')}`
       );
     }
@@ -881,7 +883,13 @@ function installMonorepo(
       continue;
     }
 
-    const subDir = path.join(repoRoot, entry.path);
+    let subDir: string;
+    try {
+      subDir = resolveRepoContainedPath(repoRoot, entry.path);
+    } catch {
+      log.warn(`Skipping "${name}": path "${entry.path}" escapes repo root.`);
+      continue;
+    }
     if (!fs.existsSync(subDir)) {
       log.warn(`Skipping "${name}": path "${entry.path}" not found in repo.`);
       continue;
@@ -909,9 +917,15 @@ function installMonorepo(
   const publishPlugins = eligiblePlugins.map(({ name, entry }) => ({ name, subPath: entry.path }));
 
   if (repoAlreadyInstalled) {
-    postInstallMonorepoLifecycle(repoDir, eligiblePlugins.map((p) => path.join(repoDir, p.entry.path)));
+    postInstallMonorepoLifecycle(
+      repoDir,
+      eligiblePlugins.map((p) => resolveRepoContainedPath(repoDir, p.entry.path)),
+    );
   } else {
-    postInstallMonorepoLifecycle(cloneDir, eligiblePlugins.map((p) => path.join(cloneDir, p.entry.path)));
+    postInstallMonorepoLifecycle(
+      cloneDir,
+      eligiblePlugins.map((p) => resolveRepoContainedPath(cloneDir, p.entry.path)),
+    );
   }
 
   publishMonorepoPlugins(
@@ -968,7 +982,7 @@ function collectUpdatedMonorepoPlugins(
       throw new Error(`Sub-plugin "${pluginName}" requires opencli ${manifestEntry.opencli}`);
     }
 
-    const subDir = path.join(tmpCloneDir, manifestEntry.path);
+    const subDir = resolveRepoContainedPath(tmpCloneDir, manifestEntry.path);
     const validation = validatePluginStructure(subDir);
     if (!validation.valid) {
       throw new Error(`Updated sub-plugin "${pluginName}" is invalid:\n- ${validation.errors.join('\n- ')}`);
@@ -1119,7 +1133,10 @@ export function updatePlugin(name: string): void {
       );
 
       if (updatedPlugins.length > 0) {
-        postInstallMonorepoLifecycle(tmpCloneDir, updatedPlugins.map((plugin) => path.join(tmpCloneDir, plugin.manifestEntry.path)));
+        postInstallMonorepoLifecycle(
+          tmpCloneDir,
+          updatedPlugins.map((plugin) => resolveRepoContainedPath(tmpCloneDir, plugin.manifestEntry.path)),
+        );
       }
 
       publishMonorepoPlugins(
@@ -1243,7 +1260,6 @@ function scanPluginCommands(dir: string): string[] {
     const names = new Set(
       files
         .filter(f =>
-          f.endsWith('.yaml') || f.endsWith('.yml') ||
           (f.endsWith('.ts') && !f.endsWith('.d.ts') && !f.endsWith('.test.ts')) ||
           (f.endsWith('.js') && !f.endsWith('.d.js'))
         )
@@ -1548,8 +1564,6 @@ export {
   installLocalPlugin as _installLocalPlugin,
   isLocalPluginSource as _isLocalPluginSource,
   moveDir as _moveDir,
-  promoteDir as _promoteDir,
-  replaceDir as _replaceDir,
   resolvePluginSource as _resolvePluginSource,
   resolveStoredPluginSource as _resolveStoredPluginSource,
   toStoredPluginSource as _toStoredPluginSource,

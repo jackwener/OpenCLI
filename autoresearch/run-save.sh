@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Layer 4: Save as CLI — test the full save pipeline
-# Tests: operate init → write adapter → operate verify
+# Tests: browser init → write adapter → browser verify
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

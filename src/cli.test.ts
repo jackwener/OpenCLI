@@ -5,8 +5,8 @@ import type { IPage } from './types.js';
 const {
   mockExploreUrl,
   mockRenderExploreSummary,
-  mockGenerateCliFromUrl,
-  mockRenderGenerateSummary,
+  mockGenerateVerifiedFromUrl,
+  mockRenderGenerateVerifiedSummary,
   mockRecordSession,
   mockRenderRecordSummary,
   mockCascadeProbe,
@@ -16,8 +16,8 @@ const {
 } = vi.hoisted(() => ({
   mockExploreUrl: vi.fn(),
   mockRenderExploreSummary: vi.fn(),
-  mockGenerateCliFromUrl: vi.fn(),
-  mockRenderGenerateSummary: vi.fn(),
+  mockGenerateVerifiedFromUrl: vi.fn(),
+  mockRenderGenerateVerifiedSummary: vi.fn(),
   mockRecordSession: vi.fn(),
   mockRenderRecordSummary: vi.fn(),
   mockCascadeProbe: vi.fn(),
@@ -31,9 +31,9 @@ vi.mock('./explore.js', () => ({
   renderExploreSummary: mockRenderExploreSummary,
 }));
 
-vi.mock('./generate.js', () => ({
-  generateCliFromUrl: mockGenerateCliFromUrl,
-  renderGenerateSummary: mockRenderGenerateSummary,
+vi.mock('./generate-verified.js', () => ({
+  generateVerifiedFromUrl: mockGenerateVerifiedFromUrl,
+  renderGenerateVerifiedSummary: mockRenderGenerateVerifiedSummary,
 }));
 
 vi.mock('./record.js', () => ({
@@ -51,7 +51,7 @@ vi.mock('./runtime.js', () => ({
   browserSession: mockBrowserSession,
 }));
 
-import { createProgram, findPackageRoot, resolveOperateVerifyInvocation } from './cli.js';
+import { createProgram, findPackageRoot, resolveBrowserVerifyInvocation } from './cli.js';
 
 describe('built-in browser commands verbose wiring', () => {
   const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -62,8 +62,8 @@ describe('built-in browser commands verbose wiring', () => {
 
     mockExploreUrl.mockReset().mockResolvedValue({ ok: true });
     mockRenderExploreSummary.mockReset().mockReturnValue('explore-summary');
-    mockGenerateCliFromUrl.mockReset().mockResolvedValue({ ok: true });
-    mockRenderGenerateSummary.mockReset().mockReturnValue('generate-summary');
+    mockGenerateVerifiedFromUrl.mockReset().mockResolvedValue({ status: 'success' });
+    mockRenderGenerateVerifiedSummary.mockReset().mockReturnValue('generate-summary');
     mockRecordSession.mockReset().mockResolvedValue({ candidateCount: 1 });
     mockRenderRecordSummary.mockReset().mockReturnValue('record-summary');
     mockCascadeProbe.mockReset().mockResolvedValue({ ok: true });
@@ -96,8 +96,18 @@ describe('built-in browser commands verbose wiring', () => {
     await program.parseAsync(['node', 'opencli', 'generate', 'https://example.com', '-v']);
 
     expect(process.env.OPENCLI_VERBOSE).toBe('1');
-    expect(mockGenerateCliFromUrl).toHaveBeenCalledWith(
-      expect.objectContaining({ url: 'https://example.com', workspace: 'generate:example.com' }),
+    expect(mockGenerateVerifiedFromUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'https://example.com', workspace: 'generate:example.com', noRegister: false }),
+    );
+  });
+
+  it('passes --no-register through the real CLI command', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'generate', 'https://example.com', '--no-register']);
+
+    expect(mockGenerateVerifiedFromUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'https://example.com', workspace: 'generate:example.com', noRegister: true }),
     );
   });
 
@@ -133,14 +143,14 @@ describe('built-in browser commands verbose wiring', () => {
   consoleLogSpy.mockClear();
 });
 
-describe('resolveOperateVerifyInvocation', () => {
+describe('resolveBrowserVerifyInvocation', () => {
   it('prefers the built entry declared in package metadata', () => {
     const projectRoot = path.join('repo-root');
     const exists = new Set([
       path.join(projectRoot, 'dist', 'src', 'main.js'),
     ]);
 
-    expect(resolveOperateVerifyInvocation({
+    expect(resolveBrowserVerifyInvocation({
       projectRoot,
       readFile: () => JSON.stringify({ bin: { opencli: 'dist/src/main.js' } }),
       fileExists: (candidate) => exists.has(candidate),
@@ -157,7 +167,7 @@ describe('resolveOperateVerifyInvocation', () => {
       path.join(projectRoot, 'dist', 'src', 'main.js'),
     ]);
 
-    expect(resolveOperateVerifyInvocation({
+    expect(resolveBrowserVerifyInvocation({
       projectRoot,
       readFile: () => { throw new Error('no package json'); },
       fileExists: (candidate) => exists.has(candidate),
@@ -175,7 +185,7 @@ describe('resolveOperateVerifyInvocation', () => {
       path.join(projectRoot, 'node_modules', '.bin', 'tsx.cmd'),
     ]);
 
-    expect(resolveOperateVerifyInvocation({
+    expect(resolveBrowserVerifyInvocation({
       projectRoot,
       platform: 'win32',
       fileExists: (candidate) => exists.has(candidate),
@@ -193,7 +203,7 @@ describe('resolveOperateVerifyInvocation', () => {
       path.join(projectRoot, 'src', 'main.ts'),
     ]);
 
-    expect(resolveOperateVerifyInvocation({
+    expect(resolveBrowserVerifyInvocation({
       projectRoot,
       platform: 'linux',
       fileExists: (candidate) => exists.has(candidate),

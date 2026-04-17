@@ -1,13 +1,19 @@
 ---
 name: opencli-oneshot
-description: Use when quickly generating a single OpenCLI command from a specific URL and goal description. 4-step process — open page, capture API, write YAML adapter, test. For full site exploration, use opencli-explorer instead.
-tags: [opencli, adapter, quick-start, yaml, cli, one-shot, automation]
+description: Use when quickly generating a single OpenCLI command from a specific URL and goal description. 4-step process — open page, capture API, write TS adapter, test. For full site exploration, use opencli-explorer instead.
+tags: [opencli, adapter, quick-start, ts, cli, one-shot, automation]
 ---
 
 # CLI-ONESHOT — 单点快速 CLI 生成
 
 > 给一个 URL + 一句话描述，4 步生成一个 CLI 命令。
 > 完整探索式开发请看 [opencli-explorer skill](../opencli-explorer/SKILL.md)。
+
+**遇到以下情况立即切换到 explorer，不要在 oneshot 里继续硬撑：**
+- Step 3 验证 fetch 始终拿不到数据（签名/风控，非 cookie/header 能解决的）
+- 需要 Pinia Store Action 触发 API
+- 同一站点要生成 2 个以上命令
+- `opencli browser network` 完全空，JS bundle 里也找不到 baseURL
 
 ---
 
@@ -24,18 +30,26 @@ tags: [opencli, adapter, quick-start, yaml, cli, one-shot, automation]
 
 ### Step 1: 打开页面 + 抓包
 
-```
-1. browser_navigate → 打开目标 URL
-2. 等待 3-5 秒（让页面加载完、API 请求触发）
-3. browser_network_requests → 筛选 JSON API
+```bash
+opencli browser open <目标 URL>          # 打开目标页面（自动开始抓包）
+opencli browser wait time 3              # 等页面加载完、API 请求触发
+opencli browser network                  # 查看捕获的 JSON API 请求
 ```
 
-**关键**：只关注返回 `application/json` 的请求，忽略静态资源。
-如果没有自动触发 API，手动点击目标按钮/标签再抓一次。
+**关键**：`network` 默认已过滤静态资源，只显示 JSON/XML/text 的 API 请求。
+如果没有自动触发 API，用 `opencli browser state` 找到按钮索引，`opencli browser click <N>` 点击后再 `network` 抓一次。
+
+**`network` 为空？** ① 重新 `open` 刷新捕获窗口；② 如果是 SPA，API domain 可能是 `api.xxx.com` 而非 `app.xxx.com`，用 Step 2 里的 bundle 搜索找真实 baseURL。
 
 ### Step 2: 锁定一个接口
 
-从抓包结果中找到**那个**目标 API。看这几个字段：
+从 `opencli browser network` 结果中找到**那个**目标 API，用 `--detail` 查看完整响应：
+
+```bash
+opencli browser network --detail <N>     # 查看第 N 条请求的完整响应体
+```
+
+关注这几个字段：
 
 | 字段 | 关注什么 |
 |------|----------|
@@ -44,24 +58,45 @@ tags: [opencli, adapter, quick-start, yaml, cli, one-shot, automation]
 | Headers | 有 Cookie? Bearer? CSRF? 自定义签名? |
 | Response | 数据在哪个路径（如 `data.list.lists`） |
 
+> **SPA 注意**：如果 `network` 里 API 的 host 和页面 host 不同（如 `api.xxx.com` vs `app.xxx.com`），后续 `fetch` 要用完整 URL。
+> 如果 `network` 完全没有 API 请求，搜 JS bundle 找 baseURL：
+> ```bash
+> opencli browser eval "(async()=>{const s=[...document.querySelectorAll('script[src]')].map(e=>e.src).find(s=>s.match(/index|main|app/));const t=await fetch(s).then(r=>r.text());const m=t.indexOf('baseURL')>-1?t.indexOf('baseURL'):t.indexOf('baseUrl');return m>-1?t.slice(m-10,m+80):'not found'})()"
+> ```
+
 ### Step 3: 验证接口能复现
 
-在 `browser_evaluate` 中用 `fetch` 复现请求：
+用 `opencli browser eval` 在页面内 `fetch` 复现请求：
 
-```javascript
-// Tier 2 (Cookie): 大多数情况
-fetch('/api/endpoint', { credentials: 'include' }).then(r => r.json())
+```bash
+# Tier 2 (Cookie): 传统网站
+opencli browser eval "fetch('/api/endpoint', { credentials: 'include' }).then(r => r.json())"
 
-// Tier 3 (Header): 如 Twitter 需要额外 header
-const ct0 = document.cookie.match(/ct0=([^;]+)/)?.[1];
-fetch('/api/endpoint', {
-  headers: { 'Authorization': 'Bearer ...', 'X-Csrf-Token': ct0 },
-  credentials: 'include'
-}).then(r => r.json())
+# Tier 2.5 (localStorage Bearer): 现代 SaaS 主流（slock、Linear、Notion 等）
+opencli browser eval "(async () => {
+  const token = localStorage.getItem('access_token');  // 换成实际 key
+  const res = await fetch('https://api.example.com/endpoint', {
+    headers: { 'Authorization': 'Bearer ' + token },
+    credentials: 'include'
+  });
+  return res.json();
+})()"
+
+# Tier 3 (Header): 如 Twitter 需要额外 header
+opencli browser eval "(async () => {
+  const ct0 = document.cookie.match(/ct0=([^;]+)/)?.[1];
+  const res = await fetch('/api/endpoint', {
+    headers: { 'Authorization': 'Bearer ...', 'X-Csrf-Token': ct0 },
+    credentials: 'include'
+  });
+  return res.json();
+})()"
 ```
 
-如果 fetch 能拿到数据 → 用 YAML 或简单 TS adapter。
-如果 fetch 拿不到（签名/风控）→ 用 intercept 策略。
+> 带了 Bearer 但返回 `{ error: "Missing X-Xxx-Id header" }`（HTTP 400）→ 多租户 SaaS 需要业务上下文 Header。先调 `/servers` 或 `/workspaces` 拿 ID，再加进 headers。
+
+如果 fetch 能拿到数据 → 用 TS adapter（`cli()` pipeline 或 `func()`）。
+如果 fetch 拿不到（签名/风控）→ 用 intercept 策略（TS `func()` + `installInterceptor`）。
 
 ### Step 4: 套模板，生成 adapter
 
@@ -72,58 +107,98 @@ fetch('/api/endpoint', {
 ## 认证速查
 
 ```
-fetch(url) 直接能拿到？              → Tier 1: public   (YAML, browser: false)
-fetch(url, {credentials:'include'})？ → Tier 2: cookie   (YAML)
-加 Bearer/CSRF header 后拿到？        → Tier 3: header   (TS)
-都不行，但页面自己能请求成功？          → Tier 4: intercept (TS, installInterceptor)
+fetch(url) 直接能拿到？                        → Tier 1: public   (browser: false)
+fetch(url, {credentials:'include'})？          → Tier 2: cookie
+localStorage 有 token + Bearer header 能拿到？  → Tier 2.5: localStorage Bearer  ← 现代 SaaS 主流
+  带了 Bearer 但返回 400 "Missing X-Xxx header"？ → 先拿业务上下文 ID，加进 header
+加 CSRF/Bearer header 后拿到？                 → Tier 3: header
+都不行，但页面自己能请求成功？                    → Tier 4: intercept (installInterceptor)
 ```
 
 ---
 
 ## 模板
 
-### YAML — Cookie/Public（最简）
+### JS — Cookie/Public（最简，`func()` 模式）
 
-```yaml
-# clis/<site>/<name>.yaml
-site: mysite
-name: mycommand
-description: "一句话描述"
-domain: www.example.com
-strategy: cookie          # 或 public (加 browser: false)
+```javascript
+// clis/<site>/<name>.js
+import { cli, Strategy } from '@jackwener/opencli/registry';
 
-args:
-  limit:
-    type: int
-    default: 20
-
-pipeline:
-  - navigate: https://www.example.com/target-page
-
-  - evaluate: |
-      (async () => {
-        const res = await fetch('/api/target', { credentials: 'include' });
-        const d = await res.json();
-        return (d.data?.items || []).map(item => ({
-          title: item.title,
-          value: item.value,
-        }));
-      })()
-
-  - map:
-      rank: ${{ index + 1 }}
-      title: ${{ item.title }}
-      value: ${{ item.value }}
-
-  - limit: ${{ args.limit }}
-
-columns: [rank, title, value]
+cli({
+  site: 'mysite',
+  name: 'mycommand',
+  description: '一句话描述',
+  domain: 'www.example.com',
+  strategy: Strategy.COOKIE,   // 或 Strategy.PUBLIC (加 browser: false)
+  browser: true,
+  args: [
+    { name: 'limit', type: 'int', default: 20 },
+  ],
+  columns: ['rank', 'title', 'value'],
+  func: async (page, kwargs) => {
+    await page.goto('https://www.example.com/target-page');
+    const data = await page.evaluate(`(async () => {
+      const res = await fetch('/api/target', { credentials: 'include' });
+      const d = await res.json();
+      return (d.data?.items || []).map(item => ({
+        title: item.title,
+        value: item.value,
+      }));
+    })()`);
+    return (data as any[]).slice(0, kwargs.limit).map((item, i) => ({
+      rank: i + 1,
+      title: item.title || '',
+      value: item.value || '',
+    }));
+  },
+});
 ```
 
-### TS — Intercept（抓包模式）
+### JS — localStorage Bearer（现代 SaaS）
 
-```typescript
-// clis/<site>/<name>.ts
+```javascript
+// clis/<site>/<name>.js
+import { cli, Strategy } from '@jackwener/opencli/registry';
+
+cli({
+  site: 'mysite',
+  name: 'mycommand',
+  description: '一句话描述',
+  domain: 'app.example.com',
+  strategy: Strategy.COOKIE,
+  browser: true,
+  args: [
+    { name: 'limit', type: 'int', default: 20 },
+  ],
+  columns: ['rank', 'title', 'value'],
+  func: async (page, kwargs) => {
+    await page.goto('https://app.example.com');
+    const data = await page.evaluate(`(async () => {
+      const token = localStorage.getItem('access_token');
+      // 多租户 SaaS：先拿工作空间 ID
+      const servers = await fetch('https://api.example.com/api/servers', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).then(r => r.json());
+      const server = servers[0];
+      const res = await fetch('https://api.example.com/api/items', {
+        headers: { 'Authorization': 'Bearer ' + token, 'X-Server-Id': server.id }
+      });
+      return res.json();
+    })()`);
+    return (data as any[]).slice(0, kwargs.limit).map((item, i) => ({
+      rank: i + 1,
+      title: item.title || '',
+      value: item.value || '',
+    }));
+  },
+});
+```
+
+### JS — Intercept（抓包模式）
+
+```javascript
+// clis/<site>/<name>.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 cli({
@@ -171,6 +246,7 @@ cli({
 
 ```typescript
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { AuthRequiredError } from '@jackwener/opencli/errors';
 
 cli({
   site: 'twitter',
@@ -199,6 +275,7 @@ cli({
       });
       return res.json();
     })()`);
+    if ((data as any).error) throw new AuthRequiredError('x.com');
     // 解析 data...
     return [];
   },
@@ -209,14 +286,25 @@ cli({
 
 ## 测试（必做）
 
+<!-- keep in sync with explorer SKILL.md §Step4 -->
+> **两种开发场景**：
+> - **Repo 贡献**：文件放 `clis/<site>/<name>.js`，`npm run build` 后自动注册
+> - **私人 adapter**（本地使用，无需提 PR）：文件放 `~/.opencli/clis/<site>/<name>.js`，无需 build
+
 ```bash
-npm run build                              # 语法检查
+# Repo 贡献：build 后直接运行
+npm run build
 opencli list | grep mysite                 # 确认注册
 opencli mysite mycommand --limit 3 -v      # 实际运行
+
+# 私人 adapter（~/.opencli/clis/）：一键验证
+opencli browser verify <site>/<name>
 ```
+
+**Done 标准**：命令运行后返回非空表格，且字段符合预期。
 
 ---
 
 ## 就这样，没了
 
-写完文件 → build → run → 提交。有问题再看 [opencli-explorer skill](../opencli-explorer/SKILL.md)。
+写完文件 → build + run（Repo 贡献）或 browser verify（私人 adapter）→ 提交。有问题再看 [opencli-explorer skill](../opencli-explorer/SKILL.md)。

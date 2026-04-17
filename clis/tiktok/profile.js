@@ -1,0 +1,54 @@
+import { cli } from '@jackwener/opencli/registry';
+cli({
+    site: 'tiktok',
+    name: 'profile',
+    description: 'Get TikTok user profile info',
+    domain: 'www.tiktok.com',
+    args: [
+        {
+            name: 'username',
+            required: true,
+            positional: true,
+            help: 'TikTok username (without @)',
+        },
+    ],
+    columns: [
+        'username',
+        'name',
+        'followers',
+        'following',
+        'likes',
+        'videos',
+        'verified',
+        'bio',
+    ],
+    pipeline: [
+        { navigate: { url: 'https://www.tiktok.com/explore', settleMs: 5000 } },
+        { evaluate: `(async () => {
+  const username = \${{ args.username | json }};
+  const res = await fetch('https://www.tiktok.com/@' + encodeURIComponent(username), { credentials: 'include' });
+  if (!res.ok) throw new Error('User not found: ' + username);
+  const html = await res.text();
+  const idx = html.indexOf('__UNIVERSAL_DATA_FOR_REHYDRATION__');
+  if (idx === -1) throw new Error('Could not parse profile data');
+  const start = html.indexOf('>', idx) + 1;
+  const end = html.indexOf('</script>', start);
+  const data = JSON.parse(html.substring(start, end));
+  const ud = data['__DEFAULT_SCOPE__'] && data['__DEFAULT_SCOPE__']['webapp.user-detail'];
+  const u = ud && ud.userInfo && ud.userInfo.user;
+  const s = ud && ud.userInfo && ud.userInfo.stats;
+  if (!u) throw new Error('User not found: ' + username);
+  return [{
+    username: u.uniqueId || username,
+    name: u.nickname || '',
+    bio: (u.signature || '').replace(/\\n/g, ' ').substring(0, 120),
+    followers: s && s.followerCount || 0,
+    following: s && s.followingCount || 0,
+    likes: s && s.heartCount || 0,
+    videos: s && s.videoCount || 0,
+    verified: u.verified ? 'Yes' : 'No',
+  }];
+})()
+` },
+    ],
+});

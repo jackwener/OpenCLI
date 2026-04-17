@@ -25,8 +25,8 @@ export interface Command {
   id: string;
   /** Action type */
   action: Action;
-  /** Target tab ID (omit for active tab) */
-  tabId?: number;
+  /** Target page identity (targetId). Cross-layer contract with the daemon. */
+  page?: string;
   /** JS code to evaluate in page context (exec action) */
   code?: string;
   /** Logical workspace for automation session reuse */
@@ -61,6 +61,10 @@ export interface Command {
   cdpMethod?: string;
   /** CDP method params for 'cdp' action */
   cdpParams?: Record<string, unknown>;
+  /** When true, automation windows are created in the foreground (focused) */
+  windowFocused?: boolean;
+  /** Custom idle timeout in seconds for this workspace session. Overrides the default. */
+  idleTimeout?: number;
 }
 
 export interface Result {
@@ -72,6 +76,8 @@ export interface Result {
   data?: unknown;
   /** Error message on failure */
   error?: string;
+  /** Page identity (targetId) — present only on page-scoped command responses */
+  page?: string;
 }
 
 /** Default daemon port */

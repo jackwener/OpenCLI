@@ -3,6 +3,7 @@ dist/
 !extension/dist/
 *.tsbuildinfo
 .opencli/
+.worktrees/
 .mcp.json
 *.log
 .DS_Store

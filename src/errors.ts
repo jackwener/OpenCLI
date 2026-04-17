@@ -174,6 +174,27 @@ export class PageChangedError extends CliError {
   }
 }
 
+export class PluginError extends CliError {
+  constructor(message: string, hint?: string) {
+    super('PLUGIN', message, hint, EXIT_CODES.GENERIC_ERROR);
+  }
+}
+
+// ── Error Envelope ──────────────────────────────────────────────────────────
+
+/** Structured error output — unified contract for all consumers (AI agents, scripts, humans). */
+export interface ErrorEnvelope {
+  ok: false;
+  error: {
+    code: string;
+    message: string;
+    help?: string;
+    exitCode: number;
+    stack?: string;
+    cause?: string;
+  };
+}
+
 // ── Utilities ───────────────────────────────────────────────────────────────
 
 /** Extract a human-readable message from an unknown caught value. */
@@ -181,19 +202,39 @@ export function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Error code → emoji mapping for CLI output rendering. */
-export const ERROR_ICONS: Record<string, string> = {
-  AUTH_REQUIRED:   '🔒',
-  BROWSER_CONNECT: '🔌',
-  TIMEOUT:         '⏱ ',
-  ARGUMENT:        '❌',
-  EMPTY_RESULT:    '📭',
-  SELECTOR:        '🔍',
-  COMMAND_EXEC:    '💥',
-  ADAPTER_LOAD:    '📦',
-  NETWORK:         '🌐',
-  API_ERROR:       '🚫',
-  RATE_LIMITED:    '⏳',
-  PAGE_CHANGED:    '🔄',
-  CONFIG:          '⚙️ ',
-};
+/** Serialize an error cause chain into a readable string. */
+function serializeCause(cause: unknown): string {
+  if (cause instanceof Error) {
+    const parts = [cause.message];
+    if (cause.cause) parts.push(`  caused by: ${serializeCause(cause.cause)}`);
+    return parts.join('\n');
+  }
+  return String(cause);
+}
+
+/** Build an ErrorEnvelope from any caught value. */
+export function toEnvelope(err: unknown): ErrorEnvelope {
+  const cause = err instanceof Error && err.cause ? serializeCause(err.cause) : undefined;
+  if (err instanceof CliError) {
+    return {
+      ok: false,
+      error: {
+        code: err.code,
+        message: err.message,
+        ...(err.hint ? { help: err.hint } : {}),
+        exitCode: err.exitCode,
+        ...(cause ? { cause } : {}),
+      },
+    };
+  }
+  const msg = getErrorMessage(err);
+  return {
+    ok: false,
+    error: {
+      code: 'UNKNOWN',
+      message: msg,
+      exitCode: EXIT_CODES.GENERIC_ERROR,
+      ...(cause ? { cause } : {}),
+    },
+  };
+}

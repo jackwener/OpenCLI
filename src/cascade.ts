@@ -14,6 +14,14 @@ import { Strategy } from './registry.js';
 import type { IPage } from './types.js';
 import { getErrorMessage } from './errors.js';
 
+/** Shape returned by the in-page fetch probe JS (see buildFetchProbeJs). */
+interface FetchProbeResponse {
+  ok?: boolean;
+  status?: number;
+  hasData?: boolean;
+  preview?: string;
+}
+
 /** Strategy cascade order (simplest → most complex) */
 const CASCADE_ORDER: Strategy[] = [
   Strategy.PUBLIC,
@@ -103,12 +111,13 @@ export async function probeEndpoint(
   try {
     const opts = PROBE_OPTIONS[strategy];
     if (opts) {
-      const resp = await page.evaluate(buildFetchProbeJs(url, opts));
+      const resp = (await page.evaluate(buildFetchProbeJs(url, opts))) as FetchProbeResponse | undefined;
       result.statusCode = resp?.status;
-      result.success = resp?.ok && resp?.hasData;
+      result.success = !!(resp?.ok && resp?.hasData);
       result.hasData = resp?.hasData;
       result.responsePreview = resp?.preview;
     } else {
+      // INTERCEPT / UI require site-specific implementation.
       result.error = `Strategy ${strategy} requires site-specific implementation`;
     }
   } catch (err) {

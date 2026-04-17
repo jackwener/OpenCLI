@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- **Node.js**: >= 20.0.0
+- **Node.js**: >= 21.0.0
 - **Chrome** running and logged into the target site (for browser commands)
 
 ## Install via npm (Recommended)
@@ -26,6 +26,9 @@ opencli list  # Now you can use it anywhere!
 
 ```bash
 npm install -g @jackwener/opencli@latest
+
+# If you use the packaged OpenCLI skills, refresh them too
+npx skills add jackwener/opencli
 ```
 
 ## Verify Installation

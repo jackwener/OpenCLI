@@ -15,21 +15,21 @@ hero:
 
 features:
   - icon: 🖥️
-    title: CLI All Electron
-    details: Turn ANY Electron application into a CLI tool — Cursor, Codex, Antigravity, ChatGPT, Notion, and more. AI can control itself natively.
+    title: Desktop App Control
+    details: Drive Electron apps (Cursor, Codex, ChatGPT, Notion, etc.) directly from the terminal via CDP.
+  - icon: 🌐
+    title: Browser Automation
+    details: "AI agents get direct browser control: click, type, extract, screenshot — any interaction, fully scriptable."
   - icon: 🔐
     title: Account Safe
     details: Reuses Chrome's logged-in state. Your credentials never leave the browser — no tokens, no exposed passwords.
   - icon: 🤖
     title: AI Agent Ready
     details: "explore discovers APIs, synthesize generates adapters, cascade finds auth strategies. Built for AI-first workflows."
-  - icon: ⚡
-    title: Dual-Engine Architecture
-    details: Supports both YAML declarative data pipelines and robust browser runtime TypeScript injections for maximum flexibility.
-  - icon: 🔧
-    title: Self-Healing Setup
-    details: "opencli doctor auto-starts the daemon and diagnoses extension + live browser connectivity."
-  - icon: 📦
-    title: Dynamic Loader
-    details: Simply drop .ts or .yaml adapters into the clis/ folder for auto-registration. Zero boilerplate.
+  - icon: 💰
+    title: Zero LLM Cost
+    details: No tokens consumed at runtime. Run 10,000 times and pay nothing.
+  - icon: 🔁
+    title: Deterministic
+    details: Same command, same output schema, every time. Pipeable, scriptable, CI-friendly.
 ---

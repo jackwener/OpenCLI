@@ -6,6 +6,7 @@ import type { IPage } from './types.js';
 
 export enum Strategy {
   PUBLIC = 'public',
+  LOCAL = 'local',
   COOKIE = 'cookie',
   HEADER = 'header',
   INTERCEPT = 'intercept',
@@ -28,7 +29,6 @@ export interface RequiredEnv {
   help?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- kwargs from CLI parsing are inherently untyped
 export type CommandArgs = Record<string, any>;
 
 /**
@@ -70,15 +70,20 @@ export interface CliCommand {
   /** Preferred replacement command, if any. */
   replacedBy?: string;
   /**
-   * Control pre-navigation for cookie/header context before command execution.
+   * Control pre-navigation and browser-session requirement.
    *
-   * Browser adapters using COOKIE/HEADER strategy need the page to be on the
-   * target domain so that `fetch(url, { credentials: 'include' })` carries cookies.
+   * After normalizeCommand() expands strategy, this field carries the
+   * resolved runtime intent:
    *
-   * - `undefined` / `true`: navigate to `https://${domain}` (default)
-   * - `false`: skip — adapter handles its own navigation (e.g. boss common.ts)
-   * - `string`: navigate to this specific URL instead of the domain root
-   * - `object`: navigate with explicit options (waitUntil, settleMs)
+   * - `undefined`: no pre-navigation, browser session decided by pipeline steps
+   * - `false`: explicitly skip pre-navigation (adapter handles its own navigation)
+   * - `true`: needs authenticated browser context but no specific pre-nav URL
+   *   (e.g. INTERCEPT/UI adapters, or COOKIE without domain)
+   * - `string`: pre-navigate to this URL before running the adapter
+   *   (e.g. `'https://x.com'` for COOKIE strategy with domain)
+   * - `object`: pre-navigate with explicit waitUntil / settleMs controls
+   *
+   * Adapter authors can set this explicitly to override the strategy-based default.
    */
   navigateBefore?: boolean | string | PreNavOptions;
   /** Override the default CLI output format when the user does not pass -f/--format. */
@@ -105,17 +110,14 @@ const _registry: Map<string, CliCommand> =
   globalThis.__opencli_registry__ ??= new Map<string, CliCommand>();
 
 export function cli(opts: CliOptions): CliCommand {
-  const strategy = opts.strategy ?? (opts.browser === false ? Strategy.PUBLIC : Strategy.COOKIE);
-  const browser = opts.browser ?? (strategy !== Strategy.PUBLIC);
-  const aliases = normalizeAliases(opts.aliases, opts.name);
   const cmd: CliCommand = {
     site: opts.site,
     name: opts.name,
-    aliases,
+    aliases: opts.aliases,
     description: opts.description ?? '',
     domain: opts.domain,
-    strategy,
-    browser,
+    strategy: opts.strategy,
+    browser: opts.browser,
     args: opts.args ?? [],
     columns: opts.columns,
     func: opts.func,
@@ -130,7 +132,7 @@ export function cli(opts: CliOptions): CliCommand {
   };
 
   registerCommand(cmd);
-  return cmd;
+  return _registry.get(fullName(cmd))!;
 }
 
 export function getRegistry(): Map<string, CliCommand> {
@@ -145,20 +147,53 @@ export function strategyLabel(cmd: CliCommand): string {
   return cmd.strategy ?? Strategy.PUBLIC;
 }
 
-export function registerCommand(cmd: CliCommand): void {
-  const canonicalKey = fullName(cmd);
-  const existing = _registry.get(canonicalKey);
-  if (existing) {
-    for (const [key, value] of _registry.entries()) {
-      if (value === existing && key !== canonicalKey) _registry.delete(key);
+/**
+ * Normalize a command's runtime fields. This is the single place where
+ * `strategy` is decoded into the concrete fields that the execution path
+ * reads (`browser`, `navigateBefore`). After normalization, execution code
+ * (resolvePreNav, shouldUseBrowserSession) never reads `cmd.strategy`.
+ *
+ * `strategy` itself is preserved as metadata for `opencli list`, cascade
+ * probe, adapter generation, and human documentation.
+ *
+ * Override priority (highest wins):
+ *   1. Explicit field on the command (`browser: false`, `navigateBefore: false`)
+ *   2. Derived from strategy + domain (the defaults below)
+ */
+function normalizeCommand(cmd: CliCommand): CliCommand {
+  const strategy = cmd.strategy ?? (cmd.browser === false ? Strategy.PUBLIC : Strategy.COOKIE);
+  const browser = cmd.browser ?? (strategy !== Strategy.PUBLIC && strategy !== Strategy.LOCAL);
+
+  let navigateBefore = cmd.navigateBefore;
+  if (navigateBefore === undefined) {
+    if ((strategy === Strategy.COOKIE || strategy === Strategy.HEADER) && cmd.domain) {
+      navigateBefore = `https://${cmd.domain}`;
+    } else if (strategy !== Strategy.PUBLIC && strategy !== Strategy.LOCAL) {
+      // Non-PUBLIC without domain: needs authenticated browser context
+      // but no specific pre-navigation URL. `true` signals this to
+      // shouldUseBrowserSession without triggering resolvePreNav.
+      navigateBefore = true;
     }
   }
 
-  const aliases = normalizeAliases(cmd.aliases, cmd.name);
-  cmd.aliases = aliases.length > 0 ? aliases : undefined;
-  _registry.set(canonicalKey, cmd);
+  return { ...cmd, strategy, browser, navigateBefore };
+}
+
+export function registerCommand(cmd: CliCommand): void {
+  const normalized = normalizeCommand(cmd);
+  const canonicalKey = fullName(normalized);
+  const existing = _registry.get(canonicalKey);
+  if (existing?.aliases) {
+    for (const alias of existing.aliases) {
+      _registry.delete(`${existing.site}/${alias}`);
+    }
+  }
+
+  const aliases = normalizeAliases(normalized.aliases, normalized.name);
+  normalized.aliases = aliases.length > 0 ? aliases : undefined;
+  _registry.set(canonicalKey, normalized);
   for (const alias of aliases) {
-    _registry.set(`${cmd.site}/${alias}`, cmd);
+    _registry.set(`${normalized.site}/${alias}`, normalized);
   }
 }
 

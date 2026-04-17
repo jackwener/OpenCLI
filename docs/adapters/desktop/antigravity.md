@@ -47,3 +47,21 @@ Quickly target and switch the active LLM engine. Example: `opencli antigravity m
 
 ### `opencli antigravity watch`
 A long-running, streaming process that continuously polls the Antigravity UI for chat updates and outputs them in real-time to standard output.
+
+### `opencli antigravity serve`
+Start an Anthropic-compatible `/v1/messages` proxy server backed by the local Antigravity desktop app.
+
+```bash
+opencli antigravity serve --port 8082
+opencli antigravity serve --timeout 300
+OPENCLI_ANTIGRAVITY_TIMEOUT=300 opencli antigravity serve
+```
+
+- `--port <port>`: HTTP listen port, default `8082`
+- `--timeout <seconds>`: maximum time to wait for one reply before returning a timeout error, default `120`
+- `OPENCLI_ANTIGRAVITY_TIMEOUT`: default timeout in seconds when `--timeout` is not provided
+
+Runtime notes:
+
+- reply polling only reconnects on session-loss style CDP errors such as closed/lost websocket connections
+- reconnect attempts are bounded; DOM/logic errors are surfaced directly instead of being retried as reconnects

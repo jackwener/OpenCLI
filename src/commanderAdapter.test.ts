@@ -8,9 +8,13 @@ const { mockExecuteCommand, mockRenderOutput } = vi.hoisted(() => ({
   mockRenderOutput: vi.fn(),
 }));
 
-vi.mock('./execution.js', () => ({
-  executeCommand: mockExecuteCommand,
-}));
+vi.mock('./execution.js', async () => {
+  const actual = await vi.importActual<typeof import('./execution.js')>('./execution.js');
+  return {
+    ...actual,
+    executeCommand: mockExecuteCommand,
+  };
+});
 
 vi.mock('./output.js', () => ({
   render: mockRenderOutput,
@@ -73,7 +77,7 @@ describe('commanderAdapter arg passing', () => {
 
     await program.parseAsync(['node', 'opencli', 'paperreview', 'submit', './paper.pdf', '--dry-run', 'maybe']);
 
-    // normalizeArgValue validates bools eagerly; executeCommand should not be reached
+    // prepareCommandArgs validates bools before dispatch; executeCommand should not be reached
     expect(mockExecuteCommand).not.toHaveBeenCalled();
   });
 });
@@ -202,7 +206,43 @@ describe('commanderAdapter command aliases', () => {
 
     await program.parseAsync(['node', 'opencli', 'notebooklm', 'metadata']);
 
-    expect(mockExecuteCommand).toHaveBeenCalledWith(cmd, {}, false);
+    expect(mockExecuteCommand).toHaveBeenCalledWith(cmd, {}, false, { prepared: true });
+  });
+});
+
+describe('commanderAdapter validation preparation', () => {
+  beforeEach(() => {
+    mockExecuteCommand.mockReset();
+    mockExecuteCommand.mockResolvedValue([]);
+    mockRenderOutput.mockReset();
+    delete process.env.OPENCLI_VERBOSE;
+    process.exitCode = undefined;
+  });
+
+  it('prepares args once before dispatching to executeCommand', async () => {
+    const validateArgs = vi.fn();
+    const program = new Command();
+    const siteCmd = program.command('test');
+
+    registerCommandToProgram(siteCmd, {
+      site: 'test',
+      name: 'run',
+      description: 'Run test command',
+      browser: false,
+      args: [{ name: 'count', default: '1', help: 'Count' }],
+      validateArgs,
+      func: vi.fn(),
+    });
+
+    await program.parseAsync(['node', 'opencli', 'test', 'run']);
+
+    expect(validateArgs).toHaveBeenCalledTimes(1);
+    expect(mockExecuteCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ site: 'test', name: 'run' }),
+      { count: '1' },
+      false,
+      { prepared: true },
+    );
   });
 });
 
@@ -253,7 +293,7 @@ describe('commanderAdapter default formats', () => {
   });
 });
 
-describe('commanderAdapter empty result hints', () => {
+describe('commanderAdapter error envelope output', () => {
   const cmd: CliCommand = {
     site: 'xiaohongshu',
     name: 'note',
@@ -272,12 +312,12 @@ describe('commanderAdapter empty result hints', () => {
     process.exitCode = undefined;
   });
 
-  it('prints the adapter hint instead of the generic outdated-adapter message', async () => {
+  it('outputs YAML error envelope with adapter hint to stderr', async () => {
     const program = new Command();
     const siteCmd = program.command('xiaohongshu');
     registerCommandToProgram(siteCmd, cmd);
 
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     mockExecuteCommand.mockRejectedValueOnce(
       new EmptyResultError(
         'xiaohongshu/note',
@@ -287,29 +327,31 @@ describe('commanderAdapter empty result hints', () => {
 
     await program.parseAsync(['node', 'opencli', 'xiaohongshu', 'note', '69ca3927000000001a020fd5']);
 
-    const output = errorSpy.mock.calls.flat().join('\n');
+    const output = stderrSpy.mock.calls.map(c => String(c[0])).join('');
+    expect(output).toContain('ok: false');
+    expect(output).toContain('code: EMPTY_RESULT');
     expect(output).toContain('xsec_token');
-    expect(output).not.toContain('this adapter may be outdated');
 
-    errorSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 
-  it('prints selector-specific hints too', async () => {
+  it('outputs YAML error envelope for selector errors', async () => {
     const program = new Command();
     const siteCmd = program.command('xiaohongshu');
     registerCommandToProgram(siteCmd, cmd);
 
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     mockExecuteCommand.mockRejectedValueOnce(
       new SelectorError('.note-title', 'The note title selector no longer matches the current page.'),
     );
 
     await program.parseAsync(['node', 'opencli', 'xiaohongshu', 'note', '69ca3927000000001a020fd5']);
 
-    const output = errorSpy.mock.calls.flat().join('\n');
+    const output = stderrSpy.mock.calls.map(c => String(c[0])).join('');
+    expect(output).toContain('ok: false');
+    expect(output).toContain('code: SELECTOR');
     expect(output).toContain('selector no longer matches');
-    expect(output).not.toContain('this adapter may be outdated');
 
-    errorSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 });

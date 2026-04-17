@@ -15,8 +15,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as readline from 'node:readline';
-import chalk from 'chalk';
-import yaml from 'js-yaml';
+import { styleText } from 'node:util';
+
 import { sendCommand } from './browser/daemon-client.js';
 import type { IPage } from './types.js';
 import { SEARCH_PARAMS, PAGINATION_PARAMS, FIELD_ROLES } from './constants.js';
@@ -553,8 +553,8 @@ export async function recordSession(opts: RecordOptions): Promise<RecordResult> 
   const pollMs = opts.pollMs ?? 2000;
   const timeoutMs = opts.timeoutMs ?? 60_000;
   const allRequests: RecordedRequest[] = [];
-  // Track which tabIds have already had the interceptor injected
-  const injectedTabs = new Set<number>();
+  // Track which pages (targetIds) have already had the interceptor injected
+  const injectedPages = new Set<string>();
 
   // Infer site name from URL
   const site = opts.site ?? (() => {
@@ -566,10 +566,10 @@ export async function recordSession(opts: RecordOptions): Promise<RecordResult> 
 
   const workspace = `record:${site}`;
 
-  console.log(chalk.bold.cyan('\n  opencli record'));
-  console.log(chalk.dim(`  Site: ${site}  URL: ${opts.url}`));
-  console.log(chalk.dim(`  Timeout: ${timeoutMs / 1000}s  Poll: ${pollMs}ms`));
-  console.log(chalk.dim('  Navigating…'));
+  console.log(styleText(['bold', 'cyan'], '\n  opencli record'));
+  console.log(styleText('dim', `  Site: ${site}  URL: ${opts.url}`));
+  console.log(styleText('dim', `  Timeout: ${timeoutMs / 1000}s  Poll: ${pollMs}ms`));
+  console.log(styleText('dim', '  Navigating…'));
 
   const factory = new opts.BrowserFactory();
   const page = await factory.connect({ timeout: 30, workspace });
@@ -581,11 +581,11 @@ export async function recordSession(opts: RecordOptions): Promise<RecordResult> 
     // Inject into initial tab
     const initialTabs = await listTabs(workspace);
     for (const tab of initialTabs) {
-      await injectIntoTab(workspace, tab.tabId, injectedTabs);
+      if (tab.page) await injectIntoPage(workspace, tab.page, injectedPages);
     }
 
-    console.log(chalk.bold('\n  Recording. Operate the page in the automation window.'));
-    console.log(chalk.dim(`  Will auto-stop after ${timeoutMs / 1000}s, or press Enter to stop now.\n`));
+    console.log(styleText('bold', '\n  Recording. Use the page in the browser automation window.'));
+    console.log(styleText('dim', `  Will auto-stop after ${timeoutMs / 1000}s, or press Enter to stop now.\n`));
 
     // Race: Enter key vs timeout
     let stopped = false;
@@ -605,15 +605,15 @@ export async function recordSession(opts: RecordOptions): Promise<RecordResult> 
         // Discover and inject into any new tabs
         const tabs = await listTabs(workspace);
         for (const tab of tabs) {
-          await injectIntoTab(workspace, tab.tabId, injectedTabs);
+          if (tab.page) await injectIntoPage(workspace, tab.page, injectedPages);
         }
 
-        // Drain captured data from all known tabs
-        for (const tabId of injectedTabs) {
-          const batch = await execOnTab(workspace, tabId, generateReadRecordedJs()) as RecordedRequest[] | null;
+        // Drain captured data from all known pages
+        for (const page of injectedPages) {
+          const batch = await execOnPage(workspace, page, generateReadRecordedJs()) as RecordedRequest[] | null;
           if (Array.isArray(batch) && batch.length > 0) {
             for (const r of batch) allRequests.push(r);
-            console.log(chalk.dim(`  [tab:${tabId}] +${batch.length} captured — total: ${allRequests.length}`));
+            console.log(styleText('dim', `  [page:${page.slice(0, 8)}] +${batch.length} captured — total: ${allRequests.length}`));
           }
         }
       } catch {
@@ -625,17 +625,17 @@ export async function recordSession(opts: RecordOptions): Promise<RecordResult> 
     cleanupEnter(); // Always clean up readline to prevent process from hanging
     clearInterval(pollInterval);
 
-    // Final drain from all known tabs
-    for (const tabId of injectedTabs) {
+    // Final drain from all known pages
+    for (const page of injectedPages) {
       try {
-        const last = await execOnTab(workspace, tabId, generateReadRecordedJs()) as RecordedRequest[] | null;
+        const last = await execOnPage(workspace, page, generateReadRecordedJs()) as RecordedRequest[] | null;
         if (Array.isArray(last) && last.length > 0) {
           for (const r of last) allRequests.push(r);
         }
       } catch {}
     }
 
-    console.log(chalk.dim(`\n  Stopped. Analyzing ${allRequests.length} captured requests…`));
+    console.log(styleText('dim', `\n  Stopped. Analyzing ${allRequests.length} captured requests…`));
 
     const result = analyzeAndWrite(site, opts.url, allRequests, opts.outDir);
     await factory.close().catch(() => {});
@@ -646,30 +646,30 @@ export async function recordSession(opts: RecordOptions): Promise<RecordResult> 
   }
 }
 
-// ── Tab helpers ────────────────────────────────────────────────────────────
+// ── Page helpers ───────────────────────────────────────────────────────────
 
-interface TabInfo { tabId: number; url?: string }
+interface TabInfo { page?: string; url?: string }
 
 async function listTabs(workspace: string): Promise<TabInfo[]> {
   try {
     const result = await sendCommand('tabs', { op: 'list', workspace }) as TabInfo[] | null;
-    return Array.isArray(result) ? result.filter(t => t.tabId != null) : [];
+    return Array.isArray(result) ? result.filter(t => t.page != null) : [];
   } catch { return []; }
 }
 
-async function execOnTab(workspace: string, tabId: number, code: string): Promise<unknown> {
-  return sendCommand('exec', { code, workspace, tabId });
+async function execOnPage(workspace: string, page: string, code: string): Promise<unknown> {
+  return sendCommand('exec', { code, workspace, page });
 }
 
-async function injectIntoTab(workspace: string, tabId: number, injectedTabs: Set<number>): Promise<void> {
+async function injectIntoPage(workspace: string, page: string, injectedPages: Set<string>): Promise<void> {
   try {
-    await execOnTab(workspace, tabId, generateFullCaptureInterceptorJs());
-    if (!injectedTabs.has(tabId)) {
-      injectedTabs.add(tabId);
-      console.log(chalk.green(`  ✓  Interceptor injected into tab:${tabId}`));
+    await execOnPage(workspace, page, generateFullCaptureInterceptorJs());
+    if (!injectedPages.has(page)) {
+      injectedPages.add(page);
+      console.log(styleText('green', `  ✓  Interceptor injected into page:${page.slice(0, 8)}`));
     }
   } catch {
-    // Tab not debuggable (e.g. chrome:// pages) — skip silently
+    // Page not debuggable (e.g. chrome:// pages) — skip silently
   }
 }
 
@@ -704,7 +704,7 @@ function analyzeAndWrite(
   fs.mkdirSync(targetDir, { recursive: true });
 
   if (requests.length === 0) {
-    console.log(chalk.yellow('  No API requests captured.'));
+    console.log(styleText('yellow', '  No API requests captured.'));
     return { site, url: pageUrl, requests: [], outDir: targetDir, candidateCount: 0, candidates: [] };
   }
 
@@ -722,20 +722,20 @@ function analyzeAndWrite(
   const candidates: RecordResult['candidates'] = [];
   const usedNames = new Set<string>();
 
-  console.log(chalk.bold('\n  Captured endpoints:\n'));
+  console.log(styleText('bold', '\n  Captured endpoints:\n'));
 
   for (const entry of analysis.candidates.sort((a, b) => (b.arrayResult?.items.length ?? 0) - (a.arrayResult?.items.length ?? 0)).slice(0, 8)) {
     const itemCount = entry.arrayResult?.items.length ?? 0;
     const strategy = entry.kind === 'write'
       ? 'cookie'
       : inferStrategy(detectAuthFromContent(entry.req.url, entry.req.responseBody));
-    const marker = entry.kind === 'write' ? chalk.magenta('✎') : itemCount > 5 ? chalk.green('★') : chalk.dim('·');
+    const marker = entry.kind === 'write' ? styleText('magenta', '✎') : itemCount > 5 ? styleText('green', '★') : styleText('dim', '·');
     console.log(
-      `  ${marker} ${chalk.white(urlToPattern(entry.req.url))}` +
-      chalk.dim(` [${strategy}]`) +
+      `  ${marker} ${styleText('white', urlToPattern(entry.req.url))}` +
+      styleText('dim', ` [${strategy}]`) +
       (entry.kind === 'write'
-        ? chalk.magenta(' ← write')
-        : itemCount ? chalk.cyan(` ← ${itemCount} items`) : ''),
+        ? styleText('magenta', ' ← write')
+        : itemCount ? styleText('cyan', ` ← ${itemCount} items`) : ''),
     );
   }
 
@@ -749,17 +749,17 @@ function analyzeAndWrite(
     if (usedNames.has(entry.name)) continue;
     usedNames.add(entry.name);
 
-    const filePath = path.join(candidatesDir, `${entry.name}.yaml`);
-    fs.writeFileSync(filePath, yaml.dump(entry.yaml, { sortKeys: false, lineWidth: 120 }));
+    const filePath = path.join(candidatesDir, `${entry.name}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(entry.yaml, null, 2));
     candidates.push({ name: entry.name, path: filePath, strategy: entry.strategy });
 
-    console.log(chalk.green(`  ✓ Generated: ${chalk.bold(entry.name)}.yaml  [${entry.strategy}]`));
-    console.log(chalk.dim(`    → ${filePath}`));
+    console.log(styleText('green', `  ✓ Generated: ${styleText('bold', entry.name)}.json  [${entry.strategy}]`));
+    console.log(styleText('dim', `    → ${filePath}`));
   }
 
   if (candidates.length === 0) {
-    console.log(chalk.yellow('  No candidates found.'));
-    console.log(chalk.dim('  Tip: make sure you triggered JSON API calls (open lists, search, scroll).'));
+    console.log(styleText('yellow', '  No candidates found.'));
+    console.log(styleText('dim', '  Tip: make sure you triggered JSON API calls (open lists, search, scroll).'));
   }
 
   return {
@@ -774,7 +774,7 @@ function analyzeAndWrite(
 
 export function renderRecordSummary(result: RecordResult): string {
   const lines = [
-    `\n  opencli record: ${result.candidateCount > 0 ? chalk.green('OK') : chalk.yellow('no candidates')}`,
+    `\n  opencli record: ${result.candidateCount > 0 ? styleText('green', 'OK') : styleText('yellow', 'no candidates')}`,
     `  Site: ${result.site}`,
     `  Captured: ${result.requests.length} requests`,
     `  Candidates: ${result.candidateCount}`,
@@ -784,7 +784,7 @@ export function renderRecordSummary(result: RecordResult): string {
   }
   if (result.candidateCount > 0) {
     lines.push('');
-    lines.push(chalk.dim(`  Copy a candidate to clis/${result.site}/ and run: npm run build`));
+    lines.push(styleText('dim', `  Copy a candidate to clis/${result.site}/ and run: npm run build`));
   }
   return lines.join('\n');
 }

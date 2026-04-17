@@ -2,7 +2,7 @@
 /**
  * Layer 2: Claude Code Skill E2E Testing (LLM Judge)
  *
- * Spawns Claude Code with the opencli-operate skill. Claude Code
+ * Spawns Claude Code with the opencli-browser skill. Claude Code
  * completes the task using browse commands AND judges its own result.
  *
  * Task format: YAML with judge_context (multi-criteria, like Browser Use)
@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const RESULTS_DIR = join(__dirname, 'results');
-const SKILL_PATH = join(__dirname, '..', 'skills', 'opencli-operate', 'SKILL.md');
+const SKILL_PATH = join(__dirname, '..', 'skills', 'opencli-browser', 'SKILL.md');
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -100,7 +100,7 @@ function runSkillTask(task: SkillTask): TaskResult {
   const urlPart = task.url ? ` Start URL: ${task.url}` : '';
   const criteria = task.judge_context.map((c, i) => `${i + 1}. ${c}`).join('\n');
 
-  const prompt = `Complete this browser task using opencli operate commands:
+  const prompt = `Complete this browser task using opencli browser commands:
 
 TASK: ${task.task}${urlPart}
 
@@ -110,7 +110,7 @@ ${criteria}
 At the very end of your response, output a JSON verdict on its own line:
 {"success": true/false, "explanation": "brief explanation"}
 
-Always close the browser with 'opencli operate close' when done.`;
+Always close the browser with 'opencli browser close' when done.`;
 
   try {
     const output = execSync(

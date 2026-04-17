@@ -1,14 +1,14 @@
 /**
  * Preset: V2EX Command Reliability
  *
- * Optimizes opencli operate commands against the V2EX-specific test suite.
+ * Optimizes opencli browser commands against the V2EX-specific test suite.
  * 40 tasks across 5 difficulty layers (atomic → complex chain).
  */
 
 import type { AutoResearchConfig } from '../config.js';
 
 export const v2exReliability: AutoResearchConfig = {
-  goal: 'Increase V2EX operate command pass rate to 40/40 (100%)',
+  goal: 'Increase V2EX browser command pass rate to 40/40 (100%)',
   scope: [
     'src/browser/dom-snapshot.ts',
     'src/browser/dom-helpers.ts',

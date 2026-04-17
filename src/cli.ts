@@ -9,7 +9,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
-import chalk from 'chalk';
+import { styleText } from 'node:util';
 import { findPackageRoot, getBuiltEntryCandidates } from './package-paths.js';
 import { type CliCommand, fullName, getRegistry, strategyLabel } from './registry.js';
 import { serializeCommand, formatArgSummary } from './serialization.js';
@@ -19,16 +19,35 @@ import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
-import { EXIT_CODES, getErrorMessage } from './errors.js';
-import { daemonStatus, daemonStop, daemonRestart } from './commands/daemon.js';
+import { EXIT_CODES, getErrorMessage, BrowserConnectError } from './errors.js';
+import { TargetError } from './browser/target-errors.js';
+import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesResolvedJs, selectResolvedJs, isAutocompleteResolvedJs } from './browser/target-resolver.js';
+import { daemonStatus, daemonStop } from './commands/daemon.js';
+import { log } from './logger.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 
-/** Create a browser page for operate commands. Uses 'operate' workspace for session persistence. */
-async function getOperatePage(): Promise<import('./types.js').IPage> {
+/** Create a browser page for browser commands. Uses a dedicated browser workspace for session persistence. */
+async function getBrowserPage(): Promise<import('./types.js').IPage> {
   const { BrowserBridge } = await import('./browser/index.js');
   const bridge = new BrowserBridge();
-  return bridge.connect({ timeout: 30, workspace: 'operate:default' });
+  const envTimeout = process.env.OPENCLI_BROWSER_TIMEOUT;
+  const idleTimeout = envTimeout ? parseInt(envTimeout, 10) : undefined;
+  return bridge.connect({
+    timeout: 30,
+    workspace: 'browser:default',
+    ...(idleTimeout && idleTimeout > 0 && { idleTimeout }),
+  });
+}
+
+function parsePositiveIntOption(val: string | undefined, label: string, fallback: number): number {
+  if (val === undefined) return fallback;
+  const parsed = parseInt(val, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    console.error(`[cli] Invalid ${label}="${val}", using default ${fallback}`);
+    return fallback;
+  }
+  return parsed;
 }
 
 function applyVerbose(opts: { verbose?: boolean }): void {
@@ -90,33 +109,33 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
 
       console.log();
-      console.log(chalk.bold('  opencli') + chalk.dim(' — available commands'));
+      console.log(styleText('bold', '  opencli') + styleText('dim', ' — available commands'));
       console.log();
       for (const [site, cmds] of sites) {
-        console.log(chalk.bold.cyan(`  ${site}`));
+        console.log(styleText(['bold', 'cyan'], `  ${site}`));
         for (const cmd of cmds) {
           const label = strategyLabel(cmd);
           const tag = label === 'public'
-            ? chalk.green('[public]')
-            : chalk.yellow(`[${label}]`);
-          const aliases = cmd.aliases?.length ? chalk.dim(` (aliases: ${cmd.aliases.join(', ')})`) : '';
-          console.log(`    ${cmd.name} ${tag}${aliases}${cmd.description ? chalk.dim(` — ${cmd.description}`) : ''}`);
+            ? styleText('green', '[public]')
+            : styleText('yellow', `[${label}]`);
+          const aliases = cmd.aliases?.length ? styleText('dim', ` (aliases: ${cmd.aliases.join(', ')})`) : '';
+          console.log(`    ${cmd.name} ${tag}${aliases}${cmd.description ? styleText('dim', ` — ${cmd.description}`) : ''}`);
         }
         console.log();
       }
 
       const externalClis = loadExternalClis();
       if (externalClis.length > 0) {
-        console.log(chalk.bold.cyan('  external CLIs'));
+        console.log(styleText(['bold', 'cyan'], '  external CLIs'));
         for (const ext of externalClis) {
           const isInstalled = isBinaryInstalled(ext.binary);
-          const tag = isInstalled ? chalk.green('[installed]') : chalk.yellow('[auto-install]');
-          console.log(`    ${ext.name} ${tag}${ext.description ? chalk.dim(` — ${ext.description}`) : ''}`);
+          const tag = isInstalled ? styleText('green', '[installed]') : styleText('yellow', '[auto-install]');
+          console.log(`    ${ext.name} ${tag}${ext.description ? styleText('dim', ` — ${ext.description}`) : ''}`);
         }
         console.log();
       }
 
-      console.log(chalk.dim(`  ${commands.length} built-in commands across ${sites.size} sites, ${externalClis.length} external CLIs`));
+      console.log(styleText('dim', `  ${commands.length} built-in commands across ${sites.size} sites, ${externalClis.length} external CLIs`));
       console.log();
     });
 
@@ -196,28 +215,34 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   program
     .command('generate')
-    .description('One-shot: explore → synthesize → register')
+    .description('One-shot: explore → synthesize → verify → register')
     .argument('<url>')
     .option('--goal <text>')
     .option('--site <name>')
+    .option('--format <fmt>', 'Output format: table, json', 'table')
+    .option('--no-register', 'Verify the generated adapter without registering it')
     .option('-v, --verbose', 'Debug output')
     .action(async (url: string, opts: {
       goal?: string;
       site?: string;
+      format?: string;
+      register?: boolean;
       verbose?: boolean;
     }) => {
       applyVerbose(opts);
-      const { generateCliFromUrl, renderGenerateSummary } = await import('./generate.js');
+      const { generateVerifiedFromUrl, renderGenerateVerifiedSummary } = await import('./generate-verified.js');
       const workspace = `generate:${inferHost(url, opts.site)}`;
-      const r = await generateCliFromUrl({
+      const r = await generateVerifiedFromUrl({
         url,
         BrowserFactory: getBrowserFactory(),
         goal: opts.goal,
         site: opts.site,
         workspace,
+        noRegister: opts.register === false,
       });
-      console.log(renderGenerateSummary(r));
-      process.exitCode = r.ok ? EXIT_CODES.SUCCESS : EXIT_CODES.GENERIC_ERROR;
+      if (opts.format === 'json') console.log(JSON.stringify(r, null, 2));
+      else console.log(renderGenerateVerifiedSummary(r));
+      process.exitCode = r.status === 'success' ? EXIT_CODES.SUCCESS : EXIT_CODES.GENERIC_ERROR;
     });
 
   // ── Built-in: record ─────────────────────────────────────────────────────
@@ -276,29 +301,49 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       console.log(renderCascadeResult(result));
     });
 
-  // ── Built-in: operate (browser control for Claude Code skill) ───────────────
+  // ── Built-in: browser (browser control for Claude Code skill) ───────────────
   //
   // Make websites accessible for AI agents.
-  // All commands wrapped in operateAction() for consistent error handling.
+  // All commands wrapped in browserAction() for consistent error handling.
 
-  const operate = program
-    .command('operate')
+  const browser = program
+    .command('browser')
     .description('Browser control — navigate, click, type, extract, wait (no LLM needed)');
 
-  /** Wrap operate actions with error handling and optional --json output */
-  function operateAction(fn: (page: Awaited<ReturnType<typeof getOperatePage>>, ...args: any[]) => Promise<unknown>) {
+  /** Resolve a ref/CSS target via the unified resolver, throwing TargetError on failure. */
+  async function resolveRef(page: Awaited<ReturnType<typeof getBrowserPage>>, ref: string): Promise<void> {
+    const resolution = await page.evaluate(resolveTargetJs(ref)) as
+      | { ok: true }
+      | { ok: false; code: string; message: string; hint: string; candidates?: string[] };
+    if (!resolution.ok) {
+      throw new TargetError(resolution as { ok: false; code: 'not_found' | 'ambiguous' | 'stale_ref'; message: string; hint: string; candidates?: string[] });
+    }
+  }
+
+  /** Wrap browser actions with error handling and optional --json output */
+  function browserAction(fn: (page: Awaited<ReturnType<typeof getBrowserPage>>, ...args: any[]) => Promise<unknown>) {
     return async (...args: any[]) => {
       try {
-        const page = await getOperatePage();
+        const page = await getBrowserPage();
         await fn(page, ...args);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes('Extension not connected') || msg.includes('Daemon')) {
-          console.error(`Browser not connected. Run 'opencli doctor' to diagnose.`);
-        } else if (msg.includes('attach failed') || msg.includes('chrome-extension://')) {
-          console.error(`Browser attach failed — another extension may be interfering. Try disabling 1Password.`);
+        if (err instanceof BrowserConnectError) {
+          log.error(err.message);
+          if (err.hint) log.error(`Hint: ${err.hint}`);
+        } else if (err instanceof TargetError) {
+          log.error(`[${err.code}] ${err.message}`);
+          if (err.hint) log.error(`Hint: ${err.hint}`);
+          if (err.candidates?.length) {
+            log.error('Candidates:');
+            err.candidates.forEach((c, i) => log.error(`  ${i + 1}. ${c}`));
+          }
         } else {
-          console.error(`Error: ${msg}`);
+          const msg = getErrorMessage(err);
+          if (msg.includes('attach failed') || msg.includes('chrome-extension://')) {
+            log.error(`Browser attach failed — another extension may be interfering. Try disabling 1Password.`);
+          } else {
+            log.error(msg);
+          }
         }
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
@@ -310,10 +355,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   /** Network interceptor JS — injected on every open/navigate to capture fetch/XHR */
   const NETWORK_INTERCEPTOR_JS = `(function(){if(window.__opencli_net)return;window.__opencli_net=[];var M=200,B=50000,F=window.fetch;window.fetch=async function(){var r=await F.apply(this,arguments);try{var ct=r.headers.get('content-type')||'';if(ct.includes('json')||ct.includes('text')){var c=r.clone(),t=await c.text();if(window.__opencli_net.length<M){var b=null;if(t.length<=B)try{b=JSON.parse(t)}catch(e){b=t}window.__opencli_net.push({url:r.url||(arguments[0]&&arguments[0].url)||String(arguments[0]),method:(arguments[1]&&arguments[1].method)||'GET',status:r.status,size:t.length,ct:ct,body:b})}}}catch(e){}return r};var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(m,u){this._om=m;this._ou=u;return O.apply(this,arguments)};X.send=function(){var x=this;x.addEventListener('load',function(){try{var ct=x.getResponseHeader('content-type')||'';if((ct.includes('json')||ct.includes('text'))&&window.__opencli_net.length<M){var t=x.responseText,b=null;if(t&&t.length<=B)try{b=JSON.parse(t)}catch(e){b=t}window.__opencli_net.push({url:x._ou,method:x._om||'GET',status:x.status,size:t?t.length:0,ct:ct,body:b})}}catch(e){}});return S.apply(this,arguments)}})()`;
 
-  operate.command('open').argument('<url>').description('Open URL in automation window')
-    .action(operateAction(async (page, url) => {
+  browser.command('open').argument('<url>').description('Open URL in automation window')
+    .action(browserAction(async (page, url) => {
       // Start session-level capture before navigation (catches initial requests)
-      const hasSessionCapture = await page.startNetworkCapture?.().then(() => true).catch(() => false);
+      const hasSessionCapture = await page.startNetworkCapture?.() ?? false;
       await page.goto(url);
       await page.wait(2);
       // Fallback: inject JS interceptor when session capture is unavailable
@@ -323,16 +368,16 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       console.log(`Navigated to: ${await page.getCurrentUrl?.() ?? url}`);
     }));
 
-  operate.command('back').description('Go back in browser history')
-    .action(operateAction(async (page) => {
+  browser.command('back').description('Go back in browser history')
+    .action(browserAction(async (page) => {
       await page.evaluate('history.back()');
       await page.wait(2);
       console.log('Navigated back');
     }));
 
-  operate.command('scroll').argument('<direction>', 'up or down').option('--amount <pixels>', 'Pixels to scroll', '500')
+  browser.command('scroll').argument('<direction>', 'up or down').option('--amount <pixels>', 'Pixels to scroll', '500')
     .description('Scroll page')
-    .action(operateAction(async (page, direction, opts) => {
+    .action(browserAction(async (page, direction, opts) => {
       if (direction !== 'up' && direction !== 'down') {
         console.error(`Invalid direction "${direction}". Use "up" or "down".`);
         process.exitCode = EXIT_CODES.USAGE_ERROR;
@@ -344,17 +389,17 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Inspect ──
 
-  operate.command('state').description('Page state: URL, title, interactive elements with [N] indices')
-    .action(operateAction(async (page) => {
+  browser.command('state').description('Page state: URL, title, interactive elements with [N] indices')
+    .action(browserAction(async (page) => {
       const snapshot = await page.snapshot({ viewportExpand: 2000 });
       const url = await page.getCurrentUrl?.() ?? '';
       console.log(`URL: ${url}\n`);
       console.log(typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot, null, 2));
     }));
 
-  operate.command('screenshot').argument('[path]', 'Save to file (base64 if omitted)')
+  browser.command('screenshot').argument('[path]', 'Save to file (base64 if omitted)')
     .description('Take screenshot')
-    .action(operateAction(async (page, path) => {
+    .action(browserAction(async (page, path) => {
       if (path) {
         await page.screenshot({ path });
         console.log(`Screenshot saved to: ${path}`);
@@ -365,68 +410,63 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Get commands (structured data extraction) ──
 
-  const get = operate.command('get').description('Get page properties');
+  const get = browser.command('get').description('Get page properties');
 
   get.command('title').description('Page title')
-    .action(operateAction(async (page) => {
+    .action(browserAction(async (page) => {
       console.log(await page.evaluate('document.title'));
     }));
 
   get.command('url').description('Current page URL')
-    .action(operateAction(async (page) => {
+    .action(browserAction(async (page) => {
       console.log(await page.getCurrentUrl?.() ?? await page.evaluate('location.href'));
     }));
 
   get.command('text').argument('<index>', 'Element index').description('Element text content')
-    .action(operateAction(async (page, index) => {
-      const text = await page.evaluate(`document.querySelector('[data-opencli-ref="${index}"]')?.textContent?.trim()`);
+    .action(browserAction(async (page, index) => {
+      await resolveRef(page, String(index));
+      const text = await page.evaluate(getTextResolvedJs());
       console.log(text ?? '(empty)');
     }));
 
   get.command('value').argument('<index>', 'Element index').description('Input/textarea value')
-    .action(operateAction(async (page, index) => {
-      const val = await page.evaluate(`document.querySelector('[data-opencli-ref="${index}"]')?.value`);
+    .action(browserAction(async (page, index) => {
+      await resolveRef(page, String(index));
+      const val = await page.evaluate(getValueResolvedJs());
       console.log(val ?? '(empty)');
     }));
 
   get.command('html').option('--selector <css>', 'CSS selector scope').description('Page HTML (or scoped)')
-    .action(operateAction(async (page, opts) => {
+    .action(browserAction(async (page, opts) => {
       const sel = opts.selector ? JSON.stringify(opts.selector) : 'null';
       const html = await page.evaluate(`(${sel} ? document.querySelector(${sel})?.outerHTML : document.documentElement.outerHTML)?.slice(0, 50000)`);
       console.log(html ?? '(empty)');
     }));
 
   get.command('attributes').argument('<index>', 'Element index').description('Element attributes')
-    .action(operateAction(async (page, index) => {
-      const attrs = await page.evaluate(`JSON.stringify(Object.fromEntries([...document.querySelector('[data-opencli-ref="${index}"]')?.attributes].map(a=>[a.name,a.value])))`);
+    .action(browserAction(async (page, index) => {
+      await resolveRef(page, String(index));
+      const attrs = await page.evaluate(getAttributesResolvedJs());
       console.log(attrs ?? '{}');
     }));
 
   // ── Interact ──
 
-  operate.command('click').argument('<index>', 'Element index from state').description('Click element by index')
-    .action(operateAction(async (page, index) => {
+  browser.command('click').argument('<index>', 'Element index from state').description('Click element by index')
+    .action(browserAction(async (page, index) => {
       await page.click(index);
       console.log(`Clicked element [${index}]`);
     }));
 
-  operate.command('type').argument('<index>', 'Element index').argument('<text>', 'Text to type')
+  browser.command('type').argument('<index>', 'Element index').argument('<text>', 'Text to type')
     .description('Click element, then type text')
-    .action(operateAction(async (page, index, text) => {
+    .action(browserAction(async (page, index, text) => {
       await page.click(index);
       await page.wait(0.3);
       await page.typeText(index, text);
       // Detect autocomplete/combobox fields and wait for dropdown suggestions
-      const isAutocomplete = await page.evaluate(`
-        (() => {
-          const el = document.querySelector('[data-opencli-ref="${index}"]');
-          if (!el) return false;
-          const role = el.getAttribute('role');
-          const ac = el.getAttribute('aria-autocomplete');
-          const list = el.getAttribute('list');
-          return role === 'combobox' || ac === 'list' || ac === 'both' || !!list;
-        })()
-      `);
+      // __resolved is already set by typeText's resolver call
+      const isAutocomplete = await page.evaluate(isAutocompleteResolvedJs());
       if (isAutocomplete) {
         await page.wait(0.4);
         console.log(`Typed "${text}" into autocomplete [${index}] — use state to see suggestions`);
@@ -435,22 +475,11 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
     }));
 
-  operate.command('select').argument('<index>', 'Element index of <select>').argument('<option>', 'Option text')
+  browser.command('select').argument('<index>', 'Element index of <select>').argument('<option>', 'Option text')
     .description('Select dropdown option')
-    .action(operateAction(async (page, index, option) => {
-      const result = await page.evaluate(`
-        (function() {
-          var sel = document.querySelector('[data-opencli-ref="${index}"]');
-          if (!sel || sel.tagName !== 'SELECT') return { error: 'Not a <select>' };
-          var match = Array.from(sel.options).find(o => o.text.trim() === ${JSON.stringify(option)} || o.value === ${JSON.stringify(option)});
-          if (!match) return { error: 'Option not found', available: Array.from(sel.options).map(o => o.text.trim()) };
-          var setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
-          if (setter) setter.call(sel, match.value); else sel.value = match.value;
-          sel.dispatchEvent(new Event('input', {bubbles:true}));
-          sel.dispatchEvent(new Event('change', {bubbles:true}));
-          return { selected: match.text };
-        })()
-      `) as { error?: string; selected?: string; available?: string[] } | null;
+    .action(browserAction(async (page, index, option) => {
+      await resolveRef(page, String(index));
+      const result = await page.evaluate(selectResolvedJs(option)) as { error?: string; selected?: string; available?: string[] } | null;
       if (result?.error) {
         console.error(`Error: ${result.error}${result.available ? ` — Available: ${result.available.join(', ')}` : ''}`);
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
@@ -459,21 +488,21 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
     }));
 
-  operate.command('keys').argument('<key>', 'Key to press (Enter, Escape, Tab, Control+a)')
+  browser.command('keys').argument('<key>', 'Key to press (Enter, Escape, Tab, Control+a)')
     .description('Press keyboard key')
-    .action(operateAction(async (page, key) => {
+    .action(browserAction(async (page, key) => {
       await page.pressKey(key);
       console.log(`Pressed: ${key}`);
     }));
 
   // ── Wait commands ──
 
-  operate.command('wait')
+  browser.command('wait')
     .argument('<type>', 'selector, text, or time')
     .argument('[value]', 'CSS selector, text string, or seconds')
     .option('--timeout <ms>', 'Timeout in milliseconds', '10000')
     .description('Wait for selector, text, or time (e.g. wait selector ".loaded", wait text "Success", wait time 3)')
-    .action(operateAction(async (page, type, value, opts) => {
+    .action(browserAction(async (page, type, value, opts) => {
       const timeout = parseInt(opts.timeout, 10);
       if (type === 'time') {
         const seconds = parseFloat(value ?? '2');
@@ -495,8 +524,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Extract ──
 
-  operate.command('eval').argument('<js>', 'JavaScript code').description('Execute JS in page context, return result')
-    .action(operateAction(async (page, js) => {
+  browser.command('eval').argument('<js>', 'JavaScript code').description('Execute JS in page context, return result')
+    .action(browserAction(async (page, js) => {
       const result = await page.evaluate(js);
       if (typeof result === 'string') console.log(result);
       else console.log(JSON.stringify(result, null, 2));
@@ -504,11 +533,11 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Network (API discovery) ──
 
-  operate.command('network')
+  browser.command('network')
     .option('--detail <index>', 'Show full response body of request at index')
     .option('--all', 'Show all requests including static resources')
     .description('Show captured network requests (auto-captured since last open)')
-    .action(operateAction(async (page, opts) => {
+    .action(browserAction(async (page, opts) => {
       let items: Array<{ url: string; method: string; status: number; size: number; ct: string; body: unknown }> = [];
       if (page.readNetworkCapture) {
         const raw = await page.readNetworkCapture();
@@ -536,7 +565,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           var reqs = window.__opencli_net || [];
           return JSON.stringify(reqs);
         })()`) as string;
-        try { items = JSON.parse(requests); } catch { console.log('No network data captured. Run "operate open <url>" first.'); return; }
+        try { items = JSON.parse(requests); } catch { console.log('No network data captured. Run "browser open <url>" first.'); return; }
       }
 
       if (items.length === 0) { console.log('No requests captured.'); return; }
@@ -571,7 +600,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Init (adapter scaffolding) ──
 
-  operate.command('init')
+  browser.command('init')
     .argument('<name>', 'Adapter name in site/command format (e.g. hn/top)')
     .description('Generate adapter scaffold in ~/.opencli/clis/')
     .action(async (name: string) => {
@@ -593,17 +622,17 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         const fs = await import('node:fs');
         const path = await import('node:path');
         const dir = path.join(os.homedir(), '.opencli', 'clis', site);
-        const filePath = path.join(dir, `${command}.ts`);
+        const filePath = path.join(dir, `${command}.js`);
 
         if (fs.existsSync(filePath)) {
           console.log(`Adapter already exists: ${filePath}`);
           return;
         }
 
-        // Try to detect domain from last operate session
+        // Try to detect domain from the last browser session
         let domain = site;
         try {
-          const page = await getOperatePage();
+          const page = await getBrowserPage();
           const url = await page.getCurrentUrl?.();
           if (url) { try { domain = new URL(url).hostname; } catch {} }
         } catch { /* no active session */ }
@@ -632,7 +661,7 @@ cli({
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(filePath, template, 'utf-8');
         console.log(`Created: ${filePath}`);
-        console.log(`Edit the file to implement your adapter, then run: opencli operate verify ${name}`);
+        console.log(`Edit the file to implement your adapter, then run: opencli browser verify ${name}`);
       } catch (err) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
@@ -641,7 +670,7 @@ cli({
 
   // ── Verify (test adapter) ──
 
-  operate.command('verify')
+  browser.command('verify')
     .argument('<name>', 'Adapter name in site/command format (e.g. hn/top)')
     .description('Execute an adapter and show results')
     .action(async (name: string) => {
@@ -657,10 +686,10 @@ cli({
 
         const { execFileSync } = await import('node:child_process');
         const os = await import('node:os');
-        const filePath = path.join(os.homedir(), '.opencli', 'clis', site, `${command}.ts`);
+        const filePath = path.join(os.homedir(), '.opencli', 'clis', site, `${command}.js`);
         if (!fs.existsSync(filePath)) {
           console.error(`Adapter not found: ${filePath}`);
-          console.error(`Run "opencli operate init ${name}" to create it.`);
+          console.error(`Run "opencli browser init ${name}" to create it.`);
           process.exitCode = EXIT_CODES.GENERIC_ERROR;
           return;
         }
@@ -673,7 +702,7 @@ cli({
         const hasLimitArg = /['"]limit['"]/.test(adapterSrc);
         const limitFlag = hasLimitArg ? ' --limit 3' : '';
         const limitArgs = hasLimitArg ? ['--limit', '3'] : [];
-        const invocation = resolveOperateVerifyInvocation();
+        const invocation = resolveBrowserVerifyInvocation();
 
         try {
           const output = execFileSync(invocation.binary, [...invocation.args, site, command, ...limitArgs], {
@@ -687,10 +716,12 @@ cli({
           console.log(`  Executing: opencli ${site} ${command}${limitFlag}\n`);
           console.log(output);
           console.log(`\n  ✓ Adapter works!`);
-        } catch (err: any) {
+        } catch (err) {
           console.log(`  Executing: opencli ${site} ${command}${limitFlag}\n`);
-          if (err.stdout) console.log(err.stdout);
-          if (err.stderr) console.error(err.stderr.slice(0, 500));
+          // execFileSync attaches captured stdout/stderr on its thrown Error.
+          const execErr = err as { stdout?: string | Buffer; stderr?: string | Buffer };
+          if (execErr.stdout) console.log(String(execErr.stdout));
+          if (execErr.stderr) console.error(String(execErr.stderr).slice(0, 500));
           console.log(`\n  ✗ Adapter failed. Fix the code and try again.`);
           process.exitCode = EXIT_CODES.GENERIC_ERROR;
         }
@@ -702,8 +733,8 @@ cli({
 
   // ── Session ──
 
-  operate.command('close').description('Close the automation window')
-    .action(operateAction(async (page) => {
+  browser.command('close').description('Close the automation window')
+    .action(browserAction(async (page) => {
       await page.closeWindow?.();
       console.log('Automation window closed');
     }));
@@ -747,15 +778,15 @@ cli({
         await discoverPlugins();
         if (Array.isArray(result)) {
           if (result.length === 0) {
-            console.log(chalk.yellow('No plugins were installed (all skipped or incompatible).'));
+            console.log(styleText('yellow', 'No plugins were installed (all skipped or incompatible).'));
           } else {
-            console.log(chalk.green(`\u2705 Installed ${result.length} plugin(s) from monorepo: ${result.join(', ')}`));
+            console.log(styleText('green', `\u2705 Installed ${result.length} plugin(s) from monorepo: ${result.join(', ')}`));
           }
         } else {
-          console.log(chalk.green(`\u2705 Plugin "${result}" installed successfully. Commands are ready to use.`));
+          console.log(styleText('green', `\u2705 Plugin "${result}" installed successfully. Commands are ready to use.`));
         }
       } catch (err) {
-        console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
+        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
@@ -768,9 +799,9 @@ cli({
       const { uninstallPlugin } = await import('./plugin.js');
       try {
         uninstallPlugin(name);
-        console.log(chalk.green(`✅ Plugin "${name}" uninstalled.`));
+        console.log(styleText('green', `✅ Plugin "${name}" uninstalled.`));
       } catch (err) {
-        console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
+        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
@@ -782,12 +813,12 @@ cli({
     .option('--all', 'Update all installed plugins')
     .action(async (name: string | undefined, opts: { all?: boolean }) => {
       if (!name && !opts.all) {
-        console.error(chalk.red('Error: Please specify a plugin name or use the --all flag.'));
+        console.error(styleText('red', 'Error: Please specify a plugin name or use the --all flag.'));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
       if (name && opts.all) {
-        console.error(chalk.red('Error: Cannot specify both a plugin name and --all.'));
+        console.error(styleText('red', 'Error: Cannot specify both a plugin name and --all.'));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
@@ -801,27 +832,27 @@ cli({
         }
 
         let hasErrors = false;
-        console.log(chalk.bold('  Update Results:'));
+        console.log(styleText('bold', '  Update Results:'));
         for (const result of results) {
           if (result.success) {
-            console.log(`  ${chalk.green('✓')} ${result.name}`);
+            console.log(`  ${styleText('green', '✓')} ${result.name}`);
             continue;
           }
           hasErrors = true;
-          console.log(`  ${chalk.red('✗')} ${result.name} — ${chalk.dim(result.error)}`);
+          console.log(`  ${styleText('red', '✗')} ${result.name} — ${styleText('dim', String(result.error))}`);
         }
 
         if (results.length === 0) {
-          console.log(chalk.dim('  No plugins installed.'));
+          console.log(styleText('dim', '  No plugins installed.'));
           return;
         }
 
         console.log();
         if (hasErrors) {
-          console.error(chalk.red('Completed with some errors.'));
+          console.error(styleText('red', 'Completed with some errors.'));
           process.exitCode = EXIT_CODES.GENERIC_ERROR;
         } else {
-          console.log(chalk.green('✅ All plugins updated successfully.'));
+          console.log(styleText('green', '✅ All plugins updated successfully.'));
         }
         return;
       }
@@ -829,9 +860,9 @@ cli({
       try {
         updatePlugin(name!);
         await discoverPlugins();
-        console.log(chalk.green(`✅ Plugin "${name}" updated successfully.`));
+        console.log(styleText('green', `✅ Plugin "${name}" updated successfully.`));
       } catch (err) {
-        console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
+        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
@@ -845,8 +876,8 @@ cli({
       const { listPlugins } = await import('./plugin.js');
       const plugins = listPlugins();
       if (plugins.length === 0) {
-        console.log(chalk.dim('  No plugins installed.'));
-        console.log(chalk.dim(`  Install one with: opencli plugin install github:user/repo`));
+        console.log(styleText('dim', '  No plugins installed.'));
+        console.log(styleText('dim', '  Install one with: opencli plugin install github:user/repo'));
         return;
       }
       if (opts.format === 'json') {
@@ -859,7 +890,7 @@ cli({
         return;
       }
       console.log();
-      console.log(chalk.bold('  Installed plugins'));
+      console.log(styleText('bold', '  Installed plugins'));
       console.log();
 
       // Group by monorepo
@@ -873,26 +904,26 @@ cli({
       }
 
       for (const p of standalone) {
-        const version = p.version ? chalk.green(` @${p.version}`) : '';
-        const desc = p.description ? chalk.dim(` — ${p.description}`) : '';
-        const cmds = p.commands.length > 0 ? chalk.dim(` (${p.commands.join(', ')})`) : '';
-        const src = p.source ? chalk.dim(` ← ${p.source}`) : '';
-        console.log(`  ${chalk.cyan(p.name)}${version}${desc}${cmds}${src}`);
+        const version = p.version ? styleText('green', ` @${p.version}`) : '';
+        const desc = p.description ? styleText('dim', ` — ${p.description}`) : '';
+        const cmds = p.commands.length > 0 ? styleText('dim', ` (${p.commands.join(', ')})`) : '';
+        const src = p.source ? styleText('dim', ` ← ${p.source}`) : '';
+        console.log(`  ${styleText('cyan', p.name)}${version}${desc}${cmds}${src}`);
       }
 
       for (const [mono, group] of monoGroups) {
         console.log();
-        console.log(chalk.bold.magenta(`  📦 ${mono}`) + chalk.dim(' (monorepo)'));
+        console.log(styleText(['bold', 'magenta'], `  📦 ${mono}`) + styleText('dim', ' (monorepo)'));
         for (const p of group) {
-          const version = p.version ? chalk.green(` @${p.version}`) : '';
-          const desc = p.description ? chalk.dim(` — ${p.description}`) : '';
-          const cmds = p.commands.length > 0 ? chalk.dim(` (${p.commands.join(', ')})`) : '';
-          console.log(`    ${chalk.cyan(p.name)}${version}${desc}${cmds}`);
+          const version = p.version ? styleText('green', ` @${p.version}`) : '';
+          const desc = p.description ? styleText('dim', ` — ${p.description}`) : '';
+          const cmds = p.commands.length > 0 ? styleText('dim', ` (${p.commands.join(', ')})`) : '';
+          console.log(`    ${styleText('cyan', p.name)}${version}${desc}${cmds}`);
         }
       }
 
       console.log();
-      console.log(chalk.dim(`  ${plugins.length} plugin(s) installed`));
+      console.log(styleText('dim', `  ${plugins.length} plugin(s) installed`));
       console.log();
     });
 
@@ -909,21 +940,136 @@ cli({
           dir: opts.dir,
           description: opts.description,
         });
-        console.log(chalk.green(`✅ Plugin scaffold created at ${result.dir}`));
+        console.log(styleText('green', `✅ Plugin scaffold created at ${result.dir}`));
         console.log();
-        console.log(chalk.bold('  Files created:'));
+        console.log(styleText('bold', '  Files created:'));
         for (const f of result.files) {
-          console.log(`    ${chalk.cyan(f)}`);
+          console.log(`    ${styleText('cyan', f)}`);
         }
         console.log();
-        console.log(chalk.dim('  Next steps:'));
-        console.log(chalk.dim(`    cd ${result.dir}`));
-        console.log(chalk.dim(`    opencli plugin install file://${result.dir}`));
-        console.log(chalk.dim(`    opencli ${name} hello`));
+        console.log(styleText('dim', '  Next steps:'));
+        console.log(styleText('dim', `    cd ${result.dir}`));
+        console.log(styleText('dim', `    opencli plugin install file://${result.dir}`));
+        console.log(styleText('dim', `    opencli ${name} hello`));
       } catch (err) {
-        console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
+        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
+    });
+
+  // ── Built-in: adapter management ─────────────────────────────────────────
+  const adapterCmd = program.command('adapter').description('Manage CLI adapters');
+
+  adapterCmd
+    .command('status')
+    .description('Show which sites have local overrides vs using official baseline')
+    .action(async () => {
+      const os = await import('node:os');
+      const userClisDir = path.join(os.homedir(), '.opencli', 'clis');
+      const builtinClisDir = BUILTIN_CLIS;
+      try {
+        const userEntries = await fs.promises.readdir(userClisDir, { withFileTypes: true });
+        const userSites = userEntries.filter(e => e.isDirectory()).map(e => e.name).sort();
+        let builtinSites: string[] = [];
+        try {
+          const builtinEntries = await fs.promises.readdir(builtinClisDir, { withFileTypes: true });
+          builtinSites = builtinEntries.filter(e => e.isDirectory()).map(e => e.name).sort();
+        } catch { /* no builtin dir */ }
+
+        if (userSites.length === 0) {
+          console.log('No local adapter overrides. All sites use the official baseline.');
+          return;
+        }
+
+        console.log(`Local overrides in ~/.opencli/clis/ (${userSites.length} sites):\n`);
+        for (const site of userSites) {
+          const isOfficial = builtinSites.includes(site);
+          const label = isOfficial ? 'override' : 'custom';
+          console.log(`  ${site} [${label}]`);
+        }
+        console.log(`\nOfficial baseline: ${builtinSites.length} sites in package`);
+      } catch {
+        console.log('No local adapter overrides. All sites use the official baseline.');
+      }
+    });
+
+  adapterCmd
+    .command('eject')
+    .description('Copy an official adapter to ~/.opencli/clis/ for local editing')
+    .argument('<site>', 'Site name (e.g. twitter, bilibili)')
+    .action(async (site: string) => {
+      const os = await import('node:os');
+      const userClisDir = path.join(os.homedir(), '.opencli', 'clis');
+      const builtinSiteDir = path.join(BUILTIN_CLIS, site);
+      const userSiteDir = path.join(userClisDir, site);
+
+      try {
+        await fs.promises.access(builtinSiteDir);
+      } catch {
+        console.error(styleText('red', `Error: Site "${site}" not found in official adapters.`));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+
+      try {
+        await fs.promises.access(userSiteDir);
+        console.error(styleText('yellow', `Site "${site}" already exists in ~/.opencli/clis/. Use "opencli adapter reset ${site}" first to restore official version.`));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      } catch { /* good, doesn't exist yet */ }
+
+      fs.cpSync(builtinSiteDir, userSiteDir, { recursive: true });
+      console.log(styleText('green', `✅ Ejected "${site}" to ~/.opencli/clis/${site}/`));
+      console.log('You can now edit the adapter files. Changes take effect immediately.');
+      console.log(styleText('yellow', 'Note: Official updates to this adapter will overwrite your changes.'));
+    });
+
+  adapterCmd
+    .command('reset')
+    .description('Remove local override and restore official adapter version')
+    .argument('[site]', 'Site name (e.g. twitter, bilibili)')
+    .option('--all', 'Reset all local overrides')
+    .action(async (site: string | undefined, opts: { all?: boolean }) => {
+      const os = await import('node:os');
+      const userClisDir = path.join(os.homedir(), '.opencli', 'clis');
+
+      if (opts.all) {
+        try {
+          const userEntries = await fs.promises.readdir(userClisDir, { withFileTypes: true });
+          const dirs = userEntries.filter(e => e.isDirectory());
+          if (dirs.length === 0) {
+            console.log('No local sites to reset.');
+            return;
+          }
+          for (const dir of dirs) {
+            fs.rmSync(path.join(userClisDir, dir.name), { recursive: true, force: true });
+          }
+          console.log(styleText('green', `✅ Reset ${dirs.length} site(s). All adapters now use official baseline.`));
+        } catch {
+          console.log('No local sites to reset.');
+        }
+        return;
+      }
+
+      if (!site) {
+        console.error(styleText('red', 'Error: Please specify a site name or use --all.'));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+
+      const userSiteDir = path.join(userClisDir, site);
+      try {
+        await fs.promises.access(userSiteDir);
+      } catch {
+        console.error(styleText('yellow', `Site "${site}" has no local override.`));
+        return;
+      }
+
+      const isOfficial = fs.existsSync(path.join(BUILTIN_CLIS, site));
+      fs.rmSync(userSiteDir, { recursive: true, force: true });
+      console.log(styleText('green', isOfficial
+        ? `✅ Reset "${site}". Now using official baseline.`
+        : `✅ Removed custom site "${site}".`));
     });
 
   // ── Built-in: daemon ──────────────────────────────────────────────────────
@@ -936,10 +1082,6 @@ cli({
     .command('stop')
     .description('Stop the daemon')
     .action(async () => { await daemonStop(); });
-  daemonCmd
-    .command('restart')
-    .description('Restart the daemon')
-    .action(async () => { await daemonRestart(); });
 
   // ── External CLIs ─────────────────────────────────────────────────────────
 
@@ -952,7 +1094,7 @@ cli({
     .action((name: string) => {
       const ext = externalClis.find(e => e.name === name);
       if (!ext) {
-        console.error(chalk.red(`External CLI '${name}' not found in registry.`));
+        console.error(styleText('red', `External CLI '${name}' not found in registry.`));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
@@ -978,7 +1120,7 @@ cli({
     try {
       executeExternalCli(name, args, externalClis);
     } catch (err) {
-      console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
+      console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
       process.exitCode = EXIT_CODES.GENERIC_ERROR;
     }
   }
@@ -1002,9 +1144,14 @@ cli({
     .command('serve')
     .description('Start Anthropic-compatible API proxy for Antigravity')
     .option('--port <port>', 'Server port (default: 8082)', '8082')
+    .option('--timeout <seconds>', 'Maximum time to wait for a reply (default: 120s)')
     .action(async (opts) => {
+      // @ts-expect-error JS adapter — no type declarations
       const { startServe } = await import('../clis/antigravity/serve.js');
-      await startServe({ port: parseInt(opts.port) });
+      await startServe({
+        port: parseInt(opts.port, 10),
+        timeout: opts.timeout ? parsePositiveIntOption(opts.timeout, '--timeout', 120) : undefined,
+      });
     });
 
   // ── Dynamic adapter commands ──────────────────────────────────────────────
@@ -1019,9 +1166,9 @@ cli({
 
   program.on('command:*', (operands: string[]) => {
     const binary = operands[0];
-    console.error(chalk.red(`error: unknown command '${binary}'`));
+    console.error(styleText('red', `error: unknown command '${binary}'`));
     if (isBinaryInstalled(binary)) {
-      console.error(chalk.dim(`  Tip: '${binary}' exists on your PATH. Use 'opencli register ${binary}' to add it as an external CLI.`));
+      console.error(styleText('dim', `  Tip: '${binary}' exists on your PATH. Use 'opencli register ${binary}' to add it as an external CLI.`));
     }
     program.outputHelp();
     process.exitCode = EXIT_CODES.USAGE_ERROR;
@@ -1036,7 +1183,7 @@ export function runCli(BUILTIN_CLIS: string, USER_CLIS: string): void {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-export interface OperateVerifyInvocation {
+export interface BrowserVerifyInvocation {
   binary: string;
   args: string[];
   cwd: string;
@@ -1045,12 +1192,12 @@ export interface OperateVerifyInvocation {
 
 export { findPackageRoot };
 
-export function resolveOperateVerifyInvocation(opts: {
+export function resolveBrowserVerifyInvocation(opts: {
   projectRoot?: string;
   platform?: NodeJS.Platform;
   fileExists?: (path: string) => boolean;
   readFile?: (path: string) => string;
-} = {}): OperateVerifyInvocation {
+} = {}): BrowserVerifyInvocation {
   const platform = opts.platform ?? process.platform;
   const fileExists = opts.fileExists ?? fs.existsSync;
   const readFile = opts.readFile ?? ((filePath: string) => fs.readFileSync(filePath, 'utf-8'));

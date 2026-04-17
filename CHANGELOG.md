@@ -1,5 +1,93 @@
 # Changelog
 
+## [1.7.0](https://github.com/jackwener/opencli/compare/v1.6.1...v1.7.0) (2026-04-11)
+
+This is a major release with significant internal architecture changes.
+Adapter code, validation, and error handling have been modernized.
+
+### ⚠ BREAKING CHANGES
+
+* **Node.js >= 21 required** — `import.meta.dirname` is used in core modules; Node 20 and below will fail at startup.
+* **YAML adapters deprecated** — YAML-based `.yaml` adapters are no longer loaded. Existing YAML adapters must be converted to JS via `cli()` API. A deprecation warning is emitted if `.yaml` files are detected.
+* **`.ts` adapters no longer loaded at runtime** — The runtime only discovers `.js` files. If you have `.ts` adapters in `~/.opencli/clis/`, compile them to `.js` or rewrite using plain JS. A warning is printed when `.ts` files without a matching `.js` are found.
+* **Error output format changed** — All errors are now emitted as a structured YAML envelope to stderr. Scripts parsing stdout for `[{error, help}]` must switch to stderr / exit code. ([#923](https://github.com/jackwener/opencli/issues/923))
+* **`tabId` replaced by `targetId`** — Cross-layer page identity now uses `targetId`. Extensions and plugins referencing `tabId` must update. ([#899](https://github.com/jackwener/opencli/issues/899))
+* **`operate` renamed to `browser`** — All `opencli operate` commands are now `opencli browser`. ([#883](https://github.com/jackwener/opencli/issues/883))
+
+### Features
+
+* **auto-close adapter windows** — Browser tabs opened by adapters are automatically closed after execution; configurable via `OPENCLI_WINDOW_FOCUSED`. ([#915](https://github.com/jackwener/opencli/issues/915))
+* **Self-Repair protocol** — Automatic adapter fixing when commands fail. ([#866](https://github.com/jackwener/opencli/issues/866))
+* **EarlyHint callback** — Cost gating channel for generate pipeline. ([#882](https://github.com/jackwener/opencli/issues/882))
+* **verified generate pipeline** — Structured contract for AI-driven adapter generation. ([#878](https://github.com/jackwener/opencli/issues/878))
+* **structured diagnostic output** — AI-driven adapter repair gets structured diagnostics. ([#802](https://github.com/jackwener/opencli/issues/802))
+* **auto-downgrade to YAML in non-TTY** — Machine-readable output when piped. ([#737](https://github.com/jackwener/opencli/issues/737))
+* **Browser Use improvements** — Better click/type/state handling for browser automation. ([#707](https://github.com/jackwener/opencli/issues/707))
+* **CDP session-level network capture** — Full network capture support for CDPPage. ([#815](https://github.com/jackwener/opencli/issues/815), [#816](https://github.com/jackwener/opencli/issues/816))
+* **AutoResearch framework** — V2EX/Zhihu test suites (194 tasks). ([#731](https://github.com/jackwener/opencli/issues/731), [#717](https://github.com/jackwener/opencli/issues/717), [#741](https://github.com/jackwener/opencli/issues/741))
+* **new adapters:** Gitee ([#845](https://github.com/jackwener/opencli/issues/845)), 闲鱼 ([#696](https://github.com/jackwener/opencli/issues/696)), 1688 ([#650](https://github.com/jackwener/opencli/issues/650), [#820](https://github.com/jackwener/opencli/issues/820)), LessWrong ([#773](https://github.com/jackwener/opencli/issues/773)), 虎扑 ([#751](https://github.com/jackwener/opencli/issues/751)), 小鹅通 ([#617](https://github.com/jackwener/opencli/issues/617)), 元宝 ([#693](https://github.com/jackwener/opencli/issues/693)), 即梦 ([#897](https://github.com/jackwener/opencli/issues/897), [#895](https://github.com/jackwener/opencli/issues/895)), Quark Drive ([#858](https://github.com/jackwener/opencli/issues/858)), GitHub Trending/Binance/Weather ([#214](https://github.com/jackwener/opencli/issues/214))
+* **adapter enhancements:** Instagram post/reel/story/note ([#671](https://github.com/jackwener/opencli/issues/671)), Twitter image posts/replies ([#666](https://github.com/jackwener/opencli/issues/666), [#756](https://github.com/jackwener/opencli/issues/756)), 知乎 interactions ([#868](https://github.com/jackwener/opencli/issues/868)), Bilibili b23.tv short URL ([#740](https://github.com/jackwener/opencli/issues/740)), 雪球 kline/groups ([#809](https://github.com/jackwener/opencli/issues/809)), Amazon unified ranking ([#724](https://github.com/jackwener/opencli/issues/724)), Gemini deep-research ([#778](https://github.com/jackwener/opencli/issues/778)), 新浪财经热搜 ([#736](https://github.com/jackwener/opencli/issues/736)), linux-do topic split ([#821](https://github.com/jackwener/opencli/issues/821)), JD/淘宝/CNKI revived ([#248](https://github.com/jackwener/opencli/issues/248))
+
+### Bug Fixes
+
+* **security:** escape codegen strings and redact diagnostic body ([#930](https://github.com/jackwener/opencli/issues/930))
+* **bilibili:** add missing domain for following cli ([#947](https://github.com/jackwener/opencli/issues/947))
+* clean up stale `.ts` adapter files during upgrade ([#948](https://github.com/jackwener/opencli/issues/948))
+* clean up legacy shim files and stale tmp files on upgrade ([#934](https://github.com/jackwener/opencli/issues/934))
+* address deep review findings (security, correctness, consistency) ([#935](https://github.com/jackwener/opencli/issues/935))
+* batch quality improvements — dedupe completion, unify logging, fix docs ([#945](https://github.com/jackwener/opencli/issues/945))
+* graceful fallback when extension lacks network-capture support ([#865](https://github.com/jackwener/opencli/issues/865))
+* handle missing electron executable gracefully ([#747](https://github.com/jackwener/opencli/issues/747))
+* recover drifted tabs instead of abandoning them ([#715](https://github.com/jackwener/opencli/issues/715))
+* retry on "No window with id" CDP error ([#892](https://github.com/jackwener/opencli/issues/892))
+* **launcher:** graceful degradation and manual CDP override for Windows ([#744](https://github.com/jackwener/opencli/issues/744))
+* **xiaohongshu:** scope note interaction selectors, replace blind retry with MutationObserver ([#839](https://github.com/jackwener/opencli/issues/839), [#730](https://github.com/jackwener/opencli/issues/730))
+* **twitter:** relax reply composer timeout, use composer for text replies ([#862](https://github.com/jackwener/opencli/issues/862), [#860](https://github.com/jackwener/opencli/issues/860))
+* **doubao:** preserve image URLs, connect to correct CDP target ([#708](https://github.com/jackwener/opencli/issues/708), [#674](https://github.com/jackwener/opencli/issues/674))
+* **gemini:** stabilize ask reply state handling ([#735](https://github.com/jackwener/opencli/issues/735))
+* **douban:** fix marks pagination and improve subject data extraction ([#752](https://github.com/jackwener/opencli/issues/752))
+* **jianyu:** avoid early API bucket cutoff, stabilize search ([#916](https://github.com/jackwener/opencli/issues/916), [#912](https://github.com/jackwener/opencli/issues/912))
+* **xiaoe:** resolve missing episodes for long courses via auto-scroll ([#904](https://github.com/jackwener/opencli/issues/904))
+
+### Refactoring
+
+* **adapters:** convert adapter layer from TypeScript to JavaScript ([#928](https://github.com/jackwener/opencli/issues/928))
+* **adapters:** migrate all CLI adapters from YAML to TypeScript, then to JS ([#887](https://github.com/jackwener/opencli/issues/887), [#922](https://github.com/jackwener/opencli/issues/922))
+* **validate:** switch from YAML-file scanning to registry-based validation ([#943](https://github.com/jackwener/opencli/issues/943))
+* **strategy:** normalize strategy into runtime fields at registration time ([#941](https://github.com/jackwener/opencli/issues/941))
+* **errors:** unify error output as YAML envelope to stderr ([#923](https://github.com/jackwener/opencli/issues/923))
+* **daemon:** make daemon persistent, remove idle timeout ([#913](https://github.com/jackwener/opencli/issues/913))
+* **browser:** unify browser error classification and deduplicate retry logic ([#908](https://github.com/jackwener/opencli/issues/908))
+* **monorepo:** adapter separation — `clis/` at root ([#782](https://github.com/jackwener/opencli/issues/782))
+* rename `operate` to `browser` ([#883](https://github.com/jackwener/opencli/issues/883))
+* eliminate `any` types in core files ([#886](https://github.com/jackwener/opencli/issues/886))
+* migrate adapter imports to package exports ([#795](https://github.com/jackwener/opencli/issues/795))
+
+### Performance
+
+* **P0 optimizations** — faster startup, reduced overhead ([#944](https://github.com/jackwener/opencli/issues/944))
+* fast-path completion/version/shell-scripts to bypass full discovery ([#898](https://github.com/jackwener/opencli/issues/898))
+* optimize browser pipeline — tab query dedup, parallel stealth, incremental snapshots ([#713](https://github.com/jackwener/opencli/issues/713))
+* reduce round-trips in browser command hot path ([#712](https://github.com/jackwener/opencli/issues/712))
+* skip blank page on first browser command ([#710](https://github.com/jackwener/opencli/issues/710))
+
+### Documentation
+
+* restructure README narrative ([#885](https://github.com/jackwener/opencli/issues/885))
+* add Android Chrome usage guide ([#687](https://github.com/jackwener/opencli/issues/687))
+* add Electron app CLI quickstart guide
+* fix stale `.ts` references across skills and docs ([#954](https://github.com/jackwener/opencli/issues/954))
+* unify skill command references and merge opencli-generate into opencli-explorer ([#891](https://github.com/jackwener/opencli/issues/891), [#894](https://github.com/jackwener/opencli/issues/894))
+
+### Upgrade Guide
+
+1. **Update Node.js** to v21 or later (v22 LTS recommended).
+2. **Run `npm install -g @jackwener/opencli@latest`** — the preuninstall hook gracefully stops the old daemon; the first browser command after upgrade auto-restarts it.
+3. **If you have custom `.ts` adapters** in `~/.opencli/clis/`, rename or compile them to `.js`. A warning will be printed on startup if stale `.ts` files are detected.
+4. **If you have custom `.yaml` adapters**, convert them to JS using the `cli()` API (see `skills/opencli-explorer/references/adapter-templates.md`).
+5. **If you parse error output from stdout**, switch to stderr. Errors are now structured YAML envelopes with typed exit codes.
+
+
 ## [1.6.1](https://github.com/jackwener/opencli/compare/v1.6.0...v1.6.1) (2026-04-02)
 
 
@@ -13,7 +101,7 @@
 
 ### Features
 
-* **opencli-operate:** add browser control commands for Claude Code skill ([#614](https://github.com/jackwener/opencli/issues/614))
+* **opencli-browser:** add browser control commands for Claude Code skill ([#614](https://github.com/jackwener/opencli/issues/614))
 * **docs:** add tab completion to getting started guides ([#658](https://github.com/jackwener/opencli/issues/658))
 
 

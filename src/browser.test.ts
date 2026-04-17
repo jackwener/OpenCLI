@@ -3,7 +3,7 @@ import { BrowserBridge, generateStealthJs } from './browser/index.js';
 import { extractTabEntries, diffTabIndexes, appendLimited } from './browser/tabs.js';
 import { withTimeoutMs } from './runtime.js';
 import { __test__ as cdpTest } from './browser/cdp.js';
-import { isRetryableSettleError } from './browser/page.js';
+import { classifyBrowserError } from './browser/errors.js';
 import * as daemonClient from './browser/daemon-client.js';
 
 describe('browser helpers', () => {
@@ -49,10 +49,20 @@ describe('browser helpers', () => {
     await expect(withTimeoutMs(new Promise(() => {}), 10, 'timeout')).rejects.toThrow('timeout');
   });
 
-  it('retries settle only for target-invalidated errors', () => {
-    expect(isRetryableSettleError(new Error('{"code":-32000,"message":"Inspected target navigated or closed"}'))).toBe(true);
-    expect(isRetryableSettleError(new Error('attach failed: target no longer exists'))).toBe(false);
-    expect(isRetryableSettleError(new Error('malformed exec payload'))).toBe(false);
+  it('classifies browser errors with correct kind and retry advice', () => {
+    // CDP target navigation — page-level settle retry
+    const nav = classifyBrowserError(new Error('{"code":-32000,"message":"Inspected target navigated or closed"}'));
+    expect(nav.kind).toBe('target-navigation');
+    expect(nav.delayMs).toBe(200);
+
+    // Extension transient — daemon-client retry only, NOT page-level
+    const ext = classifyBrowserError(new Error('Extension disconnected'));
+    expect(ext.kind).toBe('extension-transient');
+    expect(ext.delayMs).toBe(1500);
+
+    // Non-transient errors — not retryable
+    expect(classifyBrowserError(new Error('malformed exec payload')).kind).toBe('non-retryable');
+    expect(classifyBrowserError(new Error('Permission denied')).kind).toBe('non-retryable');
   });
 
   it('prefers the real Electron app target over DevTools and blank pages', () => {
@@ -122,25 +132,78 @@ describe('BrowserBridge state', () => {
 
   it('rejects connect() while already connecting', async () => {
     const bridge = new BrowserBridge();
-    (bridge as any)._state = 'connecting';
+    (bridge as unknown as { _state: string })._state = 'connecting';
 
     await expect(bridge.connect()).rejects.toThrow('Already connecting');
   });
 
   it('rejects connect() while closing', async () => {
     const bridge = new BrowserBridge();
-    (bridge as any)._state = 'closing';
+    (bridge as unknown as { _state: string })._state = 'closing';
 
     await expect(bridge.connect()).rejects.toThrow('Session is closing');
   });
 
-  it('fails fast when daemon is running but extension is disconnected', async () => {
-    vi.spyOn(daemonClient, 'isExtensionConnected').mockResolvedValue(false);
-    vi.spyOn(daemonClient, 'fetchDaemonStatus').mockResolvedValue({ extensionConnected: false } as any);
+  it('fails fast when daemon is running but extension is disconnected (same version)', async () => {
+    const { PKG_VERSION } = await import('./version.js');
+    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
+      state: 'no-extension',
+      status: {
+        ok: true,
+        pid: 1,
+        uptime: 0,
+        daemonVersion: PKG_VERSION,
+        extensionConnected: false,
+        pending: 0,
+        memoryMB: 0,
+        port: 0,
+      },
+    });
 
     const bridge = new BrowserBridge();
 
-    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Browser Extension is not connected');
+    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Browser Bridge extension not connected');
+  });
+
+  it('attempts stale daemon replacement when daemonVersion is missing', async () => {
+    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
+      state: 'no-extension',
+      status: {
+        ok: true,
+        pid: 1,
+        uptime: 0,
+        extensionConnected: false,
+        pending: 0,
+        memoryMB: 0,
+        port: 0,
+      },
+    });
+    vi.spyOn(daemonClient, 'requestDaemonShutdown').mockResolvedValue(false);
+
+    const bridge = new BrowserBridge();
+
+    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Stale daemon could not be replaced');
+  });
+
+  it('attempts stale daemon replacement when daemonVersion mismatches', async () => {
+    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
+      state: 'no-extension',
+      status: {
+        ok: true,
+        pid: 1,
+        uptime: 0,
+        daemonVersion: '0.0.1',
+        extensionConnected: false,
+        pending: 0,
+        memoryMB: 0,
+        port: 0,
+      },
+    });
+    vi.spyOn(daemonClient, 'requestDaemonShutdown').mockResolvedValue(false);
+
+    const bridge = new BrowserBridge();
+
+    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Stale daemon could not be replaced');
   });
 });
 

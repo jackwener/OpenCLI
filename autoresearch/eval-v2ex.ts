@@ -168,12 +168,12 @@ function main() {
 
     // Close browser between tasks for clean state
     if (i < tasks.length - 1) {
-      try { runCommand('opencli operate close'); } catch { /* ignore */ }
+      try { runCommand('opencli browser close'); } catch { /* ignore */ }
     }
   }
 
   // Final close
-  try { runCommand('opencli operate close'); } catch { /* ignore */ }
+  try { runCommand('opencli browser close'); } catch { /* ignore */ }
 
   // Summary by layer
   const layers = [...new Set(results.map(r => r.layer))].sort();

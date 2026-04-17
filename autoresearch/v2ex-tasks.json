@@ -5,7 +5,7 @@
   {
     "name": "v2ex-open-home",
     "steps": [
-      "opencli operate open https://v2ex.com/"
+      "opencli browser open https://v2ex.com/"
     ],
     "judge": {
       "type": "contains",
@@ -15,8 +15,8 @@
   {
     "name": "v2ex-state-home",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate state"
+      "opencli browser open https://v2ex.com/",
+      "opencli browser state"
     ],
     "judge": {
       "type": "matchesPattern",
@@ -26,8 +26,8 @@
   {
     "name": "v2ex-get-title",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate eval \"document.title\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser eval \"document.title\""
     ],
     "judge": {
       "type": "contains",
@@ -37,8 +37,8 @@
   {
     "name": "v2ex-click-tab",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate eval \"(() => { const a = document.querySelector('a[href=\\\"/?tab=tech\\\"]'); if(a){a.click(); return 'clicked';} return 'not found'; })()\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser eval \"(() => { const a = document.querySelector('a[href=\\\"/?tab=tech\\\"]'); if(a){a.click(); return 'clicked';} return 'not found'; })()\""
     ],
     "judge": {
       "type": "contains",
@@ -48,9 +48,9 @@
   {
     "name": "v2ex-scroll-down",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate scroll down --amount 500",
-      "opencli operate eval \"window.scrollY > 100 ? 'scrolled' : 'not scrolled'\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser scroll down --amount 500",
+      "opencli browser eval \"window.scrollY > 100 ? 'scrolled' : 'not scrolled'\""
     ],
     "judge": {
       "type": "contains",
@@ -60,8 +60,8 @@
   {
     "name": "v2ex-get-first-topic-text",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate eval \"document.querySelector('a[href^=\\\"/t/\\\"]')?.textContent?.trim()\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser eval \"document.querySelector('a[href^=\\\"/t/\\\"]')?.textContent?.trim()\""
     ],
     "judge": {
       "type": "nonEmpty"
@@ -70,8 +70,8 @@
   {
     "name": "v2ex-eval-extract-titles",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -81,8 +81,8 @@
   {
     "name": "v2ex-get-url",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate get url"
+      "opencli browser open https://v2ex.com/",
+      "opencli browser get url"
     ],
     "judge": {
       "type": "contains",
@@ -92,10 +92,10 @@
   {
     "name": "v2ex-back-navigation",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate open https://v2ex.com/go/programmer",
-      "opencli operate back",
-      "opencli operate get url"
+      "opencli browser open https://v2ex.com/",
+      "opencli browser open https://v2ex.com/go/programmer",
+      "opencli browser back",
+      "opencli browser get url"
     ],
     "judge": {
       "type": "matchesPattern",
@@ -105,9 +105,9 @@
   {
     "name": "v2ex-wait-page-load",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate wait selector \"a[href^='/t/']\"",
-      "opencli operate eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length > 0 ? 'loaded' : 'empty'\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser wait selector \"a[href^='/t/']\"",
+      "opencli browser eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length > 0 ? 'loaded' : 'empty'\""
     ],
     "judge": {
       "type": "contains",
@@ -120,8 +120,8 @@
   {
     "name": "v2ex-hot-topics",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,10).map(a=>({title:a.textContent.trim(),url:a.href})).filter(t=>t.title.length>2))\""
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,10).map(a=>({title:a.textContent.trim(),url:a.href})).filter(t=>t.title.length>2))\""
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -131,8 +131,8 @@
   {
     "name": "v2ex-node-list",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/go/\\\"]')].map(a=>a.textContent.trim()).filter(t=>t.length>0))\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/go/\\\"]')].map(a=>a.textContent.trim()).filter(t=>t.length>0))\""
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -142,9 +142,9 @@
   {
     "name": "v2ex-topic-meta",
     "steps": [
-      "opencli operate open https://v2ex.com/go/programmer",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');const href=a?.href;return href||'';})()\"",
-      "opencli operate eval \"(()=>{const links=[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')];const first=links[0];if(!first)return JSON.stringify({error:'no topic'});const title=first.textContent.trim();const row=first.closest('tr')||first.parentElement;const author=row?.querySelector('a[href^=\\\"/member/\\\"]')?.textContent?.trim()||'';return JSON.stringify({title,author});})()\" "
+      "opencli browser open https://v2ex.com/go/programmer",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');const href=a?.href;return href||'';})()\"",
+      "opencli browser eval \"(()=>{const links=[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')];const first=links[0];if(!first)return JSON.stringify({error:'no topic'});const title=first.textContent.trim();const row=first.closest('tr')||first.parentElement;const author=row?.querySelector('a[href^=\\\"/member/\\\"]')?.textContent?.trim()||'';return JSON.stringify({title,author});})()\" "
     ],
     "judge": {
       "type": "matchesPattern",
@@ -154,8 +154,8 @@
   {
     "name": "v2ex-node-topics",
     "steps": [
-      "opencli operate open https://v2ex.com/go/python",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
+      "opencli browser open https://v2ex.com/go/python",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -165,8 +165,8 @@
   {
     "name": "v2ex-node-pagination-info",
     "steps": [
-      "opencli operate open https://v2ex.com/go/programmer",
-      "opencli operate eval \"(()=>{const pages=[...document.querySelectorAll('a[href*=\\\"?p=\\\"]')];if(pages.length===0)return'no pagination';const nums=pages.map(a=>{const m=a.href.match(/p=(\\d+)/);return m?parseInt(m[1]):0}).filter(n=>n>0);return JSON.stringify({pages:nums.length,max:Math.max(...nums)});})()\" "
+      "opencli browser open https://v2ex.com/go/programmer",
+      "opencli browser eval \"(()=>{const pages=[...document.querySelectorAll('a[href*=\\\"?p=\\\"]')];if(pages.length===0)return'no pagination';const nums=pages.map(a=>{const m=a.href.match(/p=(\\d+)/);return m?parseInt(m[1]):0}).filter(n=>n>0);return JSON.stringify({pages:nums.length,max:Math.max(...nums)});})()\" "
     ],
     "judge": {
       "type": "matchesPattern",
@@ -176,8 +176,8 @@
   {
     "name": "v2ex-tab-content",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=jobs",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
+      "opencli browser open https://v2ex.com/?tab=jobs",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -187,11 +187,11 @@
   {
     "name": "v2ex-topic-replies-extract",
     "steps": [
-      "opencli operate open https://v2ex.com/go/programmer",
-      "opencli operate eval \"(()=>{const link=document.querySelector('a[href^=\\\"/t/\\\"]');if(!link)return'';return link.href;})()\"",
-      "opencli operate eval \"(()=>{const link=document.querySelector('a[href^=\\\"/t/\\\"]');if(link)window.location.href=link.href;return'navigating';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('.reply_content')].slice(0,5).map(el=>el.textContent.trim().slice(0,100)))\""
+      "opencli browser open https://v2ex.com/go/programmer",
+      "opencli browser eval \"(()=>{const link=document.querySelector('a[href^=\\\"/t/\\\"]');if(!link)return'';return link.href;})()\"",
+      "opencli browser eval \"(()=>{const link=document.querySelector('a[href^=\\\"/t/\\\"]');if(link)window.location.href=link.href;return'navigating';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('.reply_content')].slice(0,5).map(el=>el.textContent.trim().slice(0,100)))\""
     ],
     "judge": {
       "type": "nonEmpty"
@@ -200,8 +200,8 @@
   {
     "name": "v2ex-topic-reply-count",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(()=>{const counts=[...document.querySelectorAll('a[class*=\\\"count\\\"]')].map(a=>parseInt(a.textContent)).filter(n=>!isNaN(n));return JSON.stringify(counts.slice(0,10));})()\" "
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(()=>{const counts=[...document.querySelectorAll('a[class*=\\\"count\\\"]')].map(a=>parseInt(a.textContent)).filter(n=>!isNaN(n));return JSON.stringify(counts.slice(0,10));})()\" "
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -211,8 +211,8 @@
   {
     "name": "v2ex-member-info",
     "steps": [
-      "opencli operate open https://v2ex.com/member/Livid",
-      "opencli operate eval \"(()=>{const name=document.querySelector('h1')?.textContent?.trim();const bio=document.querySelector('.bigger')?.textContent?.trim()||'';return JSON.stringify({name,bio});})()\" "
+      "opencli browser open https://v2ex.com/member/Livid",
+      "opencli browser eval \"(()=>{const name=document.querySelector('h1')?.textContent?.trim();const bio=document.querySelector('.bigger')?.textContent?.trim()||'';return JSON.stringify({name,bio});})()\" "
     ],
     "judge": {
       "type": "contains",
@@ -222,8 +222,8 @@
   {
     "name": "v2ex-search-results",
     "steps": [
-      "opencli operate open https://www.google.com/search?q=site:v2ex.com+TypeScript",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('h3')].slice(0,5).map(h=>h.textContent.trim()))\""
+      "opencli browser open https://www.google.com/search?q=site:v2ex.com+TypeScript",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('h3')].slice(0,5).map(h=>h.textContent.trim()))\""
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -236,11 +236,11 @@
   {
     "name": "v2ex-click-topic-read",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate state",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked '+a.textContent.trim().slice(0,30);}return 'not found';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"document.querySelector('.topic_content,.markdown_body')?.textContent?.trim()?.slice(0,200)||document.title\""
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser state",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked '+a.textContent.trim().slice(0,30);}return 'not found';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"document.querySelector('.topic_content,.markdown_body')?.textContent?.trim()?.slice(0,200)||document.title\""
     ],
     "judge": {
       "type": "nonEmpty"
@@ -249,10 +249,10 @@
   {
     "name": "v2ex-click-author-profile",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/member/\\\"]');if(a){const name=a.textContent.trim();a.click();return name;}return'not found';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"(()=>{const h1=document.querySelector('h1');const joined=document.querySelector('.gray')?.textContent||'';return JSON.stringify({name:h1?.textContent?.trim(),info:joined.slice(0,100)});})()\" "
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href^=\\\"/member/\\\"]');if(a){const name=a.textContent.trim();a.click();return name;}return'not found';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"(()=>{const h1=document.querySelector('h1');const joined=document.querySelector('.gray')?.textContent||'';return JSON.stringify({name:h1?.textContent?.trim(),info:joined.slice(0,100)});})()\" "
     ],
     "judge": {
       "type": "matchesPattern",
@@ -262,10 +262,10 @@
   {
     "name": "v2ex-navigate-node-from-home",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href=\\\"/go/programmer\\\"]')||document.querySelector('a[href^=\\\"/go/\\\"]');if(a){a.click();return 'clicked '+a.textContent.trim();}return'not found';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href=\\\"/go/programmer\\\"]')||document.querySelector('a[href^=\\\"/go/\\\"]');if(a){a.click();return 'clicked '+a.textContent.trim();}return'not found';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -275,10 +275,10 @@
   {
     "name": "v2ex-pagination-page2",
     "steps": [
-      "opencli operate open https://v2ex.com/go/programmer",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href*=\\\"?p=2\\\"]');if(a){a.click();return'navigating to page 2';}return'no page 2 link';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"JSON.stringify({url:location.href,topics:[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2)})\""
+      "opencli browser open https://v2ex.com/go/programmer",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href*=\\\"?p=2\\\"]');if(a){a.click();return'navigating to page 2';}return'no page 2 link';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"JSON.stringify({url:location.href,topics:[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,5).map(a=>a.textContent.trim()).filter(t=>t.length>2)})\""
     ],
     "judge": {
       "type": "matchesPattern",
@@ -288,12 +288,12 @@
   {
     "name": "v2ex-topic-and-back",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate back",
-      "opencli operate wait time 1",
-      "opencli operate get url"
+      "opencli browser open https://v2ex.com/",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser back",
+      "opencli browser wait time 1",
+      "opencli browser get url"
     ],
     "judge": {
       "type": "matchesPattern",
@@ -303,10 +303,10 @@
   {
     "name": "v2ex-tab-then-topic",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=creative",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){const t=a.textContent.trim();a.click();return t;}return'not found';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"document.title\""
+      "opencli browser open https://v2ex.com/?tab=creative",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){const t=a.textContent.trim();a.click();return t;}return'not found';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"document.title\""
     ],
     "judge": {
       "type": "nonEmpty"
@@ -315,11 +315,11 @@
   {
     "name": "v2ex-scroll-find-more",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\"",
-      "opencli operate scroll down --amount 1000",
-      "opencli operate scroll down --amount 1000",
-      "opencli operate eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\"",
+      "opencli browser scroll down --amount 1000",
+      "opencli browser scroll down --amount 1000",
+      "opencli browser eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\""
     ],
     "judge": {
       "type": "matchesPattern",
@@ -329,10 +329,10 @@
   {
     "name": "v2ex-node-to-topic-content",
     "steps": [
-      "opencli operate open https://v2ex.com/go/python",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"(()=>{const title=document.querySelector('h1')?.textContent?.trim()||document.title;const content=document.querySelector('.topic_content,.markdown_body')?.textContent?.trim()?.slice(0,200)||'';return JSON.stringify({title,content});})()\" "
+      "opencli browser open https://v2ex.com/go/python",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"(()=>{const title=document.querySelector('h1')?.textContent?.trim()||document.title;const content=document.querySelector('.topic_content,.markdown_body')?.textContent?.trim()?.slice(0,200)||'';return JSON.stringify({title,content});})()\" "
     ],
     "judge": {
       "type": "matchesPattern",
@@ -342,10 +342,10 @@
   {
     "name": "v2ex-multi-tab-compare",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=tech",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()))\"",
-      "opencli operate open https://v2ex.com/?tab=creative",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()))\""
+      "opencli browser open https://v2ex.com/?tab=tech",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()))\"",
+      "opencli browser open https://v2ex.com/?tab=creative",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()))\""
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -355,12 +355,12 @@
   {
     "name": "v2ex-topic-reply-to-author",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"(()=>{const replies=document.querySelectorAll('.reply_content');const authors=[...document.querySelectorAll('a[href^=\\\"/member/\\\"]')];if(replies.length>0){const authorLink=document.querySelector('.cell a[href^=\\\"/member/\\\"]');if(authorLink){authorLink.click();return'clicked author';}};return'no replies found';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"document.querySelector('h1')?.textContent?.trim()||document.title\""
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"(()=>{const replies=document.querySelectorAll('.reply_content');const authors=[...document.querySelectorAll('a[href^=\\\"/member/\\\"]')];if(replies.length>0){const authorLink=document.querySelector('.cell a[href^=\\\"/member/\\\"]');if(authorLink){authorLink.click();return'clicked author';}};return'no replies found';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"document.querySelector('h1')?.textContent?.trim()||document.title\""
     ],
     "judge": {
       "type": "nonEmpty"
@@ -372,10 +372,10 @@
   {
     "name": "v2ex-reply-type-text",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(()=>{const links=[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')];const link=links.find(a=>a.closest('tr')?.querySelector('a[class*=\\\"count\\\"]'));if(link){link.click();return'clicked';}if(links[0]){links[0].click();return'clicked first';}return'no topic';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"(()=>{const ta=document.querySelector('textarea#reply_content,textarea[name=\\\"content\\\"]');if(ta){ta.focus();ta.value='AutoResearch test reply - please ignore';ta.dispatchEvent(new Event('input',{bubbles:true}));return ta.value;}return'no textarea';})()\" "
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(()=>{const links=[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')];const link=links.find(a=>a.closest('tr')?.querySelector('a[class*=\\\"count\\\"]'));if(link){link.click();return'clicked';}if(links[0]){links[0].click();return'clicked first';}return'no topic';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"(()=>{const ta=document.querySelector('textarea#reply_content,textarea[name=\\\"content\\\"]');if(ta){ta.focus();ta.value='AutoResearch test reply - please ignore';ta.dispatchEvent(new Event('input',{bubbles:true}));return ta.value;}return'no textarea';})()\" "
     ],
     "judge": {
       "type": "contains",
@@ -386,10 +386,10 @@
   {
     "name": "v2ex-favorite-topic",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"(()=>{const favLink=[...document.querySelectorAll('a')].find(a=>a.textContent.includes('加入收藏')||a.textContent.includes('Favorite'));return favLink?favLink.href:'no fav link';})()\" "
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"(()=>{const favLink=[...document.querySelectorAll('a')].find(a=>a.textContent.includes('加入收藏')||a.textContent.includes('Favorite'));return favLink?favLink.href:'no fav link';})()\" "
     ],
     "judge": {
       "type": "matchesPattern",
@@ -400,10 +400,10 @@
   {
     "name": "v2ex-thank-reply-find",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"(()=>{const thankBtns=document.querySelectorAll('.thank_area,a[onclick*=\\\"thank\\\"],.thank');return JSON.stringify({found:thankBtns.length});})()\" "
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"(()=>{const thankBtns=document.querySelectorAll('.thank_area,a[onclick*=\\\"thank\\\"],.thank');return JSON.stringify({found:thankBtns.length});})()\" "
     ],
     "judge": {
       "type": "matchesPattern",
@@ -414,10 +414,10 @@
   {
     "name": "v2ex-reply-form-detect",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"(()=>{const ta=document.querySelector('textarea#reply_content,textarea[name=\\\"content\\\"]');const btn=document.querySelector('input[type=\\\"submit\\\"],button[type=\\\"submit\\\"]');const once=document.querySelector('input[name=\\\"once\\\"]');return JSON.stringify({textarea:!!ta,submitBtn:!!btn,csrfToken:!!once});})()\" "
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"(()=>{const ta=document.querySelector('textarea#reply_content,textarea[name=\\\"content\\\"]');const btn=document.querySelector('input[type=\\\"submit\\\"],button[type=\\\"submit\\\"]');const once=document.querySelector('input[name=\\\"once\\\"]');return JSON.stringify({textarea:!!ta,submitBtn:!!btn,csrfToken:!!once});})()\" "
     ],
     "judge": {
       "type": "contains",
@@ -427,9 +427,9 @@
   {
     "name": "v2ex-create-topic-form-detect",
     "steps": [
-      "opencli operate open https://v2ex.com/new",
-      "opencli operate wait time 2",
-      "opencli operate eval \"(()=>{const title=document.querySelector('input[name=\\\"title\\\"],#topic_title');const content=document.querySelector('textarea[name=\\\"content\\\"],#topic_content,textarea#editor');const nodeSelect=document.querySelector('select[name=\\\"node_name\\\"],#node-select');return JSON.stringify({titleInput:!!title,contentArea:!!content,nodeSelect:!!nodeSelect,url:location.href});})()\" "
+      "opencli browser open https://v2ex.com/new",
+      "opencli browser wait time 2",
+      "opencli browser eval \"(()=>{const title=document.querySelector('input[name=\\\"title\\\"],#topic_title');const content=document.querySelector('textarea[name=\\\"content\\\"],#topic_content,textarea#editor');const nodeSelect=document.querySelector('select[name=\\\"node_name\\\"],#node-select');return JSON.stringify({titleInput:!!title,contentArea:!!content,nodeSelect:!!nodeSelect,url:location.href});})()\" "
     ],
     "judge": {
       "type": "nonEmpty"
@@ -442,8 +442,8 @@
   {
     "name": "v2ex-collect-hot-authors",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"JSON.stringify([...new Set([...document.querySelectorAll('a')].filter(a=>a.pathname&&a.pathname.startsWith('/member/')).map(a=>a.textContent.trim()).filter(n=>n.length>1))].slice(0,5))\""
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"JSON.stringify([...new Set([...document.querySelectorAll('a')].filter(a=>a.pathname&&a.pathname.startsWith('/member/')).map(a=>a.textContent.trim()).filter(n=>n.length>1))].slice(0,5))\""
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -453,10 +453,10 @@
   {
     "name": "v2ex-multi-node-compare",
     "steps": [
-      "opencli operate open https://v2ex.com/go/python",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()).filter(t=>t.length>2))\"",
-      "opencli operate open https://v2ex.com/go/go",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
+      "opencli browser open https://v2ex.com/go/python",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()).filter(t=>t.length>2))\"",
+      "opencli browser open https://v2ex.com/go/go",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -466,10 +466,10 @@
   {
     "name": "v2ex-topic-deep-read",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"(()=>{const title=document.querySelector('h1')?.textContent?.trim()||document.title;const author=document.querySelector('.header a[href^=\\\"/member/\\\"]')?.textContent?.trim()||'';const content=document.querySelector('.topic_content,.markdown_body')?.textContent?.trim()?.slice(0,300)||'';const replyCount=document.querySelectorAll('.reply_content').length;return JSON.stringify({title,author,content,replyCount});})()\" "
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return'clicked';}return'not found';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"(()=>{const title=document.querySelector('h1')?.textContent?.trim()||document.title;const author=document.querySelector('.header a[href^=\\\"/member/\\\"]')?.textContent?.trim()||'';const content=document.querySelector('.topic_content,.markdown_body')?.textContent?.trim()?.slice(0,300)||'';const replyCount=document.querySelectorAll('.reply_content').length;return JSON.stringify({title,author,content,replyCount});})()\" "
     ],
     "judge": {
       "type": "matchesPattern",
@@ -479,10 +479,10 @@
   {
     "name": "v2ex-cross-page-data-collect",
     "steps": [
-      "opencli operate open https://v2ex.com/go/programmer",
-      "opencli operate eval \"(()=>{const titles=[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim());window.__collected=titles;return JSON.stringify(titles);})()\"",
-      "opencli operate open https://v2ex.com/go/programmer?p=2",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
+      "opencli browser open https://v2ex.com/go/programmer",
+      "opencli browser eval \"(()=>{const titles=[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim());window.__collected=titles;return JSON.stringify(titles);})()\"",
+      "opencli browser open https://v2ex.com/go/programmer?p=2",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()).filter(t=>t.length>2))\""
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -492,11 +492,11 @@
   {
     "name": "v2ex-full-workflow",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(()=>{const topics=[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>({title:a.textContent.trim(),href:a.href}));return JSON.stringify(topics);})()\"",
-      "opencli operate eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked: '+a.textContent.trim().slice(0,30);}return'not found';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"(()=>{const title=document.querySelector('h1')?.textContent?.trim()||document.title;const replies=[...document.querySelectorAll('.reply_content')].slice(0,3).map(el=>el.textContent.trim().slice(0,80));const author=document.querySelector('.header a[href^=\\\"/member/\\\"]')?.textContent?.trim()||'';return JSON.stringify({title,author,replies,replyCount:replies.length});})()\" "
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(()=>{const topics=[...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>({title:a.textContent.trim(),href:a.href}));return JSON.stringify(topics);})()\"",
+      "opencli browser eval \"(()=>{const a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked: '+a.textContent.trim().slice(0,30);}return'not found';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"(()=>{const title=document.querySelector('h1')?.textContent?.trim()||document.title;const replies=[...document.querySelectorAll('.reply_content')].slice(0,3).map(el=>el.textContent.trim().slice(0,80));const author=document.querySelector('.header a[href^=\\\"/member/\\\"]')?.textContent?.trim()||'';return JSON.stringify({title,author,replies,replyCount:replies.length});})()\" "
     ],
     "judge": {
       "type": "matchesPattern",
@@ -509,9 +509,9 @@
   {
     "name": "v2ex-state-click-topic",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate state",
-      "opencli operate click 1"
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser state",
+      "opencli browser click 1"
     ],
     "judge": {
       "type": "contains",
@@ -521,9 +521,9 @@
   {
     "name": "v2ex-state-click-tab-tech",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate state",
-      "opencli operate eval \"(function(){var links=[...document.querySelectorAll('a')];var tab=links.find(a=>a.href&&a.href.includes('tab=tech'));if(tab){var ref=tab.getAttribute('data-opencli-ref');return ref||'no-ref';}return 'not-found';})()\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser state",
+      "opencli browser eval \"(function(){var links=[...document.querySelectorAll('a')];var tab=links.find(a=>a.href&&a.href.includes('tab=tech'));if(tab){var ref=tab.getAttribute('data-opencli-ref');return ref||'no-ref';}return 'not-found';})()\""
     ],
     "judge": {
       "type": "matchesPattern",
@@ -533,8 +533,8 @@
   {
     "name": "v2ex-state-count-interactive",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate state"
+      "opencli browser open https://v2ex.com/",
+      "opencli browser state"
     ],
     "judge": {
       "type": "matchesPattern",
@@ -544,9 +544,9 @@
   {
     "name": "v2ex-state-scroll-state",
     "steps": [
-      "opencli operate open https://v2ex.com/go/programmer",
-      "opencli operate scroll down --amount 500",
-      "opencli operate state"
+      "opencli browser open https://v2ex.com/go/programmer",
+      "opencli browser scroll down --amount 500",
+      "opencli browser state"
     ],
     "judge": {
       "type": "matchesPattern",
@@ -556,9 +556,9 @@
   {
     "name": "v2ex-type-search-box",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate state",
-      "opencli operate eval \"(function(){var input=document.querySelector('input[type=\\\"text\\\"]');if(input){input.focus();input.value='TypeScript';input.dispatchEvent(new Event('input',{bubbles:true}));return input.value;}return 'no-input';})()\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser state",
+      "opencli browser eval \"(function(){var input=document.querySelector('input[type=\\\"text\\\"]');if(input){input.focus();input.value='TypeScript';input.dispatchEvent(new Event('input',{bubbles:true}));return input.value;}return 'no-input';})()\""
     ],
     "judge": {
       "type": "contains",
@@ -568,10 +568,10 @@
   {
     "name": "v2ex-get-value-after-type",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a)a.click();return 'clicked';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"(function(){var ta=document.querySelector('textarea#reply_content,textarea[name=\\\"content\\\"]');if(ta){ta.focus();ta.value='test message 12345';ta.dispatchEvent(new Event('input',{bubbles:true}));return ta.value;}return 'no-textarea';})()\""
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a)a.click();return 'clicked';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"(function(){var ta=document.querySelector('textarea#reply_content,textarea[name=\\\"content\\\"]');if(ta){ta.focus();ta.value='test message 12345';ta.dispatchEvent(new Event('input',{bubbles:true}));return ta.value;}return 'no-textarea';})()\""
     ],
     "judge": {
       "type": "nonEmpty"
@@ -580,8 +580,8 @@
   {
     "name": "v2ex-screenshot-exists",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate screenshot /tmp/v2ex-test-screenshot.png"
+      "opencli browser open https://v2ex.com/",
+      "opencli browser screenshot /tmp/v2ex-test-screenshot.png"
     ],
     "judge": {
       "type": "nonEmpty"
@@ -590,8 +590,8 @@
   {
     "name": "v2ex-get-html-selector",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate get html --selector h1"
+      "opencli browser open https://v2ex.com/",
+      "opencli browser get html --selector h1"
     ],
     "judge": {
       "type": "nonEmpty"
@@ -600,8 +600,8 @@
   {
     "name": "v2ex-keys-escape",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate keys Escape"
+      "opencli browser open https://v2ex.com/",
+      "opencli browser keys Escape"
     ],
     "judge": {
       "type": "contains",
@@ -611,8 +611,8 @@
   {
     "name": "v2ex-wait-text",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate wait text V2EX"
+      "opencli browser open https://v2ex.com/",
+      "opencli browser wait text V2EX"
     ],
     "judge": {
       "type": "matchesPattern",
@@ -625,12 +625,12 @@
   {
     "name": "v2ex-chain-3-pages",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate eval \"document.title\"",
-      "opencli operate open https://v2ex.com/go/programmer",
-      "opencli operate eval \"document.title\"",
-      "opencli operate open https://v2ex.com/go/python",
-      "opencli operate eval \"document.title\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser eval \"document.title\"",
+      "opencli browser open https://v2ex.com/go/programmer",
+      "opencli browser eval \"document.title\"",
+      "opencli browser open https://v2ex.com/go/python",
+      "opencli browser eval \"document.title\""
     ],
     "judge": {
       "type": "nonEmpty"
@@ -639,13 +639,13 @@
   {
     "name": "v2ex-chain-navigate-extract-back",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){var t=a.textContent.trim();a.click();return t;}return 'none';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"document.querySelector('h1')?.textContent?.trim()||document.title\"",
-      "opencli operate back",
-      "opencli operate wait time 1",
-      "opencli operate eval \"document.title\""
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){var t=a.textContent.trim();a.click();return t;}return 'none';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"document.querySelector('h1')?.textContent?.trim()||document.title\"",
+      "opencli browser back",
+      "opencli browser wait time 1",
+      "opencli browser eval \"document.title\""
     ],
     "judge": {
       "type": "contains",
@@ -655,12 +655,12 @@
   {
     "name": "v2ex-chain-multi-node-scroll",
     "steps": [
-      "opencli operate open https://v2ex.com/go/python",
-      "opencli operate scroll down --amount 500",
-      "opencli operate eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\"",
-      "opencli operate open https://v2ex.com/go/go",
-      "opencli operate scroll down --amount 500",
-      "opencli operate eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\""
+      "opencli browser open https://v2ex.com/go/python",
+      "opencli browser scroll down --amount 500",
+      "opencli browser eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\"",
+      "opencli browser open https://v2ex.com/go/go",
+      "opencli browser scroll down --amount 500",
+      "opencli browser eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\""
     ],
     "judge": {
       "type": "matchesPattern",
@@ -670,10 +670,10 @@
   {
     "name": "v2ex-chain-topic-replies-pagination",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(function(){var links=document.querySelectorAll('a[href^=\\\"/t/\\\"]');for(var i=0;i<links.length;i++){var row=links[i].closest('tr')||links[i].parentElement;var count=row?.querySelector('a[class*=\\\"count\\\"]');if(count&&parseInt(count.textContent)>5){links[i].click();return 'clicked topic with '+count.textContent+' replies';}}return 'no high-reply topic';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"document.querySelectorAll('.reply_content').length\""
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(function(){var links=document.querySelectorAll('a[href^=\\\"/t/\\\"]');for(var i=0;i<links.length;i++){var row=links[i].closest('tr')||links[i].parentElement;var count=row?.querySelector('a[class*=\\\"count\\\"]');if(count&&parseInt(count.textContent)>5){links[i].click();return 'clicked topic with '+count.textContent+' replies';}}return 'no high-reply topic';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"document.querySelectorAll('.reply_content').length\""
     ],
     "judge": {
       "type": "matchesPattern",
@@ -683,9 +683,9 @@
   {
     "name": "v2ex-chain-member-topics",
     "steps": [
-      "opencli operate open https://v2ex.com/member/Livid",
-      "opencli operate eval \"document.querySelector('h1')?.textContent?.trim()\"",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()))\""
+      "opencli browser open https://v2ex.com/member/Livid",
+      "opencli browser eval \"document.querySelector('h1')?.textContent?.trim()\"",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,3).map(a=>a.textContent.trim()))\""
     ],
     "judge": {
       "type": "nonEmpty"
@@ -694,11 +694,11 @@
   {
     "name": "v2ex-chain-search-navigate-extract",
     "steps": [
-      "opencli operate open https://www.google.com/search?q=site:v2ex.com+Python",
-      "opencli operate wait time 2",
-      "opencli operate eval \"(function(){var links=[...document.querySelectorAll('a')];var v2exLink=links.find(a=>a.href&&a.href.includes('v2ex.com/t/'));if(v2exLink){v2exLink.click();return 'clicked';}return 'no v2ex link found';})()\"",
-      "opencli operate wait time 3",
-      "opencli operate eval \"document.title\""
+      "opencli browser open https://www.google.com/search?q=site:v2ex.com+Python",
+      "opencli browser wait time 2",
+      "opencli browser eval \"(function(){var links=[...document.querySelectorAll('a')];var v2exLink=links.find(a=>a.href&&a.href.includes('v2ex.com/t/'));if(v2exLink){v2exLink.click();return 'clicked';}return 'no v2ex link found';})()\"",
+      "opencli browser wait time 3",
+      "opencli browser eval \"document.title\""
     ],
     "judge": {
       "type": "nonEmpty"
@@ -707,12 +707,12 @@
   {
     "name": "v2ex-chain-tab-topic-author",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=tech",
-      "opencli operate eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked';}return 'none';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"(function(){var author=document.querySelector('.header a[href^=\\\"/member/\\\"]');if(author){var name=author.textContent.trim();author.click();return name;}return 'no author';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"document.querySelector('h1')?.textContent?.trim()||'no h1'\""
+      "opencli browser open https://v2ex.com/?tab=tech",
+      "opencli browser eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked';}return 'none';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"(function(){var author=document.querySelector('.header a[href^=\\\"/member/\\\"]');if(author){var name=author.textContent.trim();author.click();return name;}return 'no author';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"document.querySelector('h1')?.textContent?.trim()||'no h1'\""
     ],
     "judge": {
       "type": "nonEmpty"
@@ -721,12 +721,12 @@
   {
     "name": "v2ex-chain-node-page2-extract",
     "steps": [
-      "opencli operate open https://v2ex.com/go/programmer",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,2).map(a=>a.textContent.trim()))\"",
-      "opencli operate open https://v2ex.com/go/programmer?p=2",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,2).map(a=>a.textContent.trim()))\"",
-      "opencli operate open https://v2ex.com/go/programmer?p=3",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,2).map(a=>a.textContent.trim()))\""
+      "opencli browser open https://v2ex.com/go/programmer",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,2).map(a=>a.textContent.trim()))\"",
+      "opencli browser open https://v2ex.com/go/programmer?p=2",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,2).map(a=>a.textContent.trim()))\"",
+      "opencli browser open https://v2ex.com/go/programmer?p=3",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(0,2).map(a=>a.textContent.trim()))\""
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -736,13 +736,13 @@
   {
     "name": "v2ex-chain-full-interaction",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate state",
-      "opencli operate eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked';}return 'none';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate state",
-      "opencli operate eval \"(function(){var ta=document.querySelector('textarea#reply_content');if(ta)return 'reply form found';return 'no reply form';})()\"",
-      "opencli operate eval \"JSON.stringify({title:document.querySelector('h1')?.textContent?.trim()||document.title,replies:document.querySelectorAll('.reply_content').length})\""
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser state",
+      "opencli browser eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked';}return 'none';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser state",
+      "opencli browser eval \"(function(){var ta=document.querySelector('textarea#reply_content');if(ta)return 'reply form found';return 'no reply form';})()\"",
+      "opencli browser eval \"JSON.stringify({title:document.querySelector('h1')?.textContent?.trim()||document.title,replies:document.querySelectorAll('.reply_content').length})\""
     ],
     "judge": {
       "type": "matchesPattern",
@@ -752,15 +752,15 @@
   {
     "name": "v2ex-chain-deep-5-step",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate eval \"document.querySelectorAll('a[href^=\\\"/go/\\\"]').length\"",
-      "opencli operate open https://v2ex.com/go/programmer",
-      "opencli operate eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\"",
-      "opencli operate eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked';}return 'none';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"document.querySelectorAll('.reply_content').length\"",
-      "opencli operate back",
-      "opencli operate eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser eval \"document.querySelectorAll('a[href^=\\\"/go/\\\"]').length\"",
+      "opencli browser open https://v2ex.com/go/programmer",
+      "opencli browser eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\"",
+      "opencli browser eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked';}return 'none';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"document.querySelectorAll('.reply_content').length\"",
+      "opencli browser back",
+      "opencli browser eval \"document.querySelectorAll('a[href^=\\\"/t/\\\"]').length\""
     ],
     "judge": {
       "type": "matchesPattern",
@@ -773,10 +773,10 @@
   {
     "name": "v2ex-rapid-navigate",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate open https://v2ex.com/go/programmer",
-      "opencli operate open https://v2ex.com/go/python",
-      "opencli operate eval \"location.pathname\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser open https://v2ex.com/go/programmer",
+      "opencli browser open https://v2ex.com/go/python",
+      "opencli browser eval \"location.pathname\""
     ],
     "judge": {
       "type": "contains",
@@ -786,10 +786,10 @@
   {
     "name": "v2ex-eval-after-click",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked';}return 'none';})()\"",
-      "opencli operate wait time 1",
-      "opencli operate eval \"location.pathname.startsWith('/t/') ? 'on topic page' : 'wrong page: '+location.pathname\""
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');if(a){a.click();return 'clicked';}return 'none';})()\"",
+      "opencli browser wait time 1",
+      "opencli browser eval \"location.pathname.startsWith('/t/') ? 'on topic page' : 'wrong page: '+location.pathname\""
     ],
     "judge": {
       "type": "contains",
@@ -799,10 +799,10 @@
   {
     "name": "v2ex-scroll-and-extract",
     "steps": [
-      "opencli operate open https://v2ex.com/go/programmer",
-      "opencli operate scroll down --amount 2000",
-      "opencli operate wait time 1",
-      "opencli operate eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(-3).map(a=>a.textContent.trim().slice(0,30)))\""
+      "opencli browser open https://v2ex.com/go/programmer",
+      "opencli browser scroll down --amount 2000",
+      "opencli browser wait time 1",
+      "opencli browser eval \"JSON.stringify([...document.querySelectorAll('a[href^=\\\"/t/\\\"]')].slice(-3).map(a=>a.textContent.trim().slice(0,30)))\""
     ],
     "judge": {
       "type": "arrayMinLength",
@@ -812,8 +812,8 @@
   {
     "name": "v2ex-concurrent-eval",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate eval \"JSON.stringify({title:document.title,url:location.href,links:document.querySelectorAll('a').length})\""
+      "opencli browser open https://v2ex.com/",
+      "opencli browser eval \"JSON.stringify({title:document.title,url:location.href,links:document.querySelectorAll('a').length})\""
     ],
     "judge": {
       "type": "matchesPattern",
@@ -823,8 +823,8 @@
   {
     "name": "v2ex-unicode-content",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');return a?a.textContent.trim():'none';})()\""
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser eval \"(function(){var a=document.querySelector('a[href^=\\\"/t/\\\"]');return a?a.textContent.trim():'none';})()\""
     ],
     "judge": {
       "type": "nonEmpty"
@@ -836,9 +836,9 @@
   {
     "name": "v2ex-agent-click-first-topic",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate state",
-      "opencli operate eval \"(function(){var links=document.querySelectorAll('[data-opencli-ref]');for(var i=0;i<links.length;i++){if(links[i].pathname&&links[i].pathname.startsWith('/t/'))return links[i].getAttribute('data-opencli-ref');}return 'none';})()\""
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser state",
+      "opencli browser eval \"(function(){var links=document.querySelectorAll('[data-opencli-ref]');for(var i=0;i<links.length;i++){if(links[i].pathname&&links[i].pathname.startsWith('/t/'))return links[i].getAttribute('data-opencli-ref');}return 'none';})()\""
     ],
     "judge": {
       "type": "matchesPattern",
@@ -849,10 +849,10 @@
   {
     "name": "v2ex-agent-type-search",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate state",
-      "opencli operate type 3 TypeScript",
-      "opencli operate get value 3"
+      "opencli browser open https://v2ex.com/",
+      "opencli browser state",
+      "opencli browser type 3 TypeScript",
+      "opencli browser get value 3"
     ],
     "judge": {
       "type": "contains",
@@ -863,11 +863,11 @@
   {
     "name": "v2ex-agent-click-navigate-back",
     "steps": [
-      "opencli operate open https://v2ex.com/?tab=hot",
-      "opencli operate state",
-      "opencli operate eval \"(function(){var links=document.querySelectorAll('[data-opencli-ref]');for(var i=0;i<links.length;i++){if(links[i].pathname&&links[i].pathname.startsWith('/t/')){var ref=links[i].getAttribute('data-opencli-ref');document.querySelector('[data-opencli-ref=\\\"'+ref+'\\\"]').click();return 'clicked '+ref;}}return 'none';})()\"",
-      "opencli operate wait time 2",
-      "opencli operate eval \"document.title\""
+      "opencli browser open https://v2ex.com/?tab=hot",
+      "opencli browser state",
+      "opencli browser eval \"(function(){var links=document.querySelectorAll('[data-opencli-ref]');for(var i=0;i<links.length;i++){if(links[i].pathname&&links[i].pathname.startsWith('/t/')){var ref=links[i].getAttribute('data-opencli-ref');document.querySelector('[data-opencli-ref=\\\"'+ref+'\\\"]').click();return 'clicked '+ref;}}return 'none';})()\"",
+      "opencli browser wait time 2",
+      "opencli browser eval \"document.title\""
     ],
     "judge": {
       "type": "nonEmpty"
@@ -876,8 +876,8 @@
   {
     "name": "v2ex-agent-state-has-interactive",
     "steps": [
-      "opencli operate open https://v2ex.com/",
-      "opencli operate state"
+      "opencli browser open https://v2ex.com/",
+      "opencli browser state"
     ],
     "judge": {
       "type": "matchesPattern",
@@ -887,9 +887,9 @@
   {
     "name": "v2ex-agent-state-after-scroll",
     "steps": [
-      "opencli operate open https://v2ex.com/go/programmer",
-      "opencli operate scroll down --amount 800",
-      "opencli operate state"
+      "opencli browser open https://v2ex.com/go/programmer",
+      "opencli browser scroll down --amount 800",
+      "opencli browser state"
     ],
     "judge": {
       "type": "matchesPattern",

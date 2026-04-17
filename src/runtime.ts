@@ -2,6 +2,7 @@ import { BrowserBridge, CDPBridge } from './browser/index.js';
 import type { IPage } from './types.js';
 import { TimeoutError } from './errors.js';
 import { isElectronApp } from './electron-apps.js';
+import { log } from './logger.js';
 
 /**
  * Returns the appropriate browser factory based on site type.
@@ -17,7 +18,7 @@ function parseEnvTimeout(envVar: string, fallback: number): number {
   if (raw === undefined) return fallback;
   const parsed = parseInt(raw, 10);
   if (Number.isNaN(parsed) || parsed <= 0) {
-    console.error(`[runtime] Invalid ${envVar}="${raw}", using default ${fallback}s`);
+    log.warn(`[runtime] Invalid ${envVar}="${raw}", using default ${fallback}s`);
     return fallback;
   }
   return parsed;

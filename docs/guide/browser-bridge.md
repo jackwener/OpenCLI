@@ -8,7 +8,7 @@ OpenCLI connects to your browser through a lightweight **Browser Bridge** Chrome
 
 ### Method 1: Download Pre-built Release (Recommended)
 
-1. Go to the GitHub [Releases page](https://github.com/jackwener/opencli/releases) and download the latest `opencli-extension.zip`.
+1. Go to the GitHub [Releases page](https://github.com/jackwener/opencli/releases) and download the latest `opencli-extension-v{version}.zip`.
 2. Unzip the file and open `chrome://extensions`, enable **Developer mode** (top-right toggle).
 3. Click **Load unpacked** and select the unzipped folder.
 
@@ -38,12 +38,10 @@ The daemon manages the WebSocket connection between your CLI commands and the Ch
 
 ## Daemon Lifecycle
 
-The daemon auto-starts on first browser command and stays alive for **4 hours** by default. It exits only when both conditions are met: no CLI requests for the timeout period AND no Chrome extension connected.
+The daemon auto-starts on first browser command and stays alive persistently.
 
 ```bash
-opencli daemon status    # Check daemon state (PID, uptime, extension, memory)
 opencli daemon stop      # Graceful shutdown
-opencli daemon restart   # Stop + restart
 ```
 
-Override the timeout via the `OPENCLI_DAEMON_TIMEOUT` environment variable (milliseconds). Set to `0` to keep the daemon alive indefinitely.
+The daemon is persistent — it stays alive until you explicitly stop it (`opencli daemon stop`) or uninstall the package.

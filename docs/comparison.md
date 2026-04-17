@@ -6,7 +6,7 @@ OpenCLI occupies a specific niche in the browser automation ecosystem. This guid
 
 | Tool | Approach | Best for |
 |------|----------|----------|
-| **opencli** | Pre-built adapters (YAML/TS) | Deterministic site commands, broad platform coverage, desktop apps |
+| **opencli** | Pre-built TypeScript adapters | Deterministic site commands, broad platform coverage, desktop apps |
 | **Browser-Use** | LLM-driven browser control | General-purpose AI browser automation |
 | **Crawl4AI** | Async web crawler | Large-scale data crawling |
 | **Firecrawl** | Scraping API / self-hosted | Clean markdown extraction, managed or self-hosted infrastructure |
@@ -87,13 +87,13 @@ OpenCLI occupies a specific niche in the browser automation ecosystem. This guid
 - **Zero LLM cost** — No tokens consumed at runtime. Run 10,000 times for free.
 - **Deterministic output** — Same command always returns the same schema. Pipeable, scriptable, CI-friendly.
 - **Speed** — Adapter commands return in seconds, not minutes.
-- **Broad platform coverage** — 73+ sites spanning global platforms (Reddit, HackerNews, Twitter, YouTube) and Chinese platforms (Bilibili, Zhihu, Xiaohongshu, Douban, Weibo) with adapters that understand local anti-bot patterns.
+- **Broad platform coverage** — 87+ sites spanning global platforms (Reddit, HackerNews, Twitter, YouTube) and Chinese platforms (Bilibili, Zhihu, Xiaohongshu, Douban, Weibo) with adapters that understand local anti-bot patterns.
 - **Desktop app control** — CDP adapters for Cursor, Codex, Notion, ChatGPT, Discord, and more.
-- **Easy to extend** — Drop a `.yaml` or `.ts` adapter into the `clis/` folder for auto-registration. Contributing a new site adapter is straightforward.
+- **Easy to extend** — Drop a `.js` adapter into the `clis/` folder for auto-registration. Contributing a new site adapter is straightforward.
 
 ### opencli's Limitations
 
-- **Coverage requires adapters** — opencli only works with sites that have pre-built adapters. Adding a new site means writing a YAML or TypeScript adapter.
+- **Coverage requires adapters** — opencli only works with sites that have pre-built adapters. Adding a new site means writing a TypeScript adapter.
 - **Adapter maintenance** — When a website updates its DOM or API, the corresponding adapter may need updating. The community maintains these, but breakage is possible.
 - **Not general-purpose** — Cannot handle arbitrary websites. For unknown sites, pair opencli with a general browser tool as a fallback.
 
@@ -118,7 +118,6 @@ Recurring?    ──yes──▶  Write an opencli adapter, then use opencli
 ## Further Reading
 
 - [Architecture Overview](./developer/architecture.md)
-- [Writing a YAML Adapter](./developer/yaml-adapter.md)
 - [Writing a TypeScript Adapter](./developer/ts-adapter.md)
 - [Testing Guide](./developer/testing.md)
 - [AI Workflow](./developer/ai-workflow.md)

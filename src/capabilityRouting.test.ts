@@ -29,10 +29,13 @@ describe('shouldUseBrowserSession', () => {
     }))).toBe(true);
   });
 
-  it('keeps browser session for non-public strategies', () => {
+  it('keeps browser session for non-public strategies (via normalized navigateBefore)', () => {
+    // After normalizeCommand, COOKIE strategy without domain sets navigateBefore: true
+    // (signals "needs authenticated browser context" without a specific pre-nav URL).
     expect(shouldUseBrowserSession(makeCmd({
       browser: true,
       strategy: Strategy.COOKIE,
+      navigateBefore: true,
       pipeline: [{ fetch: 'https://example.com/api' }],
     }))).toBe(true);
   });

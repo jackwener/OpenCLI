@@ -69,14 +69,14 @@ last command's output:
 
 ## Layer 2: Claude Code Skill E2E Testing
 
-Spawns Claude Code with the opencli-operate skill to complete tasks
+Spawns Claude Code with the opencli-browser skill to complete tasks
 autonomously using browse commands.
 
 ### How It Works
 
 ```bash
 claude -p \
-  --system-prompt "$(cat skills/opencli-operate/SKILL.md)" \
+  --system-prompt "$(cat skills/opencli-browser/SKILL.md)" \
   --dangerously-skip-permissions \
   --allowedTools "Bash(opencli:*)" \
   --output-format json \

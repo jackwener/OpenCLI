@@ -48,11 +48,11 @@ export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
 
 For a new Electron adapter, implement these commands first in `clis/<app>/`:
 
-- `status.ts` — verify the app is reachable through CDP
-- `dump.ts` — inspect DOM and snapshot structure before guessing selectors
-- `read.ts` — extract the visible context you actually need
-- `send.ts` — inject text and submit through the real editor
-- `new.ts` — create a new session, tab, thread, or document
+- `status.js` — verify the app is reachable through CDP
+- `dump.js` — inspect DOM and snapshot structure before guessing selectors
+- `read.js` — extract the visible context you actually need
+- `send.js` — inject text and submit through the real editor
+- `new.js` — create a new session, tab, thread, or document
 
 This is the standard baseline because it gives you:
 - a connection check
@@ -122,15 +122,15 @@ await page.wait(1);
 
 ## Where to put files
 
-For a TypeScript desktop adapter, the usual layout is:
+For a desktop adapter, the usual layout is:
 
 ```text
-clis/<app>/status.ts
-clis/<app>/dump.ts
-clis/<app>/read.ts
-clis/<app>/send.ts
-clis/<app>/new.ts
-clis/<app>/utils.ts
+clis/<app>/status.js
+clis/<app>/dump.js
+clis/<app>/read.js
+clis/<app>/send.js
+clis/<app>/new.js
+clis/<app>/utils.js
 ```
 
 If the app grows beyond the baseline, add higher-level commands such as:

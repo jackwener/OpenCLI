@@ -8,7 +8,7 @@ OpenCLI 通过轻量级 **Browser Bridge** Chrome 扩展 + 微守护进程连接
 
 ### 方法 1：下载预构建版本（推荐）
 
-1. 前往 GitHub [Releases 页面](https://github.com/jackwener/opencli/releases) 下载最新的 `opencli-extension.zip`。
+1. 前往 GitHub [Releases 页面](https://github.com/jackwener/opencli/releases) 下载最新的 `opencli-extension-v{version}.zip`。
 2. 解压后打开 `chrome://extensions`，启用**开发者模式**。
 3. 点击**加载已解压的扩展程序**，选择解压后的文件夹。
 
@@ -25,12 +25,10 @@ opencli doctor            # 检查扩展 + 守护进程连接
 
 ## Daemon 生命周期
 
-Daemon 在首次运行浏览器命令时自动启动，默认保持 **4 小时**。仅当 CLI 空闲超时**且** Chrome 扩展未连接时才会退出。
+Daemon 在首次运行浏览器命令时自动启动，之后保持常驻运行。
 
 ```bash
-opencli daemon status    # 查看 daemon 状态（PID、运行时长、扩展连接、内存）
 opencli daemon stop      # 优雅关停
-opencli daemon restart   # 重启
 ```
 
-通过 `OPENCLI_DAEMON_TIMEOUT` 环境变量覆盖超时时间（毫秒）。设为 `0` 则永不超时。
+Daemon 为常驻模式，会一直运行直到你显式停止（`opencli daemon stop`）或卸载包。

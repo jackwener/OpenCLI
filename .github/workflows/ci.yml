@@ -47,7 +47,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ${{ (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && fromJSON('["ubuntu-latest","macos-latest","windows-latest"]') || fromJSON('["ubuntu-latest"]') }}
-        node-version: ${{ (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && fromJSON('["20","22"]') || fromJSON('["22"]') }}
+        node-version: ${{ (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && fromJSON('["22"]') || fromJSON('["22"]') }}
         shard: [1, 2]
     steps:
       - uses: actions/checkout@v6
@@ -61,7 +61,7 @@ jobs:
         run: npm ci
 
       - name: Run unit tests (Node ${{ matrix.node-version }}, shard ${{ matrix.shard }}/2)
-        run: npm test -- --reporter=verbose --shard=${{ matrix.shard }}/2
+        run: npx vitest run --project unit --project extension --reporter=verbose --shard=${{ matrix.shard }}/2
 
   # ── Bun compatibility check ──
   bun-test:
@@ -136,12 +136,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             npx vitest run tests/smoke/ --reporter=verbose
-        env:
-          OPENCLI_BROWSER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
       - name: Run smoke tests (macOS / Windows)
         if: runner.os != 'Linux'
         run: npx vitest run tests/smoke/ --reporter=verbose
-        env:
-          OPENCLI_BROWSER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
     timeout-minutes: 15

@@ -53,6 +53,19 @@ describe('cli() registration', () => {
     expect(cmd.strategy).toBe(Strategy.PUBLIC);
   });
 
+  it('preserves LOCAL strategy on registration', () => {
+    const cmd = cli({
+      site: 'test-registry',
+      name: 'local-strategy',
+      description: 'reads local credentials',
+      strategy: Strategy.LOCAL,
+      browser: false,
+    });
+
+    expect(cmd.strategy).toBe(Strategy.LOCAL);
+    expect(cmd.browser).toBe(false);
+  });
+
   it('overwrites existing command on re-registration', () => {
     cli({ site: 'test-registry', name: 'overwrite', description: 'v1' });
     cli({ site: 'test-registry', name: 'overwrite', description: 'v2' });
@@ -129,5 +142,79 @@ describe('registerCommand', () => {
 
     const reg = getRegistry();
     expect(reg.get('test-registry/direct-reg')?.strategy).toBe(Strategy.HEADER);
+  });
+});
+
+describe('normalizeCommand (via registerCommand)', () => {
+  it('COOKIE + domain → navigateBefore is the domain URL', () => {
+    registerCommand({
+      site: 'test-norm', name: 'cookie-domain', description: '', args: [],
+      strategy: Strategy.COOKIE, domain: 'x.com',
+    });
+    const cmd = getRegistry().get('test-norm/cookie-domain')!;
+    expect(cmd.browser).toBe(true);
+    expect(cmd.navigateBefore).toBe('https://x.com');
+  });
+
+  it('COOKIE without domain → navigateBefore is true (auth context, no URL)', () => {
+    registerCommand({
+      site: 'test-norm', name: 'cookie-nodomain', description: '', args: [],
+      strategy: Strategy.COOKIE,
+    });
+    const cmd = getRegistry().get('test-norm/cookie-nodomain')!;
+    expect(cmd.browser).toBe(true);
+    expect(cmd.navigateBefore).toBe(true);
+  });
+
+  it('INTERCEPT → navigateBefore is true (auth context)', () => {
+    registerCommand({
+      site: 'test-norm', name: 'intercept', description: '', args: [],
+      strategy: Strategy.INTERCEPT, domain: 'example.com',
+    });
+    const cmd = getRegistry().get('test-norm/intercept')!;
+    expect(cmd.browser).toBe(true);
+    expect(cmd.navigateBefore).toBe(true);
+  });
+
+  it('PUBLIC → browser false, navigateBefore undefined', () => {
+    registerCommand({
+      site: 'test-norm', name: 'public', description: '', args: [],
+      strategy: Strategy.PUBLIC,
+    });
+    const cmd = getRegistry().get('test-norm/public')!;
+    expect(cmd.browser).toBe(false);
+    expect(cmd.navigateBefore).toBeUndefined();
+  });
+
+  it('LOCAL → browser false, navigateBefore undefined', () => {
+    registerCommand({
+      site: 'test-norm', name: 'local', description: '', args: [],
+      strategy: Strategy.LOCAL,
+    });
+    const cmd = getRegistry().get('test-norm/local')!;
+    expect(cmd.strategy).toBe(Strategy.LOCAL);
+    expect(strategyLabel(cmd)).toBe('local');
+    expect(cmd.browser).toBe(false);
+    expect(cmd.navigateBefore).toBeUndefined();
+  });
+
+  it('explicit navigateBefore: false overrides COOKIE + domain', () => {
+    registerCommand({
+      site: 'test-norm', name: 'cookie-override', description: '', args: [],
+      strategy: Strategy.COOKIE, domain: 'amazon.com', navigateBefore: false,
+    });
+    const cmd = getRegistry().get('test-norm/cookie-override')!;
+    expect(cmd.browser).toBe(true);
+    expect(cmd.navigateBefore).toBe(false);
+  });
+
+  it('explicit navigateBefore URL overrides strategy default', () => {
+    registerCommand({
+      site: 'test-norm', name: 'explicit-url', description: '', args: [],
+      strategy: Strategy.COOKIE, domain: 'x.com',
+      navigateBefore: 'https://x.com/explore',
+    });
+    const cmd = getRegistry().get('test-norm/explicit-url')!;
+    expect(cmd.navigateBefore).toBe('https://x.com/explore');
   });
 });

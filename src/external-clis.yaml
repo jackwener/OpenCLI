@@ -36,8 +36,8 @@
   homepage: "https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli"
   tags: [dingtalk, collaboration, productivity, ai-agent]
   install:
-    mac: "curl -fsSL https://raw.githubusercontent.com/DingTalk-Real-AI/dingtalk-workspace-cli/main/scripts/install.sh | sh"
-    linux: "curl -fsSL https://raw.githubusercontent.com/DingTalk-Real-AI/dingtalk-workspace-cli/main/scripts/install.sh | sh"
+    mac: "npm install -g dingtalk-workspace-cli"
+    linux: "npm install -g dingtalk-workspace-cli"
 
 - name: wecom-cli
   binary: wecom-cli

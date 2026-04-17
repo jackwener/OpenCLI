@@ -3,8 +3,8 @@
  * /autoresearch — Main autonomous iteration loop.
  *
  * Usage:
- *   npx tsx autoresearch/commands/run.ts --preset operate-reliability
- *   npx tsx autoresearch/commands/run.ts --preset operate-reliability --iterations 5
+ *   npx tsx autoresearch/commands/run.ts --preset browser-reliability
+ *   npx tsx autoresearch/commands/run.ts --preset browser-reliability --iterations 5
  *   npx tsx autoresearch/commands/run.ts --goal "..." --scope "src/*.ts" --verify "..." --iterations 10
  *
  * The modify callback spawns Claude Code to make ONE atomic change per iteration.
