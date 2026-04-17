@@ -22,10 +22,8 @@ function generateId(): string {
 export interface DaemonCommand {
   id: string;
   action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'sessions' | 'set-file-input' | 'insert-text' | 'bind-current' | 'network-capture-start' | 'network-capture-read' | 'cdp';
-  /** Target page identity (targetId). Cross-layer contract — preferred over tabId. */
+  /** Target page identity (targetId). Cross-layer contract with the extension. */
   page?: string;
-  /** @deprecated Legacy tab ID — use `page` (targetId) instead. */
-  tabId?: number;
   code?: string;
   workspace?: string;
   url?: string;

@@ -86,8 +86,6 @@ export interface IPage {
   getCurrentUrl?(): Promise<string | null>;
   /** Returns the active page identity (targetId), or undefined if not yet resolved. */
   getActivePage?(): string | undefined;
-  /** @deprecated Use getActivePage() instead */
-  getActiveTabId?(): number | undefined;
   /** Send a raw CDP command via chrome.debugger passthrough. */
   cdp?(method: string, params?: Record<string, unknown>): Promise<unknown>;
   /** Click at native coordinates via CDP Input.dispatchMouseEvent. */

@@ -104,11 +104,6 @@ export class Page extends BasePage {
     return this._page;
   }
 
-  /** @deprecated Use getActivePage() instead */
-  getActiveTabId(): number | undefined {
-    return undefined;
-  }
-
   private _markUnsupportedNetworkCapture(): void {
     this._networkCaptureUnsupported = true;
     if (this._networkCaptureWarned) return;

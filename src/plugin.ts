@@ -217,37 +217,11 @@ function moveDir(src: string, dest: string, fsOps: MoveDirFsOps = fs): void {
   }
 }
 
-type PromoteDirFsOps = MoveDirFsOps & Pick<typeof fs, 'existsSync' | 'mkdirSync'>;
+type ReplaceDirFsOps = MoveDirFsOps & Pick<typeof fs, 'existsSync' | 'mkdirSync'>;
 
 function createSiblingTempPath(dest: string, kind: 'tmp' | 'bak'): string {
   const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return path.join(path.dirname(dest), `.${path.basename(dest)}.${kind}-${suffix}`);
-}
-
-/**
- * Promote a prepared staging directory into its final location.
- * The final path is only exposed after the directory has been fully prepared.
- */
-function promoteDir(stagingDir: string, dest: string, fsOps: PromoteDirFsOps = fs): void {
-  if (fsOps.existsSync(dest)) {
-    throw new PluginError(`Destination already exists: ${dest}`);
-  }
-
-  fsOps.mkdirSync(path.dirname(dest), { recursive: true });
-  const tempDest = createSiblingTempPath(dest, 'tmp');
-
-  try {
-    moveDir(stagingDir, tempDest, fsOps);
-    fsOps.renameSync(tempDest, dest);
-  } catch (err) {
-    try { fsOps.rmSync(tempDest, { recursive: true, force: true }); } catch {}
-    throw err;
-  }
-}
-
-function replaceDir(stagingDir: string, dest: string, fsOps: PromoteDirFsOps = fs): void {
-  const replacement = beginReplaceDir(stagingDir, dest, fsOps);
-  replacement.finalize();
 }
 
 function cloneRepoToTemp(cloneUrl: string): string {
@@ -359,7 +333,7 @@ function runTransaction<T>(work: (tx: Transaction) => T): T {
 function beginReplaceDir(
   stagingDir: string,
   dest: string,
-  fsOps: PromoteDirFsOps = fs,
+  fsOps: ReplaceDirFsOps = fs,
 ): TransactionHandle {
   const destExisted = fsOps.existsSync(dest);
   fsOps.mkdirSync(path.dirname(dest), { recursive: true });
@@ -1590,8 +1564,6 @@ export {
   installLocalPlugin as _installLocalPlugin,
   isLocalPluginSource as _isLocalPluginSource,
   moveDir as _moveDir,
-  promoteDir as _promoteDir,
-  replaceDir as _replaceDir,
   resolvePluginSource as _resolvePluginSource,
   resolveStoredPluginSource as _resolveStoredPluginSource,
   toStoredPluginSource as _toStoredPluginSource,

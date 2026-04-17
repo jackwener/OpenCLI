@@ -20,8 +20,6 @@ const {
   _getCommitHash,
   _installDependencies,
   _postInstallMonorepoLifecycle,
-  _promoteDir,
-  _replaceDir,
   installPlugin,
   listPlugins,
   _readLockFile,
@@ -1045,68 +1043,6 @@ describe('moveDir', () => {
     expect(renameSync).toHaveBeenCalledWith(src, dest);
     expect(cpSync).toHaveBeenCalledWith(src, dest, { recursive: true });
     expect(rmSync).toHaveBeenCalledWith(dest, { recursive: true, force: true });
-  });
-});
-
-describe('promoteDir', () => {
-  it('cleans up temporary publish dir when final rename fails', () => {
-    const staging = path.join(os.tmpdir(), 'opencli-promote-stage');
-    const dest = path.join(os.tmpdir(), 'opencli-promote-dest');
-    const publishErr = new Error('publish failed');
-    const existsSync = vi.fn(() => false);
-    const mkdirSync = vi.fn(() => undefined);
-    const cpSync = vi.fn(() => undefined);
-    const rmSync = vi.fn(() => undefined);
-    const renameSync = vi.fn((src, _target) => {
-      if (String(src) === staging) return;
-      throw publishErr;
-    });
-
-    expect(() => _promoteDir(staging, dest, { existsSync, mkdirSync, renameSync, cpSync, rmSync })).toThrow(publishErr);
-
-    const tempDest = renameSync.mock.calls[0][1];
-    expect(renameSync).toHaveBeenNthCalledWith(1, staging, tempDest);
-    expect(renameSync).toHaveBeenNthCalledWith(2, tempDest, dest);
-    expect(rmSync).toHaveBeenCalledWith(tempDest, { recursive: true, force: true });
-  });
-});
-
-describe('replaceDir', () => {
-  it('rolls back the original destination when swap fails', () => {
-    const staging = path.join(os.tmpdir(), 'opencli-replace-stage');
-    const dest = path.join(os.tmpdir(), 'opencli-replace-dest');
-    const publishErr = new Error('swap failed');
-    const existingPaths = new Set([dest]);
-    const existsSync = vi.fn((p) => existingPaths.has(String(p)));
-    const mkdirSync = vi.fn(() => undefined);
-    const cpSync = vi.fn(() => undefined);
-    const rmSync = vi.fn(() => undefined);
-    const renameSync = vi.fn((src, target) => {
-      if (String(src) === staging) {
-        existingPaths.add(String(target));
-        return;
-      }
-      if (String(src) === dest) {
-        existingPaths.delete(dest);
-        existingPaths.add(String(target));
-        return;
-      }
-      if (String(target) === dest) throw publishErr;
-      if (existingPaths.has(String(src))) {
-        existingPaths.delete(String(src));
-        existingPaths.add(String(target));
-      }
-    });
-
-    expect(() => _replaceDir(staging, dest, { existsSync, mkdirSync, renameSync, cpSync, rmSync })).toThrow(publishErr);
-
-    const tempDest = renameSync.mock.calls[0][1];
-    const backupDest = renameSync.mock.calls[1][1];
-    expect(renameSync).toHaveBeenNthCalledWith(1, staging, tempDest);
-    expect(renameSync).toHaveBeenNthCalledWith(2, dest, backupDest);
-    expect(renameSync).toHaveBeenNthCalledWith(3, tempDest, dest);
-    expect(renameSync).toHaveBeenNthCalledWith(4, backupDest, dest);
-    expect(rmSync).toHaveBeenCalledWith(tempDest, { recursive: true, force: true });
   });
 });
 

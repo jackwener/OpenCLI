@@ -392,12 +392,12 @@ function setWorkspaceSession(workspace: string, session: Omit<AutomationSession,
 }
 
 /**
- * Resolve tabId from command's page (targetId) or legacy tabId field.
- * page (targetId) takes precedence. Returns undefined if neither is provided.
+ * Resolve tabId from command's page (targetId).
+ * Returns undefined if no page identity is provided.
  */
 async function resolveCommandTabId(cmd: Command): Promise<number | undefined> {
   if (cmd.page) return identity.resolveTabId(cmd.page);
-  return cmd.tabId;
+  return undefined;
 }
 
 type ResolvedTab = { tabId: number; tab: chrome.tabs.Tab | null };
@@ -662,7 +662,7 @@ async function handleTabs(cmd: Command, workspace: string): Promise<Result> {
       return { id: cmd.id, ok: true, data: { closed: closedPage } };
     }
     case 'select': {
-      if (cmd.index === undefined && cmd.page === undefined && cmd.tabId === undefined)
+      if (cmd.index === undefined && cmd.page === undefined)
         return { id: cmd.id, ok: false, error: 'Missing index or page' };
       const cmdTabId = await resolveCommandTabId(cmd);
       if (cmdTabId !== undefined) {

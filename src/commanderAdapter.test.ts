@@ -77,7 +77,7 @@ describe('commanderAdapter arg passing', () => {
 
     await program.parseAsync(['node', 'opencli', 'paperreview', 'submit', './paper.pdf', '--dry-run', 'maybe']);
 
-    // normalizeArgValue validates bools eagerly; executeCommand should not be reached
+    // prepareCommandArgs validates bools before dispatch; executeCommand should not be reached
     expect(mockExecuteCommand).not.toHaveBeenCalled();
   });
 });

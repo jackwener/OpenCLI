@@ -25,10 +25,8 @@ export interface Command {
   id: string;
   /** Action type */
   action: Action;
-  /** Target page identity (targetId). Cross-layer contract — preferred over tabId. */
+  /** Target page identity (targetId). Cross-layer contract with the daemon. */
   page?: string;
-  /** @deprecated Legacy tab ID — use `page` (targetId) instead. Kept for backward compat. */
-  tabId?: number;
   /** JS code to evaluate in page context (exec action) */
   code?: string;
   /** Logical workspace for automation session reuse */
