@@ -14,8 +14,12 @@ function isExpectedChineseSiteRestriction(code: number, stderr: string): boolean
   // Overseas CI runners may get HTTP errors, geo-blocks, DNS failures,
   // or receive mangled HTML that fails parsing. Some runners also fail
   // without surfacing a useful stderr payload.
+  // Exit code 78 (CONFIG_ERROR) covers adapters that migrated to authenticated
+  // APIs — credentials won't be available in CI.
   return /Error \[(FETCH_ERROR|PARSE_ERROR|NOT_FOUND)\]/.test(stderr)
     || /fetch failed/.test(stderr)
+    || /code: CONFIG/.test(stderr)
+    || code === 78
     || stderr.trim() === '';
 }
 
