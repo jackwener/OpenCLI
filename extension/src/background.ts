@@ -464,7 +464,11 @@ async function resolveTab(tabId: number | undefined, workspace: string, initialU
   const existingSession = automationSessions.get(workspace);
   if (existingSession?.preferredTabId !== null) {
     try {
-      const preferredTab = await chrome.tabs.get(existingSession.preferredTabId);
+      const preferredTabId = existingSession?.preferredTabId;
+      if (preferredTabId === null || preferredTabId === undefined) {
+        throw new Error('Preferred tab is unavailable');
+      }
+      const preferredTab = await chrome.tabs.get(preferredTabId);
       if (isDebuggableUrl(preferredTab.url)) return { tabId: preferredTab.id!, tab: preferredTab };
     } catch {
       automationSessions.delete(workspace);

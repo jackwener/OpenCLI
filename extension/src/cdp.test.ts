@@ -58,6 +58,29 @@ describe('cdp attach recovery', () => {
     expect(scripting.executeScript).not.toHaveBeenCalled();
   });
 
+  it('re-attaches and retries when a command detaches mid-flight', async () => {
+    const { chrome, debuggerApi } = createChromeMock();
+    let detachedOnce = false;
+    debuggerApi.sendCommand.mockImplementation(async (_target: unknown, method: string) => {
+      if (method === 'Runtime.enable') return {};
+      if (method === 'Runtime.evaluate') {
+        if (!detachedOnce) {
+          detachedOnce = true;
+          throw new Error('Detached while handling command');
+        }
+        return { result: { value: 'ok' } };
+      }
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    const result = await mod.evaluate(1, '1');
+
+    expect(result).toBe('ok');
+    expect(debuggerApi.attach).toHaveBeenCalledTimes(2);
+  });
+
   // Dead test: chrome.scripting.executeScript was removed from cdp.ts;
   // this test references functionality that no longer exists. Delete or rewrite
   // when cdp attach-recovery logic is next updated.

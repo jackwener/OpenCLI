@@ -11,6 +11,30 @@ function isDebuggableUrl$1(url) {
   if (!url) return true;
   return url.startsWith("http://") || url.startsWith("https://") || url === "about:blank" || url.startsWith("data:");
 }
+function isRetryableDebuggerErrorMessage(message) {
+  return message.includes("Inspected target navigated") || message.includes("Target closed") || message.includes("attach failed") || message.includes("Debugger is not attached") || message.includes("Detached while handling command") || message.includes("chrome-extension://");
+}
+function retryDelayMsForDebuggerError(message) {
+  return message.includes("Inspected target navigated") || message.includes("Target closed") ? 200 : 500;
+}
+async function sendCommandWithRetry(tabId, method, params = {}, aggressiveRetry = false) {
+  const maxRetries = aggressiveRetry ? 3 : 2;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await ensureAttached(tabId, aggressiveRetry);
+      return await chrome.debugger.sendCommand({ tabId }, method, params);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (isRetryableDebuggerErrorMessage(msg) && attempt < maxRetries) {
+        attached.delete(tabId);
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMsForDebuggerError(msg)));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error(`CDP command ${method} failed after retries`);
+}
 async function ensureAttached(tabId, aggressiveRetry = false) {
   try {
     const tab = await chrome.tabs.get(tabId);
@@ -83,44 +107,25 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
   }
 }
 async function evaluate(tabId, expression, aggressiveRetry = false) {
-  const MAX_EVAL_RETRIES = aggressiveRetry ? 3 : 2;
-  for (let attempt = 1; attempt <= MAX_EVAL_RETRIES; attempt++) {
-    try {
-      await ensureAttached(tabId, aggressiveRetry);
-      const result = await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
-        expression,
-        returnByValue: true,
-        awaitPromise: true
-      });
-      if (result.exceptionDetails) {
-        const errMsg = result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Eval error";
-        throw new Error(errMsg);
-      }
-      return result.result?.value;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      const isNavigateError = msg.includes("Inspected target navigated") || msg.includes("Target closed");
-      const isAttachError = isNavigateError || msg.includes("attach failed") || msg.includes("Debugger is not attached") || msg.includes("chrome-extension://");
-      if (isAttachError && attempt < MAX_EVAL_RETRIES) {
-        attached.delete(tabId);
-        const retryMs = isNavigateError ? 200 : 500;
-        await new Promise((resolve) => setTimeout(resolve, retryMs));
-        continue;
-      }
-      throw e;
-    }
+  const result = await sendCommandWithRetry(tabId, "Runtime.evaluate", {
+    expression,
+    returnByValue: true,
+    awaitPromise: true
+  }, aggressiveRetry);
+  if (result.exceptionDetails) {
+    const errMsg = result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Eval error";
+    throw new Error(errMsg);
   }
-  throw new Error("evaluate: max retries exhausted");
+  return result.result?.value;
 }
 const evaluateAsync = evaluate;
 async function screenshot(tabId, options = {}) {
-  await ensureAttached(tabId);
   const format = options.format ?? "png";
   if (options.fullPage) {
-    const metrics = await chrome.debugger.sendCommand({ tabId }, "Page.getLayoutMetrics");
+    const metrics = await sendCommandWithRetry(tabId, "Page.getLayoutMetrics");
     const size = metrics.cssContentSize || metrics.contentSize;
     if (size) {
-      await chrome.debugger.sendCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
+      await sendCommandWithRetry(tabId, "Emulation.setDeviceMetricsOverride", {
         mobile: false,
         width: Math.ceil(size.width),
         height: Math.ceil(size.height),
@@ -133,35 +138,33 @@ async function screenshot(tabId, options = {}) {
     if (format === "jpeg" && options.quality !== void 0) {
       params.quality = Math.max(0, Math.min(100, options.quality));
     }
-    const result = await chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", params);
+    const result = await sendCommandWithRetry(tabId, "Page.captureScreenshot", params);
     return result.data;
   } finally {
     if (options.fullPage) {
-      await chrome.debugger.sendCommand({ tabId }, "Emulation.clearDeviceMetricsOverride").catch(() => {
+      await sendCommandWithRetry(tabId, "Emulation.clearDeviceMetricsOverride").catch(() => {
       });
     }
   }
 }
 async function setFileInputFiles(tabId, files, selector) {
-  await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, "DOM.enable");
-  const doc = await chrome.debugger.sendCommand({ tabId }, "DOM.getDocument");
+  await sendCommandWithRetry(tabId, "DOM.enable");
+  const doc = await sendCommandWithRetry(tabId, "DOM.getDocument");
   const query = selector || 'input[type="file"]';
-  const result = await chrome.debugger.sendCommand({ tabId }, "DOM.querySelector", {
+  const result = await sendCommandWithRetry(tabId, "DOM.querySelector", {
     nodeId: doc.root.nodeId,
     selector: query
   });
   if (!result.nodeId) {
     throw new Error(`No element found matching selector: ${query}`);
   }
-  await chrome.debugger.sendCommand({ tabId }, "DOM.setFileInputFiles", {
+  await sendCommandWithRetry(tabId, "DOM.setFileInputFiles", {
     files,
     nodeId: result.nodeId
   });
 }
 async function insertText(tabId, text) {
-  await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, "Input.insertText", { text });
+  await sendCommandWithRetry(tabId, "Input.insertText", { text });
 }
 function normalizeCapturePatterns(pattern) {
   return String(pattern || "").split("|").map((part) => part.trim()).filter(Boolean);
@@ -200,8 +203,7 @@ function getOrCreateNetworkCaptureEntry(tabId, requestId, fallback) {
   return entry;
 }
 async function startNetworkCapture(tabId, pattern) {
-  await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, "Network.enable");
+  await sendCommandWithRetry(tabId, "Network.enable");
   networkCaptures.set(tabId, {
     patterns: normalizeCapturePatterns(pattern),
     entries: [],
@@ -249,9 +251,10 @@ function registerListeners() {
     if (!tabId) return;
     const state = networkCaptures.get(tabId);
     if (!state) return;
+    const eventParams = params ?? {};
     if (method === "Network.requestWillBeSent") {
-      const requestId = String(params?.requestId || "");
-      const request = params?.request;
+      const requestId = String(eventParams.requestId || "");
+      const request = eventParams.request;
       const entry = getOrCreateNetworkCaptureEntry(tabId, requestId, {
         url: request?.url,
         method: request?.method,
@@ -271,8 +274,8 @@ function registerListeners() {
       return;
     }
     if (method === "Network.responseReceived") {
-      const requestId = String(params?.requestId || "");
-      const response = params?.response;
+      const requestId = String(eventParams.requestId || "");
+      const response = eventParams.response;
       const entry = getOrCreateNetworkCaptureEntry(tabId, requestId, {
         url: response?.url
       });
@@ -283,7 +286,7 @@ function registerListeners() {
       return;
     }
     if (method === "Network.loadingFinished") {
-      const requestId = String(params?.requestId || "");
+      const requestId = String(eventParams.requestId || "");
       const stateEntryIndex = state.requestToIndex.get(requestId);
       if (stateEntryIndex === void 0) return;
       const entry = state.entries[stateEntryIndex];
@@ -648,7 +651,7 @@ function setWorkspaceSession(workspace, session) {
 }
 async function resolveCommandTabId(cmd) {
   if (cmd.page) return resolveTabId$1(cmd.page);
-  return cmd.tabId;
+  return void 0;
 }
 async function resolveTab(tabId, workspace, initialUrl) {
   if (tabId !== void 0) {
@@ -678,7 +681,11 @@ async function resolveTab(tabId, workspace, initialUrl) {
   const existingSession = automationSessions.get(workspace);
   if (existingSession?.preferredTabId !== null) {
     try {
-      const preferredTab = await chrome.tabs.get(existingSession.preferredTabId);
+      const preferredTabId = existingSession?.preferredTabId;
+      if (preferredTabId === null || preferredTabId === void 0) {
+        throw new Error("Preferred tab is unavailable");
+      }
+      const preferredTab = await chrome.tabs.get(preferredTabId);
       if (isDebuggableUrl(preferredTab.url)) return { tabId: preferredTab.id, tab: preferredTab };
     } catch {
       automationSessions.delete(workspace);
@@ -855,7 +862,7 @@ async function handleTabs(cmd, workspace) {
       return { id: cmd.id, ok: true, data: { closed: closedPage } };
     }
     case "select": {
-      if (cmd.index === void 0 && cmd.page === void 0 && cmd.tabId === void 0)
+      if (cmd.index === void 0 && cmd.page === void 0)
         return { id: cmd.id, ok: false, error: "Missing index or page" };
       const cmdTabId = await resolveCommandTabId(cmd);
       if (cmdTabId !== void 0) {

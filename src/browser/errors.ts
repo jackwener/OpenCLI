@@ -41,6 +41,8 @@ const EXTENSION_TRANSIENT_PATTERNS = [
   'Extension disconnected',
   'Extension not connected',
   'attach failed',
+  'Debugger is not attached',
+  'Detached while handling command',
   'no longer exists',
   'CDP connection',
   'Daemon command failed',

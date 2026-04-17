@@ -35,6 +35,45 @@ function isDebuggableUrl(url?: string): boolean {
   return url.startsWith('http://') || url.startsWith('https://') || url === 'about:blank' || url.startsWith('data:');
 }
 
+function isRetryableDebuggerErrorMessage(message: string): boolean {
+  return message.includes('Inspected target navigated')
+    || message.includes('Target closed')
+    || message.includes('attach failed')
+    || message.includes('Debugger is not attached')
+    || message.includes('Detached while handling command')
+    || message.includes('chrome-extension://');
+}
+
+function retryDelayMsForDebuggerError(message: string): number {
+  return message.includes('Inspected target navigated') || message.includes('Target closed')
+    ? 200
+    : 500;
+}
+
+async function sendCommandWithRetry<T>(
+  tabId: number,
+  method: string,
+  params: Record<string, unknown> = {},
+  aggressiveRetry: boolean = false,
+): Promise<T> {
+  const maxRetries = aggressiveRetry ? 3 : 2;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await ensureAttached(tabId, aggressiveRetry);
+      return await chrome.debugger.sendCommand({ tabId }, method, params) as T;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (isRetryableDebuggerErrorMessage(msg) && attempt < maxRetries) {
+        attached.delete(tabId);
+        await new Promise(resolve => setTimeout(resolve, retryDelayMsForDebuggerError(msg)));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error(`CDP command ${method} failed after retries`);
+}
+
 export async function ensureAttached(tabId: number, aggressiveRetry: boolean = false): Promise<void> {
   // Verify the tab URL is debuggable before attempting attach
   try {
@@ -127,47 +166,23 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
 }
 
 export async function evaluate(tabId: number, expression: string, aggressiveRetry: boolean = false): Promise<unknown> {
-  // Retry the entire evaluate (attach + command).
-  // Normal: 2 retries. Browser: 3 retries (tolerates extension interference).
-  const MAX_EVAL_RETRIES = aggressiveRetry ? 3 : 2;
-  for (let attempt = 1; attempt <= MAX_EVAL_RETRIES; attempt++) {
-    try {
-      await ensureAttached(tabId, aggressiveRetry);
+  const result = await sendCommandWithRetry<{
+    result?: { type: string; value?: unknown; description?: string; subtype?: string };
+    exceptionDetails?: { exception?: { description?: string }; text?: string };
+  }>(tabId, 'Runtime.evaluate', {
+    expression,
+    returnByValue: true,
+    awaitPromise: true,
+  }, aggressiveRetry);
 
-      const result = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
-        expression,
-        returnByValue: true,
-        awaitPromise: true,
-      }) as {
-        result?: { type: string; value?: unknown; description?: string; subtype?: string };
-        exceptionDetails?: { exception?: { description?: string }; text?: string };
-      };
-
-      if (result.exceptionDetails) {
-        const errMsg = result.exceptionDetails.exception?.description
-          || result.exceptionDetails.text
-          || 'Eval error';
-        throw new Error(errMsg);
-      }
-
-      return result.result?.value;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      // Only retry on attach/debugger errors, not on JS eval errors
-      const isNavigateError = msg.includes('Inspected target navigated') || msg.includes('Target closed');
-      const isAttachError = isNavigateError || msg.includes('attach failed') || msg.includes('Debugger is not attached')
-        || msg.includes('chrome-extension://');
-      if (isAttachError && attempt < MAX_EVAL_RETRIES) {
-        attached.delete(tabId); // Force re-attach on next attempt
-        // SPA navigations recover quickly; debugger detach needs longer
-        const retryMs = isNavigateError ? 200 : 500;
-        await new Promise(resolve => setTimeout(resolve, retryMs));
-        continue;
-      }
-      throw e;
-    }
+  if (result.exceptionDetails) {
+    const errMsg = result.exceptionDetails.exception?.description
+      || result.exceptionDetails.text
+      || 'Eval error';
+    throw new Error(errMsg);
   }
-  throw new Error('evaluate: max retries exhausted');
+
+  return result.result?.value;
 }
 
 export const evaluateAsync = evaluate;
@@ -180,21 +195,19 @@ export async function screenshot(
   tabId: number,
   options: { format?: 'png' | 'jpeg'; quality?: number; fullPage?: boolean } = {},
 ): Promise<string> {
-  await ensureAttached(tabId);
-
   const format = options.format ?? 'png';
 
   // For full-page screenshots, get the full page dimensions first
   if (options.fullPage) {
     // Get full page metrics
-    const metrics = await chrome.debugger.sendCommand({ tabId }, 'Page.getLayoutMetrics') as {
+    const metrics = await sendCommandWithRetry<{
       contentSize?: { width: number; height: number };
       cssContentSize?: { width: number; height: number };
-    };
+    }>(tabId, 'Page.getLayoutMetrics');
     const size = metrics.cssContentSize || metrics.contentSize;
     if (size) {
       // Set device metrics to full page size
-      await chrome.debugger.sendCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
+      await sendCommandWithRetry(tabId, 'Emulation.setDeviceMetricsOverride', {
         mobile: false,
         width: Math.ceil(size.width),
         height: Math.ceil(size.height),
@@ -209,15 +222,15 @@ export async function screenshot(
       params.quality = Math.max(0, Math.min(100, options.quality));
     }
 
-    const result = await chrome.debugger.sendCommand({ tabId }, 'Page.captureScreenshot', params) as {
+    const result = await sendCommandWithRetry<{
       data: string; // base64-encoded
-    };
+    }>(tabId, 'Page.captureScreenshot', params);
 
     return result.data;
   } finally {
     // Reset device metrics if we changed them for full-page
     if (options.fullPage) {
-      await chrome.debugger.sendCommand({ tabId }, 'Emulation.clearDeviceMetricsOverride').catch(() => {});
+      await sendCommandWithRetry(tabId, 'Emulation.clearDeviceMetricsOverride').catch(() => {});
     }
   }
 }
@@ -236,29 +249,27 @@ export async function setFileInputFiles(
   files: string[],
   selector?: string,
 ): Promise<void> {
-  await ensureAttached(tabId);
-
   // Enable DOM domain (required for DOM.querySelector and DOM.setFileInputFiles)
-  await chrome.debugger.sendCommand({ tabId }, 'DOM.enable');
+  await sendCommandWithRetry(tabId, 'DOM.enable');
 
   // Get the document root
-  const doc = await chrome.debugger.sendCommand({ tabId }, 'DOM.getDocument') as {
+  const doc = await sendCommandWithRetry<{
     root: { nodeId: number };
-  };
+  }>(tabId, 'DOM.getDocument');
 
   // Find the file input element
   const query = selector || 'input[type="file"]';
-  const result = await chrome.debugger.sendCommand({ tabId }, 'DOM.querySelector', {
+  const result = await sendCommandWithRetry<{ nodeId: number }>(tabId, 'DOM.querySelector', {
     nodeId: doc.root.nodeId,
     selector: query,
-  }) as { nodeId: number };
+  });
 
   if (!result.nodeId) {
     throw new Error(`No element found matching selector: ${query}`);
   }
 
   // Set files directly via CDP — Chrome reads from local filesystem
-  await chrome.debugger.sendCommand({ tabId }, 'DOM.setFileInputFiles', {
+  await sendCommandWithRetry(tabId, 'DOM.setFileInputFiles', {
     files,
     nodeId: result.nodeId,
   });
@@ -268,8 +279,7 @@ export async function insertText(
   tabId: number,
   text: string,
 ): Promise<void> {
-  await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text });
+  await sendCommandWithRetry(tabId, 'Input.insertText', { text });
 }
 
 function normalizeCapturePatterns(pattern?: string): string[] {
@@ -323,8 +333,7 @@ export async function startNetworkCapture(
   tabId: number,
   pattern?: string,
 ): Promise<void> {
-  await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, 'Network.enable');
+  await sendCommandWithRetry(tabId, 'Network.enable');
   networkCaptures.set(tabId, {
     patterns: normalizeCapturePatterns(pattern),
     entries: [],
@@ -374,16 +383,26 @@ export function registerListeners(): void {
     if (!tabId) return;
     const state = networkCaptures.get(tabId);
     if (!state) return;
-
-    if (method === 'Network.requestWillBeSent') {
-      const requestId = String(params?.requestId || '');
-      const request = params?.request as {
+    const eventParams = (params ?? {}) as {
+      requestId?: string;
+      request?: {
         url?: string;
         method?: string;
         headers?: Record<string, unknown>;
         postData?: string;
         hasPostData?: boolean;
-      } | undefined;
+      };
+      response?: {
+        url?: string;
+        mimeType?: string;
+        status?: number;
+        headers?: Record<string, unknown>;
+      };
+    };
+
+    if (method === 'Network.requestWillBeSent') {
+      const requestId = String(eventParams.requestId || '');
+      const request = eventParams.request;
       const entry = getOrCreateNetworkCaptureEntry(tabId, requestId, {
         url: request?.url,
         method: request?.method,
@@ -405,13 +424,8 @@ export function registerListeners(): void {
     }
 
     if (method === 'Network.responseReceived') {
-      const requestId = String(params?.requestId || '');
-      const response = params?.response as {
-        url?: string;
-        mimeType?: string;
-        status?: number;
-        headers?: Record<string, unknown>;
-      } | undefined;
+      const requestId = String(eventParams.requestId || '');
+      const response = eventParams.response;
       const entry = getOrCreateNetworkCaptureEntry(tabId, requestId, {
         url: response?.url,
       });
@@ -423,7 +437,7 @@ export function registerListeners(): void {
     }
 
     if (method === 'Network.loadingFinished') {
-      const requestId = String(params?.requestId || '');
+      const requestId = String(eventParams.requestId || '');
       const stateEntryIndex = state.requestToIndex.get(requestId);
       if (stateEntryIndex === undefined) return;
       const entry = state.entries[stateEntryIndex];
