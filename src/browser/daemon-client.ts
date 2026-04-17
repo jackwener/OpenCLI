@@ -50,6 +50,8 @@ export interface DaemonCommand {
   cdpParams?: Record<string, unknown>;
   /** When true, automation windows are created in the foreground */
   windowFocused?: boolean;
+  /** Custom idle timeout in seconds for this workspace session. Overrides the default. */
+  idleTimeout?: number;
 }
 
 export interface DaemonResult {

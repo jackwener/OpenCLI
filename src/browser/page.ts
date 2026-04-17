@@ -30,8 +30,11 @@ function isUnsupportedNetworkCaptureError(err: unknown): boolean {
  * Page — implements IPage by talking to the daemon via HTTP.
  */
 export class Page extends BasePage {
-  constructor(private readonly workspace: string = 'default') {
+  private readonly _idleTimeout: number | undefined;
+
+  constructor(private readonly workspace: string = 'default', idleTimeout?: number) {
     super();
+    this._idleTimeout = idleTimeout;
   }
 
   /** Active page identity (targetId), set after navigate and used in all subsequent commands */
@@ -40,8 +43,8 @@ export class Page extends BasePage {
   private _networkCaptureWarned = false;
 
   /** Helper: spread workspace into command params */
-  private _wsOpt(): { workspace: string } {
-    return { workspace: this.workspace };
+  private _wsOpt(): { workspace: string; idleTimeout?: number } {
+    return { workspace: this.workspace, ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }) };
   }
 
   /** Helper: spread workspace + page identity into command params */
@@ -49,6 +52,7 @@ export class Page extends BasePage {
     return {
       workspace: this.workspace,
       ...(this._page !== undefined && { page: this._page }),
+      ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
     };
   }
 

@@ -59,7 +59,6 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
           }
         } catch {
           lastError = `Tab ${tabId} no longer exists`;
-          break;
         }
       }
     }
@@ -217,6 +216,9 @@ async function readNetworkCapture(tabId) {
   state.requestToIndex.clear();
   return entries;
 }
+function hasActiveNetworkCapture(tabId) {
+  return networkCaptures.has(tabId);
+}
 async function detach(tabId) {
   if (!attached.has(tabId)) return;
   attached.delete(tabId);
@@ -297,6 +299,41 @@ function registerListeners() {
   });
 }
 
+const targetToTab = /* @__PURE__ */ new Map();
+const tabToTarget = /* @__PURE__ */ new Map();
+async function resolveTargetId(tabId) {
+  const cached = tabToTarget.get(tabId);
+  if (cached) return cached;
+  await refreshMappings();
+  const result = tabToTarget.get(tabId);
+  if (!result) throw new Error(`No targetId for tab ${tabId} — page may have been closed`);
+  return result;
+}
+async function resolveTabId$1(targetId) {
+  const cached = targetToTab.get(targetId);
+  if (cached !== void 0) return cached;
+  await refreshMappings();
+  const result = targetToTab.get(targetId);
+  if (result === void 0) throw new Error(`Page not found: ${targetId} — stale page identity`);
+  return result;
+}
+function evictTab(tabId) {
+  const targetId = tabToTarget.get(tabId);
+  if (targetId) targetToTab.delete(targetId);
+  tabToTarget.delete(tabId);
+}
+async function refreshMappings() {
+  const targets = await chrome.debugger.getTargets();
+  targetToTab.clear();
+  tabToTarget.clear();
+  for (const t of targets) {
+    if (t.type === "page" && t.tabId !== void 0) {
+      targetToTab.set(t.id, t.tabId);
+      tabToTarget.set(t.tabId, t.id);
+    }
+  }
+}
+
 let ws = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
@@ -344,7 +381,11 @@ async function connect() {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
-    ws?.send(JSON.stringify({ type: "hello", version: chrome.runtime.getManifest().version }));
+    ws?.send(JSON.stringify({
+      type: "hello",
+      version: chrome.runtime.getManifest().version,
+      compatRange: ">=1.7.0"
+    }));
   };
   ws.onmessage = async (event) => {
     try {
@@ -376,7 +417,18 @@ function scheduleReconnect() {
   }, delay);
 }
 const automationSessions = /* @__PURE__ */ new Map();
-const WINDOW_IDLE_TIMEOUT = 3e4;
+const IDLE_TIMEOUT_DEFAULT = 3e4;
+const IDLE_TIMEOUT_INTERACTIVE = 6e5;
+const workspaceTimeoutOverrides = /* @__PURE__ */ new Map();
+function getIdleTimeout(workspace) {
+  const override = workspaceTimeoutOverrides.get(workspace);
+  if (override !== void 0) return override;
+  if (workspace.startsWith("browser:") || workspace.startsWith("operate:")) {
+    return IDLE_TIMEOUT_INTERACTIVE;
+  }
+  return IDLE_TIMEOUT_DEFAULT;
+}
+let windowFocused = false;
 function getWorkspaceKey(workspace) {
   return workspace?.trim() || "default";
 }
@@ -384,22 +436,25 @@ function resetWindowIdleTimer(workspace) {
   const session = automationSessions.get(workspace);
   if (!session) return;
   if (session.idleTimer) clearTimeout(session.idleTimer);
-  session.idleDeadlineAt = Date.now() + WINDOW_IDLE_TIMEOUT;
+  const timeout = getIdleTimeout(workspace);
+  session.idleDeadlineAt = Date.now() + timeout;
   session.idleTimer = setTimeout(async () => {
     const current = automationSessions.get(workspace);
     if (!current) return;
     if (!current.owned) {
       console.log(`[opencli] Borrowed workspace ${workspace} detached from window ${current.windowId} (idle timeout)`);
+      workspaceTimeoutOverrides.delete(workspace);
       automationSessions.delete(workspace);
       return;
     }
     try {
       await chrome.windows.remove(current.windowId);
-      console.log(`[opencli] Automation window ${current.windowId} (${workspace}) closed (idle timeout)`);
+      console.log(`[opencli] Automation window ${current.windowId} (${workspace}) closed (idle timeout, ${timeout / 1e3}s)`);
     } catch {
     }
+    workspaceTimeoutOverrides.delete(workspace);
     automationSessions.delete(workspace);
-  }, WINDOW_IDLE_TIMEOUT);
+  }, timeout);
 }
 async function getAutomationWindow(workspace, initialUrl) {
   const existing = automationSessions.get(workspace);
@@ -414,7 +469,7 @@ async function getAutomationWindow(workspace, initialUrl) {
   const startUrl = initialUrl && isSafeNavigationUrl(initialUrl) ? initialUrl : BLANK_PAGE;
   const win = await chrome.windows.create({
     url: startUrl,
-    focused: false,
+    focused: windowFocused,
     width: 1280,
     height: 900,
     type: "normal"
@@ -422,7 +477,7 @@ async function getAutomationWindow(workspace, initialUrl) {
   const session = {
     windowId: win.id,
     idleTimer: null,
-    idleDeadlineAt: Date.now() + WINDOW_IDLE_TIMEOUT,
+    idleDeadlineAt: Date.now() + getIdleTimeout(workspace),
     owned: true,
     preferredTabId: null
   };
@@ -450,14 +505,18 @@ async function getAutomationWindow(workspace, initialUrl) {
   }
   return session.windowId;
 }
-chrome.windows.onRemoved.addListener((windowId) => {
+chrome.windows.onRemoved.addListener(async (windowId) => {
   for (const [workspace, session] of automationSessions.entries()) {
     if (session.windowId === windowId) {
       console.log(`[opencli] Automation window closed (${workspace})`);
       if (session.idleTimer) clearTimeout(session.idleTimer);
       automationSessions.delete(workspace);
+      workspaceTimeoutOverrides.delete(workspace);
     }
   }
+});
+chrome.tabs.onRemoved.addListener((tabId) => {
+  evictTab(tabId);
 });
 let initialized = false;
 function initialize() {
@@ -488,6 +547,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 });
 async function handleCommand(cmd) {
   const workspace = getWorkspaceKey(cmd.workspace);
+  windowFocused = cmd.windowFocused === true;
+  if (cmd.idleTimeout != null && cmd.idleTimeout > 0) {
+    workspaceTimeoutOverrides.set(workspace, cmd.idleTimeout * 1e3);
+  }
   resetWindowIdleTimer(workspace);
   try {
     switch (cmd.action) {
@@ -580,8 +643,12 @@ function setWorkspaceSession(workspace, session) {
   automationSessions.set(workspace, {
     ...session,
     idleTimer: null,
-    idleDeadlineAt: Date.now() + WINDOW_IDLE_TIMEOUT
+    idleDeadlineAt: Date.now() + getIdleTimeout(workspace)
   });
+}
+async function resolveCommandTabId(cmd) {
+  if (cmd.page) return resolveTabId$1(cmd.page);
+  return cmd.tabId;
 }
 async function resolveTab(tabId, workspace, initialUrl) {
   if (tabId !== void 0) {
@@ -636,6 +703,10 @@ async function resolveTab(tabId, workspace, initialUrl) {
   if (!newTab.id) throw new Error("Failed to create tab in automation window");
   return { tabId: newTab.id, tab: newTab };
 }
+async function pageScopedResult(id, tabId, data) {
+  const page = await resolveTargetId(tabId);
+  return { id, ok: true, data, page };
+}
 async function resolveTabId(tabId, workspace, initialUrl) {
   const resolved = await resolveTab(tabId, workspace, initialUrl);
   return resolved.tabId;
@@ -664,11 +735,12 @@ async function listAutomationWebTabs(workspace) {
 }
 async function handleExec(cmd, workspace) {
   if (!cmd.code) return { id: cmd.id, ok: false, error: "Missing code" };
-  const tabId = await resolveTabId(cmd.tabId, workspace);
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, workspace);
   try {
-    const aggressive = workspace.startsWith("operate:");
+    const aggressive = workspace.startsWith("browser:") || workspace.startsWith("operate:");
     const data = await evaluateAsync(tabId, cmd.code, aggressive);
-    return { id: cmd.id, ok: true, data };
+    return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
@@ -678,19 +750,18 @@ async function handleNavigate(cmd, workspace) {
   if (!isSafeNavigationUrl(cmd.url)) {
     return { id: cmd.id, ok: false, error: "Blocked URL scheme -- only http:// and https:// are allowed" };
   }
-  const resolved = await resolveTab(cmd.tabId, workspace, cmd.url);
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const resolved = await resolveTab(cmdTabId, workspace, cmd.url);
   const tabId = resolved.tabId;
   const beforeTab = resolved.tab ?? await chrome.tabs.get(tabId);
   const beforeNormalized = normalizeUrlForComparison(beforeTab.url);
   const targetUrl = cmd.url;
   if (beforeTab.status === "complete" && isTargetUrl(beforeTab.url, targetUrl)) {
-    return {
-      id: cmd.id,
-      ok: true,
-      data: { title: beforeTab.title, url: beforeTab.url, tabId, timedOut: false }
-    };
+    return pageScopedResult(cmd.id, tabId, { title: beforeTab.title, url: beforeTab.url, timedOut: false });
   }
-  await detach(tabId);
+  if (!hasActiveNetworkCapture(tabId)) {
+    await detach(tabId);
+  }
   await chrome.tabs.update(tabId, { url: targetUrl });
   let timedOut = false;
   await new Promise((resolve) => {
@@ -741,22 +812,19 @@ async function handleNavigate(cmd, workspace) {
       console.warn(`[opencli] Failed to recover drifted tab: ${moveErr}`);
     }
   }
-  return {
-    id: cmd.id,
-    ok: true,
-    data: { title: tab.title, url: tab.url, tabId, timedOut }
-  };
+  return pageScopedResult(cmd.id, tabId, { title: tab.title, url: tab.url, timedOut });
 }
 async function handleTabs(cmd, workspace) {
   switch (cmd.op) {
     case "list": {
       const tabs = await listAutomationWebTabs(workspace);
-      const data = tabs.map((t, i) => ({
-        index: i,
-        tabId: t.id,
-        url: t.url,
-        title: t.title,
-        active: t.active
+      const data = await Promise.all(tabs.map(async (t, i) => {
+        let page;
+        try {
+          page = t.id ? await resolveTargetId(t.id) : void 0;
+        } catch {
+        }
+        return { index: i, page, url: t.url, title: t.title, active: t.active };
       }));
       return { id: cmd.id, ok: true, data };
     }
@@ -766,44 +834,49 @@ async function handleTabs(cmd, workspace) {
       }
       const windowId = await getAutomationWindow(workspace);
       const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
-      return { id: cmd.id, ok: true, data: { tabId: tab.id, url: tab.url } };
+      if (!tab.id) return { id: cmd.id, ok: false, error: "Failed to create tab" };
+      return pageScopedResult(cmd.id, tab.id, { url: tab.url });
     }
     case "close": {
       if (cmd.index !== void 0) {
         const tabs = await listAutomationWebTabs(workspace);
         const target = tabs[cmd.index];
         if (!target?.id) return { id: cmd.id, ok: false, error: `Tab index ${cmd.index} not found` };
+        const closedPage2 = await resolveTargetId(target.id).catch(() => void 0);
         await chrome.tabs.remove(target.id);
         await detach(target.id);
-        return { id: cmd.id, ok: true, data: { closed: target.id } };
+        return { id: cmd.id, ok: true, data: { closed: closedPage2 } };
       }
-      const tabId = await resolveTabId(cmd.tabId, workspace);
+      const cmdTabId = await resolveCommandTabId(cmd);
+      const tabId = await resolveTabId(cmdTabId, workspace);
+      const closedPage = await resolveTargetId(tabId).catch(() => void 0);
       await chrome.tabs.remove(tabId);
       await detach(tabId);
-      return { id: cmd.id, ok: true, data: { closed: tabId } };
+      return { id: cmd.id, ok: true, data: { closed: closedPage } };
     }
     case "select": {
-      if (cmd.index === void 0 && cmd.tabId === void 0)
-        return { id: cmd.id, ok: false, error: "Missing index or tabId" };
-      if (cmd.tabId !== void 0) {
+      if (cmd.index === void 0 && cmd.page === void 0 && cmd.tabId === void 0)
+        return { id: cmd.id, ok: false, error: "Missing index or page" };
+      const cmdTabId = await resolveCommandTabId(cmd);
+      if (cmdTabId !== void 0) {
         const session = automationSessions.get(workspace);
         let tab;
         try {
-          tab = await chrome.tabs.get(cmd.tabId);
+          tab = await chrome.tabs.get(cmdTabId);
         } catch {
-          return { id: cmd.id, ok: false, error: `Tab ${cmd.tabId} no longer exists` };
+          return { id: cmd.id, ok: false, error: `Page no longer exists` };
         }
         if (!session || tab.windowId !== session.windowId) {
-          return { id: cmd.id, ok: false, error: `Tab ${cmd.tabId} is not in the automation window` };
+          return { id: cmd.id, ok: false, error: `Page is not in the automation window` };
         }
-        await chrome.tabs.update(cmd.tabId, { active: true });
-        return { id: cmd.id, ok: true, data: { selected: cmd.tabId } };
+        await chrome.tabs.update(cmdTabId, { active: true });
+        return pageScopedResult(cmd.id, cmdTabId, { selected: true });
       }
       const tabs = await listAutomationWebTabs(workspace);
       const target = tabs[cmd.index];
       if (!target?.id) return { id: cmd.id, ok: false, error: `Tab index ${cmd.index} not found` };
       await chrome.tabs.update(target.id, { active: true });
-      return { id: cmd.id, ok: true, data: { selected: target.id } };
+      return pageScopedResult(cmd.id, target.id, { selected: true });
     }
     default:
       return { id: cmd.id, ok: false, error: `Unknown tabs op: ${cmd.op}` };
@@ -829,14 +902,15 @@ async function handleCookies(cmd) {
   return { id: cmd.id, ok: true, data };
 }
 async function handleScreenshot(cmd, workspace) {
-  const tabId = await resolveTabId(cmd.tabId, workspace);
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, workspace);
   try {
     const data = await screenshot(tabId, {
       format: cmd.format,
       quality: cmd.quality,
       fullPage: cmd.fullPage
     });
-    return { id: cmd.id, ok: true, data };
+    return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
@@ -868,16 +942,17 @@ async function handleCdp(cmd, workspace) {
   if (!CDP_ALLOWLIST.has(cmd.cdpMethod)) {
     return { id: cmd.id, ok: false, error: `CDP method not permitted: ${cmd.cdpMethod}` };
   }
-  const tabId = await resolveTabId(cmd.tabId, workspace);
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, workspace);
   try {
-    const aggressive = workspace.startsWith("operate:");
+    const aggressive = workspace.startsWith("browser:") || workspace.startsWith("operate:");
     await ensureAttached(tabId, aggressive);
     const data = await chrome.debugger.sendCommand(
       { tabId },
       cmd.cdpMethod,
       cmd.cdpParams ?? {}
     );
-    return { id: cmd.id, ok: true, data };
+    return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
@@ -892,6 +967,7 @@ async function handleCloseWindow(cmd, workspace) {
       }
     }
     if (session.idleTimer) clearTimeout(session.idleTimer);
+    workspaceTimeoutOverrides.delete(workspace);
     automationSessions.delete(workspace);
   }
   return { id: cmd.id, ok: true, data: { closed: true } };
@@ -900,10 +976,11 @@ async function handleSetFileInput(cmd, workspace) {
   if (!cmd.files || !Array.isArray(cmd.files) || cmd.files.length === 0) {
     return { id: cmd.id, ok: false, error: "Missing or empty files array" };
   }
-  const tabId = await resolveTabId(cmd.tabId, workspace);
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, workspace);
   try {
     await setFileInputFiles(tabId, cmd.files, cmd.selector);
-    return { id: cmd.id, ok: true, data: { count: cmd.files.length } };
+    return pageScopedResult(cmd.id, tabId, { count: cmd.files.length });
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
@@ -912,28 +989,31 @@ async function handleInsertText(cmd, workspace) {
   if (typeof cmd.text !== "string") {
     return { id: cmd.id, ok: false, error: "Missing text payload" };
   }
-  const tabId = await resolveTabId(cmd.tabId, workspace);
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, workspace);
   try {
     await insertText(tabId, cmd.text);
-    return { id: cmd.id, ok: true, data: { inserted: true } };
+    return pageScopedResult(cmd.id, tabId, { inserted: true });
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 async function handleNetworkCaptureStart(cmd, workspace) {
-  const tabId = await resolveTabId(cmd.tabId, workspace);
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, workspace);
   try {
     await startNetworkCapture(tabId, cmd.pattern);
-    return { id: cmd.id, ok: true, data: { started: true } };
+    return pageScopedResult(cmd.id, tabId, { started: true });
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 async function handleNetworkCaptureRead(cmd, workspace) {
-  const tabId = await resolveTabId(cmd.tabId, workspace);
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, workspace);
   try {
     const data = await readNetworkCapture(tabId);
-    return { id: cmd.id, ok: true, data };
+    return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
@@ -967,15 +1047,9 @@ async function handleBindCurrent(cmd, workspace) {
   });
   resetWindowIdleTimer(workspace);
   console.log(`[opencli] Workspace ${workspace} explicitly bound to tab ${boundTab.id} (${boundTab.url})`);
-  return {
-    id: cmd.id,
-    ok: true,
-    data: {
-      tabId: boundTab.id,
-      windowId: boundTab.windowId,
-      url: boundTab.url,
-      title: boundTab.title,
-      workspace
-    }
-  };
+  return pageScopedResult(cmd.id, boundTab.id, {
+    url: boundTab.url,
+    title: boundTab.title,
+    workspace
+  });
 }

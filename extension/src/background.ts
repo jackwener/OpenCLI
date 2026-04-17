@@ -118,7 +118,9 @@ function scheduleReconnect(): void {
 // ─── Automation window isolation ─────────────────────────────────────
 // All opencli operations happen in a dedicated Chrome window so the
 // user's active browsing session is never touched.
-// The window auto-closes after 120s of idle (no commands).
+// The window auto-closes after a period of idle (no commands).
+// Interactive workspaces (browser:*, operate:*) get a longer timeout (10 min)
+// since users type commands manually; adapter workspaces keep a short 30s timeout.
 
 type AutomationSession = {
   windowId: number;
@@ -129,7 +131,21 @@ type AutomationSession = {
 };
 
 const automationSessions = new Map<string, AutomationSession>();
-const WINDOW_IDLE_TIMEOUT = 30000; // 30s — quick cleanup after command finishes
+const IDLE_TIMEOUT_DEFAULT = 30_000;      // 30s — adapter-driven automation
+const IDLE_TIMEOUT_INTERACTIVE = 600_000; // 10min — human-paced browser:* / operate:*
+
+/** Per-workspace custom timeout overrides set via command.idleTimeout */
+const workspaceTimeoutOverrides = new Map<string, number>();
+
+function getIdleTimeout(workspace: string): number {
+  const override = workspaceTimeoutOverrides.get(workspace);
+  if (override !== undefined) return override;
+  if (workspace.startsWith('browser:') || workspace.startsWith('operate:')) {
+    return IDLE_TIMEOUT_INTERACTIVE;
+  }
+  return IDLE_TIMEOUT_DEFAULT;
+}
+
 let windowFocused = false; // set per-command from daemon's OPENCLI_WINDOW_FOCUSED
 
 function getWorkspaceKey(workspace?: string): string {
@@ -140,23 +156,26 @@ function resetWindowIdleTimer(workspace: string): void {
   const session = automationSessions.get(workspace);
   if (!session) return;
   if (session.idleTimer) clearTimeout(session.idleTimer);
-  session.idleDeadlineAt = Date.now() + WINDOW_IDLE_TIMEOUT;
+  const timeout = getIdleTimeout(workspace);
+  session.idleDeadlineAt = Date.now() + timeout;
   session.idleTimer = setTimeout(async () => {
     const current = automationSessions.get(workspace);
     if (!current) return;
     if (!current.owned) {
       console.log(`[opencli] Borrowed workspace ${workspace} detached from window ${current.windowId} (idle timeout)`);
+      workspaceTimeoutOverrides.delete(workspace);
       automationSessions.delete(workspace);
       return;
     }
     try {
       await chrome.windows.remove(current.windowId);
-      console.log(`[opencli] Automation window ${current.windowId} (${workspace}) closed (idle timeout)`);
+      console.log(`[opencli] Automation window ${current.windowId} (${workspace}) closed (idle timeout, ${timeout / 1000}s)`);
     } catch {
       // Already gone
     }
+    workspaceTimeoutOverrides.delete(workspace);
     automationSessions.delete(workspace);
-  }, WINDOW_IDLE_TIMEOUT);
+  }, timeout);
 }
 
 /** Get or create the dedicated automation window.
@@ -191,7 +210,7 @@ async function getAutomationWindow(workspace: string, initialUrl?: string): Prom
   const session: AutomationSession = {
     windowId: win.id!,
     idleTimer: null,
-    idleDeadlineAt: Date.now() + WINDOW_IDLE_TIMEOUT,
+    idleDeadlineAt: Date.now() + getIdleTimeout(workspace),
     owned: true,
     preferredTabId: null,
   };
@@ -229,6 +248,7 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
       console.log(`[opencli] Automation window closed (${workspace})`);
       if (session.idleTimer) clearTimeout(session.idleTimer);
       automationSessions.delete(workspace);
+      workspaceTimeoutOverrides.delete(workspace);
     }
   }
 });
@@ -280,6 +300,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 async function handleCommand(cmd: Command): Promise<Result> {
   const workspace = getWorkspaceKey(cmd.workspace);
   windowFocused = cmd.windowFocused === true;
+  // Apply custom idle timeout if specified in the command
+  if (cmd.idleTimeout != null && cmd.idleTimeout > 0) {
+    workspaceTimeoutOverrides.set(workspace, cmd.idleTimeout * 1000);
+  }
   // Reset idle timer on every command (window stays alive while active)
   resetWindowIdleTimer(workspace);
   try {
@@ -387,7 +411,7 @@ function setWorkspaceSession(workspace: string, session: Omit<AutomationSession,
   automationSessions.set(workspace, {
     ...session,
     idleTimer: null,
-    idleDeadlineAt: Date.now() + WINDOW_IDLE_TIMEOUT,
+    idleDeadlineAt: Date.now() + getIdleTimeout(workspace),
   });
 }
 
@@ -781,6 +805,7 @@ async function handleCloseWindow(cmd: Command, workspace: string): Promise<Resul
       }
     }
     if (session.idleTimer) clearTimeout(session.idleTimer);
+    workspaceTimeoutOverrides.delete(workspace);
     automationSessions.delete(workspace);
   }
   return { id: cmd.id, ok: true, data: { closed: true } };
@@ -886,6 +911,9 @@ export const __test__ = {
   handleBindCurrent,
   resolveTabId,
   resetWindowIdleTimer,
+  handleCommand,
+  getIdleTimeout,
+  workspaceTimeoutOverrides,
   getSession: (workspace: string = 'default') => automationSessions.get(workspace) ?? null,
   getAutomationWindowId: (workspace: string = 'default') => automationSessions.get(workspace)?.windowId ?? null,
   setAutomationWindowId: (workspace: string, windowId: number | null) => {

@@ -31,7 +31,13 @@ const CLI_FILE = fileURLToPath(import.meta.url);
 async function getBrowserPage(): Promise<import('./types.js').IPage> {
   const { BrowserBridge } = await import('./browser/index.js');
   const bridge = new BrowserBridge();
-  return bridge.connect({ timeout: 30, workspace: 'browser:default' });
+  const envTimeout = process.env.OPENCLI_BROWSER_TIMEOUT;
+  const idleTimeout = envTimeout ? parseInt(envTimeout, 10) : undefined;
+  return bridge.connect({
+    timeout: 30,
+    workspace: 'browser:default',
+    ...(idleTimeout && idleTimeout > 0 && { idleTimeout }),
+  });
 }
 
 function parsePositiveIntOption(val: string | undefined, label: string, fallback: number): number {

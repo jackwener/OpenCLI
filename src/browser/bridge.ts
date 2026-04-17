@@ -30,7 +30,7 @@ export class BrowserBridge implements IBrowserFactory {
     return this._state;
   }
 
-  async connect(opts: { timeout?: number; workspace?: string } = {}): Promise<IPage> {
+  async connect(opts: { timeout?: number; workspace?: string; idleTimeout?: number } = {}): Promise<IPage> {
     if (this._state === 'connected' && this._page) return this._page;
     if (this._state === 'connecting') throw new Error('Already connecting');
     if (this._state === 'closing') throw new Error('Session is closing');
@@ -40,7 +40,7 @@ export class BrowserBridge implements IBrowserFactory {
 
     try {
       await this._ensureDaemon(opts.timeout);
-      this._page = new Page(opts.workspace);
+      this._page = new Page(opts.workspace, opts.idleTimeout);
       this._state = 'connected';
       return this._page;
     } catch (err) {
