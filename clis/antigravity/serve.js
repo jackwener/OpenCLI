@@ -13,7 +13,6 @@ import { createServer } from 'node:http';
 import { CDPBridge } from '@jackwener/opencli/browser/cdp';
 import { resolveElectronEndpoint } from '@jackwener/opencli/launcher';
 import { EXIT_CODES, getErrorMessage } from '@jackwener/opencli/errors';
-import { parseEnvTimeout, parseTimeoutValue } from '../../src/runtime.js';
 // ─── Helpers ─────────────────────────────────────────────────────────
 function generateMsgId() {
     const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -54,6 +53,20 @@ function jsonResponse(res, status, data) {
 }
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+function parseTimeoutValue(val, label, fallback) {
+    if (val === undefined) {
+        return fallback;
+    }
+    const parsed = typeof val === 'number' ? val : parseInt(String(val), 10);
+    if (Number.isNaN(parsed) || parsed <= 0) {
+        console.error(`[serve] Invalid ${label}="${val}", using default ${fallback}s`);
+        return fallback;
+    }
+    return parsed;
+}
+function parseEnvTimeout(envVar, fallback) {
+    return parseTimeoutValue(process.env[envVar], envVar, fallback);
 }
 // ─── DOM helpers ─────────────────────────────────────────────────────
 /**
