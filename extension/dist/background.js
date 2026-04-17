@@ -1060,3 +1060,4 @@ async function handleBindCurrent(cmd, workspace) {
     workspace
   });
 }
+initialize();

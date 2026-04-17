@@ -937,3 +937,8 @@ export const __test__ = {
     setWorkspaceSession(workspace, session);
   },
 };
+
+// MV3 service workers can be spun up outside install/startup events.
+// Initialize eagerly on module load so a freshly loaded unpacked extension
+// still connects to the daemon and registers listeners immediately.
+initialize();
