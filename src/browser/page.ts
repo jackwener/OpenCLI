@@ -108,6 +108,16 @@ export class Page extends BasePage {
     return this._page;
   }
 
+  /** Bind this Page instance to a specific page identity (targetId). */
+  setActivePage(page?: string): void {
+    this._page = page;
+    this._lastUrl = null;
+  }
+
+  /** @deprecated Use getActivePage() instead */
+  getActiveTabId(): number | undefined {
+    return undefined;
+  }
   private _markUnsupportedNetworkCapture(): void {
     this._networkCaptureUnsupported = true;
     if (this._networkCaptureWarned) return;
@@ -154,9 +164,40 @@ export class Page extends BasePage {
     return Array.isArray(result) ? result : [];
   }
 
-  async selectTab(index: number): Promise<void> {
-    const result = await sendCommandFull('tabs', { op: 'select', index, ...this._wsOpt() });
+  async newTab(url?: string): Promise<string | undefined> {
+    const result = await sendCommandFull('tabs', {
+      op: 'new',
+      ...(url !== undefined && { url }),
+      ...this._wsOpt(),
+    });
     if (result.page) this._page = result.page;
+    this._lastUrl = null;
+    return result.page;
+  }
+
+  async closeTab(target?: number | string): Promise<void> {
+    const params: Record<string, unknown> = { op: 'close', ...this._wsOpt() };
+    if (typeof target === 'number') params.index = target;
+    else if (typeof target === 'string') params.page = target;
+    else if (this._page !== undefined) params.page = this._page;
+
+    const result = await sendCommand('tabs', params) as { closed?: string } | null;
+    const closedPage = typeof result?.closed === 'string' ? result.closed : undefined;
+
+    if ((closedPage && closedPage === this._page) || (!closedPage && (target === undefined || target === this._page))) {
+      this._page = undefined;
+      this._lastUrl = null;
+    }
+  }
+
+  async selectTab(target: number | string): Promise<void> {
+    const result = await sendCommandFull('tabs', {
+      op: 'select',
+      ...(typeof target === 'number' ? { index: target } : { page: target }),
+      ...this._wsOpt(),
+    });
+    if (result.page) this._page = result.page;
+    this._lastUrl = null;
   }
 
   /**

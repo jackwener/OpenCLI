@@ -57,7 +57,7 @@ export abstract class BasePage implements IPage {
   abstract getCookies(opts?: { domain?: string; url?: string }): Promise<BrowserCookie[]>;
   abstract screenshot(options?: ScreenshotOptions): Promise<string>;
   abstract tabs(): Promise<unknown[]>;
-  abstract selectTab(index: number): Promise<void>;
+  abstract selectTab(target: number | string): Promise<void>;
 
   // ── Shared DOM helper implementations ──
 

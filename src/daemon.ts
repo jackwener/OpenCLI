@@ -173,6 +173,14 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const timeoutMs = typeof body.timeout === 'number' && body.timeout > 0
         ? body.timeout * 1000
         : 120000;
+      if (pending.has(body.id)) {
+        jsonResponse(res, 409, {
+          id: body.id,
+          ok: false,
+          error: 'Duplicate command id already pending; retry',
+        });
+        return;
+      }
       const result = await new Promise<unknown>((resolve, reject) => {
         const timer = setTimeout(() => {
           pending.delete(body.id);

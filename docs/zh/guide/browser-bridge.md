@@ -23,6 +23,27 @@ OpenCLI 通过轻量级 **Browser Bridge** Chrome 扩展 + 微守护进程连接
 opencli doctor            # 检查扩展 + 守护进程连接
 ```
 
+## 多 Tab 定位
+
+浏览器命令默认运行在共享的 `browser:default` workspace 中；如果需要操作指定 tab，可以显式传目标 target。
+
+```bash
+opencli browser tab list
+opencli browser tab new https://www.baidu.com/
+opencli browser eval --tab <targetId> 'document.title'
+opencli browser tab select <targetId>
+opencli browser get title
+opencli browser tab close <targetId>
+```
+
+规则如下：
+
+- `opencli browser tab list` 会打印当前 tab 的 `targetId`。
+- `--tab <targetId>` 会把单条 browser 命令路由到对应 tab。
+- `tab new` 只会新建 tab，不会改变默认浏览器目标。
+- `tab select <targetId>` 会把该 tab 设为后续未显式指定 target 的 `opencli browser ...` 命令默认目标。
+- `tab close <targetId>` 会关闭该 tab；如果它正好是当前默认目标，会一并清掉这条默认绑定。
+
 ## Daemon 生命周期
 
 Daemon 在首次运行浏览器命令时自动启动，之后保持常驻运行。

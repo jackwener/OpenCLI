@@ -58,9 +58,9 @@ export interface IPage {
   getFormState(): Promise<any>;
   wait(options: number | WaitOptions): Promise<void>;
   tabs(): Promise<any>;
-  closeTab?(index?: number): Promise<void>;
-  newTab?(): Promise<void>;
-  selectTab(index: number): Promise<void>;
+  closeTab?(target?: number | string): Promise<void>;
+  newTab?(url?: string): Promise<string | undefined>;
+  selectTab(target: number | string): Promise<void>;
   networkRequests(includeStatic?: boolean): Promise<any>;
   consoleMessages(level?: string): Promise<any>;
   scroll(direction?: string, amount?: number): Promise<void>;
@@ -86,6 +86,10 @@ export interface IPage {
   getCurrentUrl?(): Promise<string | null>;
   /** Returns the active page identity (targetId), or undefined if not yet resolved. */
   getActivePage?(): string | undefined;
+  /** Bind the page object to a specific page identity (targetId). */
+  setActivePage?(page?: string): void;
+  /** @deprecated Use getActivePage() instead */
+  getActiveTabId?(): number | undefined;
   /** Send a raw CDP command via chrome.debugger passthrough. */
   cdp?(method: string, params?: Record<string, unknown>): Promise<unknown>;
   /** Click at native coordinates via CDP Input.dispatchMouseEvent. */

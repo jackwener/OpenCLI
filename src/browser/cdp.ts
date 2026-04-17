@@ -339,7 +339,7 @@ class CDPPage extends BasePage {
     return [];
   }
 
-  async selectTab(_index: number): Promise<void> {
+  async selectTab(_target: number | string): Promise<void> {
     // Not supported in direct CDP mode
   }
 }

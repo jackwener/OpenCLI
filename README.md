@@ -112,6 +112,10 @@ The agent handles all the `opencli browser` commands internally — you just des
 - [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md) — real-time browser operation
 - [`skills/opencli-explorer/SKILL.md`](./skills/opencli-explorer/SKILL.md) — adapter creation workflow
 
+Available browser commands include `open`, `state`, `click`, `type`, `select`, `keys`, `wait`, `get`, `screenshot`, `scroll`, `back`, `eval`, `network`, `tab list`, `tab new`, `tab select`, `tab close`, `init`, `verify`, and `close`.
+
+Use `opencli browser tab list` to inspect tab target IDs, then pass `--tab <targetId>` to route a command to a specific tab. `tab new` creates a new tab without changing the default browser target; only `tab select <targetId>` promotes that tab to the default target for later untargeted `opencli browser ...` commands.
+
 ## Core Concepts
 
 ### `browser`: AI Agent browser control

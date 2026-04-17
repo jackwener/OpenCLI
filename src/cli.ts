@@ -6,6 +6,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
@@ -26,18 +27,147 @@ import { daemonStatus, daemonStop } from './commands/daemon.js';
 import { log } from './logger.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
+const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
+const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity from "browser tab list"';
+
+type BrowserNetworkItem = {
+  url: string;
+  method: string;
+  status: number;
+  size: number;
+  ct: string;
+  body: unknown;
+};
+
+type BrowserTargetState = {
+  defaultPage?: string;
+  updatedAt: string;
+};
+
+type BrowserTabSummary = {
+  page?: string;
+};
+
+function getBrowserCacheDir(): string {
+  return process.env.OPENCLI_CACHE_DIR || path.join(os.homedir(), '.opencli', 'cache');
+}
+
+function getBrowserTargetStatePath(scope: string = DEFAULT_BROWSER_WORKSPACE): string {
+  const safeWorkspace = scope.replace(/[^a-zA-Z0-9_-]+/g, '_');
+  return path.join(getBrowserCacheDir(), 'browser-state', `${safeWorkspace}.json`);
+}
+
+function loadBrowserTargetState(scope: string = DEFAULT_BROWSER_WORKSPACE): BrowserTargetState | null {
+  try {
+    const raw = fs.readFileSync(getBrowserTargetStatePath(scope), 'utf-8');
+    const parsed = JSON.parse(raw) as BrowserTargetState | null;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveBrowserTargetState(defaultPage?: string, scope: string = DEFAULT_BROWSER_WORKSPACE): void {
+  const target = getBrowserTargetStatePath(scope);
+  if (!defaultPage) {
+    fs.rmSync(target, { force: true });
+    return;
+  }
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, JSON.stringify({ defaultPage, updatedAt: new Date().toISOString() }), 'utf-8');
+}
+
+function hasBrowserTabTarget(tabs: unknown[], targetPage: string): boolean {
+  return tabs.some((tab) => {
+    return typeof tab === 'object'
+      && tab !== null
+      && 'page' in tab
+      && typeof (tab as BrowserTabSummary).page === 'string'
+      && (tab as BrowserTabSummary).page === targetPage;
+  });
+}
+
+async function resolveBrowserTargetInSession(
+  page: import('./types.js').IPage,
+  targetPage: string,
+  opts: { scope?: string; source: 'explicit' | 'saved' },
+): Promise<string | undefined> {
+  const candidate = targetPage.trim();
+  if (!candidate) return undefined;
+
+  let tabs: unknown[];
+  try {
+    tabs = await page.tabs();
+  } catch (err) {
+    if (opts.source === 'saved') {
+      saveBrowserTargetState(undefined, opts.scope);
+      return undefined;
+    }
+    throw new Error(
+      `Target tab ${candidate} could not be validated in the current browser session. ` +
+      'The Browser Bridge workspace may have restarted; re-run "opencli browser tab list" and choose a current target.',
+      { cause: err },
+    );
+  }
+
+  if (Array.isArray(tabs) && hasBrowserTabTarget(tabs, candidate)) {
+    return candidate;
+  }
+
+  if (opts.source === 'saved') {
+    saveBrowserTargetState(undefined, opts.scope);
+    return undefined;
+  }
+
+  throw new Error(
+    `Target tab ${candidate} is not part of the current browser session. ` +
+    'The Browser Bridge workspace may have restarted; re-run "opencli browser tab list" and choose a current target.',
+  );
+}
+
+async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scope: string = DEFAULT_BROWSER_WORKSPACE): Promise<string | undefined> {
+  const defaultPage = loadBrowserTargetState(scope)?.defaultPage?.trim();
+  if (!defaultPage) return undefined;
+  return resolveBrowserTargetInSession(page, defaultPage, { scope, source: 'saved' });
+}
 
 /** Create a browser page for browser commands. Uses a dedicated browser workspace for session persistence. */
-async function getBrowserPage(): Promise<import('./types.js').IPage> {
+async function getBrowserPage(targetPage?: string): Promise<import('./types.js').IPage> {
   const { BrowserBridge } = await import('./browser/index.js');
   const bridge = new BrowserBridge();
   const envTimeout = process.env.OPENCLI_BROWSER_TIMEOUT;
   const idleTimeout = envTimeout ? parseInt(envTimeout, 10) : undefined;
-  return bridge.connect({
+  const page = await bridge.connect({
     timeout: 30,
-    workspace: 'browser:default',
+    workspace: DEFAULT_BROWSER_WORKSPACE,
     ...(idleTimeout && idleTimeout > 0 && { idleTimeout }),
   });
+  const resolvedTargetPage = targetPage
+    ? await resolveBrowserTargetInSession(page, targetPage, { scope: DEFAULT_BROWSER_WORKSPACE, source: 'explicit' })
+    : await resolveStoredBrowserTarget(page, DEFAULT_BROWSER_WORKSPACE);
+  if (resolvedTargetPage) {
+    if (!page.setActivePage) {
+      throw new Error('This browser session does not support explicit tab targeting');
+    }
+    page.setActivePage(resolvedTargetPage);
+  }
+  return page;
+}
+
+function addBrowserTabOption(command: Command): Command {
+  return command.option('--tab <targetId>', BROWSER_TAB_OPTION_DESCRIPTION);
+}
+
+function getBrowserTargetId(command?: Command): string | undefined {
+  if (!command) return undefined;
+  const opts = command.optsWithGlobals ? command.optsWithGlobals() : command.opts();
+  return typeof opts.tab === 'string' && opts.tab.trim() ? opts.tab.trim() : undefined;
+}
+
+function resolveBrowserTabTarget(targetId?: string, opts?: { tab?: string }): string | undefined {
+  if (typeof targetId === 'string' && targetId.trim()) return targetId.trim();
+  if (typeof opts?.tab === 'string' && opts.tab.trim()) return opts.tab.trim();
+  return undefined;
 }
 
 function parsePositiveIntOption(val: string | undefined, label: string, fallback: number): number {
@@ -324,7 +454,9 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   function browserAction(fn: (page: Awaited<ReturnType<typeof getBrowserPage>>, ...args: any[]) => Promise<unknown>) {
     return async (...args: any[]) => {
       try {
-        const page = await getBrowserPage();
+        const command = args.at(-1) instanceof Command ? args.at(-1) as Command : undefined;
+        const targetPage = getBrowserTargetId(command);
+        const page = await getBrowserPage(targetPage);
         await fn(page, ...args);
       } catch (err) {
         if (err instanceof BrowserConnectError) {
@@ -350,12 +482,75 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     };
   }
 
+  const browserTab = browser
+    .command('tab')
+    .description('Tab management — list, create, and close tabs in the automation window');
+
+  browserTab.command('list')
+    .description('List tabs in the automation window with target IDs')
+    .action(browserAction(async (page) => {
+      const tabs = await page.tabs();
+      console.log(JSON.stringify(tabs, null, 2));
+    }));
+
+  browserTab.command('new')
+    .argument('[url]', 'Optional URL to open in the new tab')
+    .description('Create a new tab and print its target ID')
+    .action(browserAction(async (page, url?: string) => {
+      if (!page.newTab) {
+        throw new Error('This browser session does not support creating tabs');
+      }
+      const createdPage = await page.newTab(url);
+      console.log(JSON.stringify({
+        page: createdPage,
+        url: url ?? null,
+      }, null, 2));
+    }));
+
+  addBrowserTabOption(browserTab.command('select')
+    .argument('[targetId]', 'Target tab/page identity from "browser tab list"')
+    .description('Select a tab by target ID and make it the default browser tab'))
+    .action(browserAction(async (page, targetId?: string, opts?: { tab?: string }) => {
+      const resolvedTarget = resolveBrowserTabTarget(targetId, opts);
+      if (!resolvedTarget) {
+        throw new Error('Target tab required. Pass it as an argument or --tab <targetId>.');
+      }
+      await page.selectTab(resolvedTarget);
+      saveBrowserTargetState(resolvedTarget, DEFAULT_BROWSER_WORKSPACE);
+      console.log(JSON.stringify({ selected: resolvedTarget }, null, 2));
+    }));
+
+  addBrowserTabOption(browserTab.command('close')
+    .argument('[targetId]', 'Target tab/page identity from "browser tab list"')
+    .description('Close a tab by target ID'))
+    .action(browserAction(async (page, targetId?: string, opts?: { tab?: string }) => {
+      const resolvedTarget = resolveBrowserTabTarget(targetId, opts);
+      if (!page.closeTab) {
+        throw new Error('This browser session does not support closing tabs');
+      }
+      if (!resolvedTarget) {
+        throw new Error('Target tab required. Pass it as an argument or --tab <targetId>.');
+      }
+      const validatedTarget = await resolveBrowserTargetInSession(page, resolvedTarget, {
+        scope: DEFAULT_BROWSER_WORKSPACE,
+        source: 'explicit',
+      });
+      if (!validatedTarget) {
+        throw new Error(`Target tab ${resolvedTarget} is not part of the current browser session.`);
+      }
+      await page.closeTab(validatedTarget);
+      if (loadBrowserTargetState(DEFAULT_BROWSER_WORKSPACE)?.defaultPage === validatedTarget) {
+        saveBrowserTargetState(undefined, DEFAULT_BROWSER_WORKSPACE);
+      }
+      console.log(JSON.stringify({ closed: validatedTarget }, null, 2));
+    }));
+
   // ── Navigation ──
 
   /** Network interceptor JS — injected on every open/navigate to capture fetch/XHR */
   const NETWORK_INTERCEPTOR_JS = `(function(){if(window.__opencli_net)return;window.__opencli_net=[];var M=200,B=50000,F=window.fetch;window.fetch=async function(){var r=await F.apply(this,arguments);try{var ct=r.headers.get('content-type')||'';if(ct.includes('json')||ct.includes('text')){var c=r.clone(),t=await c.text();if(window.__opencli_net.length<M){var b=null;if(t.length<=B)try{b=JSON.parse(t)}catch(e){b=t}window.__opencli_net.push({url:r.url||(arguments[0]&&arguments[0].url)||String(arguments[0]),method:(arguments[1]&&arguments[1].method)||'GET',status:r.status,size:t.length,ct:ct,body:b})}}}catch(e){}return r};var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(m,u){this._om=m;this._ou=u;return O.apply(this,arguments)};X.send=function(){var x=this;x.addEventListener('load',function(){try{var ct=x.getResponseHeader('content-type')||'';if((ct.includes('json')||ct.includes('text'))&&window.__opencli_net.length<M){var t=x.responseText,b=null;if(t&&t.length<=B)try{b=JSON.parse(t)}catch(e){b=t}window.__opencli_net.push({url:x._ou,method:x._om||'GET',status:x.status,size:t?t.length:0,ct:ct,body:b})}}catch(e){}});return S.apply(this,arguments)}})()`;
 
-  browser.command('open').argument('<url>').description('Open URL in automation window')
+  addBrowserTabOption(browser.command('open').argument('<url>').description('Open URL in automation window'))
     .action(browserAction(async (page, url) => {
       // Start session-level capture before navigation (catches initial requests)
       const hasSessionCapture = await page.startNetworkCapture?.() ?? false;
@@ -368,14 +563,14 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       console.log(`Navigated to: ${await page.getCurrentUrl?.() ?? url}`);
     }));
 
-  browser.command('back').description('Go back in browser history')
+  addBrowserTabOption(browser.command('back').description('Go back in browser history'))
     .action(browserAction(async (page) => {
       await page.evaluate('history.back()');
       await page.wait(2);
       console.log('Navigated back');
     }));
 
-  browser.command('scroll').argument('<direction>', 'up or down').option('--amount <pixels>', 'Pixels to scroll', '500')
+  addBrowserTabOption(browser.command('scroll').argument('<direction>', 'up or down').option('--amount <pixels>', 'Pixels to scroll', '500'))
     .description('Scroll page')
     .action(browserAction(async (page, direction, opts) => {
       if (direction !== 'up' && direction !== 'down') {
@@ -389,7 +584,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Inspect ──
 
-  browser.command('state').description('Page state: URL, title, interactive elements with [N] indices')
+  addBrowserTabOption(browser.command('state').description('Page state: URL, title, interactive elements with [N] indices'))
     .action(browserAction(async (page) => {
       const snapshot = await page.snapshot({ viewportExpand: 2000 });
       const url = await page.getCurrentUrl?.() ?? '';
@@ -397,7 +592,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       console.log(typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot, null, 2));
     }));
 
-  browser.command('screenshot').argument('[path]', 'Save to file (base64 if omitted)')
+  addBrowserTabOption(browser.command('screenshot').argument('[path]', 'Save to file (base64 if omitted)'))
     .description('Take screenshot')
     .action(browserAction(async (page, path) => {
       if (path) {
@@ -412,38 +607,38 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   const get = browser.command('get').description('Get page properties');
 
-  get.command('title').description('Page title')
+  addBrowserTabOption(get.command('title').description('Page title'))
     .action(browserAction(async (page) => {
       console.log(await page.evaluate('document.title'));
     }));
 
-  get.command('url').description('Current page URL')
+  addBrowserTabOption(get.command('url').description('Current page URL'))
     .action(browserAction(async (page) => {
       console.log(await page.getCurrentUrl?.() ?? await page.evaluate('location.href'));
     }));
 
-  get.command('text').argument('<index>', 'Element index').description('Element text content')
+  addBrowserTabOption(get.command('text').argument('<index>', 'Element index').description('Element text content'))
     .action(browserAction(async (page, index) => {
       await resolveRef(page, String(index));
       const text = await page.evaluate(getTextResolvedJs());
       console.log(text ?? '(empty)');
     }));
 
-  get.command('value').argument('<index>', 'Element index').description('Input/textarea value')
+  addBrowserTabOption(get.command('value').argument('<index>', 'Element index').description('Input/textarea value'))
     .action(browserAction(async (page, index) => {
       await resolveRef(page, String(index));
       const val = await page.evaluate(getValueResolvedJs());
       console.log(val ?? '(empty)');
     }));
 
-  get.command('html').option('--selector <css>', 'CSS selector scope').description('Page HTML (or scoped)')
+  addBrowserTabOption(get.command('html').option('--selector <css>', 'CSS selector scope').description('Page HTML (or scoped)'))
     .action(browserAction(async (page, opts) => {
       const sel = opts.selector ? JSON.stringify(opts.selector) : 'null';
       const html = await page.evaluate(`(${sel} ? document.querySelector(${sel})?.outerHTML : document.documentElement.outerHTML)?.slice(0, 50000)`);
       console.log(html ?? '(empty)');
     }));
 
-  get.command('attributes').argument('<index>', 'Element index').description('Element attributes')
+  addBrowserTabOption(get.command('attributes').argument('<index>', 'Element index').description('Element attributes'))
     .action(browserAction(async (page, index) => {
       await resolveRef(page, String(index));
       const attrs = await page.evaluate(getAttributesResolvedJs());
@@ -452,13 +647,13 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Interact ──
 
-  browser.command('click').argument('<index>', 'Element index from state').description('Click element by index')
+  addBrowserTabOption(browser.command('click').argument('<index>', 'Element index from state').description('Click element by index'))
     .action(browserAction(async (page, index) => {
       await page.click(index);
       console.log(`Clicked element [${index}]`);
     }));
 
-  browser.command('type').argument('<index>', 'Element index').argument('<text>', 'Text to type')
+  addBrowserTabOption(browser.command('type').argument('<index>', 'Element index').argument('<text>', 'Text to type'))
     .description('Click element, then type text')
     .action(browserAction(async (page, index, text) => {
       await page.click(index);
@@ -475,7 +670,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
     }));
 
-  browser.command('select').argument('<index>', 'Element index of <select>').argument('<option>', 'Option text')
+  addBrowserTabOption(browser.command('select').argument('<index>', 'Element index of <select>').argument('<option>', 'Option text'))
     .description('Select dropdown option')
     .action(browserAction(async (page, index, option) => {
       await resolveRef(page, String(index));
@@ -488,7 +683,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
     }));
 
-  browser.command('keys').argument('<key>', 'Key to press (Enter, Escape, Tab, Control+a)')
+  addBrowserTabOption(browser.command('keys').argument('<key>', 'Key to press (Enter, Escape, Tab, Control+a)'))
     .description('Press keyboard key')
     .action(browserAction(async (page, key) => {
       await page.pressKey(key);
@@ -497,7 +692,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Wait commands ──
 
-  browser.command('wait')
+  addBrowserTabOption(browser.command('wait'))
     .argument('<type>', 'selector, text, or time')
     .argument('[value]', 'CSS selector, text string, or seconds')
     .option('--timeout <ms>', 'Timeout in milliseconds', '10000')
@@ -524,7 +719,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Extract ──
 
-  browser.command('eval').argument('<js>', 'JavaScript code').description('Execute JS in page context, return result')
+  addBrowserTabOption(browser.command('eval').argument('<js>', 'JavaScript code').description('Execute JS in page context, return result'))
     .action(browserAction(async (page, js) => {
       const result = await page.evaluate(js);
       if (typeof result === 'string') console.log(result);
@@ -533,12 +728,12 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Network (API discovery) ──
 
-  browser.command('network')
+  addBrowserTabOption(browser.command('network'))
     .option('--detail <index>', 'Show full response body of request at index')
     .option('--all', 'Show all requests including static resources')
     .description('Show captured network requests (auto-captured since last open)')
     .action(browserAction(async (page, opts) => {
-      let items: Array<{ url: string; method: string; status: number; size: number; ct: string; body: unknown }> = [];
+      let items: BrowserNetworkItem[] = [];
       if (page.readNetworkCapture) {
         const raw = await page.readNetworkCapture();
         // Normalize daemon/CDP capture entries to __opencli_net shape.

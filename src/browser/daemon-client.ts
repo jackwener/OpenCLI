@@ -16,7 +16,7 @@ const OPENCLI_HEADERS = { 'X-OpenCLI': '1' };
 let _idCounter = 0;
 
 function generateId(): string {
-  return `cmd_${Date.now()}_${++_idCounter}`;
+  return `cmd_${process.pid}_${Date.now()}_${++_idCounter}`;
 }
 
 export interface DaemonCommand {
@@ -155,6 +155,11 @@ async function sendCommandRaw(
       const result = (await res.json()) as DaemonResult;
 
       if (!result.ok) {
+        const isDuplicateCommandId = res.status === 409
+          || (result.error ?? '').includes('Duplicate command id');
+        if (isDuplicateCommandId && attempt < maxRetries) {
+          continue;
+        }
         const advice = classifyBrowserError(new Error(result.error ?? ''));
         if (advice.retryable && attempt < maxRetries) {
           await sleep(advice.delayMs);
