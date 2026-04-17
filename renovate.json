@@ -1,0 +1,24 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "minimumReleaseAge": "90 days",
+  "rangeStrategy": "pin",
+  "packageRules": [
+    {
+      "matchDepTypes": ["dependencies", "devDependencies"],
+      "matchManagers": ["npm"],
+      "minimumReleaseAge": "90 days",
+      "automerge": false,
+      "dependencyDashboard": true
+    }
+  ],
+  "schedule": ["before 9am on monday"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 9am on the first day of the month"]
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"]
+  }
+}
