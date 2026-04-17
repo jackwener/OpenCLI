@@ -12,12 +12,14 @@ export const APP_IMAGE_KIND: Record<string, string> = {
   'change-product': 'scene',
   'change-background': 'scene',
   'gen-main': 'main',
+  'replica-listing-image': 'main',
   'gen-scene': 'scene',
   'gen-details': 'detail',
   'details-selling-points': 'detail',
   'add-selling-points': 'detail',
   'gen-multi-angles': 'multi-angle',
   'gen-size-compare': 'detail',
+  'gen-reference': 'edit',
   'creative-image-generation': 'social',
   'pattern-extraction': 'edit',
   'pattern-fission': 'edit',
@@ -30,7 +32,15 @@ export const APP_IMAGE_KIND: Record<string, string> = {
   'remove-face': 'edit',
 };
 
-const APP_POLICIES: Record<string, { platformDefaults?: boolean; fixedDefaults?: Record<string, string>; lockedFields?: string[] }> = {
+type AppPolicy = {
+  platformDefaults?: boolean;
+  fixedDefaults?: Record<string, string>;
+  lockedFields?: string[];
+  defaultEngine?: string;
+};
+
+const APP_POLICIES: Record<string, AppPolicy> = {
+  'replica-listing-image': { defaultEngine: 'google/gemini-3-pro-image-preview' },
   'pattern-extraction': { platformDefaults: false, fixedDefaults: { engine: 'google/gemini-3-pro-image-preview', background: ' ' }, lockedFields: ['engine'] },
   'pattern-fission': { platformDefaults: false, fixedDefaults: { engine: 'google/gemini-3-pro-image-preview', background: ' ' }, lockedFields: ['engine'] },
   'scene-fission': { platformDefaults: false, fixedDefaults: { engine: 'google/gemini-3-pro-image-preview' }, lockedFields: ['engine'] },
@@ -113,11 +123,26 @@ export function resolveImageAppInput(appId: string, rawInput: Record<string, unk
 function normalizeAliases(rawInput: Record<string, unknown>) {
   const inputData = { ...rawInput };
   if (inputData.engine === undefined && inputData.model !== undefined) inputData.engine = inputData.model;
+  if (inputData.template === undefined && inputData.reference_image_template !== undefined) inputData.template = inputData.reference_image_template;
+  if (inputData.prompt === undefined && inputData.product_description !== undefined) inputData.prompt = inputData.product_description;
+  if (inputData.reference_images === undefined && inputData.reference_image_url !== undefined) inputData.reference_images = inputData.reference_image_url;
+  if (inputData.product_images === undefined && inputData.product_image_url !== undefined && Array.isArray(inputData.product_image_url)) inputData.product_images = inputData.product_image_url;
+  if (inputData.image_group_type === undefined && inputData.imageGroupType !== undefined) inputData.image_group_type = inputData.imageGroupType;
   delete inputData.model;
+  delete inputData.reference_image_template;
+  delete inputData.product_description;
+  delete inputData.reference_image_url;
+  delete inputData.product_image_url;
+  delete inputData.imageGroupType;
   return inputData;
 }
 
 function resolveImageKind(appId: string, inputData: Record<string, unknown>) {
+  if (appId === 'replica-listing-image') {
+    const groupType = inputData.image_group_type;
+    if (groupType === 'Detail') return 'detail';
+    if (groupType === 'Listing' || groupType === undefined || groupType === '') return 'main';
+  }
   const rawKind = (inputData.imageKind ?? inputData.kind) as string | undefined;
   if (!rawKind) return inferImageKind(appId);
   if (typeof rawKind !== 'string' || !IMAGE_KINDS.includes(rawKind as never)) {
@@ -151,7 +176,7 @@ function applyPlatformDefaults(app: AppDefinition, inputData: Record<string, unk
   }
 }
 
-function applyFixedDefaults(app: AppDefinition, inputData: Record<string, unknown>, policy: Record<string, unknown>, appliedDefaults: Record<string, unknown>) {
+function applyFixedDefaults(app: AppDefinition, inputData: Record<string, unknown>, policy: AppPolicy, appliedDefaults: Record<string, unknown>) {
   const fixedDefaults = (policy.fixedDefaults ?? {}) as Record<string, string>;
   const lockedFields = (policy.lockedFields ?? []) as string[];
   for (const [field, defaultValue] of Object.entries(fixedDefaults)) {
@@ -168,7 +193,7 @@ function applyFixedDefaults(app: AppDefinition, inputData: Record<string, unknow
   }
 }
 
-function resolveEngine(app: AppDefinition, inputData: Record<string, unknown>, policy: Record<string, unknown>, ratio: string | undefined, appliedDefaults: Record<string, unknown>) {
+function resolveEngine(app: AppDefinition, inputData: Record<string, unknown>, policy: AppPolicy, ratio: string | undefined, appliedDefaults: Record<string, unknown>) {
   if (!hasField(app, 'engine')) return undefined;
   const fixedEngine = (policy.fixedDefaults as Record<string, string> | undefined)?.engine;
   const currentEngine = inputData.engine;
@@ -184,7 +209,7 @@ function resolveEngine(app: AppDefinition, inputData: Record<string, unknown>, p
     validateOption('model', currentEngine, 'engine');
     return String(currentEngine);
   }
-  const engine = selectDefaultModelForRatio(ratio);
+  const engine = policy.defaultEngine ?? selectDefaultModelForRatio(ratio);
   inputData.engine = engine;
   appliedDefaults.engine = engine;
   return engine;

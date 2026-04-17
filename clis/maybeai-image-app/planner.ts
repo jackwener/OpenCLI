@@ -9,12 +9,14 @@ type AppId =
   | 'change-product'
   | 'change-background'
   | 'gen-main'
+  | 'replica-listing-image'
   | 'gen-scene'
   | 'gen-details'
   | 'details-selling-points'
   | 'add-selling-points'
   | 'gen-multi-angles'
   | 'gen-size-compare'
+  | 'gen-reference'
   | 'creative-image-generation'
   | 'pattern-extraction'
   | 'pattern-fission'
@@ -65,12 +67,14 @@ const APPS: AppDefinition[] = [
   app('change-product', '商品替换', 'scene', ['products'], ['换商品', '商品替换', '替换商品', 'change product', 'replace product'], ['products', 'scene', 'ratio', 'resolution', 'prompt', 'engine']),
   app('change-background', '换场景', 'scene', ['product'], ['换背景', '换场景', '背景替换', 'change background', 'change scene'], ['product', 'scene', 'ratio', 'resolution', 'prompt', 'engine']),
   app('gen-main', '商品主图', 'main', ['products'], ['主图', '商品主图', '电商主图', 'listing image', 'main image', 'hero image'], ['products', 'template', 'market', 'platform', 'category', 'count', 'ratio', 'resolution', 'prompt', 'engine']),
+  app('replica-listing-image', '参考生套图', 'main', ['product_images', 'template'], ['参考生套图', '参考套图', '套图', 'listing', '详情页', 'a+', 'a+图', 'replica listing', 'reference listing'], ['product_images', 'template', 'image_group_type', 'platform', 'market', 'count', 'ratio', 'prompt', 'engine']),
   app('gen-scene', '场景图', 'scene', ['products'], ['场景图', '场景化', '生活方式图', 'lifestyle', 'scene image'], ['products', 'market', 'platform', 'category', 'count', 'ratio', 'resolution', 'prompt', 'engine']),
   app('gen-details', '细节特写图', 'detail', ['product_and_attrs'], ['细节', '特写', '细节图', 'detail', 'macro'], ['product_and_attrs', 'market', 'platform', 'category', 'prompt', 'count', 'ratio', 'resolution', 'engine']),
   app('details-selling-points', '商品卖点图', 'detail', ['product_and_attrs'], ['卖点图', '卖点说明', 'selling point image', 'benefit image'], ['product_and_attrs', 'category', 'count', 'ratio', 'resolution', 'prompt', 'engine']),
   app('add-selling-points', '加卖点标注', 'detail', ['product_and_attrs'], ['加卖点', '卖点标注', '标注', 'annotation', 'label'], ['product_and_attrs', 'prompt', 'engine']),
   app('gen-multi-angles', '角度图', 'multi-angle', ['products', 'angles'], ['多角度', '角度图', '正面', '侧面', '背面', 'multi angle', 'multi-angle'], ['products', 'person', 'market', 'platform', 'category', 'angles', 'prompt', 'engine']),
   app('gen-size-compare', '尺码对比图', 'detail', ['product_and_size_chart'], ['尺码', '尺码对比', 'size chart', 'size compare'], ['product_and_size_chart', 'prompt', 'ratio', 'resolution', 'engine']),
+  app('gen-reference', '参考生单图', 'edit', ['product_images', 'reference_images'], ['参考生图', '参考生单图', '参考图生图', '参考图', '按参考图生成', 'reference image', 'reference generate'], ['product_images', 'reference_images', 'prompt', 'engine']),
   app('creative-image-generation', '创意素材', 'social', [], ['创意素材', '创意图', '海报', '广告图', 'poster', 'ad creative', 'social creative'], ['style', 'prompt', 'count', 'engine']),
   app('pattern-extraction', '图案提取', 'edit', ['product'], ['图案提取', '提取图案', 'pattern extraction', 'extract pattern'], ['product', 'prompt', 'background', 'engine']),
   app('pattern-fission', '图案裂变', 'edit', ['product'], ['图案裂变', '图案变体', 'pattern variant', 'pattern fission'], ['product', 'similarity', 'prompt', 'count', 'background', 'engine']),
@@ -153,15 +157,19 @@ export const RUN_EXTRA_ARGS = [
   { name: 'app', help: 'Override selected app id, e.g. gen-main' },
   { name: 'product', help: 'Product/original image URL' },
   { name: 'products', help: 'Comma-separated product image URLs' },
+  { name: 'product-images', help: 'Comma-separated product image URLs for structured-input apps' },
   { name: 'person', help: 'Reference model/person image URL' },
   { name: 'reference', help: 'Generic reference image URL, routed by selected app' },
+  { name: 'reference-images', help: 'Comma-separated reference image URLs for reference-generation apps' },
   { name: 'scene', help: 'Scene/background reference image URL' },
   { name: 'template', help: 'Main-image template reference URL' },
+  { name: 'reference-template', help: 'Reference template URL for replica-listing-image' },
   { name: 'style', help: 'Creative style reference image URL' },
   { name: 'color-ref', help: 'Color reference image URL' },
   { name: 'actions', help: 'Comma-separated action/pose reference image URLs' },
   { name: 'attrs', help: 'Comma-separated attribute/detail image URLs' },
   { name: 'size-chart', help: 'Size chart image URL' },
+  { name: 'image-group-type', help: 'Replica listing output type: Listing or Detail' },
   { name: 'platform', help: 'Target platform, e.g. Amazon, Taobao, XiaoHongShu' },
   { name: 'market', help: 'Target country/region, e.g. China, North America' },
   { name: 'category', help: 'Product category' },
@@ -180,6 +188,7 @@ export function buildImageAppPlan(positionals: string[], kwargs: Record<string, 
   const intent = readIntent(positionals, kwargs);
   const input = buildInput(intent, kwargs);
   const selectedApp = selectApp(intent, input, kwargs);
+  normalizeSelectedAppInput(selectedApp.app, input, intent, kwargs);
   routeGenericImages(selectedApp.app, input, intent, kwargs);
 
   const candidates = scoreApps(intent, input);
@@ -232,6 +241,7 @@ function buildInput(intent: string, kwargs: Record<string, unknown>): Record<str
   applyScalar(input, 'engine', firstString(kwargs.engine));
   applyScalar(input, 'background', firstString(kwargs.background) ?? inferBackground(intent));
   applyScalar(input, 'similarity', parseNumber(firstString(kwargs.similarity)));
+  applyScalar(input, 'image_group_type', firstString(kwargs['image-group-type']) ?? inferImageGroupType(intent));
 
   const angles = splitList(firstString(kwargs.angles));
   const inferredAngles = inferAngles(intent);
@@ -240,19 +250,66 @@ function buildInput(intent: string, kwargs: Record<string, unknown>): Record<str
   }
 
   const products = splitList(firstString(kwargs.products));
+  const structuredProducts = splitList(firstString(kwargs['product-images']));
   const product = firstString(kwargs.product);
   if (!hasValue(input.products) && products.length > 0) input.products = products;
+  if (!hasValue(input.product_images) && structuredProducts.length > 0) input.product_images = structuredProducts;
   if (!hasValue(input.product) && product) input.product = product;
   applyScalar(input, 'person', firstString(kwargs.person));
   applyScalar(input, 'scene', firstString(kwargs.scene));
-  applyScalar(input, 'template', firstString(kwargs.template));
+  applyScalar(input, 'template', firstString(kwargs.template, kwargs['reference-template']));
   applyScalar(input, 'style', firstString(kwargs.style));
   applyScalar(input, 'color_ref', firstString(kwargs['color-ref']));
+
+  const referenceImages = splitList(firstString(kwargs['reference-images']));
+  if (!hasValue(input.reference_images) && referenceImages.length > 0) input.reference_images = referenceImages;
 
   const actions = splitList(firstString(kwargs.actions));
   if (!hasValue(input.actions) && actions.length > 0) input.actions = actions;
 
   return input;
+}
+
+function normalizeSelectedAppInput(appId: AppId, input: Record<string, unknown>, intent: string, kwargs: Record<string, unknown>): void {
+  if (appId === 'replica-listing-image') {
+    if (!isStructuredImageArray(input.product_images)) {
+      const candidateUrls = uniqueUrls([
+        ...readRawUrls(input.product_images),
+        ...splitList(firstString(kwargs['product-images'])),
+        ...readStringArray(input.products),
+        ...splitList(firstString(kwargs.products)),
+        ...splitList(firstString(kwargs.product)),
+      ]);
+      if (candidateUrls.length > 0) input.product_images = buildStructuredProductImages('replica-listing-image', candidateUrls);
+    }
+    applyScalar(input, 'template', firstString(kwargs['reference-template'], kwargs.template, kwargs.reference));
+    applyScalar(input, 'image_group_type', firstString(kwargs['image-group-type']) ?? inferImageGroupType(intent));
+    delete input.product;
+    delete input.products;
+  }
+
+  if (appId === 'gen-reference') {
+    if (!isStructuredImageArray(input.product_images)) {
+      const candidateUrls = uniqueUrls([
+        ...readRawUrls(input.product_images),
+        ...splitList(firstString(kwargs['product-images'])),
+        ...readStringArray(input.products),
+        ...splitList(firstString(kwargs.products)),
+        ...splitList(firstString(kwargs.product)),
+      ]);
+      if (candidateUrls.length > 0) input.product_images = buildStructuredProductImages('gen-reference', candidateUrls);
+    }
+    if (!isStructuredImageArray(input.reference_images)) {
+      const referenceUrls = uniqueUrls([
+        ...readRawUrls(input.reference_images),
+        ...splitList(firstString(kwargs['reference-images'])),
+        ...splitList(firstString(kwargs.reference)),
+      ]);
+      if (referenceUrls.length > 0) input.reference_images = buildStructuredReferenceImages(referenceUrls);
+    }
+    delete input.product;
+    delete input.products;
+  }
 }
 
 function selectApp(intent: string, input: Record<string, unknown>, kwargs: Record<string, unknown>): AppDefinition {
@@ -319,6 +376,7 @@ function routeGenericImages(appId: AppId, input: Record<string, unknown>, intent
   const urls = [
     ...extractUrls(intent),
     ...splitList(firstString(kwargs.reference)),
+    ...splitList(firstString(kwargs['reference-images'])),
     ...splitList(firstString(kwargs.attrs)),
     ...splitList(firstString(kwargs['size-chart'])),
   ];
@@ -342,6 +400,31 @@ function routeGenericImages(appId: AppId, input: Record<string, unknown>, intent
 }
 
 function routeDataframeImages(appId: AppId, input: Record<string, unknown>, urls: string[], kwargs: Record<string, unknown>): void {
+  if (appId === 'replica-listing-image') {
+    if (!hasValue(input.product_images)) {
+      const productUrls = splitList(firstString(kwargs['product-images'], kwargs.products));
+      const fallbackUrls = productUrls.length > 0 ? productUrls : (urls[0] ? [urls[0]] : []);
+      if (fallbackUrls.length > 0) input.product_images = buildStructuredProductImages('replica-listing-image', fallbackUrls);
+    }
+    applyScalar(input, 'template', firstString(kwargs['reference-template'], kwargs.template, kwargs.reference) ?? urls[1]);
+    applyScalar(input, 'image_group_type', firstString(kwargs['image-group-type']));
+    return;
+  }
+
+  if (appId === 'gen-reference') {
+    if (!hasValue(input.product_images)) {
+      const productUrls = splitList(firstString(kwargs['product-images'], kwargs.products));
+      const fallbackUrls = productUrls.length > 0 ? productUrls : (urls[0] ? [urls[0]] : []);
+      if (fallbackUrls.length > 0) input.product_images = buildStructuredProductImages('gen-reference', fallbackUrls);
+    }
+    if (!hasValue(input.reference_images)) {
+      const explicitReferenceUrls = splitList(firstString(kwargs['reference-images'], kwargs.reference));
+      const fallbackReferenceUrls = explicitReferenceUrls.length > 0 ? explicitReferenceUrls : urls.slice(1);
+      if (fallbackReferenceUrls.length > 0) input.reference_images = buildStructuredReferenceImages(fallbackReferenceUrls);
+    }
+    return;
+  }
+
   const product = firstString(kwargs.product) ?? urls[0];
   const attrs = splitList(firstString(kwargs.attrs)).length > 0 ? splitList(firstString(kwargs.attrs)) : urls.slice(1);
   const sizeChart = firstString(kwargs['size-chart']) ?? urls[1];
@@ -367,7 +450,7 @@ function getMissingFields(def: AppDefinition, input: Record<string, unknown>): s
 }
 
 function requiresDataframe(appId: AppId): boolean {
-  return ['gen-details', 'details-selling-points', 'add-selling-points', 'gen-size-compare'].includes(appId);
+  return ['replica-listing-image', 'gen-details', 'details-selling-points', 'add-selling-points', 'gen-size-compare', 'gen-reference'].includes(appId);
 }
 
 function usesProductList(appId: AppId): boolean {
@@ -379,9 +462,13 @@ function fieldBoost(field: string, appId: AppId): number {
   if (field === 'actions' && appId === 'change-action') return 0.6;
   if (field === 'scene' && ['change-product', 'change-background'].includes(appId)) return 0.3;
   if (field === 'template' && appId === 'gen-main') return 0.25;
+  if (field === 'template' && appId === 'replica-listing-image') return 0.6;
   if (field === 'product_and_attrs' && ['gen-details', 'details-selling-points', 'add-selling-points'].includes(appId)) return 0.4;
   if (field === 'angles' && appId === 'gen-multi-angles') return 0.8;
   if (field === 'product_and_size_chart' && appId === 'gen-size-compare') return 0.8;
+  if (field === 'product_images' && ['replica-listing-image', 'gen-reference'].includes(appId)) return 0.7;
+  if (field === 'reference_images' && appId === 'gen-reference') return 0.8;
+  if (field === 'image_group_type' && appId === 'replica-listing-image') return 0.45;
   if (field === 'style' && appId === 'creative-image-generation') return 0.5;
   if (field === 'color_ref' && appId === 'change-color') return 0.7;
   if (['products', 'product'].includes(field)) return 0.05;
@@ -390,11 +477,21 @@ function fieldBoost(field: string, appId: AppId): number {
 
 function semanticBoost(appId: AppId, intent: string, input: Record<string, unknown>, reasons: string[]): number {
   let boost = 0;
-  const hasProduct = hasValue(input.products) || hasValue(input.product) || extractUrls(intent).length > 0;
+  const hasProduct = hasValue(input.products) || hasValue(input.product) || hasValue(input.product_images) || extractUrls(intent).length > 0;
   const hasPerson = hasValue(input.person);
+  const hasReferenceImages = hasValue(input.reference_images);
+  const hasTemplate = hasValue(input.template);
   if (appId === 'gen-main' && hasProduct && hasAny(intent, ['amazon', 'temu', 'shopee', 'lazada', '淘宝', '平台', '电商'])) {
     boost += 0.35;
     reasons.push('product with ecommerce/platform intent');
+  }
+  if (appId === 'replica-listing-image' && hasProduct && (hasTemplate || hasAny(intent, ['参考生套图', '套图', 'listing', '详情页', 'a+']))) {
+    boost += 0.6;
+    reasons.push('structured product with listing reference intent');
+  }
+  if (appId === 'gen-reference' && hasProduct && (hasReferenceImages || hasAny(intent, ['参考生图', '参考图', '参考生成']))) {
+    boost += 0.6;
+    reasons.push('structured product with reference generation intent');
   }
   if (appId === 'try-on' && hasProduct && (hasPerson || hasAny(intent, ['穿', '试', '搭']))) {
     boost += 0.45;
@@ -439,6 +536,12 @@ function inferResolution(text: string): string | undefined {
   return match?.[1]?.toUpperCase();
 }
 
+function inferImageGroupType(text: string): string | undefined {
+  if (hasAny(text, ['detail', '详情', 'a+', 'a+图'])) return 'Detail';
+  if (hasAny(text, ['listing', '套图'])) return 'Listing';
+  return undefined;
+}
+
 function inferCount(text: string): string | undefined {
   const match = text.match(/(?:生成|出|做)?\s*(\d{1,2})\s*(?:张|个|幅|images?)/i);
   return match?.[1];
@@ -457,6 +560,34 @@ function extractUrls(text: string): string[] {
 function splitList(value: string | undefined): string[] {
   if (!value) return [];
   return value.split(/[,，\n]/).map(item => item.trim()).filter(Boolean);
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map(item => item.trim());
+}
+
+function readRawUrls(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const urls: string[] = [];
+  for (const item of value) {
+    if (typeof item === 'string' && item.trim()) {
+      urls.push(item.trim());
+      continue;
+    }
+    if (item && typeof item === 'object' && typeof (item as Record<string, unknown>).url === 'string' && (item as Record<string, unknown>).url) {
+      urls.push(String((item as Record<string, unknown>).url).trim());
+    }
+  }
+  return urls;
+}
+
+function isStructuredImageArray(value: unknown): boolean {
+  return Array.isArray(value) && value.length > 0 && value.every(item => !!item && typeof item === 'object' && !Array.isArray(item) && typeof (item as Record<string, unknown>).image_type === 'string' && typeof (item as Record<string, unknown>).url === 'string');
+}
+
+function uniqueUrls(urls: string[]): string[] {
+  return [...new Set(urls.filter(Boolean))];
 }
 
 function firstString(...values: unknown[]): string | undefined {
@@ -482,6 +613,25 @@ function parseNumber(value: string | undefined): number | undefined {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
+
+function buildStructuredProductImages(kind: 'replica-listing-image' | 'gen-reference', urls: string[]) {
+  const imageTypes = kind === 'replica-listing-image'
+    ? ['front', 'side', 'back', 'use_case']
+    : ['front_image', 'back_image', 'side_image', 'detailed_image'];
+  return urls.filter(Boolean).map((url, index) => ({
+    image_type: imageTypes[Math.min(index, imageTypes.length - 1)],
+    url,
+  }));
+}
+
+function buildStructuredReferenceImages(urls: string[]) {
+  const imageTypes = ['reference_color_image', 'reference_modle_image', 'reference_scene_image'];
+  return urls.filter(Boolean).map((url, index) => ({
+    image_type: imageTypes[Math.min(index, imageTypes.length - 1)],
+    url,
+  }));
+}
+
 
 function readMinConfidence(kwargs: Record<string, unknown>): number {
   const raw = firstString(kwargs['min-confidence']);

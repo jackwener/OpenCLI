@@ -61,6 +61,7 @@ export const CATEGORIES = [
 
 export const ASPECT_RATIOS = ['auto', '21:9', '16:9', '3:2', '4:3', '5:4', '1:1', '4:5', '3:4', '2:3', '9:16', '4:1', '1:4', '8:1', '1:8'] as const;
 export const RESOLUTIONS = ['1K', '2K', '4K'] as const;
+export const IMAGE_GROUP_TYPES = ['Listing', 'Detail'] as const;
 export const IMAGE_MODELS = [
   'google/gemini-3.1-flash-image-preview',
   'fal-ai/nano-banana-2/edit',
@@ -87,6 +88,7 @@ export const OPTION_VALUES = {
   category: [...CATEGORIES],
   ratio: [...ASPECT_RATIOS],
   resolution: [...RESOLUTIONS],
+  'image-group-type': [...IMAGE_GROUP_TYPES],
   model: [...IMAGE_MODELS],
   'image-kind': [...IMAGE_KINDS],
 } as const;

@@ -158,6 +158,25 @@ export const APPS: AppDefinition[] = [
     output: DEFAULT_IMAGE_OUTPUT,
   },
   {
+    id: 'replica-listing-image',
+    title: '参考生套图',
+    group: 'product-image',
+    summary: '多视角商品图 + 参考模板，生成 Listing 或详情页套图。',
+    sourceRef: 'maybeai-shell-app:replica-listing-image',
+    fields: [
+      field('product_images', 'variable:dataframe:product_image_url', 'image', '结构化商品图', true, true),
+      field('template', 'variable:scalar:reference_image_template', 'image', '参考模板', true),
+      field('prompt', 'variable:scalar:product_description', 'text', '商品描述与套图要求'),
+      field('image_group_type', 'variable:scalar:image_group_type', 'string', '套图类型'),
+      field('platform', 'variable:scalar:platform', 'string', '目标平台'),
+      field('market', 'variable:scalar:target_market', 'string', '目标市场'),
+      field('count', 'variable:scalar:number_of_images', 'number', '生成图片数量'),
+      field('ratio', 'variable:scalar:aspect_ratio', 'string', '宽高比'),
+      field('engine', 'variable:scalar:llm_model', 'string', '底层图像模型'),
+    ],
+    output: DEFAULT_IMAGE_OUTPUT,
+  },
+  {
     id: 'gen-scene',
     title: '场景图',
     group: 'product-image',
@@ -254,6 +273,20 @@ export const APPS: AppDefinition[] = [
       field('prompt', 'variable:scalar:user_description', 'text', '尺码对比要求'),
       field('ratio', 'variable:scalar:aspect_ratio', 'string', '宽高比'),
       field('resolution', 'variable:scalar:resolution', 'string', '分辨率'),
+      field('engine', 'variable:scalar:llm_model', 'string', '底层图像模型'),
+    ],
+    output: DEFAULT_IMAGE_OUTPUT,
+  },
+  {
+    id: 'gen-reference',
+    title: '参考生单图',
+    group: 'product-image',
+    summary: '商品图 + 多维参考图，按颜色/模特/场景等要求生成单张图。',
+    sourceRef: 'maybeai-shell-app:gen-reference',
+    fields: [
+      field('product_images', 'variable:dataframe:product_image_url', 'image', '结构化商品图', true, true),
+      field('reference_images', 'variable:dataframe:reference_image_url', 'image', '结构化参考图', true, true),
+      field('prompt', 'variable:scalar:user_description', 'text', '参考生成要求'),
       field('engine', 'variable:scalar:llm_model', 'string', '底层图像模型'),
     ],
     output: DEFAULT_IMAGE_OUTPUT,
@@ -444,6 +477,7 @@ function validateCanonicalFieldValue(fieldKey: string, value: unknown): void {
   else if (['market', 'country', 'region'].includes(fieldKey)) validateOption('country', value, fieldKey);
   else if (fieldKey === 'category') validateOption('category', value, fieldKey);
   else if (fieldKey === 'angles') validateOption('angle', value, fieldKey);
+  else if (fieldKey === 'image_group_type') validateOption('image-group-type', value, fieldKey);
   else if (fieldKey === 'ratio') validateOption('ratio', value, fieldKey);
   else if (fieldKey === 'resolution') validateOption('resolution', value, fieldKey);
   else if (fieldKey === 'engine') validateOption('model', value, fieldKey);
