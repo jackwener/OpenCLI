@@ -29,9 +29,10 @@ const CLI_FILE = fileURLToPath(import.meta.url);
 
 /** Create a browser page for browser commands. Uses a dedicated browser workspace for session persistence. */
 async function getBrowserPage(): Promise<import('./types.js').IPage> {
-  const { BrowserBridge } = await import('./browser/index.js');
-  const bridge = new BrowserBridge();
-  return bridge.connect({ timeout: 30, workspace: 'browser:default' });
+  const cdpEndpoint = process.env.OPENCLI_CDP_ENDPOINT?.trim() || undefined;
+  const BrowserFactory = getBrowserFactory();
+  const browser = new BrowserFactory();
+  return browser.connect({ timeout: 30, workspace: 'browser:default', cdpEndpoint });
 }
 
 function parsePositiveIntOption(val: string | undefined, label: string, fallback: number): number {

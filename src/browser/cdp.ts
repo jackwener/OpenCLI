@@ -49,7 +49,7 @@ export class CDPBridge implements IBrowserFactory {
   async connect(opts?: { timeout?: number; workspace?: string; cdpEndpoint?: string }): Promise<IPage> {
     if (this._ws) throw new Error('CDPBridge is already connected. Call close() before reconnecting.');
 
-    const endpoint = opts?.cdpEndpoint ?? process.env.OPENCLI_CDP_ENDPOINT;
+    const endpoint = (opts?.cdpEndpoint ?? process.env.OPENCLI_CDP_ENDPOINT)?.trim();
     if (!endpoint) throw new Error('CDP endpoint not provided (pass cdpEndpoint or set OPENCLI_CDP_ENDPOINT)');
 
     let wsUrl = endpoint;
