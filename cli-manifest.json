@@ -15028,16 +15028,86 @@
   },
   {
     "site": "twitter",
-    "name": "lists",
-    "description": "Get Twitter/X lists for a user",
+    "name": "list-add",
+    "description": "Add a user to a Twitter/X list you own (no-op if already a member)",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "listId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": ""
+      },
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "listId",
+      "username",
+      "userId",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/list-add.js",
+    "sourceFile": "twitter/list-add.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
+    "name": "list-remove",
+    "description": "Remove a user from a Twitter/X list you own (toggles via UI; no-op if not currently a member)",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "listId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": ""
+      },
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "listId",
+      "username",
+      "userId",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/list-remove.js",
+    "sourceFile": "twitter/list-remove.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
+    "name": "list-tweets",
+    "description": "Fetch tweets from a Twitter/X list timeline",
     "domain": "x.com",
     "strategy": "cookie",
     "browser": true,
     "args": [
       {
-        "name": "user",
+        "name": "listId",
         "type": "string",
-        "required": false,
+        "required": true,
         "positional": true,
         "help": ""
       },
@@ -15050,6 +15120,38 @@
       }
     ],
     "columns": [
+      "id",
+      "author",
+      "text",
+      "likes",
+      "retweets",
+      "replies",
+      "created_at",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "twitter/list-tweets.js",
+    "sourceFile": "twitter/list-tweets.js",
+    "navigateBefore": "https://x.com"
+  },
+  {
+    "site": "twitter",
+    "name": "lists",
+    "description": "Get Twitter/X lists for the logged-in user (owned + subscribed)",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "id",
       "name",
       "members",
       "followers",

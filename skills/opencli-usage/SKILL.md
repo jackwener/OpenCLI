@@ -120,7 +120,7 @@ Type legend: 🌐 = Browser (needs Chrome login) · ✅ = Public API (no browser
 | **substack** | 🌐 | `feed` `search` `publication` |
 | **tieba** | 🌐 | `hot` `search` `posts` `read` |
 | **tiktok** | 🌐 | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` |
-| **twitter** | 🌐 | `trending` `bookmarks` `search` `profile` `timeline` `thread` `article` `follow` `unfollow` `bookmark` `unbookmark` `post` `like` `likes` `reply` `delete` `block` `unblock` `followers` `following` `notifications` `hide-reply` `download` `accept` `reply-dm` |
+| **twitter** | 🌐 | `trending` `bookmarks` `search` `profile` `timeline` `lists` `list-tweets` `list-add` `list-remove` `thread` `article` `follow` `unfollow` `bookmark` `unbookmark` `post` `like` `likes` `reply` `delete` `block` `unblock` `followers` `following` `notifications` `hide-reply` `download` `accept` `reply-dm` |
 | **v2ex** | ✅🌐 | Public: `hot` `latest` `topic` `node` `nodes` `member` `user` `replies` · Browser: `daily` `me` `notifications` |
 | **web** | 🌐 | `read` — any URL to Markdown (saves to local file, not stdout) |
 | **weibo** | 🌐 | `hot` `search` `feed` `user` `me` `post` `comments` |

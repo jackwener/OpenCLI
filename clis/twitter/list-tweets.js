@@ -2,8 +2,8 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
-const LISTS_QUERY_ID = '78UbkyXwXBD98IgUWXOy9g';
-const OPERATION_NAME = 'ListsManagementPageTimeline';
+const LIST_TWEETS_QUERY_ID = 'RlZzktZY_9wJynoepm8ZsA';
+const OPERATION_NAME = 'ListLatestTweetsTimeline';
 
 const FEATURES = {
     rweb_video_screen_enabled: false,
@@ -39,63 +39,88 @@ const FEATURES = {
     responsive_web_enhance_cards_enabled: false,
 };
 
-function buildUrl(queryId) {
+function buildUrl(queryId, listId, count, cursor) {
+    const vars = { listId: String(listId), count };
+    if (cursor)
+        vars.cursor = cursor;
     return `/i/api/graphql/${queryId}/${OPERATION_NAME}`
-        + `?features=${encodeURIComponent(JSON.stringify(FEATURES))}`;
+        + `?variables=${encodeURIComponent(JSON.stringify(vars))}`
+        + `&features=${encodeURIComponent(JSON.stringify(FEATURES))}`;
 }
 
-export function extractListEntry(entry, seen) {
-    const list = entry?.content?.itemContent?.list
-        || entry?.content?.list
-        || entry?.item?.itemContent?.list;
-    if (!list) return null;
-    const id = list.id_str || list.id || '';
-    if (!id || seen.has(id)) return null;
-    seen.add(id);
-    const mode = typeof list.mode === 'string' && /private/i.test(list.mode) ? 'private' : 'public';
+export function extractTimelineTweet(result, seen) {
+    if (!result)
+        return null;
+    const tw = result.tweet || result;
+    const legacy = tw.legacy || {};
+    if (!tw.rest_id || seen.has(tw.rest_id))
+        return null;
+    seen.add(tw.rest_id);
+    const user = tw.core?.user_results?.result;
+    const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';
+    const displayName = user?.legacy?.name || user?.core?.name || '';
+    const noteText = tw.note_tweet?.note_tweet_results?.result?.text;
     return {
-        id: String(id),
-        name: list.name || '',
-        members: String(list.member_count ?? 0),
-        followers: String(list.subscriber_count ?? 0),
-        mode,
+        id: tw.rest_id,
+        author: screenName,
+        name: displayName,
+        text: noteText || legacy.full_text || '',
+        likes: legacy.favorite_count || 0,
+        retweets: legacy.retweet_count || 0,
+        replies: legacy.reply_count || 0,
+        created_at: legacy.created_at || '',
+        url: `https://x.com/${screenName}/status/${tw.rest_id}`,
     };
 }
 
-export function parseListsManagement(data, seen) {
-    const lists = [];
-    const instructions = data?.data?.viewer?.list_management_timeline?.timeline?.instructions
-        || data?.data?.viewer_v2?.user_results?.result?.list_management_timeline?.timeline?.instructions
-        || data?.data?.list_management_timeline?.timeline?.instructions
-        || [];
+export function parseListTimeline(data, seen) {
+    const tweets = [];
+    let nextCursor = null;
+    const instructions = data?.data?.list?.tweets_timeline?.timeline?.instructions || [];
     for (const inst of instructions) {
         for (const entry of inst.entries || []) {
-            const direct = extractListEntry(entry, seen);
-            if (direct) {
-                lists.push(direct);
+            const content = entry.content;
+            if (content?.entryType === 'TimelineTimelineCursor' || content?.__typename === 'TimelineTimelineCursor') {
+                if (content.cursorType === 'Bottom' || content.cursorType === 'ShowMore')
+                    nextCursor = content.value;
                 continue;
             }
-            for (const item of entry?.content?.items || []) {
-                const nested = extractListEntry(item, seen);
-                if (nested) lists.push(nested);
+            if (entry.entryId?.startsWith('cursor-bottom-') || entry.entryId?.startsWith('cursor-showMore-')) {
+                nextCursor = content?.value || content?.itemContent?.value || nextCursor;
+                continue;
+            }
+            const direct = extractTimelineTweet(content?.itemContent?.tweet_results?.result, seen);
+            if (direct) {
+                tweets.push(direct);
+                continue;
+            }
+            for (const item of content?.items || []) {
+                const nested = extractTimelineTweet(item.item?.itemContent?.tweet_results?.result, seen);
+                if (nested)
+                    tweets.push(nested);
             }
         }
     }
-    return lists;
+    return { tweets, nextCursor };
 }
 
-export const command = cli({
+cli({
     site: 'twitter',
-    name: 'lists',
-    description: 'Get Twitter/X lists for the logged-in user (owned + subscribed)',
+    name: 'list-tweets',
+    description: 'Fetch tweets from a Twitter/X list timeline',
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
+        { name: 'listId', positional: true, type: 'string', required: true },
         { name: 'limit', type: 'int', default: 50 },
     ],
-    columns: ['id', 'name', 'members', 'followers', 'mode'],
+    columns: ['id', 'author', 'text', 'likes', 'retweets', 'replies', 'created_at', 'url'],
     func: async (page, kwargs) => {
+        const listId = String(kwargs.listId || '').trim();
+        if (!listId || !/^\d+$/.test(listId)) {
+            throw new CommandExecutionError(`Invalid listId: ${JSON.stringify(kwargs.listId)}. Expected a numeric ID (see \`opencli twitter lists\`).`);
+        }
         const limit = kwargs.limit || 50;
         await page.goto('https://x.com');
         await page.wait(3);
@@ -127,23 +152,34 @@ export const command = cli({
                 }
             } catch {}
             return null;
-        }`) || LISTS_QUERY_ID;
+        }`) || LIST_TWEETS_QUERY_ID;
         const headers = JSON.stringify({
             'Authorization': `Bearer ${decodeURIComponent(BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
             'X-Twitter-Auth-Type': 'OAuth2Session',
             'X-Twitter-Active-User': 'yes',
         });
-        const apiUrl = buildUrl(queryId);
-        const data = await page.evaluate(`async () => {
-            const r = await fetch(${JSON.stringify(apiUrl)}, { headers: ${headers}, credentials: 'include' });
-            return r.ok ? await r.json() : { error: r.status };
-        }`);
-        if (data?.error) {
-            throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch lists. queryId may have expired.`);
-        }
+        const allTweets = [];
         const seen = new Set();
-        const lists = parseListsManagement(data, seen);
-        return lists.slice(0, limit);
+        let cursor = null;
+        for (let i = 0; i < 10 && allTweets.length < limit; i++) {
+            const fetchCount = Math.min(100, limit - allTweets.length + 10);
+            const apiUrl = buildUrl(queryId, listId, fetchCount, cursor);
+            const data = await page.evaluate(`async () => {
+                const r = await fetch(${JSON.stringify(apiUrl)}, { headers: ${headers}, credentials: 'include' });
+                return r.ok ? await r.json() : { error: r.status };
+            }`);
+            if (data?.error) {
+                if (allTweets.length === 0)
+                    throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch list timeline. queryId may have expired or list may be private.`);
+                break;
+            }
+            const { tweets, nextCursor } = parseListTimeline(data, seen);
+            allTweets.push(...tweets);
+            if (!nextCursor || nextCursor === cursor || tweets.length === 0)
+                break;
+            cursor = nextCursor;
+        }
+        return allTweets.slice(0, limit);
     },
 });

@@ -11,7 +11,7 @@
 OpenCLI 可以用同一套 CLI 做三类事情：
 
 - **直接使用现成适配器**：B站、知乎、小红书、Twitter/X、Reddit、HackerNews 等 [90+ 站点](#内置命令) 开箱即用。
-- **直接驱动浏览器**：用 `opencli browser` 让 AI Agent 实时点击、输入、提取、截图、检查页面状态。
+- **让 AI Agent 操作任意网站**：在你的 AI Agent（Claude Code、Cursor 等）中安装 `opencli-browser` skill，Agent 就能用你的已登录浏览器导航、点击、输入、提取任意网页内容。
 - **把新网站生成成 CLI**：通过 `explore`、`synthesize`、`generate`、`cascade` 从真实页面行为推导出新的适配器。
 
 除了网站能力，OpenCLI 还是一个 **CLI 枢纽**：你可以把 `gh`、`docker` 等本地工具统一注册到 `opencli` 下，也可以通过桌面端适配器控制 Cursor、Codex、Antigravity、ChatGPT、Notion 等 Electron 应用。
@@ -19,10 +19,10 @@ OpenCLI 可以用同一套 CLI 做三类事情：
 ## 亮点
 
 - **桌面应用控制** — 通过 CDP 直接在终端驱动 Electron 应用（Cursor、Codex、ChatGPT、Notion 等）。
-- **浏览器自动化** — `browser` 让 AI Agent 直接控制浏览器：点击、输入、提取、截图，完全可编程。
+- **AI Agent 浏览器自动化** — 安装 `opencli-browser` skill，你的 AI Agent 就能操作任意网站：导航、点击、输入、提取、截图——全部通过你的已登录 Chrome 会话完成。
 - **网站 → CLI** — 把任何网站变成确定性 CLI：90+ 内置适配器，或用 `opencli generate` 生成新的。
 - **账号安全** — 复用 Chrome/Chromium 登录态，凭证永远不会离开浏览器。
-- **面向 AI Agent** — `explore` 发现 API，`synthesize` 生成适配器，`cascade` 探测认证策略，`browser` 直接控制浏览器。
+- **面向 AI Agent** — `explore` 发现 API，`synthesize` 生成适配器，`cascade` 探测认证策略。`opencli-browser` skill 让任何 AI Agent 都能完全控制浏览器。
 - **CLI 枢纽** — 统一发现、自动安装、纯透传任何外部 CLI（gh、docker、obsidian 等）。
 - **零 LLM 成本** — 运行时不消耗模型 token，跑 10,000 次也不花一分钱。
 - **确定性输出** — 相同命令，相同输出结构，每次一致。可管道、可脚本、CI 友好。
@@ -68,12 +68,9 @@ opencli bilibili hot --limit 5
 
 ## 给 AI Agent
 
-按任务类型，AI Agent 有两个不同入口：
+OpenCLI 的 browser 命令是给 AI Agent 用的——不是手动执行的。把 skill 安装到你的 AI Agent（Claude Code、Cursor 等）中，Agent 就能用你的已登录 Chrome 会话替你操作网站。
 
-- [`skills/opencli-explorer/SKILL.md`](./skills/opencli-explorer/SKILL.md)：适配器创建入口，支持全自动生成（`opencli generate <url>`）和手动探索两种流程。
-- [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md)：底层控制入口，适合实时操作页面、debug 和人工介入。
-
-安装全部 OpenCLI skills：
+### 安装 skill
 
 ```bash
 npx skills add jackwener/opencli
@@ -88,22 +85,42 @@ npx skills add jackwener/opencli --skill opencli-explorer
 npx skills add jackwener/opencli --skill opencli-oneshot
 ```
 
-实际使用上：
+### 选择哪个 skill
 
-- 需要把某个站点收成可复用命令时，优先走 `opencli-explorer`（涵盖自动和手动两种路径）
-- 需要直接检查页面、操作页面时，再走 `opencli-browser`
+| Skill | 适用场景 | 你对 AI Agent 说的话 |
+|-------|---------|-------------------|
+| **opencli-browser** | 实时操作任意网站 | "帮我在小红书上发布这篇内容" / "看看我的 Twitter 通知并总结" |
+| **opencli-explorer** | 为某个站点生成可复用 CLI | "帮我做一个抖音热门的适配器" |
+| **opencli-oneshot** | 快速一次性：URL + 目标 → 适配器 | "帮我做一个抓取这个页面热帖的命令" |
+| **opencli-usage** | 使用已有的内置适配器 | "获取 B 站热搜前 5" |
 
-`browser` 可用命令包括：`open`、`state`、`click`、`type`、`select`、`keys`、`wait`、`get`、`screenshot`、`scroll`、`back`、`eval`、`network`、`init`、`verify`、`close`。
+### 工作原理
+
+安装 `opencli-browser` skill 后，你的 AI Agent 可以：
+
+1. **导航**到任意 URL，使用你的已登录浏览器
+2. **读取**页面内容——通过结构化 DOM 快照（不是截图）
+3. **交互**——点击按钮、填写表单、选择选项、按键
+4. **提取**页面数据或拦截网络 API 响应
+5. **等待**元素、文本或页面跳转
+
+Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自然语言描述想做的事。
+
+**Skill 参考文档：**
+- [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md) — 实时浏览器操作
+- [`skills/opencli-explorer/SKILL.md`](./skills/opencli-explorer/SKILL.md) — 适配器创建工作流
 
 ## 核心概念
 
-### `browser`：实时操作
+### `browser`：AI Agent 的浏览器控制层
 
-当任务本身就是交互式页面操作时，使用 `opencli browser` 直接驱动浏览器。
+`opencli browser` 命令是 AI Agent 操作网站的底层原语。你不需要手动运行这些命令——把 `opencli-browser` skill 安装到你的 AI Agent 中，用自然语言描述你想做的事，Agent 会自动处理浏览器操作。
+
+比如你告诉 Agent：*"帮我看看小红书的通知"*——Agent 会在底层调用 `opencli browser open`、`state`、`click` 等命令。
 
 ### 内置适配器：稳定命令
 
-当某个站点能力已经存在时，优先使用 `opencli hackernews top`、`opencli reddit hot` 这类稳定命令，而不是重新走一遍浏览器操作。
+当某个站点能力已经存在时，优先使用 `opencli hackernews top`、`opencli reddit hot` 这类稳定命令。这些命令是确定性的，无需浏览器——人类和 AI Agent 都可以直接使用。
 
 ### `explore` / `synthesize` / `generate`：生成新的 CLI
 
@@ -187,7 +204,7 @@ npm link
 
 | 站点 | 命令 | 模式 |
 |------|------|------|
-| **twitter** | `trending` `search` `timeline` `lists` `bookmarks` `profile` `thread` `following` `followers` `notifications` `post` `reply` `delete` `like` `likes` `article` `follow` `unfollow` `bookmark` `unbookmark` `download` `accept` `reply-dm` `block` `unblock` `hide-reply` | 浏览器 |
+| **twitter** | `trending` `search` `timeline` `lists` `list-tweets` `list-add` `list-remove` `bookmarks` `profile` `thread` `following` `followers` `notifications` `post` `reply` `delete` `like` `likes` `article` `follow` `unfollow` `bookmark` `unbookmark` `download` `accept` `reply-dm` `block` `unblock` `hide-reply` | 浏览器 |
 | **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `save` `comment` `subscribe` `saved` `upvoted` | 浏览器 |
 | **tieba** | `hot` `posts` `search` `read` | 浏览器 |
 | **hupu** | `hot` `search` `detail` `mentions` `reply` `like` `unlike` | 浏览器 |

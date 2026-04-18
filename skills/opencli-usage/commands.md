@@ -639,6 +639,10 @@ opencli tiktok friends                    # 朋友
 
 ```bash
 opencli twitter trending --limit 10      # 热门话题
+opencli twitter lists --limit 20         # 我的列表（owned + subscribed）
+opencli twitter list-tweets 1234567890 --limit 20   # 列表时间线
+opencli twitter list-add 1234567890 elonmusk        # 把用户加入列表
+opencli twitter list-remove 1234567890 elonmusk     # 把用户移出列表
 opencli twitter bookmarks --limit 20     # 获取收藏的书签推文
 opencli twitter search "AI"              # 搜索推文 (query positional)
 opencli twitter profile elonmusk         # 用户资料
