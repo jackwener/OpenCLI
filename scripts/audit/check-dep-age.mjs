@@ -162,6 +162,32 @@ function getPublishTime(name, version) {
   return times[version];
 }
 
+function getLifecycleScripts(name, version) {
+  // Fetch the full scripts object for this exact version and extract the
+  // lifecycle-relevant fields. Asking npm view for individual sub-paths
+  // collapses missing fields silently, so we read the whole object and
+  // filter ourselves. Returns {preinstall?, install?, postinstall?} or
+  // null if the registry call fails.
+  try {
+    const out = execFileSync(
+      'npm',
+      ['view', `${name}@${version}`, 'scripts', '--json'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    const raw = out.trim();
+    if (!raw) return {};
+    const all = JSON.parse(raw);
+    if (typeof all !== 'object' || all === null) return {};
+    const result = {};
+    for (const f of ['preinstall', 'install', 'postinstall']) {
+      if (typeof all[f] === 'string' && all[f].length > 0) result[f] = all[f];
+    }
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 let okCount = 0;
 let exemptCount = 0;
 const directViolations = [];
@@ -200,9 +226,25 @@ for (const { name, version } of deps.values()) {
 
 if (installScripts.length > 0) {
   console.log('\n=== Lifecycle script audit (preinstall/install/postinstall) ===');
-  console.log(`(${installScripts.length} package(s) declare install scripts — review before trust)`);
+  console.log(`(${installScripts.length} package(s) declare install scripts — review the actual commands below)`);
   for (const { name, version, path } of installScripts) {
-    console.log(`  ${name}@${version}  (${path})`);
+    console.log(`\n  ${name}@${version}  (${path})`);
+    const scripts = getLifecycleScripts(name, version);
+    if (scripts === null) {
+      console.log('    ⚠️  could not fetch script content from registry — review manually');
+      continue;
+    }
+    const fields = ['preinstall', 'install', 'postinstall'];
+    let any = false;
+    for (const f of fields) {
+      if (scripts[f]) {
+        any = true;
+        console.log(`    ${f}: ${scripts[f]}`);
+      }
+    }
+    if (!any) {
+      console.log('    (no preinstall/install/postinstall declared in published manifest — hasInstallScript may be set by a binding script)');
+    }
   }
 }
 
