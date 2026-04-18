@@ -11,7 +11,7 @@
 OpenCLI gives you one surface for three different kinds of automation:
 
 - **Use built-in adapters** for sites like Bilibili, Zhihu, Xiaohongshu, Reddit, HackerNews, Twitter/X, and [many more](#built-in-commands).
-- **Drive a live browser directly** with `opencli browser` when an AI agent needs to click, type, extract, or inspect a page in real time.
+- **Let AI Agents operate any website** — install the `opencli-browser` skill in your AI agent (Claude Code, Cursor, etc.), and it can navigate, click, type, extract, and inspect any page using your logged-in browser.
 - **Generate new adapters** from real browser behavior with `explore`, `synthesize`, `generate`, and `cascade`.
 
 It also works as a **CLI hub** for local tools such as `gh`, `docker`, and other binaries you register yourself, plus **desktop app adapters** for Electron apps like Cursor, Codex, Antigravity, ChatGPT, and Notion.
@@ -19,10 +19,10 @@ It also works as a **CLI hub** for local tools such as `gh`, `docker`, and other
 ## Highlights
 
 - **Desktop App Control** — Drive Electron apps (Cursor, Codex, ChatGPT, Notion, etc.) directly from the terminal via CDP.
-- **Browser Automation** — `browser` gives AI agents direct browser control: click, type, extract, screenshot — fully scriptable.
+- **Browser Automation for AI Agents** — Install the `opencli-browser` skill, and your AI agent can operate any website: navigate, click, type, extract, screenshot — all through your logged-in Chrome session.
 - **Website → CLI** — Turn any website into a deterministic CLI: 90+ pre-built adapters, or generate your own with `opencli generate`.
 - **Account-safe** — Reuses Chrome/Chromium logged-in state; your credentials never leave the browser.
-- **AI Agent ready** — `explore` discovers APIs, `synthesize` generates adapters, `cascade` finds auth strategies, `browser` controls the browser directly.
+- **AI Agent ready** — `explore` discovers APIs, `synthesize` generates adapters, `cascade` finds auth strategies. The `opencli-browser` skill gives any AI agent full browser control.
 - **CLI Hub** — Discover, auto-install, and passthrough commands to any external CLI (gh, docker, obsidian, etc).
 - **Zero LLM cost** — No tokens consumed at runtime. Run 10,000 times and pay nothing.
 - **Deterministic** — Same command, same output schema, every time. Pipeable, scriptable, CI-friendly.
@@ -70,12 +70,9 @@ Use OpenCLI directly when you want a reliable command instead of a live browser 
 
 ## For AI Agents
 
-Use two different entry points depending on the task:
+OpenCLI's browser commands are designed to be used by AI Agents — not run manually. Install skills into your AI agent (Claude Code, Cursor, etc.), and the agent operates websites on your behalf using your logged-in Chrome session.
 
-- [`skills/opencli-explorer/SKILL.md`](./skills/opencli-explorer/SKILL.md): the entry point for creating new adapters — supports both fully automated generation (`opencli generate <url>`) and manual exploration workflows.
-- [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md): the low-level control surface for live browsing, debugging, and manual intervention.
-
-Install the packaged skills with:
+### Install skills
 
 ```bash
 npx skills add jackwener/opencli
@@ -90,22 +87,42 @@ npx skills add jackwener/opencli --skill opencli-explorer
 npx skills add jackwener/opencli --skill opencli-oneshot
 ```
 
-In practice:
+### Which skill to use
 
-- start with `opencli-explorer` when the agent needs a reusable command for a site (it covers both automated and manual flows)
-- use `opencli-browser` when the agent needs to inspect or steer the page directly
+| Skill | When to use | Example prompt to your AI agent |
+|-------|------------|-------------------------------|
+| **opencli-browser** | Operate any website in real time | "Help me post this content on Xiaohongshu" / "Check my Twitter notifications and summarize them" |
+| **opencli-explorer** | Create a reusable CLI for a site | "Generate an adapter for douyin trending" |
+| **opencli-oneshot** | Quick one-off: URL + goal → adapter | "Make a command that grabs the top posts from this page" |
+| **opencli-usage** | Use existing built-in adapters | "Get the top 5 Bilibili trending videos" |
 
-Available browser commands include `open`, `state`, `click`, `type`, `select`, `keys`, `wait`, `get`, `screenshot`, `scroll`, `back`, `eval`, `network`, `init`, `verify`, and `close`.
+### How it works
+
+Once the `opencli-browser` skill is installed, your AI agent can:
+
+1. **Navigate** to any URL using your logged-in browser
+2. **Read** page content via structured DOM snapshots (not screenshots)
+3. **Interact** — click buttons, fill forms, select options, press keys
+4. **Extract** data from the page or intercept network API responses
+5. **Wait** for elements, text, or page transitions
+
+The agent handles all the `opencli browser` commands internally — you just describe what you want done in natural language.
+
+**Skill references:**
+- [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md) — real-time browser operation
+- [`skills/opencli-explorer/SKILL.md`](./skills/opencli-explorer/SKILL.md) — adapter creation workflow
 
 ## Core Concepts
 
-### `browser`: live control
+### `browser`: AI Agent browser control
 
-Use `opencli browser` when the task is inherently interactive and the agent needs to operate the page directly.
+`opencli browser` commands are the low-level primitives that AI Agents use to operate websites. You don't run these manually — instead, install the `opencli-browser` skill into your AI agent, describe what you want in natural language, and the agent handles the browser operations.
+
+For example, tell your agent: *"Help me check my Xiaohongshu notifications"* — the agent will use `opencli browser open`, `state`, `click`, etc. under the hood.
 
 ### Built-in adapters: stable commands
 
-Use site-specific commands such as `opencli hackernews top` or `opencli reddit hot` when the capability already exists and you want deterministic output.
+Use site-specific commands such as `opencli hackernews top` or `opencli reddit hot` when the capability already exists. These are deterministic and work without browser — ideal for both humans and AI agents.
 
 ### `explore` / `synthesize` / `generate`: create new CLIs
 
