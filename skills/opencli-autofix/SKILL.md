@@ -6,6 +6,29 @@ allowed-tools: Bash(opencli:*), Bash(gh:*), Read, Edit, Write
 
 # OpenCLI AutoFix — Automatic Adapter Self-Repair
 
+> **本项目约定：0号浏览器预检（jdy / Main 项目，2026-04-18）**
+>
+> **触发预检的命令**（走 BrowserBridge，必须连 0号 Chrome）：
+>
+> - `opencli browser <subcmd>` — 全部 browser 子命令
+> - **opencli 顶层浏览器工具命令**：`explore`（alias `probe`）/ `generate` / `record` / `cascade`（经精确 grep 验证走 BrowserBridge；`synthesize` 是纯本地文件处理，不走浏览器）
+> - `opencli <site> <cmd>` — 当该 site 的 strategy **不是** `PUBLIC` / `LOCAL`
+> - **兜底**：如果无法确定某命令是否走浏览器，默认预检（代价：几秒检查 vs 连错浏览器的调试时间）
+>
+> 预检执行：
+>
+> ```bash
+> bash /Users/jdy/Documents/Main/.claude/scripts/preflight_profile0.sh
+> ```
+>
+> 脚本会自动：① 通过 daemon `/status` 判定扩展就绪；② 需要时启动 0号；③ 若扩展未连上 daemon 给出 Load unpacked / 排查指引。失败会报错并给清理指令。
+>
+> **以下命令无需预检**（strategy 为 `PUBLIC` / `LOCAL`，不走浏览器）：
+> `hackernews` · `v2ex` · `arxiv` · `lobsters` · 以及 `opencli list -f yaml` 中 `strategy: PUBLIC` 的所有站点。可通过 `opencli list -f yaml` 查看目标 site 的 strategy。
+>
+> 不得在主 Chrome 或 profile_1~6 中运行 opencli —— 其他实例未装扩展，不参与自动化。
+
+
 When an `opencli` command fails because a website changed its DOM, API, or response schema, **automatically diagnose, fix the adapter, and retry** — don't just report the error.
 
 ## Safety Boundaries
