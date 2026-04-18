@@ -51,6 +51,12 @@ jobs:
       - name: Verify direct deps use exact pins (no ^ or ~)
         run: node scripts/audit/check-exact-pins.mjs
 
+      - name: Verify lockfile provenance — root (registry + SHA-512)
+        run: node scripts/audit/check-lockfile-provenance.mjs
+
+      - name: Verify lockfile provenance — extension
+        run: node scripts/audit/check-lockfile-provenance.mjs extension
+
       - name: 90-day rule — root (direct strict, transitive warn)
         run: node scripts/audit/check-dep-age.mjs
 

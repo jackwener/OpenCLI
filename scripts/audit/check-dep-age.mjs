@@ -137,6 +137,28 @@ function collectDeps(lockJson) {
   return out;
 }
 
+// Build the (name, version, resolved, integrity) provenance set used by
+// --strict-new-transitive baseline diffing. Comparing on (name, version)
+// alone would let an attacker swap a package's tarball source or strip
+// its integrity hash without changing the version string and have the
+// audit treat it as grandfathered.
+function collectProvenance(lockJson) {
+  const out = new Set();
+  for (const [path, info] of Object.entries(lockJson.packages || {})) {
+    if (path === '') continue;
+    if (info.link) continue;
+    if (!info.version) continue;
+    let name = info.name;
+    if (!name) {
+      const m = path.match(/node_modules\/((?:@[^/]+\/)?[^/]+)$/);
+      name = m ? m[1] : null;
+    }
+    if (!name) continue;
+    out.add(`${name}@${info.version}|${info.resolved || ''}|${info.integrity || ''}`);
+  }
+  return out;
+}
+
 const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
 const deps = collectDeps(lock);
 const installScripts = [];
@@ -146,11 +168,12 @@ for (const [path, info] of Object.entries(lock.packages || {})) {
   }
 }
 
-// Build baseline (name@version) set for new-transitive detection. If the
-// base ref doesn't have the lockfile (first introduction) the script
-// downgrades to "no baseline" and skips the new-transitive escalation
-// rather than treating every entry as new.
+// Build baseline provenance (name@version|resolved|integrity) set for
+// new-transitive detection. If the base ref doesn't have the lockfile
+// (first introduction) the script downgrades to "no baseline" and skips
+// the new-transitive escalation rather than treating every entry as new.
 let baselineKeys = null;
+let baselineProvenance = null;
 let baselineUnavailableReason = null;
 if (strictNewTransitive) {
   const lockRelative = subdir === '.' ? 'package-lock.json' : `${subdir.replace(/\/$/, '')}/package-lock.json`;
@@ -161,6 +184,7 @@ if (strictNewTransitive) {
     });
     const baseLock = JSON.parse(baseLockText);
     baselineKeys = new Set(collectDeps(baseLock).keys());
+    baselineProvenance = collectProvenance(baseLock);
   } catch (e) {
     baselineUnavailableReason = e.message.split('\n')[0];
   }
@@ -267,11 +291,16 @@ for (const { name, version } of deps.values()) {
     if (isDirect) {
       directViolations.push({ name, version, ageDays, pubStr });
     } else {
-      const isNew = baselineKeys && !baselineKeys.has(key);
+      // 4-tuple comparison: a tarball-source or integrity swap on the
+      // same (name, version) counts as new even though the version
+      // string is unchanged.
+      const info = lock.packages[deps.get(key).paths[0]] || {};
+      const provenanceKey = `${name}@${version}|${info.resolved || ''}|${info.integrity || ''}`;
+      const isNew = baselineProvenance && !baselineProvenance.has(provenanceKey);
       if (isNew) {
         newTransitiveViolations.push({ name, version, ageDays, pubStr });
       } else {
-        transitiveViolations.push({ name, version, ageDays, pubStr, grandfathered: !!baselineKeys });
+        transitiveViolations.push({ name, version, ageDays, pubStr, grandfathered: !!baselineProvenance });
       }
     }
   } catch (e) {
