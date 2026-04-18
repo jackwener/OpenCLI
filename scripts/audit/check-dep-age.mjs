@@ -221,7 +221,16 @@ function getPublishTime(name, version) {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
       });
-      timeCache.set(name, JSON.parse(out));
+      const parsed = JSON.parse(out);
+      // Guard against npm returning null/non-object (e.g. unpublished
+      // package, registry hiccup). Without this the next access to
+      // times.__error throws a TypeError that escapes the per-package
+      // catch and aborts the whole audit run.
+      if (typeof parsed !== 'object' || parsed === null) {
+        timeCache.set(name, { __error: `npm view returned ${parsed === null ? 'null' : typeof parsed}` });
+      } else {
+        timeCache.set(name, parsed);
+      }
     } catch (e) {
       timeCache.set(name, { __error: e.message.split('\n')[0] });
     }
@@ -232,29 +241,36 @@ function getPublishTime(name, version) {
 }
 
 function getLifecycleScripts(name, version) {
-  // Fetch the full scripts object for this exact version and extract the
-  // lifecycle-relevant fields. Asking npm view for individual sub-paths
-  // collapses missing fields silently, so we read the whole object and
-  // filter ourselves. Returns {preinstall?, install?, postinstall?} or
-  // null if the registry call fails.
+  // Fetch the full scripts object for this exact version and extract
+  // lifecycle fields. Asking npm view for individual sub-paths collapses
+  // missing fields silently, so we read the whole object and filter
+  // ourselves. Throws on registry/parse failure so callers can fail
+  // closed — the script's docstring promises fail-closed semantics on
+  // EVERY registry interaction, not just the age lookup.
+  let out;
   try {
-    const out = execFileSync(
+    out = execFileSync(
       'npm',
       ['view', `${name}@${version}`, 'scripts', '--json'],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
     );
-    const raw = out.trim();
-    if (!raw) return {};
-    const all = JSON.parse(raw);
-    if (typeof all !== 'object' || all === null) return {};
-    const result = {};
-    for (const f of ['preinstall', 'install', 'postinstall']) {
-      if (typeof all[f] === 'string' && all[f].length > 0) result[f] = all[f];
-    }
-    return result;
-  } catch {
-    return null;
+  } catch (e) {
+    throw new Error(`npm view scripts failed: ${e.message.split('\n')[0]}`);
   }
+  const raw = out.trim();
+  if (!raw) return {};
+  let all;
+  try {
+    all = JSON.parse(raw);
+  } catch (e) {
+    throw new Error(`npm view scripts returned invalid JSON: ${e.message}`);
+  }
+  if (typeof all !== 'object' || all === null) return {};
+  const result = {};
+  for (const f of ['preinstall', 'install', 'postinstall']) {
+    if (typeof all[f] === 'string' && all[f].length > 0) result[f] = all[f];
+  }
+  return result;
 }
 
 let okCount = 0;
@@ -313,9 +329,15 @@ if (installScripts.length > 0) {
   console.log(`(${installScripts.length} package(s) declare install scripts — review the actual commands below)`);
   for (const { name, version, path } of installScripts) {
     console.log(`\n  ${name}@${version}  (${path})`);
-    const scripts = getLifecycleScripts(name, version);
-    if (scripts === null) {
-      console.log('    ⚠️  could not fetch script content from registry — review manually');
+    let scripts;
+    try {
+      scripts = getLifecycleScripts(name, version);
+    } catch (e) {
+      // Fail closed: a registry failure here means we cannot verify
+      // what the lifecycle script actually does, which is exactly the
+      // signal a supply-chain attacker would want to suppress.
+      errors.push({ name, version, reason: `lifecycle script fetch failed: ${e.message}`, isDirect: directNames.has(name) });
+      console.log(`    ❌ failed to fetch script content (counted as audit failure): ${e.message}`);
       continue;
     }
     const fields = ['preinstall', 'install', 'postinstall'];
