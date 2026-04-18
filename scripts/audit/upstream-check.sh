@@ -44,8 +44,13 @@ run_section() {
   shift
   echo ""
   echo "=== ${title} ==="
-  if ! "$@"; then
-    echo "⚠️  section failed (exit $?)"
+  # Capture the exit code BEFORE entering the if branch — inside the
+  # `then` block of `if ! cmd`, $? has already been overwritten to 0
+  # because the test succeeded, so the original failure code is gone.
+  local rc=0
+  "$@" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "⚠️  section failed (exit $rc)"
   fi
 }
 
