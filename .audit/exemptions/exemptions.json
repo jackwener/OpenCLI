@@ -1,0 +1,14 @@
+{
+  "$schema_version": 1,
+  "_doc": "Structured §4.4 exemption registry. The check-dep-age.mjs script consults this file. Each exemption is bound to an exact (name, version) pair and has an expiresOn date — once the date passes, the exemption is treated as missing and the package becomes a violation again. The narrative justification lives in the documentRef markdown file.",
+  "exemptions": [
+    {
+      "name": "undici",
+      "version": "7.24.8",
+      "reason": "§4.4 security-patch emergency: 6 HIGH CVEs (WebSocket parser crash, HTTP smuggling, memory DoS, CRLF injection); all >=90d undici versions are in the affected range",
+      "documentRef": ".audit/exemptions/2026-04-17-undici-vite.md#1",
+      "addedOn": "2026-04-17",
+      "expiresOn": "2026-07-17"
+    }
+  ]
+}
