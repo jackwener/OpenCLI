@@ -84,7 +84,7 @@ export function parseListsManagement(data, seen) {
     return lists;
 }
 
-cli({
+export const command = cli({
     site: 'twitter',
     name: 'lists',
     description: 'Get Twitter/X lists for the logged-in user (owned + subscribed)',

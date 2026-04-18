@@ -3250,7 +3250,7 @@
       {
         "name": "op",
         "type": "str",
-        "default": "/Users/hahaxixi2017/Pictures/chatgpt",
+        "default": "/Users/jakevin/Pictures/chatgpt",
         "required": false,
         "help": "Output directory"
       },
@@ -6169,7 +6169,7 @@
       {
         "name": "op",
         "type": "str",
-        "default": "/Users/hahaxixi2017/tmp/gemini-images",
+        "default": "/Users/jakevin/tmp/gemini-images",
         "required": false,
         "help": "Output directory shorthand"
       },
@@ -7450,7 +7450,7 @@
       {
         "name": "path",
         "type": "str",
-        "default": "/Users/hahaxixi2017/Downloads/Instagram",
+        "default": "/Users/jakevin/Downloads/Instagram",
         "required": false,
         "help": "Download directory"
       }
@@ -15158,8 +15158,8 @@
       "mode"
     ],
     "type": "js",
-    "modulePath": "twitter/list-add.js",
-    "sourceFile": "twitter/list-add.js",
+    "modulePath": "twitter/lists.js",
+    "sourceFile": "twitter/lists.js",
     "navigateBefore": "https://x.com"
   },
   {
@@ -17317,7 +17317,7 @@
     "name": "download",
     "description": "Download Xiaoyuzhou episode audio",
     "domain": "www.xiaoyuzhoufm.com",
-    "strategy": "public",
+    "strategy": "local",
     "browser": false,
     "args": [
       {
@@ -17351,7 +17351,7 @@
     "name": "episode",
     "description": "View details of a Xiaoyuzhou podcast episode",
     "domain": "www.xiaoyuzhoufm.com",
-    "strategy": "public",
+    "strategy": "local",
     "browser": false,
     "args": [
       {
@@ -17380,7 +17380,7 @@
     "name": "podcast",
     "description": "View a Xiaoyuzhou podcast profile",
     "domain": "www.xiaoyuzhoufm.com",
-    "strategy": "public",
+    "strategy": "local",
     "browser": false,
     "args": [
       {
@@ -17408,7 +17408,7 @@
     "name": "podcast-episodes",
     "description": "List episodes of a Xiaoyuzhou podcast",
     "domain": "www.xiaoyuzhoufm.com",
-    "strategy": "public",
+    "strategy": "local",
     "browser": false,
     "args": [
       {
