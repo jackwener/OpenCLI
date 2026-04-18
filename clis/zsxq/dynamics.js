@@ -37,7 +37,7 @@ cli({
                 time: d.create_time || topic.create_time || '',
                 group: topic.group?.name || '',
                 author: getTopicAuthor(topic),
-                title: getTopicText(topic).slice(0, 120),
+                title: getTopicText(topic),
                 comments: topic.comments_count ?? 0,
                 likes: topic.likes_count ?? 0,
                 url: getTopicUrl(topic.topic_id),
