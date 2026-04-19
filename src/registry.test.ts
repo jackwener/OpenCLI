@@ -100,18 +100,6 @@ describe('cli() registration', () => {
     expect(cmd.defaultFormat).toBe('plain');
     expect(getRegistry().get('test-registry/plain-default')?.defaultFormat).toBe('plain');
   });
-
-  it('preserves explicit presentation metadata on the registered command', () => {
-    const cmd = cli({
-      site: 'test-registry',
-      name: 'detail-view',
-      description: 'prefers key/value detail output',
-      presentation: 'detail',
-    });
-
-    expect(cmd.presentation).toBe('detail');
-    expect(getRegistry().get('test-registry/detail-view')?.presentation).toBe('detail');
-  });
 });
 
 describe('fullName', () => {

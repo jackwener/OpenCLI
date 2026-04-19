@@ -10,7 +10,6 @@ cli({
         { name: 'username', required: true, positional: true, help: 'Username' },
     ],
     columns: ['username', 'tagline', 'website', 'github', 'twitter', 'location'],
-    presentation: 'detail',
     pipeline: [
         { fetch: {
                 url: 'https://www.v2ex.com/api/members/show.json',

@@ -15,7 +15,6 @@ cli({
         },
     ],
     columns: ['handle', 'name', 'followers', 'following', 'posts', 'description'],
-    presentation: 'detail',
     pipeline: [
         { fetch: { url: 'https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${{ args.handle }}' } },
         { map: {

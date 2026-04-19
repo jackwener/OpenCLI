@@ -71,16 +71,6 @@ export interface CliCommand {
   navigateBefore?: boolean | string;
   /** Override the default CLI output format when the user does not pass -f/--format. */
   defaultFormat?: 'table' | 'plain' | 'json' | 'yaml' | 'yml' | 'md' | 'markdown' | 'csv';
-  /**
-   * Presentation policy for default human-readable output.
-   *
-   * - `list`: row-oriented data rendered as a table
-   * - `detail`: a single entity rendered as key/value pairs
-   *
-   * This is intentionally explicit command metadata. The renderer should not
-   * guess "detail" from heuristics like `rows.length === 1`.
-   */
-  presentation?: 'list' | 'detail';
 }
 
 /** Internal extension for lazy-loaded TS modules (not exposed in public API) */
@@ -122,7 +112,6 @@ export function cli(opts: CliOptions): CliCommand {
     replacedBy: opts.replacedBy,
     navigateBefore: opts.navigateBefore,
     defaultFormat: opts.defaultFormat,
-    presentation: opts.presentation,
   };
 
   registerCommand(cmd);

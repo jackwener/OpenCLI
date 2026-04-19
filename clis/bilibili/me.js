@@ -4,7 +4,6 @@ cli({
     site: 'bilibili', name: 'me', description: 'My Bilibili profile info', domain: 'www.bilibili.com', strategy: Strategy.COOKIE,
     args: [],
     columns: ['name', 'uid', 'level', 'coins', 'followers', 'following'],
-    presentation: 'detail',
     func: async (page) => {
         const uid = await getSelfUid(page);
         const payload = await apiGet(page, '/x/space/wbi/acc/info', { params: { mid: uid }, signed: true });

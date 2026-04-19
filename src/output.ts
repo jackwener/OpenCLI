@@ -11,7 +11,6 @@ export interface RenderOptions {
   /** True when the user explicitly passed -f on the command line */
   fmtExplicit?: boolean;
   columns?: string[];
-  presentation?: 'list' | 'detail';
   title?: string;
   elapsed?: number;
   source?: string;
@@ -52,10 +51,6 @@ function renderTable(data: unknown, opts: RenderOptions): void {
   const rows = normalizeRows(data);
   if (!rows.length) { console.log(styleText('dim', '(no data)')); return; }
   const columns = resolveColumns(rows, opts);
-  if (opts.presentation === 'detail' && rows.length === 1) {
-    renderDetail(rows[0], columns, opts);
-    return;
-  }
 
   const header = columns.map(c => capitalize(c));
   const table = new Table({
@@ -75,7 +70,12 @@ function renderTable(data: unknown, opts: RenderOptions): void {
   console.log();
   if (opts.title) console.log(styleText('dim', `  ${opts.title}`));
   console.log(table.toString());
-  console.log(styleText('dim', formatFooter(rows.length, opts)));
+  const footer: string[] = [];
+  footer.push(`${rows.length} items`);
+  if (opts.elapsed) footer.push(`${opts.elapsed.toFixed(1)}s`);
+  if (opts.source) footer.push(opts.source);
+  if (opts.footerExtra) footer.push(opts.footerExtra);
+  console.log(styleText('dim', footer.join(' · ')));
 }
 
 function renderJson(data: unknown): void {
@@ -135,43 +135,6 @@ function renderCsv(data: unknown, opts: RenderOptions): void {
 
 function renderYaml(data: unknown): void {
   console.log(yaml.dump(data, { sortKeys: false, lineWidth: 120, noRefs: true }));
-}
-
-function renderDetail(row: Record<string, unknown>, columns: string[], opts: RenderOptions): void {
-  const entries = columns
-    .map((column) => [column, row[column]] as const)
-    .filter(([, value]) => value !== undefined && value !== null && String(value) !== '');
-
-  if (!entries.length) {
-    console.log(styleText('dim', '(no data)'));
-    return;
-  }
-
-  const labels = entries.map(([column]) => capitalize(column));
-  const keyWidth = Math.max(...labels.map((label) => label.length));
-
-  console.log();
-  if (opts.title) console.log(styleText('dim', `  ${opts.title}`));
-  entries.forEach(([column, value], index) => {
-    const label = capitalize(column).padEnd(keyWidth, ' ');
-    const rendered = String(value);
-    const lines = rendered.split('\n');
-    console.log(`  ${styleText('bold', label)}  ${lines[0]}`);
-    for (let i = 1; i < lines.length; i++) {
-      console.log(`  ${' '.repeat(keyWidth)}  ${lines[i]}`);
-    }
-    if (index < entries.length - 1 && lines.length > 1) console.log();
-  });
-  console.log(styleText('dim', formatFooter(1, opts)));
-}
-
-function formatFooter(count: number, opts: RenderOptions): string {
-  const footer: string[] = [];
-  footer.push(count === 1 ? '1 item' : `${count} items`);
-  if (opts.elapsed) footer.push(`${opts.elapsed.toFixed(1)}s`);
-  if (opts.source) footer.push(opts.source);
-  if (opts.footerExtra) footer.push(opts.footerExtra);
-  return footer.join(' · ');
 }
 
 function capitalize(s: string): string {

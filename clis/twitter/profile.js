@@ -13,7 +13,6 @@ cli({
         { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (without @). Defaults to logged-in user.' },
     ],
     columns: ['screen_name', 'name', 'bio', 'location', 'url', 'followers', 'following', 'tweets', 'likes', 'verified', 'created_at'],
-    presentation: 'detail',
     func: async (page, kwargs) => {
         let username = (kwargs.username || '').replace(/^@/, '');
         // If no username, detect the logged-in user
