@@ -6,7 +6,7 @@
     },
     {
       "action": "wait",
-      "argument": { "time": 3 }
+      "argument": { "timeMs": 3000 }
     },
     {
       "action": "evaluate",

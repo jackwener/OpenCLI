@@ -10,7 +10,7 @@
     {
       "action": "wait",
       "argument": {
-        "time": 2
+        "timeMs": 2000
       }
     },
     {
