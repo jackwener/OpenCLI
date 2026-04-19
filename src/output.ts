@@ -28,11 +28,7 @@ function resolveColumns(rows: Record<string, unknown>[], opts: RenderOptions): s
 }
 
 export function render(data: unknown, opts: RenderOptions = {}): void {
-  let fmt = opts.fmt ?? 'table';
-  // Non-TTY auto-downgrade only when format was NOT explicitly passed by user.
-  if (!opts.fmtExplicit) {
-    if (fmt === 'table' && !process.stdout.isTTY) fmt = 'yaml';
-  }
+  const fmt = opts.fmt ?? 'yaml';
   if (data === null || data === undefined) {
     console.log(data);
     return;

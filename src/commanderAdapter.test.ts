@@ -266,7 +266,7 @@ describe('commanderAdapter default formats', () => {
     process.exitCode = undefined;
   });
 
-  it('uses the command defaultFormat when the user keeps the default table format', async () => {
+  it('defaults to yaml even if the command carries a legacy defaultFormat', async () => {
     const program = new Command();
     const siteCmd = program.command('gemini');
     registerCommandToProgram(siteCmd, cmd);
@@ -275,11 +275,11 @@ describe('commanderAdapter default formats', () => {
 
     expect(mockRenderOutput).toHaveBeenCalledWith(
       [{ response: 'hello' }],
-      expect.objectContaining({ fmt: 'plain' }),
+      expect.objectContaining({ fmt: 'yaml' }),
     );
   });
 
-  it('respects an explicit user format over the command defaultFormat', async () => {
+  it('still respects an explicit user format override', async () => {
     const program = new Command();
     const siteCmd = program.command('gemini');
     registerCommandToProgram(siteCmd, cmd);

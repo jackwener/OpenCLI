@@ -307,7 +307,7 @@ opencli xiaoyuzhou transcript 69dd0c98e2c8be31551f6a33 --output ./xiaoyuzhou-tra
 
 ## Output Formats
 
-All built-in commands support `--format` / `-f` with `table` (default), `json`, `yaml`, `md`, and `csv`.
+All built-in commands support `--format` / `-f` with `yaml` (default), `json`, `table`, `md`, and `csv`.
 
 ```bash
 opencli bilibili hot -f json    # Pipe to jq or LLMs

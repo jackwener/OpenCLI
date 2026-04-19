@@ -199,12 +199,12 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   program
     .command('list')
     .description('List all available CLI commands')
-    .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
+    .option('-f, --format <fmt>', 'Output format: yaml, json, table, md, csv', 'yaml')
     .option('--json', 'JSON output (deprecated)')
     .action((opts) => {
       const registry = getRegistry();
       const commands = [...new Set(registry.values())].sort((a, b) => fullName(a).localeCompare(fullName(b)));
-      const fmt = opts.json && opts.format === 'table' ? 'json' : opts.format;
+      const fmt = opts.json ? 'json' : opts.format;
       const isStructured = fmt === 'json' || fmt === 'yaml';
 
       if (fmt !== 'table') {
@@ -1094,7 +1094,7 @@ cli({
   pluginCmd
     .command('list')
     .description('List installed plugins')
-    .option('-f, --format <fmt>', 'Output format: table, json', 'table')
+    .option('-f, --format <fmt>', 'Output format: yaml, json, table', 'yaml')
     .action(async (opts) => {
       const { listPlugins } = await import('./plugin.js');
       const plugins = listPlugins();
@@ -1103,9 +1103,9 @@ cli({
         console.log(styleText('dim', '  Install one with: opencli plugin install github:user/repo'));
         return;
       }
-      if (opts.format === 'json') {
+      if (opts.format !== 'table') {
         renderOutput(plugins, {
-          fmt: 'json',
+          fmt: opts.format,
           columns: ['name', 'commands', 'source'],
           title: 'opencli/plugins',
           source: 'opencli plugin list',
