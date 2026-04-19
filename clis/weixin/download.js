@@ -179,12 +179,12 @@ cli({
         { name: 'output', default: './weixin-articles', help: 'Output directory' },
         { name: 'download-images', type: 'boolean', default: true, help: 'Download images locally' },
     ],
-    columns: ['title', 'author', 'publish_time', 'status', 'size'],
+    columns: ['title', 'author', 'publish_time', 'status', 'size', 'saved'],
     func: async (page, kwargs) => {
         const rawUrl = kwargs.url;
         const url = normalizeWechatUrl(rawUrl);
         if (!url.startsWith('https://mp.weixin.qq.com/')) {
-            return [{ title: 'Error', author: '-', publish_time: '-', status: 'invalid URL', size: '-' }];
+            return [{ title: 'Error', author: '-', publish_time: '-', status: 'invalid URL', size: '-', saved: '-' }];
         }
         // Navigate and wait for content to load
         await page.goto(url);
@@ -297,6 +297,7 @@ cli({
                     publish_time: '-',
                     status: 'failed — verification required in WeChat browser page',
                     size: '-',
+                    saved: '-',
                 }];
         }
         return downloadArticle({

@@ -78,7 +78,7 @@ opencli browser tab close 91F4D22A7C10...
 | **post/create** | Twitter, Jike, Douyin, Weibo |
 | **AI chat** | Grok, Doubao, ChatGPT, Gemini, Cursor, Codex, NotebookLM |
 | **finance/stock** | Xueqiu, Yahoo Finance, Barchart, Sina Finance, Bloomberg |
-| **web scraping** | `opencli web read --url <url>` — any URL to Markdown |
+| **web scraping** | `opencli web read --url <url>` — any URL to Markdown (saves to local file, check `saved` field in output) |
 | **GitHub/DevOps** | `opencli gh`, `opencli docker`, `opencli vercel` — external CLI passthrough |
 | **collaboration** | `opencli lark-cli`, `opencli dws`, `opencli wecom-cli` — external CLI passthrough |
 
@@ -153,9 +153,9 @@ Type legend: 🌐 = Browser (needs Chrome login) · ✅ = Public API (no browser
 | **tiktok** | 🌐 | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` |
 | **twitter** | 🌐 | `trending` `bookmarks` `search` `profile` `timeline` `lists` `list-tweets` `list-add` `list-remove` `thread` `article` `follow` `unfollow` `bookmark` `unbookmark` `post` `like` `likes` `reply` `delete` `block` `unblock` `followers` `following` `notifications` `hide-reply` `download` `accept` `reply-dm` |
 | **v2ex** | ✅🌐 | Public: `hot` `latest` `topic` `node` `nodes` `member` `user` `replies` · Browser: `daily` `me` `notifications` |
-| **web** | 🌐 | `read` — any URL to Markdown |
+| **web** | 🌐 | `read` — any URL to Markdown (saves to local file, not stdout) |
 | **weibo** | 🌐 | `hot` `search` `feed` `user` `me` `post` `comments` |
-| **weixin** | 🌐 | `download` — 公众号 article to Markdown |
+| **weixin** | 🌐 | `download` — 公众号 article to Markdown (saves to local file, not stdout) |
 | **wanfang** | 🌐 | `search` |
 | **weread** | 🌐 | `shelf` `search` `book` `highlights` `notes` `notebooks` `ranking` |
 | **wikipedia** | ✅ | `search` `summary` `random` `trending` |

@@ -27,7 +27,7 @@ cli({
         { name: 'download-images', type: 'boolean', default: true, help: 'Download images locally' },
         { name: 'wait', type: 'int', default: 3, help: 'Seconds to wait after page load' },
     ],
-    columns: ['title', 'author', 'publish_time', 'status', 'size'],
+    columns: ['title', 'author', 'publish_time', 'status', 'size', 'saved'],
     func: async (page, kwargs) => {
         const url = kwargs.url;
         const waitSeconds = kwargs.wait ?? 3;
