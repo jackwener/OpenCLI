@@ -3,6 +3,7 @@ import { render } from './output.js';
 
 describe('output TTY detection', () => {
   const originalIsTTY = process.stdout.isTTY;
+  const originalColumns = process.stdout.columns;
   let logSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -11,6 +12,7 @@ describe('output TTY detection', () => {
 
   afterEach(() => {
     Object.defineProperty(process.stdout, 'isTTY', { value: originalIsTTY, writable: true });
+    Object.defineProperty(process.stdout, 'columns', { value: originalColumns, writable: true });
     logSpy.mockRestore();
   });
 
@@ -44,5 +46,46 @@ describe('output TTY detection', () => {
     // Should be table output, not YAML
     expect(out).not.toContain('name: alice');
     expect(out).toContain('alice');
+  });
+
+  it('renders single-row table output as key/value pairs', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, writable: true });
+    render(
+      [{ name: 'alice', score: 10, description: 'single row detail' }],
+      { fmt: 'table', columns: ['name', 'score', 'description'], title: 'Sample' },
+    );
+    const out = logSpy.mock.calls.map((c: unknown[]) => c[0]).join('\n');
+    expect(out).toContain('Sample');
+    expect(out).toContain('Name         alice');
+    expect(out).toContain('Score        10');
+    expect(out).toContain('Description  single row detail');
+    expect(out).toContain('1 items');
+  });
+
+  it('caps wide table columns to terminal width and wraps long values', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, writable: true });
+    Object.defineProperty(process.stdout, 'columns', { value: 40, writable: true });
+    render(
+      [
+        {
+          name: 'alpha',
+          status: 'ok',
+          description: 'This is a very long description that should wrap cleanly in a narrow terminal width.',
+        },
+        {
+          name: 'beta',
+          status: 'warn',
+          description: 'Another long description that should also wrap instead of making the table extremely wide.',
+        },
+      ],
+      { fmt: 'table', columns: ['name', 'status', 'description'] },
+    );
+    const out = logSpy.mock.calls.map((c: unknown[]) => c[0]).join('\n');
+    expect(out).toContain('This is a very long');
+    expect(out).toContain('description that');
+    expect(out).toContain('table extremely');
+
+    const maxLineLength = out.split('\n').reduce((max: number, line: string) => Math.max(max, line.length), 0);
+    expect(maxLineLength).toBeLessThanOrEqual(40);
   });
 });
