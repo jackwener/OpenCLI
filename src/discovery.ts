@@ -155,10 +155,23 @@ async function discoverClisFromFs(dir: string): Promise<void> {
   const entries = await fs.promises.readdir(dir, { withFileTypes: true });
   
   const sitePromises = entries
-    .filter(entry => entry.isDirectory())
+    .filter(entry => entry.isDirectory() || entry.isSymbolicLink())
     .map(async (entry) => {
       const site = entry.name;
       const siteDir = path.join(dir, site);
+      // For symlinks, verify the target is a directory
+      if (entry.isSymbolicLink()) {
+        try {
+          const stat = await fs.promises.stat(siteDir);
+          if (!stat.isDirectory()) return;
+        } catch (err) {
+          const code = (err as NodeJS.ErrnoException).code;
+          if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+            log.warn(`Failed to inspect symlink ${siteDir}: ${getErrorMessage(err)}`);
+          }
+          return;
+        }
+      }
       const files = await fs.promises.readdir(siteDir);
       await Promise.all(files.map(async (file) => {
         const filePath = path.join(siteDir, file);

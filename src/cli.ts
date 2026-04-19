@@ -1155,6 +1155,21 @@ cli({
       }
     });
 
+  // Filter Dirent entries to directories, including symlinks that point to directories
+  async function filterDirentDirs(entries: fs.Dirent[], parentDir: string): Promise<fs.Dirent[]> {
+    const results: fs.Dirent[] = [];
+    for (const e of entries) {
+      if (e.isDirectory()) { results.push(e); continue; }
+      if (e.isSymbolicLink()) {
+        try {
+          const stat = await fs.promises.stat(path.join(parentDir, e.name));
+          if (stat.isDirectory()) results.push(e);
+        } catch { /* broken or non-dir symlink */ }
+      }
+    }
+    return results;
+  }
+
   // ── Built-in: adapter management ─────────────────────────────────────────
   const adapterCmd = program.command('adapter').description('Manage CLI adapters');
 
@@ -1167,11 +1182,11 @@ cli({
       const builtinClisDir = BUILTIN_CLIS;
       try {
         const userEntries = await fs.promises.readdir(userClisDir, { withFileTypes: true });
-        const userSites = userEntries.filter(e => e.isDirectory()).map(e => e.name).sort();
+        const userSites = (await filterDirentDirs(userEntries, userClisDir)).map(e => e.name).sort();
         let builtinSites: string[] = [];
         try {
           const builtinEntries = await fs.promises.readdir(builtinClisDir, { withFileTypes: true });
-          builtinSites = builtinEntries.filter(e => e.isDirectory()).map(e => e.name).sort();
+          builtinSites = (await filterDirentDirs(builtinEntries, builtinClisDir)).map(e => e.name).sort();
         } catch { /* no builtin dir */ }
 
         if (userSites.length === 0) {
@@ -1234,7 +1249,7 @@ cli({
       if (opts.all) {
         try {
           const userEntries = await fs.promises.readdir(userClisDir, { withFileTypes: true });
-          const dirs = userEntries.filter(e => e.isDirectory());
+          const dirs = await filterDirentDirs(userEntries, userClisDir);
           if (dirs.length === 0) {
             console.log('No local sites to reset.');
             return;
