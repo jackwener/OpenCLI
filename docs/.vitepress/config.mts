@@ -116,6 +116,7 @@ export default defineConfig({
                 { text: 'Apple Podcasts', link: '/adapters/browser/apple-podcasts' },
                 { text: 'Xiaoyuzhou', link: '/adapters/browser/xiaoyuzhou' },
                 { text: 'Yahoo Finance', link: '/adapters/browser/yahoo-finance' },
+                { text: 'ComfyUI', link: '/adapters/browser/comfyui' },
                 { text: 'arXiv', link: '/adapters/browser/arxiv' },
                 { text: 'paperreview.ai', link: '/adapters/browser/paperreview' },
                 { text: 'Barchart', link: '/adapters/browser/barchart' },
