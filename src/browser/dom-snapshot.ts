@@ -618,6 +618,7 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   const currentHashes = [];
   const refIdentity = {};
   let iframeCount = 0;
+  let crossOriginIndex = 0;
 
   function walk(el, depth, parentPropagatingRect) {
     if (depth > MAX_DEPTH) return false;
@@ -798,7 +799,9 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
       const doc = el.contentDocument;
       if (!doc || !doc.body) {
         const attrs = serializeAttrs(el);
-        lines.push(indent + '|iframe|<iframe' + (attrs ? ' ' + attrs : '') + ' /> (cross-origin)');
+        const frameLabel = '[F' + crossOriginIndex + ']';
+        lines.push(indent + '|iframe|' + frameLabel + '<iframe' + (attrs ? ' ' + attrs : '') + ' /> (cross-origin, use: opencli browser frames)');
+        crossOriginIndex++;
         return false;
       }
       iframeCount++;
@@ -811,7 +814,9 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
       return has;
     } catch {
       const attrs = serializeAttrs(el);
-      lines.push(indent + '|iframe|<iframe' + (attrs ? ' ' + attrs : '') + ' /> (blocked)');
+      const frameLabel = '[F' + crossOriginIndex + ']';
+      lines.push(indent + '|iframe|' + frameLabel + '<iframe' + (attrs ? ' ' + attrs : '') + ' /> (blocked, use: opencli browser frames)');
+      crossOriginIndex++;
       return false;
     }
   }

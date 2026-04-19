@@ -266,6 +266,16 @@ export class Page extends BasePage {
     }
   }
 
+  async frames(): Promise<Array<{ index: number; frameId: string; url: string; name: string }>> {
+    const result = await sendCommand('frames', { ...this._cmdOpts() });
+    return Array.isArray(result) ? result : [];
+  }
+
+  async evaluateInFrame(js: string, frameIndex: number): Promise<unknown> {
+    const code = wrapForEval(js);
+    return sendCommand('exec', { code, frameIndex, ...this._cmdOpts() });
+  }
+
   async cdp(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
     return sendCommand('cdp', {
       cdpMethod: method,

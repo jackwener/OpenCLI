@@ -267,6 +267,7 @@ function initialize(): void {
   initialized = true;
   chrome.alarms.create('keepalive', { periodInMinutes: 0.4 }); // ~24 seconds
   executor.registerListeners();
+  executor.registerFrameTracking();
   void connect();
   console.log('[opencli] OpenCLI extension initialized');
 }
@@ -334,6 +335,8 @@ async function handleCommand(cmd: Command): Promise<Result> {
         return await handleNetworkCaptureStart(cmd, workspace);
       case 'network-capture-read':
         return await handleNetworkCaptureRead(cmd, workspace);
+      case 'frames':
+        return await handleFrames(cmd, workspace);
       default:
         return { id: cmd.id, ok: false, error: `Unknown action: ${cmd.action}` };
     }
@@ -541,8 +544,51 @@ async function handleExec(cmd: Command, workspace: string): Promise<Result> {
   const tabId = await resolveTabId(cmdTabId, workspace);
   try {
     const aggressive = workspace.startsWith('browser:') || workspace.startsWith('operate:');
+    if (cmd.frameIndex != null) {
+      const tree = await executor.getFrameTree(tabId);
+      const childFrames: string[] = [];
+      function collectChildFrames(node: any, isChild: boolean) {
+        if (isChild) childFrames.push(node.frame.id);
+        for (const child of (node.childFrames || [])) collectChildFrames(child, true);
+      }
+      collectChildFrames(tree.frameTree, false);
+      if (cmd.frameIndex < 0 || cmd.frameIndex >= childFrames.length) {
+        return { id: cmd.id, ok: false, error: `Frame index ${cmd.frameIndex} out of range (${childFrames.length} child frames available)` };
+      }
+      const data = await executor.evaluateInFrame(tabId, cmd.code, childFrames[cmd.frameIndex], aggressive);
+      return pageScopedResult(cmd.id, tabId, data);
+    }
     const data = await executor.evaluateAsync(tabId, cmd.code, aggressive);
     return pageScopedResult(cmd.id, tabId, data);
+  } catch (err) {
+    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+async function handleFrames(cmd: Command, workspace: string): Promise<Result> {
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, workspace);
+  try {
+    const tree = await executor.getFrameTree(tabId);
+    const frames: Array<{ index: number; frameId: string; url: string; name: string }> = [];
+    let idx = 0;
+
+    function flattenFrames(node: any, isChild: boolean) {
+      const frame = node.frame;
+      if (isChild) {
+        frames.push({
+          index: idx++,
+          frameId: frame.id,
+          url: frame.url || frame.unreachableUrl || '',
+          name: frame.name || '',
+        });
+      }
+      for (const child of (node.childFrames || [])) {
+        flattenFrames(child, true);
+      }
+    }
+    flattenFrames(tree.frameTree, false);
+    return { id: cmd.id, ok: true, data: frames };
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
@@ -766,6 +812,7 @@ const CDP_ALLOWLIST = new Set([
   // Page metrics & screenshots
   'Page.getLayoutMetrics',
   'Page.captureScreenshot',
+  'Page.getFrameTree',
   // Runtime.enable needed for CDP attach setup (Runtime.evaluate goes through 'exec' action)
   'Runtime.enable',
   // Emulation (used by screenshot full-page)

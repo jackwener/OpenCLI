@@ -18,7 +18,8 @@ export type Action =
   | 'bind-current'
   | 'network-capture-start'
   | 'network-capture-read'
-  | 'cdp';
+  | 'cdp'
+  | 'frames';
 
 export interface Command {
   /** Unique request ID */
@@ -65,6 +66,8 @@ export interface Command {
   windowFocused?: boolean;
   /** Custom idle timeout in seconds for this workspace session. Overrides the default. */
   idleTimeout?: number;
+  /** Frame index for cross-frame operations (0-based, from 'frames' action) */
+  frameIndex?: number;
 }
 
 export interface Result {
