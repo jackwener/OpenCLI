@@ -148,6 +148,7 @@ describe('discoverPlugins', () => {
   const symlinkTargetDir = path.join(os.tmpdir(), '__test-plugin-symlink-target__');
   const symlinkPluginDir = path.join(PLUGINS_DIR, '__test-plugin-symlink__');
   const brokenSymlinkDir = path.join(PLUGINS_DIR, '__test-plugin-broken__');
+  const dirLinkType: fs.symlink.Type = process.platform === 'win32' ? 'junction' : 'dir';
 
   afterEach(async () => {
     try { await fs.promises.rm(testPluginDir, { recursive: true }); } catch {}
@@ -188,7 +189,7 @@ description: Test plugin greeting via symlink
 strategy: public
 browser: false
 `);
-    await fs.promises.symlink(symlinkTargetDir, symlinkPluginDir, 'dir');
+    await fs.promises.symlink(symlinkTargetDir, symlinkPluginDir, dirLinkType);
 
     await discoverPlugins();
 
@@ -198,7 +199,7 @@ browser: false
 
   it('skips broken plugin symlinks without throwing', async () => {
     await fs.promises.mkdir(PLUGINS_DIR, { recursive: true });
-    await fs.promises.symlink(path.join(os.tmpdir(), '__missing-plugin-target__'), brokenSymlinkDir, 'dir');
+    await fs.promises.symlink(path.join(os.tmpdir(), '__missing-plugin-target__'), brokenSymlinkDir, dirLinkType);
 
     await expect(discoverPlugins()).resolves.not.toThrow();
     expect(getRegistry().get('__test-plugin-broken__/hello')).toBeUndefined();
