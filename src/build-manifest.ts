@@ -55,7 +55,9 @@ export interface ManifestEntry {
 
 import { isRecord } from './utils.js';
 
-const CLI_MODULE_PATTERN = /\bcli\s*\(/;
+// Recognize inline `cli({...})` plus factory wrappers from
+// clis/_shared/desktop-commands.js (makeStatusCommand, makeNewCommand, ...).
+const CLI_MODULE_PATTERN = /\bcli\s*\(|\bmake[A-Z]\w*Command\s*\(/;
 
 function toManifestArgs(args: CliCommand['args']): ManifestEntry['args'] {
   return args.map(arg => ({

@@ -23,6 +23,27 @@ describe('manifest helper rules', () => {
     return expect(loadManifestEntries(file, 'demo', async () => ({}))).resolves.toEqual([]);
   });
 
+  it('recognizes factory-style adapters (make*Command) without a literal cli( token', async () => {
+    const site = `manifest-factory-${Date.now()}`;
+    const key = `${site}/factory-cmd`;
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-manifest-'));
+    tempDirs.push(dir);
+    const file = path.join(dir, `${site}.ts`);
+    fs.writeFileSync(
+      file,
+      `export const cmd = makeFakeCommand('${site}', 'factory-cmd');`,
+    );
+
+    const entries = await loadManifestEntries(file, site, async () => ({
+      cmd: cli({ site, name: 'factory-cmd', description: 'built via factory' }),
+    }));
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].name).toBe('factory-cmd');
+
+    getRegistry().delete(key);
+  });
+
   it('builds TS manifest entries from exported runtime commands', async () => {
     const site = `manifest-hydrate-${Date.now()}`;
     const key = `${site}/dynamic`;
