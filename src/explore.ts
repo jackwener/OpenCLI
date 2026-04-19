@@ -165,12 +165,15 @@ function parseNetworkRequests(raw: unknown): NetworkEntry[] {
           try { body = JSON.parse(preview); } catch { body = preview; }
         }
       }
+      const url = String(e.url ?? e.request?.url ?? e.requestUrl ?? '');
+      // Infer contentType from URL patterns when no explicit type is available,
+      // matching the same heuristic used in the string-parsing branch above
+      const contentType = e.contentType ?? e.responseContentType ?? e.response?.contentType
+        ?? ((url.includes('/api/') || url.includes('/x/') || url.endsWith('.json')) ? 'application/json' : '');
       return {
         method: (e.method ?? 'GET').toUpperCase(),
-        url: String(e.url ?? e.request?.url ?? e.requestUrl ?? ''),
-        status: e.status ?? e.responseStatus ?? e.statusCode ?? null,
-        contentType: e.contentType ?? e.responseContentType ?? e.response?.contentType ?? '',
-        responseBody: body, requestHeaders: e.requestHeaders,
+        url, status: e.status ?? e.responseStatus ?? e.statusCode ?? null,
+        contentType, responseBody: body, requestHeaders: e.requestHeaders,
       };
     });
   }
