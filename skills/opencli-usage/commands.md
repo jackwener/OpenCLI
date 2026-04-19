@@ -7,13 +7,13 @@ Type legend: 🌐 = Browser (needs Chrome login) · ✅ = Public API (no browser
 ## Browser Tab Targeting 🌐
 
 ```bash
-opencli browser tab list                     # 列出当前 tab 和 targetId
-opencli browser tab new https://notion.so   # 新建 tab，并返回 targetId
-opencli browser tab select tab-2            # 把 tab-2 设为后续命令的默认目标
+opencli browser open https://example.com    # 导航，返回 JSON { url, page: targetId }
+opencli browser tab new https://notion.so   # 新建 tab，返回 JSON { url, page: targetId }
+opencli browser click 3 --tab 7C3A8F21BCDE... # 用 targetId 把单条命令路由到指定 tab
+opencli browser tab select 91F4D22A7C10...  # 把该 targetId 设为后续命令的默认目标
 opencli browser state                       # 作用在当前 default tab
-opencli browser click 3 --tab tab-1         # 临时把单条命令路由到 tab-1
-opencli browser tab close tab-2             # 关闭指定 tab
-opencli browser open https://example.com    # 导航并返回当前 targetId
+opencli browser tab list                    # 查看当前已存在 tab 的 targetId
+opencli browser tab close 91F4D22A7C10...   # 关闭指定 targetId 对应的 tab
 ```
 
 ## 1688 🌐
