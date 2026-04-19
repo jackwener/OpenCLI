@@ -103,6 +103,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
         fmt: format,
         fmtExplicit: formatExplicit,
         columns: resolved.columns,
+        presentation: resolved.presentation,
         title: `${resolved.site}/${resolved.name}`,
         elapsed: (Date.now() - startTime) / 1000,
         source: fullName(resolved),

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render } from './output.js';
 
+function stripAnsi(text: string): string {
+  return text.replace(/\u001B\[[0-9;]*m/g, '');
+}
+
 describe('output TTY detection', () => {
   const originalIsTTY = process.stdout.isTTY;
   let logSpy: ReturnType<typeof vi.spyOn>;
@@ -44,5 +48,25 @@ describe('output TTY detection', () => {
     // Should be table output, not YAML
     expect(out).not.toContain('name: alice');
     expect(out).toContain('alice');
+  });
+
+  it('keeps single-row table output as a table by default', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, writable: true });
+    render([{ name: 'alice', score: 10 }], { fmt: 'table', columns: ['name', 'score'] });
+    const out = logSpy.mock.calls.map((c: unknown[]) => c[0]).join('\n');
+    expect(out).toContain('Name');
+    expect(out).toContain('Score');
+    expect(out).toContain('1 item');
+  });
+
+  it('renders detail presentation as key/value output when explicitly requested', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, writable: true });
+    render({ name: 'alice', score: 10 }, { fmt: 'table', columns: ['name', 'score'], presentation: 'detail' });
+    const out = stripAnsi(logSpy.mock.calls.map((c: unknown[]) => c[0]).join('\n'));
+    expect(out).toContain('  Name');
+    expect(out).toContain('alice');
+    expect(out).toContain('  Score');
+    expect(out).toContain('10');
+    expect(out).toContain('1 item');
   });
 });

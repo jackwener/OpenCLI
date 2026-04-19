@@ -47,6 +47,7 @@ export function serializeCommand(cmd: CliCommand) {
     browser: !!cmd.browser,
     args: cmd.args.map(serializeArg),
     columns: cmd.columns ?? [],
+    presentation: cmd.presentation ?? 'list',
     domain: cmd.domain ?? null,
     deprecated: cmd.deprecated ?? null,
     replacedBy: cmd.replacedBy ?? null,
@@ -82,6 +83,7 @@ export function formatRegistryHelpText(cmd: CliCommand): string {
   const meta: string[] = [];
   meta.push(`Strategy: ${strategyLabel(cmd)}`);
   meta.push(`Browser: ${cmd.browser ? 'yes' : 'no'}`);
+  if (cmd.presentation) meta.push(`Presentation: ${cmd.presentation}`);
   if (cmd.domain) meta.push(`Domain: ${cmd.domain}`);
   if (cmd.deprecated) meta.push(`Deprecated: ${typeof cmd.deprecated === 'string' ? cmd.deprecated : 'yes'}`);
   if (cmd.replacedBy) meta.push(`Use instead: ${cmd.replacedBy}`);

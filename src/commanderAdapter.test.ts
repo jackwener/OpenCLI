@@ -255,6 +255,7 @@ describe('commanderAdapter default formats', () => {
     args: [],
     columns: ['response'],
     defaultFormat: 'plain',
+    presentation: 'detail',
     func: vi.fn(),
   };
 
@@ -275,7 +276,7 @@ describe('commanderAdapter default formats', () => {
 
     expect(mockRenderOutput).toHaveBeenCalledWith(
       [{ response: 'hello' }],
-      expect.objectContaining({ fmt: 'plain' }),
+      expect.objectContaining({ fmt: 'plain', presentation: 'detail' }),
     );
   });
 
