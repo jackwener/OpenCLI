@@ -4066,6 +4066,147 @@
     "navigateBefore": true
   },
   {
+    "site": "deepseek",
+    "name": "ask",
+    "description": "Send a prompt to DeepSeek and get the response",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds to wait for response"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      },
+      {
+        "name": "model",
+        "type": "str",
+        "default": "instant",
+        "required": false,
+        "help": "Model to use: instant or expert",
+        "choices": [
+          "instant",
+          "expert"
+        ]
+      },
+      {
+        "name": "think",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Enable DeepThink mode"
+      },
+      {
+        "name": "search",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Enable web search"
+      }
+    ],
+    "columns": [
+      "response"
+    ],
+    "timeout": 180,
+    "type": "js",
+    "modulePath": "deepseek/ask.js",
+    "sourceFile": "deepseek/ask.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "deepseek",
+    "name": "history",
+    "description": "List conversation history from DeepSeek sidebar",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max conversations to show"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "deepseek/history.js",
+    "sourceFile": "deepseek/history.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "deepseek",
+    "name": "new",
+    "description": "Start a new conversation in DeepSeek",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "deepseek/new.js",
+    "sourceFile": "deepseek/new.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "deepseek",
+    "name": "read",
+    "description": "Read the current DeepSeek conversation",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "deepseek/read.js",
+    "sourceFile": "deepseek/read.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "deepseek",
+    "name": "status",
+    "description": "Check DeepSeek page availability and login state",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Login",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "deepseek/status.js",
+    "sourceFile": "deepseek/status.js",
+    "navigateBefore": false
+  },
+  {
     "site": "devto",
     "name": "tag",
     "description": "Latest DEV.to articles for a specific tag",
