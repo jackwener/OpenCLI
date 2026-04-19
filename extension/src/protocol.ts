@@ -33,8 +33,8 @@ export interface Command {
   workspace?: string;
   /** URL to navigate to (navigate action) */
   url?: string;
-  /** Sub-operation for tabs: list, new, close, select */
-  op?: 'list' | 'new' | 'close' | 'select';
+  /** Sub-operation for tabs: list, new, close, select, open-user-tab */
+  op?: 'list' | 'new' | 'close' | 'select' | 'open-user-tab';
   /** Tab index for tabs select/close */
   index?: number;
   /** Cookie domain filter */

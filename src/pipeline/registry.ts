@@ -6,7 +6,7 @@
 import type { IPage } from '../types.js';
 
 // Import core steps
-import { stepNavigate, stepClick, stepType, stepWait, stepPress, stepSnapshot, stepEvaluate } from './steps/browser.js';
+import { stepNavigate, stepClick, stepType, stepWait, stepPress, stepSnapshot, stepEvaluate, stepOpenUserTab } from './steps/browser.js';
 import { stepFetch } from './steps/fetch.js';
 import { stepSelect, stepMap, stepFilter, stepSort, stepLimit } from './steps/transform.js';
 import { stepIntercept } from './steps/intercept.js';
@@ -60,3 +60,4 @@ registerStep('limit', stepLimit);
 registerStep('intercept', stepIntercept);
 registerStep('tap', stepTap);
 registerStep('download', stepDownload);
+registerStep('open-user-tab', stepOpenUserTab);
