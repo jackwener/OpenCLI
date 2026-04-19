@@ -98,6 +98,9 @@ function debugStepResult(op: string, data: unknown): void {
     log.stepResult('(no data)');
   } else if (Array.isArray(data)) {
     log.stepResult(`${data.length} items`);
+    if (data.length > 0) {
+      log.verbose(`  [Sample] ${JSON.stringify(data[0]).slice(0, 300)}`);
+    }
   } else if (typeof data === 'object') {
     const keys = Object.keys(data).slice(0, 5);
     log.stepResult(`dict (${keys.join(', ')}${Object.keys(data).length > 5 ? '...' : ''})`);

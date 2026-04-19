@@ -28,6 +28,11 @@ function resolveColumns(rows: Record<string, unknown>[], opts: RenderOptions): s
 }
 
 export function render(data: unknown, opts: RenderOptions = {}): void {
+  // RAW mode: bypass all formatting, output raw JSON (for adapter development)
+  if (process.env.RAW === '1' || process.env.OPENCLI_RAW === '1') {
+    console.log(JSON.stringify(data, null, 2));
+    return;
+  }
   let fmt = opts.fmt ?? 'table';
   // Non-TTY auto-downgrade only when format was NOT explicitly passed by user.
   if (!opts.fmtExplicit) {

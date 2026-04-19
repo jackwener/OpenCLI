@@ -31,6 +31,22 @@ export interface RequiredEnv {
 
 export type CommandArgs = Record<string, any>;
 
+/**
+ * Options for navigateBefore when fine-grained control is needed.
+ *
+ * Useful for heavy SPAs where the default `waitUntil: 'load'` + 1s settle
+ * causes timeouts, or when a cookie-seeding navigation to a different
+ * subdomain is required before loading the actual target page.
+ */
+export interface PreNavOptions {
+  /** Primary URL to navigate to. */
+  url: string;
+  /** Override waitUntil behavior ('load' or 'none'). Default: 'load'. */
+  waitUntil?: 'load' | 'none';
+  /** Milliseconds to wait for DOM stability after load. Default: 1000. */
+  settleMs?: number;
+}
+
 export interface CliCommand {
   site: string;
   name: string;
@@ -65,10 +81,11 @@ export interface CliCommand {
    *   (e.g. INTERCEPT/UI adapters, or COOKIE without domain)
    * - `string`: pre-navigate to this URL before running the adapter
    *   (e.g. `'https://x.com'` for COOKIE strategy with domain)
+   * - `object`: pre-navigate with explicit waitUntil / settleMs controls
    *
    * Adapter authors can set this explicitly to override the strategy-based default.
    */
-  navigateBefore?: boolean | string;
+  navigateBefore?: boolean | string | PreNavOptions;
   /** Override the default CLI output format when the user does not pass -f/--format. */
   defaultFormat?: 'table' | 'plain' | 'json' | 'yaml' | 'yml' | 'md' | 'markdown' | 'csv';
 }
