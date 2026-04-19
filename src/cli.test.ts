@@ -271,6 +271,10 @@ describe('browser tab targeting commands', () => {
       selectTab: vi.fn().mockResolvedValue(undefined),
       newTab: vi.fn().mockResolvedValue('tab-3'),
       closeTab: vi.fn().mockResolvedValue(undefined),
+      frames: vi.fn().mockResolvedValue([
+        { index: 0, frameId: 'frame-1', url: 'https://x.example/embed', name: 'x-embed' },
+      ]),
+      evaluateInFrame: vi.fn().mockResolvedValue('inside frame'),
       readNetworkCapture: vi.fn().mockResolvedValue([]),
     } as unknown as IPage;
   });
@@ -328,6 +332,26 @@ describe('browser tab targeting commands', () => {
     expect(browserState.page?.goto).toHaveBeenCalledWith('https://example.com');
     expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"url": "https://one.example"');
     expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"page": "tab-1"');
+  });
+
+  it('lists cross-origin frames via browser frames', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'frames']);
+
+    expect(browserState.page?.frames).toHaveBeenCalledTimes(1);
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"frameId": "frame-1"');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"url": "https://x.example/embed"');
+  });
+
+  it('routes browser eval --frame through frame-targeted evaluation', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'eval', '--frame', '0', 'document.title']);
+
+    expect(browserState.page?.evaluateInFrame).toHaveBeenCalledWith('document.title', 0);
+    expect(browserState.page?.evaluate).not.toHaveBeenCalled();
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('inside frame');
   });
 
   it('does not promote a newly created tab to the persisted default target', async () => {

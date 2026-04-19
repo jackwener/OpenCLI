@@ -154,6 +154,52 @@ describe('background tab isolation', () => {
     ]);
   });
 
+  it('lists cross-origin frames in the same order exposed by snapshot [F#] markers', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async (_target: unknown, method: string) => {
+      if (method === 'Runtime.enable') return {};
+      if (method === 'Runtime.evaluate') return { result: { value: 1 } };
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: {
+            frame: { id: 'root', url: 'https://main.example/' },
+            childFrames: [
+              {
+                frame: { id: 'same-origin-parent', url: 'https://main.example/embed' },
+                childFrames: [
+                  {
+                    frame: { id: 'cross-origin-nested', url: 'https://x.example/widget', name: 'nested-x' },
+                    childFrames: [
+                      {
+                        frame: { id: 'hidden-descendant', url: 'https://x.example/inner' },
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                frame: { id: 'cross-origin-sibling', url: 'https://y.example/iframe', name: 'sibling-y' },
+              },
+            ],
+          },
+        };
+      }
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId('site:twitter', 1);
+
+    const result = await mod.__test__.handleCommand({ id: 'frames', action: 'frames', workspace: 'site:twitter' });
+
+    expect(result.ok).toBe(true);
+    expect(result.data).toEqual([
+      { index: 0, frameId: 'cross-origin-nested', url: 'https://x.example/widget', name: 'nested-x' },
+      { index: 1, frameId: 'cross-origin-sibling', url: 'https://y.example/iframe', name: 'sibling-y' },
+    ]);
+  });
+
   it('creates new tabs inside the automation window', async () => {
     const { chrome, create } = createChromeMock();
     vi.stubGlobal('chrome', chrome);

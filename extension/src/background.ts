@@ -408,6 +408,15 @@ function matchesBindCriteria(tab: chrome.tabs.Tab, cmd: Command): boolean {
   return true;
 }
 
+function getUrlOrigin(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
 function setWorkspaceSession(workspace: string, session: Omit<AutomationSession, 'idleTimer' | 'idleDeadlineAt'>): void {
   const existing = automationSessions.get(workspace);
   if (existing?.idleTimer) clearTimeout(existing.idleTimer);
@@ -573,21 +582,32 @@ async function handleFrames(cmd: Command, workspace: string): Promise<Result> {
     const frames: Array<{ index: number; frameId: string; url: string; name: string }> = [];
     let idx = 0;
 
-    function flattenFrames(node: any, isChild: boolean) {
-      const frame = node.frame;
-      if (isChild) {
+    function collectCrossOriginFrames(node: any, accessibleOrigin: string | null) {
+      for (const child of (node.childFrames || [])) {
+        const frame = child.frame;
+        const frameUrl = frame.url || frame.unreachableUrl || '';
+        const frameOrigin = getUrlOrigin(frameUrl);
+
+        // Mirror dom-snapshot's behavior:
+        // - same-origin frames are expanded inline and therefore do not get [F#] labels
+        // - cross-origin / blocked frames get surfaced once and we stop recursing into them
+        if (accessibleOrigin && frameOrigin && frameOrigin === accessibleOrigin) {
+          collectCrossOriginFrames(child, frameOrigin);
+          continue;
+        }
+
         frames.push({
           index: idx++,
           frameId: frame.id,
-          url: frame.url || frame.unreachableUrl || '',
+          url: frameUrl,
           name: frame.name || '',
         });
       }
-      for (const child of (node.childFrames || [])) {
-        flattenFrames(child, true);
-      }
     }
-    flattenFrames(tree.frameTree, false);
+
+    const rootFrame = tree.frameTree?.frame;
+    const rootUrl = rootFrame?.url || rootFrame?.unreachableUrl || '';
+    collectCrossOriginFrames(tree.frameTree, getUrlOrigin(rootUrl));
     return { id: cmd.id, ok: true, data: frames };
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };

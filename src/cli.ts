@@ -595,6 +595,12 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       console.log(typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot, null, 2));
     }));
 
+  addBrowserTabOption(browser.command('frames').description('List cross-origin iframe targets in snapshot order'))
+    .action(browserAction(async (page) => {
+      const frames = await page.frames?.() ?? [];
+      console.log(JSON.stringify(frames, null, 2));
+    }));
+
   addBrowserTabOption(browser.command('screenshot').argument('[path]', 'Save to file (base64 if omitted)'))
     .description('Take screenshot')
     .action(browserAction(async (page, path) => {
@@ -722,9 +728,28 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Extract ──
 
-  addBrowserTabOption(browser.command('eval').argument('<js>', 'JavaScript code').description('Execute JS in page context, return result'))
-    .action(browserAction(async (page, js) => {
-      const result = await page.evaluate(js);
+  addBrowserTabOption(
+    browser.command('eval')
+      .argument('<js>', 'JavaScript code')
+      .option('--frame <index>', 'Cross-origin iframe index from "browser frames"')
+      .description('Execute JS in page context, return result'),
+  )
+    .action(browserAction(async (page, js, opts) => {
+      let result: unknown;
+      if (opts.frame !== undefined) {
+        const frameIndex = Number.parseInt(opts.frame, 10);
+        if (!Number.isInteger(frameIndex) || frameIndex < 0) {
+          console.error(`Invalid frame index "${opts.frame}". Use a 0-based index from "browser frames".`);
+          process.exitCode = EXIT_CODES.USAGE_ERROR;
+          return;
+        }
+        if (!page.evaluateInFrame) {
+          throw new Error('This browser session does not support frame-targeted evaluation');
+        }
+        result = await page.evaluateInFrame(js, frameIndex);
+      } else {
+        result = await page.evaluate(js);
+      }
       if (typeof result === 'string') console.log(result);
       else console.log(JSON.stringify(result, null, 2));
     }));

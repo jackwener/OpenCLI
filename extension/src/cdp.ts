@@ -281,7 +281,7 @@ export function registerFrameTracking(): void {
 
     if (method === 'Runtime.executionContextCreated') {
       const context = params.context;
-      if (!context?.auxData?.frameId) return;
+      if (!context?.auxData?.frameId || context.auxData.isDefault !== true) return;
       const frameId = context.auxData.frameId as string;
       if (!tabFrameContexts.has(tabId)) {
         tabFrameContexts.set(tabId, new Map());

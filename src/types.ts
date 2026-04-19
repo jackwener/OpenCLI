@@ -90,6 +90,10 @@ export interface IPage {
   setActivePage?(page?: string): void;
   /** Send a raw CDP command via chrome.debugger passthrough. */
   cdp?(method: string, params?: Record<string, unknown>): Promise<unknown>;
+  /** List cross-origin iframe targets in snapshot order. */
+  frames?(): Promise<Array<{ index: number; frameId: string; url: string; name: string }>>;
+  /** Evaluate JavaScript inside a cross-origin iframe identified by its frame index. */
+  evaluateInFrame?(js: string, frameIndex: number): Promise<unknown>;
   /** Click at native coordinates via CDP Input.dispatchMouseEvent. */
   nativeClick?(x: number, y: number): Promise<void>;
   /** Type text via CDP Input.insertText. */
