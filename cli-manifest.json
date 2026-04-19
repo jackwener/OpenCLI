@@ -272,6 +272,105 @@
     "sourceFile": "36kr/search.js"
   },
   {
+    "site": "99csw",
+    "name": "content",
+    "description": "Get the content of a specific chapter from 99csw.com",
+    "domain": "www.99csw.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "book_id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Book ID (e.g., 9210)"
+      },
+      {
+        "name": "chapter_id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Chapter ID (e.g., 328790)"
+      }
+    ],
+    "columns": [
+      "title",
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "99csw/content.js",
+    "sourceFile": "99csw/content.js",
+    "navigateBefore": "https://www.99csw.com"
+  },
+  {
+    "site": "99csw",
+    "name": "full",
+    "description": "Download complete book content from 99csw.com (with configurable chapter limits)",
+    "domain": "www.99csw.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "book_id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Book ID (e.g., 9210)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Maximum number of chapters to download (default: 50)"
+      },
+      {
+        "name": "skip",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Number of chapters to skip from the beginning"
+      }
+    ],
+    "columns": [
+      "chapter_num",
+      "title",
+      "content_preview",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "99csw/full.js",
+    "sourceFile": "99csw/full.js",
+    "navigateBefore": "https://www.99csw.com"
+  },
+  {
+    "site": "99csw",
+    "name": "list-chapters",
+    "description": "List all chapters of a book from 99csw.com (Nine Nine Cang Shu Wang)",
+    "domain": "www.99csw.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "book_id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Book ID (number from URL, e.g., 9210 from /book/9210/index.htm)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "chapter_id",
+      "title"
+    ],
+    "type": "js",
+    "modulePath": "99csw/list-chapters.js",
+    "sourceFile": "99csw/list-chapters.js",
+    "navigateBefore": "https://www.99csw.com"
+  },
+  {
     "site": "amazon",
     "name": "bestsellers",
     "description": "Amazon Best Sellers pages for category candidate discovery",
