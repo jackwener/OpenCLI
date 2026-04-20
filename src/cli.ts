@@ -468,8 +468,17 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Navigation ──
 
-  /** Network interceptor JS — injected on every open/navigate to capture fetch/XHR */
-  const NETWORK_INTERCEPTOR_JS = `(function(){if(window.__opencli_net)return;window.__opencli_net=[];var M=200,B=50000,F=window.fetch;window.fetch=async function(){var r=await F.apply(this,arguments);try{var ct=r.headers.get('content-type')||'';if(ct.includes('json')||ct.includes('text')){var c=r.clone(),t=await c.text();if(window.__opencli_net.length<M){var b=null;if(t.length<=B)try{b=JSON.parse(t)}catch(e){b=t}window.__opencli_net.push({url:r.url||(arguments[0]&&arguments[0].url)||String(arguments[0]),method:(arguments[1]&&arguments[1].method)||'GET',status:r.status,size:t.length,ct:ct,body:b})}}}catch(e){}return r};var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(m,u){this._om=m;this._ou=u;return O.apply(this,arguments)};X.send=function(){var x=this;x.addEventListener('load',function(){try{var ct=x.getResponseHeader('content-type')||'';if((ct.includes('json')||ct.includes('text'))&&window.__opencli_net.length<M){var t=x.responseText,b=null;if(t&&t.length<=B)try{b=JSON.parse(t)}catch(e){b=t}window.__opencli_net.push({url:x._ou,method:x._om||'GET',status:x.status,size:t?t.length:0,ct:ct,body:b})}}catch(e){}});return S.apply(this,arguments)}})()`;
+  /**
+   * Network interceptor JS — injected on every open/navigate to capture
+   * fetch/XHR bodies when the session-level capture channel (CDP/extension)
+   * isn't available. Keeps parity with the CDP path's truncation contract:
+   * when a body exceeds the per-entry cap, we keep a string prefix and set
+   * `bodyTruncated: true` + `bodyFullSize: <original length>` so `browser
+   * network` can propagate a visible signal to the agent instead of
+   * silently dropping the body. Per-entry cap is 1 MiB and the ring is
+   * capped at 200 entries, bounding worst-case in-page memory.
+   */
+  const NETWORK_INTERCEPTOR_JS = `(function(){if(window.__opencli_net)return;window.__opencli_net=[];var M=200,B=1048576,F=window.fetch;function capture(url,method,status,text,ct){if(window.__opencli_net.length>=M)return;var full=text?text.length:0,trunc=full>B,stored=trunc?text.slice(0,B):text,body=null;if(stored){if(trunc){body=stored}else{try{body=JSON.parse(stored)}catch(e){body=stored}}}var e={url:url,method:method||'GET',status:status,size:full,ct:ct,body:body};if(trunc){e.bodyTruncated=true;e.bodyFullSize=full}window.__opencli_net.push(e)}window.fetch=async function(){var r=await F.apply(this,arguments);try{var ct=r.headers.get('content-type')||'';if(ct.includes('json')||ct.includes('text')){var c=r.clone(),t=await c.text();capture(r.url||(arguments[0]&&arguments[0].url)||String(arguments[0]),(arguments[1]&&arguments[1].method)||'GET',r.status,t,ct)}}catch(e){}return r};var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(m,u){this._om=m;this._ou=u;return O.apply(this,arguments)};X.send=function(){var x=this;x.addEventListener('load',function(){try{var ct=x.getResponseHeader('content-type')||'';if(ct.includes('json')||ct.includes('text')){capture(x._ou,x._om||'GET',x.status,x.responseText||'',ct)}}catch(e){}});return S.apply(this,arguments)}})()`;
 
   addBrowserTabOption(browser.command('open').argument('<url>').description('Open URL in automation window'))
     .action(browserAction(async (page, url) => {
@@ -924,7 +933,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         const maxBody = Number.parseInt(rawMaxBody, 10);
 
         // Body shape/source:
-        // - If capture already truncated it (entry.bodyTruncated), the body is a string.
+        // - If capture already truncated it (entry.body_truncated), the body is a string.
         // - If the adapter stored a JSON value, it parsed cleanly at capture time; leave it.
         // - --max-body applies a transport-level cap when the caller wants to keep output small.
         let outputBody: unknown = entry.body;
@@ -933,7 +942,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           outputBody = entry.body.slice(0, maxBody);
           transportTruncated = true;
         }
-        const captureTruncated = entry.bodyTruncated === true;
+        const captureTruncated = entry.body_truncated === true;
 
         const detailEnvelope: Record<string, unknown> = {
           key: entry.key,
@@ -947,7 +956,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         };
         if (captureTruncated || transportTruncated) {
           detailEnvelope.body_truncated = true;
-          detailEnvelope.body_full_size = entry.size;
+          detailEnvelope.body_full_size = entry.body_full_size ?? entry.size;
           detailEnvelope.body_truncation_reason = captureTruncated
             ? 'capture-limit'
             : 'max-body';
@@ -977,7 +986,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         size: it.size,
         ct: it.ct,
         body: it.body,
-        ...(it.bodyTruncated ? { bodyTruncated: true } : {}),
+        ...(it.bodyTruncated ? { body_truncated: true } : {}),
+        ...(it.bodyTruncated && typeof it.bodyFullSize === 'number'
+          ? { body_full_size: it.bodyFullSize }
+          : {}),
       }));
       // Soft failure: the caller already has the data, so surface a warning
       // via the output envelope rather than erroring out the whole command.
@@ -1011,7 +1023,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
       if (cacheWarning) envelope.cache_warning = cacheWarning;
 
-      const truncatedCount = visible.filter((s) => s.entry.bodyTruncated).length;
+      const truncatedCount = visible.filter((s) => s.entry.body_truncated).length;
       if (truncatedCount > 0) {
         envelope.body_truncated_count = truncatedCount;
         envelope.body_truncated_hint = 'Some bodies exceeded the capture limit; their `shape` reflects only the captured prefix.';
@@ -1028,7 +1040,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           ct: s.entry.ct,
           size: s.entry.size,
           shape: s.shape,
-          ...(s.entry.bodyTruncated ? { body_truncated: true } : {}),
+          ...(s.entry.body_truncated ? { body_truncated: true } : {}),
         }));
         envelope.detail_hint = 'Run "browser network --detail <key>" for full body.';
       }

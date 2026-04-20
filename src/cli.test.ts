@@ -695,6 +695,32 @@ describe('browser network command', () => {
       expect(lastJsonLog().error.code).toBe('invalid_max_body');
       expect(process.exitCode).toBeDefined();
     });
+
+    it('--raw emits snake_case body_truncated / body_full_size, matching non-raw + detail', async () => {
+      browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+        {
+          url: 'https://api.example.com/huge',
+          method: 'GET',
+          responseStatus: 200,
+          responseContentType: 'application/json',
+          responsePreview: 'truncated-prefix',
+          responseBodyFullSize: 20_000_000,
+          responseBodyTruncated: true,
+        },
+      ]);
+      const program = createProgram('', '');
+
+      await program.parseAsync(['node', 'opencli', 'browser', 'network', '--raw']);
+
+      const out = lastJsonLog();
+      expect(out.entries).toHaveLength(1);
+      const entry = out.entries[0];
+      expect(entry.body_truncated).toBe(true);
+      expect(entry.body_full_size).toBe(20_000_000);
+      // Internal camelCase must not leak into the agent-facing envelope.
+      expect(entry).not.toHaveProperty('bodyTruncated');
+      expect(entry).not.toHaveProperty('bodyFullSize');
+    });
   });
 });
 

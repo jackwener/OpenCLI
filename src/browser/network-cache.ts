@@ -25,8 +25,12 @@ export interface CachedNetworkEntry {
     size: number;
     ct: string;
     body: unknown;
-    /** True when the capture layer had to cap the body to protect memory. */
-    bodyTruncated?: boolean;
+    /**
+     * Truncation signals use snake_case so `--raw` (which emits cache entries
+     * verbatim) matches the agent-facing contract used by list / --detail.
+     */
+    body_truncated?: boolean;
+    body_full_size?: number;
 }
 
 export interface NetworkCacheFile {
