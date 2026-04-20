@@ -29,6 +29,22 @@ opencli browser network
 - 路径里出现 `nickname / avatar / title / price / tweets / items` → 就是它
 - shape 只有 `$: string` 或全是 HTML 噪音 → 下一条
 
+### 按期望字段反查（`--filter`）
+
+已经知道目标 body 该含哪些字段就直接让 CLI 把列表筛到只剩候选，不用自己 scroll 翻 shape：
+
+```bash
+opencli browser network --filter author,text,likes
+```
+
+- 字段以英文逗号分隔；AND 语义，必须每个字段都作为 shape 路径的**任意一段**出现才保留（`$.data.items[0].author` 命中 `author`、`items`、`data` 都算）
+- 区分大小写（JSON key 本来就 case-sensitive）
+- 输出 envelope 新增 `filter` / `filter_dropped`，`count` 是过滤后数量
+- 0 命中不是 error，返回 `entries: []`；说明字段组合不对，换一组或去掉约束再试
+- 不要跟 `--detail` 一起用——`--detail` 按 key 取单条、`--filter` 是列表缩窄，组合会报 `invalid_args`
+- 空值 / `,,,` → `invalid_filter` 结构化错误
+- capture 依然按全量持久化，后续 `--detail <key>` 能找到被过滤掉的条目
+
 ### 拉完整 body
 
 候选定了再拉完整 body（by key，不是 index — 数组顺序会随每次 capture 变）：

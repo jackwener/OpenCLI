@@ -130,6 +130,9 @@ opencli browser open https://example.com/target-page && opencli browser state
 # Interact to trigger API calls
 opencli browser click <N> && opencli browser network
 
+# Narrow to the request you care about by the fields its body should have
+opencli browser network --filter author,text,likes
+
 # Inspect specific API response (key is the `key` field from the default JSON output)
 opencli browser network --detail <key>
 ```

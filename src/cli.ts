@@ -25,6 +25,7 @@ import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesRe
 import { inferShape } from './browser/shape.js';
 import { assignKeys } from './browser/network-key.js';
 import { DEFAULT_TTL_MS, findEntry, loadNetworkCache, saveNetworkCache, type CachedNetworkEntry } from './browser/network-cache.js';
+import { parseFilter, shapeMatchesFilter } from './browser/shape-filter.js';
 import { buildHtmlTreeJs, type HtmlTreeResult } from './browser/html-tree.js';
 import { daemonStatus, daemonStop } from './commands/daemon.js';
 import { log } from './logger.js';
@@ -763,14 +764,36 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .option('--detail <key>', 'Emit full body for the entry with this key')
     .option('--all', 'Include static resources (js/css/images/telemetry)')
     .option('--raw', 'Emit full bodies for every entry (skip shape preview)')
+    .option('--filter <fields>', 'Comma-separated field names; keep only entries whose body shape has ALL names as path segments')
     .option('--ttl <ms>', 'Cache TTL in ms for --detail lookups', String(DEFAULT_TTL_MS))
     .description('Capture network requests as shape previews; retrieve full bodies by key')
     .action(browserAction(async (page, opts) => {
       const ttlMs = parsePositiveIntOption(opts.ttl, 'ttl', DEFAULT_TTL_MS);
       const workspace = DEFAULT_BROWSER_WORKSPACE;
+      const hasDetail = typeof opts.detail === 'string' && opts.detail.length > 0;
+      const hasFilter = typeof opts.filter === 'string';
+
+      // --detail and --filter do different things (one request by key vs. narrow
+      // the list by shape), don't compose, and combining them has no sensible
+      // semantic. Reject up front with a structured error instead of silently
+      // dropping one.
+      if (hasDetail && hasFilter) {
+        emitNetworkError('invalid_args', '--filter and --detail cannot be used together (one narrows a list, the other fetches a specific entry).');
+        return;
+      }
+
+      let filterFields: string[] | null = null;
+      if (hasFilter) {
+        const parsed = parseFilter(opts.filter as string);
+        if ('reason' in parsed) {
+          emitNetworkError('invalid_filter', parsed.reason);
+          return;
+        }
+        filterFields = parsed.fields;
+      }
 
       // --detail short-circuits: read from cache only, no live capture needed.
-      if (typeof opts.detail === 'string' && opts.detail.length > 0) {
+      if (hasDetail) {
         const res = loadNetworkCache(workspace, { ttlMs });
         if (res.status === 'missing') {
           emitNetworkError('cache_missing', `No cached capture. Run "browser network" first (in workspace "${workspace}").`);
@@ -835,25 +858,40 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         cacheWarning = `Could not persist capture cache: ${(err as Error).message}. --detail lookups may miss this capture.`;
       }
 
+      // Pair each cache entry with its shape up front so --filter can read
+      // segments without recomputing, and the --raw view can keep the full
+      // body. Cache persistence above stored the unfiltered set on purpose:
+      // later `--detail <key>` lookups must still see requests that the
+      // current --filter narrowed out.
+      const shaped = cacheEntries.map((e) => ({ entry: e, shape: inferShape(e.body) }));
+      const visible = filterFields
+        ? shaped.filter((s) => shapeMatchesFilter(s.shape, filterFields))
+        : shaped;
+      const filterDropped = filterFields ? shaped.length - visible.length : 0;
+
       const envelope: Record<string, unknown> = {
         workspace,
         captured_at: new Date().toISOString(),
-        count: cacheEntries.length,
+        count: visible.length,
         filtered_out: filteredOut,
       };
+      if (filterFields) {
+        envelope.filter = filterFields;
+        envelope.filter_dropped = filterDropped;
+      }
       if (cacheWarning) envelope.cache_warning = cacheWarning;
 
       if (opts.raw) {
-        envelope.entries = cacheEntries;
+        envelope.entries = visible.map((s) => s.entry);
       } else {
-        envelope.entries = cacheEntries.map((e) => ({
-          key: e.key,
-          method: e.method,
-          status: e.status,
-          url: e.url,
-          ct: e.ct,
-          size: e.size,
-          shape: inferShape(e.body),
+        envelope.entries = visible.map((s) => ({
+          key: s.entry.key,
+          method: s.entry.method,
+          status: s.entry.status,
+          url: s.entry.url,
+          ct: s.entry.ct,
+          size: s.entry.size,
+          shape: s.shape,
         }));
         envelope.detail_hint = 'Run "browser network --detail <key>" for full body.';
       }

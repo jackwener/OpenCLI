@@ -440,6 +440,134 @@ describe('browser network command', () => {
     expect(out.count).toBe(1);
     expect(process.exitCode).toBeUndefined();
   });
+
+  describe('--filter', () => {
+    function apiResponse(url: string, body: unknown): Record<string, unknown> {
+      return {
+        url,
+        method: 'GET',
+        responseStatus: 200,
+        responseContentType: 'application/json',
+        responsePreview: JSON.stringify(body),
+      };
+    }
+
+    beforeEach(() => {
+      browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+        apiResponse(
+          'https://x.com/i/api/graphql/qid/UserTweets?v=1',
+          { data: { items: [{ author: 'a', text: 't', likes: 1 }] } },
+        ),
+        apiResponse(
+          'https://x.com/i/api/graphql/qid/UserProfile?v=1',
+          { data: { user: { id: 'u1', followers: 10 } } },
+        ),
+        apiResponse(
+          'https://x.com/i/api/graphql/qid/Settings?v=1',
+          { config: { theme: 'dark' } },
+        ),
+      ]);
+    });
+
+    it('narrows entries to those whose shape has ALL named fields', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'network', '--filter', 'author,text,likes']);
+
+      const out = lastJsonLog();
+      expect(out.count).toBe(1);
+      expect(out.filter).toEqual(['author', 'text', 'likes']);
+      expect(out.filter_dropped).toBe(2);
+      expect(out.entries[0].key).toBe('UserTweets');
+    });
+
+    it('matches container segments too, not just leaf names (any-segment rule)', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'network', '--filter', 'data,items']);
+
+      const out = lastJsonLog();
+      expect(out.count).toBe(1);
+      expect(out.entries[0].key).toBe('UserTweets');
+    });
+
+    it('drops entries that are missing any required field (AND semantics)', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'network', '--filter', 'author,followers']);
+
+      const out = lastJsonLog();
+      expect(out.count).toBe(0);
+      expect(out.entries).toEqual([]);
+      expect(out.filter).toEqual(['author', 'followers']);
+      expect(out.filter_dropped).toBe(3);
+    });
+
+    it('returns empty entries (not an error) when nothing matches', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'network', '--filter', 'nonexistent_field']);
+
+      const out = lastJsonLog();
+      expect(out.count).toBe(0);
+      expect(out.entries).toEqual([]);
+      expect(out).not.toHaveProperty('error');
+      expect(process.exitCode).toBeUndefined();
+    });
+
+    it('is case-sensitive so agents do not conflate `Id` with `id`', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'network', '--filter', 'Data']);
+
+      const out = lastJsonLog();
+      expect(out.count).toBe(0);
+    });
+
+    it('persists the full (unfiltered) capture so --detail lookups still find filtered-out keys', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'network', '--filter', 'author,text,likes']);
+      consoleLogSpy.mockClear();
+      await program.parseAsync(['node', 'opencli', 'browser', 'network', '--detail', 'UserProfile']);
+
+      const out = lastJsonLog();
+      expect(out.key).toBe('UserProfile');
+      expect(out.body).toEqual({ data: { user: { id: 'u1', followers: 10 } } });
+    });
+
+    it('composes with --raw: entries keep full bodies, filter still narrows', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'network', '--filter', 'author', '--raw']);
+
+      const out = lastJsonLog();
+      expect(out.count).toBe(1);
+      expect(out.entries[0].body).toEqual({ data: { items: [{ author: 'a', text: 't', likes: 1 }] } });
+    });
+
+    it('reports invalid_filter for empty value', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'network', '--filter', '']);
+
+      const out = lastJsonLog();
+      expect(out.error.code).toBe('invalid_filter');
+      expect(process.exitCode).toBeDefined();
+    });
+
+    it('reports invalid_filter for commas-only value', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'network', '--filter', ',,,']);
+
+      const out = lastJsonLog();
+      expect(out.error.code).toBe('invalid_filter');
+      expect(process.exitCode).toBeDefined();
+    });
+
+    it('rejects --filter combined with --detail as invalid_args', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'network', '--filter', 'author', '--detail', 'UserTweets']);
+
+      const out = lastJsonLog();
+      expect(out.error.code).toBe('invalid_args');
+      expect(out.error.message).toContain('--filter');
+      expect(out.error.message).toContain('--detail');
+      expect(process.exitCode).toBeDefined();
+    });
+  });
 });
 
 describe('browser get html command', () => {
