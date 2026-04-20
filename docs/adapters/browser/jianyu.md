@@ -6,7 +6,7 @@
 
 | Command | Description |
 |---------|-------------|
-| `opencli jianyu search "<query>" --limit <n>` | Search Jianyu bid notices (V2 structured contract) |
+| `opencli jianyu search "<query>" --limit <n> [--since_days <n>]` | Search Jianyu bid notices and keep only accessible detail links |
 | `opencli jianyu detail "<url>"` | Extract detail-page evidence blocks from a search URL |
 
 ## Usage Examples
@@ -15,8 +15,8 @@
 # Search by keyword
 opencli jianyu search "procurement" --limit 20 -f json
 
-# Search another keyword with a smaller window
-opencli jianyu search "substation" --limit 10 -f json
+# Search another keyword with an explicit recency window
+opencli jianyu search "substation" --limit 10 --since_days 30 -f json
 
 # Extract structured detail evidence
 opencli jianyu detail "https://www.jianyu360.cn/nologin/content/....html" -f json
@@ -29,10 +29,11 @@ opencli jianyu detail "https://www.jianyu360.cn/nologin/content/....html" -f jso
 
 ## Notes
 
-- `search` now returns V2 fields: `publish_time`, `source_site`, `content_type`, `is_detail_page`, `snippet`, `quality_flags`, plus compatible `date/summary`.
+- `search` returns accessible procurement rows with `published_at`, `detail_status`, `project_code`, `budget_or_limit`, `url`, plus compatible `publish_time/date`.
+- `search` keeps all reachable rows by default. `--since_days` enables an explicit recency filter.
 - `detail` returns the same structured fields and adds `detail_text` + `evidence_blocks`.
 - Date fields are normalized to `YYYY-MM-DD` when date text is detectable.
-- Results are deduplicated by `title + url`.
+- Results are deduplicated by stable notice id when it is available.
 - `--limit` defaults to `20` and is capped at `50`.
 
 ## Troubleshooting

@@ -539,13 +539,16 @@ cli({
     args: [
         { name: 'query', required: true, positional: true, help: 'Search keyword, e.g. "procurement"' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of results (max 50)' },
-        { name: 'since_days', type: 'int', default: 30, help: 'Only keep rows published within N days' },
+        { name: 'since_days', type: 'int', help: 'Only keep rows published within N days' },
     ],
     columns: ['rank', 'content_type', 'title', 'published_at', 'detail_status', 'project_code', 'budget_or_limit', 'url'],
     func: async (page, kwargs) => {
         const query = cleanText(kwargs.query);
         const limit = Math.max(1, Math.min(Number(kwargs.limit) || 20, 50));
-        const sinceDays = Math.max(1, Math.min(Number(kwargs.since_days) || 30, 3650));
+        const rawSinceDays = Number(kwargs.since_days);
+        const sinceDays = Number.isFinite(rawSinceDays) && rawSinceDays > 0
+            ? Math.max(1, Math.min(rawSinceDays, 3650))
+            : null;
         const apiResult = await fetchJianyuApiRows(page, query, limit);
         const mergedRows = dedupeCandidates(filterNavigationRows(query, apiResult.rows));
         const extractedRows = await searchRowsFromEntries(page, {
@@ -578,7 +581,7 @@ cli({
                     };
                 }))
                     .filter((row) => row.detail_status === 'ok')
-                    .filter((row) => isWithinSinceDays(row.published_at, sinceDays))
+                    .filter((row) => sinceDays == null || isWithinSinceDays(row.published_at, sinceDays))
                     .slice(0, limit)
                     .map((row, index) => ({
                     ...row,
@@ -608,7 +611,7 @@ cli({
             };
         }))
             .filter((row) => row.detail_status === 'ok')
-            .filter((row) => isWithinSinceDays(row.published_at, sinceDays))
+            .filter((row) => sinceDays == null || isWithinSinceDays(row.published_at, sinceDays))
             .slice(0, limit)
             .map((row, index) => ({
             ...row,
