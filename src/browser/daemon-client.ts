@@ -9,7 +9,11 @@ import type { BrowserSessionInfo } from '../types.js';
 import { sleep } from '../utils.js';
 import { classifyBrowserError } from './errors.js';
 
-const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
+export function getEffectiveDaemonPort(): number {
+  return parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
+}
+
+const DAEMON_PORT = getEffectiveDaemonPort();
 const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
 const OPENCLI_HEADERS = { 'X-OpenCLI': '1' };
 
