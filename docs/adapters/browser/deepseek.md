@@ -30,6 +30,9 @@ opencli deepseek ask "prove that sqrt(2) is irrational" --think
 # Enable web search
 opencli deepseek ask "latest news about AI" --search
 
+# Attach a file
+opencli deepseek ask "summarize this document" --file ./report.pdf
+
 # Combine modes
 opencli deepseek ask "what happened today?" --model expert --think --search --new
 
@@ -62,6 +65,7 @@ opencli deepseek history --limit 10
 | `--model` | Model to use: `instant` or `expert` (default: instant) |
 | `--think` | Enable DeepThink mode (default: false) |
 | `--search` | Enable web search (default: false) |
+| `--file` | Attach a file (PDF, image, text) with the prompt (max 50 MB) |
 
 ## Prerequisites
 
@@ -73,4 +77,4 @@ opencli deepseek history --limit 10
 - This adapter drives the DeepSeek web UI in the browser, not an API
 - Default mode is Instant with DeepThink and Search disabled; each flag (`--model`, `--think`, `--search`) is synced on every invocation so omitting a flag resets it
 - Long responses (code, essays) may need a higher `--timeout`
-- File upload is not yet supported
+- File upload reads the file into memory and passes it via base64 to the browser; files over 50 MB are rejected

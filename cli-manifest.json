@@ -3250,7 +3250,7 @@
       {
         "name": "op",
         "type": "str",
-        "default": "/Users/jakevin/Pictures/chatgpt",
+        "default": "/Users/beneecs/Pictures/chatgpt",
         "required": false,
         "help": "Output directory"
       },
@@ -4118,6 +4118,12 @@
         "default": false,
         "required": false,
         "help": "Enable web search"
+      },
+      {
+        "name": "file",
+        "type": "str",
+        "required": false,
+        "help": "Attach a file (PDF, image, text) with the prompt"
       }
     ],
     "columns": [
@@ -6310,7 +6316,7 @@
       {
         "name": "op",
         "type": "str",
-        "default": "/Users/jakevin/tmp/gemini-images",
+        "default": "/Users/beneecs/tmp/gemini-images",
         "required": false,
         "help": "Output directory shorthand"
       },
@@ -7591,7 +7597,7 @@
       {
         "name": "path",
         "type": "str",
-        "default": "/Users/jakevin/Downloads/Instagram",
+        "default": "/Users/beneecs/Downloads/Instagram",
         "required": false,
         "help": "Download directory"
       }
@@ -16173,7 +16179,8 @@
       "author",
       "publish_time",
       "status",
-      "size"
+      "size",
+      "saved"
     ],
     "type": "js",
     "modulePath": "web/read.js",
@@ -16434,7 +16441,8 @@
       "author",
       "publish_time",
       "status",
-      "size"
+      "size",
+      "saved"
     ],
     "type": "js",
     "modulePath": "weixin/download.js",

@@ -2,7 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     DEEPSEEK_DOMAIN, DEEPSEEK_URL, ensureOnDeepSeek, selectModel, setFeature,
-    sendMessage, getBubbleCount, waitForResponse, parseBoolFlag, withRetry,
+    sendMessage, getBubbleCount, waitForResponse, parseBoolFlag, withRetry, attachAndSend,
 } from './utils.js';
 
 export const askCommand = cli({
@@ -21,6 +21,7 @@ export const askCommand = cli({
         { name: 'model', default: 'instant', choices: ['instant', 'expert'], help: 'Model to use: instant or expert' },
         { name: 'think', type: 'boolean', default: false, help: 'Enable DeepThink mode' },
         { name: 'search', type: 'boolean', default: false, help: 'Enable web search' },
+        { name: 'file', help: 'Attach a file (PDF, image, text) with the prompt' },
     ],
     columns: ['response'],
 
@@ -57,6 +58,24 @@ export const askCommand = cli({
         }
 
         if (thinkResult.toggled || searchResult.toggled) await page.wait(0.5);
+
+        if (kwargs.file) {
+            // Atomic attach+send: "Promise was collected" after click means SPA navigated (send succeeded)
+            try {
+                const result = await attachAndSend(page, kwargs.file, prompt);
+                if (result && !result.ok) {
+                    throw new CommandExecutionError(result.reason || 'Failed to attach file and send');
+                }
+            } catch (err) {
+                if (!String(err?.message || err).includes('Promise was collected')) throw err;
+            }
+            await page.wait(3);
+            const response = await waitForResponse(page, 0, prompt, timeoutMs);
+            if (!response) {
+                return [{ response: `[NO RESPONSE] No reply within ${kwargs.timeout}s.` }];
+            }
+            return [{ response }];
+        }
 
         const baseline = await withRetry(() => getBubbleCount(page));
         const sendResult = await withRetry(() => sendMessage(page, prompt));
