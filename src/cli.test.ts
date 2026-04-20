@@ -412,6 +412,34 @@ describe('browser network command', () => {
     expect(out.error.code).toBe('cache_missing');
     expect(process.exitCode).toBeDefined();
   });
+
+  it('emits capture_failed when readNetworkCapture throws', async () => {
+    (browserState.page!.readNetworkCapture as any) = vi.fn().mockRejectedValue(new Error('CDP disconnected'));
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'network']);
+
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('capture_failed');
+    expect(out.error.message).toContain('CDP disconnected');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('surfaces cache_warning in the envelope when persistence fails', async () => {
+    const cacheDir = String(process.env.OPENCLI_CACHE_DIR);
+    // Pre-create the target path as a file where a directory is expected,
+    // forcing the mkdir inside saveNetworkCache to throw.
+    const clashDir = path.join(cacheDir, 'browser-network');
+    fs.writeFileSync(clashDir, 'not-a-directory');
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', 'network']);
+
+    const out = lastJsonLog();
+    expect(out.cache_warning).toMatch(/Could not persist capture cache/);
+    expect(out.count).toBe(1);
+    expect(process.exitCode).toBeUndefined();
+  });
 });
 
 describe('findPackageRoot', () => {

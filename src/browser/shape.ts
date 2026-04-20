@@ -66,7 +66,7 @@ export function inferShape(value: unknown, opts: InferShapeOptions = {}): Shape 
         if (Array.isArray(node)) {
             if (node.length === 0) { add(path, 'array(0)'); return; }
             if (depth >= maxDepth) { add(path, `array(${node.length})`); return; }
-            add(path, `array(${node.length})`);
+            if (!add(path, `array(${node.length})`)) return;
             walk(node[0], `${path}[0]`, depth + 1);
             return;
         }
@@ -76,7 +76,7 @@ export function inferShape(value: unknown, opts: InferShapeOptions = {}): Shape 
         const keys = Object.keys(obj);
         if (keys.length === 0) { add(path, 'object(empty)'); return; }
         if (depth >= maxDepth) { add(path, `object(keys=${keys.length})`); return; }
-        add(path, 'object');
+        if (!add(path, 'object')) return;
         for (const k of keys) {
             if (truncated) return;
             const childPath = isSafeIdent(k) ? `${path}.${k}` : `${path}[${JSON.stringify(k)}]`;

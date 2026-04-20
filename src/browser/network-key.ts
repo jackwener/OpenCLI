@@ -9,7 +9,8 @@
  *                                       (the segment after a 22-char query id, or the last segment)
  *   Everything else: key = `METHOD host+pathname`
  *
- * On collision the caller appends `#N` (handled by assignKeys).
+ * On collision assignKeys suffixes duplicates as `base#2`, `base#3`, ... —
+ * the first occurrence stays bare (there is no `#1`).
  */
 
 export interface KeyableRequest {

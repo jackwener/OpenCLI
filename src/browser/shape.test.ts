@@ -58,6 +58,13 @@ describe('inferShape', () => {
         expect(Object.keys(shape).length).toBeLessThan(500);
     });
 
+    it('stops descending into an array once the budget is hit by its own descriptor', () => {
+        // Budget just large enough for `$` + one deep array descriptor, not its element.
+        const shape = inferShape({ items: [{ deep: 1 }] }, { maxBytes: 40 });
+        expect(shape['$.items[0]']).toBeUndefined();
+        expect(shape['(truncated)']).toBeDefined();
+    });
+
     it('handles the Twitter UserTweets payload envelope', () => {
         const payload = {
             data: {

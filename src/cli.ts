@@ -713,7 +713,14 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
 
       // Fresh capture path.
-      const rawItems = await captureNetworkItems(page);
+      let rawItems: BrowserNetworkItem[];
+      try {
+        rawItems = await captureNetworkItems(page);
+      } catch (err) {
+        emitNetworkError('capture_failed', `Could not read network capture: ${(err as Error).message}`);
+        return;
+      }
+
       const items = opts.all ? rawItems : filterNetworkItems(rawItems);
       const filteredOut = rawItems.length - items.length;
 
@@ -727,25 +734,27 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         ct: it.ct,
         body: it.body,
       }));
-      saveNetworkCache(workspace, cacheEntries);
-
-      if (opts.raw) {
-        console.log(JSON.stringify({
-          workspace,
-          captured_at: new Date().toISOString(),
-          count: cacheEntries.length,
-          filtered_out: filteredOut,
-          entries: cacheEntries,
-        }, null, 2));
-        return;
+      // Soft failure: the caller already has the data, so surface a warning
+      // via the output envelope rather than erroring out the whole command.
+      let cacheWarning: string | null = null;
+      try {
+        saveNetworkCache(workspace, cacheEntries);
+      } catch (err) {
+        cacheWarning = `Could not persist capture cache: ${(err as Error).message}. --detail lookups may miss this capture.`;
       }
 
-      console.log(JSON.stringify({
+      const envelope: Record<string, unknown> = {
         workspace,
         captured_at: new Date().toISOString(),
         count: cacheEntries.length,
         filtered_out: filteredOut,
-        entries: cacheEntries.map((e) => ({
+      };
+      if (cacheWarning) envelope.cache_warning = cacheWarning;
+
+      if (opts.raw) {
+        envelope.entries = cacheEntries;
+      } else {
+        envelope.entries = cacheEntries.map((e) => ({
           key: e.key,
           method: e.method,
           status: e.status,
@@ -753,9 +762,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           ct: e.ct,
           size: e.size,
           shape: inferShape(e.body),
-        })),
-        detail_hint: 'Run "browser network --detail <key>" for full body.',
-      }, null, 2));
+        }));
+        envelope.detail_hint = 'Run "browser network --detail <key>" for full body.';
+      }
+      console.log(JSON.stringify(envelope, null, 2));
     }));
 
   // ── Init (adapter scaffolding) ──
