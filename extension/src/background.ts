@@ -8,9 +8,50 @@
 declare const __OPENCLI_COMPAT_RANGE__: string;
 
 import type { Command, Result } from './protocol';
-import { DAEMON_WS_URL, DAEMON_PING_URL, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
+import { DAEMON_PORT, DAEMON_HOST, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
 import * as executor from './cdp';
 import * as identity from './identity';
+
+// ─── Dynamic daemon port ────────────────────────────────────────────────
+// Each Chrome profile has independent chrome.storage.local, so different
+// profiles can target different daemon ports for multi-profile support.
+
+let daemonPort: number = DAEMON_PORT;
+
+function getDaemonWsUrl(): string {
+  return `ws://${DAEMON_HOST}:${daemonPort}/ext`;
+}
+
+function getDaemonPingUrl(): string {
+  return `http://${DAEMON_HOST}:${daemonPort}/ping`;
+}
+
+function loadDaemonPort(): Promise<void> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get('daemonPort', (result) => {
+      if (result.daemonPort && Number.isInteger(result.daemonPort) && result.daemonPort >= 1024 && result.daemonPort <= 65535) {
+        daemonPort = result.daemonPort;
+      }
+      resolve();
+    });
+  });
+}
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local' || !changes.daemonPort) return;
+  const newPort = changes.daemonPort.newValue;
+  if (newPort && Number.isInteger(newPort) && newPort >= 1024 && newPort <= 65535) {
+    daemonPort = newPort;
+  } else {
+    daemonPort = DAEMON_PORT;
+  }
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+  reconnectAttempts = 0;
+  void connect();
+});
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -48,14 +89,14 @@ async function connect(): Promise<void> {
   if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
 
   try {
-    const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1000) });
+    const res = await fetch(getDaemonPingUrl(), { signal: AbortSignal.timeout(1000) });
     if (!res.ok) return; // unexpected response — not our daemon
   } catch {
     return; // daemon not running — skip WebSocket to avoid console noise
   }
 
   try {
-    ws = new WebSocket(DAEMON_WS_URL);
+    ws = new WebSocket(getDaemonWsUrl());
   } catch {
     scheduleReconnect();
     return;
@@ -262,12 +303,13 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 let initialized = false;
 
-function initialize(): void {
+async function initialize(): Promise<void> {
   if (initialized) return;
   initialized = true;
   chrome.alarms.create('keepalive', { periodInMinutes: 0.4 }); // ~24 seconds
   executor.registerListeners();
   executor.registerFrameTracking();
+  await loadDaemonPort();
   void connect();
   console.log('[opencli] OpenCLI extension initialized');
 }
@@ -291,6 +333,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     sendResponse({
       connected: ws?.readyState === WebSocket.OPEN,
       reconnecting: reconnectTimer !== null,
+      port: daemonPort,
     });
   }
   return false;

@@ -116,6 +116,13 @@ function createChromeMock() {
     cookies: {
       getAll: vi.fn(async () => []),
     },
+    storage: {
+      local: {
+        get: vi.fn((_key: string, cb: (result: Record<string, unknown>) => void) => cb({})),
+        set: vi.fn((_items: Record<string, unknown>, cb?: () => void) => cb?.()),
+      },
+      onChanged: { addListener: vi.fn() } as Listener<(changes: Record<string, unknown>, areaName: string) => void>,
+    },
   };
 
   return { chrome, tabs, query, create, update };

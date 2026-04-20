@@ -54,6 +54,50 @@
       border-radius: 3px;
       font-size: 11px;
     }
+    .port-section {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #f5f5f5;
+    }
+    .port-section label {
+      font-size: 11px;
+      color: #666;
+      display: block;
+      margin-bottom: 6px;
+    }
+    .port-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .port-row input {
+      flex: 1;
+      padding: 5px 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+    }
+    .port-row input:focus { border-color: #007aff; }
+    .port-row button {
+      padding: 5px 12px;
+      border: none;
+      border-radius: 4px;
+      background: #007aff;
+      color: #fff;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .port-row button:hover { background: #006ae0; }
+    .port-msg {
+      font-size: 11px;
+      margin-top: 4px;
+      height: 16px;
+    }
+    .port-msg.ok { color: #34c759; }
+    .port-msg.err { color: #ff3b30; }
     .footer {
       margin-top: 14px;
       text-align: center;
@@ -75,6 +119,14 @@
   </div>
   <div class="hint" id="hint">
     This is normal. The extension connects automatically when you run any <code>opencli</code> command.
+  </div>
+  <div class="port-section">
+    <label>Daemon Port</label>
+    <div class="port-row">
+      <input type="number" id="portInput" min="1024" max="65535" placeholder="19825">
+      <button id="portSave">Save</button>
+    </div>
+    <div class="port-msg" id="portMsg"></div>
   </div>
   <div class="footer">
     <a href="https://github.com/jackwener/opencli" target="_blank">Documentation</a>
