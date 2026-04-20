@@ -66,7 +66,7 @@ opencli bilibili [Tab] # Complete commands (hot, search, me, download...)
 
 The completion includes:
 - All available sites and adapters
-- Built-in commands (list, explore, validate...)
+- Built-in commands (list, validate, verify, browser, doctor, plugin...)
 - Command aliases
 - Real-time updates as you add new adapters
 
