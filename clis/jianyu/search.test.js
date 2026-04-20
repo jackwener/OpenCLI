@@ -31,7 +31,7 @@ describe('jianyu search helpers', () => {
         const filtered = __test__.filterNavigationRows('电梯', [
             { title: '招标公告', url: 'https://www.jianyu360.cn/list/stype/ZBGG.html', date: '' },
             { title: '帮助中心', url: 'https://www.jianyu360.cn/helpCenter/index', date: '' },
-            { title: '某项目电梯采购公告', url: 'https://shandong.jianyu360.cn/jybx/20260407_123.html', date: '2026-04-07' },
+            { title: '某项目电梯采购公告', url: 'https://www.jianyu360.cn/notice/detail/123', date: '2026-04-07' },
         ]);
         expect(filtered).toHaveLength(1);
         expect(filtered[0].title).toContain('电梯采购公告');
@@ -128,6 +128,15 @@ describe('jianyu search helpers', () => {
     it('classifies nologin links as blocked detail targets', () => {
         const signal = __test__.classifyDetailStatus('https://www.jianyu360.cn/nologin/content/ABC.html');
         expect(signal.detail_status).toBe('blocked');
+    });
+    it('classifies accessible detail urls as ok even when they are not jybx paths', () => {
+        const signal = __test__.classifyDetailStatus('https://www.jianyu360.cn/notice/detail/123');
+        expect(signal.detail_status).toBe('ok');
+        expect(signal.detail_reason).toBe('detail_candidate');
+    });
+    it('classifies list pages as entry_only', () => {
+        const signal = __test__.classifyDetailStatus('https://www.jianyu360.cn/list/stype/ZBGG.html');
+        expect(signal.detail_status).toBe('entry_only');
     });
     it('extracts stable notice id from jybx urls', () => {
         const id = __test__.extractNoticeId('https://shandong.jianyu360.cn/jybx/20260310_26030938267551.html');

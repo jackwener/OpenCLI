@@ -89,12 +89,6 @@ function classifyDetailStatus(rawUrl) {
     try {
         const parsed = new URL(urlText);
         const path = cleanText(parsed.pathname).toLowerCase().replace(/\/+$/, '/') || '/';
-        if (path.includes('/jybx/')) {
-            return {
-                detail_status: 'ok',
-                detail_reason: 'jybx_detail',
-            };
-        }
         if (BLOCKED_DETAIL_PATH_PREFIXES.some((prefix) => path.includes(prefix))) {
             return {
                 detail_status: 'blocked',
@@ -108,8 +102,8 @@ function classifyDetailStatus(rawUrl) {
             };
         }
         return {
-            detail_status: 'entry_only',
-            detail_reason: 'non_jybx_entry',
+            detail_status: 'ok',
+            detail_reason: path.includes('/jybx/') ? 'jybx_detail' : 'detail_candidate',
         };
     }
     catch {
