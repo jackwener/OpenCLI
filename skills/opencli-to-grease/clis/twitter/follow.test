@@ -1,17 +1,25 @@
 {
-  "timestamp": "2026-04-16T12:53:16.841Z",
+  "timestamp": "2026-04-20T08:37:03.733Z",
   "json_file": "./clis/twitter/follow.json",
   "command": "Follow",
   "website": "x.com",
   "params": {
     "username": "elonmusk"
   },
-  "success": true,
+  "success": false,
   "data_count": 1,
   "sample_data": [
     {
       "ok": true,
       "message": "Successfully followed @elonmusk."
     }
-  ]
+  ],
+  "comparison": {
+    "grease_count": 1,
+    "opencli_count": 1,
+    "match": false,
+    "differences": [
+      "Item 1 \"message\": Grease=\"Successfully followed @elonmusk.\" vs OpenCLI=\"Already following @elonmusk.\""
+    ]
+  }
 }

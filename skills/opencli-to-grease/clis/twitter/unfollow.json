@@ -5,13 +5,21 @@
       "argument": { "url": "https://x.com/{{ username }}", "waitUntil": "load" }
     },
     {
-      "action": "wait",
-      "argument": { "timeMs": 3000 }
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const username = '{{ username }}'.replace(/^@/, ''); for (let i = 0; i < 20; i++) { const placementTracking = document.querySelector('[data-testid=\"placementTracking\"]'); if (!placementTracking) { await new Promise(r => setTimeout(r, 500)); continue; } const followBtn = placementTracking.querySelector('[data-testid$=\"-follow\"]'); if (followBtn) return { done: true, ok: true, message: 'Already not following @' + username + '.' }; return { ready: true, username }; } return { ready: false, message: 'Could not find placementTracking. Are you logged in?' }; }"
+      }
     },
     {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const username = '{{ username }}'.replace(/^@/, ''); try { let attempts = 0; let unfollowBtn = null; let followTestId = null; while (attempts < 20) { followTestId = document.querySelector('[data-testid$=\"-follow\"]'); if (followTestId) return { ok: true, message: 'Already not following @' + username + '.' }; unfollowBtn = document.querySelector('[data-testid$=\"-unfollow\"]'); if (unfollowBtn) break; await new Promise(r => setTimeout(r, 500)); attempts++; } if (!unfollowBtn) return { ok: false, message: 'Could not find Unfollow button. Are you logged in?' }; unfollowBtn.click(); await new Promise(r => setTimeout(r, 1500)); const verify = document.querySelector('[data-testid$=\"-follow\"]'); if (verify) return { ok: true, message: 'Successfully unfollowed @' + username + '.' }; return { ok: false, message: 'Unfollow action initiated but UI did not update.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
+        "script": "async (intermediate) => { if (intermediate.done) return intermediate; if (!intermediate.ready) return intermediate; const placementTracking = document.querySelector('[data-testid=\"placementTracking\"]'); const username = intermediate.username; const followingBtn = placementTracking.querySelector('[aria-label^=\"Following @\"]'); if (!followingBtn) return intermediate; followingBtn.click(); await new Promise(r => setTimeout(r, 1000)); const confirmBtn = document.querySelector('[data-testid=\"confirmationSheetConfirm\"]'); if (confirmBtn) { confirmBtn.click(); await new Promise(r => setTimeout(r, 1000)); } const verify = placementTracking.querySelector('[aria-label^=\"Follow @\"]'); if (verify) return { done: true, ok: true, message: 'Successfully unfollowed @' + username + ' via Following button.' }; return { done: true, ok: false, message: 'Following button unfollow initiated but UI did not update.' }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { if (intermediate.done) return intermediate; if (!intermediate.ready) return intermediate; const placementTracking = document.querySelector('[data-testid=\"placementTracking\"]'); const username = intermediate.username; const dropdownBtn = document.querySelector('[aria-label=\"Unfollow @' + username + '\"]'); if (!dropdownBtn) return intermediate; dropdownBtn.click(); await new Promise(r => setTimeout(r, 1000)); const dropdown = document.querySelector('[data-testid=\"Dropdown\"]'); if (!dropdown) return { ok: false, message: 'Dropdown menu did not appear.' }; const menuItems = dropdown.querySelectorAll('[role=\"menuitem\"]'); let unfollowItem = null; for (const item of menuItems) { if (item.textContent && item.textContent.includes('Unfollow')) { unfollowItem = item; break; } } if (!unfollowItem) return { ok: false, message: 'Could not find Unfollow option in dropdown.' }; unfollowItem.click(); await new Promise(r => setTimeout(r, 1000)); const verify = placementTracking.querySelector('[data-testid$=\"-follow\"]'); if (verify) return { ok: true, message: 'Successfully unfollowed @' + username + ' via dropdown.' }; return { ok: false, message: 'Dropdown unfollow initiated but UI did not update.' }; }"
       }
     }
   ],

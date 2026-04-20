@@ -1,17 +1,20 @@
 {
-  "timestamp": "2026-04-16T12:53:23.399Z",
+  "timestamp": "2026-04-20T08:51:12.852Z",
   "json_file": "./clis/twitter/unfollow.json",
   "command": "Unfollow",
   "website": "x.com",
   "params": {
-    "username": "elonmusk"
+    "username": "TateTheTalisman"
   },
   "success": true,
   "data_count": 1,
   "sample_data": [
     {
+      "ready": true,
+      "username": "TateTheTalisman",
+      "done": true,
       "ok": true,
-      "message": "Successfully unfollowed @elonmusk."
+      "message": "Successfully unfollowed @TateTheTalisman via Following button."
     }
   ]
 }

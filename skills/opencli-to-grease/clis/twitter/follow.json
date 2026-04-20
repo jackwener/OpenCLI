@@ -5,13 +5,15 @@
       "argument": { "url": "https://x.com/{{ username }}", "waitUntil": "load" }
     },
     {
-      "action": "wait",
-      "argument": { "timeMs": 3000 }
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { for (let i = 0; i < 10; i++) { const placementTracking = document.querySelector('[data-testid=\"placementTracking\"]'); if (placementTracking) return { ready: true }; await new Promise(r => setTimeout(r, 500)); } return { ready: false }; }"
+      }
     },
     {
       "action": "evaluate",
       "argument": {
-        "script": "async (intermediate) => { const username = '{{ username }}'.replace(/^@/, ''); try { let attempts = 0; let followBtn = null; let unfollowTestId = null; while (attempts < 20) { unfollowTestId = document.querySelector('[data-testid$=\"-unfollow\"]'); if (unfollowTestId) return { ok: true, message: 'Already following @' + username + '.' }; followBtn = document.querySelector('[data-testid$=\"-follow\"]'); if (followBtn) break; await new Promise(r => setTimeout(r, 500)); attempts++; } if (!followBtn) return { ok: false, message: 'Could not find Follow button. Are you logged in?' }; followBtn.click(); await new Promise(r => setTimeout(r, 1500)); const verify = document.querySelector('[data-testid$=\"-unfollow\"]'); if (verify) return { ok: true, message: 'Successfully followed @' + username + '.' }; return { ok: false, message: 'Follow action initiated but UI did not update.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
+        "script": "async (intermediate) => { if (!intermediate.ready) return { ok: false, message: 'Could not find placementTracking. Are you logged in?' }; const placementTracking = document.querySelector('[data-testid=\"placementTracking\"]'); const username = '{{ username }}'.replace(/^@/, ''); try { let attempts = 0; let followBtn = null; while (attempts < 20) { const unfollowBtn = placementTracking.querySelector('[data-testid$=\"-unfollow\"]'); if (unfollowBtn) return { ok: true, message: 'Already following @' + username + '.' }; followBtn = placementTracking.querySelector('[data-testid$=\"-follow\"]'); if (followBtn) break; await new Promise(r => setTimeout(r, 500)); attempts++; } if (!followBtn) return { ok: false, message: 'Could not find Follow button. Are you logged in?' }; followBtn.click(); await new Promise(r => setTimeout(r, 1500)); const verify = placementTracking.querySelector('[data-testid$=\"-unfollow\"]'); if (verify) return { ok: true, message: 'Successfully followed @' + username + '.' }; return { ok: false, message: 'Follow action initiated but UI did not update.' }; } catch (e) { return { ok: false, message: String(e) }; } }"
       }
     }
   ],
