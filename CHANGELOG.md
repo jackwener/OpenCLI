@@ -1,5 +1,44 @@
 # Changelog
 
+## [1.7.5](https://github.com/jackwener/opencli/compare/v1.7.4...v1.7.5) (2026-04-20)
+
+Extension bumped to 1.0.1 (multi-tab routing + cross-origin iframe).
+
+### Features
+
+* **DeepSeek adapter** — browser-based `ask` / `history` / `new` / `read` / `status` ([#1088](https://github.com/jackwener/opencli/issues/1088))
+* **Eastmoney adapters** — 13 finance adapters as Phase A oracle: `quote`, `rank`, `kline`, `sectors`, `etf`, `holders`, `money-flow`, `northbound`, `longhu`, `kuaixun`, `convertible`, `index-board`, `announcement` ([#1091](https://github.com/jackwener/opencli/issues/1091))
+* **Twitter GraphQL lists** — `list-tweets`, `list-add`, `list-remove` ([#1076](https://github.com/jackwener/opencli/issues/1076))
+* **nowcoder adapter** — 牛客网 with 16 commands ([#1036](https://github.com/jackwener/opencli/issues/1036))
+* **Chinese academic & policy adapters** — `baidu-scholar`, `google-scholar`, `wanfang`, `gov-law`, `gov-policy` ([#243](https://github.com/jackwener/opencli/issues/243))
+* **Download saved path** — `web read` and `weixin download` now show saved file location ([#1042](https://github.com/jackwener/opencli/issues/1042))
+* **Cross-origin iframe support** — CDP execution context for iframed content ([#1084](https://github.com/jackwener/opencli/issues/1084))
+
+### Improvements
+
+* **Multi-tab routing** — hardened target isolation and tab routing ([#1072](https://github.com/jackwener/opencli/issues/1072))
+* **Skill consolidation** — 6 skills merged into 3 (`opencli-adapter-author`, `opencli-autofix`, `smart-search`); removed mechanical commands `explore` / `synthesize` / `generate` / `cascade` / `record` ([#1094](https://github.com/jackwener/opencli/issues/1094))
+* **Browser docs rewrite** — docs reoriented for AI Agent use case ([#1080](https://github.com/jackwener/opencli/issues/1080))
+* **antigravity serve** — configurable timeout + auto-reconnect ([#859](https://github.com/jackwener/opencli/issues/859), [#1063](https://github.com/jackwener/opencli/issues/1063))
+* **Design debt cleanup** — deprecated APIs, arg validation, dead plugin code ([#1065](https://github.com/jackwener/opencli/issues/1065))
+
+### Bug Fixes
+
+* **xiaoyuzhou** — migrate from broken SSR to authenticated API ([#1059](https://github.com/jackwener/opencli/issues/1059)); accept `CONFIG_ERROR` in E2E guard ([#1066](https://github.com/jackwener/opencli/issues/1066))
+* **xiaohongshu** — detect draft save success ([#1060](https://github.com/jackwener/opencli/issues/1060)); verify title input sticks on publish ([#1050](https://github.com/jackwener/opencli/issues/1050))
+* **twitter** — repair lists scraping from detail pages ([#1053](https://github.com/jackwener/opencli/issues/1053))
+* **zsxq** — separate content from title, remove title truncation ([#1079](https://github.com/jackwener/opencli/issues/1079))
+* **extension** — per-workspace idle timeout for browser sessions ([#1064](https://github.com/jackwener/opencli/issues/1064))
+
+### Revert
+
+* Undo output renderer table-formatting patch ([#1085](https://github.com/jackwener/opencli/issues/1085), reverts [#1081](https://github.com/jackwener/opencli/issues/1081))
+
+### Extension (1.0.1)
+
+* Multi-tab routing support ([#1072](https://github.com/jackwener/opencli/issues/1072))
+* Cross-origin iframe CDP contexts ([#1084](https://github.com/jackwener/opencli/issues/1084))
+
 ## [1.7.0](https://github.com/jackwener/opencli/compare/v1.6.1...v1.7.0) (2026-04-11)
 
 This is a major release with significant internal architecture changes.
