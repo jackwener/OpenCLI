@@ -138,12 +138,17 @@ DONE
        [ ] 找同站点或同类型最像的 adapter，cp 过来
        [ ] 改 name / URL / 字段映射
 [ ] 10. opencli browser verify <site>/<name>
+        [ ] 首轮通过后立刻 `--write-fixture` 生成 `~/.opencli/sites/<site>/verify/<cmd>.json` 种子
+        [ ] 手改种子：加 `patterns`（URL / 日期 / ID 格式）+ `notEmpty`（核心字段）+ 收紧 `rowCount`
+        [ ] 再跑一次 `opencli browser verify <site>/<name>`，确认 ✓ matches fixture
 [ ] 11. 字段值 vs 网页肉眼比对（别只看 "Adapter works!"）
 [ ] 12. 回写站点记忆（**verify 通过 + 肉眼比对对得上之后**，schema 见 `references/site-memory.md`）：
         [ ] `endpoints.json`：以 endpoint 的短名为 key，value = `{url, method, params.{required,optional}, response, verified_at: YYYY-MM-DD, notes}`
         [ ] `field-map.json`：只追加新代号。key = 字段代号，value = `{meaning, verified_at: YYYY-MM-DD, source}`；**已存在的 key 不要覆盖**，有冲突先和网页肉眼值对齐再写
         [ ] `notes.md`：顶部追加一段 `## YYYY-MM-DD by <agent/user>`，写本次写 adapter 时遇到的新坑 / 新结论
-        [ ] `fixtures/<cmd>-<YYYYMMDDHHMM>.json`：存一份该 endpoint 的完整响应样本（去掉 cookie / token / 用户私有字段后再存），给后续 regression / 字段对比用
+        [ ] `verify/<cmd>.json`：**必填。** `opencli browser verify` 的期望值（args / rowCount / columns / types / patterns / notEmpty），Step 10 已经让你生成了，这里只是 checklist
+        [ ] `fixtures/<cmd>-<YYYYMMDDHHMM>.json`：存一份该 endpoint 的完整响应样本（去掉 cookie / token / 用户私有字段再存），给后续字段对比 / 离线 replay 用
+        [ ] 调试过程中如果在 repo / adapter 目录 dump 过临时文件（`.dbg-*.html` / `raw-*.json` / 等），**在 commit 前清干净**——这些本来就该落在 `~/.opencli/sites/<site>/fixtures/` 或 `/tmp/`
 ```
 
 ---
@@ -161,6 +166,9 @@ DONE
 | | 还推不出 | 先输出 raw，adapter 跑起来再迭代 |
 | Step 10 verify 失败 | `fltt` 漏了 / 字段映射错 | autofix skill |
 | | 某列永远是 `null` | 字段路径错了，回 Step 7 |
+| Step 10 verify fixture mismatch | `[pattern]` row[i] 报错 | 先肉眼比对网页值；值对 → 是 fixture pattern 太严，放宽；值不对 → 字段映射错 |
+| | `[column] missing column "X"` | 实际 response 没这列（站点改版 or args 影响）；重新 `--update-fixture` 或修 adapter |
+| | `[type]` actual null / undefined | 字段提取失败，回 Step 7 重抽；临时 fallback 用 union type `string\|null` 只有在语义真的可空时用 |
 | Step 11 数值不对 | 差 10000 倍 | 单位不统一（"万" vs "元"） |
 | | 百分比小 100 倍 | 响应已是 `0.025`，不要 × 100 |
 
@@ -189,6 +197,7 @@ DONE
 - 已知失败抛 `CliError('CODE', 'msg')` 或 `AuthRequiredError(domain)`，不要 silent `return []`
 - 写私人 adapter 用 `~/.opencli/clis/<site>/<name>.js`（免 build）；要提 PR 才 copy 到 `clis/<site>/<name>.js`
 - 站点记忆每轮回写：没记忆 → 用 skill → 产生记忆 → 下次变 5 分钟
+- **调试过程中的原始 dump / 抓包 / HTML 样本只能落在 `~/.opencli/sites/<site>/fixtures/` 或 `/tmp/`。严禁在 repo 根目录、`clis/<site>/` 或当前工作目录留 `.dbg-*.html / raw-*.json / sample.*` 这类临时文件**（PR diff 会带上去，别人 review 时很烦）。
 
 ---
 

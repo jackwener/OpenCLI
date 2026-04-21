@@ -100,6 +100,53 @@ function emitNetworkError(code: string, message: string, extra: Record<string, u
   process.exitCode = EXIT_CODES.USAGE_ERROR;
 }
 
+/** Coerce adapter JSON output into a row array. Accepts `[{...}]`, single `{}`, or `{items:[...]}`-style envelopes. */
+export function normalizeVerifyRows(data: unknown): Record<string, unknown>[] {
+  if (Array.isArray(data)) {
+    return data.map((r) => (r && typeof r === 'object' ? r as Record<string, unknown> : { value: r }));
+  }
+  if (data && typeof data === 'object') {
+    const obj = data as Record<string, unknown>;
+    for (const k of ['rows', 'items', 'data', 'results']) {
+      if (Array.isArray(obj[k])) {
+        return (obj[k] as unknown[]).map((r) => (r && typeof r === 'object' ? r as Record<string, unknown> : { value: r }));
+      }
+    }
+    return [obj];
+  }
+  return [];
+}
+
+/** Render up to 10 rows as a compact padded table for eyeball inspection during verify. */
+export function renderVerifyPreview(
+  rows: Record<string, unknown>[],
+  opts: { maxRows?: number; maxCols?: number; cellMax?: number } = {},
+): string {
+  const maxRows = opts.maxRows ?? 10;
+  const maxCols = opts.maxCols ?? 6;
+  const cellMax = opts.cellMax ?? 40;
+  if (rows.length === 0) return '  (no rows)';
+
+  const allCols = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
+  const cols = allCols.slice(0, maxCols);
+  const shown = rows.slice(0, maxRows);
+  const cellOf = (v: unknown): string => {
+    if (v === null || v === undefined) return '';
+    const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+    return s.replace(/\s+/g, ' ').slice(0, cellMax);
+  };
+  const widths = cols.map((c) => Math.max(c.length, ...shown.map((r) => cellOf(r[c]).length)));
+  const fmtRow = (vals: string[]): string => vals.map((v, i) => v.padEnd(widths[i])).join('  ');
+
+  const out: string[] = [];
+  out.push(`  ${fmtRow(cols)}`);
+  out.push(`  ${widths.map((w) => '-'.repeat(w)).join('  ')}`);
+  for (const r of shown) out.push(`  ${fmtRow(cols.map((c) => cellOf(r[c])))}`);
+  if (rows.length > maxRows) out.push(`  ... and ${rows.length - maxRows} more row(s)`);
+  if (allCols.length > maxCols) out.push(`  (${allCols.length - maxCols} more column(s) hidden)`);
+  return out.join('\n');
+}
+
 type BrowserTargetState = {
   defaultPage?: string;
   updatedAt: string;
@@ -1328,8 +1375,11 @@ cli({
 
   browser.command('verify')
     .argument('<name>', 'Adapter name in site/command format (e.g. hn/top)')
-    .description('Execute an adapter and show results')
-    .action(async (name: string) => {
+    .option('--write-fixture', 'Write a starter fixture to ~/.opencli/sites/<site>/verify/<command>.json if none exists')
+    .option('--update-fixture', 'Overwrite an existing fixture with one derived from current output')
+    .option('--no-fixture', 'Ignore any fixture file for this run (no value-level validation)')
+    .description('Execute an adapter and validate output; uses fixture at ~/.opencli/sites/<site>/verify/<cmd>.json when present')
+    .action(async (name: string, opts: { fixture?: boolean; writeFixture?: boolean; updateFixture?: boolean } = {}) => {
       try {
         const parts = name.split('/');
         if (parts.length !== 2) { console.error('Name must be site/command format'); process.exitCode = EXIT_CODES.USAGE_ERROR; return; }
@@ -1341,7 +1391,7 @@ cli({
         }
 
         const { execFileSync } = await import('node:child_process');
-        const os = await import('node:os');
+        const { loadFixture, writeFixture, deriveFixture, validateRows, fixturePath } = await import('./browser/verify-fixture.js');
         const filePath = path.join(os.homedir(), '.opencli', 'clis', site, `${command}.js`);
         if (!fs.existsSync(filePath)) {
           console.error(`Adapter not found: ${filePath}`);
@@ -1353,15 +1403,26 @@ cli({
         console.log(`🔍 Verifying ${name}...\n`);
         console.log(`  Loading: ${filePath}`);
 
-        // Read adapter to check if it defines a 'limit' arg
+        const useFixture = opts.fixture !== false;
+        let fixture = useFixture ? loadFixture(site, command) : null;
+
+        // Build adapter args: fixture.args override the legacy --limit 3 heuristic.
         const adapterSrc = fs.readFileSync(filePath, 'utf-8');
         const hasLimitArg = /['"]limit['"]/.test(adapterSrc);
-        const limitFlag = hasLimitArg ? ' --limit 3' : '';
-        const limitArgs = hasLimitArg ? ['--limit', '3'] : [];
+        const fixtureArgs = fixture?.args ?? {};
+        const cliArgs: string[] = [];
+        for (const [k, v] of Object.entries(fixtureArgs)) cliArgs.push(`--${k}`, String(v));
+        if (cliArgs.length === 0 && hasLimitArg) cliArgs.push('--limit', '3');
+
+        const argDisplay = cliArgs.join(' ');
         const invocation = resolveBrowserVerifyInvocation();
 
+        // Always request JSON so we can validate structurally.
+        const execArgs = [...invocation.args, site, command, ...cliArgs, '--format', 'json'];
+
+        let rawJson: string;
         try {
-          const output = execFileSync(invocation.binary, [...invocation.args, site, command, ...limitArgs], {
+          rawJson = execFileSync(invocation.binary, execArgs, {
             cwd: invocation.cwd,
             timeout: 30000,
             encoding: 'utf-8',
@@ -1369,18 +1430,65 @@ cli({
             stdio: ['pipe', 'pipe', 'pipe'],
             ...(invocation.shell ? { shell: true } : {}),
           });
-          console.log(`  Executing: opencli ${site} ${command}${limitFlag}\n`);
-          console.log(output);
-          console.log(`\n  ✓ Adapter works!`);
         } catch (err) {
-          console.log(`  Executing: opencli ${site} ${command}${limitFlag}\n`);
-          // execFileSync attaches captured stdout/stderr on its thrown Error.
+          console.log(`  Executing: opencli ${site} ${command} ${argDisplay}\n`);
           const execErr = err as { stdout?: string | Buffer; stderr?: string | Buffer };
           if (execErr.stdout) console.log(String(execErr.stdout));
           if (execErr.stderr) console.error(String(execErr.stderr).slice(0, 500));
           console.log(`\n  ✗ Adapter failed. Fix the code and try again.`);
           process.exitCode = EXIT_CODES.GENERIC_ERROR;
+          return;
         }
+
+        console.log(`  Executing: opencli ${site} ${command} ${argDisplay}\n`);
+
+        let rows: Record<string, unknown>[];
+        try {
+          rows = normalizeVerifyRows(JSON.parse(rawJson));
+        } catch {
+          console.log(rawJson);
+          console.log('\n  ✗ Could not parse adapter output as JSON. Is `--format json` broken?');
+          process.exitCode = EXIT_CODES.GENERIC_ERROR;
+          return;
+        }
+
+        console.log(renderVerifyPreview(rows));
+        console.log(`\n  → ${rows.length} row${rows.length === 1 ? '' : 's'}`);
+
+        // ── Fixture handling ───────────────────────────────────────────
+        if (opts.writeFixture || opts.updateFixture) {
+          if (fixture && !opts.updateFixture) {
+            console.log(`\n  Fixture already exists at ${fixturePath(site, command)}.`);
+            console.log(`  Use --update-fixture to overwrite.`);
+          } else {
+            const derived = deriveFixture(rows, Object.keys(fixtureArgs).length > 0 ? fixtureArgs : (hasLimitArg ? { limit: 3 } : undefined));
+            const p = writeFixture(site, command, derived);
+            console.log(`\n  ${fixture ? '↻ Updated' : '✎ Wrote'} fixture: ${p}`);
+            console.log(`  Review and hand-tune the derived expectations (add patterns / notEmpty, tighten rowCount).`);
+            fixture = derived;
+          }
+        }
+
+        if (!fixture) {
+          console.log(`\n  ✓ Adapter runs. (No fixture at ${fixturePath(site, command)} — consider --write-fixture to seed one.)`);
+          return;
+        }
+
+        const failures = validateRows(rows, fixture);
+        if (failures.length === 0) {
+          console.log(`\n  ✓ Adapter matches fixture (${fixturePath(site, command)}).`);
+          return;
+        }
+
+        console.log(`\n  ✗ Adapter output does not match fixture:`);
+        for (const f of failures.slice(0, 20)) {
+          const where = f.rowIndex !== undefined ? `row[${f.rowIndex}] ` : '';
+          console.log(`    - [${f.rule}] ${where}${f.detail}`);
+        }
+        if (failures.length > 20) {
+          console.log(`    ... and ${failures.length - 20} more failure(s)`);
+        }
+        process.exitCode = EXIT_CODES.GENERIC_ERROR;
       } catch (err) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
         process.exitCode = EXIT_CODES.GENERIC_ERROR;

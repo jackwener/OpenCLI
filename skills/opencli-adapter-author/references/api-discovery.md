@@ -172,6 +172,10 @@ opencli browser eval "document.cookie.split('; ').reduce((o,x)=>{const[k,v]=x.sp
 
 常见 token cookie 名：`ct0`（Twitter CSRF）、`xq_a_token`（雪球）、`SESSDATA`（B 站）、`_csrf / csrfToken`（通用）。
 
+**`document.cookie` 只能看到 non-HttpOnly 的 cookie。** 上面那条命令侦察阶段够用，真写 adapter 时 auth 经常是 HttpOnly，一定要用 `page.getCookies(...)` 从 CDP cookie jar 拿——见 `adapter-template.md` 的 "COOKIE adapter 骨架"。
+
+论坛 / BBS 引擎（Discuz!X / phpBB / vBulletin）还多一坑：auth cookie 设在**根域** `.example.com`（不是 `www.example.com`），且 HttpOnly。要查 `{ domain: '.<root>' }` **和** `{ domain: 'www.<root>' }` 两次，否则 adapter 在有 cookie 的前提下仍然 401。
+
 ### localStorage / sessionStorage 里
 
 ```bash

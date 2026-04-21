@@ -25,7 +25,7 @@ vi.mock('./browser/index.js', () => {
   };
 });
 
-import { createProgram, findPackageRoot, resolveBrowserVerifyInvocation } from './cli.js';
+import { createProgram, findPackageRoot, normalizeVerifyRows, renderVerifyPreview, resolveBrowserVerifyInvocation } from './cli.js';
 
 describe('resolveBrowserVerifyInvocation', () => {
   it('prefers the built entry declared in package metadata', () => {
@@ -1305,5 +1305,62 @@ describe('findPackageRoot', () => {
     ]);
 
     expect(findPackageRoot(cliFile, (candidate) => exists.has(candidate))).toBe(packageRoot);
+  });
+});
+
+describe('normalizeVerifyRows', () => {
+  it('returns an empty array for null / primitives', () => {
+    expect(normalizeVerifyRows(null)).toEqual([]);
+    expect(normalizeVerifyRows(undefined)).toEqual([]);
+    expect(normalizeVerifyRows('hello')).toEqual([]);
+  });
+
+  it('passes through array-of-objects', () => {
+    const rows = [{ a: 1 }, { a: 2 }];
+    expect(normalizeVerifyRows(rows)).toEqual(rows);
+  });
+
+  it('wraps array-of-primitives as { value } rows', () => {
+    expect(normalizeVerifyRows([1, 'two', null])).toEqual([
+      { value: 1 }, { value: 'two' }, { value: null },
+    ]);
+  });
+
+  it('unwraps common envelope shapes', () => {
+    expect(normalizeVerifyRows({ rows: [{ a: 1 }] })).toEqual([{ a: 1 }]);
+    expect(normalizeVerifyRows({ items: [{ b: 2 }] })).toEqual([{ b: 2 }]);
+    expect(normalizeVerifyRows({ data: [{ c: 3 }] })).toEqual([{ c: 3 }]);
+    expect(normalizeVerifyRows({ results: [{ d: 4 }] })).toEqual([{ d: 4 }]);
+  });
+
+  it('wraps a single object as a one-row array', () => {
+    expect(normalizeVerifyRows({ ok: true })).toEqual([{ ok: true }]);
+  });
+});
+
+describe('renderVerifyPreview', () => {
+  it('emits a placeholder for empty rows', () => {
+    expect(renderVerifyPreview([])).toContain('no rows');
+  });
+
+  it('prints column headers followed by row cells', () => {
+    const out = renderVerifyPreview([{ a: 'x', b: 1 }, { a: 'y', b: 2 }]);
+    const lines = out.split('\n');
+    expect(lines[0]).toContain('a');
+    expect(lines[0]).toContain('b');
+    expect(lines.some((l) => l.includes('x') && l.includes('1'))).toBe(true);
+    expect(lines.some((l) => l.includes('y') && l.includes('2'))).toBe(true);
+  });
+
+  it('truncates long cells and reports hidden rows / columns', () => {
+    const rows = Array.from({ length: 15 }, (_, i) => ({
+      a: i, b: 'x'.repeat(100), c: i, d: i, e: i, f: i, g: i, h: i,
+    }));
+    const out = renderVerifyPreview(rows, { maxRows: 5, maxCols: 3, cellMax: 10 });
+    expect(out).toContain('and 10 more row');
+    expect(out).toContain('more column');
+    // cell gets truncated
+    expect(out).toContain('xxxxxxxxxx');
+    expect(out).not.toContain('xxxxxxxxxxx'); // never 11 consecutive
   });
 });

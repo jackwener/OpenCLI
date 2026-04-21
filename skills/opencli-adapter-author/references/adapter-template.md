@@ -165,6 +165,113 @@ func: async (_page, args) => {
 
 ---
 
+## COOKIE adapter 骨架（需要登录态）
+
+PUBLIC 模式不够（接口 401 / 302 到 login / 响应是"请登录"页）就走这里。要点三条：
+
+1. 读 cookie 走 `page.getCookies(...)`，**不要读 `document.cookie`**。
+2. 拿 HTML 走 Node 端 `fetch` + 手动解码，**不要塞进 `page.evaluate` 里**。
+3. Declaration 加 `browser: true`；不需要真的打开目标页时 `navigateBefore: false`。
+
+```javascript
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
+
+const BASE = 'https://www.example.com';
+const HOST = 'www.example.com';
+const ROOT = '.example.com';  // 根域（auth 常在这里）
+
+async function readCookie(page) {
+    const seen = new Map();
+    for (const opts of [{ domain: HOST }, { domain: ROOT }]) {
+        try {
+            const cookies = await page.getCookies(opts);
+            for (const c of cookies || []) {
+                if (!seen.has(c.name)) seen.set(c.name, c.value);
+            }
+        } catch { /* try next domain */ }
+    }
+    return [...seen].map(([k, v]) => `${k}=${v}`).join('; ');
+}
+
+async function fetchHtml(url, { cookie, encoding = 'utf-8', headers = {} } = {}) {
+    const resp = await fetch(url, {
+        headers: {
+            'User-Agent': 'Mozilla/5.0',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+            Referer: `${BASE}/`,
+            ...(cookie ? { Cookie: cookie } : {}),
+            ...headers,
+        },
+        redirect: 'follow',
+    });
+    if (!resp.ok) throw new CliError('HTTP_ERROR', `HTTP ${resp.status}`);
+    const buf = await resp.arrayBuffer();
+    return new TextDecoder(encoding).decode(buf);
+}
+
+cli({
+    site: 'example',
+    name: 'me',
+    description: '示例：需要登录的私有页面',
+    domain: HOST,
+    strategy: Strategy.COOKIE,
+    browser: true,
+    navigateBefore: false,    // 本命令不需要先开目标页
+    args: [{ name: 'limit', type: 'int', default: 20, help: '返回条数' }],
+    columns: ['index', 'title', 'time'],
+    func: async (page, args) => {
+        const cookie = await readCookie(page);
+        const html = await fetchHtml(`${BASE}/inbox`, { cookie, encoding: 'gbk' });
+
+        if (/请登录|需要登录|<title>Login/i.test(html)) {
+            throw new AuthRequiredError(HOST);
+        }
+
+        // parse html → rows
+        return rows.slice(0, Math.max(1, Number(args.limit) || 20));
+    },
+});
+```
+
+### 为什么不走 `page.evaluate(fetch(...))`
+
+三个坑，踩一个就重写：
+
+- **HttpOnly cookie 看不见**：绝大多数登录站点把 auth cookie 标 `HttpOnly`，`document.cookie` 永远读不到它，只能通过 CDP 的 cookie jar 拿（`page.getCookies`）。塞到 `page.evaluate` 里就等于回到 `document.cookie` 那条路，必挂。
+- **`navigateBefore: false` 时当前 tab 不在目标站**：页面 origin 可能是 `about:blank` 或上一条命令留下的别处，从那儿发 fetch 到目标域就是 cross-origin，浏览器 CORS 一挡就是 "Failed to fetch"。
+- **非 UTF-8 编码解码麻烦**：GBK / Big5 / Shift-JIS 的站（Discuz / phpBB 老版 / 日站）在 `page.evaluate` 里用 `response.text()` 拿到的是乱码，`TextDecoder('gbk').decode(buf)` 的写法只在 Node 侧干净。
+
+**规则**：HTML 型 COOKIE adapter 一律 Node 侧 `fetch`，浏览器只当 cookie jar 用。
+
+### Cookie 域的双查
+
+```javascript
+for (const opts of [{ domain: HOST }, { domain: ROOT }]) { ... }
+```
+
+不是所有站都这么玄学，但下面这几类踩坑最多：
+
+| 站点类型 | 坑 |
+|---------|----|
+| Discuz!X / phpBB / vBulletin 论坛 | Auth cookie 设在 `.<root>.com`，HttpOnly；业务页在 `www.<root>.com`。只查 `www.` 会漏 |
+| 多子域账户体系（`account.x.com` vs `api.x.com`） | 登录时写在 account 域，API 域读取时拿不到 |
+| 新版 Chrome SameSite=Lax 默认 | 某些 cookie 查 `url:` 才给返，查 `domain:` 不给 |
+
+双查成本很低，不确定就两个都查，用 Map 去重第一次出现的 name。
+
+### 明确的空态要返回哨兵行，不要 `[]`
+
+空态（"暂时没有提醒内容" / "暂无通知" / "No results"）返回 `[]`，下游 agent 会当成"接口挂了"而重试。正确做法是返回**一行明确写着当前状态的数据**：
+
+```javascript
+if (/暂时没有提醒内容/.test(html)) {
+    return [{ index: 0, from: '', summary: '暂时没有提醒内容', time: '', threadUrl: '' }];
+}
+```
+
+---
+
 ## 同类型 adapter 对照
 
 | 类型 | 代表 | 参考 |
