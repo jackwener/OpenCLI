@@ -75,6 +75,62 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
+  it('skips closeWindow when OPENCLI_LIVE=1 (success path)', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+
+    const prev = process.env.OPENCLI_LIVE;
+    process.env.OPENCLI_LIVE = '1';
+    try {
+      const cmd = cli({
+        site: 'test-execution',
+        name: 'browser-live-success',
+        description: 'test closeWindow skipped with --live on success',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => [{ ok: true }],
+      });
+
+      await executeCommand(cmd, {});
+      expect(closeWindow).not.toHaveBeenCalled();
+    } finally {
+      if (prev === undefined) delete process.env.OPENCLI_LIVE;
+      else process.env.OPENCLI_LIVE = prev;
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('skips closeWindow when OPENCLI_LIVE=1 (failure path)', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+
+    const prev = process.env.OPENCLI_LIVE;
+    process.env.OPENCLI_LIVE = '1';
+    try {
+      const cmd = cli({
+        site: 'test-execution',
+        name: 'browser-live-failure',
+        description: 'test closeWindow skipped with --live on failure',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => { throw new Error('adapter failure'); },
+      });
+
+      await expect(executeCommand(cmd, {})).rejects.toThrow('adapter failure');
+      expect(closeWindow).not.toHaveBeenCalled();
+    } finally {
+      if (prev === undefined) delete process.env.OPENCLI_LIVE;
+      else process.env.OPENCLI_LIVE = prev;
+      vi.restoreAllMocks();
+    }
+  });
+
   it('does not re-run custom validation when args are already prepared', async () => {
     const validateArgs = vi.fn();
     const cmd: CliCommand = {
