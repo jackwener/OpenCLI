@@ -1,0 +1,73 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const {
+  mockEnsureOnDeepSeek,
+  mockSelectModel,
+  mockSetFeature,
+  mockSendMessage,
+  mockSendWithFile,
+  mockGetBubbleCount,
+  mockWaitForResponse,
+  mockParseBoolFlag,
+  mockWithRetry,
+} = vi.hoisted(() => ({
+  mockEnsureOnDeepSeek: vi.fn(),
+  mockSelectModel: vi.fn(),
+  mockSetFeature: vi.fn(),
+  mockSendMessage: vi.fn(),
+  mockSendWithFile: vi.fn(),
+  mockGetBubbleCount: vi.fn(),
+  mockWaitForResponse: vi.fn(),
+  mockParseBoolFlag: vi.fn((v) => v === true || v === 'true'),
+  mockWithRetry: vi.fn(async (fn) => fn()),
+}));
+
+vi.mock('./utils.js', () => ({
+  DEEPSEEK_DOMAIN: 'chat.deepseek.com',
+  DEEPSEEK_URL: 'https://chat.deepseek.com/',
+  ensureOnDeepSeek: mockEnsureOnDeepSeek,
+  selectModel: mockSelectModel,
+  setFeature: mockSetFeature,
+  sendMessage: mockSendMessage,
+  sendWithFile: mockSendWithFile,
+  getBubbleCount: mockGetBubbleCount,
+  waitForResponse: mockWaitForResponse,
+  parseBoolFlag: mockParseBoolFlag,
+  withRetry: mockWithRetry,
+}));
+
+import { askCommand } from './ask.js';
+
+describe('deepseek ask --file', () => {
+  const page = {
+    wait: vi.fn().mockResolvedValue(undefined),
+    goto: vi.fn().mockResolvedValue(undefined),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEnsureOnDeepSeek.mockResolvedValue(undefined);
+    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
+    mockSetFeature.mockResolvedValue({ ok: true, toggled: false });
+    mockSendWithFile.mockResolvedValue({ ok: true });
+    mockGetBubbleCount.mockResolvedValue(7);
+    mockWaitForResponse.mockResolvedValue('new reply');
+  });
+
+  it('captures the existing baseline before sending a file prompt', async () => {
+    const rows = await askCommand.func(page, {
+      prompt: 'summarize this',
+      timeout: 120,
+      file: './report.pdf',
+      new: false,
+      model: 'instant',
+      think: false,
+      search: false,
+    });
+
+    expect(rows).toEqual([{ response: 'new reply' }]);
+    expect(mockGetBubbleCount).toHaveBeenCalledTimes(1);
+    expect(mockSendWithFile).toHaveBeenCalledWith(page, './report.pdf', 'summarize this');
+    expect(mockWaitForResponse).toHaveBeenCalledWith(page, 7, 'summarize this', 120000);
+  });
+});

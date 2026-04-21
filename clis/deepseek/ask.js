@@ -60,6 +60,7 @@ export const askCommand = cli({
         if (thinkResult.toggled || searchResult.toggled) await page.wait(0.5);
 
         if (kwargs.file) {
+            const baseline = await withRetry(() => getBubbleCount(page));
             try {
                 const fileResult = await sendWithFile(page, kwargs.file, prompt);
                 if (fileResult && !fileResult.ok) {
@@ -70,7 +71,7 @@ export const askCommand = cli({
                 if (!String(err?.message || err).includes('Promise was collected')) throw err;
             }
             await page.wait(3);
-            const response = await waitForResponse(page, 0, prompt, timeoutMs);
+            const response = await waitForResponse(page, baseline, prompt, timeoutMs);
             if (!response) {
                 return [{ response: `[NO RESPONSE] No reply within ${kwargs.timeout}s.` }];
             }
