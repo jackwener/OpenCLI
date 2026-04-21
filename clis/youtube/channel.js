@@ -115,6 +115,35 @@ cli({
           }
         }
 
+        // If Home tab has no videos, try Videos tab
+        if (recentVideos.length === 0) {
+          const videosTab = tabs.find(t => t.tabRenderer?.title === 'Videos');
+          const videosTabParams = videosTab?.tabRenderer?.endpoint?.browseEndpoint?.params;
+          if (videosTabParams) {
+            const videosResp = await fetch('/youtubei/v1/browse?key=' + apiKey + '&prettyPrint=false', {
+              method: 'POST', credentials: 'include',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({context, browseId, params: videosTabParams})
+            });
+            if (videosResp.ok) {
+              const videosData = await videosResp.json();
+              const richGrid = videosData.contents?.twoColumnBrowseResultsRenderer?.tabs?.[0]?.tabRenderer?.content?.richGridRenderer?.contents || [];
+              for (const item of richGrid) {
+                if (recentVideos.length >= limit) break;
+                const v = item.richItemRenderer?.content?.videoRenderer;
+                if (v) {
+                  recentVideos.push({
+                    title: v.title?.runs?.[0]?.text || '',
+                    duration: v.lengthText?.simpleText || '',
+                    views: (v.shortViewCountText?.simpleText || '') + (v.publishedTimeText?.simpleText ? ' | ' + v.publishedTimeText.simpleText : ''),
+                    url: 'https://www.youtube.com/watch?v=' + v.videoId,
+                  });
+                }
+              }
+            }
+          }
+        }
+
         return {
           name: metadata.title || '',
           channelId: metadata.externalId || browseId,
