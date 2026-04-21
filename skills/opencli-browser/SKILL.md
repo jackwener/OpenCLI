@@ -146,7 +146,7 @@ browser network --detail <key>         # full body for one cached entry
 browser network --filter "field1,field2"  # keep only entries whose body shape contains ALL fields as path segments
 browser network --all                  # include static resources (usually noise)
 browser network --raw                  # full bodies inline — large; use sparingly
-browser network --ttl <ms>             # cache TTL (default ~5min)
+browser network --ttl <ms>             # cache TTL (default 24h)
 ```
 
 List entries look like `{key, method, status, url, ct, size, shape, body_truncated?}`. Detail envelope is `{key, url, method, status, ct, size, shape, body, body_truncated?, body_full_size?, body_truncation_reason}`. Cache lives in `~/.opencli/cache/browser-network/` so you can re-inspect without re-triggering the request.
@@ -155,10 +155,10 @@ List entries look like `{key, method, status, url, ct, size, shape, body_truncat
 
 | command | purpose |
 |---------|---------|
-| `browser tab list` | JSON array of `{targetId, url, title, active}`. |
-| `browser tab new [url]` | Open a new tab. |
+| `browser tab list` | JSON array of `{index, page, url, title, active}`. The `page` string is the tab identity you pass as `<targetId>` to `tab select` / `tab close`, or to `--tab <targetId>` on any subcommand. (`--tab`'s placeholder is historical — the value is always `page`.) |
+| `browser tab new [url]` | Open a new tab. Prints the new `page` string. |
 | `browser tab select [targetId]` | Make a tab the default. All subcommands accept `--tab <targetId>` to target one without changing the default. |
-| `browser tab close [targetId]` | Close by id. |
+| `browser tab close [targetId]` | Close by `page`. |
 | `browser back` | History back on the active tab. |
 | `browser close` | Close the automation window when done. |
 
