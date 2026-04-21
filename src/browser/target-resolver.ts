@@ -3,7 +3,11 @@
  *
  * Resolution pipeline:
  *
- * 1. Input classification: numeric → ref path, CSS-like → CSS path
+ * 1. Input classification: all-digit → numeric ref path, otherwise → CSS path.
+ *    The CSS path passes the raw string to `querySelectorAll` and lets the
+ *    browser parser decide what's valid. No frontend regex whitelist — the
+ *    goal is that any selector accepted by `browser find --css` is accepted
+ *    by the same selector on `get/click/type/select`.
  * 2. Ref path: lookup by data-opencli-ref, then verify fingerprint
  * 3. CSS path: querySelectorAll + match-count policy (see ResolveOptions)
  * 4. Structured errors:
@@ -51,8 +55,11 @@ export function resolveTargetJs(ref: string, opts: ResolveOptions = {}): string 
       const identity = window.__opencli_ref_identity || {};
 
       // ── Classify input ──
+      // Numeric = snapshot ref. Everything else is handed to querySelectorAll
+      // and whatever the browser parser accepts is a valid selector. No regex
+      // shortlist up front: \`find --css\` and \`get/click/type/select\` must agree
+      // on the same selector surface (see contract note at the top of this file).
       const isNumeric = /^\\d+$/.test(ref);
-      const isCssLike = !isNumeric && /^[a-zA-Z#.\\[]/.test(ref);
 
       if (isNumeric) {
         // ── Ref path ──
@@ -120,8 +127,8 @@ export function resolveTargetJs(ref: string, opts: ResolveOptions = {}): string 
         return { ok: true, matches_n: 1 };
       }
 
-      if (isCssLike) {
-        // ── CSS selector path ──
+      // ── CSS selector path (any non-numeric input) ──
+      {
         let matches;
         try {
           matches = document.querySelectorAll(ref);
@@ -182,14 +189,6 @@ export function resolveTargetJs(ref: string, opts: ResolveOptions = {}): string 
         window.__resolved = matches[0];
         return { ok: true, matches_n: matches.length };
       }
-
-      // ── Unrecognized input ──
-      return {
-        ok: false,
-        code: 'not_found',
-        message: 'Cannot parse target: ' + ref,
-        hint: 'Use a numeric ref from snapshot (e.g. "12") or a CSS selector (e.g. "#submit").',
-      };
     })()
   `;
 }

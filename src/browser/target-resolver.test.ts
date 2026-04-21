@@ -57,10 +57,16 @@ describe('resolveTargetJs', () => {
     expect(js).toContain('selector_not_found');
   });
 
-  it('generates JS that rejects unrecognized input', () => {
-    const js = resolveTargetJs('???');
-    expect(js).toContain('not_found');
-    expect(js).toContain('Cannot parse target');
+  it('hands every non-numeric input to querySelectorAll (no regex shortlist)', () => {
+    // Inputs that the old isCssLike regex rejected — must all flow into the
+    // CSS branch so `find --css` and `get/click/type/select` accept the same surface.
+    for (const sel of [':root', '*', ':has(.foo)', '::shadow-root', '???']) {
+      const js = resolveTargetJs(sel);
+      expect(js).toContain('querySelectorAll');
+      // invalid selectors still route through invalid_selector at runtime,
+      // never through a frontend "Cannot parse target" rejection.
+      expect(js).not.toContain('Cannot parse target');
+    }
   });
 
   it('escapes ref value safely', () => {

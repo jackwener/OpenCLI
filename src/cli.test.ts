@@ -927,11 +927,14 @@ describe('browser find command', () => {
   }));
 
   it('returns a {matches_n, entries} envelope for a matching selector', async () => {
+    // `find` always returns numeric refs (existing on snapshot-tagged elements,
+    // allocated on the spot for fresh matches) — see reviewer contract in
+    // #opencli-browser msg 52c51eb6.
     (browserState.page!.evaluate as any).mockResolvedValueOnce({
       matches_n: 2,
       entries: [
         { nth: 0, ref: 5, tag: 'button', role: '', text: 'OK', attrs: { class: 'btn' }, visible: true },
-        { nth: 1, ref: null, tag: 'button', role: '', text: 'Cancel', attrs: { class: 'btn' }, visible: true },
+        { nth: 1, ref: 17, tag: 'button', role: '', text: 'Cancel', attrs: { class: 'btn' }, visible: true },
       ],
     });
     const program = createProgram('', '');
@@ -942,7 +945,7 @@ describe('browser find command', () => {
     expect(out.matches_n).toBe(2);
     expect(out.entries).toHaveLength(2);
     expect(out.entries[0].ref).toBe(5);
-    expect(out.entries[1].ref).toBeNull();
+    expect(out.entries[1].ref).toBe(17);
     expect(process.exitCode).toBeUndefined();
   });
 

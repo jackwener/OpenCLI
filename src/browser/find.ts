@@ -3,12 +3,19 @@
  *
  * Returns every match of a selector as a JSON envelope agents can read
  * without parsing free-text snapshot output. Each entry carries two
- * identifiers — the original `data-opencli-ref` (if the element was
- * tagged during an earlier snapshot) and a stable 0-based `nth` — so
- * the agent can act on a specific result via either path:
+ * identifiers — a numeric `ref` (matching the snapshot contract) and a
+ * stable 0-based `nth` — so the agent can act on a specific result via
+ * either path:
  *
  *   browser click <ref>              // when ref is numeric
  *   browser click "<sel>" --nth <n>  // always works
+ *
+ * Refs are *allocated on the spot* for matched elements that were not
+ * tagged by a prior snapshot: `data-opencli-ref` is set on the element
+ * and a fingerprint is written into `window.__opencli_ref_identity`
+ * (same shape the snapshot uses). That makes `find` a first-class entry
+ * point to the ref system — agents can skip running `browser state`
+ * when they already know the selector.
  *
  * Attributes are whitelisted to keep output small and high-signal.
  * Invisible elements are still returned so agents can reason about
@@ -33,8 +40,12 @@ export const FIND_ATTR_WHITELIST = [
 export interface FindEntry {
   /** Zero-based position within the match set — pair with `--nth` on downstream commands. */
   nth: number;
-  /** Numeric data-opencli-ref if the element was tagged by a prior snapshot; null otherwise. */
-  ref: number | null;
+  /**
+   * Numeric data-opencli-ref. Find assigns one if the element was not
+   * tagged by a prior snapshot, so downstream `browser click <ref>` works
+   * directly off the find output without requiring `browser state` first.
+   */
+  ref: number;
   tag: string;
   role: string;
   text: string;
@@ -122,12 +133,55 @@ export function buildFindJs(selector: string, opts: FindOptions = {}): string {
         return true;
       }
 
+      // Ref allocation: reuse \`window.__opencli_ref_identity\` (the same map
+      // snapshot populates) as the source of truth. For matched elements that
+      // don't already carry a \`data-opencli-ref\`, assign the next free numeric
+      // ref and write the fingerprint so the target resolver can verify it on
+      // downstream click/type/get calls.
+      const identity = (window.__opencli_ref_identity = window.__opencli_ref_identity || {});
+      let maxRef = 0;
+      for (const k in identity) {
+        const n = parseInt(k, 10);
+        if (!isNaN(n) && n > maxRef) maxRef = n;
+      }
+      // Also walk any \`data-opencli-ref\` already in the DOM in case the identity
+      // map was cleared but annotations remain (e.g. soft navigation without a
+      // fresh snapshot). Guarantees allocated refs don't collide.
+      try {
+        const tagged = document.querySelectorAll('[data-opencli-ref]');
+        for (let t = 0; t < tagged.length; t++) {
+          const v = tagged[t].getAttribute('data-opencli-ref');
+          const n = v != null && /^\\d+$/.test(v) ? parseInt(v, 10) : NaN;
+          if (!isNaN(n) && n > maxRef) maxRef = n;
+        }
+      } catch (_) {}
+
+      function fingerprintOf(el) {
+        return {
+          tag: el.tagName.toLowerCase(),
+          role: el.getAttribute('role') || '',
+          text: (el.textContent || '').trim().slice(0, 30),
+          ariaLabel: el.getAttribute('aria-label') || '',
+          id: el.id || '',
+          testId: el.getAttribute('data-testid') || el.getAttribute('data-test') || '',
+        };
+      }
+
       const take = Math.min(matches.length, LIMIT);
       const entries = [];
       for (let i = 0; i < take; i++) {
         const el = matches[i];
         const refAttr = el.getAttribute('data-opencli-ref');
-        const refNum = refAttr != null && /^\\d+$/.test(refAttr) ? parseInt(refAttr, 10) : null;
+        let refNum = refAttr != null && /^\\d+$/.test(refAttr) ? parseInt(refAttr, 10) : null;
+        if (refNum === null) {
+          refNum = ++maxRef;
+          try { el.setAttribute('data-opencli-ref', '' + refNum); } catch (_) {}
+          identity['' + refNum] = fingerprintOf(el);
+        } else if (!identity['' + refNum]) {
+          // Ref annotation survived but identity map was cleared — repopulate so the
+          // target resolver's fingerprint check passes on downstream calls.
+          identity['' + refNum] = fingerprintOf(el);
+        }
         const text = (el.textContent || '').trim();
         entries.push({
           nth: i,

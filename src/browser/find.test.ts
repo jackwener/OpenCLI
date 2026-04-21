@@ -38,6 +38,28 @@ describe('buildFindJs', () => {
     expect(js).toContain('visible: isVisible(el)');
   });
 
+  it('allocates fresh refs for untagged matches (write attribute + identity map)', () => {
+    const js = buildFindJs('.btn');
+    // On the just-annotated branch we must flip the attribute on the element
+    // so downstream `browser click <ref>` works off the find output.
+    expect(js).toContain("el.setAttribute('data-opencli-ref'");
+    // The fingerprint must also land in the shared identity map so the
+    // target resolver's stale-ref check has data to verify against.
+    expect(js).toContain('__opencli_ref_identity');
+    expect(js).toContain("identity['' + refNum] = fingerprintOf(el)");
+    // Allocation walks both the identity map and any existing data-opencli-ref
+    // annotations — guards against collisions after a soft nav.
+    expect(js).toContain("document.querySelectorAll('[data-opencli-ref]')");
+  });
+
+  it('fingerprint shape matches the snapshot / resolver contract', () => {
+    const js = buildFindJs('.btn');
+    // The six fields resolveTargetJs verifies in its stale_ref check.
+    for (const field of ['tag:', 'role:', 'text:', 'ariaLabel:', 'id:', 'testId:']) {
+      expect(js).toContain(field);
+    }
+  });
+
   it('embeds defaults for limit and textMax', () => {
     const js = buildFindJs('.btn');
     expect(js).toContain('LIMIT = 50');
