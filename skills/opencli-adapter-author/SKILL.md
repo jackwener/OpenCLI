@@ -1,6 +1,6 @@
 ---
 name: opencli-adapter-author
-description: Use when writing an OpenCLI adapter for a new site or adding a new command to an existing site. Guides end-to-end from first recon through field decoding, adapter coding, and verify. Replaces opencli-oneshot / opencli-explorer / opencli-browser / opencli-usage.
+description: Use when writing an OpenCLI adapter for a new site or adding a new command to an existing site. Guides end-to-end from first recon through field decoding, adapter coding, and verify. Replaces opencli-oneshot / opencli-explorer / opencli-usage. For ad-hoc browser driving (no adapter), see opencli-browser instead.
 allowed-tools: Bash(opencli:*), Read, Edit, Write, Grep
 ---
 

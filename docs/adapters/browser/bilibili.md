@@ -14,6 +14,7 @@
 | `opencli bilibili feed` | Read the following feed, or a specific user's dynamics by uid/name |
 | `opencli bilibili feed-detail` | Read one dynamic in detail, including exclusive content |
 | `opencli bilibili subtitle` | |
+| `opencli bilibili video` | Get one video's metadata (title, author, duration, stats) by BV / URL / b23.tv link |
 | `opencli bilibili dynamic` | |
 | `opencli bilibili ranking` | |
 | `opencli bilibili following` | |
@@ -52,6 +53,10 @@ opencli bilibili feed-detail 1234567890123456789
 
 # Fetch subtitles
 opencli bilibili subtitle BV1xx411c7mD --lang zh-CN
+
+# Inspect one video's metadata
+opencli bilibili video BV1xx411c7mD
+opencli bilibili video https://www.bilibili.com/video/BV1xx411c7mD/
 
 # JSON output
 opencli bilibili hot -f json

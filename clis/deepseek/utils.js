@@ -156,7 +156,6 @@ export async function getConversationList(page) {
             if (btn) btn.click();
         }
     })()`);
-    // Poll for sidebar history links to render
     for (let attempt = 0; attempt < 5; attempt++) {
         await page.wait(2);
         const items = await page.evaluate(`(() => {
@@ -179,6 +178,90 @@ export async function getConversationList(page) {
         if (Array.isArray(items) && items.length > 0) return items;
     }
     return [];
+}
+
+async function waitForFilePreview(page, fileName) {
+    for (let attempt = 0; attempt < 8; attempt++) {
+        await page.wait(2);
+        const ready = await page.evaluate(`(() => {
+            const name = ${JSON.stringify(fileName)};
+            return Array.from(document.querySelectorAll('div'))
+                .some((el) => el.children.length === 0 && (el.textContent || '').trim() === name);
+        })()`);
+        if (ready) return true;
+    }
+    return false;
+}
+
+export async function sendWithFile(page, filePath, prompt) {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const absPath = path.default.resolve(filePath);
+
+    if (!fs.default.existsSync(absPath)) {
+        return { ok: false, reason: `File not found: ${absPath}` };
+    }
+
+    const stats = fs.default.statSync(absPath);
+    if (stats.size > 100 * 1024 * 1024) {
+        return { ok: false, reason: `File too large (${(stats.size / 1024 / 1024).toFixed(1)} MB). Max: 100 MB` };
+    }
+
+    const fileName = path.default.basename(absPath);
+
+    // Collapse sidebar to keep DOM simple for send button matching
+    await page.evaluate(`(() => {
+        if (document.querySelectorAll('a[href*="/a/chat/s/"]').length > 0) {
+            const btn = document.querySelector('div[tabindex="0"][role="button"]');
+            if (btn) btn.click();
+        }
+    })()`);
+    await page.wait(0.5);
+
+    let uploaded = false;
+    if (page.setFileInput) {
+        try {
+            await page.setFileInput([absPath], 'input[type="file"]');
+            uploaded = true;
+        } catch (err) {
+            const msg = String(err?.message || err);
+            if (!msg.includes('Unknown action') && !msg.includes('not supported')) {
+                throw err;
+            }
+        }
+    }
+
+    if (!uploaded) {
+        const content = fs.default.readFileSync(absPath);
+        const base64 = content.toString('base64');
+        const fallbackResult = await page.evaluate(`(async () => {
+            var binary = atob('${base64}');
+            var bytes = new Uint8Array(binary.length);
+            for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+            var file = new File([bytes], ${JSON.stringify(fileName)});
+            var dt = new DataTransfer();
+            dt.items.add(file);
+
+            var inp = document.querySelector('input[type="file"]');
+            if (!inp) return { ok: false, reason: 'file input not found' };
+
+            var propsKey = Object.keys(inp).find(function(k) { return k.startsWith('__reactProps$'); });
+            if (!propsKey || typeof inp[propsKey].onChange !== 'function') {
+                return { ok: false, reason: 'React onChange not found' };
+            }
+
+            inp.files = dt.files;
+            inp[propsKey].onChange({ target: { files: dt.files } });
+            return { ok: true };
+        })()`);
+        if (fallbackResult && !fallbackResult.ok) return fallbackResult;
+    }
+
+    const ready = await waitForFilePreview(page, fileName);
+    if (!ready) return { ok: false, reason: 'file preview did not appear' };
+
+    return sendMessage(page, prompt);
 }
 
 // Retries on CDP "Promise was collected" errors caused by DeepSeek's SPA router transitions.

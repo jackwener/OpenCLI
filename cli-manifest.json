@@ -1668,6 +1668,29 @@
   },
   {
     "site": "bilibili",
+    "name": "video",
+    "description": "Get Bilibili video metadata (title, author, duration, stats, etc.)",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "bvid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "BV ID, video URL, or b23.tv short link"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "bilibili/video.js",
+    "sourceFile": "bilibili/video.js"
+  },
+  {
+    "site": "bilibili",
     "name": "user-videos",
     "description": "查看指定用户的投稿视频",
     "domain": "www.bilibili.com",
@@ -4118,6 +4141,12 @@
         "default": false,
         "required": false,
         "help": "Enable web search"
+      },
+      {
+        "name": "file",
+        "type": "str",
+        "required": false,
+        "help": "Attach a file (PDF, image, text) with the prompt"
       }
     ],
     "columns": [

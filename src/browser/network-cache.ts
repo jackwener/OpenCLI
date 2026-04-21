@@ -21,9 +21,16 @@ export interface CachedNetworkEntry {
     url: string;
     method: string;
     status: number;
+    /** Full body size in chars (may exceed stored body length when truncated). */
     size: number;
     ct: string;
     body: unknown;
+    /**
+     * Truncation signals use snake_case so `--raw` (which emits cache entries
+     * verbatim) matches the agent-facing contract used by list / --detail.
+     */
+    body_truncated?: boolean;
+    body_full_size?: number;
 }
 
 export interface NetworkCacheFile {

@@ -5,14 +5,19 @@ export function sanitizeQueryId(resolved, fallbackId) {
 export async function resolveTwitterQueryId(page, operationName, fallbackId) {
     const resolved = await page.evaluate(`async () => {
     const operationName = ${JSON.stringify(operationName)};
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
     try {
-      const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json');
+      const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json', { signal: controller.signal });
+      clearTimeout(timeout);
       if (ghResp.ok) {
         const data = await ghResp.json();
         const entry = data?.[operationName];
         if (entry && entry.queryId) return entry.queryId;
       }
-    } catch {}
+    } catch {
+      clearTimeout(timeout);
+    }
     try {
       const scripts = performance.getEntriesByType('resource')
         .filter(r => r.name.includes('client-web') && r.name.endsWith('.js'))

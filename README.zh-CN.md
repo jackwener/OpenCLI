@@ -155,7 +155,8 @@ OpenCLI 不只是网站 CLI，还可以：
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `OPENCLI_DAEMON_PORT` | `19825` | daemon-extension 通信端口 |
-| `OPENCLI_WINDOW_FOCUSED` | `false` | 设为 `1` 时 automation 窗口在前台打开（适合调试） |
+| `OPENCLI_WINDOW_FOCUSED` | `false` | 设为 `1` 时 automation 窗口在前台打开（适合调试）。`--focus` 标志会设置此变量 |
+| `OPENCLI_LIVE` | `false` | 设为 `1` 时 adapter 命令执行完后保留 automation 窗口不关闭（适合检查页面）。`--live` 标志会设置此变量 |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | 浏览器连接超时（秒） |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | 单个浏览器命令超时（秒） |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol 端点，用于远程浏览器或 Electron 应用 |
@@ -209,7 +210,7 @@ npm link
 | **tieba** | `hot` `posts` `search` `read` | 浏览器 |
 | **hupu** | `hot` `search` `detail` `mentions` `reply` `like` `unlike` | 浏览器 |
 | **cursor** | `status` `send` `read` `new` `dump` `composer` `model` `extract-code` `ask` `screenshot` `history` `export` | 桌面端 |
-| **bilibili** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `dynamic` `ranking` `following` `user-videos` `download` | 浏览器 |
+| **bilibili** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `video` `dynamic` `ranking` `following` `user-videos` `download` | 浏览器 |
 | **codex** | `status` `send` `read` `new` `dump` `extract-diff` `model` `ask` `screenshot` `history` `export` | 桌面端 |
 | **chatwise** | `status` `new` `send` `read` `ask` `model` `history` `export` `screenshot` | 桌面端 |
 | **doubao** | `status` `new` `send` `read` `ask` `history` `detail` `meeting-summary` `meeting-transcript` | 浏览器 |

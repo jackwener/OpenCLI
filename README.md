@@ -157,7 +157,8 @@ OpenCLI is not only for websites. It can also:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENCLI_DAEMON_PORT` | `19825` | HTTP port for the daemon-extension bridge |
-| `OPENCLI_WINDOW_FOCUSED` | `false` | Set to `1` to open automation windows in the foreground (useful for debugging) |
+| `OPENCLI_WINDOW_FOCUSED` | `false` | Set to `1` to open automation windows in the foreground (useful for debugging). The `--focus` flag sets this. |
+| `OPENCLI_LIVE` | `false` | Set to `1` to keep the automation window open after an adapter command finishes (useful for inspection). The `--live` flag sets this. |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | Seconds to wait for browser connection |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Seconds to wait for a single browser command |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol endpoint for remote browser or Electron apps |
@@ -205,7 +206,7 @@ To load the source Browser Bridge extension:
 | Site | Commands |
 |------|----------|
 | **xiaohongshu** | `search` `note` `comments` `feed` `user` `download` `publish` `notifications` `creator-notes` `creator-notes-summary` `creator-note-detail` `creator-profile` `creator-stats` |
-| **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `me` `subtitle` `user-videos` |
+| **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `me` `subtitle` `video` `user-videos` |
 | **tieba** | `hot` `posts` `search` `read` |
 | **hupu** | `hot` `search` `detail` `mentions` `reply` `like` `unlike` |
 | **twitter** | `trending` `search` `timeline` `lists` `list-tweets` `list-add` `list-remove` `bookmarks` `post` `download` `profile` `article` `like` `likes` `notifications` `reply` `reply-dm` `thread` `follow` `unfollow` `followers` `following` `block` `unblock` `bookmark` `unbookmark` `delete` `hide-reply` `accept` |
