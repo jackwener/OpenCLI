@@ -1,0 +1,45 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "{{ url }}",
+        "waitUntil": "domcontentloaded"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": {
+        "timeMs": 3000
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 20; const allComments = []; const commentItems = document.querySelectorAll('li.comment-main-list-item'); commentItems.forEach((li) => { if (allComments.length >= limit) return; const commentId = li.getAttribute('data-comment-id') || ''; const userEl = li.querySelector('.comment-main-list-item-content-header h3 a'); const user = userEl ? userEl.textContent.trim() : ''; const contentEl = li.querySelector('.comment-main-list-item-content-comment span'); const content = contentEl ? contentEl.textContent.trim() : ''; const infoEl = li.querySelector('.content-info'); let time = ''; let location = ''; if (infoEl) { const infoText = infoEl.textContent.trim(); const parts = infoText.split('·'); time = parts[0]?.trim() || ''; location = parts[1]?.trim() || ''; } const likeEl = li.querySelector('.J_zan span'); const likes = likeEl ? parseInt(likeEl.textContent.trim()) || 0 : 0; const replies = []; const replyItems = li.querySelectorAll('.comment-main-list-item-child'); replyItems.forEach((reply) => { const replyUserEl = reply.querySelector('.comment-main-list-item-content-header h3 a'); const replyUser = replyUserEl ? replyUserEl.textContent.trim() : ''; const replyContentEl = reply.querySelector('.comment-main-list-item-content-comment span'); const replyContent = replyContentEl ? replyContentEl.textContent.trim() : ''; const replyInfoEl = reply.querySelector('.content-info'); let replyTime = ''; if (replyInfoEl) { const replyInfoText = replyInfoEl.textContent.trim(); const parts = replyInfoText.split('·'); replyTime = parts[0]?.trim() || ''; } replies.push({ user: replyUser, content: replyContent, time: replyTime }); }); allComments.push({ rank: allComments.length + 1, commentId, user, content, time, location, likes, replies }); }); return allComments; }"
+      }
+    }
+  ],
+  "api_endpoint": "smzdm-comments",
+  "category": "scrape",
+  "description": "什么值得买商品评论",
+  "is_public": true,
+  "method": "GET",
+  "name": "Comments",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "commentId", "type": "string", "description": "评论ID" },
+    { "name": "user", "type": "string", "description": "用户名" },
+    { "name": "content", "type": "string", "description": "评论内容" },
+    { "name": "time", "type": "string", "description": "评论时间" },
+    { "name": "location", "type": "string", "description": "评论地点" },
+    { "name": "likes", "type": "number", "description": "点赞数" },
+    { "name": "replies", "type": "array", "description": "回复列表" }
+  ],
+  "variables": [
+    { "name": "url", "type": "string", "required": true, "help": "详情页URL", "test": "https://www.smzdm.com/p/172500181/" },
+    { "name": "limit", "type": "int", "default": 20, "help": "返回评论数量", "test": 30 }
+  ],
+  "website_domain": "www.smzdm.com",
+  "website_id": "website-www.smzdm.com"
+}

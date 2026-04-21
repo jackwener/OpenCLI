@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-04-21T07:33:55.510Z",
+  "json_file": "./clis/smzdm/search.json",
+  "command": "Search",
+  "website": "www.smzdm.com",
+  "params": {
+    "query": "iPhone",
+    "limit": 30
+  },
+  "success": true,
+  "data_count": 20,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "国家补贴：Apple iPhone 17 5G手机 256GB",
+      "price": "5099元（需用券）",
+      "mall": "京东",
+      "comments": 112,
+      "url": "https://www.smzdm.com/p/172500181/"
+    },
+    {
+      "rank": 2,
+      "title": "今日必买：Apple iPhone 17e 5G手机 256GB 白色",
+      "price": "3699元（需用券）",
+      "mall": "京东",
+      "comments": 98,
+      "url": "https://www.smzdm.com/p/172382791/"
+    },
+    {
+      "rank": 3,
+      "title": "同样是5499元，为什么宁愿买iPhone Air，而不是iPhone 17标准版",
+      "price": "",
+      "mall": "01-27 19:18",
+      "comments": 190,
+      "url": "//post.smzdm.com/p/akov4ov4/"
+    },
+    {
+      "rank": 4,
+      "title": "Apple iPhone 17 5G手机",
+      "price": "4899元",
+      "mall": "天猫精选",
+      "comments": 12,
+      "url": "https://www.smzdm.com/p/172632306/"
+    },
+    {
+      "rank": 5,
+      "title": "国家补贴、PLUS会员：Apple iPhone 17e 5G手机 256GB 浅粉色",
+      "price": "2976.51元",
+      "mall": "京东",
+      "comments": 17,
+      "url": "https://www.smzdm.com/p/172620312/"
+    }
+  ],
+  "comparison": {
+    "grease_count": 20,
+    "opencli_count": 20,
+    "match": true,
+    "differences": []
+  }
+}

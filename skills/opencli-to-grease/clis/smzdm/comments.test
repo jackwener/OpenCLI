@@ -1,0 +1,97 @@
+{
+  "timestamp": "2026-04-21T07:43:16.982Z",
+  "json_file": "./clis/smzdm/comments.json",
+  "command": "Comments",
+  "website": "www.smzdm.com",
+  "params": {
+    "url": "https://www.smzdm.com/p/172500181/",
+    "limit": 30
+  },
+  "success": true,
+  "data_count": 30,
+  "sample_data": [
+    {
+      "rank": 1,
+      "commentId": "370576540",
+      "user": "单身老汉",
+      "content": "东海有货，可惜价格不美丽",
+      "time": "6小时前",
+      "location": "江苏",
+      "likes": 0,
+      "replies": [
+        {
+          "user": "",
+          "content": "拼夕夕4999我还不如多花100在🐶东买",
+          "time": "6小时前"
+        },
+        {
+          "user": "",
+          "content": "狗东12期免息",
+          "time": "6小时前"
+        }
+      ]
+    },
+    {
+      "rank": 2,
+      "commentId": "370462030",
+      "user": "神秘爆料家",
+      "content": "着急什么，现在经济形势这么不好，坐等618。",
+      "time": "04-19 16:34",
+      "location": "陕西",
+      "likes": 7,
+      "replies": [
+        {
+          "user": "",
+          "content": "也要看国补能不能撑到618",
+          "time": "04-19 20:15"
+        },
+        {
+          "user": "",
+          "content": "忘了去年了是吧学生毕业国补直接没了",
+          "time": "22小时前"
+        }
+      ]
+    },
+    {
+      "rank": 3,
+      "commentId": "370407437",
+      "user": "reqeffe",
+      "content": "实测深圳可以。",
+      "time": "04-18 22:13",
+      "location": "广东",
+      "likes": 3,
+      "replies": []
+    },
+    {
+      "rank": 4,
+      "commentId": "370449953",
+      "user": "Pmeile",
+      "content": "信用卡支付减50",
+      "time": "04-19 13:00",
+      "location": "广东",
+      "likes": 3,
+      "replies": []
+    },
+    {
+      "rank": 5,
+      "commentId": "370444162",
+      "user": "xuwen0128",
+      "content": "线下京东 mall 可直接做到 4988",
+      "time": "04-19 11:30",
+      "location": "湖北",
+      "likes": 5,
+      "replies": [
+        {
+          "user": "",
+          "content": "好像真是的，南京京东mall线下4999",
+          "time": "04-19 12:13"
+        },
+        {
+          "user": "",
+          "content": "南京，昨天才买的，4999",
+          "time": "04-19 13:50"
+        }
+      ]
+    }
+  ]
+}
