@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 
 const {
   mockEnsureOnDeepSeek,
@@ -69,5 +70,18 @@ describe('deepseek ask --file', () => {
     expect(mockGetBubbleCount).toHaveBeenCalledTimes(1);
     expect(mockSendWithFile).toHaveBeenCalledWith(page, './report.pdf', 'summarize this');
     expect(mockWaitForResponse).toHaveBeenCalledWith(page, 7, 'summarize this', 120000);
+  });
+
+  it('still fails when explicit instant model selection cannot be verified', async () => {
+    mockSelectModel.mockResolvedValue({ ok: false });
+
+    await expect(askCommand.func(page, {
+      prompt: 'summarize this',
+      timeout: 120,
+      new: false,
+      model: 'instant',
+      think: false,
+      search: false,
+    })).rejects.toThrow(new CommandExecutionError('Could not switch to instant model'));
   });
 });

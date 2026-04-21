@@ -42,7 +42,7 @@ export const askCommand = cli({
 
         const wantModel = kwargs.model || 'instant';
         const modelResult = await withRetry(() => selectModel(page, wantModel));
-        if (!modelResult?.ok && wantModel !== 'instant') {
+        if (!modelResult?.ok) {
             throw new CommandExecutionError(`Could not switch to ${wantModel} model`);
         }
         if (modelResult?.toggled) await page.wait(0.5);
