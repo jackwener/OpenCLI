@@ -20267,5 +20267,263 @@
     "modulePath": "zsxq/topics.js",
     "sourceFile": "zsxq/topics.js",
     "navigateBefore": "https://wx.zsxq.com"
+  },
+  {
+    "site": "51job",
+    "name": "company",
+    "description": "51job 公司简介 + 在招职位（按 encCoId）",
+    "domain": "jobs.51job.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "encCoId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "加密公司 ID（search 返回的 encCoId）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回职位数（1-50）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "jobId",
+      "title",
+      "salary",
+      "city",
+      "workYear",
+      "degree",
+      "funcType",
+      "issueDate",
+      "url",
+      "companyName",
+      "companyType",
+      "companySize",
+      "companyIndustry",
+      "companyIntro",
+      "companyUrl"
+    ],
+    "type": "js",
+    "modulePath": "51job/company.js",
+    "sourceFile": "51job/company.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "51job",
+    "name": "detail",
+    "description": "51job 职位详情（按 jobId）",
+    "domain": "jobs.51job.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "jobId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "职位 ID（search 返回的 jobId）"
+      }
+    ],
+    "columns": [
+      "jobId",
+      "title",
+      "salary",
+      "location",
+      "workYear",
+      "degree",
+      "category",
+      "address",
+      "ageRequirement",
+      "description",
+      "welfare",
+      "company",
+      "companyType",
+      "companySize",
+      "companyIndustry",
+      "companyUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "51job/detail.js",
+    "sourceFile": "51job/detail.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "51job",
+    "name": "hot",
+    "description": "51job 推荐职位（按城市/行业/排序浏览）",
+    "domain": "we.51job.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "area",
+        "type": "string",
+        "default": "全国",
+        "required": false,
+        "help": "城市名或 6 位城市码（默认 \"全国\"）"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "综合",
+        "required": false,
+        "help": "排序：综合 / 最新 / 薪资 / 距离"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "页码（1-based）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回条数（1-50）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "jobId",
+      "title",
+      "salary",
+      "salaryMin",
+      "salaryMax",
+      "city",
+      "district",
+      "workYear",
+      "degree",
+      "tags",
+      "company",
+      "companyFull",
+      "companyType",
+      "companySize",
+      "industry",
+      "hr",
+      "issueDate",
+      "url",
+      "companyUrl",
+      "encCoId"
+    ],
+    "type": "js",
+    "modulePath": "51job/hot.js",
+    "sourceFile": "51job/hot.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "51job",
+    "name": "search",
+    "description": "51job 前程无忧关键词职位搜索",
+    "domain": "we.51job.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词（岗位名 / 技能 / 公司）"
+      },
+      {
+        "name": "area",
+        "type": "string",
+        "default": "全国",
+        "required": false,
+        "help": "城市名或 6 位城市码（如 \"杭州\" / \"080200\" / \"全国\"）"
+      },
+      {
+        "name": "salary",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "薪资区间（如 \"10-15k\" / \"1-1.5万\" / \"20-30k\"）"
+      },
+      {
+        "name": "experience",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "工作年限（如 \"应届\" / \"1-3年\" / \"3-5年\" / \"5-7年\"）"
+      },
+      {
+        "name": "degree",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "学历要求（如 \"本科\" / \"大专\" / \"硕士\"）"
+      },
+      {
+        "name": "companyType",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "公司性质（如 \"外资\" / \"国企\" / \"民营\"）"
+      },
+      {
+        "name": "companySize",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "公司规模（如 \"50-150\" / \"1000-5000\"）"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "综合",
+        "required": false,
+        "help": "排序：综合 / 最新 / 薪资 / 距离"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "页码（1-based）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回条数（1-50）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "jobId",
+      "title",
+      "salary",
+      "salaryMin",
+      "salaryMax",
+      "city",
+      "district",
+      "workYear",
+      "degree",
+      "tags",
+      "company",
+      "companyFull",
+      "companyType",
+      "companySize",
+      "industry",
+      "hr",
+      "issueDate",
+      "url",
+      "companyUrl",
+      "encCoId"
+    ],
+    "type": "js",
+    "modulePath": "51job/search.js",
+    "sourceFile": "51job/search.js",
+    "navigateBefore": false
   }
 ]
