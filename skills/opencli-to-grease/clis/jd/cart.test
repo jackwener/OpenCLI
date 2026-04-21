@@ -1,0 +1,43 @@
+{
+  "timestamp": "2026-04-21T06:25:41.280Z",
+  "json_file": "./clis/jd/cart.json",
+  "command": "Cart",
+  "website": "cart.jd.com",
+  "params": {},
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "items": [
+        {
+          "index": 1,
+          "title": "美的（Midea）清风明月2.0洗烘塔 洗烘套装 12KG大容量 滚筒洗衣机全自动+热泵式烘干机 全变频 MGH24PROMAX-W",
+          "price": "",
+          "quantity": "1",
+          "sku": "100291143898"
+        },
+        {
+          "index": 2,
+          "title": "京东京造 60支长绒棉贡缎床笠 A类纯棉床罩全棉床垫保护套 1.5米床 杏仁色",
+          "price": "",
+          "quantity": "1",
+          "sku": "100062629332"
+        },
+        {
+          "index": 3,
+          "title": "喜临门【林更新同款】白骑士喜礼席梦思独袋弹簧舒脊黄麻乳胶床垫 白骑士喜礼-厚25cm【3cm乳胶】 1.8*2米",
+          "price": "",
+          "quantity": "1",
+          "sku": "10101700530087"
+        },
+        {
+          "index": 4,
+          "title": "喜临门白骑士pro政府补贴席梦思独袋弹簧家用软硬适中3D芯材进口加厚 白骑士pro床垫【厚26.5cm】 1.8*2米",
+          "price": "",
+          "quantity": "1",
+          "sku": "10097453481761"
+        }
+      ]
+    }
+  ]
+}

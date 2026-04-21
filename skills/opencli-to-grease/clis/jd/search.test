@@ -1,0 +1,54 @@
+{
+  "timestamp": "2026-04-21T06:15:01.367Z",
+  "json_file": "./clis/jd/search.json",
+  "command": "Search",
+  "website": "search.jd.com",
+  "params": {
+    "query": "iPhone",
+    "limit": 5
+  },
+  "success": true,
+  "data_count": 5,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "Apple/苹果 iPhone 17e（A3635）256GB 白色 支持移动联通电信5G 单实体卡槽 支持双eSIMApple手机热卖榜第5名256GB起步|",
+      "price": "¥4476.51",
+      "shop": "0天加购飙升5倍Apple产品京东自营旗舰店",
+      "sku": "100327533584",
+      "url": "https://item.jd.com/100327533584.html"
+    },
+    {
+      "rank": 2,
+      "title": "Apple/苹果 iPhone 17 256GB 白色 支持移动联通电信5G 双卡双待手机手机热卖榜第1名自适应高刷|4800万像素|A19芯片手机热卖榜第1名",
+      "price": "¥5969.01",
+      "shop": "0天加购飙升5倍Apple产品京东自营旗舰店",
+      "sku": "100209267857",
+      "url": "https://item.jd.com/100209267857.html"
+    },
+    {
+      "rank": 3,
+      "title": "广告【准新机】Apple苹果【分期0首付】苹果iPhone16/15/14/13 iphone16plus/15plus/14plus//16e双卡双待 全网通",
+      "price": "¥4788",
+      "shop": "",
+      "sku": "10199163018264",
+      "url": "https://item.jd.com/10199163018264.html"
+    },
+    {
+      "rank": 4,
+      "title": "Apple/苹果【以旧换新大额补贴】iPhone Air 256GB 天蓝色 【仅支持eSIM】无卡更省心|芯片超流畅|超薄极轻",
+      "price": "¥5969.01",
+      "shop": "0天加购飙升5倍Apple产品京东自营旗舰店",
+      "sku": "100278222346",
+      "url": "https://item.jd.com/100278222346.html"
+    },
+    {
+      "rank": 5,
+      "title": "广告【准新机】Apple【现货速发】iPhone16手机 16plus系列双卡双待全网通5G手机 苹果16plus群青色 128G【配件礼包+店保2年】",
+      "price": "¥4896",
+      "shop": "",
+      "sku": "10138940612250",
+      "url": "https://item.jd.com/10138940612250.html"
+    }
+  ]
+}

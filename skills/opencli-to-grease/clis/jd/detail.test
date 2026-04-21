@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-04-21T06:14:37.233Z",
+  "json_file": "./clis/jd/detail.json",
+  "command": "Detail",
+  "website": "item.jd.com",
+  "params": {
+    "sku": "100291143898"
+  },
+  "success": true,
+  "data_count": 8,
+  "sample_data": [
+    {
+      "field": "商品名称",
+      "value": "美的（Midea）清风明月2.0洗烘塔 洗烘套装 12KG大容量 滚筒洗衣机全自动+热泵式烘干机 全变频 MGH24PROMAX-W"
+    },
+    {
+      "field": "价格",
+      "value": "¥1500"
+    },
+    {
+      "field": "SKU",
+      "value": "100291143898"
+    },
+    {
+      "field": "店铺",
+      "value": "美的京东自营旗舰店"
+    },
+    {
+      "field": "评价数量",
+      "value": "1万+"
+    }
+  ]
+}

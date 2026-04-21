@@ -1,0 +1,55 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://item.jd.com/{{ sku }}.html",
+        "waitUntil": "domcontentloaded"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { await new Promise(r => setTimeout(r, 4000)); const text = document.body?.innerText || ''; const titleMatch = document.title.match(/^【[^】]*】(.+?)【/); const title = titleMatch ? titleMatch[1].trim() : document.title.split('-')[0].trim(); const priceMatch = text.match(/¥([\\d,.]+)/); const price = priceMatch ? '¥' + priceMatch[1] : ''; return { title, price, sku: '{{ sku }}' }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const dryRun = '{{ dry-run }}' === 'true'; if (dryRun) { return [{ status: 'dry-run', title: (intermediate.title || '').slice(0, 80), price: intermediate.price || '', sku: intermediate.sku }]; } return { needCart: true, title: intermediate.title, price: intermediate.price, sku: intermediate.sku, num: {{ num }} }; }"
+      }
+    },
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://cart.jd.com/gate.action?pid=${sku}&pcount=${num}&ptype=1",
+        "waitUntil": "domcontentloaded"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { await new Promise(r => setTimeout(r, 4000)); const url = location.href; const text = document.body?.innerText || ''; if (text.includes('请登录') || text.includes('login') || url.includes('login')) { return [{ status: '✗ 需要登录', title: intermediate.title?.slice(0, 80) || '', price: intermediate.price || '', sku: intermediate.sku }]; } if (text.includes('已成功加入') || text.includes('商品已成功') || url.includes('addtocart')) { return [{ status: '✓ 已加入购物车', title: intermediate.title?.slice(0, 80) || '', price: intermediate.price || '', sku: intermediate.sku }]; } return [{ status: '? ' + url.substring(0, 60), title: intermediate.title?.slice(0, 80) || '', price: intermediate.price || '', sku: intermediate.sku }]; }"
+      }
+    }
+  ],
+  "api_endpoint": "jd-add-cart",
+  "category": "interact",
+  "description": "京东加入购物车",
+  "is_public": false,
+  "method": "POST",
+  "name": "AddCart",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "操作状态" },
+    { "name": "title", "type": "string", "description": "商品标题" },
+    { "name": "price", "type": "string", "description": "商品价格" },
+    { "name": "sku", "type": "string", "description": "商品SKU" }
+  ],
+  "variables": [
+    { "name": "sku", "type": "string", "required": true, "help": "商品 SKU ID", "test": "100291143898" },
+    { "name": "num", "type": "int", "default": 1, "help": "数量", "test": 1 },
+    { "name": "dry-run", "type": "bool", "default": false, "help": "仅预览，不实际加入购物车", "test": true }
+  ],
+  "website_domain": "item.jd.com",
+  "website_id": "website-item.jd.com"
+}

@@ -1,0 +1,36 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://item.jd.com/{{ sku }}.html",
+        "waitUntil": "domcontentloaded"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { await new Promise(r => setTimeout(r, 2000)); const maxImg = {{ images }}; for (let i = 0; i < 6; i++) { window.scrollTo(0, i * 2500); await new Promise(r => setTimeout(r, 1000)); } window.scrollTo(0, document.body.scrollHeight); await new Promise(r => setTimeout(r, 2000)); const skuMatch = location.pathname.match(/(\\d+)\\.html/); const sku = skuMatch ? skuMatch[1] : ''; const priceEl = document.querySelector('.J-p-' + sku) || document.querySelector('[class*=\"price\"] [class*=\"num\"]') || document.querySelector('.p-price strong') || document.querySelector('.price.jd-price'); const price = priceEl?.textContent?.trim() || 'not found'; const title = document.querySelector('.product-title')?.textContent?.trim() || document.title.split('-')[0].trim(); const shop = document.querySelector('.J-shop-name')?.textContent?.trim() || '京东自营'; const allImgs = Array.from(document.querySelectorAll('img[src*=\"360buyimg.com\"]')); const srcs = allImgs.map(img => img.src).filter(Boolean); const unique = [...new Set(srcs.filter(Boolean))]; const avifImages = unique.filter(url => url.includes('.avif') && url.includes('pcpubliccms')).slice(0, maxImg); const text = document.body.innerText; const specMatch = text.match(/商品编号[\\s\\S]*?(?=包装清单|\\n\\n|$)/); let specs = {}; if (specMatch) { const lines = specMatch[0].split('\\n').filter(l => l.trim()); for (let i = 0; i < lines.length - 1; i += 2) { const key = lines[i].trim(); const val = lines[i + 1]?.trim() || ''; if (key && val && key !== '商品编号') { specs[key] = val; } } } return { title, price, shop, specs, avifImages, totalImages: new Set(srcs).size }; }"
+      }
+    }
+  ],
+  "api_endpoint": "jd-item",
+  "category": "scrape",
+  "description": "京东商品详情（价格、店铺、规格参数、AVIF 图片）",
+  "is_public": true,
+  "method": "GET",
+  "name": "Item",
+  "output_schema": [
+    { "name": "title", "type": "string", "description": "商品标题" },
+    { "name": "price", "type": "string", "description": "商品价格" },
+    { "name": "shop", "type": "string", "description": "店铺名称" },
+    { "name": "specs", "type": "object", "description": "规格参数" },
+    { "name": "avifImages", "type": "array", "description": "AVIF图片列表" }
+  ],
+  "variables": [
+    { "name": "sku", "type": "string", "required": true, "help": "商品 SKU ID（如 100291143898）", "test": "100291143898" },
+    { "name": "images", "type": "int", "default": 10, "help": "AVIF 图片数量上限（默认10）", "test": 5 }
+  ],
+  "website_domain": "item.jd.com",
+  "website_id": "website-item.jd.com"
+}

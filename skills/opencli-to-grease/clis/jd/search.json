@@ -1,0 +1,37 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://search.jd.com/Search?keyword={{ query }}&enc=utf-8",
+        "waitUntil": "domcontentloaded"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { await new Promise(r => setTimeout(r, 5000)); for (let i = 0; i < 2; i++) { window.scrollTo(0, document.body.scrollHeight); await new Promise(r => setTimeout(r, 1500)); } const limit = {{ limit }}; const normalize = v => (v || '').replace(/\\s+/g, ' ').trim(); for (let i = 0; i < 20; i++) { if (document.querySelectorAll('div[data-sku]').length > 0) break; await new Promise(r => setTimeout(r, 500)); } const items = document.querySelectorAll('div[data-sku]'); const results = []; for (const el of items) { const sku = el.getAttribute('data-sku') || ''; if (!sku) continue; const text = normalize(el.textContent); if (text.length < 10) continue; const priceMatch = text.match(/¥([\\d,.]+)/); const price = priceMatch ? '¥' + priceMatch[1] : ''; let title = ''; if (priceMatch) { const beforePrice = text.substring(0, text.indexOf('¥')); title = beforePrice.replace(/^(海外无货|京东超市|自营|秒杀|新品|预售|PLUS)/, '').trim(); } if (!title || title.length < 4) continue; let shop = ''; const shopMatch = text.match(/(\\S{2,15}(?:旗舰店|专卖店|自营店|官方旗舰店|京东自营旗舰店|京东自营))/); if (shopMatch) shop = shopMatch[1]; results.push({ rank: results.length + 1, title: title.slice(0, 80), price, shop, sku, url: 'https://item.jd.com/' + sku + '.html' }); if (results.length >= limit) break; } return results; }"
+      }
+    }
+  ],
+  "api_endpoint": "jd-search",
+  "category": "search",
+  "description": "京东商品搜索",
+  "is_public": true,
+  "method": "GET",
+  "name": "Search",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "title", "type": "string", "description": "商品标题" },
+    { "name": "price", "type": "string", "description": "商品价格" },
+    { "name": "shop", "type": "string", "description": "店铺名称" },
+    { "name": "sku", "type": "string", "description": "商品SKU" },
+    { "name": "url", "type": "string", "description": "商品链接" }
+  ],
+  "variables": [
+    { "name": "query", "type": "string", "required": true, "help": "搜索关键词", "test": "iPhone" },
+    { "name": "limit", "type": "int", "default": 10, "help": "返回结果数量 (max 30)", "test": 5 }
+  ],
+  "website_domain": "search.jd.com",
+  "website_id": "website-search.jd.com"
+}

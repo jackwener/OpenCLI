@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-04-21T06:15:13.821Z",
+  "json_file": "./clis/jd/item.json",
+  "command": "Item",
+  "website": "item.jd.com",
+  "params": {
+    "sku": "100291143898",
+    "images": 5
+  },
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "title": "美的（Midea）清风明月2.0洗烘塔 洗烘套装 12KG大容量 滚筒洗衣机全自动+热泵式烘干机 全变频 MGH24PROMAX",
+      "price": "not found",
+      "shop": "京东自营",
+      "specs": {
+        "开门方式": "前开式",
+        "型号": "MGH24PROMAX-W(G)+MGH24PROMAX-W(H)",
+        "自动化程度": "全自动",
+        "认证型号": "MGH24PROMAX-W(G)+MGH24PROMAX-W(H)",
+        "能效网规格型号": "MGH24PROMAX-W(G)",
+        "CCC强制性认证": "否",
+        "洗涤容量": "12kg",
+        "箱体材质": "镀锌钢",
+        "特殊材质洗涤": "羊毛 羽绒服",
+        "智能投放": "双智投",
+        "烘干容量": "12kg",
+        "脱水转速": "1200转/分钟",
+        "内筒材质": "不锈钢",
+        "色系": "白色系",
+        "特色功能": "专业除毛洗烘 变频压缩机 脱水功能",
+        "洗净比": "1.32",
+        "类型": "洗烘套装",
+        "烘干类型": "热泵烘干",
+        "排水方式": "上排水",
+        "能效等级": "一级能效",
+        "变频/定频": "变频",
+        "系列": "美的 清风明月2.0洗烘塔系列"
+      },
+      "avifImages": [
+        "https://img10.360buyimg.com/pcpubliccms/s228x228_jfs/t1/419976/20/16472/218544/69e59112F41fe4641/00832ee3e8a429f3.jpg.avif",
+        "https://img10.360buyimg.com/pcpubliccms/s228x228_jfs/t1/350109/15/16772/55183/68f9a1a1Ff31d7f89/847674b6a5f7f4de.jpg.avif",
+        "https://img10.360buyimg.com/pcpubliccms/s228x228_jfs/t1/410620/13/14196/95500/69cbbe87Fcccfc11d/00832ee3e81f127e.jpg.avif",
+        "https://img10.360buyimg.com/pcpubliccms/s228x228_jfs/t1/340121/11/23460/106480/68f9a1a0Fed2de06e/61d29733025c015f.jpg.avif",
+        "https://img10.360buyimg.com/pcpubliccms/s228x228_jfs/t1/332294/5/26561/131569/68f9a1a0F5d60c16d/cd3a6fc5a59a09d1.jpg.avif"
+      ],
+      "totalImages": 139
+    }
+  ]
+}
