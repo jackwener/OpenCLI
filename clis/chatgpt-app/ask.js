@@ -1,7 +1,7 @@
-import { execSync, spawnSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ConfigError } from '@jackwener/opencli/errors';
-import { activateChatGPT, getVisibleChatMessages, selectModel, MODEL_CHOICES, isGenerating } from './ax.js';
+import { activateChatGPT, getVisibleChatMessages, selectModel, MODEL_CHOICES, isGenerating, sendPrompt } from './ax.js';
 export const askCommand = cli({
     site: 'chatgpt-app',
     name: 'ask',
@@ -27,26 +27,10 @@ export const askCommand = cli({
             activateChatGPT();
             selectModel(model);
         }
-        // Backup clipboard
-        let clipBackup = '';
-        try {
-            clipBackup = execSync('pbpaste', { encoding: 'utf-8' });
-        }
-        catch { }
         const messagesBefore = getVisibleChatMessages();
         // Send the message
-        spawnSync('pbcopy', { input: text });
         activateChatGPT();
-        const cmd = "osascript " +
-            "-e 'tell application \"System Events\"' " +
-            "-e 'keystroke \"v\" using command down' " +
-            "-e 'delay 0.2' " +
-            "-e 'keystroke return' " +
-            "-e 'end tell'";
-        execSync(cmd);
-        // Restore clipboard after the prompt is sent.
-        if (clipBackup)
-            spawnSync('pbcopy', { input: clipBackup });
+        sendPrompt(text);
         // Wait for response: poll until ChatGPT stops generating ("Stop generating" button disappears),
         // then read the final response text.
         const pollInterval = 2;

@@ -1,7 +1,6 @@
-import { execSync, spawnSync } from 'node:child_process';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { getErrorMessage } from '@jackwener/opencli/errors';
-import { activateChatGPT, selectModel, MODEL_CHOICES } from './ax.js';
+import { activateChatGPT, selectModel, MODEL_CHOICES, sendPrompt } from './ax.js';
 export const sendCommand = cli({
     site: 'chatgpt-app',
     name: 'send',
@@ -23,26 +22,8 @@ export const sendCommand = cli({
                 activateChatGPT();
                 selectModel(model);
             }
-            // Backup current clipboard content
-            let clipBackup = '';
-            try {
-                clipBackup = execSync('pbpaste', { encoding: 'utf-8' });
-            }
-            catch { /* clipboard may be empty */ }
-            // Copy text to clipboard
-            spawnSync('pbcopy', { input: text });
             activateChatGPT();
-            const cmd = "osascript " +
-                "-e 'tell application \"System Events\"' " +
-                "-e 'keystroke \"v\" using command down' " +
-                "-e 'delay 0.2' " +
-                "-e 'keystroke return' " +
-                "-e 'end tell'";
-            execSync(cmd);
-            // Restore original clipboard content
-            if (clipBackup) {
-                spawnSync('pbcopy', { input: clipBackup });
-            }
+            sendPrompt(text);
             return [{ Status: 'Success' }];
         }
         catch (err) {
