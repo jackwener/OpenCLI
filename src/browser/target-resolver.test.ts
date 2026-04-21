@@ -75,4 +75,59 @@ describe('resolveTargetJs', () => {
     expect(js).not.toContain('alert(1); "');
     expect(js).toContain('\\"');
   });
+
+  it('tags every success envelope with match_level so agents can tell tiers apart', () => {
+    const numericJs = resolveTargetJs('7');
+    const cssJs = resolveTargetJs('.btn');
+    // Exact / reidentified emit the literal directly; stable flows through the
+    // classifier's `level` variable. All three strings must appear in the JS.
+    expect(numericJs).toContain("match_level: 'exact'");
+    expect(numericJs).toContain("match_level: 'reidentified'");
+    expect(numericJs).toContain("return 'stable'");
+    // Stable + exact share the same emit site (match_level: level) — make sure
+    // we didn't hardcode one of them and drop the other.
+    expect(numericJs).toContain('match_level: level');
+    // CSS path is always exact (selector ran successfully).
+    expect(cssJs).toContain("match_level: 'exact'");
+  });
+
+  it('cascading ref path — classifier + reidentifier are both wired in', () => {
+    const js = resolveTargetJs('3');
+    // Classifier distinguishes the three tiers
+    expect(js).toContain('function classifyMatch');
+    expect(js).toContain("return 'exact'");
+    expect(js).toContain("return 'stable'");
+    expect(js).toContain("return 'mismatch'");
+    // Strong id is the only thing that can rescue a drifted fingerprint
+    expect(js).toContain('hadStrongId');
+    // Reidentify searches live DOM with the same fingerprint shape the
+    // snapshot / find writers emit — id / testId / aria-label only.
+    expect(js).toContain('function reidentify');
+    expect(js).toContain('getElementById');
+    expect(js).toContain('[data-testid="');
+    expect(js).toContain('[aria-label="');
+    // Unique match required — never silently picks one of many candidates.
+    expect(js).toContain('candidates.length === 1');
+    // Recovered element is re-tagged + identity map refreshed so subsequent
+    // resolves land on 'exact' instead of re-walking the cascade.
+    expect(js).toContain("setAttribute('data-opencli-ref', ref)");
+    expect(js).toContain('identity[ref] = fingerprintOf(recovered)');
+  });
+
+  it('reidentify runs both when data-opencli-ref is missing AND when fingerprint is mismatched', () => {
+    const js = resolveTargetJs('9');
+    // Two call sites: one in the !el branch, one after classifyMatch returns mismatch.
+    const count = js.split('reidentify(fp)').length - 1;
+    expect(count).toBeGreaterThanOrEqual(2);
+  });
+
+  it('falls through to stale_ref only after reidentify exhausts', () => {
+    const js = resolveTargetJs('4');
+    // The stale_ref emit must sit *below* a reidentify attempt so the cascade
+    // is what produces the error — not the original strict check.
+    const reidentifyIdx = js.indexOf('const recovered = reidentify(fp);');
+    const staleIdx = js.indexOf("code: 'stale_ref'");
+    expect(reidentifyIdx).toBeGreaterThan(-1);
+    expect(staleIdx).toBeGreaterThan(reidentifyIdx);
+  });
 });

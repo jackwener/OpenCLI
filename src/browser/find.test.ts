@@ -84,6 +84,20 @@ describe('buildFindJs', () => {
     expect(FIND_ATTR_WHITELIST).not.toContain('onload' as never);
   });
 
+  it('inlines compoundInfoOf and attaches compound field per entry', () => {
+    const js = buildFindJs('input, select');
+    // Helper definition is inlined so each matched element can be classified.
+    expect(js).toContain('function compoundInfoOf(el)');
+    // The emitted entry opts in only when compound data is present — no noisy
+    // compound: null on every non-form element.
+    expect(js).toContain('const compound = compoundInfoOf(el);');
+    expect(js).toContain('if (compound) entry.compound = compound;');
+    // Spot-check all three compound families are covered in the inlined helper.
+    expect(js).toContain("'YYYY-MM-DD'");
+    expect(js).toContain("control: 'file'");
+    expect(js).toContain("control: 'select'");
+  });
+
   it('keeps the whitelist small and explicit (guardrail against silent expansion)', () => {
     expect(FIND_ATTR_WHITELIST).toEqual([
       'id',

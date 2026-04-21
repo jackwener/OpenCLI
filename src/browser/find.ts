@@ -20,7 +20,15 @@
  * Attributes are whitelisted to keep output small and high-signal.
  * Invisible elements are still returned so agents can reason about
  * offscreen vs truly-missing targets.
+ *
+ * When a matched element is a compound form control (date-like input,
+ * select, file input), the entry gains a `compound` field with the
+ * rich view from `compound.ts`. This is what kills the three biggest
+ * agent-fail modes on form pages (wrong date format, guessed options,
+ * re-uploaded files) without forcing agents to probe further.
  */
+
+import { COMPOUND_INFO_JS, type CompoundInfo } from './compound.js';
 
 /** Whitelist of attributes surfaced per entry. Keep small; agents do not need full DOM dumps. */
 export const FIND_ATTR_WHITELIST = [
@@ -51,6 +59,12 @@ export interface FindEntry {
   text: string;
   attrs: Record<string, string>;
   visible: boolean;
+  /**
+   * Rich view for date / time / datetime-local / month / week / select /
+   * file inputs. Omitted (undefined) for all other element types. See
+   * `compound.ts` for the shape.
+   */
+  compound?: CompoundInfo;
 }
 
 export interface FindResult {
@@ -89,6 +103,8 @@ export function buildFindJs(selector: string, opts: FindOptions = {}): string {
       const LIMIT = ${limit};
       const TEXT_MAX = ${textMax};
       const ATTR_WHITELIST = ${whitelist};
+
+      ${COMPOUND_INFO_JS}
 
       let matches;
       try {
@@ -183,7 +199,7 @@ export function buildFindJs(selector: string, opts: FindOptions = {}): string {
           identity['' + refNum] = fingerprintOf(el);
         }
         const text = (el.textContent || '').trim();
-        entries.push({
+        const entry = {
           nth: i,
           ref: refNum,
           tag: el.tagName.toLowerCase(),
@@ -191,7 +207,10 @@ export function buildFindJs(selector: string, opts: FindOptions = {}): string {
           text: text.length > TEXT_MAX ? text.slice(0, TEXT_MAX) : text,
           attrs: pickAttrs(el),
           visible: isVisible(el),
-        });
+        };
+        const compound = compoundInfoOf(el);
+        if (compound) entry.compound = compound;
+        entries.push(entry);
       }
 
       return {
