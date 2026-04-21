@@ -167,6 +167,8 @@ OpenCLI is not only for websites. It can also:
 | `OPENCLI_DIAGNOSTIC` | `false` | Set to `1` to capture structured diagnostic context on failures |
 | `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |
 
+`--focus` works for both `opencli browser *` and browser-backed adapter commands. `--live` is mainly for adapter commands: browser subcommands already keep the automation window open until you run `opencli browser close` or the idle timeout expires.
+
 ## Update
 
 ```bash

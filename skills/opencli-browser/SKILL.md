@@ -22,6 +22,14 @@ Until `doctor` is green, nothing else will work. Typical failures: Chrome not ru
 
 ---
 
+## Window lifecycle
+
+- `opencli browser *` commands already keep the automation session alive between calls. The window stays open until you run `opencli browser close` or the idle timeout expires.
+- `--focus` (or `OPENCLI_WINDOW_FOCUSED=1`) opens the automation window in the foreground. Use it when you want to watch the page live.
+- `--live` (or `OPENCLI_LIVE=1`) is mainly for browser-backed adapter commands such as `opencli xiaohongshu note ...`. It keeps the adapter's automation window open after the command returns so you can inspect the final page state.
+
+---
+
 ## Mental model
 
 1. **Selector-first target contract.** Every interaction command (`click`, `type`, `select`, `get text/value/attributes`) takes one `<target>`, which is *either* a numeric ref from `state`/`find` *or* a CSS selector. Use `--nth <n>` to disambiguate multiple CSS matches.

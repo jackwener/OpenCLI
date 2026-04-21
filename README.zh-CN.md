@@ -165,6 +165,8 @@ OpenCLI 不只是网站 CLI，还可以：
 | `OPENCLI_DIAGNOSTIC` | `false` | 设为 `1` 时在失败时输出结构化诊断上下文 |
 | `DEBUG_SNAPSHOT` | — | 设为 `1` 输出 DOM 快照调试信息 |
 
+`--focus` 同时适用于 `opencli browser *` 和浏览器型 adapter 命令。`--live` 主要是给 adapter 命令用的：`browser` 子命令本来就会一直保留 automation window，直到你手动执行 `opencli browser close` 或等空闲超时。
+
 ## 更新
 
 ```bash
