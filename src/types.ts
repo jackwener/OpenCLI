@@ -51,10 +51,10 @@ export interface IPage {
   evaluateWithArgs?(js: string, args: Record<string, unknown>): Promise<any>;
   getCookies(opts?: { domain?: string; url?: string }): Promise<BrowserCookie[]>;
   snapshot(opts?: SnapshotOptions): Promise<any>;
-  click(ref: string): Promise<void>;
-  typeText(ref: string, text: string): Promise<void>;
+  click(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number }>;
+  typeText(ref: string, text: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number }>;
   pressKey(key: string): Promise<void>;
-  scrollTo(ref: string): Promise<any>;
+  scrollTo(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<any>;
   getFormState(): Promise<any>;
   wait(options: number | WaitOptions): Promise<void>;
   tabs(): Promise<any>;

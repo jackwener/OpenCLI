@@ -20,8 +20,9 @@ import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
 import { EXIT_CODES, getErrorMessage, BrowserConnectError } from './errors.js';
-import { TargetError } from './browser/target-errors.js';
-import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesResolvedJs, selectResolvedJs, isAutocompleteResolvedJs } from './browser/target-resolver.js';
+import { TargetError, type TargetErrorCode } from './browser/target-errors.js';
+import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesResolvedJs, selectResolvedJs, isAutocompleteResolvedJs, clickResolvedJs, type ResolveOptions } from './browser/target-resolver.js';
+import { buildFindJs, isFindError, type FindResult, type FindError } from './browser/find.js';
 import { inferShape } from './browser/shape.js';
 import { assignKeys } from './browser/network-key.js';
 import { DEFAULT_TTL_MS, findEntry, loadNetworkCache, saveNetworkCache, type CachedNetworkEntry } from './browser/network-cache.js';
@@ -361,14 +362,57 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .command('browser')
     .description('Browser control — navigate, click, type, extract, wait (no LLM needed)');
 
-  /** Resolve a ref/CSS target via the unified resolver, throwing TargetError on failure. */
-  async function resolveRef(page: Awaited<ReturnType<typeof getBrowserPage>>, ref: string): Promise<void> {
-    const resolution = await page.evaluate(resolveTargetJs(ref)) as
-      | { ok: true }
-      | { ok: false; code: string; message: string; hint: string; candidates?: string[] };
+  /**
+   * Resolve a `<target>` (numeric ref or CSS selector) via the unified resolver.
+   * Returns the CSS match count so callers can propagate `matches_n` into the
+   * JSON envelope printed back to the agent.
+   */
+  async function resolveRef(
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    ref: string,
+    opts: ResolveOptions = {},
+  ): Promise<{ matches_n: number }> {
+    const resolution = await page.evaluate(resolveTargetJs(ref, opts)) as
+      | { ok: true; matches_n: number }
+      | { ok: false; code: TargetErrorCode; message: string; hint: string; candidates?: string[]; matches_n?: number };
     if (!resolution.ok) {
-      throw new TargetError(resolution as { ok: false; code: 'not_found' | 'ambiguous' | 'stale_ref'; message: string; hint: string; candidates?: string[] });
+      throw new TargetError({
+        code: resolution.code,
+        message: resolution.message,
+        hint: resolution.hint,
+        candidates: resolution.candidates,
+        matches_n: resolution.matches_n,
+      });
     }
+    return { matches_n: resolution.matches_n };
+  }
+
+  /**
+   * Parse `--nth <n>` flag, returning the parsed 0-based index or a usage error.
+   * The surface mirrors `--depth` etc. in `browser get html --as json`: the flag
+   * is optional, must be a non-negative integer when present, and on failure we
+   * emit the structured error envelope rather than throwing past the command.
+   */
+  function parseNthFlag(raw: unknown): number | null | { error: string } {
+    if (raw === undefined || raw === null || raw === '') return null;
+    const str = String(raw);
+    if (!/^\d+$/.test(str)) {
+      return { error: `--nth must be a non-negative integer, got "${str}"` };
+    }
+    return Number.parseInt(str, 10);
+  }
+
+  /** Emit the `{ error: { code, message, hint?, candidates?, matches_n? } }` envelope used by the selector-first commands. */
+  function emitTargetError(err: TargetError): void {
+    console.log(JSON.stringify({
+      error: {
+        code: err.code,
+        message: err.message,
+        hint: err.hint,
+        ...(err.candidates && { candidates: err.candidates }),
+        ...(err.matches_n !== undefined && { matches_n: err.matches_n }),
+      },
+    }, null, 2));
   }
 
   /** Wrap browser actions with error handling and optional --json output */
@@ -384,12 +428,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           log.error(err.message);
           if (err.hint) log.error(`Hint: ${err.hint}`);
         } else if (err instanceof TargetError) {
+          // Agent-facing structured envelope on stdout + short human line on stderr.
+          emitTargetError(err);
           log.error(`[${err.code}] ${err.message}`);
           if (err.hint) log.error(`Hint: ${err.hint}`);
-          if (err.candidates?.length) {
-            log.error('Candidates:');
-            err.candidates.forEach((c, i) => log.error(`  ${i + 1}. ${c}`));
-          }
         } else {
           const msg = getErrorMessage(err);
           if (msg.includes('attach failed') || msg.includes('chrome-extension://')) {
@@ -542,6 +584,54 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
     }));
 
+  // ── Find (structured CSS query, agent-native) ──
+  //
+  // `browser find --css <sel>` lets agents jump straight from a semantic
+  // selector to a JSON list of matching elements, without having to parse
+  // the free-text state snapshot to recover indices.
+  addBrowserTabOption(
+    browser.command('find')
+      .option('--css <selector>', 'CSS selector (required)')
+      .option('--limit <n>', 'Max entries returned', '50')
+      .option('--text-max <n>', 'Max chars of trimmed text per entry', '120')
+      .description('Find DOM elements by CSS selector — returns JSON {matches_n, entries[]}'),
+  )
+    .action(browserAction(async (page, opts) => {
+      if (!opts.css || typeof opts.css !== 'string') {
+        console.log(JSON.stringify({
+          error: {
+            code: 'usage_error',
+            message: '--css <selector> is required',
+            hint: 'Example: opencli browser find --css ".btn.primary"',
+          },
+        }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const limit = parseNthFlag(opts.limit);
+      if (limit && typeof limit === 'object' && 'error' in limit) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: limit.error.replace('--nth', '--limit') } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const textMax = parseNthFlag(opts.textMax);
+      if (textMax && typeof textMax === 'object' && 'error' in textMax) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: textMax.error.replace('--nth', '--text-max') } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const result = await page.evaluate(buildFindJs(opts.css, {
+        limit: limit as number | null ?? undefined,
+        textMax: textMax as number | null ?? undefined,
+      })) as FindResult | FindError;
+      if (isFindError(result)) {
+        console.log(JSON.stringify(result, null, 2));
+        process.exitCode = EXIT_CODES.GENERIC_ERROR;
+        return;
+      }
+      console.log(JSON.stringify(result, null, 2));
+    }));
+
   // ── Get commands (structured data extraction) ──
 
   const get = browser.command('get').description('Get page properties');
@@ -556,19 +646,61 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       console.log(await page.getCurrentUrl?.() ?? await page.evaluate('location.href'));
     }));
 
-  addBrowserTabOption(get.command('text').argument('<index>', 'Element index').description('Element text content'))
-    .action(browserAction(async (page, index) => {
-      await resolveRef(page, String(index));
-      const text = await page.evaluate(getTextResolvedJs());
-      console.log(text ?? '(empty)');
-    }));
+  // Read commands (`get text/value/attributes`) always emit a JSON envelope:
+  //
+  //   { value, matches_n }                           — success
+  //   { error: { code, message, hint, matches_n? } } — structured failure
+  //
+  // `<target>` accepts either a numeric ref (from `browser state`/`browser find`)
+  // or a CSS selector. On multi-match CSS, the first element wins and the real
+  // match count is exposed via `matches_n`; `--nth <n>` picks a specific one.
+  const runGetCommand = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    target: string,
+    opts: { nth?: string },
+    evalJs: string,
+    field: 'text' | 'value' | 'attributes',
+  ): Promise<void> => {
+    const nth = parseNthFlag(opts.nth);
+    if (nth && typeof nth === 'object' && 'error' in nth) {
+      console.log(JSON.stringify({ error: { code: 'usage_error', message: nth.error } }, null, 2));
+      process.exitCode = EXIT_CODES.USAGE_ERROR;
+      return;
+    }
+    const { matches_n } = await resolveRef(page, String(target), {
+      firstOnMulti: nth === null,
+      ...(typeof nth === 'number' ? { nth } : {}),
+    });
+    const raw = await page.evaluate(evalJs);
+    let value: unknown;
+    if (field === 'attributes') {
+      // getAttributesResolvedJs stringifies the attribute record — parse it back so
+      // the JSON envelope contains a real object rather than a nested JSON string.
+      try { value = raw == null ? {} : JSON.parse(String(raw)); }
+      catch { value = raw; }
+    } else {
+      value = raw ?? null;
+    }
+    console.log(JSON.stringify({ value, matches_n }, null, 2));
+  };
 
-  addBrowserTabOption(get.command('value').argument('<index>', 'Element index').description('Input/textarea value'))
-    .action(browserAction(async (page, index) => {
-      await resolveRef(page, String(index));
-      const val = await page.evaluate(getValueResolvedJs());
-      console.log(val ?? '(empty)');
-    }));
+  addBrowserTabOption(
+    get.command('text')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+      .option('--nth <n>', 'Pick the nth match (0-based) when <target> is a multi-match CSS selector')
+      .description('Element text content — JSON envelope {value, matches_n}'),
+  )
+    .action(browserAction(async (page, target, opts) =>
+      runGetCommand(page, String(target), opts ?? {}, getTextResolvedJs(), 'text')));
+
+  addBrowserTabOption(
+    get.command('value')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+      .option('--nth <n>', 'Pick the nth match (0-based) when <target> is a multi-match CSS selector')
+      .description('Input/textarea value — JSON envelope {value, matches_n}'),
+  )
+    .action(browserAction(async (page, target, opts) =>
+      runGetCommand(page, String(target), opts ?? {}, getValueResolvedJs(), 'value')));
 
   addBrowserTabOption(
     get.command('html')
@@ -692,49 +824,122 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       console.log(html);
     }));
 
-  addBrowserTabOption(get.command('attributes').argument('<index>', 'Element index').description('Element attributes'))
-    .action(browserAction(async (page, index) => {
-      await resolveRef(page, String(index));
-      const attrs = await page.evaluate(getAttributesResolvedJs());
-      console.log(attrs ?? '{}');
-    }));
+  addBrowserTabOption(
+    get.command('attributes')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+      .option('--nth <n>', 'Pick the nth match (0-based) when <target> is a multi-match CSS selector')
+      .description('Element attributes — JSON envelope {value, matches_n}'),
+  )
+    .action(browserAction(async (page, target, opts) =>
+      runGetCommand(page, String(target), opts ?? {}, getAttributesResolvedJs(), 'attributes')));
 
   // ── Interact ──
+  //
+  // Write commands (`click/type/select`) share the same `<target>` contract
+  // as the read commands but *reject* multi-match CSS as `selector_ambiguous`
+  // unless the caller passes `--nth <n>`. That asymmetry is intentional:
+  // clicking "one of three buttons" at random is almost never what the agent
+  // meant. Every branch emits a JSON envelope on stdout; error envelopes go
+  // through the unified TargetError handler in browserAction.
 
-  addBrowserTabOption(browser.command('click').argument('<index>', 'Element index from state').description('Click element by index'))
-    .action(browserAction(async (page, index) => {
-      await page.click(index);
-      console.log(`Clicked element [${index}]`);
+  /**
+   * Parse the `--nth` flag and convert it to `ResolveOptions`.
+   * Returns `{ error }` when the flag was malformed (so the command can
+   * print the structured usage error and exit) or `{ opts }` to feed
+   * into resolveRef / page.click / page.typeText.
+   */
+  function nthToResolveOpts(raw: unknown): { error: string } | { opts: ResolveOptions } {
+    const parsed = parseNthFlag(raw);
+    if (parsed && typeof parsed === 'object' && 'error' in parsed) return parsed;
+    if (typeof parsed === 'number') return { opts: { nth: parsed } };
+    return { opts: {} };
+  }
+
+  addBrowserTabOption(
+    browser.command('click')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Click element — JSON envelope {clicked, target, matches_n}'),
+  )
+    .action(browserAction(async (page, target, opts) => {
+      const parsed = nthToResolveOpts(opts?.nth);
+      if ('error' in parsed) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const { matches_n } = await page.click(String(target), parsed.opts);
+      console.log(JSON.stringify({ clicked: true, target: String(target), matches_n }, null, 2));
     }));
 
-  addBrowserTabOption(browser.command('type').argument('<index>', 'Element index').argument('<text>', 'Text to type'))
-    .description('Click element, then type text')
-    .action(browserAction(async (page, index, text) => {
-      await page.click(index);
+  addBrowserTabOption(
+    browser.command('type')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+      .argument('<text>', 'Text to type')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Click element, then type text — JSON envelope {typed, text, target, matches_n, autocomplete}'),
+  )
+    .action(browserAction(async (page, target, text, opts) => {
+      const parsed = nthToResolveOpts(opts?.nth);
+      if ('error' in parsed) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      // Click first (focuses the field), wait briefly, then type.
+      await page.click(String(target), parsed.opts);
       await page.wait(0.3);
-      await page.typeText(index, text);
-      // Detect autocomplete/combobox fields and wait for dropdown suggestions
-      // __resolved is already set by typeText's resolver call
-      const isAutocomplete = await page.evaluate(isAutocompleteResolvedJs());
-      if (isAutocomplete) {
-        await page.wait(0.4);
-        console.log(`Typed "${text}" into autocomplete [${index}] — use state to see suggestions`);
-      } else {
-        console.log(`Typed "${text}" into element [${index}]`);
-      }
+      const { matches_n } = await page.typeText(String(target), String(text), parsed.opts);
+      // __resolved is already set by the resolver call inside page.typeText
+      const isAutocomplete = await page.evaluate(isAutocompleteResolvedJs()) as boolean;
+      if (isAutocomplete) await page.wait(0.4);
+      console.log(JSON.stringify({
+        typed: true,
+        text: String(text),
+        target: String(target),
+        matches_n,
+        autocomplete: !!isAutocomplete,
+      }, null, 2));
     }));
 
-  addBrowserTabOption(browser.command('select').argument('<index>', 'Element index of <select>').argument('<option>', 'Option text'))
-    .description('Select dropdown option')
-    .action(browserAction(async (page, index, option) => {
-      await resolveRef(page, String(index));
-      const result = await page.evaluate(selectResolvedJs(option)) as { error?: string; selected?: string; available?: string[] } | null;
-      if (result?.error) {
-        console.error(`Error: ${result.error}${result.available ? ` — Available: ${result.available.join(', ')}` : ''}`);
-        process.exitCode = EXIT_CODES.GENERIC_ERROR;
-      } else {
-        console.log(`Selected "${result?.selected}" in element [${index}]`);
+  addBrowserTabOption(
+    browser.command('select')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector of a <select> element')
+      .argument('<option>', 'Option text (or value) to select')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Select dropdown option — JSON envelope {selected, target, matches_n}'),
+  )
+    .action(browserAction(async (page, target, option, opts) => {
+      const parsed = nthToResolveOpts(opts?.nth);
+      if ('error' in parsed) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
       }
+      const { matches_n } = await resolveRef(page, String(target), parsed.opts);
+      const result = await page.evaluate(selectResolvedJs(String(option))) as
+        | { error?: string; selected?: string; available?: string[] }
+        | null;
+      if (result?.error) {
+        // The select-specific "Not a <select>" / "Option not found" errors
+        // are domain-level failures — emit a structured envelope so agents
+        // can branch on code rather than scrape a log line.
+        console.log(JSON.stringify({
+          error: {
+            code: result.error === 'Not a <select>' ? 'not_a_select' : 'option_not_found',
+            message: result.error,
+            ...(result.available && { available: result.available }),
+            matches_n,
+          },
+        }, null, 2));
+        process.exitCode = EXIT_CODES.GENERIC_ERROR;
+        return;
+      }
+      console.log(JSON.stringify({
+        selected: result?.selected ?? String(option),
+        target: String(target),
+        matches_n,
+      }, null, 2));
     }));
 
   addBrowserTabOption(browser.command('keys').argument('<key>', 'Key to press (Enter, Escape, Tab, Control+a)'))

@@ -31,8 +31,30 @@ describe('resolveTargetJs', () => {
 
   it('generates JS with ambiguity detection for CSS selectors', () => {
     const js = resolveTargetJs('.btn');
-    expect(js).toContain('ambiguous');
+    expect(js).toContain('selector_ambiguous');
     expect(js).toContain('candidates');
+  });
+
+  it('generates JS that propagates --nth option into the CSS branch', () => {
+    const js = resolveTargetJs('.btn', { nth: 2 });
+    expect(js).toContain('selector_nth_out_of_range');
+    // opt.nth=2 should be inlined so the runtime picks matches[2]
+    expect(js).toMatch(/const nth = 2;?/);
+  });
+
+  it('generates JS that enables firstOnMulti for read commands', () => {
+    const js = resolveTargetJs('.btn', { firstOnMulti: true });
+    expect(js).toContain('firstOnMulti = true');
+  });
+
+  it('generates JS with invalid_selector branch for CSS syntax errors', () => {
+    const js = resolveTargetJs('.btn');
+    expect(js).toContain('invalid_selector');
+  });
+
+  it('generates JS with selector_not_found branch for 0 matches', () => {
+    const js = resolveTargetJs('#does-not-exist');
+    expect(js).toContain('selector_not_found');
   });
 
   it('generates JS that rejects unrecognized input', () => {

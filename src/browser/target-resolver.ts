@@ -1,31 +1,53 @@
 /**
  * Unified target resolver for browser actions.
  *
- * Replaces the ad-hoc 4-strategy fallback in dom-helpers.ts with a
- * principled resolution pipeline:
+ * Resolution pipeline:
  *
  * 1. Input classification: numeric → ref path, CSS-like → CSS path
  * 2. Ref path: lookup by data-opencli-ref, then verify fingerprint
- * 3. CSS path: querySelectorAll + uniqueness check
- * 4. Structured errors: stale_ref / ambiguous / not_found
+ * 3. CSS path: querySelectorAll + match-count policy (see ResolveOptions)
+ * 4. Structured errors:
+ *    - numeric: not_found / stale_ref
+ *    - CSS:     invalid_selector / selector_not_found / selector_ambiguous
+ *               / selector_nth_out_of_range
  *
  * All JS is generated as strings for page.evaluate() — runs in the browser.
  */
+
+export interface ResolveOptions {
+  /**
+   * When CSS matches multiple elements, pick the element at this 0-based
+   * index instead of raising `selector_ambiguous`. Raises
+   * `selector_nth_out_of_range` if `nth >= matches.length`.
+   */
+  nth?: number;
+  /**
+   * When CSS matches multiple elements, pick the first match instead of
+   * raising `selector_ambiguous`. Used by read commands (get text / value /
+   * attributes) to deliver a best-effort answer + matches_n in the envelope.
+   * Ignored when `nth` is also set (nth wins).
+   */
+  firstOnMulti?: boolean;
+}
 
 /**
  * Generate JS that resolves a target to a single DOM element.
  *
  * Returns a JS expression that evaluates to:
- *   { ok: true, el: Element }                      — success (el is assigned to `__resolved`)
- *   { ok: false, code, message, hint, candidates }  — structured error
+ *   { ok: true, matches_n }                         — success (el stored in `__resolved`)
+ *   { ok: false, code, message, hint, candidates, matches_n? }  — structured error
  *
- * The resolved element is stored in `__resolved` for the caller to use.
+ * The resolved element is stored in `window.__resolved` for downstream helpers.
  */
-export function resolveTargetJs(ref: string): string {
+export function resolveTargetJs(ref: string, opts: ResolveOptions = {}): string {
   const safeRef = JSON.stringify(ref);
+  const nthJs = opts.nth !== undefined ? String(opts.nth | 0) : 'null';
+  const firstOnMulti = opts.firstOnMulti === true ? 'true' : 'false';
   return `
     (() => {
       const ref = ${safeRef};
+      const nth = ${nthJs};
+      const firstOnMulti = ${firstOnMulti};
       const identity = window.__opencli_ref_identity || {};
 
       // ── Classify input ──
@@ -95,7 +117,7 @@ export function resolveTargetJs(ref: string): string {
         }
 
         window.__resolved = el;
-        return { ok: true };
+        return { ok: true, matches_n: 1 };
       }
 
       if (isCssLike) {
@@ -106,8 +128,8 @@ export function resolveTargetJs(ref: string): string {
         } catch (e) {
           return {
             ok: false,
-            code: 'not_found',
-            message: 'Invalid CSS selector: ' + ref,
+            code: 'invalid_selector',
+            message: 'Invalid CSS selector: ' + ref + ' (' + ((e && e.message) || String(e)) + ')',
             hint: 'Check the selector syntax. Use ref numbers from snapshot for reliable targeting.',
           };
         }
@@ -115,13 +137,28 @@ export function resolveTargetJs(ref: string): string {
         if (matches.length === 0) {
           return {
             ok: false,
-            code: 'not_found',
+            code: 'selector_not_found',
             message: 'CSS selector "' + ref + '" matched 0 elements',
-            hint: 'The element may not exist or may be hidden. Re-run \`opencli browser state\` to check.',
+            hint: 'The element may not exist or may be hidden. Re-run \`opencli browser state\` to check, or use \`opencli browser find --css\` to explore candidates.',
+            matches_n: 0,
           };
         }
 
-        if (matches.length > 1) {
+        if (nth !== null) {
+          if (nth < 0 || nth >= matches.length) {
+            return {
+              ok: false,
+              code: 'selector_nth_out_of_range',
+              message: 'CSS selector "' + ref + '" matched ' + matches.length + ' elements, but --nth=' + nth + ' is out of range',
+              hint: 'Use --nth between 0 and ' + (matches.length - 1) + ', or omit --nth to target the first match (read ops) or require explicit disambiguation (write ops).',
+              matches_n: matches.length,
+            };
+          }
+          window.__resolved = matches[nth];
+          return { ok: true, matches_n: matches.length };
+        }
+
+        if (matches.length > 1 && !firstOnMulti) {
           const candidates = [];
           const limit = Math.min(matches.length, 5);
           for (let i = 0; i < limit; i++) {
@@ -133,15 +170,17 @@ export function resolveTargetJs(ref: string): string {
           }
           return {
             ok: false,
-            code: 'ambiguous',
+            code: 'selector_ambiguous',
             message: 'CSS selector "' + ref + '" matched ' + matches.length + ' elements',
-            hint: 'Use a more specific selector, or use ref numbers from \`opencli browser state\` snapshot.',
+            hint: 'Pass --nth <n> (0-based) to pick one, or use a more specific selector. Use \`opencli browser find --css\` to list all candidates.',
             candidates: candidates,
+            matches_n: matches.length,
           };
         }
 
+        // Single match, OR multi-match with firstOnMulti (read path)
         window.__resolved = matches[0];
-        return { ok: true };
+        return { ok: true, matches_n: matches.length };
       }
 
       // ── Unrecognized input ──

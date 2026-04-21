@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { IPage } from './types.js';
+import { TargetError } from './browser/target-errors.js';
 
 const {
   mockBrowserConnect,
@@ -880,6 +881,381 @@ describe('browser get html command', () => {
     await program.parseAsync(['node', 'opencli', 'browser', 'get', 'html', '--as', 'yaml']);
 
     expect(lastJsonLog().error.code).toBe('invalid_format');
+    expect(process.exitCode).toBeDefined();
+  });
+});
+
+// Shared helper for the selector-first describe blocks below.
+// Each block spies console.log, mocks the IPage surface it touches, and
+// parses the last stringified call to inspect the JSON envelope — the
+// canonical agent-facing contract for the selector-first commands.
+function installSelectorFirstTestHarness(label: string, pageOverrides: () => Partial<IPage>) {
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  function lastLogArg(): unknown {
+    const calls = consoleLogSpy.mock.calls;
+    if (calls.length === 0) throw new Error('expected console.log call');
+    return calls[calls.length - 1][0];
+  }
+  function lastJsonLog(): any {
+    const arg = lastLogArg();
+    if (typeof arg !== 'string') throw new Error(`expected string arg, got ${typeof arg}`);
+    return JSON.parse(arg);
+  }
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    process.env.OPENCLI_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), `opencli-${label}-`));
+    consoleLogSpy.mockClear();
+    mockBrowserConnect.mockClear();
+    mockBrowserClose.mockReset().mockResolvedValue(undefined);
+
+    browserState.page = {
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      tabs: vi.fn().mockResolvedValue([{ page: 'tab-1', active: true }]),
+      ...pageOverrides(),
+    } as unknown as IPage;
+  });
+
+  return { lastJsonLog };
+}
+
+describe('browser find command', () => {
+  const { lastJsonLog } = installSelectorFirstTestHarness('find', () => ({
+    evaluate: vi.fn(),
+  }));
+
+  it('returns a {matches_n, entries} envelope for a matching selector', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 2,
+      entries: [
+        { nth: 0, ref: 5, tag: 'button', role: '', text: 'OK', attrs: { class: 'btn' }, visible: true },
+        { nth: 1, ref: null, tag: 'button', role: '', text: 'Cancel', attrs: { class: 'btn' }, visible: true },
+      ],
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'find', '--css', '.btn']);
+
+    const out = lastJsonLog();
+    expect(out.matches_n).toBe(2);
+    expect(out.entries).toHaveLength(2);
+    expect(out.entries[0].ref).toBe(5);
+    expect(out.entries[1].ref).toBeNull();
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('forwards --limit / --text-max into the generated JS', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({ matches_n: 0, entries: [] });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'find', '--css', '.btn', '--limit', '3', '--text-max', '20']);
+
+    const js = (browserState.page!.evaluate as any).mock.calls[0][0] as string;
+    expect(js).toContain('LIMIT = 3');
+    expect(js).toContain('TEXT_MAX = 20');
+  });
+
+  it('emits invalid_selector envelope when the page rejects selector syntax', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      error: { code: 'invalid_selector', message: 'Invalid CSS selector: ">>>"', hint: 'Check the selector syntax.' },
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'find', '--css', '>>>']);
+
+    expect(lastJsonLog().error.code).toBe('invalid_selector');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('emits selector_not_found envelope when the selector matches nothing', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      error: { code: 'selector_not_found', message: 'CSS selector ".missing" matched 0 elements', hint: 'Use browser state to inspect the page.' },
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'find', '--css', '.missing']);
+
+    expect(lastJsonLog().error.code).toBe('selector_not_found');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('rejects missing --css with usage_error (no evaluate call)', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'find']);
+
+    expect(lastJsonLog().error.code).toBe('usage_error');
+    expect(browserState.page!.evaluate).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('rejects malformed --limit with usage_error (no evaluate call)', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'find', '--css', '.btn', '--limit', 'abc']);
+
+    expect(lastJsonLog().error.code).toBe('usage_error');
+    expect(browserState.page!.evaluate).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+});
+
+describe('browser get text/value/attributes commands', () => {
+  const { lastJsonLog } = installSelectorFirstTestHarness('get-sel', () => ({
+    evaluate: vi.fn(),
+  }));
+
+  it('emits {value, matches_n} envelope for a numeric ref', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    // 1st call: resolveTargetJs -> { ok: true, matches_n: 1 }
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1 });
+    // 2nd call: getTextResolvedJs -> the element's text
+    evalMock.mockResolvedValueOnce('Hello world');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'get', 'text', '7']);
+
+    expect(lastJsonLog()).toEqual({ value: 'Hello world', matches_n: 1 });
+  });
+
+  it('reports matches_n on multi-match CSS (read path: first match wins)', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 3 });
+    evalMock.mockResolvedValueOnce('first');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'get', 'text', '.btn']);
+
+    expect(lastJsonLog()).toEqual({ value: 'first', matches_n: 3 });
+  });
+
+  it('parses the attributes payload back into a real object', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1 });
+    // getAttributesResolvedJs returns a JSON-encoded string — the CLI must parse it
+    evalMock.mockResolvedValueOnce(JSON.stringify({ id: 'nav', class: 'hero' }));
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'get', 'attributes', '#nav']);
+
+    const out = lastJsonLog();
+    expect(out.matches_n).toBe(1);
+    expect(out.value).toEqual({ id: 'nav', class: 'hero' });
+  });
+
+  it('propagates selector_not_found from the resolver as an error envelope', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      ok: false,
+      code: 'selector_not_found',
+      message: 'CSS selector ".missing" matched 0 elements',
+      hint: 'Try a less specific selector.',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'get', 'text', '.missing']);
+
+    expect(lastJsonLog().error.code).toBe('selector_not_found');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('forwards --nth into the resolver opts and reports matches_n', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 4 });
+    evalMock.mockResolvedValueOnce('second');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'get', 'value', '.btn', '--nth', '1']);
+
+    const resolveJs = evalMock.mock.calls[0][0] as string;
+    // resolveTargetJs embeds nth as a raw number literal; look for the binding
+    expect(resolveJs).toContain('const nth = 1');
+    expect(lastJsonLog()).toEqual({ value: 'second', matches_n: 4 });
+  });
+
+  it('rejects malformed --nth with usage_error before touching the page', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'get', 'text', '.btn', '--nth', 'abc']);
+
+    expect(lastJsonLog().error.code).toBe('usage_error');
+    expect(browserState.page!.evaluate).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+});
+
+describe('browser click/type commands', () => {
+  const { lastJsonLog } = installSelectorFirstTestHarness('click-type', () => ({
+    evaluate: vi.fn().mockResolvedValue(false),
+    click: vi.fn().mockResolvedValue({ matches_n: 1 }),
+    typeText: vi.fn().mockResolvedValue({ matches_n: 1 }),
+    wait: vi.fn().mockResolvedValue(undefined),
+  }));
+
+  it('emits {clicked, target, matches_n} on success', async () => {
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 1 });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'click', '#save']);
+
+    expect(browserState.page!.click).toHaveBeenCalledWith('#save', {});
+    expect(lastJsonLog()).toEqual({ clicked: true, target: '#save', matches_n: 1 });
+  });
+
+  it('forwards --nth as ResolveOptions.nth to page.click', async () => {
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 3 });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'click', '.btn', '--nth', '2']);
+
+    expect(browserState.page!.click).toHaveBeenCalledWith('.btn', { nth: 2 });
+    expect(lastJsonLog()).toEqual({ clicked: true, target: '.btn', matches_n: 3 });
+  });
+
+  it('surfaces selector_ambiguous from page.click as an error envelope', async () => {
+    (browserState.page!.click as any).mockRejectedValueOnce(new TargetError({
+      code: 'selector_ambiguous',
+      message: 'CSS selector ".btn" matched 3 elements; clicks require a unique target.',
+      hint: 'Pass --nth <n> to pick one (0-based).',
+      matches_n: 3,
+    }));
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'click', '.btn']);
+
+    const err = lastJsonLog().error;
+    expect(err.code).toBe('selector_ambiguous');
+    expect(err.matches_n).toBe(3);
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('surfaces selector_nth_out_of_range from page.click as an error envelope', async () => {
+    (browserState.page!.click as any).mockRejectedValueOnce(new TargetError({
+      code: 'selector_nth_out_of_range',
+      message: '--nth 99 is out of range for CSS selector ".btn" (matches_n=3).',
+      hint: 'Pick an index in [0, 2].',
+      matches_n: 3,
+    }));
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'click', '.btn', '--nth', '99']);
+
+    expect(lastJsonLog().error.code).toBe('selector_nth_out_of_range');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('rejects malformed --nth on click with usage_error before touching the page', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'click', '.btn', '--nth', 'abc']);
+
+    expect(lastJsonLog().error.code).toBe('usage_error');
+    expect(browserState.page!.click).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('type: clicks, waits, then typeText — emits {typed, text, target, matches_n, autocomplete}', async () => {
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 1 });
+    (browserState.page!.typeText as any).mockResolvedValueOnce({ matches_n: 1 });
+    (browserState.page!.evaluate as any).mockResolvedValueOnce(false); // isAutocomplete
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'type', '#q', 'hello']);
+
+    expect(browserState.page!.click).toHaveBeenCalledWith('#q', {});
+    expect(browserState.page!.wait).toHaveBeenCalledWith(0.3);
+    expect(browserState.page!.typeText).toHaveBeenCalledWith('#q', 'hello', {});
+    expect(lastJsonLog()).toEqual({
+      typed: true, text: 'hello', target: '#q', matches_n: 1, autocomplete: false,
+    });
+  });
+
+  it('type: waits an extra 0.4s when the input reports autocomplete=true', async () => {
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 1 });
+    (browserState.page!.typeText as any).mockResolvedValueOnce({ matches_n: 1 });
+    (browserState.page!.evaluate as any).mockResolvedValueOnce(true);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'type', '#q', 'hi']);
+
+    const waitCalls = (browserState.page!.wait as any).mock.calls;
+    expect(waitCalls).toContainEqual([0.3]);
+    expect(waitCalls).toContainEqual([0.4]);
+    expect(lastJsonLog().autocomplete).toBe(true);
+  });
+
+  it('type: forwards --nth to both click and typeText', async () => {
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 5 });
+    (browserState.page!.typeText as any).mockResolvedValueOnce({ matches_n: 5 });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'type', '.field', 'x', '--nth', '3']);
+
+    expect(browserState.page!.click).toHaveBeenCalledWith('.field', { nth: 3 });
+    expect(browserState.page!.typeText).toHaveBeenCalledWith('.field', 'x', { nth: 3 });
+  });
+});
+
+describe('browser select command', () => {
+  const { lastJsonLog } = installSelectorFirstTestHarness('select', () => ({
+    evaluate: vi.fn(),
+  }));
+
+  it('emits {selected, target, matches_n} on success', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1 });
+    evalMock.mockResolvedValueOnce({ selected: 'US' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'select', '#country', 'US']);
+
+    expect(lastJsonLog()).toEqual({ selected: 'US', target: '#country', matches_n: 1 });
+  });
+
+  it('maps "Not a <select>" to a not_a_select error envelope', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1 });
+    evalMock.mockResolvedValueOnce({ error: 'Not a <select>' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'select', '#not-select', 'US']);
+
+    const err = lastJsonLog().error;
+    expect(err.code).toBe('not_a_select');
+    expect(err.matches_n).toBe(1);
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('maps missing-option failures to an option_not_found envelope with available list', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1 });
+    evalMock.mockResolvedValueOnce({ error: 'Option "XX" not found', available: ['US', 'CA'] });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'select', '#country', 'XX']);
+
+    const err = lastJsonLog().error;
+    expect(err.code).toBe('option_not_found');
+    expect(err.available).toEqual(['US', 'CA']);
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('surfaces selector_ambiguous from the resolver before calling selectResolvedJs', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      ok: false,
+      code: 'selector_ambiguous',
+      message: 'CSS selector ".dropdown" matched 2 elements.',
+      hint: 'Pass --nth <n>.',
+      matches_n: 2,
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'select', '.dropdown', 'US']);
+
+    expect(lastJsonLog().error.code).toBe('selector_ambiguous');
+    // The select payload JS must not fire when resolution fails
+    expect((browserState.page!.evaluate as any).mock.calls).toHaveLength(1);
     expect(process.exitCode).toBeDefined();
   });
 });

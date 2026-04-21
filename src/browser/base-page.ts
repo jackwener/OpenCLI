@@ -21,8 +21,39 @@ import {
   networkRequestsJs,
   waitForDomStableJs,
 } from './dom-helpers.js';
-import { resolveTargetJs, clickResolvedJs, typeResolvedJs, scrollResolvedJs } from './target-resolver.js';
-import { TargetError } from './target-errors.js';
+import {
+  resolveTargetJs,
+  clickResolvedJs,
+  typeResolvedJs,
+  scrollResolvedJs,
+  type ResolveOptions,
+} from './target-resolver.js';
+import { TargetError, type TargetErrorCode } from './target-errors.js';
+
+/**
+ * Execute `resolveTargetJs` once, throw structured `TargetError` on failure.
+ * Single helper so click/typeText/scrollTo share one resolution pathway,
+ * which is what the selector-first contract promises agents.
+ */
+async function runResolve(
+  page: { evaluate(js: string): Promise<unknown> },
+  ref: string,
+  opts: ResolveOptions = {},
+): Promise<{ matches_n: number }> {
+  const resolution = (await page.evaluate(resolveTargetJs(ref, opts))) as
+    | { ok: true; matches_n: number }
+    | { ok: false; code: TargetErrorCode; message: string; hint: string; candidates?: string[]; matches_n?: number };
+  if (!resolution.ok) {
+    throw new TargetError({
+      code: resolution.code,
+      message: resolution.message,
+      hint: resolution.hint,
+      candidates: resolution.candidates,
+      matches_n: resolution.matches_n,
+    });
+  }
+  return { matches_n: resolution.matches_n };
+}
 import { formatSnapshot } from '../snapshotFormatter.js';
 export abstract class BasePage implements IPage {
   protected _lastUrl: string | null = null;
@@ -61,15 +92,9 @@ export abstract class BasePage implements IPage {
 
   // ── Shared DOM helper implementations ──
 
-  async click(ref: string): Promise<void> {
+  async click(ref: string, opts: ResolveOptions = {}): Promise<{ matches_n: number }> {
     // Phase 1: Resolve target with fingerprint verification
-    const resolution = await this.evaluate(resolveTargetJs(ref)) as
-      | { ok: true }
-      | { ok: false; code: string; message: string; hint: string; candidates?: string[] };
-
-    if (!resolution.ok) {
-      throw new TargetError(resolution as { ok: false; code: 'not_found' | 'ambiguous' | 'stale_ref'; message: string; hint: string; candidates?: string[] });
-    }
+    const { matches_n } = await runResolve(this, ref, opts);
 
     // Phase 2: Execute click on resolved element
     const result = await this.evaluate(clickResolvedJs()) as
@@ -77,16 +102,14 @@ export abstract class BasePage implements IPage {
       | { status: string; x?: number; y?: number; w?: number; h?: number; error?: string }
       | null;
 
-    // Backwards compat: old format returned 'clicked' string
-    if (typeof result === 'string' || result == null) return;
+    if (typeof result === 'string' || result == null) return { matches_n };
 
-    // JS click succeeded
-    if (result.status === 'clicked') return;
+    if (result.status === 'clicked') return { matches_n };
 
     // JS click failed — try CDP native click if coordinates available
     if (result.x != null && result.y != null) {
       const success = await this.tryNativeClick(result.x, result.y);
-      if (success) return;
+      if (success) return { matches_n };
     }
 
     throw new Error(`Click failed: ${result.error ?? 'JS click and CDP fallback both failed'}`);
@@ -97,35 +120,18 @@ export abstract class BasePage implements IPage {
     return false;
   }
 
-  async typeText(ref: string, text: string): Promise<void> {
-    // Phase 1: Resolve target with fingerprint verification
-    const resolution = await this.evaluate(resolveTargetJs(ref)) as
-      | { ok: true }
-      | { ok: false; code: string; message: string; hint: string; candidates?: string[] };
-
-    if (!resolution.ok) {
-      throw new TargetError(resolution as { ok: false; code: 'not_found' | 'ambiguous' | 'stale_ref'; message: string; hint: string; candidates?: string[] });
-    }
-
-    // Phase 2: Execute type on resolved element
+  async typeText(ref: string, text: string, opts: ResolveOptions = {}): Promise<{ matches_n: number }> {
+    const { matches_n } = await runResolve(this, ref, opts);
     await this.evaluate(typeResolvedJs(text));
+    return { matches_n };
   }
 
   async pressKey(key: string): Promise<void> {
     await this.evaluate(pressKeyJs(key));
   }
 
-  async scrollTo(ref: string): Promise<unknown> {
-    // Phase 1: Resolve target with fingerprint verification
-    const resolution = await this.evaluate(resolveTargetJs(ref)) as
-      | { ok: true }
-      | { ok: false; code: string; message: string; hint: string; candidates?: string[] };
-
-    if (!resolution.ok) {
-      throw new TargetError(resolution as { ok: false; code: 'not_found' | 'ambiguous' | 'stale_ref'; message: string; hint: string; candidates?: string[] });
-    }
-
-    // Phase 2: Scroll to resolved element
+  async scrollTo(ref: string, opts: ResolveOptions = {}): Promise<unknown> {
+    await runResolve(this, ref, opts);
     return this.evaluate(scrollResolvedJs());
   }
 
