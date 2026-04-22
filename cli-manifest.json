@@ -4408,11 +4408,6 @@
         "help": "Attach a file (PDF, image, text) with the prompt"
       }
     ],
-    "columns": [
-      "response",
-      "thinking",
-      "thinking_time"
-    ],
     "timeout": 180,
     "type": "js",
     "modulePath": "deepseek/ask.js",
