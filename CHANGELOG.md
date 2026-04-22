@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.7.7](https://github.com/jackwener/opencli/compare/v1.7.6...v1.7.7) (2026-04-23)
+
+### Features
+
+* **51job** — comprehensive adapter: `search`, `hot`, `detail`, `company`. ([#1132](https://github.com/jackwener/opencli/issues/1132))
+* **weread** — `ai-outline` command for AI-generated book outlines. ([#1141](https://github.com/jackwener/opencli/issues/1141))
+* **web/download** — video/audio/iframe download + `--stdout` streaming. ([#1146](https://github.com/jackwener/opencli/issues/1146))
+* **download** — hardened HTML→Markdown pipeline with better element handling. ([#1143](https://github.com/jackwener/opencli/issues/1143))
+* **verify** — fixture-based value validation + skill docs for COOKIE pitfalls. ([#1131](https://github.com/jackwener/opencli/issues/1131))
+* **agent-native retrospective** — analyze / verify guards / fixture content checks. ([#1133](https://github.com/jackwener/opencli/issues/1133))
+* **twitter** — expose `has_media` and `media_urls` columns. ([#1115](https://github.com/jackwener/opencli/issues/1115))
+
+### Bug Fixes
+
+* **core** — quality audit fixes: elapsed=0 display, daemon error handler state reset, cause chain truncation guard, download cookie expiry, launcher async kill, verbose error logging. ([#1151](https://github.com/jackwener/opencli/issues/1151))
+* **daemon** — allow extension ping CORS for reachability probing. ([#1150](https://github.com/jackwener/opencli/issues/1150))
+* **deepseek** — separate thinking process from response in `--think` mode. ([#1142](https://github.com/jackwener/opencli/issues/1142))
+* **deepseek** — use position-based model selection instead of text matching. ([#1123](https://github.com/jackwener/opencli/issues/1123))
+* **weread/book** — add fallback selectors for reader page without cover. ([#1138](https://github.com/jackwener/opencli/issues/1138))
+* **xiaoyuzhou** — correct podcast-episodes API endpoint. ([#1129](https://github.com/jackwener/opencli/issues/1129))
+* **bilibili** — resolve full video URLs and preserve full description. ([#1118](https://github.com/jackwener/opencli/issues/1118))
+
+### Docs
+
+* Fix stale references in READMEs and autofix skill doc. ([#1130](https://github.com/jackwener/opencli/issues/1130))
+* Restore and rewrite `opencli-usage` as orientation skill. ([#1128](https://github.com/jackwener/opencli/issues/1128))
+
 ## [1.7.6](https://github.com/jackwener/opencli/compare/v1.7.5...v1.7.6) (2026-04-21)
 
 Extension bumped to 1.0.2 (body-truncation signal unified across raw / detail / fallback paths).
