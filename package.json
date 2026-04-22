@@ -78,6 +78,7 @@
     "commander": "^14.0.3",
     "js-yaml": "^4.1.0",
     "turndown": "^7.2.2",
+    "turndown-plugin-gfm": "^1.0.2",
     "undici": "^8.0.2",
     "ws": "^8.18.0"
   },

@@ -9,6 +9,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import TurndownService from 'turndown';
+import { gfm } from 'turndown-plugin-gfm';
 import { httpDownload, sanitizeFilename } from './index.js';
 import { formatBytes } from './progress.js';
 
@@ -69,15 +70,42 @@ const DEFAULT_LABELS: Required<FrontmatterLabels> = {
 // Markdown Conversion
 // ============================================================
 
+// Nodes that never carry article content. Turndown keeps them by default — if an
+// adapter's contentHtml extraction misses one, CSS / scripts / widget markup
+// ends up inline in the .md. Strip them unconditionally at the converter level.
+// `svg` is not in HTMLElementTagNameMap, so we type-narrow manually.
+const STRIPPED_TAGS: Array<keyof HTMLElementTagNameMap> = [
+  'script', 'style', 'noscript',
+  'iframe', 'canvas',
+  'form', 'button', 'dialog',
+];
+
 function createTurndown(configure?: (td: TurndownService) => void): TurndownService {
   const td = new TurndownService({
     headingStyle: 'atx',
     codeBlockStyle: 'fenced',
     bulletListMarker: '-',
   });
+  td.use(gfm);
+  td.remove(STRIPPED_TAGS);
+  // SVG isn't in the static HTML tag map; match by name with a custom filter.
+  td.addRule('stripSvg', {
+    filter: (node) => node.nodeName === 'svg' || node.nodeName === 'SVG',
+    replacement: () => '',
+  });
   td.addRule('linebreak', {
     filter: 'br',
     replacement: () => '\n',
+  });
+  // Inline base64 images would land as huge `![](data:image/...;base64,...)`
+  // strings that the image downloader can't localize. Drop them.
+  td.addRule('ignoreBase64Images', {
+    filter: (node) => {
+      if (node.nodeName !== 'IMG') return false;
+      const src = (node as HTMLImageElement).getAttribute?.('src') ?? '';
+      return src.startsWith('data:');
+    },
+    replacement: () => '',
   });
   if (configure) configure(td);
   return td;
@@ -100,8 +128,12 @@ function convertToMarkdown(
 
   // Clean up
   md = md.replace(/\u00a0/g, ' ');
-  md = md.replace(/\n{4,}/g, '\n\n\n');
+  // Turndown leaves behind lone dashes / middle dots when list bullets or
+  // decorative separators lose their surrounding inline context.
+  md = md.replace(/^[ \t]*[-·][ \t]*$/gm, '');
+  md = md.replace(/^[ \t]+$/gm, '');
   md = md.replace(/[ \t]+$/gm, '');
+  md = md.replace(/\n{3,}/g, '\n\n');
 
   return md;
 }
@@ -249,14 +281,15 @@ export async function downloadArticle(
     markdown = replaceImageUrls(markdown, urlMap);
   }
 
-  // Build frontmatter with customizable labels
-  const headerLines = [`# ${data.title}`, ''];
+  // Build frontmatter with customizable labels.
+  // Shape: `# Title\n[> meta\n...]\n---\n\n<markdown>` — exactly one blank
+  // line separates every section, so we never produce ≥3 consecutive newlines.
+  const headerLines = [`# ${data.title}`];
   if (data.author) headerLines.push(`> ${labels.author}: ${data.author}`);
   if (data.publishTime) headerLines.push(`> ${labels.publishTime}: ${data.publishTime}`);
   if (data.sourceUrl) headerLines.push(`> ${labels.sourceUrl}: ${data.sourceUrl}`);
-  headerLines.push('', '---', '');
-
-  const fullContent = headerLines.join('\n') + markdown;
+  const frontmatter = headerLines.join('\n') + '\n\n---\n\n';
+  const fullContent = frontmatter + markdown;
 
   // Write file
   const filename = `${safeTitle}.md`;
