@@ -16,25 +16,51 @@ describe('deepseek parseThinkingResponse', () => {
     });
   });
 
-  it('parses English thinking header with content and response', () => {
+  it('parses English thinking header — all content after header is thinking', () => {
     const rawText = 'Thought for 3.5 seconds\n\nLet me analyze this problem...\nFirst, I need to consider X.\nThen, Y.\n\nThe answer is 42.';
     const result = parseThinkingResponse(rawText);
 
+    // Text-level parser no longer splits on \n\n; everything after header is thinking.
+    // DOM-level extraction in waitForResponse() handles the actual separation.
     expect(result).toEqual({
-      response: 'The answer is 42.',
-      thinking: 'Let me analyze this problem...\nFirst, I need to consider X.\nThen, Y.',
+      response: '',
+      thinking: 'Let me analyze this problem...\nFirst, I need to consider X.\nThen, Y.\n\nThe answer is 42.',
       thinking_time: '3.5',
     });
   });
 
-  it('parses Chinese thinking header with content and response', () => {
+  it('parses Chinese thinking header — all content after header is thinking', () => {
     const rawText = '已思考（用时 2.3 秒）\n\n让我分析这个问题...\n首先需要考虑X。\n然后是Y。\n\n答案是42。';
     const result = parseThinkingResponse(rawText);
 
     expect(result).toEqual({
-      response: '答案是42。',
-      thinking: '让我分析这个问题...\n首先需要考虑X。\n然后是Y。',
+      response: '',
+      thinking: '让我分析这个问题...\n首先需要考虑X。\n然后是Y。\n\n答案是42。',
       thinking_time: '2.3',
+    });
+  });
+
+  it('multi-paragraph thinking without final answer is not corrupted', () => {
+    const rawText = 'Thought for 1.2 seconds\n\nFirst paragraph.\n\nSecond paragraph.';
+    const result = parseThinkingResponse(rawText);
+
+    // Both paragraphs must stay in thinking; response is empty.
+    expect(result).toEqual({
+      response: '',
+      thinking: 'First paragraph.\n\nSecond paragraph.',
+      thinking_time: '1.2',
+    });
+  });
+
+  it('multi-paragraph final answer is not split by text parser', () => {
+    const rawText = 'Thought for 3 seconds\n\nreasoning\n\nAnswer para 1.\n\nAnswer para 2.';
+    const result = parseThinkingResponse(rawText);
+
+    // Text parser treats everything as thinking; DOM handles separation.
+    expect(result).toEqual({
+      response: '',
+      thinking: 'reasoning\n\nAnswer para 1.\n\nAnswer para 2.',
+      thinking_time: '3',
     });
   });
 

@@ -23,7 +23,7 @@ export const askCommand = cli({
         { name: 'search', type: 'boolean', default: false, help: 'Enable web search' },
         { name: 'file', help: 'Attach a file (PDF, image, text) with the prompt' },
     ],
-    columns: ['response', 'thinking', 'thinking_time'],
+    // columns omitted: derived from row keys so non-think output shows only 'response'
 
     func: async (page, kwargs) => {
         const prompt = kwargs.prompt;

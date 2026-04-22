@@ -97,6 +97,11 @@ export async function getBubbleCount(page) {
     return count || 0;
 }
 
+// Parse thinking response using text as a fallback when DOM-level extraction
+// is not available.  Does NOT split on \n\n — that heuristic silently corrupts
+// multi-paragraph thinking or multi-paragraph answers.  Instead, everything
+// after the header is treated as thinking content, and `response` stays empty
+// until the caller provides a DOM-separated answer.
 export function parseThinkingResponse(rawText) {
     if (!rawText) return null;
 
@@ -111,26 +116,11 @@ export function parseThinkingResponse(rawText) {
     const thinkingTime = thinkHeaderMatch[2] || thinkHeaderMatch[3];
     const afterHeader = rawText.slice(thinkHeaderMatch[0].length);
 
-    // Split by double newline to separate thinking content from final answer
-    // The thinking content typically ends with a blank line before the response
-    const parts = afterHeader.split(/\n\n+/);
-
-    if (parts.length < 2) {
-        // If no clear separation, treat everything after header as thinking
-        return {
-            response: '',
-            thinking: afterHeader.trim(),
-            thinking_time: thinkingTime,
-        };
-    }
-
-    // First part(s) are thinking, last part is the response
-    const thinking = parts.slice(0, -1).join('\n\n').trim();
-    const response = parts[parts.length - 1].trim();
-
+    // Treat everything after the header as thinking.  The response will be
+    // populated by the DOM-level extraction in waitForResponse().
     return {
-        response,
-        thinking,
+        response: '',
+        thinking: afterHeader.trim(),
         thinking_time: thinkingTime,
     };
 }
@@ -148,7 +138,51 @@ export async function waitForResponse(page, baselineCount, prompt, timeoutMs, pa
             result = await page.evaluate(`(() => {
                 const bubbles = document.querySelectorAll('${MESSAGE_SELECTOR}');
                 const texts = Array.from(bubbles).map(b => (b.innerText || '').trim()).filter(Boolean);
-                return { count: texts.length, last: texts[texts.length - 1] || '' };
+                var last = texts[texts.length - 1] || '';
+
+                // DOM-level thinking/response separation.
+                // DeepSeek renders thinking in a collapsible container with a
+                // distinct class (e.g. .ds-markdown--think or similar) and the
+                // final answer in the main .ds-markdown region.  By querying
+                // these separately we avoid any text-heuristic split.
+                var thinkEl = null, answerEl = null, thinkTime = null;
+                if (${parseThinking} && bubbles.length > 0) {
+                    var lastBubble = bubbles[bubbles.length - 1];
+                    // Thinking container — DeepSeek uses various class names;
+                    // try common selectors.
+                    thinkEl = lastBubble.querySelector('.ds-markdown--think')
+                           || lastBubble.querySelector('[class*="think"]');
+                    // Final answer container — the main markdown block that is
+                    // NOT the thinking section.
+                    var markdownEls = lastBubble.querySelectorAll('.ds-markdown');
+                    for (var i = 0; i < markdownEls.length; i++) {
+                        if (markdownEls[i] !== thinkEl
+                            && !(thinkEl && thinkEl.contains(markdownEls[i]))
+                            && !markdownEls[i].classList.contains('ds-markdown--think')) {
+                            answerEl = markdownEls[i];
+                        }
+                    }
+                    // Thinking time from the toggle/header element
+                    var timeEl = lastBubble.querySelector('[class*="think"] ~ *')
+                              || lastBubble.querySelector('.ds-thinking-header');
+                    if (!timeEl) {
+                        // Fallback: parse from raw text header
+                        var m = last.match(/^(?:Thought for ([\\d.]+) seconds?|已思考（用时 ([\\d.]+) 秒）)/);
+                        if (m) thinkTime = m[1] || m[2];
+                    } else {
+                        var tm = (timeEl.textContent || '').match(/([\\d.]+)/);
+                        if (tm) thinkTime = tm[1];
+                    }
+                }
+
+                return {
+                    count: texts.length,
+                    last: last,
+                    // DOM-separated fields (null when not available)
+                    thinkText: thinkEl ? (thinkEl.innerText || '').trim() : null,
+                    answerText: answerEl ? (answerEl.innerText || '').trim() : null,
+                    thinkTime: thinkTime,
+                };
             })()`);
         } catch {
             continue;
@@ -162,6 +196,15 @@ export async function waitForResponse(page, baselineCount, prompt, timeoutMs, pa
                 stableCount++;
                 if (stableCount >= 3) {
                     if (parseThinking) {
+                        // Prefer DOM-level separation
+                        if (result.thinkText != null || result.answerText != null) {
+                            return {
+                                thinking: result.thinkText || '',
+                                response: result.answerText || '',
+                                thinking_time: result.thinkTime || null,
+                            };
+                        }
+                        // Fallback to text-header parsing (no \n\n split)
                         return parseThinkingResponse(candidate);
                     }
                     return candidate;
