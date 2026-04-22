@@ -4409,7 +4409,9 @@
       }
     ],
     "columns": [
-      "response"
+      "response",
+      "thinking",
+      "thinking_time"
     ],
     "timeout": 180,
     "type": "js",
