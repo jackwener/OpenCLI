@@ -80,13 +80,13 @@ describe('downloadArticle', () => {
       expect(md).toContain('[ ] todo');
     });
 
-    it('strips script / style / noscript / iframe / form', async () => {
+    it('strips script / style / noscript / form but keeps iframe as a link', async () => {
       const md = await runAndRead(
         '<p>keep</p>' +
         '<script>alert(1)</script>' +
         '<style>.x{color:red}</style>' +
         '<noscript>nojs</noscript>' +
-        '<iframe src="x"></iframe>' +
+        '<iframe src="https://www.youtube.com/embed/abc" title="Demo video"></iframe>' +
         '<form><button>click</button></form>',
       );
       expect(md).toContain('keep');
@@ -94,6 +94,8 @@ describe('downloadArticle', () => {
       expect(md).not.toContain('color:red');
       expect(md).not.toContain('nojs');
       expect(md).not.toContain('click');
+      // Iframe degrades to a link preserving the embedded URL.
+      expect(md).toContain('[Demo video](https://www.youtube.com/embed/abc)');
     });
 
     it('strips SVG nodes entirely', async () => {
@@ -175,6 +177,124 @@ describe('downloadArticle', () => {
       expect(md).toContain('keep');
       expect(md).toContain('also-keep');
       expect(md).not.toContain('strip-me');
+    });
+
+    it('preserves <video> as inline HTML with src + poster', async () => {
+      const md = await runAndRead(
+        '<p>before</p>' +
+        '<video src="https://cdn.example.com/clip.mp4" poster="https://cdn.example.com/poster.jpg"></video>' +
+        '<p>after</p>',
+      );
+      expect(md).toContain('<video src="https://cdn.example.com/clip.mp4" controls poster="https://cdn.example.com/poster.jpg"></video>');
+      expect(md).toContain('before');
+      expect(md).toContain('after');
+    });
+
+    it('falls back to <source> inside <video> when src attribute is absent', async () => {
+      const md = await runAndRead(
+        '<video><source src="https://cdn.example.com/clip.mp4" type="video/mp4"></video>',
+      );
+      expect(md).toContain('<video src="https://cdn.example.com/clip.mp4" controls></video>');
+    });
+
+    it('drops <video> with no src and no <source>', async () => {
+      const md = await runAndRead('<p>before</p><video></video><p>after</p>');
+      expect(md).not.toContain('<video');
+      expect(md).toContain('before');
+      expect(md).toContain('after');
+    });
+
+    it('preserves <audio> as inline HTML', async () => {
+      const md = await runAndRead(
+        '<audio src="https://cdn.example.com/podcast.mp3"></audio>',
+      );
+      expect(md).toContain('<audio src="https://cdn.example.com/podcast.mp3" controls></audio>');
+    });
+
+    it('degrades <iframe> to a markdown link with title', async () => {
+      const md = await runAndRead(
+        '<iframe src="https://codepen.io/pen/abc" title="Live demo"></iframe>',
+      );
+      expect(md).toContain('[Live demo](https://codepen.io/pen/abc)');
+    });
+
+    it('defaults iframe title to "Embedded content" when missing', async () => {
+      const md = await runAndRead(
+        '<iframe src="https://example.com/embed"></iframe>',
+      );
+      expect(md).toContain('[Embedded content](https://example.com/embed)');
+    });
+
+    it('drops <iframe> with no src', async () => {
+      const md = await runAndRead('<p>before</p><iframe></iframe><p>after</p>');
+      expect(md).not.toContain('iframe');
+      expect(md).toContain('before');
+      expect(md).toContain('after');
+    });
+  });
+
+  describe('stdout mode', () => {
+    it('writes markdown to process.stdout and skips file write', async () => {
+      const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-article-'));
+      tempDirs.push(tempDir);
+
+      const chunks: string[] = [];
+      const originalWrite = process.stdout.write.bind(process.stdout);
+      process.stdout.write = ((chunk: string | Uint8Array): boolean => {
+        chunks.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'));
+        return true;
+      }) as typeof process.stdout.write;
+
+      try {
+        const result = await downloadArticle({
+          title: 'Piped',
+          contentHtml: '<p>Streaming body</p>',
+          sourceUrl: 'https://example.com/a',
+        }, {
+          output: tempDir,
+          stdout: true,
+        });
+
+        expect(result[0].status).toBe('success');
+        expect(result[0].saved).toBe('-');
+        expect(fs.readdirSync(tempDir)).toHaveLength(0);
+
+        const emitted = chunks.join('');
+        expect(emitted).toContain('# Piped');
+        expect(emitted).toContain('Streaming body');
+        expect(emitted.endsWith('\n')).toBe(true);
+      } finally {
+        process.stdout.write = originalWrite;
+      }
+    });
+
+    it('keeps remote image URLs intact in stdout mode (no download)', async () => {
+      const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-article-'));
+      tempDirs.push(tempDir);
+
+      const chunks: string[] = [];
+      const originalWrite = process.stdout.write.bind(process.stdout);
+      process.stdout.write = ((chunk: string | Uint8Array): boolean => {
+        chunks.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'));
+        return true;
+      }) as typeof process.stdout.write;
+
+      try {
+        await downloadArticle({
+          title: 'WithImage',
+          contentHtml: '<p><img src="https://example.com/a.jpg"></p>',
+          imageUrls: ['https://example.com/a.jpg'],
+        }, {
+          output: tempDir,
+          downloadImages: true,
+          stdout: true,
+        });
+
+        expect(fs.readdirSync(tempDir)).toHaveLength(0);
+        expect(chunks.join('')).toContain('https://example.com/a.jpg');
+      } finally {
+        process.stdout.write = originalWrite;
+      }
     });
   });
 });

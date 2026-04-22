@@ -26,6 +26,7 @@ cli({
         { name: 'output', default: './web-articles', help: 'Output directory' },
         { name: 'download-images', type: 'boolean', default: true, help: 'Download images locally' },
         { name: 'wait', type: 'int', default: 3, help: 'Seconds to wait after page load' },
+        { name: 'stdout', type: 'boolean', default: false, help: 'Print markdown to stdout instead of saving to a file' },
     ],
     columns: ['title', 'author', 'publish_time', 'status', 'size', 'saved'],
     func: async (page, kwargs) => {
@@ -162,14 +163,26 @@ cli({
           if (el.children && el.children.length > 2) dedup(el);
         });
 
+        // --- Lazy-load image src rewrite ---
+        // Many sites render <img src="placeholder.gif" data-src="real.jpg">.
+        // Promote the real URL onto src so both the markdown body and the
+        // image download list reference the same URL.
+        clone.querySelectorAll('img').forEach(img => {
+          const srcset = img.getAttribute('data-srcset') || '';
+          const srcsetFirst = srcset.split(',')[0]?.trim().split(' ')[0] || '';
+          const real = img.getAttribute('data-src')
+            || img.getAttribute('data-original')
+            || img.getAttribute('data-lazy-src')
+            || srcsetFirst;
+          if (real) img.setAttribute('src', real);
+        });
+
         result.contentHtml = clone.innerHTML;
 
         // --- Image extraction ---
         const seen = new Set();
         clone.querySelectorAll('img').forEach(img => {
-          const src = img.getAttribute('data-src')
-            || img.getAttribute('data-original')
-            || img.getAttribute('src');
+          const src = img.getAttribute('src') || '';
           if (src && !src.startsWith('data:') && !seen.has(src)) {
             seen.add(src);
             result.imageUrls.push(src);
@@ -197,6 +210,7 @@ cli({
             output: kwargs.output,
             downloadImages: kwargs['download-images'],
             imageHeaders: referer ? { Referer: referer } : undefined,
+            stdout: kwargs.stdout,
         });
     },
 });

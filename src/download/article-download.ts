@@ -55,6 +55,12 @@ export interface ArticleDownloadOptions {
    * (e.g. zhihu 折叠卡, weixin 赞赏栏, wiki infobox).
    */
   cleanSelectors?: string[];
+  /**
+   * Write the markdown to `process.stdout` instead of a file on disk. Image
+   * download and directory creation are skipped — remote image URLs are kept
+   * as-is so the output is self-contained when piped.
+   */
+  stdout?: boolean;
 }
 
 export interface ArticleDownloadResult {
@@ -83,9 +89,12 @@ const DEFAULT_LABELS: Required<FrontmatterLabels> = {
 // `header/footer/nav/aside` cover page chrome that adapters occasionally
 // forget to trim — the article's own title/author/publishTime are supplied
 // as separate fields on ArticleData, so duplicated nodes are redundant.
+// `iframe` is NOT in this set — it's handled by a dedicated rule below that
+// degrades to a link so embedded content (YouTube, Twitter, CodePen …) keeps
+// a reachable URL in the exported markdown.
 const STRIPPED_TAGS: Array<keyof HTMLElementTagNameMap> = [
   'script', 'style', 'noscript',
-  'iframe', 'canvas',
+  'canvas',
   'form', 'button', 'dialog',
   'header', 'footer', 'nav', 'aside',
 ];
@@ -126,6 +135,44 @@ function createTurndown(
       return src.startsWith('data:');
     },
     replacement: () => '',
+  });
+  // Markdown has no native video/audio primitive. Emit inline HTML so
+  // renderers that support it (GitHub, VS Code preview …) still play the
+  // media; viewers that don't simply show the tag as text, which is still
+  // more information than dropping the node outright.
+  td.addRule('videoElement', {
+    filter: (node) => node.nodeName === 'VIDEO',
+    replacement: (_content, node) => {
+      const el = node as Element;
+      const src = el.getAttribute('src')
+        || el.querySelector('source')?.getAttribute('src')
+        || '';
+      if (!src) return '';
+      const poster = el.getAttribute('poster') || '';
+      return `\n<video src="${src}" controls${poster ? ` poster="${poster}"` : ''}></video>\n`;
+    },
+  });
+  td.addRule('audioElement', {
+    filter: (node) => node.nodeName === 'AUDIO',
+    replacement: (_content, node) => {
+      const el = node as Element;
+      const src = el.getAttribute('src')
+        || el.querySelector('source')?.getAttribute('src')
+        || '';
+      return src ? `\n<audio src="${src}" controls></audio>\n` : '';
+    },
+  });
+  // Iframes (YouTube, Twitter, CodePen …) degrade to a markdown link so the
+  // embedded resource is still reachable from the exported file.
+  td.addRule('iframeToLink', {
+    filter: (node) => node.nodeName === 'IFRAME',
+    replacement: (_content, node) => {
+      const el = node as Element;
+      const src = el.getAttribute('src') || '';
+      if (!src) return '';
+      const title = el.getAttribute('title') || 'Embedded content';
+      return `\n[${title}](${src})\n`;
+    },
   });
   // Per-adapter dirty-node removal. Adapters know their site's specific noise
   // (zhihu 折叠卡, weixin 赞赏栏, wiki 折叠 infobox …); we keep the default set
@@ -278,6 +325,7 @@ export async function downloadArticle(
     detectImageExt,
     frontmatterLabels,
     cleanSelectors,
+    stdout = false,
   } = options;
 
   const labels = { ...DEFAULT_LABELS, ...frontmatterLabels };
@@ -312,13 +360,13 @@ export async function downloadArticle(
     cleanSelectors,
   );
 
-  // Prepare output directory
   const safeTitle = sanitizeFilename(data.title, maxTitleLength);
-  const articleDir = path.join(output, safeTitle);
-  fs.mkdirSync(articleDir, { recursive: true });
 
-  // Download images
-  if (shouldDownloadImages && data.imageUrls && data.imageUrls.length > 0) {
+  // Download images only when writing to disk. In stdout mode remote URLs
+  // stay intact so the piped output is self-contained.
+  if (!stdout && shouldDownloadImages && data.imageUrls && data.imageUrls.length > 0) {
+    const articleDir = path.join(output, safeTitle);
+    fs.mkdirSync(articleDir, { recursive: true });
     const imagesDir = path.join(articleDir, 'images');
     fs.mkdirSync(imagesDir, { recursive: true });
 
@@ -335,13 +383,25 @@ export async function downloadArticle(
   if (data.sourceUrl) headerLines.push(`> ${labels.sourceUrl}: ${data.sourceUrl}`);
   const frontmatter = headerLines.join('\n') + '\n\n---\n\n';
   const fullContent = frontmatter + markdown;
+  const size = Buffer.byteLength(fullContent, 'utf-8');
 
-  // Write file
+  if (stdout) {
+    process.stdout.write(fullContent.endsWith('\n') ? fullContent : fullContent + '\n');
+    return [{
+      title: data.title,
+      author: data.author || '-',
+      publish_time: data.publishTime || '-',
+      status: 'success',
+      size: formatBytes(size),
+      saved: '-',
+    }];
+  }
+
+  const articleDir = path.join(output, safeTitle);
+  fs.mkdirSync(articleDir, { recursive: true });
   const filename = `${safeTitle}.md`;
   const filePath = path.join(articleDir, filename);
   fs.writeFileSync(filePath, fullContent, 'utf-8');
-
-  const size = Buffer.byteLength(fullContent, 'utf-8');
 
   return [{
     title: data.title,
