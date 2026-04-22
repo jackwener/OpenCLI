@@ -12,9 +12,9 @@ vi.mock('./utils.js', async () => {
 });
 import { getRegistry } from '@jackwener/opencli/registry';
 import './book.js';
-import { parseReaderDocumentTitle } from './book.js';
 import './highlights.js';
 import './notes.js';
+import { extractReaderFallbackMetadata, strictTitleFromWereadDocumentTitle } from './book.js';
 describe('weread book-id positional args', () => {
     const book = getRegistry().get('weread/book');
     const highlights = getRegistry().get('weread/highlights');
@@ -31,14 +31,6 @@ describe('weread book-id positional args', () => {
     beforeEach(() => {
         mockFetchPrivateApi.mockReset();
         vi.unstubAllGlobals();
-    });
-    it('parses author from the penultimate document.title segment when the book title contains hyphens', () => {
-        expect(parseReaderDocumentTitle('Part 1 - Part 2 - 作者甲 - 微信读书')).toBe('作者甲');
-        expect(parseReaderDocumentTitle('Foo - Bar - Baz - 微信读书')).toBe('Baz');
-    });
-    it('does not guess an author from non-reader document.title formats', () => {
-        expect(parseReaderDocumentTitle('Foo - Bar')).toBe('');
-        expect(parseReaderDocumentTitle('Foo - Bar - Baz')).toBe('');
     });
     it('passes the positional book-id to book details', async () => {
         mockFetchPrivateApi.mockResolvedValue({ title: 'Three Body', newRating: 880 });
@@ -363,6 +355,29 @@ describe('weread book-id positional args', () => {
         await expect(book.func(page, { 'book-id': 'BOOK_1' })).rejects.toMatchObject({
             code: 'AUTH_REQUIRED',
             message: 'Not logged in to WeRead',
+        });
+    });
+    it('does not guess author from document.title when the reader page skips cover metadata', async () => {
+        const nodes = new Map([
+            ['.readerTopBar_title_link', { textContent: 'Part 1 - Part 2' }],
+            ['.introDialog_content_pub_line', { textContent: '出版社 测试出版社' }],
+            ['.introDialog_content_intro_para', { textContent: '测试简介。' }],
+        ]);
+        const mockDocument = {
+            title: 'Part 1 - Part 2 - 作者甲 - 微信读书',
+            body: { innerText: '微信读书推荐值 88.8%' },
+            scripts: [],
+            querySelector: (selector) => nodes.get(selector) || null,
+        };
+        expect(strictTitleFromWereadDocumentTitle(mockDocument.title)).toBe('');
+        expect(extractReaderFallbackMetadata(mockDocument)).toEqual({
+            title: 'Part 1 - Part 2',
+            author: '',
+            publisher: '测试出版社',
+            intro: '测试简介。',
+            category: '',
+            rating: '88.8%',
+            metadataReady: true,
         });
     });
     it('passes the positional book-id to highlights', async () => {

@@ -37,17 +37,60 @@ function countSearchIdentities(entries) {
     }
     return counts;
 }
-export function parseReaderDocumentTitle(documentTitle) {
-    const parts = String(documentTitle || '')
-        .split(' - ')
-        .map((part) => part.trim())
-        .filter(Boolean);
-    if (parts.length < 3)
+export function strictTitleFromWereadDocumentTitle(rawTitle) {
+    const suffix = ' - 微信读书';
+    const normalized = String(rawTitle || '').trim();
+    if (!normalized.endsWith(suffix))
         return '';
-    const brand = parts.at(-1) || '';
-    if (!/微信读书/.test(brand))
+    const base = normalized.slice(0, -suffix.length).trim();
+    // Only accept the title when WeRead exposes the strict "<title> - 微信读书"
+    // shape. If extra separators remain, the page title is ambiguous.
+    return base.includes(' - ') ? '' : base;
+}
+export function extractReaderFallbackMetadata(doc) {
+    const text = (node) => node?.textContent?.trim() || '';
+    const firstText = (...sels) => { for (const s of sels) {
+        const v = text(doc.querySelector(s));
+        if (v)
+            return v;
+    } return ''; };
+    const bodyText = doc.body?.innerText?.replace(/\s+/g, ' ').trim() || '';
+    const extractRating = () => {
+        const match = bodyText.match(/微信读书推荐值\s*([0-9.]+%)/);
+        return match ? match[1] : '';
+    };
+    const extractPublisher = () => {
+        const direct = text(doc.querySelector('.introDialog_content_pub_line'));
+        return direct.startsWith('出版社') ? direct.replace(/^出版社\s*/, '').trim() : '';
+    };
+    const extractIntro = () => {
+        const selectors = [
+            '.horizontalReaderCoverPage_content_bookInfo_intro',
+            '.wr_flyleaf_page_bookIntro_content',
+            '.introDialog_content_intro_para',
+        ];
+        for (const selector of selectors) {
+            const value = text(doc.querySelector(selector));
+            if (value)
+                return value;
+        }
         return '';
-    return parts.at(-2) || '';
+    };
+    const categorySource = Array.from(doc.scripts || [])
+        .map((script) => script.textContent || '')
+        .find((scriptText) => scriptText.includes('"category"')) || '';
+    const categoryMatch = categorySource.match(/"category"\s*:\s*"([^"]+)"/);
+    const title = firstText('.horizontalReaderCoverPage_content_bookTitle', '.wr_flyleaf_page_bookInfo_bookTitle', '.outline_book_detail_header_title', '.readerTopBar_title_link') || strictTitleFromWereadDocumentTitle(doc.title || '');
+    const author = firstText('.horizontalReaderCoverPage_content_author', '.wr_flyleaf_page_bookInfo_author', '.outline_book_detail_header_author');
+    return {
+        title,
+        author,
+        publisher: extractPublisher(),
+        intro: extractIntro(),
+        category: categoryMatch ? categoryMatch[1].trim() : '',
+        rating: extractRating(),
+        metadataReady: Boolean(title || author),
+    };
 }
 /**
  * Reuse the public search page as a last-resort reader URL source when the
@@ -122,49 +165,7 @@ async function loadReaderFallbackResult(page, readerUrl) {
     await page.goto(readerUrl);
     await page.wait({ selector: '.horizontalReaderCoverPage_content_bookTitle, .wr_flyleaf_page_bookInfo_bookTitle, .readerTopBar_title_link', timeout: 10 });
     const result = await page.evaluate(`
-    (() => {
-      const parseReaderDocumentTitle = ${parseReaderDocumentTitle.toString()};
-      const text = (node) => node?.textContent?.trim() || '';
-      const firstText = (...sels) => { for (const s of sels) { const v = text(document.querySelector(s)); if (v) return v; } return ''; };
-      const bodyText = document.body?.innerText?.replace(/\\s+/g, ' ').trim() || '';
-      const extractRating = () => {
-        const match = bodyText.match(/微信读书推荐值\\s*([0-9.]+%)/);
-        return match ? match[1] : '';
-      };
-      const extractPublisher = () => {
-        const direct = text(document.querySelector('.introDialog_content_pub_line'));
-        return direct.startsWith('出版社') ? direct.replace(/^出版社\\s*/, '').trim() : '';
-      };
-      const extractIntro = () => {
-        const selectors = [
-          '.horizontalReaderCoverPage_content_bookInfo_intro',
-          '.wr_flyleaf_page_bookIntro_content',
-          '.introDialog_content_intro_para',
-        ];
-        for (const selector of selectors) {
-          const value = text(document.querySelector(selector));
-          if (value) return value;
-        }
-        return '';
-      };
-
-      const categorySource = Array.from(document.scripts)
-        .map((script) => script.textContent || '')
-        .find((scriptText) => scriptText.includes('"category"')) || '';
-      const categoryMatch = categorySource.match(/"category"\\s*:\\s*"([^"]+)"/);
-      const title = firstText('.horizontalReaderCoverPage_content_bookTitle', '.wr_flyleaf_page_bookInfo_bookTitle', '.outline_book_detail_header_title', '.readerTopBar_title_link');
-      const author = firstText('.horizontalReaderCoverPage_content_author', '.wr_flyleaf_page_bookInfo_author', '.outline_book_detail_header_author') || parseReaderDocumentTitle(document.title || '');
-
-      return {
-        title,
-        author,
-        publisher: extractPublisher(),
-        intro: extractIntro(),
-        category: categoryMatch ? categoryMatch[1].trim() : '',
-        rating: extractRating(),
-        metadataReady: Boolean(title || author),
-      };
-    })()
+    (${extractReaderFallbackMetadata.toString()})(document)
   `);
     return {
         title: String(result?.title || '').trim(),
