@@ -97,7 +97,45 @@ export async function getBubbleCount(page) {
     return count || 0;
 }
 
-export async function waitForResponse(page, baselineCount, prompt, timeoutMs) {
+export function parseThinkingResponse(rawText) {
+    if (!rawText) return null;
+
+    // Match thinking header patterns: "Thought for X seconds" or "已思考（用时 X 秒）"
+    const thinkHeaderMatch = rawText.match(/^(Thought for ([\d.]+) seconds?|已思考（用时 ([\d.]+) 秒）)\s*/);
+
+    if (!thinkHeaderMatch) {
+        // No thinking section found, return plain response
+        return { response: rawText, thinking: null, thinking_time: null };
+    }
+
+    const thinkingTime = thinkHeaderMatch[2] || thinkHeaderMatch[3];
+    const afterHeader = rawText.slice(thinkHeaderMatch[0].length);
+
+    // Split by double newline to separate thinking content from final answer
+    // The thinking content typically ends with a blank line before the response
+    const parts = afterHeader.split(/\n\n+/);
+
+    if (parts.length < 2) {
+        // If no clear separation, treat everything after header as thinking
+        return {
+            response: '',
+            thinking: afterHeader.trim(),
+            thinking_time: thinkingTime,
+        };
+    }
+
+    // First part(s) are thinking, last part is the response
+    const thinking = parts.slice(0, -1).join('\n\n').trim();
+    const response = parts[parts.length - 1].trim();
+
+    return {
+        response,
+        thinking,
+        thinking_time: thinkingTime,
+    };
+}
+
+export async function waitForResponse(page, baselineCount, prompt, timeoutMs, parseThinking = false) {
     const startTime = Date.now();
     let lastText = '';
     let stableCount = 0;
@@ -122,7 +160,12 @@ export async function waitForResponse(page, baselineCount, prompt, timeoutMs) {
         if (candidate && result.count > baselineCount && candidate !== prompt.trim()) {
             if (candidate === lastText) {
                 stableCount++;
-                if (stableCount >= 3) return candidate;
+                if (stableCount >= 3) {
+                    if (parseThinking) {
+                        return parseThinkingResponse(candidate);
+                    }
+                    return candidate;
+                }
             } else {
                 stableCount = 0;
             }
@@ -130,6 +173,9 @@ export async function waitForResponse(page, baselineCount, prompt, timeoutMs) {
         }
     }
 
+    if (parseThinking && lastText) {
+        return parseThinkingResponse(lastText);
+    }
     return lastText || null;
 }
 

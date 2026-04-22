@@ -23,7 +23,7 @@ export const askCommand = cli({
         { name: 'search', type: 'boolean', default: false, help: 'Enable web search' },
         { name: 'file', help: 'Attach a file (PDF, image, text) with the prompt' },
     ],
-    columns: ['response'],
+    columns: ['response', 'thinking', 'thinking_time'],
 
     func: async (page, kwargs) => {
         const prompt = kwargs.prompt;
@@ -71,11 +71,14 @@ export const askCommand = cli({
                 if (!String(err?.message || err).includes('Promise was collected')) throw err;
             }
             await page.wait(3);
-            const response = await waitForResponse(page, baseline, prompt, timeoutMs);
-            if (!response) {
+            const result = await waitForResponse(page, baseline, prompt, timeoutMs, wantThink);
+            if (!result) {
                 return [{ response: `[NO RESPONSE] No reply within ${kwargs.timeout}s.` }];
             }
-            return [{ response }];
+            if (wantThink && typeof result === 'object' && result.response !== undefined) {
+                return [result];
+            }
+            return [{ response: result }];
         }
 
         const baseline = await withRetry(() => getBubbleCount(page));
@@ -84,11 +87,14 @@ export const askCommand = cli({
             throw new CommandExecutionError(sendResult?.reason || 'Failed to send message');
         }
 
-        const response = await waitForResponse(page, baseline, prompt, timeoutMs);
-        if (!response) {
+        const result = await waitForResponse(page, baseline, prompt, timeoutMs, wantThink);
+        if (!result) {
             return [{ response: `[NO RESPONSE] No reply within ${kwargs.timeout}s.` }];
         }
 
-        return [{ response }];
+        if (wantThink && typeof result === 'object' && result.response !== undefined) {
+            return [result];
+        }
+        return [{ response: result }];
     },
 });
