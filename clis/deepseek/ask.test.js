@@ -43,11 +43,13 @@ describe('deepseek ask --file', () => {
   const page = {
     wait: vi.fn().mockResolvedValue(undefined),
     goto: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn().mockResolvedValue('https://chat.deepseek.com/'),
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEnsureOnDeepSeek.mockResolvedValue(undefined);
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/');
+    mockEnsureOnDeepSeek.mockResolvedValue(false);
     mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
     mockSetFeature.mockResolvedValue({ ok: true, toggled: false });
     mockSendWithFile.mockResolvedValue({ ok: true });
@@ -90,11 +92,13 @@ describe('deepseek ask --think', () => {
   const page = {
     wait: vi.fn().mockResolvedValue(undefined),
     goto: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn().mockResolvedValue('https://chat.deepseek.com/'),
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEnsureOnDeepSeek.mockResolvedValue(undefined);
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/');
+    mockEnsureOnDeepSeek.mockResolvedValue(false);
     mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
     mockSetFeature.mockResolvedValue({ ok: true, toggled: false });
     mockSendMessage.mockResolvedValue({ ok: true });
@@ -161,5 +165,80 @@ describe('deepseek ask --think', () => {
 
     // Row keys drive rendered columns; no thinking/thinking_time present.
     expect(Object.keys(rows[0])).toEqual(['response']);
+  });
+});
+
+describe('deepseek ask conversation resume', () => {
+  const page = {
+    wait: vi.fn().mockResolvedValue(undefined),
+    goto: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSetFeature.mockResolvedValue({ ok: true, toggled: false });
+    mockSendMessage.mockResolvedValue({ ok: true });
+    mockGetBubbleCount.mockResolvedValue(2);
+    mockWaitForResponse.mockResolvedValue('follow-up reply');
+  });
+
+  it('resumes the most recent conversation and skips model selection', async () => {
+    mockEnsureOnDeepSeek.mockResolvedValue(true);
+    // first evaluate: sidebar resume click (returns undefined)
+    page.evaluate.mockResolvedValueOnce(undefined);
+    // second evaluate: URL check (now inside a conversation)
+    page.evaluate.mockResolvedValueOnce('https://chat.deepseek.com/a/chat/s/abc-123');
+
+    const rows = await askCommand.func(page, {
+      prompt: 'follow up',
+      timeout: 120,
+      new: false,
+      model: 'instant',
+      think: false,
+      search: false,
+    });
+
+    expect(rows).toEqual([{ response: 'follow-up reply' }]);
+    expect(mockSelectModel).not.toHaveBeenCalled();
+    expect(mockSendMessage).toHaveBeenCalled();
+  });
+
+  it('skips model selection when already inside an existing conversation', async () => {
+    mockEnsureOnDeepSeek.mockResolvedValue(false);
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/a/chat/s/abc-123');
+
+    const rows = await askCommand.func(page, {
+      prompt: 'continue',
+      timeout: 120,
+      new: false,
+      model: 'expert',
+      think: false,
+      search: false,
+    });
+
+    expect(rows).toEqual([{ response: 'follow-up reply' }]);
+    expect(mockSelectModel).not.toHaveBeenCalled();
+  });
+
+  it('still selects model when no conversation to resume', async () => {
+    mockEnsureOnDeepSeek.mockResolvedValue(true);
+    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
+    // first evaluate: sidebar resume click (no link found)
+    page.evaluate.mockResolvedValueOnce(undefined);
+    // second evaluate: URL check (still on root page)
+    page.evaluate.mockResolvedValueOnce('https://chat.deepseek.com/');
+
+    const rows = await askCommand.func(page, {
+      prompt: 'hello',
+      timeout: 120,
+      new: false,
+      model: 'instant',
+      think: false,
+      search: false,
+    });
+
+    expect(rows).toEqual([{ response: 'follow-up reply' }]);
+    expect(mockSelectModel).toHaveBeenCalled();
   });
 });

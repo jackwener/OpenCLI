@@ -35,17 +35,33 @@ export const askCommand = cli({
             await page.goto(DEEPSEEK_URL);
             await page.wait(3);
         } else {
-            await ensureOnDeepSeek(page);
+            const navigated = await ensureOnDeepSeek(page);
+            if (navigated) {
+                // Workspace was recycled; try to resume the most recent
+                // conversation instead of starting a new one.
+                await page.evaluate(`(() => {
+                    var link = document.querySelector('a[href*="/a/chat/s/"]');
+                    if (link) link.click();
+                })()`);
+                await page.wait(2);
+            }
         }
 
         await page.wait(2);
 
-        const wantModel = kwargs.model || 'instant';
-        const modelResult = await withRetry(() => selectModel(page, wantModel));
-        if (!modelResult?.ok) {
-            throw new CommandExecutionError(`Could not switch to ${wantModel} model`);
+        // Model selector is only available on the new-chat page, not inside
+        // an existing conversation. Skip it when we resumed a prior thread.
+        const currentUrl = await page.evaluate('window.location.href') || '';
+        const inConversation = currentUrl.includes('/a/chat/s/');
+
+        if (!inConversation) {
+            const wantModel = kwargs.model || 'instant';
+            const modelResult = await withRetry(() => selectModel(page, wantModel));
+            if (!modelResult?.ok) {
+                throw new CommandExecutionError(`Could not switch to ${wantModel} model`);
+            }
+            if (modelResult?.toggled) await page.wait(0.5);
         }
-        if (modelResult?.toggled) await page.wait(0.5);
 
         const thinkResult = await withRetry(() => setFeature(page, 'DeepThink', wantThink));
         if (!thinkResult?.ok && wantThink) {

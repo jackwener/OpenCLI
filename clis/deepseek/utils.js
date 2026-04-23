@@ -15,10 +15,10 @@ export async function isOnDeepSeek(page) {
 }
 
 export async function ensureOnDeepSeek(page) {
-    if (!(await isOnDeepSeek(page))) {
-        await page.goto(DEEPSEEK_URL);
-        await page.wait(3);
-    }
+    if (await isOnDeepSeek(page)) return false;
+    await page.goto(DEEPSEEK_URL);
+    await page.wait(3);
+    return true;
 }
 
 export async function getPageState(page) {
@@ -252,8 +252,7 @@ export async function getConversationList(page) {
             const items = [];
             const links = document.querySelectorAll('a[href*="/a/chat/s/"]');
             links.forEach((link, i) => {
-                const titleEl = link.querySelector('div');
-                const title = titleEl ? titleEl.textContent.trim() : '';
+                const title = (link.innerText || '').trim().split('\\n')[0].trim();
                 const href = link.getAttribute('href') || '';
                 const idMatch = href.match(/\\/s\\/([a-f0-9-]+)/);
                 items.push({
