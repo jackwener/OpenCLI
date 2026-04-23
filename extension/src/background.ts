@@ -137,6 +137,22 @@ const IDLE_TIMEOUT_INTERACTIVE = 600_000; // 10min — human-paced browser:* / o
 /** Per-workspace custom timeout overrides set via command.idleTimeout */
 const workspaceTimeoutOverrides = new Map<string, number>();
 
+/**
+ * Per-workspace mutex for getAutomationWindow().  Without this, concurrent
+ * commands targeting the same workspace can race: both see no session,
+ * both create a new window, and the second overwrites the first — leaving
+ * the first command's tab in an orphaned window that the session no longer
+ * points to, causing "Detached while handling command" errors.
+ */
+const workspaceLocks = new Map<string, Promise<void>>();
+
+function withWorkspaceLock<T>(workspace: string, fn: () => Promise<T>): Promise<T> {
+  const prev = workspaceLocks.get(workspace) ?? Promise.resolve();
+  const next = prev.then(() => fn(), () => fn());
+  workspaceLocks.set(workspace, next.then(() => {}, () => {}));
+  return next;
+}
+
 function getIdleTimeout(workspace: string): number {
   const override = workspaceTimeoutOverrides.get(workspace);
   if (override !== undefined) return override;
@@ -183,62 +199,57 @@ function resetWindowIdleTimer(workspace: string): void {
  *    This avoids an extra blank-page→target-domain navigation on first command.
  */
 async function getAutomationWindow(workspace: string, initialUrl?: string): Promise<number> {
-  // Check if our window is still alive
-  const existing = automationSessions.get(workspace);
-  if (existing) {
-    try {
-      await chrome.windows.get(existing.windowId);
-      return existing.windowId;
-    } catch {
-      // Window was closed by user
-      automationSessions.delete(workspace);
+  return withWorkspaceLock(workspace, async () => {
+    const existing = automationSessions.get(workspace);
+    if (existing) {
+      try {
+        await chrome.windows.get(existing.windowId);
+        return existing.windowId;
+      } catch {
+        automationSessions.delete(workspace);
+      }
     }
-  }
 
-  // Use the target URL directly if it's a safe navigation URL, otherwise fall back to about:blank.
-  const startUrl = (initialUrl && isSafeNavigationUrl(initialUrl)) ? initialUrl : BLANK_PAGE;
+    const startUrl = (initialUrl && isSafeNavigationUrl(initialUrl)) ? initialUrl : BLANK_PAGE;
 
-  // Note: Do NOT set `state` parameter here. Chrome 146+ rejects 'normal' as an invalid
-  // state value for windows.create(). The window defaults to 'normal' state anyway.
-  const win = await chrome.windows.create({
-    url: startUrl,
-    focused: windowFocused,
-    width: 1280,
-    height: 900,
-    type: 'normal',
-  });
-  const session: AutomationSession = {
-    windowId: win.id!,
-    idleTimer: null,
-    idleDeadlineAt: Date.now() + getIdleTimeout(workspace),
-    owned: true,
-    preferredTabId: null,
-  };
-  automationSessions.set(workspace, session);
-  console.log(`[opencli] Created automation window ${session.windowId} (${workspace}, start=${startUrl})`);
-  resetWindowIdleTimer(workspace);
-  // Wait for the initial tab to finish loading instead of a fixed 200ms sleep.
-  const tabs = await chrome.tabs.query({ windowId: win.id! });
-  if (tabs[0]?.id) {
-    await new Promise<void>((resolve) => {
-      const timeout = setTimeout(resolve, 500); // fallback cap
-      const listener = (tabId: number, info: chrome.tabs.TabChangeInfo) => {
-        if (tabId === tabs[0].id && info.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(listener);
+    const win = await chrome.windows.create({
+      url: startUrl,
+      focused: windowFocused,
+      width: 1280,
+      height: 900,
+      type: 'normal',
+    });
+    const session: AutomationSession = {
+      windowId: win.id!,
+      idleTimer: null,
+      idleDeadlineAt: Date.now() + getIdleTimeout(workspace),
+      owned: true,
+      preferredTabId: null,
+    };
+    automationSessions.set(workspace, session);
+    console.log(`[opencli] Created automation window ${session.windowId} (${workspace}, start=${startUrl})`);
+    resetWindowIdleTimer(workspace);
+    const tabs = await chrome.tabs.query({ windowId: win.id! });
+    if (tabs[0]?.id) {
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(resolve, 500);
+        const listener = (tabId: number, info: chrome.tabs.TabChangeInfo) => {
+          if (tabId === tabs[0].id && info.status === 'complete') {
+            chrome.tabs.onUpdated.removeListener(listener);
+            clearTimeout(timeout);
+            resolve();
+          }
+        };
+        if (tabs[0].status === 'complete') {
           clearTimeout(timeout);
           resolve();
+        } else {
+          chrome.tabs.onUpdated.addListener(listener);
         }
-      };
-      // Check if already complete before listening
-      if (tabs[0].status === 'complete') {
-        clearTimeout(timeout);
-        resolve();
-      } else {
-        chrome.tabs.onUpdated.addListener(listener);
-      }
-    });
-  }
-  return session.windowId;
+      });
+    }
+    return session.windowId;
+  });
 }
 
 // Clean up when the automation window is closed
@@ -485,8 +496,6 @@ async function resolveTab(tabId: number | undefined, workspace: string, initialU
         : false;
       if (isDebuggableUrl(tab.url) && matchesSession) return { tabId, tab };
       if (session && !matchesSession && session.preferredTabId === null && isDebuggableUrl(tab.url)) {
-        // Tab drifted to another window but content is still valid.
-        // Try to move it back instead of abandoning it.
         console.warn(`[opencli] Tab ${tabId} drifted to window ${tab.windowId}, moving back to ${session.windowId}`);
         try {
           await chrome.tabs.move(tabId, { windowId: session.windowId, index: -1 });
@@ -506,7 +515,7 @@ async function resolveTab(tabId: number | undefined, workspace: string, initialU
   }
 
   const existingSession = automationSessions.get(workspace);
-  if (existingSession?.preferredTabId !== null) {
+  if (existingSession && existingSession.preferredTabId !== null) {
     try {
       const preferredTab = await chrome.tabs.get(existingSession.preferredTabId);
       if (isDebuggableUrl(preferredTab.url)) return { tabId: preferredTab.id!, tab: preferredTab };
@@ -518,26 +527,37 @@ async function resolveTab(tabId: number | undefined, workspace: string, initialU
   // Get (or create) the automation window
   const windowId = await getAutomationWindow(workspace, initialUrl);
 
-  // Prefer an existing debuggable tab
+  // When no specific tab is requested (tabId === undefined), always create a
+  // new tab so concurrent commands each get their own tab and debugger session.
+  // This avoids "Detached while handling command" caused by multiple debuggers
+  // attaching to the same tab simultaneously.
+  if (tabId === undefined) {
+    const newTab = await chrome.tabs.create({ windowId, url: initialUrl && isSafeNavigationUrl(initialUrl) ? initialUrl : BLANK_PAGE, active: true });
+    if (!newTab.id) throw new Error('Failed to create tab in automation window');
+    // Wait for the new tab to finish loading
+    if (newTab.status !== 'complete') {
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(resolve, 500);
+        const listener = (id: number, info: chrome.tabs.TabChangeInfo) => {
+          if (id === newTab.id && info.status === 'complete') {
+            chrome.tabs.onUpdated.removeListener(listener);
+            clearTimeout(timeout);
+            resolve();
+          }
+        };
+        chrome.tabs.onUpdated.addListener(listener);
+      });
+    }
+    return { tabId: newTab.id, tab: null };
+  }
+
+  // When a specific tab was requested but validation failed above, fall back
+  // to finding any debuggable tab in the window.
   const tabs = await chrome.tabs.query({ windowId });
   const debuggableTab = tabs.find(t => t.id && isDebuggableUrl(t.url));
   if (debuggableTab?.id) return { tabId: debuggableTab.id, tab: debuggableTab };
 
-  // No debuggable tab — another extension may have hijacked the tab URL.
-  const reuseTab = tabs.find(t => t.id);
-  if (reuseTab?.id) {
-    await chrome.tabs.update(reuseTab.id, { url: BLANK_PAGE });
-    await new Promise(resolve => setTimeout(resolve, 300));
-    try {
-      const updated = await chrome.tabs.get(reuseTab.id);
-      if (isDebuggableUrl(updated.url)) return { tabId: reuseTab.id, tab: updated };
-      console.warn(`[opencli] data: URI was intercepted (${updated.url}), creating fresh tab`);
-    } catch {
-      // Tab was closed during navigation
-    }
-  }
-
-  // Fallback: create a new tab
+  // No debuggable tab — create a new one
   const newTab = await chrome.tabs.create({ windowId, url: BLANK_PAGE, active: true });
   if (!newTab.id) throw new Error('Failed to create tab in automation window');
   return { tabId: newTab.id, tab: newTab };
@@ -862,16 +882,27 @@ async function handleCdp(cmd: Command, workspace: string): Promise<Result> {
 async function handleCloseWindow(cmd: Command, workspace: string): Promise<Result> {
   const session = automationSessions.get(workspace);
   if (session) {
-    if (session.owned) {
+    // Close only the tab that this command was using (identified by cmd.page),
+    // not the entire window. This allows concurrent commands to keep their tabs.
+    const cmdTabId = cmd.page ? await identity.resolveTabId(cmd.page).catch(() => undefined) : undefined;
+    if (cmdTabId !== undefined) {
+      await executor.detach(cmdTabId).catch(() => {});
+      await chrome.tabs.remove(cmdTabId).catch(() => {});
+    } else {
+      // No specific tab — detach all tabs but don't close the window
       try {
-        await chrome.windows.remove(session.windowId);
+        const tabs = await chrome.tabs.query({ windowId: session.windowId });
+        for (const tab of tabs) {
+          if (tab.id) {
+            await executor.detach(tab.id).catch(() => {});
+          }
+        }
       } catch {
         // Window may already be closed
       }
     }
-    if (session.idleTimer) clearTimeout(session.idleTimer);
-    workspaceTimeoutOverrides.delete(workspace);
-    automationSessions.delete(workspace);
+    // Reset idle timer so the window closes naturally after the idle period
+    resetWindowIdleTimer(workspace);
   }
   return { id: cmd.id, ok: true, data: { closed: true } };
 }

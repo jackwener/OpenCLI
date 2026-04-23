@@ -143,7 +143,7 @@ export class Page extends BasePage {
   /** Close the automation window in the extension */
   async closeWindow(): Promise<void> {
     try {
-      await sendCommand('close-window', { ...this._wsOpt() });
+      await sendCommand('close-window', { ...this._cmdOpts() });
     } catch {
       // Window may already be closed or daemon may be down
     } finally {
