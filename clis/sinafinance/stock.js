@@ -79,12 +79,15 @@ cli({
         if (!entries.length) {
             throw new CliError('NOT_FOUND', `No stock found for "${key}"`, 'Try a different name, code, or --market');
         }
-        // Pick best match: score by name similarity, tiebreak by market priority
+        // Pick best match: score by name/symbol similarity, tiebreak by market priority
         const needle = key.toLowerCase();
         const score = (e) => {
             const n = e.name.toLowerCase();
-            if (n === needle)
+            const s = e.symbol.toLowerCase();
+            if (s === needle || n === needle)
                 return 1;
+            if (s.includes(needle))
+                return needle.length / s.length;
             if (n.includes(needle))
                 return needle.length / n.length;
             return 0;
