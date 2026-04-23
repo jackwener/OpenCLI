@@ -140,4 +140,12 @@ describe('amazon discussion normalization', () => {
 
     await expect(command.func(page, { input: 'B09HKN2ZRT', limit: 1 })).rejects.toBeInstanceOf(AuthRequiredError);
   });
+
+  it('does not treat a public product page with sign-in copy as a gated page', () => {
+    expect(__test__.isSignInState({
+      href: 'https://www.amazon.com/dp/B09HKN2ZRT',
+      title: 'Amazon.com: Example product',
+      body_text: 'Hello, sign in Account & Lists Create account',
+    })).toBe(false);
+  });
 });

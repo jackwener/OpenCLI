@@ -34,11 +34,8 @@ function hasDiscussionSummary(payload) {
 function isSignInState(state) {
     const href = cleanText(state.href).toLowerCase();
     const title = cleanText(state.title).toLowerCase();
-    const bodyText = cleanText(state.body_text).toLowerCase();
     return href.includes('/ap/signin')
-        || title.includes('amazon sign-in')
-        || bodyText.includes('sign in')
-        || bodyText.includes('create account');
+        || title.includes('amazon sign-in');
 }
 async function readCurrentDiscussionPayload(page, limit) {
     return await page.evaluate(`
