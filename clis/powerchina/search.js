@@ -87,18 +87,18 @@ function filterNavigationRows(items) {
   });
 }
 
-export function buildApiDetailUrl(id, now = Date.now()) {
+export function buildApiDetailUrl(id) {
   const normalizedId = cleanText(id);
   if (!normalizedId) return '';
-  return `${API_DETAIL_ENDPOINT}/${encodeURIComponent(normalizedId)}?time=${now}`;
+  return `${API_DETAIL_ENDPOINT}/${encodeURIComponent(normalizedId)}`;
 }
 
-function toApiCandidate(row, now = Date.now()) {
+function toApiCandidate(row) {
   const id = cleanText(row.id);
   const title = cleanText(row.title);
   if (!id || !title) return null;
 
-  const url = buildApiDetailUrl(id, now);
+  const url = buildApiDetailUrl(id);
   if (!url) return null;
 
   const contextText = cleanText([
@@ -149,10 +149,9 @@ async function searchRowsFromApi(query, limit) {
     throw new Error(`[taxonomy=relay_unavailable] site=powerchina command=search api code=${data.code ?? 'unknown'} msg=${cleanText(data.msg)}`);
   }
 
-  const now = Date.now();
   const rows = Array.isArray(data.rows) ? data.rows : [];
   const mapped = rows
-    .map((row) => toApiCandidate(row, now))
+    .map((row) => toApiCandidate(row))
     .filter(Boolean);
   return dedupeCandidates(mapped).slice(0, limit);
 }

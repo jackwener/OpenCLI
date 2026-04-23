@@ -44,8 +44,8 @@ describe('powerchina search helpers', () => {
   });
 
   it('builds api detail urls with stable id', () => {
-    const url = __test__.buildApiDetailUrl('2409419657', 1234567890);
-    expect(url).toBe('https://bid.powerchina.cn/newcbs/recpro-newmember/BidAnnouncementSummary/getInfo/2409419657?time=1234567890');
+    const url = __test__.buildApiDetailUrl('2409419657');
+    expect(url).toBe('https://bid.powerchina.cn/newcbs/recpro-newmember/BidAnnouncementSummary/getInfo/2409419657');
   });
 
   it('maps api rows into normalized search candidates', () => {
@@ -58,10 +58,10 @@ describe('powerchina search helpers', () => {
       source: '设备物资集中采购电子平台',
       publishTime: '2026-04-07 17:05:02',
       submissionDeadline: '2026-04-14',
-    }, 1700000000000);
+    });
     expect(mapped).not.toBeNull();
     expect(mapped?.title).toContain('电梯采购公告');
     expect(mapped?.date).toBe('2026-04-07');
-    expect(mapped?.url).toBe('https://bid.powerchina.cn/newcbs/recpro-newmember/BidAnnouncementSummary/getInfo/2409419657?time=1700000000000');
+    expect(mapped?.url).toBe('https://bid.powerchina.cn/newcbs/recpro-newmember/BidAnnouncementSummary/getInfo/2409419657');
   });
 });
