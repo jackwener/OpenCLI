@@ -15594,6 +15594,36 @@
     "navigateBefore": "https://www.tiktok.com"
   },
   {
+    "site": "toutiao",
+    "name": "articles",
+    "description": "获取头条号创作者后台文章列表及数据",
+    "domain": "mp.toutiao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "页码 (1-4)"
+      }
+    ],
+    "columns": [
+      "title",
+      "date",
+      "status",
+      "展现",
+      "阅读",
+      "点赞",
+      "评论"
+    ],
+    "type": "js",
+    "modulePath": "toutiao/articles.js",
+    "sourceFile": "toutiao/articles.js",
+    "navigateBefore": "https://mp.toutiao.com"
+  },
+  {
     "site": "twitter",
     "name": "accept",
     "description": "Auto-accept DM requests containing specific keywords",
