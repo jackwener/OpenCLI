@@ -92,7 +92,7 @@ Run `opencli list` for the live registry.
 | **[barchart](./browser/barchart.md)**             | `quote` `options` `greeks` `flow`                                                                                                              | 🌐 Public    |
 | **[binance](./browser/binance.md)**               | `price` `prices` `ticker` `pairs` `trades` `depth` `asks` `klines` `top` `gainers` `losers`                                                 | 🌐 Public    |
 | **[hf](./browser/hf.md)**                         | `top`                                                                                                                                          | 🌐 Public    |
-| **[sinafinance](./browser/sinafinance.md)**       | `news`                                                                                                                                         | 🌐 Public    |
+| **[sinafinance](./browser/sinafinance.md)**       | `news` `rolling-news` `stock` `stock-rank`                                                                                                     | 🌐 / 🔐      |
 | **[spotify](./browser/spotify.md)**               | `auth` `status` `play` `pause` `next` `prev` `volume` `search` `queue` `shuffle` `repeat`                                                      | 🔑 OAuth API |
 | **[stackoverflow](./browser/stackoverflow.md)**   | `hot` `search` `bounties` `unanswered`                                                                                                         | 🌐 Public    |
 | **[wikipedia](./browser/wikipedia.md)**           | `search` `summary` `random` `trending`                                                                                                         | 🌐 Public    |
