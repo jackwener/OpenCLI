@@ -1,6 +1,6 @@
 {
   "name": "@jackwener/opencli",
-  "version": "1.7.4",
+  "version": "1.7.7",
   "publishConfig": {
     "access": "public"
   },
@@ -74,18 +74,22 @@
     "url": "git+https://github.com/jackwener/opencli.git"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.3",
     "js-yaml": "^4.1.0",
     "turndown": "^7.2.2",
+    "turndown-plugin-gfm": "^1.0.2",
     "undici": "^8.0.2",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/jsdom": "^27.0.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.5.2",
     "@types/turndown": "^5.0.6",
     "@types/ws": "^8.5.13",
+    "jsdom": "^29.0.2",
     "tsx": "^4.19.3",
     "typescript": "^6.0.2",
     "vitepress": "^1.6.4",

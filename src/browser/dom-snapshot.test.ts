@@ -116,6 +116,9 @@ describe('generateSnapshotJs', () => {
     // BBox dedup
     expect(js).toContain('isContainedBy');
     expect(js).toContain('PROPAGATING_TAGS');
+    expect(js).toContain('PROPAGATING_ROLES');
+    expect(js).toContain('isBboxPropagator');
+    expect(js).toContain('isDistinctivelyInteractive');
 
     // Shadow DOM
     expect(js).toContain('shadowRoot');
@@ -175,6 +178,60 @@ describe('generateSnapshotJs', () => {
     expect(js).toContain('scrollTop');
     expect(js).toContain('|scroll|');
     expect(js).toContain('page_scroll');
+  });
+});
+
+describe('BBox 99% containment filter', () => {
+  it('propagates bbox for both PROPAGATING_TAGS and PROPAGATING_ROLES', () => {
+    const js = generateSnapshotJs();
+    // Role-based propagator list covers the common wrapper-as-control patterns
+    // that show up as <div role=button><svg/><span/></div> on modern SPAs.
+    for (const role of ['button', 'link', 'menuitem', 'tab', 'option']) {
+      expect(js).toContain(`'${role}'`);
+    }
+    // propagate site uses the unified helper, not only the tag set
+    expect(js).toContain('isBboxPropagator(el, tag)');
+  });
+
+  it('suppresses interactive descendants at 0.99 containment when they are not distinctive', () => {
+    const js = generateSnapshotJs();
+    expect(js).toContain('isContainedBy(rect, parentPropagatingRect, 0.99)');
+    expect(js).toContain('!isDistinctivelyInteractive(el)');
+    // The suppression path flips the local interactive flag so the node is
+    // still emitted (for text / shape) but does not get its own [N] ref.
+    expect(js).toContain('interactive = false');
+  });
+
+  it('does not suppress inputs / href-bearing anchors even when fully contained', () => {
+    const js = generateSnapshotJs();
+    // Guards inside isDistinctivelyInteractive
+    expect(js).toContain("tag === 'input'");
+    expect(js).toContain("tag === 'select'");
+    expect(js).toContain("tag === 'textarea'");
+    expect(js).toContain("tag === 'a'");
+    expect(js).toContain("el.hasAttribute('href')");
+    // aria-label / aria-labelledby / id / test-id / name preserve distinctness
+    expect(js).toContain("el.hasAttribute('aria-label')");
+    expect(js).toContain("el.hasAttribute('aria-labelledby')");
+    expect(js).toContain("el.id");
+    expect(js).toContain("el.getAttribute('data-testid')");
+    expect(js).toContain("el.hasAttribute('name')");
+  });
+
+  it('keeps the existing 0.95 non-interactive dedup tier in place', () => {
+    const js = generateSnapshotJs();
+    // The original non-interactive bbox filter is still present alongside the
+    // new interactive tier — two complementary thresholds, not a replacement.
+    expect(js).toContain('isContainedBy(rect, parentPropagatingRect, 0.95)');
+  });
+
+  it('bbox containment branches are gated on BBOX_DEDUP flag', () => {
+    const off = generateSnapshotJs({ bboxDedup: false });
+    // When the option is off, the filter becomes inert (BBOX_DEDUP = false)
+    // but the inlined helpers still ship — we only guard at the call sites.
+    expect(off).toContain('BBOX_DEDUP = false');
+    expect(off).toContain('isBboxPropagator');
+    expect(off).toContain('isDistinctivelyInteractive');
   });
 });
 
@@ -287,5 +344,19 @@ describe('Search Element Detection', () => {
   it('integrates search element detection into isInteractive', () => {
     const js = generateSnapshotJs();
     expect(js).toContain('isSearchElement(el)');
+  });
+
+  // Blocker B regression: compound contract must be emitted by `browser state`,
+  // not only by `browser find --css`. Otherwise agents inspecting the default
+  // snapshot still have to round-trip `find` on every date/select/file control.
+  it('inlines compoundInfoOf() and attaches compound info to each interactive ref', () => {
+    const js = generateSnapshotJs();
+    expect(js).toContain('function compoundInfoOf(el)');
+    // Wiring: the walk body should call compoundInfoOf on every interactive node
+    expect(js).toContain('compoundInfoOf(el)');
+    // And collect them into a per-ref map keyed by the same [N] index as the tree
+    expect(js).toContain('compoundInfos');
+    // And emit a sidecar section after the tree so agents can find the JSON
+    expect(js).toContain("'compounds ('");
   });
 });

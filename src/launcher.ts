@@ -59,7 +59,7 @@ export function detectProcess(processName: string): boolean {
 /**
  * Kill a process by name. Sends SIGTERM first, then SIGKILL after grace period.
  */
-export function killProcess(processName: string): void {
+export async function killProcess(processName: string): Promise<void> {
   if (process.platform === 'win32') return; // pkill not available on Windows
   try {
     execFileSync('pkill', ['-x', processName], { stdio: 'pipe' });
@@ -70,7 +70,7 @@ export function killProcess(processName: string): void {
   const deadline = Date.now() + KILL_GRACE_MS;
   while (Date.now() < deadline) {
     if (!detectProcess(processName)) return;
-    execFileSync('sleep', ['0.2'], { stdio: 'pipe' });
+    await new Promise((r) => setTimeout(r, 200));
   }
 
   try {
@@ -238,7 +238,7 @@ export async function resolveElectronEndpoint(site: string): Promise<string> {
       );
     }
     process.stderr.write(`  Restarting ${label}...\n`);
-    killProcess(processName);
+    await killProcess(processName);
   }
 
   // Step 3: Discover path

@@ -70,6 +70,20 @@ describe('commanderAdapter arg passing', () => {
     expect(kwargs['prepare-only']).toBe(true);
   });
 
+  it('passes option value sources through for adapters that need explicit-vs-default semantics', async () => {
+    const program = new Command();
+    const siteCmd = program.command('paperreview');
+    registerCommandToProgram(siteCmd, cmd);
+
+    await program.parseAsync(['node', 'opencli', 'paperreview', 'submit', './paper.pdf', '--prepare-only']);
+
+    expect(mockExecuteCommand).toHaveBeenCalled();
+    const kwargs = mockExecuteCommand.mock.calls[0][1];
+    expect(kwargs.__opencliOptionSources).toMatchObject({
+      'prepare-only': 'cli',
+    });
+  });
+
   it('rejects invalid bool values before calling executeCommand', async () => {
     const program = new Command();
     const siteCmd = program.command('paperreview');

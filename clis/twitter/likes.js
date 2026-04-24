@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { resolveTwitterQueryId, sanitizeQueryId } from './shared.js';
+import { resolveTwitterQueryId, sanitizeQueryId, extractMedia } from './shared.js';
 const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 const LIKES_QUERY_ID = 'RozQdCp4CilQzrcuU0NY5w';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
@@ -99,6 +99,7 @@ function extractLikedTweet(result, seen) {
         retweets: legacy.retweet_count || 0,
         created_at: legacy.created_at || '',
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
+        ...extractMedia(legacy),
     };
 }
 function parseLikes(data, seen) {
@@ -144,7 +145,7 @@ cli({
         { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (without @). Defaults to logged-in user.' },
         { name: 'limit', type: 'int', default: 20 },
     ],
-    columns: ['author', 'name', 'text', 'likes', 'url'],
+    columns: ['author', 'name', 'text', 'likes', 'url', 'has_media', 'media_urls'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 20;
         let username = (kwargs.username || '').replace(/^@/, '');

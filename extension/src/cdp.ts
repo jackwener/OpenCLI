@@ -10,6 +10,12 @@ const attached = new Set<number>();
 
 const tabFrameContexts = new Map<number, Map<string, number>>();
 
+// Large cap so agents stop hitting silent JSON.parse failures on real API bodies.
+// See src/browser/cdp.ts CDP_RESPONSE_BODY_CAPTURE_LIMIT for the matching constant
+// on the direct-CDP path. Keep in sync.
+const CDP_RESPONSE_BODY_CAPTURE_LIMIT = 8 * 1024 * 1024;
+const CDP_REQUEST_BODY_CAPTURE_LIMIT = 1 * 1024 * 1024;
+
 type NetworkCaptureEntry = {
   kind: 'cdp';
   url: string;
@@ -17,10 +23,14 @@ type NetworkCaptureEntry = {
   requestHeaders?: Record<string, string>;
   requestBodyKind?: string;
   requestBodyPreview?: string;
+  requestBodyFullSize?: number;
+  requestBodyTruncated?: boolean;
   responseStatus?: number;
   responseContentType?: string;
   responseHeaders?: Record<string, string>;
   responsePreview?: string;
+  responseBodyFullSize?: number;
+  responseBodyTruncated?: boolean;
   timestamp: number;
 };
 
@@ -473,12 +483,24 @@ export function registerListeners(): void {
       });
       if (!entry) return;
       entry.requestBodyKind = request?.hasPostData ? 'string' : 'empty';
-      entry.requestBodyPreview = String(request?.postData || '').slice(0, 4000);
+      {
+        const raw = String(request?.postData || '');
+        const fullSize = raw.length;
+        const truncated = fullSize > CDP_REQUEST_BODY_CAPTURE_LIMIT;
+        entry.requestBodyPreview = truncated ? raw.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT) : raw;
+        entry.requestBodyFullSize = fullSize;
+        entry.requestBodyTruncated = truncated;
+      }
       try {
         const postData = await chrome.debugger.sendCommand({ tabId }, 'Network.getRequestPostData', { requestId }) as { postData?: string };
         if (postData?.postData) {
+          const raw = postData.postData;
+          const fullSize = raw.length;
+          const truncated = fullSize > CDP_REQUEST_BODY_CAPTURE_LIMIT;
           entry.requestBodyKind = 'string';
-          entry.requestBodyPreview = postData.postData.slice(0, 4000);
+          entry.requestBodyPreview = truncated ? raw.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT) : raw;
+          entry.requestBodyFullSize = fullSize;
+          entry.requestBodyTruncated = truncated;
         }
       } catch {
         // Optional; some requests do not expose postData.
@@ -516,9 +538,12 @@ export function registerListeners(): void {
           base64Encoded?: boolean;
         };
         if (typeof body?.body === 'string') {
-          entry.responsePreview = body.base64Encoded
-            ? `base64:${body.body.slice(0, 4000)}`
-            : body.body.slice(0, 4000);
+          const fullSize = body.body.length;
+          const truncated = fullSize > CDP_RESPONSE_BODY_CAPTURE_LIMIT;
+          const stored = truncated ? body.body.slice(0, CDP_RESPONSE_BODY_CAPTURE_LIMIT) : body.body;
+          entry.responsePreview = body.base64Encoded ? `base64:${stored}` : stored;
+          entry.responseBodyFullSize = fullSize;
+          entry.responseBodyTruncated = truncated;
         }
       } catch {
         // Optional; bodies are unavailable for some requests (e.g. uploads).

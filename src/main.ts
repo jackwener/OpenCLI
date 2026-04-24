@@ -29,6 +29,23 @@ const __dirname = path.dirname(__filename);
 const BUILTIN_CLIS = path.join(findPackageRoot(__filename), 'clis');
 const USER_CLIS = path.join(os.homedir(), '.opencli', 'clis');
 
+// ── Session lifecycle flags ──────────────────────────────────────────────
+// `--live` / `--focus` are top-level-ish toggles that tweak the automation
+// window's lifecycle. We strip them from argv before Commander runs so they
+// can be placed anywhere and work on any subcommand (adapter or browser).
+{
+  const liveIdx = process.argv.indexOf('--live');
+  if (liveIdx !== -1) {
+    process.env.OPENCLI_LIVE = '1';
+    process.argv.splice(liveIdx, 1);
+  }
+  const focusIdx = process.argv.indexOf('--focus');
+  if (focusIdx !== -1) {
+    process.env.OPENCLI_WINDOW_FOCUSED = '1';
+    process.argv.splice(focusIdx, 1);
+  }
+}
+
 // ── Ultra-fast path: lightweight commands bypass full discovery ──────────
 // These are high-frequency or trivial paths that must not pay the startup tax.
 const argv = process.argv.slice(2);

@@ -102,7 +102,7 @@ cli({
 });
 ```
 
-Use `opencli explore <url>` to discover APIs and see [opencli-explorer skill](./skills/opencli-explorer/SKILL.md) if you need the full adapter workflow.
+Install the [`opencli-adapter-author` skill](./skills/opencli-adapter-author/SKILL.md) if you need the full adapter workflow — recon → API discovery → field decoding → `opencli browser verify`.
 
 ### Validate Your Adapter
 

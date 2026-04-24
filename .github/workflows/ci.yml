@@ -38,6 +38,18 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Guard: committed cli-manifest.json must match the one build regenerates.
+      # Prevents silent drift where unrelated adapter entries vanish or change
+      # across PRs (agent hits unexpected manifest diff → surgical-merge churn).
+      - name: Check cli-manifest.json is up-to-date
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          if ! git diff --exit-code -- cli-manifest.json; then
+            echo "::error::cli-manifest.json is out of sync with the source. Run 'npm run build' and commit the result."
+            exit 1
+          fi
+
   # ── Unit tests (vitest shard) ──
   # PR: ubuntu + Node 22 only (fast feedback, 2 jobs).
   # Push to main/dev: full matrix for cross-platform/cross-version coverage (12 jobs).

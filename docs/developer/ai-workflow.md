@@ -1,65 +1,63 @@
 # AI Workflow
 
-OpenCLI is designed with AI agents in mind. This guide covers the AI-native discovery and code generation tools.
+OpenCLI is designed for AI agents writing adapters. The workflow is built on a small set of browser primitives plus a skill that teaches the end-to-end loop.
 
-## Quick Mode (One-Shot)
+## The Loop
 
-Generate a single command for a specific page URL — just a URL + one-line goal, 4 steps done:
-
-```bash
-opencli generate https://example.com --goal "trending"
-```
-
-This runs: explore → synthesize → register in one shot.
-
-For the complete one-shot workflow details, see [opencli-oneshot skill](https://github.com/jackwener/opencli/blob/main/skills/opencli-oneshot/SKILL.md).
-
-## Full Mode (Explorer Workflow)
-
-### Step 1: Deep Explore
-
-Discover APIs, infer capabilities, and detect framework:
+From a new site URL to a passing `opencli browser verify` — one skill, one set of primitives:
 
 ```bash
-opencli explore https://example.com --site mysite
+# 1. Pick up the skill (Claude Code)
+#    skills/opencli-adapter-author/SKILL.md
+
+# 2. Reconnaissance
+opencli browser open https://example.com
+opencli browser wait time 3
+opencli browser network        # inspect XHR / fetch calls
+opencli browser state          # extract __INITIAL_STATE__ / __NEXT_DATA__
+
+# 3. Scaffold + verify
+opencli browser init <site>/<name>
+opencli browser verify <site>/<name>
 ```
 
-Outputs to `.opencli/explore/<site>/`:
-- `manifest.json` — Site metadata
-- `endpoints.json` — Discovered API endpoints
-- `capabilities.json` — Inferred capabilities
-- `auth.json` — Authentication strategy details
+The skill `opencli-adapter-author` walks through: coverage self-test → site recon → API discovery → field decoding → output design → adapter coding → verify → write-back to site memory.
 
-### Step 2: Synthesize
+See [skills/opencli-adapter-author/SKILL.md](https://github.com/jackwener/opencli/blob/main/skills/opencli-adapter-author/SKILL.md).
 
-Generate TS adapters from explore artifacts:
+## Primitives
 
-```bash
-opencli synthesize mysite
-```
+| Command | Purpose |
+|---------|---------|
+| `opencli doctor` | Sanity check: bridge, Chrome, signals |
+| `opencli browser open <url>` | Open a tab in the Chrome session |
+| `opencli browser network` | List recent XHR / fetch calls |
+| `opencli browser state` | Page state: URL, title, interactive elements |
+| `opencli browser eval '<expr>'` | Evaluate JS in the page context (cookies + origin honored) |
+| `opencli browser init <site>/<name>` | Scaffold `~/.opencli/clis/<site>/<name>.js` |
+| `opencli browser verify <site>/<name>` | Run the adapter and print first rows |
 
-### Step 3: Strategy Cascade
+No `explore` / `synthesize` / `generate` / `cascade` command. The skill drives the loop — the primitives are small and composable.
 
-Auto-probe authentication strategies: `PUBLIC → COOKIE → HEADER`:
+## Site Memory
 
-```bash
-opencli cascade https://api.example.com/data
-```
+Every site accumulates knowledge at `~/.opencli/sites/<site>/` (endpoints, field decode map, notes, response fixtures). The adapter-author skill reads memory on Step 2 and writes back on Step 12 — see `skills/opencli-adapter-author/references/site-memory.md` for the schema.
 
-### Step 4: Validate & Test
+In-repo seeds for well-known sites live at `skills/opencli-adapter-author/references/site-memory/<site>.md` (eastmoney / xueqiu / bilibili / tonghuashun already covered).
 
-```bash
-opencli <site> <command> --limit 3 -f json  # Test the command
-```
+## Authentication Strategies
 
-## 5-Tier Authentication Strategy
+Adapters declare one of:
 
-The explorer uses a decision tree to determine the best authentication approach:
+1. **PUBLIC** — direct fetch, no credentials
+2. **COOKIE** — reuse Chrome session cookies (`browser: true` + `credentials: 'include'`)
+3. **HEADER** — inject a custom header (bearer / csrf / signed token)
+4. **INTERCEPT** — let the page make the request; capture the response
 
-1. **PUBLIC** — No auth, direct API call
-2. **COOKIE** — Reuse Chrome session cookies
-3. **HEADER** — Custom auth headers
-4. **BROWSER** — Full browser automation
-5. **CDP** — Chrome DevTools Protocol for Electron apps
+Pick per the `coverage-matrix.md` and `api-discovery.md` references inside the skill.
 
-For the complete browser exploration workflow and debugging guide, see [opencli-explorer skill](https://github.com/jackwener/opencli/blob/main/skills/opencli-explorer/SKILL.md).
+## When Something Breaks
+
+- Verify failure → run `opencli doctor`, then consult `skills/opencli-autofix/SKILL.md`
+- Field values wrong → jump back to `skills/opencli-adapter-author/references/field-decode-playbook.md`
+- Endpoint returns 401/403 → `api-discovery.md` §4 (token) / §5 (intercept)

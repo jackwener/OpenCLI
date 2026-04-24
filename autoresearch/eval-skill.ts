@@ -2,7 +2,7 @@
 /**
  * Layer 2: Claude Code Skill E2E Testing (LLM Judge)
  *
- * Spawns Claude Code with the opencli-browser skill. Claude Code
+ * Spawns Claude Code with the opencli-adapter-author skill. Claude Code
  * completes the task using browse commands AND judges its own result.
  *
  * Task format: YAML with judge_context (multi-criteria, like Browser Use)
@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const RESULTS_DIR = join(__dirname, 'results');
-const SKILL_PATH = join(__dirname, '..', 'skills', 'opencli-browser', 'SKILL.md');
+const SKILL_PATH = join(__dirname, '..', 'skills', 'opencli-adapter-author', 'SKILL.md');
 
 // ── Types ──────────────────────────────────────────────────────────
 

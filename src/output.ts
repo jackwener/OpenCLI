@@ -72,7 +72,7 @@ function renderTable(data: unknown, opts: RenderOptions): void {
   console.log(table.toString());
   const footer: string[] = [];
   footer.push(`${rows.length} items`);
-  if (opts.elapsed) footer.push(`${opts.elapsed.toFixed(1)}s`);
+  if (opts.elapsed !== undefined) footer.push(`${opts.elapsed.toFixed(1)}s`);
   if (opts.source) footer.push(opts.source);
   if (opts.footerExtra) footer.push(opts.footerExtra);
   console.log(styleText('dim', footer.join(' · ')));

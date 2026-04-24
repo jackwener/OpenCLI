@@ -7,6 +7,13 @@ const RETRYABLE_DETAIL_ERROR_PATTERNS = [
     /cannot find context with specified id/i,
     /\[taxonomy=empty_result\]/i,
 ];
+const DETAIL_AUTH_CHALLENGE_PATTERNS = [
+    /请在下图依次点击/i,
+    /验证码/i,
+    /请完成验证/i,
+    /验证登录/i,
+    /登录即可获得更多浏览权限/i,
+];
 function isRetryableDetailError(error) {
     const message = error instanceof Error
         ? cleanText(error.message)
@@ -61,6 +68,14 @@ export async function runProcurementDetail(page, { url, site, query = '', }) {
             const title = cleanText(row.title);
             const detailText = cleanText(row.detailText);
             const publishTime = cleanText(row.publishTime);
+            const authGateText = cleanText(`${title} ${detailText}`);
+            if (DETAIL_AUTH_CHALLENGE_PATTERNS.some((pattern) => pattern.test(authGateText))) {
+                throw taxonomyError('selector_drift', {
+                    site,
+                    command: 'detail',
+                    detail: `detail page blocked by verification challenge: ${targetUrl}`,
+                });
+            }
             if (!title && !detailText) {
                 throw taxonomyError('empty_result', {
                     site,

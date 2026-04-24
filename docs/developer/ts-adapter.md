@@ -89,17 +89,17 @@ Avoid raw `Error` for normal adapter control flow. This keeps top-level CLI outp
 
 ## AI-Assisted Development
 
-Use the AI workflow tools to accelerate adapter creation:
+Use the `opencli-adapter-author` skill plus the `opencli browser *` primitives to scaffold and verify adapters end-to-end:
 
 ```bash
-# Discover APIs and page structure
-opencli explore https://example.com --site mysite
+# Recon on the target site
+opencli browser open https://example.com
+opencli browser network
+opencli browser state
 
-# Auto-generate adapter from explore artifacts
-opencli synthesize mysite
-
-# One-shot: explore → synthesize → register
-opencli generate https://example.com --goal "trending"
+# Scaffold + verify
+opencli browser init mysite/trending
+opencli browser verify mysite/trending
 ```
 
-See [AI Workflow](/developer/ai-workflow) for the complete guide.
+See [AI Workflow](/developer/ai-workflow) for the full loop and the adapter-author skill for the step-by-step runbook.

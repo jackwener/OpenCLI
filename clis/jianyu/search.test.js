@@ -125,4 +125,29 @@ describe('jianyu search helpers', () => {
         expect(result.rows[0].title).toContain('电梯采购公告');
         expect(result.rows[1].title).toContain('另一条电梯采购公告');
     });
+    it('classifies nologin links as blocked detail targets', () => {
+        const signal = __test__.classifyDetailStatus('https://www.jianyu360.cn/nologin/content/ABC.html');
+        expect(signal.detail_status).toBe('blocked');
+    });
+    it('classifies accessible detail urls as ok even when they are not jybx paths', () => {
+        const signal = __test__.classifyDetailStatus('https://www.jianyu360.cn/notice/detail/123');
+        expect(signal.detail_status).toBe('ok');
+        expect(signal.detail_reason).toBe('detail_candidate');
+    });
+    it('classifies list pages as entry_only', () => {
+        const signal = __test__.classifyDetailStatus('https://www.jianyu360.cn/list/stype/ZBGG.html');
+        expect(signal.detail_status).toBe('entry_only');
+    });
+    it('extracts stable notice id from jybx urls', () => {
+        const id = __test__.extractNoticeId('https://shandong.jianyu360.cn/jybx/20260310_26030938267551.html');
+        expect(id).toBe('20260310_26030938267551');
+    });
+    it('keeps only rows inside recency window', () => {
+        const within = __test__.isWithinSinceDays('2026-03-20', 30, new Date('2026-04-09T00:00:00Z'));
+        const stale = __test__.isWithinSinceDays('2026-02-01', 30, new Date('2026-04-09T00:00:00Z'));
+        const missing = __test__.isWithinSinceDays('', 30, new Date('2026-04-09T00:00:00Z'));
+        expect(within).toBe(true);
+        expect(stale).toBe(false);
+        expect(missing).toBe(false);
+    });
 });

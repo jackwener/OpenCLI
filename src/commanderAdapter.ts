@@ -74,6 +74,16 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
         const v = optionsRecord[arg.name] ?? optionsRecord[camelName];
         if (v !== undefined) rawKwargs[arg.name] = v;
       }
+      const optionSources: Record<string, string> = {};
+      for (const arg of cmd.args) {
+        if (arg.positional) continue;
+        const camelName = arg.name.replace(/-([a-z])/g, (_m, ch: string) => ch.toUpperCase());
+        const source = subCmd.getOptionValueSource(camelName) ?? subCmd.getOptionValueSource(arg.name);
+        if (source === 'cli') optionSources[arg.name] = source;
+      }
+      if (Object.keys(optionSources).length > 0) {
+        rawKwargs.__opencliOptionSources = optionSources;
+      }
       const kwargs = prepareCommandArgs(cmd, rawKwargs);
 
       const verbose = optionsRecord.verbose === true;

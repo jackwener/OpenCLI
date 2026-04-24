@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { extractMedia } from './shared.js';
 // ── Twitter GraphQL constants ──────────────────────────────────────────
 const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 const TWEET_DETAIL_QUERY_ID = 'nBS-WpgA6ZG0CyNHD517JQ';
@@ -54,6 +55,7 @@ function extractTweet(r, seen) {
         in_reply_to: l.in_reply_to_status_id_str || undefined,
         created_at: l.created_at,
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
+        ...extractMedia(l),
     };
 }
 function parseTweetDetail(data, seen) {
@@ -101,7 +103,7 @@ cli({
         { name: 'tweet-id', positional: true, type: 'string', required: true },
         { name: 'limit', type: 'int', default: 50 },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'url'],
+    columns: ['id', 'author', 'text', 'likes', 'retweets', 'url', 'has_media', 'media_urls'],
     func: async (page, kwargs) => {
         let tweetId = kwargs['tweet-id'];
         const urlMatch = tweetId.match(/\/status\/(\d+)/);

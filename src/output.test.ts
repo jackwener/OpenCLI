@@ -37,6 +37,13 @@ describe('output TTY detection', () => {
     expect(JSON.parse(out)).toEqual([{ name: 'alice' }]);
   });
 
+  it('shows elapsed time when elapsed is 0', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, writable: true });
+    render([{ name: 'alice' }], { fmt: 'table', columns: ['name'], elapsed: 0 });
+    const out = logSpy.mock.calls.map((c: unknown[]) => c[0]).join('\n');
+    expect(out).toContain('0.0s');
+  });
+
   it('explicit -f table overrides non-TTY auto-downgrade', () => {
     Object.defineProperty(process.stdout, 'isTTY', { value: false, writable: true });
     render([{ name: 'alice' }], { fmt: 'table', fmtExplicit: true, columns: ['name'] });

@@ -38,6 +38,7 @@ export default defineConfig({
             'tests/e2e/output-formats.test.ts',
             'tests/e2e/plugin-management.test.ts',
             'tests/e2e/browser-tabs.test.ts',
+            'tests/e2e/article-download-pipeline.test.ts',
             // Extended browser tests (20+ sites) — opt-in only:
             //   OPENCLI_E2E=1 npx vitest run
             ...(includeExtendedE2e ? ['tests/e2e/browser-public-extended.test.ts', 'tests/e2e/browser-auth.test.ts', 'tests/e2e/douban.test.ts'] : []),

@@ -41,7 +41,7 @@ export const imageCommand = cli({
     timeoutSeconds: 240,
     args: [
         { name: 'prompt', positional: true, required: true, help: 'Image prompt to send to ChatGPT' },
-        { name: 'op', default: path.join(os.homedir(), 'Pictures', 'chatgpt'), help: 'Output directory' },
+        { name: 'op', default: '~/Pictures/chatgpt', help: 'Output directory' },
         { name: 'sd', type: 'boolean', default: false, help: 'Skip download shorthand; only show ChatGPT link' },
     ],
     columns: ['status', 'file', 'link'],

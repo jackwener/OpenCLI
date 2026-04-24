@@ -20,9 +20,9 @@ cli({
             throw new CliError('INVALID_ARGUMENT', 'limit must be a positive integer', 'Example: --limit 5');
         }
         const credentials = loadXiaoyuzhouCredentials();
-        const response = await requestXiaoyuzhouJson('/v1/podcast/listEpisode', {
+        const response = await requestXiaoyuzhouJson('/v1/episode/list', {
             method: 'POST',
-            body: { pid: args.id, limit: requestedLimit },
+            body: { pid: args.id, order: 'desc', limit: requestedLimit },
             credentials,
         });
         const episodes = response.data ?? [];

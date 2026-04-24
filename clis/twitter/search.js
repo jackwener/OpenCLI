@@ -1,5 +1,6 @@
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { extractMedia } from './shared.js';
 /**
  * Trigger Twitter search SPA navigation with fallback strategies.
  *
@@ -102,7 +103,7 @@ cli({
         { name: 'filter', type: 'string', default: 'top', choices: ['top', 'live'] },
         { name: 'limit', type: 'int', default: 15 },
     ],
-    columns: ['id', 'author', 'text', 'created_at', 'likes', 'views', 'url'],
+    columns: ['id', 'author', 'text', 'created_at', 'likes', 'views', 'url', 'has_media', 'media_urls'],
     func: async (page, kwargs) => {
         const query = kwargs.query;
         const filter = kwargs.filter === 'live' ? 'live' : 'top';
@@ -156,7 +157,8 @@ cli({
                         created_at: tweet.legacy?.created_at || '',
                         likes: tweet.legacy?.favorite_count || 0,
                         views: tweet.views?.count || '0',
-                        url: `https://x.com/i/status/${tweet.rest_id}`
+                        url: `https://x.com/i/status/${tweet.rest_id}`,
+                        ...extractMedia(tweet.legacy),
                     });
                 }
             }

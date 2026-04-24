@@ -1,6 +1,6 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { resolveTwitterQueryId } from './shared.js';
+import { resolveTwitterQueryId, extractMedia } from './shared.js';
 // ── Twitter GraphQL constants ──────────────────────────────────────────
 const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 const HOME_TIMELINE_QUERY_ID = 'c-CzHF1LboFilMpsx4ZCrQ';
@@ -85,6 +85,7 @@ function extractTweet(result, seen) {
         views,
         created_at: l.created_at || '',
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
+        ...extractMedia(l),
     };
 }
 function parseHomeTimeline(data, seen) {
@@ -148,7 +149,7 @@ cli({
         },
         { name: 'limit', type: 'int', default: 20 },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'replies', 'views', 'created_at', 'url'],
+    columns: ['id', 'author', 'text', 'likes', 'retweets', 'replies', 'views', 'created_at', 'url', 'has_media', 'media_urls'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 20;
         const timelineType = kwargs.type === 'following' ? 'following' : 'for-you';

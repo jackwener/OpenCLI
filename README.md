@@ -11,18 +11,18 @@
 OpenCLI gives you one surface for three different kinds of automation:
 
 - **Use built-in adapters** for sites like Bilibili, Zhihu, Xiaohongshu, Reddit, HackerNews, Twitter/X, and [many more](#built-in-commands).
-- **Let AI Agents operate any website** — install the `opencli-browser` skill in your AI agent (Claude Code, Cursor, etc.), and it can navigate, click, type, extract, and inspect any page using your logged-in browser.
-- **Generate new adapters** from real browser behavior with `explore`, `synthesize`, `generate`, and `cascade`.
+- **Let AI Agents operate any website** — install the `opencli-adapter-author` skill in your AI agent (Claude Code, Cursor, etc.), and it can navigate, click, type, extract, and inspect any page through your logged-in browser via `opencli browser` primitives.
+- **Write new adapters** end-to-end with `opencli browser` + the `opencli-adapter-author` skill, which guides from first recon through field decoding, code, and `opencli browser verify`.
 
 It also works as a **CLI hub** for local tools such as `gh`, `docker`, and other binaries you register yourself, plus **desktop app adapters** for Electron apps like Cursor, Codex, Antigravity, ChatGPT, and Notion.
 
 ## Highlights
 
 - **Desktop App Control** — Drive Electron apps (Cursor, Codex, ChatGPT, Notion, etc.) directly from the terminal via CDP.
-- **Browser Automation for AI Agents** — Install the `opencli-browser` skill, and your AI agent can operate any website: navigate, click, type, extract, screenshot — all through your logged-in Chrome session.
-- **Website → CLI** — Turn any website into a deterministic CLI: 90+ pre-built adapters, or generate your own with `opencli generate`.
+- **Browser Automation for AI Agents** — Install the `opencli-adapter-author` skill, and your AI agent can operate any website: navigate, click, type, extract, screenshot — all through your logged-in Chrome session.
+- **Website → CLI** — Turn any website into a deterministic CLI: 90+ pre-built adapters, or write your own with the `opencli-adapter-author` skill + `opencli browser verify`.
 - **Account-safe** — Reuses Chrome/Chromium logged-in state; your credentials never leave the browser.
-- **AI Agent ready** — `explore` discovers APIs, `synthesize` generates adapters, `cascade` finds auth strategies. The `opencli-browser` skill gives any AI agent full browser control.
+- **AI Agent ready** — One skill takes you from site recon through API discovery, field decoding, adapter writing, and verification.
 - **CLI Hub** — Discover, auto-install, and passthrough commands to any external CLI (gh, docker, obsidian, etc).
 - **Zero LLM cost** — No tokens consumed at runtime. Run 10,000 times and pay nothing.
 - **Deterministic** — Same command, same output schema, every time. Pipeable, scriptable, CI-friendly.
@@ -81,24 +81,26 @@ npx skills add jackwener/opencli
 Or install only what you need:
 
 ```bash
-npx skills add jackwener/opencli --skill opencli-usage
+npx skills add jackwener/opencli --skill opencli-adapter-author
+npx skills add jackwener/opencli --skill opencli-autofix
 npx skills add jackwener/opencli --skill opencli-browser
-npx skills add jackwener/opencli --skill opencli-explorer
-npx skills add jackwener/opencli --skill opencli-oneshot
+npx skills add jackwener/opencli --skill opencli-usage
+npx skills add jackwener/opencli --skill smart-search
 ```
 
 ### Which skill to use
 
 | Skill | When to use | Example prompt to your AI agent |
 |-------|------------|-------------------------------|
-| **opencli-browser** | Operate any website in real time | "Help me post this content on Xiaohongshu" / "Check my Twitter notifications and summarize them" |
-| **opencli-explorer** | Create a reusable CLI for a site | "Generate an adapter for douyin trending" |
-| **opencli-oneshot** | Quick one-off: URL + goal → adapter | "Make a command that grabs the top posts from this page" |
-| **opencli-usage** | Use existing built-in adapters | "Get the top 5 Bilibili trending videos" |
+| **opencli-adapter-author** | Operate a site in real time, or write a reusable adapter for a new site | "Help me check my Xiaohongshu notifications" / "Write an adapter for douyin trending" / "Make a command that grabs the top posts from this page" |
+| **opencli-autofix** | Repair a broken adapter when a built-in command fails | "`opencli zhihu hot` is returning empty — fix it" |
+| **opencli-browser** | Browser automation reference for AI agents | "Use browser commands to scrape this page" |
+| **opencli-usage** | Quick reference for all OpenCLI commands and sites | "What commands does OpenCLI have for Twitter?" |
+| **smart-search** | Search across existing OpenCLI capabilities | "Find me a Bilibili trending adapter" |
 
 ### How it works
 
-Once the `opencli-browser` skill is installed, your AI agent can:
+Once `opencli-adapter-author` is installed, your AI agent can:
 
 1. **Navigate** to any URL using your logged-in browser
 2. **Read** page content via structured DOM snapshots (not screenshots)
@@ -109,10 +111,13 @@ Once the `opencli-browser` skill is installed, your AI agent can:
 The agent handles all the `opencli browser` commands internally — you just describe what you want done in natural language.
 
 **Skill references:**
-- [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md) — real-time browser operation
-- [`skills/opencli-explorer/SKILL.md`](./skills/opencli-explorer/SKILL.md) — adapter creation workflow
+- [`skills/opencli-adapter-author/SKILL.md`](./skills/opencli-adapter-author/SKILL.md) — browser operation + adapter authoring, end-to-end
+- [`skills/opencli-autofix/SKILL.md`](./skills/opencli-autofix/SKILL.md) — repair broken adapters
+- [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md) — browser automation reference
+- [`skills/opencli-usage/SKILL.md`](./skills/opencli-usage/SKILL.md) — command and site reference
+- [`skills/smart-search/SKILL.md`](./skills/smart-search/SKILL.md) — capability search
 
-Available browser commands include `open`, `state`, `click`, `type`, `select`, `keys`, `wait`, `get`, `screenshot`, `scroll`, `back`, `eval`, `network`, `tab list`, `tab new`, `tab select`, `tab close`, `init`, `verify`, and `close`.
+Available browser commands include `open`, `state`, `click`, `type`, `select`, `keys`, `wait`, `get`, `find`, `extract`, `frames`, `screenshot`, `scroll`, `back`, `eval`, `network`, `tab list`, `tab new`, `tab select`, `tab close`, `init`, `verify`, and `close`.
 
 `opencli browser open <url>` and `opencli browser tab new [url]` both return a target ID. Use `opencli browser tab list` to inspect the target IDs of tabs that already exist, then pass `--tab <targetId>` to route a command to a specific tab. `tab new` creates a new tab without changing the default browser target; only `tab select <targetId>` promotes that tab to the default target for later untargeted `opencli browser ...` commands.
 
@@ -120,7 +125,7 @@ Available browser commands include `open`, `state`, `click`, `type`, `select`, `
 
 ### `browser`: AI Agent browser control
 
-`opencli browser` commands are the low-level primitives that AI Agents use to operate websites. You don't run these manually — instead, install the `opencli-browser` skill into your AI agent, describe what you want in natural language, and the agent handles the browser operations.
+`opencli browser` commands are the low-level primitives that AI Agents use to operate websites. You don't run these manually — instead, install the `opencli-adapter-author` skill into your AI agent, describe what you want in natural language, and the agent handles the browser operations.
 
 For example, tell your agent: *"Help me check my Xiaohongshu notifications"* — the agent will use `opencli browser open`, `state`, `click`, etc. under the hood.
 
@@ -128,17 +133,16 @@ For example, tell your agent: *"Help me check my Xiaohongshu notifications"* —
 
 Use site-specific commands such as `opencli hackernews top` or `opencli reddit hot` when the capability already exists. These are deterministic and work without browser — ideal for both humans and AI agents.
 
-### `explore` / `synthesize` / `generate`: create new CLIs
+### Writing a new adapter
 
-Use these commands when the site you need is not covered yet:
+When the site you need is not yet covered, use the `opencli-adapter-author` skill. It takes the agent end-to-end:
 
-- `explore` inspects the page, network activity, and capability surface.
-- `synthesize` turns exploration artifacts into evaluate-based JS adapters.
-- `generate` runs the verified generation path and returns either a usable command or a structured explanation of why completion was blocked or needs human review.
-
-### `cascade`: auth strategy discovery
-
-Use `cascade` to probe fallback auth paths such as public endpoints, cookies, and custom headers before you commit to an adapter design.
+1. Recon the site and classify its pattern (SPA / SSR / JSONP / Token / Streaming).
+2. Discover the right endpoint — network inspection, initial state, bundle search, token trace, or interceptor fallback.
+3. Decide the auth strategy — `PUBLIC` / `COOKIE` / `HEADER` / `INTERCEPT`.
+4. Decode response fields and design output columns.
+5. `opencli browser init <site>/<name>` → write adapter → `opencli browser verify <site>/<name>`.
+6. Persist site knowledge to `~/.opencli/sites/<site>/` so the next adapter for the same site is faster.
 
 ### CLI Hub and desktop adapters
 
@@ -159,15 +163,17 @@ OpenCLI is not only for websites. It can also:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENCLI_DAEMON_PORT` | `19825` | HTTP port for the daemon-extension bridge |
-| `OPENCLI_WINDOW_FOCUSED` | `false` | Set to `1` to open automation windows in the foreground (useful for debugging) |
+| `OPENCLI_WINDOW_FOCUSED` | `false` | Set to `1` to open automation windows in the foreground (useful for debugging). The `--focus` flag sets this. |
+| `OPENCLI_LIVE` | `false` | Set to `1` to keep the automation window open after an adapter command finishes (useful for inspection). The `--live` flag sets this. |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | Seconds to wait for browser connection |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Seconds to wait for a single browser command |
-| `OPENCLI_BROWSER_EXPLORE_TIMEOUT` | `120` | Seconds to wait for explore/record operations |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol endpoint for remote browser or Electron apps |
 | `OPENCLI_CDP_TARGET` | — | Filter CDP targets by URL substring (e.g. `detail.1688.com`) |
 | `OPENCLI_VERBOSE` | `false` | Enable verbose logging (`-v` flag also works) |
 | `OPENCLI_DIAGNOSTIC` | `false` | Set to `1` to capture structured diagnostic context on failures |
 | `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |
+
+`--focus` works for both `opencli browser *` and browser-backed adapter commands. `--live` is mainly for adapter commands: browser subcommands already keep the automation window open until you run `opencli browser close` or the idle timeout expires.
 
 ## Update
 
@@ -181,10 +187,11 @@ npx skills add jackwener/opencli
 Or refresh only the skills you actually use:
 
 ```bash
-npx skills add jackwener/opencli --skill opencli-usage
+npx skills add jackwener/opencli --skill opencli-adapter-author
+npx skills add jackwener/opencli --skill opencli-autofix
 npx skills add jackwener/opencli --skill opencli-browser
-npx skills add jackwener/opencli --skill opencli-explorer
-npx skills add jackwener/opencli --skill opencli-oneshot
+npx skills add jackwener/opencli --skill opencli-usage
+npx skills add jackwener/opencli --skill smart-search
 ```
 
 ## For Developers
@@ -209,13 +216,13 @@ To load the source Browser Bridge extension:
 | Site | Commands |
 |------|----------|
 | **xiaohongshu** | `search` `note` `comments` `feed` `user` `download` `publish` `notifications` `creator-notes` `creator-notes-summary` `creator-note-detail` `creator-profile` `creator-stats` |
-| **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `me` `subtitle` `user-videos` |
+| **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `me` `subtitle` `video` `user-videos` |
 | **tieba** | `hot` `posts` `search` `read` |
 | **hupu** | `hot` `search` `detail` `mentions` `reply` `like` `unlike` |
-| **twitter** | `trending` `search` `timeline` `lists` `list-tweets` `list-add` `list-remove` `bookmarks` `post` `download` `profile` `article` `like` `likes` `notifications` `reply` `reply-dm` `thread` `follow` `unfollow` `followers` `following` `block` `unblock` `bookmark` `unbookmark` `delete` `hide-reply` `accept` |
+| **twitter** | `trending` `search` `timeline` `tweets` `lists` `list-tweets` `list-add` `list-remove` `bookmarks` `post` `download` `profile` `article` `like` `likes` `notifications` `reply` `reply-dm` `thread` `follow` `unfollow` `followers` `following` `block` `unblock` `bookmark` `unbookmark` `delete` `hide-reply` `accept` |
 | **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `upvoted` `save` `saved` `comment` `subscribe` |
 | **zhihu** | `hot` `search` `question` `download` `follow` `like` `favorite` `comment` `answer` |
-| **amazon** | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` |
+| **amazon** | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` `rankings` |
 | **1688** | `search` `item` `assets` `download` `store` |
 | **gitee** | `trending` `search` `user` |
 | **gemini** | `new` `ask` `image` `deep-research` `deep-research-result` |
@@ -232,7 +239,8 @@ To load the source Browser Bridge extension:
 | **gov-policy** | `search` `recent` |
 | **nowcoder** | `hot` `trending` `topics` `recommend` `creators` `companies` `jobs` `search` `suggest` `experience` `referral` `salary` `papers` `practice` `notifications` `detail` |
 | **wanfang** | `search` |
-| **xiaoyuzhou** | `podcast*` `podcast-episodes*` `episode*` `download*` `transcript*` |
+| **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
+| **xiaoyuzhou** | `auth*` `podcast*` `podcast-episodes*` `episode*` `download*` `transcript*` |
 
 90+ adapters in total — **[→ see all supported sites & commands](./docs/adapters/index.md)**
 
@@ -248,8 +256,8 @@ OpenCLI acts as a universal hub for your existing command-line tools — unified
 | **obsidian** | Obsidian vault management | `opencli obsidian search query="AI"` |
 | **docker** | Docker | `opencli docker ps` |
 | **lark-cli** | Lark/Feishu — messages, docs, calendar, tasks, 200+ commands | `opencli lark-cli calendar +agenda` |
-| **dingtalk** | DingTalk — cross-platform CLI for DingTalk's full suite, designed for humans and AI agents | `opencli dingtalk msg send --to user "hello"` |
-| **wecom** | WeCom/企业微信 — CLI for WeCom open platform, for humans and AI agents | `opencli wecom msg send --to user "hello"` |
+| **dws** | DingTalk — cross-platform CLI for DingTalk's full suite, designed for humans and AI agents | `opencli dws msg send --to user "hello"` |
+| **wecom-cli** | WeCom/企业微信 — CLI for WeCom open platform, for humans and AI agents | `opencli wecom-cli msg send --to user "hello"` |
 | **vercel** | Vercel — deploy projects, manage domains, env vars, logs | `opencli vercel deploy --prod` |
 
 **Register your own** — add any local CLI so AI agents can discover it via `opencli list`:
@@ -333,8 +341,8 @@ opencli follows Unix `sysexits.h` conventions so it integrates naturally with sh
 
 ```bash
 opencli spotify status || echo "exit $?"   # 69 if browser not running
-opencli github issues 2>/dev/null
-[ $? -eq 77 ] && opencli github auth       # auto-auth if not logged in
+opencli gh issue list 2>/dev/null
+[ $? -eq 77 ] && opencli gh auth login      # auto-auth if not logged in
 ```
 
 ## Plugins
@@ -359,16 +367,15 @@ See [Plugins Guide](./docs/guide/plugins.md) for creating your own plugin.
 
 ## For AI Agents (Developer Guide)
 
-> **Quick mode**: To generate a single command for a specific page URL, see [opencli-oneshot skill](./skills/opencli-oneshot/SKILL.md) — just a URL + one-line goal, 4 steps done.
+Before writing any adapter code, read the [`opencli-adapter-author` skill](./skills/opencli-adapter-author/SKILL.md). It takes you end-to-end:
 
-> **Full mode**: Before writing any adapter code, read [opencli-explorer skill](./skills/opencli-explorer/SKILL.md). It contains the complete browser exploration workflow, the 5-tier authentication strategy decision tree, and debugging guide.
+- Recon the site and pick a pattern (SPA / SSR / JSONP / Token / Streaming).
+- Discover the right endpoint via `opencli browser network`, `eval`, or the interceptor fallback.
+- Decide auth strategy (`PUBLIC` / `COOKIE` / `HEADER` / `INTERCEPT`).
+- Decode response fields, design columns, scaffold with `opencli browser init`.
+- Verify with `opencli browser verify <site>/<name>` before shipping.
 
-```bash
-opencli explore https://example.com --site mysite   # Discover APIs + capabilities
-opencli synthesize mysite                            # Generate JS adapters
-opencli generate https://example.com --goal "hot"   # One-shot: explore → synthesize → register
-opencli cascade https://api.example.com/data         # Auto-probe: PUBLIC → COOKIE → HEADER
-```
+Adapters you write outside the repo live at `~/.opencli/clis/<site>/<name>.js`. Site knowledge (endpoints, field maps, fixtures) accumulates in `~/.opencli/sites/<site>/` so the next adapter for the same site starts from context instead of zero.
 
 ## Testing
 

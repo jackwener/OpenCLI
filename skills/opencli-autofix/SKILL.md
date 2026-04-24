@@ -130,8 +130,11 @@ opencli browser open https://example.com/target-page && opencli browser state
 # Interact to trigger API calls
 opencli browser click <N> && opencli browser network
 
-# Inspect specific API response
-opencli browser network --detail <index>
+# Narrow to the request you care about by the fields its body should have
+opencli browser network --filter author,text,likes
+
+# Inspect specific API response (key is the `key` field from the default JSON output)
+opencli browser network --detail <key>
 ```
 
 ## Step 4: Patch the Adapter
@@ -165,8 +168,8 @@ cat <RepairContext.adapter.sourcePath>
 
 **Wait condition update:**
 ```typescript
-// Before: await page.waitForSelector('.loading-spinner', { hidden: true })
-// After:  await page.waitForSelector('[data-loaded="true"]')
+// Before: await page.wait({ selector: '.loading-spinner', hidden: true })
+// After:  await page.wait({ selector: '[data-loaded="true"]' })
 ```
 
 ### Rules for Patching
@@ -176,6 +179,7 @@ cat <RepairContext.adapter.sourcePath>
 3. **Prefer API over DOM scraping** — if you discover a JSON API during exploration, switch to it
 4. **Use `@jackwener/opencli/*` imports only** — never add third-party package imports
 5. **Test after patching** — run the command again to verify
+6. **Never relax `verify/<cmd>.json` fixtures to silence a failure.** A failing `patterns` / `notEmpty` / `mustNotContain` / `mustBeTruthy` rule means the adapter's output is broken. Tighten the adapter so it produces correct values; do not loosen the fixture to accept the broken values. The one legitimate reason to edit a fixture during repair is when the **site itself** changed shape (e.g. URL format migration) — in that case update the fixture and note the change in `~/.opencli/sites/<site>/notes.md`. Otherwise editing the fixture is covering up a silent correctness regression.
 
 ## Step 5: Verify the Fix
 
@@ -250,7 +254,7 @@ If `gh` is not installed or not authenticated, tell the user and skip — do not
 **Soft stops (report after attempting):**
 - **3 repair rounds exhausted** — stop, report what was tried and what failed
 - **Feature completely removed** — the data no longer exists
-- **Major redesign** — needs full adapter rewrite via `opencli-explorer` skill
+- **Major redesign** — needs full adapter rewrite via `opencli-adapter-author` skill
 
 In all stop cases, clearly communicate the situation to the user rather than making futile patches.
 

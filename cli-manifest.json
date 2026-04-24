@@ -272,6 +272,264 @@
     "sourceFile": "36kr/search.js"
   },
   {
+    "site": "51job",
+    "name": "company",
+    "description": "51job 公司简介 + 在招职位（按 encCoId）",
+    "domain": "jobs.51job.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "encCoId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "加密公司 ID（search 返回的 encCoId）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回职位数（1-50）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "jobId",
+      "title",
+      "salary",
+      "city",
+      "workYear",
+      "degree",
+      "funcType",
+      "issueDate",
+      "url",
+      "companyName",
+      "companyType",
+      "companySize",
+      "companyIndustry",
+      "companyIntro",
+      "companyUrl"
+    ],
+    "type": "js",
+    "modulePath": "51job/company.js",
+    "sourceFile": "51job/company.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "51job",
+    "name": "detail",
+    "description": "51job 职位详情（按 jobId）",
+    "domain": "jobs.51job.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "jobId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "职位 ID（search 返回的 jobId）"
+      }
+    ],
+    "columns": [
+      "jobId",
+      "title",
+      "salary",
+      "location",
+      "workYear",
+      "degree",
+      "category",
+      "address",
+      "ageRequirement",
+      "description",
+      "welfare",
+      "company",
+      "companyType",
+      "companySize",
+      "companyIndustry",
+      "companyUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "51job/detail.js",
+    "sourceFile": "51job/detail.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "51job",
+    "name": "hot",
+    "description": "51job 推荐职位（按城市/行业/排序浏览）",
+    "domain": "we.51job.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "area",
+        "type": "string",
+        "default": "全国",
+        "required": false,
+        "help": "城市名或 6 位城市码（默认 \"全国\"）"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "综合",
+        "required": false,
+        "help": "排序：综合 / 最新 / 薪资 / 距离"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "页码（1-based）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回条数（1-50）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "jobId",
+      "title",
+      "salary",
+      "salaryMin",
+      "salaryMax",
+      "city",
+      "district",
+      "workYear",
+      "degree",
+      "tags",
+      "company",
+      "companyFull",
+      "companyType",
+      "companySize",
+      "industry",
+      "hr",
+      "issueDate",
+      "url",
+      "companyUrl",
+      "encCoId"
+    ],
+    "type": "js",
+    "modulePath": "51job/hot.js",
+    "sourceFile": "51job/hot.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "51job",
+    "name": "search",
+    "description": "51job 前程无忧关键词职位搜索",
+    "domain": "we.51job.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词（岗位名 / 技能 / 公司）"
+      },
+      {
+        "name": "area",
+        "type": "string",
+        "default": "全国",
+        "required": false,
+        "help": "城市名或 6 位城市码（如 \"杭州\" / \"080200\" / \"全国\"）"
+      },
+      {
+        "name": "salary",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "薪资区间（如 \"10-15k\" / \"1-1.5万\" / \"20-30k\"）"
+      },
+      {
+        "name": "experience",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "工作年限（如 \"应届\" / \"1-3年\" / \"3-5年\" / \"5-7年\"）"
+      },
+      {
+        "name": "degree",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "学历要求（如 \"本科\" / \"大专\" / \"硕士\"）"
+      },
+      {
+        "name": "companyType",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "公司性质（如 \"外资\" / \"国企\" / \"民营\"）"
+      },
+      {
+        "name": "companySize",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "公司规模（如 \"50-150\" / \"1000-5000\"）"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "综合",
+        "required": false,
+        "help": "排序：综合 / 最新 / 薪资 / 距离"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "页码（1-based）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回条数（1-50）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "jobId",
+      "title",
+      "salary",
+      "salaryMin",
+      "salaryMax",
+      "city",
+      "district",
+      "workYear",
+      "degree",
+      "tags",
+      "company",
+      "companyFull",
+      "companyType",
+      "companySize",
+      "industry",
+      "hr",
+      "issueDate",
+      "url",
+      "companyUrl",
+      "encCoId"
+    ],
+    "type": "js",
+    "modulePath": "51job/search.js",
+    "sourceFile": "51job/search.js",
+    "navigateBefore": false
+  },
+  {
     "site": "amazon",
     "name": "bestsellers",
     "description": "Amazon Best Sellers pages for category candidate discovery",
@@ -1715,6 +1973,30 @@
     "modulePath": "bilibili/user-videos.js",
     "sourceFile": "bilibili/user-videos.js",
     "navigateBefore": "https://www.bilibili.com"
+  },
+  {
+    "site": "bilibili",
+    "name": "video",
+    "description": "Get Bilibili video metadata (title, author, duration, stats, etc.)",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "bvid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "BV ID, video URL, or b23.tv short link"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "bilibili/video.js",
+    "sourceFile": "bilibili/video.js",
+    "navigateBefore": true
   },
   {
     "site": "binance",
@@ -3250,7 +3532,7 @@
       {
         "name": "op",
         "type": "str",
-        "default": "/Users/jakevin/Pictures/chatgpt",
+        "default": "~/Pictures/chatgpt",
         "required": false,
         "help": "Output directory"
       },
@@ -4064,6 +4346,150 @@
     "modulePath": "cursor/send.js",
     "sourceFile": "cursor/send.js",
     "navigateBefore": true
+  },
+  {
+    "site": "deepseek",
+    "name": "ask",
+    "description": "Send a prompt to DeepSeek and get the response",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds to wait for response"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      },
+      {
+        "name": "model",
+        "type": "str",
+        "default": "instant",
+        "required": false,
+        "help": "Model to use: instant or expert",
+        "choices": [
+          "instant",
+          "expert"
+        ]
+      },
+      {
+        "name": "think",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Enable DeepThink mode"
+      },
+      {
+        "name": "search",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Enable web search"
+      },
+      {
+        "name": "file",
+        "type": "str",
+        "required": false,
+        "help": "Attach a file (PDF, image, text) with the prompt"
+      }
+    ],
+    "timeout": 180,
+    "type": "js",
+    "modulePath": "deepseek/ask.js",
+    "sourceFile": "deepseek/ask.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "deepseek",
+    "name": "history",
+    "description": "List conversation history from DeepSeek sidebar",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max conversations to show"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "deepseek/history.js",
+    "sourceFile": "deepseek/history.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "deepseek",
+    "name": "new",
+    "description": "Start a new conversation in DeepSeek",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "deepseek/new.js",
+    "sourceFile": "deepseek/new.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "deepseek",
+    "name": "read",
+    "description": "Read the current DeepSeek conversation",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "deepseek/read.js",
+    "sourceFile": "deepseek/read.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "deepseek",
+    "name": "status",
+    "description": "Check DeepSeek page availability and login state",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Login",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "deepseek/status.js",
+    "sourceFile": "deepseek/status.js",
+    "navigateBefore": false
   },
   {
     "site": "devto",
@@ -5711,6 +6137,158 @@
   },
   {
     "site": "eastmoney",
+    "name": "announcement",
+    "description": "上市公司公告（按交易所筛选）",
+    "domain": "np-anotice-stock.eastmoney.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "market",
+        "type": "string",
+        "default": "SHA,SZA,BJA",
+        "required": false,
+        "help": "交易所：SHA (沪) / SZA (深) / BJA (北) 可逗号分隔"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量 (max 100)"
+      }
+    ],
+    "columns": [
+      "time",
+      "code",
+      "name",
+      "title",
+      "category",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "eastmoney/announcement.js",
+    "sourceFile": "eastmoney/announcement.js"
+  },
+  {
+    "site": "eastmoney",
+    "name": "convertible",
+    "description": "可转债行情列表（默认按成交额排序）",
+    "domain": "push2.eastmoney.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "turnover",
+        "required": false,
+        "help": "排序：turnover / change / drop / price / premium"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量 (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "bondCode",
+      "bondName",
+      "bondPrice",
+      "bondChangePct",
+      "stockCode",
+      "stockName",
+      "stockPrice",
+      "stockChangePct",
+      "convPrice",
+      "convValue",
+      "convPremiumPct",
+      "remainingYears",
+      "ytm",
+      "listDate"
+    ],
+    "type": "js",
+    "modulePath": "eastmoney/convertible.js",
+    "sourceFile": "eastmoney/convertible.js"
+  },
+  {
+    "site": "eastmoney",
+    "name": "etf",
+    "description": "ETF 列表按成交额/涨跌幅排行",
+    "domain": "push2.eastmoney.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "turnover",
+        "required": false,
+        "help": "排序：turnover / change / drop / volume / rate"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量 (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "code",
+      "name",
+      "price",
+      "changePercent",
+      "change",
+      "turnover",
+      "volume",
+      "turnoverRate"
+    ],
+    "type": "js",
+    "modulePath": "eastmoney/etf.js",
+    "sourceFile": "eastmoney/etf.js"
+  },
+  {
+    "site": "eastmoney",
+    "name": "holders",
+    "description": "十大流通股东（A股 F10 数据）",
+    "domain": "datacenter-web.eastmoney.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "symbol",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "A股代码（600519 / sh600519 等）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "返回股东数（默认十大流通股东）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "reportDate",
+      "name",
+      "holdNum",
+      "floatRatio",
+      "change"
+    ],
+    "type": "js",
+    "modulePath": "eastmoney/holders.js",
+    "sourceFile": "eastmoney/holders.js"
+  },
+  {
+    "site": "eastmoney",
     "name": "hot-rank",
     "description": "东方财富热股榜",
     "domain": "guba.eastmoney.com",
@@ -5738,6 +6316,379 @@
     "modulePath": "eastmoney/hot-rank.js",
     "sourceFile": "eastmoney/hot-rank.js",
     "navigateBefore": true
+  },
+  {
+    "site": "eastmoney",
+    "name": "index-board",
+    "description": "主要市场指数行情（A股 / 港股 / 美股）",
+    "domain": "push2.eastmoney.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "group",
+        "type": "string",
+        "default": "main",
+        "required": false,
+        "help": "指数分组：main (A股主要), hk (港股), us (美股), all"
+      }
+    ],
+    "columns": [
+      "code",
+      "name",
+      "price",
+      "changePercent",
+      "change",
+      "open",
+      "high",
+      "low",
+      "prevClose"
+    ],
+    "type": "js",
+    "modulePath": "eastmoney/index-board.js",
+    "sourceFile": "eastmoney/index-board.js"
+  },
+  {
+    "site": "eastmoney",
+    "name": "kline",
+    "description": "K线历史数据（分/日/周/月/前复权/后复权）",
+    "domain": "push2his.eastmoney.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "symbol",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "股票代码（A/HK/US 均可）"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "day",
+        "required": false,
+        "help": "周期：1m/5m/15m/30m/60m/day/week/month"
+      },
+      {
+        "name": "adjust",
+        "type": "string",
+        "default": "forward",
+        "required": false,
+        "help": "复权：none / forward / backward"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "返回最近 N 根（末尾）"
+      }
+    ],
+    "columns": [
+      "date",
+      "open",
+      "close",
+      "high",
+      "low",
+      "volume",
+      "turnover",
+      "amplitude",
+      "changePercent",
+      "change",
+      "turnoverRate"
+    ],
+    "type": "js",
+    "modulePath": "eastmoney/kline.js",
+    "sourceFile": "eastmoney/kline.js"
+  },
+  {
+    "site": "eastmoney",
+    "name": "kuaixun",
+    "description": "东方财富 7x24 财经快讯",
+    "domain": "np-listapi.eastmoney.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "column",
+        "type": "string",
+        "default": "102",
+        "required": false,
+        "help": "频道：102 (重要) / 101 (全部) / 104 / 105 / 106 / 107"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量 (max 100)"
+      }
+    ],
+    "columns": [
+      "time",
+      "title",
+      "summary",
+      "stocks"
+    ],
+    "type": "js",
+    "modulePath": "eastmoney/kuaixun.js",
+    "sourceFile": "eastmoney/kuaixun.js"
+  },
+  {
+    "site": "eastmoney",
+    "name": "longhu",
+    "description": "龙虎榜明细（A股交易所公开披露榜单）",
+    "domain": "datacenter-web.eastmoney.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "date",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "开始交易日 YYYY-MM-DD (默认昨天)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量 (max 100)"
+      }
+    ],
+    "columns": [
+      "tradeDate",
+      "code",
+      "name",
+      "closePrice",
+      "changeRate",
+      "boardAmt",
+      "buyAmt",
+      "sellAmt",
+      "netAmt",
+      "turnover",
+      "dealRatio",
+      "market",
+      "reason"
+    ],
+    "type": "js",
+    "modulePath": "eastmoney/longhu.js",
+    "sourceFile": "eastmoney/longhu.js"
+  },
+  {
+    "site": "eastmoney",
+    "name": "money-flow",
+    "description": "主力资金净流入排行（今日/5日/10日）",
+    "domain": "push2.eastmoney.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "range",
+        "type": "string",
+        "default": "today",
+        "required": false,
+        "help": "周期：today / 5d / 10d"
+      },
+      {
+        "name": "order",
+        "type": "string",
+        "default": "desc",
+        "required": false,
+        "help": "排序：desc (净流入排行) / asc (净流出)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量 (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "code",
+      "name",
+      "price",
+      "changePercent",
+      "mainNet",
+      "mainNetRatio",
+      "superNet",
+      "bigNet",
+      "mediumNet",
+      "smallNet"
+    ],
+    "type": "js",
+    "modulePath": "eastmoney/money-flow.js",
+    "sourceFile": "eastmoney/money-flow.js"
+  },
+  {
+    "site": "eastmoney",
+    "name": "northbound",
+    "description": "沪深港通北向/南向资金当日分时净流入（万元）",
+    "domain": "push2.eastmoney.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "direction",
+        "type": "string",
+        "default": "north",
+        "required": false,
+        "help": "方向：north (北向，即外资买A) / south (南向，即内地买港)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "返回最近 N 分钟"
+      }
+    ],
+    "columns": [
+      "time",
+      "cumulativeNetYi",
+      "minuteNetYi",
+      "totalNetYi"
+    ],
+    "type": "js",
+    "modulePath": "eastmoney/northbound.js",
+    "sourceFile": "eastmoney/northbound.js"
+  },
+  {
+    "site": "eastmoney",
+    "name": "quote",
+    "description": "个股实时行情（A股 / 港股 / 美股）— 来自 push2.eastmoney.com",
+    "domain": "push2.eastmoney.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "symbols",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "股票代码（可用逗号/空格分隔多个）"
+      }
+    ],
+    "columns": [
+      "code",
+      "name",
+      "market",
+      "price",
+      "changePercent",
+      "change",
+      "open",
+      "high",
+      "low",
+      "prevClose",
+      "volume",
+      "turnover",
+      "turnoverRate",
+      "amplitude",
+      "peDynamic",
+      "priceBook",
+      "marketCap",
+      "floatMarketCap"
+    ],
+    "type": "js",
+    "modulePath": "eastmoney/quote.js",
+    "sourceFile": "eastmoney/quote.js"
+  },
+  {
+    "site": "eastmoney",
+    "name": "rank",
+    "description": "东财市场涨跌/成交排行（沪深/北证/创/科/港/美）",
+    "domain": "push2.eastmoney.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "market",
+        "type": "string",
+        "default": "hs-a",
+        "required": false,
+        "help": "市场：hs-a / sh-a / sz-a / bj-a / cyb / kcb / hk / us"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "change",
+        "required": false,
+        "help": "排序：change / drop / turnover / volume / amplitude / rate"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量 (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "code",
+      "name",
+      "price",
+      "changePercent",
+      "change",
+      "turnover",
+      "volume",
+      "turnoverRate",
+      "peDynamic",
+      "marketCap"
+    ],
+    "type": "js",
+    "modulePath": "eastmoney/rank.js",
+    "sourceFile": "eastmoney/rank.js"
+  },
+  {
+    "site": "eastmoney",
+    "name": "sectors",
+    "description": "板块排行（行业/概念/地域）按涨跌幅、主力资金或成交额排序",
+    "domain": "push2.eastmoney.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "type",
+        "type": "string",
+        "default": "industry",
+        "required": false,
+        "help": "板块类型：industry / concept / region"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "change",
+        "required": false,
+        "help": "排序：change / drop / money-flow / out-flow / turnover"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量 (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "code",
+      "name",
+      "price",
+      "changePercent",
+      "mainNet",
+      "leadStock",
+      "leadChangePercent",
+      "upCount",
+      "downCount"
+    ],
+    "type": "js",
+    "modulePath": "eastmoney/sectors.js",
+    "sourceFile": "eastmoney/sectors.js"
   },
   {
     "site": "facebook",
@@ -6169,7 +7120,7 @@
       {
         "name": "op",
         "type": "str",
-        "default": "/Users/jakevin/tmp/gemini-images",
+        "default": "~/tmp/gemini-images",
         "required": false,
         "help": "Output directory shorthand"
       },
@@ -7450,7 +8401,7 @@
       {
         "name": "path",
         "type": "str",
-        "default": "/Users/jakevin/Downloads/Instagram",
+        "default": "~/Downloads/Instagram",
         "required": false,
         "help": "Download directory"
       }
@@ -8242,13 +9193,20 @@
         "default": 20,
         "required": false,
         "help": "Number of results (max 50)"
+      },
+      {
+        "name": "since_days",
+        "type": "int",
+        "required": false,
+        "help": "Only keep rows published within N days"
       }
     ],
     "columns": [
       "rank",
       "content_type",
       "title",
-      "publish_time",
+      "published_at",
+      "detail_status",
       "project_code",
       "budget_or_limit",
       "url"
@@ -12082,6 +13040,43 @@
     "navigateBefore": "https://www.pixiv.net"
   },
   {
+    "site": "powerchina",
+    "name": "search",
+    "description": "搜索中国电建阳光采购公告",
+    "domain": "bid.powerchina.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword, e.g. \"procurement\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results (max 50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "content_type",
+      "title",
+      "publish_time",
+      "project_code",
+      "budget_or_limit",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "powerchina/search.js",
+    "sourceFile": "powerchina/search.js",
+    "navigateBefore": "https://bid.powerchina.cn"
+  },
+  {
     "site": "producthunt",
     "name": "browse",
     "description": "Best products in a Product Hunt category",
@@ -14636,6 +15631,36 @@
     "navigateBefore": "https://www.tiktok.com"
   },
   {
+    "site": "toutiao",
+    "name": "articles",
+    "description": "获取头条号创作者后台文章列表及数据",
+    "domain": "mp.toutiao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "页码 (1-4)"
+      }
+    ],
+    "columns": [
+      "title",
+      "date",
+      "status",
+      "展现",
+      "阅读",
+      "点赞",
+      "评论"
+    ],
+    "type": "js",
+    "modulePath": "toutiao/articles.js",
+    "sourceFile": "toutiao/articles.js",
+    "navigateBefore": "https://mp.toutiao.com"
+  },
+  {
     "site": "twitter",
     "name": "accept",
     "description": "Auto-accept DM requests containing specific keywords",
@@ -15019,7 +16044,9 @@
       "name",
       "text",
       "likes",
-      "url"
+      "url",
+      "has_media",
+      "media_urls"
     ],
     "type": "js",
     "modulePath": "twitter/likes.js",
@@ -15384,7 +16411,9 @@
       "created_at",
       "likes",
       "views",
-      "url"
+      "url",
+      "has_media",
+      "media_urls"
     ],
     "type": "js",
     "modulePath": "twitter/search.js",
@@ -15420,7 +16449,9 @@
       "text",
       "likes",
       "retweets",
-      "url"
+      "url",
+      "has_media",
+      "media_urls"
     ],
     "type": "js",
     "modulePath": "twitter/thread.js",
@@ -15463,7 +16494,9 @@
       "replies",
       "views",
       "created_at",
-      "url"
+      "url",
+      "has_media",
+      "media_urls"
     ],
     "type": "js",
     "modulePath": "twitter/timeline.js",
@@ -15495,6 +16528,47 @@
     "type": "js",
     "modulePath": "twitter/trending.js",
     "sourceFile": "twitter/trending.js",
+    "navigateBefore": "https://x.com"
+  },
+  {
+    "site": "twitter",
+    "name": "tweets",
+    "description": "Fetch a Twitter user's most recent tweets (chronological, excludes pinned)",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Twitter screen name (with or without @)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max tweets to return"
+      }
+    ],
+    "columns": [
+      "author",
+      "created_at",
+      "is_retweet",
+      "text",
+      "likes",
+      "retweets",
+      "replies",
+      "views",
+      "url",
+      "has_media",
+      "media_urls"
+    ],
+    "type": "js",
+    "modulePath": "twitter/tweets.js",
+    "sourceFile": "twitter/tweets.js",
     "navigateBefore": "https://x.com"
   },
   {
@@ -16025,6 +17099,13 @@
         "default": 3,
         "required": false,
         "help": "Seconds to wait after page load"
+      },
+      {
+        "name": "stdout",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Print markdown to stdout instead of saving to a file"
       }
     ],
     "columns": [
@@ -16032,7 +17113,8 @@
       "author",
       "publish_time",
       "status",
-      "size"
+      "size",
+      "saved"
     ],
     "type": "js",
     "modulePath": "web/read.js",
@@ -16293,12 +17375,55 @@
       "author",
       "publish_time",
       "status",
-      "size"
+      "size",
+      "saved"
     ],
     "type": "js",
     "modulePath": "weixin/download.js",
     "sourceFile": "weixin/download.js",
     "navigateBefore": "https://mp.weixin.qq.com"
+  },
+  {
+    "site": "weread",
+    "name": "ai-outline",
+    "description": "Get AI-generated outline for a book",
+    "domain": "weread.qq.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "book-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Book ID (from shelf or search results)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 200,
+        "required": false,
+        "help": "Max outline items to return"
+      },
+      {
+        "name": "depth",
+        "type": "int",
+        "default": 4,
+        "required": false,
+        "help": "Max outline depth (2=topics, 3=key points, 4=details)"
+      },
+      {
+        "name": "raw",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Output structured rows (chapter/idx/level/text) for programmatic use"
+      }
+    ],
+    "type": "js",
+    "modulePath": "weread/ai-outline.js",
+    "sourceFile": "weread/ai-outline.js",
+    "navigateBefore": "https://weread.qq.com"
   },
   {
     "site": "weread",

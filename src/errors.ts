@@ -166,10 +166,11 @@ export function getErrorMessage(error: unknown): string {
 }
 
 /** Serialize an error cause chain into a readable string. */
-function serializeCause(cause: unknown): string {
+function serializeCause(cause: unknown, depth: number = 0): string {
+  if (depth > 10) return '(cause chain truncated)';
   if (cause instanceof Error) {
     const parts = [cause.message];
-    if (cause.cause) parts.push(`  caused by: ${serializeCause(cause.cause)}`);
+    if (cause.cause) parts.push(`  caused by: ${serializeCause(cause.cause, depth + 1)}`);
     return parts.join('\n');
   }
   return String(cause);

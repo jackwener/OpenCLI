@@ -40,6 +40,13 @@ interface RuntimeEvaluateResult {
 
 const CDP_SEND_TIMEOUT = 30_000;
 
+// Memory guard for in-process capture. The 4k cap we used to apply everywhere
+// silently truncated JSON so `JSON.parse` failed or gave partial objects — the
+// primary agent-facing bug. Now we keep the full body up to a large cap and
+// surface `responseBodyFullSize` + `responseBodyTruncated` so downstream layers
+// can tell the agent what happened instead of lying about the payload.
+export const CDP_RESPONSE_BODY_CAPTURE_LIMIT = 8 * 1024 * 1024;
+
 export class CDPBridge implements IBrowserFactory {
   private _ws: WebSocket | null = null;
   private _idCounter = 0;
@@ -109,7 +116,12 @@ export class CDPBridge implements IBrowserFactory {
               for (const fn of listeners) fn(msg.params);
             }
           }
-        } catch {}
+        } catch (err) {
+          if (process.env.OPENCLI_VERBOSE) {
+            // eslint-disable-next-line no-console
+            console.error('[cdp] Failed to parse WebSocket message:', err instanceof Error ? err.message : err);
+          }
+        }
       });
     });
   }
@@ -179,7 +191,11 @@ class CDPPage extends BasePage {
   private _networkCapturePattern = '';
   private _networkEntries: Array<{
     url: string; method: string; responseStatus?: number;
-    responseContentType?: string; responsePreview?: string; timestamp: number;
+    responseContentType?: string;
+    responsePreview?: string;
+    responseBodyFullSize?: number;
+    responseBodyTruncated?: boolean;
+    timestamp: number;
   }> = [];
   private _pendingRequests = new Map<string, number>(); // requestId → index in _networkEntries
   private _pendingBodyFetches: Set<Promise<void>> = new Set(); // track in-flight getResponseBody calls
@@ -282,12 +298,19 @@ class CDPPage extends BasePage {
           const bodyFetch = this.bridge.send('Network.getResponseBody', { requestId: p.requestId }).then((result: unknown) => {
             const r = result as { body?: string; base64Encoded?: boolean } | undefined;
             if (typeof r?.body === 'string') {
-              this._networkEntries[idx].responsePreview = r.base64Encoded
-                ? `base64:${r.body.slice(0, 4000)}`
-                : r.body.slice(0, 4000);
+              const fullSize = r.body.length;
+              const truncated = fullSize > CDP_RESPONSE_BODY_CAPTURE_LIMIT;
+              const body = truncated ? r.body.slice(0, CDP_RESPONSE_BODY_CAPTURE_LIMIT) : r.body;
+              this._networkEntries[idx].responsePreview = r.base64Encoded ? `base64:${body}` : body;
+              this._networkEntries[idx].responseBodyFullSize = fullSize;
+              this._networkEntries[idx].responseBodyTruncated = truncated;
             }
-          }).catch(() => {
+          }).catch((err) => {
             // Body unavailable for some requests (e.g. uploads) — non-fatal
+            if (process.env.OPENCLI_VERBOSE) {
+              // eslint-disable-next-line no-console
+              console.error(`[cdp] getResponseBody failed for ${p.requestId}:`, err instanceof Error ? err.message : err);
+            }
           }).finally(() => {
             this._pendingBodyFetches.delete(bodyFetch);
           });
