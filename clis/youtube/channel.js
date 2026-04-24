@@ -12,17 +12,20 @@ cli({
     args: [
         { name: 'id', required: true, positional: true, help: 'Channel ID (UCxxxx) or handle (@name)' },
         { name: 'limit', type: 'int', default: 10, help: 'Max recent videos (max 30)' },
+        { name: 'type', default: '', help: "Tab to read: '' (default — Home tab + Videos fallback) or 'shorts' (Shorts tab)" },
     ],
     columns: ['field', 'value'],
     func: async (page, kwargs) => {
         const channelId = String(kwargs.id);
         const limit = Math.min(kwargs.limit || 10, 30);
+        const requestedType = String(kwargs.type || '').toLowerCase();
         await page.goto('https://www.youtube.com');
         await page.wait(2);
         const data = await page.evaluate(`
       (async () => {
         const channelId = ${JSON.stringify(channelId)};
         const limit = ${limit};
+        const requestedType = ${JSON.stringify(requestedType)};
         const cfg = window.ytcfg?.data_ || {};
         const apiKey = cfg.INNERTUBE_API_KEY;
         const context = cfg.INNERTUBE_CONTEXT;
@@ -71,10 +74,49 @@ cli({
           subscriberCount = header.subscriberCountText.simpleText;
         }
 
-        // Extract recent videos from Home tab
         const tabs = data.contents?.twoColumnBrowseResultsRenderer?.tabs || [];
-        const homeTab = tabs.find(t => t.tabRenderer?.selected);
         const recentVideos = [];
+
+        // --type shorts: hit the Shorts tab via InnerTube and parse
+        // shortsLockupViewModel items. Returns at most \`limit\` Shorts.
+        if (requestedType === 'shorts') {
+          const shortsTab = tabs.find(t => {
+            const tab = t.tabRenderer;
+            const url = tab?.endpoint?.commandMetadata?.webCommandMetadata?.url || '';
+            return url.endsWith('/shorts') || tab?.title === 'Shorts';
+          });
+          const shortsTabParams = shortsTab?.tabRenderer?.endpoint?.browseEndpoint?.params;
+          if (shortsTabParams) {
+            const shortsResp = await fetch('/youtubei/v1/browse?key=' + apiKey + '&prettyPrint=false', {
+              method: 'POST', credentials: 'include',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({context, browseId, params: shortsTabParams})
+            });
+            if (shortsResp.ok) {
+              const shortsData = await shortsResp.json();
+              const respTabs = shortsData.contents?.twoColumnBrowseResultsRenderer?.tabs || [];
+              const richGrid = respTabs.find(t => t.tabRenderer?.selected)?.tabRenderer?.content?.richGridRenderer?.contents || [];
+              for (const item of richGrid) {
+                if (recentVideos.length >= limit) break;
+                const lockup = item.richItemRenderer?.content?.shortsLockupViewModel;
+                if (!lockup) continue;
+                const videoId = lockup.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId
+                              || (lockup.entityId || '').replace(/^shorts-shelf-item-/, '');
+                if (!videoId) continue;
+                const overlay = lockup.overlayMetadata || {};
+                recentVideos.push({
+                  title: overlay.primaryText?.content || '',
+                  duration: 'SHORT',
+                  views: overlay.secondaryText?.content || '',
+                  url: 'https://www.youtube.com/shorts/' + videoId,
+                });
+              }
+            }
+          }
+        }
+
+        // Extract recent videos from Home tab (default behaviour)
+        const homeTab = (requestedType === 'shorts') ? null : tabs.find(t => t.tabRenderer?.selected);
 
         if (homeTab) {
           const sections = homeTab.tabRenderer?.content?.sectionListRenderer?.contents || [];
@@ -115,8 +157,8 @@ cli({
           }
         }
 
-        // If Home tab has no videos, try Videos tab
-        if (recentVideos.length === 0) {
+        // If Home tab has no videos, try Videos tab (skip when caller asked for shorts)
+        if (recentVideos.length === 0 && requestedType !== 'shorts') {
           const videosTab = tabs.find(t => {
             const tab = t.tabRenderer;
             const url = tab?.endpoint?.commandMetadata?.webCommandMetadata?.url || '';
