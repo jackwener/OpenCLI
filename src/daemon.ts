@@ -21,24 +21,63 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { EXIT_CODES } from './errors.js';
 import { log } from './logger.js';
 import { PKG_VERSION } from './version.js';
+import { parseHello, resolveRoute, type ProfileSummary } from './daemon-routing.js';
 
 const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 
-// ─── State ───────────────────────────────────────────────────────────
+// How long an unidentified WebSocket is allowed to sit before we close it.
+// Legitimate extensions send hello immediately after ws.onopen.
+const HELLO_TIMEOUT_MS = 5000;
 
-let extensionWs: WebSocket | null = null;
-let extensionVersion: string | null = null;
-let extensionCompatRange: string | null = null;
+// ─── State ───────────────────────────────────────────────────────────
+// One Map entry per connected Chrome profile. Keyed by profileId so
+// disconnects/reconnects of one profile never touch another profile's
+// pending work. `pending` stays keyed by command id (globally unique)
+// but each entry carries its owner profileId so disconnect can reject
+// only the right subset.
+
+interface ExtensionConnection {
+  ws: WebSocket;
+  profileId: string;
+  profileLabel: string;
+  version: string | null;
+  compatRange: string | null;
+  heartbeatInterval: ReturnType<typeof setInterval>;
+}
+
+const extensions = new Map<string, ExtensionConnection>();
+
+/** WebSockets that have connected but not yet sent hello. Auto-close after HELLO_TIMEOUT_MS. */
+const pendingHandshakes = new Map<WebSocket, ReturnType<typeof setTimeout>>();
+
 const pending = new Map<string, {
   resolve: (data: unknown) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+  profileId: string;
 }>();
+
+function getConnectedProfiles(): ProfileSummary[] {
+  return [...extensions.values()].map((c) => ({
+    profileId: c.profileId,
+    profileLabel: c.profileLabel,
+  }));
+}
+
+function rejectPendingFor(profileId: string, reason: string): void {
+  for (const [id, p] of pending) {
+    if (p.profileId !== profileId) continue;
+    clearTimeout(p.timer);
+    pending.delete(id);
+    p.reject(new Error(reason));
+  }
+}
 // Extension log ring buffer
 interface LogEntry { level: string; msg: string; ts: number; }
 const LOG_BUFFER_SIZE = 200;
@@ -135,14 +174,24 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (req.method === 'GET' && pathname === '/status') {
     const uptime = process.uptime();
     const mem = process.memoryUsage();
+    const profiles = [...extensions.values()].map((c) => ({
+      profileId: c.profileId,
+      profileLabel: c.profileLabel,
+      version: c.version,
+      compatRange: c.compatRange,
+    }));
+    // Pick a representative profile for legacy single-profile fields so older
+    // CLIs (that predate the multi-profile response shape) keep working.
+    const first = profiles[0];
     jsonResponse(res, 200, {
       ok: true,
       pid: process.pid,
       uptime,
       daemonVersion: PKG_VERSION,
-      extensionConnected: extensionWs?.readyState === WebSocket.OPEN,
-      extensionVersion,
-      extensionCompatRange,
+      extensionConnected: profiles.length > 0,
+      extensionVersion: first?.version ?? null,
+      extensionCompatRange: first?.compatRange ?? null,
+      profiles,
       pending: pending.size,
       memoryMB: Math.round(mem.rss / 1024 / 1024 * 10) / 10,
       port: PORT,
@@ -180,8 +229,29 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
 
-      if (!extensionWs || extensionWs.readyState !== WebSocket.OPEN) {
-        jsonResponse(res, 503, { id: body.id, ok: false, error: 'Extension not connected. Please install the opencli Browser Bridge extension.' });
+      // `profile` is optional; CLI sets it from --profile / OPENCLI_PROFILE /
+      // ~/.opencli/config.json. resolveRoute() enforces the routing rules.
+      const requestedProfile = typeof body.profile === 'string' && body.profile
+        ? body.profile
+        : undefined;
+      const route = resolveRoute(requestedProfile, getConnectedProfiles());
+      if (!route.ok) {
+        jsonResponse(res, route.status, {
+          id: body.id,
+          ok: false,
+          error: route.error,
+          ...(route.connected ? { connected: route.connected } : {}),
+        });
+        return;
+      }
+      const conn = extensions.get(route.profileId);
+      if (!conn || conn.ws.readyState !== WebSocket.OPEN) {
+        // Race: routed profile disconnected between resolveRoute() and here.
+        jsonResponse(res, 503, {
+          id: body.id,
+          ok: false,
+          error: 'Extension disconnected during command routing',
+        });
         return;
       }
 
@@ -196,13 +266,15 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         });
         return;
       }
+      // Strip the `profile` routing hint — the extension side doesn't need it.
+      const { profile: _p, ...forwarded } = body;
       const result = await new Promise<unknown>((resolve, reject) => {
         const timer = setTimeout(() => {
           pending.delete(body.id);
           reject(new Error(`Command timeout (${timeoutMs / 1000}s)`));
         }, timeoutMs);
-        pending.set(body.id, { resolve, reject, timer });
-        extensionWs!.send(JSON.stringify(body));
+        pending.set(body.id, { resolve, reject, timer, profileId: route.profileId });
+        conn.ws.send(JSON.stringify(forwarded));
       });
 
       jsonResponse(res, 200, result);
@@ -235,10 +307,19 @@ const wss = new WebSocketServer({
 });
 
 wss.on('connection', (ws: WebSocket) => {
-  log.info('[daemon] Extension connected');
-  extensionWs = ws;
-  extensionVersion = null; // cleared until hello message arrives
-  extensionCompatRange = null;
+  log.info('[daemon] Extension connected (awaiting hello)');
+
+  // ── Handshake timer: connection is idle until hello arrives ──
+  // Until we have a profileId, the connection stays in pendingHandshakes
+  // and is invisible to /command routing. If hello never arrives, we close.
+  const handshakeTimer = setTimeout(() => {
+    if (pendingHandshakes.has(ws)) {
+      log.warn('[daemon] Extension did not send hello within timeout; closing');
+      pendingHandshakes.delete(ws);
+      ws.terminate();
+    }
+  }, HELLO_TIMEOUT_MS);
+  pendingHandshakes.set(ws, handshakeTimer);
 
   // ── Heartbeat: ping every 15s, close if 2 pongs missed ──
   let missedPongs = 0;
@@ -261,14 +342,51 @@ wss.on('connection', (ws: WebSocket) => {
     missedPongs = 0;
   });
 
+  // The profileId assigned to this connection (set on hello). Captured by
+  // the close/error handlers below so we know whose pending to reject.
+  let registeredProfileId: string | null = null;
+
   ws.on('message', (data: RawData) => {
     try {
       const msg = JSON.parse(data.toString());
 
-      // Handle hello message from extension (version handshake)
-      if (msg.type === 'hello') {
-        extensionVersion = typeof msg.version === 'string' ? msg.version : null;
-        extensionCompatRange = typeof msg.compatRange === 'string' ? msg.compatRange : null;
+      // Handle hello message from extension (version + identity handshake).
+      const hello = parseHello(msg);
+      if (hello) {
+        // Clear handshake timer — this connection is now identified.
+        const t = pendingHandshakes.get(ws);
+        if (t) { clearTimeout(t); pendingHandshakes.delete(ws); }
+
+        // Pre-multiplex extensions do not send profileId. Assign a synthetic
+        // `legacy:<uuid>` so routing still works; a warning surfaces the fact
+        // that multi-profile features will not apply to this connection.
+        const profileId = hello.profileId ?? `legacy:${randomUUID()}`;
+        const profileLabel = hello.profileLabel
+          ?? (hello.profileId ? hello.profileId.slice(0, 8) : 'Legacy Extension');
+        if (!hello.profileId) {
+          log.warn('[daemon] Extension did not send profileId — assuming pre-multiplex build; multi-profile routing will treat it as a standalone connection');
+        }
+
+        // If this profileId is already connected (e.g. service worker restart),
+        // kick the old connection out cleanly.
+        const prior = extensions.get(profileId);
+        if (prior && prior.ws !== ws) {
+          log.info(`[daemon] Profile ${profileLabel} reconnected; closing prior connection`);
+          rejectPendingFor(profileId, 'Extension reconnected');
+          clearInterval(prior.heartbeatInterval);
+          try { prior.ws.close(); } catch { /* already gone */ }
+        }
+
+        registeredProfileId = profileId;
+        extensions.set(profileId, {
+          ws,
+          profileId,
+          profileLabel,
+          version: hello.version,
+          compatRange: hello.compatRange,
+          heartbeatInterval,
+        });
+        log.info(`[daemon] Extension registered: ${profileLabel} (${profileId.slice(0, 8)}…)`);
         return;
       }
 
@@ -293,35 +411,27 @@ wss.on('connection', (ws: WebSocket) => {
     }
   });
 
-  ws.on('close', () => {
-    log.info('[daemon] Extension disconnected');
+  const cleanup = (reason: string) => {
     clearInterval(heartbeatInterval);
-    if (extensionWs === ws) {
-      extensionWs = null;
-      extensionVersion = null;
-      extensionCompatRange = null;
-      // Reject all pending requests since the extension is gone
-      for (const [id, p] of pending) {
-        clearTimeout(p.timer);
-        p.reject(new Error('Extension disconnected'));
+    const t = pendingHandshakes.get(ws);
+    if (t) { clearTimeout(t); pendingHandshakes.delete(ws); }
+    if (registeredProfileId) {
+      const current = extensions.get(registeredProfileId);
+      if (current?.ws === ws) {
+        extensions.delete(registeredProfileId);
+        rejectPendingFor(registeredProfileId, reason);
       }
-      pending.clear();
     }
+  };
+
+  ws.on('close', () => {
+    log.info(`[daemon] Extension disconnected${registeredProfileId ? ` (${registeredProfileId.slice(0, 8)}…)` : ' (unregistered)'}`);
+    cleanup('Extension disconnected');
   });
 
   ws.on('error', () => {
-    clearInterval(heartbeatInterval);
-    if (extensionWs === ws) {
-      extensionWs = null;
-      extensionVersion = null;
-      extensionCompatRange = null;
-      // Reject pending requests in case 'close' does not follow this 'error'
-      for (const [, p] of pending) {
-        clearTimeout(p.timer);
-        p.reject(new Error('Extension disconnected'));
-      }
-      pending.clear();
-    }
+    // Reject pending requests in case 'close' does not follow this 'error'
+    cleanup('Extension disconnected');
   });
 });
 
@@ -348,7 +458,13 @@ function shutdown(): void {
     p.reject(new Error('Daemon shutting down'));
   }
   pending.clear();
-  if (extensionWs) extensionWs.close();
+  for (const [, timer] of pendingHandshakes) clearTimeout(timer);
+  pendingHandshakes.clear();
+  for (const [, conn] of extensions) {
+    clearInterval(conn.heartbeatInterval);
+    try { conn.ws.close(); } catch { /* already gone */ }
+  }
+  extensions.clear();
   httpServer.close();
   process.exit(EXIT_CODES.SUCCESS);
 }

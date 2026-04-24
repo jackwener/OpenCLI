@@ -375,7 +375,18 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .name('opencli')
     .description('Make any website your CLI. Zero setup. AI-powered.')
     .version(PKG_VERSION)
-    .enablePositionalOptions();
+    .enablePositionalOptions()
+    .option('--profile <name>', 'Target Chrome profile (label or id) when multiple profiles are connected to the Browser Bridge');
+
+  // Surface --profile to downstream code as OPENCLI_PROFILE so daemon-client
+  // can read a single source of truth without every command threading the flag
+  // through. hook fires before any subcommand action.
+  program.hook('preAction', (thisCommand) => {
+    const profile = thisCommand.opts().profile;
+    if (typeof profile === 'string' && profile) {
+      process.env.OPENCLI_PROFILE = profile;
+    }
+  });
 
   // ── Built-in: list ────────────────────────────────────────────────────────
 
@@ -2048,6 +2059,76 @@ cli({
     .command('stop')
     .description('Stop the daemon')
     .action(async () => { await daemonStop(); });
+
+  // ── Built-in: profile ─────────────────────────────────────────────────────
+  // Used when multiple Chrome profiles are each running the Browser Bridge
+  // extension simultaneously. Daemon auto-routes when exactly one is connected,
+  // otherwise commands need a profile selector (--profile, OPENCLI_PROFILE, or
+  // this config-file default).
+  const profileCmd = program.command('profile').description('Manage Chrome profile routing for the Browser Bridge');
+  profileCmd
+    .command('use')
+    .description('Set the default Chrome profile for Browser Bridge commands')
+    .argument('<name>', 'Profile label or profileId (as reported by `opencli profile list`)')
+    .action(async (name: string) => {
+      const { setDefaultProfile } = await import('./config.js');
+      setDefaultProfile(name);
+      console.log(styleText('green', `✅ Default profile set to "${name}".`));
+      console.log(styleText('gray', 'Override per-command with --profile <name> or OPENCLI_PROFILE.'));
+    });
+  profileCmd
+    .command('clear')
+    .description('Remove the default Chrome profile (daemon will auto-route when exactly one profile is connected)')
+    .action(async () => {
+      const { setDefaultProfile } = await import('./config.js');
+      setDefaultProfile(null);
+      console.log(styleText('green', '✅ Default profile cleared.'));
+    });
+  profileCmd
+    .command('list')
+    .description('List connected Chrome profiles (from the running daemon)')
+    .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
+    .action(async (opts) => {
+      const { fetchDaemonStatus } = await import('./browser/daemon-client.js');
+      const { getDefaultProfile } = await import('./config.js');
+      const status = await fetchDaemonStatus();
+      if (!status) {
+        console.error(styleText('red', 'Daemon is not running.'));
+        process.exitCode = EXIT_CODES.SERVICE_UNAVAIL;
+        return;
+      }
+      const profiles = (status as unknown as { profiles?: Array<{ profileId: string; profileLabel: string; version?: string | null }> }).profiles ?? [];
+      if (profiles.length === 0) {
+        console.log(styleText('yellow', 'No Chrome profile extensions are currently connected.'));
+        return;
+      }
+      const active = getDefaultProfile();
+      const rows = profiles.map((p) => ({
+        label: p.profileLabel,
+        profileId: p.profileId,
+        version: p.version ?? '',
+        default: active && (active === p.profileLabel || active === p.profileId) ? '✓' : '',
+      }));
+      renderOutput(rows, {
+        fmt: opts.format,
+        columns: ['label', 'profileId', 'version', 'default'],
+        title: 'opencli/profile/list',
+        source: 'opencli profile list',
+      });
+    });
+  profileCmd
+    .command('current')
+    .description('Show the currently resolved default profile')
+    .action(async () => {
+      const { getDefaultProfile } = await import('./config.js');
+      const current = getDefaultProfile();
+      if (!current) {
+        console.log('(none — daemon will auto-route when exactly one profile is connected)');
+        return;
+      }
+      const source = process.env.OPENCLI_PROFILE ? 'OPENCLI_PROFILE env' : '~/.opencli/config.json';
+      console.log(`${current}  ${styleText('gray', `(from ${source})`)}`);
+    });
 
   // ── External CLIs ─────────────────────────────────────────────────────────
 

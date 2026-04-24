@@ -16,6 +16,31 @@ let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
 
+// ─── Profile identity ────────────────────────────────────────────────
+// Each Chrome profile has isolated chrome.storage.local, so a UUID stored
+// there uniquely identifies this extension instance to the daemon.
+// profileLabel is human-readable; label renames (e.g. email upgrade) happen
+// in chrome.storage.local and get picked up on next hello.
+
+let profileId: string | null = null;
+let profileLabel: string | null = null;
+
+async function loadProfileIdentity(): Promise<void> {
+  const stored = await chrome.storage.local.get(['profileId', 'profileLabel']);
+  if (stored.profileId && typeof stored.profileId === 'string') {
+    profileId = stored.profileId;
+    profileLabel = typeof stored.profileLabel === 'string' && stored.profileLabel
+      ? stored.profileLabel
+      : `Profile-${profileId!.slice(0, 8)}`;
+    return;
+  }
+  const id = crypto.randomUUID();
+  const label = `Profile-${id.slice(0, 8)}`;
+  await chrome.storage.local.set({ profileId: id, profileLabel: label });
+  profileId = id;
+  profileLabel = label;
+}
+
 // ─── Console log forwarding ──────────────────────────────────────────
 // Hook console.log/warn/error to forward logs to daemon via WebSocket.
 
@@ -47,6 +72,9 @@ console.error = (...args: unknown[]) => { _origError(...args); forwardLog('error
 async function connect(): Promise<void> {
   if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
 
+  // profileId must be known before hello — generated once per Chrome profile.
+  if (!profileId) await loadProfileIdentity();
+
   try {
     const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1000) });
     if (!res.ok) return; // unexpected response — not our daemon
@@ -68,11 +96,15 @@ async function connect(): Promise<void> {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
-    // Send version + compatibility range so the daemon can report mismatches to the CLI
+    // Send version + compatibility range so the daemon can report mismatches to the CLI.
+    // profileId/profileLabel let the daemon route commands to the right profile when
+    // multiple Chrome profiles are each running their own extension instance.
     ws?.send(JSON.stringify({
       type: 'hello',
       version: chrome.runtime.getManifest().version,
       compatRange: __OPENCLI_COMPAT_RANGE__,
+      profileId,
+      profileLabel,
     }));
   };
 
@@ -291,6 +323,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     sendResponse({
       connected: ws?.readyState === WebSocket.OPEN,
       reconnecting: reconnectTimer !== null,
+      profileLabel,
     });
   }
   return false;

@@ -8,6 +8,7 @@ import { DEFAULT_DAEMON_PORT } from '../constants.js';
 import type { BrowserSessionInfo } from '../types.js';
 import { sleep } from '../utils.js';
 import { classifyBrowserError } from './errors.js';
+import { getDefaultProfile } from '../config.js';
 
 const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
@@ -52,6 +53,12 @@ export interface DaemonCommand {
   idleTimeout?: number;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */
   frameIndex?: number;
+  /**
+   * Target Chrome profile when multiple are connected to the Browser Bridge.
+   * Resolved CLI-side from --profile / OPENCLI_PROFILE / ~/.opencli/config.json.
+   * When unset and only one profile is connected, the daemon auto-routes.
+   */
+  profile?: string;
 }
 
 export interface DaemonResult {
@@ -63,6 +70,13 @@ export interface DaemonResult {
   page?: string;
 }
 
+export interface DaemonProfileSummary {
+  profileId: string;
+  profileLabel: string;
+  version: string | null;
+  compatRange: string | null;
+}
+
 export interface DaemonStatus {
   ok: boolean;
   pid: number;
@@ -71,6 +85,8 @@ export interface DaemonStatus {
   extensionConnected: boolean;
   extensionVersion?: string;
   extensionCompatRange?: string;
+  /** All Chrome profile extensions currently connected. Empty when none. */
+  profiles?: DaemonProfileSummary[];
   pending: number;
   memoryMB: number;
   port: number;
@@ -145,7 +161,16 @@ async function sendCommandRaw(
     const id = generateId();
     const wf = process.env.OPENCLI_WINDOW_FOCUSED;
     const windowFocused = (wf === '1' || wf === 'true') ? true : undefined;
-    const command: DaemonCommand = { id, action, ...params, ...(windowFocused && { windowFocused }) };
+    // Resolve profile per-attempt so a mid-run `opencli profile use` takes effect
+    // on retry. Call is O(file-read) — the config file is tiny.
+    const profile = params.profile ?? getDefaultProfile() ?? undefined;
+    const command: DaemonCommand = {
+      id,
+      action,
+      ...params,
+      ...(windowFocused && { windowFocused }),
+      ...(profile && { profile }),
+    };
     try {
       const res = await requestDaemon('/command', {
         method: 'POST',
