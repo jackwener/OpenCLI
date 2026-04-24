@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AuthRequiredError, EmptyResultError } from '../../dist/src/errors.js';
-import { getRegistry } from '../../dist/src/registry-api.js';
+import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@jackwener/opencli/registry';
 import './create-draft.js';
 import './drafts.js';
 
