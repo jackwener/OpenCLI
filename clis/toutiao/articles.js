@@ -1,12 +1,11 @@
 import { cli } from '@jackwener/opencli/registry';
 
-const NON_TITLE_LINES = new Set([
-    '展现', '阅读', '点赞', '评论',
-    '查看数据', '查看评论', '修改', '更多', '首发',
-    '已发布', '定时发布', '定时发布中', '由文章生成', '审核中',
-]);
-
 export function parseToutiaoArticlesText(text) {
+    const NON_TITLE_LINES = new Set([
+        '展现', '阅读', '点赞', '评论',
+        '查看数据', '查看评论', '修改', '更多', '首发',
+        '已发布', '定时发布', '定时发布中', '由文章生成', '审核中',
+    ]);
     const lines = String(text || '').split('\n').map((line) => line.trim()).filter(Boolean);
     const results = [];
 
