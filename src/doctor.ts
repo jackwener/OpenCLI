@@ -61,6 +61,7 @@ export type DoctorReport = {
   daemonRunning: boolean;
   daemonFlaky?: boolean;
   daemonVersion?: string;
+  daemonPort?: number;
   extensionConnected: boolean;
   extensionFlaky?: boolean;
   extensionVersion?: string;
@@ -200,6 +201,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     daemonRunning,
     daemonFlaky,
     daemonVersion: health.status?.daemonVersion,
+    daemonPort: health.status?.port,
     extensionConnected,
     extensionFlaky,
     extensionVersion,
@@ -219,7 +221,7 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
     : report.daemonRunning ? styleText('green', '[OK]') : styleText('red', '[MISSING]');
   const daemonLabel = report.daemonFlaky
     ? 'unstable (running during live check, then stopped)'
-    : report.daemonRunning ? `running on port ${DEFAULT_DAEMON_PORT}` + (report.daemonVersion ? ` (v${report.daemonVersion})` : '') : 'not running';
+    : report.daemonRunning ? `running on port ${report.daemonPort ?? DEFAULT_DAEMON_PORT}` + (report.daemonVersion ? ` (v${report.daemonVersion})` : '') : 'not running';
   lines.push(`${daemonIcon} Daemon: ${daemonLabel}`);
 
   // Extension status
