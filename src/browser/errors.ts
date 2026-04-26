@@ -45,6 +45,14 @@ const EXTENSION_TRANSIENT_PATTERNS = [
   'CDP connection',
   'Daemon command failed',
   'No window with id',
+  // CDP debugger detach race — daemon detaches a command while still serving
+  // it under concurrent load. Already treated as transient in the e2e
+  // test harness (tests/e2e/browser-public.test.ts isTransientBrowserDetach),
+  // but classifyBrowserError did not list it, so CLI runtime would surface
+  // it as a hard 500 to callers instead of retrying.
+  'Detached while handling command',
+  'No tab with id',
+  'Debugger is not attached to the tab',
 ] as const;
 
 /**
