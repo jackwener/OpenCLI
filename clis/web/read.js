@@ -211,6 +211,12 @@ const command = cli({
             downloadImages: kwargs['download-images'],
             imageHeaders: referer ? { Referer: referer } : undefined,
             stdout: kwargs.stdout,
+            configureTurndown: (td) => {
+                td.addRule('preserveButtons', {
+                    filter: (node) => node.nodeName === 'BUTTON',
+                    replacement: (content) => content,
+                });
+            },
         });
         // `--stdout` is a content-streaming mode. The markdown body already went
         // to process.stdout inside downloadArticle(), so returning rows here
