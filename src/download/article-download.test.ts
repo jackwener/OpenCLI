@@ -87,15 +87,41 @@ describe('downloadArticle', () => {
         '<style>.x{color:red}</style>' +
         '<noscript>nojs</noscript>' +
         '<iframe src="https://www.youtube.com/embed/abc" title="Demo video"></iframe>' +
-        '<form><button>click</button></form>',
+        '<form><button>click-in-form</button></form>',
       );
       expect(md).toContain('keep');
       expect(md).not.toContain('alert');
       expect(md).not.toContain('color:red');
       expect(md).not.toContain('nojs');
-      expect(md).not.toContain('click');
+      // Button inside <form> is stripped because the parent <form> is in STRIPPED_TAGS.
+      expect(md).not.toContain('click-in-form');
       // Iframe degrades to a link preserving the embedded URL.
       expect(md).toContain('[Demo video](https://www.youtube.com/embed/abc)');
+    });
+
+    it('preserves standalone button text content as inline Markdown', async () => {
+      const md = await runAndRead(
+        '<h2>2023</h2>' +
+        '<button>Download All</button>' +
+        '<p>Some article text.</p>' +
+        '<button>Copy</button>',
+      );
+      expect(md).toContain('Download All');
+      expect(md).toContain('Copy');
+      expect(md).toContain('Some article text.');
+    });
+
+    it('drops icon-only buttons that have no visible text', async () => {
+      const md = await runAndRead(
+        '<p>content</p>' +
+        '<button></button>' +
+        '<button>   </button>' +
+        '<p>after</p>',
+      );
+      expect(md).toContain('content');
+      expect(md).toContain('after');
+      // No stray empty button artefacts
+      expect(md).not.toMatch(/<button/);
     });
 
     it('strips SVG nodes entirely', async () => {

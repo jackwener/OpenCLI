@@ -92,10 +92,14 @@ const DEFAULT_LABELS: Required<FrontmatterLabels> = {
 // `iframe` is NOT in this set — it's handled by a dedicated rule below that
 // degrades to a link so embedded content (YouTube, Twitter, CodePen …) keeps
 // a reachable URL in the exported markdown.
+// `button` is NOT in this set — buttons inside <form> are already removed when
+// the parent <form> is stripped; standalone buttons may carry meaningful labels
+// (e.g. "Download All") and are handled by the dedicated `buttonElement` rule
+// below which preserves their text content as inline Markdown.
 const STRIPPED_TAGS: Array<keyof HTMLElementTagNameMap> = [
   'script', 'style', 'noscript',
   'canvas',
-  'form', 'button', 'dialog',
+  'form', 'dialog',
   'header', 'footer', 'nav', 'aside',
 ];
 
@@ -160,6 +164,19 @@ function createTurndown(
         || el.querySelector('source')?.getAttribute('src')
         || '';
       return src ? `\n<audio src="${src}" controls></audio>\n` : '';
+    },
+  });
+  // Buttons may carry meaningful labels on content pages (e.g. "Download All",
+  // "Copy"). Rather than stripping them wholesale, preserve the trimmed text
+  // content as inline Markdown. Buttons that contain no visible text (icon-only
+  // or purely decorative) are silently dropped. Buttons inside <form> elements
+  // are never reached here because the parent <form> is already removed by
+  // STRIPPED_TAGS before Turndown processes children.
+  td.addRule('buttonElement', {
+    filter: (node) => node.nodeName === 'BUTTON',
+    replacement: (_content, node) => {
+      const text = (node as Element).textContent?.trim() ?? '';
+      return text ? text : '';
     },
   });
   // Iframes (YouTube, Twitter, CodePen …) degrade to a markdown link so the
