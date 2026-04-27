@@ -37,10 +37,12 @@ function createChromeMock() {
     { id: 2, windowId: 2, url: 'https://user.example', title: 'user', active: true, status: 'complete' },
     { id: 3, windowId: 1, url: 'chrome://extensions', title: 'chrome', active: false, status: 'complete' },
   ];
+  let lastFocusedWindowId = 2;
 
-  const query = vi.fn(async (queryInfo: { windowId?: number; active?: boolean } = {}) => {
+  const query = vi.fn(async (queryInfo: { windowId?: number; active?: boolean; lastFocusedWindow?: boolean } = {}) => {
     return tabs.filter((tab) => {
       if (queryInfo.windowId !== undefined && tab.windowId !== queryInfo.windowId) return false;
+      if (queryInfo.lastFocusedWindow && tab.windowId !== lastFocusedWindowId) return false;
       if (queryInfo.active !== undefined && !!tab.active !== queryInfo.active) return false;
       return true;
     });
@@ -646,6 +648,30 @@ describe('background tab isolation', () => {
     expect(mod.__test__.workspaceTimeoutOverrides.has('browser:manual')).toBe(false);
     // Should fall back to default interactive timeout
     expect(mod.__test__.getIdleTimeout('browser:manual')).toBe(600_000);
+  });
+
+
+  it('bind does not reach into background windows when the current window has no match', async () => {
+    const { chrome, tabs } = createChromeMock();
+    tabs[1].active = false;
+    tabs[1].windowId = 3;
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+
+    const result = await mod.__test__.handleBind({
+      id: 'bind-current-window-only',
+      action: 'bind',
+      workspace: 'bound:default',
+      matchDomain: 'user.example',
+    }, 'bound:default');
+
+    expect(result).toEqual(expect.objectContaining({
+      ok: false,
+      errorCode: 'bound_tab_not_found',
+      error: expect.stringContaining('current window'),
+    }));
+    expect(mod.__test__.getSession('bound:default')).toBeNull();
   });
 
   it('bind attaches only bound:* workspaces to the matching current tab', async () => {

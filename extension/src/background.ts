@@ -1068,19 +1068,17 @@ async function handleBind(cmd: Command, workspace: string): Promise<Result> {
   }
   const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   const fallbackTabs = await chrome.tabs.query({ lastFocusedWindow: true });
-  const allTabs = await chrome.tabs.query({});
   const boundTab = activeTabs.find((tab) => matchesBindCriteria(tab, cmd))
-    ?? fallbackTabs.find((tab) => matchesBindCriteria(tab, cmd))
-    ?? allTabs.find((tab) => matchesBindCriteria(tab, cmd));
+    ?? fallbackTabs.find((tab) => matchesBindCriteria(tab, cmd));
   if (!boundTab?.id) {
     return {
       id: cmd.id,
       ok: false,
       errorCode: 'bound_tab_not_found',
       error: cmd.matchDomain || cmd.matchPathPrefix
-        ? `No visible tab matching ${cmd.matchDomain ?? 'domain'}${cmd.matchPathPrefix ? ` ${cmd.matchPathPrefix}` : ''}`
-        : 'No active debuggable tab found',
-      errorHint: 'Focus the target Chrome tab or relax --domain / --path-prefix, then retry bind.',
+        ? `No visible tab in the current window matching ${cmd.matchDomain ?? 'domain'}${cmd.matchPathPrefix ? ` ${cmd.matchPathPrefix}` : ''}`
+        : 'No debuggable tab found in the current window',
+      errorHint: 'Focus the target Chrome tab/window or relax --domain / --path-prefix, then retry bind.',
     };
   }
 
