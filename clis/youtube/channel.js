@@ -3,6 +3,21 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
+
+export function extractSelectedRichGridContents(browseData) {
+    const tabs = browseData?.contents?.twoColumnBrowseResultsRenderer?.tabs || [];
+    const readRichGrid = (tab) => tab?.tabRenderer?.content?.richGridRenderer?.contents;
+    const selectedTab = tabs.find(t => t?.tabRenderer?.selected);
+    const selectedContents = readRichGrid(selectedTab);
+    if (Array.isArray(selectedContents))
+        return selectedContents;
+    const fallbackContents = readRichGrid(tabs.find(t => {
+        const contents = readRichGrid(t);
+        return Array.isArray(contents) && contents.length > 0;
+    })) || readRichGrid(tabs.find(t => Array.isArray(readRichGrid(t))));
+    return Array.isArray(fallbackContents) ? fallbackContents : [];
+}
+
 cli({
     site: 'youtube',
     name: 'channel',
@@ -27,6 +42,7 @@ cli({
         const apiKey = cfg.INNERTUBE_API_KEY;
         const context = cfg.INNERTUBE_CONTEXT;
         if (!apiKey || !context) return {error: 'YouTube config not found'};
+        const extractSelectedRichGridContents = ${extractSelectedRichGridContents.toString()};
 
         // Resolve handle to browseId if needed
         let browseId = channelId;
@@ -134,11 +150,9 @@ cli({
             if (videosResp.ok) {
               const videosData = await videosResp.json();
               // The InnerTube response includes ALL tabs (Home/Videos/Shorts/...),
-              // not just the requested one. Pick the selected tab — assuming
-              // tabs[0] silently misreads Home (empty) for channels that surface
-              // multiple tabs in the response.
-              const respTabs = videosData.contents?.twoColumnBrowseResultsRenderer?.tabs || [];
-              const richGrid = respTabs.find(t => t.tabRenderer?.selected)?.tabRenderer?.content?.richGridRenderer?.contents || [];
+              // not just the requested one. Prefer the selected tab, but keep
+              // older single-tab responses working when YouTube omits selected.
+              const richGrid = extractSelectedRichGridContents(videosData);
               for (const item of richGrid) {
                 if (recentVideos.length >= limit) break;
                 const v = item.richItemRenderer?.content?.videoRenderer;
@@ -188,3 +202,7 @@ cli({
         return rows;
     },
 });
+
+export const __test__ = {
+    extractSelectedRichGridContents,
+};
