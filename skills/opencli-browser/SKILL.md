@@ -50,6 +50,8 @@ opencli browser --workspace bound:gmail state
 
 Navigation is blocked by default on bound workspaces because it can destroy the logged-in/positioned state you wanted to preserve. `browser open` and `browser back` require `--allow-navigate-bound`; tab mutation (`tab new`, `tab select`, `tab close`) is blocked for bound workspaces. Use a normal `browser:*` automation workspace when you want OpenCLI to own tab/window lifecycle.
 
+`opencli browser sessions` returns `idleMsRemaining: null` for bound workspaces. That means there is no OpenCLI idle-close timer; the binding lasts until `unbind`, tab close, window close, or daemon restart.
+
 ---
 
 ## Mental model
