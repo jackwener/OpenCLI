@@ -57,7 +57,7 @@ opencli browser network
 - `shape` — response body 的路径→类型映射（不含原 body，省 token）
 - `status / url / method / ct / size`
 
-静态资源 / 埋点 / 追踪默认已过滤；需要全量看用 `--all`。
+静态资源 / 埋点 / 追踪默认已过滤。默认会保留 JSON / XML / plain text / `text/javascript` 这类 API 响应；如果你确定浏览器 DevTools 里有目标请求但这里缺失，用 `--all` 查一遍是否被 content-type 或 URL 噪音过滤挡掉。
 
 ### 按 shape 初筛
 

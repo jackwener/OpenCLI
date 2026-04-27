@@ -587,6 +587,35 @@ describe('browser network command', () => {
     expect(out.entries.map((e: any) => e.key)).toContain('GET cdn.example.com/app.js');
   });
 
+  it('default output keeps text/javascript API responses while dropping static JS files', async () => {
+    browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+      {
+        url: 'https://hw.mail.163.com/js6/s?sid=abc&func=mbox:listMessages',
+        method: 'POST',
+        responseStatus: 200,
+        responseContentType: 'text/javascript',
+        responsePreview: JSON.stringify({ messages: [{ id: 'm1', subject: 'hello' }] }),
+      },
+      {
+        url: 'https://cdn.example.com/app.js',
+        method: 'GET',
+        responseStatus: 200,
+        responseContentType: 'application/javascript',
+        responsePreview: '// js',
+      },
+    ]);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'network']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(1);
+    expect(out.filtered_out).toBe(1);
+    expect(out.entries[0].key).toBe('POST hw.mail.163.com/js6/s');
+    expect(out.entries[0].ct).toBe('text/javascript');
+    expect(out.entries[0].shape['$.messages']).toBe('array(1)');
+  });
+
   it('--raw emits full bodies inline for every entry', async () => {
     const program = createProgram('', '');
 

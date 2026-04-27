@@ -159,6 +159,8 @@ browser network --ttl <ms>             # cache TTL (default 24h)
 
 List entries look like `{key, method, status, url, ct, size, shape, body_truncated?}`. Detail envelope is `{key, url, method, status, ct, size, shape, body, body_truncated?, body_full_size?, body_truncation_reason}`. Cache lives in `~/.opencli/cache/browser-network/` so you can re-inspect without re-triggering the request.
 
+Default output keeps JSON/XML/plain-text and JS-like API responses, then drops obvious static assets and telemetry by URL. If an expected endpoint is missing, run `browser network --all` once and check whether an unusual content type or URL filter hid it.
+
 ### Tabs & session
 
 | command | purpose |

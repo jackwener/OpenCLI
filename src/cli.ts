@@ -95,11 +95,14 @@ async function captureNetworkItems(page: import('./types.js').IPage): Promise<Br
 
 /** Drop static-resource / telemetry noise so agents see only API-shaped traffic. */
 function filterNetworkItems(items: BrowserNetworkItem[]): BrowserNetworkItem[] {
-  return items.filter((r) =>
-    (r.ct?.includes('json') || r.ct?.includes('xml') || r.ct?.includes('text/plain')) &&
-    !/\.(js|css|png|jpg|gif|svg|woff|ico|map)(\?|$)/i.test(r.url) &&
-    !/analytics|tracking|telemetry|beacon|pixel|gtag|fbevents/i.test(r.url),
-  );
+  return items.filter((r) => {
+    const ct = r.ct?.toLowerCase() ?? '';
+    return (
+      (ct.includes('json') || ct.includes('xml') || ct.includes('text/plain') || ct.includes('javascript')) &&
+      !/\.(js|css|png|jpg|gif|svg|woff|ico|map)(\?|$)/i.test(r.url) &&
+      !/analytics|tracking|telemetry|beacon|pixel|gtag|fbevents/i.test(r.url)
+    );
+  });
 }
 
 /** Exit codes by network error code — usage errors vs runtime failures. */
