@@ -32,9 +32,11 @@ import { buildExtractHtmlJs, runExtractFromHtml } from './browser/extract.js';
 import { analyzeSite, type PageSignals } from './browser/analyze.js';
 import { daemonStatus, daemonStop } from './commands/daemon.js';
 import { log } from './logger.js';
+import { bindCurrentTab, BrowserCommandError } from './browser/daemon-client.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
+const DEFAULT_BOUND_WORKSPACE = 'bound:default';
 const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"';
 
 type BrowserNetworkItem = {
@@ -318,19 +320,19 @@ async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scop
 }
 
 /** Create a browser page for browser commands. Uses a dedicated browser workspace for session persistence. */
-async function getBrowserPage(targetPage?: string): Promise<import('./types.js').IPage> {
+async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_BROWSER_WORKSPACE): Promise<import('./types.js').IPage> {
   const { BrowserBridge } = await import('./browser/index.js');
   const bridge = new BrowserBridge();
   const envTimeout = process.env.OPENCLI_BROWSER_TIMEOUT;
   const idleTimeout = envTimeout ? parseInt(envTimeout, 10) : undefined;
   const page = await bridge.connect({
     timeout: 30,
-    workspace: DEFAULT_BROWSER_WORKSPACE,
+    workspace,
     ...(idleTimeout && idleTimeout > 0 && { idleTimeout }),
   });
   const resolvedTargetPage = targetPage
-    ? await resolveBrowserTargetInSession(page, targetPage, { scope: DEFAULT_BROWSER_WORKSPACE, source: 'explicit' })
-    : await resolveStoredBrowserTarget(page, DEFAULT_BROWSER_WORKSPACE);
+    ? await resolveBrowserTargetInSession(page, targetPage, { scope: workspace, source: 'explicit' })
+    : await resolveStoredBrowserTarget(page, workspace);
   if (resolvedTargetPage) {
     if (!page.setActivePage) {
       throw new Error('This browser session does not support explicit tab targeting');
@@ -350,9 +352,30 @@ function getBrowserTargetId(command?: Command): string | undefined {
   return typeof opts.tab === 'string' && opts.tab.trim() ? opts.tab.trim() : undefined;
 }
 
-function resolveBrowserTabTarget(targetId?: string, opts?: { tab?: string }): string | undefined {
+function getCommandOption(command: Command | undefined, option: string): unknown {
+  let current: Command | undefined = command;
+  while (current) {
+    const opts = current.opts();
+    if (Object.prototype.hasOwnProperty.call(opts, option) && opts[option] !== undefined) return opts[option];
+    current = current.parent as Command | undefined;
+  }
+  return undefined;
+}
+
+function getBrowserWorkspace(command?: Command): string {
+  const raw = getCommandOption(command, 'workspace');
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : DEFAULT_BROWSER_WORKSPACE;
+}
+
+function getPageWorkspace(page: import('./types.js').IPage): string {
+  const workspace = (page as unknown as { workspace?: unknown }).workspace;
+  return typeof workspace === 'string' && workspace.trim() ? workspace.trim() : DEFAULT_BROWSER_WORKSPACE;
+}
+
+function resolveBrowserTabTarget(targetId?: string, opts?: { tab?: string } | Command): string | undefined {
   if (typeof targetId === 'string' && targetId.trim()) return targetId.trim();
-  if (typeof opts?.tab === 'string' && opts.tab.trim()) return opts.tab.trim();
+  const tab = opts instanceof Command ? opts.opts().tab : opts?.tab;
+  if (typeof tab === 'string' && tab.trim()) return tab.trim();
   return undefined;
 }
 
@@ -485,6 +508,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   const browser = program
     .command('browser')
+    .option('--workspace <name>', 'Browser workspace to use (default: browser:default; bound tabs use bound:<name>)')
     .description('Browser control — navigate, click, type, extract, wait (no LLM needed)');
 
   /**
@@ -546,10 +570,23 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       try {
         const command = args.at(-1) instanceof Command ? args.at(-1) as Command : undefined;
         const targetPage = getBrowserTargetId(command);
-        const page = await getBrowserPage(targetPage);
+        const workspace = getBrowserWorkspace(command);
+        const page = await getBrowserPage(targetPage, workspace);
         await fn(page, ...args);
       } catch (err) {
         if (err instanceof BrowserConnectError) {
+          log.error(err.message);
+          if (err.hint) log.error(`Hint: ${err.hint}`);
+        } else if (err instanceof BrowserCommandError) {
+          if (err.code) {
+            console.log(JSON.stringify({
+              error: {
+                code: err.code,
+                message: err.message,
+                ...(err.hint ? { hint: err.hint } : {}),
+              },
+            }, null, 2));
+          }
           log.error(err.message);
           if (err.hint) log.error(`Hint: ${err.hint}`);
         } else if (err instanceof TargetError) {
@@ -569,6 +606,90 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
     };
   }
+
+  browser.command('bind-current')
+    .option('--domain <host>', 'Only bind a current/visible tab whose hostname matches this domain')
+    .option('--path-prefix <path>', 'Only bind a current/visible tab whose pathname starts with this prefix')
+    .option('--workspace <name>', 'Bound workspace name (must start with bound:)')
+    .description('Bind a bound:* workspace to the current Chrome tab/window')
+    .action(async (optsOrCommand, maybeCommand?: Command) => {
+      const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
+      const opts = command?.opts() ?? optsOrCommand ?? {};
+      const rawWorkspace = getCommandOption(command, 'workspace');
+      const workspace = typeof rawWorkspace === 'string' && rawWorkspace.trim()
+        ? rawWorkspace.trim()
+        : DEFAULT_BOUND_WORKSPACE;
+      if (!workspace.startsWith('bound:')) {
+        console.log(JSON.stringify({
+          error: {
+            code: 'invalid_bind_workspace',
+            message: `--workspace must start with "bound:", got "${workspace}"`,
+            hint: 'Use the default bound:default or pass --workspace bound:<name>.',
+          },
+        }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      try {
+        const { BrowserBridge } = await import('./browser/index.js');
+        const bridge = new BrowserBridge();
+        await bridge.connect({ timeout: 30, workspace });
+        const data = await bindCurrentTab(workspace, {
+          ...(typeof opts.domain === 'string' && opts.domain.trim() ? { matchDomain: opts.domain.trim() } : {}),
+          ...(typeof opts.pathPrefix === 'string' && opts.pathPrefix.trim() ? { matchPathPrefix: opts.pathPrefix.trim() } : {}),
+        });
+        saveBrowserTargetState(undefined, workspace);
+        console.log(JSON.stringify({ workspace, ...((data && typeof data === 'object') ? data as Record<string, unknown> : { data }) }, null, 2));
+      } catch (err) {
+        if (err instanceof BrowserCommandError && err.code) {
+          console.log(JSON.stringify({
+            error: {
+              code: err.code,
+              message: err.message,
+              ...(err.hint ? { hint: err.hint } : {}),
+            },
+          }, null, 2));
+        }
+        log.error(err instanceof Error ? err.message : String(err));
+        if (err instanceof BrowserCommandError && err.hint) log.error(`Hint: ${err.hint}`);
+        process.exitCode = err instanceof BrowserCommandError && err.code === 'invalid_bind_workspace'
+          ? EXIT_CODES.USAGE_ERROR
+          : EXIT_CODES.GENERIC_ERROR;
+      }
+    });
+
+  browser.command('unbind')
+    .option('--workspace <name>', 'Bound workspace name to detach')
+    .description('Detach a bound:* workspace without closing the user tab/window')
+    .action(async (optsOrCommand, maybeCommand?: Command) => {
+      const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
+      const rawWorkspace = getCommandOption(command, 'workspace');
+      const workspace = typeof rawWorkspace === 'string' && rawWorkspace.trim()
+        ? rawWorkspace.trim()
+        : DEFAULT_BOUND_WORKSPACE;
+      if (!workspace.startsWith('bound:')) {
+        console.log(JSON.stringify({
+          error: {
+            code: 'invalid_bind_workspace',
+            message: `--workspace must start with "bound:", got "${workspace}"`,
+            hint: 'Use the default bound:default or pass --workspace bound:<name>.',
+          },
+        }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      try {
+        const { BrowserBridge } = await import('./browser/index.js');
+        const bridge = new BrowserBridge();
+        const page = await bridge.connect({ timeout: 30, workspace });
+        await page.closeWindow?.();
+        saveBrowserTargetState(undefined, workspace);
+        console.log(JSON.stringify({ unbound: true, workspace }, null, 2));
+      } catch (err) {
+        log.error(err instanceof Error ? err.message : String(err));
+        process.exitCode = EXIT_CODES.GENERIC_ERROR;
+      }
+    });
 
   const browserTab = browser
     .command('tab')
@@ -598,20 +719,20 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   addBrowserTabOption(browserTab.command('select')
     .argument('[targetId]', 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"')
     .description('Select a tab by target ID and make it the default browser tab'))
-    .action(browserAction(async (page, targetId?: string, opts?: { tab?: string }) => {
+    .action(browserAction(async (page, targetId?: string, opts?: { tab?: string } | Command) => {
       const resolvedTarget = resolveBrowserTabTarget(targetId, opts);
       if (!resolvedTarget) {
         throw new Error('Target tab required. Pass it as an argument or --tab <targetId>.');
       }
       await page.selectTab(resolvedTarget);
-      saveBrowserTargetState(resolvedTarget, DEFAULT_BROWSER_WORKSPACE);
+      saveBrowserTargetState(resolvedTarget, getPageWorkspace(page));
       console.log(JSON.stringify({ selected: resolvedTarget }, null, 2));
     }));
 
   addBrowserTabOption(browserTab.command('close')
     .argument('[targetId]', 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"')
     .description('Close a tab by target ID'))
-    .action(browserAction(async (page, targetId?: string, opts?: { tab?: string }) => {
+    .action(browserAction(async (page, targetId?: string, opts?: { tab?: string } | Command) => {
       const resolvedTarget = resolveBrowserTabTarget(targetId, opts);
       if (!page.closeTab) {
         throw new Error('This browser session does not support closing tabs');
@@ -620,15 +741,16 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         throw new Error('Target tab required. Pass it as an argument or --tab <targetId>.');
       }
       const validatedTarget = await resolveBrowserTargetInSession(page, resolvedTarget, {
-        scope: DEFAULT_BROWSER_WORKSPACE,
+        scope: getPageWorkspace(page),
         source: 'explicit',
       });
       if (!validatedTarget) {
         throw new Error(`Target tab ${resolvedTarget} is not part of the current browser session.`);
       }
       await page.closeTab(validatedTarget);
-      if (loadBrowserTargetState(DEFAULT_BROWSER_WORKSPACE)?.defaultPage === validatedTarget) {
-        saveBrowserTargetState(undefined, DEFAULT_BROWSER_WORKSPACE);
+      const workspace = getPageWorkspace(page);
+      if (loadBrowserTargetState(workspace)?.defaultPage === validatedTarget) {
+        saveBrowserTargetState(undefined, workspace);
       }
       console.log(JSON.stringify({ closed: validatedTarget }, null, 2));
     }));
@@ -647,11 +769,15 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
    */
   const NETWORK_INTERCEPTOR_JS = `(function(){if(window.__opencli_net)return;window.__opencli_net=[];var M=200,B=1048576,F=window.fetch;function capture(url,method,status,text,ct){if(window.__opencli_net.length>=M)return;var full=text?text.length:0,trunc=full>B,stored=trunc?text.slice(0,B):text,body=null;if(stored){if(trunc){body=stored}else{try{body=JSON.parse(stored)}catch(e){body=stored}}}var e={url:url,method:method||'GET',status:status,size:full,ct:ct,body:body};if(trunc){e.bodyTruncated=true;e.bodyFullSize=full}window.__opencli_net.push(e)}window.fetch=async function(){var r=await F.apply(this,arguments);try{var ct=r.headers.get('content-type')||'';if(ct.includes('json')||ct.includes('text')){var c=r.clone(),t=await c.text();capture(r.url||(arguments[0]&&arguments[0].url)||String(arguments[0]),(arguments[1]&&arguments[1].method)||'GET',r.status,t,ct)}}catch(e){}return r};var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(m,u){this._om=m;this._ou=u;return O.apply(this,arguments)};X.send=function(){var x=this;x.addEventListener('load',function(){try{var ct=x.getResponseHeader('content-type')||'';if(ct.includes('json')||ct.includes('text')){capture(x._ou,x._om||'GET',x.status,x.responseText||'',ct)}}catch(e){}});return S.apply(this,arguments)}})()`;
 
-  addBrowserTabOption(browser.command('open').argument('<url>').description('Open URL in automation window'))
-    .action(browserAction(async (page, url) => {
+  addBrowserTabOption(browser.command('open').argument('<url>').option('--allow-navigate-bound', 'Allow navigating a bound user tab', false).description('Open URL in automation window'))
+    .action(browserAction(async (page, url, opts) => {
       // Start session-level capture before navigation (catches initial requests)
       const hasSessionCapture = await page.startNetworkCapture?.() ?? false;
-      await page.goto(url);
+      if (opts.allowNavigateBound === true) {
+        await page.goto(url, { allowBoundNavigation: true });
+      } else {
+        await page.goto(url);
+      }
       await page.wait(2);
       // Fallback: inject JS interceptor when session capture is unavailable
       if (!hasSessionCapture) {
@@ -663,8 +789,19 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }, null, 2));
     }));
 
-  addBrowserTabOption(browser.command('back').description('Go back in browser history'))
-    .action(browserAction(async (page) => {
+  addBrowserTabOption(browser.command('back').option('--allow-navigate-bound', 'Allow history navigation in a bound user tab', false).description('Go back in browser history'))
+    .action(browserAction(async (page, opts) => {
+      if (getPageWorkspace(page).startsWith('bound:') && opts.allowNavigateBound !== true) {
+        console.log(JSON.stringify({
+          error: {
+            code: 'bound_navigation_blocked',
+            message: `Workspace "${getPageWorkspace(page)}" is bound to a user tab; history navigation is blocked by default.`,
+            hint: 'Pass --allow-navigate-bound only if you intentionally want to navigate the bound tab.',
+          },
+        }, null, 2));
+        process.exitCode = EXIT_CODES.GENERIC_ERROR;
+        return;
+      }
       await page.evaluate('history.back()');
       await page.wait(2);
       console.log('Navigated back');
@@ -1324,7 +1461,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .description('Capture network requests as shape previews; retrieve full bodies by key')
     .action(browserAction(async (page, opts) => {
       const ttlMs = parsePositiveIntOption(opts.ttl, 'ttl', DEFAULT_TTL_MS);
-      const workspace = DEFAULT_BROWSER_WORKSPACE;
+      const workspace = getPageWorkspace(page);
       const hasDetail = typeof opts.detail === 'string' && opts.detail.length > 0;
       const hasFilter = typeof opts.filter === 'string';
 

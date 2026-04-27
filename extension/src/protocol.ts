@@ -66,6 +66,8 @@ export interface Command {
   windowFocused?: boolean;
   /** Custom idle timeout in seconds for this workspace session. Overrides the default. */
   idleTimeout?: number;
+  /** Explicitly allow navigation inside a borrowed bound-current tab. */
+  allowBoundNavigation?: boolean;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */
   frameIndex?: number;
 }
@@ -79,6 +81,10 @@ export interface Result {
   data?: unknown;
   /** Error message on failure */
   error?: string;
+  /** Stable machine-readable error code on failure */
+  errorCode?: string;
+  /** Optional recovery hint for agent-facing CLI output */
+  errorHint?: string;
   /** Page identity (targetId) — present only on page-scoped command responses */
   page?: string;
 }

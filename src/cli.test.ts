@@ -8,10 +8,12 @@ import { TargetError } from './browser/target-errors.js';
 const {
   mockBrowserConnect,
   mockBrowserClose,
+  mockBindCurrentTab,
   browserState,
 } = vi.hoisted(() => ({
   mockBrowserConnect: vi.fn(),
   mockBrowserClose: vi.fn(),
+  mockBindCurrentTab: vi.fn(),
   browserState: { page: null as IPage | null },
 }));
 
@@ -22,6 +24,14 @@ vi.mock('./browser/index.js', () => {
       connect = mockBrowserConnect;
       close = mockBrowserClose;
     },
+  };
+});
+
+vi.mock('./browser/daemon-client.js', async () => {
+  const actual = await vi.importActual<typeof import('./browser/daemon-client.js')>('./browser/daemon-client.js');
+  return {
+    ...actual,
+    bindCurrentTab: mockBindCurrentTab,
   };
 });
 
@@ -114,6 +124,12 @@ describe('browser tab targeting commands', () => {
     stderrSpy.mockClear();
     mockBrowserConnect.mockClear();
     mockBrowserClose.mockReset().mockResolvedValue(undefined);
+    mockBindCurrentTab.mockReset().mockResolvedValue({
+      workspace: 'bound:default',
+      page: 'tab-2',
+      url: 'https://user.example/inbox',
+      title: 'Inbox',
+    });
 
     browserState.page = {
       goto: vi.fn().mockResolvedValue(undefined),
@@ -124,6 +140,7 @@ describe('browser tab targeting commands', () => {
       startNetworkCapture: vi.fn().mockResolvedValue(true),
       getCookies: vi.fn().mockResolvedValue([]),
       evaluate: vi.fn().mockResolvedValue({ ok: true }),
+      snapshot: vi.fn().mockResolvedValue('snapshot'),
       tabs: vi.fn().mockResolvedValue([
         { index: 0, page: 'tab-1', url: 'https://one.example', title: 'one', active: true },
         { index: 1, page: 'tab-2', url: 'https://two.example', title: 'two', active: false },
@@ -146,6 +163,58 @@ describe('browser tab targeting commands', () => {
     if (typeof last !== 'string') throw new Error(`Expected string arg to console.log, got ${typeof last}`);
     return JSON.parse(last);
   }
+
+  it('binds the current Chrome tab into a bound workspace', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'bind-current', '--domain', 'user.example', '--path-prefix', '/inbox']);
+
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, workspace: 'bound:default' });
+    expect(mockBindCurrentTab).toHaveBeenCalledWith('bound:default', {
+      matchDomain: 'user.example',
+      matchPathPrefix: '/inbox',
+    });
+    const out = lastJsonLog();
+    expect(out.workspace).toBe('bound:default');
+    expect(out.url).toBe('https://user.example/inbox');
+  });
+
+  it('rejects bind-current workspaces outside the bound namespace', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'bind-current', '--workspace', 'browser:default']);
+
+    expect(mockBrowserConnect).not.toHaveBeenCalled();
+    expect(mockBindCurrentTab).not.toHaveBeenCalled();
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('invalid_bind_workspace');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('runs browser commands against an explicit bound workspace', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--workspace', 'bound:default', 'state']);
+
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, workspace: 'bound:default' });
+    expect(browserState.page?.snapshot).toHaveBeenCalled();
+  });
+
+  it('blocks history navigation on bound workspaces unless explicitly allowed', async () => {
+    browserState.page = {
+      ...browserState.page,
+      workspace: 'bound:default',
+      evaluate: vi.fn(),
+      wait: vi.fn(),
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--workspace', 'bound:default', 'back']);
+
+    expect(browserState.page?.evaluate).not.toHaveBeenCalled();
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('bound_navigation_blocked');
+  });
 
   it('binds browser commands to an explicit target tab via --tab', async () => {
     const program = createProgram('', '');
@@ -522,6 +591,10 @@ describe('browser network command', () => {
     return path.join(cacheDir, 'browser-network', 'browser_default.json');
   }
 
+  function getBoundNetworkCachePath(cacheDir: string): string {
+    return path.join(cacheDir, 'browser-network', 'bound_default.json');
+  }
+
   function lastJsonLog(): any {
     const calls = consoleLogSpy.mock.calls;
     if (calls.length === 0) throw new Error('Expected at least one console.log call');
@@ -574,6 +647,22 @@ describe('browser network command', () => {
     expect(out.entries[0].shape['$.data.user.rest_id']).toBe('string');
     expect(out.entries[0]).not.toHaveProperty('body');
     expect(fs.existsSync(getNetworkCachePath(cacheDir))).toBe(true);
+  });
+
+  it('uses the selected browser workspace for network cache scope', async () => {
+    const cacheDir = String(process.env.OPENCLI_CACHE_DIR);
+    browserState.page = {
+      ...browserState.page,
+      workspace: 'bound:default',
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--workspace', 'bound:default', 'network']);
+
+    const out = lastJsonLog();
+    expect(out.workspace).toBe('bound:default');
+    expect(fs.existsSync(getBoundNetworkCachePath(cacheDir))).toBe(true);
+    expect(fs.existsSync(getNetworkCachePath(cacheDir))).toBe(false);
   });
 
   it('--all includes static resources that the default filter drops', async () => {

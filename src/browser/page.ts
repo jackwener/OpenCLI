@@ -56,10 +56,11 @@ export class Page extends BasePage {
     };
   }
 
-  async goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number }): Promise<void> {
+  async goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number; allowBoundNavigation?: boolean }): Promise<void> {
     const result = await sendCommandFull('navigate', {
       url,
       ...this._cmdOpts(),
+      ...(options?.allowBoundNavigation === true && { allowBoundNavigation: true }),
     });
     // Remember the page identity (targetId) for subsequent calls
     if (result.page) {

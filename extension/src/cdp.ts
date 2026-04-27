@@ -466,10 +466,11 @@ export function registerListeners(): void {
     if (!tabId) return;
     const state = networkCaptures.get(tabId);
     if (!state) return;
+    const eventParams = params as Record<string, any> | undefined;
 
     if (method === 'Network.requestWillBeSent') {
-      const requestId = String(params?.requestId || '');
-      const request = params?.request as {
+      const requestId = String(eventParams?.requestId || '');
+      const request = eventParams?.request as {
         url?: string;
         method?: string;
         headers?: Record<string, unknown>;
@@ -509,8 +510,8 @@ export function registerListeners(): void {
     }
 
     if (method === 'Network.responseReceived') {
-      const requestId = String(params?.requestId || '');
-      const response = params?.response as {
+      const requestId = String(eventParams?.requestId || '');
+      const response = eventParams?.response as {
         url?: string;
         mimeType?: string;
         status?: number;
@@ -527,7 +528,7 @@ export function registerListeners(): void {
     }
 
     if (method === 'Network.loadingFinished') {
-      const requestId = String(params?.requestId || '');
+      const requestId = String(eventParams?.requestId || '');
       const stateEntryIndex = state.requestToIndex.get(requestId);
       if (stateEntryIndex === undefined) return;
       const entry = state.entries[stateEntryIndex];
