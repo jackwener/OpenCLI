@@ -1,0 +1,90 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.taobao.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": {
+        "timeMs": 2000
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const itemId = '{{ id }}'; location.href = `https://item.taobao.com/item.htm?id=${itemId}`; return { navigated: true }; }"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": {
+        "timeMs": 6000
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const normalize = v => (v || '').replace(/\\s+/g, ' ').trim(); const titleEl = document.querySelector('[class*=\"mainTitle--\"]'); const title = titleEl ? normalize(titleEl.textContent) : document.title.split('-')[0].trim(); const text = document.body?.innerText || ''; const priceMatch = text.match(/[￥¥]\\s*(\\d+(?:\\.\\d{1,2})?)/); const price = priceMatch ? '¥' + priceMatch[1] : ''; return { title: title.slice(0, 80), price }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const prevData = intermediate; const specInput = '{{ spec }}' || ''; const specKeywords = specInput ? specInput.split(/\\s+/).filter(Boolean) : []; const normalize = v => (v || '').replace(/\\s+/g, ' ').trim(); const items = document.querySelectorAll('[class*=\"valueItem--\"]'); const selected = []; if (specKeywords.length === 0 && items.length > 0) { const groups = new Map(); for (const item of items) { const group = item.closest('[class*=\"skuItem--\"], [class*=\"prop--\"]') || item.parentElement; const groupKey = group?.className?.substring(0, 30) || 'default'; if (!groups.has(groupKey)) groups.set(groupKey, []); groups.get(groupKey).push(item); } for (const [, groupItems] of groups) { const hasSelected = groupItems.some(el => el.className.includes('selected') || el.className.includes('active')); if (hasSelected) continue; for (const item of groupItems) { if (!item.className.includes('disabled') && !item.className.includes('gray')) { item.click(); selected.push(normalize(item.textContent).substring(0, 40)); break; } } } } else { const groups = new Map(); for (const item of items) { const group = item.closest('[class*=\"skuItem--\"], [class*=\"prop--\"]') || item.parentElement; const groupKey = group?.className?.substring(0, 30) || 'default'; if (!groups.has(groupKey)) groups.set(groupKey, []); groups.get(groupKey).push(item); } for (const [, groupItems] of groups) { let best = null; let bestScore = 0; for (const item of groupItems) { if (item.className.includes('disabled')) continue; const t = normalize(item.textContent); const score = specKeywords.filter(kw => t.includes(kw)).length; if (score > bestScore) { bestScore = score; best = item; } } if (best && bestScore > 0) { best.click(); selected.push(normalize(best.textContent).substring(0, 40)); } } } return { ...prevData, selected }; }"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": {
+        "timeMs": 1000
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const prevData = intermediate; const all = document.querySelectorAll('button, [role=\"button\"], a, div, span'); let clickResult = 'btn_not_found'; for (const el of all) { const t = (el.textContent || '').trim(); if ((t === '加入购物车' || t === '加入 购物车') && el.children.length < 5) { el.click(); clickResult = 'clicked'; break; } } return { ...prevData, clickResult }; }"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": {
+        "timeMs": 5000
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const prevData = intermediate; for (let i = 0; i < 10; i++) { await new Promise(r => setTimeout(r, 500)); const text = document.body?.innerText || ''; if (text.includes('已加入购物车') || text.includes('商品已成功') || text.includes('去购物车结算') || text.includes('去购物车')) { return { ...prevData, status: 'success' }; } if (text.includes('请选择') || text.includes('请先选择')) { return { ...prevData, status: 'need_spec' }; } if (text.includes('请登录')) { return { ...prevData, status: 'login_required' }; } } if (location.href.includes('cart')) return { ...prevData, status: 'success' }; return { ...prevData, status: 'unknown' }; }"
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const prevData = intermediate; const prevTitle = prevData?.title || ''; const prevPrice = prevData?.price || ''; const prevSelected = prevData?.selected || []; const selectedSpec = prevSelected.join(' | '); const statusResult = prevData?.status || 'unknown'; let status = '? 未确认'; if (statusResult === 'success') status = '已加入购物车'; else if (statusResult === 'need_spec') status = '需要选择更多规格'; else if (statusResult === 'login_required') status = '需要登录'; return [{ status, title: prevTitle, price: prevPrice, selected_spec: selectedSpec || '(未选择)', item_id: '{{ id }}' }]; }"
+      }
+    }
+  ],
+  "api_endpoint": "taobao-add-cart",
+  "category": "interact",
+  "description": "淘宝加入购物车",
+  "is_public": true,
+  "method": "POST",
+  "name": "AddCart",
+  "output_schema": [
+    { "name": "status", "type": "string", "description": "操作状态" },
+    { "name": "title", "type": "string", "description": "商品标题" },
+    { "name": "price", "type": "string", "description": "价格" },
+    { "name": "selected_spec", "type": "string", "description": "选择的规格" },
+    { "name": "item_id", "type": "string", "description": "商品ID" }
+  ],
+  "variables": [
+    { "name": "id", "type": "string", "required": true, "help": "商品 ID", "test": "827563850178" },
+    { "name": "spec", "type": "string", "help": "规格关键词", "test": "" }
+  ],
+  "website_domain": "item.taobao.com",
+  "website_id": "website-item.taobao.com"
+}

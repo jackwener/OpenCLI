@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-04-21T08:02:53.423Z",
+  "json_file": "./clis/taobao/cart.json",
+  "command": "Cart",
+  "website": "cart.taobao.com",
+  "params": {
+    "limit": 20
+  },
+  "success": false,
+  "data_count": 0
+}

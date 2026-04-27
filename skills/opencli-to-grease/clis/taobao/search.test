@@ -1,0 +1,65 @@
+{
+  "timestamp": "2026-04-21T09:37:42.981Z",
+  "json_file": "./clis/taobao/search.json",
+  "command": "Search",
+  "website": "s.taobao.com",
+  "params": {
+    "query": "iPhone",
+    "sort": "sale",
+    "limit": 20
+  },
+  "success": true,
+  "data_count": 20,
+  "sample_data": [
+    {
+      "rank": 1,
+      "title": "Apple/苹果 iPhone 15 Plus 苹果15 plus 原封全新未拆封正品手机",
+      "price": "¥3750",
+      "sales": "300+人付款",
+      "shop": "北美数码",
+      "location": "广东汕头",
+      "item_id": "1020518530773",
+      "url": "https://item.taobao.com/item.htm?id=1020518530773"
+    },
+    {
+      "rank": 2,
+      "title": "Apple/苹果 iPhone 14 Pro Max 原封 苹果 14promax 全新正品手机",
+      "price": "¥3480",
+      "sales": "7000+人付款",
+      "shop": "领域数码3C",
+      "location": "广东汕头",
+      "item_id": "985292694039",
+      "url": "https://item.taobao.com/item.htm?id=985292694039"
+    },
+    {
+      "rank": 3,
+      "title": "Apple/苹果 iPhone 15 Pro Max国行双卡正品预激活直播新款15 pro",
+      "price": "¥4379",
+      "sales": "1000+人付款",
+      "shop": "壹加壹是叁呐",
+      "location": "广东深圳",
+      "item_id": "1002866097928",
+      "url": "https://item.taobao.com/item.htm?id=1002866097928"
+    },
+    {
+      "rank": 4,
+      "title": "【政府补贴】Apple/苹果 iPhone 17",
+      "price": "¥4999",
+      "sales": "1万+人付款",
+      "shop": "百亿补贴平台优选",
+      "location": "浙江杭州",
+      "item_id": "974637655241",
+      "url": "https://item.taobao.com/item.htm?id=974637655241"
+    },
+    {
+      "rank": 5,
+      "title": "【国补立减500元】Apple/苹果 iPhone 17 手机 A19 芯片 官方正品 国行全新 国家补贴 支持淘金币抵扣",
+      "price": "¥5494.83",
+      "sales": "1万+人付款",
+      "shop": "天猫校园教育官方旗舰店",
+      "location": "浙江杭州",
+      "item_id": "974671890820",
+      "url": "https://item.taobao.com/item.htm?id=974671890820"
+    }
+  ]
+}

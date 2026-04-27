@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-04-21T08:23:37.410Z",
+  "json_file": "./clis/taobao/add-cart.json",
+  "command": "AddCart",
+  "website": "item.taobao.com",
+  "params": {
+    "id": "827563850178"
+  },
+  "success": true,
+  "data_count": 1,
+  "sample_data": [
+    {
+      "status": "? 未确认",
+      "title": "商品详情",
+      "price": "¥30",
+      "selected_spec": "(未选择)",
+      "item_id": "827563850178"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "actions": [
+    {
+      "action": "open",
+      "argument": {
+        "url": "https://www.taobao.com",
+        "waitUntil": "load"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": {
+        "timeMs": 2000
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const itemId = '{{ id }}'; location.href = `https://item.taobao.com/item.htm?id=${itemId}`; return { navigated: true }; }"
+      }
+    },
+    {
+      "action": "wait",
+      "argument": {
+        "timeMs": 6000
+      }
+    },
+    {
+      "action": "evaluate",
+      "argument": {
+        "script": "async (intermediate) => { const limit = {{ limit }} || 10; const normalize = v => (v || '').replace(/\\s+/g, ' ').trim(); let sellerId = ''; const pageText = document.documentElement.innerHTML || ''; const sellerMatch = pageText.match(/sellerId['\":\\s]+['\"]?(\\d+)/) || pageText.match(/userId['\":\\s]+['\"]?(\\d+)/) || pageText.match(/shopId['\":\\s]+['\"]?(\\d+)/); if (sellerMatch) sellerId = sellerMatch[1]; if (!sellerId) { const shopLink = document.querySelector('a[href*=\"shopId=\"], a[href*=\"seller_id=\"], a[href*=\"userId=\"]'); const href = shopLink?.getAttribute('href') || ''; const m = href.match(/(?:shopId|seller_id|userId)=(\\d+)/); if (m) sellerId = m[1]; } const itemId = '{{ id }}'; const url = 'https://rate.tmall.com/list_detail_rate.htm?itemId=' + itemId + (sellerId ? '&sellerId=' + sellerId : '') + '&order=3&currentPage=1&append=0&content=1&tagId=&posi=&picture=&groupValue=&needFold=0&_ksTS=' + Date.now(); const results = await new Promise((resolve) => { const cbName = '_ocli_rate_' + Date.now(); let settled = false; const cleanup = (value) => { if (settled) return; settled = true; delete window[cbName]; script.remove(); resolve(value); }; window[cbName] = (payload) => { const list = payload?.rateDetail?.rateList || []; cleanup(list.slice(0, limit).map((item, i) => ({ rank: i + 1, user: (item.displayUserNick || item.userNick || '').slice(0, 15), content: normalize(item.rateContent || '').slice(0, 150), date: (item.rateDate || '').slice(0, 10), spec: normalize(item.auctionSku || '').slice(0, 40) }))); }; const script = document.createElement('script'); script.src = url + '&callback=' + cbName; script.onerror = () => cleanup([]); document.head.appendChild(script); setTimeout(() => cleanup([]), 10000); }); return results; }"
+      }
+    }
+  ],
+  "api_endpoint": "taobao-reviews",
+  "category": "scrape",
+  "description": "淘宝商品评价",
+  "is_public": true,
+  "method": "GET",
+  "name": "Reviews",
+  "output_schema": [
+    { "name": "rank", "type": "number", "description": "排名" },
+    { "name": "user", "type": "string", "description": "用户名" },
+    { "name": "content", "type": "string", "description": "评价内容" },
+    { "name": "date", "type": "string", "description": "评价日期" },
+    { "name": "spec", "type": "string", "description": "购买规格" }
+  ],
+  "variables": [
+    { "name": "id", "type": "string", "required": true, "help": "商品 ID", "test": "827563850178" },
+    { "name": "limit", "type": "int", "default": 10, "help": "返回评价数量 (max 20)", "test": 10 }
+  ],
+  "website_domain": "item.taobao.com",
+  "website_id": "website-item.taobao.com"
+}

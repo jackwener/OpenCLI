@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-04-21T07:53:26.377Z",
+  "json_file": "./clis/taobao/detail.json",
+  "command": "Detail",
+  "website": "item.taobao.com",
+  "params": {
+    "id": "827563850178"
+  },
+  "success": true,
+  "data_count": 3,
+  "sample_data": [
+    {
+      "field": "商品名称",
+      "value": "登录"
+    },
+    {
+      "field": "ID",
+      "value": "827563850178"
+    },
+    {
+      "field": "链接",
+      "value": "https://login.taobao.com/havanaone/login/login.htm?bizName=taobao"
+    }
+  ]
+}
