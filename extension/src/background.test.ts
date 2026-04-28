@@ -564,6 +564,105 @@ describe('background tab isolation', () => {
     expect(chrome.windows.remove).toHaveBeenCalledWith(1);
   });
 
+  it('restores owned and borrowed leases from the registry', async () => {
+    const { chrome } = createChromeMock();
+    const deadline = Date.now() + 30_000;
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      opencli_target_lease_registry_v1: {
+        version: 1,
+        contextId: 'user-default',
+        ownedContainerWindowId: 1,
+        leases: {
+          'site:restored': {
+            windowId: 1,
+            owned: true,
+            preferredTabId: 1,
+            contextId: 'user-default',
+            ownership: 'owned',
+            lifecycle: 'ephemeral',
+            surface: 'dedicated-container',
+            idleDeadlineAt: deadline,
+            updatedAt: Date.now(),
+          },
+          'bound:restored': {
+            windowId: 2,
+            owned: false,
+            preferredTabId: 2,
+            contextId: 'user-default',
+            ownership: 'borrowed',
+            lifecycle: 'pinned',
+            surface: 'borrowed-user-tab',
+            idleDeadlineAt: 0,
+            updatedAt: Date.now(),
+          },
+        },
+      },
+    });
+
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+
+    expect(mod.__test__.getSession('site:restored')).toEqual(expect.objectContaining({
+      owned: true,
+      ownership: 'owned',
+      lifecycle: 'ephemeral',
+      surface: 'dedicated-container',
+      preferredTabId: 1,
+    }));
+    expect(mod.__test__.getSession('bound:restored')).toEqual(expect.objectContaining({
+      owned: false,
+      ownership: 'borrowed',
+      lifecycle: 'pinned',
+      surface: 'borrowed-user-tab',
+      preferredTabId: 2,
+      idleTimer: null,
+      idleDeadlineAt: 0,
+    }));
+    expect(chrome.alarms.create).toHaveBeenCalledWith(
+      'opencli:lease-idle:site%3Arestored',
+      expect.objectContaining({ when: expect.any(Number) }),
+    );
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+  });
+
+  it('releases owned leases from the idle alarm path', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, 'site:alarm');
+
+    const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
+    await onAlarmListener({ name: 'opencli:lease-idle:site%3Aalarm' });
+
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+    expect(mod.__test__.getSession('site:alarm')).toBeNull();
+  });
+
+  it('deduplicates concurrent automation container creation', async () => {
+    const { chrome } = createChromeMock();
+    chrome.windows.get = vi.fn(async (windowId: number) => {
+      if (windowId === 90 || windowId === 91) throw new Error(`stale window ${windowId}`);
+      return { id: windowId };
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession('site:stale-a', { windowId: 90, owned: true, preferredTabId: null });
+    mod.__test__.setSession('site:stale-b', { windowId: 91, owned: true, preferredTabId: null });
+
+    const [first, second] = await Promise.all([
+      mod.__test__.handleTabs({ id: 'new-a', action: 'tabs', op: 'new', workspace: 'site:stale-a', url: 'https://a.example' }, 'site:stale-a'),
+      mod.__test__.handleTabs({ id: 'new-b', action: 'tabs', op: 'new', workspace: 'site:stale-b', url: 'https://b.example' }, 'site:stale-b'),
+    ]);
+
+    expect(first).toEqual(expect.objectContaining({ ok: true }));
+    expect(second).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.windows.create).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps site:notebooklm inside its owned automation lease instead of rebinding to a user tab', async () => {
     const { chrome, tabs } = createChromeMock();
     tabs[0].url = 'https://notebooklm.google.com/';

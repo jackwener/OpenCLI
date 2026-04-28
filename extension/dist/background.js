@@ -506,6 +506,7 @@ const IDLE_TIMEOUT_NONE = -1;
 const REGISTRY_KEY = "opencli_target_lease_registry_v1";
 const LEASE_IDLE_ALARM_PREFIX = "opencli:lease-idle:";
 let leaseMutationQueue = Promise.resolve();
+let ownedContainerWindowPromise = null;
 class CommandFailure extends Error {
   constructor(code, message, hint) {
     super(message);
@@ -657,6 +658,13 @@ function resetWindowIdleTimer(workspace) {
   }, timeout);
 }
 async function ensureOwnedContainerWindow(initialUrl) {
+  if (ownedContainerWindowPromise) return ownedContainerWindowPromise;
+  ownedContainerWindowPromise = ensureOwnedContainerWindowUnlocked(initialUrl).finally(() => {
+    ownedContainerWindowPromise = null;
+  });
+  return ownedContainerWindowPromise;
+}
+async function ensureOwnedContainerWindowUnlocked(initialUrl) {
   if (ownedContainerWindowId !== null) {
     try {
       await chrome.windows.get(ownedContainerWindowId);
@@ -829,10 +837,10 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onStartup.addListener(() => {
   initialize();
 });
-chrome.alarms.onAlarm.addListener((alarm) => {
+chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "keepalive") void connect();
   const workspace = workspaceFromAlarmName(alarm.name);
-  if (workspace) void releaseWorkspaceLease(workspace, "idle alarm");
+  if (workspace) await releaseWorkspaceLease(workspace, "idle alarm");
 });
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "getStatus") {

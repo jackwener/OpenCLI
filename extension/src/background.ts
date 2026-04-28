@@ -148,6 +148,7 @@ const IDLE_TIMEOUT_NONE = -1;             // borrowed bound tabs stay bound unti
 const REGISTRY_KEY = 'opencli_target_lease_registry_v1';
 const LEASE_IDLE_ALARM_PREFIX = 'opencli:lease-idle:';
 let leaseMutationQueue: Promise<void> = Promise.resolve();
+let ownedContainerWindowPromise: Promise<{ windowId: number; initialTabId?: number }> | null = null;
 
 type StoredLease = Omit<AutomationSession, 'idleTimer' | 'idleDeadlineAt'> & {
   idleDeadlineAt: number;
@@ -343,6 +344,15 @@ function resetWindowIdleTimer(workspace: string): void {
  * - Owned TargetLeases are placed in the default dedicated-container surface.
  */
 async function ensureOwnedContainerWindow(initialUrl?: string): Promise<{ windowId: number; initialTabId?: number }> {
+  if (ownedContainerWindowPromise) return ownedContainerWindowPromise;
+  ownedContainerWindowPromise = ensureOwnedContainerWindowUnlocked(initialUrl)
+    .finally(() => {
+      ownedContainerWindowPromise = null;
+    });
+  return ownedContainerWindowPromise;
+}
+
+async function ensureOwnedContainerWindowUnlocked(initialUrl?: string): Promise<{ windowId: number; initialTabId?: number }> {
   if (ownedContainerWindowId !== null) {
     try {
       await chrome.windows.get(ownedContainerWindowId);
@@ -548,10 +558,10 @@ chrome.runtime.onStartup.addListener(() => {
   initialize();
 });
 
-chrome.alarms.onAlarm.addListener((alarm) => {
+chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'keepalive') void connect();
   const workspace = workspaceFromAlarmName(alarm.name);
-  if (workspace) void releaseWorkspaceLease(workspace, 'idle alarm');
+  if (workspace) await releaseWorkspaceLease(workspace, 'idle alarm');
 });
 
 // ─── Popup status API ───────────────────────────────────────────────
