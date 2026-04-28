@@ -5,6 +5,7 @@
 ### Features
 
 * **browser** — `bind` attaches `bound:*` workspaces to user-owned Chrome tabs without taking over window lifecycle; `sessions` reports `idleMsRemaining: null` for bound workspaces because they do not schedule idle close timers. ([#1169](https://github.com/jackwener/opencli/issues/1169), [#929](https://github.com/jackwener/opencli/issues/929))
+* **browser lifecycle** — owned browser workspaces now lease tabs inside a shared dedicated automation container instead of owning one Chrome window per workspace; lease state is persisted for MV3 service-worker reconciliation and idle cleanup is backed by alarms.
 
 ## [1.7.8](https://github.com/jackwener/opencli/compare/v1.7.7...v1.7.8) (2026-04-25)
 

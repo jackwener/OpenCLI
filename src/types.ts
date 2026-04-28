@@ -41,6 +41,15 @@ export interface ScreenshotOptions {
 export interface BrowserSessionInfo {
   workspace?: string;
   connected?: boolean;
+  windowId?: number;
+  preferredTabId?: number | null;
+  owned?: boolean;
+  ownership?: 'owned' | 'borrowed';
+  lifecycle?: 'ephemeral' | 'persistent' | 'pinned';
+  surface?: 'dedicated-container' | 'borrowed-user-tab';
+  contextId?: string;
+  tabCount?: number;
+  idleMsRemaining?: number | null;
   [key: string]: unknown;
 }
 

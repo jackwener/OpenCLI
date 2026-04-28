@@ -32,6 +32,7 @@ class MockWebSocket {
 
 function createChromeMock() {
   let nextTabId = 10;
+  const storageState: Record<string, unknown> = {};
   const tabs: MockTab[] = [
     { id: 1, windowId: 1, url: 'https://automation.example', title: 'automation', active: true, status: 'complete' },
     { id: 2, windowId: 2, url: 'https://user.example', title: 'user', active: true, status: 'complete' },
@@ -110,7 +111,16 @@ function createChromeMock() {
     },
     alarms: {
       create: vi.fn(),
+      clear: vi.fn(),
       onAlarm: { addListener: vi.fn() } as Listener<(alarm: { name: string }) => void>,
+    },
+    storage: {
+      local: {
+        get: vi.fn(async (key: string) => ({ [key]: storageState[key] })),
+        set: vi.fn(async (items: Record<string, unknown>) => {
+          Object.assign(storageState, items);
+        }),
+      },
     },
     runtime: {
       onInstalled: { addListener: vi.fn() } as Listener<() => void>,
@@ -262,7 +272,7 @@ describe('background tab isolation', () => {
     expect(evaluateInFrame).toHaveBeenCalledWith(1, 'document.title', 'cross-origin-nested', false);
   });
 
-  it('creates new tabs inside the automation window', async () => {
+  it('creates new tabs inside the automation container', async () => {
     const { chrome, create } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
@@ -273,6 +283,22 @@ describe('background tab isolation', () => {
 
     expect(result.ok).toBe(true);
     expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'https://new.example', active: true });
+  });
+
+  it('reuses the initial container tab for first tab-new lease instead of leaving a blank tab', async () => {
+    const { chrome, create, update } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const result = await mod.__test__.handleTabs(
+      { id: 'first-new', action: 'tabs', op: 'new', url: 'https://first.example', workspace: 'browser:first-new' },
+      'browser:first-new',
+    );
+
+    expect(result.ok).toBe(true);
+    expect(chrome.windows.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://first.example' }));
+    expect(update).toHaveBeenCalledWith(1, { url: 'https://first.example' });
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('closes a tab by page identity', async () => {
@@ -436,8 +462,8 @@ describe('background tab isolation', () => {
     expect(maxInFlight).toBe(2);
   });
 
-  it('can execute concurrently across two workspaces/windows', async () => {
-    const { chrome } = createChromeMock();
+  it('can execute concurrently across two workspaces in the shared container window', async () => {
+    const { chrome, create } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
     let inFlight = 0;
@@ -469,13 +495,76 @@ describe('background tab isolation', () => {
     }));
     expect(second).toEqual(expect.objectContaining({
       ok: true,
-      page: 'target-2',
-      data: { tabId: 2, code: 'window.__window = 2' },
+      page: 'target-10',
+      data: { tabId: 10, code: 'window.__window = 2' },
     }));
     expect(maxInFlight).toBe(2);
+    expect(chrome.windows.create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'about:blank', active: true });
   });
 
-  it('keeps site:notebooklm inside its owned automation window instead of rebinding to a user tab', async () => {
+  it('releases owned workspaces as tab leases before closing the shared container', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, 'site:first');
+    await mod.__test__.resolveTabId(undefined, 'site:second');
+    expect(mod.__test__.getSession('site:second')).toEqual(expect.objectContaining({ preferredTabId: 10 }));
+
+    const closeSecond = await mod.__test__.handleCommand({ id: 'close-second', action: 'close-window', workspace: 'site:second' });
+    expect(closeSecond).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(10);
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession('site:first')).not.toBeNull();
+    expect(mod.__test__.getSession('site:second')).toBeNull();
+
+    await mod.__test__.handleCommand({ id: 'close-first', action: 'close-window', workspace: 'site:first' });
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+  });
+
+  it('releases the current owned tab lease when tabs close targets it', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, 'site:closetab');
+
+    const result = await mod.__test__.handleTabs(
+      { id: 'close-current-lease', action: 'tabs', op: 'close', workspace: 'site:closetab' },
+      'site:closetab',
+    );
+
+    expect(result).toEqual(expect.objectContaining({
+      id: 'close-current-lease',
+      ok: true,
+      data: { closed: 'target-1' },
+    }));
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+    expect(mod.__test__.getSession('site:closetab')).toBeNull();
+  });
+
+  it('reconciles an owned container with no stored leases by closing it', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      opencli_target_lease_registry_v1: {
+        version: 1,
+        contextId: 'user-default',
+        ownedContainerWindowId: 1,
+        leases: {},
+      },
+    });
+
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+
+    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+  });
+
+  it('keeps site:notebooklm inside its owned automation lease instead of rebinding to a user tab', async () => {
     const { chrome, tabs } = createChromeMock();
     tabs[0].url = 'https://notebooklm.google.com/';
     tabs[0].title = 'NotebookLM Home';
@@ -494,9 +583,9 @@ describe('background tab isolation', () => {
     }));
   });
 
-  it('moves drifted tab back to automation window instead of creating a new one', async () => {
+  it('moves drifted legacy tab back to its automation container instead of creating a new one', async () => {
     const { chrome, tabs } = createChromeMock();
-    // Tab 1 belongs to automation window 1 but drifted to window 2
+    // Tab 1 belongs to automation container 1 but drifted to window 2
     tabs[0].windowId = 2;
     tabs[0].url = 'https://twitter.com/home';
     vi.stubGlobal('chrome', chrome);
@@ -527,7 +616,7 @@ describe('background tab isolation', () => {
     expect(typeof tabId).toBe('number');
   });
 
-  it('idle timeout closes the automation window for site:notebooklm', async () => {
+  it('idle timeout releases the automation lease for site:notebooklm', async () => {
     const { chrome, tabs } = createChromeMock();
     tabs[0].url = 'https://notebooklm.google.com/';
     tabs[0].title = 'NotebookLM Home';
@@ -628,7 +717,7 @@ describe('background tab isolation', () => {
     expect(mod.__test__.getIdleTimeout('browser:custom')).toBe(120_000);
   });
 
-  it('clears workspaceTimeoutOverrides when user manually closes automation window', async () => {
+  it('clears workspaceTimeoutOverrides when user manually closes the automation container', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
@@ -712,7 +801,7 @@ describe('background tab isolation', () => {
     expect(chrome.windows.create).not.toHaveBeenCalled();
   });
 
-  it('refuses bind when the bound workspace already owns an automation window', async () => {
+  it('refuses bind when the bound workspace already owns an automation lease', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
@@ -767,7 +856,7 @@ describe('background tab isolation', () => {
     expect(chrome.windows.remove).not.toHaveBeenCalled();
   });
 
-  it('fails closed when a borrowed bound tab is gone instead of creating an automation window', async () => {
+  it('fails closed when a borrowed bound tab is gone instead of creating an automation lease', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 

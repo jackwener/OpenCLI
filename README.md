@@ -167,8 +167,8 @@ OpenCLI is not only for websites. It can also:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENCLI_DAEMON_PORT` | `19825` | HTTP port for the daemon-extension bridge |
-| `OPENCLI_WINDOW_FOCUSED` | `false` | Set to `1` to open automation windows in the foreground (useful for debugging). The `--focus` flag sets this. |
-| `OPENCLI_LIVE` | `false` | Set to `1` to keep the automation window open after an adapter command finishes (useful for inspection). The `--live` flag sets this. |
+| `OPENCLI_WINDOW_FOCUSED` | `false` | Set to `1` to open the automation container in the foreground (useful for debugging). The `--focus` flag sets this. |
+| `OPENCLI_LIVE` | `false` | Set to `1` to keep the automation lease open after an adapter command finishes (useful for inspection). The `--live` flag sets this. |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | Seconds to wait for browser connection |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Seconds to wait for a single browser command |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol endpoint for remote browser or Electron apps |
@@ -177,7 +177,7 @@ OpenCLI is not only for websites. It can also:
 | `OPENCLI_DIAGNOSTIC` | `false` | Set to `1` to capture structured diagnostic context on failures |
 | `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |
 
-`--focus` works for both `opencli browser *` and browser-backed adapter commands. `--live` is mainly for adapter commands: browser subcommands already keep the automation window open until you run `opencli browser close` or the idle timeout expires.
+`--focus` works for both `opencli browser *` and browser-backed adapter commands. `--live` is mainly for adapter commands: browser subcommands already keep the automation lease open until you run `opencli browser close` or the idle timeout expires.
 
 ## Update
 

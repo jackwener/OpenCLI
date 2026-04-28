@@ -10,7 +10,7 @@ allowed-tools: Bash(opencli:*), Read, Edit, Write, Grep
 
 全程用现有工具：`opencli browser *` / `opencli doctor` / `opencli browser init` / `opencli browser verify`。没有新命令。
 
-调试浏览器型 adapter 时，优先直接带上 `--live --focus`。这样命令跑完后 automation window 还在，而且在前台，方便你核对最终页面状态，而不是猜是抓数错了还是页面走偏了。
+调试浏览器型 adapter 时，优先直接带上 `--live --focus`。这样命令跑完后 automation lease 还在，而且容器在前台，方便你核对最终页面状态，而不是猜是抓数错了还是页面走偏了。
 
 ---
 

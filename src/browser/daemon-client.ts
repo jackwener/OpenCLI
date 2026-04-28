@@ -46,11 +46,11 @@ export interface DaemonCommand {
   pattern?: string;
   cdpMethod?: string;
   cdpParams?: Record<string, unknown>;
-  /** When true, automation windows are created in the foreground */
+  /** When true, the owned automation container is created in the foreground */
   windowFocused?: boolean;
   /** Custom idle timeout in seconds for this workspace session. Overrides the default. */
   idleTimeout?: number;
-  /** Explicitly allow navigation inside a borrowed bound-current tab. */
+  /** Explicitly allow navigation inside a borrowed bound tab. */
   allowBoundNavigation?: boolean;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */
   frameIndex?: number;

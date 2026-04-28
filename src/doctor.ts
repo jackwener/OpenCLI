@@ -11,6 +11,7 @@ import { getDaemonHealth, listSessions } from './browser/daemon-client.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
+import type { BrowserSessionInfo } from './types.js';
 
 const DOCTOR_LIVE_TIMEOUT_SECONDS = 8;
 
@@ -66,7 +67,7 @@ export type DoctorReport = {
   extensionVersion?: string;
   latestExtensionVersion?: string;
   connectivity?: ConnectivityResult;
-  sessions?: Array<{ workspace: string; windowId: number; tabCount: number; idleMsRemaining: number }>;
+  sessions?: BrowserSessionInfo[];
   issues: string[];
 };
 
@@ -78,9 +79,13 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
   try {
     const bridge = new BrowserBridge();
     const page = await bridge.connect({ timeout: opts?.timeout ?? DOCTOR_LIVE_TIMEOUT_SECONDS });
-    // Try a simple eval to verify end-to-end connectivity
-    await page.evaluate('1 + 1');
-    await bridge.close();
+    try {
+      // Try a simple eval to verify end-to-end connectivity.
+      await page.evaluate('1 + 1');
+      await page.closeWindow?.();
+    } finally {
+      await bridge.close();
+    }
     return { ok: true, durationMs: Date.now() - start };
   } catch (err) {
     return { ok: false, error: getErrorMessage(err), durationMs: Date.now() - start };
@@ -114,7 +119,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   const daemonFlaky = !!(connectivity?.ok && !daemonRunning);
   const extensionFlaky = !!(connectivity?.ok && daemonRunning && !extensionConnected);
   const sessions = opts.sessions && health.state === 'ready'
-    ? await listSessions() as Array<{ workspace: string; windowId: number; tabCount: number; idleMsRemaining: number }>
+    ? await listSessions()
     : undefined;
   const extensionVersion = health.status?.extensionVersion;
 
@@ -256,7 +261,15 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
       lines.push(styleText('dim', '  • no active automation sessions'));
     } else {
       for (const session of report.sessions) {
-        lines.push(styleText('dim', `  • ${session.workspace} → window ${session.windowId}, tabs=${session.tabCount}, idle=${Math.ceil(session.idleMsRemaining / 1000)}s`));
+        const idle = session.idleMsRemaining == null
+          ? 'none'
+          : `${Math.ceil(session.idleMsRemaining / 1000)}s`;
+        const target = session.preferredTabId != null
+          ? `tab ${session.preferredTabId}`
+          : `window ${session.windowId ?? 'unknown'}`;
+        const mode = session.ownership ?? (session.owned === false ? 'borrowed' : 'owned');
+        const surface = session.surface ? `, surface=${session.surface}` : '';
+        lines.push(styleText('dim', `  • ${session.workspace ?? 'default'} → ${target}, mode=${mode}${surface}, tabs=${session.tabCount ?? 0}, idle=${idle}`));
       }
     }
   }
