@@ -21,9 +21,6 @@ docs/.vitepress/cache
 .claude
 .cortex
 
-# Local design notes / issue drafts
-.issue-*.md
-
 # Database files
 *.db
 autoresearch/results/

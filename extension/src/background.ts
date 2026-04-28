@@ -113,16 +113,22 @@ async function connect(): Promise<void> {
     return; // daemon not running — skip WebSocket to avoid console noise
   }
 
+  // Capture this specific instance so stale close/error events from a previous
+  // WS do not corrupt the module-level `ws` pointer after connect() has already
+  // created a newer connection (e.g. alarm wakes SW while old WS is CLOSING).
+  let thisWs: WebSocket;
   try {
-    ws = new WebSocket(DAEMON_WS_URL);
+    thisWs = new WebSocket(DAEMON_WS_URL);
+    ws = thisWs;
   } catch {
     scheduleReconnect();
     return;
   }
 
-  ws.onopen = () => {
+  thisWs.onopen = () => {
+    if (ws !== thisWs) return; // superseded by a newer connection
     console.log('[opencli] Connected to daemon');
-    reconnectAttempts = 0; // Reset on successful connection
+    reconnectAttempts = 0;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
@@ -130,7 +136,7 @@ async function connect(): Promise<void> {
     // Send version + compatibility range so the daemon can report mismatches to the CLI.
     // profileId/profileLabel let the daemon route commands to the right profile when
     // multiple Chrome profiles are each running their own extension instance.
-    ws?.send(JSON.stringify({
+    thisWs.send(JSON.stringify({
       type: 'hello',
       version: chrome.runtime.getManifest().version,
       compatRange: __OPENCLI_COMPAT_RANGE__,
@@ -139,24 +145,27 @@ async function connect(): Promise<void> {
     }));
   };
 
-  ws.onmessage = async (event) => {
+  thisWs.onmessage = async (event) => {
     try {
       const command = JSON.parse(event.data as string) as Command;
       const result = await handleCommand(command);
-      ws?.send(JSON.stringify(result));
+      thisWs.send(JSON.stringify(result));
     } catch (err) {
       console.error('[opencli] Message handling error:', err);
     }
   };
 
-  ws.onclose = () => {
+  thisWs.onclose = () => {
+    // If ws has been replaced by a newer connection, this is a stale close from
+    // a connection the daemon already superseded — do not clobber the live ws.
+    if (ws !== thisWs) return;
     console.log('[opencli] Disconnected from daemon');
     ws = null;
     scheduleReconnect();
   };
 
-  ws.onerror = () => {
-    ws?.close();
+  thisWs.onerror = () => {
+    thisWs.close();
   };
 }
 

@@ -489,20 +489,23 @@ async function connect() {
   } catch {
     return;
   }
+  let thisWs;
   try {
-    ws = new WebSocket(DAEMON_WS_URL);
+    thisWs = new WebSocket(DAEMON_WS_URL);
+    ws = thisWs;
   } catch {
     scheduleReconnect();
     return;
   }
-  ws.onopen = () => {
+  thisWs.onopen = () => {
+    if (ws !== thisWs) return;
     console.log("[opencli] Connected to daemon");
     reconnectAttempts = 0;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
-    ws?.send(JSON.stringify({
+    thisWs.send(JSON.stringify({
       type: "hello",
       version: chrome.runtime.getManifest().version,
       compatRange: ">=1.7.0",
@@ -510,22 +513,23 @@ async function connect() {
       profileLabel
     }));
   };
-  ws.onmessage = async (event) => {
+  thisWs.onmessage = async (event) => {
     try {
       const command = JSON.parse(event.data);
       const result = await handleCommand(command);
-      ws?.send(JSON.stringify(result));
+      thisWs.send(JSON.stringify(result));
     } catch (err) {
       console.error("[opencli] Message handling error:", err);
     }
   };
-  ws.onclose = () => {
+  thisWs.onclose = () => {
+    if (ws !== thisWs) return;
     console.log("[opencli] Disconnected from daemon");
     ws = null;
     scheduleReconnect();
   };
-  ws.onerror = () => {
-    ws?.close();
+  thisWs.onerror = () => {
+    thisWs.close();
   };
 }
 const MAX_EAGER_ATTEMPTS = 6;
