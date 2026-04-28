@@ -20669,6 +20669,67 @@
     "navigateBefore": "https://www.zhihu.com"
   },
   {
+    "site": "zlibrary",
+    "name": "info",
+    "description": "Get book details and available download formats from a Z-Library book page",
+    "domain": "z-library.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Z-Library book page URL (e.g. https://z-library.im/book/...)"
+      }
+    ],
+    "columns": [
+      "title",
+      "pdf",
+      "epub",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zlibrary/info.js",
+    "sourceFile": "zlibrary/info.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "zlibrary",
+    "name": "search",
+    "description": "Search Z-Library for books by title, author, ISBN, or keyword",
+    "domain": "z-library.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (title, author, ISBN, etc.)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Max results (1–25)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "author",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zlibrary/search.js",
+    "sourceFile": "zlibrary/search.js",
+    "navigateBefore": false
+  },
+  {
     "site": "zsxq",
     "name": "dynamics",
     "description": "获取所有星球的最新动态",
