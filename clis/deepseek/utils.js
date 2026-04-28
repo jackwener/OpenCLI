@@ -357,6 +357,7 @@ export async function sendWithFile(page, filePath, prompt) {
 
     // File preview appears immediately but send button stays disabled until
     // the server upload finishes. Wait for it.
+    let sendEnabled = false;
     for (let tick = 0; tick < 15; tick++) {
         const enabled = await page.evaluate(`(() => {
             var box = document.querySelector('${TEXTAREA_SELECTOR}');
@@ -366,10 +367,16 @@ export async function sendWithFile(page, filePath, prompt) {
             if (!c) return false;
             var btns = c.querySelectorAll('div[role="button"]:not(.ds-toggle-button)');
             var last = btns[btns.length - 1];
-            return last && last.getAttribute('aria-disabled') === 'false';
+            return !!(last && last.getAttribute('aria-disabled') === 'false');
         })()`);
-        if (enabled) break;
+        if (enabled) {
+            sendEnabled = true;
+            break;
+        }
         await page.wait(1);
+    }
+    if (!sendEnabled) {
+        return { ok: false, reason: 'send button did not enable after upload' };
     }
 
     return sendMessage(page, prompt);

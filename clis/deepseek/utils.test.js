@@ -115,8 +115,28 @@ describe('deepseek sendWithFile', () => {
 
     const result = await sendWithFile(page, filePath, 'summarize this');
 
-    expect(result).toEqual({ ok: true });
-    expect(page.setFileInput).toHaveBeenCalledWith([filePath], 'input[type="file"]');
+    expect(result).toEqual({ ok: true });    expect(page.setFileInput).toHaveBeenCalledWith([filePath], 'input[type="file"]');
+  });
+
+  it('fails closed when upload preview appears but send button never enables', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-deepseek-'));
+    tempDirs.push(dir);
+    const filePath = path.join(dir, 'report.txt');
+    fs.writeFileSync(filePath, 'hello');
+
+    const page = {
+      setFileInput: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn()
+        .mockResolvedValueOnce(undefined) // sidebar collapse
+        .mockResolvedValueOnce(true)      // waitForFilePreview
+        .mockResolvedValue(false),        // send button never enables
+    };
+
+    const result = await sendWithFile(page, filePath, 'summarize this');
+
+    expect(result).toEqual({ ok: false, reason: 'send button did not enable after upload' });
+    expect(page.evaluate).toHaveBeenCalledTimes(17);
   });
 });
 
