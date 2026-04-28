@@ -5,6 +5,7 @@
  * 用法: opencli jd item 100291143898
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 function normalizePositiveInt(value, fallback) {
     const n = Number(value);
     return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
@@ -682,6 +683,15 @@ cli({
         return result;
       })()
     `);
+        if (data?.error) {
+            if (data?.pageState?.looksBlocked) {
+                throw new AuthRequiredError('item.jd.com', data.error);
+            }
+            throw new CommandExecutionError(data.error);
+        }
+        if (maxImages > 0 && data?.pageState?.isProductPage && (!Array.isArray(data.detailImages) || data.detailImages.length === 0)) {
+            throw new CommandExecutionError('JD item detail images were not found', 'The product page loaded, but no detail images were detected from DOM, scripts, frames, page data, or WareGraphic fallback.');
+        }
         return [data];
     },
 });

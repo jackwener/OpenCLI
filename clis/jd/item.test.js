@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { AuthRequiredError } from '@jackwener/opencli/errors';
 import { __test__ } from './item.js';
 import './item.js';
 const originalPerformance = globalThis.performance;
@@ -31,6 +32,64 @@ describe('jd item adapter', () => {
         const imagesArg = command.args.find((a) => a.name === 'images');
         expect(imagesArg).toBeDefined();
         expect(imagesArg.default).toBe(200);
+    });
+    it('fails fast when JD blocks the item page', async () => {
+        const page = {
+            evaluate: vi.fn()
+                .mockResolvedValueOnce('https://item.jd.com/100328272886.html')
+                .mockResolvedValueOnce({ looksBlocked: true })
+                .mockResolvedValueOnce({
+                error: 'JD page is blocked by login/security verification',
+                pageState: { looksBlocked: true },
+            }),
+            goto: vi.fn(),
+            wait: vi.fn(),
+        };
+        await expect(command.func(page, { sku: '100328272886', images: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+    it('fails fast when a loaded product page has no detail images', async () => {
+        const page = {
+            evaluate: vi.fn()
+                .mockResolvedValueOnce('https://item.jd.com/100328272886.html')
+                .mockResolvedValueOnce({ looksBlocked: false })
+                .mockResolvedValueOnce(undefined)
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce({
+                title: 'JD product',
+                price: '100',
+                shop: '京东自营',
+                specs: {},
+                mainImages: ['https://img10.360buyimg.com/pcpubliccms/jfs/t1/main.jpg'],
+                detailImages: [],
+                pageState: { isProductPage: true, looksBlocked: false },
+            }),
+            goto: vi.fn(),
+            wait: vi.fn(),
+        };
+        await expect(command.func(page, { sku: '100328272886', images: 5 })).rejects.toThrow('JD item detail images were not found');
+    });
+    it('allows zero-image requests to skip detail image fail-fast', async () => {
+        const data = {
+            title: 'JD product',
+            price: '100',
+            shop: '京东自营',
+            specs: {},
+            mainImages: [],
+            detailImages: [],
+            pageState: { isProductPage: true, looksBlocked: false },
+        };
+        const page = {
+            evaluate: vi.fn()
+                .mockResolvedValueOnce('https://item.jd.com/100328272886.html')
+                .mockResolvedValueOnce({ looksBlocked: false })
+                .mockResolvedValueOnce(undefined)
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce(data),
+            goto: vi.fn(),
+            wait: vi.fn(),
+        };
+        await expect(command.func(page, { sku: '100328272886', images: 0 })).resolves.toEqual([data]);
     });
     it('normalizes JD item URL input to a SKU before building selectors', () => {
         expect(__test__.normalizeJdSkuInput('100328272886')).toBe('100328272886');
