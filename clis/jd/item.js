@@ -37,6 +37,11 @@ function collectImageUrlsFrom(root) {
     if (!root)
         return [];
     const urls = [];
+    const pushUrlsFromText = (text) => {
+        for (const match of String(text || '').matchAll(/url\(["']?([^"')]+360buyimg\.com[^"')]+)["']?\)/g)) {
+            push(match[1]);
+        }
+    };
     const push = (value) => {
         const url = normalizeJdImageUrl(value);
         if (url && url.includes('360buyimg.com'))
@@ -46,12 +51,30 @@ function collectImageUrlsFrom(root) {
         push(img.currentSrc || img.src);
         push(img.getAttribute('data-src'));
         push(img.getAttribute('data-lazy-img'));
+        push(img.getAttribute('data-lazyload'));
         push(img.getAttribute('data-original'));
+    }
+    for (const source of root.querySelectorAll?.('source') || []) {
+        push(source.getAttribute('src'));
+        push(source.getAttribute('srcset')?.split(/\s+/)[0]);
+        push(source.getAttribute('data-src'));
+        push(source.getAttribute('data-srcset')?.split(/\s+/)[0]);
     }
     for (const el of root.querySelectorAll?.('[style*="360buyimg.com"]') || []) {
         const style = el.getAttribute('style') || '';
-        for (const match of style.matchAll(/url\(["']?([^"')]+360buyimg\.com[^"')]+)["']?\)/g)) {
-            push(match[1]);
+        pushUrlsFromText(style);
+    }
+    if (typeof getComputedStyle === 'function') {
+        const elements = [root, ...Array.from(root.querySelectorAll?.('*') || [])];
+        for (const el of elements) {
+            try {
+                const style = getComputedStyle(el);
+                pushUrlsFromText(style?.backgroundImage);
+                pushUrlsFromText(style?.background);
+            }
+            catch {
+                // ignore inaccessible/computed-style edge cases in the page context
+            }
         }
     }
     return [...new Set(urls)];
@@ -86,8 +109,7 @@ function extractDetailImagesFromDom(maxImages) {
     const safeDetailTitleParent = detailTitleParent && detailTitleParent !== document.body && detailTitleParent !== document.documentElement
         ? detailTitleParent
         : null;
-    const roots = [
-        safeDetailTitleParent,
+    const selectorRoots = [
         '#J-detail',
         '#J-detail-content',
         '#detail',
@@ -97,11 +119,30 @@ function extractDetailImagesFromDom(maxImages) {
         '.ssd-module-wrap',
         '#SPXQ-title + *',
     ];
-    const scopedRoots = roots
-        .map((selector) => typeof selector === 'string' ? document.querySelector(selector) : selector)
-        .filter(Boolean);
+    const scopedRoots = [
+        safeDetailTitleParent,
+        ...selectorRoots.flatMap((selector) => Array.from(document.querySelectorAll(selector))),
+    ].filter((root) => root && root !== document.body && root !== document.documentElement);
     const scoped = scopedRoots.flatMap((root) => collectImageUrlsFrom(root));
     return orderJdDetailImages(scoped).slice(0, maxImages);
+}
+function getJdDetailScrollSnapshot(maxImages) {
+    const doc = document.scrollingElement || document.documentElement || document.body;
+    const scrollY = window.scrollY || window.pageYOffset || doc?.scrollTop || 0;
+    const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+    const scrollHeight = Math.max(doc?.scrollHeight || 0, document.documentElement?.scrollHeight || 0, document.body?.scrollHeight || 0);
+    return {
+        detailImageCount: extractDetailImagesFromDom(maxImages).length,
+        scrollY,
+        viewportHeight,
+        scrollHeight,
+        nearBottom: scrollY + viewportHeight >= scrollHeight - 120,
+    };
+}
+function scrollJdDetailStep() {
+    const step = Math.max(900, Math.floor((window.innerHeight || 900) * 0.9));
+    window.scrollBy(0, step);
+    return step;
 }
 function extractMainImages(maxImages) {
     const roots = [
@@ -288,11 +329,35 @@ cli({
           return detectJdPageState(${JSON.stringify(sku)});
         })()`).catch(() => null);
         if (!initialState?.looksBlocked) {
-            await page.evaluate(`document.querySelector('#SPXQ-tab-column')?.click()`);
+            await page.evaluate(`
+              document.querySelector('#SPXQ-tab-column')?.click();
+              document.querySelector('#SPXQ-title')?.scrollIntoView({ block: 'start' });
+            `);
             await page.wait(1);
-            // 少量滚动即可触发详情懒加载，避免每次全页深滚造成高频异常行为。
-            for (const y of [900, 1800, 3200]) {
-                await page.evaluate(`window.scrollTo(0, ${y})`);
+            let previousDetailImageCount = -1;
+            let stableRounds = 0;
+            for (let i = 0; i < 30; i++) {
+                const snapshot = await page.evaluate(`(() => {
+                  const normalizeJdImageUrl = ${normalizeJdImageUrl.toString()};
+                  const normalizeJdImageSize = ${normalizeJdImageSize.toString()};
+                  const collectImageUrlsFrom = ${collectImageUrlsFrom.toString()};
+                  const isJdDetailImage = ${isJdDetailImage.toString()};
+                  const rankJdDetailImage = ${rankJdDetailImage.toString()};
+                  const orderJdDetailImages = ${orderJdDetailImages.toString()};
+                  const extractDetailImagesFromDom = ${extractDetailImagesFromDom.toString()};
+                  const getJdDetailScrollSnapshot = ${getJdDetailScrollSnapshot.toString()};
+                  return getJdDetailScrollSnapshot(${maxImages});
+                })()`).catch(() => null);
+                if (!snapshot)
+                    break;
+                stableRounds = snapshot.detailImageCount === previousDetailImageCount ? stableRounds + 1 : 0;
+                previousDetailImageCount = snapshot.detailImageCount;
+                if (snapshot.nearBottom && stableRounds >= 2)
+                    break;
+                await page.evaluate(`(() => {
+                  const scrollJdDetailStep = ${scrollJdDetailStep.toString()};
+                  return scrollJdDetailStep();
+                })()`);
                 await page.wait(0.8);
             }
         }
@@ -358,6 +423,8 @@ export const __test__ = {
     isJdDetailImage,
     rankJdDetailImage,
     orderJdDetailImages,
+    getJdDetailScrollSnapshot,
+    scrollJdDetailStep,
     extractMainImages,
     extractDetailImagesFromDom,
     extractAvifImages,

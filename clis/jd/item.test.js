@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './item.js';
 import './item.js';
@@ -39,5 +40,31 @@ describe('jd item adapter', () => {
         expect(result).toEqual([
             'https://img10.360buyimg.com/imgzone/jfs/t1/detail.avif',
         ]);
+    });
+    it('collects JD detail images from computed background images', () => {
+        const dom = new JSDOM(`
+      <div id="J-detail">
+        <div class="ssd-module computed-bg"></div>
+        <div class="ssd-module ignored-bg"></div>
+      </div>
+    `);
+        const previousDocument = globalThis.document;
+        const previousGetComputedStyle = globalThis.getComputedStyle;
+        globalThis.document = dom.window.document;
+        globalThis.getComputedStyle = ((element) => ({
+            background: '',
+            backgroundImage: element.classList.contains('computed-bg')
+                ? 'url("//img10.360buyimg.com/imgzone/jfs/t1/computed-detail.jpg.avif")'
+                : 'none',
+        }));
+        try {
+            expect(__test__.extractDetailImagesFromDom(10)).toEqual([
+                'https://img10.360buyimg.com/imgzone/jfs/t1/computed-detail.jpg.avif',
+            ]);
+        }
+        finally {
+            globalThis.document = previousDocument;
+            globalThis.getComputedStyle = previousGetComputedStyle;
+        }
     });
 });

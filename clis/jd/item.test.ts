@@ -98,6 +98,7 @@ describe('jd item image helpers', () => {
       <div class="detail-content-wrap">
         <img src="https://img10.360buyimg.com/imgzone/jfs/t1/detail-hero.gif" />
         <img src="https://img10.360buyimg.com/imgzone/jfs/t1/detail-a.jpg.avif" />
+        <source srcset="https://img11.360buyimg.com/imgzone/jfs/t1/detail-source.jpg.avif 1x" />
         <img src="https://img10.360buyimg.com/pcpubliccms/jfs/t1/wrong-main-in-detail.jpg.avif" />
         <img src="https://img10.360buyimg.com/shaidan/jfs/t1/wrong-user.jpg.avif" />
       </div>
@@ -115,11 +116,99 @@ describe('jd item image helpers', () => {
       ]);
       expect(__test__.extractDetailImagesFromDom(10)).toEqual([
         'https://img10.360buyimg.com/imgzone/jfs/t1/detail-a.jpg.avif',
+        'https://img11.360buyimg.com/imgzone/jfs/t1/detail-source.jpg.avif',
         'https://img10.360buyimg.com/imgzone/jfs/t1/detail-hero.gif',
       ]);
     }
     finally {
       globalThis.document = previousDocument;
+    }
+  });
+
+  it('collects JD detail images from computed background images', () => {
+    const dom = new JSDOM(`
+      <div id="J-detail">
+        <div class="ssd-module computed-bg"></div>
+        <div class="ssd-module ignored-bg"></div>
+      </div>
+    `);
+    const previousDocument = globalThis.document;
+    const previousGetComputedStyle = globalThis.getComputedStyle;
+    globalThis.document = dom.window.document;
+    globalThis.getComputedStyle = ((element: Element) => ({
+      background: '',
+      backgroundImage: element.classList.contains('computed-bg')
+        ? 'url("//img10.360buyimg.com/imgzone/jfs/t1/computed-detail.jpg.avif")'
+        : 'none',
+    })) as typeof getComputedStyle;
+
+    try {
+      expect(__test__.extractDetailImagesFromDom(10)).toEqual([
+        'https://img10.360buyimg.com/imgzone/jfs/t1/computed-detail.jpg.avif',
+      ]);
+    }
+    finally {
+      globalThis.document = previousDocument;
+      globalThis.getComputedStyle = previousGetComputedStyle;
+    }
+  });
+
+  it('collects images from every repeated JD detail module', () => {
+    const dom = new JSDOM(`
+      <h2 id="SPXQ-title">商品详情</h2>
+      <div class="ssd-module-wrap">
+        <img src="https://img10.360buyimg.com/imgzone/jfs/t1/detail-a.jpg.avif" />
+      </div>
+      <div class="ssd-module-wrap">
+        <img src="https://img11.360buyimg.com/imgzone/jfs/t1/detail-b.jpg.avif" />
+      </div>
+      <div class="ssd-module-wrap">
+        <img src="https://img12.360buyimg.com/imgzone/jfs/t1/detail-c.gif" />
+      </div>
+    `);
+    const previousDocument = globalThis.document;
+    globalThis.document = dom.window.document;
+
+    try {
+      expect(__test__.extractDetailImagesFromDom(10)).toEqual([
+        'https://img10.360buyimg.com/imgzone/jfs/t1/detail-a.jpg.avif',
+        'https://img11.360buyimg.com/imgzone/jfs/t1/detail-b.jpg.avif',
+        'https://img12.360buyimg.com/imgzone/jfs/t1/detail-c.gif',
+      ]);
+    }
+    finally {
+      globalThis.document = previousDocument;
+    }
+  });
+
+  it('reports detail scroll progress so lazy-loaded detail images can stabilize', () => {
+    const dom = new JSDOM(`
+      <h2 id="SPXQ-title">商品详情</h2>
+      <div class="detail-content-wrap">
+        <img src="https://img10.360buyimg.com/imgzone/jfs/t1/detail-a.jpg.avif" />
+        <img src="https://img10.360buyimg.com/imgzone/jfs/t1/detail-b.jpg.avif" />
+      </div>
+    `);
+    const previousDocument = globalThis.document;
+    const previousWindow = globalThis.window;
+    globalThis.document = dom.window.document;
+    globalThis.window = dom.window as unknown as Window & typeof globalThis;
+    Object.defineProperty(dom.window, 'scrollY', { value: 1800, configurable: true });
+    Object.defineProperty(dom.window, 'innerHeight', { value: 900, configurable: true });
+    Object.defineProperty(dom.window.document.documentElement, 'scrollHeight', { value: 2600, configurable: true });
+
+    try {
+      expect(__test__.getJdDetailScrollSnapshot(10)).toMatchObject({
+        detailImageCount: 2,
+        scrollY: 1800,
+        viewportHeight: 900,
+        scrollHeight: 2600,
+        nearBottom: true,
+      });
+    }
+    finally {
+      globalThis.document = previousDocument;
+      globalThis.window = previousWindow;
     }
   });
 
