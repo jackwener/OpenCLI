@@ -153,6 +153,61 @@ describe('jd item image helpers', () => {
     }
   });
 
+  it('collects JD detail images from inline JSON-like script text', () => {
+    const dom = new JSDOM(`
+      <h2 id="SPXQ-title">商品详情</h2>
+      <script>
+        window.__DETAIL_DATA__ = {
+          images: [
+            "https://img10.360buyimg.com/imgzone/jfs/t1/script-detail-a.jpg.avif",
+            "//img11.360buyimg.com/imgzone/jfs/t1/script-detail-b.gif"
+          ]
+        };
+      </script>
+    `);
+    const previousDocument = globalThis.document;
+    globalThis.document = dom.window.document;
+
+    try {
+      expect(__test__.extractDetailImagesFromDom(10)).toEqual([
+        'https://img10.360buyimg.com/imgzone/jfs/t1/script-detail-a.jpg.avif',
+        'https://img11.360buyimg.com/imgzone/jfs/t1/script-detail-b.gif',
+      ]);
+    }
+    finally {
+      globalThis.document = previousDocument;
+    }
+  });
+
+  it('collects JD detail images from same-origin iframe content', () => {
+    const dom = new JSDOM(`
+      <h2 id="SPXQ-title">商品详情</h2>
+      <iframe id="detail-frame"></iframe>
+    `, { url: 'https://item.jd.com/100328272886.html' });
+    const frameDom = new JSDOM(`
+      <div id="J-detail">
+        <img src="https://img10.360buyimg.com/imgzone/jfs/t1/frame-detail-a.jpg.avif" />
+        <div style="background-image:url(//img11.360buyimg.com/cms/jfs/t1/frame-detail-b.jpg.avif)"></div>
+      </div>
+    `, { url: 'https://item.jd.com/detail-frame.html' });
+    const iframe = dom.window.document.getElementById('detail-frame') as HTMLIFrameElement;
+    Object.defineProperty(iframe, 'contentDocument', { value: frameDom.window.document, configurable: true });
+    Object.defineProperty(iframe, 'contentWindow', { value: frameDom.window, configurable: true });
+
+    const previousDocument = globalThis.document;
+    globalThis.document = dom.window.document;
+
+    try {
+      expect(__test__.extractDetailImagesFromDom(10)).toEqual([
+        'https://img10.360buyimg.com/imgzone/jfs/t1/frame-detail-a.jpg.avif',
+        'https://img11.360buyimg.com/cms/jfs/t1/frame-detail-b.jpg.avif',
+      ]);
+    }
+    finally {
+      globalThis.document = previousDocument;
+    }
+  });
+
   it('collects images from every repeated JD detail module', () => {
     const dom = new JSDOM(`
       <h2 id="SPXQ-title">商品详情</h2>

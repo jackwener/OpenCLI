@@ -79,6 +79,48 @@ function collectImageUrlsFrom(root) {
     }
     return [...new Set(urls)];
 }
+function collectImageUrlsFromText(text) {
+    const urls = [];
+    const push = (value) => {
+        const url = normalizeJdImageUrl(value);
+        if (url && url.includes('360buyimg.com'))
+            urls.push(url);
+    };
+    for (const match of String(text || '').matchAll(/(?:https?:)?\/\/[^"'`\s<>]+360buyimg\.com[^"'`\s<>]*/g)) {
+        push(match[0]);
+    }
+    for (const match of String(text || '').matchAll(/url\(["']?([^"')]+360buyimg\.com[^"')]+)["']?\)/g)) {
+        push(match[1]);
+    }
+    return urls;
+}
+function collectImageUrlsFromFramesAndScripts() {
+    const urls = [];
+    for (const script of document.scripts || []) {
+        const text = script.textContent || '';
+        if (!/360buyimg\.com/.test(text))
+            continue;
+        urls.push(...collectImageUrlsFromText(text));
+    }
+    for (const iframe of document.querySelectorAll('iframe')) {
+        try {
+            const frameDoc = iframe.contentDocument || iframe.contentWindow?.document;
+            if (!frameDoc)
+                continue;
+            urls.push(...collectImageUrlsFrom(frameDoc.body || frameDoc.documentElement || frameDoc));
+            for (const script of frameDoc.scripts || []) {
+                const text = script.textContent || '';
+                if (!/360buyimg\.com/.test(text))
+                    continue;
+                urls.push(...collectImageUrlsFromText(text));
+            }
+        }
+        catch {
+            // ignore cross-origin or not-yet-loaded iframe content
+        }
+    }
+    return [...new Set(urls)];
+}
 function isJdDetailImage(url) {
     const normalized = normalizeJdImageSize(url);
     return /360buyimg\.com\/(?:imgzone|skuimg|babel|jdcms|cms|popWaterMark|vc|ddimg)\//.test(normalized) &&
@@ -123,7 +165,10 @@ function extractDetailImagesFromDom(maxImages) {
         safeDetailTitleParent,
         ...selectorRoots.flatMap((selector) => Array.from(document.querySelectorAll(selector))),
     ].filter((root) => root && root !== document.body && root !== document.documentElement);
-    const scoped = scopedRoots.flatMap((root) => collectImageUrlsFrom(root));
+    const scoped = [
+        ...scopedRoots.flatMap((root) => collectImageUrlsFrom(root)),
+        ...collectImageUrlsFromFramesAndScripts(),
+    ];
     return orderJdDetailImages(scoped).slice(0, maxImages);
 }
 function getJdDetailScrollSnapshot(maxImages) {
