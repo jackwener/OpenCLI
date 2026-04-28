@@ -14,8 +14,7 @@ export function assertNotInjected(content: string, source: string): void {
       throw new Error(
         `[OpenCLI Security] Potential prompt injection blocked.\n` +
           `Source: ${source}\n` +
-          `Matched pattern: ${pattern}\n` +
-          `Content preview: ${content.slice(0, 200)}...`
+          `Matched pattern: ${pattern}`
       );
     }
   }
