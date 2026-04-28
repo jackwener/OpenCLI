@@ -22,12 +22,12 @@ Until `doctor` is green, nothing else will work. Typical failures: Chrome not ru
 
 ---
 
-## Window lifecycle
+## Lease lifecycle
 
-- `opencli browser *` commands already keep the automation session alive between calls. The window stays open until you run `opencli browser close` or the idle timeout expires.
+- `opencli browser *` commands keep an owned tab lease alive between calls. Owned leases share a dedicated automation container and are released with `opencli browser close` or when the idle timeout expires.
 - `opencli browser bind` binds a `bound:*` workspace to the Chrome tab you already have open. Use this for logged-in pages, SSO flows, or pages you manually positioned before handing control to the agent.
-- `--focus` (or `OPENCLI_WINDOW_FOCUSED=1`) opens the automation window in the foreground. Use it when you want to watch the page live.
-- `--live` (or `OPENCLI_LIVE=1`) is mainly for browser-backed adapter commands such as `opencli xiaohongshu note ...`. It keeps the adapter's automation window open after the command returns so you can inspect the final page state.
+- `--focus` (or `OPENCLI_WINDOW_FOCUSED=1`) opens the automation container in the foreground. Use it when you want to watch the page live.
+- `--live` (or `OPENCLI_LIVE=1`) is mainly for browser-backed adapter commands such as `opencli xiaohongshu note ...`. It keeps the adapter's automation lease open after the command returns so you can inspect the final page state.
 
 ### Bind Tab
 
@@ -48,7 +48,7 @@ opencli browser bind --workspace bound:gmail --domain mail.google.com --path-pre
 opencli browser --workspace bound:gmail state
 ```
 
-Navigation is blocked by default on bound workspaces because it can destroy the logged-in/positioned state you wanted to preserve. `browser open` and `browser back` require `--allow-navigate-bound`; tab mutation (`tab new`, `tab select`, `tab close`) is blocked for bound workspaces. Use a normal `browser:*` automation workspace when you want OpenCLI to own tab/window lifecycle.
+Navigation is blocked by default on bound workspaces because it can destroy the logged-in/positioned state you wanted to preserve. `browser open` and `browser back` require `--allow-navigate-bound`; tab mutation (`tab new`, `tab select`, `tab close`) is blocked for bound workspaces. Use a normal `browser:*` automation workspace when you want OpenCLI to own tab lifecycle.
 
 `opencli browser sessions` returns `idleMsRemaining: null` for bound workspaces. That means there is no OpenCLI idle-close timer; the binding lasts until `unbind`, tab close, window close, or daemon restart.
 
@@ -194,7 +194,7 @@ Default output keeps JSON/XML/plain-text and JS-like API responses, then drops o
 | `browser tab select [targetId]` | Make a tab the default. All subcommands accept `--tab <targetId>` to target one without changing the default. |
 | `browser tab close [targetId]` | Close by `page`. |
 | `browser back` | History back on the active tab. |
-| `browser close` | Close the automation window when done. |
+| `browser close` | Release the current automation tab lease when done. |
 | `browser bind` | Bind `bound:default` (or `--workspace bound:<name>`) to the current Chrome tab. |
 | `browser unbind` | Detach a bound workspace without closing the user tab/window. |
 

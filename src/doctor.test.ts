@@ -97,6 +97,27 @@ describe('doctor report rendering', () => {
     expect(text).toContain('[SKIP] Connectivity: skipped (--no-live)');
   });
 
+  it('renders sessions with tab leases and no idle timer', () => {
+    const text = strip(renderBrowserDoctorReport({
+      daemonRunning: true,
+      extensionConnected: true,
+      issues: [],
+      sessions: [
+        {
+          workspace: 'bound:default',
+          windowId: 2,
+          preferredTabId: 42,
+          ownership: 'borrowed',
+          surface: 'borrowed-user-tab',
+          tabCount: 1,
+          idleMsRemaining: null,
+        },
+      ],
+    }));
+
+    expect(text).toContain('bound:default → tab 42, mode=borrowed, surface=borrowed-user-tab, tabs=1, idle=none');
+  });
+
   it('renders unstable extension state when live connectivity and status disagree', () => {
     const text = strip(renderBrowserDoctorReport({
       daemonRunning: true,
@@ -174,10 +195,12 @@ describe('doctor report rendering', () => {
 
   it('uses the fast default timeout for live connectivity checks', async () => {
     let timeoutSeen: number | undefined;
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
     mockConnect.mockImplementationOnce(async (opts?: { timeout?: number }) => {
       timeoutSeen = opts?.timeout;
       return {
         evaluate: vi.fn().mockResolvedValue(2),
+        closeWindow,
       };
     });
     mockClose.mockResolvedValueOnce(undefined);
@@ -186,6 +209,7 @@ describe('doctor report rendering', () => {
     await runBrowserDoctor({ live: true });
 
     expect(timeoutSeen).toBe(8);
+    expect(closeWindow).toHaveBeenCalledTimes(1);
   });
 
   it('skips auto-start in no-live mode when daemon is already running', async () => {
