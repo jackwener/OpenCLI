@@ -18,15 +18,16 @@ describe('jd item adapter', () => {
         expect(skuArg.required).toBe(true);
         expect(skuArg.positional).toBe(true);
     });
-    it('has images arg with default 10', () => {
+    it('has images arg with default 200', () => {
         const imagesArg = command.args.find((a) => a.name === 'images');
         expect(imagesArg).toBeDefined();
-        expect(imagesArg.default).toBe(10);
+        expect(imagesArg.default).toBe(200);
     });
     it('includes expected columns', () => {
-        expect(command.columns).toEqual(expect.arrayContaining(['title', 'price', 'shop', 'specs', 'avifImages']));
+        expect(command.columns).toEqual(expect.arrayContaining(['title', 'price', 'shop', 'specs', 'mainImages', 'detailImages']));
+        expect(command.columns).not.toContain('avifImages');
     });
-    it('extracts only pcpubliccms avif images and respects the limit', () => {
+    it('extracts only detail avif images and respects the limit', () => {
         const result = __test__.extractAvifImages([
             'https://img14.360buyimg.com/n1/jfs/t1/normal.jpg',
             'https://img10.360buyimg.com/imgzone/jfs/t1/detail.avif',
@@ -36,8 +37,7 @@ describe('jd item adapter', () => {
             'https://example.com/not-jd.avif',
         ], 2);
         expect(result).toEqual([
-            'https://pcpubliccms.jd.com/image1.avif',
-            'https://pcpubliccms.jd.com/image2.avif?x=1',
+            'https://img10.360buyimg.com/imgzone/jfs/t1/detail.avif',
         ]);
     });
 });
