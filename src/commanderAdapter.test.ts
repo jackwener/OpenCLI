@@ -84,6 +84,23 @@ describe('commanderAdapter arg passing', () => {
     });
   });
 
+  it('accepts dash-leading positional arguments while still parsing later options', async () => {
+    const program = new Command();
+    program.exitOverride();
+    const siteCmd = program.command('paperreview');
+    registerCommandToProgram(siteCmd, cmd);
+
+    await program.parseAsync(['node', 'opencli', 'paperreview', 'submit', '-123456abdc', '-f', 'json']);
+
+    expect(mockExecuteCommand).toHaveBeenCalled();
+    const kwargs = mockExecuteCommand.mock.calls[0][1];
+    expect(kwargs.pdf).toBe('-123456abdc');
+    expect(mockRenderOutput).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({ fmt: 'json' }),
+    );
+  });
+
   it('rejects invalid bool values before calling executeCommand', async () => {
     const program = new Command();
     const siteCmd = program.command('paperreview');

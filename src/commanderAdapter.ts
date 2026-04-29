@@ -33,6 +33,11 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
   const deprecatedSuffix = cmd.deprecated ? ' [deprecated]' : '';
   const subCmd = siteCmd.command(cmd.name).description(`${cmd.description}${deprecatedSuffix}`);
   if (cmd.aliases?.length) subCmd.aliases(cmd.aliases);
+  const hasPositionalArgs = cmd.args.some((arg) => arg.positional);
+
+  // Commander treats dash-leading positional values as unknown options by default.
+  // Allow them through so our adapter layer can validate values like "-123456abdc".
+  if (hasPositionalArgs) subCmd.allowUnknownOption();
 
   // Register positional args first, then named options
   const positionalArgs: typeof cmd.args = [];
