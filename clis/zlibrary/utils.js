@@ -2,15 +2,42 @@
  * Z-Library adapter utilities.
  */
 
+import { ArgumentError } from '@jackwener/opencli/errors';
+
 const ZLIBRARY_DOMAIN = 'z-library.im';
 const ZLIBRARY_ORIGIN = `https://${ZLIBRARY_DOMAIN}`;
+const ZLIBRARY_ALLOWED_HOSTS = new Set([
+  ZLIBRARY_DOMAIN,
+  `www.${ZLIBRARY_DOMAIN}`,
+]);
+
+export function normalizeZlibraryBookUrl(input) {
+  const raw = String(input || '').trim();
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new ArgumentError('Z-Library book URL must be a valid http(s) URL', `Example: ${ZLIBRARY_ORIGIN}/book/...`);
+  }
+  if (!['http:', 'https:'].includes(url.protocol) || !ZLIBRARY_ALLOWED_HOSTS.has(url.hostname)) {
+    throw new ArgumentError(
+      `Unsupported Z-Library URL host: ${url.hostname}`,
+      `Pass a book URL under ${ZLIBRARY_DOMAIN}, for example ${ZLIBRARY_ORIGIN}/book/...`,
+    );
+  }
+  return url.toString();
+}
 
 /**
  * Build a Z-Library search URL.
  * Z-Library uses /s/<url-encoded-query> for search.
  */
 export function buildSearchUrl(query) {
-  return `${ZLIBRARY_ORIGIN}/s/${encodeURIComponent(query)}`;
+  const normalized = String(query || '').trim();
+  if (!normalized) {
+    throw new ArgumentError('zlibrary search query cannot be empty');
+  }
+  return `${ZLIBRARY_ORIGIN}/s/${encodeURIComponent(normalized)}`;
 }
 
 /**
@@ -18,8 +45,7 @@ export function buildSearchUrl(query) {
  * Tries z-bookcard shadow DOM first, then falls back to page title.
  */
 export async function extractBookTitle(page) {
-  try {
-    const title = await page.evaluate(`
+  const title = await page.evaluate(`
       (() => {
         const card = document.querySelector('z-bookcard');
         if (card && card.shadowRoot) {
@@ -29,10 +55,7 @@ export async function extractBookTitle(page) {
         return document.title.replace(/\\s*[-|].*$/, '').trim();
       })()
     `);
-    return title || 'Unknown';
-  } catch {
-    return 'Unknown';
-  }
+  return String(title || '').trim();
 }
 
 /**
@@ -44,9 +67,8 @@ export async function extractBookTitle(page) {
  * consider using Playwright's download event handling instead.
  */
 export async function extractFormats(page) {
-  try {
-    // Click three-dot menu if present
-    await page.evaluate(`
+  // Click three-dot menu if present
+  await page.evaluate(`
       (() => {
         const btn = document.querySelector(
           'button[aria-label*="more" i], [class*="dots" i], [class*="more" i]'
@@ -54,10 +76,10 @@ export async function extractFormats(page) {
         if (btn) btn.click();
       })()
     `);
-    // Wait for menu
-    await page.wait({ time: 3000 });
+  // Wait for menu
+  await page.wait({ time: 3 });
 
-    const formats = await page.evaluate(`
+  const formats = await page.evaluate(`
       JSON.stringify((() => {
         const res = { pdf: '', epub: '' };
         document.querySelectorAll('a[href]').forEach(a => {
@@ -69,10 +91,7 @@ export async function extractFormats(page) {
         return res;
       })())
     `);
-    return JSON.parse(formats);
-  } catch {
-    return { pdf: '', epub: '' };
-  }
+  return JSON.parse(formats);
 }
 
 /**

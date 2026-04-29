@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import { ZLIBRARY_DOMAIN, buildSearchUrl, extractSearchResults } from './utils.js';
 
 cli({
@@ -35,10 +35,9 @@ cli({
     const results = await extractSearchResults(page, limit);
 
     if (!results.length) {
-      throw new CliError(
-        'NOT_FOUND',
-        'No books found',
-        'Try a different keyword or check that you are logged into Z-Library'
+      throw new EmptyResultError(
+        'zlibrary search',
+        'No books found. Try a different keyword or check that you are logged into Z-Library.',
       );
     }
 

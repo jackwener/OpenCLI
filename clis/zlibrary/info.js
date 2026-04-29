@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
-import { ZLIBRARY_DOMAIN, extractBookTitle, extractFormats } from './utils.js';
+import { EmptyResultError } from '@jackwener/opencli/errors';
+import { ZLIBRARY_DOMAIN, extractBookTitle, extractFormats, normalizeZlibraryBookUrl } from './utils.js';
 
 cli({
   site: 'zlibrary',
@@ -20,10 +20,7 @@ cli({
   ],
   columns: ['title', 'pdf', 'epub', 'url'],
   func: async (page, args) => {
-    const url = String(args.url || '').trim();
-    if (!url.startsWith('http')) {
-      throw new CliError('INVALID_ARG', 'URL must start with http', 'Provide the full Z-Library book page URL');
-    }
+    const url = normalizeZlibraryBookUrl(args.url);
 
     await page.goto(url, { waitUntil: 'load', settleMs: 3000 });
     await page.wait({ time: 5 });
@@ -31,11 +28,10 @@ cli({
     const title = await extractBookTitle(page);
     const formats = await extractFormats(page);
 
-    if (!title || title === 'Unknown') {
-      throw new CliError(
-        'NOT_FOUND',
-        'Could not extract book information',
-        'Check the URL and that you are logged into Z-Library'
+    if (!title || (!formats.pdf && !formats.epub)) {
+      throw new EmptyResultError(
+        'zlibrary info',
+        'Could not extract a book title and download formats. Check the URL, login state, and whether Z-Library changed its page layout.',
       );
     }
 
