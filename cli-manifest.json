@@ -6849,6 +6849,65 @@
   },
   {
     "site": "facebook",
+    "name": "marketplace-inbox",
+    "description": "List recent Facebook Marketplace buyer/seller conversations",
+    "domain": "www.facebook.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of conversations to return"
+      }
+    ],
+    "columns": [
+      "index",
+      "buyer",
+      "listing",
+      "snippet",
+      "time",
+      "unread"
+    ],
+    "type": "js",
+    "modulePath": "facebook/marketplace-inbox.js",
+    "sourceFile": "facebook/marketplace-inbox.js",
+    "navigateBefore": "https://www.facebook.com"
+  },
+  {
+    "site": "facebook",
+    "name": "marketplace-listings",
+    "description": "List your Facebook Marketplace seller listings",
+    "domain": "www.facebook.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of listings to return"
+      }
+    ],
+    "columns": [
+      "index",
+      "title",
+      "price",
+      "status",
+      "listed",
+      "clicks",
+      "actions"
+    ],
+    "type": "js",
+    "modulePath": "facebook/marketplace-listings.js",
+    "sourceFile": "facebook/marketplace-listings.js",
+    "navigateBefore": "https://www.facebook.com"
+  },
+  {
+    "site": "facebook",
     "name": "memories",
     "description": "Get your Facebook memories (On This Day)",
     "domain": "www.facebook.com",
