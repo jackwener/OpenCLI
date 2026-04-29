@@ -16171,6 +16171,48 @@
   },
   {
     "site": "twitter",
+    "name": "list-create",
+    "description": "Create a new Twitter/X list (returns the new list id)",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "List name (max 25 chars)"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Optional list description (max 100 chars)"
+      },
+      {
+        "name": "mode",
+        "type": "string",
+        "default": "public",
+        "required": false,
+        "help": "public | private"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "description",
+      "mode",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "twitter/list-create.js",
+    "sourceFile": "twitter/list-create.js",
+    "navigateBefore": "https://x.com"
+  },
+  {
+    "site": "twitter",
     "name": "list-remove",
     "description": "Remove a user from a Twitter/X list you own (toggles via UI; no-op if not currently a member)",
     "domain": "x.com",
