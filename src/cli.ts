@@ -1187,6 +1187,62 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   // meant. Every branch emits a JSON envelope on stdout; error envelopes go
   // through the unified TargetError handler in browserAction.
 
+  function normalizeFillText(raw: string, opts: { preserveNewlines?: boolean; maxLength?: number } = {}): { text: string; changed: boolean; truncated: boolean } {
+    let text = String(raw ?? '');
+    const before = text;
+    text = text.replace(/\\+r\\+n/g, '\n').replace(/\\+n/g, '\n').replace(/\\+t/g, ' ');
+    text = text.replace(/\s*\/\s*\/\s*/g, ' ');
+    text = text.replace(/\\/g, '');
+    text = text.replace(/\r/g, '\n');
+    if (opts.preserveNewlines) {
+      text = text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    } else {
+      text = text.replace(/\s+/g, ' ').trim();
+    }
+    let truncated = false;
+    if (typeof opts.maxLength === 'number' && opts.maxLength >= 0 && text.length > opts.maxLength) {
+      text = text.slice(0, opts.maxLength).trimEnd();
+      truncated = true;
+    }
+    return { text, changed: text !== before, truncated };
+  }
+
+  function buildFillResolvedJs(text: string): string {
+    return `(() => {
+      const msg = ${JSON.stringify(text)};
+      const el = window.__resolved;
+      if (!el) return JSON.stringify({ ok: false, reason: 'no_resolved_element' });
+      const tag = (el.tagName || '').toLowerCase();
+      const role = el.getAttribute && el.getAttribute('role');
+      const editable = !!el.isContentEditable || role === 'textbox';
+      el.focus && el.focus();
+      if (editable) {
+        el.innerText = msg;
+        el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: msg }));
+      } else if (tag === 'textarea' || tag === 'input') {
+        const proto = tag === 'textarea' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+        if (desc && desc.set) desc.set.call(el, msg);
+        else el.value = msg;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      } else {
+        return JSON.stringify({ ok: false, reason: 'not_text_input', tag, role, contenteditable: editable });
+      }
+      const actual = editable ? el.innerText : el.value;
+      return JSON.stringify({
+        ok: actual === msg,
+        actual,
+        expected: msg,
+        length: actual.length,
+        hasLiteralSlashN: actual.includes('\\\\n'),
+        tag,
+        role,
+        contenteditable: editable,
+      });
+    })()`;
+  }
+
   /**
    * Parse the `--nth` flag and convert it to `ResolveOptions`.
    * Returns `{ error }` when the flag was malformed (so the command can
@@ -1245,6 +1301,57 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         matches_n,
         match_level,
         autocomplete: !!isAutocomplete,
+      }, null, 2));
+    }));
+
+  addBrowserTabOption(
+    browser.command('fill')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+      .argument('<text>', 'Text to set exactly after optional normalization')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .option('--preserve-newlines', 'Keep real newlines instead of collapsing whitespace')
+      .option('--max-length <n>', 'Truncate normalized text to at most n characters')
+      .option('--raw', 'Do not normalize escaped newlines, slash artifacts, or whitespace before filling')
+      .description('Set input/textarea/contenteditable text via DOM events and verify exact value — JSON envelope {filled, verified, text, hasLiteralSlashN}'),
+  )
+    .action(browserAction(async (page, target, text, opts) => {
+      const parsed = nthToResolveOpts(opts?.nth);
+      if ('error' in parsed) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      let maxLength: number | undefined;
+      if (opts?.maxLength !== undefined) {
+        if (!/^\d+$/.test(String(opts.maxLength))) {
+          console.log(JSON.stringify({ error: { code: 'usage_error', message: `--max-length must be a non-negative integer, got "${opts.maxLength}"` } }, null, 2));
+          process.exitCode = EXIT_CODES.USAGE_ERROR;
+          return;
+        }
+        maxLength = Number.parseInt(String(opts.maxLength), 10);
+      }
+      const normalized = opts?.raw
+        ? { text: String(text), changed: false, truncated: false }
+        : normalizeFillText(String(text), { preserveNewlines: !!opts?.preserveNewlines, maxLength });
+      const { matches_n, match_level } = await resolveRef(page, String(target), parsed.opts);
+      const rawResult = await page.evaluate(buildFillResolvedJs(normalized.text));
+      let result: Record<string, unknown>;
+      try { result = rawResult ? JSON.parse(String(rawResult)) : {}; }
+      catch { result = { ok: false, raw: rawResult }; }
+      const verified = result.ok === true && result.actual === normalized.text && result.hasLiteralSlashN !== true;
+      if (!verified) process.exitCode = EXIT_CODES.GENERIC_ERROR;
+      console.log(JSON.stringify({
+        filled: result.ok === true,
+        verified,
+        target: String(target),
+        text: normalized.text,
+        length: normalized.text.length,
+        normalized: normalized.changed,
+        truncated: normalized.truncated,
+        hasLiteralSlashN: result.hasLiteralSlashN === true,
+        matches_n,
+        match_level,
+        result,
       }, null, 2));
     }));
 
