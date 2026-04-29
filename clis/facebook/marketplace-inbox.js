@@ -18,7 +18,7 @@ cli({
     await page.wait(4);
 
     const rows = await page.evaluate(String.raw`(() => {
-      const clean = (s) => String(s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+      const clean = (s) => String(s || '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
       const timeRe = /^(?:\d{1,2}:\d{2}\s?(?:AM|PM|am|pm|上午|下午)?|Mon|Tue|Wed|Thu|Fri|Sat|Sun|Today|Yesterday|\d+[mhdw]|\d+\s*(?:min|h|d|w))$/;
       const text = document.body?.innerText || '';
       if (/log in|sign in/i.test(text) && !/Marketplace/i.test(text)) return [];
