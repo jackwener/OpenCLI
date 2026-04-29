@@ -241,6 +241,21 @@ describe('douban utils', () => {
         ]);
     });
 
+    it('throws when the search page exposes neither DOM result items nor page data items', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ blocked: false, title: '大棋局 - 读书 - 豆瓣搜索', href: 'https://search.douban.com/book/subject_search?search_text=%E5%A4%A7%E6%A3%8B%E5%B1%80&cat=1001' })
+                .mockImplementationOnce((script) => runSearchEvaluate(script, [], [])),
+        };
+
+        await expect(searchDouban(page, 'book', '大棋局', 3)).rejects.toMatchObject({
+            code: 'EMPTY_RESULT',
+            hint: expect.stringContaining('No search result DOM items or window.__DATA__.items were found for "大棋局"'),
+        });
+    });
+
     it('normalizes douban book subject raw data into structured fields', () => {
         const normalized = normalizeDoubanBookSubject({
             id: '2567698',

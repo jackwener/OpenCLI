@@ -563,8 +563,10 @@ export async function searchDouban(page, type, keyword, limit) {
       const inferDoubanSearchResultType = ${inferDoubanSearchResultTypeSource};
       const normalize = (value) => (value || '').replace(/\\s+/g, ' ').trim();
       const seen = new Set();
+      const results = [];
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       const rawItems = Array.isArray(window.__DATA__?.items) ? window.__DATA__.items : [];
+      const hasPageDataItems = rawItems.length > 0;
       const rawItemsById = new Map(
         rawItems
           .map((item) => [String(item?.id || '').trim(), item])
@@ -613,8 +615,8 @@ export async function searchDouban(page, type, keyword, limit) {
       }
 
       const items = Array.from(document.querySelectorAll('.item-root, .result-list .result-item'));
+      const hasRenderedItems = items.length > 0;
 
-      const results = [];
       for (const el of items) {
         const titleEl = el.querySelector('.title-text, .title a, .title h3 a, h3 a, a[title]');
         const title = normalize(titleEl?.textContent) || normalize(titleEl?.getAttribute('title'));
@@ -648,11 +650,29 @@ export async function searchDouban(page, type, keyword, limit) {
           if (results.length >= ${safeLimit}) break;
         }
       }
-      return results;
+      return {
+        results,
+        hasRenderedItems,
+        hasPageDataItems,
+      };
     })()
   `);
     });
-    return Array.isArray(data) ? data : [];
+    const results = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.results)
+            ? data.results
+            : [];
+    const hasRenderedItems = !Array.isArray(data) && Boolean(data?.hasRenderedItems);
+    const hasPageDataItems = !Array.isArray(data) && Boolean(data?.hasPageDataItems);
+    if (results.length === 0 && !hasRenderedItems && !hasPageDataItems) {
+        const keywordText = String(keyword || '').trim();
+        const queryHint = keywordText ? ` for "${keywordText}"` : '';
+        const hint = `No search result DOM items or window.__DATA__.items were found${queryHint}. `
+            + 'The Douban search page may have changed or blocked the browser session.';
+        throw new EmptyResultError('douban search', hint);
+    }
+    return results;
 }
 /**
  * Get current user's Douban ID from movie.douban.com/mine page
