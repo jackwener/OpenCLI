@@ -21,6 +21,7 @@ import { getAllElectronApps } from '../electron-apps.js';
 import { BasePage } from './base-page.js';
 
 export interface CDPTarget {
+  id?: string;
   type?: string;
   url?: string;
   title?: string;
@@ -60,9 +61,13 @@ export class CDPBridge implements IBrowserFactory {
     if (!endpoint) throw new Error('CDP endpoint not provided (pass cdpEndpoint or set OPENCLI_CDP_ENDPOINT)');
 
     let wsUrl = endpoint;
+    const tabName = endpoint.startsWith('http') ? buildCDPTabName(opts?.workspace) : undefined;
     if (endpoint.startsWith('http')) {
-      const targets = await fetchJsonDirect(`${endpoint.replace(/\/$/, '')}/json`) as CDPTarget[];
-      const target = selectCDPTarget(targets);
+      const baseEndpoint = endpoint.replace(/\/$/, '');
+      const targets = await fetchJsonDirect(`${baseEndpoint}/json`) as CDPTarget[];
+      const target = (tabName ? await selectNamedCDPTarget(targets, tabName) : undefined)
+        ?? selectCDPTarget(targets)
+        ?? await createCDPTarget(baseEndpoint);
       if (!target || !target.webSocketDebuggerUrl) {
         throw new Error('No inspectable targets found at CDP endpoint');
       }
@@ -84,12 +89,15 @@ export class CDPBridge implements IBrowserFactory {
         try {
           await this.send('Page.enable');
           await this.send('Page.addScriptToEvaluateOnNewDocument', { source: generateStealthJs() });
+          if (tabName) {
+            await setCDPWindowName(this, tabName);
+          }
         } catch (err) {
           ws.close();
           reject(err instanceof Error ? err : new Error(String(err)));
           return;
         }
-        resolve(new CDPPage(this));
+        resolve(new CDPPage(this, tabName));
       });
 
       ws.on('error', (err: Error) => {
@@ -202,8 +210,18 @@ class CDPPage extends BasePage {
   private _consoleMessages: Array<{ type: string; text: string; timestamp: number }> = [];
   private _consoleCapturing = false;
 
-  constructor(private bridge: CDPBridge) {
+  constructor(private bridge: CDPBridge, private readonly tabName?: string) {
     super();
+  }
+
+  private async markReusableTab(): Promise<void> {
+    if (!this.tabName) return;
+    await setCDPWindowName(this.bridge, this.tabName).catch((error) => {
+      if (process.env.OPENCLI_VERBOSE) {
+        // eslint-disable-next-line no-console
+        console.error('[cdp] Failed to mark reusable tab:', error instanceof Error ? error.message : error);
+      }
+    });
   }
 
   async goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number; allowBoundNavigation?: boolean }): Promise<void> {
@@ -215,6 +233,7 @@ class CDPPage extends BasePage {
     await this.bridge.send('Page.navigate', { url });
     await loadPromise;
     this._lastUrl = url;
+    await this.markReusableTab();
     if (options?.waitUntil !== 'none') {
       const maxMs = options?.settleMs ?? 1000;
       await this.evaluate(waitForDomStableJs(maxMs, Math.min(500, maxMs)));
@@ -382,17 +401,30 @@ function matchesCookieDomain(cookieDomain: string, targetDomain: string): boolea
 }
 
 function selectCDPTarget(targets: CDPTarget[]): CDPTarget | undefined {
-  const preferredPattern = compilePreferredPattern(process.env.OPENCLI_CDP_TARGET);
+  return rankCDPTargets(targets)[0]?.target;
+}
 
-  const ranked = targets
+async function selectNamedCDPTarget(
+  targets: CDPTarget[],
+  tabName: string,
+  readWindowName: (target: CDPTarget) => Promise<string | undefined> = readTargetWindowName,
+): Promise<CDPTarget | undefined> {
+  for (const { target } of rankCDPTargets(targets)) {
+    const name = await readWindowName(target).catch(() => undefined);
+    if (name === tabName) return target;
+  }
+  return undefined;
+}
+
+function rankCDPTargets(targets: CDPTarget[]) {
+  const preferredPattern = compilePreferredPattern(process.env.OPENCLI_CDP_TARGET);
+  return targets
     .map((target, index) => ({ target, index, score: scoreCDPTarget(target, preferredPattern) }))
     .filter(({ score }) => Number.isFinite(score))
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       return a.index - b.index;
     });
-
-  return ranked[0]?.target;
 }
 
 function scoreCDPTarget(target: CDPTarget, preferredPattern?: RegExp): number {
@@ -406,6 +438,7 @@ function scoreCDPTarget(target: CDPTarget, preferredPattern?: RegExp): number {
   if (!haystack.trim() && !type) return Number.NEGATIVE_INFINITY;
   if (haystack.includes('devtools')) return Number.NEGATIVE_INFINITY;
   if (type === 'background_page' || type === 'service_worker') return Number.NEGATIVE_INFINITY;
+  if (url.startsWith('chrome://')) return Number.NEGATIVE_INFINITY;
 
   let score = 0;
 
@@ -447,14 +480,103 @@ function escapeRegExp(value: string): string {
 }
 
 export const __test__ = {
+  buildCDPTabName,
   selectCDPTarget,
+  selectNamedCDPTarget,
   scoreCDPTarget,
 };
 
-function fetchJsonDirect(url: string): Promise<unknown> {
+function buildCDPTabName(
+  workspace?: string,
+  env: Record<string, string | undefined> = process.env,
+): string | undefined {
+  const reuseFlag = env.OPENCLI_CDP_REUSE_TAB?.trim().toLowerCase();
+  if (reuseFlag && ['0', 'false', 'no', 'off'].includes(reuseFlag)) return undefined;
+
+  const explicitName = env.OPENCLI_CDP_TAB_NAME?.trim();
+  if (explicitName) return explicitName;
+
+  const suffix = workspace?.trim() || 'default';
+  return `opencli:${suffix}`;
+}
+
+async function createCDPTarget(baseEndpoint: string): Promise<CDPTarget | undefined> {
+  const result = await fetchJsonDirect(`${baseEndpoint}/json/new?about:blank`, 'PUT') as CDPTarget;
+  return result;
+}
+
+async function readTargetWindowName(target: CDPTarget): Promise<string | undefined> {
+  if (!target.webSocketDebuggerUrl) return undefined;
+  const value = await evaluateTargetExpression(target.webSocketDebuggerUrl, 'window.name', 2_000);
+  return typeof value === 'string' ? value : undefined;
+}
+
+async function setCDPWindowName(bridge: CDPBridge, tabName: string): Promise<void> {
+  await bridge.send('Runtime.evaluate', {
+    expression: buildSetWindowNameExpression(tabName),
+    returnByValue: true,
+    awaitPromise: true,
+  });
+}
+
+function buildSetWindowNameExpression(tabName: string): string {
+  return `try { window.name = ${JSON.stringify(tabName)}; } catch (_) {}`;
+}
+
+function evaluateTargetExpression(wsUrl: string, expression: string, timeoutMs: number): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(wsUrl);
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(new Error(`Timed out reading CDP target state after ${timeoutMs / 1000}s`));
+    }, timeoutMs);
+
+    const finish = (callback: () => void) => {
+      clearTimeout(timer);
+      ws.close();
+      callback();
+    };
+
+    ws.on('open', () => {
+      ws.send(JSON.stringify({
+        id: 1,
+        method: 'Runtime.evaluate',
+        params: {
+          expression,
+          returnByValue: true,
+          awaitPromise: true,
+        },
+      }));
+    });
+
+    ws.on('error', (error: Error) => {
+      finish(() => reject(error));
+    });
+
+    ws.on('message', (data: RawData) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.id !== 1) return;
+        if (msg.error) {
+          finish(() => reject(new Error(msg.error.message || 'CDP Runtime.evaluate failed')));
+          return;
+        }
+        if (msg.result?.exceptionDetails) {
+          finish(() => resolve(undefined));
+          return;
+        }
+        finish(() => resolve(msg.result?.result?.value));
+      } catch (error) {
+        finish(() => reject(error instanceof Error ? error : new Error(String(error))));
+      }
+    });
+  });
+}
+
+function fetchJsonDirect(url: string, method: 'GET' | 'PUT' = 'GET'): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
-    const request = (parsed.protocol === 'https:' ? httpsRequest : httpRequest)(parsed, (res) => {
+    const request = (parsed.protocol === 'https:' ? httpsRequest : httpRequest)(parsed, { method }, (res) => {
       const statusCode = res.statusCode ?? 0;
       if (statusCode < 200 || statusCode >= 300) {
         res.resume();

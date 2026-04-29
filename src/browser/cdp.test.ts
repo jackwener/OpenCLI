@@ -36,7 +36,7 @@ vi.mock('ws', () => ({
   WebSocket: MockWebSocket,
 }));
 
-import { CDPBridge } from './cdp.js';
+import { CDPBridge, __test__ } from './cdp.js';
 
 describe('CDPBridge cookies', () => {
   beforeEach(() => {
@@ -62,5 +62,57 @@ describe('CDPBridge cookies', () => {
       { name: 'good', value: '1', domain: '.example.com' },
       { name: 'exact', value: '2', domain: 'example.com' },
     ]);
+  });
+});
+
+describe('CDP target reuse', () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('derives a stable tab name from the browser workspace', () => {
+    expect(__test__.buildCDPTabName('site:douban', {})).toBe('opencli:site:douban');
+    expect(__test__.buildCDPTabName(undefined, {})).toBe('opencli:default');
+  });
+
+  it('allows explicit tab names and opt-out via environment', () => {
+    expect(__test__.buildCDPTabName('site:douban', { OPENCLI_CDP_TAB_NAME: 'douban-fixed' })).toBe('douban-fixed');
+    expect(__test__.buildCDPTabName('site:douban', { OPENCLI_CDP_REUSE_TAB: 'false' })).toBeUndefined();
+  });
+
+  it('selects an existing CDP target by persistent window.name', async () => {
+    const targets = [
+      {
+        id: 'a',
+        type: 'page',
+        title: '普通标签页',
+        url: 'https://www.douban.com/',
+        webSocketDebuggerUrl: 'ws://127.0.0.1/a',
+      },
+      {
+        id: 'b',
+        type: 'page',
+        title: '大棋局 - 读书 - 豆瓣搜索',
+        url: 'https://search.douban.com/book/subject_search?search_text=x',
+        webSocketDebuggerUrl: 'ws://127.0.0.1/b',
+      },
+    ];
+
+    const selected = await __test__.selectNamedCDPTarget(
+      targets,
+      'opencli:site:douban',
+      async (target) => target.id === 'b' ? 'opencli:site:douban' : '',
+    );
+
+    expect(selected?.id).toBe('b');
+  });
+
+  it('does not pick Chrome internal popup targets', () => {
+    expect(__test__.scoreCDPTarget({
+      type: 'page',
+      title: 'Omnibox Popup',
+      url: 'chrome://omnibox-popup.top-chrome/',
+      webSocketDebuggerUrl: 'ws://127.0.0.1/omnibox',
+    })).toBe(Number.NEGATIVE_INFINITY);
   });
 });
