@@ -380,5 +380,6 @@ export function getVisibleChatMessages() {
 }
 export const __test__ = {
     AX_SEND_SCRIPT,
+    AX_MODEL_SCRIPT,
     AX_GENERATING_SCRIPT,
 };
