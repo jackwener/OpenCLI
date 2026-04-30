@@ -1,7 +1,9 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { saveBase64ToFile } from '@jackwener/opencli/utils';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getChatGPTVisibleImageUrls, sendChatGPTMessage, waitForChatGPTImages, getChatGPTImageAssets } from './utils.js';
 
 const CHATGPT_DOMAIN = 'chatgpt.com';
@@ -22,6 +24,22 @@ function normalizeBooleanFlag(value) {
 function displayPath(filePath) {
     const home = os.homedir();
     return filePath.startsWith(home) ? `~${filePath.slice(home.length)}` : filePath;
+}
+
+export function resolveOutputDir(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return path.join(os.homedir(), 'Pictures', 'chatgpt');
+    if (raw === '~') return os.homedir();
+    if (raw.startsWith('~/')) return path.join(os.homedir(), raw.slice(2));
+    return path.resolve(raw);
+}
+
+export function nextAvailablePath(dir, baseName, ext, existsSync = fs.existsSync) {
+    let candidate = path.join(dir, `${baseName}${ext}`);
+    for (let index = 1; existsSync(candidate); index += 1) {
+        candidate = path.join(dir, `${baseName}_${index}${ext}`);
+    }
+    return candidate;
 }
 
 async function currentChatGPTLink(page) {
@@ -47,7 +65,7 @@ export const imageCommand = cli({
     columns: ['status', 'file', 'link'],
     func: async (page, kwargs) => {
         const prompt = kwargs.prompt;
-        const outputDir = kwargs.op || path.join(os.homedir(), 'Pictures', 'chatgpt');
+        const outputDir = resolveOutputDir(kwargs.op);
         const skipDownloadRaw = kwargs.sd;
         const skipDownload = skipDownloadRaw === '' || skipDownloadRaw === true || normalizeBooleanFlag(skipDownloadRaw);
         const timeout = 120;
@@ -79,7 +97,7 @@ export const imageCommand = cli({
         const link = convUrl;
 
         if (!urls.length) {
-            return [{ status: '⚠️ no-images', file: '📁 -', link: `🔗 ${link}` }];
+            throw new EmptyResultError('chatgpt image', `No generated images were detected before timeout. Open ${link} and verify whether ChatGPT finished generating the image.`);
         }
 
         if (skipDownload) {
@@ -89,7 +107,7 @@ export const imageCommand = cli({
         // Export and save images
         const assets = await getChatGPTImageAssets(page, urls);
         if (!assets.length) {
-            return [{ status: '⚠️ export-failed', file: '📁 -', link: `🔗 ${link}` }];
+            throw new CommandExecutionError('Failed to export generated ChatGPT image assets', `Open ${link} and verify the generated images are visible, then retry.`);
         }
 
         const stamp = Date.now();
@@ -99,7 +117,7 @@ export const imageCommand = cli({
             const base64 = asset.dataUrl.replace(/^data:[^;]+;base64,/, '');
             const suffix = assets.length > 1 ? `_${index + 1}` : '';
             const ext = extFromMime(asset.mimeType);
-            const filePath = path.join(outputDir, `chatgpt_${stamp}${suffix}${ext}`);
+            const filePath = nextAvailablePath(outputDir, `chatgpt_${stamp}${suffix}`, ext);
             await saveBase64ToFile(base64, filePath);
             results.push({ status: '✅ saved', file: `📁 ${displayPath(filePath)}`, link: `🔗 ${link}` });
         }
