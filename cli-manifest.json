@@ -6980,9 +6980,8 @@
       {
         "name": "timeout",
         "type": "str",
-        "default": "60",
         "required": false,
-        "help": "Max seconds to wait (default: 60)"
+        "help": "Max seconds to wait (default: OPENCLI_GEMINI_ASK_TIMEOUT or 60)"
       },
       {
         "name": "new",
@@ -6995,7 +6994,7 @@
     "columns": [
       "response"
     ],
-    "timeout": 180,
+    "timeout": 3600,
     "type": "js",
     "modulePath": "gemini/ask.js",
     "sourceFile": "gemini/ask.js",

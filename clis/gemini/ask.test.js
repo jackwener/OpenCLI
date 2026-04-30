@@ -39,7 +39,7 @@ vi.mock('./utils.js', async () => {
         waitForGeminiResponse: mocks.waitForGeminiResponse,
     };
 });
-import { askCommand } from './ask.js';
+import { DEFAULT_GEMINI_ASK_TIMEOUT_SECONDS, askCommand, parseGeminiAskTimeout } from './ask.js';
 function createPageMock() {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -69,6 +69,29 @@ function createPageMock() {
 describe('gemini ask orchestration', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+    });
+    it('parses positive timeout values and falls back for invalid values', () => {
+        expect(parseGeminiAskTimeout('120', 60)).toBe(120);
+        expect(parseGeminiAskTimeout(300, 60)).toBe(300);
+        expect(parseGeminiAskTimeout('0', 60)).toBe(60);
+        expect(parseGeminiAskTimeout('-1', 60)).toBe(60);
+        expect(parseGeminiAskTimeout('not-a-number', 60)).toBe(60);
+    });
+    it('uses the environment-backed default timeout when no timeout argument is provided', async () => {
+        const page = createPageMock();
+        mocks.readGeminiSnapshot.mockResolvedValueOnce(baseline);
+        mocks.sendGeminiMessage.mockResolvedValueOnce('button');
+        mocks.waitForGeminiSubmission.mockResolvedValueOnce(null);
+        const result = await askCommand.func(page, { prompt: '请只回复：OK', new: 'false' });
+        expect(mocks.waitForGeminiSubmission).toHaveBeenCalledWith(page, baseline, DEFAULT_GEMINI_ASK_TIMEOUT_SECONDS);
+        expect(result).toEqual([{ response: `💬 [NO RESPONSE] No Gemini response within ${DEFAULT_GEMINI_ASK_TIMEOUT_SECONDS}s.` }]);
+    });
+    it('keeps the outer browser command timeout high enough for long explicit waits', () => {
+        expect(askCommand.timeoutSeconds).toBeGreaterThanOrEqual(3600);
+    });
+    it('leaves timeout without a static default so the runtime env default can apply', () => {
+        const timeoutArg = askCommand.args.find((arg) => arg.name === 'timeout');
+        expect(timeoutArg.default).toBeUndefined();
     });
     it('captures baseline, sends, waits for confirmed submission, then waits with the remaining timeout', async () => {
         vi.spyOn(Date, 'now')
