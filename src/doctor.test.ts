@@ -87,11 +87,13 @@ describe('doctor report rendering', () => {
     const text = strip(renderBrowserDoctorReport({
       daemonRunning: true,
       extensionConnected: false,
-      issues: ['Daemon is running but the Chrome extension is not connected.'],
+      issues: ['Daemon is running but the Chrome extension is not connected.\nTry running the command again — the extension may need a moment to reconnect.\nIf it still fails, reload OpenCLI in chrome://extensions and run: opencli daemon restart'],
     }));
 
     expect(text).toContain('[OK] Daemon: running on port 19825');
     expect(text).toContain('[MISSING] Extension: not connected');
+    expect(text).toContain('Try running the command again');
+    expect(text).toContain('reload OpenCLI in chrome://extensions');
   });
 
   it('renders a warning when the extension version is unknown', () => {

@@ -89,6 +89,76 @@ export class BrowserConnectError extends CliError {
   }
 }
 
+type BrowserConnectLayer = 'daemon' | 'browser_bridge' | 'browser_command' | 'unknown';
+
+type BrowserConnectRecovery = {
+  safe: string[];
+  manual: string[];
+};
+
+function browserConnectLayer(kind: BrowserConnectKind): BrowserConnectLayer {
+  switch (kind) {
+    case 'daemon-not-running':
+      return 'daemon';
+    case 'extension-not-connected':
+    case 'profile-required':
+    case 'profile-disconnected':
+      return 'browser_bridge';
+    case 'command-failed':
+      return 'browser_command';
+    default:
+      return 'unknown';
+  }
+}
+
+function browserConnectRecovery(kind: BrowserConnectKind): BrowserConnectRecovery {
+  switch (kind) {
+    case 'daemon-not-running':
+      return {
+        safe: ['run opencli doctor'],
+        manual: [
+          'make sure the daemon port is available',
+          'run opencli daemon stop && opencli doctor if a stale daemon is suspected',
+        ],
+      };
+    case 'extension-not-connected':
+      return {
+        safe: ['retry the command once'],
+        manual: [
+          'reload the OpenCLI extension in chrome://extensions if it still fails',
+          'run opencli doctor',
+          'run opencli daemon stop && opencli doctor if the bridge still does not reconnect',
+        ],
+      };
+    case 'profile-required':
+      return {
+        safe: [
+          'run opencli profile list',
+          'select a profile with opencli profile use <name> or pass --profile <name>',
+        ],
+        manual: ['disconnect unused Chrome profiles if profile selection is not intended'],
+      };
+    case 'profile-disconnected':
+      return {
+        safe: [
+          'open the selected Chrome profile',
+          'make sure the OpenCLI extension is enabled in that profile',
+        ],
+        manual: ['choose another connected profile with opencli profile use <name>'],
+      };
+    case 'command-failed':
+      return {
+        safe: ['retry the command once'],
+        manual: ['run opencli doctor if browser commands keep failing'],
+      };
+    default:
+      return {
+        safe: ['run opencli doctor'],
+        manual: [],
+      };
+  }
+}
+
 export class CommandExecutionError extends CliError {
   constructor(message: string, hint?: string) {
     super('COMMAND_EXEC', message, hint, EXIT_CODES.GENERIC_ERROR);
@@ -170,6 +240,9 @@ export interface ErrorEnvelope {
     code: string;
     message: string;
     help?: string;
+    kind?: string;
+    layer?: string;
+    recovery?: BrowserConnectRecovery;
     exitCode: number;
     stack?: string;
     cause?: string;
@@ -212,6 +285,22 @@ export function toEnvelope(err: unknown): ErrorEnvelope {
     receiptPath: traceReceipt.receiptPath,
     status: traceReceipt.status,
   } : undefined;
+  if (err instanceof BrowserConnectError) {
+    return {
+      ok: false,
+      error: {
+        code: err.code,
+        message: err.message,
+        ...(err.hint ? { help: err.hint } : {}),
+        kind: err.kind,
+        layer: browserConnectLayer(err.kind),
+        recovery: browserConnectRecovery(err.kind),
+        exitCode: err.exitCode,
+        ...(cause ? { cause } : {}),
+      },
+      ...(trace ? { trace } : {}),
+    };
+  }
   if (err instanceof CliError) {
     return {
       ok: false,
