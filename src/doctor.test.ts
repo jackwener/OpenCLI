@@ -118,6 +118,47 @@ describe('doctor report rendering', () => {
     expect(text).toContain('bound:default → tab 42, mode=borrowed, surface=borrowed-user-tab, tabs=1, idle=none');
   });
 
+  it('renders connected profiles and groups sessions by profile', () => {
+    const text = strip(renderBrowserDoctorReport({
+      daemonRunning: true,
+      extensionConnected: false,
+      profiles: [
+        { contextId: 'work', extensionConnected: true, extensionVersion: '1.2.3', pending: 0 },
+        { contextId: 'personal', extensionConnected: true, extensionVersion: '1.2.3', pending: 0 },
+      ],
+      issues: [],
+      sessions: [
+        {
+          contextId: 'work',
+          workspace: 'bound:default',
+          windowId: 2,
+          preferredTabId: 42,
+          ownership: 'borrowed',
+          surface: 'borrowed-user-tab',
+          tabCount: 1,
+          idleMsRemaining: null,
+        },
+        {
+          contextId: 'personal',
+          workspace: 'site:foo',
+          windowId: 1,
+          preferredTabId: 10,
+          ownership: 'owned',
+          surface: 'dedicated-container',
+          tabCount: 1,
+          idleMsRemaining: 1000,
+        },
+      ],
+    }));
+
+    expect(text).toContain('Profiles:');
+    expect(text).toContain('work: connected v1.2.3');
+    expect(text).toContain('[profile: work]');
+    expect(text).toContain('[profile: personal]');
+    expect(text).toContain('bound:default → tab 42');
+    expect(text).toContain('site:foo → tab 10');
+  });
+
   it('renders unstable extension state when live connectivity and status disagree', () => {
     const text = strip(renderBrowserDoctorReport({
       daemonRunning: true,
@@ -239,6 +280,30 @@ describe('doctor report rendering', () => {
 
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('did not report a version'),
+    ]));
+  });
+
+  it('reports profile-required when multiple profiles are connected without a selection', async () => {
+    const status = {
+      state: 'profile-required' as const,
+      status: {
+        extensionConnected: false,
+        profileRequired: true,
+        profiles: [
+          { contextId: 'work', extensionConnected: true, pending: 0 },
+          { contextId: 'personal', extensionConnected: true, pending: 0 },
+        ],
+      },
+    };
+    mockGetDaemonHealth
+      .mockResolvedValueOnce(status)
+      .mockResolvedValueOnce(status);
+
+    const report = await runBrowserDoctor({ live: false });
+
+    expect(report.profiles).toHaveLength(2);
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('Multiple Chrome profiles are connected'),
     ]));
   });
 });

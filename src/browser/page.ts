@@ -32,7 +32,11 @@ function isUnsupportedNetworkCaptureError(err: unknown): boolean {
 export class Page extends BasePage {
   private readonly _idleTimeout: number | undefined;
 
-  constructor(private readonly workspace: string = 'default', idleTimeout?: number) {
+  constructor(
+    private readonly workspace: string = 'default',
+    idleTimeout?: number,
+    public readonly contextId?: string,
+  ) {
     super();
     this._idleTimeout = idleTimeout;
   }
@@ -43,14 +47,19 @@ export class Page extends BasePage {
   private _networkCaptureWarned = false;
 
   /** Helper: spread workspace into command params */
-  private _wsOpt(): { workspace: string; idleTimeout?: number } {
-    return { workspace: this.workspace, ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }) };
+  private _wsOpt(): { workspace: string; idleTimeout?: number; contextId?: string } {
+    return {
+      workspace: this.workspace,
+      ...(this.contextId && { contextId: this.contextId }),
+      ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
+    };
   }
 
   /** Helper: spread workspace + page identity into command params */
   private _cmdOpts(): Record<string, unknown> {
     return {
       workspace: this.workspace,
+      ...(this.contextId && { contextId: this.contextId }),
       ...(this._page !== undefined && { page: this._page }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
     };

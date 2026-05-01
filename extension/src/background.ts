@@ -15,6 +15,43 @@ import * as identity from './identity';
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
+const CONTEXT_ID_KEY = 'opencli_context_id_v1';
+let currentContextId = 'default';
+let contextIdPromise: Promise<string> | null = null;
+
+async function getCurrentContextId(): Promise<string> {
+  if (contextIdPromise) return contextIdPromise;
+  contextIdPromise = (async () => {
+    try {
+      const local = chrome.storage?.local;
+      if (!local) return currentContextId;
+      const raw = await local.get(CONTEXT_ID_KEY) as Record<string, unknown>;
+      const existing = raw[CONTEXT_ID_KEY];
+      if (typeof existing === 'string' && existing.trim()) {
+        currentContextId = existing.trim();
+        return currentContextId;
+      }
+      const generated = generateContextId();
+      await local.set({ [CONTEXT_ID_KEY]: generated });
+      currentContextId = generated;
+      return currentContextId;
+    } catch {
+      return currentContextId;
+    }
+  })();
+  return contextIdPromise;
+}
+
+function generateContextId(): string {
+  const alphabet = '23456789abcdefghjkmnpqrstuvwxyz';
+  const bytes = new Uint8Array(8);
+  try {
+    crypto.getRandomValues(bytes);
+  } catch {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
+}
 
 // ─── Console log forwarding ──────────────────────────────────────────
 // Hook console.log/warn/error to forward logs to daemon via WebSocket.
@@ -55,7 +92,9 @@ async function connect(): Promise<void> {
   }
 
   try {
+    const contextId = await getCurrentContextId();
     ws = new WebSocket(DAEMON_WS_URL);
+    currentContextId = contextId;
   } catch {
     scheduleReconnect();
     return;
@@ -71,6 +110,7 @@ async function connect(): Promise<void> {
     // Send version + compatibility range so the daemon can report mismatches to the CLI
     ws?.send(JSON.stringify({
       type: 'hello',
+      contextId: currentContextId,
       version: chrome.runtime.getManifest().version,
       compatRange: __OPENCLI_COMPAT_RANGE__,
     }));
@@ -122,7 +162,7 @@ function scheduleReconnect(): void {
 // Interactive workspaces (browser:*, operate:*) get a longer timeout (10 min)
 // since users type commands manually; adapter workspaces keep a short 30s timeout.
 
-type BrowserContextId = 'user-default';
+type BrowserContextId = string;
 type LeaseOwnership = 'owned' | 'borrowed';
 type LeaseLifecycle = 'ephemeral' | 'persistent' | 'pinned';
 type SurfacePolicy = 'dedicated-container' | 'borrowed-user-tab';
@@ -220,7 +260,7 @@ function makeSession(
   const ownership = session.owned ? 'owned' : 'borrowed';
   return {
     ...session,
-    contextId: 'user-default',
+    contextId: currentContextId,
     ownership,
     lifecycle: getLeaseLifecycle(workspace),
     surface: ownership === 'owned' ? 'dedicated-container' : 'borrowed-user-tab',
@@ -230,7 +270,7 @@ function makeSession(
 function emptyRegistry(): StoredRegistry {
   return {
     version: 1,
-    contextId: 'user-default',
+    contextId: currentContextId,
     ownedContainerWindowId,
     leases: {},
   };
@@ -245,7 +285,7 @@ async function readRegistry(): Promise<StoredRegistry> {
     if (!stored || stored.version !== 1 || typeof stored.leases !== 'object') return emptyRegistry();
     return {
       version: 1,
-      contextId: 'user-default',
+      contextId: currentContextId,
       ownedContainerWindowId: typeof stored.ownedContainerWindowId === 'number' ? stored.ownedContainerWindowId : null,
       leases: stored.leases as Record<string, StoredLease>,
     };
@@ -279,7 +319,7 @@ async function persistRuntimeState(): Promise<void> {
   }
   await writeRegistry({
     version: 1,
-    contextId: 'user-default',
+    contextId: currentContextId,
     ownedContainerWindowId,
     leases,
   });
@@ -545,8 +585,11 @@ function initialize(): void {
   chrome.alarms.create('keepalive', { periodInMinutes: 0.4 }); // ~24 seconds
   executor.registerListeners();
   executor.registerFrameTracking();
-  void reconcileTargetLeaseRegistry();
-  void connect();
+  void (async () => {
+    await getCurrentContextId();
+    await reconcileTargetLeaseRegistry();
+    await connect();
+  })();
   console.log('[opencli] OpenCLI extension initialized');
 }
 
@@ -571,6 +614,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     sendResponse({
       connected: ws?.readyState === WebSocket.OPEN,
       reconnecting: reconnectTimer !== null,
+      contextId: currentContextId,
     });
   }
   return false;

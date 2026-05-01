@@ -25,6 +25,12 @@ export async function daemonStatus(): Promise<void> {
   console.log(`Daemon: ${styleText('green', 'running')} (PID ${status.pid})`);
   console.log(`Uptime: ${formatDuration(Math.round(status.uptime * 1000))}`);
   console.log(`Extension: ${extensionLabel}`);
+  if (status.profiles && status.profiles.length > 0) {
+    console.log(`Profiles: ${status.profiles.map((profile) => {
+      const version = profile.extensionVersion ? ` v${profile.extensionVersion}` : '';
+      return `${profile.contextId}${version}`;
+    }).join(', ')}`);
+  }
   console.log(`Memory: ${status.memoryMB} MB`);
   console.log(`Port: ${status.port}`);
 }

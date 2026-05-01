@@ -20,6 +20,7 @@ It also works as a **CLI hub** for local tools such as `gh`, `docker`, and other
 
 - **Desktop App Control** — Drive Electron apps (Cursor, Codex, ChatGPT, Notion, etc.) directly from the terminal via CDP.
 - **Browser Automation for AI Agents** — Install the `opencli-adapter-author` skill, and your AI agent can operate any website: navigate, click, type, extract, screenshot — all through your logged-in Chrome session.
+- **Multi-profile Browser Bridge** — Install the extension in each Chrome profile you want to use, then route commands with `--profile`, `OPENCLI_PROFILE`, or `opencli profile use`.
 - **Website → CLI** — Turn any website into a deterministic CLI: 90+ pre-built adapters, or write your own with the `opencli-adapter-author` skill + `opencli browser verify`.
 - **Account-safe** — Reuses Chrome/Chromium logged-in state; your credentials never leave the browser.
 - **AI Agent ready** — One skill takes you from site recon through API discovery, field decoding, adapter writing, and verification.
@@ -55,7 +56,20 @@ Install **OpenCLI** from the [Chrome Web Store](https://chromewebstore.google.co
 opencli doctor
 ```
 
-### 4. Run your first commands
+### 4. Optional: name your Chrome profile
+
+Each Chrome profile runs its own OpenCLI extension instance. If you use multiple Chrome profiles, list the connected profiles and assign local aliases:
+
+```bash
+opencli profile list
+opencli profile rename <contextId> work
+opencli profile use work
+opencli --profile work browser state
+```
+
+With only one connected profile, OpenCLI uses it automatically. With multiple connected profiles and no default, OpenCLI asks you to choose instead of guessing.
+
+### 5. Run your first commands
 
 ```bash
 opencli list
@@ -167,6 +181,7 @@ OpenCLI is not only for websites. It can also:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENCLI_DAEMON_PORT` | `19825` | HTTP port for the daemon-extension bridge |
+| `OPENCLI_PROFILE` | — | Browser Bridge profile alias/contextId to use when multiple Chrome profiles are connected |
 | `OPENCLI_WINDOW_FOCUSED` | `false` | Set to `1` to open the automation container in the foreground (useful for debugging). The `--focus` flag sets this. |
 | `OPENCLI_LIVE` | `false` | Set to `1` to keep the automation lease open after an adapter command finishes (useful for inspection). The `--live` flag sets this. |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | Seconds to wait for browser connection |

@@ -12,6 +12,8 @@ import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
 import type { BrowserSessionInfo } from './types.js';
+import type { BrowserProfileStatus } from './browser/daemon-client.js';
+import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
 
 const DOCTOR_LIVE_TIMEOUT_SECONDS = 8;
 
@@ -68,6 +70,7 @@ export type DoctorReport = {
   latestExtensionVersion?: string;
   connectivity?: ConnectivityResult;
   sessions?: BrowserSessionInfo[];
+  profiles?: BrowserProfileStatus[];
   issues: string[];
 };
 
@@ -118,9 +121,19 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   const extensionConnected = health.state === 'ready';
   const daemonFlaky = !!(connectivity?.ok && !daemonRunning);
   const extensionFlaky = !!(connectivity?.ok && daemonRunning && !extensionConnected);
-  const sessions = opts.sessions && health.state === 'ready'
-    ? await listSessions()
-    : undefined;
+  const profiles = health.status?.profiles;
+  let sessions: BrowserSessionInfo[] | undefined;
+  if (opts.sessions) {
+    if (profiles && profiles.length > 0) {
+      const grouped = await Promise.all(profiles.map(async (profile) => {
+        const rows = await listSessions({ contextId: profile.contextId }).catch(() => [] as BrowserSessionInfo[]);
+        return rows.map((row) => ({ ...row, contextId: row.contextId ?? profile.contextId }));
+      }));
+      sessions = grouped.flat();
+    } else if (health.state === 'ready') {
+      sessions = await listSessions();
+    }
+  }
   const extensionVersion = health.status?.extensionVersion;
 
   const issues: string[] = [];
@@ -138,6 +151,17 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
       'This usually means the Browser Bridge service worker is reconnecting slowly or Chrome suspended it.',
     );
   } else if (daemonRunning && !extensionConnected) {
+    if (health.state === 'profile-required') {
+      issues.push(
+        'Multiple Chrome profiles are connected to the daemon, but no default profile was selected.\n' +
+        '  Run opencli profile list, then opencli profile use <name>, or pass --profile <name>.',
+      );
+    } else if (health.state === 'profile-disconnected') {
+      issues.push(
+        `Selected browser profile is not connected: ${health.status?.contextId ?? 'unknown'}.\n` +
+        '  Open that Chrome profile and make sure the OpenCLI extension is enabled.',
+      );
+    } else {
     const daemonVersion = health.status?.daemonVersion;
     const isStale = opts.cliVersion && (!daemonVersion || daemonVersion !== opts.cliVersion);
     if (isStale) {
@@ -158,6 +182,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
         '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
         '  3. Click "Load unpacked" → select the extension folder',
       );
+    }
     }
   }
   if (extensionConnected && !extensionVersion) {
@@ -211,6 +236,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     latestExtensionVersion,
     connectivity,
     sessions,
+    profiles,
     issues,
   };
 }
@@ -244,6 +270,18 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
     : report.extensionConnected ? 'connected' : 'not connected';
   lines.push(`${extIcon} Extension: ${extLabel}${extVersion}`);
 
+  if (report.profiles && report.profiles.length > 0) {
+    const config = loadProfileConfig();
+    lines.push('', styleText('bold', 'Profiles:'));
+    for (const profile of report.profiles) {
+      const alias = aliasForContextId(config, profile.contextId);
+      const aliasText = alias ? ` (${alias})` : '';
+      const defaultText = config.defaultContextId === profile.contextId ? ', default' : '';
+      const version = profile.extensionVersion ? `v${profile.extensionVersion}` : 'version unknown';
+      lines.push(styleText('dim', `  • ${profile.contextId}${aliasText}: connected ${version}${defaultText}`));
+    }
+  }
+
   // Connectivity
   if (report.connectivity) {
     const connIcon = report.connectivity.ok ? styleText('green', '[OK]') : styleText('red', '[FAIL]');
@@ -260,7 +298,16 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
     if (report.sessions.length === 0) {
       lines.push(styleText('dim', '  • no active automation sessions'));
     } else {
+      const byContext = new Map<string, BrowserSessionInfo[]>();
       for (const session of report.sessions) {
+        const contextId = typeof session.contextId === 'string' && session.contextId ? session.contextId : 'default';
+        const rows = byContext.get(contextId) ?? [];
+        rows.push(session);
+        byContext.set(contextId, rows);
+      }
+      for (const [contextId, rows] of byContext) {
+        if (byContext.size > 1) lines.push(styleText('dim', `  [profile: ${contextId}]`));
+        for (const session of rows) {
         const idle = session.idleMsRemaining == null
           ? 'none'
           : `${Math.ceil(session.idleMsRemaining / 1000)}s`;
@@ -270,6 +317,7 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
         const mode = session.ownership ?? (session.owned === false ? 'borrowed' : 'owned');
         const surface = session.surface ? `, surface=${session.surface}` : '';
         lines.push(styleText('dim', `  • ${session.workspace ?? 'default'} → ${target}, mode=${mode}${surface}, tabs=${session.tabCount ?? 0}, idle=${idle}`));
+      }
       }
     }
   }

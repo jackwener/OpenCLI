@@ -32,7 +32,8 @@ import { buildExtractHtmlJs, runExtractFromHtml } from './browser/extract.js';
 import { analyzeSite, type PageSignals } from './browser/analyze.js';
 import { daemonStatus, daemonStop } from './commands/daemon.js';
 import { log } from './logger.js';
-import { bindTab, BrowserCommandError, sendCommand } from './browser/daemon-client.js';
+import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
+import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
@@ -313,6 +314,10 @@ async function resolveBrowserTargetInSession(
   );
 }
 
+function getBrowserScope(workspace: string, contextId?: string): string {
+  return contextId ? `${contextId}:${workspace}` : workspace;
+}
+
 async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scope: string = DEFAULT_BROWSER_WORKSPACE): Promise<string | undefined> {
   const defaultPage = loadBrowserTargetState(scope)?.defaultPage?.trim();
   if (!defaultPage) return undefined;
@@ -320,7 +325,7 @@ async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scop
 }
 
 /** Create a browser page for browser commands. Uses a dedicated browser workspace for session persistence. */
-async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_BROWSER_WORKSPACE): Promise<import('./types.js').IPage> {
+async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_BROWSER_WORKSPACE, contextId?: string): Promise<import('./types.js').IPage> {
   const { BrowserBridge } = await import('./browser/index.js');
   const bridge = new BrowserBridge();
   const envTimeout = process.env.OPENCLI_BROWSER_TIMEOUT;
@@ -328,11 +333,13 @@ async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_B
   const page = await bridge.connect({
     timeout: 30,
     workspace,
+    ...(contextId && { contextId }),
     ...(idleTimeout && idleTimeout > 0 && { idleTimeout }),
   });
+  const targetScope = getBrowserScope(workspace, contextId);
   const resolvedTargetPage = targetPage
-    ? await resolveBrowserTargetInSession(page, targetPage, { scope: workspace, source: 'explicit' })
-    : await resolveStoredBrowserTarget(page, workspace);
+    ? await resolveBrowserTargetInSession(page, targetPage, { scope: targetScope, source: 'explicit' })
+    : await resolveStoredBrowserTarget(page, targetScope);
   if (resolvedTargetPage) {
     if (!page.setActivePage) {
       throw new Error('This browser session does not support explicit tab targeting');
@@ -367,9 +374,19 @@ function getBrowserWorkspace(command?: Command): string {
   return typeof raw === 'string' && raw.trim() ? raw.trim() : DEFAULT_BROWSER_WORKSPACE;
 }
 
+function getBrowserContextId(command?: Command): string | undefined {
+  const raw = getCommandOption(command, 'profile');
+  return resolveProfileContextId(typeof raw === 'string' && raw.trim() ? raw.trim() : undefined);
+}
+
 function getPageWorkspace(page: import('./types.js').IPage): string {
   const workspace = (page as unknown as { workspace?: unknown }).workspace;
   return typeof workspace === 'string' && workspace.trim() ? workspace.trim() : DEFAULT_BROWSER_WORKSPACE;
+}
+
+function getPageScope(page: import('./types.js').IPage): string {
+  const contextId = (page as unknown as { contextId?: unknown }).contextId;
+  return getBrowserScope(getPageWorkspace(page), typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined);
 }
 
 function resolveBrowserTabTarget(targetId?: string, opts?: { tab?: string } | Command): string | undefined {
@@ -401,6 +418,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .name('opencli')
     .description('Make any website your CLI. Zero setup. AI-powered.')
     .version(PKG_VERSION)
+    .option('--profile <name>', 'Chrome profile/context alias for Browser Bridge commands')
     .enablePositionalOptions();
 
   // ── Built-in: list ────────────────────────────────────────────────────────
@@ -571,7 +589,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         const command = args.at(-1) instanceof Command ? args.at(-1) as Command : undefined;
         const targetPage = getBrowserTargetId(command);
         const workspace = getBrowserWorkspace(command);
-        const page = await getBrowserPage(targetPage, workspace);
+        const contextId = getBrowserContextId(command);
+        const page = await getBrowserPage(targetPage, workspace, contextId);
         await fn(page, ...args);
       } catch (err) {
         if (err instanceof BrowserConnectError) {
@@ -633,12 +652,14 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       try {
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
-        await bridge.connect({ timeout: 30, workspace });
+        const contextId = getBrowserContextId(command);
+        await bridge.connect({ timeout: 30, workspace, ...(contextId && { contextId }) });
         const data = await bindTab(workspace, {
+          ...(contextId && { contextId }),
           ...(typeof opts.domain === 'string' && opts.domain.trim() ? { matchDomain: opts.domain.trim() } : {}),
           ...(typeof opts.pathPrefix === 'string' && opts.pathPrefix.trim() ? { matchPathPrefix: opts.pathPrefix.trim() } : {}),
         });
-        saveBrowserTargetState(undefined, workspace);
+        saveBrowserTargetState(undefined, getBrowserScope(workspace, contextId));
         console.log(JSON.stringify({ workspace, ...((data && typeof data === 'object') ? data as Record<string, unknown> : { data }) }, null, 2));
       } catch (err) {
         if (err instanceof BrowserCommandError && err.code) {
@@ -681,9 +702,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       try {
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
-        await bridge.connect({ timeout: 30, workspace });
-        await sendCommand('close-window', { workspace });
-        saveBrowserTargetState(undefined, workspace);
+        const contextId = getBrowserContextId(command);
+        await bridge.connect({ timeout: 30, workspace, ...(contextId && { contextId }) });
+        await sendCommand('close-window', { workspace, ...(contextId && { contextId }) });
+        saveBrowserTargetState(undefined, getBrowserScope(workspace, contextId));
         console.log(JSON.stringify({ unbound: true, workspace }, null, 2));
       } catch (err) {
         if (err instanceof BrowserCommandError && err.code) {
@@ -735,7 +757,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         throw new Error('Target tab required. Pass it as an argument or --tab <targetId>.');
       }
       await page.selectTab(resolvedTarget);
-      saveBrowserTargetState(resolvedTarget, getPageWorkspace(page));
+      saveBrowserTargetState(resolvedTarget, getPageScope(page));
       console.log(JSON.stringify({ selected: resolvedTarget }, null, 2));
     }));
 
@@ -751,16 +773,16 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         throw new Error('Target tab required. Pass it as an argument or --tab <targetId>.');
       }
       const validatedTarget = await resolveBrowserTargetInSession(page, resolvedTarget, {
-        scope: getPageWorkspace(page),
+        scope: getPageScope(page),
         source: 'explicit',
       });
       if (!validatedTarget) {
         throw new Error(`Target tab ${resolvedTarget} is not part of the current browser session.`);
       }
       await page.closeTab(validatedTarget);
-      const workspace = getPageWorkspace(page);
-      if (loadBrowserTargetState(workspace)?.defaultPage === validatedTarget) {
-        saveBrowserTargetState(undefined, workspace);
+      const scope = getPageScope(page);
+      if (loadBrowserTargetState(scope)?.defaultPage === validatedTarget) {
+        saveBrowserTargetState(undefined, scope);
       }
       console.log(JSON.stringify({ closed: validatedTarget }, null, 2));
     }));
@@ -2186,6 +2208,82 @@ cli({
       console.log(styleText('green', isOfficial
         ? `✅ Reset "${site}". Now using official baseline.`
         : `✅ Removed custom site "${site}".`));
+    });
+
+  // ── Built-in: browser profile selection ──────────────────────────────────
+  const profileCmd = program.command('profile').description('Manage Browser Bridge Chrome profiles');
+
+  profileCmd
+    .command('list')
+    .description('List Chrome profiles connected through the Browser Bridge extension')
+    .action(async () => {
+      const status = await fetchDaemonStatus();
+      const config = loadProfileConfig();
+      const profiles = status?.profiles ?? [];
+      if (!status) {
+        console.log(styleText('yellow', 'Daemon is not running. Run opencli doctor after opening Chrome.'));
+        return;
+      }
+      if (profiles.length === 0) {
+        console.log(styleText('yellow', 'No Browser Bridge profiles connected.'));
+        console.log(styleText('dim', 'Open a Chrome profile with the OpenCLI extension installed, then run opencli profile list again.'));
+        return;
+      }
+
+      const knownContextIds = new Set(profiles.map((profile) => profile.contextId));
+      console.log(styleText('bold', 'Connected Browser Bridge profiles'));
+      console.log();
+      for (const profile of profiles) {
+        const alias = aliasForContextId(config, profile.contextId);
+        const defaultMark = config.defaultContextId === profile.contextId ? styleText('green', ' default') : '';
+        const aliasText = alias ? ` ${styleText('cyan', alias)}` : '';
+        const version = profile.extensionVersion ? ` v${profile.extensionVersion}` : ' version unknown';
+        console.log(`  ${profile.contextId}${aliasText}${defaultMark} — connected${version}`);
+      }
+
+      const disconnectedAliases = Object.entries(config.aliases)
+        .filter(([, contextId]) => !knownContextIds.has(contextId));
+      if (disconnectedAliases.length > 0 || (config.defaultContextId && !knownContextIds.has(config.defaultContextId))) {
+        console.log();
+        console.log(styleText('dim', 'Disconnected saved profiles:'));
+        const shown = new Set<string>();
+        for (const [alias, contextId] of disconnectedAliases) {
+          shown.add(contextId);
+          console.log(styleText('dim', `  ${contextId} ${alias} — not connected`));
+        }
+        if (config.defaultContextId && !shown.has(config.defaultContextId) && !knownContextIds.has(config.defaultContextId)) {
+          console.log(styleText('dim', `  ${config.defaultContextId} — default, not connected`));
+        }
+      }
+    });
+
+  profileCmd
+    .command('rename')
+    .description('Assign a local alias to a connected Browser Bridge profile')
+    .argument('<contextId>', 'Profile contextId from opencli profile list')
+    .argument('<alias>', 'Local alias, e.g. work or personal')
+    .action((contextId: string, alias: string) => {
+      try {
+        renameProfile(contextId, alias);
+        console.log(`Profile ${contextId} is now aliased as ${styleText('cyan', alias)}.`);
+      } catch (err) {
+        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+      }
+    });
+
+  profileCmd
+    .command('use')
+    .description('Set the default Browser Bridge profile for future commands')
+    .argument('<profile>', 'Profile alias or contextId')
+    .action((profile: string) => {
+      try {
+        const config = setDefaultProfile(profile);
+        console.log(`Default Browser Bridge profile: ${styleText('cyan', config.defaultContextId ?? profile)}`);
+      } catch (err) {
+        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+      }
     });
 
   // ── Built-in: daemon ──────────────────────────────────────────────────────

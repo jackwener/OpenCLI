@@ -70,6 +70,8 @@ export interface Command {
   allowBoundNavigation?: boolean;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */
   frameIndex?: number;
+  /** Browser profile/context selected by the CLI. Used by the daemon for routing. */
+  contextId?: string;
 }
 
 export interface Result {

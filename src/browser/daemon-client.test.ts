@@ -14,6 +14,7 @@ describe('daemon-client', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('fetchDaemonStatus sends the shared status request and returns parsed data', async () => {
@@ -105,6 +106,48 @@ describe('daemon-client', () => {
     await expect(getDaemonHealth()).resolves.toEqual({ state: 'ready', status });
   });
 
+  it('getDaemonHealth returns profile-required when multiple profiles are connected without a selection', async () => {
+    const status = {
+      ok: true,
+      pid: 123,
+      uptime: 10,
+      extensionConnected: false,
+      profileRequired: true,
+      profiles: [
+        { contextId: 'work', extensionConnected: true, pending: 0 },
+        { contextId: 'personal', extensionConnected: true, pending: 0 },
+      ],
+      pending: 0,
+      memoryMB: 32,
+      port: 19825,
+    };
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(status),
+    } as Response);
+
+    await expect(getDaemonHealth()).resolves.toEqual({ state: 'profile-required', status });
+  });
+
+  it('fetchDaemonStatus includes contextId in the status query', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        ok: true,
+        pid: 1,
+        uptime: 0,
+        extensionConnected: true,
+        pending: 0,
+        memoryMB: 1,
+        port: 19825,
+      }),
+    } as Response);
+
+    await fetchDaemonStatus({ contextId: 'work' });
+
+    expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/\/status\?contextId=work$/);
+  });
+
   it('sendCommand includes the current pid in generated command ids', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_000);
     vi.mocked(fetch).mockResolvedValue({
@@ -124,6 +167,20 @@ describe('daemon-client', () => {
     expect(ids[0]).toMatch(new RegExp(`^cmd_${process.pid}_1763000000000_\\d+$`));
     expect(ids[1]).toMatch(new RegExp(`^cmd_${process.pid}_1763000000000_\\d+$`));
     expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it('sendCommand forwards OPENCLI_PROFILE as command contextId', async () => {
+    vi.stubEnv('OPENCLI_PROFILE', 'work');
+    vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_000);
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+    } as Response);
+
+    await sendCommand('exec', { code: '1 + 1' });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { contextId?: string };
+    expect(body.contextId).toBe('work');
   });
 
   it('sendCommand retries with a new id when daemon reports a duplicate pending id', async () => {

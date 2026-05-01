@@ -20,6 +20,7 @@ import { AdapterLoadError, ArgumentError, CommandExecutionError, getErrorMessage
 import { isDiagnosticEnabled, collectDiagnostic, emitDiagnostic } from './diagnostic.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
+import { resolveProfileContextId } from './browser/profile.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
 import { isElectronApp } from './electron-apps.js';
@@ -156,7 +157,7 @@ export async function executeCommand(
   cmd: CliCommand,
   rawKwargs: CommandArgs,
   debug: boolean = false,
-  opts: { prepared?: boolean } = {},
+  opts: { prepared?: boolean; profile?: string } = {},
 ): Promise<unknown> {
   let kwargs: CommandArgs;
   try {
@@ -199,6 +200,7 @@ export async function executeCommand(
 
       ensureRequiredEnv(cmd);
       const BrowserFactory = getBrowserFactory(cmd.site);
+      const contextId = resolveProfileContextId(opts.profile);
       result = await browserSession(BrowserFactory, async (page) => {
         const preNavUrl = resolvePreNav(cmd);
         if (preNavUrl) {
@@ -242,7 +244,7 @@ export async function executeCommand(
           if (!keepOpen) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { workspace: `site:${cmd.site}`, cdpEndpoint });
+      }, { workspace: `site:${cmd.site}`, cdpEndpoint, contextId });
     } else {
       // Non-browser commands: apply timeout only when explicitly configured.
       const timeout = cmd.timeoutSeconds;

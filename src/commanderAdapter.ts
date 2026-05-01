@@ -96,7 +96,11 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
         log.warn(`Deprecated: ${message}${replacement}`);
       }
 
-      const result = await executeCommand(cmd, kwargs, verbose, { prepared: true });
+      const globals = typeof subCmd.optsWithGlobals === 'function' ? subCmd.optsWithGlobals() as Record<string, unknown> : {};
+      const result = await executeCommand(cmd, kwargs, verbose, {
+        prepared: true,
+        ...(typeof globals.profile === 'string' && globals.profile.trim() ? { profile: globals.profile.trim() } : {}),
+      });
       if (result === null || result === undefined) {
         return;
       }

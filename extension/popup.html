@@ -38,6 +38,27 @@
     .dot.connecting { background: #ff9500; }
     .status-text { font-size: 13px; color: #555; }
     .status-text strong { color: #333; }
+    .profile-row {
+      margin-top: 10px;
+      padding: 9px 10px;
+      border-radius: 8px;
+      background: #fafafa;
+      border: 1px solid #ececec;
+      color: #666;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    .profile-row code {
+      display: block;
+      margin-top: 2px;
+      padding: 3px 5px;
+      border-radius: 4px;
+      background: #f0f0f0;
+      color: #333;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      word-break: break-all;
+      user-select: all;
+    }
     .hint {
       margin-top: 10px;
       padding: 8px 10px;
@@ -72,6 +93,10 @@
   <div class="status-row">
     <span class="dot disconnected" id="dot"></span>
     <span class="status-text" id="status">Checking...</span>
+  </div>
+  <div class="profile-row" id="profile" style="display: none;">
+    Chrome profile contextId
+    <code id="contextId"></code>
   </div>
   <div class="hint" id="hint">
     This is normal. The extension connects automatically when you run any <code>opencli</code> command.
