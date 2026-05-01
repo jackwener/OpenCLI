@@ -24,6 +24,7 @@ const CITY_CODES = {
 };
 const EXP_MAP = {
     '不限': '0',
+    '在校/应届': '108',
     '在校生': '108', '在校': '108',
     '应届生': '102', '应届': '102',
     '经验不限': '101',
@@ -188,6 +189,8 @@ cli({
     },
 });
 export const __test__ = {
+    EXP_MAP,
+    resolveMap,
     resolveJobType,
     formatBossOnline,
 };

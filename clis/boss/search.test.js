@@ -15,6 +15,11 @@ function createPageMock(response) {
 describe('boss search', () => {
     const command = getRegistry().get('boss/search');
 
+    it('keeps legacy 在校/应届 experience input compatible', () => {
+        expect(__test__.resolveMap('在校/应届', __test__.EXP_MAP)).toBe('108');
+        expect(__test__.resolveMap('应届', __test__.EXP_MAP)).toBe('102');
+    });
+
     it('fails fast on invalid jobType values', async () => {
         expect(() => __test__.resolveJobType('外包')).toThrow(ArgumentError);
     });
