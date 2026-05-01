@@ -282,7 +282,9 @@ describe('background tab isolation', () => {
     const result = await mod.__test__.handleTabs({ id: '2', action: 'tabs', op: 'new', url: 'https://new.example', workspace: 'site:twitter' }, 'site:twitter');
 
     expect(result.ok).toBe(true);
-    expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'https://new.example', active: true });
+    // active follows windowFocused (false by default — keeps Chrome in the background
+    // so opencli automation doesn't steal focus from the user). Pass --focus to flip.
+    expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'https://new.example', active: false });
   });
 
   it('reuses the initial container tab for first tab-new lease instead of leaving a blank tab', async () => {
@@ -500,7 +502,7 @@ describe('background tab isolation', () => {
     }));
     expect(maxInFlight).toBe(2);
     expect(chrome.windows.create).toHaveBeenCalledTimes(1);
-    expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'about:blank', active: true });
+    expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'about:blank', active: false });
   });
 
   it('releases owned workspaces as tab leases before closing the shared container', async () => {

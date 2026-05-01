@@ -156,7 +156,21 @@ async function sendCommandRaw(
     const id = generateId();
     const wf = process.env.OPENCLI_WINDOW_FOCUSED;
     const windowFocused = (wf === '1' || wf === 'true') ? true : undefined;
-    const command: DaemonCommand = { id, action, ...params, ...(windowFocused && { windowFocused }) };
+    // OPENCLI_IDLE_TIMEOUT_MS lets callers (e.g. polling pipelines) keep the
+    // automation window alive longer than the 30s extension default, so successive
+    // commands reuse the same window instead of forcing a new windows.create() — the
+    // real focus-steal trigger on macOS 15.x. cmd.idleTimeout is in seconds; convert.
+    const itm = process.env.OPENCLI_IDLE_TIMEOUT_MS;
+    const idleTimeoutFromEnv = itm && /^\d+$/.test(itm)
+      ? Math.max(0, Math.floor(parseInt(itm, 10) / 1000))
+      : undefined;
+    const command: DaemonCommand = {
+      id,
+      action,
+      ...params,
+      ...(windowFocused && { windowFocused }),
+      ...(idleTimeoutFromEnv !== undefined && params.idleTimeout === undefined && { idleTimeout: idleTimeoutFromEnv }),
+    };
     try {
       const res = await requestDaemon('/command', {
         method: 'POST',

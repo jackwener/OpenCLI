@@ -686,6 +686,13 @@ async function ensureOwnedContainerWindowUnlocked(initialUrl) {
   });
   ownedContainerWindowId = win.id;
   console.log(`[opencli] Created owned automation container window ${ownedContainerWindowId} (start=${startUrl})`);
+  if (!windowFocused) {
+    try {
+      await chrome.windows.update(ownedContainerWindowId, { state: "minimized", focused: false });
+    } catch (e) {
+      console.warn("[opencli] minimize automation window failed:", e);
+    }
+  }
   const tabs = await chrome.tabs.query({ windowId: win.id });
   const initialTabId = tabs[0]?.id;
   if (initialTabId) {
@@ -742,7 +749,7 @@ async function createOwnedTabLeaseUnlocked(workspace, initialUrl) {
       tab = await chrome.tabs.get(initialTabId);
     }
   } else {
-    tab = await chrome.tabs.create({ windowId, url: targetUrl, active: true });
+    tab = await chrome.tabs.create({ windowId, url: targetUrl, active: windowFocused });
   }
   if (!tab.id) throw new Error("Failed to create tab lease in automation container");
   setWorkspaceSession(workspace, {
@@ -1083,7 +1090,7 @@ async function resolveTab(tabId, workspace, initialUrl) {
     } catch {
     }
   }
-  const newTab = await chrome.tabs.create({ windowId, url: BLANK_PAGE, active: true });
+  const newTab = await chrome.tabs.create({ windowId, url: BLANK_PAGE, active: windowFocused });
   if (!newTab.id) throw new Error("Failed to create tab in automation container");
   return { tabId: newTab.id, tab: newTab };
 }
@@ -1269,7 +1276,7 @@ async function handleTabs(cmd, workspace) {
         return pageScopedResult(cmd.id, created.tabId, { url: created.tab?.url });
       }
       const windowId = await getAutomationWindow(workspace);
-      const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
+      const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: windowFocused });
       if (!tab.id) return { id: cmd.id, ok: false, error: "Failed to create tab" };
       setWorkspaceSession(workspace, {
         windowId: tab.windowId,

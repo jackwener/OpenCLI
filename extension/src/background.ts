@@ -379,6 +379,18 @@ async function ensureOwnedContainerWindowUnlocked(initialUrl?: string): Promise<
   ownedContainerWindowId = win.id!;
   console.log(`[opencli] Created owned automation container window ${ownedContainerWindowId} (start=${startUrl})`);
 
+  // macOS 15.x (and intermittently 26.x) ignore `focused: false` on windows.create
+  // and pull the new window to the foreground anyway. See issue #739. Counteract by
+  // minimizing the window right after creation. `state: 'minimized'` is rejected when
+  // combined with width/height in create(), but is fine on update().
+  if (!windowFocused) {
+    try {
+      await chrome.windows.update(ownedContainerWindowId, { state: 'minimized', focused: false });
+    } catch (e) {
+      console.warn('[opencli] minimize automation window failed:', e);
+    }
+  }
+
   // Wait for the initial tab to finish loading instead of a fixed 200ms sleep.
   const tabs = await chrome.tabs.query({ windowId: win.id! });
   const initialTabId = tabs[0]?.id;
@@ -444,7 +456,7 @@ async function createOwnedTabLeaseUnlocked(workspace: string, initialUrl?: strin
       tab = await chrome.tabs.get(initialTabId);
     }
   } else {
-    tab = await chrome.tabs.create({ windowId, url: targetUrl, active: true });
+    tab = await chrome.tabs.create({ windowId, url: targetUrl, active: windowFocused });
   }
   if (!tab.id) throw new Error('Failed to create tab lease in automation container');
 
@@ -869,7 +881,7 @@ async function resolveTab(tabId: number | undefined, workspace: string, initialU
   }
 
   // Fallback: create a new tab
-  const newTab = await chrome.tabs.create({ windowId, url: BLANK_PAGE, active: true });
+  const newTab = await chrome.tabs.create({ windowId, url: BLANK_PAGE, active: windowFocused });
   if (!newTab.id) throw new Error('Failed to create tab in automation container');
   return { tabId: newTab.id, tab: newTab };
 }
@@ -1092,7 +1104,7 @@ async function handleTabs(cmd: Command, workspace: string): Promise<Result> {
         return pageScopedResult(cmd.id, created.tabId, { url: created.tab?.url });
       }
       const windowId = await getAutomationWindow(workspace);
-      const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
+      const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: windowFocused });
       if (!tab.id) return { id: cmd.id, ok: false, error: 'Failed to create tab' };
       setWorkspaceSession(workspace, {
         windowId: tab.windowId,
