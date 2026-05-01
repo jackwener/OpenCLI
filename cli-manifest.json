@@ -3275,7 +3275,7 @@
   {
     "site": "boss",
     "name": "search",
-    "description": "BOSS直聘搜索职位",
+    "description": "BOSS直聘搜索职位（不带关键词时返回为你推荐职位）",
     "domain": "www.zhipin.com",
     "strategy": "cookie",
     "browser": true,
@@ -3283,9 +3283,9 @@
       {
         "name": "query",
         "type": "str",
-        "required": true,
+        "required": false,
         "positional": true,
-        "help": "Search keyword (e.g. AI agent, 前端)"
+        "help": "Search keyword (optional, empty = recommended jobs)"
       },
       {
         "name": "city",
@@ -3299,7 +3299,7 @@
         "type": "str",
         "default": "",
         "required": false,
-        "help": "Experience: 应届/1年以内/1-3年/3-5年/5-10年/10年以上"
+        "help": "Experience: 在校生(实习)/应届生(校招)/经验不限/1年以内/1-3年/3-5年/5-10年/10年以上"
       },
       {
         "name": "degree",
@@ -3321,6 +3321,13 @@
         "default": "",
         "required": false,
         "help": "Industry code or name (e.g. 100020, 互联网)"
+      },
+      {
+        "name": "jobType",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Job type: 全职/兼职/实习（不传=不限，混合校招与实习）"
       },
       {
         "name": "page",
@@ -3346,6 +3353,7 @@
       "degree",
       "skills",
       "boss",
+      "bossOnline",
       "security_id",
       "url"
     ],
