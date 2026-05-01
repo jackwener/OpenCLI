@@ -1878,6 +1878,124 @@ cli({
       printCompletionScript(shell);
     });
 
+  // ── Built-in: contract (API schema drift detection) ──────────────────────
+
+  const contractCmd = program.command('contract').description('API schema drift detection');
+
+  contractCmd
+    .command('snapshot')
+    .description('Run a command and save its response schema as baseline')
+    .argument('<site>', 'Site name (e.g. hackernews)')
+    .argument('<command>', 'Command name (e.g. top)')
+    .argument('[args...]', 'Extra arguments forwarded to the command')
+    .action(async (site: string, command: string, extraArgs: string[]) => {
+      const { captureSchema, saveContract, formatSchemaTree } = await import('./contract.js');
+      const { getRegistry } = await import('./registry.js');
+      const { executeCommand } = await import('./execution.js');
+
+      const key = `${site}/${command}`;
+      const cmd = getRegistry().get(key);
+      if (!cmd) {
+        console.error(chalk.red(`Command not found: ${key}`));
+        process.exitCode = 1;
+        return;
+      }
+
+      // Parse extra args as --key value pairs
+      const kwargs: Record<string, string> = {};
+      for (let i = 0; i < extraArgs.length; i++) {
+        const arg = extraArgs[i];
+        if (arg.startsWith('--') && i + 1 < extraArgs.length) {
+          kwargs[arg.slice(2)] = extraArgs[++i];
+        }
+      }
+
+      try {
+        const result = await executeCommand(cmd, kwargs);
+        const schema = captureSchema(result);
+        const filePath = saveContract(site, command, schema);
+        console.log(chalk.green(`Schema snapshot saved: ${filePath}`));
+        console.log(formatSchemaTree(schema));
+      } catch (err: any) {
+        console.error(chalk.red(`Error executing ${key}: ${err.message}`));
+        process.exitCode = 1;
+      }
+    });
+
+  contractCmd
+    .command('check')
+    .description('Run a command and diff its response schema against the saved baseline')
+    .argument('<site>', 'Site name')
+    .argument('<command>', 'Command name')
+    .argument('[args...]', 'Extra arguments forwarded to the command')
+    .action(async (site: string, command: string, extraArgs: string[]) => {
+      const { captureSchema, loadContract, diffSchema, formatDiff } = await import('./contract.js');
+      const { getRegistry } = await import('./registry.js');
+      const { executeCommand } = await import('./execution.js');
+
+      const key = `${site}/${command}`;
+      const cmd = getRegistry().get(key);
+      if (!cmd) {
+        console.error(chalk.red(`Command not found: ${key}`));
+        process.exitCode = 1;
+        return;
+      }
+
+      const baseline = loadContract(site, command);
+      if (!baseline) {
+        console.error(chalk.red(`No baseline found for ${key}. Run 'opencli contract snapshot ${site} ${command}' first.`));
+        process.exitCode = 1;
+        return;
+      }
+
+      const kwargs: Record<string, string> = {};
+      for (let i = 0; i < extraArgs.length; i++) {
+        const arg = extraArgs[i];
+        if (arg.startsWith('--') && i + 1 < extraArgs.length) {
+          kwargs[arg.slice(2)] = extraArgs[++i];
+        }
+      }
+
+      try {
+        const result = await executeCommand(cmd, kwargs);
+        const currentSchema = captureSchema(result);
+        const diffs = diffSchema(baseline.schema, currentSchema);
+
+        if (diffs.length === 0) {
+          console.log(chalk.green(`No schema drift detected for ${key} (baseline from ${baseline.capturedAt})`));
+        } else {
+          console.log(chalk.yellow(formatDiff(diffs)));
+          console.log();
+          console.log(chalk.dim(`Baseline captured: ${baseline.capturedAt}`));
+          process.exitCode = 1;
+        }
+      } catch (err: any) {
+        console.error(chalk.red(`Error executing ${key}: ${err.message}`));
+        process.exitCode = 1;
+      }
+    });
+
+  contractCmd
+    .command('list')
+    .description('List saved contract baselines')
+    .action(async () => {
+      const { listContracts } = await import('./contract.js');
+      const contracts = listContracts();
+      if (contracts.length === 0) {
+        console.log(chalk.dim('  No saved contracts. Use "opencli contract snapshot <site> <command>" to create one.'));
+        return;
+      }
+      console.log();
+      console.log(chalk.bold('  Saved contract baselines'));
+      console.log();
+      for (const c of contracts) {
+        console.log(`  ${chalk.cyan(`${c.site}/${c.command}`)} ${chalk.dim(`captured ${c.capturedAt}`)}`);
+      }
+      console.log();
+      console.log(chalk.dim(`  ${contracts.length} contract(s)`));
+      console.log();
+    });
+
   // ── Plugin management ──────────────────────────────────────────────────────
 
   const pluginCmd = program.command('plugin').description('Manage opencli plugins');
