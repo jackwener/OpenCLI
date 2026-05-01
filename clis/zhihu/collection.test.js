@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
 // Mock logger
 vi.mock('@jackwener/opencli/logger', () => ({
@@ -149,7 +149,7 @@ describe('zhihu collection', () => {
     ).rejects.toBeInstanceOf(AuthRequiredError);
   });
 
-  it('preserves non-auth fetch failures as CliError', async () => {
+  it('preserves non-auth fetch failures as CommandExecutionError', async () => {
     const cmd = getRegistry().get('zhihu/collection');
     const page = {
       goto: vi.fn().mockResolvedValue(undefined),
@@ -158,10 +158,7 @@ describe('zhihu collection', () => {
 
     await expect(
       cmd.func(page, { id: '83283292', offset: 0, limit: 20 }),
-    ).rejects.toMatchObject({
-      code: 'FETCH_ERROR',
-      message: 'Zhihu collection request failed (HTTP 500)',
-    });
+    ).rejects.toBeInstanceOf(CommandExecutionError);
   });
 
   it('handles null evaluate response as fetch error', async () => {
@@ -173,10 +170,7 @@ describe('zhihu collection', () => {
 
     await expect(
       cmd.func(page, { id: '83283292', offset: 0, limit: 20 }),
-    ).rejects.toMatchObject({
-      code: 'FETCH_ERROR',
-      message: 'Zhihu collection request failed',
-    });
+    ).rejects.toBeInstanceOf(CommandExecutionError);
   });
 
   it('rejects non-numeric collection IDs', async () => {
@@ -185,7 +179,7 @@ describe('zhihu collection', () => {
 
     await expect(
       cmd.func(page, { id: "abc'; alert(1); //", offset: 0, limit: 20 }),
-    ).rejects.toBeInstanceOf(CliError);
+    ).rejects.toBeInstanceOf(ArgumentError);
 
     expect(page.goto).not.toHaveBeenCalled();
     expect(page.evaluate).not.toHaveBeenCalled();
@@ -219,7 +213,68 @@ describe('zhihu collection', () => {
     );
   });
 
-  it('returns empty array for empty collection', async () => {
+  it('rejects invalid offset and limit before navigation', async () => {
+    const cmd = getRegistry().get('zhihu/collection');
+    const page = { goto: vi.fn(), evaluate: vi.fn() };
+
+    await expect(cmd.func(page, { id: '83283292', offset: -1, limit: 20 }))
+      .rejects.toBeInstanceOf(ArgumentError);
+    await expect(cmd.func(page, { id: '83283292', offset: 0, limit: 0 }))
+      .rejects.toBeInstanceOf(ArgumentError);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it('paginates until requested limit and deduplicates items', async () => {
+    const cmd = getRegistry().get('zhihu/collection');
+    const evaluate = vi.fn()
+      .mockResolvedValueOnce({
+        data: [
+          {
+            content: {
+              type: 'answer',
+              id: 1,
+              question: { id: 1, title: 'A' },
+              author: { name: 'alice' },
+              content: 'A',
+            },
+          },
+        ],
+        paging: { totals: 3, is_end: false, next: 'https://www.zhihu.com/api/v4/collections/83283292/items?offset=1&limit=1' },
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            content: {
+              type: 'answer',
+              id: 1,
+              question: { id: 1, title: 'A duplicate' },
+              author: { name: 'alice' },
+              content: 'A',
+            },
+          },
+          {
+            content: {
+              type: 'answer',
+              id: 2,
+              question: { id: 2, title: 'B' },
+              author: { name: 'bob' },
+              content: 'B',
+            },
+          },
+        ],
+        paging: { totals: 3, is_end: true },
+      });
+
+    const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate };
+
+    const result = await cmd.func(page, { id: '83283292', offset: 0, limit: 2 });
+
+    expect(result.map((row) => row.title)).toEqual(['A', 'B']);
+    expect(evaluate).toHaveBeenCalledTimes(2);
+    expect(evaluate.mock.calls[1][0]).toContain('offset=1');
+  });
+
+  it('throws EmptyResultError for empty collection', async () => {
     const cmd = getRegistry().get('zhihu/collection');
     const page = {
       goto: vi.fn().mockResolvedValue(undefined),
@@ -229,8 +284,7 @@ describe('zhihu collection', () => {
       }),
     };
 
-    const result = await cmd.func(page, { id: '83283292', offset: 0, limit: 20 });
-
-    expect(result).toEqual([]);
+    await expect(cmd.func(page, { id: '83283292', offset: 0, limit: 20 }))
+      .rejects.toBeInstanceOf(EmptyResultError);
   });
 });

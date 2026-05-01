@@ -20494,7 +20494,7 @@
     "columns": [
       "rank",
       "title",
-      "answer_count",
+      "item_count",
       "description",
       "collection_id"
     ],
