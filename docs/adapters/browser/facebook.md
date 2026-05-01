@@ -12,7 +12,6 @@
 | `opencli facebook search` | Search people, pages, posts |
 | `opencli facebook marketplace-listings` | List your Marketplace seller listings |
 | `opencli facebook marketplace-inbox` | List recent Marketplace buyer/seller conversations |
-| `opencli facebook marketplace-reply` | Draft a Marketplace conversation reply, or send with explicit `--send true` |
 
 ## Usage Examples
 
@@ -32,10 +31,6 @@ opencli facebook search "OpenAI" --limit 5
 # Marketplace seller listings and inbox
 opencli facebook marketplace-listings --limit 10
 opencli facebook marketplace-inbox --limit 10
-
-# Draft a Marketplace reply by default; add --send true only when you intend to send
-opencli facebook marketplace-reply "Yes, it's still available. What exact pickup time works?" --buyer Gabriel --listing "Black electric standing desk"
-opencli facebook marketplace-reply "Yes, pickup today works." --buyer Gabriel --listing "Black electric standing desk" --send true
 
 # JSON output
 opencli facebook profile zuck -f json

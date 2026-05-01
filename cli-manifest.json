@@ -6908,53 +6908,6 @@
   },
   {
     "site": "facebook",
-    "name": "marketplace-reply",
-    "description": "Draft or send a reply in a Facebook Marketplace conversation",
-    "domain": "www.facebook.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "text",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Reply text to draft/send"
-      },
-      {
-        "name": "buyer",
-        "type": "str",
-        "required": false,
-        "help": "Buyer name to match in Marketplace inbox"
-      },
-      {
-        "name": "listing",
-        "type": "str",
-        "required": false,
-        "help": "Listing title/text to match in Marketplace inbox"
-      },
-      {
-        "name": "send",
-        "type": "str",
-        "default": "false",
-        "required": false,
-        "help": "Actually send the reply. Defaults to false/draft-only; pass --send true to send."
-      }
-    ],
-    "columns": [
-      "status",
-      "buyer",
-      "listing",
-      "sent",
-      "message"
-    ],
-    "type": "js",
-    "modulePath": "facebook/marketplace-reply.js",
-    "sourceFile": "facebook/marketplace-reply.js",
-    "navigateBefore": "https://www.facebook.com"
-  },
-  {
-    "site": "facebook",
     "name": "memories",
     "description": "Get your Facebook memories (On This Day)",
     "domain": "www.facebook.com",

@@ -1,5 +1,13 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+
+function normalizeLimit(value) {
+  const limit = Number(value ?? 20);
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new ArgumentError('facebook marketplace-listings --limit must be a positive integer');
+  }
+  return Math.min(limit, 100);
+}
 
 cli({
   site: 'facebook',
@@ -12,15 +20,17 @@ cli({
   ],
   columns: ['index', 'title', 'price', 'status', 'listed', 'clicks', 'actions'],
   func: async (page, args) => {
-    if (!page) throw new CliError('NO_BROWSER', 'Browser session required for facebook marketplace-listings');
-    const limit = Math.min(Number(args.limit) || 20, 100);
+    if (!page) throw new CommandExecutionError('Browser session required for facebook marketplace-listings');
+    const limit = normalizeLimit(args.limit);
     await page.goto('https://www.facebook.com/marketplace/you/selling/');
     await page.wait(4);
 
-    const rows = await page.evaluate(String.raw`(() => {
+    const result = await page.evaluate(String.raw`(() => {
       const clean = (s) => String(s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
       const allText = document.body?.innerText || '';
-      if (/log in|sign in/i.test(allText) && !/Marketplace/i.test(allText)) return [];
+      if (/log in|sign in/i.test(allText) && !/Marketplace/i.test(allText)) {
+        return { authRequired: true, rows: [] };
+      }
 
       const lines = allText.split(/\n+/).map(clean).filter(Boolean);
       const seen = new Set();
@@ -46,12 +56,15 @@ cli({
           actions,
         });
       }
-      return out;
+      return { authRequired: false, rows: out };
     })()`);
 
-    const items = Array.isArray(rows) ? rows : [];
+    if (result?.authRequired) {
+      throw new AuthRequiredError('facebook.com', 'Facebook Marketplace seller listings require an active signed-in Facebook session.');
+    }
+    const items = Array.isArray(result?.rows) ? result.rows : [];
     if (items.length === 0) {
-      throw new CliError('NO_DATA', 'Could not find Facebook Marketplace seller listings', 'Check that Chrome is logged into Facebook and Marketplace selling page is available.');
+      throw new EmptyResultError('facebook marketplace-listings', 'No seller listings were visible. Check that Marketplace selling is available for this account.');
     }
     return items.slice(0, limit).map((item, index) => ({
       index: index + 1,
@@ -64,3 +77,7 @@ cli({
     }));
   },
 });
+
+export const __test__ = {
+  normalizeLimit,
+};

@@ -1,5 +1,13 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+
+function normalizeLimit(value) {
+  const limit = Number(value ?? 20);
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new ArgumentError('facebook marketplace-inbox --limit must be a positive integer');
+  }
+  return Math.min(limit, 100);
+}
 
 cli({
   site: 'facebook',
@@ -12,16 +20,18 @@ cli({
   ],
   columns: ['index', 'buyer', 'listing', 'snippet', 'time', 'unread'],
   func: async (page, args) => {
-    if (!page) throw new CliError('NO_BROWSER', 'Browser session required for facebook marketplace-inbox');
-    const limit = Math.min(Number(args.limit) || 20, 100);
+    if (!page) throw new CommandExecutionError('Browser session required for facebook marketplace-inbox');
+    const limit = normalizeLimit(args.limit);
     await page.goto('https://www.facebook.com/marketplace/inbox/');
     await page.wait(4);
 
-    const rows = await page.evaluate(String.raw`(() => {
+    const result = await page.evaluate(String.raw`(() => {
       const clean = (s) => String(s || '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
       const timeRe = /^(?:\d{1,2}:\d{2}\s?(?:AM|PM|am|pm|上午|下午)?|Mon|Tue|Wed|Thu|Fri|Sat|Sun|Today|Yesterday|\d+[mhdw]|\d+\s*(?:min|h|d|w))$/;
       const text = document.body?.innerText || '';
-      if (/log in|sign in/i.test(text) && !/Marketplace/i.test(text)) return [];
+      if (/log in|sign in/i.test(text) && !/Marketplace/i.test(text)) {
+        return { authRequired: true, rows: [] };
+      }
 
       const lines = text.split(/\n+/).map(clean).filter(Boolean);
       const out = [];
@@ -47,12 +57,15 @@ cli({
           unread: /Unread/i.test(nearby),
         });
       }
-      return out;
+      return { authRequired: false, rows: out };
     })()`);
 
-    const items = Array.isArray(rows) ? rows : [];
+    if (result?.authRequired) {
+      throw new AuthRequiredError('facebook.com', 'Facebook Marketplace inbox requires an active signed-in Facebook session.');
+    }
+    const items = Array.isArray(result?.rows) ? result.rows : [];
     if (items.length === 0) {
-      throw new CliError('NO_DATA', 'Could not find Facebook Marketplace inbox conversations', 'Check that Chrome is logged into Facebook and Marketplace inbox is available.');
+      throw new EmptyResultError('facebook marketplace-inbox', 'No Marketplace inbox conversations were visible. Check that Marketplace inbox is available for this account.');
     }
     return items.slice(0, limit).map((item, index) => ({
       index: index + 1,
@@ -64,3 +77,7 @@ cli({
     }));
   },
 });
+
+export const __test__ = {
+  normalizeLimit,
+};
