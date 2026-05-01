@@ -38,6 +38,9 @@ const INDUSTRY_MAP = {
     '人工智能': '100901', '大数据': '100902', '金融': '100101',
     '教育培训': '100200', '医疗健康': '100300',
 };
+const JOB_TYPE_MAP = {
+    '不限': '0', '全职': '1901', '实习': '1902', '兼职': '1903',
+};
 function resolveCity(input) {
     if (!input)
         return '101010100';
@@ -65,22 +68,23 @@ function resolveMap(input, map) {
 cli({
     site: 'boss',
     name: 'search',
-    description: 'BOSS直聘搜索职位',
+    description: 'BOSS直聘搜索职位（不带关键词时返回为你推荐职位）',
     domain: 'www.zhipin.com',
     strategy: Strategy.COOKIE,
     navigateBefore: false,
     browser: true,
     args: [
-        { name: 'query', required: true, positional: true, help: 'Search keyword (e.g. AI agent, 前端)' },
+        { name: 'query', positional: true, help: 'Search keyword (optional, empty = recommended jobs)' },
         { name: 'city', default: '北京', help: 'City name or code (e.g. 杭州, 上海, 101010100)' },
         { name: 'experience', default: '', help: 'Experience: 应届/1年以内/1-3年/3-5年/5-10年/10年以上' },
         { name: 'degree', default: '', help: 'Degree: 大专/本科/硕士/博士' },
         { name: 'salary', default: '', help: 'Salary: 3K以下/3-5K/5-10K/10-15K/15-20K/20-30K/30-50K/50K以上' },
         { name: 'industry', default: '', help: 'Industry code or name (e.g. 100020, 互联网)' },
+        { name: 'jobType', default: '', help: 'Job type: 全职/兼职/实习（不传=不限，混合校招与实习）' },
         { name: 'page', type: 'int', default: 1, help: 'Page number' },
         { name: 'limit', type: 'int', default: 15, help: 'Number of results' },
     ],
-    columns: ['name', 'salary', 'company', 'area', 'experience', 'degree', 'skills', 'boss', 'security_id', 'url'],
+    columns: ['name', 'salary', 'company', 'area', 'experience', 'degree', 'skills', 'boss', 'bossOnline', 'security_id', 'url'],
     func: async (page, kwargs) => {
         requirePage(page);
         const cityCode = resolveCity(kwargs.city);
@@ -91,6 +95,7 @@ cli({
         const degreeVal = resolveMap(kwargs.degree, DEGREE_MAP);
         const salaryVal = resolveMap(kwargs.salary, SALARY_MAP);
         const industryVal = resolveMap(kwargs.industry, INDUSTRY_MAP);
+        const jobTypeVal = resolveMap(kwargs.jobType, JOB_TYPE_MAP);
         const limit = kwargs.limit || 15;
         let currentPage = kwargs.page || 1;
         let allJobs = [];
@@ -114,6 +119,8 @@ cli({
                 qs.set('salary', salaryVal);
             if (industryVal)
                 qs.set('industry', industryVal);
+            if (jobTypeVal)
+                qs.set('jobType', jobTypeVal);
             const targetUrl = `https://www.zhipin.com/wapi/zpgeek/search/joblist.json?${qs.toString()}`;
             verbose(`Fetching page ${currentPage}... (current jobs: ${allJobs.length})`);
             const data = await bossFetch(page, targetUrl);
@@ -135,6 +142,7 @@ cli({
                     degree: j.jobDegree,
                     skills: (j.skills || []).join(','),
                     boss: j.bossName + ' · ' + j.bossTitle,
+                    bossOnline: j.bossOnline ? 'Y' : '',
                     security_id: j.securityId || '',
                     url: 'https://www.zhipin.com/job_detail/' + j.encryptJobId + '.html',
                 });
