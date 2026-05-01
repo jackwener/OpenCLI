@@ -7,6 +7,11 @@
  * - Check interval: 24 hours
  * - Notice appears AFTER command output, not before (same as npm/gh/yarn)
  * - Never delays or blocks the CLI command
+ *
+ * Cache is shared between the CLI process (writes latestVersion / latestExtensionVersion
+ * via background fetch) and the daemon process (writes currentExtensionVersion /
+ * extensionLastSeenAt via `recordExtensionVersion` on each hello). Writes use a
+ * read-merge-write pattern so neither side clobbers the other.
  */
 
 import * as fs from 'node:fs';
@@ -18,6 +23,7 @@ import { PKG_VERSION } from './version.js';
 const CACHE_DIR = path.join(os.homedir(), '.opencli');
 const CACHE_FILE = path.join(CACHE_DIR, 'update-check.json');
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
+const EXTENSION_STALE_MS = 7 * 24 * 60 * 60 * 1000; // 7d
 const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@jackwener/opencli/latest';
 const GITHUB_RELEASES_URL = 'https://api.github.com/repos/jackwener/OpenCLI/releases?per_page=20';
 
@@ -25,6 +31,8 @@ interface UpdateCache {
   lastCheck: number;
   latestVersion: string;
   latestExtensionVersion?: string;
+  currentExtensionVersion?: string;
+  extensionLastSeenAt?: number;
 }
 
 interface GitHubReleaseAsset {
@@ -36,21 +44,23 @@ interface GitHubRelease {
   assets?: GitHubReleaseAsset[];
 }
 
-// Read cache once at module load — shared by both exported functions
-const _cache: UpdateCache | null = (() => {
+function readCacheSync(): UpdateCache | null {
   try {
     return JSON.parse(fs.readFileSync(CACHE_FILE, 'utf-8')) as UpdateCache;
   } catch {
     return null;
   }
-})();
+}
 
-function writeCache(latestVersion: string, latestExtensionVersion?: string): void {
+// Read cache once at module load — shared by both exported functions
+const _cache: UpdateCache | null = readCacheSync();
+
+function writeCacheMerge(updates: Partial<UpdateCache>): void {
   try {
     fs.mkdirSync(CACHE_DIR, { recursive: true });
-    const data: UpdateCache = { lastCheck: Date.now(), latestVersion };
-    if (latestExtensionVersion) data.latestExtensionVersion = latestExtensionVersion;
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(data), 'utf-8');
+    const existing = readCacheSync() ?? {};
+    const merged = { ...existing, ...updates } as UpdateCache;
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(merged), 'utf-8');
   } catch {
     // Best-effort; never fail
   }
@@ -73,6 +83,41 @@ function isCI(): boolean {
   return !!(process.env.CI || process.env.CONTINUOUS_INTEGRATION);
 }
 
+interface NoticeInputs {
+  cliVersion: string;
+  cache: UpdateCache | null;
+  now: number;
+}
+
+interface NoticeLines {
+  cli?: string;
+  extension?: string;
+}
+
+/** Pure function: derive notice text from cache state. Exported for tests. */
+function buildUpdateNotices({ cliVersion, cache, now }: NoticeInputs): NoticeLines {
+  if (!cache) return {};
+  const lines: NoticeLines = {};
+  if (isNewer(cache.latestVersion, cliVersion)) {
+    lines.cli =
+      styleText('yellow', `\n  Update available: v${cliVersion} → v${cache.latestVersion}\n`) +
+      styleText('dim', `  Run: npm install -g @jackwener/opencli\n`);
+  }
+  const { currentExtensionVersion, latestExtensionVersion, extensionLastSeenAt } = cache;
+  if (
+    currentExtensionVersion &&
+    latestExtensionVersion &&
+    extensionLastSeenAt &&
+    now - extensionLastSeenAt < EXTENSION_STALE_MS &&
+    isNewer(latestExtensionVersion, currentExtensionVersion)
+  ) {
+    lines.extension =
+      styleText('yellow', `\n  Extension update available: v${currentExtensionVersion} → v${latestExtensionVersion}\n`) +
+      styleText('dim', `  Download: https://github.com/jackwener/opencli/releases\n`);
+  }
+  return lines;
+}
+
 /**
  * Register a process exit hook that prints an update notice if a newer
  * version was found on the last background check.
@@ -85,13 +130,14 @@ export function registerUpdateNoticeOnExit(): void {
 
   process.on('exit', (code) => {
     if (code !== 0) return; // Don't show update notice on error exit
-    if (!_cache) return;
-    if (!isNewer(_cache.latestVersion, PKG_VERSION)) return;
+    const { cli, extension } = buildUpdateNotices({
+      cliVersion: PKG_VERSION,
+      cache: _cache,
+      now: Date.now(),
+    });
+    if (!cli && !extension) return;
     try {
-      process.stderr.write(
-        styleText('yellow', `\n  Update available: v${PKG_VERSION} → v${_cache.latestVersion}\n`) +
-        styleText('dim', `  Run: npm install -g @jackwener/opencli\n\n`),
-      );
+      process.stderr.write(`${cli ?? ''}${extension ?? ''}\n`);
     } catch {
       // Ignore broken pipe (stderr closed before process exits)
     }
@@ -150,12 +196,27 @@ export function checkForUpdateBackground(): void {
       const data = await res.json() as { version?: string };
       if (typeof data.version === 'string') {
         const extVersion = await fetchLatestExtensionVersion();
-        writeCache(data.version, extVersion);
+        const updates: Partial<UpdateCache> = { lastCheck: Date.now(), latestVersion: data.version };
+        if (extVersion) updates.latestExtensionVersion = extVersion;
+        writeCacheMerge(updates);
       }
     } catch {
       // Network error: silently skip, try again next run
     }
   })();
+}
+
+/**
+ * Stash the current extension version into the shared cache. Called by the
+ * daemon on each hello handshake. Lets the next CLI process compare against
+ * the latest known release and print an exit notice without any extra I/O.
+ */
+export function recordExtensionVersion(version: string): void {
+  if (typeof version !== 'string' || !version.trim()) return;
+  writeCacheMerge({
+    currentExtensionVersion: version.trim(),
+    extensionLastSeenAt: Date.now(),
+  });
 }
 
 /**
@@ -168,4 +229,6 @@ export function getCachedLatestExtensionVersion(): string | undefined {
 
 export {
   extractLatestExtensionVersionFromReleases as _extractLatestExtensionVersionFromReleases,
+  buildUpdateNotices as _buildUpdateNotices,
+  EXTENSION_STALE_MS as _EXTENSION_STALE_MS,
 };

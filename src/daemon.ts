@@ -27,6 +27,7 @@ import { EXIT_CODES } from './errors.js';
 import { log } from './logger.js';
 import { PKG_VERSION } from './version.js';
 import { DEFAULT_CONTEXT_ID } from './browser/profile.js';
+import { recordExtensionVersion } from './update-check.js';
 
 const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 
@@ -390,6 +391,7 @@ wss.on('connection', (ws: WebSocket) => {
         connection.extensionVersion = typeof msg.version === 'string' ? msg.version : null;
         connection.extensionCompatRange = typeof msg.compatRange === 'string' ? msg.compatRange : null;
         connection.lastSeenAt = Date.now();
+        if (connection.extensionVersion) recordExtensionVersion(connection.extensionVersion);
         log.info(`[daemon] Extension profile connected: ${connection.contextId}`);
         return;
       }
