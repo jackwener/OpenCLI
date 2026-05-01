@@ -22,8 +22,15 @@ const CITY_CODES = {
     '香港': '101320100',
 };
 const EXP_MAP = {
-    '不限': '0', '在校/应届': '108', '应届': '108', '1年以内': '101',
-    '1-3年': '102', '3-5年': '103', '5-10年': '104', '10年以上': '105',
+    '不限': '0',
+    '在校生': '108', '在校': '108',
+    '应届生': '102', '应届': '102',
+    '经验不限': '101',
+    '1年以内': '103',
+    '1-3年': '104',
+    '3-5年': '105',
+    '5-10年': '106',
+    '10年以上': '107',
 };
 const DEGREE_MAP = {
     '不限': '0', '初中及以下': '209', '中专/中技': '208', '高中': '206',
@@ -76,7 +83,7 @@ cli({
     args: [
         { name: 'query', positional: true, help: 'Search keyword (optional, empty = recommended jobs)' },
         { name: 'city', default: '北京', help: 'City name or code (e.g. 杭州, 上海, 101010100)' },
-        { name: 'experience', default: '', help: 'Experience: 应届/1年以内/1-3年/3-5年/5-10年/10年以上' },
+        { name: 'experience', default: '', help: 'Experience: 在校生(实习)/应届生(校招)/经验不限/1年以内/1-3年/3-5年/5-10年/10年以上' },
         { name: 'degree', default: '', help: 'Degree: 大专/本科/硕士/博士' },
         { name: 'salary', default: '', help: 'Salary: 3K以下/3-5K/5-10K/10-15K/15-20K/20-30K/30-50K/50K以上' },
         { name: 'industry', default: '', help: 'Industry code or name (e.g. 100020, 互联网)' },
