@@ -106,6 +106,19 @@ describe('buildUpdateNotices', () => {
     expect(lines.extension).toBeUndefined();
   });
 
+  it('does not throw when cache has only daemon-written fields and no latestVersion', () => {
+    const lines = buildUpdateNotices({
+      cliVersion: '1.0.0',
+      cache: {
+        currentExtensionVersion: '2.0.0',
+        extensionLastSeenAt: now,
+      },
+      now,
+    });
+    expect(lines.cli).toBeUndefined();
+    expect(lines.extension).toBeUndefined();
+  });
+
   it('emits both notices when both are out of date', () => {
     const lines = buildUpdateNotices({
       cliVersion: '1.0.0',

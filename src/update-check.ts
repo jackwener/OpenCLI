@@ -28,9 +28,12 @@ const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@jackwener/opencli/latest';
 const GITHUB_RELEASES_URL = 'https://api.github.com/repos/jackwener/OpenCLI/releases?per_page=20';
 
 interface UpdateCache {
-  lastCheck: number;
-  latestVersion: string;
+  // CLI npm fetch fields — present once `checkForUpdateBackground` has succeeded.
+  // Optional because the daemon may write the cache first via `recordExtensionVersion`.
+  lastCheck?: number;
+  latestVersion?: string;
   latestExtensionVersion?: string;
+  // Daemon hello fields.
   currentExtensionVersion?: string;
   extensionLastSeenAt?: number;
 }
@@ -98,7 +101,7 @@ interface NoticeLines {
 function buildUpdateNotices({ cliVersion, cache, now }: NoticeInputs): NoticeLines {
   if (!cache) return {};
   const lines: NoticeLines = {};
-  if (isNewer(cache.latestVersion, cliVersion)) {
+  if (cache.latestVersion && isNewer(cache.latestVersion, cliVersion)) {
     lines.cli =
       styleText('yellow', `\n  Update available: v${cliVersion} → v${cache.latestVersion}\n`) +
       styleText('dim', `  Run: npm install -g @jackwener/opencli\n`);
@@ -181,7 +184,7 @@ async function fetchLatestExtensionVersion(): Promise<string | undefined> {
  */
 export function checkForUpdateBackground(): void {
   if (isCI()) return;
-  if (_cache && Date.now() - _cache.lastCheck < CHECK_INTERVAL_MS) return;
+  if (_cache?.lastCheck && Date.now() - _cache.lastCheck < CHECK_INTERVAL_MS) return;
 
   void (async () => {
     try {
