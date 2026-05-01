@@ -19899,6 +19899,13 @@
         "default": 10,
         "required": false,
         "help": "Max recent videos (max 30)"
+      },
+      {
+        "name": "type",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Tab to read: '' (default — Home tab + Videos fallback) or 'shorts' (Shorts tab)"
       }
     ],
     "columns": [
