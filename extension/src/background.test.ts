@@ -418,7 +418,7 @@ describe('background tab isolation', () => {
 
   it('returns the persisted profile contextId from popup status', async () => {
     const { chrome } = createChromeMock();
-    await chrome.storage.local.set({ opencli_context_id_v1: 'abc234xy' });
+    await chrome.storage.local.set({ opencli_context_id_v1: 'abc123xy' });
     vi.stubGlobal('chrome', chrome);
 
     await import('./background');
@@ -430,7 +430,7 @@ describe('background tab isolation', () => {
     expect(keepAlive).toBe(true);
     await vi.waitFor(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        contextId: 'abc234xy',
+        contextId: 'abc123xy',
       }));
     });
   });
