@@ -52,6 +52,18 @@ interface LogEntry { level: string; msg: string; ts: number; }
 const LOG_BUFFER_SIZE = 200;
 const logBuffer: LogEntry[] = [];
 
+class DaemonCommandFailure extends Error {
+  constructor(
+    message: string,
+    readonly errorCode?: string,
+    readonly errorHint?: string,
+    readonly status: number = 400,
+  ) {
+    super(message);
+    this.name = 'DaemonCommandFailure';
+  }
+}
+
 function pushLog(entry: LogEntry): void {
   logBuffer.push(entry);
   if (logBuffer.length > LOG_BUFFER_SIZE) logBuffer.shift();
@@ -123,7 +135,12 @@ function unregisterExtensionConnection(ws: WebSocket): void {
     for (const [id, p] of pending) {
       if (p.contextId !== contextId) continue;
       clearTimeout(p.timer);
-      p.reject(new Error(`Browser profile "${contextId}" disconnected`));
+      p.reject(new DaemonCommandFailure(
+        `Browser profile "${contextId}" disconnected`,
+        'profile_disconnected',
+        'Open that Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
+        503,
+      ));
       pending.delete(id);
     }
   }
@@ -309,9 +326,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
       jsonResponse(res, 200, result);
     } catch (err) {
-      jsonResponse(res, err instanceof Error && err.message.includes('timeout') ? 408 : 400, {
+      const commandFailure = err instanceof DaemonCommandFailure ? err : null;
+      jsonResponse(res, commandFailure?.status ?? (err instanceof Error && err.message.includes('timeout') ? 408 : 400), {
         ok: false,
         error: err instanceof Error ? err.message : 'Invalid request',
+        ...(commandFailure?.errorCode ? { errorCode: commandFailure.errorCode } : {}),
+        ...(commandFailure?.errorHint ? { errorHint: commandFailure.errorHint } : {}),
       });
     }
     return;

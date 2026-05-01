@@ -16,6 +16,7 @@ let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
 const CONTEXT_ID_KEY = 'opencli_context_id_v1';
+const CONTEXT_ID_PATTERN = /^[23456789abcdefghjkmnpqrstuvwxyz]{8}$/;
 let currentContextId = 'default';
 let contextIdPromise: Promise<string> | null = null;
 
@@ -27,7 +28,7 @@ async function getCurrentContextId(): Promise<string> {
       if (!local) return currentContextId;
       const raw = await local.get(CONTEXT_ID_KEY) as Record<string, unknown>;
       const existing = raw[CONTEXT_ID_KEY];
-      if (typeof existing === 'string' && existing.trim()) {
+      if (typeof existing === 'string' && CONTEXT_ID_PATTERN.test(existing.trim())) {
         currentContextId = existing.trim();
         return currentContextId;
       }
