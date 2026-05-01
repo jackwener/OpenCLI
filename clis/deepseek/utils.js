@@ -282,16 +282,14 @@ async function waitForFilePreview(page, fileName) {
             var hasFileName = Array.from(document.querySelectorAll('div'))
                 .some(function(el) { return el.children.length === 0 && (el.textContent || '').trim() === name; });
             if (hasFileName) return true;
-            // Vision mode shows image thumbnail, not filename text.
-            // Check if send button became enabled (indicates upload completed).
+            // Vision mode shows an image thumbnail, not filename text. Require
+            // a preview-like node here; send-button readiness is checked later.
             var box = document.querySelector('${TEXTAREA_SELECTOR}');
             if (!box) return false;
             var c = box.parentElement;
             while (c && !c.querySelector('div[role="button"]')) c = c.parentElement;
             if (!c) return false;
-            var btns = c.querySelectorAll('div[role="button"]:not(.ds-toggle-button)');
-            var last = btns[btns.length - 1];
-            return last && last.getAttribute('aria-disabled') === 'false';
+            return !!c.querySelector('img[src], canvas, video, [style*="background-image"], [class*="preview"], [class*="upload"]');
         })()`);
         if (ready) return true;
     }

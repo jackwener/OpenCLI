@@ -240,4 +240,25 @@ describe('deepseek sendWithFile Not allowed fallback', () => {
     expect(page.evaluate).toHaveBeenCalledTimes(5);
     expect(result).toEqual({ ok: true });
   });
+
+  it('does not treat send-button enablement alone as image upload proof', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-deepseek-'));
+    tempDirs.push(dir);
+    const filePath = path.join(dir, 'image.png');
+    fs.writeFileSync(filePath, 'fake-png');
+
+    const page = {
+      setFileInput: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn()
+        .mockResolvedValueOnce(undefined) // sidebar collapse
+        .mockResolvedValue(false),        // no filename / thumbnail preview
+    };
+
+    const result = await sendWithFile(page, filePath, 'describe');
+
+    expect(result).toEqual({ ok: false, reason: 'file preview did not appear' });
+    expect(page.evaluate.mock.calls[1][0]).toContain('img[src], canvas, video');
+    expect(page.evaluate.mock.calls[1][0]).not.toContain("aria-disabled') === 'false'");
+  });
 });

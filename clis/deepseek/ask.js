@@ -78,7 +78,16 @@ export const askCommand = cli({
             throw new CommandExecutionError('Could not enable DeepThink');
         }
 
-        // Vision mode does not have the search toggle
+        if (wantModel === 'vision' && wantSearch) {
+            throw new CliError(
+                'ARGUMENT',
+                'DeepSeek vision mode does not support --search.',
+                'Run without --search, or use --model instant/expert for web search.',
+                EXIT_CODES.USAGE_ERROR,
+            );
+        }
+
+        // Vision mode does not have the search toggle.
         let searchResult;
         if (wantModel !== 'vision') {
             searchResult = await withRetry(() => setFeature(page, 'Search', wantSearch));

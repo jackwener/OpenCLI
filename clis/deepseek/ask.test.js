@@ -264,7 +264,7 @@ describe('deepseek ask conversation resume', () => {
     expect(mockSelectModel).toHaveBeenCalled();
   });
 
-  it('skips search toggle in vision mode', async () => {
+  it('skips search toggle in vision mode when search is not requested', async () => {
     mockEnsureOnDeepSeek.mockResolvedValue(false);
     mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
     mockSetFeature.mockResolvedValue({ ok: true, toggled: false });
@@ -279,11 +279,34 @@ describe('deepseek ask conversation resume', () => {
       new: false,
       model: 'vision',
       think: false,
-      search: true,
+      search: false,
     });
 
     expect(rows).toEqual([{ response: 'vision reply' }]);
     expect(mockSetFeature).toHaveBeenCalledTimes(1);
     expect(mockSetFeature).toHaveBeenCalledWith(expect.anything(), 'DeepThink', false);
+  });
+
+  it('fails fast instead of silently ignoring --search in vision mode', async () => {
+    mockEnsureOnDeepSeek.mockResolvedValue(false);
+    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/');
+
+    await expect(askCommand.func(page, {
+      prompt: 'describe',
+      timeout: 120,
+      new: false,
+      model: 'vision',
+      think: false,
+      search: true,
+    })).rejects.toMatchObject(new CliError(
+      'ARGUMENT',
+      'DeepSeek vision mode does not support --search.',
+      'Run without --search, or use --model instant/expert for web search.',
+      EXIT_CODES.USAGE_ERROR,
+    ));
+
+    expect(mockSendMessage).not.toHaveBeenCalled();
+    expect(mockSendWithFile).not.toHaveBeenCalled();
   });
 });
