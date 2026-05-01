@@ -14,6 +14,13 @@ const COMPOSER_SELECTORS = [
 ];
 const SEND_BTN_SELECTOR = 'button[aria-label="Send prompt"]';
 
+function isSameChatGPTConversation(currentUrl, expectedUrl) {
+    if (!currentUrl || !expectedUrl) return false;
+    return currentUrl === expectedUrl
+        || currentUrl.startsWith(`${expectedUrl}?`)
+        || currentUrl.startsWith(`${expectedUrl}#`);
+}
+
 function buildComposerLocatorScript() {
     const markerAttr = 'data-opencli-chatgpt-composer';
     return `
@@ -196,12 +203,10 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
     for (let i = 0; i < maxPolls; i++) {
         await page.wait(i === 0 ? 3 : pollIntervalSeconds);
 
+        let currentUrl = '';
         if (convUrl && convUrl.includes('/c/')) {
-            const currentUrl = await page.evaluate('window.location.href').catch(() => '');
-            if (currentUrl && !currentUrl.includes('/c/')) {
-                await page.goto(convUrl);
-                await page.wait(3);
-            } else if (i > 0 && i % 5 === 0) {
+            currentUrl = await page.evaluate('window.location.href').catch(() => '');
+            if (currentUrl && !isSameChatGPTConversation(currentUrl, convUrl)) {
                 await page.goto(convUrl);
                 await page.wait(3);
             }
@@ -209,6 +214,14 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
 
         const generating = await isGenerating(page);
         if (generating) continue;
+
+        if (convUrl && convUrl.includes('/c/') && i > 0 && i % 5 === 0) {
+            const onConversation = !currentUrl || isSameChatGPTConversation(currentUrl, convUrl);
+            if (onConversation) {
+                await page.goto(convUrl);
+                await page.wait(3);
+            }
+        }
 
         const urls = (await getChatGPTVisibleImageUrls(page)).filter(url => !beforeSet.has(url));
         if (urls.length === 0) continue;
@@ -228,6 +241,11 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
     }
     return lastUrls;
 }
+
+export const __test__ = {
+    COMPOSER_SELECTORS,
+    isSameChatGPTConversation,
+};
 
 /**
  * Export images by URL: fetch from ChatGPT backend API and convert to base64 data URLs.
