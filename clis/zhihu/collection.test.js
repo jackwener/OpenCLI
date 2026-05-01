@@ -25,7 +25,7 @@ describe('zhihu collection', () => {
     expect(cmd?.func).toBeTypeOf('function');
 
     const goto = vi.fn().mockResolvedValue(undefined);
-    const evaluate = vi.fn().mockImplementation(async (js: string) => {
+    const evaluate = vi.fn().mockImplementation(async (js) => {
       expect(js).toContain('collections/83283292/items');
       expect(js).toContain("credentials: 'include'");
       return {
@@ -46,9 +46,9 @@ describe('zhihu collection', () => {
       };
     });
 
-    const page = { goto, evaluate } as any;
+    const page = { goto, evaluate };
 
-    const result = await cmd!.func!(page, { id: '83283292', offset: 0, limit: 20 }) as any[];
+    const result = await cmd.func(page, { id: '83283292', offset: 0, limit: 20 });
     
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
@@ -83,9 +83,9 @@ describe('zhihu collection', () => {
       paging: { totals: 50 },
     });
 
-    const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate } as any;
+    const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate };
 
-    const result = await cmd!.func!(page, { id: '83283292', offset: 0, limit: 20 }) as any[];
+    const result = await cmd.func(page, { id: '83283292', offset: 0, limit: 20 });
     
     expect(result[0]).toMatchObject({
       type: 'article',
@@ -113,9 +113,9 @@ describe('zhihu collection', () => {
       paging: { totals: 30 },
     });
 
-    const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate } as any;
+    const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate };
 
-    const result = await cmd!.func!(page, { id: '83283292', offset: 0, limit: 20 }) as any[];
+    const result = await cmd.func(page, { id: '83283292', offset: 0, limit: 20 });
     
     expect(result[0]).toMatchObject({
       type: 'pin',
@@ -130,10 +130,10 @@ describe('zhihu collection', () => {
     const page = {
       goto: vi.fn().mockResolvedValue(undefined),
       evaluate: vi.fn().mockResolvedValue({ __httpError: 401 }),
-    } as any;
+    };
 
     await expect(
-      cmd!.func!(page, { id: '83283292', offset: 0, limit: 20 }),
+      cmd.func(page, { id: '83283292', offset: 0, limit: 20 }),
     ).rejects.toBeInstanceOf(AuthRequiredError);
   });
 
@@ -142,10 +142,10 @@ describe('zhihu collection', () => {
     const page = {
       goto: vi.fn().mockResolvedValue(undefined),
       evaluate: vi.fn().mockResolvedValue({ __httpError: 403 }),
-    } as any;
+    };
 
     await expect(
-      cmd!.func!(page, { id: '83283292', offset: 0, limit: 20 }),
+      cmd.func(page, { id: '83283292', offset: 0, limit: 20 }),
     ).rejects.toBeInstanceOf(AuthRequiredError);
   });
 
@@ -154,10 +154,10 @@ describe('zhihu collection', () => {
     const page = {
       goto: vi.fn().mockResolvedValue(undefined),
       evaluate: vi.fn().mockResolvedValue({ __httpError: 500 }),
-    } as any;
+    };
 
     await expect(
-      cmd!.func!(page, { id: '83283292', offset: 0, limit: 20 }),
+      cmd.func(page, { id: '83283292', offset: 0, limit: 20 }),
     ).rejects.toMatchObject({
       code: 'FETCH_ERROR',
       message: 'Zhihu collection request failed (HTTP 500)',
@@ -169,10 +169,10 @@ describe('zhihu collection', () => {
     const page = {
       goto: vi.fn().mockResolvedValue(undefined),
       evaluate: vi.fn().mockResolvedValue(null),
-    } as any;
+    };
 
     await expect(
-      cmd!.func!(page, { id: '83283292', offset: 0, limit: 20 }),
+      cmd.func(page, { id: '83283292', offset: 0, limit: 20 }),
     ).rejects.toMatchObject({
       code: 'FETCH_ERROR',
       message: 'Zhihu collection request failed',
@@ -181,10 +181,10 @@ describe('zhihu collection', () => {
 
   it('rejects non-numeric collection IDs', async () => {
     const cmd = getRegistry().get('zhihu/collection');
-    const page = { goto: vi.fn(), evaluate: vi.fn() } as any;
+    const page = { goto: vi.fn(), evaluate: vi.fn() };
 
     await expect(
-      cmd!.func!(page, { id: "abc'; alert(1); //", offset: 0, limit: 20 }),
+      cmd.func(page, { id: "abc'; alert(1); //", offset: 0, limit: 20 }),
     ).rejects.toBeInstanceOf(CliError);
 
     expect(page.goto).not.toHaveBeenCalled();
@@ -209,9 +209,9 @@ describe('zhihu collection', () => {
       paging: { totals: 100 },
     });
 
-    const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate } as any;
+    const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate };
 
-    const result = await cmd!.func!(page, { id: '83283292', offset: 40, limit: 20 }) as any[];
+    const result = await cmd.func(page, { id: '83283292', offset: 40, limit: 20 });
     
     expect(result[0].rank).toBe(41); // offset 40 + index 0 + 1
     expect(evaluate).toHaveBeenCalledWith(
@@ -227,10 +227,10 @@ describe('zhihu collection', () => {
         data: [],
         paging: { totals: 0 },
       }),
-    } as any;
+    };
 
-    const result = await cmd!.func!(page, { id: '83283292', offset: 0, limit: 20 }) as any[];
-    
+    const result = await cmd.func(page, { id: '83283292', offset: 0, limit: 20 });
+
     expect(result).toEqual([]);
   });
 });

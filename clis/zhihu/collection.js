@@ -2,7 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
 import { log } from '@jackwener/opencli/logger';
 
-function stripHtml(html: string): string {
+function stripHtml(html) {
   return html
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
@@ -21,21 +21,23 @@ cli({
   description: '知乎收藏夹内容列表（需要登录）',
   domain: 'www.zhihu.com',
   strategy: Strategy.COOKIE,
+  browser: true,
   args: [
-    { name: 'id', required: true, positional: true, help: '收藏夹 ID (数字，可从收藏夹 URL 中获取)' },
+    { name: 'id', positional: true, required: true, help: '收藏夹 ID (数字，可从收藏夹 URL 中获取)' },
     { name: 'offset', type: 'int', default: 0, help: '起始偏移量（用于分页）' },
     { name: 'limit', type: 'int', default: 20, help: '每页数量（最大 20）' },
   ],
   columns: ['rank', 'type', 'title', 'author', 'votes', 'excerpt', 'url'],
   func: async (page, kwargs) => {
     const { id, offset = 0, limit = 20 } = kwargs;
+
     const collectionId = String(id);
-    
+
     // 验证收藏夹 ID 为数字
     if (!/^\d+$/.test(collectionId)) {
       throw new CliError('INVALID_INPUT', 'Collection ID must be numeric', 'Example: opencli zhihu collection 83283292');
     }
-    
+
     const pageOffset = Number(offset);
     const pageLimit = Math.min(Number(limit), 20); // 知乎 API 限制每页最大 20
 
@@ -44,7 +46,7 @@ cli({
 
     // 调用知乎收藏夹 API
     const url = `https://www.zhihu.com/api/v4/collections/${collectionId}/items?offset=${pageOffset}&limit=${pageLimit}`;
-    const data: any = await page.evaluate(`
+    const data = await page.evaluate(`
       (async () => {
         const r = await fetch(${JSON.stringify(url)}, { credentials: 'include' });
         if (!r.ok) return { __httpError: r.status };
@@ -86,7 +88,7 @@ cli({
       return [];
     }
 
-    return items.map((item: any, i: number) => {
+    return items.map((item, i) => {
       const content = item.content || {};
       const type = content.type || 'unknown';
       
@@ -114,7 +116,7 @@ cli({
       } else if (type === 'pin') {
         // 想法类型
         title = '想法';
-        excerpt = stripHtml((content.content || []).map((c: any) => c.content || '').join(' ')).substring(0, 150);
+        excerpt = stripHtml((content.content || []).map((c) => c.content || '').join(' ')).substring(0, 150);
         url = content.url || `https://www.zhihu.com/pin/${content.id}`;
         author = content.author?.name || '匿名用户';
         votes = content.reaction_count || 0;

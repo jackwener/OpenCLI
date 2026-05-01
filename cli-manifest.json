@@ -20433,6 +20433,78 @@
   },
   {
     "site": "zhihu",
+    "name": "collection",
+    "description": "知乎收藏夹内容列表（需要登录）",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "收藏夹 ID (数字，可从收藏夹 URL 中获取)"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "起始偏移量（用于分页）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "每页数量（最大 20）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "type",
+      "title",
+      "author",
+      "votes",
+      "excerpt",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/collection.js",
+    "sourceFile": "zhihu/collection.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "collections",
+    "description": "知乎收藏夹列表（需要登录）",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "每页数量（最大 20）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "answer_count",
+      "description",
+      "collection_id"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/collections.js",
+    "sourceFile": "zhihu/collections.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
     "name": "comment",
     "description": "Create a top-level comment on a Zhihu answer or article",
     "domain": "zhihu.com",
