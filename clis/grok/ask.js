@@ -63,19 +63,47 @@ async function runDefaultAsk(page, prompt, timeoutMs, newChat) {
         await page.wait(3);
     }
     const promptJson = JSON.stringify(prompt);
+    // Grok's input is a contenteditable div now, not a <textarea>. Use native
+    // CDP typing (page.nativeType) so React recognizes the input and enables Submit.
+    const composerHandle = await page.evaluate(`(() => {
+      const box = document.querySelector('div[contenteditable="true"]')
+                  || document.querySelector('textarea');
+      if (!box) return { ok: false, msg: 'no composer' };
+      box.focus();
+      // Clear any existing text
+      if (box.tagName === 'TEXTAREA') { box.value = ''; }
+      else { box.textContent = ''; box.dispatchEvent(new InputEvent('input', { bubbles: true })); }
+      return { ok: true };
+    })()`);
+    if (!composerHandle?.ok) {
+        return [{ response: '[SEND FAILED] ' + JSON.stringify(composerHandle) }];
+    }
+    if (page.nativeType) {
+        try { await page.nativeType(prompt); } catch { }
+    } else {
+        await page.evaluate(`(() => {
+      const box = document.querySelector('div[contenteditable="true"]') || document.querySelector('textarea');
+      if (!box) return;
+      if (box.tagName === 'TEXTAREA') { box.value = ${promptJson}; }
+      else { box.textContent = ${promptJson}; }
+      box.dispatchEvent(new InputEvent('input', { bubbles: true, data: ${promptJson}, inputType: 'insertText' }));
+    })()`);
+    }
+    await page.wait(1.5);
     const sendResult = await page.evaluate(`(async () => {
     try {
-      const box = document.querySelector('textarea');
-      if (!box) return { ok: false, msg: 'no textarea' };
-      box.focus(); box.value = '';
-      document.execCommand('selectAll');
-      document.execCommand('insertText', false, ${promptJson});
-      await new Promise(r => setTimeout(r, 1500));
-      const btn = document.querySelector('button[aria-label="\\u63d0\\u4ea4"]');
-      if (btn && !btn.disabled) { btn.click(); return { ok: true, msg: 'clicked' }; }
+      // English aria (current Grok UI)
+      const btnEN = document.querySelector('button[aria-label="Submit"]');
+      if (btnEN && !btnEN.disabled && btnEN.getAttribute('aria-disabled') !== 'true') {
+        btnEN.click(); return { ok: true, msg: 'clicked-en' };
+      }
+      // Chinese aria (older UI)
+      const btnCN = document.querySelector('button[aria-label="\\u63d0\\u4ea4"]');
+      if (btnCN && !btnCN.disabled) { btnCN.click(); return { ok: true, msg: 'clicked-cn' }; }
       const sub = [...document.querySelectorAll('button[type="submit"]')].find(b => !b.disabled);
       if (sub) { sub.click(); return { ok: true, msg: 'clicked-submit' }; }
-      box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+      const box = document.querySelector('div[contenteditable="true"]') || document.querySelector('textarea');
+      if (box) box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
       return { ok: true, msg: 'enter' };
     } catch (e) { return { ok: false, msg: e.toString() }; }
   })()`);

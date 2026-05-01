@@ -299,7 +299,11 @@ function readGeminiSnapshotScript() {
         transcriptLines,
         composerHasText: composerText.length > 0,
         isGenerating,
-        structuredTurnsTrusted: turns.length > 0 || transcriptLines.length === 0,
+        // After filtering out zero-state greetings, empty turns means
+        // "no actual conversation yet" — still trust the structured diff.
+        // Previously this flipped to false on the /app root because the
+        // welcome text produced transcriptLines > 0.
+        structuredTurnsTrusted: true,
       };
     })()
   `;
@@ -417,9 +421,22 @@ function getTurnsScript() {
       ];
 
       const roots = selectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)));
+      // Filter out zero-state welcome text ("Hi <user>, Where should we start?")
+      // which Gemini renders inside .visible-primary-message containers using
+      // .message-text class. These match our turn selectors but are NOT actual
+      // conversation turns, breaking the strict prefix match in diffTrustedStructuredTurns.
+      const isInRealConversation = (el) => {
+        if (el.closest('[class*="conversation-container"]')) return true;
+        if (el.closest('chat-history, [class*="chat-history"]')) return true;
+        // Exclude zero-state greeting areas
+        if (el.closest('[class*="visible-primary-message"]')) return false;
+        if (el.closest('[class*="zero-state"], [class*="empty-state"], [class*="zero_state"]')) return false;
+        return false;
+      };
       const unique = roots
         .filter((el, index, all) => all.indexOf(el) === index)
         .filter(isVisible)
+        .filter(isInRealConversation)
         .sort((left, right) => {
           if (left === right) return 0;
           const relation = left.compareDocumentPosition(right);
@@ -1917,7 +1934,12 @@ export async function waitForGeminiResponse(page, baseline, promptText, timeoutS
                 lastStructured = structuredCandidate;
                 structuredStableCount = 1;
             }
-            if (!current.isGenerating && structuredStableCount >= 2) {
+            // Gemini's send-button aria-label sticks at "Stop response" after
+            // the response has already finished streaming, making isGenerating
+            // unreliable as a completion signal. Fall back to: if the candidate
+            // text has been stable for ~8 seconds (4 polls at 2s each), treat
+            // it as done regardless of isGenerating.
+            if ((!current.isGenerating && structuredStableCount >= 2) || structuredStableCount >= 4) {
                 return structuredCandidate;
             }
             continue;
