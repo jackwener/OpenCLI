@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { resolveTwitterQueryId, sanitizeQueryId } from './shared.js';
 
 const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
@@ -127,6 +127,10 @@ function parseFollowing(data) {
     return { users, nextCursor };
 }
 
+function normalizeScreenName(value) {
+    return String(value || '').trim().replace(/^\/+/, '').replace(/^@+/, '');
+}
+
 cli({
     site: 'twitter',
     name: 'following',
@@ -140,8 +144,11 @@ cli({
     ],
     columns: ['screen_name', 'name', 'bio', 'followers'],
     func: async (page, kwargs) => {
-        const limit = kwargs.limit || 50;
-        let targetUser = kwargs.user;
+        const limit = kwargs.limit === undefined || kwargs.limit === null ? 50 : Number(kwargs.limit);
+        if (!Number.isInteger(limit) || limit <= 0) {
+            throw new ArgumentError('twitter following --limit must be a positive integer', 'Example: opencli twitter following @elonmusk --limit 200');
+        }
+        let targetUser = normalizeScreenName(kwargs.user);
 
         await page.goto('https://x.com');
         await page.wait(3);
@@ -159,7 +166,10 @@ cli({
             }`);
             if (!href)
                 throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
-            targetUser = href.replace('/', '');
+            targetUser = normalizeScreenName(href.replace('/', ''));
+        }
+        if (!targetUser) {
+            throw new ArgumentError('twitter following user cannot be empty', 'Example: opencli twitter following @elonmusk --limit 200');
         }
 
         const followingQueryId = await resolveTwitterQueryId(page, 'Following', FOLLOWING_QUERY_ID);
@@ -172,13 +182,20 @@ cli({
         });
 
         // Get userId from screen_name
-        const userId = await page.evaluate(`async () => {
+        const userLookup = await page.evaluate(`async () => {
             const url = ${JSON.stringify(buildUserByScreenNameUrl(userByScreenNameQueryId, targetUser))};
             const resp = await fetch(url, { headers: ${headers}, credentials: 'include' });
-            if (!resp.ok) return null;
+            if (!resp.ok) return { error: resp.status };
             const d = await resp.json();
-            return d.data?.user?.result?.rest_id || null;
+            return { userId: d.data?.user?.result?.rest_id || null };
         }`);
+        if (userLookup?.error === 401 || userLookup?.error === 403) {
+            throw new AuthRequiredError('x.com', `Twitter user lookup failed (HTTP ${userLookup.error})`);
+        }
+        if (userLookup?.error) {
+            throw new CommandExecutionError(`HTTP ${userLookup.error}: Failed to resolve Twitter user @${targetUser}`);
+        }
+        const userId = userLookup?.userId || null;
         if (!userId)
             throw new CommandExecutionError(`Could not find user @${targetUser}`);
 
@@ -186,7 +203,8 @@ cli({
         const seen = new Set();
         let cursor = null;
 
-        for (let i = 0; i < 10 && allUsers.length < limit; i++) {
+        const maxPages = Math.ceil(limit / 50) + 2;
+        for (let i = 0; i < maxPages && allUsers.length < limit; i++) {
             const fetchCount = Math.min(50, limit - allUsers.length + 10);
             const apiUrl = buildFollowingUrl(followingQueryId, userId, fetchCount, cursor);
             const data = await page.evaluate(`async () => {
@@ -194,9 +212,9 @@ cli({
                 return r.ok ? await r.json() : { error: r.status };
             }`);
             if (data?.error) {
-                if (allUsers.length === 0)
-                    throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch following list. queryId may have expired.`);
-                break;
+                if (data.error === 401 || data.error === 403)
+                    throw new AuthRequiredError('x.com', `Twitter following request failed (HTTP ${data.error})`);
+                throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch following list. queryId may have expired.`);
             }
             const { users, nextCursor } = parseFollowing(data);
             for (const u of users) {
@@ -210,6 +228,10 @@ cli({
             cursor = nextCursor;
         }
 
+        if (allUsers.length === 0) {
+            throw new EmptyResultError('twitter following', `No following accounts found for @${targetUser}`);
+        }
+
         return allUsers.slice(0, limit);
     },
 });
@@ -219,5 +241,6 @@ export const __test__ = {
     buildFollowingUrl,
     buildUserByScreenNameUrl,
     extractUser,
+    normalizeScreenName,
     parseFollowing,
 };
