@@ -18,9 +18,8 @@ cli({
     columns: ['rank', 'name', 'votes', 'url'],
     func: async (page, args) => {
         const count = Math.min(Number(args.limit) || 20, 50);
-        await page.installInterceptor('producthunt.com');
         await page.goto('https://www.producthunt.com');
-        await page.waitForCapture(5);
+        await page.wait(3);
         const domItems = await page.evaluate(`
       (() => {
         const seen = new Set();

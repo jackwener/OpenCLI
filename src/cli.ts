@@ -1289,6 +1289,83 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }, null, 2));
     }));
 
+  addBrowserTabOption(
+    browser.command('upload')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector of an <input type="file">')
+      .argument('<files...>', 'One or more local file paths to attach')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Set local file paths on a file input — JSON envelope {uploaded, files, target, matches_n}'),
+  )
+    .action(browserAction(async (page, target, files, opts) => {
+      const parsed = nthToResolveOpts(opts?.nth);
+      if ('error' in parsed) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const paths = (Array.isArray(files) ? files : [files]).map((file) => path.resolve(String(file)));
+      const missing = paths.filter((file) => !fs.existsSync(file));
+      if (missing.length > 0) {
+        console.log(JSON.stringify({
+          error: {
+            code: 'file_not_found',
+            message: `File(s) not found: ${missing.join(', ')}`,
+          },
+        }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const { matches_n, match_level } = await resolveRef(page, String(target), parsed.opts);
+      const inputCheck = await page.evaluate(`(() => {
+        const el = window.__resolved;
+        if (!el) return { ok: false, code: 'target_not_resolved', message: 'Resolved target is not available.' };
+        if (!(el instanceof HTMLInputElement) || el.type !== 'file') {
+          return { ok: false, code: 'not_file_input', message: 'Resolved target is not an <input type="file">.' };
+        }
+        return { ok: true, accept: el.accept || '', multiple: !!el.multiple };
+      })()` ) as { ok: true; accept: string; multiple: boolean } | { ok: false; code: string; message: string };
+      if (!inputCheck.ok) {
+        console.log(JSON.stringify({ error: { code: inputCheck.code, message: inputCheck.message, matches_n } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      if (paths.length > 1 && !inputCheck.multiple) {
+        console.log(JSON.stringify({
+          error: {
+            code: 'multiple_not_allowed',
+            message: 'Target file input does not allow multiple files.',
+            matches_n,
+          },
+        }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      if (typeof (page as { setFileInput?: unknown }).setFileInput !== 'function') {
+        throw new Error('This browser session does not support file uploads');
+      }
+      const uploadToken = `opencli-upload-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const uploadSelector = `input[type="file"][data-opencli-upload-target="${uploadToken}"]`;
+      await page.evaluate(`(() => {
+        const el = window.__resolved;
+        if (el instanceof HTMLInputElement) {
+          el.setAttribute('data-opencli-upload-target', ${JSON.stringify(uploadToken)});
+        }
+      })()`);
+      await (page as { setFileInput: (files: string[], selector?: string) => Promise<void> }).setFileInput(paths, uploadSelector);
+      await page.evaluate(`(() => {
+        const el = document.querySelector(${JSON.stringify(uploadSelector)});
+        if (el) el.removeAttribute('data-opencli-upload-target');
+      })()`);
+      console.log(JSON.stringify({
+        uploaded: true,
+        files: paths,
+        target: String(target),
+        matches_n,
+        match_level,
+        accept: inputCheck.accept,
+      }, null, 2));
+    }));
+
   addBrowserTabOption(browser.command('keys').argument('<key>', 'Key to press (Enter, Escape, Tab, Control+a)'))
     .description('Press keyboard key')
     .action(browserAction(async (page, key) => {
