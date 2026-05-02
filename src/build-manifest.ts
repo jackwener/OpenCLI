@@ -75,6 +75,14 @@ function toModulePath(filePath: string, site: string): string {
   return `${site}/${baseName}.js`;
 }
 
+export function normalizeManifestPath(relativePath: string): string {
+  return relativePath.replace(/\\/g, '/');
+}
+
+function toManifestRelativePath(filePath: string): string {
+  return normalizeManifestPath(path.relative(CLIS_DIR, filePath));
+}
+
 function isCliCommandValue(value: unknown, site: string): value is CliCommand {
   return isRecord(value)
     && typeof value.site === 'string'
@@ -133,8 +141,9 @@ export async function loadManifestEntries(
         })
         .map(([, cmd]) => cmd);
 
-    // Resolve sourceFile relative to clis/.
-    const sourceRelative = path.relative(CLIS_DIR, filePath);
+    // Manifest paths are cross-platform artifacts; keep them POSIX-style even
+    // when build-manifest runs on Windows.
+    const sourceRelative = toManifestRelativePath(filePath);
 
     const seen = new Set<string>();
     return runtimeCommands
@@ -178,10 +187,14 @@ export async function buildManifest(): Promise<ManifestEntry[]> {
   return [...manifest.values()].sort((a, b) => a.site.localeCompare(b.site) || a.name.localeCompare(b.name));
 }
 
+export function serializeManifest(manifest: ManifestEntry[]): string {
+  return `${JSON.stringify(manifest, null, 2)}\n`;
+}
+
 async function main(): Promise<void> {
   const manifest = await buildManifest();
   fs.mkdirSync(path.dirname(OUTPUT), { recursive: true });
-  fs.writeFileSync(OUTPUT, JSON.stringify(manifest, null, 2));
+  fs.writeFileSync(OUTPUT, serializeManifest(manifest));
 
   console.log(`✅ Manifest compiled: ${manifest.length} entries → ${OUTPUT}`);
 
