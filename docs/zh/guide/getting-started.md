@@ -49,7 +49,7 @@ opencli bilibili [Tab] # 补全命令（hot、search、me、download...）
 
 补全功能包含：
 - 所有可用的站点和适配器
-- 内置命令（list、explore、validate...）
+- 内置命令（list、validate、verify、browser、doctor、plugin、adapter...）
 - 命令别名
 - 新增适配器时的实时更新
 
