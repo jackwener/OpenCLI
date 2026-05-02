@@ -21,7 +21,7 @@ It also works as a **CLI hub** for local tools such as `gh`, `docker`, and other
 - **Desktop App Control** — Drive Electron apps (Cursor, Codex, ChatGPT, Notion, etc.) directly from the terminal via CDP.
 - **Browser Automation for AI Agents** — Install the `opencli-adapter-author` skill, and your AI agent can operate any website: navigate, click, type, extract, screenshot — all through your logged-in Chrome session.
 - **Multi-profile Browser Bridge** — Install the extension in each Chrome profile you want to use, then route commands with `--profile`, `OPENCLI_PROFILE`, or `opencli profile use`.
-- **Website → CLI** — Turn any website into a deterministic CLI: 90+ pre-built adapters, or write your own with the `opencli-adapter-author` skill + `opencli browser verify`.
+- **Website → CLI** — Turn any website into a deterministic CLI: 100+ site surfaces are already registered, or write your own with the `opencli-adapter-author` skill + `opencli browser verify`.
 - **Account-safe** — Reuses Chrome/Chromium logged-in state; your credentials never leave the browser.
 - **AI Agent ready** — One skill takes you from site recon through API discovery, field decoding, adapter writing, and verification.
 - **CLI Hub** — Discover, auto-install, and passthrough commands to any external CLI (gh, docker, obsidian, etc).
@@ -277,7 +277,7 @@ To load the source Browser Bridge extension:
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
 | **xiaoyuzhou** | `auth*` `podcast*` `podcast-episodes*` `episode*` `download*` `transcript*` |
 
-90+ adapters in total — **[→ see all supported sites & commands](./docs/adapters/index.md)**
+100+ site surfaces in total — **[→ see all supported sites & commands](./docs/adapters/index.md)**
 
 `*` `opencli xiaoyuzhou podcast`, `podcast-episodes`, `episode`, `download`, and `transcript` require local Xiaoyuzhou credentials in `~/.opencli/xiaoyuzhou.json`.
 
