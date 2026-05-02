@@ -20023,6 +20023,48 @@
     "navigateBefore": false
   },
   {
+    "site": "weixin",
+    "name": "search",
+    "description": "使用搜狗微信搜索公众号文章；如需导出正文 Markdown，请使用 weixin download 处理公众号文章链接",
+    "domain": "weixin.sogou.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词；如需正文 Markdown，请使用 weixin download 处理公众号文章链接"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "结果页码，从 1 开始"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "返回条数，最大 10"
+      }
+    ],
+    "columns": [
+      "rank",
+      "page",
+      "title",
+      "url",
+      "summary",
+      "publish_time"
+    ],
+    "type": "js",
+    "modulePath": "weixin/search.js",
+    "sourceFile": "weixin/search.js"
+  },
+  {
     "site": "weread",
     "name": "ai-outline",
     "description": "Get AI-generated outline for a book",
