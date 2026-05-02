@@ -23,22 +23,10 @@ import { fullName } from './registry.js';
 
 /** Maximum bytes for the entire diagnostic JSON output. */
 export const MAX_DIAGNOSTIC_BYTES = 256 * 1024; // 256 KB
-/** Maximum characters for DOM snapshot. */
-const MAX_SNAPSHOT_CHARS = 100_000;
-/** Maximum characters for adapter source. */
-const MAX_SOURCE_CHARS = 50_000;
-/** Maximum number of network requests to include. */
-const MAX_NETWORK_REQUESTS = 50;
-/** Maximum number of captured interceptor payloads to include. */
-const MAX_CAPTURED_PAYLOADS = 20;
-/** Maximum characters for a single network request body. */
-const MAX_REQUEST_BODY_CHARS = 4_000;
-/** Maximum characters for error stack trace. */
-const MAX_STACK_CHARS = 5_000;
-/** Maximum nesting depth for arbitrary captured payloads. */
-const MAX_CAPTURED_DEPTH = 4;
-/** Maximum object keys or array items to keep per nesting level. */
-const MAX_CAPTURED_CHILDREN = 20;
+/** Maximum characters for any single diagnostic text field. */
+const MAX_DIAGNOSTIC_FIELD_CHARS = 50_000;
+/** Maximum entries to keep from diagnostic collections. */
+const MAX_DIAGNOSTIC_COLLECTION_ITEMS = 50;
 
 // ── Sensitive data patterns ──────────────────────────────────────────────────
 
@@ -129,20 +117,20 @@ function redactHeaders(headers: Record<string, string> | undefined): Record<stri
 /** Recursively sanitize arbitrary captured response content for diagnostic output. */
 function sanitizeCapturedValue(value: unknown, depth: number = 0): unknown {
   if (typeof value === 'string') {
-    return redactText(truncate(value, MAX_REQUEST_BODY_CHARS));
+    return redactText(truncate(value, MAX_DIAGNOSTIC_FIELD_CHARS));
   }
   if (value === null || typeof value === 'number' || typeof value === 'boolean') {
     return value;
   }
-  if (depth >= MAX_CAPTURED_DEPTH) {
+  if (depth >= 4) {
     return '[truncated: max depth reached]';
   }
   if (Array.isArray(value)) {
     const items = value
-      .slice(0, MAX_CAPTURED_CHILDREN)
+      .slice(0, MAX_DIAGNOSTIC_COLLECTION_ITEMS)
       .map(item => sanitizeCapturedValue(item, depth + 1));
-    if (value.length > MAX_CAPTURED_CHILDREN) {
-      items.push(`[truncated, ${value.length - MAX_CAPTURED_CHILDREN} items omitted]`);
+    if (value.length > MAX_DIAGNOSTIC_COLLECTION_ITEMS) {
+      items.push(`[truncated, ${value.length - MAX_DIAGNOSTIC_COLLECTION_ITEMS} items omitted]`);
     }
     return items;
   }
@@ -152,11 +140,11 @@ function sanitizeCapturedValue(value: unknown, depth: number = 0): unknown {
 
   const entries = Object.entries(value);
   const result: Record<string, unknown> = {};
-  for (const [key, child] of entries.slice(0, MAX_CAPTURED_CHILDREN)) {
+  for (const [key, child] of entries.slice(0, MAX_DIAGNOSTIC_COLLECTION_ITEMS)) {
     result[key] = sanitizeCapturedValue(child, depth + 1);
   }
-  if (entries.length > MAX_CAPTURED_CHILDREN) {
-    result.__truncated__ = `[${entries.length - MAX_CAPTURED_CHILDREN} fields omitted]`;
+  if (entries.length > MAX_DIAGNOSTIC_COLLECTION_ITEMS) {
+    result.__truncated__ = `[${entries.length - MAX_DIAGNOSTIC_COLLECTION_ITEMS} fields omitted]`;
   }
   return result;
 }
@@ -185,7 +173,7 @@ function redactNetworkRequest(req: unknown): unknown {
 
   // Redact and truncate response body
   if (typeof redacted.body === 'string') {
-    redacted.body = redactText(truncate(redacted.body, MAX_REQUEST_BODY_CHARS));
+    redacted.body = redactText(truncate(redacted.body, MAX_DIAGNOSTIC_FIELD_CHARS));
   }
   if ('responseBody' in redacted) {
     redacted.responseBody = sanitizeCapturedValue(redacted.responseBody);
@@ -246,7 +234,7 @@ export function isDiagnosticEnabled(): boolean {
 }
 
 function normalizeInterceptedRequests(interceptedRequests: unknown[]): unknown[] {
-  return interceptedRequests.slice(0, MAX_CAPTURED_PAYLOADS).map(responseBody => ({
+  return interceptedRequests.slice(0, MAX_DIAGNOSTIC_COLLECTION_ITEMS).map(responseBody => ({
     source: 'interceptor',
     responseBody: sanitizeCapturedValue(responseBody),
   }));
@@ -268,13 +256,13 @@ async function collectPageState(page: IPage): Promise<RepairContext['page'] | un
       const capturedResponses = normalizeInterceptedRequests(interceptedRequests as unknown[]);
       return {
         url: redactUrl(rawUrl),
-        snapshot: redactText(truncate(snapshot, MAX_SNAPSHOT_CHARS)),
+        snapshot: redactText(truncate(snapshot, MAX_DIAGNOSTIC_FIELD_CHARS)),
         networkRequests: (networkRequests as unknown[])
-          .slice(0, MAX_NETWORK_REQUESTS)
+          .slice(0, MAX_DIAGNOSTIC_COLLECTION_ITEMS)
           .map(redactNetworkRequest),
         capturedPayloads: capturedResponses,
         consoleErrors: (consoleErrors as unknown[])
-          .slice(0, 50)
+          .slice(0, MAX_DIAGNOSTIC_COLLECTION_ITEMS)
           .map(e => typeof e === 'string' ? redactText(e) : e),
       };
     } catch {
@@ -290,7 +278,7 @@ function readAdapterSource(sourcePath: string | undefined): string | undefined {
   if (!sourcePath) return undefined;
   try {
     const content = fs.readFileSync(sourcePath, 'utf-8');
-    return truncate(content, MAX_SOURCE_CHARS);
+    return truncate(content, MAX_DIAGNOSTIC_FIELD_CHARS);
   } catch {
     return undefined;
   }
@@ -309,7 +297,7 @@ export function buildRepairContext(
       code: isCliError ? err.code : 'UNKNOWN',
       message: redactText(getErrorMessage(err)),
       hint: isCliError && err.hint ? redactText(err.hint) : undefined,
-      stack: err instanceof Error ? redactText(truncate(err.stack ?? '', MAX_STACK_CHARS)) : undefined,
+      stack: err instanceof Error ? redactText(truncate(err.stack ?? '', MAX_DIAGNOSTIC_FIELD_CHARS)) : undefined,
     },
     adapter: {
       site: cmd.site,

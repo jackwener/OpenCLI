@@ -187,9 +187,8 @@ type TargetLease = {
   lifecycle: LeaseLifecycle;
   surface: SurfacePolicy;
 };
-type AutomationSession = TargetLease;
 
-const automationSessions = new Map<string, AutomationSession>();
+const automationSessions = new Map<string, TargetLease>();
 let ownedContainerWindowId: number | null = null;
 const IDLE_TIMEOUT_DEFAULT = 30_000;      // 30s — adapter-driven automation
 const IDLE_TIMEOUT_INTERACTIVE = 600_000; // 10min — human-paced browser:* / operate:*
@@ -199,7 +198,7 @@ const LEASE_IDLE_ALARM_PREFIX = 'opencli:lease-idle:';
 let leaseMutationQueue: Promise<void> = Promise.resolve();
 let ownedContainerWindowPromise: Promise<{ windowId: number; initialTabId?: number }> | null = null;
 
-type StoredLease = Omit<AutomationSession, 'idleTimer' | 'idleDeadlineAt'> & {
+type StoredLease = Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt'> & {
   idleDeadlineAt: number;
   updatedAt: number;
 };
@@ -264,8 +263,8 @@ function withLeaseMutation<T>(fn: () => Promise<T>): Promise<T> {
 
 function makeSession(
   workspace: string,
-  session: Omit<AutomationSession, 'idleTimer' | 'idleDeadlineAt' | 'contextId' | 'ownership' | 'lifecycle' | 'surface'>,
-): Omit<AutomationSession, 'idleTimer' | 'idleDeadlineAt'> {
+  session: Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt' | 'contextId' | 'ownership' | 'lifecycle' | 'surface'>,
+): Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt'> {
   const ownership = session.owned ? 'owned' : 'borrowed';
   return {
     ...session,
@@ -790,7 +789,7 @@ function enumerateCrossOriginFrames(tree: any): Array<{ index: number; frameId: 
 
 function setWorkspaceSession(
   workspace: string,
-  session: Omit<AutomationSession, 'idleTimer' | 'idleDeadlineAt' | 'contextId' | 'ownership' | 'lifecycle' | 'surface'>,
+  session: Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt' | 'contextId' | 'ownership' | 'lifecycle' | 'surface'>,
 ): void {
   const existing = automationSessions.get(workspace);
   if (existing?.idleTimer) clearTimeout(existing.idleTimer);

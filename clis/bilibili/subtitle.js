@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError, EmptyResultError, SelectorError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError, selectorError } from '@jackwener/opencli/errors';
 import { apiGet, resolveBvid } from './utils.js';
 cli({
     site: 'bilibili',
@@ -23,7 +23,7 @@ cli({
       return state?.videoData?.cid;
     })()`);
         if (!cid) {
-            throw new SelectorError('videoData.cid', '无法在页面中提取到当前视频的 CID，请检查页面是否正常加载。');
+            throw selectorError('videoData.cid', '无法在页面中提取到当前视频的 CID，请检查页面是否正常加载。');
         }
         // 3. 在 Node 端使用 apiGet 获取带 Wbi 签名的字幕列表
         // 之前纯靠 evaluate 里的 fetch 会失败，因为 B 站 /wbi/ 开头的接口强校验 w_rid，未签名直接被风控返回 403 HTML

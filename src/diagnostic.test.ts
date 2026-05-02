@@ -4,7 +4,7 @@ import {
   truncate, redactUrl, redactText, resolveAdapterSourcePath, MAX_DIAGNOSTIC_BYTES,
   type RepairContext,
 } from './diagnostic.js';
-import { SelectorError, CommandExecutionError } from './errors.js';
+import { selectorError, CommandExecutionError } from './errors.js';
 import type { InternalCliCommand } from './registry.js';
 import type { IPage } from './types.js';
 
@@ -130,7 +130,7 @@ describe('resolveAdapterSourcePath', () => {
 
 describe('buildRepairContext', () => {
   it('captures CliError fields', () => {
-    const err = new SelectorError('.missing-element', 'Element removed');
+    const err = selectorError('.missing-element', 'Element removed');
     const ctx = buildRepairContext(err, makeCmd());
 
     expect(ctx.error.code).toBe('SELECTOR');
@@ -170,9 +170,9 @@ describe('buildRepairContext', () => {
 
   it('truncates long stack traces', () => {
     const err = new Error('boom');
-    err.stack = 'x'.repeat(10_000);
+    err.stack = 'x'.repeat(60_000);
     const ctx = buildRepairContext(err, makeCmd());
-    expect(ctx.error.stack!.length).toBeLessThan(10_000);
+    expect(ctx.error.stack!.length).toBeLessThan(60_000);
     expect(ctx.error.stack).toContain('truncated');
   });
 
@@ -332,7 +332,7 @@ describe('collectDiagnostic', () => {
         token: 'token=abc123def456ghi789',
         nested: {
           cookie: 'cookie: session=super-secret-cookie-value',
-          body: 'x'.repeat(5000),
+          body: 'x'.repeat(60_000),
         },
       }]),
     });
@@ -352,6 +352,6 @@ describe('collectDiagnostic', () => {
       },
     });
     expect(body).toContain('[truncated,');
-    expect(body.length).toBeLessThan(5000);
+    expect(body.length).toBeLessThan(60_000);
   });
 });

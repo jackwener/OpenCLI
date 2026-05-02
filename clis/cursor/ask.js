@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { SelectorError } from '@jackwener/opencli/errors';
+import { selectorError } from '@jackwener/opencli/errors';
 export const askCommand = cli({
     site: 'cursor',
     name: 'ask',
@@ -28,7 +28,7 @@ export const askCommand = cli({
         return true;
       })(${JSON.stringify(text)})`);
         if (!injected)
-            throw new SelectorError('Cursor input element');
+            throw selectorError('Cursor input element');
         await page.wait(0.5);
         await page.pressKey('Enter');
         // Poll until a new assistant message appears or timeout

@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { SelectorError } from '@jackwener/opencli/errors';
+import { selectorError } from '@jackwener/opencli/errors';
 export const modelCommand = cli({
     site: 'chatwise',
     name: 'model',
@@ -58,7 +58,7 @@ export const modelCommand = cli({
         })(${JSON.stringify(desiredModel)})
       `);
             if (!opened)
-                throw new SelectorError('ChatWise model selector');
+                throw selectorError('ChatWise model selector');
             await page.wait(0.5);
             // Find and click the target model in the dropdown
             const found = await page.evaluate(`

@@ -24,7 +24,7 @@ import { pathToFileURL } from 'node:url';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
-import { AdapterLoadError, ArgumentError, CommandExecutionError, getErrorMessage } from './errors.js';
+import { adapterLoadError, ArgumentError, CommandExecutionError, getErrorMessage } from './errors.js';
 import { isDiagnosticEnabled, collectDiagnostic, emitDiagnostic } from './diagnostic.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
@@ -113,7 +113,7 @@ async function runCommand(
         },
         (err) => {
           _loadedModules.delete(modulePath);
-          throw new AdapterLoadError(
+          throw adapterLoadError(
             `Failed to load adapter module ${modulePath}: ${getErrorMessage(err)}`,
             'Check that the adapter file exists and has no syntax errors.',
           );

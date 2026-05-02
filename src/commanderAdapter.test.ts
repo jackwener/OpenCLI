@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Command } from 'commander';
 import type { CliCommand } from './registry.js';
-import { EmptyResultError, SelectorError } from './errors.js';
+import { EmptyResultError, selectorError } from './errors.js';
 
 const { mockExecuteCommand, mockRenderOutput } = vi.hoisted(() => ({
   mockExecuteCommand: vi.fn(),
@@ -356,7 +356,7 @@ describe('commanderAdapter error envelope output', () => {
 
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     mockExecuteCommand.mockRejectedValueOnce(
-      new SelectorError('.note-title', 'The note title selector no longer matches the current page.'),
+      selectorError('.note-title', 'The note title selector no longer matches the current page.'),
     );
 
     await program.parseAsync(['node', 'opencli', 'xiaohongshu', 'note', '69ca3927000000001a020fd5']);

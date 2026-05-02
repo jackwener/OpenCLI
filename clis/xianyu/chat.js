@@ -1,4 +1,4 @@
-import { AuthRequiredError, SelectorError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, selectorError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { normalizeNumericId } from './utils.js';
 function buildChatUrl(itemId, peerUserId) {
@@ -105,7 +105,7 @@ cli({
             throw new AuthRequiredError('www.goofish.com', 'Xianyu chat requires a logged-in browser session');
         }
         if (!state?.can_input) {
-            throw new SelectorError('闲鱼聊天输入框', '未找到可用的聊天输入框，请确认该会话页已正确加载');
+            throw selectorError('闲鱼聊天输入框', '未找到可用的聊天输入框，请确认该会话页已正确加载');
         }
         if (!text) {
             return [{
@@ -123,7 +123,7 @@ cli({
         }
         const sent = await page.evaluate(buildSendMessageEvaluate(text));
         if (!sent?.ok) {
-            throw new SelectorError('闲鱼发送按钮', `消息发送失败：${sent?.reason || 'unknown-reason'}`);
+            throw selectorError('闲鱼发送按钮', `消息发送失败：${sent?.reason || 'unknown-reason'}`);
         }
         await page.wait(1);
         return [{

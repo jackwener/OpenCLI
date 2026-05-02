@@ -13,7 +13,7 @@
  *   1   Generic / unexpected error
  *   2   Argument / usage error          (ArgumentError)
  *  66   No input / empty result         (EmptyResultError)
- *  69   Service unavailable             (BrowserConnectError, AdapterLoadError)
+ *  69   Service unavailable             (BrowserConnectError, adapter load failures)
  *  75   Temporary failure, retry later  (TimeoutError)   EX_TEMPFAIL
  *  77   Permission denied / auth needed (AuthRequiredError)
  *  78   Configuration error             (ConfigError)
@@ -64,12 +64,6 @@ export class BrowserConnectError extends CliError {
   constructor(message: string, hint?: string, kind: BrowserConnectKind = 'unknown') {
     super('BROWSER_CONNECT', message, hint, EXIT_CODES.SERVICE_UNAVAIL);
     this.kind = kind;
-  }
-}
-
-export class AdapterLoadError extends CliError {
-  constructor(message: string, hint?: string) {
-    super('ADAPTER_LOAD', message, hint, EXIT_CODES.SERVICE_UNAVAIL);
   }
 }
 
@@ -126,15 +120,17 @@ export class EmptyResultError extends CliError {
   }
 }
 
-export class SelectorError extends CliError {
-  constructor(selector: string, hint?: string) {
-    super(
-      'SELECTOR',
-      `Could not find element: ${selector}`,
-      hint ?? 'The page UI may have changed. Please report this issue.',
-      EXIT_CODES.GENERIC_ERROR,
-    );
-  }
+export function adapterLoadError(message: string, hint?: string): CliError {
+  return new CliError('ADAPTER_LOAD', message, hint, EXIT_CODES.SERVICE_UNAVAIL);
+}
+
+export function selectorError(selector: string, hint?: string): CliError {
+  return new CliError(
+    'SELECTOR',
+    `Could not find element: ${selector}`,
+    hint ?? 'The page UI may have changed. Please report this issue.',
+    EXIT_CODES.GENERIC_ERROR,
+  );
 }
 
 export class PluginError extends CliError {
