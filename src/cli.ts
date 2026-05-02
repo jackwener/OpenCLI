@@ -425,7 +425,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   program
     .command('list')
-    .description('List all available CLI commands')
+    .description('List all available adapter and external commands')
     .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
     .action((opts) => {
       const registry = getRegistry();
@@ -491,7 +491,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         console.log();
       }
 
-      console.log(styleText('dim', `  ${commands.length} built-in commands across ${sites.size} sites, ${externalClis.length} external CLIs`));
+      console.log(styleText('dim', `  ${commands.length} adapter commands across ${sites.size} sites, ${externalClis.length} external CLIs`));
       console.log();
     });
 
@@ -499,7 +499,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   program
     .command('validate')
-    .description('Validate CLI definitions')
+    .description('Validate adapter definitions')
     .argument('[target]', 'site or site/name')
     .action(async (target) => {
       const { validateClisWithTarget, renderValidationReport } = await import('./validate.js');
@@ -2095,7 +2095,7 @@ cli({
     });
 
   // ── Built-in: adapter management ─────────────────────────────────────────
-  const adapterCmd = program.command('adapter').description('Manage CLI adapters');
+  const adapterCmd = program.command('adapter').description('Manage adapters');
 
   adapterCmd
     .command('status')
@@ -2321,7 +2321,7 @@ cli({
   externalCmd
     .command('register')
     .description('Register an external CLI')
-    .argument('<name>', 'Name of the CLI')
+    .argument('<name>', 'Name of the external CLI')
     .option('--binary <bin>', 'Binary name if different from name')
     .option('--install <cmd>', 'Auto-install command')
     .option('--desc <text>', 'Description')
