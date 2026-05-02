@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { cli, getRegistry, Strategy } from './registry.js';
-import { loadManifestEntries } from './build-manifest.js';
+import { loadManifestEntries, normalizeManifestPath, serializeManifest } from './build-manifest.js';
 
 describe('manifest helper rules', () => {
   const tempDirs: string[] = [];
@@ -83,8 +83,9 @@ describe('manifest helper rules', () => {
         replacedBy: 'opencli demo new',
       },
     ]);
-    // Verify sourceFile is included
+    // Verify sourceFile is included and stable for manifest consumers.
     expect(entries[0].sourceFile).toBeDefined();
+    expect(entries[0].sourceFile).not.toContain('\\');
 
     getRegistry().delete(key);
   });
@@ -154,5 +155,25 @@ describe('manifest helper rules', () => {
 
     getRegistry().delete(screenKey);
     getRegistry().delete(statusKey);
+  });
+
+  it('normalizes manifest paths to POSIX separators', () => {
+    expect(normalizeManifestPath('demo\\status.js')).toBe('demo/status.js');
+    expect(normalizeManifestPath('demo/status.js')).toBe('demo/status.js');
+  });
+
+  it('serializes manifest json with a trailing newline', () => {
+    const serialized = serializeManifest([{
+      site: 'demo',
+      name: 'status',
+      description: '',
+      strategy: 'public',
+      browser: false,
+      args: [],
+      type: 'js',
+    }]);
+
+    expect(serialized.endsWith('\n')).toBe(true);
+    expect(serialized).toContain('\n]');
   });
 });
