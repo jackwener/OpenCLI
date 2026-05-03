@@ -57,6 +57,7 @@ describe('observation artifact', () => {
     expect(summary).toContain('status: failure');
     expect(summary).toContain('contextId: "work"');
     expect(summary).toContain('adapterSourcePath: "/tmp/clis/demo/run.js"');
+    expect(summary).toContain('adapterSourcePathExists: false');
     expect(summary).toContain('## Failed Network');
     expect(summary).toContain('500 GET https://api.test/data?token=[REDACTED]');
     expect(summary).toContain('network: 1');
