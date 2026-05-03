@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CLAUDE_DOMAIN, getVisibleMessages } from './utils.js';
+import { EmptyResultError } from '@jackwener/opencli/errors';
+import { CLAUDE_DOMAIN, getVisibleMessages, ensureClaudeLogin, requireConversationId } from './utils.js';
 
 export const detailCommand = cli({
     site: 'claude',
@@ -15,14 +16,14 @@ export const detailCommand = cli({
     columns: ['Index', 'Role', 'Text'],
 
     func: async (page, kwargs) => {
-        const id = String(kwargs.id || '').trim();
-        if (!id) return [{ Index: 0, Role: 'system', Text: 'Conversation id is required.' }];
+        const id = requireConversationId(kwargs.id);
 
         await page.goto(`https://claude.ai/chat/${id}`);
         await page.wait(4);
+        await ensureClaudeLogin(page, 'Claude detail requires a logged-in Claude session.');
 
         const messages = await getVisibleMessages(page);
         if (messages.length > 0) return messages;
-        return [{ Index: 0, Role: 'system', Text: 'No visible messages found.' }];
+        throw new EmptyResultError('claude detail', `No visible Claude messages were found for conversation ${id}.`);
     },
 });

@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { parseBoolFlag, sendWithFile, selectModel } from './utils.js';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import { parseBoolFlag, sendWithFile, selectModel, requireConversationId, requireNonEmptyPrompt, requirePositiveInt } from './utils.js';
 
 describe('claude parseBoolFlag', () => {
     it('returns booleans unchanged', () => {
@@ -18,6 +19,21 @@ describe('claude parseBoolFlag', () => {
         expect(parseBoolFlag('')).toBe(false);
         expect(parseBoolFlag(null)).toBe(false);
         expect(parseBoolFlag(undefined)).toBe(false);
+    });
+});
+
+describe('claude argument helpers', () => {
+    it('rejects blank prompts', () => {
+        expect(() => requireNonEmptyPrompt('   ', 'claude ask')).toThrow(ArgumentError);
+    });
+
+    it('rejects non-positive integers for numeric flags', () => {
+        expect(() => requirePositiveInt(0, 'claude ask --timeout')).toThrow(ArgumentError);
+        expect(() => requirePositiveInt(-1, 'claude history --limit')).toThrow(ArgumentError);
+    });
+
+    it('rejects missing conversation ids', () => {
+        expect(() => requireConversationId('   ')).toThrow(ArgumentError);
     });
 });
 

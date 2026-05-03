@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CLAUDE_DOMAIN, CLAUDE_URL } from './utils.js';
+import { CLAUDE_DOMAIN, CLAUDE_URL, ensureClaudeComposer } from './utils.js';
 
 export const newCommand = cli({
     site: 'claude',
@@ -15,6 +15,7 @@ export const newCommand = cli({
     func: async (page) => {
         await page.goto(CLAUDE_URL);
         await page.wait(2);
+        await ensureClaudeComposer(page, 'Claude new requires a logged-in Claude session with a visible composer.');
         return [{ Status: 'New chat started' }];
     },
 });

@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { CLAUDE_DOMAIN, CLAUDE_URL, ensureOnClaude, sendMessage, parseBoolFlag, withRetry } from './utils.js';
+import { CLAUDE_DOMAIN, CLAUDE_URL, ensureOnClaude, sendMessage, parseBoolFlag, withRetry, ensureClaudeComposer, requireNonEmptyPrompt } from './utils.js';
 
 export const sendCommand = cli({
     site: 'claude',
@@ -17,7 +17,7 @@ export const sendCommand = cli({
     columns: ['Status', 'SubmittedBy', 'InjectedText'],
 
     func: async (page, kwargs) => {
-        const prompt = kwargs.prompt;
+        const prompt = requireNonEmptyPrompt(kwargs.prompt, 'claude send');
 
         if (parseBoolFlag(kwargs.new)) {
             await page.goto(CLAUDE_URL);
@@ -26,6 +26,7 @@ export const sendCommand = cli({
             await ensureOnClaude(page);
             await page.wait(2);
         }
+        await withRetry(() => ensureClaudeComposer(page, 'Claude send requires a visible composer on the current page.'));
 
         const sendResult = await withRetry(() => sendMessage(page, prompt));
         if (!sendResult?.ok) {

@@ -1,8 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError, CommandExecutionError, EXIT_CODES } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import {
     CLAUDE_DOMAIN, CLAUDE_URL, ensureOnClaude, selectModel, setAdaptiveThinking,
     sendMessage, sendWithFile, getBubbleCount, waitForResponse, parseBoolFlag, withRetry,
+    ensureClaudeComposer, requireNonEmptyPrompt, requirePositiveInt,
 } from './utils.js';
 
 export const askCommand = cli({
@@ -25,8 +26,13 @@ export const askCommand = cli({
     columns: ['response'],
 
     func: async (page, kwargs) => {
-        const prompt = kwargs.prompt;
-        const timeoutMs = (kwargs.timeout || 120) * 1000;
+        const prompt = requireNonEmptyPrompt(kwargs.prompt, 'claude ask');
+        const timeoutSeconds = requirePositiveInt(
+            Number(kwargs.timeout ?? 120),
+            'claude ask --timeout',
+            'Example: opencli claude ask "hello" --timeout 120',
+        );
+        const timeoutMs = timeoutSeconds * 1000;
         const wantThink = parseBoolFlag(kwargs.think);
 
         if (parseBoolFlag(kwargs.new)) {
@@ -46,6 +52,7 @@ export const askCommand = cli({
         }
 
         await page.wait(2);
+        await withRetry(() => ensureClaudeComposer(page, 'Claude ask requires a visible composer on the current page.'));
 
         // Model selector is only available on the new-chat page, not inside
         // an existing conversation. Skip it when we resumed a prior thread.
@@ -55,11 +62,9 @@ export const askCommand = cli({
 
         const wantModel = kwargs.model || 'sonnet';
         if (inConversation && modelExplicit) {
-            throw new CliError(
-                'ARGUMENT',
+            throw new ArgumentError(
                 `Cannot switch to ${wantModel} model inside an existing conversation.`,
                 'Re-run with --new to start a fresh chat before selecting a model.',
-                EXIT_CODES.USAGE_ERROR,
             );
         }
 
@@ -67,11 +72,9 @@ export const askCommand = cli({
             const modelResult = await withRetry(() => selectModel(page, wantModel));
             if (!modelResult?.ok) {
                 if (modelResult?.upgrade) {
-                    throw new CliError(
-                        'ARGUMENT',
+                    throw new ArgumentError(
                         `${wantModel} model requires a paid Claude plan.`,
                         'Pick --model sonnet or --model haiku, or upgrade your account.',
-                        EXIT_CODES.USAGE_ERROR,
                     );
                 }
                 throw new CommandExecutionError(`Could not switch to ${wantModel} model`);
@@ -99,7 +102,10 @@ export const askCommand = cli({
             await page.wait(3);
             const result = await waitForResponse(page, baseline, prompt, timeoutMs);
             if (!result) {
-                return [{ response: `[NO RESPONSE] No reply within ${kwargs.timeout}s.` }];
+                throw new EmptyResultError(
+                    'claude ask',
+                    `No Claude response appeared within ${timeoutSeconds}s. Re-run with a higher --timeout if the model is still generating.`,
+                );
             }
             return [{ response: result }];
         }
@@ -112,7 +118,10 @@ export const askCommand = cli({
 
         const result = await waitForResponse(page, baseline, prompt, timeoutMs);
         if (!result) {
-            return [{ response: `[NO RESPONSE] No reply within ${kwargs.timeout}s.` }];
+            throw new EmptyResultError(
+                'claude ask',
+                `No Claude response appeared within ${timeoutSeconds}s. Re-run with a higher --timeout if the model is still generating.`,
+            );
         }
         return [{ response: result }];
     },

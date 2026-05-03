@@ -1,3 +1,5 @@
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+
 export const CLAUDE_DOMAIN = 'claude.ai';
 export const CLAUDE_URL = 'https://claude.ai/new';
 export const COMPOSER_SELECTOR = '[data-testid="chat-input"]';
@@ -39,6 +41,51 @@ export async function getPageState(page) {
             isLoggedIn: !!userMenu,
         };
     })()`);
+}
+
+export async function ensureClaudeLogin(page, message = 'Claude requires a logged-in browser session.') {
+    const state = await getPageState(page);
+    if (!state.isLoggedIn) {
+        throw new AuthRequiredError(CLAUDE_DOMAIN, message);
+    }
+    return state;
+}
+
+export async function ensureClaudeComposer(page, message = 'Claude composer is not available on the current page.') {
+    const state = await ensureClaudeLogin(page, message);
+    if (!state.hasComposer) {
+        throw new CommandExecutionError(message);
+    }
+    return state;
+}
+
+export function requireNonEmptyPrompt(prompt, commandName) {
+    const text = String(prompt ?? '').trim();
+    if (!text) {
+        throw new ArgumentError(
+            `${commandName} prompt cannot be empty`,
+            `Example: opencli ${commandName} "hello"`,
+        );
+    }
+    return text;
+}
+
+export function requirePositiveInt(value, flagLabel, hint) {
+    if (!Number.isInteger(value) || value < 1) {
+        throw new ArgumentError(`${flagLabel} must be a positive integer`, hint);
+    }
+    return value;
+}
+
+export function requireConversationId(value) {
+    const id = String(value ?? '').trim();
+    if (!id) {
+        throw new ArgumentError(
+            'claude detail requires a conversation id',
+            'Example: opencli claude detail 123e4567-e89b-12d3-a456-426614174000',
+        );
+    }
+    return id;
 }
 
 export async function getVisibleMessages(page) {

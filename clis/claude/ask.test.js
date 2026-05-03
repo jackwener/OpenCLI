@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CliError, CommandExecutionError, EXIT_CODES } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
 const {
     mockEnsureOnClaude,
+    mockEnsureClaudeComposer,
     mockSelectModel,
     mockSetAdaptiveThinking,
     mockSendMessage,
@@ -10,9 +11,12 @@ const {
     mockGetBubbleCount,
     mockWaitForResponse,
     mockParseBoolFlag,
+    mockRequireNonEmptyPrompt,
+    mockRequirePositiveInt,
     mockWithRetry,
 } = vi.hoisted(() => ({
     mockEnsureOnClaude: vi.fn(),
+    mockEnsureClaudeComposer: vi.fn(),
     mockSelectModel: vi.fn(),
     mockSetAdaptiveThinking: vi.fn(),
     mockSendMessage: vi.fn(),
@@ -20,6 +24,8 @@ const {
     mockGetBubbleCount: vi.fn(),
     mockWaitForResponse: vi.fn(),
     mockParseBoolFlag: vi.fn((v) => v === true || v === 'true'),
+    mockRequireNonEmptyPrompt: vi.fn((v) => String(v ?? '')),
+    mockRequirePositiveInt: vi.fn((v) => Number(v)),
     mockWithRetry: vi.fn(async (fn) => fn()),
 }));
 
@@ -27,6 +33,7 @@ vi.mock('./utils.js', () => ({
     CLAUDE_DOMAIN: 'claude.ai',
     CLAUDE_URL: 'https://claude.ai/new',
     ensureOnClaude: mockEnsureOnClaude,
+    ensureClaudeComposer: mockEnsureClaudeComposer,
     selectModel: mockSelectModel,
     setAdaptiveThinking: mockSetAdaptiveThinking,
     sendMessage: mockSendMessage,
@@ -34,6 +41,8 @@ vi.mock('./utils.js', () => ({
     getBubbleCount: mockGetBubbleCount,
     waitForResponse: mockWaitForResponse,
     parseBoolFlag: mockParseBoolFlag,
+    requireNonEmptyPrompt: mockRequireNonEmptyPrompt,
+    requirePositiveInt: mockRequirePositiveInt,
     withRetry: mockWithRetry,
 }));
 
@@ -50,12 +59,15 @@ describe('claude ask basic flow', () => {
         vi.clearAllMocks();
         page.evaluate.mockResolvedValue('https://claude.ai/new');
         mockEnsureOnClaude.mockResolvedValue(false);
+        mockEnsureClaudeComposer.mockResolvedValue({ isLoggedIn: true, hasComposer: true });
         mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
         mockSetAdaptiveThinking.mockResolvedValue({ ok: true, toggled: false });
         mockSendMessage.mockResolvedValue({ ok: true });
         mockSendWithFile.mockResolvedValue({ ok: true });
         mockGetBubbleCount.mockResolvedValue(0);
         mockWaitForResponse.mockResolvedValue('hello there');
+        mockRequireNonEmptyPrompt.mockImplementation((v) => String(v ?? ''));
+        mockRequirePositiveInt.mockImplementation((v) => Number(v));
     });
 
     it('returns the assistant response on a fresh chat', async () => {
@@ -85,18 +97,16 @@ describe('claude ask basic flow', () => {
         expect(mockEnsureOnClaude).not.toHaveBeenCalled();
     });
 
-    it('returns [NO RESPONSE] when waitForResponse yields nothing', async () => {
+    it('throws EmptyResultError when waitForResponse yields nothing', async () => {
         mockWaitForResponse.mockResolvedValue(null);
 
-        const rows = await askCommand.func(page, {
+        await expect(askCommand.func(page, {
             prompt: 'hi',
             timeout: 60,
             new: false,
             model: 'sonnet',
             think: false,
-        });
-
-        expect(rows).toEqual([{ response: '[NO RESPONSE] No reply within 60s.' }]);
+        })).rejects.toThrow(EmptyResultError);
     });
 
     it('throws CommandExecutionError when send fails', async () => {
@@ -138,11 +148,9 @@ describe('claude ask --model handling', () => {
             new: false,
             model: 'opus',
             think: false,
-        })).rejects.toMatchObject(new CliError(
-            'ARGUMENT',
+        })).rejects.toMatchObject(new ArgumentError(
             'opus model requires a paid Claude plan.',
             'Pick --model sonnet or --model haiku, or upgrade your account.',
-            EXIT_CODES.USAGE_ERROR,
         ));
     });
 
@@ -171,11 +179,9 @@ describe('claude ask --model handling', () => {
             model: 'opus',
             think: false,
             __opencliOptionSources: { model: 'cli' },
-        })).rejects.toMatchObject(new CliError(
-            'ARGUMENT',
+        })).rejects.toMatchObject(new ArgumentError(
             'Cannot switch to opus model inside an existing conversation.',
             'Re-run with --new to start a fresh chat before selecting a model.',
-            EXIT_CODES.USAGE_ERROR,
         ));
 
         expect(mockSelectModel).not.toHaveBeenCalled();
@@ -235,6 +241,34 @@ describe('claude ask --think', () => {
             think: false,
         })).resolves.toEqual([{ response: 'reply' }]);
     });
+
+    it('fails fast when prompt validation rejects an empty prompt', async () => {
+        mockRequireNonEmptyPrompt.mockImplementation(() => {
+            throw new ArgumentError('claude ask prompt cannot be empty');
+        });
+
+        await expect(askCommand.func(page, {
+            prompt: '',
+            timeout: 120,
+            new: false,
+            model: 'sonnet',
+            think: false,
+        })).rejects.toThrow(ArgumentError);
+    });
+
+    it('fails fast when timeout validation rejects a non-positive value', async () => {
+        mockRequirePositiveInt.mockImplementation(() => {
+            throw new ArgumentError('claude ask --timeout must be a positive integer');
+        });
+
+        await expect(askCommand.func(page, {
+            prompt: 'hi',
+            timeout: 0,
+            new: false,
+            model: 'sonnet',
+            think: false,
+        })).rejects.toThrow(ArgumentError);
+    });
 });
 
 describe('claude ask --file', () => {
@@ -252,6 +286,9 @@ describe('claude ask --file', () => {
         mockSendWithFile.mockResolvedValue({ ok: true });
         mockGetBubbleCount.mockResolvedValue(3);
         mockWaitForResponse.mockResolvedValue('the image shows a cat');
+        mockEnsureClaudeComposer.mockResolvedValue({ isLoggedIn: true, hasComposer: true });
+        mockRequireNonEmptyPrompt.mockImplementation((v) => String(v ?? ''));
+        mockRequirePositiveInt.mockImplementation((v) => Number(v));
     });
 
     it('routes through sendWithFile and captures baseline before sending', async () => {

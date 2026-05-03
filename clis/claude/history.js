@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CLAUDE_DOMAIN, getConversationList } from './utils.js';
+import { EmptyResultError } from '@jackwener/opencli/errors';
+import { CLAUDE_DOMAIN, getConversationList, ensureClaudeLogin, requirePositiveInt } from './utils.js';
 
 export const historyCommand = cli({
     site: 'claude',
@@ -15,10 +16,15 @@ export const historyCommand = cli({
     columns: ['Index', 'Id', 'Title', 'Url'],
 
     func: async (page, kwargs) => {
-        const limit = Math.max(1, kwargs.limit || 20);
+        const limit = requirePositiveInt(
+            Number(kwargs.limit ?? 20),
+            'claude history --limit',
+            'Example: opencli claude history --limit 20',
+        );
         const conversations = await getConversationList(page);
+        await ensureClaudeLogin(page, 'Claude history requires a logged-in Claude session.');
         if (conversations.length === 0) {
-            return [{ Index: 0, Id: '', Title: 'No conversation history found.', Url: '' }];
+            throw new EmptyResultError('claude history', 'No Claude conversation history was visible on /recents.');
         }
         return conversations.slice(0, limit);
     },
