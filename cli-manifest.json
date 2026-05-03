@@ -11348,6 +11348,260 @@
     "sourceFile": "lobsters/tag.js"
   },
   {
+    "site": "macro",
+    "name": "article",
+    "aliases": [
+      "body",
+      "text"
+    ],
+    "description": "阅读《宏观经济一手信息源大全（上）》正文",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "section",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "只看指定章节：intro、cn-national、cn-province、international-org，或中文章节名"
+      }
+    ],
+    "columns": [
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "macro/article.js",
+    "sourceFile": "macro/article.js"
+  },
+  {
+    "site": "macro",
+    "name": "categories",
+    "description": "列出宏观经济一手信息源分组",
+    "strategy": "public",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "id",
+      "name",
+      "part",
+      "sources",
+      "summary"
+    ],
+    "type": "js",
+    "modulePath": "macro/categories.js",
+    "sourceFile": "macro/categories.js"
+  },
+  {
+    "site": "macro",
+    "name": "overview",
+    "description": "查看宏观经济一手信息源上篇提纲",
+    "strategy": "public",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "order",
+      "section",
+      "part",
+      "status",
+      "summary"
+    ],
+    "type": "js",
+    "modulePath": "macro/overview.js",
+    "sourceFile": "macro/overview.js"
+  },
+  {
+    "site": "macro",
+    "name": "page",
+    "aliases": [
+      "read",
+      "webpage"
+    ],
+    "description": "抓取宏观信息源网页有效内容，支持按时间过滤",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "信息源 id、名称或别名，如 stats-cn、pbc、imf"
+      },
+      {
+        "name": "url-index",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "同一信息源有多个 URL 时选择第几个，1 开始"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "时间过滤：2026、2026-04 或 2026-04-30"
+      },
+      {
+        "name": "from",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "起始日期：YYYY、YYYY-MM 或 YYYY-MM-DD"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "截止日期：YYYY、YYYY-MM 或 YYYY-MM-DD"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "最多输出多少条有效内容"
+      },
+      {
+        "name": "detail",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "抓取每条内容详情页正文预览"
+      },
+      {
+        "name": "chars",
+        "type": "int",
+        "default": 800,
+        "required": false,
+        "help": "每条详情正文最多输出多少字符"
+      },
+      {
+        "name": "links",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "raw-page 模式下同时输出页面链接"
+      },
+      {
+        "name": "raw-page",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "输出整页转文本结果，而不是有效内容条目"
+      }
+    ],
+    "columns": [
+      "date",
+      "title",
+      "text",
+      "url",
+      "source"
+    ],
+    "timeout": 180,
+    "type": "js",
+    "modulePath": "macro/page.js",
+    "sourceFile": "macro/page.js"
+  },
+  {
+    "site": "macro",
+    "name": "search",
+    "description": "搜索宏观经济一手信息源",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词，如 CPI、外汇、能源、IMF、财政"
+      },
+      {
+        "name": "category",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "按分组过滤：cn-national、cn-province、international-org，或中文分组名"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "最多返回多少条"
+      }
+    ],
+    "columns": [
+      "id",
+      "category",
+      "name",
+      "frequency",
+      "url",
+      "notes"
+    ],
+    "type": "js",
+    "modulePath": "macro/search.js",
+    "sourceFile": "macro/search.js"
+  },
+  {
+    "site": "macro",
+    "name": "source",
+    "description": "查看某个宏观经济一手信息源详情",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "信息源 id、名称或别名，如 stats-cn、央行、IMF"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "macro/source.js",
+    "sourceFile": "macro/source.js"
+  },
+  {
+    "site": "macro",
+    "name": "sources",
+    "description": "列出宏观经济一手信息源（来自《宏观经济一手信息源大全（上）》）",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "category",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "按分组过滤：cn-national、cn-province、international-org，或中文分组名"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "最多返回多少条"
+      }
+    ],
+    "columns": [
+      "id",
+      "category",
+      "name",
+      "frequency",
+      "url",
+      "notes"
+    ],
+    "type": "js",
+    "modulePath": "macro/sources.js",
+    "sourceFile": "macro/sources.js"
+  },
+  {
     "site": "maimai",
     "name": "search-talents",
     "description": "Search for candidates on Maimai with multi-dimensional filters",

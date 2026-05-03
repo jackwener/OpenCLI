@@ -102,6 +102,7 @@ Run `opencli list` for the live registry.
 | **[wikipedia](./browser/wikipedia.md)**           | `search` `summary` `random` `trending`                                                                                                         | 🌐 Public    |
 | **[lesswrong](./browser/lesswrong.md)**           | `curated` `frontpage` `new` `top` `top-week` `top-month` `top-year` `read` `comments` `user` `user-posts` `tag` `tags` `sequences` `shortform` | 🌐 Public    |
 | **[lobsters](./browser/lobsters.md)**             | `hot` `newest` `active` `tag`                                                                                                                  | 🌐 Public    |
+| **[macro](./browser/macro.md)**                   | `overview` `categories` `sources` `search` `source` `article` `page`                                                                           | 🌐 Public    |
 | **[steam](./browser/steam.md)**                   | `top-sellers`                                                                                                                                  | 🌐 Public    |
 
 ## Desktop Adapters
