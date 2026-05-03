@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Command } from 'commander';
 import type { CliCommand } from './registry.js';
 import { attachTraceReceipt, EmptyResultError, selectorError } from './errors.js';
@@ -20,7 +20,8 @@ vi.mock('./output.js', () => ({
   render: mockRenderOutput,
 }));
 
-import { registerCommandToProgram } from './commanderAdapter.js';
+import { registerAllCommands, registerCommandToProgram } from './commanderAdapter.js';
+import { getRegistry, registerCommand } from './registry.js';
 
 describe('commanderAdapter arg passing', () => {
   const cmd: CliCommand = {
@@ -450,5 +451,59 @@ describe('commanderAdapter error envelope output', () => {
     expect(output).toContain('receiptPath: /tmp/opencli/profiles/default/traces/trace-1/receipt.json');
 
     stderrSpy.mockRestore();
+  });
+});
+
+describe('registerAllCommands root help descriptions', () => {
+  beforeEach(() => {
+    getRegistry().clear();
+  });
+
+  afterEach(() => {
+    getRegistry().clear();
+  });
+
+  it('summarizes adapter subcommands instead of repeating the site name', () => {
+    registerCommand({
+      site: 'bilibili',
+      name: 'search',
+      description: 'Search videos',
+      browser: false,
+      args: [],
+      func: vi.fn(),
+    });
+    registerCommand({
+      site: 'bilibili',
+      name: 'hot',
+      aliases: ['trending'],
+      description: 'Hot videos',
+      browser: false,
+      args: [],
+      func: vi.fn(),
+    });
+
+    const program = new Command();
+    registerAllCommands(program, new Map());
+
+    const siteCmd = program.commands.find(cmd => cmd.name() === 'bilibili');
+    expect(siteCmd?.description()).toBe('hot, search');
+    expect(siteCmd?.description()).not.toBe('bilibili commands');
+  });
+
+  it('updates an existing site group description with adapter subcommands', () => {
+    registerCommand({
+      site: 'antigravity',
+      name: 'serve',
+      description: 'Serve proxy',
+      browser: false,
+      args: [],
+      func: vi.fn(),
+    });
+
+    const program = new Command();
+    const antigravity = program.command('antigravity').description('antigravity commands');
+    registerAllCommands(program, new Map([['antigravity', antigravity]]));
+
+    expect(antigravity.description()).toBe('serve');
   });
 });

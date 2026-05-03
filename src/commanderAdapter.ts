@@ -175,14 +175,33 @@ export function registerAllCommands(
   siteGroups: Map<string, Command>,
 ): void {
   const seen = new Set<CliCommand>();
+  const commandsBySite = new Map<string, CliCommand[]>();
   for (const [, cmd] of getRegistry()) {
     if (seen.has(cmd)) continue;
     seen.add(cmd);
-    let siteCmd = siteGroups.get(cmd.site);
-    if (!siteCmd) {
-      siteCmd = program.command(cmd.site).description(`${cmd.site} commands`);
-      siteGroups.set(cmd.site, siteCmd);
-    }
-    registerCommandToProgram(siteCmd, cmd);
+    const commands = commandsBySite.get(cmd.site) ?? [];
+    commands.push(cmd);
+    commandsBySite.set(cmd.site, commands);
   }
+
+  for (const [site, commands] of commandsBySite) {
+    let siteCmd = siteGroups.get(site);
+    if (!siteCmd) {
+      siteCmd = program.command(site);
+      siteGroups.set(site, siteCmd);
+    }
+    for (const cmd of commands) {
+      registerCommandToProgram(siteCmd, cmd);
+    }
+    siteCmd.description(formatSiteCommandSummary([
+      ...siteCmd.commands.map(cmd => cmd.name()),
+      ...commands.map(cmd => cmd.name),
+    ]));
+  }
+}
+
+function formatSiteCommandSummary(commands: Array<Pick<CliCommand, 'name'> | string>): string {
+  return [...new Set(commands.map(cmd => typeof cmd === 'string' ? cmd : cmd.name))]
+    .sort((a, b) => a.localeCompare(b))
+    .join(', ');
 }
