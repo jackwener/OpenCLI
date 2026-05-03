@@ -17430,6 +17430,53 @@
   },
   {
     "site": "weibo",
+    "name": "statuses",
+    "description": "Fetch a user's Weibo statuses/timeline",
+    "domain": "weibo.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "User ID (numeric uid) or screen name"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "Number of posts (max 50)"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Page number"
+      }
+    ],
+    "columns": [
+      "id",
+      "mblogid",
+      "text",
+      "isLongText",
+      "created_at",
+      "reposts",
+      "comments",
+      "likes",
+      "pic_num",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "weibo/statuses.js",
+    "sourceFile": "weibo/statuses.js",
+    "navigateBefore": "https://weibo.com"
+  },
+  {
+    "site": "weibo",
     "name": "user",
     "description": "Get Weibo user profile",
     "domain": "weibo.com",
