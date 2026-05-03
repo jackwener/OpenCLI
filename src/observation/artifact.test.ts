@@ -54,6 +54,8 @@ describe('observation artifact', () => {
     expect(trace).not.toContain('supersecret');
 
     const summary = fs.readFileSync(result.summaryPath, 'utf-8');
+    expect(summary).toContain('schemaVersion: 1');
+    expect(summary).toContain('opencliVersion:');
     expect(summary).toContain('status: failure');
     expect(summary).toContain('contextId: "work"');
     expect(summary).toContain('adapterSourcePath: "/tmp/clis/demo/run.js"');
@@ -64,6 +66,8 @@ describe('observation artifact', () => {
 
     const receipt = JSON.parse(fs.readFileSync(result.receiptPath, 'utf-8'));
     expect(receipt).toMatchObject({
+      schemaVersion: 1,
+      opencliVersion: expect.any(String),
       traceId: 'trace-1',
       traceDir: result.dir,
       summaryPath: result.summaryPath,
@@ -89,6 +93,8 @@ describe('observation artifact', () => {
     }, 'failure', new Error('failed with token=secret'));
 
     expect(receipt).toMatchObject({
+      schemaVersion: 1,
+      opencliVersion: expect.any(String),
       traceId: 'trace-1',
       traceDir: '/tmp/opencli/profiles/work/traces/trace-1',
       receiptPath: '/tmp/opencli/profiles/work/traces/trace-1/receipt.json',

@@ -65,6 +65,8 @@ error:
   code: SELECTOR
   message: "Could not find element: .old-selector"
 trace:
+  schemaVersion: 1
+  opencliVersion: "..."
   traceId: "..."
   dir: "/path/to/.opencli/profiles/default/traces/..."
   summaryPath: "/path/to/.opencli/profiles/default/traces/.../summary.md"
@@ -75,6 +77,8 @@ Read `summaryPath` first. It is the LLM-oriented entry point and includes front 
 
 ```yaml
 ---
+schemaVersion: 1
+opencliVersion: "..."
 traceId: "..."
 status: failure
 site: "example"

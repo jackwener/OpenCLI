@@ -5,6 +5,7 @@ import type { ObservationEvent, ObservationExportResult, ObservationExportStatus
 import { ObservationSession } from './session.js';
 import { redactValue } from './redaction.js';
 import { CliError, getErrorMessage } from '../errors.js';
+import { PKG_VERSION } from '../version.js';
 
 export interface ExportObservationOptions {
   baseDir?: string;
@@ -97,6 +98,8 @@ export function buildTraceReceipt(
 ): ObservationTraceReceipt {
   const maybeCliError = error instanceof CliError ? error : undefined;
   return {
+    schemaVersion: 1,
+    opencliVersion: PKG_VERSION,
     traceId: result.traceId,
     traceDir: result.dir,
     summaryPath: result.summaryPath,
@@ -142,6 +145,8 @@ function renderSummary(
 
   const lines = [
     '---',
+    'schemaVersion: 1',
+    `opencliVersion: ${yamlScalar(PKG_VERSION)}`,
     `traceId: ${yamlScalar(session.id)}`,
     `status: ${opts.status}`,
     `contextId: ${yamlScalar(session.scope.contextId ?? 'default')}`,

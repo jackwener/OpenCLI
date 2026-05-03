@@ -421,6 +421,8 @@ describe('commanderAdapter error envelope output', () => {
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const err = selectorError('.note-title');
     attachTraceReceipt(err, {
+      schemaVersion: 1,
+      opencliVersion: '1.7.8',
       traceId: 'trace-1',
       traceDir: '/tmp/opencli/profiles/default/traces/trace-1',
       summaryPath: '/tmp/opencli/profiles/default/traces/trace-1/summary.md',
