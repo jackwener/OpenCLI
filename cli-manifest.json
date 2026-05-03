@@ -8694,6 +8694,33 @@
   },
   {
     "site": "instagram",
+    "name": "collection-create",
+    "description": "Create a new Instagram saved-posts collection (folder)",
+    "domain": "www.instagram.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Name of the collection to create"
+      }
+    ],
+    "columns": [
+      "status",
+      "collectionId",
+      "collectionName",
+      "mediaCount"
+    ],
+    "type": "js",
+    "modulePath": "instagram/collection-create.js",
+    "sourceFile": "instagram/collection-create.js",
+    "navigateBefore": "https://www.instagram.com"
+  },
+  {
+    "site": "instagram",
     "name": "comment",
     "description": "Comment on an Instagram post",
     "domain": "www.instagram.com",
@@ -9078,7 +9105,7 @@
   {
     "site": "instagram",
     "name": "saved",
-    "description": "Get your saved Instagram posts",
+    "description": "Get your saved Instagram posts (optionally from a specific collection)",
     "domain": "www.instagram.com",
     "strategy": "cookie",
     "browser": true,
@@ -9089,6 +9116,12 @@
         "default": 20,
         "required": false,
         "help": "Number of saved posts"
+      },
+      {
+        "name": "collection",
+        "type": "str",
+        "required": false,
+        "help": "Collection name (case-insensitive). Omit for the default \"All posts\" feed."
       }
     ],
     "columns": [
