@@ -163,6 +163,20 @@ describe('buildRepairContext', () => {
     expect(ctx.page).toEqual(pageState);
   });
 
+  it('includes trace artifact metadata when provided', () => {
+    const ctx = buildRepairContext(new CommandExecutionError('boom'), makeCmd(), undefined, {
+      traceId: 'trace-1',
+      dir: '/tmp/opencli/profiles/default/traces/trace-1',
+      summaryPath: '/tmp/opencli/profiles/default/traces/trace-1/summary.md',
+    });
+
+    expect(ctx.trace).toEqual({
+      traceId: 'trace-1',
+      dir: '/tmp/opencli/profiles/default/traces/trace-1',
+      summaryPath: '/tmp/opencli/profiles/default/traces/trace-1/summary.md',
+    });
+  });
+
   it('omits page when not provided', () => {
     const ctx = buildRepairContext(new Error('boom'), makeCmd());
     expect(ctx.page).toBeUndefined();
@@ -344,9 +358,9 @@ describe('collectDiagnostic', () => {
     expect(payload).toEqual({
       source: 'interceptor',
       responseBody: {
-        token: 'token=[REDACTED]',
+        token: '[REDACTED]',
         nested: {
-          cookie: 'cookie: [REDACTED]',
+          cookie: '[REDACTED]',
           body,
         },
       },

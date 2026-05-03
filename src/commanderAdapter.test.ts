@@ -84,6 +84,21 @@ describe('commanderAdapter arg passing', () => {
     });
   });
 
+  it('passes explicit trace mode to executeCommand', async () => {
+    const program = new Command();
+    const siteCmd = program.command('paperreview');
+    registerCommandToProgram(siteCmd, cmd);
+
+    await program.parseAsync(['node', 'opencli', 'paperreview', 'submit', './paper.pdf', '--trace', 'retain-on-failure']);
+
+    expect(mockExecuteCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ site: 'paperreview', name: 'submit' }),
+      expect.objectContaining({ pdf: './paper.pdf' }),
+      false,
+      { prepared: true, trace: 'retain-on-failure' },
+    );
+  });
+
   it('rejects invalid bool values before calling executeCommand', async () => {
     const program = new Command();
     const siteCmd = program.command('paperreview');

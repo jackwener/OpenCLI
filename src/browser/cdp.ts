@@ -274,7 +274,7 @@ class CDPPage extends BasePage {
           const idx = this._networkEntries.push({
             url: p.request.url,
             method: p.request.method,
-            timestamp: p.timestamp,
+            timestamp: Date.now(),
           }) - 1;
           this._pendingRequests.set(p.requestId, idx);
         }
@@ -340,14 +340,14 @@ class CDPPage extends BasePage {
       this.bridge.on('Runtime.consoleAPICalled', (params: unknown) => {
         const p = params as { type: string; args: Array<{ value?: unknown; description?: string }>; timestamp: number };
         const text = (p.args || []).map(a => a.value !== undefined ? String(a.value) : (a.description || '')).join(' ');
-        this._consoleMessages.push({ type: p.type, text, timestamp: p.timestamp });
+        this._consoleMessages.push({ type: p.type, text, timestamp: Date.now() });
         if (this._consoleMessages.length > 500) this._consoleMessages.shift();
       });
       // Capture uncaught exceptions as error-level messages
       this.bridge.on('Runtime.exceptionThrown', (params: unknown) => {
         const p = params as { timestamp: number; exceptionDetails?: { exception?: { description?: string }; text?: string } };
         const desc = p.exceptionDetails?.exception?.description || p.exceptionDetails?.text || 'Unknown exception';
-        this._consoleMessages.push({ type: 'error', text: desc, timestamp: p.timestamp });
+        this._consoleMessages.push({ type: 'error', text: desc, timestamp: Date.now() });
         if (this._consoleMessages.length > 500) this._consoleMessages.shift();
       });
       this._consoleCapturing = true;

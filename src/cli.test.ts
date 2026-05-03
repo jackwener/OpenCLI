@@ -39,7 +39,7 @@ vi.mock('./browser/daemon-client.js', async () => {
   };
 });
 
-import { createProgram, findPackageRoot, normalizeVerifyRows, renderVerifyPreview, resolveBrowserVerifyInvocation } from './cli.js';
+import { createProgram, findPackageRoot, normalizeVerifyRows, renderVerifyPreview, resolveBrowserVerifyInvocation, selectFreshByTimestamp } from './cli.js';
 
 describe('resolveBrowserVerifyInvocation', () => {
   it('prefers the built entry declared in package metadata', () => {
@@ -110,6 +110,24 @@ describe('resolveBrowserVerifyInvocation', () => {
       args: ['tsx', path.join(projectRoot, 'src', 'main.ts')],
       cwd: projectRoot,
     });
+  });
+});
+
+describe('selectFreshByTimestamp', () => {
+  it('uses timestamp watermarks so rolled buffers still emit new messages', () => {
+    const first = selectFreshByTimestamp([
+      { timestamp: 1, text: 'a' },
+      { timestamp: 2, text: 'b' },
+    ], 0);
+    expect(first.fresh.map((item) => item.text)).toEqual(['a', 'b']);
+    expect(first.lastSeenTs).toBe(2);
+
+    const rolled = selectFreshByTimestamp([
+      { timestamp: 2, text: 'b' },
+      { timestamp: 3, text: 'c' },
+    ], first.lastSeenTs);
+    expect(rolled.fresh.map((item) => item.text)).toEqual(['c']);
+    expect(rolled.lastSeenTs).toBe(3);
   });
 });
 
@@ -653,6 +671,7 @@ describe('browser network command', () => {
           responseStatus: 200,
           responseContentType: 'application/json',
           responsePreview: JSON.stringify({ data: { user: { rest_id: '42' } } }),
+          timestamp: Date.now(),
         },
         {
           url: 'https://cdn.example.com/app.js',
@@ -707,6 +726,44 @@ describe('browser network command', () => {
     expect(out.entries.map((e: any) => e.key)).toContain('GET cdn.example.com/app.js');
   });
 
+  it('--failed and --since filter captured entries by status and time window', async () => {
+    const now = Date.now();
+    browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+      {
+        url: 'https://api.example.com/new-fail',
+        method: 'GET',
+        responseStatus: 500,
+        responseContentType: 'application/json',
+        responsePreview: JSON.stringify({ error: true }),
+        timestamp: now,
+      },
+      {
+        url: 'https://api.example.com/old-fail',
+        method: 'GET',
+        responseStatus: 500,
+        responseContentType: 'application/json',
+        responsePreview: JSON.stringify({ error: true }),
+        timestamp: now - 180_000,
+      },
+      {
+        url: 'https://api.example.com/new-ok',
+        method: 'GET',
+        responseStatus: 200,
+        responseContentType: 'application/json',
+        responsePreview: JSON.stringify({ ok: true }),
+        timestamp: now,
+      },
+    ]);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'network', '--since', '120s', '--failed']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(1);
+    expect(out.entries[0].url).toBe('https://api.example.com/new-fail');
+    expect(out.entries[0].timestamp).toMatch(/T/);
+  });
+
   it('default output keeps text/javascript API responses while dropping static JS files', async () => {
     browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
       {
@@ -743,6 +800,7 @@ describe('browser network command', () => {
 
     const out = lastJsonLog();
     expect(out.entries[0].body).toEqual({ data: { user: { rest_id: '42' } } });
+    expect(out.entries[0].timestamp).toMatch(/T/);
   });
 
   it('--detail <key> returns the full body for the requested entry', async () => {
@@ -756,6 +814,7 @@ describe('browser network command', () => {
     expect(out.key).toBe('UserTweets');
     expect(out.body).toEqual({ data: { user: { rest_id: '42' } } });
     expect(out.shape['$.data.user.rest_id']).toBe('string');
+    expect(out.timestamp).toMatch(/T/);
   });
 
   it('--detail reports key_not_found with the list of available keys', async () => {
@@ -1089,6 +1148,46 @@ describe('browser network command', () => {
       expect(entry).not.toHaveProperty('bodyTruncated');
       expect(entry).not.toHaveProperty('bodyFullSize');
     });
+  });
+});
+
+describe('browser console command', () => {
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    consoleLogSpy.mockClear();
+    mockBrowserConnect.mockClear();
+    mockBrowserClose.mockReset().mockResolvedValue(undefined);
+    const now = Date.now();
+    browserState.page = {
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      tabs: vi.fn().mockResolvedValue([{ page: 'tab-1', active: true }]),
+      consoleMessages: vi.fn().mockResolvedValue([
+        { type: 'error', text: 'boom', timestamp: now },
+        { type: 'log', text: 'ok', timestamp: now },
+        { type: 'warning', text: 'old warning', timestamp: now - 180_000 },
+      ]),
+    } as unknown as IPage;
+  });
+
+  function lastJsonLog(): any {
+    const calls = consoleLogSpy.mock.calls;
+    if (calls.length === 0) throw new Error('Expected at least one console.log call');
+    const last = calls[calls.length - 1][0];
+    if (typeof last !== 'string') throw new Error(`Expected string arg to console.log, got ${typeof last}`);
+    return JSON.parse(last);
+  }
+
+  it('filters console messages by level and time window', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'console', '--level', 'error', '--since', '120s']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(1);
+    expect(out.messages[0]).toMatchObject({ type: 'error', text: 'boom' });
   });
 });
 

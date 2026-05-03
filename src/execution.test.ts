@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import type { CliCommand } from './registry.js';
 import { executeCommand, prepareCommandArgs } from './execution.js';
 import { TimeoutError } from './errors.js';
@@ -148,5 +151,108 @@ describe('executeCommand — non-browser timeout', () => {
     await executeCommand(cmd, kwargs, false, { prepared: true });
 
     expect(validateArgs).toHaveBeenCalledTimes(1);
+  });
+
+  it('exports a profile-scoped trace artifact on browser command failure when requested', async () => {
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-exec-trace-'));
+    const prevConfigDir = process.env.OPENCLI_CONFIG_DIR;
+    process.env.OPENCLI_CONFIG_DIR = baseDir;
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = {
+      closeWindow,
+      startNetworkCapture: vi.fn().mockResolvedValue(true),
+      readNetworkCapture: vi.fn().mockResolvedValue([
+        {
+          url: 'https://api.example.com/data?token=secret',
+          method: 'GET',
+          responseStatus: 500,
+          responseContentType: 'application/json',
+          responsePreview: JSON.stringify({ password: 'secret', ok: false }),
+          requestHeaders: { authorization: 'Bearer secret' },
+          timestamp: Date.now(),
+        },
+      ]),
+      consoleMessages: vi.fn().mockResolvedValue([{ type: 'error', text: 'boom password=secret', timestamp: Date.now() }]),
+      snapshot: vi.fn().mockResolvedValue({ html: '<input type="password" value="secret">' }),
+      screenshot: vi.fn().mockResolvedValue(Buffer.from('png').toString('base64')),
+      getCurrentUrl: vi.fn().mockResolvedValue('https://api.example.com/app'),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+    } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+
+    try {
+      const cmd = cli({
+        site: 'test-execution',
+        name: 'browser-trace-failure',
+        description: 'test trace export',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => { throw new Error('adapter failure'); },
+      });
+
+      await expect(executeCommand(cmd, {}, false, { trace: 'retain-on-failure' })).rejects.toThrow('adapter failure');
+
+      const tracesRoot = path.join(baseDir, 'profiles', 'default', 'traces');
+      const traceId = fs.readdirSync(tracesRoot)[0];
+      const traceDir = path.join(tracesRoot, traceId);
+      expect(fs.existsSync(path.join(traceDir, 'trace.jsonl'))).toBe(true);
+      const trace = fs.readFileSync(path.join(traceDir, 'trace.jsonl'), 'utf-8');
+      expect(trace).toContain('token=[REDACTED]');
+      expect(trace).toContain('"authorization":"[REDACTED]"');
+      expect(trace).not.toContain('password=secret');
+      expect(stderrSpy.mock.calls.flat().join('\n')).toContain('OpenCLI trace artifact:');
+      expect(closeWindow).toHaveBeenCalledTimes(1);
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.OPENCLI_CONFIG_DIR;
+      else process.env.OPENCLI_CONFIG_DIR = prevConfigDir;
+      stderrSpy.mockRestore();
+      fs.rmSync(baseDir, { recursive: true, force: true });
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('keeps the original adapter error when trace export fails', async () => {
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-exec-trace-fail-'));
+    const blockedPath = path.join(baseDir, 'not-a-dir');
+    fs.writeFileSync(blockedPath, 'file');
+    const prevConfigDir = process.env.OPENCLI_CONFIG_DIR;
+    process.env.OPENCLI_CONFIG_DIR = blockedPath;
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const mockPage = {
+      closeWindow: vi.fn().mockResolvedValue(undefined),
+      startNetworkCapture: vi.fn().mockResolvedValue(true),
+      readNetworkCapture: vi.fn().mockResolvedValue([]),
+      consoleMessages: vi.fn().mockResolvedValue([]),
+      snapshot: vi.fn().mockResolvedValue('snapshot'),
+      screenshot: vi.fn().mockResolvedValue(Buffer.from('png').toString('base64')),
+      getCurrentUrl: vi.fn().mockResolvedValue('https://example.com'),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+    } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+
+    try {
+      const cmd = cli({
+        site: 'test-execution',
+        name: 'browser-trace-export-fails',
+        description: 'test trace export failure handling',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => { throw new Error('adapter failure'); },
+      });
+
+      await expect(executeCommand(cmd, {}, false, { trace: 'retain-on-failure' })).rejects.toThrow('adapter failure');
+      expect(stderrSpy.mock.calls.flat().join('\n')).toContain('[trace] Failed to export trace artifact');
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.OPENCLI_CONFIG_DIR;
+      else process.env.OPENCLI_CONFIG_DIR = prevConfigDir;
+      stderrSpy.mockRestore();
+      fs.rmSync(baseDir, { recursive: true, force: true });
+      vi.restoreAllMocks();
+    }
   });
 });

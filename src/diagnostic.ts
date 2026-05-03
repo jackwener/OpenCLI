@@ -18,6 +18,13 @@ import type { IPage } from './types.js';
 import { CliError, getErrorMessage } from './errors.js';
 import type { InternalCliCommand } from './registry.js';
 import { fullName } from './registry.js';
+import type { ObservationExportResult } from './observation/index.js';
+import {
+  redactHeaders as redactObservationHeaders,
+  redactText as redactObservationText,
+  redactUrl as redactObservationUrl,
+  redactValue as redactObservationValue,
+} from './observation/redaction.js';
 
 // ── Size budgets ─────────────────────────────────────────────────────────────
 
@@ -27,33 +34,6 @@ export const MAX_DIAGNOSTIC_BYTES = 256 * 1024; // 256 KB
 const MAX_DIAGNOSTIC_FIELD_CHARS = 50_000;
 /** Maximum entries to keep from diagnostic collections. */
 const MAX_DIAGNOSTIC_COLLECTION_ITEMS = 50;
-
-// ── Sensitive data patterns ──────────────────────────────────────────────────
-
-const SENSITIVE_HEADERS = new Set([
-  'authorization',
-  'cookie',
-  'set-cookie',
-  'x-csrf-token',
-  'x-xsrf-token',
-  'proxy-authorization',
-  'x-api-key',
-  'x-auth-token',
-]);
-
-const SENSITIVE_URL_PARAMS = /([?&])(token|key|secret|password|auth|access_token|api_key|session_id|csrf)=[^&]*/gi;
-
-/** Patterns that match inline secrets in free-text strings (error messages, stack traces, console output, DOM). */
-const SENSITIVE_TEXT_PATTERNS: Array<{ pattern: RegExp; replacement: string }> = [
-  // Bearer tokens
-  { pattern: /Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi, replacement: 'Bearer [REDACTED]' },
-  // Generic "token=...", "key=...", etc. in non-URL text
-  { pattern: /(token|secret|password|api_key|apikey|access_token|session_id)[=:]\s*['"]?[A-Za-z0-9\-._~+/]{8,}['"]?/gi, replacement: '$1=[REDACTED]' },
-  // Cookie header values (key=value pairs)
-  { pattern: /(cookie[=:]\s*)[^\n;]{10,}/gi, replacement: '$1[REDACTED]' },
-  // JWT-like tokens (three base64 segments separated by dots)
-  { pattern: /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, replacement: '[REDACTED_JWT]' },
-];
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -77,6 +57,11 @@ export interface RepairContext {
     capturedPayloads?: unknown[];
     consoleErrors: unknown[];
   };
+  trace?: {
+    traceId: string;
+    dir: string;
+    summaryPath: string;
+  };
   timestamp: string;
 }
 
@@ -90,63 +75,32 @@ export function truncate(str: string, maxLen: number): string {
 
 /** Redact sensitive query parameters from a URL. */
 export function redactUrl(url: string): string {
-  return url.replace(SENSITIVE_URL_PARAMS, '$1$2=[REDACTED]');
+  return redactObservationUrl(url);
 }
 
 /** Redact inline secrets from free-text strings (error messages, stack traces, console output, DOM). */
 export function redactText(text: string): string {
-  let result = text;
-  for (const { pattern, replacement } of SENSITIVE_TEXT_PATTERNS) {
-    // Reset lastIndex for global regexps
-    pattern.lastIndex = 0;
-    result = result.replace(pattern, replacement);
-  }
-  return result;
+  return redactObservationText(text, { maxStringLength: MAX_DIAGNOSTIC_FIELD_CHARS });
 }
 
 /** Redact sensitive headers from a headers object. */
 function redactHeaders(headers: Record<string, string> | undefined): Record<string, string> | undefined {
   if (!headers || typeof headers !== 'object') return headers;
-  const result: Record<string, string> = {};
-  for (const [key, value] of Object.entries(headers)) {
-    result[key] = SENSITIVE_HEADERS.has(key.toLowerCase()) ? '[REDACTED]' : value;
-  }
-  return result;
+  return redactObservationHeaders(headers, {
+    maxStringLength: MAX_DIAGNOSTIC_FIELD_CHARS,
+    maxArrayItems: MAX_DIAGNOSTIC_COLLECTION_ITEMS,
+    maxObjectFields: MAX_DIAGNOSTIC_COLLECTION_ITEMS,
+  }) as Record<string, string>;
 }
 
 /** Recursively sanitize arbitrary captured response content for diagnostic output. */
-function sanitizeCapturedValue(value: unknown, depth: number = 0): unknown {
-  if (typeof value === 'string') {
-    return redactText(truncate(value, MAX_DIAGNOSTIC_FIELD_CHARS));
-  }
-  if (value === null || typeof value === 'number' || typeof value === 'boolean') {
-    return value;
-  }
-  if (depth >= 4) {
-    return '[truncated: max depth reached]';
-  }
-  if (Array.isArray(value)) {
-    const items = value
-      .slice(0, MAX_DIAGNOSTIC_COLLECTION_ITEMS)
-      .map(item => sanitizeCapturedValue(item, depth + 1));
-    if (value.length > MAX_DIAGNOSTIC_COLLECTION_ITEMS) {
-      items.push(`[truncated, ${value.length - MAX_DIAGNOSTIC_COLLECTION_ITEMS} items omitted]`);
-    }
-    return items;
-  }
-  if (!value || typeof value !== 'object') {
-    return value;
-  }
-
-  const entries = Object.entries(value);
-  const result: Record<string, unknown> = {};
-  for (const [key, child] of entries.slice(0, MAX_DIAGNOSTIC_COLLECTION_ITEMS)) {
-    result[key] = sanitizeCapturedValue(child, depth + 1);
-  }
-  if (entries.length > MAX_DIAGNOSTIC_COLLECTION_ITEMS) {
-    result.__truncated__ = `[${entries.length - MAX_DIAGNOSTIC_COLLECTION_ITEMS} fields omitted]`;
-  }
-  return result;
+function sanitizeCapturedValue(value: unknown): unknown {
+  return redactObservationValue(value, {
+    maxStringLength: MAX_DIAGNOSTIC_FIELD_CHARS,
+    maxArrayItems: MAX_DIAGNOSTIC_COLLECTION_ITEMS,
+    maxObjectFields: MAX_DIAGNOSTIC_COLLECTION_ITEMS,
+    maxDepth: 4,
+  });
 }
 
 /** Redact sensitive data from a single network request entry. */
@@ -289,6 +243,7 @@ export function buildRepairContext(
   err: unknown,
   cmd: InternalCliCommand,
   pageState?: RepairContext['page'],
+  trace?: ObservationExportResult,
 ): RepairContext {
   const isCliError = err instanceof CliError;
   const sourcePath = resolveAdapterSourcePath(cmd);
@@ -306,6 +261,11 @@ export function buildRepairContext(
       source: readAdapterSource(sourcePath),
     },
     page: pageState,
+    trace: trace ? {
+      traceId: trace.traceId,
+      dir: trace.dir,
+      summaryPath: trace.summaryPath,
+    } : undefined,
     timestamp: new Date().toISOString(),
   };
 }
@@ -315,9 +275,10 @@ export async function collectDiagnostic(
   err: unknown,
   cmd: InternalCliCommand,
   page: IPage | null,
+  trace?: ObservationExportResult,
 ): Promise<RepairContext> {
   const pageState = page ? await collectPageState(page) : undefined;
-  return buildRepairContext(err, cmd, pageState);
+  return buildRepairContext(err, cmd, pageState, trace);
 }
 
 /** Emit diagnostic JSON to stderr, enforcing total size cap. */

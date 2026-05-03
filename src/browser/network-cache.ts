@@ -31,6 +31,7 @@ export interface CachedNetworkEntry {
      */
     body_truncated?: boolean;
     body_full_size?: number;
+    timestamp?: number;
 }
 
 export interface NetworkCacheFile {

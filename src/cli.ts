@@ -39,6 +39,7 @@ const CLI_FILE = fileURLToPath(import.meta.url);
 const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
 const DEFAULT_BOUND_WORKSPACE = 'bound:default';
 const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"';
+const FOLLOW_POLL_MS = 1_000;
 
 type BrowserNetworkItem = {
   url: string;
@@ -51,7 +52,51 @@ type BrowserNetworkItem = {
   bodyFullSize?: number;
   /** True when the capture layer had to cap the stored body to protect memory. */
   bodyTruncated?: boolean;
+  /** Epoch milliseconds when the request was observed. */
+  timestamp?: number;
 };
+
+function parseDurationMs(raw: unknown, flagName: string): number | null | { error: string } {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const str = String(raw).trim();
+  const match = /^(\d+(?:\.\d+)?)(ms|s|m|h)?$/.exec(str);
+  if (!match) return { error: `--${flagName} must be a duration like 500ms, 30s, 2m, got "${str}"` };
+  const value = Number.parseFloat(match[1]);
+  const unit = match[2] ?? 'ms';
+  const multiplier = unit === 'h' ? 3_600_000 : unit === 'm' ? 60_000 : unit === 's' ? 1_000 : 1;
+  return Math.round(value * multiplier);
+}
+
+function timestampFromRaw(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : Date.now();
+}
+
+function toIsoTimestamp(timestamp: unknown): string | undefined {
+  if (typeof timestamp !== 'number' || !Number.isFinite(timestamp) || timestamp <= 0) return undefined;
+  return new Date(timestamp).toISOString();
+}
+
+function filterByTimeWindow<T extends { timestamp?: number }>(items: T[], opts: { sinceMs?: number | null; untilMs?: number | null }, now: number = Date.now()): T[] {
+  const sinceTs = opts.sinceMs != null ? now - opts.sinceMs : undefined;
+  const untilTs = opts.untilMs != null ? now - opts.untilMs : undefined;
+  return items.filter((item) => {
+    const ts = item.timestamp ?? now;
+    if (sinceTs !== undefined && ts < sinceTs) return false;
+    if (untilTs !== undefined && ts > untilTs) return false;
+    return true;
+  });
+}
+
+export function selectFreshByTimestamp<T extends { timestamp?: unknown }>(
+  items: T[],
+  lastSeenTs: number,
+): { fresh: T[]; lastSeenTs: number } {
+  const fresh = items.filter((item) => Number(item.timestamp ?? 0) > lastSeenTs);
+  const nextSeenTs = fresh.length > 0
+    ? Math.max(lastSeenTs, ...fresh.map((item) => Number(item.timestamp ?? 0)).filter(Number.isFinite))
+    : lastSeenTs;
+  return { fresh, lastSeenTs: nextSeenTs };
+}
 
 /**
  * Normalize raw capture entries (from daemon/CDP `readNetworkCapture` or
@@ -83,13 +128,15 @@ async function captureNetworkItems(page: import('./types.js').IPage): Promise<Br
           body,
           bodyFullSize: fullSize,
           bodyTruncated: truncated,
+          timestamp: timestampFromRaw(e.timestamp),
         };
       });
     }
   }
   const raw = await page.evaluate(`(function(){ var out = window.__opencli_net || []; window.__opencli_net = []; return JSON.stringify(out); })()`) as string;
   try {
-    return JSON.parse(raw) as BrowserNetworkItem[];
+    const parsed = JSON.parse(raw) as BrowserNetworkItem[];
+    return parsed.map((item) => ({ ...item, timestamp: timestampFromRaw(item.timestamp) }));
   } catch {
     if (process.env.OPENCLI_VERBOSE) log.warn(`[network] Failed to parse interceptor buffer: ${typeof raw === 'string' ? raw.slice(0, 200) : String(raw)}`);
     return [];
@@ -798,7 +845,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
    * silently dropping the body. Per-entry cap is 1 MiB and the ring is
    * capped at 200 entries, bounding worst-case in-page memory.
    */
-  const NETWORK_INTERCEPTOR_JS = `(function(){if(window.__opencli_net)return;window.__opencli_net=[];var M=200,B=1048576,F=window.fetch;function capture(url,method,status,text,ct){if(window.__opencli_net.length>=M)return;var full=text?text.length:0,trunc=full>B,stored=trunc?text.slice(0,B):text,body=null;if(stored){if(trunc){body=stored}else{try{body=JSON.parse(stored)}catch(e){body=stored}}}var e={url:url,method:method||'GET',status:status,size:full,ct:ct,body:body};if(trunc){e.bodyTruncated=true;e.bodyFullSize=full}window.__opencli_net.push(e)}window.fetch=async function(){var r=await F.apply(this,arguments);try{var ct=r.headers.get('content-type')||'';if(ct.includes('json')||ct.includes('text')){var c=r.clone(),t=await c.text();capture(r.url||(arguments[0]&&arguments[0].url)||String(arguments[0]),(arguments[1]&&arguments[1].method)||'GET',r.status,t,ct)}}catch(e){}return r};var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(m,u){this._om=m;this._ou=u;return O.apply(this,arguments)};X.send=function(){var x=this;x.addEventListener('load',function(){try{var ct=x.getResponseHeader('content-type')||'';if(ct.includes('json')||ct.includes('text')){capture(x._ou,x._om||'GET',x.status,x.responseText||'',ct)}}catch(e){}});return S.apply(this,arguments)}})()`;
+  const NETWORK_INTERCEPTOR_JS = `(function(){if(window.__opencli_net)return;window.__opencli_net=[];var M=200,B=1048576,F=window.fetch;function capture(url,method,status,text,ct){if(window.__opencli_net.length>=M)return;var full=text?text.length:0,trunc=full>B,stored=trunc?text.slice(0,B):text,body=null;if(stored){if(trunc){body=stored}else{try{body=JSON.parse(stored)}catch(e){body=stored}}}var e={url:url,method:method||'GET',status:status,size:full,ct:ct,body:body,timestamp:Date.now()};if(trunc){e.bodyTruncated=true;e.bodyFullSize=full}window.__opencli_net.push(e)}window.fetch=async function(){var r=await F.apply(this,arguments);try{var ct=r.headers.get('content-type')||'';if(ct.includes('json')||ct.includes('text')){var c=r.clone(),t=await c.text();capture(r.url||(arguments[0]&&arguments[0].url)||String(arguments[0]),(arguments[1]&&arguments[1].method)||'GET',r.status,t,ct)}}catch(e){}return r};var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(m,u){this._om=m;this._ou=u;return O.apply(this,arguments)};X.send=function(){var x=this;x.addEventListener('load',function(){try{var ct=x.getResponseHeader('content-type')||'';if(ct.includes('json')||ct.includes('text')){capture(x._ou,x._om||'GET',x.status,x.responseText||'',ct)}}catch(e){}});return S.apply(this,arguments)}})()`;
 
   addBrowserTabOption(browser.command('open').argument('<url>').option('--allow-navigate-bound', 'Allow navigating a bound user tab', false).description('Open URL in automation window'))
     .action(browserAction(async (page, url, opts) => {
@@ -875,6 +922,72 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       } else {
         console.log(await page.screenshot({ format: 'png' }));
       }
+    }));
+
+  addBrowserTabOption(browser.command('console'))
+    .option('--level <level>', 'Console level: all, error, warning, log, info, debug', 'all')
+    .option('--since <duration>', 'Only include messages from the last duration (for example: 30s, 2m)')
+    .option('--until <duration>', 'Only include messages older than the duration from now')
+    .option('--follow', 'Continuously print new console messages as JSON lines', false)
+    .description('Read recent browser console messages')
+    .action(browserAction(async (page, opts) => {
+      const sinceMs = parseDurationMs(opts.since, 'since');
+      const untilMs = parseDurationMs(opts.until, 'until');
+      if (sinceMs && typeof sinceMs === 'object') {
+        console.log(JSON.stringify({ error: { code: 'invalid_since', message: sinceMs.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      if (untilMs && typeof untilMs === 'object') {
+        console.log(JSON.stringify({ error: { code: 'invalid_until', message: untilMs.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const normalize = (messages: unknown[]): Array<Record<string, unknown>> => messages.map((message) => {
+        if (message && typeof message === 'object') {
+          const record = message as Record<string, unknown>;
+          return {
+            ...record,
+            timestamp: timestampFromRaw(record.timestamp),
+          };
+        }
+        return { type: 'log', text: String(message), timestamp: Date.now() };
+      });
+      const filter = (messages: Array<Record<string, unknown>>) =>
+        filterByTimeWindow(messages, { sinceMs, untilMs }).filter((message) => {
+          if (opts.level === 'all') return true;
+          const type = String(message.type ?? message.level ?? '').toLowerCase();
+          return opts.level === 'error'
+            ? type === 'error' || type === 'warning'
+            : type === String(opts.level).toLowerCase();
+        });
+
+      if (opts.follow) {
+        let lastSeenTs = 0;
+        while (true) {
+          const messages = filter(normalize(await page.consoleMessages('all')));
+          const next = selectFreshByTimestamp(messages, lastSeenTs);
+          for (const message of next.fresh) {
+            console.log(JSON.stringify({
+              ...message,
+              timestamp: toIsoTimestamp(message.timestamp),
+            }));
+          }
+          lastSeenTs = next.lastSeenTs;
+          await new Promise((resolve) => setTimeout(resolve, FOLLOW_POLL_MS));
+        }
+      }
+
+      const messages = filter(normalize(await page.consoleMessages(opts.level)));
+      console.log(JSON.stringify({
+        workspace: getPageWorkspace(page),
+        captured_at: new Date().toISOString(),
+        count: messages.length,
+        messages: messages.map((message) => ({
+          ...message,
+          timestamp: toIsoTimestamp(message.timestamp),
+        })),
+      }, null, 2));
     }));
 
   // ── Analyze (site recon, agent-native) ──
@@ -1487,6 +1600,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .option('--all', 'Include static resources (js/css/images/telemetry)')
     .option('--raw', 'Emit full bodies for every entry (skip shape preview)')
     .option('--filter <fields>', 'Comma-separated field names; keep only entries whose body shape has ALL names as path segments')
+    .option('--since <duration>', 'Only include entries from the last duration (for example: 30s, 2m)')
+    .option('--until <duration>', 'Only include entries older than the duration from now')
+    .option('--follow', 'Continuously print new matching entries as JSON lines', false)
+    .option('--failed', 'Only include failed HTTP requests (status 0 or >= 400)', false)
     .option('--max-body <chars>', 'With --detail: cap the emitted body at N chars (0 = unlimited, default)', '0')
     .option('--ttl <ms>', 'Cache TTL in ms for --detail lookups', String(DEFAULT_TTL_MS))
     .description('Capture network requests as shape previews; retrieve full bodies by key')
@@ -1495,6 +1612,16 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       const workspace = getPageWorkspace(page);
       const hasDetail = typeof opts.detail === 'string' && opts.detail.length > 0;
       const hasFilter = typeof opts.filter === 'string';
+      const sinceMs = parseDurationMs(opts.since, 'since');
+      const untilMs = parseDurationMs(opts.until, 'until');
+      if (sinceMs && typeof sinceMs === 'object') {
+        emitNetworkError('invalid_since', sinceMs.error);
+        return;
+      }
+      if (untilMs && typeof untilMs === 'object') {
+        emitNetworkError('invalid_until', untilMs.error);
+        return;
+      }
 
       // --detail and --filter do different things (one request by key vs. narrow
       // the list by shape), don't compose, and combining them has no sensible
@@ -1513,6 +1640,11 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           return;
         }
         filterFields = parsed.fields;
+      }
+
+      if (hasDetail && opts.follow) {
+        emitNetworkError('invalid_args', '--follow cannot be used with --detail.');
+        return;
       }
 
       // --detail short-circuits: read from cache only, no live capture needed.
@@ -1563,6 +1695,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           status: entry.status,
           ct: entry.ct,
           size: entry.size,
+          ...(typeof entry.timestamp === 'number' ? { timestamp: toIsoTimestamp(entry.timestamp) } : {}),
           shape: inferShape(entry.body),
           body: outputBody,
         };
@@ -1577,6 +1710,35 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         return;
       }
 
+      if (opts.follow) {
+        if (!await page.startNetworkCapture?.()) {
+          try { await page.evaluate(NETWORK_INTERCEPTOR_JS); } catch { /* non-fatal */ }
+        }
+        while (true) {
+          const rawItems = await captureNetworkItems(page).catch((err) => {
+            emitNetworkError('capture_failed', `Could not read network capture: ${(err as Error).message}`);
+            return [];
+          });
+          let items = opts.all ? rawItems : filterNetworkItems(rawItems);
+          items = filterByTimeWindow(items, { sinceMs, untilMs });
+          if (opts.failed) items = items.filter((item) => item.status === 0 || item.status >= 400);
+          const keyed = assignKeys(items);
+          for (const item of keyed) {
+            console.log(JSON.stringify({
+              key: item.key,
+              timestamp: toIsoTimestamp(item.timestamp),
+              method: item.method,
+              status: item.status,
+              url: item.url,
+              ct: item.ct,
+              size: item.size,
+              ...(item.bodyTruncated ? { body_truncated: true } : {}),
+            }));
+          }
+          await new Promise((resolve) => setTimeout(resolve, FOLLOW_POLL_MS));
+        }
+      }
+
       // Fresh capture path.
       let rawItems: BrowserNetworkItem[];
       try {
@@ -1586,7 +1748,9 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         return;
       }
 
-      const items = opts.all ? rawItems : filterNetworkItems(rawItems);
+      let items = opts.all ? rawItems : filterNetworkItems(rawItems);
+      items = filterByTimeWindow(items, { sinceMs, untilMs });
+      if (opts.failed) items = items.filter((item) => item.status === 0 || item.status >= 400);
       const filteredOut = rawItems.length - items.length;
 
       const keyed = assignKeys(items);
@@ -1598,6 +1762,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         size: it.size,
         ct: it.ct,
         body: it.body,
+        ...(typeof it.timestamp === 'number' ? { timestamp: it.timestamp } : {}),
         ...(it.bodyTruncated ? { body_truncated: true } : {}),
         ...(it.bodyTruncated && typeof it.bodyFullSize === 'number'
           ? { body_full_size: it.bodyFullSize }
@@ -1642,11 +1807,15 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
 
       if (opts.raw) {
-        envelope.entries = visible.map((s) => s.entry);
+        envelope.entries = visible.map((s) => ({
+          ...s.entry,
+          ...(typeof s.entry.timestamp === 'number' ? { timestamp: toIsoTimestamp(s.entry.timestamp) } : {}),
+        }));
       } else {
         envelope.entries = visible.map((s) => ({
           key: s.entry.key,
           method: s.entry.method,
+          ...(typeof s.entry.timestamp === 'number' ? { timestamp: toIsoTimestamp(s.entry.timestamp) } : {}),
           status: s.entry.status,
           url: s.entry.url,
           ct: s.entry.ct,
