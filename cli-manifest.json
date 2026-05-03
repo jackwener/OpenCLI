@@ -17547,6 +17547,37 @@
   },
   {
     "site": "weibo",
+    "name": "favorites",
+    "description": "我的微博收藏列表",
+    "domain": "weibo.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "数量（最多50）"
+      }
+    ],
+    "columns": [
+      "author",
+      "text",
+      "time",
+      "source",
+      "likes",
+      "comments",
+      "reposts",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "weibo/favorites.js",
+    "sourceFile": "weibo/favorites.js",
+    "navigateBefore": "https://weibo.com"
+  },
+  {
+    "site": "weibo",
     "name": "feed",
     "description": "Fetch Weibo timeline (for-you or following)",
     "domain": "weibo.com",
@@ -17661,6 +17692,38 @@
     "modulePath": "weibo/post.js",
     "sourceFile": "weibo/post.js",
     "navigateBefore": "https://weibo.com"
+  },
+  {
+    "site": "weibo",
+    "name": "publish",
+    "description": "Publish a new Weibo post immediately",
+    "domain": "weibo.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Weibo text content (max 2000 chars)"
+      },
+      {
+        "name": "images",
+        "type": "string",
+        "required": false,
+        "help": "Image paths, comma-separated, max 9 (jpg/png/gif/webp)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "weibo/publish.js",
+    "sourceFile": "weibo/publish.js",
+    "navigateBefore": true
   },
   {
     "site": "weibo",
