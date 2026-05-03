@@ -645,8 +645,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   function isJavaScriptDialogMessage(message: string): boolean {
     const normalized = message.toLowerCase();
-    return normalized.includes('javascript dialog')
-      || (normalized.includes('dialog') && (normalized.includes('showing') || normalized.includes('open')));
+    return normalized.includes('javascript dialog');
   }
 
   function emitJavaScriptDialogError(message: string): void {
