@@ -99,6 +99,8 @@ export interface ObservationTraceReceipt {
   receiptPath: string;
   status: ObservationExportStatus;
   createdAt: string;
+  /** Advisory only; actual deletion is governed by current trace retention budgets. */
+  expiresAt?: string;
   scope?: ObservationScope;
   error?: {
     name?: string;

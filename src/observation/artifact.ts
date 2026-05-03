@@ -4,13 +4,16 @@ import * as path from 'node:path';
 import type { ObservationEvent, ObservationExportResult, ObservationExportStatus, ObservationTraceReceipt } from './events.js';
 import { ObservationSession } from './session.js';
 import { redactValue } from './redaction.js';
+import { pruneTraceArtifacts, traceExpiresAt, type TraceRetentionPolicyInput } from './retention.js';
 import { CliError, getErrorMessage } from '../errors.js';
+import { log } from '../logger.js';
 import { PKG_VERSION } from '../version.js';
 
 export interface ExportObservationOptions {
   baseDir?: string;
   error?: unknown;
   status?: ObservationExportStatus;
+  retentionPolicy?: TraceRetentionPolicyInput;
 }
 
 function baseOpenCliDir(): string {
@@ -75,14 +78,17 @@ export function exportObservationSession(session: ObservationSession, opts: Expo
     status,
     dir,
     createdAt,
+    retentionPolicy: opts.retentionPolicy,
   }), 'utf-8');
   const receiptPath = path.join(dir, 'receipt.json');
   const resultBase = { traceId: session.id, dir, summaryPath, receiptPath };
   const receipt = buildTraceReceipt(resultBase, status, opts.error, {
     createdAt,
     scope: session.scope,
+    retentionPolicy: opts.retentionPolicy,
   });
   fs.writeFileSync(receiptPath, JSON.stringify(receipt, null, 2), 'utf-8');
+  pruneTraceArtifactsBestEffort(path.dirname(dir), dir, opts.retentionPolicy);
   return { ...resultBase, receipt };
 }
 
@@ -94,9 +100,10 @@ export function buildTraceReceipt(
   result: Pick<ObservationExportResult, 'traceId' | 'dir' | 'summaryPath' | 'receiptPath'>,
   status: ObservationExportStatus,
   error?: unknown,
-  opts: { createdAt?: string; scope?: ObservationSession['scope'] } = {},
+  opts: { createdAt?: string; scope?: ObservationSession['scope']; retentionPolicy?: TraceRetentionPolicyInput } = {},
 ): ObservationTraceReceipt {
   const maybeCliError = error instanceof CliError ? error : undefined;
+  const createdAt = opts.createdAt ?? new Date().toISOString();
   return {
     schemaVersion: 1,
     opencliVersion: PKG_VERSION,
@@ -105,7 +112,8 @@ export function buildTraceReceipt(
     summaryPath: result.summaryPath,
     receiptPath: result.receiptPath,
     status,
-    createdAt: opts.createdAt ?? new Date().toISOString(),
+    createdAt,
+    expiresAt: traceExpiresAt(createdAt, opts.retentionPolicy),
     ...(opts.scope ? { scope: opts.scope } : {}),
     ...(error === undefined ? {} : {
       error: {
@@ -117,10 +125,26 @@ export function buildTraceReceipt(
   };
 }
 
+function pruneTraceArtifactsBestEffort(
+  tracesDir: string,
+  protectedTraceDir: string,
+  retentionPolicy?: TraceRetentionPolicyInput,
+): void {
+  try {
+    pruneTraceArtifacts(tracesDir, {
+      policy: retentionPolicy,
+      protectedTraceDirs: [protectedTraceDir],
+      warn: (message) => log.warn(`[trace] ${message}`),
+    });
+  } catch (err) {
+    log.warn(`[trace] Failed to prune trace artifacts: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 function renderSummary(
   session: ObservationSession,
   events: ObservationEvent[],
-  opts: { error?: unknown; status: ObservationExportStatus; dir: string; createdAt: string },
+  opts: { error?: unknown; status: ObservationExportStatus; dir: string; createdAt: string; retentionPolicy?: TraceRetentionPolicyInput },
 ): string {
   const counts = events.reduce<Record<string, number>>((acc, event) => {
     acc[event.stream] = (acc[event.stream] ?? 0) + 1;
@@ -159,6 +183,7 @@ function renderSummary(
     `traceDir: ${yamlScalar(opts.dir)}`,
     `startedAt: ${yamlScalar(new Date(session.startedAt).toISOString())}`,
     `exportedAt: ${yamlScalar(opts.createdAt)}`,
+    `expiresAt: ${yamlScalar(traceExpiresAt(opts.createdAt, opts.retentionPolicy))}`,
     ...(error ? [
       `errorCode: ${yamlScalar(error.code ?? 'UNKNOWN')}`,
       `errorMessage: ${yamlScalar(error.message)}`,

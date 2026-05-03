@@ -56,6 +56,7 @@ describe('observation artifact', () => {
     const summary = fs.readFileSync(result.summaryPath, 'utf-8');
     expect(summary).toContain('schemaVersion: 1');
     expect(summary).toContain('opencliVersion:');
+    expect(summary).toContain('expiresAt:');
     expect(summary).toContain('status: failure');
     expect(summary).toContain('contextId: "work"');
     expect(summary).toContain('adapterSourcePath: "/tmp/clis/demo/run.js"');
@@ -73,6 +74,7 @@ describe('observation artifact', () => {
       summaryPath: result.summaryPath,
       receiptPath: result.receiptPath,
       status: 'failure',
+      expiresAt: expect.any(String),
       scope: {
         contextId: 'work',
         workspace: 'site:demo',
@@ -90,7 +92,10 @@ describe('observation artifact', () => {
       dir: '/tmp/opencli/profiles/work/traces/trace-1',
       summaryPath: '/tmp/opencli/profiles/work/traces/trace-1/summary.md',
       receiptPath: '/tmp/opencli/profiles/work/traces/trace-1/receipt.json',
-    }, 'failure', new Error('failed with token=secret'));
+    }, 'failure', new Error('failed with token=secret'), {
+      createdAt: '2026-05-03T00:00:00.000Z',
+      retentionPolicy: { maxAgeDays: 7 },
+    });
 
     expect(receipt).toMatchObject({
       schemaVersion: 1,
@@ -99,7 +104,32 @@ describe('observation artifact', () => {
       traceDir: '/tmp/opencli/profiles/work/traces/trace-1',
       receiptPath: '/tmp/opencli/profiles/work/traces/trace-1/receipt.json',
       status: 'failure',
+      expiresAt: '2026-05-10T00:00:00.000Z',
     });
     expect(receipt.error?.message).toContain('token=[REDACTED]');
+  });
+
+  it('prunes older traces after export while protecting the exported trace', () => {
+    const oldTraceDir = getTraceDirectory('work', 'old-trace', baseDir);
+    fs.mkdirSync(oldTraceDir, { recursive: true });
+    fs.writeFileSync(path.join(oldTraceDir, 'receipt.json'), JSON.stringify({
+      createdAt: '2026-04-01T00:00:00.000Z',
+    }), 'utf-8');
+    fs.writeFileSync(path.join(oldTraceDir, 'trace.jsonl'), '{}\n', 'utf-8');
+
+    const session = new ObservationSession({
+      id: 'new-trace',
+      scope: { contextId: 'work', workspace: 'site:demo' },
+      now: () => Date.parse('2026-05-03T00:00:00.000Z'),
+    });
+    session.record({ stream: 'action', name: 'command', phase: 'start' });
+
+    const result = exportObservationSession(session, {
+      baseDir,
+      retentionPolicy: { maxAgeDays: 365, maxCountPerProfile: 1, maxBytesPerProfile: '500MB' },
+    });
+
+    expect(fs.existsSync(oldTraceDir)).toBe(false);
+    expect(fs.existsSync(result.dir)).toBe(true);
   });
 });
