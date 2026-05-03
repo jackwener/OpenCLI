@@ -20493,6 +20493,82 @@
   },
   {
     "site": "xianyu",
+    "name": "publish",
+    "description": "发布闲鱼宝贝（需先在浏览器中登录闲鱼）",
+    "domain": "www.goofish.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "商品标题"
+      },
+      {
+        "name": "description",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "商品描述/详情"
+      },
+      {
+        "name": "price",
+        "type": "float",
+        "required": true,
+        "positional": true,
+        "help": "出售价格（元）"
+      },
+      {
+        "name": "condition",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "成色：全新 / 几乎全新 / 轻微使用 / 明显使用 / 老旧"
+      },
+      {
+        "name": "category",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "商品分类关键词（如：手机、衣服、图书）"
+      },
+      {
+        "name": "original_price",
+        "type": "float",
+        "required": false,
+        "help": "原价（选填，用于显示折扣）"
+      },
+      {
+        "name": "location",
+        "type": "str",
+        "required": false,
+        "help": "所在地区（选填，如：杭州）"
+      },
+      {
+        "name": "images",
+        "type": "str",
+        "required": false,
+        "help": "本地图片路径，多张用逗号分隔（选填，如：/tmp/a.jpg,/tmp/b.jpg）"
+      }
+    ],
+    "columns": [
+      "status",
+      "item_id",
+      "title",
+      "price",
+      "condition",
+      "url",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "xianyu/publish.js",
+    "sourceFile": "xianyu/publish.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xianyu",
     "name": "search",
     "description": "搜索闲鱼商品",
     "access": "read",
