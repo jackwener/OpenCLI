@@ -17462,6 +17462,38 @@
   },
   {
     "site": "weibo",
+    "name": "publish",
+    "description": "Post a new Weibo update",
+    "domain": "weibo.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Weibo text content (max 2000 chars)"
+      },
+      {
+        "name": "images",
+        "type": "string",
+        "required": false,
+        "help": "Image paths, comma-separated, max 9 (jpg/png/gif/webp)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "weibo/publish.js",
+    "sourceFile": "weibo/publish.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "weibo",
     "name": "search",
     "description": "搜索微博",
     "domain": "weibo.com",
