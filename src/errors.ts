@@ -19,6 +19,7 @@
  *  78   Configuration error             (ConfigError)
  * 130   Interrupted by Ctrl-C           (set by tui.ts SIGINT handler)
  */
+import type { ObservationTraceReceipt } from './observation/events.js';
 
 // ── Exit code table ──────────────────────────────────────────────────────────
 
@@ -53,6 +54,27 @@ export class CliError extends Error {
     this.hint = hint;
     this.exitCode = exitCode;
   }
+}
+
+const TRACE_RECEIPT_SYMBOL = Symbol.for('opencli.traceReceipt');
+
+export function attachTraceReceipt(err: unknown, receipt: ObservationTraceReceipt): void {
+  if (!err || (typeof err !== 'object' && typeof err !== 'function')) return;
+  try {
+    Object.defineProperty(err, TRACE_RECEIPT_SYMBOL, {
+      value: receipt,
+      enumerable: false,
+      configurable: true,
+    });
+  } catch {
+    // Non-extensible thrown objects are rare; trace export should never mask the
+    // original adapter error just because metadata attachment failed.
+  }
+}
+
+export function getTraceReceipt(err: unknown): ObservationTraceReceipt | undefined {
+  if (!err || (typeof err !== 'object' && typeof err !== 'function')) return undefined;
+  return (err as Record<PropertyKey, unknown>)[TRACE_RECEIPT_SYMBOL] as ObservationTraceReceipt | undefined;
 }
 
 // ── Typed subclasses ─────────────────────────────────────────────────────────
@@ -152,6 +174,13 @@ export interface ErrorEnvelope {
     stack?: string;
     cause?: string;
   };
+  trace?: {
+    traceId: string;
+    dir: string;
+    summaryPath: string;
+    receiptPath: string;
+    status: ObservationTraceReceipt['status'];
+  };
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────
@@ -175,6 +204,14 @@ function serializeCause(cause: unknown, depth: number = 0): string {
 /** Build an ErrorEnvelope from any caught value. */
 export function toEnvelope(err: unknown): ErrorEnvelope {
   const cause = err instanceof Error && err.cause ? serializeCause(err.cause) : undefined;
+  const traceReceipt = getTraceReceipt(err);
+  const trace = traceReceipt ? {
+    traceId: traceReceipt.traceId,
+    dir: traceReceipt.traceDir,
+    summaryPath: traceReceipt.summaryPath,
+    receiptPath: traceReceipt.receiptPath,
+    status: traceReceipt.status,
+  } : undefined;
   if (err instanceof CliError) {
     return {
       ok: false,
@@ -185,6 +222,7 @@ export function toEnvelope(err: unknown): ErrorEnvelope {
         exitCode: err.exitCode,
         ...(cause ? { cause } : {}),
       },
+      ...(trace ? { trace } : {}),
     };
   }
   const msg = getErrorMessage(err);
@@ -196,5 +234,6 @@ export function toEnvelope(err: unknown): ErrorEnvelope {
       exitCode: EXIT_CODES.GENERIC_ERROR,
       ...(cause ? { cause } : {}),
     },
+    ...(trace ? { trace } : {}),
   };
 }

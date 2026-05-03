@@ -6,6 +6,7 @@ export interface ObservationScope {
   target?: string;
   site?: string;
   command?: string;
+  adapterSourcePath?: string;
 }
 
 interface BaseObservationEvent {
@@ -83,4 +84,25 @@ export interface ObservationExportResult {
   traceId: string;
   dir: string;
   summaryPath: string;
+  receiptPath: string;
+  receipt: ObservationTraceReceipt;
+}
+
+export type ObservationExportStatus = 'success' | 'failure';
+
+export interface ObservationTraceReceipt {
+  traceId: string;
+  traceDir: string;
+  summaryPath: string;
+  receiptPath: string;
+  status: ObservationExportStatus;
+  createdAt: string;
+  scope?: ObservationScope;
+  error?: {
+    name?: string;
+    code?: string;
+    message: string;
+    hint?: string;
+    exitCode?: number;
+  };
 }

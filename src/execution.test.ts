@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import type { CliCommand } from './registry.js';
 import { executeCommand, prepareCommandArgs } from './execution.js';
-import { TimeoutError } from './errors.js';
+import { TimeoutError, toEnvelope } from './errors.js';
 import { cli, Strategy } from './registry.js';
 import { withTimeoutMs } from './runtime.js';
 import * as runtime from './runtime.js';
@@ -193,17 +193,87 @@ describe('executeCommand — non-browser timeout', () => {
         func: async () => { throw new Error('adapter failure'); },
       });
 
-      await expect(executeCommand(cmd, {}, false, { trace: 'retain-on-failure' })).rejects.toThrow('adapter failure');
+      const thrown = await executeCommand(cmd, {}, false, { trace: 'retain-on-failure' }).catch((err) => err);
+      expect(thrown).toBeInstanceOf(Error);
+      expect((thrown as Error).message).toContain('adapter failure');
 
       const tracesRoot = path.join(baseDir, 'profiles', 'default', 'traces');
       const traceId = fs.readdirSync(tracesRoot)[0];
       const traceDir = path.join(tracesRoot, traceId);
       expect(fs.existsSync(path.join(traceDir, 'trace.jsonl'))).toBe(true);
+      expect(fs.existsSync(path.join(traceDir, 'receipt.json'))).toBe(true);
       const trace = fs.readFileSync(path.join(traceDir, 'trace.jsonl'), 'utf-8');
       expect(trace).toContain('token=[REDACTED]');
       expect(trace).toContain('"authorization":"[REDACTED]"');
       expect(trace).not.toContain('password=secret');
-      expect(stderrSpy.mock.calls.flat().join('\n')).toContain('OpenCLI trace artifact:');
+      expect(stderrSpy.mock.calls.flat().join('\n')).not.toContain('___OPENCLI_TRACE___');
+
+      expect(toEnvelope(thrown).trace).toMatchObject({
+        traceId,
+        dir: traceDir,
+        summaryPath: path.join(traceDir, 'summary.md'),
+        receiptPath: path.join(traceDir, 'receipt.json'),
+        status: 'failure',
+      });
+      expect(closeWindow).toHaveBeenCalledTimes(1);
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.OPENCLI_CONFIG_DIR;
+      else process.env.OPENCLI_CONFIG_DIR = prevConfigDir;
+      stderrSpy.mockRestore();
+      fs.rmSync(baseDir, { recursive: true, force: true });
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('exports a trace receipt on browser command success when trace is on', async () => {
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-exec-trace-success-'));
+    const prevConfigDir = process.env.OPENCLI_CONFIG_DIR;
+    process.env.OPENCLI_CONFIG_DIR = baseDir;
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const onTraceExport = vi.fn();
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = {
+      closeWindow,
+      startNetworkCapture: vi.fn().mockResolvedValue(true),
+      readNetworkCapture: vi.fn().mockResolvedValue([]),
+      consoleMessages: vi.fn().mockResolvedValue([]),
+      snapshot: vi.fn().mockResolvedValue('snapshot'),
+      screenshot: vi.fn().mockResolvedValue(Buffer.from('png').toString('base64')),
+      getCurrentUrl: vi.fn().mockResolvedValue('https://example.com'),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+    } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+
+    try {
+      const cmd = cli({
+        site: 'test-execution',
+        name: 'browser-trace-success',
+        description: 'test trace export on success',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => [{ ok: true }],
+      });
+
+      await expect(executeCommand(cmd, {}, false, { trace: 'on', onTraceExport })).resolves.toEqual([{ ok: true }]);
+
+      const stderr = stderrSpy.mock.calls.flat().join('\n');
+      expect(stderr).toContain('OpenCLI trace artifact:');
+      const tracesRoot = path.join(baseDir, 'profiles', 'default', 'traces');
+      const traceId = fs.readdirSync(tracesRoot)[0];
+      const receipt = JSON.parse(fs.readFileSync(path.join(tracesRoot, traceId, 'receipt.json'), 'utf-8'));
+      expect(receipt.status).toBe('success');
+      expect(receipt.traceDir).toContain(path.join(baseDir, 'profiles', 'default', 'traces'));
+      expect(receipt.scope).toMatchObject({
+        site: 'test-execution',
+        command: 'test-execution/browser-trace-success',
+      });
+      expect(receipt.error).toBeUndefined();
+      expect(onTraceExport).toHaveBeenCalledWith(expect.objectContaining({
+        traceId,
+        receipt: expect.objectContaining({ status: 'success' }),
+      }));
       expect(closeWindow).toHaveBeenCalledTimes(1);
     } finally {
       if (prevConfigDir === undefined) delete process.env.OPENCLI_CONFIG_DIR;

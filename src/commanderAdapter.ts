@@ -22,7 +22,6 @@ import {
   EXIT_CODES,
   toEnvelope,
 } from './errors.js';
-import { isDiagnosticEnabled } from './diagnostic.js';
 
 /**
  * Register a single CliCommand as a Commander subcommand.
@@ -125,7 +124,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
         footerExtra: resolved.footerExtra?.(kwargs),
       });
     } catch (err) {
-      renderError(err, fullName(cmd), optionsRecord.verbose === true);
+      renderError(err, fullName(cmd), optionsRecord.verbose === true, optionsRecord.trace);
       process.exitCode = resolveExitCode(err);
     }
   });
@@ -140,13 +139,16 @@ function resolveExitCode(err: unknown): number {
 
 // ── Error rendering ─────────────────────────────────────────────────────────
 
-/** Emit AutoFix hint for repairable adapter errors (skipped if already in diagnostic mode). */
-function emitAutoFixHint(envelope: string, cmdName: string): string {
-  if (isDiagnosticEnabled()) return envelope;
-  return envelope + `# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 for repair context\n# OPENCLI_DIAGNOSTIC=1 ${cmdName}\n`;
+/** Emit AutoFix hint for repairable adapter errors (skipped if trace already exported). */
+function emitAutoFixHint(envelope: string, cmdName: string, traceMode: unknown): string {
+  if (traceMode === 'on' || traceMode === 'retain-on-failure') return envelope;
+  const runnable = cmdName.replace('/', ' ');
+  return envelope
+    + `# AutoFix: re-run with --trace=retain-on-failure for trace artifact\n`
+    + `# opencli ${runnable} --trace retain-on-failure\n`;
 }
 
-function renderError(err: unknown, cmdName: string, verbose: boolean): void {
+function renderError(err: unknown, cmdName: string, verbose: boolean, traceMode?: unknown): void {
   const envelope = toEnvelope(err);
 
   // In verbose mode, include stack trace for debugging
@@ -159,7 +161,7 @@ function renderError(err: unknown, cmdName: string, verbose: boolean): void {
   // Append AutoFix hint for repairable errors
   const code = envelope.error.code;
   if (code === 'SELECTOR' || code === 'EMPTY_RESULT' || code === 'ADAPTER_LOAD' || code === 'UNKNOWN') {
-    output = emitAutoFixHint(output, cmdName);
+    output = emitAutoFixHint(output, cmdName, traceMode);
   }
 
   process.stderr.write(output);

@@ -24,8 +24,7 @@ import { pathToFileURL } from 'node:url';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
-import { adapterLoadError, ArgumentError, CommandExecutionError, getErrorMessage } from './errors.js';
-import { isDiagnosticEnabled, collectDiagnostic, emitDiagnostic } from './diagnostic.js';
+import { adapterLoadError, ArgumentError, CommandExecutionError, attachTraceReceipt, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
 import { resolveProfileContextId } from './browser/profile.js';
@@ -33,7 +32,8 @@ import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
 import { isElectronApp } from './electron-apps.js';
 import { probeCDP, resolveElectronEndpoint } from './launcher.js';
-import { ObservationSession, exportObservationSession, type ObservationExportResult } from './observation/index.js';
+import { ObservationSession, exportObservationSession, type ObservationExportResult, type ObservationExportStatus } from './observation/index.js';
+import { resolveAdapterSourcePath } from './adapter-source.js';
 
 const _loadedModules = new Map<string, Promise<void>>();
 /** Track mtime of loaded user adapter files for hot-reload in daemon mode. */
@@ -179,7 +179,12 @@ export async function executeCommand(
   cmd: CliCommand,
   rawKwargs: CommandArgs,
   debug: boolean = false,
-  opts: { prepared?: boolean; profile?: string; trace?: string } = {},
+  opts: {
+    prepared?: boolean;
+    profile?: string;
+    trace?: string;
+    onTraceExport?: (trace: ObservationExportResult) => void;
+  } = {},
 ): Promise<unknown> {
   let kwargs: CommandArgs;
   try {
@@ -199,7 +204,6 @@ export async function executeCommand(
   await emitHook('onBeforeExecute', hookCtx);
 
   let result: unknown;
-  let diagnosticEmitted = false;
   try {
     if (shouldUseBrowserSession(cmd)) {
       const electron = isElectronApp(cmd.site);
@@ -225,6 +229,7 @@ export async function executeCommand(
       ensureRequiredEnv(cmd);
       const BrowserFactory = getBrowserFactory(cmd.site);
       const contextId = resolveProfileContextId(opts.profile);
+      const internal = cmd as InternalCliCommand;
       result = await browserSession(BrowserFactory, async (page) => {
         const observation = traceMode === 'off'
           ? null
@@ -235,6 +240,7 @@ export async function executeCommand(
               target: page.getActivePage?.(),
               site: cmd.site,
               command: fullName(cmd),
+              adapterSourcePath: resolveAdapterSourcePath(internal),
             },
           });
         if (observation) {
@@ -274,10 +280,22 @@ export async function executeCommand(
               phase: 'error',
               data: { url: preNavUrl, error: err instanceof Error ? err.message : String(err) },
             });
-            throw new CommandExecutionError(
+            const wrapped = new CommandExecutionError(
               `Pre-navigation to ${preNavUrl} failed: ${err instanceof Error ? err.message : err}`,
               'Check that the site is reachable and the browser extension is running.',
             );
+            if (observation && (traceMode === 'on' || traceMode === 'retain-on-failure')) {
+              observation.record({
+                stream: 'error',
+                message: wrapped.message,
+                stack: wrapped.stack,
+                code: wrapped.code,
+                hint: wrapped.hint,
+              });
+              await collectObservationEvidence(observation, page).catch(() => {});
+              exportTraceArtifact(observation, 'failure', wrapped, opts.onTraceExport);
+            }
+            throw wrapped;
           }
         }
         // --live / OPENCLI_LIVE=1 keeps the automation window open after the
@@ -295,14 +313,13 @@ export async function executeCommand(
           });
           if (observation && traceMode === 'on') {
             await collectObservationEvidence(observation, page).catch(() => {});
-            exportTraceArtifact(observation);
+            exportTraceArtifact(observation, 'success', undefined, opts.onTraceExport);
           }
           // Adapter commands are one-shot — close the automation window immediately
           // instead of waiting for the 30s idle timeout.
           if (!keepOpen) await page.closeWindow?.().catch(() => {});
           return result;
         } catch (err) {
-          let trace: ObservationExportResult | undefined;
           if (observation) {
             observation.record({
               stream: 'action',
@@ -317,15 +334,8 @@ export async function executeCommand(
             });
             if (traceMode === 'on' || traceMode === 'retain-on-failure') {
               await collectObservationEvidence(observation, page).catch(() => {});
-              trace = exportTraceArtifact(observation, err);
+              exportTraceArtifact(observation, 'failure', err, opts.onTraceExport);
             }
-          }
-          // Collect diagnostic while page is still alive (before closing the window).
-          if (isDiagnosticEnabled()) {
-            const internal = cmd as InternalCliCommand;
-            const ctx = await collectDiagnostic(err, internal, page, trace);
-            emitDiagnostic(ctx);
-            diagnosticEmitted = true;
           }
           // Close the automation window on failure too — without this, the window
           // lingers until the extension's idle timer fires (unreliable on Windows
@@ -348,13 +358,6 @@ export async function executeCommand(
       }
     }
   } catch (err) {
-    // Emit diagnostic if not already emitted (browser session emits with page state;
-    // this fallback covers non-browser commands and pre-session failures like BrowserConnectError).
-    if (isDiagnosticEnabled() && !diagnosticEmitted) {
-      const internal = cmd as InternalCliCommand;
-      const ctx = await collectDiagnostic(err, internal, null);
-      emitDiagnostic(ctx);
-    }
     hookCtx.error = err;
     hookCtx.finishedAt = Date.now();
     await emitHook('onAfterExecute', hookCtx);
@@ -413,10 +416,24 @@ async function collectObservationEvidence(session: ObservationSession, page: IPa
   }
 }
 
-function exportTraceArtifact(session: ObservationSession, error?: unknown): ObservationExportResult | undefined {
+function exportTraceArtifact(
+  session: ObservationSession,
+  status: ObservationExportStatus,
+  error?: unknown,
+  onTraceExport?: (trace: ObservationExportResult) => void,
+): ObservationExportResult | undefined {
   try {
-    const trace = exportObservationSession(session, { error });
-    process.stderr.write(`OpenCLI trace artifact: ${trace.dir}\n`);
+    const trace = exportObservationSession(session, { error, status });
+    if (status === 'failure' && error !== undefined) {
+      attachTraceReceipt(error, trace.receipt);
+    } else {
+      process.stderr.write(`OpenCLI trace artifact: ${trace.dir}\n`);
+    }
+    try {
+      onTraceExport?.(trace);
+    } catch (err) {
+      log.warn(`[trace] Trace export callback failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
     return trace;
   } catch (err) {
     log.warn(`[trace] Failed to export trace artifact: ${err instanceof Error ? err.message : String(err)}`);

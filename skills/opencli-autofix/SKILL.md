@@ -1,6 +1,6 @@
 ---
 name: opencli-autofix
-description: Automatically fix broken OpenCLI adapters when commands fail. Load this skill when an opencli command fails — it guides you through diagnosing the failure via OPENCLI_DIAGNOSTIC, patching the adapter, retrying, and filing an upstream GitHub issue after a verified fix. Works with any AI agent.
+description: Automatically fix broken OpenCLI adapters when commands fail. Load this skill when an opencli command fails — it guides you through collecting a trace artifact, patching the adapter, retrying, and filing an upstream GitHub issue after a verified fix. Works with any AI agent.
 allowed-tools: Bash(opencli:*), Bash(gh:*), Read, Edit, Write
 ---
 
@@ -17,7 +17,7 @@ When an `opencli` command fails because a website changed its DOM, API, or respo
 - **CAPTCHA / rate limiting** — **STOP.** Not an adapter issue.
 
 **Scope constraint:**
-- **Only modify the file at `RepairContext.adapter.sourcePath`** — this is the authoritative adapter location (may be `clis/<site>/` in repo or `~/.opencli/clis/<site>/` for npm installs)
+- **Only modify the file at `adapterSourcePath` in the trace `summary.md` front matter** — this is the authoritative adapter location (may be `clis/<site>/` in repo or `~/.opencli/clis/<site>/` for npm installs)
 - **Never modify** `src/`, `extension/`, `tests/`, `package.json`, or `tsconfig.json`
 
 **Retry budget:** Max **3 repair rounds** per failure. If 3 rounds of diagnose → fix → retry don't resolve it, stop and report what was tried.
@@ -49,48 +49,61 @@ Use when `opencli <site> <command>` fails with repairable errors:
 
 Only proceed to Step 1 if the empty/selector-missing result is **reproducible across retries and alternative entry points**. Otherwise you're patching a working adapter to chase noise, and the patched version will break the next working path.
 
-## Step 1: Collect Diagnostic Context
+## Step 1: Collect Trace Context
 
-Run the failing command with diagnostic mode enabled:
+Run the failing command with failure-retained trace enabled:
 
 ```bash
-OPENCLI_DIAGNOSTIC=1 opencli <site> <command> [args...] 2>diagnostic.json
+opencli <site> <command> [args...] --trace retain-on-failure 2>trace-error.yaml
 ```
 
-This outputs a `RepairContext` JSON between `___OPENCLI_DIAGNOSTIC___` markers in stderr:
+On failure, stderr contains the normal error envelope plus a small `trace` block:
 
-```json
-{
-  "error": {
-    "code": "SELECTOR",
-    "message": "Could not find element: .old-selector",
-    "hint": "The page UI may have changed."
-  },
-  "adapter": {
-    "site": "example",
-    "command": "example/search",
-    "sourcePath": "/path/to/clis/example/search.js",
-    "source": "// full adapter source code"
-  },
-  "page": {
-    "url": "https://example.com/search",
-    "snapshot": "// DOM snapshot with [N] indices",
-    "networkRequests": [],
-    "consoleErrors": []
-  },
-  "timestamp": "2025-01-01T00:00:00.000Z"
-}
+```yaml
+ok: false
+error:
+  code: SELECTOR
+  message: "Could not find element: .old-selector"
+trace:
+  traceId: "..."
+  dir: "/path/to/.opencli/profiles/default/traces/..."
+  summaryPath: "/path/to/.opencli/profiles/default/traces/.../summary.md"
+  receiptPath: "/path/to/.opencli/profiles/default/traces/.../receipt.json"
 ```
 
-**Parse it:**
-```bash
-# Extract JSON between markers from stderr output
-cat diagnostic.json | sed -n '/___OPENCLI_DIAGNOSTIC___/{n;p;}'
+Read `summaryPath` first. It is the LLM-oriented entry point and includes front matter:
+
+```yaml
+---
+traceId: "..."
+status: failure
+site: "example"
+command: "example/search"
+adapterSourcePath: "/path/to/clis/example/search.js"
+errorCode: "SELECTOR"
+errorMessage: "Could not find element: .old-selector"
+---
 ```
+
+The artifact directory contains:
+
+```text
+summary.md      # start here
+receipt.json    # machine-readable trace receipt
+trace.jsonl     # full redacted timeline
+network.jsonl   # redacted network events
+console.jsonl   # redacted console events
+state/          # final snapshots when available
+screenshots/    # final screenshots when available
+```
+
+If you redirected stderr to a file, read that file and copy `trace.summaryPath`.
+
+Do not ask the user to rerun with legacy diagnostic env vars. Trace is the repair evidence path.
 
 ## Step 2: Analyze the Failure
 
-Read the diagnostic context and the adapter source. Classify the root cause:
+Read the trace summary and the adapter source. Classify the root cause:
 
 | Error Code | Likely Cause | Repair Strategy |
 |-----------|-------------|-----------------|
@@ -102,9 +115,9 @@ Read the diagnostic context and the adapter source. Classify the root cause:
 | PAGE_CHANGED | Major redesign | May need full adapter rewrite |
 
 **Key questions to answer:**
-1. What is the adapter trying to do? (Read the `source` field)
-2. What did the page look like when it failed? (Read the `snapshot` field)
-3. What network requests happened? (Read `networkRequests`)
+1. What is the adapter trying to do? (Read the file at `adapterSourcePath`)
+2. What did the page look like when it failed? (Read `summary.md`, then `state/` if needed)
+3. What network requests happened? (Read `Failed Network` in `summary.md`, then `network.jsonl` if needed)
 4. What's the gap between what the adapter expects and what the page provides?
 
 ## Step 3: Explore the Current Website
@@ -139,12 +152,9 @@ opencli browser network --detail <key>
 
 ## Step 4: Patch the Adapter
 
-Read the adapter source file at the path from `RepairContext.adapter.sourcePath` and make targeted fixes. This path is authoritative — it may be in the repo (`clis/`) or user-local (`~/.opencli/clis/`).
+Read the adapter source file at `adapterSourcePath` from the trace summary front matter and make targeted fixes. This path is authoritative — it may be in the repo (`clis/`) or user-local (`~/.opencli/clis/`).
 
-```bash
-# Read the adapter (use the exact path from diagnostic)
-cat <RepairContext.adapter.sourcePath>
-```
+Use the `Read` tool on the exact path from summary.md front matter.
 
 ### Common Fixes
 
@@ -184,11 +194,11 @@ cat <RepairContext.adapter.sourcePath>
 ## Step 5: Verify the Fix
 
 ```bash
-# Run the command normally (without diagnostic mode)
+# Run the command normally
 opencli <site> <command> [args...]
 ```
 
-If it still fails, go back to Step 1 and collect fresh diagnostics. You have a budget of **3 repair rounds** (diagnose → fix → retry). If the same error persists after a fix, try a different approach. After 3 rounds, stop and report what was tried.
+If it still fails, go back to Step 1 and collect a fresh trace. You have a budget of **3 repair rounds** (trace → fix → retry). If the same error persists after a fix, try a different approach. After 3 rounds, stop and report what was tried.
 
 ## Step 6: File an Upstream Issue
 
@@ -203,7 +213,7 @@ If the retry **passes**, the local adapter has drifted from upstream. File a Git
 
 **Procedure:**
 
-1. Prepare the issue content from the RepairContext you already have:
+1. Prepare the issue content from the trace summary you already have:
    - **Title:** `[autofix] <site>/<command>: <error_code>` (e.g. `[autofix] zhihu/hot: SELECTOR`)
    - **Body** (use this template):
 
@@ -264,15 +274,15 @@ In all stop cases, clearly communicate the situation to the user rather than mak
 1. User runs: opencli zhihu hot
    → Fails: SELECTOR "Could not find element: .HotList-item"
 
-2. AI runs: OPENCLI_DIAGNOSTIC=1 opencli zhihu hot 2>diag.json
-   → Gets RepairContext with DOM snapshot showing page loaded
+2. AI runs: opencli zhihu hot --trace retain-on-failure 2>trace-error.yaml
+   → Gets trace summary with final state and failed action evidence
 
-3. AI reads diagnostic: snapshot shows the page loaded but uses ".HotItem" instead of ".HotList-item"
+3. AI reads summary/state: page loaded but uses ".HotItem" instead of ".HotList-item"
 
 4. AI explores: opencli browser open https://www.zhihu.com/hot && opencli browser state
    → Confirms new class name ".HotItem" with child ".HotItem-content"
 
-5. AI patches: Edit adapter at RepairContext.adapter.sourcePath — replace ".HotList-item" with ".HotItem"
+5. AI patches: Edit adapter at `adapterSourcePath` — replace ".HotList-item" with ".HotItem"
 
 6. AI verifies: opencli zhihu hot
    → Success: returns hot topics

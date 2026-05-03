@@ -85,11 +85,10 @@ A few commands override the default via `cmd.defaultFormat` (e.g. chat commands 
 | `OPENCLI_CACHE_DIR` | `~/.opencli/cache` | Network capture + browser-state cache. |
 | `OPENCLI_WINDOW_FOCUSED` | `false` | `1` → automation window opens in the foreground. |
 | `OPENCLI_VERBOSE` | `false` | Verbose logging (also triggered by `-v`). |
-| `OPENCLI_DIAGNOSTIC` | `false` | `1` → emit structured `RepairContext` JSON on adapter failure. Required for `opencli-autofix`. |
 
 ## Self-repair
 
-When an adapter command fails because the site changed (selectors drifted, API rotated, response schema shifted), the CLI emits a hint: `# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 ...`. Do that, read the `RepairContext`, patch the adapter at `RepairContext.adapter.sourcePath`, and retry. Max 3 repair rounds. The full flow is in `opencli-autofix`.
+When an adapter command fails because the site changed (selectors drifted, API rotated, response schema shifted), re-run with `--trace retain-on-failure`. The error envelope includes a `trace` block pointing at `summary.md`; patch only the `adapterSourcePath` from that summary and retry. Max 3 repair rounds. The full flow is in `opencli-autofix`.
 
 ## Writing your own adapter
 
@@ -166,4 +165,4 @@ The following were removed in the PR #1094 consolidation — don't try to invoke
 
 - Don't paste this skill's command list into your plan; it will rot. Call `opencli list -f json` at the start of a task instead.
 - Don't assume every adapter needs a browser — strategy `PUBLIC` and `LOCAL` don't. Check the `strategy` field.
-- Don't silently fall back from a failing adapter to a hand-rolled `fetch` — `OPENCLI_DIAGNOSTIC=1` almost always tells you exactly what to change in the adapter. Do that first.
+- Don't silently fall back from a failing adapter to a hand-rolled `fetch` — `--trace retain-on-failure` gives you the browser evidence and adapter source path. Do that first.

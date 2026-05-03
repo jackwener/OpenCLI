@@ -48,7 +48,7 @@ opencli CLI
 - `src/runtime.ts` — shared command runtime and target resolution
 - `src/daemon.ts` — lifecycle and bridge behavior for the local daemon
 - `src/doctor.ts` — browser bridge diagnostics
-- `src/diagnostic.ts` — structured failure context
+- `src/observation/` — trace artifacts, redaction, and structured runtime evidence
 - `src/interceptor.ts` — interception helpers for browser-backed strategies
 - `src/browser/` — Browser Bridge connection and browser-side primitives
 
