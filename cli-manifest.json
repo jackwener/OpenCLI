@@ -17345,6 +17345,37 @@
   },
   {
     "site": "weibo",
+    "name": "favorites",
+    "description": "我的微博收藏列表",
+    "domain": "weibo.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "数量（最多50）"
+      }
+    ],
+    "columns": [
+      "author",
+      "text",
+      "time",
+      "source",
+      "likes",
+      "comments",
+      "reposts",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "weibo/favorites.js",
+    "sourceFile": "weibo/favorites.js",
+    "navigateBefore": "https://weibo.com"
+  },
+  {
+    "site": "weibo",
     "name": "feed",
     "description": "Fetch Weibo timeline (for-you or following)",
     "domain": "weibo.com",
@@ -17480,6 +17511,12 @@
         "type": "string",
         "required": false,
         "help": "Image paths, comma-separated, max 9 (jpg/png/gif/webp)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually publish the Weibo post. Without this flag the command fails closed."
       }
     ],
     "columns": [

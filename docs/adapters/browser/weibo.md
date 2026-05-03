@@ -12,6 +12,8 @@
 | `opencli weibo user` | 用户信息 |
 | `opencli weibo me` | 我的信息 |
 | `opencli weibo post` | 发微博 |
+| `opencli weibo favorites` | 我的微博收藏列表 |
+| `opencli weibo publish` | 通过网页 UI 发布微博，支持最多 9 张图片 |
 | `opencli weibo comments` | 微博评论 |
 
 ## Usage Examples
@@ -34,6 +36,15 @@ opencli weibo feed --type following --limit 10
 
 # Verbose mode
 opencli weibo hot -v
+
+# Favorites
+opencli weibo favorites --limit 20
+
+# Publish text (write action, requires explicit --execute)
+opencli weibo publish "Hello from OpenCLI" --execute
+
+# Publish text with images
+opencli weibo publish "Hello with images" --images /path/a.jpg,/path/b.png --execute
 ```
 
 ## Prerequisites

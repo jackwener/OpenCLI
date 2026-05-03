@@ -18,7 +18,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getSelfUid } from './utils.js';
 
 const MAX_IMAGES = 9;
@@ -36,8 +36,8 @@ const FILE_INPUT_SELECTOR = 'input[type="file"][class*="_file_"]';
 
 function validateText(text) {
     const t = String(text ?? '').trim();
-    if (!t) throw new CommandExecutionError('Text content cannot be empty');
-    if (t.length > 2000) throw new CommandExecutionError('Text exceeds 2000 characters');
+    if (!t) throw new ArgumentError('weibo publish text cannot be empty');
+    if (t.length > 2000) throw new ArgumentError('weibo publish text exceeds 2000 characters');
     return t;
 }
 
@@ -45,17 +45,17 @@ function validateImagePaths(raw) {
     if (!raw) return [];
     const paths = raw.split(',').map(s => s.trim()).filter(Boolean);
     if (paths.length > MAX_IMAGES) {
-        throw new CommandExecutionError(`Too many images: ${paths.length} (max ${MAX_IMAGES})`);
+        throw new ArgumentError(`Too many images: ${paths.length} (max ${MAX_IMAGES})`);
     }
     return paths.map(p => {
         const absPath = path.resolve(p);
         const ext = path.extname(absPath).toLowerCase();
         if (!SUPPORTED_EXTENSIONS.has(ext)) {
-            throw new CommandExecutionError(`Unsupported image format "${ext}". Supported: jpg, png, gif, webp`);
+            throw new ArgumentError(`Unsupported image format "${ext}". Supported: jpg, png, gif, webp`);
         }
         const stat = fs.statSync(absPath, { throwIfNoEntry: false });
         if (!stat || !stat.isFile()) {
-            throw new CommandExecutionError(`Not a valid file: ${absPath}`);
+            throw new ArgumentError(`Not a valid file: ${absPath}`);
         }
         return absPath;
     });
@@ -82,6 +82,12 @@ cli({
             required: false,
             help: `Image paths, comma-separated, max ${MAX_IMAGES} (jpg/png/gif/webp)`,
         },
+        {
+            name: 'execute',
+            type: 'boolean',
+            required: false,
+            help: 'Actually publish the Weibo post. Without this flag the command fails closed.',
+        },
     ],
     columns: ['status', 'message', 'text'],
     func: async (page, kwargs) => {
@@ -89,6 +95,9 @@ cli({
 
         const text = validateText(kwargs.text);
         const absPaths = validateImagePaths(kwargs.images);
+        if (!kwargs.execute) {
+            throw new ArgumentError('weibo publish requires --execute to post');
+        }
 
         // Step 1: Navigate to weibo.com and wait for feed to load
         await page.goto('https://weibo.com', { waitUntil: 'load', settleMs: 2000 });
@@ -97,7 +106,8 @@ cli({
         // Step 2: Check login
         try {
             await getSelfUid(page);
-        } catch {
+        } catch (err) {
+            if (err instanceof AuthRequiredError) throw err;
             throw new CommandExecutionError('Not logged into Weibo. Please login at weibo.com in your Chrome browser.');
         }
 
@@ -116,7 +126,7 @@ cli({
             }
         `);
         if (!clickResult?.ok) {
-            return [{ status: 'failed', message: clickResult?.message ?? 'Could not open compose editor.', text }];
+            throw new CommandExecutionError(clickResult?.message ?? 'Could not open compose editor.');
         }
 
         // Step 4: Wait for the textarea editor to appear (visible, not just in DOM)
@@ -137,8 +147,7 @@ cli({
             await page.wait({ time: COMPOSE_POLL_MS / 1000 });
         }
         if (!editorFound) {
-            await page.screenshot({ path: '/tmp/weibo_editor_debug.png' });
-            return [{ status: 'failed', message: 'Editor did not appear. Screenshot: /tmp/weibo_editor_debug.png', text }];
+            throw new CommandExecutionError('Weibo compose editor did not appear');
         }
 
         // Step 5: Upload images first (before text to avoid editor reset)
@@ -155,7 +164,7 @@ cli({
                 }
             `);
             if (!fileInputFound) {
-                return [{ status: 'failed', message: 'Could not find image file input on Weibo compose page. UI may have changed.', text }];
+                throw new CommandExecutionError('Could not find image file input on Weibo compose page. UI may have changed.');
             }
 
             await page.setFileInput(absPaths, FILE_INPUT_SELECTOR);
@@ -178,11 +187,7 @@ cli({
             }
 
             if (!uploadResult?.ok) {
-                return [{
-                    status: '⚠️ upload_pending',
-                    message: uploadResult?.message ?? 'Image upload may still be in progress. Check manually.',
-                    text,
-                }];
+                throw new CommandExecutionError(uploadResult?.message ?? 'Image upload did not complete before timeout');
             }
         }
 
@@ -207,7 +212,7 @@ cli({
         `, { textContent: text });
 
         if (!insertResult?.ok) {
-            return [{ status: 'failed', message: insertResult?.message ?? 'Could not insert text.', text }];
+            throw new CommandExecutionError(insertResult?.message ?? 'Could not insert text.');
         }
 
 
@@ -232,7 +237,7 @@ cli({
             }
         `);
         if (!publishResult?.ok) {
-            return [{ status: 'failed', message: publishResult?.message ?? 'Could not click publish.', text }];
+            throw new CommandExecutionError(publishResult?.message ?? 'Could not click publish.');
         }
 
         // Step 8: Wait for success/failure result
@@ -241,15 +246,6 @@ cli({
             await page.wait({ time: SUBMIT_POLL_MS / 1000 });
             finalResult = await page.evaluateWithArgs(`
                 (() => {
-                    const maxIter = maxIterations;
-                    const currentIter = currentIndex;
-                    // If the editor has closed/collapsed, that's a strong success signal
-                    const ta = document.querySelector('textarea._input_13iqr_8');
-                    const editorGone = !ta || ta.offsetParent === null;
-                    if (editorGone && currentIter > 1) {
-                        return { ok: true, message: 'Editor closed after publish' };
-                    }
-
                     const successMarkers = ['发布成功', '已发布', '发送成功'];
                     const errorMarkers = ['发布失败', '发送失败', '内容违规', '请稍后再试', '频繁'];
                     for (const el of document.querySelectorAll('*')) {
@@ -274,17 +270,22 @@ cli({
         }
 
         if (!finalResult) {
-            return [{
-                status: '⚠️ uncertain',
-                message: 'Publish button clicked but result unclear. Check Weibo manually.',
-                text,
-            }];
+            throw new CommandExecutionError('Publish button clicked but result was unclear. Check Weibo manually.');
+        }
+
+        if (!finalResult.ok) {
+            throw new CommandExecutionError(finalResult.message || 'Weibo publish failed');
         }
 
         return [{
-            status: finalResult.ok ? '✅ success' : '❌ failed',
-            message: finalResult.message || (finalResult.ok ? 'Published successfully' : 'Publish failed'),
+            status: 'success',
+            message: finalResult.message || 'Published successfully',
             text,
         }];
     },
 });
+
+export const __test__ = {
+    validateText,
+    validateImagePaths,
+};
