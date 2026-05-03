@@ -48,6 +48,11 @@ const pending = new Map<string, {
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
 }>();
+// Extension log ring buffer
+interface LogEntry { level: string; msg: string; ts: number; }
+const LOG_BUFFER_SIZE = 200;
+const logBuffer: LogEntry[] = [];
+
 class DaemonCommandFailure extends Error {
   constructor(
     message: string,
@@ -58,6 +63,11 @@ class DaemonCommandFailure extends Error {
     super(message);
     this.name = 'DaemonCommandFailure';
   }
+}
+
+function pushLog(entry: LogEntry): void {
+  logBuffer.push(entry);
+  if (logBuffer.length > LOG_BUFFER_SIZE) logBuffer.shift();
 }
 
 function activeProfiles(): ExtensionProfileConnection[] {
@@ -253,6 +263,22 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === 'GET' && pathname === '/logs') {
+    const params = new URL(url, `http://localhost:${PORT}`).searchParams;
+    const level = params.get('level');
+    const filtered = level
+      ? logBuffer.filter(e => e.level === level)
+      : logBuffer;
+    jsonResponse(res, 200, { ok: true, logs: filtered });
+    return;
+  }
+
+  if (req.method === 'DELETE' && pathname === '/logs') {
+    logBuffer.length = 0;
+    jsonResponse(res, 200, { ok: true });
+    return;
+  }
+
   if (req.method === 'POST' && pathname === '/shutdown') {
     jsonResponse(res, 200, { ok: true, message: 'Shutting down' });
     setTimeout(() => shutdown(), 100);
@@ -367,6 +393,15 @@ wss.on('connection', (ws: WebSocket) => {
         connection.lastSeenAt = Date.now();
         if (connection.extensionVersion) recordExtensionVersion(connection.extensionVersion);
         log.info(`[daemon] Extension profile connected: ${connection.contextId}`);
+        return;
+      }
+
+      // Handle log messages from extension
+      if (msg.type === 'log') {
+        if (msg.level === 'error') log.error(`[ext] ${msg.msg}`);
+        else if (msg.level === 'warn') log.warn(`[ext] ${msg.msg}`);
+        else log.info(`[ext] ${msg.msg}`);
+        pushLog({ level: msg.level, msg: msg.msg, ts: msg.ts ?? Date.now() });
         return;
       }
 

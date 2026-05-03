@@ -13,13 +13,9 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
-      input: {
-        background: resolve(__dirname, 'src/background.ts'),
-        offscreen: resolve(__dirname, 'src/offscreen.ts'),
-      },
+      input: resolve(__dirname, 'src/background.ts'),
       output: {
-        entryFileNames: '[name].js',
-        chunkFileNames: 'assets/[name].js',
+        entryFileNames: 'background.js',
         format: 'es',
       },
     },

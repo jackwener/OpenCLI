@@ -1,25 +1,23 @@
 /**
  * OpenCLI — Service Worker (background script).
  *
- * Handles Chrome API commands relayed by the offscreen daemon bridge.
+ * Connects to the opencli daemon via WebSocket, receives commands,
+ * dispatches them to Chrome APIs (debugger/tabs/cookies), returns results.
  */
-
-import type { Command, Result } from './protocol';
-import { OFFSCREEN_DOCUMENT, MSG_BRIDGE_INIT, MSG_EXECUTE_COMMAND } from './protocol';
-import * as executor from './cdp';
-import * as identity from './identity';
 
 declare const __OPENCLI_COMPAT_RANGE__: string;
 
+import type { Command, Result } from './protocol';
+import { DAEMON_HOST, DAEMON_PORT, DAEMON_WS_URL, DAEMON_PING_URL, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
+import * as executor from './cdp';
+import * as identity from './identity';
+
+let ws: WebSocket | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectAttempts = 0;
 const CONTEXT_ID_KEY = 'opencli_context_id_v1';
 let currentContextId = 'default';
 let contextIdPromise: Promise<string> | null = null;
-let creatingOffscreen: Promise<void> | null = null;
-let runtimeReadyPromise: Promise<void> | null = null;
-
-function getCompatRange(): string {
-  return typeof __OPENCLI_COMPAT_RANGE__ === 'string' ? __OPENCLI_COMPAT_RANGE__ : '>=0.0.0';
-}
 
 async function getCurrentContextId(): Promise<string> {
   if (contextIdPromise) return contextIdPromise;
@@ -64,7 +62,107 @@ function generateContextId(): string {
   return id;
 }
 
-// ─── Offscreen bridge lifecycle ──────────────────────────────────────
+// ─── Console log forwarding ──────────────────────────────────────────
+// Hook console.log/warn/error to forward logs to daemon via WebSocket.
+
+const _origLog = console.log.bind(console);
+const _origWarn = console.warn.bind(console);
+const _origError = console.error.bind(console);
+
+function forwardLog(level: 'info' | 'warn' | 'error', args: unknown[]): void {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  try {
+    const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+    ws.send(JSON.stringify({ type: 'log', level, msg, ts: Date.now() }));
+  } catch { /* don't recurse */ }
+}
+
+console.log = (...args: unknown[]) => { _origLog(...args); forwardLog('info', args); };
+console.warn = (...args: unknown[]) => { _origWarn(...args); forwardLog('warn', args); };
+console.error = (...args: unknown[]) => { _origError(...args); forwardLog('error', args); };
+
+// ─── WebSocket connection ────────────────────────────────────────────
+
+/**
+ * Probe the daemon via its /ping HTTP endpoint before attempting a WebSocket
+ * connection.  fetch() failures are silently catchable; new WebSocket() is not
+ * — Chrome logs ERR_CONNECTION_REFUSED to the extension error page before any
+ * JS handler can intercept it.  By keeping the probe inside connect() every
+ * call site remains unchanged and the guard can never be accidentally skipped.
+ */
+async function connect(): Promise<void> {
+  if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
+
+  try {
+    const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1000) });
+    if (!res.ok) return; // unexpected response — not our daemon
+  } catch {
+    return; // daemon not running — skip WebSocket to avoid console noise
+  }
+
+  try {
+    const contextId = await getCurrentContextId();
+    ws = new WebSocket(DAEMON_WS_URL);
+    currentContextId = contextId;
+  } catch {
+    scheduleReconnect();
+    return;
+  }
+
+  ws.onopen = () => {
+    console.log('[opencli] Connected to daemon');
+    reconnectAttempts = 0; // Reset on successful connection
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    // Send version + compatibility range so the daemon can report mismatches to the CLI
+    ws?.send(JSON.stringify({
+      type: 'hello',
+      contextId: currentContextId,
+      version: chrome.runtime.getManifest().version,
+      compatRange: __OPENCLI_COMPAT_RANGE__,
+    }));
+  };
+
+  ws.onmessage = async (event) => {
+    try {
+      const command = JSON.parse(event.data as string) as Command;
+      const result = await handleCommand(command);
+      ws?.send(JSON.stringify(result));
+    } catch (err) {
+      console.error('[opencli] Message handling error:', err);
+    }
+  };
+
+  ws.onclose = () => {
+    console.log('[opencli] Disconnected from daemon');
+    ws = null;
+    scheduleReconnect();
+  };
+
+  ws.onerror = () => {
+    ws?.close();
+  };
+}
+
+/**
+ * After MAX_EAGER_ATTEMPTS (reaching 60s backoff), stop scheduling reconnects.
+ * The keepalive alarm (~24s) will still call connect() periodically, but at a
+ * much lower frequency — reducing console noise when the daemon is not running.
+ */
+const MAX_EAGER_ATTEMPTS = 6; // 2s, 4s, 8s, 16s, 32s, 60s — then stop
+
+function scheduleReconnect(): void {
+  if (reconnectTimer) return;
+  reconnectAttempts++;
+  if (reconnectAttempts > MAX_EAGER_ATTEMPTS) return; // let keepalive alarm handle it
+  const delay = Math.min(WS_RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts - 1), WS_RECONNECT_MAX_DELAY);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    void connect();
+  }, delay);
+}
 
 // ─── Browser target leases ───────────────────────────────────────────
 // OpenCLI does not model workspace identity as a Chrome window. A workspace
@@ -489,67 +587,18 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 
 let initialized = false;
 
-async function hasOffscreenDocument(): Promise<boolean> {
-  if (typeof chrome.runtime.getContexts === 'function') {
-    const contexts = await chrome.runtime.getContexts({
-      contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
-      documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT)],
-    });
-    return contexts.length > 0;
-  }
-  return await chrome.offscreen.hasDocument();
-}
-
-async function ensureOffscreenBridge(): Promise<void> {
-  if (await hasOffscreenDocument()) return;
-  if (!creatingOffscreen) {
-    creatingOffscreen = chrome.offscreen.createDocument({
-      url: OFFSCREEN_DOCUMENT,
-      // Chrome has no "long-lived WebSocket bridge" reason. WORKERS is the
-      // closest fit: this document hosts background transport work that cannot
-      // live reliably in a suspendable MV3 service worker.
-      reasons: [chrome.offscreen.Reason.WORKERS],
-      justification: 'Maintain the OpenCLI daemon bridge outside the MV3 service worker lifecycle.',
-    }).finally(() => {
-      creatingOffscreen = null;
-    });
-  }
-  await creatingOffscreen;
-  await hasOffscreenDocument();
-}
-
-async function initializeOffscreenBridge(): Promise<void> {
-  const contextId = await getCurrentContextId();
-  await ensureOffscreenBridge();
-  await chrome.runtime.sendMessage({
-    type: MSG_BRIDGE_INIT,
-    contextId,
-    version: chrome.runtime.getManifest().version,
-    compatRange: getCompatRange(),
-  });
-}
-
-async function ensureInitialized(): Promise<void> {
-  if (!initialized) {
-    initialized = true;
-    executor.registerListeners();
-    executor.registerFrameTracking();
-    console.log('[opencli] OpenCLI extension initialized');
-  }
-  if (!runtimeReadyPromise) {
-    runtimeReadyPromise = (async () => {
-      await reconcileTargetLeaseRegistry();
-      await initializeOffscreenBridge();
-    })().catch((err) => {
-      runtimeReadyPromise = null;
-      throw err;
-    });
-  }
-  await runtimeReadyPromise;
-}
-
 function initialize(): void {
-  void ensureInitialized();
+  if (initialized) return;
+  initialized = true;
+  chrome.alarms.create('keepalive', { periodInMinutes: 0.4 }); // ~24 seconds
+  executor.registerListeners();
+  executor.registerFrameTracking();
+  void (async () => {
+    await getCurrentContextId();
+    await reconcileTargetLeaseRegistry();
+    await connect();
+  })();
+  console.log('[opencli] OpenCLI extension initialized');
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -561,46 +610,52 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === 'keepalive') void connect();
   const workspace = workspaceFromAlarmName(alarm.name);
   if (workspace) await releaseWorkspaceLease(workspace, 'idle alarm');
 });
 
-// ─── Offscreen command relay ────────────────────────────────────────
+// ─── Popup status API ───────────────────────────────────────────────
 
-chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
-  if (!msg || typeof msg !== 'object' || (msg as { type?: unknown }).type !== MSG_EXECUTE_COMMAND) {
-    return false;
-  }
-
-  const command = (msg as { command?: unknown }).command as Command | undefined;
-  if (!command?.id || !command.action) {
-    sendResponse({ id: command?.id ?? 'unknown', ok: false, error: 'Invalid OpenCLI command relay payload' });
-    return false;
-  }
-
-  try {
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type === 'getStatus') {
     void (async () => {
-      await ensureInitialized();
-      try {
-        sendResponse(await handleCommand(command));
-      } catch (err) {
-        sendResponse({
-          id: command.id,
-          ok: false,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
+      const contextId = await getCurrentContextId();
+      const connected = ws?.readyState === WebSocket.OPEN;
+      const extensionVersion = chrome.runtime.getManifest().version;
+      const daemonVersion = connected ? await fetchDaemonVersion() : null;
+      sendResponse({
+        connected,
+        reconnecting: reconnectTimer !== null,
+        contextId,
+        extensionVersion,
+        daemonVersion,
+      });
     })();
     return true;
-  } catch (err) {
-    sendResponse({
-      id: command.id,
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return false;
   }
+  return false;
 });
+
+/**
+ * Best-effort fetch of the daemon's reported version for the popup status panel.
+ * Resolves to null on any failure — the popup degrades to showing connection
+ * state without the version label.
+ */
+async function fetchDaemonVersion(): Promise<string | null> {
+  try {
+    const res = await fetch(`http://${DAEMON_HOST}:${DAEMON_PORT}/status`, {
+      method: 'GET',
+      headers: { 'X-OpenCLI': '1' },
+      signal: AbortSignal.timeout(1500),
+    });
+    if (!res.ok) return null;
+    const body = await res.json() as { daemonVersion?: unknown };
+    return typeof body.daemonVersion === 'string' ? body.daemonVersion : null;
+  } catch {
+    return null;
+  }
+}
 
 // ─── Command dispatcher ─────────────────────────────────────────────
 

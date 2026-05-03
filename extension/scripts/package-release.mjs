@@ -45,19 +45,10 @@ function addLocalAsset(files, ref) {
   if (isLocalAsset(ref)) files.add(ref);
 }
 
-function getDynamicOffscreenDocuments(manifest) {
-  if (!manifest.permissions?.includes?.('offscreen')) return [];
-  // Offscreen documents are created at runtime via chrome.offscreen.createDocument
-  // rather than referenced by manifest.json, so keep the release package aware
-  // of OpenCLI's fixed offscreen bridge entrypoint explicitly.
-  return ['offscreen.html'];
-}
-
 function collectManifestEntrypoints(manifest) {
   const files = new Set(['manifest.json']);
 
   addLocalAsset(files, manifest.background?.service_worker);
-  for (const page of getDynamicOffscreenDocuments(manifest)) addLocalAsset(files, page);
   addLocalAsset(files, manifest.action?.default_popup);
   addLocalAsset(files, manifest.options_page);
   addLocalAsset(files, manifest.devtools_page);
@@ -103,30 +94,6 @@ async function collectHtmlDependencies(relativeHtmlPath, files, visited) {
   }
 }
 
-async function collectJsDependencies(relativeJsPath, files, visited) {
-  if (visited.has(relativeJsPath)) return;
-  visited.add(relativeJsPath);
-
-  const jsPath = path.join(extensionDir, relativeJsPath);
-  const js = await fs.readFile(jsPath, 'utf8');
-  const importRe = /(?:import|export)\s+(?:[^"'()]*?\s+from\s+)?["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g;
-
-  for (const match of js.matchAll(importRe)) {
-    const rawRef = match[1] ?? match[2];
-    const cleanRef = rawRef.split('?')[0];
-    if (!isLocalAsset(cleanRef)) continue;
-
-    const resolvedRelativePath = cleanRef.startsWith('/')
-      ? cleanRef.slice(1)
-      : path.posix.normalize(path.posix.join(path.posix.dirname(relativeJsPath), cleanRef));
-
-    addLocalAsset(files, resolvedRelativePath);
-    if (resolvedRelativePath.endsWith('.js')) {
-      await collectJsDependencies(resolvedRelativePath, files, visited);
-    }
-  }
-}
-
 async function collectManifestAssets(manifest) {
   const files = new Set(collectManifestEntrypoints(manifest));
   const htmlPages = [];
@@ -137,10 +104,6 @@ async function collectManifestAssets(manifest) {
   if (manifest.options_page) htmlPages.push(manifest.options_page);
   if (manifest.devtools_page) htmlPages.push(manifest.devtools_page);
   if (manifest.side_panel?.default_path) htmlPages.push(manifest.side_panel.default_path);
-  for (const page of getDynamicOffscreenDocuments(manifest)) htmlPages.push(page);
-  if (manifest.offscreen_documents) {
-    for (const page of manifest.offscreen_documents ?? []) htmlPages.push(page);
-  }
   for (const page of manifest.sandbox?.pages ?? []) htmlPages.push(page);
   for (const overridePage of Object.values(manifest.chrome_url_overrides ?? {})) htmlPages.push(overridePage);
 
@@ -149,15 +112,6 @@ async function collectManifestAssets(manifest) {
     if (isLocalAsset(htmlPage)) {
       await collectHtmlDependencies(htmlPage, files, visited);
     }
-  }
-
-  const visitedJs = new Set();
-  let pendingJs = [...files].filter(file => file.endsWith('.js') && !visitedJs.has(file));
-  while (pendingJs.length > 0) {
-    for (const jsFile of pendingJs) {
-      await collectJsDependencies(jsFile, files, visitedJs);
-    }
-    pendingJs = [...files].filter(file => file.endsWith('.js') && !visitedJs.has(file));
   }
 
   return [...files];

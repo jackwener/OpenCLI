@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+      color: #1d1d1f;
+      background: #fff;
+      padding: 14px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .header img { width: 22px; height: 22px; }
+    .header h1 { font-size: 14px; font-weight: 600; flex: 1; }
+    .header .version-tag {
+      font-size: 11px;
+      color: #86868b;
+      font-variant-numeric: tabular-nums;
+    }
+    .card {
+      border: 1px solid #ececec;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .card .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 12px;
+      background: #fafafa;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot.connected { background: #34c759; }
+    .dot.disconnected { background: #ff3b30; }
+    .dot.connecting { background: #ff9500; }
+    .status-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1d1d1f;
+      flex: 1;
+    }
+    .daemon-version {
+      font-size: 11px;
+      color: #86868b;
+      font-variant-numeric: tabular-nums;
+    }
+    .profile-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-top: 1px solid #ececec;
+      background: #fff;
+    }
+    .profile-label {
+      font-size: 11px;
+      color: #86868b;
+      flex-shrink: 0;
+    }
+    .profile-id {
+      flex: 1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      color: #1d1d1f;
+      user-select: all;
+      word-break: break-all;
+    }
+    .copy-btn {
+      flex-shrink: 0;
+      padding: 4px 9px;
+      font-size: 11px;
+      font-family: inherit;
+      color: #007aff;
+      background: transparent;
+      border: 1px solid #d2d2d7;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+    }
+    .copy-btn:hover { background: #f0f6ff; }
+    .copy-btn:active { background: #e1edff; }
+    .copy-btn.copied { color: #34c759; border-color: #34c759; background: #f0fdf4; }
+    .hint {
+      padding: 10px 12px;
+      border-top: 1px solid #ececec;
+      background: #f9fafc;
+      font-size: 11px;
+      color: #6e6e73;
+      line-height: 1.5;
+    }
+    .hint code {
+      background: #ececec;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+    }
+    .footer {
+      margin-top: 12px;
+      text-align: center;
+      font-size: 11px;
+      color: #86868b;
+    }
+    .footer a { color: #007aff; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="icons/icon-48.png" alt="OpenCLI">
+    <h1>OpenCLI</h1>
+    <span class="version-tag" id="extVersion"></span>
+  </div>
+  <div class="card disconnected" id="card">
+    <div class="status-row">
+      <span class="dot disconnected" id="dot"></span>
+      <span class="status-text" id="status">Checking...</span>
+      <span class="daemon-version" id="daemonVersion"></span>
+    </div>
+    <div class="profile-row" id="profileRow" style="display: none;">
+      <span class="profile-label">Profile</span>
+      <span class="profile-id" id="contextId"></span>
+      <button type="button" class="copy-btn" id="copyBtn" title="Copy contextId">Copy</button>
+    </div>
+    <div class="hint" id="hint" style="display: none;">
+      The extension connects automatically when you run any <code>opencli</code> command.
+    </div>
+  </div>
+  <div class="footer">
+    <a href="https://github.com/jackwener/opencli" target="_blank">Documentation</a>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
