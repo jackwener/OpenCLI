@@ -1,9 +1,4 @@
-const DAEMON_PORT = 19825;
-const DAEMON_HOST = "localhost";
-const DAEMON_WS_URL = `ws://${DAEMON_HOST}:${DAEMON_PORT}/ext`;
-const DAEMON_PING_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}/ping`;
-const WS_RECONNECT_BASE_DELAY = 2e3;
-const WS_RECONNECT_MAX_DELAY = 5e3;
+import { M as MSG_EXECUTE_COMMAND, a as MSG_BRIDGE_INIT, O as OFFSCREEN_DOCUMENT } from './assets/protocol.js';
 
 const attached = /* @__PURE__ */ new Set();
 const tabFrameContexts = /* @__PURE__ */ new Map();
@@ -416,12 +411,14 @@ async function refreshMappings() {
   }
 }
 
-let ws = null;
-let reconnectTimer = null;
-let reconnectAttempts = 0;
 const CONTEXT_ID_KEY = "opencli_context_id_v1";
 let currentContextId = "default";
 let contextIdPromise = null;
+let creatingOffscreen = null;
+let runtimeReadyPromise = null;
+function getCompatRange() {
+  return ">=1.7.0" ;
+}
 async function getCurrentContextId() {
   if (contextIdPromise) return contextIdPromise;
   contextIdPromise = (async () => {
@@ -462,88 +459,6 @@ function generateContextId() {
     }
   }
   return id;
-}
-const _origLog = console.log.bind(console);
-const _origWarn = console.warn.bind(console);
-const _origError = console.error.bind(console);
-function forwardLog(level, args) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  try {
-    const msg = args.map((a) => typeof a === "string" ? a : JSON.stringify(a)).join(" ");
-    ws.send(JSON.stringify({ type: "log", level, msg, ts: Date.now() }));
-  } catch {
-  }
-}
-console.log = (...args) => {
-  _origLog(...args);
-  forwardLog("info", args);
-};
-console.warn = (...args) => {
-  _origWarn(...args);
-  forwardLog("warn", args);
-};
-console.error = (...args) => {
-  _origError(...args);
-  forwardLog("error", args);
-};
-async function connect() {
-  if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
-  try {
-    const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1e3) });
-    if (!res.ok) return;
-  } catch {
-    return;
-  }
-  try {
-    const contextId = await getCurrentContextId();
-    ws = new WebSocket(DAEMON_WS_URL);
-    currentContextId = contextId;
-  } catch {
-    scheduleReconnect();
-    return;
-  }
-  ws.onopen = () => {
-    console.log("[opencli] Connected to daemon");
-    reconnectAttempts = 0;
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
-    ws?.send(JSON.stringify({
-      type: "hello",
-      contextId: currentContextId,
-      version: chrome.runtime.getManifest().version,
-      compatRange: ">=1.7.0"
-    }));
-  };
-  ws.onmessage = async (event) => {
-    try {
-      const command = JSON.parse(event.data);
-      const result = await handleCommand(command);
-      ws?.send(JSON.stringify(result));
-    } catch (err) {
-      console.error("[opencli] Message handling error:", err);
-    }
-  };
-  ws.onclose = () => {
-    console.log("[opencli] Disconnected from daemon");
-    ws = null;
-    scheduleReconnect();
-  };
-  ws.onerror = () => {
-    ws?.close();
-  };
-}
-const MAX_EAGER_ATTEMPTS = 6;
-function scheduleReconnect() {
-  if (reconnectTimer) return;
-  reconnectAttempts++;
-  if (reconnectAttempts > MAX_EAGER_ATTEMPTS) return;
-  const delay = Math.min(WS_RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts - 1), WS_RECONNECT_MAX_DELAY);
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null;
-    void connect();
-  }, delay);
 }
 const automationSessions = /* @__PURE__ */ new Map();
 let ownedContainerWindowId = null;
@@ -868,18 +783,63 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   await persistRuntimeState();
 });
 let initialized = false;
+async function hasOffscreenDocument() {
+  if (typeof chrome.runtime.getContexts === "function") {
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+      documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT)]
+    });
+    return contexts.length > 0;
+  }
+  return await chrome.offscreen.hasDocument();
+}
+async function ensureOffscreenBridge() {
+  if (await hasOffscreenDocument()) return;
+  if (!creatingOffscreen) {
+    creatingOffscreen = chrome.offscreen.createDocument({
+      url: OFFSCREEN_DOCUMENT,
+      // Chrome has no "long-lived WebSocket bridge" reason. WORKERS is the
+      // closest fit: this document hosts background transport work that cannot
+      // live reliably in a suspendable MV3 service worker.
+      reasons: [chrome.offscreen.Reason.WORKERS],
+      justification: "Maintain the OpenCLI daemon bridge outside the MV3 service worker lifecycle."
+    }).finally(() => {
+      creatingOffscreen = null;
+    });
+  }
+  await creatingOffscreen;
+  await hasOffscreenDocument();
+}
+async function initializeOffscreenBridge() {
+  const contextId = await getCurrentContextId();
+  await ensureOffscreenBridge();
+  await chrome.runtime.sendMessage({
+    type: MSG_BRIDGE_INIT,
+    contextId,
+    version: chrome.runtime.getManifest().version,
+    compatRange: getCompatRange()
+  });
+}
+async function ensureInitialized() {
+  if (!initialized) {
+    initialized = true;
+    registerListeners();
+    registerFrameTracking();
+    console.log("[opencli] OpenCLI extension initialized");
+  }
+  if (!runtimeReadyPromise) {
+    runtimeReadyPromise = (async () => {
+      await reconcileTargetLeaseRegistry();
+      await initializeOffscreenBridge();
+    })().catch((err) => {
+      runtimeReadyPromise = null;
+      throw err;
+    });
+  }
+  await runtimeReadyPromise;
+}
 function initialize() {
-  if (initialized) return;
-  initialized = true;
-  chrome.alarms.create("keepalive", { periodInMinutes: 0.4 });
-  registerListeners();
-  registerFrameTracking();
-  void (async () => {
-    await getCurrentContextId();
-    await reconcileTargetLeaseRegistry();
-    await connect();
-  })();
-  console.log("[opencli] OpenCLI extension initialized");
+  void ensureInitialized();
 }
 chrome.runtime.onInstalled.addListener(() => {
   initialize();
@@ -888,43 +848,41 @@ chrome.runtime.onStartup.addListener(() => {
   initialize();
 });
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === "keepalive") void connect();
   const workspace = workspaceFromAlarmName(alarm.name);
   if (workspace) await releaseWorkspaceLease(workspace, "idle alarm");
 });
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.type === "getStatus") {
+  if (!msg || typeof msg !== "object" || msg.type !== MSG_EXECUTE_COMMAND) {
+    return false;
+  }
+  const command = msg.command;
+  if (!command?.id || !command.action) {
+    sendResponse({ id: command?.id ?? "unknown", ok: false, error: "Invalid OpenCLI command relay payload" });
+    return false;
+  }
+  try {
     void (async () => {
-      const contextId = await getCurrentContextId();
-      const connected = ws?.readyState === WebSocket.OPEN;
-      const extensionVersion = chrome.runtime.getManifest().version;
-      const daemonVersion = connected ? await fetchDaemonVersion() : null;
-      sendResponse({
-        connected,
-        reconnecting: reconnectTimer !== null,
-        contextId,
-        extensionVersion,
-        daemonVersion
-      });
+      await ensureInitialized();
+      try {
+        sendResponse(await handleCommand(command));
+      } catch (err) {
+        sendResponse({
+          id: command.id,
+          ok: false,
+          error: err instanceof Error ? err.message : String(err)
+        });
+      }
     })();
     return true;
-  }
-  return false;
-});
-async function fetchDaemonVersion() {
-  try {
-    const res = await fetch(`http://${DAEMON_HOST}:${DAEMON_PORT}/status`, {
-      method: "GET",
-      headers: { "X-OpenCLI": "1" },
-      signal: AbortSignal.timeout(1500)
+  } catch (err) {
+    sendResponse({
+      id: command.id,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err)
     });
-    if (!res.ok) return null;
-    const body = await res.json();
-    return typeof body.daemonVersion === "string" ? body.daemonVersion : null;
-  } catch {
-    return null;
+    return false;
   }
-}
+});
 async function handleCommand(cmd) {
   const workspace = getWorkspaceKey(cmd.workspace);
   windowFocused = cmd.windowFocused === true;
