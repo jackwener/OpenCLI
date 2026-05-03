@@ -139,7 +139,8 @@ export class BrowserBridge implements IBrowserFactory {
         throw new BrowserConnectError(
           'Browser Bridge extension not connected',
           'Make sure Chrome/Chromium is open and the extension is enabled.\n' +
-          'If the extension is installed, try: opencli daemon stop && opencli doctor\n' +
+          'Try running the command again — the extension may need a moment to reconnect.\n' +
+          'If it still fails, reload OpenCLI in chrome://extensions and run: opencli doctor\n' +
           'If not installed:\n' +
           '  1. Download: https://github.com/jackwener/opencli/releases\n' +
           '  2. Open chrome://extensions → Developer Mode → Load unpacked',
@@ -179,7 +180,8 @@ export class BrowserBridge implements IBrowserFactory {
       throw new BrowserConnectError(
         'Browser Bridge extension not connected',
         'Make sure Chrome/Chromium is open and the extension is enabled.\n' +
-        'If the extension is installed, try: opencli daemon stop && opencli doctor\n' +
+        'Try running the command again — the extension may need a moment to reconnect.\n' +
+        'If it still fails, reload OpenCLI in chrome://extensions and run: opencli doctor\n' +
         'If not installed:\n' +
         '  1. Download: https://github.com/jackwener/opencli/releases\n' +
         '  2. Open chrome://extensions → Developer Mode → Load unpacked',

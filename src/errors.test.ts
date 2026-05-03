@@ -11,6 +11,7 @@ import {
   EmptyResultError,
   selectorError,
   toEnvelope,
+  attachTraceReceipt,
 } from './errors.js';
 
 describe('Error type hierarchy', () => {
@@ -77,6 +78,45 @@ describe('Error type hierarchy', () => {
     const err = new BrowserConnectError('Cannot connect');
     expect(err.code).toBe('BROWSER_CONNECT');
   });
+
+  it('BrowserConnectError envelope includes machine-readable layer and recovery advice', () => {
+    const err = new BrowserConnectError(
+      'Browser Bridge extension not connected',
+      'Reload the extension and retry',
+      'extension-not-connected',
+    );
+    const envelope = toEnvelope(err);
+
+    expect(envelope.error).toMatchObject({
+      code: 'BROWSER_CONNECT',
+      kind: 'extension-not-connected',
+      layer: 'browser_bridge',
+      recovery: {
+        safe: ['retry the command once'],
+        manual: expect.arrayContaining([
+          'reload the OpenCLI extension in chrome://extensions if it still fails',
+          'run opencli doctor',
+        ]),
+      },
+    });
+  });
+
+  it('BrowserConnectError envelope maps profile errors to the browser bridge layer', () => {
+    const envelope = toEnvelope(new BrowserConnectError(
+      'Multiple Browser Bridge profiles are connected',
+      undefined,
+      'profile-required',
+    ));
+
+    expect(envelope.error).toMatchObject({
+      code: 'BROWSER_CONNECT',
+      kind: 'profile-required',
+      layer: 'browser_bridge',
+      recovery: {
+        safe: expect.arrayContaining(['run opencli profile list']),
+      },
+    });
+  });
 });
 
 describe('toEnvelope', () => {
@@ -99,6 +139,28 @@ describe('toEnvelope', () => {
     const envelope = toEnvelope(err);
     expect(envelope.error.code).toBe('COMMAND_EXEC');
     expect(envelope.error).not.toHaveProperty('help');
+  });
+
+  it('preserves trace metadata on BrowserConnectError envelopes', () => {
+    const err = new BrowserConnectError('Browser Bridge extension not connected');
+    attachTraceReceipt(err, {
+      schemaVersion: 1,
+      opencliVersion: 'test',
+      traceId: 'trace-1',
+      traceDir: '/tmp/trace-1',
+      summaryPath: '/tmp/trace-1/summary.md',
+      receiptPath: '/tmp/trace-1/receipt.json',
+      status: 'failure',
+      createdAt: '2026-05-03T00:00:00.000Z',
+    });
+
+    expect(toEnvelope(err).trace).toEqual({
+      traceId: 'trace-1',
+      dir: '/tmp/trace-1',
+      summaryPath: '/tmp/trace-1/summary.md',
+      receiptPath: '/tmp/trace-1/receipt.json',
+      status: 'failure',
+    });
   });
 
   it('converts unknown Error to UNKNOWN envelope', () => {
