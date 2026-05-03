@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import { BrowserCommandError } from './browser/daemon-client.js';
 import type { IPage } from './types.js';
 import { TargetError } from './browser/target-errors.js';
+import { PKG_VERSION } from './version.js';
 
 const {
   mockBrowserConnect,
@@ -128,6 +129,65 @@ describe('selectFreshByTimestamp', () => {
     ], first.lastSeenTs);
     expect(rolled.fresh.map((item) => item.text)).toEqual(['c']);
     expect(rolled.lastSeenTs).toBe(3);
+  });
+});
+
+describe('profile list', () => {
+  const stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    stdoutSpy.mockClear();
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  it('reports stale daemon instead of no profiles when status lacks profile support', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        pid: 123,
+        uptime: 1,
+        daemonVersion: '1.7.6',
+        extensionConnected: true,
+        extensionVersion: '1.0.3',
+        pending: 0,
+        memoryMB: 20,
+        port: 19825,
+      }),
+    } as Response);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'profile', 'list']);
+
+    const output = stdoutSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('stale');
+    expect(output).toContain('opencli daemon restart');
+    expect(output).not.toContain('No Browser Bridge profiles connected');
+  });
+
+  it('keeps the empty profile message for current daemon status with no profiles', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        pid: 123,
+        uptime: 1,
+        daemonVersion: PKG_VERSION,
+        extensionConnected: false,
+        profiles: [],
+        pending: 0,
+        memoryMB: 20,
+        port: 19825,
+      }),
+    } as Response);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'profile', 'list']);
+
+    const output = stdoutSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('No Browser Bridge profiles connected');
+    expect(output).not.toContain('opencli daemon restart');
   });
 });
 

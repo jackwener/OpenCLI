@@ -2,10 +2,7 @@
  * Browser session manager — auto-spawns daemon and provides IPage.
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import * as path from 'node:path';
-import * as fs from 'node:fs';
+import type { ChildProcess } from 'node:child_process';
 import type { IPage } from '../types.js';
 import type { IBrowserFactory } from '../runtime.js';
 import { Page } from './page.js';
@@ -14,6 +11,7 @@ import { DEFAULT_DAEMON_PORT } from '../constants.js';
 import { BrowserConnectError } from '../errors.js';
 import { PKG_VERSION } from '../version.js';
 import { resolveProfileContextId } from './profile.js';
+import { resolveDaemonLaunchSpec, spawnDaemonProcess, waitForDaemonStop } from './daemon-lifecycle.js';
 
 const DAEMON_SPAWN_TIMEOUT = 10000; // 10s to wait for daemon + extension
 
@@ -102,7 +100,7 @@ export class BrowserBridge implements IBrowserFactory {
           process.stderr.write(`⚠️  Stale daemon detected (${reason}). Restarting...\n`);
         }
         const shutdownAccepted = await requestDaemonShutdown();
-        const portReleased = shutdownAccepted && await this._waitForDaemonStop(3000);
+        const portReleased = shutdownAccepted && await waitForDaemonStop(3000);
 
         if (!portReleased) {
           // Stale daemon replacement failed — don't blindly spawn on an occupied port
@@ -151,27 +149,11 @@ export class BrowserBridge implements IBrowserFactory {
     }
 
     // No daemon — spawn one
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    const parentDir = path.resolve(__dirname, '..');
-    const daemonTs = path.join(parentDir, 'daemon.ts');
-    const daemonJs = path.join(parentDir, 'daemon.js');
-    const isTs = fs.existsSync(daemonTs);
-    const daemonPath = isTs ? daemonTs : daemonJs;
-
     if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
       process.stderr.write('⏳ Starting daemon...\n');
     }
 
-    const spawnArgs = isTs
-      ? [process.execPath, '--import', 'tsx/esm', daemonPath]
-      : [process.execPath, daemonPath];
-
-    this._daemonProc = spawn(spawnArgs[0], spawnArgs.slice(1), {
-      detached: true,
-      stdio: 'ignore',
-      env: { ...process.env },
-    });
-    this._daemonProc.unref();
+    this._daemonProc = spawnDaemonProcess();
 
     // Wait for daemon + extension
     if (await this._pollUntilReady(timeoutMs, contextId)) return;
@@ -207,20 +189,9 @@ export class BrowserBridge implements IBrowserFactory {
 
     throw new BrowserConnectError(
       'Failed to start opencli daemon',
-      `Try running manually:\n  node ${daemonPath}\nMake sure port ${DEFAULT_DAEMON_PORT} is available.`,
+      `Try running manually:\n  node ${resolveDaemonLaunchSpec().scriptPath}\nMake sure port ${DEFAULT_DAEMON_PORT} is available.`,
       'daemon-not-running',
     );
-  }
-
-  /** Poll until daemon is fully stopped (port released). */
-  private async _waitForDaemonStop(timeoutMs: number): Promise<boolean> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      const h = await getDaemonHealth();
-      if (h.state === 'stopped') return true;
-    }
-    return false;
   }
 
   /** Poll getDaemonHealth() until state is 'ready' or deadline is reached. */

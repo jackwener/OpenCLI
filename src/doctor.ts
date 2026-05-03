@@ -14,6 +14,7 @@ import { getCachedLatestExtensionVersion } from './update-check.js';
 import type { BrowserSessionInfo } from './types.js';
 import type { BrowserProfileStatus } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
+import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
 
 const DOCTOR_LIVE_TIMEOUT_SECONDS = 8;
 
@@ -63,6 +64,7 @@ export type DoctorReport = {
   cliVersion?: string;
   daemonRunning: boolean;
   daemonFlaky?: boolean;
+  daemonStale?: boolean;
   daemonVersion?: string;
   extensionConnected: boolean;
   extensionFlaky?: boolean;
@@ -121,6 +123,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   const extensionConnected = health.state === 'ready';
   const daemonFlaky = !!(connectivity?.ok && !daemonRunning);
   const extensionFlaky = !!(connectivity?.ok && daemonRunning && !extensionConnected);
+  const daemonStale = isDaemonStale(health.status, opts.cliVersion);
   const profiles = health.status?.profiles;
   let sessions: BrowserSessionInfo[] | undefined;
   if (opts.sessions) {
@@ -145,6 +148,9 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   } else if (!daemonRunning) {
     issues.push('Daemon is not running. It should start automatically when you run an opencli browser command.');
   }
+  if (daemonStale && opts.cliVersion) {
+    issues.push(staleDaemonIssue(health.status, opts.cliVersion));
+  }
   if (extensionFlaky) {
     issues.push(
       'Extension connection is unstable. The live browser test succeeded, but the daemon reported the extension disconnected immediately afterward.\n' +
@@ -162,27 +168,14 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
         '  Open that Chrome profile and make sure the OpenCLI extension is enabled.',
       );
     } else {
-    const daemonVersion = health.status?.daemonVersion;
-    const isStale = opts.cliVersion && (!daemonVersion || daemonVersion !== opts.cliVersion);
-    if (isStale) {
-      const reason = daemonVersion
-        ? `daemon v${daemonVersion} ≠ CLI v${opts.cliVersion}`
-        : `daemon predates version reporting, CLI is v${opts.cliVersion}`;
-      issues.push(
-        `Stale daemon detected: ${reason}.\n` +
-        'The daemon was started by an older CLI version and may have missed the extension registration.\n' +
-        '  Quick fix: opencli daemon stop && opencli doctor',
-      );
-    } else {
       issues.push(
         'Daemon is running but the Chrome/Chromium extension is not connected.\n' +
-        'If the extension is already installed, try: opencli daemon stop && opencli doctor\n' +
+        'If the extension is already installed, try: opencli daemon restart\n' +
         'If the extension is not installed:\n' +
         '  1. Download from https://github.com/jackwener/opencli/releases\n' +
         '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
         '  3. Click "Load unpacked" → select the extension folder',
       );
-    }
     }
   }
   if (extensionConnected && !extensionVersion) {
@@ -229,6 +222,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     cliVersion: opts.cliVersion,
     daemonRunning,
     daemonFlaky,
+    daemonStale,
     daemonVersion: health.status?.daemonVersion,
     extensionConnected,
     extensionFlaky,
@@ -247,10 +241,16 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
   // Daemon status
   const daemonIcon = report.daemonFlaky
     ? styleText('yellow', '[WARN]')
-    : report.daemonRunning ? styleText('green', '[OK]') : styleText('red', '[MISSING]');
+    : report.daemonStale
+      ? styleText('yellow', '[WARN]')
+      : report.daemonRunning ? styleText('green', '[OK]') : styleText('red', '[MISSING]');
   const daemonLabel = report.daemonFlaky
     ? 'unstable (running during live check, then stopped)'
-    : report.daemonRunning ? `running on port ${DEFAULT_DAEMON_PORT}` + (report.daemonVersion ? ` (v${report.daemonVersion})` : '') : 'not running';
+    : report.daemonRunning
+      ? `running on port ${DEFAULT_DAEMON_PORT} (${report.daemonStale
+        ? `${formatDaemonVersion(report)}, stale; CLI v${report.cliVersion ?? 'unknown'}`
+        : formatDaemonVersion(report)})`
+      : 'not running';
   lines.push(`${daemonIcon} Daemon: ${daemonLabel}`);
 
   // Extension status

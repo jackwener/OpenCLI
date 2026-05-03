@@ -30,10 +30,11 @@ import { parseFilter, shapeMatchesFilter } from './browser/shape-filter.js';
 import { buildHtmlTreeJs, type HtmlTreeResult } from './browser/html-tree.js';
 import { buildExtractHtmlJs, runExtractFromHtml } from './browser/extract.js';
 import { analyzeSite, type PageSignals } from './browser/analyze.js';
-import { daemonStatus, daemonStop } from './commands/daemon.js';
+import { daemonRestart, daemonStatus, daemonStop } from './commands/daemon.js';
 import { log } from './logger.js';
 import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
+import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
@@ -2392,6 +2393,11 @@ cli({
         console.log(styleText('yellow', 'Daemon is not running. Run opencli doctor after opening Chrome.'));
         return;
       }
+      if (isDaemonStale(status, PKG_VERSION) || !Array.isArray(status.profiles)) {
+        console.log(styleText('yellow', `Daemon ${formatDaemonVersion(status)} is stale for CLI v${PKG_VERSION}.`));
+        console.log(styleText('dim', 'Run: opencli daemon restart'));
+        return;
+      }
       if (profiles.length === 0) {
         console.log(styleText('yellow', 'No Browser Bridge profiles connected.'));
         console.log(styleText('dim', 'Open a Chrome profile with the OpenCLI extension installed, then run opencli profile list again.'));
@@ -2464,6 +2470,10 @@ cli({
     .command('stop')
     .description('Stop the daemon')
     .action(async () => { await daemonStop(); });
+  daemonCmd
+    .command('restart')
+    .description('Restart the daemon')
+    .action(async () => { await daemonRestart(); });
 
   // ── External CLIs ─────────────────────────────────────────────────────────
 

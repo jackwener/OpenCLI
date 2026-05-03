@@ -30,15 +30,34 @@ describe('doctor report rendering', () => {
 
   it('renders OK-style report when daemon and extension connected', () => {
     const text = strip(renderBrowserDoctorReport({
+      cliVersion: '1.7.9',
       daemonRunning: true,
+      daemonVersion: '1.7.9',
       extensionConnected: true,
       extensionVersion: '1.6.8',
       issues: [],
     }));
 
     expect(text).toContain('[OK] Daemon: running on port 19825');
+    expect(text).toContain('(v1.7.9)');
     expect(text).toContain('[OK] Extension: connected (v1.6.8)');
     expect(text).toContain('Everything looks good!');
+  });
+
+  it('renders a warning when daemon version is stale', () => {
+    const text = strip(renderBrowserDoctorReport({
+      cliVersion: '1.7.9',
+      daemonRunning: true,
+      daemonVersion: '1.7.6',
+      daemonStale: true,
+      extensionConnected: true,
+      extensionVersion: '1.0.3',
+      issues: ['Stale daemon detected: daemon v1.7.6 != CLI v1.7.9.\n  Run: opencli daemon restart'],
+    }));
+
+    expect(text).toContain('[WARN] Daemon: running on port 19825 (v1.7.6, stale; CLI v1.7.9)');
+    expect(text).toContain('Run: opencli daemon restart');
+    expect(text).not.toContain('Everything looks good!');
   });
 
   it('renders MISSING when daemon not running', () => {
@@ -280,6 +299,27 @@ describe('doctor report rendering', () => {
 
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('did not report a version'),
+    ]));
+  });
+
+  it('reports an issue when daemon version differs from CLI version', async () => {
+    const status = {
+      state: 'ready' as const,
+      status: {
+        daemonVersion: '1.7.6',
+        extensionConnected: true,
+        extensionVersion: '1.0.3',
+      },
+    };
+    mockGetDaemonHealth
+      .mockResolvedValueOnce(status)
+      .mockResolvedValueOnce(status);
+
+    const report = await runBrowserDoctor({ live: false, cliVersion: '1.7.9' });
+
+    expect(report.daemonStale).toBe(true);
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('Stale daemon detected: daemon v1.7.6 != CLI v1.7.9'),
     ]));
   });
 
