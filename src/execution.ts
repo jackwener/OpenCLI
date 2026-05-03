@@ -343,7 +343,7 @@ export async function executeCommand(
           if (!keepOpen) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { workspace: `site:${cmd.site}`, cdpEndpoint, contextId });
+      }, { workspace: `site:${cmd.site}:${crypto.randomUUID()}`, cdpEndpoint, contextId });
     } else {
       // Non-browser commands: apply timeout only when explicitly configured.
       const timeout = cmd.timeoutSeconds;
