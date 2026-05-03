@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Command } from 'commander';
 import type { CliCommand } from './registry.js';
 import { attachTraceReceipt, EmptyResultError, selectorError } from './errors.js';
@@ -20,8 +20,7 @@ vi.mock('./output.js', () => ({
   render: mockRenderOutput,
 }));
 
-import { registerAllCommands, registerCommandToProgram } from './commanderAdapter.js';
-import { getRegistry, registerCommand } from './registry.js';
+import { registerCommandToProgram } from './commanderAdapter.js';
 
 describe('commanderAdapter arg passing', () => {
   const cmd: CliCommand = {
