@@ -193,6 +193,69 @@ describe('douban utils', () => {
         ]);
     });
 
+    it('falls back to window data items when search result DOM is not rendered', async () => {
+        const rawItems = [
+            {
+                id: 2026281,
+                title: '大棋局 : 美国的首要地位及其地缘战略',
+                url: 'https://book.douban.com/subject/2026281/',
+                abstract: '兹比格纽·布热津斯基 / 中国国际问题研究所 / 上海人民出版社 / 2007-1 / 23.00元',
+                cover_url: 'https://img1.doubanio.com/view/subject/m/public/s2552669.jpg',
+                rating: { count: 5563, value: 8.7 },
+                tpl_name: 'search_subject',
+            },
+            {
+                id: 35284951,
+                title: '大棋局 : 美国的首要地位及其地缘战略',
+                url: 'https://book.douban.com/subject/35284951/',
+                abstract: '[美]兹比格纽•布热津斯基 著 / 上海人民出版社 / 2021-1 / 52',
+                cover_url: 'https://img2.doubanio.com/view/subject/m/public/s33779181.jpg',
+                rating: { count: 462, value: 8.5 },
+                tpl_name: 'search_subject',
+            },
+        ];
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ blocked: false, title: '大棋局 - 读书 - 豆瓣搜索', href: 'https://search.douban.com/book/subject_search?search_text=%E5%A4%A7%E6%A3%8B%E5%B1%80&cat=1001' })
+                .mockImplementationOnce((script) => runSearchEvaluate(script, rawItems, [])),
+        };
+
+        await expect(searchDouban(page, 'book', '大棋局', 3)).resolves.toMatchObject([
+            {
+                rank: 1,
+                id: '2026281',
+                type: 'book',
+                title: '大棋局 : 美国的首要地位及其地缘战略',
+                rating: 8.7,
+                url: 'https://book.douban.com/subject/2026281/',
+                cover: 'https://img1.doubanio.com/view/subject/m/public/s2552669.jpg',
+            },
+            {
+                rank: 2,
+                id: '35284951',
+                type: 'book',
+                rating: 8.5,
+            },
+        ]);
+    });
+
+    it('throws when the search page exposes neither DOM result items nor page data items', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ blocked: false, title: '大棋局 - 读书 - 豆瓣搜索', href: 'https://search.douban.com/book/subject_search?search_text=%E5%A4%A7%E6%A3%8B%E5%B1%80&cat=1001' })
+                .mockImplementationOnce((script) => runSearchEvaluate(script, [], [])),
+        };
+
+        await expect(searchDouban(page, 'book', '大棋局', 3)).rejects.toMatchObject({
+            code: 'EMPTY_RESULT',
+            hint: expect.stringContaining('No search result DOM items or window.__DATA__.items were found for "大棋局"'),
+        });
+    });
+
     it('normalizes douban book subject raw data into structured fields', () => {
         const normalized = normalizeDoubanBookSubject({
             id: '2567698',

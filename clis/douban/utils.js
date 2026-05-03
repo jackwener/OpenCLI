@@ -563,13 +563,51 @@ export async function searchDouban(page, type, keyword, limit) {
       const inferDoubanSearchResultType = ${inferDoubanSearchResultTypeSource};
       const normalize = (value) => (value || '').replace(/\\s+/g, ' ').trim();
       const seen = new Set();
+      const results = [];
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       const rawItems = Array.isArray(window.__DATA__?.items) ? window.__DATA__.items : [];
+      const hasPageDataItems = rawItems.length > 0;
       const rawItemsById = new Map(
         rawItems
           .map((item) => [String(item?.id || '').trim(), item])
           .filter(([id]) => id),
       );
+      const normalizeRawRating = (item) => {
+        const rating = item?.rating;
+        if (typeof rating === 'number') return Number.isFinite(rating) ? rating : 0;
+        if (typeof rating === 'string') return parseFloat(rating) || 0;
+        if (rating && typeof rating === 'object') {
+          return parseFloat(String(rating.value || rating.rating || rating.average || '0')) || 0;
+        }
+        return 0;
+      };
+      const normalizeRawUrl = (item, id) => {
+        const rawUrl = normalize(item?.url || item?.uri || item?.link);
+        if (rawUrl) return rawUrl.startsWith('http') ? rawUrl : new URL(rawUrl, location.origin).toString();
+        if (!id) return '';
+        const domain = type === 'book' ? 'book.douban.com' : type === 'music' ? 'music.douban.com' : 'movie.douban.com';
+        return 'https://' + domain + '/subject/' + id + '/';
+      };
+      const normalizeRawAbstract = (item) => normalize(item?.abstract || item?.abstract_2 || item?.description || '');
+      const normalizeRawCover = (item) => normalize(item?.cover_url || item?.cover || item?.pic?.normal || item?.pic?.large || '');
+      const appendRawItemResult = (item) => {
+        const id = String(item?.id || '').trim();
+        const title = normalize(item?.title || item?.name);
+        const url = normalizeRawUrl(item, id);
+        if (!title || !url || !url.includes('/subject/') || seen.has(url)) return;
+        seen.add(url);
+        const abstract = normalizeRawAbstract(item);
+        results.push({
+          rank: results.length + 1,
+          id: id || (url.match(/subject\\/(\\d+)/)?.[1] || ''),
+          type: inferDoubanSearchResultType(type, item),
+          title,
+          rating: normalizeRawRating(item),
+          abstract: abstract.slice(0, 100) + (abstract.length > 100 ? '...' : ''),
+          url,
+          cover: normalizeRawCover(item),
+        });
+      };
 
       for (let i = 0; i < 20; i += 1) {
         if (document.querySelector('.item-root .title-text, .item-root .title a')) break;
@@ -577,8 +615,8 @@ export async function searchDouban(page, type, keyword, limit) {
       }
 
       const items = Array.from(document.querySelectorAll('.item-root, .result-list .result-item'));
+      const hasRenderedItems = items.length > 0;
 
-      const results = [];
       for (const el of items) {
         const titleEl = el.querySelector('.title-text, .title a, .title h3 a, h3 a, a[title]');
         const title = normalize(titleEl?.textContent) || normalize(titleEl?.getAttribute('title'));
@@ -593,23 +631,48 @@ export async function searchDouban(page, type, keyword, limit) {
         const abstract = normalize(
           el.querySelector('.meta.abstract, .meta, .abstract, .subject-abstract, p')?.textContent,
         );
+        const effectiveAbstract = abstract || normalizeRawAbstract(rawItem);
         results.push({
           rank: results.length + 1,
           id,
           type: inferDoubanSearchResultType(type, rawItem),
           title,
-          rating: ratingText.includes('.') ? parseFloat(ratingText) : 0,
-          abstract: abstract.slice(0, 100) + (abstract.length > 100 ? '...' : ''),
+          rating: ratingText.includes('.') ? parseFloat(ratingText) : normalizeRawRating(rawItem),
+          abstract: effectiveAbstract.slice(0, 100) + (effectiveAbstract.length > 100 ? '...' : ''),
           url,
-          cover: el.querySelector('img')?.getAttribute('src') || '',
+          cover: el.querySelector('img')?.getAttribute('src') || normalizeRawCover(rawItem),
         });
         if (results.length >= ${safeLimit}) break;
       }
-      return results;
+      if (results.length === 0) {
+        for (const rawItem of rawItems) {
+          appendRawItemResult(rawItem);
+          if (results.length >= ${safeLimit}) break;
+        }
+      }
+      return {
+        results,
+        hasRenderedItems,
+        hasPageDataItems,
+      };
     })()
   `);
     });
-    return Array.isArray(data) ? data : [];
+    const results = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.results)
+            ? data.results
+            : [];
+    const hasRenderedItems = !Array.isArray(data) && Boolean(data?.hasRenderedItems);
+    const hasPageDataItems = !Array.isArray(data) && Boolean(data?.hasPageDataItems);
+    if (results.length === 0 && !hasRenderedItems && !hasPageDataItems) {
+        const keywordText = String(keyword || '').trim();
+        const queryHint = keywordText ? ` for "${keywordText}"` : '';
+        const hint = `No search result DOM items or window.__DATA__.items were found${queryHint}. `
+            + 'The Douban search page may have changed or blocked the browser session.';
+        throw new EmptyResultError('douban search', hint);
+    }
+    return results;
 }
 /**
  * Get current user's Douban ID from movie.douban.com/mine page
