@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OpenCLI",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Browser automation bridge for the OpenCLI CLI tool. Executes commands in Chrome tab leases via a local daemon.",
   "permissions": [
     "debugger",
