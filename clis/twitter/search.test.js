@@ -70,6 +70,7 @@ describe('twitter search command', () => {
             {
                 id: '1',
                 author: 'alice',
+                bio: '',
                 text: 'hello world',
                 created_at: 'Thu Mar 26 10:30:00 +0000 2026',
                 likes: 7,
@@ -200,6 +201,7 @@ describe('twitter search command', () => {
             {
                 id: '99',
                 author: 'bob',
+                bio: '',
                 text: 'fallback works',
                 created_at: 'Wed Apr 02 12:00:00 +0000 2026',
                 likes: 3,

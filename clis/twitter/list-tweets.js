@@ -59,11 +59,13 @@ export function extractTimelineTweet(result, seen) {
     const user = tw.core?.user_results?.result;
     const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';
     const displayName = user?.legacy?.name || user?.core?.name || '';
+    const bio = user?.legacy?.description || '';
     const noteText = tw.note_tweet?.note_tweet_results?.result?.text;
     return {
         id: tw.rest_id,
         author: screenName,
         name: displayName,
+        bio,
         text: noteText || legacy.full_text || '',
         likes: legacy.favorite_count || 0,
         retweets: legacy.retweet_count || 0,
@@ -115,7 +117,7 @@ cli({
         { name: 'listId', positional: true, type: 'string', required: true },
         { name: 'limit', type: 'int', default: 50 },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'replies', 'created_at', 'url'],
+    columns: ['id', 'author', 'bio', 'text', 'likes', 'retweets', 'replies', 'created_at', 'url'],
     func: async (page, kwargs) => {
         const listId = String(kwargs.listId || '').trim();
         if (!listId || !/^\d+$/.test(listId)) {

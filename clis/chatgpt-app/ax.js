@@ -156,7 +156,7 @@ guard s(input, kAXValueAttribute as String) == text else {
     exit(1)
 }
 
-guard let sendButton = findByDescriptions(win, ["发送", "Send"]) else {
+guard let sendButton = findByDescriptions(win, ["发送", "傳送", "Send"]) else {
     fputs("Could not find send button\\n", stderr)
     exit(1)
 }
@@ -240,10 +240,11 @@ let args = CommandLine.arguments
 let target = args.count > 1 ? args[1] : ""
 let needsLegacy = args.count > 2 && args[2] == "legacy"
 
-// Step 1: Click the "Options" button to open the popover (support both English and Chinese UI)
+// Step 1: Click the "Options" button to open the popover (support English, Simplified and Traditional Chinese UI)
 var optionsBtn: AXUIElement? = nil
 if let btn = findByDesc(win, "Options") { optionsBtn = btn }
 else if let btn = findByDesc(win, "选项") { optionsBtn = btn }
+else if let btn = findByDesc(win, "選項") { optionsBtn = btn }
 guard let options = optionsBtn else {
     fputs("Could not find Options button\\n", stderr); exit(1)
 }
@@ -379,5 +380,6 @@ export function getVisibleChatMessages() {
 }
 export const __test__ = {
     AX_SEND_SCRIPT,
+    AX_MODEL_SCRIPT,
     AX_GENERATING_SCRIPT,
 };

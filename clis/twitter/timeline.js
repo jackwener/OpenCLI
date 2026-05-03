@@ -73,11 +73,13 @@ function extractTweet(result, seen) {
     seen.add(tw.rest_id);
     const u = tw.core?.user_results?.result;
     const screenName = u?.legacy?.screen_name || u?.core?.screen_name || 'unknown';
+    const bio = u?.legacy?.description || '';
     const noteText = tw.note_tweet?.note_tweet_results?.result?.text;
     const views = tw.views?.count ? parseInt(tw.views.count, 10) : 0;
     return {
         id: tw.rest_id,
         author: screenName,
+        bio,
         text: noteText || l.full_text || '',
         likes: l.favorite_count || 0,
         retweets: l.retweet_count || 0,
@@ -149,7 +151,7 @@ cli({
         },
         { name: 'limit', type: 'int', default: 20 },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'replies', 'views', 'created_at', 'url', 'has_media', 'media_urls'],
+    columns: ['id', 'author', 'bio', 'text', 'likes', 'retweets', 'replies', 'views', 'created_at', 'url', 'has_media', 'media_urls'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 20;
         const timelineType = kwargs.type === 'following' ? 'following' : 'for-you';
