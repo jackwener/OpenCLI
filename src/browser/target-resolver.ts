@@ -355,6 +355,82 @@ export function typeResolvedJs(text: string): string {
 }
 
 /**
+ * Prepare the resolved element for native CDP Input.insertText.
+ *
+ * This preserves `browser type`'s existing "replace current text" semantics:
+ * focus the editable target, select its current contents, then let CDP insert
+ * real browser text input so rich editors can update their internal state.
+ */
+export function prepareNativeTypeResolvedJs(): string {
+  return `
+    (() => {
+      const original = window.__resolved;
+      if (!original) throw new Error('No resolved element');
+
+      function nearestContentEditableHost(el) {
+        let current = el;
+        while (current && current.nodeType === 1) {
+          if (current.hasAttribute && current.hasAttribute('contenteditable')) return current;
+          current = current.parentElement;
+        }
+        return el.isContentEditable ? el : null;
+      }
+
+      const editableHost = original.isContentEditable ? nearestContentEditableHost(original) : null;
+      const inputTypes = new Set(['', 'text', 'search', 'url', 'tel', 'email', 'password']);
+      const isInput = original instanceof HTMLInputElement;
+      const isTextarea = original instanceof HTMLTextAreaElement;
+      const isTextControl = isTextarea || (isInput && inputTypes.has((original.getAttribute('type') || original.type || '').toLowerCase()));
+      const el = editableHost || (isTextControl ? original : null);
+
+      if (!el) {
+        return {
+          ok: false,
+          reason: 'not_editable',
+          tag: original.tagName ? original.tagName.toLowerCase() : '',
+        };
+      }
+
+      window.__resolved = el;
+      el.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'nearest' });
+      try {
+        el.focus({ preventScroll: true });
+      } catch (_) {
+        el.focus();
+      }
+
+      if (editableHost) {
+        const sel = window.getSelection();
+        if (!sel) return { ok: false, reason: 'selection_unavailable', mode: 'contenteditable' };
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return { ok: true, mode: 'contenteditable' };
+      }
+
+      let selected = false;
+      try {
+        if (typeof el.setSelectionRange === 'function') {
+          el.setSelectionRange(0, String(el.value || '').length);
+          selected = true;
+        }
+      } catch (_) {}
+      try {
+        if (!selected && typeof el.select === 'function') {
+          el.select();
+          selected = true;
+        }
+      } catch (_) {}
+
+      return selected
+        ? { ok: true, mode: isTextarea ? 'textarea' : 'input' }
+        : { ok: false, reason: 'selection_unavailable', mode: isTextarea ? 'textarea' : 'input' };
+    })()
+  `;
+}
+
+/**
  * Generate JS for scrollTo that uses the unified resolver.
  * Assumes resolveTargetJs has been called and __resolved is set.
  */

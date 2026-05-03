@@ -84,12 +84,24 @@ export function typeTextJs(ref: string, text: string): string {
 }
 
 /** Generate JS to press a keyboard key */
-export function pressKeyJs(key: string): string {
+export function pressKeyJs(key: string, modifiers: string[] = []): string {
+  const hasCtrl = modifiers.includes('Ctrl') || modifiers.includes('Control');
+  const hasAlt = modifiers.includes('Alt');
+  const hasMeta = modifiers.includes('Meta');
+  const hasShift = modifiers.includes('Shift');
   return `
     (() => {
       const el = document.activeElement || document.body;
-      el.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, bubbles: true }));
-      el.dispatchEvent(new KeyboardEvent('keyup', { key: ${JSON.stringify(key)}, bubbles: true }));
+      const init = {
+        key: ${JSON.stringify(key)},
+        bubbles: true,
+        ctrlKey: ${hasCtrl},
+        altKey: ${hasAlt},
+        metaKey: ${hasMeta},
+        shiftKey: ${hasShift},
+      };
+      el.dispatchEvent(new KeyboardEvent('keydown', init));
+      el.dispatchEvent(new KeyboardEvent('keyup', init));
       return 'pressed';
     })()
   `;

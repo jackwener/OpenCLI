@@ -25,6 +25,7 @@ import {
   resolveTargetJs,
   clickResolvedJs,
   typeResolvedJs,
+  prepareNativeTypeResolvedJs,
   scrollResolvedJs,
   type ResolveOptions,
   type TargetMatchLevel,
@@ -71,6 +72,24 @@ async function runResolve(
 function previewText(text: string | undefined): string | undefined {
   const preview = (text ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
   return preview ? `Response preview: ${preview}` : undefined;
+}
+
+function parseKeyChord(rawKey: string): { key: string; modifiers: string[] } {
+  const parts = rawKey.split('+').map(part => part.trim()).filter(Boolean);
+  if (parts.length <= 1) return { key: rawKey, modifiers: [] };
+
+  const modifiers: string[] = [];
+  for (const token of parts.slice(0, -1)) {
+    const normalized = token.toLowerCase();
+    if (normalized === 'ctrl' || normalized === 'control') modifiers.push('Ctrl');
+    else if (normalized === 'cmd' || normalized === 'command' || normalized === 'meta') modifiers.push('Meta');
+    else if (normalized === 'option' || normalized === 'alt') modifiers.push('Alt');
+    else if (normalized === 'shift') modifiers.push('Shift');
+    else return { key: rawKey, modifiers: [] };
+  }
+
+  const key = parts.at(-1);
+  return key ? { key, modifiers } : { key: rawKey, modifiers: [] };
 }
 
 export abstract class BasePage implements IPage {
@@ -225,19 +244,79 @@ export abstract class BasePage implements IPage {
     throw new Error(`Click failed: ${result.error ?? 'JS click and CDP fallback both failed'}`);
   }
 
-  /** Override in subclasses with CDP native click support */
-  protected async tryNativeClick(_x: number, _y: number): Promise<boolean> {
-    return false;
+  /** Uses native CDP click support when the concrete page exposes it. */
+  protected async tryNativeClick(x: number, y: number): Promise<boolean> {
+    const nativeClick = (this as IPage).nativeClick;
+    if (typeof nativeClick !== 'function') return false;
+    try {
+      await nativeClick.call(this, x, y);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Uses native CDP text insertion when the concrete page exposes it. */
+  protected async tryNativeType(text: string): Promise<boolean> {
+    const nativeType = (this as IPage).nativeType;
+    if (typeof nativeType === 'function') {
+      try {
+        await nativeType.call(this, text);
+        return true;
+      } catch {
+        // Fall through to the older dedicated insertText primitive if present.
+      }
+    }
+
+    const insertText = (this as IPage).insertText;
+    if (typeof insertText !== 'function') return false;
+    try {
+      await insertText.call(this, text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Uses native CDP key events when the concrete page exposes them. */
+  protected async tryNativeKeyPress(key: string, modifiers: string[]): Promise<boolean> {
+    const nativeKeyPress = (this as IPage).nativeKeyPress;
+    if (typeof nativeKeyPress !== 'function') return false;
+    try {
+      await nativeKeyPress.call(this, key, modifiers);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async typeText(ref: string, text: string, opts: ResolveOptions = {}): Promise<ResolveSuccess> {
     const resolved = await runResolve(this, ref, opts);
-    await this.evaluate(typeResolvedJs(text));
+    let typed = false;
+
+    if (typeof (this as IPage).nativeType === 'function' || typeof (this as IPage).insertText === 'function') {
+      try {
+        const preparation = await this.evaluate(prepareNativeTypeResolvedJs()) as
+          | { ok?: boolean; mode?: string; reason?: string }
+          | null;
+        typed = preparation?.ok === true && await this.tryNativeType(text);
+      } catch {
+        // Native input is a reliability upgrade, not the only path. Preserve
+        // the existing DOM setter fallback if preparation fails.
+      }
+    }
+
+    if (!typed) {
+      await this.evaluate(typeResolvedJs(text));
+    }
     return resolved;
   }
 
   async pressKey(key: string): Promise<void> {
-    await this.evaluate(pressKeyJs(key));
+    const parsed = parseKeyChord(key);
+    if (!await this.tryNativeKeyPress(parsed.key, parsed.modifiers)) {
+      await this.evaluate(pressKeyJs(parsed.key, parsed.modifiers));
+    }
   }
 
   async scrollTo(ref: string, opts: ResolveOptions = {}): Promise<unknown> {

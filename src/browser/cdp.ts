@@ -365,6 +365,55 @@ class CDPPage extends BasePage {
   async selectTab(_target: number | string): Promise<void> {
     // Not supported in direct CDP mode
   }
+
+  async cdp(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+    return this.bridge.send(method, params);
+  }
+
+  async nativeClick(x: number, y: number): Promise<void> {
+    await this.cdp('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x,
+      y,
+      button: 'left',
+      clickCount: 1,
+    });
+    await this.cdp('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x,
+      y,
+      button: 'left',
+      clickCount: 1,
+    });
+  }
+
+  async nativeType(text: string): Promise<void> {
+    await this.cdp('Input.insertText', { text });
+  }
+
+  async insertText(text: string): Promise<void> {
+    await this.nativeType(text);
+  }
+
+  async nativeKeyPress(key: string, modifiers: string[] = []): Promise<void> {
+    let modifierFlags = 0;
+    for (const mod of modifiers) {
+      if (mod === 'Alt') modifierFlags |= 1;
+      if (mod === 'Ctrl' || mod === 'Control') modifierFlags |= 2;
+      if (mod === 'Meta') modifierFlags |= 4;
+      if (mod === 'Shift') modifierFlags |= 8;
+    }
+    await this.cdp('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key,
+      modifiers: modifierFlags,
+    });
+    await this.cdp('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key,
+      modifiers: modifierFlags,
+    });
+  }
 }
 
 function isCookie(value: unknown): value is BrowserCookie {
