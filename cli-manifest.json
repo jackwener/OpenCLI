@@ -13988,6 +13988,54 @@
   },
   {
     "site": "reddit",
+    "name": "post",
+    "description": "Create a text post in a subreddit via the Reddit web composer",
+    "domain": "reddit.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "subreddit",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Target subreddit name without r/ prefix (e.g. AI_Agents)"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Post title"
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Post body text"
+      },
+      {
+        "name": "flair",
+        "type": "string",
+        "required": false,
+        "help": "Visible flair text to select if the subreddit requires flair"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "subreddit",
+      "title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "reddit/post.js",
+    "sourceFile": "reddit/post.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "reddit",
     "name": "read",
     "description": "Read a Reddit post and its comments",
     "domain": "reddit.com",
