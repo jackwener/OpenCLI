@@ -158,6 +158,7 @@ export default defineConfig({
                 { text: 'YAML Adapter Guide (Deprecated)', link: '/developer/yaml-adapter' },
                 { text: 'TypeScript Adapter Guide', link: '/developer/ts-adapter' },
                 { text: 'AI Workflow', link: '/developer/ai-workflow' },
+                { text: 'CDP Method Policy', link: '/developer/cdp-method-policy' },
               ],
             },
           ],
