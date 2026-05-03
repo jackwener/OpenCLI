@@ -294,6 +294,13 @@ export class Page extends BasePage {
     });
   }
 
+  async handleJavaScriptDialog(accept: boolean, promptText?: string): Promise<void> {
+    await this.cdp('Page.handleJavaScriptDialog', {
+      accept,
+      ...(promptText !== undefined && { promptText }),
+    });
+  }
+
   /** CDP native click fallback — called when JS el.click() fails */
   protected override async tryNativeClick(x: number, y: number): Promise<boolean> {
     try {

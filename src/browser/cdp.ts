@@ -370,6 +370,13 @@ class CDPPage extends BasePage {
     return this.bridge.send(method, params);
   }
 
+  async handleJavaScriptDialog(accept: boolean, promptText?: string): Promise<void> {
+    await this.cdp('Page.handleJavaScriptDialog', {
+      accept,
+      ...(promptText !== undefined && { promptText }),
+    });
+  }
+
   async nativeClick(x: number, y: number): Promise<void> {
     await this.cdp('Input.dispatchMouseEvent', {
       type: 'mousePressed',

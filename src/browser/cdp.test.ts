@@ -76,11 +76,13 @@ describe('CDPBridge cookies', () => {
     expect(page.nativeType).toBeTypeOf('function');
     expect(page.nativeKeyPress).toBeTypeOf('function');
     expect(page.nativeClick).toBeTypeOf('function');
+    expect(page.handleJavaScriptDialog).toBeTypeOf('function');
     expect(page.cdp).toBeTypeOf('function');
 
     await page.nativeType!('hello');
     await page.nativeKeyPress!('a', ['Ctrl']);
     await page.nativeClick!(10, 20);
+    await page.handleJavaScriptDialog!(true, 'ok');
     await page.cdp!('Page.getLayoutMetrics', {});
 
     expect(send.mock.calls).toEqual([
@@ -89,6 +91,7 @@ describe('CDPBridge cookies', () => {
       ['Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', modifiers: 2 }],
       ['Input.dispatchMouseEvent', { type: 'mousePressed', x: 10, y: 20, button: 'left', clickCount: 1 }],
       ['Input.dispatchMouseEvent', { type: 'mouseReleased', x: 10, y: 20, button: 'left', clickCount: 1 }],
+      ['Page.handleJavaScriptDialog', { accept: true, promptText: 'ok' }],
       ['Page.getLayoutMetrics', {}],
     ]);
   });

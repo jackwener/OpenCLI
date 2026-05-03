@@ -358,6 +358,7 @@ describe('browser tab targeting commands', () => {
       selectTab: vi.fn().mockResolvedValue(undefined),
       newTab: vi.fn().mockResolvedValue('tab-3'),
       closeTab: vi.fn().mockResolvedValue(undefined),
+      handleJavaScriptDialog: vi.fn().mockResolvedValue(undefined),
       frames: vi.fn().mockResolvedValue([
         { index: 0, frameId: 'frame-1', url: 'https://x.example/embed', name: 'x-embed' },
       ]),
@@ -449,6 +450,31 @@ describe('browser tab targeting commands', () => {
 
     const out = lastJsonLog();
     expect(out.error.code).toBe('bound_session_missing');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('accepts JavaScript dialogs through the browser dialog command', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'dialog', 'accept', '--text', 'ok']);
+
+    expect(browserState.page?.handleJavaScriptDialog).toHaveBeenCalledWith(true, 'ok');
+    const out = lastJsonLog();
+    expect(out).toEqual({ handled: true, action: 'accept', text: 'ok' });
+  });
+
+  it('emits a structured error when a browser action is blocked by a JavaScript dialog', async () => {
+    browserState.page = {
+      ...browserState.page,
+      evaluate: vi.fn().mockRejectedValue(new Error('JavaScript dialog showing')),
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'eval', 'document.title']);
+
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('javascript_dialog_open');
+    expect(out.error.hint).toContain('browser dialog accept');
     expect(process.exitCode).toBeDefined();
   });
 

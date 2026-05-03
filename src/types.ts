@@ -112,6 +112,8 @@ export interface IPage {
   setActivePage?(page?: string): void;
   /** Send a raw CDP command via chrome.debugger passthrough. */
   cdp?(method: string, params?: Record<string, unknown>): Promise<unknown>;
+  /** Accept or dismiss the currently open JavaScript alert/confirm/prompt dialog. */
+  handleJavaScriptDialog?(accept: boolean, promptText?: string): Promise<void>;
   /** List cross-origin iframe targets in snapshot order. */
   frames?(): Promise<Array<{ index: number; frameId: string; url: string; name: string }>>;
   /** Evaluate JavaScript inside a cross-origin iframe identified by its frame index. */

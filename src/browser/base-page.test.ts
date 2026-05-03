@@ -20,15 +20,23 @@ class TestPage extends BasePage {
 
 class ActionPage extends BasePage {
   results: unknown[] = [];
+  withArgsResults: unknown[] = [];
   scripts: string[] = [];
+  withArgs: Record<string, unknown>[] = [];
   nativeType?: (text: string) => Promise<void>;
   insertText?: (text: string) => Promise<void>;
   nativeKeyPress?: (key: string, modifiers?: string[]) => Promise<void>;
+  cdp?: (method: string, params?: Record<string, unknown>) => Promise<unknown>;
 
   async goto(): Promise<void> {}
   async evaluate(js: string): Promise<unknown> {
     this.scripts.push(js);
     return this.results.shift() ?? null;
+  }
+  override async evaluateWithArgs(js: string, args: Record<string, unknown>): Promise<unknown> {
+    this.scripts.push(js);
+    this.withArgs.push(args);
+    return this.withArgsResults.shift() ?? null;
   }
   async getCookies(): Promise<[]> { return []; }
   async screenshot(): Promise<string> { return ''; }
@@ -116,6 +124,30 @@ describe('BasePage native input routing', () => {
     expect(page.scripts.join('\n')).not.toContain("return 'typed'");
   });
 
+  it('uses CDP DOM focus and scroll before native text insertion when available', async () => {
+    const page = new ActionPage();
+    page.nativeType = vi.fn().mockResolvedValue(undefined);
+    page.cdp = vi.fn()
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ root: { nodeId: 1 } })
+      .mockResolvedValueOnce({ nodeId: 7 })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ root: { nodeId: 1 } })
+      .mockResolvedValueOnce({ nodeId: 7 })
+      .mockResolvedValueOnce({});
+    page.results = [resolveOk, { ok: true, mode: 'input' }];
+    page.withArgsResults = [{ ok: true }, undefined, { ok: true }, undefined];
+
+    await page.typeText('#q', 'hello');
+
+    expect(page.cdp).toHaveBeenCalledWith('DOM.scrollIntoViewIfNeeded', { nodeId: 7 });
+    expect(page.cdp).toHaveBeenCalledWith('DOM.focus', { nodeId: 7 });
+    expect(page.nativeType).toHaveBeenCalledWith('hello');
+    expect(page.scripts.at(-1)).toContain('if (false) el.scrollIntoView');
+    expect(page.scripts.at(-1)).toContain('if (false) {');
+  });
+
   it('keeps the DOM setter fallback when native text insertion is unavailable', async () => {
     const page = new ActionPage();
     page.results = [resolveOk, 'typed'];
@@ -137,6 +169,22 @@ describe('BasePage native input routing', () => {
     expect(page.nativeType).toHaveBeenCalledWith('hello');
     expect(page.scripts).toHaveLength(3);
     expect(page.scripts[2]).toContain("return 'typed'");
+  });
+
+  it('uses CDP DOM scrollIntoViewIfNeeded before JS click when available', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn()
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ root: { nodeId: 1 } })
+      .mockResolvedValueOnce({ nodeId: 9 })
+      .mockResolvedValueOnce({});
+    page.results = [resolveOk, { status: 'clicked', x: 1, y: 2 }];
+    page.withArgsResults = [{ ok: true }, undefined];
+
+    await page.click('#save');
+
+    expect(page.cdp).toHaveBeenCalledWith('DOM.scrollIntoViewIfNeeded', { nodeId: 9 });
+    expect(page.scripts.at(-1)).toContain('if (false) el.scrollIntoView');
   });
 
   it('presses key chords through native CDP key events when available', async () => {

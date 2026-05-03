@@ -133,6 +133,27 @@ describe('Page network capture compatibility', () => {
   });
 });
 
+describe('Page CDP helpers', () => {
+  beforeEach(() => {
+    sendCommandMock.mockReset();
+    sendCommandFullMock.mockReset();
+    warnMock.mockReset();
+  });
+
+  it('handles JavaScript dialogs through the CDP passthrough', async () => {
+    sendCommandMock.mockResolvedValueOnce({});
+
+    const page = new Page('browser:default');
+    await page.handleJavaScriptDialog(true, 'confirm');
+
+    expect(sendCommandMock).toHaveBeenCalledWith('cdp', expect.objectContaining({
+      workspace: 'browser:default',
+      cdpMethod: 'Page.handleJavaScriptDialog',
+      cdpParams: { accept: true, promptText: 'confirm' },
+    }));
+  });
+});
+
 describe('Page active target tracking', () => {
   beforeEach(() => {
     sendCommandMock.mockReset();

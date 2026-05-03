@@ -96,6 +96,7 @@ export abstract class BasePage implements IPage {
   protected _lastUrl: string | null = null;
   /** Cached previous snapshot hashes for incremental diff marking */
   private _prevSnapshotHashes: string | null = null;
+  private _cdpTargetMarkerSeq = 0;
 
   // ── Transport-specific methods (must be implemented by subclasses) ──
 
@@ -224,9 +225,10 @@ export abstract class BasePage implements IPage {
   async click(ref: string, opts: ResolveOptions = {}): Promise<ResolveSuccess> {
     // Phase 1: Resolve target with fingerprint verification
     const resolved = await runResolve(this, ref, opts);
+    const nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
 
     // Phase 2: Execute click on resolved element
-    const result = await this.evaluate(clickResolvedJs()) as
+    const result = await this.evaluate(clickResolvedJs({ skipScroll: nativeScrolled })) as
       | string
       | { status: string; x?: number; y?: number; w?: number; h?: number; error?: string }
       | null;
@@ -290,13 +292,79 @@ export abstract class BasePage implements IPage {
     }
   }
 
+  /**
+   * Run a DOM-domain CDP command against `window.__resolved`.
+   *
+   * CDP DOM.focus / DOM.scrollIntoViewIfNeeded need a nodeId, while our
+   * resolver stores the live Element in page JS. Bridge the two worlds with a
+   * short-lived marker attribute, then query it through CDP.
+   */
+  protected async tryCdpOnResolvedElement(method: 'DOM.focus' | 'DOM.scrollIntoViewIfNeeded'): Promise<boolean> {
+    const cdp = (this as IPage).cdp;
+    if (typeof cdp !== 'function') return false;
+
+    const markerAttr = 'data-opencli-cdp-target';
+    const markerValue = `${Date.now().toString(36)}-${++this._cdpTargetMarkerSeq}`;
+    const selector = `[${markerAttr}="${markerValue}"]`;
+    let marked = false;
+
+    try {
+      const marker = await this.evaluateWithArgs(`
+        (() => {
+          const el = window.__resolved;
+          if (!el || el.nodeType !== 1 || typeof el.setAttribute !== 'function') {
+            return { ok: false };
+          }
+          el.setAttribute(markerAttr, markerValue);
+          return { ok: true };
+        })()
+      `, { markerAttr, markerValue }) as { ok?: boolean } | null;
+      marked = marker?.ok === true;
+      if (!marked) return false;
+
+      await cdp.call(this, 'DOM.enable', {}).catch(() => undefined);
+      const doc = await cdp.call(this, 'DOM.getDocument', {}) as { root?: { nodeId?: unknown } } | null;
+      const rootNodeId = doc?.root?.nodeId;
+      if (typeof rootNodeId !== 'number') return false;
+
+      const query = await cdp.call(this, 'DOM.querySelector', {
+        nodeId: rootNodeId,
+        selector,
+      }) as { nodeId?: unknown } | null;
+      const nodeId = query?.nodeId;
+      if (typeof nodeId !== 'number' || nodeId <= 0) return false;
+
+      await cdp.call(this, method, { nodeId });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      if (marked) {
+        await this.evaluateWithArgs(`
+          (() => {
+            for (const el of document.querySelectorAll(selector)) {
+              el.removeAttribute(markerAttr);
+            }
+          })()
+        `, { selector, markerAttr }).catch(() => undefined);
+      }
+    }
+  }
+
   async typeText(ref: string, text: string, opts: ResolveOptions = {}): Promise<ResolveSuccess> {
     const resolved = await runResolve(this, ref, opts);
     let typed = false;
+    let nativeScrolled = false;
+    let nativeFocused = false;
 
     if (typeof (this as IPage).nativeType === 'function' || typeof (this as IPage).insertText === 'function') {
       try {
-        const preparation = await this.evaluate(prepareNativeTypeResolvedJs()) as
+        nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
+        nativeFocused = await this.tryCdpOnResolvedElement('DOM.focus');
+        const preparation = await this.evaluate(prepareNativeTypeResolvedJs({
+          skipScroll: nativeScrolled,
+          skipFocus: nativeFocused,
+        })) as
           | { ok?: boolean; mode?: string; reason?: string }
           | null;
         typed = preparation?.ok === true && await this.tryNativeType(text);
@@ -321,7 +389,8 @@ export abstract class BasePage implements IPage {
 
   async scrollTo(ref: string, opts: ResolveOptions = {}): Promise<unknown> {
     const resolved = await runResolve(this, ref, opts);
-    const result = (await this.evaluate(scrollResolvedJs())) as Record<string, unknown> | null;
+    const nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
+    const result = (await this.evaluate(scrollResolvedJs({ skipScroll: nativeScrolled }))) as Record<string, unknown> | null;
     // Fold match_level into the scroll payload so the user-facing envelope
     // carries it the same way click / type do.
     if (result && typeof result === 'object') {

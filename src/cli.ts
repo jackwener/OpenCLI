@@ -643,6 +643,21 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }, null, 2));
   }
 
+  function isJavaScriptDialogMessage(message: string): boolean {
+    const normalized = message.toLowerCase();
+    return normalized.includes('javascript dialog');
+  }
+
+  function emitJavaScriptDialogError(message: string): void {
+    console.log(JSON.stringify({
+      error: {
+        code: 'javascript_dialog_open',
+        message,
+        hint: 'Handle the modal first: opencli browser dialog accept (or dismiss). Use --text for prompt dialogs.',
+      },
+    }, null, 2));
+  }
+
   /** Wrap browser actions with error handling and optional --json output */
   function browserAction(fn: (page: Awaited<ReturnType<typeof getBrowserPage>>, ...args: any[]) => Promise<unknown>) {
     return async (...args: any[]) => {
@@ -658,7 +673,9 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           log.error(err.message);
           if (err.hint) log.error(`Hint: ${err.hint}`);
         } else if (err instanceof BrowserCommandError) {
-          if (err.code) {
+          if (isJavaScriptDialogMessage(err.message)) {
+            emitJavaScriptDialogError(err.message);
+          } else if (err.code) {
             console.log(JSON.stringify({
               error: {
                 code: err.code,
@@ -676,7 +693,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           if (err.hint) log.error(`Hint: ${err.hint}`);
         } else {
           const msg = getErrorMessage(err);
-          if (msg.includes('attach failed') || msg.includes('chrome-extension://')) {
+          if (isJavaScriptDialogMessage(msg)) {
+            emitJavaScriptDialogError(msg);
+            log.error(msg);
+          } else if (msg.includes('attach failed') || msg.includes('chrome-extension://')) {
             log.error(`Browser attach failed — another extension may be interfering. Try disabling 1Password.`);
           } else {
             log.error(msg);
@@ -1443,6 +1463,61 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .action(browserAction(async (page, key) => {
       await page.pressKey(key);
       console.log(`Pressed: ${key}`);
+    }));
+
+  const browserDialog = browser
+    .command('dialog')
+    .description('Handle a blocking JavaScript alert/confirm/prompt dialog');
+
+  addBrowserTabOption(browserDialog.command('accept')
+    .option('--text <text>', 'Prompt text to submit for prompt() dialogs')
+    .description('Accept the currently open JavaScript dialog'))
+    .action(browserAction(async (page, opts?: { text?: string }) => {
+      if (!page.handleJavaScriptDialog) {
+        throw new Error('This browser session does not support JavaScript dialog handling');
+      }
+      try {
+        await page.handleJavaScriptDialog(true, opts?.text);
+      } catch (err) {
+        const message = getErrorMessage(err);
+        if (message.toLowerCase().includes('no dialog')) {
+          console.log(JSON.stringify({
+            error: {
+              code: 'no_javascript_dialog',
+              message: 'No JavaScript dialog is currently open.',
+            },
+          }, null, 2));
+          process.exitCode = EXIT_CODES.USAGE_ERROR;
+          return;
+        }
+        throw err;
+      }
+      console.log(JSON.stringify({ handled: true, action: 'accept', ...(opts?.text !== undefined && { text: opts.text }) }, null, 2));
+    }));
+
+  addBrowserTabOption(browserDialog.command('dismiss')
+    .description('Dismiss the currently open JavaScript dialog'))
+    .action(browserAction(async (page) => {
+      if (!page.handleJavaScriptDialog) {
+        throw new Error('This browser session does not support JavaScript dialog handling');
+      }
+      try {
+        await page.handleJavaScriptDialog(false);
+      } catch (err) {
+        const message = getErrorMessage(err);
+        if (message.toLowerCase().includes('no dialog')) {
+          console.log(JSON.stringify({
+            error: {
+              code: 'no_javascript_dialog',
+              message: 'No JavaScript dialog is currently open.',
+            },
+          }, null, 2));
+          process.exitCode = EXIT_CODES.USAGE_ERROR;
+          return;
+        }
+        throw err;
+      }
+      console.log(JSON.stringify({ handled: true, action: 'dismiss' }, null, 2));
     }));
 
   // ── Wait commands ──

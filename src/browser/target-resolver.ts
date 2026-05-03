@@ -298,12 +298,13 @@ export function resolveTargetJs(ref: string, opts: ResolveOptions = {}): string 
  * Generate JS for click that uses the unified resolver.
  * Assumes resolveTargetJs has been called and __resolved is set.
  */
-export function clickResolvedJs(): string {
+export function clickResolvedJs(opts: { skipScroll?: boolean } = {}): string {
+  const shouldScroll = opts.skipScroll ? 'false' : 'true';
   return `
     (() => {
       const el = window.__resolved;
       if (!el) throw new Error('No resolved element');
-      el.scrollIntoView({ behavior: 'instant', block: 'center' });
+      if (${shouldScroll}) el.scrollIntoView({ behavior: 'instant', block: 'center' });
       const rect = el.getBoundingClientRect();
       const x = Math.round(rect.left + rect.width / 2);
       const y = Math.round(rect.top + rect.height / 2);
@@ -361,7 +362,9 @@ export function typeResolvedJs(text: string): string {
  * focus the editable target, select its current contents, then let CDP insert
  * real browser text input so rich editors can update their internal state.
  */
-export function prepareNativeTypeResolvedJs(): string {
+export function prepareNativeTypeResolvedJs(opts: { skipScroll?: boolean; skipFocus?: boolean } = {}): string {
+  const shouldScroll = opts.skipScroll ? 'false' : 'true';
+  const shouldFocus = opts.skipFocus ? 'false' : 'true';
   return `
     (() => {
       const original = window.__resolved;
@@ -392,11 +395,13 @@ export function prepareNativeTypeResolvedJs(): string {
       }
 
       window.__resolved = el;
-      el.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'nearest' });
-      try {
-        el.focus({ preventScroll: true });
-      } catch (_) {
-        el.focus();
+      if (${shouldScroll}) el.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'nearest' });
+      if (${shouldFocus}) {
+        try {
+          el.focus({ preventScroll: true });
+        } catch (_) {
+          el.focus();
+        }
       }
 
       if (editableHost) {
@@ -434,12 +439,13 @@ export function prepareNativeTypeResolvedJs(): string {
  * Generate JS for scrollTo that uses the unified resolver.
  * Assumes resolveTargetJs has been called and __resolved is set.
  */
-export function scrollResolvedJs(): string {
+export function scrollResolvedJs(opts: { skipScroll?: boolean } = {}): string {
+  const shouldScroll = opts.skipScroll ? 'false' : 'true';
   return `
     (() => {
       const el = window.__resolved;
       if (!el) throw new Error('No resolved element');
-      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      if (${shouldScroll}) el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
       return { scrolled: true, tag: el.tagName.toLowerCase(), text: (el.textContent || '').trim().slice(0, 80) };
     })()
   `;

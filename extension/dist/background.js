@@ -1444,9 +1444,12 @@ async function handleScreenshot(cmd, workspace) {
 const CDP_ALLOWLIST = /* @__PURE__ */ new Set([
   // Agent DOM context
   "Accessibility.getFullAXTree",
+  "DOM.enable",
   "DOM.getDocument",
   "DOM.getBoxModel",
   "DOM.getContentQuads",
+  "DOM.focus",
+  "DOM.querySelector",
   "DOM.querySelectorAll",
   "DOM.scrollIntoViewIfNeeded",
   "DOMSnapshot.captureSnapshot",
@@ -1458,6 +1461,7 @@ const CDP_ALLOWLIST = /* @__PURE__ */ new Set([
   "Page.getLayoutMetrics",
   "Page.captureScreenshot",
   "Page.getFrameTree",
+  "Page.handleJavaScriptDialog",
   // Runtime.enable needed for CDP attach setup (Runtime.evaluate goes through 'exec' action)
   "Runtime.enable",
   // Emulation (used by screenshot full-page)
