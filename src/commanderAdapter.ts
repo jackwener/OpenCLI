@@ -193,15 +193,5 @@ export function registerAllCommands(
     for (const cmd of commands) {
       registerCommandToProgram(siteCmd, cmd);
     }
-    siteCmd.description(formatSiteCommandSummary([
-      ...siteCmd.commands.map(cmd => cmd.name()),
-      ...commands.map(cmd => cmd.name),
-    ]));
   }
-}
-
-function formatSiteCommandSummary(commands: Array<Pick<CliCommand, 'name'> | string>): string {
-  return [...new Set(commands.map(cmd => typeof cmd === 'string' ? cmd : cmd.name))]
-    .sort((a, b) => a.localeCompare(b))
-    .join(', ');
 }
