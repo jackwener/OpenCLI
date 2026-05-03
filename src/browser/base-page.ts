@@ -232,8 +232,20 @@ export abstract class BasePage implements IPage {
 
   async typeText(ref: string, text: string, opts: ResolveOptions = {}): Promise<ResolveSuccess> {
     const resolved = await runResolve(this, ref, opts);
-    await this.evaluate(typeResolvedJs(text));
+    // Prefer CDP Input.insertText: fires React's controlled-input synthetic
+    // events, which document.execCommand('insertText') does not. Required for
+    // DraftJS / ProseMirror / contenteditable composers (Twitter, Notion,
+    // Discord, etc.) that otherwise accept the text into the DOM but leave
+    // application state empty, producing silent submit failures. Falls back
+    // to the legacy JS path on backends without nativeType (e.g. CDPPage).
+    const nativeOk = await this.tryNativeType(text);
+    if (!nativeOk) await this.evaluate(typeResolvedJs(text));
     return resolved;
+  }
+
+  /** Override in subclasses with CDP Input.insertText support */
+  protected async tryNativeType(_text: string): Promise<boolean> {
+    return false;
   }
 
   async pressKey(key: string): Promise<void> {

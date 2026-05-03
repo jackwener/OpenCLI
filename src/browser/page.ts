@@ -304,6 +304,16 @@ export class Page extends BasePage {
     }
   }
 
+  /** CDP Input.insertText path — fires React synthetic events (closes #1265) */
+  protected override async tryNativeType(text: string): Promise<boolean> {
+    try {
+      await this.nativeType(text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Precise click using DOM.getContentQuads/getBoxModel for inline elements */
   async clickWithQuads(ref: string): Promise<void> {
     const safeRef = JSON.stringify(ref);
