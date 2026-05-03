@@ -9,10 +9,11 @@
 import { getRegistry } from './registry.js';
 import { CliError } from './errors.js';
 import {
-  BUILTIN_COMMANDS,
+  getBuiltinCompletions,
   bashCompletionScript,
   zshCompletionScript,
   fishCompletionScript,
+  loadExternalCliNames,
 } from './completion-shared.js';
 
 // Re-export shell scripts so existing callers (cli.ts) don't break
@@ -28,21 +29,20 @@ export { bashCompletionScript, zshCompletionScript, fishCompletionScript };
  * @param cursor - 1-based position of the word being completed (1 = first arg)
  */
 export function getCompletions(words: string[], cursor: number): string[] {
-  // cursor === 1 → completing the first argument (site name or built-in command)
-  if (cursor <= 1) {
-    const sites = new Set<string>();
-    for (const [, cmd] of getRegistry()) {
-      sites.add(cmd.site);
+  const externalCliNames = loadExternalCliNames();
+  const builtinCompletions = getBuiltinCompletions(words, cursor, externalCliNames);
+  if (builtinCompletions !== null) {
+    if (cursor <= 1) {
+      const sites = new Set<string>();
+      for (const [, cmd] of getRegistry()) {
+        sites.add(cmd.site);
+      }
+      return [...new Set([...builtinCompletions, ...sites])].sort();
     }
-    return [...BUILTIN_COMMANDS, ...sites].sort();
+    return builtinCompletions;
   }
 
   const site = words[0];
-
-  // If the first word is a built-in command, no further completion
-  if (BUILTIN_COMMANDS.includes(site)) {
-    return [];
-  }
 
   // cursor === 2 → completing the sub-command name under a site
   if (cursor === 2) {

@@ -7,10 +7,11 @@
 
 import * as fs from 'node:fs';
 import {
-  BUILTIN_COMMANDS,
+  getBuiltinCompletions,
   bashCompletionScript,
   zshCompletionScript,
   fishCompletionScript,
+  loadExternalCliNames,
 } from './completion-shared.js';
 
 interface ManifestCompletionEntry {
@@ -40,24 +41,26 @@ export function hasAllManifests(manifestPaths: string[]): boolean {
  * Lightweight completion that reads directly from manifest JSON files,
  * bypassing full CLI discovery and adapter loading.
  */
-export function getCompletionsFromManifest(words: string[], cursor: number, manifestPaths: string[]): string[] {
+export function getCompletionsFromManifest(words: string[], cursor: number, manifestPaths: string[]): string[] | null {
   const entries = loadManifestEntries(manifestPaths);
   if (entries === null) {
-    return [];
+    return null;
   }
 
-  if (cursor <= 1) {
-    const sites = new Set<string>();
-    for (const entry of entries) {
-      sites.add(entry.site);
+  const externalCliNames = loadExternalCliNames();
+  const builtinCompletions = getBuiltinCompletions(words, cursor, externalCliNames);
+  if (builtinCompletions !== null) {
+    if (cursor <= 1) {
+      const sites = new Set<string>();
+      for (const entry of entries) {
+        sites.add(entry.site);
+      }
+      return [...new Set([...builtinCompletions, ...sites])].sort();
     }
-    return [...BUILTIN_COMMANDS, ...sites].sort();
+    return builtinCompletions;
   }
 
   const site = words[0];
-  if (BUILTIN_COMMANDS.includes(site)) {
-    return [];
-  }
 
   if (cursor === 2) {
     const subcommands: string[] = [];
@@ -93,14 +96,14 @@ export function printCompletionScriptFast(shell: string): boolean {
 
 function loadManifestEntries(manifestPaths: string[]): ManifestCompletionEntry[] | null {
   const entries: ManifestCompletionEntry[] = [];
-  let found = false;
   for (const manifestPath of manifestPaths) {
     try {
       const raw = fs.readFileSync(manifestPath, 'utf-8');
       const manifest = JSON.parse(raw) as ManifestCompletionEntry[];
       entries.push(...manifest);
-      found = true;
-    } catch { /* skip missing/unreadable */ }
+    } catch {
+      return null;
+    }
   }
-  return found ? entries : null;
+  return entries;
 }

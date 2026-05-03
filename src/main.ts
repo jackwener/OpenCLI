@@ -22,6 +22,7 @@ import { findPackageRoot, getCliManifestPath } from './package-paths.js';
 import { PKG_VERSION } from './version.js';
 import { EXIT_CODES } from './errors.js';
 import { isSupportedNodeVersion, MIN_SUPPORTED_NODE_MAJOR } from './runtime-detect.js';
+import { hasCliSourceFiles } from './completion-shared.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -85,8 +86,9 @@ if (getCompIdx !== -1) {
   // With sparse override, the user clis dir may exist but have no manifest.
   const manifestPaths = [getCliManifestPath(BUILTIN_CLIS)];
   const userManifest = getCliManifestPath(USER_CLIS);
+  const hasUserCliSources = hasCliSourceFiles(USER_CLIS);
   try { fs.accessSync(userManifest); manifestPaths.push(userManifest); } catch { /* no user manifest */ }
-  if (hasAllManifests(manifestPaths)) {
+  if (hasAllManifests(manifestPaths) && (!hasUserCliSources || manifestPaths.includes(userManifest))) {
     const rest = process.argv.slice(getCompIdx + 1);
     let cursor: number | undefined;
     const words: string[] = [];
@@ -100,8 +102,10 @@ if (getCompIdx !== -1) {
     }
     if (cursor === undefined) cursor = words.length;
     const candidates = getCompletionsFromManifest(words, cursor, manifestPaths);
-    process.stdout.write(candidates.join('\n') + '\n');
-    process.exit(EXIT_CODES.SUCCESS);
+    if (candidates !== null) {
+      process.stdout.write(candidates.join('\n') + '\n');
+      process.exit(EXIT_CODES.SUCCESS);
+    }
   }
   // No manifest — fall through to full discovery path below
 }
