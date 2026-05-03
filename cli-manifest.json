@@ -8721,6 +8721,32 @@
   },
   {
     "site": "instagram",
+    "name": "collection-delete",
+    "description": "Delete an Instagram saved-posts collection (folder) by name or id",
+    "domain": "www.instagram.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Collection name (case-insensitive) or numeric collection_id"
+      }
+    ],
+    "columns": [
+      "status",
+      "collectionId",
+      "collectionName"
+    ],
+    "type": "js",
+    "modulePath": "instagram/collection-delete.js",
+    "sourceFile": "instagram/collection-delete.js",
+    "navigateBefore": "https://www.instagram.com"
+  },
+  {
+    "site": "instagram",
     "name": "comment",
     "description": "Comment on an Instagram post",
     "domain": "www.instagram.com",
