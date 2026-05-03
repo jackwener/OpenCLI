@@ -127,6 +127,15 @@ function createChromeMock() {
       onStartup: { addListener: vi.fn() } as Listener<() => void>,
       onMessage: { addListener: vi.fn() } as Listener<(msg: unknown, sender: unknown, sendResponse: (value: unknown) => void) => void>,
       getManifest: vi.fn(() => ({ version: 'test-version' })),
+      ContextType: { OFFSCREEN_DOCUMENT: 'OFFSCREEN_DOCUMENT' },
+      getContexts: vi.fn(async () => []),
+      getURL: vi.fn((path: string) => `chrome-extension://opencli/${path}`),
+      sendMessage: vi.fn(async () => ({})),
+    },
+    offscreen: {
+      createDocument: vi.fn(async () => {}),
+      hasDocument: vi.fn(async () => false),
+      Reason: { WORKERS: 'WORKERS' },
     },
     cookies: {
       getAll: vi.fn(async () => []),
@@ -139,6 +148,7 @@ function createChromeMock() {
 describe('background tab isolation', () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.doUnmock('./cdp');
     vi.useRealTimers();
     vi.stubGlobal('WebSocket', MockWebSocket);
   });
@@ -416,21 +426,44 @@ describe('background tab isolation', () => {
     ]));
   });
 
-  it('returns the persisted profile contextId from popup status', async () => {
+  it('creates the offscreen daemon bridge with the persisted profile contextId', async () => {
     const { chrome } = createChromeMock();
     await chrome.storage.local.set({ opencli_context_id_v1: 'abc123xy' });
+    vi.stubGlobal('chrome', chrome);
+
+    await import('./background');
+    chrome.runtime.onInstalled.addListener.mock.calls[0][0]();
+    await vi.waitFor(() => {
+      expect(chrome.offscreen.createDocument).toHaveBeenCalledWith(expect.objectContaining({
+        url: 'offscreen.html',
+        reasons: ['WORKERS'],
+      }));
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'opencli:bridge-init',
+        contextId: 'abc123xy',
+        version: 'test-version',
+      }));
+    });
+  });
+
+  it('relays offscreen commands to handleCommand', async () => {
+    const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
     await import('./background');
     const onMessageListener = chrome.runtime.onMessage.addListener.mock.calls[0][0];
     const sendResponse = vi.fn();
 
-    const keepAlive = onMessageListener({ type: 'getStatus' }, {}, sendResponse);
+    const keepAlive = onMessageListener({
+      type: 'opencli:execute-command',
+      command: { id: 'sessions', action: 'sessions' },
+    }, {}, sendResponse);
 
     expect(keepAlive).toBe(true);
     await vi.waitFor(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        contextId: 'abc123xy',
+        id: 'sessions',
+        ok: true,
       }));
     });
   });

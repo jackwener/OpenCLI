@@ -21,6 +21,16 @@ export type Action =
   | 'cdp'
   | 'frames';
 
+/**
+ * Offscreen transport messages.
+ *
+ * The offscreen document owns the daemon WebSocket; the MV3 service worker only
+ * executes Chrome API commands relayed through runtime messaging.
+ */
+export const OFFSCREEN_DOCUMENT = 'offscreen.html';
+export const MSG_EXECUTE_COMMAND = 'opencli:execute-command';
+export const MSG_BRIDGE_INIT = 'opencli:bridge-init';
+
 export interface Command {
   /** Unique request ID */
   id: string;
@@ -89,6 +99,18 @@ export interface Result {
   errorHint?: string;
   /** Page identity (targetId) — present only on page-scoped command responses */
   page?: string;
+}
+
+export interface BridgeInitMessage {
+  type: typeof MSG_BRIDGE_INIT;
+  contextId: string;
+  version: string;
+  compatRange: string;
+}
+
+export interface ExecuteCommandMessage {
+  type: typeof MSG_EXECUTE_COMMAND;
+  command: Command;
 }
 
 /** Default daemon port */

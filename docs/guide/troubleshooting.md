@@ -31,9 +31,6 @@ OPENCLI_CDP_TARGET=detail.1688.com opencli 1688 item 841141931191 -f json
 ### Daemon issues
 
 ```bash
-# View extension logs
-curl localhost:19825/logs
-
 # Stop the daemon
 opencli daemon stop
 
