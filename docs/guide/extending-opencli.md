@@ -54,6 +54,10 @@ opencli browser verify example/detail --write-fixture --seed-args '["https://exa
 
 `--seed-args` is only used when the fixture has no `args`. Once the fixture is written, `opencli browser verify` reads args from `~/.opencli/sites/<site>/verify/<command>.json`.
 
+`browser verify` also enforces row shape before fixture checks: each row should
+stay compact (at most 12 top-level keys), avoid nesting deeper than one level,
+and keep id-shaped fields such as `id` / `user_id` at the top level.
+
 ## Local overrides for official adapters
 
 Use `adapter eject` when you want to customize an existing official adapter.

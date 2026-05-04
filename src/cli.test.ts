@@ -364,6 +364,38 @@ describe('browser verify', () => {
       fs.rmSync(fakeHome, { recursive: true, force: true });
     }
   });
+
+  it('fails before fixture handling when output row shape is not agent-native', async () => {
+    const originalHome = process.env.HOME;
+    const originalUserProfile = process.env.USERPROFILE;
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-verify-shape-'));
+    process.env.HOME = fakeHome;
+    process.env.USERPROFILE = fakeHome;
+    mockExecFileSync.mockReturnValue(JSON.stringify([{ title: 'ok', author: { user_id: 'u1' } }]));
+    const consoleLogSpy = vi.mocked(console.log);
+    consoleLogSpy.mockClear();
+
+    try {
+      const adapterDir = path.join(fakeHome, '.opencli', 'clis', 'hn');
+      fs.mkdirSync(adapterDir, { recursive: true });
+      fs.writeFileSync(path.join(adapterDir, 'top.js'), 'export default {};\n', 'utf-8');
+
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'verify', 'hn/top', '--no-fixture']);
+
+      expect(process.exitCode).toBe(1);
+      const output = consoleLogSpy.mock.calls.map((args) => args.join(' ')).join('\n');
+      expect(output).toContain('Adapter output violates row shape conventions');
+      expect(output).toContain('author.user_id');
+    } finally {
+      consoleLogSpy.mockClear();
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = originalUserProfile;
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('profile list', () => {

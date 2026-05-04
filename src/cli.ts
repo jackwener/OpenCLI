@@ -2039,7 +2039,7 @@ cli({
         }
 
         const { execFileSync } = await import('node:child_process');
-        const { loadFixture, writeFixture, deriveFixture, validateRows, fixturePath, expandFixtureArgs, parseSeedArgs } = await import('./browser/verify-fixture.js');
+        const { loadFixture, writeFixture, deriveFixture, validateRows, validateRowShape, fixturePath, expandFixtureArgs, parseSeedArgs } = await import('./browser/verify-fixture.js');
         const filePath = path.join(os.homedir(), '.opencli', 'clis', site, `${command}.js`);
         if (!fs.existsSync(filePath)) {
           console.error(`Adapter not found: ${filePath}`);
@@ -2105,6 +2105,21 @@ cli({
 
         console.log(renderVerifyPreview(rows));
         console.log(`\n  → ${rows.length} row${rows.length === 1 ? '' : 's'}`);
+
+        const shapeFailures = validateRowShape(rows);
+        if (shapeFailures.length > 0) {
+          console.log(`\n  ✗ Adapter output violates row shape conventions:`);
+          for (const f of shapeFailures.slice(0, 20)) {
+            const where = f.rowIndex !== undefined ? `row[${f.rowIndex}] ` : '';
+            console.log(`    - [${f.rule}] ${where}${f.detail}`);
+          }
+          if (shapeFailures.length > 20) {
+            console.log(`    ... and ${shapeFailures.length - 20} more failure(s)`);
+          }
+          console.log(`\n  Keep rows agent-native: <=12 top-level keys, nesting depth <=1, and id-shaped fields at top level.`);
+          process.exitCode = EXIT_CODES.GENERIC_ERROR;
+          return;
+        }
 
         // ── Fixture handling ───────────────────────────────────────────
         if (opts.writeFixture || opts.updateFixture) {
