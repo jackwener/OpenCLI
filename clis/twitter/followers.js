@@ -1,5 +1,43 @@
-import { AuthRequiredError, selectorError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, selectorError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+
+function normalizeScreenName(value) {
+    return String(value || '').trim().replace(/^\/+/, '').replace(/^@+/, '');
+}
+
+async function extractFollowersFromDOM(page) {
+    const script = [
+        "function() {",
+        "var cells = document.querySelectorAll('[data-testid=\"UserCell\"]');",
+        "var results = [];",
+        "for (var i = 0; i < cells.length; i++) {",
+        "  var cell = cells[i];",
+        "  var lines = cell.innerText.split('\\n');",
+        "  var name = lines[0] || '';",
+        "  var screenName = '';",
+        "  var bioParts = [];",
+        "  for (var j = 0; j < lines.length; j++) {",
+        "    var l = lines[j].trim();",
+        "    if (!l) continue;",
+        "    if (l.startsWith('@')) { screenName = l; continue; }",
+        "    if (l === '关注' || l === '正在关注' || l === '已关注') continue;",
+        "    bioParts.push(l);",
+        "  }",
+        "  if (screenName) {",
+        "    results.push({",
+        "      screen_name: screenName.replace('@', ''),",
+        "      name: name,",
+        "      bio: bioParts.join(' '),",
+        "      followers: 0",
+        "    });",
+        "  }",
+        "}",
+        "return results;",
+        "}"
+    ].join('');
+    return page.evaluate(script);
+}
+
 cli({
     site: 'twitter',
     name: 'followers',
@@ -15,7 +53,6 @@ cli({
     columns: ['screen_name', 'name', 'bio', 'followers'],
     func: async (page, kwargs) => {
         let targetUser = kwargs.user;
-        // If no user is specified, figure out the logged-in user's handle
         if (!targetUser) {
             await page.goto('https://x.com/home');
             await page.wait({ selector: '[data-testid="primaryColumn"]' });
@@ -31,17 +68,13 @@ cli({
         // 1. Navigate to profile page
         await page.goto(`https://x.com/${targetUser}`);
         await page.wait(3);
-        // 2. Install interceptor BEFORE SPA navigation.
-        //    goto() resets JS context, but SPA click preserves it.
-        await page.installInterceptor('Followers');
-        // 3. Click the followers link via SPA navigation (preserves interceptor).
-        //    Twitter uses /verified_followers instead of /followers now.
+        // 2. Click the followers tab via SPA navigation
         const safeUser = JSON.stringify(targetUser);
         const clicked = await page.evaluate(`() => {
         const target = ${safeUser};
         const selectors = [
-            'a[href="/' + target + '/verified_followers"]',
             'a[href="/' + target + '/followers"]',
+            'a[href="/' + target + '/verified_followers"]',
         ];
         for (const sel of selectors) {
             const link = document.querySelector(sel);
@@ -52,52 +85,32 @@ cli({
         if (!clicked) {
             throw selectorError('Twitter followers link', 'Twitter may have changed the layout.');
         }
-        await page.waitForCapture(5);
-        // 4. Scroll to trigger pagination API calls
-        await page.autoScroll({ times: Math.ceil(kwargs.limit / 20), delayMs: 2000 });
-        // 5. Retrieve intercepted data
-        const requests = await page.getInterceptedRequests();
-        const requestList = Array.isArray(requests) ? requests : [];
-        if (requestList.length === 0) {
-            return [];
-        }
-        let results = [];
-        for (const req of requestList) {
-            try {
-                // GraphQL response: { data: { user: { result: { timeline: ... } } } }
-                let instructions = req.data?.user?.result?.timeline?.timeline?.instructions;
-                if (!instructions)
-                    continue;
-                let addEntries = instructions.find((i) => i.type === 'TimelineAddEntries');
-                if (!addEntries) {
-                    addEntries = instructions.find((i) => i.entries && Array.isArray(i.entries));
-                }
-                if (!addEntries)
-                    continue;
-                for (const entry of addEntries.entries) {
-                    if (!entry.entryId.startsWith('user-'))
-                        continue;
-                    const item = entry.content?.itemContent?.user_results?.result;
-                    if (!item || item.__typename !== 'User')
-                        continue;
-                    const core = item.core || {};
-                    const legacy = item.legacy || {};
-                    results.push({
-                        screen_name: core.screen_name || legacy.screen_name || 'unknown',
-                        name: core.name || legacy.name || 'unknown',
-                        bio: legacy.description || item.profile_bio?.description || '',
-                        followers: legacy.followers_count || legacy.normal_followers_count || 0
-                    });
-                }
+        // 3. Wait for follower cells to appear
+        await page.wait({ selector: '[data-testid="UserCell"]', timeout: 10000 });
+        // 4. Collect followers from DOM, scroll to load more
+        const limit = Number(kwargs.limit) || 50;
+        const allFollowers = [];
+        const seen = new Set();
+        let sameCount = 0;
+        while (allFollowers.length < limit && sameCount < 3) {
+            const followers = await extractFollowersFromDOM(page);
+            const newFollowers = followers.filter(f => !seen.has(f.screen_name));
+            for (const f of newFollowers) {
+                seen.add(f.screen_name);
+                allFollowers.push(f);
             }
-            catch (e) {
-                // ignore parsing errors for individual payloads
+            if (newFollowers.length === 0) {
+                sameCount++;
+            } else {
+                sameCount = 0;
             }
+            if (allFollowers.length >= limit) break;
+            await page.scroll('bottom');
+            await page.wait(2);
         }
-        // Deduplicate by screen_name
-        const unique = new Map();
-        results.forEach(r => unique.set(r.screen_name, r));
-        const deduplicatedResults = Array.from(unique.values());
-        return deduplicatedResults.slice(0, kwargs.limit);
+        if (allFollowers.length === 0) {
+            throw new EmptyResultError('twitter followers', `No followers found for @${targetUser}`);
+        }
+        return allFollowers.slice(0, limit);
     }
 });
