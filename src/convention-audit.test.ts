@@ -156,6 +156,85 @@ describe('convention audit', () => {
     });
   });
 
+  it('ignores ok:false diagnostic objects when checking emitted rows', () => {
+    const root = makeProject([
+      { site: 'demo', name: 'search', access: 'read', columns: ['id', 'url'], sourceFile: 'demo/search.js' },
+    ], {
+      'demo/search.js': `
+        export async function run() {
+          if (!document.querySelector('.items')) {
+            return { ok: false, bodyLen: document.body.innerText.length, sample: document.body.innerText.slice(0, 800), url: location.href };
+          }
+          return rows.map((row) => ({ id: row.id, url: row.url }));
+        }
+      `,
+    });
+
+    const report = runConventionAudit({ projectRoot: root });
+    const violations = report.categories.find((item) => item.rule === 'silent-column-drop')!.violations;
+
+    expect(violations).toEqual([]);
+  });
+
+  it('ignores raw intermediate keys when a final mapper converts them into columns', () => {
+    const root = makeProject([
+      {
+        site: 'demo',
+        name: 'search',
+        access: 'read',
+        columns: ['id', 'rating', 'reviews', 'price'],
+        sourceFile: 'demo/search.js',
+      },
+    ], {
+      'demo/search.js': `
+        export async function run() {
+          rows.push({
+            id: item.id,
+            starClass: item.starClass,
+            reviewsRaw: item.reviewsRaw,
+            priceRaw: item.priceRaw,
+          });
+          return rows.map((r) => ({
+            id: r.id,
+            rating: r.starClass ? Number(r.starClass) / 10 : null,
+            reviews: parseReviewCount(r.reviewsRaw),
+            price: parsePrice(r.priceRaw),
+          }));
+        }
+      `,
+    });
+
+    const report = runConventionAudit({ projectRoot: root });
+    const violations = report.categories.find((item) => item.rule === 'silent-column-drop')!.violations;
+
+    expect(violations).toEqual([]);
+  });
+
+  it('still reports raw keys emitted directly without a final mapper', () => {
+    const root = makeProject([
+      { site: 'demo', name: 'search', access: 'read', columns: ['id', 'title'], sourceFile: 'demo/search.js' },
+    ], {
+      'demo/search.js': `
+        export async function run() {
+          rows.push({
+            id: item.id,
+            title: titleRaw,
+            titleRaw,
+          });
+          return rows;
+        }
+      `,
+    });
+
+    const report = runConventionAudit({ projectRoot: root });
+    const violations = report.categories.find((item) => item.rule === 'silent-column-drop')!.violations;
+
+    expect(violations[0]).toMatchObject({
+      command: 'demo/search',
+      details: expect.objectContaining({ missing: ['titleRaw'] }),
+    });
+  });
+
   it('only reports empty array fallbacks inside catch blocks', () => {
     const root = makeProject([
       { site: 'demo', name: 'guard', access: 'read', columns: ['id'], sourceFile: 'demo/guard.js' },

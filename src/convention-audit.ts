@@ -259,16 +259,18 @@ function auditColumnDrop(
 ): ConventionViolation[] {
   const columns = new Set(entry.columns ?? []);
   if (columns.size === 0) return [];
+  const transformedIntermediateKeys = findTransformedIntermediateKeys(source, columns);
   const seen = new Set<string>();
   const violations: ConventionViolation[] = [];
   for (const object of extractPotentialRowObjects(source)) {
+    if (isFailureDiagnosticObject(object.text)) continue;
     const keys = extractObjectKeys(object.text)
       .filter((key) => !COLUMN_DROP_IGNORED_KEYS.has(key));
     if (keys.length < 2) continue;
     if (looksLikeCommandMetadata(keys)) continue;
     const overlap = keys.filter((key) => columns.has(key));
     if (overlap.length === 0) continue;
-    const missing = keys.filter((key) => !columns.has(key));
+    const missing = keys.filter((key) => !columns.has(key) && !transformedIntermediateKeys.has(key));
     if (missing.length === 0) continue;
     const signature = missing.sort().join(',');
     if (seen.has(signature)) continue;
@@ -460,28 +462,65 @@ function readBalancedBlock(source: string, openIndex: number): string | null {
 }
 
 function extractObjectKeys(objectText: string): string[] {
-  const body = objectText.trim().replace(/^\{/, '').replace(/\}$/, '');
-  const parts = splitTopLevel(body, ',');
-  const keys: string[] = [];
-  for (const part of parts) {
-    const key = extractPropertyKey(part);
-    if (key) keys.push(key);
-  }
-  return [...new Set(keys)];
+  return [...new Set(extractObjectProperties(objectText).map((property) => property.key))];
 }
 
-function extractPropertyKey(part: string): string | null {
+function extractObjectProperties(objectText: string): Array<{ key: string; value: string }> {
+  const body = objectText.trim().replace(/^\{/, '').replace(/\}$/, '');
+  const parts = splitTopLevel(body, ',');
+  const properties: Array<{ key: string; value: string }> = [];
+  for (const part of parts) {
+    const property = extractProperty(part);
+    if (property) properties.push(property);
+  }
+  return properties;
+}
+
+function extractProperty(part: string): { key: string; value: string } | null {
   const trimmed = part.trim();
   if (!trimmed || trimmed.startsWith('...') || trimmed.startsWith('[')) return null;
   const colonIndex = findTopLevelChar(trimmed, ':');
   if (colonIndex >= 0) {
     const raw = trimmed.slice(0, colonIndex).trim();
-    if (/^['"][^'"]+['"]$/.test(raw)) return raw.slice(1, -1);
+    const value = trimmed.slice(colonIndex + 1).trim();
+    if (/^['"][^'"]+['"]$/.test(raw)) return { key: raw.slice(1, -1), value };
     const identifier = /^([A-Za-z_$][\w$]*)$/.exec(raw);
-    return identifier?.[1] ?? null;
+    return identifier ? { key: identifier[1], value } : null;
   }
   const shorthand = /^([A-Za-z_$][\w$]*)\b/.exec(trimmed);
-  return shorthand?.[1] ?? null;
+  return shorthand ? { key: shorthand[1], value: shorthand[1] } : null;
+}
+
+function isFailureDiagnosticObject(objectText: string): boolean {
+  const ok = extractObjectProperties(objectText).find((property) => property.key === 'ok');
+  return ok != null && /^false\b/.test(ok.value);
+}
+
+function findTransformedIntermediateKeys(source: string, columns: Set<string>): Set<string> {
+  const transformed = new Set<string>();
+  for (const object of extractArrowReturnObjects(source)) {
+    for (const property of extractObjectProperties(object.text)) {
+      if (!columns.has(property.key)) continue;
+      for (const match of property.value.matchAll(/\b([A-Za-z_$][\w$]*(?:Raw|Class))\b/g)) {
+        const rawKey = match[1];
+        if (rawKey !== property.key) transformed.add(rawKey);
+      }
+    }
+  }
+  return transformed;
+}
+
+function extractArrowReturnObjects(source: string): Array<{ text: string; index: number }> {
+  const objects: Array<{ text: string; index: number }> = [];
+  for (const match of source.matchAll(/=>\s*\(\s*{/g)) {
+    const token = match[0];
+    const openOffset = token.lastIndexOf('{');
+    if (match.index === undefined || openOffset < 0) continue;
+    const index = match.index + openOffset;
+    const text = readBalancedBlock(source, index);
+    if (text) objects.push({ text, index });
+  }
+  return objects;
 }
 
 function splitTopLevel(input: string, separator: string): string[] {

@@ -365,23 +365,6 @@
     ]
   },
   {
-    "command": "dianping/search",
-    "file": "clis/dianping/search.js",
-    "missing": [
-      "bodyLen",
-      "sample"
-    ]
-  },
-  {
-    "command": "dianping/search",
-    "file": "clis/dianping/search.js",
-    "missing": [
-      "priceRaw",
-      "reviewsRaw",
-      "starClass"
-    ]
-  },
-  {
     "command": "douban/download",
     "file": "clis/douban/download.js",
     "missing": [
@@ -668,13 +651,6 @@
     "file": "clis/twitter/list-tweets.js",
     "missing": [
       "name"
-    ]
-  },
-  {
-    "command": "twitter/post",
-    "file": "clis/twitter/post.js",
-    "missing": [
-      "actualText"
     ]
   },
   {
