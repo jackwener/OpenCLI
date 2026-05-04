@@ -4743,6 +4743,82 @@
     "navigateBefore": true
   },
   {
+    "site": "dblp",
+    "name": "paper",
+    "aliases": [
+      "detail",
+      "view"
+    ],
+    "description": "Fetch a dblp record by canonical key (e.g. conf/nips/VaswaniSPUJGKP17)",
+    "access": "read",
+    "domain": "dblp.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "dblp record key (round-tripped from the `key` column of `dblp search`)"
+      }
+    ],
+    "columns": [
+      "key",
+      "type",
+      "title",
+      "authors",
+      "venue",
+      "year",
+      "pages",
+      "doi",
+      "open_access_url",
+      "dblp_url"
+    ],
+    "type": "js",
+    "modulePath": "dblp/paper.js",
+    "sourceFile": "dblp/paper.js"
+  },
+  {
+    "site": "dblp",
+    "name": "search",
+    "description": "Search dblp computer-science bibliography by free-text query",
+    "access": "read",
+    "domain": "dblp.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (title / author / venue, e.g. \"attention is all you need\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-100, single dblp page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "key",
+      "title",
+      "authors",
+      "venue",
+      "year",
+      "type",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "dblp/search.js",
+    "sourceFile": "dblp/search.js"
+  },
+  {
     "site": "deepseek",
     "name": "ask",
     "description": "Send a prompt to DeepSeek and get the response",
