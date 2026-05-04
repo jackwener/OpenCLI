@@ -122,9 +122,11 @@
       "rank",
       "offer_id",
       "title",
+      "item_url",
       "price_text",
       "moq_text",
       "seller_name",
+      "member_id",
       "location"
     ],
     "type": "js",
@@ -5579,6 +5581,8 @@
     ],
     "columns": [
       "index",
+      "photo_id",
+      "subject_id",
       "title",
       "image_url",
       "detail_url"
@@ -8862,8 +8866,11 @@
       "time",
       "username",
       "thread_title",
+      "tid",
+      "pid",
       "post_content",
       "quote_content",
+      "url",
       "reply_url"
     ],
     "type": "js",
@@ -11774,6 +11781,7 @@
     "columns": [
       "rank",
       "name",
+      "slug",
       "count",
       "url"
     ],

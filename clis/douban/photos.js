@@ -12,7 +12,7 @@ cli({
         { name: 'type', default: 'Rb', help: '豆瓣 photos 的 type 参数，默认 Rb（海报）' },
         { name: 'limit', type: 'int', default: 120, help: '最多返回多少张图片' },
     ],
-    columns: ['index', 'title', 'image_url', 'detail_url'],
+    columns: ['index', 'photo_id', 'subject_id', 'title', 'image_url', 'detail_url'],
     func: async (page, kwargs) => {
         const subjectId = normalizeDoubanSubjectId(String(kwargs.id || ''));
         const data = await loadDoubanSubjectPhotos(page, subjectId, {

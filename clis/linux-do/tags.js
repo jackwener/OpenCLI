@@ -11,7 +11,7 @@ cli({
     args: [
         { name: 'limit', type: 'int', default: 30, help: 'Number of tags' },
     ],
-    columns: ['rank', 'name', 'count', 'url'],
+    columns: ['rank', 'name', 'slug', 'count', 'url'],
     func: async (page, kwargs) => {
         const data = await fetchLinuxDoJson(page, '/tags.json');
         const tags = (data?.tags || []);

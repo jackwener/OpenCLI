@@ -294,7 +294,7 @@ cli({
             help: `结果数量上限（默认 ${SEARCH_LIMIT_DEFAULT}，最大 ${SEARCH_LIMIT_MAX}）`,
         },
     ],
-    columns: ['rank', 'offer_id', 'title', 'price_text', 'moq_text', 'seller_name', 'location'],
+    columns: ['rank', 'offer_id', 'title', 'item_url', 'price_text', 'moq_text', 'seller_name', 'member_id', 'location'],
     func: async (page, kwargs) => {
         const query = String(kwargs.query ?? '');
         const limit = parseSearchLimit(kwargs.limit);
