@@ -58,6 +58,7 @@
     "test:all": "vitest run",
     "test:e2e": "vitest run --project e2e",
     "check:listing-id-pairing": "node scripts/check-listing-id-pairing.mjs --strict",
+    "check:silent-column-drop": "node scripts/check-silent-column-drop.mjs",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"

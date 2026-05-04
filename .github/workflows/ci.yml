@@ -58,6 +58,13 @@ jobs:
         if: runner.os == 'Linux'
         run: npm run check:listing-id-pairing
 
+      # Guard: adapter rows must not silently emit keys omitted from `columns`.
+      # Existing findings are tracked in scripts/silent-column-drop-baseline.json;
+      # this gate rejects newly introduced drops while allowing incremental cleanup.
+      - name: Check silent column drops
+        if: runner.os == 'Linux'
+        run: npm run check:silent-column-drop
+
   # ── Unit tests (vitest shard) ──
   # PR: ubuntu + Node 22 only (fast feedback, 2 jobs).
   # Push to main/dev: full matrix for cross-platform/cross-version coverage (12 jobs).
