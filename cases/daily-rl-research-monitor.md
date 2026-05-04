@@ -7,7 +7,7 @@ A 30-second morning routine that surfaces what changed overnight in reinforcemen
 Before reading anything, decide where to spend my 20 minutes of paper time:
 
 - which `cs.LG` and `cs.AI` papers landed in the last 24 hours
-- which OpenReview submissions at the active venues (ICLR, NeurIPS) got new review activity
+- which OpenReview submissions at recent venues (NeurIPS 2025 right now, ICLR 2024 / NeurIPS 2024 as historical reference) carry titles and primary areas relevant to my work
 - which papers the Hugging Face Daily Papers community is talking about today
 
 Skim signals, then drill in. The point is to filter, not to read everything.
@@ -19,8 +19,10 @@ Skim signals, then drill in. The point is to filter, not to read everything.
 opencli arxiv recent cs.LG --limit 30 -f json > /tmp/lg.json
 opencli arxiv recent cs.AI --limit 30 -f json > /tmp/ai.json
 
-# 2. ICLR 2026 submissions visible on OpenReview right now
-opencli openreview venue "ICLR.cc/2026/Conference" --limit 50 -f json > /tmp/iclr.json
+# 2. NeurIPS 2025 oral track from OpenReview (use natural-language
+#    venue text; the EMPTY_RESULT error helpfully echoes valid syntax
+#    if a venue is not yet open)
+opencli openreview venue "NeurIPS 2025 oral" --limit 50 -f json > /tmp/neurips.json
 
 # 3. Hugging Face Daily Papers (community-upvoted research)
 opencli hf top --period daily --limit 20 -f json > /tmp/hf.json

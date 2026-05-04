@@ -14,23 +14,23 @@ The OpenReview UI is fine for one paper at a time, but unusable for batch reason
 
 ## Commands
 
-Worked example: ICLR 2026 oral track, then drill into one paper's reviews.
+Worked example: ICLR 2024 oral track, then drill into one paper's reviews using a real forum id.
 
 ```bash
-# 1. Full list of papers at a venue
-opencli openreview venue "ICLR.cc/2026/Conference" --limit 200 -f json > /tmp/iclr-2026.json
+# 1. Full list of papers at a venue (natural-language venue text;
+#    if the venue is not yet open OpenReview returns EMPTY_RESULT
+#    with a help line listing valid forms)
+opencli openreview venue "ICLR 2024 oral" --limit 200 -f json > /tmp/iclr-2024.json
 
-# Or a more specific track if the invitation id is known:
-opencli openreview venue "ICLR.cc/2026/Conference/-/Submission" --limit 200 -f json
-
-# 2. Pick a forum id from the listing, fetch the full review thread
-opencli openreview reviews <forum-id> -f json
+# 2. Pick a forum id from the listing, fetch the full review thread.
+#    Example: "Proving Test Set Contamination in Black-Box Language Models"
+opencli openreview reviews KS8mIvetg2 -f json > /tmp/reviews.json
 
 # 3. Single paper metadata if needed
-opencli openreview paper <forum-id> -f json
+opencli openreview paper KS8mIvetg2 -f json
 ```
 
-`venue` returns each entry with a forum id you can hand straight back into `reviews` and `paper`. No id lookup gymnastics.
+`venue` returns each entry with a forum id you can hand straight back into `reviews` and `paper`. No id lookup gymnastics. `reviews` returns the full thread as a JSON array: a `PAPER` row with the abstract, then one `REVIEW` row per reviewer (with `rating`, `confidence`, summary, weaknesses, questions), followed by author rebuttals and the AC's decision rationale.
 
 ## What I do with the output
 

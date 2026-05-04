@@ -17,9 +17,11 @@ Doing this in a browser means three tabs and two minutes of context-switching. T
 Worked example: "Direct Preference Optimization" (DPO).
 
 ```bash
-# 1. Canonical arxiv record (full abstract, authors, pdf url, categories)
-opencli arxiv search "Direct Preference Optimization" --limit 3 -f json
-# Pick the matching id, then:
+# 1. Canonical arxiv record (full abstract, authors, pdf url, categories).
+#    Note: arxiv free-text search ranks by recency, so the original DPO
+#    paper does not always come back first. When the canonical id is
+#    already known, hit `arxiv paper <id>` directly.
+opencli arxiv search "Direct Preference Optimization" --limit 5 -f json
 opencli arxiv paper 2305.18290 -f json
 
 # 2. dblp bibliography record + co-authors + venue history
