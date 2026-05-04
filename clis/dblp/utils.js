@@ -61,6 +61,20 @@ export async function dblpFetchJson(path, label) {
     catch (err) {
         throw new CommandExecutionError(`${label} returned malformed JSON: ${err?.message ?? err}`);
     }
+    const statusCode = String(body?.result?.status?.['@code'] ?? '').trim();
+    if (!statusCode) {
+        throw new CommandExecutionError(
+            `${label} returned JSON without result.status.@code`,
+            'dblp changed its JSON envelope or returned a partial error payload; inspect the raw response in a browser.',
+        );
+    }
+    if (statusCode !== '200') {
+        const statusText = String(body?.result?.status?.text ?? '').trim();
+        throw new CommandExecutionError(
+            `${label} returned API status ${statusCode}${statusText ? ` (${statusText})` : ''}`,
+            'dblp accepted the HTTP request but reported an API-level failure. Retry later or inspect the same query in a browser.',
+        );
+    }
     return body;
 }
 

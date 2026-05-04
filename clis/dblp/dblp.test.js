@@ -89,8 +89,10 @@ describe('dblp adapter', () => {
         expect(paper).toBeDefined();
         expect(search.columns).toEqual(SEARCH_COLUMNS);
         expect(paper.columns).toEqual(PAPER_COLUMNS);
-        expect(search.access).toBe('read');
-        expect(paper.access).toBe('read');
+        expect(search.strategy).toBe('public');
+        expect(paper.strategy).toBe('public');
+        expect(search.browser).toBe(false);
+        expect(paper.browser).toBe(false);
     });
 
     it('paper aliases include detail / view', () => {
@@ -271,9 +273,23 @@ describe('dblp adapter', () => {
 });
 
 describe('dblp search command', () => {
+    it('rejects invalid query before any network call', async () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+
+        const search = getRegistry().get('dblp/search');
+        await expect(search.func({ query: '   ', limit: 5 })).rejects.toThrow(ArgumentError);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('calls the JSON search endpoint and projects hits', async () => {
         const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(
-            JSON.stringify({ result: { hits: { hit: [SEARCH_HIT] } } }),
+            JSON.stringify({
+                result: {
+                    status: { '@code': '200', text: 'OK' },
+                    hits: { hit: [SEARCH_HIT] },
+                },
+            }),
             { status: 200, headers: { 'content-type': 'application/json' } },
         )));
         vi.stubGlobal('fetch', fetchMock);
@@ -291,7 +307,12 @@ describe('dblp search command', () => {
 
     it('throws EmptyResultError when dblp returns no hits', async () => {
         vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response(
-            JSON.stringify({ result: { hits: {} } }),
+            JSON.stringify({
+                result: {
+                    status: { '@code': '200', text: 'OK' },
+                    hits: {},
+                },
+            }),
             { status: 200, headers: { 'content-type': 'application/json' } },
         ))));
         const search = getRegistry().get('dblp/search');
@@ -300,6 +321,42 @@ describe('dblp search command', () => {
 
     it('rate-limit (429) surfaces as a typed CommandExecutionError', async () => {
         vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response('', { status: 429 }))));
+        const search = getRegistry().get('dblp/search');
+        await expect(search.func({ query: 'bert', limit: 5 })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('in-band API status envelope surfaces as CommandExecutionError', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response(
+            JSON.stringify({
+                result: {
+                    status: { '@code': '500', text: 'Backend error' },
+                    hits: {},
+                },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+        ))));
+        const search = getRegistry().get('dblp/search');
+        await expect(search.func({ query: 'bert', limit: 5 })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('missing in-band API status code surfaces as CommandExecutionError', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response(
+            JSON.stringify({
+                result: {
+                    hits: {},
+                },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+        ))));
+        const search = getRegistry().get('dblp/search');
+        await expect(search.func({ query: 'bert', limit: 5 })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('malformed JSON surfaces as CommandExecutionError', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response(
+            'not json',
+            { status: 200, headers: { 'content-type': 'application/json' } },
+        ))));
         const search = getRegistry().get('dblp/search');
         await expect(search.func({ query: 'bert', limit: 5 })).rejects.toThrow(CommandExecutionError);
     });
