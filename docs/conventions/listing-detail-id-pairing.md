@@ -1,19 +1,23 @@
-# Listing↔detail ID pairing
+# Listing↔detail ID pairing (advisory)
+
+> **Status:** advisory convention, not a CI gate. Use as guidance when
+> designing listing columns; an audit script (`npm run advise:listing-id-pairing`)
+> can surface candidate listings for human review.
 
 When a site exposes both a **listing-class command** (`search` / `hot` /
 `recent` / `top` / `feed` / ...) and a **detail-class command** (`read` /
-`paper` / `article` / `job` / `view` / ...), the listing rows MUST include
-an id-shaped column whose value can be passed directly into the detail
-command.
+`paper` / `article` / `job` / `view` / ...), it's usually nicer for agents
+if the listing rows include an id-shaped column whose value can be passed
+directly into the detail command.
 
-Without that, the agent has to either re-search by title, scrape a URL out
-of band, or guess — all of which break the agent-native contract.
+Without that, the agent has to either re-search by title or scrape a URL
+out of band to follow up on a listing row.
 
-## The rule
+## Soft convention
 
-> If `<site>` has both a listing command and a detail command, every
-> listing row MUST carry a column whose value round-trips into the detail
-> command's positional argument.
+> If `<site>` has both a listing command and a detail command, prefer
+> giving each listing row a column whose value round-trips into the
+> detail command's positional argument.
 
 That column is whatever the detail command expects:
 
@@ -48,13 +52,31 @@ and the detail command needs an id, the agent has three bad options:
    the failure mode silently downstream.
 
 Surfacing the id in the listing collapses all three into a single,
-unambiguous column. It is the cheapest and most durable way to keep the
-listing→detail call chain agent-native.
+unambiguous column.
+
+## Why this is advisory, not a gate
+
+Whether a listing should pair with a detail is a case-by-case product/UX
+call. Many legitimate listings genuinely don't pair:
+
+- **Topic-string listings** (`twitter trending`, `weibo hot`) — rows are
+  search keywords, not addressable entities.
+- **Profile-attribute listings** (`reddit user`, `lesswrong user`,
+  `weibo user`) — rows are `[field, value]` pairs of one profile.
+- **UI-only sessions** (`discord-app search`, `notion search` Quick Find)
+  — page ids aren't extractable from the rendered DOM.
+- **Comment / reply listings** — sub-resources of a parent thread; the
+  detail command fetches the parent, not the comment.
+
+A hard CI gate forced authors to either add an artificial id column or
+file an exemption with a reason — both of which were higher cognitive cost
+than the silent-loss bugs the rule actually catches. See PR #1311 thread
+for the broader "anti-pattern vs case-by-case" filter.
 
 ## What counts as an "id-shaped column"
 
-The validator (`scripts/check-listing-id-pairing.mjs`) considers any of
-these column names a valid round-trip handle:
+The advisory script (`scripts/check-listing-id-pairing.mjs`) considers any
+of these column names a valid round-trip handle:
 
 - Exact `id` / `short_id`
 - Anything ending in `_id` or `Id` (e.g. `offer_id`, `paperId`)
@@ -72,30 +94,7 @@ these column names a valid round-trip handle:
   Bluesky's `at://did:.../app.bsky.feed.post/...`).
 
 If the natural id for your site is a different shape, add the pattern to
-`ID_COLUMN_PATTERNS` in the validator and document it here.
-
-## What is intentionally exempt
-
-The rule does NOT fire on:
-
-- **Comment / review / reply listings** (`bilibili comments`,
-  `youtube comments`, `taobao reviews`, `weibo comments`, ...). The rows
-  are sub-resources within a parent thread; the detail command on those
-  sites fetches the parent post, not the comment. Keep the parent's id in
-  the *args* of the comments command, not in the rows.
-- **AI-chat / agent-session listings** (`chatgpt-app ask`, `claude new`,
-  `codex ask`, ...). The rows are conversation turns inside one session,
-  not separately fetchable.
-- **Topic / landing-page listings** (`tieba hot`, `weibo hot`). Their rows
-  point to a topic/search landing page, not to a post/thread entity accepted
-  by the detail command.
-- **Single-profile field listings** (`reddit user`, `lesswrong user`).
-  Their shape is `[field, value]` — every row is an attribute of the
-  same profile, addressed by the username arg. There is no per-row entity
-  to round-trip.
-
-These categories are encoded by their command name being absent from
-`LISTING_NAMES` in the validator.
+`ID_COLUMN_PATTERNS` in the script.
 
 ## How to add an id column to a listing
 
@@ -107,20 +106,19 @@ These categories are encoded by their command name being absent from
 3. **Update the docs.** The site's `docs/adapters/browser/<site>.md`
    should list the new column under "Listing columns" and call out that
    it round-trips into the detail command.
-4. **Run the validator.**
+4. **Optional: run the advisory script** to confirm the manifest reflects
+   the new column.
 
    ```bash
-   node scripts/check-listing-id-pairing.mjs --strict
+   npm run advise:listing-id-pairing
    ```
 
-## Validator usage
+## Advisory script usage
 
 ```bash
-# Report-only (default): exit 0 even on violations
-node scripts/check-listing-id-pairing.mjs
-
-# Strict (CI): exit 1 if any listing is missing an id column
-node scripts/check-listing-id-pairing.mjs --strict
+# Print a report of listings that don't currently carry an id-shaped column.
+# Always exits 0 — does not fail CI.
+npm run advise:listing-id-pairing
 ```
 
 The script reads `cli-manifest.json`, so always rebuild the manifest

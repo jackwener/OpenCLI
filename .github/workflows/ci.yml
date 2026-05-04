@@ -50,14 +50,6 @@ jobs:
             exit 1
           fi
 
-      # Guard: listing-class commands must surface an id-shaped column so their
-      # rows round-trip into the site's detail-class command. Without this, an
-      # agent has to re-search by title or scrape URLs to follow up on a row.
-      # See docs/conventions/listing-detail-id-pairing.md.
-      - name: Check listing↔detail id pairing
-        if: runner.os == 'Linux'
-        run: npm run check:listing-id-pairing
-
       # Guard: adapter rows must not silently emit keys omitted from `columns`.
       # Existing findings are tracked in scripts/silent-column-drop-baseline.json;
       # this gate rejects newly introduced drops while allowing incremental cleanup.

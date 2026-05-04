@@ -1,32 +1,32 @@
 #!/usr/bin/env node
 /**
- * check-listing-id-pairing.mjs — verify listing↔detail id round-tripping.
+ * check-listing-id-pairing.mjs — advisory report on listing↔detail id round-tripping.
  *
- * Agent-native rule: when a site exposes both a listing-class command
- * (search / hot / recent / trending / top / feed / popular / new / list)
- * AND a detail-class command (read / article / paper / post / detail /
+ * Soft convention (NOT a CI gate): when a site exposes both a listing-class
+ * command (search / hot / recent / trending / top / feed / popular / new /
+ * list) AND a detail-class command (read / article / paper / post / detail /
  * view / job / page / book / movie / show / chapter / question / answer /
- * tweet / video / track), every listing row must include an id-shaped
- * column whose value can be fed into the detail command's positional
- * argument. Without that, the agent has to re-search by title, scrape
- * a URL, or guess — all of which break the agent-native contract.
+ * tweet / video / track), it's usually nicer for agents if every listing row
+ * carries an id-shaped column whose value round-trips into the detail
+ * command. Without that, the agent has to re-search by title or scrape a URL
+ * to follow up.
+ *
+ * Why advisory and not a gate: whether a listing should pair with a detail
+ * is a case-by-case product/UX call (topic-string trending, profile-attribute
+ * key/value rows, UI-only sessions etc. legitimately don't pair). Forcing
+ * authors through an exempt list every PR was higher cognitive cost than the
+ * silent-loss bugs the rule actually catches. See PR #1311 thread for the
+ * "anti-pattern vs case-by-case" filter.
  *
  * What this script does:
  *  1. Group cli-manifest.json entries by site.
  *  2. For each site that has both classes, walk every listing entry and
  *     check `columns` for at least one id-shaped name.
- *  3. Fail (exit 1 in --strict) on any listing missing an id column.
- *
- * Heuristic, not perfect: the script only checks for the *presence* of an
- * id-shaped column on listings; it doesn't verify the id format actually
- * matches the detail command's positional arg. That stays a manual review
- * concern — the column shape gate alone catches the silent-loss class
- * (listings that emit only title/author/url and force the agent to scrape
- * the URL for an id).
+ *  3. Print a report. Always exits 0 — never fails CI.
  *
  * Usage:
- *   node scripts/check-listing-id-pairing.mjs           # report only
- *   node scripts/check-listing-id-pairing.mjs --strict  # exit 1 on violations
+ *   node scripts/check-listing-id-pairing.mjs   # print advisory report
+ *   npm run advise:listing-id-pairing
  */
 
 import { readFileSync } from 'node:fs';
@@ -69,25 +69,6 @@ const DETAIL_NAMES = new Set([
     'page', 'book', 'movie', 'show-detail', 'chapter', 'tweet',
     'video', 'track', 'note', 'review', 'item', 'product', 'episode',
     'thread', 'comment-detail', 'profile-detail', 'shop',
-]);
-
-/**
- * Listing/site pairs that are intentionally exempt because the listing
- * rows are a different entity type from what the detail command fetches.
- * Each exemption records WHY so future maintainers know what to verify
- * before removing the entry.
- */
-const EXEMPT = new Map([
-    ['nowcoder/hot', 'hot rows are search queries / topics, not posts; nowcoder/detail fetches a post by id'],
-    ['bluesky/trending', 'trending rows are topic strings, not threads; bluesky/thread fetches a single thread by url'],
-    ['twitter/trending', 'trending rows are topic strings, not tweets; twitter/post|thread|article fetch by tweet id or username/id'],
-    ['lesswrong/user', 'rows are profile-attribute key/value pairs; lesswrong/read fetches a post, addressed by post id'],
-    ['reddit/user', 'rows are profile-attribute key/value pairs; reddit/read fetches a post, addressed by post id'],
-    ['discord-app/search', 'desktop UI session — message ids are not extractable from the rendered DOM'],
-    ['notion/search', 'Strategy.UI Quick Find — page ids are not exposed in the rendered DOM; agents navigate via Notion UI (Cmd+P), not by id round-trip'],
-    ['tieba/hot', 'hot rows are topic landing pages, not thread rows; tieba/read fetches a thread by numeric id'],
-    ['weibo/hot', 'hot rows are search topics, not posts; weibo/post fetches a post by id or mblogid'],
-    ['weibo/user', 'rows are profile-attribute fields; weibo/post fetches a post, addressed by post id or mblogid'],
 ]);
 
 /** Columns whose name implies "this is an id you can pass to detail". */
@@ -148,7 +129,6 @@ function classify(name) {
 }
 
 function main() {
-    const strict = process.argv.includes('--strict');
     const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
 
     const bySite = new Map();
@@ -158,8 +138,7 @@ function main() {
         bySite.get(entry.site).push(entry);
     }
 
-    const violations = [];
-    const exempted = [];
+    const findings = [];
     let scannedSites = 0;
     let scannedListings = 0;
 
@@ -177,14 +156,9 @@ function main() {
         for (const entry of entries) {
             if (classify(entry.name) !== 'listing') continue;
             scannedListings++;
-            const key = `${site}/${entry.name}`;
-            if (EXEMPT.has(key)) {
-                exempted.push({ key, reason: EXEMPT.get(key) });
-                continue;
-            }
             const columns = Array.isArray(entry.columns) ? entry.columns : [];
             if (!columns.some((col) => isIdColumn(col, readDetail))) {
-                violations.push({
+                findings.push({
                     site,
                     name: entry.name,
                     columns,
@@ -195,26 +169,25 @@ function main() {
     }
 
     console.log(`Scanned ${scannedSites} site(s) with both listing and read-detail commands.`);
-    console.log(`Checked ${scannedListings} listing command(s); ${exempted.length} exempted.`);
+    console.log(`Checked ${scannedListings} listing command(s).`);
 
-    if (violations.length === 0) {
+    if (findings.length === 0) {
         console.log('OK — every listing carries an id-shaped column.');
-        process.exit(0);
+        return;
     }
 
     console.log('');
-    console.log(`Found ${violations.length} listing(s) missing a round-trippable id column:`);
-    for (const v of violations) {
+    console.log(`Advisory: ${findings.length} listing(s) without a round-trippable id column.`);
+    console.log('Some of these are legitimate (topic strings, profile-attribute rows, UI-only');
+    console.log('sessions); others may be worth adding an id to. Use judgment, not a gate.');
+    console.log('');
+    for (const v of findings) {
         console.log(`  • ${v.site}/${v.name}`);
         console.log(`      columns: [${v.columns.join(', ')}]`);
         console.log(`      detail commands on this site: ${v.detail.join(', ')}`);
     }
     console.log('');
-    console.log('Add an id-shaped column (id / short_id / jk / bvid / asin / etc.)');
-    console.log('to each listing so its rows round-trip into the detail command.');
-    console.log('See docs/conventions/listing-detail-id-pairing.md for the full rule.');
-
-    if (strict) process.exit(1);
+    console.log('See docs/conventions/listing-detail-id-pairing.md for context and patterns.');
 }
 
 main();

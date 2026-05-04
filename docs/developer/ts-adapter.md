@@ -59,19 +59,22 @@ Every adapter must declare `access: 'read' | 'write'`.
 
 Adapters may also declare `example` to override the canonical invocation shown in agent-facing help. Prefer YAML examples, e.g. `opencli mysite search <query> -f yaml`.
 
-## Listing↔Detail ID Pairing
+## Listing↔Detail ID Pairing (advisory)
 
 If your site exposes both a listing-class command (`search` / `hot` / `top` /
 `recent` / ...) and a detail-class command (`read` / `paper` / `article` /
-`post` / `view` / ...), every listing row MUST surface an id-shaped column
-that round-trips into the detail command's positional arg. Without that, an
-agent can't follow up on a row without re-searching by title or scraping a
-URL out of band.
+`post` / `view` / ...), it's usually nicer for agents if listing rows surface
+an id-shaped column that round-trips into the detail command's positional
+arg. Without that, an agent can't follow up on a row without re-searching by
+title or scraping a URL out of band.
 
-The CI gate `npm run check:listing-id-pairing` fails when a listing is
-missing its id column. See [Listing↔Detail ID Pairing](../conventions/listing-detail-id-pairing.md)
-for the full rule, exemption rationale, and how to add an id to an existing
-listing.
+This is a **soft convention**, not a CI gate. Many legitimate listings
+genuinely don't pair (topic-string trending, profile-attribute rows,
+UI-only sessions). Use judgment per command, not a checklist.
+
+Run `npm run advise:listing-id-pairing` to see candidate listings without an
+id column. See [Listing↔Detail ID Pairing](../conventions/listing-detail-id-pairing.md)
+for context, the full pattern table, and how to add an id to a listing.
 
 ## Strategy Types
 
