@@ -14258,7 +14258,8 @@
       "pages",
       "bookmarks",
       "tags",
-      "created"
+      "created",
+      "url"
     ],
     "type": "js",
     "modulePath": "pixiv/illusts.js",
@@ -14311,9 +14312,11 @@
       "rank",
       "title",
       "author",
+      "user_id",
       "illust_id",
       "pages",
-      "bookmarks"
+      "bookmarks",
+      "url"
     ],
     "type": "js",
     "modulePath": "pixiv/ranking.js",
@@ -14381,10 +14384,12 @@
       "rank",
       "title",
       "author",
+      "user_id",
       "illust_id",
       "pages",
       "bookmarks",
-      "tags"
+      "tags",
+      "url"
     ],
     "type": "js",
     "modulePath": "pixiv/search.js",
@@ -14416,7 +14421,8 @@
       "illusts",
       "manga",
       "novels",
-      "comment"
+      "comment",
+      "url"
     ],
     "type": "js",
     "modulePath": "pixiv/user.js",

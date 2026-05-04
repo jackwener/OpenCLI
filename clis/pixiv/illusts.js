@@ -19,7 +19,7 @@ cli({
         { name: 'user-id', positional: true, required: true, help: 'Pixiv user ID' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
     ],
-    columns: ['rank', 'title', 'illust_id', 'pages', 'bookmarks', 'tags', 'created'],
+    columns: ['rank', 'title', 'illust_id', 'pages', 'bookmarks', 'tags', 'created', 'url'],
     func: async (page, kwargs) => {
         const userId = String(kwargs['user-id'] ?? '');
         const limit = Number(kwargs.limit) || 20;

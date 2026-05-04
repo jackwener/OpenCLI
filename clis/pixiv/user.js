@@ -19,6 +19,7 @@ cli({
         'manga',
         'novels',
         'comment',
+        'url',
     ],
     pipeline: [
         { navigate: 'https://www.pixiv.net' },
