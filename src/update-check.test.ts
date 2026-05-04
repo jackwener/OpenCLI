@@ -5,6 +5,8 @@ import {
   _buildNpmInstallCommand as buildNpmInstallCommand,
   _inferOwningGlobalPrefix as inferOwningGlobalPrefix,
   _inferDefaultPrefixFromExecPath as inferDefaultPrefixFromExecPath,
+  _inferDefaultPrefixFromEnv as inferDefaultPrefixFromEnv,
+  _quoteShellArg as quoteShellArg,
   _EXTENSION_STALE_MS as EXTENSION_STALE_MS,
 } from './update-check.js';
 
@@ -143,9 +145,9 @@ describe('buildUpdateNotices', () => {
       cliVersion: '1.0.0',
       cache: { lastCheck: now, latestVersion: '1.0.1' },
       now,
-      installCommand: 'npm install -g --prefix "/custom/prefix" @jackwener/opencli',
+      installCommand: "npm install -g --prefix '/custom/prefix' @jackwener/opencli",
     });
-    expect(lines.cli).toContain('--prefix "/custom/prefix"');
+    expect(lines.cli).toContain("--prefix '/custom/prefix'");
   });
 });
 
@@ -186,7 +188,7 @@ describe('buildNpmInstallCommand', () => {
       owningPrefix: '/Users/me/.local/share/npm',
       defaultPrefix: '/opt/homebrew/Cellar/node@22/22.22.2_2',
     });
-    expect(cmd).toBe('npm install -g --prefix "/Users/me/.local/share/npm" @jackwener/opencli');
+    expect(cmd).toBe("npm install -g --prefix '/Users/me/.local/share/npm' @jackwener/opencli");
   });
 
   it('treats prefixes that resolve to the same path as a match (trailing slash, dot)', () => {
@@ -202,6 +204,14 @@ describe('buildNpmInstallCommand', () => {
         defaultPrefix: '/usr/local',
       }),
     ).toBe('npm install -g @jackwener/opencli');
+  });
+
+  it('shell-quotes prefixes so copy-pasted hints cannot expand shell syntax on POSIX', () => {
+    const cmd = buildNpmInstallCommand({
+      owningPrefix: "/Users/me/npm $(touch bad) `touch worse` user's",
+      defaultPrefix: '/opt/homebrew',
+    });
+    expect(cmd).toBe("npm install -g --prefix '/Users/me/npm $(touch bad) `touch worse` user'\\''s' @jackwener/opencli");
   });
 });
 
@@ -243,5 +253,36 @@ describe('inferDefaultPrefixFromExecPath', () => {
     expect(
       inferDefaultPrefixFromExecPath('/some/weird/place/node'),
     ).toBeNull();
+  });
+});
+
+describe('inferDefaultPrefixFromEnv', () => {
+  it('prefers explicit npm prefix env because it controls bare npm install -g', () => {
+    expect(
+      inferDefaultPrefixFromEnv({
+        NPM_CONFIG_PREFIX: '/tmp/npm-prefix',
+      }),
+    ).toBe('/tmp/npm-prefix');
+    expect(
+      inferDefaultPrefixFromEnv({
+        npm_config_prefix: '/tmp/lower-prefix',
+      }),
+    ).toBe('/tmp/lower-prefix');
+  });
+
+  it('returns null when npm prefix env is absent or blank', () => {
+    expect(inferDefaultPrefixFromEnv({})).toBeNull();
+    expect(inferDefaultPrefixFromEnv({ NPM_CONFIG_PREFIX: '   ' })).toBeNull();
+  });
+});
+
+describe('quoteShellArg', () => {
+  it('uses single quotes on POSIX to prevent expansion of spaces, dollars, and backticks', () => {
+    expect(quoteShellArg('/tmp/a b/$(touch x)/`touch y`', 'darwin')).toBe("'/tmp/a b/$(touch x)/`touch y`'");
+    expect(quoteShellArg("/tmp/user's prefix", 'linux')).toBe("'/tmp/user'\\''s prefix'");
+  });
+
+  it('uses double quotes on Windows command hints', () => {
+    expect(quoteShellArg('C:\\Users\\Me\\npm prefix', 'win32')).toBe('"C:\\Users\\Me\\npm prefix"');
   });
 });

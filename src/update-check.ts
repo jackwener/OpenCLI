@@ -134,6 +134,20 @@ function inferDefaultPrefixFromExecPath(execPath: string): string | null {
   }
 }
 
+function inferDefaultPrefixFromEnv(env: NodeJS.ProcessEnv): string | null {
+  const prefix = env.NPM_CONFIG_PREFIX ?? env.npm_config_prefix;
+  if (typeof prefix !== 'string') return null;
+  const trimmed = prefix.trim();
+  return trimmed ? trimmed : null;
+}
+
+function quoteShellArg(value: string, platform: NodeJS.Platform = process.platform): string {
+  if (platform === 'win32') {
+    return `"${value.replace(/"/g, '\\"')}"`;
+  }
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
 /**
  * Build the `npm install -g` command suggested in upgrade hints.
  *
@@ -158,8 +172,7 @@ function buildNpmInstallCommand({
     defaultPrefix &&
     path.resolve(owningPrefix) !== path.resolve(defaultPrefix)
   ) {
-    // Quote the path defensively in case it contains spaces.
-    return `npm install -g --prefix "${owningPrefix}" @jackwener/opencli`;
+    return `npm install -g --prefix ${quoteShellArg(owningPrefix)} @jackwener/opencli`;
   }
   return 'npm install -g @jackwener/opencli';
 }
@@ -172,7 +185,7 @@ function buildNpmInstallCommand({
 export function getUpgradeCommand(): string {
   return buildNpmInstallCommand({
     owningPrefix: inferOwningGlobalPrefix(fileURLToPath(import.meta.url)),
-    defaultPrefix: inferDefaultPrefixFromExecPath(process.execPath),
+    defaultPrefix: inferDefaultPrefixFromEnv(process.env) ?? inferDefaultPrefixFromExecPath(process.execPath),
   });
 }
 
@@ -332,5 +345,7 @@ export {
   buildNpmInstallCommand as _buildNpmInstallCommand,
   inferOwningGlobalPrefix as _inferOwningGlobalPrefix,
   inferDefaultPrefixFromExecPath as _inferDefaultPrefixFromExecPath,
+  inferDefaultPrefixFromEnv as _inferDefaultPrefixFromEnv,
+  quoteShellArg as _quoteShellArg,
   EXTENSION_STALE_MS as _EXTENSION_STALE_MS,
 };
