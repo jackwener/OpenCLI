@@ -1135,55 +1135,6 @@
   },
   {
     "site": "band",
-    "name": "mentions",
-    "description": "Show Band notifications where you are @mentioned",
-    "domain": "www.band.us",
-    "strategy": "intercept",
-    "browser": true,
-    "args": [
-      {
-        "name": "filter",
-        "type": "str",
-        "default": "mentioned",
-        "required": false,
-        "help": "Filter: mentioned (default) | all | post | comment",
-        "choices": [
-          "mentioned",
-          "all",
-          "post",
-          "comment"
-        ]
-      },
-      {
-        "name": "limit",
-        "type": "int",
-        "default": 20,
-        "required": false,
-        "help": "Max results"
-      },
-      {
-        "name": "unread",
-        "type": "bool",
-        "default": false,
-        "required": false,
-        "help": "Show only unread notifications"
-      }
-    ],
-    "columns": [
-      "time",
-      "band",
-      "type",
-      "from",
-      "text",
-      "url"
-    ],
-    "type": "js",
-    "modulePath": "band/mentions.js",
-    "sourceFile": "band/mentions.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "band",
     "name": "post",
     "description": "Export full content of a post including comments",
     "domain": "www.band.us",
@@ -1893,38 +1844,6 @@
     "modulePath": "bilibili/search.js",
     "sourceFile": "bilibili/search.js",
     "navigateBefore": "https://www.bilibili.com"
-  },
-  {
-    "site": "bilibili",
-    "name": "subtitle",
-    "description": "获取 Bilibili 视频的字幕",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "bvid",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": ""
-      },
-      {
-        "name": "lang",
-        "type": "str",
-        "required": false,
-        "help": "字幕语言代码 (如 zh-CN, en-US, ai-zh)，默认取第一个"
-      }
-    ],
-    "columns": [
-      "index",
-      "from",
-      "to",
-      "content"
-    ],
-    "type": "js",
-    "modulePath": "bilibili/subtitle.js",
-    "sourceFile": "bilibili/subtitle.js",
-    "navigateBefore": true
   },
   {
     "site": "bilibili",
@@ -3366,38 +3285,6 @@
   },
   {
     "site": "boss",
-    "name": "send",
-    "description": "BOSS直聘发送聊天消息",
-    "domain": "www.zhipin.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "uid",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Encrypted UID of the candidate (from chatlist)"
-      },
-      {
-        "name": "text",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Message text to send"
-      }
-    ],
-    "columns": [
-      "status",
-      "detail"
-    ],
-    "type": "js",
-    "modulePath": "boss/send.js",
-    "sourceFile": "boss/send.js",
-    "navigateBefore": false
-  },
-  {
-    "site": "boss",
     "name": "stats",
     "description": "BOSS直聘职位数据统计",
     "domain": "www.zhipin.com",
@@ -3723,38 +3610,6 @@
   },
   {
     "site": "chatwise",
-    "name": "ask",
-    "description": "Send a prompt and wait for the AI response (send + wait + read)",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "text",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Prompt to send"
-      },
-      {
-        "name": "timeout",
-        "type": "str",
-        "default": "30",
-        "required": false,
-        "help": "Max seconds to wait (default: 30)"
-      }
-    ],
-    "columns": [
-      "Role",
-      "Text"
-    ],
-    "type": "js",
-    "modulePath": "chatwise/ask.js",
-    "sourceFile": "chatwise/ask.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "chatwise",
     "name": "export",
     "description": "Export the current ChatWise conversation to a Markdown file",
     "domain": "localhost",
@@ -3797,31 +3652,6 @@
   },
   {
     "site": "chatwise",
-    "name": "model",
-    "description": "Get or switch the active AI model in ChatWise",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "model-name",
-        "type": "str",
-        "required": false,
-        "positional": true,
-        "help": "Model to switch to (e.g. gpt-4, claude-3)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Model"
-    ],
-    "type": "js",
-    "modulePath": "chatwise/model.js",
-    "sourceFile": "chatwise/model.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "chatwise",
     "name": "read",
     "description": "Read the current ChatWise conversation history",
     "domain": "localhost",
@@ -3834,31 +3664,6 @@
     "type": "js",
     "modulePath": "chatwise/read.js",
     "sourceFile": "chatwise/read.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "chatwise",
-    "name": "send",
-    "description": "Send a message to the active ChatWise conversation",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "text",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Message to send"
-      }
-    ],
-    "columns": [
-      "Status",
-      "InjectedText"
-    ],
-    "type": "js",
-    "modulePath": "chatwise/send.js",
-    "sourceFile": "chatwise/send.js",
     "navigateBefore": true
   },
   {
@@ -4101,38 +3906,6 @@
   },
   {
     "site": "codex",
-    "name": "ask",
-    "description": "Send a prompt and wait for the AI response (send + wait + read)",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "text",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Prompt to send"
-      },
-      {
-        "name": "timeout",
-        "type": "str",
-        "default": "60",
-        "required": false,
-        "help": "Max seconds to wait for response (default: 60)"
-      }
-    ],
-    "columns": [
-      "Role",
-      "Text"
-    ],
-    "type": "js",
-    "modulePath": "codex/ask.js",
-    "sourceFile": "codex/ask.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "codex",
     "name": "export",
     "description": "Export the current Codex conversation to a Markdown file",
     "domain": "localhost",
@@ -4229,31 +4002,6 @@
     "type": "js",
     "modulePath": "codex/read.js",
     "sourceFile": "codex/read.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "codex",
-    "name": "send",
-    "description": "Send text/commands to the Codex AI composer",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "text",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Text, command (e.g. /review), or skill (e.g. $imagegen)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "InjectedText"
-    ],
-    "type": "js",
-    "modulePath": "codex/send.js",
-    "sourceFile": "codex/send.js",
     "navigateBefore": true
   },
   {
@@ -4378,63 +4126,6 @@
   },
   {
     "site": "cursor",
-    "name": "ask",
-    "description": "Send a prompt and wait for the AI response (send + wait + read)",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "text",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Prompt to send"
-      },
-      {
-        "name": "timeout",
-        "type": "str",
-        "default": "30",
-        "required": false,
-        "help": "Max seconds to wait for response (default: 30)"
-      }
-    ],
-    "columns": [
-      "Role",
-      "Text"
-    ],
-    "type": "js",
-    "modulePath": "cursor/ask.js",
-    "sourceFile": "cursor/ask.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "cursor",
-    "name": "composer",
-    "description": "Send a prompt directly into Cursor Composer (Cmd+I shortcut)",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "text",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Text to send into Composer"
-      }
-    ],
-    "columns": [
-      "Status",
-      "InjectedText"
-    ],
-    "type": "js",
-    "modulePath": "cursor/composer.js",
-    "sourceFile": "cursor/composer.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "cursor",
     "name": "export",
     "description": "Export the current cursor conversation to a Markdown file",
     "domain": "localhost",
@@ -4531,31 +4222,6 @@
     "type": "js",
     "modulePath": "cursor/read.js",
     "sourceFile": "cursor/read.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "cursor",
-    "name": "send",
-    "description": "Send a prompt directly into Cursor Composer/Chat",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "text",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Text to send into Cursor"
-      }
-    ],
-    "columns": [
-      "Status",
-      "InjectedText"
-    ],
-    "type": "js",
-    "modulePath": "cursor/send.js",
-    "sourceFile": "cursor/send.js",
     "navigateBefore": true
   },
   {
@@ -14252,6 +13918,34 @@
   },
   {
     "site": "reddit",
+    "name": "subscribed",
+    "description": "List subreddits you are subscribed to",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max subreddits to return (auto-paginates; hard cap 1000)"
+      }
+    ],
+    "columns": [
+      "subreddit",
+      "title",
+      "subscribers",
+      "description",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "reddit/subscribed.js",
+    "sourceFile": "reddit/subscribed.js",
+    "navigateBefore": "https://reddit.com"
+  },
+  {
+    "site": "reddit",
     "name": "upvote",
     "description": "Upvote or downvote a Reddit post",
     "domain": "reddit.com",
@@ -16313,40 +16007,6 @@
   },
   {
     "site": "twitter",
-    "name": "followers",
-    "description": "Get accounts following a Twitter/X user",
-    "domain": "x.com",
-    "strategy": "intercept",
-    "browser": true,
-    "args": [
-      {
-        "name": "user",
-        "type": "string",
-        "required": false,
-        "positional": true,
-        "help": ""
-      },
-      {
-        "name": "limit",
-        "type": "int",
-        "default": 50,
-        "required": false,
-        "help": ""
-      }
-    ],
-    "columns": [
-      "screen_name",
-      "name",
-      "bio",
-      "followers"
-    ],
-    "type": "js",
-    "modulePath": "twitter/followers.js",
-    "sourceFile": "twitter/followers.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "twitter",
     "name": "following",
     "description": "Get accounts a Twitter/X user is following",
     "domain": "x.com",
@@ -16562,6 +16222,7 @@
     "columns": [
       "id",
       "author",
+      "bio",
       "text",
       "likes",
       "retweets",
@@ -16820,6 +16481,7 @@
     "columns": [
       "id",
       "author",
+      "bio",
       "text",
       "created_at",
       "likes",
@@ -16901,6 +16563,7 @@
     "columns": [
       "id",
       "author",
+      "bio",
       "text",
       "likes",
       "retweets",
@@ -18354,79 +18017,6 @@
     "type": "js",
     "modulePath": "wikipedia/trending.js",
     "sourceFile": "wikipedia/trending.js"
-  },
-  {
-    "site": "xianyu",
-    "name": "chat",
-    "description": "打开闲鱼聊一聊会话，并可选发送消息",
-    "domain": "www.goofish.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "item_id",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "闲鱼商品 item_id"
-      },
-      {
-        "name": "user_id",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "聊一聊对方的 user_id / peerUserId"
-      },
-      {
-        "name": "text",
-        "type": "str",
-        "required": false,
-        "help": "Message to send after opening the chat"
-      }
-    ],
-    "columns": [
-      "status",
-      "peer_name",
-      "item_title",
-      "price",
-      "location",
-      "message"
-    ],
-    "type": "js",
-    "modulePath": "xianyu/chat.js",
-    "sourceFile": "xianyu/chat.js",
-    "navigateBefore": false
-  },
-  {
-    "site": "xianyu",
-    "name": "item",
-    "description": "查看闲鱼商品详情",
-    "domain": "www.goofish.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "item_id",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "闲鱼商品 item_id"
-      }
-    ],
-    "columns": [
-      "item_id",
-      "title",
-      "price",
-      "condition",
-      "brand",
-      "location",
-      "seller_name",
-      "want_count"
-    ],
-    "type": "js",
-    "modulePath": "xianyu/item.js",
-    "sourceFile": "xianyu/item.js",
-    "navigateBefore": false
   },
   {
     "site": "xianyu",

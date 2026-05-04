@@ -41,11 +41,15 @@ cli({
 })()
 ` },
         { map: {
+                id: '${{ item.data.id }}',
                 title: '${{ item.data.title }}',
+                subreddit: '${{ item.data.subreddit_name_prefixed }}',
                 author: '${{ item.data.author }}',
                 upvotes: '${{ item.data.score }}',
                 comments: '${{ item.data.num_comments }}',
                 url: 'https://www.reddit.com${{ item.data.permalink }}',
+                created_utc: '${{ item.data.created_utc }}',
+                selftext: '${{ item.data.selftext }}',
             } },
         { limit: '${{ args.limit }}' },
     ],
