@@ -419,6 +419,50 @@ async function refreshMappings() {
 let ws = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
+const CONTEXT_ID_KEY = "opencli_context_id_v1";
+let currentContextId = "default";
+let contextIdPromise = null;
+async function getCurrentContextId() {
+  if (contextIdPromise) return contextIdPromise;
+  contextIdPromise = (async () => {
+    try {
+      const local = chrome.storage?.local;
+      if (!local) return currentContextId;
+      const raw = await local.get(CONTEXT_ID_KEY);
+      const existing = raw[CONTEXT_ID_KEY];
+      if (typeof existing === "string" && existing.trim()) {
+        currentContextId = existing.trim();
+        return currentContextId;
+      }
+      const generated = generateContextId();
+      await local.set({ [CONTEXT_ID_KEY]: generated });
+      currentContextId = generated;
+      return currentContextId;
+    } catch {
+      return currentContextId;
+    }
+  })();
+  return contextIdPromise;
+}
+function generateContextId() {
+  const alphabet = "23456789abcdefghjkmnpqrstuvwxyz";
+  const maxUnbiasedByte = Math.floor(256 / alphabet.length) * alphabet.length;
+  let id = "";
+  while (id.length < 8) {
+    const bytes = new Uint8Array(8);
+    try {
+      crypto.getRandomValues(bytes);
+    } catch {
+      for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    }
+    for (const byte of bytes) {
+      if (byte >= maxUnbiasedByte) continue;
+      id += alphabet[byte % alphabet.length];
+      if (id.length === 8) break;
+    }
+  }
+  return id;
+}
 const _origLog = console.log.bind(console);
 const _origWarn = console.warn.bind(console);
 const _origError = console.error.bind(console);
@@ -451,7 +495,9 @@ async function connect() {
     return;
   }
   try {
+    const contextId = await getCurrentContextId();
     ws = new WebSocket(DAEMON_WS_URL);
+    currentContextId = contextId;
   } catch {
     scheduleReconnect();
     return;
@@ -465,6 +511,7 @@ async function connect() {
     }
     ws?.send(JSON.stringify({
       type: "hello",
+      contextId: currentContextId,
       version: chrome.runtime.getManifest().version,
       compatRange: ">=1.7.0"
     }));
@@ -554,7 +601,7 @@ function makeSession(workspace, session) {
   const ownership = session.owned ? "owned" : "borrowed";
   return {
     ...session,
-    contextId: "user-default",
+    contextId: currentContextId,
     ownership,
     lifecycle: getLeaseLifecycle(workspace),
     surface: ownership === "owned" ? "dedicated-container" : "borrowed-user-tab"
@@ -563,7 +610,7 @@ function makeSession(workspace, session) {
 function emptyRegistry() {
   return {
     version: 1,
-    contextId: "user-default",
+    contextId: currentContextId,
     ownedContainerWindowId,
     leases: {}
   };
@@ -577,7 +624,7 @@ async function readRegistry() {
     if (!stored || stored.version !== 1 || typeof stored.leases !== "object") return emptyRegistry();
     return {
       version: 1,
-      contextId: "user-default",
+      contextId: currentContextId,
       ownedContainerWindowId: typeof stored.ownedContainerWindowId === "number" ? stored.ownedContainerWindowId : null,
       leases: stored.leases
     };
@@ -608,7 +655,7 @@ async function persistRuntimeState() {
   }
   await writeRegistry({
     version: 1,
-    contextId: "user-default",
+    contextId: currentContextId,
     ownedContainerWindowId,
     leases
   });
@@ -827,8 +874,11 @@ function initialize() {
   chrome.alarms.create("keepalive", { periodInMinutes: 0.4 });
   registerListeners();
   registerFrameTracking();
-  void reconcileTargetLeaseRegistry();
-  void connect();
+  void (async () => {
+    await getCurrentContextId();
+    await reconcileTargetLeaseRegistry();
+    await connect();
+  })();
   console.log("[opencli] OpenCLI extension initialized");
 }
 chrome.runtime.onInstalled.addListener(() => {
@@ -844,13 +894,37 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 });
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "getStatus") {
-    sendResponse({
-      connected: ws?.readyState === WebSocket.OPEN,
-      reconnecting: reconnectTimer !== null
-    });
+    void (async () => {
+      const contextId = await getCurrentContextId();
+      const connected = ws?.readyState === WebSocket.OPEN;
+      const extensionVersion = chrome.runtime.getManifest().version;
+      const daemonVersion = connected ? await fetchDaemonVersion() : null;
+      sendResponse({
+        connected,
+        reconnecting: reconnectTimer !== null,
+        contextId,
+        extensionVersion,
+        daemonVersion
+      });
+    })();
+    return true;
   }
   return false;
 });
+async function fetchDaemonVersion() {
+  try {
+    const res = await fetch(`http://${DAEMON_HOST}:${DAEMON_PORT}/status`, {
+      method: "GET",
+      headers: { "X-OpenCLI": "1" },
+      signal: AbortSignal.timeout(1500)
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    return typeof body.daemonVersion === "string" ? body.daemonVersion : null;
+  } catch {
+    return null;
+  }
+}
 async function handleCommand(cmd) {
   const workspace = getWorkspaceKey(cmd.workspace);
   windowFocused = cmd.windowFocused === true;
@@ -1370,9 +1444,12 @@ async function handleScreenshot(cmd, workspace) {
 const CDP_ALLOWLIST = /* @__PURE__ */ new Set([
   // Agent DOM context
   "Accessibility.getFullAXTree",
+  "DOM.enable",
   "DOM.getDocument",
   "DOM.getBoxModel",
   "DOM.getContentQuads",
+  "DOM.focus",
+  "DOM.querySelector",
   "DOM.querySelectorAll",
   "DOM.scrollIntoViewIfNeeded",
   "DOMSnapshot.captureSnapshot",
@@ -1384,6 +1461,7 @@ const CDP_ALLOWLIST = /* @__PURE__ */ new Set([
   "Page.getLayoutMetrics",
   "Page.captureScreenshot",
   "Page.getFrameTree",
+  "Page.handleJavaScriptDialog",
   // Runtime.enable needed for CDP attach setup (Runtime.evaluate goes through 'exec' action)
   "Runtime.enable",
   // Emulation (used by screenshot full-page)

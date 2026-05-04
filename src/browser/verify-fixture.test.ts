@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveFixture, expandFixtureArgs, validateRows, type Fixture } from './verify-fixture.js';
+import { deriveFixture, expandFixtureArgs, parseSeedArgs, validateRows, type Fixture } from './verify-fixture.js';
 
 describe('validateRows', () => {
     it('passes when rows meet all expectations', () => {
@@ -219,5 +219,24 @@ describe('expandFixtureArgs', () => {
             '--comments',
             '5',
         ]);
+    });
+});
+
+describe('parseSeedArgs', () => {
+    it('treats plain text as one positional arg', () => {
+        expect(parseSeedArgs('opencli-verify')).toEqual(['opencli-verify']);
+    });
+
+    it('accepts JSON array seed args', () => {
+        expect(parseSeedArgs('["subject", "--limit", 3]')).toEqual(['subject', '--limit', 3]);
+    });
+
+    it('accepts JSON object seed args', () => {
+        expect(parseSeedArgs('{"limit":3,"sort":"hot"}')).toEqual({ limit: 3, sort: 'hot' });
+    });
+
+    it('ignores empty input', () => {
+        expect(parseSeedArgs(undefined)).toBeUndefined();
+        expect(parseSeedArgs('   ')).toBeUndefined();
     });
 });

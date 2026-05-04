@@ -64,14 +64,14 @@ export function withTimeoutMs<T>(
 
 /** Interface for browser factory (BrowserBridge or test mocks) */
 export interface IBrowserFactory {
-  connect(opts?: { timeout?: number; workspace?: string; cdpEndpoint?: string }): Promise<IPage>;
+  connect(opts?: { timeout?: number; workspace?: string; cdpEndpoint?: string; contextId?: string }): Promise<IPage>;
   close(): Promise<void>;
 }
 
 export async function browserSession<T>(
   BrowserFactory: new () => IBrowserFactory,
   fn: (page: IPage) => Promise<T>,
-  opts: { workspace?: string; cdpEndpoint?: string } = {},
+  opts: { workspace?: string; cdpEndpoint?: string; contextId?: string } = {},
 ): Promise<T> {
   const browser = new BrowserFactory();
   try {
@@ -79,6 +79,7 @@ export async function browserSession<T>(
       timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT,
       workspace: opts.workspace,
       cdpEndpoint: opts.cdpEndpoint,
+      contextId: opts.contextId,
     });
     return await fn(page);
   } finally {

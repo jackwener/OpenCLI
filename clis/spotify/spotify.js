@@ -198,7 +198,7 @@ cli({
     browser: false,
     args: [{ name: 'query', type: 'str', default: '', positional: true, help: 'Track or artist to play (optional)' }],
     columns: ['track', 'artist', 'status'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         if (kwargs.query) {
             const { uri, name, artist } = await findTrackUri(kwargs.query);
             await api('PUT', '/me/player/play', { uris: [uri] });
@@ -246,7 +246,7 @@ cli({
     browser: false,
     args: [{ name: 'level', type: 'int', default: 50, positional: true, required: true, help: 'Volume 0–100' }],
     columns: ['volume'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const level = Math.round(kwargs.level);
         if (level < 0 || level > 100)
             throw new CliError('INVALID_ARGS', 'Volume must be between 0 and 100');
@@ -265,7 +265,7 @@ cli({
         { name: 'limit', type: 'int', default: 10, help: 'Number of results (default: 10)' },
     ],
     columns: ['track', 'artist', 'album', 'uri'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const limit = Math.min(50, Math.max(1, Math.round(kwargs.limit)));
         const data = await api('GET', `/search?q=${encodeURIComponent(kwargs.query)}&type=track&limit=${limit}`);
         const results = mapSpotifyTrackResults(data);
@@ -282,7 +282,7 @@ cli({
     browser: false,
     args: [{ name: 'query', type: 'str', required: true, positional: true, help: 'Track to add to queue' }],
     columns: ['track', 'artist', 'status'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const { uri, name, artist } = await findTrackUri(kwargs.query);
         await api('POST', `/me/player/queue?uri=${encodeURIComponent(uri)}`);
         return [{ track: name, artist, status: 'added to queue' }];
@@ -296,7 +296,7 @@ cli({
     browser: false,
     args: [{ name: 'state', type: 'str', default: 'on', positional: true, choices: ['on', 'off'], help: 'on or off' }],
     columns: ['shuffle'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         await api('PUT', `/me/player/shuffle?state=${kwargs.state === 'on'}`);
         return [{ shuffle: kwargs.state }];
     },
@@ -309,7 +309,7 @@ cli({
     browser: false,
     args: [{ name: 'mode', type: 'str', default: 'context', positional: true, choices: ['off', 'track', 'context'], help: 'off / track / context' }],
     columns: ['repeat'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         await api('PUT', `/me/player/repeat?state=${kwargs.mode}`);
         return [{ repeat: kwargs.mode }];
     },

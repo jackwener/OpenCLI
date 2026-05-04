@@ -16,8 +16,7 @@ export const BUILTIN_COMMANDS = [
   'tab',
   'doctor',
   'plugin',
-  'install',
-  'register',
+  'external',
   'completion',
 ];
 

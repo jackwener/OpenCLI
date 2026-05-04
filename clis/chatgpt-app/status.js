@@ -10,7 +10,7 @@ export const statusCommand = cli({
     browser: false,
     args: [],
     columns: ['Status'],
-    func: async (page) => {
+    func: async () => {
         if (process.platform !== 'darwin') {
             throw new ConfigError('ChatGPT Desktop integration requires macOS (osascript is not available on this platform)');
         }

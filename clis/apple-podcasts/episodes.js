@@ -12,7 +12,7 @@ cli({
         { name: 'limit', type: 'int', default: 15, help: 'Max episodes to show' },
     ],
     columns: ['title', 'duration', 'date'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const limit = Math.max(1, Math.min(Number(args.limit), 200));
         // results[0] is the podcast itself; the rest are episodes
         const data = await itunesFetch(`/lookup?id=${args.id}&entity=podcastEpisode&limit=${limit + 1}`);

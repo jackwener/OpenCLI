@@ -16,7 +16,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Max results' },
     ],
     columns: ['rank', 'name', 'tagline', 'author', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const count = Math.min(Number(args.limit) || 20, 50);
         const posts = await fetchFeed();
         if (posts.length === 0)

@@ -9,7 +9,7 @@ function makeCmd(partial: Partial<CliCommand>): CliCommand {
     description: '',
     args: [],
     ...partial,
-  };
+  } as CliCommand;
 }
 
 describe('shouldUseBrowserSession', () => {

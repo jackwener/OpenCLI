@@ -69,7 +69,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: '返回结果数量' },
     ],
     columns: ['rank', 'title', 'author', 'date', 'description', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const limit = Math.max(1, Math.min(Number(args.limit) || 20, 50));
         return args.type === 'publications'
             ? searchPublications(args.keyword, limit)

@@ -26,7 +26,7 @@ cli({
     { name: 'limit', type: 'int',    default: 20,  help: '返回数量 (max 100)' },
   ],
   columns: ['tradeDate', 'code', 'name', 'closePrice', 'changeRate', 'boardAmt', 'buyAmt', 'sellAmt', 'netAmt', 'turnover', 'dealRatio', 'market', 'reason'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const sinceDate = String(args.date || '').trim() || defaultTradeDate();
     const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));
 

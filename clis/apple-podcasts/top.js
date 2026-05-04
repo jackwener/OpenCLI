@@ -14,7 +14,7 @@ cli({
         { name: 'country', default: 'us', help: 'Country code (e.g. us, cn, gb, jp)' },
     ],
     columns: ['rank', 'title', 'author', 'id'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const limit = Math.max(1, Math.min(Number(args.limit), 100));
         const country = String(args.country || 'us').trim().toLowerCase();
         const url = `${CHARTS_URL}/${country}/podcasts/top/${limit}/podcasts.json`;

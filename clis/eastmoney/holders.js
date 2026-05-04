@@ -37,7 +37,7 @@ cli({
     { name: 'limit',  type: 'int',    default: 10,      help: '返回股东数（默认十大流通股东）' },
   ],
   columns: ['rank', 'reportDate', 'name', 'holdNum', 'floatRatio', 'change'],
-  func: async (_page, args) => {
+  func: async (args) => {
     /** @type {string} */
     let secucode;
     try { secucode = toSecucode(args.symbol); }

@@ -380,4 +380,4 @@ opencli browser eval "(() => document.querySelector('input[name=cardnumber]')?.v
 ## See also
 
 - `opencli-adapter-author` — turning what you just figured out into a reusable `~/.opencli/clis/<site>/<command>.js`.
-- `opencli-autofix` — when an existing adapter breaks, this skill walks you through `OPENCLI_DIAGNOSTIC` and filing a fix.
+- `opencli-autofix` — when an existing adapter breaks, this skill walks you through `--trace retain-on-failure` evidence and filing a fix.

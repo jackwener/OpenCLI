@@ -30,18 +30,18 @@ export interface RequiredEnv {
 }
 
 export type CommandArgs = Record<string, any>;
+export type BrowserCommandFunc = (page: IPage, kwargs: CommandArgs, debug?: boolean) => Promise<unknown>;
+export type NonBrowserCommandFunc = (kwargs: CommandArgs, debug?: boolean) => Promise<unknown>;
 
-export interface CliCommand {
+interface BaseCliCommand {
   site: string;
   name: string;
   aliases?: string[];
   description: string;
   domain?: string;
   strategy?: Strategy;
-  browser?: boolean;
   args: Arg[];
   columns?: string[];
-  func?: (page: IPage, kwargs: CommandArgs, debug?: boolean) => Promise<unknown>;
   pipeline?: Record<string, unknown>[];
   timeoutSeconds?: number;
   /** Origin of this command: 'yaml', 'ts', or plugin name. */
@@ -73,17 +73,48 @@ export interface CliCommand {
   defaultFormat?: 'table' | 'plain' | 'json' | 'yaml' | 'yml' | 'md' | 'markdown' | 'csv';
 }
 
+export interface BrowserCliCommand extends BaseCliCommand {
+  /** Browser commands receive an IPage. Omitted means true after normalization. */
+  browser?: true;
+  func?: BrowserCommandFunc;
+}
+
+export interface NonBrowserCliCommand extends BaseCliCommand {
+  /** Non-browser commands do not receive a page argument. */
+  browser: false;
+  func?: NonBrowserCommandFunc;
+}
+
+export type CliCommand = BrowserCliCommand | NonBrowserCliCommand;
+type RawCliCommand = BaseCliCommand & {
+  browser?: boolean;
+  func?: BrowserCommandFunc | NonBrowserCommandFunc;
+};
+
 /** Internal extension for lazy-loaded TS modules (not exposed in public API) */
-export interface InternalCliCommand extends CliCommand {
+export type InternalCliCommand = CliCommand & {
   _lazy?: boolean;
   _modulePath?: string;
-}
-export interface CliOptions extends Partial<Omit<CliCommand, 'args' | 'description'>> {
+};
+
+type RequiredCliOptions = {
   site: string;
   name: string;
   description?: string;
   args?: Arg[];
-}
+};
+
+type BrowserStrategy = Exclude<Strategy, Strategy.PUBLIC | Strategy.LOCAL>;
+type BrowserCliOptions = Partial<Omit<BrowserCliCommand, 'args' | 'description' | 'browser' | 'strategy'>> & RequiredCliOptions & (
+  | { browser: true; strategy?: Strategy }
+  | { browser?: true; strategy?: BrowserStrategy }
+);
+type NonBrowserCliOptions = Partial<Omit<NonBrowserCliCommand, 'args' | 'description'>> & RequiredCliOptions & (
+  | { browser: false }
+  | { strategy: Strategy.PUBLIC | Strategy.LOCAL; browser?: false }
+);
+
+export type CliOptions = BrowserCliOptions | NonBrowserCliOptions;
 
 // Use globalThis to ensure a single shared registry across all module instances.
 // This is critical for TS plugins loaded via npm link / peerDependency — without
@@ -93,7 +124,7 @@ const _registry: Map<string, CliCommand> =
   globalThis.__opencli_registry__ ??= new Map<string, CliCommand>();
 
 export function cli(opts: CliOptions): CliCommand {
-  const cmd: CliCommand = {
+  const cmd: RawCliCommand = {
     site: opts.site,
     name: opts.name,
     aliases: opts.aliases,
@@ -122,7 +153,7 @@ export function getRegistry(): Map<string, CliCommand> {
   return _registry;
 }
 
-export function fullName(cmd: CliCommand): string {
+export function fullName(cmd: Pick<BaseCliCommand, 'site' | 'name'>): string {
   return `${cmd.site}/${cmd.name}`;
 }
 
@@ -143,7 +174,7 @@ export function strategyLabel(cmd: CliCommand): string {
  *   1. Explicit field on the command (`browser: false`, `navigateBefore: false`)
  *   2. Derived from strategy + domain (the defaults below)
  */
-function normalizeCommand(cmd: CliCommand): CliCommand {
+function normalizeCommand(cmd: RawCliCommand): CliCommand {
   const strategy = cmd.strategy ?? (cmd.browser === false ? Strategy.PUBLIC : Strategy.COOKIE);
   const browser = cmd.browser ?? (strategy !== Strategy.PUBLIC && strategy !== Strategy.LOCAL);
 
@@ -159,10 +190,12 @@ function normalizeCommand(cmd: CliCommand): CliCommand {
     }
   }
 
-  return { ...cmd, strategy, browser, navigateBefore };
+  return browser
+    ? { ...cmd, strategy, browser: true, navigateBefore } as BrowserCliCommand
+    : { ...cmd, strategy, browser: false, navigateBefore } as NonBrowserCliCommand;
 }
 
-export function registerCommand(cmd: CliCommand): void {
+export function registerCommand(cmd: RawCliCommand): void {
   const normalized = normalizeCommand(cmd);
   const canonicalKey = fullName(normalized);
   const existing = _registry.get(canonicalKey);

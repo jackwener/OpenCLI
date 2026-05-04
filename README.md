@@ -20,7 +20,8 @@ It also works as a **CLI hub** for local tools such as `gh`, `docker`, and other
 
 - **Desktop App Control** — Drive Electron apps (Cursor, Codex, ChatGPT, Notion, etc.) directly from the terminal via CDP.
 - **Browser Automation for AI Agents** — Install the `opencli-adapter-author` skill, and your AI agent can operate any website: navigate, click, type, extract, screenshot — all through your logged-in Chrome session.
-- **Website → CLI** — Turn any website into a deterministic CLI: 90+ pre-built adapters, or write your own with the `opencli-adapter-author` skill + `opencli browser verify`.
+- **Multi-profile Browser Bridge** — Install the extension in each Chrome profile you want to use, then route commands with `--profile`, `OPENCLI_PROFILE`, or `opencli profile use`.
+- **Website → CLI** — Turn any website into a deterministic CLI: 100+ site surfaces are already registered, or write your own with the `opencli-adapter-author` skill + `opencli browser verify`.
 - **Account-safe** — Reuses Chrome/Chromium logged-in state; your credentials never leave the browser.
 - **AI Agent ready** — One skill takes you from site recon through API discovery, field decoding, adapter writing, and verification.
 - **CLI Hub** — Discover, auto-install, and passthrough commands to any external CLI (gh, docker, obsidian, etc).
@@ -33,7 +34,10 @@ It also works as a **CLI hub** for local tools such as `gh`, `docker`, and other
 
 ### 1. Install OpenCLI
 
+OpenCLI requires **Node.js >= 21**.
+
 ```bash
+node --version
 npm install -g @jackwener/opencli
 ```
 
@@ -55,7 +59,20 @@ Install **OpenCLI** from the [Chrome Web Store](https://chromewebstore.google.co
 opencli doctor
 ```
 
-### 4. Run your first commands
+### 4. Optional: name your Chrome profile
+
+Each Chrome profile runs its own OpenCLI extension instance. If you use multiple Chrome profiles, list the connected profiles and assign local aliases:
+
+```bash
+opencli profile list
+opencli profile rename <contextId> work
+opencli profile use work
+opencli --profile work browser state
+```
+
+With only one connected profile, OpenCLI uses it automatically. With multiple connected profiles and no default, OpenCLI asks you to choose instead of guessing.
+
+### 5. Run your first commands
 
 ```bash
 opencli list
@@ -69,8 +86,20 @@ Use OpenCLI directly when you want a reliable command instead of a live browser 
 
 - `opencli list` shows every registered command.
 - `opencli <site> <command>` runs a built-in or generated adapter.
-- `opencli register mycli` exposes a local CLI through the same discovery surface.
+- `opencli external register mycli` exposes a local CLI through the same discovery surface.
 - `opencli doctor` helps diagnose browser connectivity.
+
+## Extending OpenCLI
+
+If you want to add your own commands, start with the [Extending OpenCLI guide](./docs/guide/extending-opencli.md). README keeps this short; the guide covers the directory layout, source-control model, and install commands.
+
+| Need | Recommended path |
+|------|------------------|
+| Keep personal website commands in your own Git repo | `opencli plugin create` + `opencli plugin install file://...` |
+| Quickly draft a private local adapter | `opencli browser init <site>/<command>` in `~/.opencli/clis/` |
+| Modify an official adapter locally | `opencli adapter eject <site>` + `opencli adapter reset <site>` |
+| Publish or install third-party commands | `opencli plugin install github:user/repo` |
+| Wrap an existing local binary | `opencli external register <name>` |
 
 ## For AI Agents
 
@@ -145,7 +174,7 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 2. Discover the right endpoint — network inspection, initial state, bundle search, token trace, or interceptor fallback.
 3. Decide the auth strategy — `PUBLIC` / `COOKIE` / `HEADER` / `INTERCEPT`.
 4. Decode response fields and design output columns.
-5. `opencli browser init <site>/<name>` → write adapter → `opencli browser verify <site>/<name>`.
+5. `opencli browser analyze <url>` for one-shot recon, then `opencli browser init <site>/<name>` → write adapter → `opencli browser verify <site>/<name>`.
 6. Persist site knowledge to `~/.opencli/sites/<site>/` so the next adapter for the same site is faster.
 
 ### CLI Hub and desktop adapters
@@ -157,7 +186,8 @@ OpenCLI is not only for websites. It can also:
 
 ## Prerequisites
 
-- **Node.js**: >= 21.0.0 (or **Bun** >= 1.0)
+- **Node.js**: >= 21.0.0 (required for the standard npm install path)
+- **Bun**: >= 1.0 (optional alternative runtime)
 - **Chrome or Chromium** running and logged into the target site for browser-backed commands
 
 > **Important**: Browser-backed commands reuse your Chrome/Chromium login session. If you get empty data or permission-like failures, first confirm the site is already open and authenticated in Chrome/Chromium.
@@ -167,6 +197,7 @@ OpenCLI is not only for websites. It can also:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENCLI_DAEMON_PORT` | `19825` | HTTP port for the daemon-extension bridge |
+| `OPENCLI_PROFILE` | — | Browser Bridge profile alias/contextId to use when multiple Chrome profiles are connected |
 | `OPENCLI_WINDOW_FOCUSED` | `false` | Set to `1` to open the automation container in the foreground (useful for debugging). The `--focus` flag sets this. |
 | `OPENCLI_LIVE` | `false` | Set to `1` to keep the automation lease open after an adapter command finishes (useful for inspection). The `--live` flag sets this. |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | Seconds to wait for browser connection |
@@ -174,7 +205,6 @@ OpenCLI is not only for websites. It can also:
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol endpoint for remote browser or Electron apps |
 | `OPENCLI_CDP_TARGET` | — | Filter CDP targets by URL substring (e.g. `detail.1688.com`) |
 | `OPENCLI_VERBOSE` | `false` | Enable verbose logging (`-v` flag also works) |
-| `OPENCLI_DIAGNOSTIC` | `false` | Set to `1` to capture structured diagnostic context on failures |
 | `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |
 
 `--focus` works for both `opencli browser *` and browser-backed adapter commands. `--live` is mainly for adapter commands: browser subcommands already keep the automation lease open until you run `opencli browser close` or the idle timeout expires.
@@ -230,6 +260,7 @@ To load the source Browser Bridge extension:
 | **1688** | `search` `item` `assets` `download` `store` |
 | **gitee** | `trending` `search` `user` |
 | **gemini** | `new` `ask` `image` `deep-research` `deep-research-result` |
+| **claude** | `ask` `send` `new` `status` `read` `history` `detail` |
 | **yuanbao** | `new` `ask` |
 | **notebooklm** | `status` `list` `open` `current` `get` `history` `summary` `note-list` `notes-get` `source-list` `source-get` `source-fulltext` `source-guide` |
 | **spotify** | `auth` `status` `play` `pause` `next` `prev` `volume` `search` `queue` `shuffle` `repeat` |
@@ -246,7 +277,7 @@ To load the source Browser Bridge extension:
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
 | **xiaoyuzhou** | `auth*` `podcast*` `podcast-episodes*` `episode*` `download*` `transcript*` |
 
-90+ adapters in total — **[→ see all supported sites & commands](./docs/adapters/index.md)**
+100+ site surfaces in total — **[→ see all supported sites & commands](./docs/adapters/index.md)**
 
 `*` `opencli xiaoyuzhou podcast`, `podcast-episodes`, `episode`, `download`, and `transcript` require local Xiaoyuzhou credentials in `~/.opencli/xiaoyuzhou.json`.
 
@@ -267,7 +298,7 @@ OpenCLI acts as a universal hub for your existing command-line tools — unified
 **Register your own** — add any local CLI so AI agents can discover it via `opencli list`:
 
 ```bash
-opencli register mycli
+opencli external register mycli
 ```
 
 ### Desktop App Adapters
@@ -376,10 +407,10 @@ Before writing any adapter code, read the [`opencli-adapter-author` skill](./ski
 - Recon the site and pick a pattern (SPA / SSR / JSONP / Token / Streaming).
 - Discover the right endpoint via `opencli browser network`, `eval`, or the interceptor fallback.
 - Decide auth strategy (`PUBLIC` / `COOKIE` / `HEADER` / `INTERCEPT`).
-- Decode response fields, design columns, scaffold with `opencli browser init`.
+- Run `opencli browser analyze <url>` for one-shot recon, decode response fields, design columns, scaffold with `opencli browser init`.
 - Verify with `opencli browser verify <site>/<name>` before shipping.
 
-Adapters you write outside the repo live at `~/.opencli/clis/<site>/<name>.js`. Site knowledge (endpoints, field maps, fixtures) accumulates in `~/.opencli/sites/<site>/` so the next adapter for the same site starts from context instead of zero.
+For long-lived personal commands that should live in your own Git repo, use a local plugin instead; see [Extending OpenCLI](./docs/guide/extending-opencli.md). Quick private adapters can still live at `~/.opencli/clis/<site>/<name>.js`. Site knowledge (endpoints, field maps, fixtures) accumulates in `~/.opencli/sites/<site>/` so the next adapter for the same site starts from context instead of zero.
 
 ## Testing
 
@@ -390,7 +421,7 @@ See **[TESTING.md](./TESTING.md)** for how to run and write tests.
 - **"Extension not connected"** — Ensure the Browser Bridge extension is installed from the [Chrome Web Store](https://chromewebstore.google.com/detail/opencli/ildkmabpimmkaediidaifkhjpohdnifk) and **enabled** in `chrome://extensions`.
 - **"attach failed: Cannot access a chrome-extension:// URL"** — Another extension may be interfering. Try disabling other extensions temporarily.
 - **Empty data or 'Unauthorized' error** — Your Chrome/Chromium login session may have expired. Navigate to the target site and log in again.
-- **Node API errors** — Ensure Node.js >= 21. Some features require `node:util` styleText (stable in Node 21+).
+- **Node API errors / missing `fetch` / startup crash on old Node** — OpenCLI requires **Node.js >= 21**. Run `node --version`, upgrade Node if needed, then retry.
 - **Daemon issues** — Check status: `curl localhost:19825/status` · View logs: `curl localhost:19825/logs`
 
 ## Star History

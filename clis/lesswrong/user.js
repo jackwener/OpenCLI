@@ -18,7 +18,7 @@ cli({
         },
     ],
     columns: ['field', 'value'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const slug = gqlEscape(String(kwargs.username).toLowerCase());
         const query = `query UserProfile {
       user(input: {selector: {slug: "${slug}"}}) {

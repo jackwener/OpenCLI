@@ -177,7 +177,7 @@ cli({
     { name: 'limit', type: 'int', default: 10, help: 'Number of items' },
   ],
   columns: ['title', 'score'],
-  func: async (_page, kwargs) => {
+  func: async (kwargs) => {
     const res = await fetch('https://api.example.com/data');
     const data = await res.json();
     return data.items.slice(0, kwargs.limit).map((item: any, i: number) => ({

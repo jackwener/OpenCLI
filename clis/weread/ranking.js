@@ -12,7 +12,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Max results' },
     ],
     columns: ['rank', 'title', 'author', 'category', 'readingCount', 'bookId'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const cat = encodeURIComponent(args.category ?? 'all');
         const data = await fetchWebApi(`/bookListInCategory/${cat}`, { rank: '1' });
         const books = data?.books ?? [];

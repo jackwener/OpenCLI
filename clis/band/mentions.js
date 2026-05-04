@@ -1,4 +1,4 @@
-import { AuthRequiredError, EmptyResultError, SelectorError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, EmptyResultError, selectorError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 /**
  * band mentions — Show Band notifications where you were @mentioned.
@@ -52,7 +52,7 @@ cli({
             await page.wait(0.5);
         }
         if (!bellReady) {
-            throw new SelectorError('button._btnWidgetIcon', 'Notification bell not found. The Band.us UI may have changed.');
+            throw selectorError('button._btnWidgetIcon', 'Notification bell not found. The Band.us UI may have changed.');
         }
         // Poll until a capture containing result_data.news arrives, up to maxSecs seconds.
         // getInterceptedRequests() clears the array on each call, so captures are accumulated
@@ -80,7 +80,7 @@ cli({
       return true;
     }`);
         if (!bellClicked) {
-            throw new SelectorError('button._btnWidgetIcon', 'Notification bell disappeared before click. The Band.us UI may have changed.');
+            throw selectorError('button._btnWidgetIcon', 'Notification bell disappeared before click. The Band.us UI may have changed.');
         }
         const requests = await waitForOneCapture();
         // Find the get_news response (has result_data.news); get_news_count responses do not.

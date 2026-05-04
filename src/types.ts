@@ -38,6 +38,13 @@ export interface ScreenshotOptions {
   path?: string;
 }
 
+export interface FetchJsonOptions {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+  timeoutMs?: number;
+}
+
 export interface BrowserSessionInfo {
   workspace?: string;
   connected?: boolean;
@@ -58,6 +65,12 @@ export interface IPage {
   evaluate(js: string): Promise<any>;
   /** Safely evaluate JS with pre-serialized arguments — prevents injection. */
   evaluateWithArgs?(js: string, args: Record<string, unknown>): Promise<any>;
+  /**
+   * Fetch JSON from inside the browser context, carrying the page's cookies.
+   * This is intentionally narrow: browser-context JSON fetch, not a generic
+   * HTTP client.
+   */
+  fetchJson(url: string, opts?: FetchJsonOptions): Promise<unknown>;
   getCookies(opts?: { domain?: string; url?: string }): Promise<BrowserCookie[]>;
   snapshot(opts?: SnapshotOptions): Promise<any>;
   click(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
@@ -99,6 +112,8 @@ export interface IPage {
   setActivePage?(page?: string): void;
   /** Send a raw CDP command via chrome.debugger passthrough. */
   cdp?(method: string, params?: Record<string, unknown>): Promise<unknown>;
+  /** Accept or dismiss the currently open JavaScript alert/confirm/prompt dialog. */
+  handleJavaScriptDialog?(accept: boolean, promptText?: string): Promise<void>;
   /** List cross-origin iframe targets in snapshot order. */
   frames?(): Promise<Array<{ index: number; frameId: string; url: string; name: string }>>;
   /** Evaluate JavaScript inside a cross-origin iframe identified by its frame index. */

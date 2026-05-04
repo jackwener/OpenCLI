@@ -35,7 +35,7 @@ describe('weread/search regression', () => {
         `),
         });
         vi.stubGlobal('fetch', fetchMock);
-        const result = await command.func(null, { query: 'deep work', limit: 5 });
+        const result = await command.func({ query: 'deep work', limit: 5 });
         expect(fetchMock).toHaveBeenCalledTimes(2);
         expect(String(fetchMock.mock.calls[0][0])).toContain('keyword=deep+work');
         expect(String(fetchMock.mock.calls[1][0])).toContain('/web/search/books?keyword=deep+work');
@@ -72,7 +72,7 @@ describe('weread/search regression', () => {
             text: () => Promise.resolve('<html><body><p>no search cards</p></body></html>'),
         });
         vi.stubGlobal('fetch', fetchMock);
-        const result = await command.func(null, { query: 'deep work', limit: 5 });
+        const result = await command.func({ query: 'deep work', limit: 5 });
         expect(result).toEqual([
             {
                 rank: 1,
@@ -128,7 +128,7 @@ describe('weread/search regression', () => {
         `),
         });
         vi.stubGlobal('fetch', fetchMock);
-        const result = await command.func(null, { query: 'cal newport', limit: 5 });
+        const result = await command.func({ query: 'cal newport', limit: 5 });
         expect(result).toEqual([
             {
                 rank: 1,
@@ -166,7 +166,7 @@ describe('weread/search regression', () => {
         })
             .mockRejectedValueOnce(new Error('network timeout'));
         vi.stubGlobal('fetch', fetchMock);
-        const result = await command.func(null, { query: 'deep work', limit: 5 });
+        const result = await command.func({ query: 'deep work', limit: 5 });
         expect(result).toEqual([
             {
                 rank: 1,
@@ -220,7 +220,7 @@ describe('weread/search regression', () => {
         `),
         });
         vi.stubGlobal('fetch', fetchMock);
-        const result = await command.func(null, { query: '文明', limit: 5 });
+        const result = await command.func({ query: '文明', limit: 5 });
         expect(result).toEqual([
             {
                 rank: 1,
@@ -279,7 +279,7 @@ describe('weread/search regression', () => {
         `),
         });
         vi.stubGlobal('fetch', fetchMock);
-        const result = await command.func(null, { query: '文明', limit: 5 });
+        const result = await command.func({ query: '文明', limit: 5 });
         expect(result).toEqual([
             {
                 rank: 1,
@@ -332,7 +332,7 @@ describe('weread/search regression', () => {
         `),
         });
         vi.stubGlobal('fetch', fetchMock);
-        const result = await command.func(null, { query: '文明', limit: 5 });
+        const result = await command.func({ query: '文明', limit: 5 });
         expect(result).toEqual([
             {
                 rank: 1,
@@ -386,7 +386,7 @@ describe('weread/search regression', () => {
         `),
         });
         vi.stubGlobal('fetch', fetchMock);
-        const result = await command.func(null, { query: '文明', limit: 5 });
+        const result = await command.func({ query: '文明', limit: 5 });
         expect(result).toEqual([
             {
                 rank: 1,

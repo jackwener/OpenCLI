@@ -124,7 +124,7 @@ cli({
         { name: 'limit', type: 'int', default: 10, help: 'Max results' },
     ],
     columns: ['rank', 'title', 'author', 'bookId', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const [data, htmlEntries] = await Promise.all([
             fetchWebApi('/search/global', { keyword: args.query }),
             loadSearchHtmlEntries(String(args.query ?? '')),

@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { SelectorError } from '@jackwener/opencli/errors';
+import { selectorError } from '@jackwener/opencli/errors';
 export const sendCommand = cli({
     site: 'codex',
     name: 'send',
@@ -28,7 +28,7 @@ export const sendCommand = cli({
       })(${JSON.stringify(textToInsert)})
     `);
         if (!injected)
-            throw new SelectorError('Codex Composer input element');
+            throw selectorError('Codex Composer input element');
         // Wait for the UI to register the input
         await page.wait(0.5);
         // Simulate Enter key to submit

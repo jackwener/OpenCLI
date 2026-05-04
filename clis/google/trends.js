@@ -16,7 +16,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
     ],
     columns: ['title', 'traffic', 'date'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const limit = Math.max(1, Math.min(Number(args.limit), 100));
         const region = encodeURIComponent(args.region);
         const url = `https://trends.google.com/trending/rss?geo=${region}`;

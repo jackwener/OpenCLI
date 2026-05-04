@@ -6,7 +6,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { requirePage, navigateToChat, findFriendByUid, clickCandidateInList, typeAndSendMessage, } from './utils.js';
-import { EmptyResultError, SelectorError } from '@jackwener/opencli/errors';
+import { EmptyResultError, selectorError } from '@jackwener/opencli/errors';
 cli({
     site: 'boss',
     name: 'send',
@@ -30,12 +30,12 @@ cli({
         const friendName = friend.name || '候选人';
         const clicked = await clickCandidateInList(page, numericUid);
         if (!clicked) {
-            throw new SelectorError('聊天列表中的用户', '请确认聊天列表中有此人');
+            throw selectorError('聊天列表中的用户', '请确认聊天列表中有此人');
         }
         await page.wait({ time: 2 });
         const sent = await typeAndSendMessage(page, kwargs.text);
         if (!sent) {
-            throw new SelectorError('消息输入框', '聊天页面 UI 可能已改变');
+            throw selectorError('消息输入框', '聊天页面 UI 可能已改变');
         }
         await page.wait({ time: 1 });
         return [{ status: '✅ 发送成功', detail: `已向 ${friendName} 发送: ${kwargs.text}` }];

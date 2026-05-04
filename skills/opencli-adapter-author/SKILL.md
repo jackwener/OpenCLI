@@ -10,7 +10,7 @@ allowed-tools: Bash(opencli:*), Read, Edit, Write, Grep
 
 全程用现有工具：`opencli browser *` / `opencli doctor` / `opencli browser init` / `opencli browser verify`。没有新命令。
 
-调试浏览器型 adapter 时，优先直接带上 `--live --focus`。这样命令跑完后 automation lease 还在，而且容器在前台，方便你核对最终页面状态，而不是猜是抓数错了还是页面走偏了。
+调试浏览器型 adapter 时，优先直接带上 `--trace on --live --focus`。`--trace on` 每轮都落 trace artifact，`summary.md` 是失败/成功复盘入口；`--live --focus` 让 automation lease 保留且容器在前台，方便核对最终页面状态。
 
 ---
 
@@ -82,7 +82,7 @@ START
   │
   ▼
 ┌──────────────────────────┐
-│ opencli browser verify    │── 失败 ──→ autofix skill，回对应步骤
+│ opencli browser verify    │── 失败 ──→ autofix skill，用 --trace retain-on-failure 回对应步骤
 └──────────────────────────┘
   │ 成功
   ▼
@@ -163,7 +163,7 @@ DONE
 | | 200 但 `data: []` 空 | 参数传错 / 接口换版，回 §1 看 network 里真实请求头 |
 | Step 7 字段解码 | 排序键对比推不出 | field-decode-playbook.md §3 结构差分 |
 | | 还推不出 | 先输出 raw，adapter 跑起来再迭代 |
-| Step 10 verify 失败 | `fltt` 漏了 / 字段映射错 | autofix skill |
+| Step 10 verify 失败 | `fltt` 漏了 / 字段映射错 | autofix skill；复现命令加 `--trace retain-on-failure` |
 | | 某列永远是 `null` | 字段路径错了，回 Step 7 |
 | Step 10 verify fixture mismatch | `[pattern]` row[i] 报错 | 先肉眼比对网页值；值对 → 是 fixture pattern 太严，放宽；值不对 → 字段映射错 |
 | | `[column] missing column "X"` | 实际 response 没这列（站点改版 or args 影响）；重新 `--update-fixture` 或修 adapter |

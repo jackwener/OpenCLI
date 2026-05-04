@@ -12,6 +12,10 @@ import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
 import type { BrowserSessionInfo } from './types.js';
+import type { BrowserProfileStatus } from './browser/daemon-client.js';
+import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
+import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
+import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
 
 const DOCTOR_LIVE_TIMEOUT_SECONDS = 8;
 
@@ -61,6 +65,7 @@ export type DoctorReport = {
   cliVersion?: string;
   daemonRunning: boolean;
   daemonFlaky?: boolean;
+  daemonStale?: boolean;
   daemonVersion?: string;
   extensionConnected: boolean;
   extensionFlaky?: boolean;
@@ -68,6 +73,8 @@ export type DoctorReport = {
   latestExtensionVersion?: string;
   connectivity?: ConnectivityResult;
   sessions?: BrowserSessionInfo[];
+  profiles?: BrowserProfileStatus[];
+  adapterShadows?: AdapterShadow[];
   issues: string[];
 };
 
@@ -118,10 +125,22 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   const extensionConnected = health.state === 'ready';
   const daemonFlaky = !!(connectivity?.ok && !daemonRunning);
   const extensionFlaky = !!(connectivity?.ok && daemonRunning && !extensionConnected);
-  const sessions = opts.sessions && health.state === 'ready'
-    ? await listSessions()
-    : undefined;
+  const daemonStale = isDaemonStale(health.status, opts.cliVersion);
+  const profiles = health.status?.profiles;
+  let sessions: BrowserSessionInfo[] | undefined;
+  if (opts.sessions) {
+    if (profiles && profiles.length > 0) {
+      const grouped = await Promise.all(profiles.map(async (profile) => {
+        const rows = await listSessions({ contextId: profile.contextId }).catch(() => [] as BrowserSessionInfo[]);
+        return rows.map((row) => ({ ...row, contextId: row.contextId ?? profile.contextId }));
+      }));
+      sessions = grouped.flat();
+    } else if (health.state === 'ready') {
+      sessions = await listSessions();
+    }
+  }
   const extensionVersion = health.status?.extensionVersion;
+  const adapterShadows = findShadowedUserAdapters();
 
   const issues: string[] = [];
   if (daemonFlaky) {
@@ -132,27 +151,29 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   } else if (!daemonRunning) {
     issues.push('Daemon is not running. It should start automatically when you run an opencli browser command.');
   }
+  if (daemonStale && opts.cliVersion) {
+    issues.push(staleDaemonIssue(health.status, opts.cliVersion));
+  }
   if (extensionFlaky) {
     issues.push(
       'Extension connection is unstable. The live browser test succeeded, but the daemon reported the extension disconnected immediately afterward.\n' +
       'This usually means the Browser Bridge service worker is reconnecting slowly or Chrome suspended it.',
     );
   } else if (daemonRunning && !extensionConnected) {
-    const daemonVersion = health.status?.daemonVersion;
-    const isStale = opts.cliVersion && (!daemonVersion || daemonVersion !== opts.cliVersion);
-    if (isStale) {
-      const reason = daemonVersion
-        ? `daemon v${daemonVersion} ≠ CLI v${opts.cliVersion}`
-        : `daemon predates version reporting, CLI is v${opts.cliVersion}`;
+    if (health.state === 'profile-required') {
       issues.push(
-        `Stale daemon detected: ${reason}.\n` +
-        'The daemon was started by an older CLI version and may have missed the extension registration.\n' +
-        '  Quick fix: opencli daemon stop && opencli doctor',
+        'Multiple Chrome profiles are connected to the daemon, but no default profile was selected.\n' +
+        '  Run opencli profile list, then opencli profile use <name>, or pass --profile <name>.',
+      );
+    } else if (health.state === 'profile-disconnected') {
+      issues.push(
+        `Selected browser profile is not connected: ${health.status?.contextId ?? 'unknown'}.\n` +
+        '  Open that Chrome profile and make sure the OpenCLI extension is enabled.',
       );
     } else {
       issues.push(
         'Daemon is running but the Chrome/Chromium extension is not connected.\n' +
-        'If the extension is already installed, try: opencli daemon stop && opencli doctor\n' +
+        'If the extension is already installed, try: opencli daemon restart\n' +
         'If the extension is not installed:\n' +
         '  1. Download from https://github.com/jackwener/opencli/releases\n' +
         '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
@@ -199,11 +220,15 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
       '  Download from: https://github.com/jackwener/opencli/releases',
     );
   }
+  if (adapterShadows.length > 0) {
+    issues.push(formatAdapterShadowIssue(adapterShadows));
+  }
 
   return {
     cliVersion: opts.cliVersion,
     daemonRunning,
     daemonFlaky,
+    daemonStale,
     daemonVersion: health.status?.daemonVersion,
     extensionConnected,
     extensionFlaky,
@@ -211,6 +236,8 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     latestExtensionVersion,
     connectivity,
     sessions,
+    profiles,
+    adapterShadows,
     issues,
   };
 }
@@ -221,10 +248,16 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
   // Daemon status
   const daemonIcon = report.daemonFlaky
     ? styleText('yellow', '[WARN]')
-    : report.daemonRunning ? styleText('green', '[OK]') : styleText('red', '[MISSING]');
+    : report.daemonStale
+      ? styleText('yellow', '[WARN]')
+      : report.daemonRunning ? styleText('green', '[OK]') : styleText('red', '[MISSING]');
   const daemonLabel = report.daemonFlaky
     ? 'unstable (running during live check, then stopped)'
-    : report.daemonRunning ? `running on port ${DEFAULT_DAEMON_PORT}` + (report.daemonVersion ? ` (v${report.daemonVersion})` : '') : 'not running';
+    : report.daemonRunning
+      ? `running on port ${DEFAULT_DAEMON_PORT} (${report.daemonStale
+        ? `${formatDaemonVersion(report)}, stale; CLI v${report.cliVersion ?? 'unknown'}`
+        : formatDaemonVersion(report)})`
+      : 'not running';
   lines.push(`${daemonIcon} Daemon: ${daemonLabel}`);
 
   // Extension status
@@ -244,6 +277,18 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
     : report.extensionConnected ? 'connected' : 'not connected';
   lines.push(`${extIcon} Extension: ${extLabel}${extVersion}`);
 
+  if (report.profiles && report.profiles.length > 0) {
+    const config = loadProfileConfig();
+    lines.push('', styleText('bold', 'Profiles:'));
+    for (const profile of report.profiles) {
+      const alias = aliasForContextId(config, profile.contextId);
+      const aliasText = alias ? ` (${alias})` : '';
+      const defaultText = config.defaultContextId === profile.contextId ? ', default' : '';
+      const version = profile.extensionVersion ? `v${profile.extensionVersion}` : 'version unknown';
+      lines.push(styleText('dim', `  • ${profile.contextId}${aliasText}: connected ${version}${defaultText}`));
+    }
+  }
+
   // Connectivity
   if (report.connectivity) {
     const connIcon = report.connectivity.ok ? styleText('green', '[OK]') : styleText('red', '[FAIL]');
@@ -260,7 +305,16 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
     if (report.sessions.length === 0) {
       lines.push(styleText('dim', '  • no active automation sessions'));
     } else {
+      const byContext = new Map<string, BrowserSessionInfo[]>();
       for (const session of report.sessions) {
+        const contextId = typeof session.contextId === 'string' && session.contextId ? session.contextId : 'default';
+        const rows = byContext.get(contextId) ?? [];
+        rows.push(session);
+        byContext.set(contextId, rows);
+      }
+      for (const [contextId, rows] of byContext) {
+        if (byContext.size > 1) lines.push(styleText('dim', `  [profile: ${contextId}]`));
+        for (const session of rows) {
         const idle = session.idleMsRemaining == null
           ? 'none'
           : `${Math.ceil(session.idleMsRemaining / 1000)}s`;
@@ -270,6 +324,7 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
         const mode = session.ownership ?? (session.owned === false ? 'borrowed' : 'owned');
         const surface = session.surface ? `, surface=${session.surface}` : '';
         lines.push(styleText('dim', `  • ${session.workspace ?? 'default'} → ${target}, mode=${mode}${surface}, tabs=${session.tabCount ?? 0}, idle=${idle}`));
+      }
       }
     }
   }

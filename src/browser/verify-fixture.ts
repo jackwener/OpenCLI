@@ -239,6 +239,21 @@ export function expandFixtureArgs(args: FixtureArgs | undefined): string[] {
   return out;
 }
 
+export function parseSeedArgs(raw: string | undefined): FixtureArgs | undefined {
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed !== null && typeof parsed === 'object') return parsed as Record<string, unknown>;
+    return [parsed];
+  } catch {
+    return [raw];
+  }
+}
+
 function jsType(v: unknown): string {
   if (v === null) return 'null';
   if (Array.isArray(v)) return 'array';

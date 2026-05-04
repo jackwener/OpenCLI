@@ -47,7 +47,7 @@ cli({
     },
   ],
   columns: ['code', 'name', 'price', 'changePercent', 'change', 'open', 'high', 'low', 'prevClose'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const group = String(args.group ?? 'main').toLowerCase();
     /** @type {[string,string][]} */
     let entries;

@@ -18,7 +18,7 @@ cli({
         { name: 'region', default: 'US', help: 'Region code (e.g. US, CN)' },
     ],
     columns: ['title', 'source', 'date', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const limit = Math.max(1, Math.min(Number(args.limit), 100));
         const lang = encodeURIComponent(args.lang);
         const region = encodeURIComponent(args.region);

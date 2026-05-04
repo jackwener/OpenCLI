@@ -15,7 +15,7 @@ export const askCommand = cli({
         { name: 'timeout', required: false, help: 'Max seconds to wait for response (default: 30)', default: '30' },
     ],
     columns: ['Role', 'Text'],
-    func: async (page, kwargs) => {
+    func: async (kwargs) => {
         if (process.platform !== 'darwin') {
             throw new ConfigError('ChatGPT Desktop integration requires macOS (osascript is not available on this platform)');
         }

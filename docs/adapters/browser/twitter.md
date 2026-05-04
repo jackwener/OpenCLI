@@ -48,6 +48,10 @@ opencli twitter search "react 19"
 # Search latest/live tweets
 opencli twitter search "react 19" --filter live
 
+# Get following/followers list (supports large limits)
+opencli twitter following @elonmusk --limit 200
+opencli twitter followers @elonmusk --limit 100
+
 # JSON output
 opencli twitter trending -f json
 

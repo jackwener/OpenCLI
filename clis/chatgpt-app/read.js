@@ -11,7 +11,7 @@ export const readCommand = cli({
     browser: false,
     args: [],
     columns: ['Role', 'Text'],
-    func: async (page) => {
+    func: async () => {
         if (process.platform !== 'darwin') {
             throw new ConfigError('ChatGPT Desktop integration requires macOS (osascript is not available on this platform)');
         }

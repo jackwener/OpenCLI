@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { SelectorError } from '@jackwener/opencli/errors';
+import { selectorError } from '@jackwener/opencli/errors';
 export const sendCommand = cli({
     site: 'chatwise',
     name: 'send',
@@ -36,7 +36,7 @@ export const sendCommand = cli({
       })(${JSON.stringify(text)})
     `);
         if (!injected)
-            throw new SelectorError('ChatWise input element');
+            throw selectorError('ChatWise input element');
         await page.wait(0.5);
         await page.pressKey('Enter');
         return [

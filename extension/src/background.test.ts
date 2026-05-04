@@ -416,6 +416,25 @@ describe('background tab isolation', () => {
     ]));
   });
 
+  it('returns the persisted profile contextId from popup status', async () => {
+    const { chrome } = createChromeMock();
+    await chrome.storage.local.set({ opencli_context_id_v1: 'abc123xy' });
+    vi.stubGlobal('chrome', chrome);
+
+    await import('./background');
+    const onMessageListener = chrome.runtime.onMessage.addListener.mock.calls[0][0];
+    const sendResponse = vi.fn();
+
+    const keepAlive = onMessageListener({ type: 'getStatus' }, {}, sendResponse);
+
+    expect(keepAlive).toBe(true);
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+        contextId: 'abc123xy',
+      }));
+    });
+  });
+
   it('can execute concurrently on two pages in the same workspace', async () => {
     const { chrome, tabs } = createChromeMock();
     tabs.push({

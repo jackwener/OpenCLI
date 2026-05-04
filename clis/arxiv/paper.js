@@ -11,7 +11,7 @@ cli({
         { name: 'id', positional: true, required: true, help: 'arXiv paper ID (e.g. 1706.03762)' },
     ],
     columns: ['id', 'title', 'authors', 'published', 'abstract', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const xml = await arxivFetch(`id_list=${encodeURIComponent(args.id)}`);
         const entries = parseEntries(xml);
         if (!entries.length)

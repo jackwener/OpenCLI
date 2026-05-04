@@ -9,7 +9,7 @@ cli({
     browser: false,
     args: [{ name: 'lang', default: 'en', help: 'Language code (e.g. en, zh, ja)' }],
     columns: ['title', 'description', 'extract', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const lang = args.lang || 'en';
         const data = (await wikiFetch(lang, '/api/rest_v1/page/random/summary'));
         if (!data?.title)

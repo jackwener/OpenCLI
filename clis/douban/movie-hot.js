@@ -9,6 +9,6 @@ cli({
     args: [
         { name: 'limit', type: 'int', default: 20, help: '返回的电影数量' },
     ],
-    columns: ['rank', 'title', 'rating', 'quote', 'director', 'year', 'region', 'url'],
+    columns: ['rank', 'id', 'title', 'rating', 'votes', 'year', 'url'],
     func: async (page, args) => loadDoubanMovieHot(page, Number(args.limit) || 20),
 });

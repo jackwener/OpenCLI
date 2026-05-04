@@ -28,7 +28,7 @@ cli({
     { name: 'limit', type: 'int', default: 20, help: '返回数量 (max 100)' },
   ],
   columns: ['rank', 'code', 'name', 'price', 'changePercent', 'mainNet', 'mainNetRatio', 'superNet', 'bigNet', 'mediumNet', 'smallNet'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const rangeKey = String(args.range ?? 'today').toLowerCase();
     const range = RANGES[rangeKey];
     if (!range) {

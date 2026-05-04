@@ -19,7 +19,7 @@ cli({
         { name: 'limit', type: 'int', default: 5, help: 'Number of comments' },
     ],
     columns: ['rank', 'score', 'author', 'text'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const postId = gqlEscape(parsePostId(String(kwargs['url-or-id'])));
         const limit = Number(kwargs.limit ?? 5);
         // Fetch post title and comments in parallel

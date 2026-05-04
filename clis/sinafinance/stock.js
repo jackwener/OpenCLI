@@ -62,7 +62,7 @@ cli({
         { name: 'market', type: 'string', default: 'auto', help: 'Market: cn, hk, us, auto (default: auto searches cn → hk → us)' },
     ],
     columns: ['Symbol', 'Name', 'Price', 'Change', 'ChangePercent', 'Open', 'High', 'Low', 'Volume', 'MarketCap'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const key = String(args.key);
         const market = String(args.market);
         const marketMap = {

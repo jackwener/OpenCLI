@@ -19,7 +19,7 @@ cli({
         { name: 'limit', type: 'int', default: 10, help: 'Number of results' },
     ],
     columns: ['rank', 'title', 'author', 'karma', 'comments', 'url'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const tagInput = String(kwargs.tag);
         const limit = Number(kwargs.limit ?? 10);
         const tag = await resolveTagId(tagInput);

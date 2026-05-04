@@ -40,9 +40,10 @@ export async function selectModel(page, modelName) {
     return page.evaluate(`(() => {
         var radios = document.querySelectorAll('div[role="radio"]');
         if (radios.length === 0) return { ok: false };
-        var isFirst = '${modelName}'.toLowerCase() === 'instant';
-        if (!isFirst && radios.length < 2) return { ok: false };
-        var target = isFirst ? radios[0] : radios[radios.length - 1];
+        var name = '${modelName}'.toLowerCase();
+        var index = name === 'instant' ? 0 : name === 'expert' ? 1 : name === 'vision' ? 2 : -1;
+        if (index < 0 || index >= radios.length) return { ok: false };
+        var target = radios[index];
         var alreadySelected = target.getAttribute('aria-checked') === 'true';
         if (!alreadySelected) target.click();
         return { ok: true, toggled: !alreadySelected };
@@ -277,9 +278,18 @@ async function waitForFilePreview(page, fileName) {
     for (let attempt = 0; attempt < 8; attempt++) {
         await page.wait(2);
         const ready = await page.evaluate(`(() => {
-            const name = ${JSON.stringify(fileName)};
-            return Array.from(document.querySelectorAll('div'))
-                .some((el) => el.children.length === 0 && (el.textContent || '').trim() === name);
+            var name = ${JSON.stringify(fileName)};
+            var hasFileName = Array.from(document.querySelectorAll('div'))
+                .some(function(el) { return el.children.length === 0 && (el.textContent || '').trim() === name; });
+            if (hasFileName) return true;
+            // Vision mode shows an image thumbnail, not filename text. Require
+            // a preview-like node here; send-button readiness is checked later.
+            var box = document.querySelector('${TEXTAREA_SELECTOR}');
+            if (!box) return false;
+            var c = box.parentElement;
+            while (c && !c.querySelector('div[role="button"]')) c = c.parentElement;
+            if (!c) return false;
+            return !!c.querySelector('img[src], canvas, video, [style*="background-image"], [class*="preview"], [class*="upload"]');
         })()`);
         if (ready) return true;
     }
@@ -318,7 +328,7 @@ export async function sendWithFile(page, filePath, prompt) {
             uploaded = true;
         } catch (err) {
             const msg = String(err?.message || err);
-            if (!msg.includes('Unknown action') && !msg.includes('not supported')) {
+            if (!msg.includes('Unknown action') && !msg.includes('not supported') && !msg.includes('Not allowed')) {
                 throw err;
             }
         }

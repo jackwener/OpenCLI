@@ -24,7 +24,7 @@ cli({
             return 'prepared only';
         return undefined;
     },
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const pdfFile = await readPdfFile(kwargs.pdf);
         const email = String(kwargs.email ?? '').trim();
         const venue = normalizeVenue(kwargs.venue);

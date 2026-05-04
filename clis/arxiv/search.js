@@ -12,7 +12,7 @@ cli({
         { name: 'limit', type: 'int', default: 10, help: 'Max results (max 25)' },
     ],
     columns: ['id', 'title', 'authors', 'published', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const limit = Math.max(1, Math.min(Number(args.limit), 25));
         const query = encodeURIComponent(`all:${args.query}`);
         const xml = await arxivFetch(`search_query=${query}&max_results=${limit}&sortBy=relevance`);

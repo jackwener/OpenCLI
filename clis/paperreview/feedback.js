@@ -17,7 +17,7 @@ cli({
         { name: 'additional-comments', help: 'Optional free-text feedback' },
     ],
     columns: ['status', 'token', 'helpfulness', 'critical_error', 'actionable_suggestions', 'message'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const token = String(kwargs.token ?? '').trim();
         if (!token) {
             throw new CliError('ARGUMENT', 'A review token is required.');

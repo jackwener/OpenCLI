@@ -8,13 +8,59 @@
 declare const __OPENCLI_COMPAT_RANGE__: string;
 
 import type { Command, Result } from './protocol';
-import { DAEMON_WS_URL, DAEMON_PING_URL, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
+import { DAEMON_HOST, DAEMON_PORT, DAEMON_WS_URL, DAEMON_PING_URL, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
 import * as executor from './cdp';
 import * as identity from './identity';
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
+const CONTEXT_ID_KEY = 'opencli_context_id_v1';
+let currentContextId = 'default';
+let contextIdPromise: Promise<string> | null = null;
+
+async function getCurrentContextId(): Promise<string> {
+  if (contextIdPromise) return contextIdPromise;
+  contextIdPromise = (async () => {
+    try {
+      const local = chrome.storage?.local;
+      if (!local) return currentContextId;
+      const raw = await local.get(CONTEXT_ID_KEY) as Record<string, unknown>;
+      const existing = raw[CONTEXT_ID_KEY];
+      if (typeof existing === 'string' && existing.trim()) {
+        currentContextId = existing.trim();
+        return currentContextId;
+      }
+      const generated = generateContextId();
+      await local.set({ [CONTEXT_ID_KEY]: generated });
+      currentContextId = generated;
+      return currentContextId;
+    } catch {
+      return currentContextId;
+    }
+  })();
+  return contextIdPromise;
+}
+
+function generateContextId(): string {
+  const alphabet = '23456789abcdefghjkmnpqrstuvwxyz';
+  const maxUnbiasedByte = Math.floor(256 / alphabet.length) * alphabet.length;
+  let id = '';
+  while (id.length < 8) {
+    const bytes = new Uint8Array(8);
+    try {
+      crypto.getRandomValues(bytes);
+    } catch {
+      for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    }
+    for (const byte of bytes) {
+      if (byte >= maxUnbiasedByte) continue;
+      id += alphabet[byte % alphabet.length];
+      if (id.length === 8) break;
+    }
+  }
+  return id;
+}
 
 // ─── Console log forwarding ──────────────────────────────────────────
 // Hook console.log/warn/error to forward logs to daemon via WebSocket.
@@ -55,7 +101,9 @@ async function connect(): Promise<void> {
   }
 
   try {
+    const contextId = await getCurrentContextId();
     ws = new WebSocket(DAEMON_WS_URL);
+    currentContextId = contextId;
   } catch {
     scheduleReconnect();
     return;
@@ -71,6 +119,7 @@ async function connect(): Promise<void> {
     // Send version + compatibility range so the daemon can report mismatches to the CLI
     ws?.send(JSON.stringify({
       type: 'hello',
+      contextId: currentContextId,
       version: chrome.runtime.getManifest().version,
       compatRange: __OPENCLI_COMPAT_RANGE__,
     }));
@@ -122,7 +171,7 @@ function scheduleReconnect(): void {
 // Interactive workspaces (browser:*, operate:*) get a longer timeout (10 min)
 // since users type commands manually; adapter workspaces keep a short 30s timeout.
 
-type BrowserContextId = 'user-default';
+type BrowserContextId = string;
 type LeaseOwnership = 'owned' | 'borrowed';
 type LeaseLifecycle = 'ephemeral' | 'persistent' | 'pinned';
 type SurfacePolicy = 'dedicated-container' | 'borrowed-user-tab';
@@ -138,9 +187,8 @@ type TargetLease = {
   lifecycle: LeaseLifecycle;
   surface: SurfacePolicy;
 };
-type AutomationSession = TargetLease;
 
-const automationSessions = new Map<string, AutomationSession>();
+const automationSessions = new Map<string, TargetLease>();
 let ownedContainerWindowId: number | null = null;
 const IDLE_TIMEOUT_DEFAULT = 30_000;      // 30s — adapter-driven automation
 const IDLE_TIMEOUT_INTERACTIVE = 600_000; // 10min — human-paced browser:* / operate:*
@@ -150,7 +198,7 @@ const LEASE_IDLE_ALARM_PREFIX = 'opencli:lease-idle:';
 let leaseMutationQueue: Promise<void> = Promise.resolve();
 let ownedContainerWindowPromise: Promise<{ windowId: number; initialTabId?: number }> | null = null;
 
-type StoredLease = Omit<AutomationSession, 'idleTimer' | 'idleDeadlineAt'> & {
+type StoredLease = Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt'> & {
   idleDeadlineAt: number;
   updatedAt: number;
 };
@@ -215,12 +263,12 @@ function withLeaseMutation<T>(fn: () => Promise<T>): Promise<T> {
 
 function makeSession(
   workspace: string,
-  session: Omit<AutomationSession, 'idleTimer' | 'idleDeadlineAt' | 'contextId' | 'ownership' | 'lifecycle' | 'surface'>,
-): Omit<AutomationSession, 'idleTimer' | 'idleDeadlineAt'> {
+  session: Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt' | 'contextId' | 'ownership' | 'lifecycle' | 'surface'>,
+): Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt'> {
   const ownership = session.owned ? 'owned' : 'borrowed';
   return {
     ...session,
-    contextId: 'user-default',
+    contextId: currentContextId,
     ownership,
     lifecycle: getLeaseLifecycle(workspace),
     surface: ownership === 'owned' ? 'dedicated-container' : 'borrowed-user-tab',
@@ -230,7 +278,7 @@ function makeSession(
 function emptyRegistry(): StoredRegistry {
   return {
     version: 1,
-    contextId: 'user-default',
+    contextId: currentContextId,
     ownedContainerWindowId,
     leases: {},
   };
@@ -245,7 +293,7 @@ async function readRegistry(): Promise<StoredRegistry> {
     if (!stored || stored.version !== 1 || typeof stored.leases !== 'object') return emptyRegistry();
     return {
       version: 1,
-      contextId: 'user-default',
+      contextId: currentContextId,
       ownedContainerWindowId: typeof stored.ownedContainerWindowId === 'number' ? stored.ownedContainerWindowId : null,
       leases: stored.leases as Record<string, StoredLease>,
     };
@@ -279,7 +327,7 @@ async function persistRuntimeState(): Promise<void> {
   }
   await writeRegistry({
     version: 1,
-    contextId: 'user-default',
+    contextId: currentContextId,
     ownedContainerWindowId,
     leases,
   });
@@ -545,8 +593,11 @@ function initialize(): void {
   chrome.alarms.create('keepalive', { periodInMinutes: 0.4 }); // ~24 seconds
   executor.registerListeners();
   executor.registerFrameTracking();
-  void reconcileTargetLeaseRegistry();
-  void connect();
+  void (async () => {
+    await getCurrentContextId();
+    await reconcileTargetLeaseRegistry();
+    await connect();
+  })();
   console.log('[opencli] OpenCLI extension initialized');
 }
 
@@ -568,13 +619,43 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === 'getStatus') {
-    sendResponse({
-      connected: ws?.readyState === WebSocket.OPEN,
-      reconnecting: reconnectTimer !== null,
-    });
+    void (async () => {
+      const contextId = await getCurrentContextId();
+      const connected = ws?.readyState === WebSocket.OPEN;
+      const extensionVersion = chrome.runtime.getManifest().version;
+      const daemonVersion = connected ? await fetchDaemonVersion() : null;
+      sendResponse({
+        connected,
+        reconnecting: reconnectTimer !== null,
+        contextId,
+        extensionVersion,
+        daemonVersion,
+      });
+    })();
+    return true;
   }
   return false;
 });
+
+/**
+ * Best-effort fetch of the daemon's reported version for the popup status panel.
+ * Resolves to null on any failure — the popup degrades to showing connection
+ * state without the version label.
+ */
+async function fetchDaemonVersion(): Promise<string | null> {
+  try {
+    const res = await fetch(`http://${DAEMON_HOST}:${DAEMON_PORT}/status`, {
+      method: 'GET',
+      headers: { 'X-OpenCLI': '1' },
+      signal: AbortSignal.timeout(1500),
+    });
+    if (!res.ok) return null;
+    const body = await res.json() as { daemonVersion?: unknown };
+    return typeof body.daemonVersion === 'string' ? body.daemonVersion : null;
+  } catch {
+    return null;
+  }
+}
 
 // ─── Command dispatcher ─────────────────────────────────────────────
 
@@ -733,7 +814,7 @@ function enumerateCrossOriginFrames(tree: any): Array<{ index: number; frameId: 
 
 function setWorkspaceSession(
   workspace: string,
-  session: Omit<AutomationSession, 'idleTimer' | 'idleDeadlineAt' | 'contextId' | 'ownership' | 'lifecycle' | 'surface'>,
+  session: Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt' | 'contextId' | 'ownership' | 'lifecycle' | 'surface'>,
 ): void {
   const existing = automationSessions.get(workspace);
   if (existing?.idleTimer) clearTimeout(existing.idleTimer);
@@ -1197,9 +1278,12 @@ async function handleScreenshot(cmd: Command, workspace: string): Promise<Result
 const CDP_ALLOWLIST = new Set([
   // Agent DOM context
   'Accessibility.getFullAXTree',
+  'DOM.enable',
   'DOM.getDocument',
   'DOM.getBoxModel',
   'DOM.getContentQuads',
+  'DOM.focus',
+  'DOM.querySelector',
   'DOM.querySelectorAll',
   'DOM.scrollIntoViewIfNeeded',
   'DOMSnapshot.captureSnapshot',
@@ -1211,6 +1295,7 @@ const CDP_ALLOWLIST = new Set([
   'Page.getLayoutMetrics',
   'Page.captureScreenshot',
   'Page.getFrameTree',
+  'Page.handleJavaScriptDialog',
   // Runtime.enable needed for CDP attach setup (Runtime.evaluate goes through 'exec' action)
   'Runtime.enable',
   // Emulation (used by screenshot full-page)

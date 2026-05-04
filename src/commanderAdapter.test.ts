@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Command } from 'commander';
 import type { CliCommand } from './registry.js';
-import { EmptyResultError, SelectorError } from './errors.js';
+import { attachTraceReceipt, EmptyResultError, selectorError } from './errors.js';
 
 const { mockExecuteCommand, mockRenderOutput } = vi.hoisted(() => ({
   mockExecuteCommand: vi.fn(),
@@ -82,6 +82,21 @@ describe('commanderAdapter arg passing', () => {
     expect(kwargs.__opencliOptionSources).toMatchObject({
       'prepare-only': 'cli',
     });
+  });
+
+  it('passes explicit trace mode to executeCommand', async () => {
+    const program = new Command();
+    const siteCmd = program.command('paperreview');
+    registerCommandToProgram(siteCmd, cmd);
+
+    await program.parseAsync(['node', 'opencli', 'paperreview', 'submit', './paper.pdf', '--trace', 'retain-on-failure']);
+
+    expect(mockExecuteCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ site: 'paperreview', name: 'submit' }),
+      expect.objectContaining({ pdf: './paper.pdf' }),
+      false,
+      { prepared: true, trace: 'retain-on-failure' },
+    );
   });
 
   it('rejects invalid bool values before calling executeCommand', async () => {
@@ -345,6 +360,9 @@ describe('commanderAdapter error envelope output', () => {
     expect(output).toContain('ok: false');
     expect(output).toContain('code: EMPTY_RESULT');
     expect(output).toContain('xsec_token');
+    expect(output).toContain('--trace=retain-on-failure');
+    expect(output).toContain('opencli xiaohongshu note --trace retain-on-failure');
+    expect(output).not.toContain('OPENCLI_DIAGNOSTIC');
 
     stderrSpy.mockRestore();
   });
@@ -356,7 +374,7 @@ describe('commanderAdapter error envelope output', () => {
 
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     mockExecuteCommand.mockRejectedValueOnce(
-      new SelectorError('.note-title', 'The note title selector no longer matches the current page.'),
+      selectorError('.note-title', 'The note title selector no longer matches the current page.'),
     );
 
     await program.parseAsync(['node', 'opencli', 'xiaohongshu', 'note', '69ca3927000000001a020fd5']);
@@ -365,6 +383,71 @@ describe('commanderAdapter error envelope output', () => {
     expect(output).toContain('ok: false');
     expect(output).toContain('code: SELECTOR');
     expect(output).toContain('selector no longer matches');
+    expect(output).toContain('--trace=retain-on-failure');
+
+    stderrSpy.mockRestore();
+  });
+
+  it('does not add an AutoFix rerun hint when trace is already enabled', async () => {
+    const program = new Command();
+    const siteCmd = program.command('xiaohongshu');
+    registerCommandToProgram(siteCmd, cmd);
+
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    mockExecuteCommand.mockRejectedValueOnce(selectorError('.note-title'));
+
+    await program.parseAsync([
+      'node',
+      'opencli',
+      'xiaohongshu',
+      'note',
+      '69ca3927000000001a020fd5',
+      '--trace',
+      'retain-on-failure',
+    ]);
+
+    const output = stderrSpy.mock.calls.map(c => String(c[0])).join('');
+    expect(output).toContain('code: SELECTOR');
+    expect(output).not.toContain('AutoFix: re-run');
+
+    stderrSpy.mockRestore();
+  });
+
+  it('includes trace metadata from the error envelope when execution attached it', async () => {
+    const program = new Command();
+    const siteCmd = program.command('xiaohongshu');
+    registerCommandToProgram(siteCmd, cmd);
+
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const err = selectorError('.note-title');
+    attachTraceReceipt(err, {
+      schemaVersion: 1,
+      opencliVersion: '1.7.8',
+      traceId: 'trace-1',
+      traceDir: '/tmp/opencli/profiles/default/traces/trace-1',
+      summaryPath: '/tmp/opencli/profiles/default/traces/trace-1/summary.md',
+      receiptPath: '/tmp/opencli/profiles/default/traces/trace-1/receipt.json',
+      status: 'failure',
+      createdAt: '2026-05-03T00:00:00.000Z',
+      error: { code: 'SELECTOR', message: 'Could not find element: .note-title' },
+    });
+    mockExecuteCommand.mockRejectedValueOnce(err);
+
+    await program.parseAsync([
+      'node',
+      'opencli',
+      'xiaohongshu',
+      'note',
+      '69ca3927000000001a020fd5',
+      '--trace',
+      'retain-on-failure',
+    ]);
+
+    const output = stderrSpy.mock.calls.map(c => String(c[0])).join('');
+    expect(output).toContain('trace:');
+    expect(output).toContain('dir: /tmp/opencli/profiles/default/traces/trace-1');
+    expect(output).toContain('summaryPath: /tmp/opencli/profiles/default/traces/trace-1/summary.md');
+    expect(output).toContain('receiptPath: /tmp/opencli/profiles/default/traces/trace-1/receipt.json');
 
     stderrSpy.mockRestore();
   });

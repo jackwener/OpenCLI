@@ -18,7 +18,7 @@ cli({
         { name: 'text', type: 'boolean', default: true, help: 'Save extracted transcript text file' },
     ],
     columns: ['title', 'podcast', 'status', 'segments', 'json_file', 'text_file'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         if (kwargs.json === false && kwargs.text === false) {
             throw new ArgumentError('At least one of --json or --text must be enabled', 'Example: opencli xiaoyuzhou transcript 69dd0c98e2c8be31551f6a33 --text true');
         }

@@ -13,7 +13,7 @@ cli({
         { name: 'token', positional: true, required: true, help: 'Review token returned by paperreview.ai' },
     ],
     columns: ['status', 'title', 'venue', 'numerical_score', 'has_feedback', 'review_url'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const token = String(kwargs.token ?? '').trim();
         if (!token) {
             throw new CliError('ARGUMENT', 'A review token is required.');

@@ -5,18 +5,21 @@ import * as path from 'node:path';
 import { BrowserCommandError } from './browser/daemon-client.js';
 import type { IPage } from './types.js';
 import { TargetError } from './browser/target-errors.js';
+import { PKG_VERSION } from './version.js';
 
 const {
   mockBrowserConnect,
   mockBrowserClose,
   mockBindTab,
   mockSendCommand,
+  mockExecFileSync,
   browserState,
 } = vi.hoisted(() => ({
   mockBrowserConnect: vi.fn(),
   mockBrowserClose: vi.fn(),
   mockBindTab: vi.fn(),
   mockSendCommand: vi.fn(),
+  mockExecFileSync: vi.fn(),
   browserState: { page: null as IPage | null },
 }));
 
@@ -39,7 +42,42 @@ vi.mock('./browser/daemon-client.js', async () => {
   };
 });
 
-import { createProgram, findPackageRoot, normalizeVerifyRows, renderVerifyPreview, resolveBrowserVerifyInvocation } from './cli.js';
+vi.mock('node:child_process', async () => {
+  const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+  return {
+    ...actual,
+    execFileSync: mockExecFileSync,
+  };
+});
+
+import { createProgram, findPackageRoot, normalizeVerifyRows, renderVerifyPreview, resolveBrowserVerifyInvocation, selectFreshByTimestamp } from './cli.js';
+
+describe('createProgram root help descriptions', () => {
+  function descriptionFor(program: ReturnType<typeof createProgram>, name: string): string | undefined {
+    return program.commands.find(cmd => cmd.name() === name)?.description();
+  }
+
+  it('summarizes built-in command groups with their subcommands', () => {
+    const program = createProgram('', '');
+
+    expect(descriptionFor(program, 'browser')).toContain('open');
+    expect(descriptionFor(program, 'browser')).toContain('type');
+    expect(descriptionFor(program, 'browser')).toContain('verify');
+    expect(descriptionFor(program, 'browser')).not.toContain('Browser control');
+    expect(descriptionFor(program, 'plugin')).toBe('create, install, list, uninstall, update');
+    expect(descriptionFor(program, 'adapter')).toBe('eject, reset, status');
+    expect(descriptionFor(program, 'profile')).toBe('list, rename, use');
+    expect(descriptionFor(program, 'daemon')).toBe('restart, status, stop');
+    expect(descriptionFor(program, 'external')).toBe('install, list, register');
+  });
+
+  it('keeps leaf command descriptions unchanged', () => {
+    const program = createProgram('', '');
+
+    expect(descriptionFor(program, 'list')).toBe('List all available CLI commands');
+    expect(descriptionFor(program, 'doctor')).toBe('Diagnose opencli browser bridge connectivity');
+  });
+});
 
 describe('resolveBrowserVerifyInvocation', () => {
   it('prefers the built entry declared in package metadata', () => {
@@ -113,6 +151,173 @@ describe('resolveBrowserVerifyInvocation', () => {
   });
 });
 
+describe('selectFreshByTimestamp', () => {
+  it('uses timestamp watermarks so rolled buffers still emit new messages', () => {
+    const first = selectFreshByTimestamp([
+      { timestamp: 1, text: 'a' },
+      { timestamp: 2, text: 'b' },
+    ], 0);
+    expect(first.fresh.map((item) => item.text)).toEqual(['a', 'b']);
+    expect(first.lastSeenTs).toBe(2);
+
+    const rolled = selectFreshByTimestamp([
+      { timestamp: 2, text: 'b' },
+      { timestamp: 3, text: 'c' },
+    ], first.lastSeenTs);
+    expect(rolled.fresh.map((item) => item.text)).toEqual(['c']);
+    expect(rolled.lastSeenTs).toBe(3);
+  });
+});
+
+describe('browser verify', () => {
+  beforeEach(() => {
+    process.exitCode = undefined;
+    mockExecFileSync.mockReset().mockReturnValue('[]');
+  });
+
+  it('passes --trace through to the adapter subprocess', async () => {
+    const originalHome = process.env.HOME;
+    const originalUserProfile = process.env.USERPROFILE;
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-verify-trace-'));
+    process.env.HOME = fakeHome;
+    process.env.USERPROFILE = fakeHome;
+
+    try {
+      const adapterDir = path.join(fakeHome, '.opencli', 'clis', 'hn');
+      fs.mkdirSync(adapterDir, { recursive: true });
+      fs.writeFileSync(path.join(adapterDir, 'top.js'), 'export default {};\n', 'utf-8');
+
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'verify', 'hn/top', '--no-fixture', '--trace', 'retain-on-failure']);
+
+      expect(mockExecFileSync).toHaveBeenCalledTimes(1);
+      const [, execArgs] = mockExecFileSync.mock.calls[0] as [string, string[]];
+      expect(execArgs.slice(-6)).toEqual(['hn', 'top', '--trace', 'retain-on-failure', '--format', 'json']);
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = originalUserProfile;
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  it('uses --seed-args when no fixture args exist', async () => {
+    const originalHome = process.env.HOME;
+    const originalUserProfile = process.env.USERPROFILE;
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-verify-seed-'));
+    process.env.HOME = fakeHome;
+    process.env.USERPROFILE = fakeHome;
+
+    try {
+      const adapterDir = path.join(fakeHome, '.opencli', 'clis', 'hn');
+      fs.mkdirSync(adapterDir, { recursive: true });
+      fs.writeFileSync(path.join(adapterDir, 'top.js'), 'export default {};\n', 'utf-8');
+
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'verify', 'hn/top', '--no-fixture', '--seed-args', 'opencli-verify']);
+
+      expect(mockExecFileSync).toHaveBeenCalledTimes(1);
+      const [, execArgs] = mockExecFileSync.mock.calls[0] as [string, string[]];
+      expect(execArgs.slice(-5)).toEqual(['hn', 'top', 'opencli-verify', '--format', 'json']);
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = originalUserProfile;
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  it('writes --seed-args into a starter fixture', async () => {
+    const originalHome = process.env.HOME;
+    const originalUserProfile = process.env.USERPROFILE;
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-verify-write-seed-'));
+    process.env.HOME = fakeHome;
+    process.env.USERPROFILE = fakeHome;
+    mockExecFileSync.mockReturnValue(JSON.stringify([{ title: 'ok' }]));
+
+    try {
+      const adapterDir = path.join(fakeHome, '.opencli', 'clis', 'hn');
+      fs.mkdirSync(adapterDir, { recursive: true });
+      fs.writeFileSync(path.join(adapterDir, 'top.js'), 'export default {};\n', 'utf-8');
+
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', 'verify', 'hn/top', '--write-fixture', '--seed-args', 'opencli-verify']);
+
+      const fixtureFile = path.join(fakeHome, '.opencli', 'sites', 'hn', 'verify', 'top.json');
+      const fixture = JSON.parse(fs.readFileSync(fixtureFile, 'utf-8'));
+      expect(fixture.args).toEqual(['opencli-verify']);
+      expect(fixture.expect.columns).toEqual(['title']);
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = originalUserProfile;
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('profile list', () => {
+  const stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    stdoutSpy.mockClear();
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  it('reports stale daemon instead of no profiles when status lacks profile support', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        pid: 123,
+        uptime: 1,
+        daemonVersion: '1.7.6',
+        extensionConnected: true,
+        extensionVersion: '1.0.3',
+        pending: 0,
+        memoryMB: 20,
+        port: 19825,
+      }),
+    } as Response);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'profile', 'list']);
+
+    const output = stdoutSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('stale');
+    expect(output).toContain('opencli daemon restart');
+    expect(output).not.toContain('No Browser Bridge profiles connected');
+  });
+
+  it('keeps the empty profile message for current daemon status with no profiles', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        pid: 123,
+        uptime: 1,
+        daemonVersion: PKG_VERSION,
+        extensionConnected: false,
+        profiles: [],
+        pending: 0,
+        memoryMB: 20,
+        port: 19825,
+      }),
+    } as Response);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'profile', 'list']);
+
+    const output = stdoutSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('No Browser Bridge profiles connected');
+    expect(output).not.toContain('opencli daemon restart');
+  });
+});
+
 describe('browser tab targeting commands', () => {
   const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
   const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
@@ -153,6 +358,7 @@ describe('browser tab targeting commands', () => {
       selectTab: vi.fn().mockResolvedValue(undefined),
       newTab: vi.fn().mockResolvedValue('tab-3'),
       closeTab: vi.fn().mockResolvedValue(undefined),
+      handleJavaScriptDialog: vi.fn().mockResolvedValue(undefined),
       frames: vi.fn().mockResolvedValue([
         { index: 0, frameId: 'frame-1', url: 'https://x.example/embed', name: 'x-embed' },
       ]),
@@ -244,6 +450,31 @@ describe('browser tab targeting commands', () => {
 
     const out = lastJsonLog();
     expect(out.error.code).toBe('bound_session_missing');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('accepts JavaScript dialogs through the browser dialog command', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'dialog', 'accept', '--text', 'ok']);
+
+    expect(browserState.page?.handleJavaScriptDialog).toHaveBeenCalledWith(true, 'ok');
+    const out = lastJsonLog();
+    expect(out).toEqual({ handled: true, action: 'accept', text: 'ok' });
+  });
+
+  it('emits a structured error when a browser action is blocked by a JavaScript dialog', async () => {
+    browserState.page = {
+      ...browserState.page,
+      evaluate: vi.fn().mockRejectedValue(new Error('JavaScript dialog showing')),
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'eval', 'document.title']);
+
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('javascript_dialog_open');
+    expect(out.error.hint).toContain('browser dialog accept');
     expect(process.exitCode).toBeDefined();
   });
 
@@ -653,6 +884,7 @@ describe('browser network command', () => {
           responseStatus: 200,
           responseContentType: 'application/json',
           responsePreview: JSON.stringify({ data: { user: { rest_id: '42' } } }),
+          timestamp: Date.now(),
         },
         {
           url: 'https://cdn.example.com/app.js',
@@ -707,6 +939,44 @@ describe('browser network command', () => {
     expect(out.entries.map((e: any) => e.key)).toContain('GET cdn.example.com/app.js');
   });
 
+  it('--failed and --since filter captured entries by status and time window', async () => {
+    const now = Date.now();
+    browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+      {
+        url: 'https://api.example.com/new-fail',
+        method: 'GET',
+        responseStatus: 500,
+        responseContentType: 'application/json',
+        responsePreview: JSON.stringify({ error: true }),
+        timestamp: now,
+      },
+      {
+        url: 'https://api.example.com/old-fail',
+        method: 'GET',
+        responseStatus: 500,
+        responseContentType: 'application/json',
+        responsePreview: JSON.stringify({ error: true }),
+        timestamp: now - 180_000,
+      },
+      {
+        url: 'https://api.example.com/new-ok',
+        method: 'GET',
+        responseStatus: 200,
+        responseContentType: 'application/json',
+        responsePreview: JSON.stringify({ ok: true }),
+        timestamp: now,
+      },
+    ]);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'network', '--since', '120s', '--failed']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(1);
+    expect(out.entries[0].url).toBe('https://api.example.com/new-fail');
+    expect(out.entries[0].timestamp).toMatch(/T/);
+  });
+
   it('default output keeps text/javascript API responses while dropping static JS files', async () => {
     browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
       {
@@ -743,6 +1013,7 @@ describe('browser network command', () => {
 
     const out = lastJsonLog();
     expect(out.entries[0].body).toEqual({ data: { user: { rest_id: '42' } } });
+    expect(out.entries[0].timestamp).toMatch(/T/);
   });
 
   it('--detail <key> returns the full body for the requested entry', async () => {
@@ -756,6 +1027,7 @@ describe('browser network command', () => {
     expect(out.key).toBe('UserTweets');
     expect(out.body).toEqual({ data: { user: { rest_id: '42' } } });
     expect(out.shape['$.data.user.rest_id']).toBe('string');
+    expect(out.timestamp).toMatch(/T/);
   });
 
   it('--detail reports key_not_found with the list of available keys', async () => {
@@ -1089,6 +1361,46 @@ describe('browser network command', () => {
       expect(entry).not.toHaveProperty('bodyTruncated');
       expect(entry).not.toHaveProperty('bodyFullSize');
     });
+  });
+});
+
+describe('browser console command', () => {
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    consoleLogSpy.mockClear();
+    mockBrowserConnect.mockClear();
+    mockBrowserClose.mockReset().mockResolvedValue(undefined);
+    const now = Date.now();
+    browserState.page = {
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      tabs: vi.fn().mockResolvedValue([{ page: 'tab-1', active: true }]),
+      consoleMessages: vi.fn().mockResolvedValue([
+        { type: 'error', text: 'boom', timestamp: now },
+        { type: 'log', text: 'ok', timestamp: now },
+        { type: 'warning', text: 'old warning', timestamp: now - 180_000 },
+      ]),
+    } as unknown as IPage;
+  });
+
+  function lastJsonLog(): any {
+    const calls = consoleLogSpy.mock.calls;
+    if (calls.length === 0) throw new Error('Expected at least one console.log call');
+    const last = calls[calls.length - 1][0];
+    if (typeof last !== 'string') throw new Error(`Expected string arg to console.log, got ${typeof last}`);
+    return JSON.parse(last);
+  }
+
+  it('filters console messages by level and time window', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'console', '--level', 'error', '--since', '120s']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(1);
+    expect(out.messages[0]).toMatchObject({ type: 'error', text: 'boom' });
   });
 });
 

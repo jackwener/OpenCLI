@@ -26,7 +26,7 @@ cli({
     { name: 'limit', type: 'int',   default: 20,         help: '返回数量 (max 100)' },
   ],
   columns: ['rank', 'code', 'name', 'price', 'changePercent', 'change', 'turnover', 'volume', 'turnoverRate'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const sortKey = String(args.sort ?? 'turnover').toLowerCase();
     const sort = SORTS[sortKey];
     if (!sort) throw new CliError('INVALID_ARGUMENT', `Unknown sort "${sortKey}". Valid: ${Object.keys(SORTS).join(', ')}`);

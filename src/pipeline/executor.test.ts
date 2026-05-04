@@ -12,6 +12,7 @@ function createMockPage(overrides: Partial<IPage> = {}): IPage {
   return {
     goto: vi.fn(),
     evaluate: vi.fn().mockResolvedValue(null),
+    fetchJson: vi.fn().mockResolvedValue(null),
     getCookies: vi.fn().mockResolvedValue([]),
     snapshot: vi.fn().mockResolvedValue(''),
     click: vi.fn(),

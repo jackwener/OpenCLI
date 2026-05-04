@@ -148,6 +148,7 @@ describe('discoverPlugins', () => {
   const symlinkTargetDir = path.join(os.tmpdir(), '__test-plugin-symlink-target__');
   const symlinkPluginDir = path.join(PLUGINS_DIR, '__test-plugin-symlink__');
   const brokenSymlinkDir = path.join(PLUGINS_DIR, '__test-plugin-broken__');
+  const dirSymlinkType: fs.symlink.Type = process.platform === 'win32' ? 'junction' : 'dir';
 
   afterEach(async () => {
     try { await fs.promises.rm(testPluginDir, { recursive: true }); } catch {}
@@ -188,7 +189,7 @@ description: Test plugin greeting via symlink
 strategy: public
 browser: false
 `);
-    await fs.promises.symlink(symlinkTargetDir, symlinkPluginDir, 'dir');
+    await fs.promises.symlink(symlinkTargetDir, symlinkPluginDir, dirSymlinkType);
 
     await discoverPlugins();
 
@@ -198,7 +199,7 @@ browser: false
 
   it('skips broken plugin symlinks without throwing', async () => {
     await fs.promises.mkdir(PLUGINS_DIR, { recursive: true });
-    await fs.promises.symlink(path.join(os.tmpdir(), '__missing-plugin-target__'), brokenSymlinkDir, 'dir');
+    await fs.promises.symlink(path.join(os.tmpdir(), '__missing-plugin-target__'), brokenSymlinkDir, dirSymlinkType);
 
     await expect(discoverPlugins()).resolves.not.toThrow();
     expect(getRegistry().get('__test-plugin-broken__/hello')).toBeUndefined();
@@ -221,7 +222,7 @@ describe('executeCommand', () => {
       args: [
         { name: 'note-id', required: true, help: 'Note ID' },
       ],
-      func: async (_page, kwargs) => [{ noteId: kwargs['note-id'] }],
+      func: async (kwargs) => [{ noteId: kwargs['note-id'] }],
     });
 
     const result = await executeCommand(cmd, { 'note-id': 'abc123' });
@@ -235,7 +236,7 @@ describe('executeCommand', () => {
       description: 'test command with func',
       browser: false,
       strategy: Strategy.PUBLIC,
-      func: async (_page, kwargs) => {
+      func: async (kwargs) => {
         return [{ title: kwargs.query ?? 'default' }];
       },
     });
@@ -279,7 +280,7 @@ describe('executeCommand', () => {
       name: 'debug-test',
       description: 'debug test',
       browser: false,
-      func: async (_page, _kwargs, debug) => {
+      func: async (_kwargs, debug) => {
         receivedDebug = debug ?? false;
         return [];
       },

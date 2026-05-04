@@ -30,14 +30,17 @@ import { parseFilter, shapeMatchesFilter } from './browser/shape-filter.js';
 import { buildHtmlTreeJs, type HtmlTreeResult } from './browser/html-tree.js';
 import { buildExtractHtmlJs, runExtractFromHtml } from './browser/extract.js';
 import { analyzeSite, type PageSignals } from './browser/analyze.js';
-import { daemonStatus, daemonStop } from './commands/daemon.js';
+import { daemonRestart, daemonStatus, daemonStop } from './commands/daemon.js';
 import { log } from './logger.js';
-import { bindTab, BrowserCommandError, sendCommand } from './browser/daemon-client.js';
+import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
+import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
+import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
 const DEFAULT_BOUND_WORKSPACE = 'bound:default';
 const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"';
+const FOLLOW_POLL_MS = 1_000;
 
 type BrowserNetworkItem = {
   url: string;
@@ -50,7 +53,51 @@ type BrowserNetworkItem = {
   bodyFullSize?: number;
   /** True when the capture layer had to cap the stored body to protect memory. */
   bodyTruncated?: boolean;
+  /** Epoch milliseconds when the request was observed. */
+  timestamp?: number;
 };
+
+function parseDurationMs(raw: unknown, flagName: string): number | null | { error: string } {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const str = String(raw).trim();
+  const match = /^(\d+(?:\.\d+)?)(ms|s|m|h)?$/.exec(str);
+  if (!match) return { error: `--${flagName} must be a duration like 500ms, 30s, 2m, got "${str}"` };
+  const value = Number.parseFloat(match[1]);
+  const unit = match[2] ?? 'ms';
+  const multiplier = unit === 'h' ? 3_600_000 : unit === 'm' ? 60_000 : unit === 's' ? 1_000 : 1;
+  return Math.round(value * multiplier);
+}
+
+function timestampFromRaw(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : Date.now();
+}
+
+function toIsoTimestamp(timestamp: unknown): string | undefined {
+  if (typeof timestamp !== 'number' || !Number.isFinite(timestamp) || timestamp <= 0) return undefined;
+  return new Date(timestamp).toISOString();
+}
+
+function filterByTimeWindow<T extends { timestamp?: number }>(items: T[], opts: { sinceMs?: number | null; untilMs?: number | null }, now: number = Date.now()): T[] {
+  const sinceTs = opts.sinceMs != null ? now - opts.sinceMs : undefined;
+  const untilTs = opts.untilMs != null ? now - opts.untilMs : undefined;
+  return items.filter((item) => {
+    const ts = item.timestamp ?? now;
+    if (sinceTs !== undefined && ts < sinceTs) return false;
+    if (untilTs !== undefined && ts > untilTs) return false;
+    return true;
+  });
+}
+
+export function selectFreshByTimestamp<T extends { timestamp?: unknown }>(
+  items: T[],
+  lastSeenTs: number,
+): { fresh: T[]; lastSeenTs: number } {
+  const fresh = items.filter((item) => Number(item.timestamp ?? 0) > lastSeenTs);
+  const nextSeenTs = fresh.length > 0
+    ? Math.max(lastSeenTs, ...fresh.map((item) => Number(item.timestamp ?? 0)).filter(Number.isFinite))
+    : lastSeenTs;
+  return { fresh, lastSeenTs: nextSeenTs };
+}
 
 /**
  * Normalize raw capture entries (from daemon/CDP `readNetworkCapture` or
@@ -82,13 +129,15 @@ async function captureNetworkItems(page: import('./types.js').IPage): Promise<Br
           body,
           bodyFullSize: fullSize,
           bodyTruncated: truncated,
+          timestamp: timestampFromRaw(e.timestamp),
         };
       });
     }
   }
   const raw = await page.evaluate(`(function(){ var out = window.__opencli_net || []; window.__opencli_net = []; return JSON.stringify(out); })()`) as string;
   try {
-    return JSON.parse(raw) as BrowserNetworkItem[];
+    const parsed = JSON.parse(raw) as BrowserNetworkItem[];
+    return parsed.map((item) => ({ ...item, timestamp: timestampFromRaw(item.timestamp) }));
   } catch {
     if (process.env.OPENCLI_VERBOSE) log.warn(`[network] Failed to parse interceptor buffer: ${typeof raw === 'string' ? raw.slice(0, 200) : String(raw)}`);
     return [];
@@ -313,6 +362,10 @@ async function resolveBrowserTargetInSession(
   );
 }
 
+function getBrowserScope(workspace: string, contextId?: string): string {
+  return contextId ? `${contextId}:${workspace}` : workspace;
+}
+
 async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scope: string = DEFAULT_BROWSER_WORKSPACE): Promise<string | undefined> {
   const defaultPage = loadBrowserTargetState(scope)?.defaultPage?.trim();
   if (!defaultPage) return undefined;
@@ -320,7 +373,7 @@ async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scop
 }
 
 /** Create a browser page for browser commands. Uses a dedicated browser workspace for session persistence. */
-async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_BROWSER_WORKSPACE): Promise<import('./types.js').IPage> {
+async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_BROWSER_WORKSPACE, contextId?: string): Promise<import('./types.js').IPage> {
   const { BrowserBridge } = await import('./browser/index.js');
   const bridge = new BrowserBridge();
   const envTimeout = process.env.OPENCLI_BROWSER_TIMEOUT;
@@ -328,11 +381,13 @@ async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_B
   const page = await bridge.connect({
     timeout: 30,
     workspace,
+    ...(contextId && { contextId }),
     ...(idleTimeout && idleTimeout > 0 && { idleTimeout }),
   });
+  const targetScope = getBrowserScope(workspace, contextId);
   const resolvedTargetPage = targetPage
-    ? await resolveBrowserTargetInSession(page, targetPage, { scope: workspace, source: 'explicit' })
-    : await resolveStoredBrowserTarget(page, workspace);
+    ? await resolveBrowserTargetInSession(page, targetPage, { scope: targetScope, source: 'explicit' })
+    : await resolveStoredBrowserTarget(page, targetScope);
   if (resolvedTargetPage) {
     if (!page.setActivePage) {
       throw new Error('This browser session does not support explicit tab targeting');
@@ -367,9 +422,19 @@ function getBrowserWorkspace(command?: Command): string {
   return typeof raw === 'string' && raw.trim() ? raw.trim() : DEFAULT_BROWSER_WORKSPACE;
 }
 
+function getBrowserContextId(command?: Command): string | undefined {
+  const raw = getCommandOption(command, 'profile');
+  return resolveProfileContextId(typeof raw === 'string' && raw.trim() ? raw.trim() : undefined);
+}
+
 function getPageWorkspace(page: import('./types.js').IPage): string {
   const workspace = (page as unknown as { workspace?: unknown }).workspace;
   return typeof workspace === 'string' && workspace.trim() ? workspace.trim() : DEFAULT_BROWSER_WORKSPACE;
+}
+
+function getPageScope(page: import('./types.js').IPage): string {
+  const contextId = (page as unknown as { contextId?: unknown }).contextId;
+  return getBrowserScope(getPageWorkspace(page), typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined);
 }
 
 function resolveBrowserTabTarget(targetId?: string, opts?: { tab?: string } | Command): string | undefined {
@@ -393,6 +458,20 @@ function applyVerbose(opts: { verbose?: boolean }): void {
   if (opts.verbose) process.env.OPENCLI_VERBOSE = '1';
 }
 
+function formatChildCommandSummary(command: Command): string {
+  return [...new Set(command.commands.map(child => child.name()))]
+    .sort((a, b) => a.localeCompare(b))
+    .join(', ');
+}
+
+function applyRootSubcommandSummaries(program: Command): void {
+  for (const command of program.commands) {
+    if (command.commands.length === 0) continue;
+    const summary = formatChildCommandSummary(command);
+    if (summary) command.description(summary);
+  }
+}
+
 export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command {
   const program = new Command();
   // enablePositionalOptions: prevents parent from consuming flags meant for subcommands;
@@ -401,6 +480,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .name('opencli')
     .description('Make any website your CLI. Zero setup. AI-powered.')
     .version(PKG_VERSION)
+    .option('--profile <name>', 'Chrome profile/context alias for Browser Bridge commands')
     .enablePositionalOptions();
 
   // ── Built-in: list ────────────────────────────────────────────────────────
@@ -409,11 +489,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .command('list')
     .description('List all available CLI commands')
     .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
-    .option('--json', 'JSON output (deprecated)')
     .action((opts) => {
       const registry = getRegistry();
       const commands = [...new Set(registry.values())].sort((a, b) => fullName(a).localeCompare(fullName(b)));
-      const fmt = opts.json && opts.format === 'table' ? 'json' : opts.format;
+      const fmt = opts.format;
       const isStructured = fmt === 'json' || fmt === 'yaml';
 
       if (fmt !== 'table') {
@@ -564,6 +643,21 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }, null, 2));
   }
 
+  function isJavaScriptDialogMessage(message: string): boolean {
+    const normalized = message.toLowerCase();
+    return normalized.includes('javascript dialog');
+  }
+
+  function emitJavaScriptDialogError(message: string): void {
+    console.log(JSON.stringify({
+      error: {
+        code: 'javascript_dialog_open',
+        message,
+        hint: 'Handle the modal first: opencli browser dialog accept (or dismiss). Use --text for prompt dialogs.',
+      },
+    }, null, 2));
+  }
+
   /** Wrap browser actions with error handling and optional --json output */
   function browserAction(fn: (page: Awaited<ReturnType<typeof getBrowserPage>>, ...args: any[]) => Promise<unknown>) {
     return async (...args: any[]) => {
@@ -571,14 +665,17 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         const command = args.at(-1) instanceof Command ? args.at(-1) as Command : undefined;
         const targetPage = getBrowserTargetId(command);
         const workspace = getBrowserWorkspace(command);
-        const page = await getBrowserPage(targetPage, workspace);
+        const contextId = getBrowserContextId(command);
+        const page = await getBrowserPage(targetPage, workspace, contextId);
         await fn(page, ...args);
       } catch (err) {
         if (err instanceof BrowserConnectError) {
           log.error(err.message);
           if (err.hint) log.error(`Hint: ${err.hint}`);
         } else if (err instanceof BrowserCommandError) {
-          if (err.code) {
+          if (isJavaScriptDialogMessage(err.message)) {
+            emitJavaScriptDialogError(err.message);
+          } else if (err.code) {
             console.log(JSON.stringify({
               error: {
                 code: err.code,
@@ -596,7 +693,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           if (err.hint) log.error(`Hint: ${err.hint}`);
         } else {
           const msg = getErrorMessage(err);
-          if (msg.includes('attach failed') || msg.includes('chrome-extension://')) {
+          if (isJavaScriptDialogMessage(msg)) {
+            emitJavaScriptDialogError(msg);
+            log.error(msg);
+          } else if (msg.includes('attach failed') || msg.includes('chrome-extension://')) {
             log.error(`Browser attach failed — another extension may be interfering. Try disabling 1Password.`);
           } else {
             log.error(msg);
@@ -633,12 +733,14 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       try {
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
-        await bridge.connect({ timeout: 30, workspace });
+        const contextId = getBrowserContextId(command);
+        await bridge.connect({ timeout: 30, workspace, ...(contextId && { contextId }) });
         const data = await bindTab(workspace, {
+          ...(contextId && { contextId }),
           ...(typeof opts.domain === 'string' && opts.domain.trim() ? { matchDomain: opts.domain.trim() } : {}),
           ...(typeof opts.pathPrefix === 'string' && opts.pathPrefix.trim() ? { matchPathPrefix: opts.pathPrefix.trim() } : {}),
         });
-        saveBrowserTargetState(undefined, workspace);
+        saveBrowserTargetState(undefined, getBrowserScope(workspace, contextId));
         console.log(JSON.stringify({ workspace, ...((data && typeof data === 'object') ? data as Record<string, unknown> : { data }) }, null, 2));
       } catch (err) {
         if (err instanceof BrowserCommandError && err.code) {
@@ -681,9 +783,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       try {
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
-        await bridge.connect({ timeout: 30, workspace });
-        await sendCommand('close-window', { workspace });
-        saveBrowserTargetState(undefined, workspace);
+        const contextId = getBrowserContextId(command);
+        await bridge.connect({ timeout: 30, workspace, ...(contextId && { contextId }) });
+        await sendCommand('close-window', { workspace, ...(contextId && { contextId }) });
+        saveBrowserTargetState(undefined, getBrowserScope(workspace, contextId));
         console.log(JSON.stringify({ unbound: true, workspace }, null, 2));
       } catch (err) {
         if (err instanceof BrowserCommandError && err.code) {
@@ -735,7 +838,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         throw new Error('Target tab required. Pass it as an argument or --tab <targetId>.');
       }
       await page.selectTab(resolvedTarget);
-      saveBrowserTargetState(resolvedTarget, getPageWorkspace(page));
+      saveBrowserTargetState(resolvedTarget, getPageScope(page));
       console.log(JSON.stringify({ selected: resolvedTarget }, null, 2));
     }));
 
@@ -751,16 +854,16 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         throw new Error('Target tab required. Pass it as an argument or --tab <targetId>.');
       }
       const validatedTarget = await resolveBrowserTargetInSession(page, resolvedTarget, {
-        scope: getPageWorkspace(page),
+        scope: getPageScope(page),
         source: 'explicit',
       });
       if (!validatedTarget) {
         throw new Error(`Target tab ${resolvedTarget} is not part of the current browser session.`);
       }
       await page.closeTab(validatedTarget);
-      const workspace = getPageWorkspace(page);
-      if (loadBrowserTargetState(workspace)?.defaultPage === validatedTarget) {
-        saveBrowserTargetState(undefined, workspace);
+      const scope = getPageScope(page);
+      if (loadBrowserTargetState(scope)?.defaultPage === validatedTarget) {
+        saveBrowserTargetState(undefined, scope);
       }
       console.log(JSON.stringify({ closed: validatedTarget }, null, 2));
     }));
@@ -777,7 +880,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
    * silently dropping the body. Per-entry cap is 1 MiB and the ring is
    * capped at 200 entries, bounding worst-case in-page memory.
    */
-  const NETWORK_INTERCEPTOR_JS = `(function(){if(window.__opencli_net)return;window.__opencli_net=[];var M=200,B=1048576,F=window.fetch;function capture(url,method,status,text,ct){if(window.__opencli_net.length>=M)return;var full=text?text.length:0,trunc=full>B,stored=trunc?text.slice(0,B):text,body=null;if(stored){if(trunc){body=stored}else{try{body=JSON.parse(stored)}catch(e){body=stored}}}var e={url:url,method:method||'GET',status:status,size:full,ct:ct,body:body};if(trunc){e.bodyTruncated=true;e.bodyFullSize=full}window.__opencli_net.push(e)}window.fetch=async function(){var r=await F.apply(this,arguments);try{var ct=r.headers.get('content-type')||'';if(ct.includes('json')||ct.includes('text')){var c=r.clone(),t=await c.text();capture(r.url||(arguments[0]&&arguments[0].url)||String(arguments[0]),(arguments[1]&&arguments[1].method)||'GET',r.status,t,ct)}}catch(e){}return r};var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(m,u){this._om=m;this._ou=u;return O.apply(this,arguments)};X.send=function(){var x=this;x.addEventListener('load',function(){try{var ct=x.getResponseHeader('content-type')||'';if(ct.includes('json')||ct.includes('text')){capture(x._ou,x._om||'GET',x.status,x.responseText||'',ct)}}catch(e){}});return S.apply(this,arguments)}})()`;
+  const NETWORK_INTERCEPTOR_JS = `(function(){if(window.__opencli_net)return;window.__opencli_net=[];var M=200,B=1048576,F=window.fetch;function capture(url,method,status,text,ct){if(window.__opencli_net.length>=M)return;var full=text?text.length:0,trunc=full>B,stored=trunc?text.slice(0,B):text,body=null;if(stored){if(trunc){body=stored}else{try{body=JSON.parse(stored)}catch(e){body=stored}}}var e={url:url,method:method||'GET',status:status,size:full,ct:ct,body:body,timestamp:Date.now()};if(trunc){e.bodyTruncated=true;e.bodyFullSize=full}window.__opencli_net.push(e)}window.fetch=async function(){var r=await F.apply(this,arguments);try{var ct=r.headers.get('content-type')||'';if(ct.includes('json')||ct.includes('text')){var c=r.clone(),t=await c.text();capture(r.url||(arguments[0]&&arguments[0].url)||String(arguments[0]),(arguments[1]&&arguments[1].method)||'GET',r.status,t,ct)}}catch(e){}return r};var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(m,u){this._om=m;this._ou=u;return O.apply(this,arguments)};X.send=function(){var x=this;x.addEventListener('load',function(){try{var ct=x.getResponseHeader('content-type')||'';if(ct.includes('json')||ct.includes('text')){capture(x._ou,x._om||'GET',x.status,x.responseText||'',ct)}}catch(e){}});return S.apply(this,arguments)}})()`;
 
   addBrowserTabOption(browser.command('open').argument('<url>').option('--allow-navigate-bound', 'Allow navigating a bound user tab', false).description('Open URL in automation window'))
     .action(browserAction(async (page, url, opts) => {
@@ -854,6 +957,72 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       } else {
         console.log(await page.screenshot({ format: 'png' }));
       }
+    }));
+
+  addBrowserTabOption(browser.command('console'))
+    .option('--level <level>', 'Console level: all, error, warning, log, info, debug', 'all')
+    .option('--since <duration>', 'Only include messages from the last duration (for example: 30s, 2m)')
+    .option('--until <duration>', 'Only include messages older than the duration from now')
+    .option('--follow', 'Continuously print new console messages as JSON lines', false)
+    .description('Read recent browser console messages')
+    .action(browserAction(async (page, opts) => {
+      const sinceMs = parseDurationMs(opts.since, 'since');
+      const untilMs = parseDurationMs(opts.until, 'until');
+      if (sinceMs && typeof sinceMs === 'object') {
+        console.log(JSON.stringify({ error: { code: 'invalid_since', message: sinceMs.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      if (untilMs && typeof untilMs === 'object') {
+        console.log(JSON.stringify({ error: { code: 'invalid_until', message: untilMs.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const normalize = (messages: unknown[]): Array<Record<string, unknown>> => messages.map((message) => {
+        if (message && typeof message === 'object') {
+          const record = message as Record<string, unknown>;
+          return {
+            ...record,
+            timestamp: timestampFromRaw(record.timestamp),
+          };
+        }
+        return { type: 'log', text: String(message), timestamp: Date.now() };
+      });
+      const filter = (messages: Array<Record<string, unknown>>) =>
+        filterByTimeWindow(messages, { sinceMs, untilMs }).filter((message) => {
+          if (opts.level === 'all') return true;
+          const type = String(message.type ?? message.level ?? '').toLowerCase();
+          return opts.level === 'error'
+            ? type === 'error' || type === 'warning'
+            : type === String(opts.level).toLowerCase();
+        });
+
+      if (opts.follow) {
+        let lastSeenTs = 0;
+        while (true) {
+          const messages = filter(normalize(await page.consoleMessages('all')));
+          const next = selectFreshByTimestamp(messages, lastSeenTs);
+          for (const message of next.fresh) {
+            console.log(JSON.stringify({
+              ...message,
+              timestamp: toIsoTimestamp(message.timestamp),
+            }));
+          }
+          lastSeenTs = next.lastSeenTs;
+          await new Promise((resolve) => setTimeout(resolve, FOLLOW_POLL_MS));
+        }
+      }
+
+      const messages = filter(normalize(await page.consoleMessages(opts.level)));
+      console.log(JSON.stringify({
+        workspace: getPageWorkspace(page),
+        captured_at: new Date().toISOString(),
+        count: messages.length,
+        messages: messages.map((message) => ({
+          ...message,
+          timestamp: toIsoTimestamp(message.timestamp),
+        })),
+      }, null, 2));
     }));
 
   // ── Analyze (site recon, agent-native) ──
@@ -1296,6 +1465,61 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       console.log(`Pressed: ${key}`);
     }));
 
+  const browserDialog = browser
+    .command('dialog')
+    .description('Handle a blocking JavaScript alert/confirm/prompt dialog');
+
+  addBrowserTabOption(browserDialog.command('accept')
+    .option('--text <text>', 'Prompt text to submit for prompt() dialogs')
+    .description('Accept the currently open JavaScript dialog'))
+    .action(browserAction(async (page, opts?: { text?: string }) => {
+      if (!page.handleJavaScriptDialog) {
+        throw new Error('This browser session does not support JavaScript dialog handling');
+      }
+      try {
+        await page.handleJavaScriptDialog(true, opts?.text);
+      } catch (err) {
+        const message = getErrorMessage(err);
+        if (message.toLowerCase().includes('no dialog')) {
+          console.log(JSON.stringify({
+            error: {
+              code: 'no_javascript_dialog',
+              message: 'No JavaScript dialog is currently open.',
+            },
+          }, null, 2));
+          process.exitCode = EXIT_CODES.USAGE_ERROR;
+          return;
+        }
+        throw err;
+      }
+      console.log(JSON.stringify({ handled: true, action: 'accept', ...(opts?.text !== undefined && { text: opts.text }) }, null, 2));
+    }));
+
+  addBrowserTabOption(browserDialog.command('dismiss')
+    .description('Dismiss the currently open JavaScript dialog'))
+    .action(browserAction(async (page) => {
+      if (!page.handleJavaScriptDialog) {
+        throw new Error('This browser session does not support JavaScript dialog handling');
+      }
+      try {
+        await page.handleJavaScriptDialog(false);
+      } catch (err) {
+        const message = getErrorMessage(err);
+        if (message.toLowerCase().includes('no dialog')) {
+          console.log(JSON.stringify({
+            error: {
+              code: 'no_javascript_dialog',
+              message: 'No JavaScript dialog is currently open.',
+            },
+          }, null, 2));
+          process.exitCode = EXIT_CODES.USAGE_ERROR;
+          return;
+        }
+        throw err;
+      }
+      console.log(JSON.stringify({ handled: true, action: 'dismiss' }, null, 2));
+    }));
+
   // ── Wait commands ──
 
   addBrowserTabOption(browser.command('wait'))
@@ -1466,6 +1690,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .option('--all', 'Include static resources (js/css/images/telemetry)')
     .option('--raw', 'Emit full bodies for every entry (skip shape preview)')
     .option('--filter <fields>', 'Comma-separated field names; keep only entries whose body shape has ALL names as path segments')
+    .option('--since <duration>', 'Only include entries from the last duration (for example: 30s, 2m)')
+    .option('--until <duration>', 'Only include entries older than the duration from now')
+    .option('--follow', 'Continuously print new matching entries as JSON lines', false)
+    .option('--failed', 'Only include failed HTTP requests (status 0 or >= 400)', false)
     .option('--max-body <chars>', 'With --detail: cap the emitted body at N chars (0 = unlimited, default)', '0')
     .option('--ttl <ms>', 'Cache TTL in ms for --detail lookups', String(DEFAULT_TTL_MS))
     .description('Capture network requests as shape previews; retrieve full bodies by key')
@@ -1474,6 +1702,16 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       const workspace = getPageWorkspace(page);
       const hasDetail = typeof opts.detail === 'string' && opts.detail.length > 0;
       const hasFilter = typeof opts.filter === 'string';
+      const sinceMs = parseDurationMs(opts.since, 'since');
+      const untilMs = parseDurationMs(opts.until, 'until');
+      if (sinceMs && typeof sinceMs === 'object') {
+        emitNetworkError('invalid_since', sinceMs.error);
+        return;
+      }
+      if (untilMs && typeof untilMs === 'object') {
+        emitNetworkError('invalid_until', untilMs.error);
+        return;
+      }
 
       // --detail and --filter do different things (one request by key vs. narrow
       // the list by shape), don't compose, and combining them has no sensible
@@ -1492,6 +1730,11 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           return;
         }
         filterFields = parsed.fields;
+      }
+
+      if (hasDetail && opts.follow) {
+        emitNetworkError('invalid_args', '--follow cannot be used with --detail.');
+        return;
       }
 
       // --detail short-circuits: read from cache only, no live capture needed.
@@ -1542,6 +1785,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           status: entry.status,
           ct: entry.ct,
           size: entry.size,
+          ...(typeof entry.timestamp === 'number' ? { timestamp: toIsoTimestamp(entry.timestamp) } : {}),
           shape: inferShape(entry.body),
           body: outputBody,
         };
@@ -1556,6 +1800,35 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         return;
       }
 
+      if (opts.follow) {
+        if (!await page.startNetworkCapture?.()) {
+          try { await page.evaluate(NETWORK_INTERCEPTOR_JS); } catch { /* non-fatal */ }
+        }
+        while (true) {
+          const rawItems = await captureNetworkItems(page).catch((err) => {
+            emitNetworkError('capture_failed', `Could not read network capture: ${(err as Error).message}`);
+            return [];
+          });
+          let items = opts.all ? rawItems : filterNetworkItems(rawItems);
+          items = filterByTimeWindow(items, { sinceMs, untilMs });
+          if (opts.failed) items = items.filter((item) => item.status === 0 || item.status >= 400);
+          const keyed = assignKeys(items);
+          for (const item of keyed) {
+            console.log(JSON.stringify({
+              key: item.key,
+              timestamp: toIsoTimestamp(item.timestamp),
+              method: item.method,
+              status: item.status,
+              url: item.url,
+              ct: item.ct,
+              size: item.size,
+              ...(item.bodyTruncated ? { body_truncated: true } : {}),
+            }));
+          }
+          await new Promise((resolve) => setTimeout(resolve, FOLLOW_POLL_MS));
+        }
+      }
+
       // Fresh capture path.
       let rawItems: BrowserNetworkItem[];
       try {
@@ -1565,7 +1838,9 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         return;
       }
 
-      const items = opts.all ? rawItems : filterNetworkItems(rawItems);
+      let items = opts.all ? rawItems : filterNetworkItems(rawItems);
+      items = filterByTimeWindow(items, { sinceMs, untilMs });
+      if (opts.failed) items = items.filter((item) => item.status === 0 || item.status >= 400);
       const filteredOut = rawItems.length - items.length;
 
       const keyed = assignKeys(items);
@@ -1577,6 +1852,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         size: it.size,
         ct: it.ct,
         body: it.body,
+        ...(typeof it.timestamp === 'number' ? { timestamp: it.timestamp } : {}),
         ...(it.bodyTruncated ? { body_truncated: true } : {}),
         ...(it.bodyTruncated && typeof it.bodyFullSize === 'number'
           ? { body_full_size: it.bodyFullSize }
@@ -1621,11 +1897,15 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
 
       if (opts.raw) {
-        envelope.entries = visible.map((s) => s.entry);
+        envelope.entries = visible.map((s) => ({
+          ...s.entry,
+          ...(typeof s.entry.timestamp === 'number' ? { timestamp: toIsoTimestamp(s.entry.timestamp) } : {}),
+        }));
       } else {
         envelope.entries = visible.map((s) => ({
           key: s.entry.key,
           method: s.entry.method,
+          ...(typeof s.entry.timestamp === 'number' ? { timestamp: toIsoTimestamp(s.entry.timestamp) } : {}),
           status: s.entry.status,
           url: s.entry.url,
           ct: s.entry.ct,
@@ -1690,10 +1970,10 @@ cli({
     { name: 'limit', type: 'int', default: 10, help: 'Number of items' },
   ],
   columns: [], // TODO: field names for table output (e.g. ['title', 'score', 'url'])
-  func: async (page, kwargs) => {
+  func: async (kwargs) => {
     // TODO: implement data fetching
     // Prefer API calls (fetch) over browser automation
-    // page is available if browser: true
+    // If you set browser: true, change this to: async (page, kwargs) => { ... }
     return [];
   },
 });
@@ -1701,6 +1981,7 @@ cli({
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(filePath, template, 'utf-8');
         console.log(`Created: ${filePath}`);
+        console.log('First time on this site? Run: opencli browser analyze <url>');
         console.log(`Edit the file to implement your adapter, then run: opencli browser verify ${name}`);
       } catch (err) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -1716,8 +1997,10 @@ cli({
     .option('--update-fixture', 'Overwrite an existing fixture with one derived from current output')
     .option('--no-fixture', 'Ignore any fixture file for this run (no value-level validation)')
     .option('--strict-memory', 'Fail (not just warn) when ~/.opencli/sites/<site>/endpoints.json or notes.md is missing')
+    .option('--seed-args <value>', 'Seed args when no fixture exists; use JSON array/object for multiple args or flags')
+    .option('--trace <mode>', 'Trace capture for the adapter subprocess: off, on, retain-on-failure', 'off')
     .description('Execute an adapter and validate output; uses fixture at ~/.opencli/sites/<site>/verify/<cmd>.json when present')
-    .action(async (name: string, opts: { fixture?: boolean; writeFixture?: boolean; updateFixture?: boolean; strictMemory?: boolean } = {}) => {
+    .action(async (name: string, opts: { fixture?: boolean; writeFixture?: boolean; updateFixture?: boolean; strictMemory?: boolean; seedArgs?: string; trace?: string } = {}) => {
       try {
         const parts = name.split('/');
         if (parts.length !== 2) { console.error('Name must be site/command format'); process.exitCode = EXIT_CODES.USAGE_ERROR; return; }
@@ -1729,7 +2012,7 @@ cli({
         }
 
         const { execFileSync } = await import('node:child_process');
-        const { loadFixture, writeFixture, deriveFixture, validateRows, fixturePath, expandFixtureArgs } = await import('./browser/verify-fixture.js');
+        const { loadFixture, writeFixture, deriveFixture, validateRows, fixturePath, expandFixtureArgs, parseSeedArgs } = await import('./browser/verify-fixture.js');
         const filePath = path.join(os.homedir(), '.opencli', 'clis', site, `${command}.js`);
         if (!fs.existsSync(filePath)) {
           console.error(`Adapter not found: ${filePath}`);
@@ -1749,15 +2032,17 @@ cli({
         //   - array form    ["123", "--limit", "3"]   → verbatim (for positional subjects)
         const adapterSrc = fs.readFileSync(filePath, 'utf-8');
         const hasLimitArg = /['"]limit['"]/.test(adapterSrc);
-        const fixtureArgs = fixture?.args;
-        const cliArgs: string[] = expandFixtureArgs(fixtureArgs);
-        if (cliArgs.length === 0 && hasLimitArg) cliArgs.push('--limit', '3');
+        const seedArgs = parseSeedArgs(opts.seedArgs);
+        const explicitArgs = fixture?.args ?? seedArgs;
+        const cliArgs: string[] = expandFixtureArgs(explicitArgs);
+        if (explicitArgs === undefined && cliArgs.length === 0 && hasLimitArg) cliArgs.push('--limit', '3');
 
-        const argDisplay = cliArgs.join(' ');
+        const traceArgs = opts.trace && opts.trace !== 'off' ? ['--trace', opts.trace] : [];
+        const argDisplay = [...cliArgs, ...traceArgs].join(' ');
         const invocation = resolveBrowserVerifyInvocation();
 
         // Always request JSON so we can validate structurally.
-        const execArgs = [...invocation.args, site, command, ...cliArgs, '--format', 'json'];
+        const execArgs = [...invocation.args, site, command, ...cliArgs, ...traceArgs, '--format', 'json'];
 
         let rawJson: string;
         try {
@@ -1800,10 +2085,10 @@ cli({
             console.log(`\n  Fixture already exists at ${fixturePath(site, command)}.`);
             console.log(`  Use --update-fixture to overwrite.`);
           } else {
-            const seedArgs = fixtureArgs !== undefined
-              ? fixtureArgs
+            const fixtureArgs = explicitArgs !== undefined
+              ? explicitArgs
               : (hasLimitArg ? { limit: 3 } : undefined);
-            const derived = deriveFixture(rows, seedArgs);
+            const derived = deriveFixture(rows, fixtureArgs);
             const p = writeFixture(site, command, derived);
             console.log(`\n  ${fixture ? '↻ Updated' : '✎ Wrote'} fixture: ${p}`);
             console.log(`  Review and hand-tune the derived expectations (add patterns / notEmpty, tighten rowCount).`);
@@ -2188,6 +2473,87 @@ cli({
         : `✅ Removed custom site "${site}".`));
     });
 
+  // ── Built-in: browser profile selection ──────────────────────────────────
+  const profileCmd = program.command('profile').description('Manage Browser Bridge Chrome profiles');
+
+  profileCmd
+    .command('list')
+    .description('List Chrome profiles connected through the Browser Bridge extension')
+    .action(async () => {
+      const status = await fetchDaemonStatus();
+      const config = loadProfileConfig();
+      const profiles = status?.profiles ?? [];
+      if (!status) {
+        console.log(styleText('yellow', 'Daemon is not running. Run opencli doctor after opening Chrome.'));
+        return;
+      }
+      if (isDaemonStale(status, PKG_VERSION) || !Array.isArray(status.profiles)) {
+        console.log(styleText('yellow', `Daemon ${formatDaemonVersion(status)} is stale for CLI v${PKG_VERSION}.`));
+        console.log(styleText('dim', 'Run: opencli daemon restart'));
+        return;
+      }
+      if (profiles.length === 0) {
+        console.log(styleText('yellow', 'No Browser Bridge profiles connected.'));
+        console.log(styleText('dim', 'Open a Chrome profile with the OpenCLI extension installed, then run opencli profile list again.'));
+        return;
+      }
+
+      const knownContextIds = new Set(profiles.map((profile) => profile.contextId));
+      console.log(styleText('bold', 'Connected Browser Bridge profiles'));
+      console.log();
+      for (const profile of profiles) {
+        const alias = aliasForContextId(config, profile.contextId);
+        const defaultMark = config.defaultContextId === profile.contextId ? styleText('green', ' default') : '';
+        const aliasText = alias ? ` ${styleText('cyan', alias)}` : '';
+        const version = profile.extensionVersion ? ` v${profile.extensionVersion}` : ' version unknown';
+        console.log(`  ${profile.contextId}${aliasText}${defaultMark} — connected${version}`);
+      }
+
+      const disconnectedAliases = Object.entries(config.aliases)
+        .filter(([, contextId]) => !knownContextIds.has(contextId));
+      if (disconnectedAliases.length > 0 || (config.defaultContextId && !knownContextIds.has(config.defaultContextId))) {
+        console.log();
+        console.log(styleText('dim', 'Disconnected saved profiles:'));
+        const shown = new Set<string>();
+        for (const [alias, contextId] of disconnectedAliases) {
+          shown.add(contextId);
+          console.log(styleText('dim', `  ${contextId} ${alias} — not connected`));
+        }
+        if (config.defaultContextId && !shown.has(config.defaultContextId) && !knownContextIds.has(config.defaultContextId)) {
+          console.log(styleText('dim', `  ${config.defaultContextId} — default, not connected`));
+        }
+      }
+    });
+
+  profileCmd
+    .command('rename')
+    .description('Assign a local alias to a connected Browser Bridge profile')
+    .argument('<contextId>', 'Profile contextId from opencli profile list')
+    .argument('<alias>', 'Local alias, e.g. work or personal')
+    .action((contextId: string, alias: string) => {
+      try {
+        renameProfile(contextId, alias);
+        console.log(`Profile ${contextId} is now aliased as ${styleText('cyan', alias)}.`);
+      } catch (err) {
+        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+      }
+    });
+
+  profileCmd
+    .command('use')
+    .description('Set the default Browser Bridge profile for future commands')
+    .argument('<profile>', 'Profile alias or contextId')
+    .action((profile: string) => {
+      try {
+        const config = setDefaultProfile(profile);
+        console.log(`Default Browser Bridge profile: ${styleText('cyan', config.defaultContextId ?? profile)}`);
+      } catch (err) {
+        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+      }
+    });
+
   // ── Built-in: daemon ──────────────────────────────────────────────────────
   const daemonCmd = program.command('daemon').description('Manage the opencli daemon');
   daemonCmd
@@ -2198,12 +2564,20 @@ cli({
     .command('stop')
     .description('Stop the daemon')
     .action(async () => { await daemonStop(); });
+  daemonCmd
+    .command('restart')
+    .description('Restart the daemon')
+    .action(async () => { await daemonRestart(); });
 
   // ── External CLIs ─────────────────────────────────────────────────────────
 
   const externalClis = loadExternalClis();
 
-  program
+  const externalCmd = program
+    .command('external')
+    .description('Manage external CLI passthrough commands');
+
+  externalCmd
     .command('install')
     .description('Install an external CLI')
     .argument('<name>', 'Name of the external CLI')
@@ -2217,7 +2591,7 @@ cli({
       installExternalCli(ext);
     });
 
-  program
+  externalCmd
     .command('register')
     .description('Register an external CLI')
     .argument('<name>', 'Name of the CLI')
@@ -2226,6 +2600,27 @@ cli({
     .option('--desc <text>', 'Description')
     .action((name, opts) => {
       registerExternalCli(name, { binary: opts.binary, install: opts.install, description: opts.desc });
+    });
+
+  externalCmd
+    .command('list')
+    .description('List registered external CLIs')
+    .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
+    .action((opts) => {
+      const rows = loadExternalClis().map((ext) => ({
+        name: ext.name,
+        binary: ext.binary,
+        installed: isBinaryInstalled(ext.binary),
+        description: ext.description ?? '',
+        homepage: ext.homepage ?? '',
+        tags: ext.tags?.join(', ') ?? '',
+      }));
+      renderOutput(rows, {
+        fmt: opts.format,
+        columns: ['name', 'binary', 'installed', 'description', 'homepage', 'tags'],
+        title: 'opencli/external/list',
+        source: 'opencli external list',
+      });
     });
 
   function passthroughExternal(name: string, parsedArgs?: string[]) {
@@ -2275,16 +2670,17 @@ cli({
   const siteGroups = new Map<string, Command>();
   siteGroups.set('antigravity', antigravityCmd);
   registerAllCommands(program, siteGroups);
+  applyRootSubcommandSummaries(program);
 
   // ── Unknown command fallback ──────────────────────────────────────────────
   // Security: do NOT auto-discover and register arbitrary system binaries.
-  // Only explicitly registered external CLIs (via `opencli register`) are allowed.
+  // Only explicitly registered external CLIs are allowed.
 
   program.on('command:*', (operands: string[]) => {
     const binary = operands[0];
     console.error(styleText('red', `error: unknown command '${binary}'`));
     if (isBinaryInstalled(binary)) {
-      console.error(styleText('dim', `  Tip: '${binary}' exists on your PATH. Use 'opencli register ${binary}' to add it as an external CLI.`));
+      console.error(styleText('dim', `  Tip: '${binary}' exists on your PATH. Use 'opencli external register ${binary}' to add it as an external CLI.`));
     }
     program.outputHelp();
     process.exitCode = EXIT_CODES.USAGE_ERROR;

@@ -137,7 +137,7 @@ B 站接口字段也大多人类可读。关键坑是 **wbi 签名**：
 - 凡 URL 含 `/wbi/` 的接口都需要 `w_rid + wts` 签名
 - 签名算法依赖每日轮换的 `img_key + sub_key`（从 `nav` 接口拿）
 - 平台 SDK 在 `clis/bilibili/utils.js`：`apiGet(page, path, { signed: true, params })` 自动签
-- 普通 cookie 接口用 `fetchJson(page, url)`
+- 普通 cookie JSON 接口优先用 `page.fetchJson(url)`
 
 | 字段 | 含义 |
 |------|------|

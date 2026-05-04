@@ -37,7 +37,7 @@ cli({
   columns: ['rank', 'bondCode', 'bondName', 'bondPrice', 'bondChangePct',
             'stockCode', 'stockName', 'stockPrice', 'stockChangePct',
             'convPrice', 'convValue', 'convPremiumPct', 'remainingYears', 'ytm', 'listDate'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const sortKey = String(args.sort ?? 'turnover').toLowerCase();
     const sort = SORTS[sortKey];
     if (!sort) throw new CliError('INVALID_ARGUMENT', `Unknown sort "${sortKey}". Valid: ${Object.keys(SORTS).join(', ')}`);
@@ -120,7 +120,7 @@ columns: ['rank', 'bondCode', 'bondName', /* ... */ ],
 ### 3. func — 主体
 
 ```javascript
-func: async (_page, args) => {
+func: async (args) => {
   // 1. 解析参数
   const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));
 
@@ -148,8 +148,9 @@ func: async (_page, args) => {
 
 **参数形态**：
 
-- `page` — 仅当 `browser: true` 时有用；`PUBLIC` 模式传一个 no-op 占位
-- `args` — 所有 `args[]` 声明的参数解析后的 object
+- `browser: false`：`func: async (args, debug?) => { ... }`，不会收到 `page`
+- `browser: true`：`func: async (page, args, debug?) => { ... }`，`page` 是浏览器上下文
+- `args`：所有 `args[]` 声明的参数解析后的 object
 
 **错误处理**：
 
@@ -234,7 +235,21 @@ cli({
 });
 ```
 
-### 为什么不走 `page.evaluate(fetch(...))`
+### JSON API 用 `page.fetchJson()`，不要手写 `page.evaluate(fetch(...))`
+
+如果接口必须在浏览器上下文里请求（依赖当前页面 cookie / CORS / origin），用内置 primitive：
+
+```javascript
+const data = await page.fetchJson(`${BASE}/api/list`, {
+  method: 'POST',
+  headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  body: { page: 1, size: Number(args.limit) || 20 },
+});
+```
+
+它固定 `credentials: 'include'`，带 timeout，HTTP 非 2xx / 非 JSON 会抛统一 `CliError`。
+
+### HTML 不走 browser fetch
 
 三个坑，踩一个就重写：
 
@@ -242,7 +257,7 @@ cli({
 - **`navigateBefore: false` 时当前 tab 不在目标站**：页面 origin 可能是 `about:blank` 或上一条命令留下的别处，从那儿发 fetch 到目标域就是 cross-origin，浏览器 CORS 一挡就是 "Failed to fetch"。
 - **非 UTF-8 编码解码麻烦**：GBK / Big5 / Shift-JIS 的站（Discuz / phpBB 老版 / 日站）在 `page.evaluate` 里用 `response.text()` 拿到的是乱码，`TextDecoder('gbk').decode(buf)` 的写法只在 Node 侧干净。
 
-**规则**：HTML 型 COOKIE adapter 一律 Node 侧 `fetch`，浏览器只当 cookie jar 用。
+**规则**：JSON 型浏览器接口用 `page.fetchJson()`；HTML 型 COOKIE adapter 一律 Node 侧 `fetch`，浏览器只当 cookie jar 用。
 
 ### Cookie 域的双查
 

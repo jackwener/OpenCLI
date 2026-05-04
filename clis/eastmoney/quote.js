@@ -57,7 +57,7 @@ cli({
     'turnoverRate', 'amplitude', 'peDynamic', 'priceBook',
     'marketCap', 'floatMarketCap',
   ],
-  func: async (_page, args) => {
+  func: async (args) => {
     const raw = splitSymbols(args.symbols);
     if (raw.length === 0) {
       throw new CliError('INVALID_ARGUMENT', 'At least one symbol is required');

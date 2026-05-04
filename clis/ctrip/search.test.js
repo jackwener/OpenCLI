@@ -25,7 +25,7 @@ describe('ctrip search', () => {
                 ],
             },
         }), { status: 200 })));
-        const result = await command.func(null, { query: '苏州', limit: 3 });
+        const result = await command.func({ query: '苏州', limit: 3 });
         expect(result).toEqual([
             {
                 rank: 1,
@@ -46,11 +46,11 @@ describe('ctrip search', () => {
         ]);
     });
     it('rejects empty queries', async () => {
-        await expect(command.func(null, { query: '   ', limit: 3 })).rejects.toThrow('Search keyword cannot be empty');
+        await expect(command.func({ query: '   ', limit: 3 })).rejects.toThrow('Search keyword cannot be empty');
     });
     it('surfaces fetch failures as CliError', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 503 })));
-        await expect(command.func(null, { query: '苏州', limit: 3 })).rejects.toMatchObject({
+        await expect(command.func({ query: '苏州', limit: 3 })).rejects.toMatchObject({
             code: 'FETCH_ERROR',
             message: 'ctrip search failed with status 503',
         });
@@ -59,6 +59,6 @@ describe('ctrip search', () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
             Response: { searchResults: [] },
         }), { status: 200 })));
-        await expect(command.func(null, { query: '苏州', limit: 3 })).rejects.toThrow('ctrip search returned no data');
+        await expect(command.func({ query: '苏州', limit: 3 })).rejects.toThrow('ctrip search returned no data');
     });
 });

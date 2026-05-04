@@ -14,7 +14,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Max episodes to show' },
     ],
     columns: ['eid', 'title', 'duration', 'plays', 'date'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const requestedLimit = Number(args.limit);
         if (!Number.isInteger(requestedLimit) || requestedLimit < 1) {
             throw new CliError('INVALID_ARGUMENT', 'limit must be a positive integer', 'Example: --limit 5');

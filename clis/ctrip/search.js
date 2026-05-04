@@ -34,7 +34,7 @@ cli({
         { name: 'limit', type: 'int', default: 15, help: 'Number of results' },
     ],
     columns: ['rank', 'name', 'type', 'score', 'price', 'url'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const query = String(kwargs.query || '').trim();
         if (!query) {
             throw new ArgumentError('Search keyword cannot be empty');

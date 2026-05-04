@@ -19,7 +19,7 @@ cli({
         },
     ],
     columns: ['rank', 'name', 'tagline', 'author', 'date', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const count = Math.min(Number(args.limit) || 20, 50);
         const category = String(args.category ?? '').trim() || undefined;
         const posts = await fetchFeed(category);

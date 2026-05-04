@@ -9,7 +9,7 @@ cli({
     browser: false,
     args: [{ name: 'limit', type: 'int', default: 10, help: 'Number of results' }],
     columns: ['rank', 'title', 'author'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const limit = Number(kwargs.limit ?? 10);
         const query = `query Sequences {
       sequences(input: {terms: {view: "communitySequences", limit: ${limit}}}) {

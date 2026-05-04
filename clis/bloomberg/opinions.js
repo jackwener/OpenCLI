@@ -11,7 +11,7 @@ cli({
         { name: 'limit', type: 'int', default: 1, help: 'Number of feed items to return (max 20)' },
     ],
     columns: ['title', 'summary', 'link', 'mediaLinks'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         return fetchBloombergFeed('opinions', kwargs.limit ?? 1);
     },
 });

@@ -25,7 +25,7 @@ features:
     details: Reuses Chrome's logged-in state. Your credentials never leave the browser — no tokens, no exposed passwords.
   - icon: 🤖
     title: AI Agent Ready
-    details: "explore discovers APIs, synthesize generates adapters, cascade finds auth strategies. Built for AI-first workflows."
+    details: "Browser primitives plus adapter-authoring skills give AI agents a repeatable loop for recon, extraction, verification, and adapter writing."
   - icon: 💰
     title: Zero LLM Cost
     details: No tokens consumed at runtime. Run 10,000 times and pay nothing.

@@ -87,7 +87,7 @@ OpenCLI occupies a specific niche in the browser automation ecosystem. This guid
 - **Zero LLM cost** — No tokens consumed at runtime. Run 10,000 times for free.
 - **Deterministic output** — Same command always returns the same schema. Pipeable, scriptable, CI-friendly.
 - **Speed** — Adapter commands return in seconds, not minutes.
-- **Broad platform coverage** — 87+ sites spanning global platforms (Reddit, HackerNews, Twitter, YouTube) and Chinese platforms (Bilibili, Zhihu, Xiaohongshu, Douban, Weibo) with adapters that understand local anti-bot patterns.
+- **Broad platform coverage** — 100+ registered site surfaces spanning global platforms (Reddit, HackerNews, Twitter, YouTube) and Chinese platforms (Bilibili, Zhihu, Xiaohongshu, Douban, Weibo) with adapters that understand local anti-bot patterns.
 - **Desktop app control** — CDP adapters for Cursor, Codex, Notion, ChatGPT, Discord, and more.
 - **Easy to extend** — Drop a `.js` adapter into the `clis/` folder for auto-registration. Contributing a new site adapter is straightforward.
 

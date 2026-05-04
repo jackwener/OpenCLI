@@ -18,7 +18,7 @@ cli({
         { name: 'output', default: './xiaoyuzhou-downloads', help: 'Output directory' },
     ],
     columns: ['title', 'podcast', 'status', 'size', 'file'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const credentials = loadXiaoyuzhouCredentials();
         const response = await requestXiaoyuzhouJson('/v1/episode/get', {
             query: { eid: args.id },

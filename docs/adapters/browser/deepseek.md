@@ -24,6 +24,9 @@ opencli deepseek ask "hello" --new
 # Use Expert model instead of Instant
 opencli deepseek ask "prove that sqrt(2) is irrational" --model expert
 
+# Use Vision model with an image
+opencli deepseek ask "describe this image" --model vision --file ./image.png
+
 # Enable DeepThink mode
 opencli deepseek ask "prove that sqrt(2) is irrational" --think
 
@@ -62,7 +65,7 @@ opencli deepseek history --limit 10
 | `<prompt>` | The message to send (required, positional) |
 | `--timeout` | Wait timeout in seconds (default: 120) |
 | `--new` | Start a new chat before sending (default: false) |
-| `--model` | Model to use: `instant` or `expert` (default: instant) |
+| `--model` | Model to use: `instant`, `expert`, or `vision` (default: instant) |
 | `--think` | Enable DeepThink mode (default: false) |
 | `--search` | Enable web search (default: false) |
 | `--file` | Attach a file (PDF, image, text) with the prompt (max 100 MB) |
@@ -76,5 +79,6 @@ opencli deepseek history --limit 10
 
 - This adapter drives the DeepSeek web UI in the browser, not an API
 - Default mode is Instant with DeepThink and Search disabled; each flag (`--model`, `--think`, `--search`) is synced on every invocation so omitting a flag resets it
+- Vision mode does not support `--search`; use `--model instant` or `--model expert` for web search
 - Long responses (code, essays) may need a higher `--timeout`
-- File upload reads the file into memory and passes it via base64 to the browser; files over 100 MB are rejected
+- File upload prefers the browser file-input path, falls back to base64 injection when needed, and rejects files over 100 MB

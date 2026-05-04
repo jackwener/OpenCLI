@@ -1787,7 +1787,9 @@
       "title",
       "author",
       "play",
-      "danmaku"
+      "danmaku",
+      "bvid",
+      "url"
     ],
     "type": "js",
     "modulePath": "bilibili/hot.js",
@@ -3275,7 +3277,7 @@
   {
     "site": "boss",
     "name": "search",
-    "description": "BOSS直聘搜索职位",
+    "description": "BOSS直聘搜索职位（不带关键词时返回为你推荐职位）",
     "domain": "www.zhipin.com",
     "strategy": "cookie",
     "browser": true,
@@ -3283,9 +3285,9 @@
       {
         "name": "query",
         "type": "str",
-        "required": true,
+        "required": false,
         "positional": true,
-        "help": "Search keyword (e.g. AI agent, 前端)"
+        "help": "Search keyword (optional, empty = recommended jobs)"
       },
       {
         "name": "city",
@@ -3299,7 +3301,7 @@
         "type": "str",
         "default": "",
         "required": false,
-        "help": "Experience: 应届/1年以内/1-3年/3-5年/5-10年/10年以上"
+        "help": "Experience: 在校生(实习)/应届生(校招)/经验不限/1年以内/1-3年/3-5年/5-10年/10年以上"
       },
       {
         "name": "degree",
@@ -3321,6 +3323,13 @@
         "default": "",
         "required": false,
         "help": "Industry code or name (e.g. 100020, 互联网)"
+      },
+      {
+        "name": "jobType",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Job type: 全职/兼职/实习（不传=不限，混合校招与实习）"
       },
       {
         "name": "page",
@@ -3346,6 +3355,7 @@
       "degree",
       "skills",
       "boss",
+      "bossOnline",
       "security_id",
       "url"
     ],
@@ -3532,9 +3542,8 @@
       {
         "name": "op",
         "type": "str",
-        "default": "~/Pictures/chatgpt",
         "required": false,
-        "help": "Output directory"
+        "help": "Output directory (default: ~/Pictures/chatgpt)"
       },
       {
         "name": "sd",
@@ -3851,6 +3860,208 @@
     "modulePath": "chatwise/send.js",
     "sourceFile": "chatwise/send.js",
     "navigateBefore": true
+  },
+  {
+    "site": "claude",
+    "name": "ask",
+    "description": "Send a prompt to Claude and get the response",
+    "domain": "claude.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds to wait for response"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      },
+      {
+        "name": "model",
+        "type": "str",
+        "default": "sonnet",
+        "required": false,
+        "help": "Model to use: sonnet, opus, or haiku",
+        "choices": [
+          "sonnet",
+          "opus",
+          "haiku"
+        ]
+      },
+      {
+        "name": "think",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Enable Adaptive thinking"
+      },
+      {
+        "name": "file",
+        "type": "str",
+        "required": false,
+        "help": "Attach a file (image, PDF, text) with the prompt"
+      }
+    ],
+    "columns": [
+      "response"
+    ],
+    "timeout": 180,
+    "type": "js",
+    "modulePath": "claude/ask.js",
+    "sourceFile": "claude/ask.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "claude",
+    "name": "detail",
+    "description": "Open a Claude conversation by ID and read its messages",
+    "domain": "claude.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID (UUID from /chat/<id>)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "claude/detail.js",
+    "sourceFile": "claude/detail.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "claude",
+    "name": "history",
+    "description": "List conversation history from Claude /recents",
+    "domain": "claude.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max conversations to show"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Id",
+      "Title",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "claude/history.js",
+    "sourceFile": "claude/history.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "claude",
+    "name": "new",
+    "description": "Start a new conversation in Claude",
+    "domain": "claude.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "claude/new.js",
+    "sourceFile": "claude/new.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "claude",
+    "name": "read",
+    "description": "Read the current Claude conversation",
+    "domain": "claude.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "claude/read.js",
+    "sourceFile": "claude/read.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "claude",
+    "name": "send",
+    "description": "Send a prompt to Claude without waiting for the response",
+    "domain": "claude.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      }
+    ],
+    "columns": [
+      "Status",
+      "SubmittedBy",
+      "InjectedText"
+    ],
+    "type": "js",
+    "modulePath": "claude/send.js",
+    "sourceFile": "claude/send.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "claude",
+    "name": "status",
+    "description": "Check Claude page availability and login state",
+    "domain": "claude.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Login",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "claude/status.js",
+    "sourceFile": "claude/status.js",
+    "navigateBefore": false
   },
   {
     "site": "cnki",
@@ -4381,10 +4592,11 @@
         "type": "str",
         "default": "instant",
         "required": false,
-        "help": "Model to use: instant or expert",
+        "help": "Model to use: instant, expert, or vision",
         "choices": [
           "instant",
-          "expert"
+          "expert",
+          "vision"
         ]
       },
       {
@@ -4986,12 +5198,11 @@
     ],
     "columns": [
       "rank",
+      "id",
       "title",
       "rating",
-      "quote",
-      "director",
+      "votes",
       "year",
-      "region",
       "url"
     ],
     "type": "js",
@@ -6849,6 +7060,65 @@
   },
   {
     "site": "facebook",
+    "name": "marketplace-inbox",
+    "description": "List recent Facebook Marketplace buyer/seller conversations",
+    "domain": "www.facebook.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of conversations to return"
+      }
+    ],
+    "columns": [
+      "index",
+      "buyer",
+      "listing",
+      "snippet",
+      "time",
+      "unread"
+    ],
+    "type": "js",
+    "modulePath": "facebook/marketplace-inbox.js",
+    "sourceFile": "facebook/marketplace-inbox.js",
+    "navigateBefore": "https://www.facebook.com"
+  },
+  {
+    "site": "facebook",
+    "name": "marketplace-listings",
+    "description": "List your Facebook Marketplace seller listings",
+    "domain": "www.facebook.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of listings to return"
+      }
+    ],
+    "columns": [
+      "index",
+      "title",
+      "price",
+      "status",
+      "listed",
+      "clicks",
+      "actions"
+    ],
+    "type": "js",
+    "modulePath": "facebook/marketplace-listings.js",
+    "sourceFile": "facebook/marketplace-listings.js",
+    "navigateBefore": "https://www.facebook.com"
+  },
+  {
+    "site": "facebook",
     "name": "memories",
     "description": "Get your Facebook memories (On This Day)",
     "domain": "www.facebook.com",
@@ -8425,6 +8695,59 @@
   },
   {
     "site": "instagram",
+    "name": "collection-create",
+    "description": "Create a new Instagram saved-posts collection (folder)",
+    "domain": "www.instagram.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Name of the collection to create"
+      }
+    ],
+    "columns": [
+      "status",
+      "collectionId",
+      "collectionName",
+      "mediaCount"
+    ],
+    "type": "js",
+    "modulePath": "instagram/collection-create.js",
+    "sourceFile": "instagram/collection-create.js",
+    "navigateBefore": "https://www.instagram.com"
+  },
+  {
+    "site": "instagram",
+    "name": "collection-delete",
+    "description": "Delete an Instagram saved-posts collection (folder) by name or id",
+    "domain": "www.instagram.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Collection name (case-insensitive) or numeric collection_id"
+      }
+    ],
+    "columns": [
+      "status",
+      "collectionId",
+      "collectionName"
+    ],
+    "type": "js",
+    "modulePath": "instagram/collection-delete.js",
+    "sourceFile": "instagram/collection-delete.js",
+    "navigateBefore": "https://www.instagram.com"
+  },
+  {
+    "site": "instagram",
     "name": "comment",
     "description": "Comment on an Instagram post",
     "domain": "www.instagram.com",
@@ -8809,7 +9132,7 @@
   {
     "site": "instagram",
     "name": "saved",
-    "description": "Get your saved Instagram posts",
+    "description": "Get your saved Instagram posts (optionally from a specific collection)",
     "domain": "www.instagram.com",
     "strategy": "cookie",
     "browser": true,
@@ -8820,6 +9143,12 @@
         "default": 20,
         "required": false,
         "help": "Number of saved posts"
+      },
+      {
+        "name": "collection",
+        "type": "str",
+        "required": false,
+        "help": "Collection name (case-insensitive). Omit for the default \"All posts\" feed."
       }
     ],
     "columns": [
@@ -13622,7 +13951,10 @@
       "title",
       "subreddit",
       "score",
-      "comments"
+      "comments",
+      "postId",
+      "author",
+      "url"
     ],
     "type": "js",
     "modulePath": "reddit/hot.js",
@@ -16018,7 +16350,7 @@
     "name": "following",
     "description": "Get accounts a Twitter/X user is following",
     "domain": "x.com",
-    "strategy": "intercept",
+    "strategy": "cookie",
     "browser": true,
     "args": [
       {
@@ -16045,7 +16377,7 @@
     "type": "js",
     "modulePath": "twitter/following.js",
     "sourceFile": "twitter/following.js",
-    "navigateBefore": true
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -17278,6 +17610,37 @@
   },
   {
     "site": "weibo",
+    "name": "favorites",
+    "description": "我的微博收藏列表",
+    "domain": "weibo.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "数量（最多50）"
+      }
+    ],
+    "columns": [
+      "author",
+      "text",
+      "time",
+      "source",
+      "likes",
+      "comments",
+      "reposts",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "weibo/favorites.js",
+    "sourceFile": "weibo/favorites.js",
+    "navigateBefore": "https://weibo.com"
+  },
+  {
+    "site": "weibo",
     "name": "feed",
     "description": "Fetch Weibo timeline (for-you or following)",
     "domain": "weibo.com",
@@ -17392,6 +17755,38 @@
     "modulePath": "weibo/post.js",
     "sourceFile": "weibo/post.js",
     "navigateBefore": "https://weibo.com"
+  },
+  {
+    "site": "weibo",
+    "name": "publish",
+    "description": "Publish a new Weibo post immediately",
+    "domain": "weibo.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Weibo text content (max 2000 chars)"
+      },
+      {
+        "name": "images",
+        "type": "string",
+        "required": false,
+        "help": "Image paths, comma-separated, max 9 (jpg/png/gif/webp)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "weibo/publish.js",
+    "sourceFile": "weibo/publish.js",
+    "navigateBefore": true
   },
   {
     "site": "weibo",
@@ -20362,6 +20757,78 @@
     "type": "js",
     "modulePath": "zhihu/answer.js",
     "sourceFile": "zhihu/answer.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "collection",
+    "description": "知乎收藏夹内容列表（需要登录）",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "收藏夹 ID (数字，可从收藏夹 URL 中获取)"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "起始偏移量（用于分页）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "每页数量（最大 20）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "type",
+      "title",
+      "author",
+      "votes",
+      "excerpt",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/collection.js",
+    "sourceFile": "zhihu/collection.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "collections",
+    "description": "知乎收藏夹列表（需要登录）",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "每页数量（最大 20）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "item_count",
+      "description",
+      "collection_id"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/collections.js",
+    "sourceFile": "zhihu/collections.js",
     "navigateBefore": "https://www.zhihu.com"
   },
   {

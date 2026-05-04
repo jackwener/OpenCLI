@@ -9,6 +9,8 @@
 | `opencli zhihu hot` | Read Zhihu hot topics |
 | `opencli zhihu search` | Search Zhihu content |
 | `opencli zhihu question` | Read question answers by question ID |
+| `opencli zhihu collections` | List your Zhihu favorite collections |
+| `opencli zhihu collection <collection_id>` | List content from a Zhihu favorite collection |
 | `opencli zhihu download` | Export a Zhihu article to Markdown |
 | `opencli zhihu follow <target> --execute` | Follow a user or question |
 | `opencli zhihu like <target> --execute` | Like an answer or article |
@@ -41,6 +43,8 @@
 # Read flows
 opencli zhihu hot --limit 5
 opencli zhihu question 123456 --limit 3
+opencli zhihu collections --limit 20
+opencli zhihu collection 83283292 --limit 20
 opencli zhihu download "https://zhuanlan.zhihu.com/p/998877" --download-images
 
 # Write flows

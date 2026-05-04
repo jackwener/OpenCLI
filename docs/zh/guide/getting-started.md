@@ -49,7 +49,7 @@ opencli bilibili [Tab] # 补全命令（hot、search、me、download...）
 
 补全功能包含：
 - 所有可用的站点和适配器
-- 内置命令（list、explore、validate...）
+- 内置命令（list、validate、verify、browser、doctor、plugin、adapter...）
 - 命令别名
 - 新增适配器时的实时更新
 
@@ -57,6 +57,7 @@ opencli bilibili [Tab] # 补全命令（hot、search、me、download...）
 
 - [安装详情](/zh/guide/installation)
 - [Browser Bridge 设置](/zh/guide/browser-bridge)
+- [扩展 OpenCLI：自定义命令、plugin 和 external CLI](/zh/guide/extending-opencli)
 - [所有适配器](/zh/adapters/)
 - [开发者指南](/zh/developer/contributing)
 - [给新 Electron 应用生成 CLI](/zh/guide/electron-app-cli)

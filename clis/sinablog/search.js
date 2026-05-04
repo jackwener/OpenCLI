@@ -47,5 +47,5 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: '返回的文章数量' },
     ],
     columns: ['rank', 'title', 'author', 'date', 'description', 'url'],
-    func: async (_page, args) => searchSinaBlog(args.keyword, Math.max(1, Math.min(Number(args.limit) || 20, 50))),
+    func: async (args) => searchSinaBlog(args.keyword, Math.max(1, Math.min(Number(args.limit) || 20, 50))),
 });

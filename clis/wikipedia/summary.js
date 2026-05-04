@@ -12,7 +12,7 @@ cli({
         { name: 'lang', default: 'en', help: 'Language code (e.g. en, zh, ja)' },
     ],
     columns: ['title', 'description', 'extract', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const lang = args.lang || 'en';
         const title = encodeURIComponent(args.title.replace(/ /g, '_'));
         const data = (await wikiFetch(lang, `/api/rest_v1/page/summary/${title}`));

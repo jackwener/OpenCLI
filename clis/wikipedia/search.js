@@ -13,7 +13,7 @@ cli({
         { name: 'lang', default: 'en', help: 'Language code (e.g. en, zh, ja)' },
     ],
     columns: ['title', 'snippet', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const limit = Math.max(1, Math.min(Number(args.limit), 50));
         const lang = args.lang || 'en';
         const q = encodeURIComponent(args.query);

@@ -13,7 +13,7 @@ OpenCLI turns any website, Electron desktop app, or external CLI into a uniform 
 - **Adapter commands** — `opencli <site> <command> [...]`. Built-in adapters live in `clis/`, user adapters in `~/.opencli/clis/`. Each is backed by a strategy (`PUBLIC | COOKIE | HEADER | INTERCEPT | UI | LOCAL`) that tells you whether a Chrome session is needed.
 - **Browser driving** — `opencli browser *` subcommands (`open`, `state`, `click`, `type`, `select`, `find`, `extract`, `network`, …) for ad-hoc interaction and scraping when no adapter covers the task. See `opencli-browser`.
 - **Current-tab binding** — `opencli browser bind --domain <host>` attaches a `bound:*` workspace to the Chrome tab the user already opened/logged into. Follow-up commands use `opencli browser --workspace bound:default ...`. See `opencli-browser` before using it; bound workspaces have stricter navigation/tab-mutation safety rules.
-- **External CLI passthrough** — `opencli gh`, `opencli docker`, `opencli vercel`, etc. Registered via `opencli install <name>` (auto-install from `external-clis.yaml`) or `opencli register <name>` (bring your own).
+- **External CLI passthrough** — `opencli gh`, `opencli docker`, `opencli vercel`, etc. Managed via `opencli external install <name>` (auto-install from `external-clis.yaml`) or `opencli external register <name>` (bring your own).
 
 ## Install
 
@@ -85,11 +85,10 @@ A few commands override the default via `cmd.defaultFormat` (e.g. chat commands 
 | `OPENCLI_CACHE_DIR` | `~/.opencli/cache` | Network capture + browser-state cache. |
 | `OPENCLI_WINDOW_FOCUSED` | `false` | `1` → automation window opens in the foreground. |
 | `OPENCLI_VERBOSE` | `false` | Verbose logging (also triggered by `-v`). |
-| `OPENCLI_DIAGNOSTIC` | `false` | `1` → emit structured `RepairContext` JSON on adapter failure. Required for `opencli-autofix`. |
 
 ## Self-repair
 
-When an adapter command fails because the site changed (selectors drifted, API rotated, response schema shifted), the CLI emits a hint: `# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 ...`. Do that, read the `RepairContext`, patch the adapter at `RepairContext.adapter.sourcePath`, and retry. Max 3 repair rounds. The full flow is in `opencli-autofix`.
+When an adapter command fails because the site changed (selectors drifted, API rotated, response schema shifted), re-run with `--trace retain-on-failure`. The error envelope includes a `trace` block pointing at `summary.md`; patch only the `adapterSourcePath` from that summary and retry. Max 3 repair rounds. The full flow is in `opencli-autofix`.
 
 ## Writing your own adapter
 
@@ -126,11 +125,12 @@ opencli plugin create <name>               # scaffold a new plugin
 Wraps external command-line tools so you can discover + invoke them through the same `opencli …` entrypoint:
 
 ```bash
-opencli install gh             # auto-install via brew/apt/npm per external-clis.yaml
-opencli register my-tool \
+opencli external install gh    # auto-install via brew/apt/npm per external-clis.yaml
+opencli external register my-tool \
     --binary my-tool \
     --install "npm i -g my-tool" \
     --desc "My internal CLI"
+opencli external list
 opencli gh pr list --limit 5   # passthrough; stdio is inherited, exit code propagated
 opencli docker ps
 ```
@@ -165,4 +165,4 @@ The following were removed in the PR #1094 consolidation — don't try to invoke
 
 - Don't paste this skill's command list into your plan; it will rot. Call `opencli list -f json` at the start of a task instead.
 - Don't assume every adapter needs a browser — strategy `PUBLIC` and `LOCAL` don't. Check the `strategy` field.
-- Don't silently fall back from a failing adapter to a hand-rolled `fetch` — `OPENCLI_DIAGNOSTIC=1` almost always tells you exactly what to change in the adapter. Do that first.
+- Don't silently fall back from a failing adapter to a hand-rolled `fetch` — `--trace retain-on-failure` gives you the browser evidence and adapter source path. Do that first.

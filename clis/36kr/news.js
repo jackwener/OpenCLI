@@ -12,7 +12,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Number of articles (max 50)' },
     ],
     columns: ['rank', 'title', 'summary', 'date', 'url'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const count = Math.min(kwargs.limit || 20, 50);
         const resp = await fetch('https://www.36kr.com/feed', {
             headers: { 'User-Agent': 'Mozilla/5.0 (compatible; opencli/1.0)' },

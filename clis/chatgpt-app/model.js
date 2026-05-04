@@ -12,7 +12,7 @@ export const modelCommand = cli({
         { name: 'model', required: true, positional: true, help: 'Model to switch to', choices: MODEL_CHOICES },
     ],
     columns: ['Status', 'Model'],
-    func: async (page, kwargs) => {
+    func: async (kwargs) => {
         if (process.platform !== 'darwin') {
             throw new ConfigError('ChatGPT Desktop integration requires macOS');
         }

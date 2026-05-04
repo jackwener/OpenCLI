@@ -18,7 +18,7 @@ export const askCommand = cli({
         { name: 'prompt', positional: true, required: true, help: 'Prompt to send' },
         { name: 'timeout', type: 'int', default: 120, help: 'Max seconds to wait for response' },
         { name: 'new', type: 'boolean', default: false, help: 'Start a new chat before sending' },
-        { name: 'model', default: 'instant', choices: ['instant', 'expert'], help: 'Model to use: instant or expert' },
+        { name: 'model', default: 'instant', choices: ['instant', 'expert', 'vision'], help: 'Model to use: instant, expert, or vision' },
         { name: 'think', type: 'boolean', default: false, help: 'Enable DeepThink mode' },
         { name: 'search', type: 'boolean', default: false, help: 'Enable web search' },
         { name: 'file', help: 'Attach a file (PDF, image, text) with the prompt' },
@@ -78,9 +78,22 @@ export const askCommand = cli({
             throw new CommandExecutionError('Could not enable DeepThink');
         }
 
-        const searchResult = await withRetry(() => setFeature(page, 'Search', wantSearch));
-        if (!searchResult?.ok && wantSearch) {
-            throw new CommandExecutionError('Could not enable Search');
+        if (wantModel === 'vision' && wantSearch) {
+            throw new CliError(
+                'ARGUMENT',
+                'DeepSeek vision mode does not support --search.',
+                'Run without --search, or use --model instant/expert for web search.',
+                EXIT_CODES.USAGE_ERROR,
+            );
+        }
+
+        // Vision mode does not have the search toggle.
+        let searchResult;
+        if (wantModel !== 'vision') {
+            searchResult = await withRetry(() => setFeature(page, 'Search', wantSearch));
+            if (!searchResult?.ok && wantSearch) {
+                throw new CommandExecutionError('Could not enable Search');
+            }
         }
 
         if (thinkResult?.toggled || searchResult?.toggled) await page.wait(0.5);

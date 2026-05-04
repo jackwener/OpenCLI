@@ -50,7 +50,7 @@ cli({
             return getWeekRange();
         return kwargs.date ?? new Date().toISOString().slice(0, 10);
     },
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const period = String(kwargs.period ?? 'daily');
         const all = Boolean(kwargs.all);
         const endpoint = process.env.HF_ENDPOINT?.replace(/\/+$/, '') || 'https://huggingface.co';

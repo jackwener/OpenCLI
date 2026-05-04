@@ -19,7 +19,7 @@ cli({
     { name: 'limit',     type: 'int',    default: 10,      help: '返回最近 N 分钟' },
   ],
   columns: ['time', 'cumulativeNetYi', 'minuteNetYi', 'totalNetYi'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const dir = String(args.direction ?? 'north').toLowerCase();
     if (!['north', 'south', 'n', 's'].includes(dir)) {
       throw new CliError('INVALID_ARGUMENT', `Unknown direction "${dir}". Valid: north / south`);

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     getDoubanPhotoExtension,
     inferDoubanSearchResultType,
+    loadDoubanMovieHot,
     loadDoubanSubjectDetail,
     loadDoubanSubjectPhotos,
     normalizeDoubanBookSubject,
@@ -42,6 +43,39 @@ function createFakeSearchItem({ title, url, rating, abstract, cover }) {
             return null;
         },
     };
+}
+
+function createFakeMovieHotItem({ title, url, info, rating, votes, cover }) {
+    return {
+        querySelector(selector) {
+            if (selector === '.pl2 a') {
+                return createFakeNode(title, { href: url });
+            }
+            if (selector === '.pl2 p') {
+                return createFakeNode(info);
+            }
+            if (selector === '.star .pl') {
+                return createFakeNode(votes);
+            }
+            if (selector === '.rating_nums') {
+                return createFakeNode(rating);
+            }
+            if (selector === 'img') {
+                return createFakeNode('', { src: cover });
+            }
+            return null;
+        },
+    };
+}
+
+function runMovieHotEvaluate(script, items) {
+    const document = {
+        querySelectorAll(selector) {
+            return selector === '.item' ? items : [];
+        },
+    };
+
+    return vm.runInNewContext(script, { document, URL });
 }
 
 async function runSearchEvaluate(script, rawItems, domItems) {
@@ -240,6 +274,51 @@ ISBN: 9787544270871
             cover: 'https://img9.doubanio.com/view/subject/l/public/s29618581.jpg',
             url: 'https://book.douban.com/subject/2567698/',
         });
+    });
+
+    it('parses movie-hot rows with real chart fields only', async () => {
+        const items = [
+            createFakeMovieHotItem({
+                title: ' 少年与犬 ',
+                url: '/subject/36840171/',
+                info: '2025-03-20 / 日本 / 剧情',
+                rating: '6.8',
+                votes: '(12345人评价)',
+                cover: 'https://img1.doubanio.com/view/photo/s_ratio_poster/public/p1.jpg',
+            }),
+        ];
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ blocked: false, title: '豆瓣电影排行榜', href: 'https://movie.douban.com/chart' })
+                .mockImplementationOnce((script) => runMovieHotEvaluate(script, items)),
+        };
+
+        await expect(loadDoubanMovieHot(page, 20)).resolves.toEqual([
+            {
+                rank: 1,
+                id: '36840171',
+                title: '少年与犬',
+                rating: 6.8,
+                votes: 12345,
+                year: '2025',
+                url: 'https://movie.douban.com/subject/36840171/',
+                cover: 'https://img1.doubanio.com/view/photo/s_ratio_poster/public/p1.jpg',
+            },
+        ]);
+    });
+
+    it('throws EmptyResultError when movie-hot parses no chart rows', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ blocked: false, title: '豆瓣电影排行榜', href: 'https://movie.douban.com/chart' })
+                .mockResolvedValueOnce([]),
+        };
+
+        await expect(loadDoubanMovieHot(page, 20)).rejects.toThrow('douban movie-hot returned no data');
     });
 
     it('loads book subject details from book.douban.com when type=book', async () => {
