@@ -53,9 +53,17 @@ cli({
         let cards;
         try {
             cards = await page.evaluate(`(async () => {
+                const hasResults = () => !!document.querySelector('.job_seen_beacon, [data-jk]');
+                const hasEmptyState = () => {
+                    const text = document.body?.innerText || '';
+                    return !!document.querySelector('[data-testid="searchCountPages"], [data-testid="searchCount"], [data-testid="noResultsMessage"], [data-testid="empty-serp-result"]')
+                        || /did not match any jobs|no jobs found|0 jobs/i.test(text);
+                };
+                let ready = hasResults() || hasEmptyState();
                 for (let i = 0; i < 30; i++) {
-                    if (document.querySelector('.job_seen_beacon, [data-jk]')) break;
+                    if (ready) break;
                     await new Promise(r => setTimeout(r, 500));
+                    ready = hasResults() || hasEmptyState();
                 }
                 const blocks = document.querySelectorAll('.job_seen_beacon');
                 const seen = new Set();
@@ -79,7 +87,7 @@ cli({
                 }
                 const blockedHeadline = document.title || '';
                 const challenge = blockedHeadline.includes('Just a moment') || !!document.querySelector('[id^="cf-"]');
-                return { cards: out, challenge };
+                return { cards: out, challenge, ready };
             })()`);
         }
         catch (e) {
@@ -88,6 +96,9 @@ cli({
 
         if (cards?.challenge) {
             throw new CommandExecutionError('Indeed served a Cloudflare challenge page', 'Open https://www.indeed.com in the connected browser and clear the challenge, then retry.');
+        }
+        if (!cards?.ready) {
+            throw new CommandExecutionError('Indeed search page did not expose result or empty-state markers within 15s', 'Indeed may still be loading or the DOM shape may have changed; retry after opening Indeed in the connected browser.');
         }
 
         const list = Array.isArray(cards?.cards) ? cards.cards : [];

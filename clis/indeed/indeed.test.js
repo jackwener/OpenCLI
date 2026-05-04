@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import {
     INDEED_ORIGIN,
@@ -19,19 +20,32 @@ import {
 import './search.js';
 import './job.js';
 
+function createPageMock(evaluateResult) {
+    const evaluate = typeof evaluateResult === 'function'
+        ? vi.fn(evaluateResult)
+        : vi.fn().mockResolvedValue(evaluateResult);
+    return {
+        goto: vi.fn().mockResolvedValue(undefined),
+        wait: vi.fn().mockResolvedValue(undefined),
+        evaluate,
+    };
+}
+
 describe('indeed adapter — registration', () => {
     it('registers search and job commands with the expected shape', () => {
         const search = getRegistry().get('indeed/search');
         const job = getRegistry().get('indeed/job');
 
         expect(search).toBeDefined();
-        expect(search.access).toBe('read');
         expect(search.browser).toBe(true);
+        expect(search.strategy).toBe('cookie');
+        expect(search.navigateBefore).toBe(false);
         expect(search.columns).toEqual(SEARCH_COLUMNS);
 
         expect(job).toBeDefined();
-        expect(job.access).toBe('read');
         expect(job.browser).toBe(true);
+        expect(job.strategy).toBe('cookie');
+        expect(job.navigateBefore).toBe(false);
         expect(job.columns).toEqual(JOB_COLUMNS);
         expect(job.aliases).toContain('detail');
         expect(job.aliases).toContain('view');
@@ -180,5 +194,175 @@ describe('indeed adapter — DOM normalizers', () => {
         expect(row.id).toBe('');
         expect(row.url).toBe('');
         expect(row.rank).toBe(5);
+    });
+});
+
+describe('indeed adapter — search runtime', () => {
+    it('fails fast on invalid limit before opening the page', async () => {
+        const page = createPageMock({ cards: [], challenge: false, ready: true });
+        const search = getRegistry().get('indeed/search');
+
+        await expect(search.func(page, { query: 'rust engineer', limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(page.evaluate).not.toHaveBeenCalled();
+    });
+
+    it('maps a Cloudflare challenge page to CommandExecutionError', async () => {
+        const page = createPageMock({ cards: [], challenge: true, ready: true });
+        const search = getRegistry().get('indeed/search');
+
+        await expect(search.func(page, { query: 'rust engineer' })).rejects.toBeInstanceOf(CommandExecutionError);
+        expect(page.goto).toHaveBeenCalledWith(`${INDEED_ORIGIN}/jobs?q=rust+engineer`);
+        expect(page.wait).toHaveBeenCalledWith(4);
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats poll timeout / selector drift as CommandExecutionError, not EmptyResultError', async () => {
+        const page = createPageMock({ cards: [], challenge: false, ready: false });
+        const search = getRegistry().get('indeed/search');
+
+        await expect(search.func(page, { query: 'rust engineer' })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('maps an empty but ready page to EmptyResultError', async () => {
+        const page = createPageMock({ cards: [], challenge: false, ready: true });
+        const search = getRegistry().get('indeed/search');
+
+        await expect(search.func(page, { query: 'zzzxxyyqqnonexistent', location: 'Remote' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('returns normalized rows for a happy-path search result', async () => {
+        const page = createPageMock({
+            cards: [{
+                jk: 'dccc07ac5a6a3683',
+                title: ' Senior  Rust Engineer ',
+                company: 'Acme',
+                location: 'Remote',
+                salary: '$180,000 a year',
+                tags: ['$180,000 a year', 'Full-time', '401(k)'],
+            }],
+            challenge: false,
+            ready: true,
+        });
+        const search = getRegistry().get('indeed/search');
+
+        const rows = await search.func(page, {
+            query: 'rust engineer',
+            location: 'Remote',
+            fromage: '7',
+            sort: 'date',
+            start: 10,
+            limit: 1,
+        });
+
+        expect(page.goto).toHaveBeenCalledWith(`${INDEED_ORIGIN}/jobs?q=rust+engineer&l=Remote&fromage=7&sort=date&start=10`);
+        expect(rows).toEqual([{
+            rank: 11,
+            id: 'dccc07ac5a6a3683',
+            title: 'Senior Rust Engineer',
+            company: 'Acme',
+            location: 'Remote',
+            salary: '$180,000 a year',
+            tags: 'Full-time · 401(k)',
+            url: `${INDEED_ORIGIN}/viewjob?jk=dccc07ac5a6a3683`,
+        }]);
+    });
+});
+
+describe('indeed adapter — job runtime', () => {
+    it('fails fast on invalid jk before browser/network work', async () => {
+        const page = createPageMock({
+            ready: true,
+            challenge: false,
+            notFound: false,
+            title: 'Demo',
+            description: 'Demo',
+        });
+        const job = getRegistry().get('indeed/job');
+
+        await expect(job.func(page, { id: 'not-hex' })).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(page.evaluate).not.toHaveBeenCalled();
+    });
+
+    it('maps a Cloudflare challenge page to CommandExecutionError', async () => {
+        const page = createPageMock({
+            ready: true,
+            challenge: true,
+            notFound: false,
+            title: '',
+            company: '',
+            location: '',
+            salary: '',
+            jobType: '',
+            description: '',
+        });
+        const job = getRegistry().get('indeed/job');
+
+        await expect(job.func(page, { id: 'dccc07ac5a6a3683' })).rejects.toBeInstanceOf(CommandExecutionError);
+        expect(page.goto).toHaveBeenCalledWith(`${INDEED_ORIGIN}/viewjob?jk=dccc07ac5a6a3683`);
+        expect(page.wait).toHaveBeenCalledWith(4);
+    });
+
+    it('treats missing ready markers as CommandExecutionError, not EmptyResultError', async () => {
+        const page = createPageMock({
+            ready: false,
+            challenge: false,
+            notFound: false,
+            title: '',
+            company: '',
+            location: '',
+            salary: '',
+            jobType: '',
+            description: '',
+        });
+        const job = getRegistry().get('indeed/job');
+
+        await expect(job.func(page, { id: 'dccc07ac5a6a3683' })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('maps a not-found page to EmptyResultError', async () => {
+        const page = createPageMock({
+            ready: true,
+            challenge: false,
+            notFound: true,
+            title: '',
+            company: '',
+            location: '',
+            salary: '',
+            jobType: '',
+            description: '',
+        });
+        const job = getRegistry().get('indeed/job');
+
+        await expect(job.func(page, { id: 'dccc07ac5a6a3683' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('returns the normalized job detail row on success', async () => {
+        const page = createPageMock({
+            ready: true,
+            challenge: false,
+            notFound: false,
+            title: ' Senior Rust Engineer ',
+            company: 'Acme',
+            location: 'Remote',
+            salary: '$180,000 a year',
+            jobType: 'Full-time',
+            description: 'Build systems',
+        });
+        const job = getRegistry().get('indeed/job');
+
+        const rows = await job.func(page, { id: 'DCCC07AC5A6A3683' });
+
+        expect(rows).toEqual([{
+            id: 'dccc07ac5a6a3683',
+            title: 'Senior Rust Engineer',
+            company: 'Acme',
+            location: 'Remote',
+            salary: '$180,000 a year',
+            job_type: 'Full-time',
+            description: 'Build systems',
+            url: `${INDEED_ORIGIN}/viewjob?jk=dccc07ac5a6a3683`,
+        }]);
     });
 });

@@ -38,9 +38,11 @@ cli({
         let detail;
         try {
             detail = await page.evaluate(`(async () => {
+                let ready = !!document.querySelector('#jobDescriptionText, h1, [data-testid="error-page"]');
                 for (let i = 0; i < 30; i++) {
-                    if (document.querySelector('#jobDescriptionText, h1')) break;
+                    if (ready) break;
                     await new Promise(r => setTimeout(r, 500));
+                    ready = !!document.querySelector('#jobDescriptionText, h1, [data-testid="error-page"]');
                 }
                 const challenge = (document.title || '').includes('Just a moment') || !!document.querySelector('[id^="cf-"]');
                 const notFound = !!document.querySelector('[data-testid="error-page"]') || /Page Not Found|not found/i.test(document.querySelector('h1')?.textContent || '');
@@ -53,7 +55,7 @@ cli({
                     .filter(t => t && t !== salary)
                     .join(', ');
                 const description = document.querySelector('#jobDescriptionText')?.innerText?.trim() ?? '';
-                return { challenge, notFound, title, company, location, salary, jobType, description };
+                return { ready, challenge, notFound, title, company, location, salary, jobType, description };
             })()`);
         }
         catch (e) {
@@ -62,6 +64,9 @@ cli({
 
         if (detail?.challenge) {
             throw new CommandExecutionError('Indeed served a Cloudflare challenge page', 'Open https://www.indeed.com in the connected browser and clear the challenge, then retry.');
+        }
+        if (!detail?.ready) {
+            throw new CommandExecutionError('Indeed job page did not expose detail or error markers within 15s', 'Indeed may still be loading or the DOM shape may have changed; retry after opening Indeed in the connected browser.');
         }
         if (detail?.notFound || (!detail?.title && !detail?.description)) {
             throw new EmptyResultError('indeed job', `No Indeed job posting found for jk "${jk}"`);
