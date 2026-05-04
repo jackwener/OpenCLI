@@ -5,30 +5,7 @@ import './detail.js';
 import './reviews.js';
 import './cart.js';
 import './add-cart.js';
-function createPageMock() {
-    return {
-        goto: vi.fn().mockResolvedValue(undefined),
-        evaluate: vi.fn().mockResolvedValue({ title: 'Demo', price: '¥99' }),
-        snapshot: vi.fn().mockResolvedValue(undefined),
-        click: vi.fn().mockResolvedValue(undefined),
-        typeText: vi.fn().mockResolvedValue(undefined),
-        pressKey: vi.fn().mockResolvedValue(undefined),
-        scrollTo: vi.fn().mockResolvedValue(undefined),
-        getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
-        wait: vi.fn().mockResolvedValue(undefined),
-        tabs: vi.fn().mockResolvedValue([]),
-        selectTab: vi.fn().mockResolvedValue(undefined),
-        networkRequests: vi.fn().mockResolvedValue([]),
-        consoleMessages: vi.fn().mockResolvedValue([]),
-        scroll: vi.fn().mockResolvedValue(undefined),
-        autoScroll: vi.fn().mockResolvedValue(undefined),
-        installInterceptor: vi.fn().mockResolvedValue(undefined),
-        getInterceptedRequests: vi.fn().mockResolvedValue([]),
-        getCookies: vi.fn().mockResolvedValue([]),
-        screenshot: vi.fn().mockResolvedValue(''),
-        waitForCapture: vi.fn().mockResolvedValue(undefined),
-    };
-}
+import { createPageMock } from '../test-utils.js';
 describe('taobao command registration', () => {
     it('registers all taobao shopping commands', () => {
         for (const name of ['search', 'detail', 'reviews', 'cart', 'add-cart']) {

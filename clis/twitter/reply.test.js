@@ -4,35 +4,7 @@ import * as path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './reply.js';
-function createPageMock(evaluateResults, overrides = {}) {
-    const evaluate = vi.fn();
-    for (const result of evaluateResults) {
-        evaluate.mockResolvedValueOnce(result);
-    }
-    return {
-        goto: vi.fn().mockResolvedValue(undefined),
-        evaluate,
-        snapshot: vi.fn().mockResolvedValue(undefined),
-        click: vi.fn().mockResolvedValue(undefined),
-        typeText: vi.fn().mockResolvedValue(undefined),
-        pressKey: vi.fn().mockResolvedValue(undefined),
-        scrollTo: vi.fn().mockResolvedValue(undefined),
-        getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
-        wait: vi.fn().mockResolvedValue(undefined),
-        tabs: vi.fn().mockResolvedValue([]),
-        selectTab: vi.fn().mockResolvedValue(undefined),
-        networkRequests: vi.fn().mockResolvedValue([]),
-        consoleMessages: vi.fn().mockResolvedValue([]),
-        scroll: vi.fn().mockResolvedValue(undefined),
-        autoScroll: vi.fn().mockResolvedValue(undefined),
-        installInterceptor: vi.fn().mockResolvedValue(undefined),
-        getInterceptedRequests: vi.fn().mockResolvedValue([]),
-        getCookies: vi.fn().mockResolvedValue([]),
-        screenshot: vi.fn().mockResolvedValue(''),
-        waitForCapture: vi.fn().mockResolvedValue(undefined),
-        ...overrides,
-    };
-}
+import { createPageMock } from '../test-utils.js';
 describe('twitter reply command', () => {
     it('uses the dedicated reply composer for text-only replies too', async () => {
         const cmd = getRegistry().get('twitter/reply');

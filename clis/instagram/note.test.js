@@ -2,35 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './note.js';
-function createPageMock() {
-    return {
-        goto: vi.fn().mockResolvedValue(undefined),
-        evaluate: vi.fn().mockResolvedValue(undefined),
-        getCookies: vi.fn().mockResolvedValue([]),
-        snapshot: vi.fn().mockResolvedValue(undefined),
-        click: vi.fn().mockResolvedValue(undefined),
-        typeText: vi.fn().mockResolvedValue(undefined),
-        pressKey: vi.fn().mockResolvedValue(undefined),
-        scrollTo: vi.fn().mockResolvedValue(undefined),
-        getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
-        wait: vi.fn().mockResolvedValue(undefined),
-        tabs: vi.fn().mockResolvedValue([]),
-        closeTab: vi.fn().mockResolvedValue(undefined),
-        newTab: vi.fn().mockResolvedValue(undefined),
-        selectTab: vi.fn().mockResolvedValue(undefined),
-        networkRequests: vi.fn().mockResolvedValue([]),
-        consoleMessages: vi.fn().mockResolvedValue([]),
-        scroll: vi.fn().mockResolvedValue(undefined),
-        autoScroll: vi.fn().mockResolvedValue(undefined),
-        installInterceptor: vi.fn().mockResolvedValue(undefined),
-        getInterceptedRequests: vi.fn().mockResolvedValue([]),
-        waitForCapture: vi.fn().mockResolvedValue(undefined),
-        screenshot: vi.fn().mockResolvedValue(''),
-        setFileInput: vi.fn().mockResolvedValue(undefined),
-        insertText: vi.fn().mockResolvedValue(undefined),
-        getCurrentUrl: vi.fn().mockResolvedValue(null),
-    };
-}
+import { createPageMock } from '../test-utils.js';
 describe('instagram note registration', () => {
     beforeEach(() => {
         vi.restoreAllMocks();

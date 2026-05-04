@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { createPageMock } from './test-utils.js';
+import { createPageMock } from '../test-utils.js';
 // Mock download dependencies before importing the adapter
 const { mockHttpDownload, mockMkdirSync } = vi.hoisted(() => ({
     mockHttpDownload: vi.fn(),

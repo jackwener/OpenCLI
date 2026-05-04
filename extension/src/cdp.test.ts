@@ -91,21 +91,4 @@ describe('cdp attach recovery', () => {
     );
   });
 
-  // Dead test: chrome.scripting.executeScript was removed from cdp.ts;
-  // this test references functionality that no longer exists. Delete or rewrite
-  // when cdp attach-recovery logic is next updated.
-  it.skip('retries after cleanup when attach fails with a foreign extension error', async () => {
-    const { chrome, debuggerApi, scripting } = createChromeMock();
-    debuggerApi.attach
-      .mockRejectedValueOnce(new Error('Cannot access a chrome-extension:// URL of different extension'))
-      .mockResolvedValueOnce(undefined);
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./cdp');
-    const result = await mod.evaluate(1, '1');
-
-    expect(result).toBe('ok');
-    expect(scripting.executeScript).toHaveBeenCalledTimes(1);
-    expect(debuggerApi.attach).toHaveBeenCalledTimes(2);
-  });
 });

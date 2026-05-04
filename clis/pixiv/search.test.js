@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { createPageMock } from './test-utils.js';
+import { createPageMock } from '../test-utils.js';
 import './search.js';
 let cmd;
 beforeAll(() => {
