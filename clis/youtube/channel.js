@@ -21,6 +21,7 @@ export function extractSelectedRichGridContents(browseData) {
 cli({
     site: 'youtube',
     name: 'channel',
+    access: 'read',
     description: 'Get YouTube channel info and recent videos',
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,

@@ -5,6 +5,7 @@ import { activateChatGPT, getVisibleChatMessages, selectModel, MODEL_CHOICES, is
 export const askCommand = cli({
     site: 'chatgpt-app',
     name: 'ask',
+    access: 'write',
     description: 'Send a prompt and wait for the AI response (send + wait + read)',
     domain: 'localhost',
     strategy: Strategy.PUBLIC,

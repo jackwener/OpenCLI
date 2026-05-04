@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'bluesky',
     name: 'thread',
+    access: 'read',
     description: 'Get a Bluesky post thread with replies',
     domain: 'public.api.bsky.app',
     strategy: Strategy.PUBLIC,

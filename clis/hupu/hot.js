@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'hupu',
     name: 'hot',
+    access: 'read',
     description: '虎扑热门帖子',
     domain: 'bbs.hupu.com',
     args: [

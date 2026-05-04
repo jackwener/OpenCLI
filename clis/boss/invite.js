@@ -6,6 +6,7 @@ import { requirePage, navigateToChat, bossFetch, findFriendByUid, verbose } from
 cli({
     site: 'boss',
     name: 'invite',
+    access: 'write',
     description: 'BOSS直聘发送面试邀请',
     domain: 'www.zhipin.com',
     strategy: Strategy.COOKIE,

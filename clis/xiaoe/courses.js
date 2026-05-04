@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'xiaoe',
     name: 'courses',
+    access: 'read',
     description: '列出已购小鹅通课程（含 URL 和店铺名）',
     domain: 'study.xiaoe-tech.com',
     strategy: Strategy.COOKIE,

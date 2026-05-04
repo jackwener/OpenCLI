@@ -10,6 +10,7 @@ import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.j
 cli({
     site: 'yollomi',
     name: 'face-swap',
+    access: 'write',
     description: 'Swap faces between two photos (3 credits)',
     domain: YOLLOMI_DOMAIN,
     strategy: Strategy.COOKIE,

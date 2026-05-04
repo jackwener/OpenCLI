@@ -198,6 +198,7 @@ function buildPublishInstagramNoteJs(content) {
 cli({
     site: 'instagram',
     name: 'note',
+    access: 'write',
     description: 'Publish a text Instagram note',
     domain: 'www.instagram.com',
     strategy: Strategy.UI,

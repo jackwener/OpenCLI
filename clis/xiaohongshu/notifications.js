@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'xiaohongshu',
     name: 'notifications',
+    access: 'read',
     description: '小红书通知 (mentions/likes/connections)',
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.INTERCEPT,

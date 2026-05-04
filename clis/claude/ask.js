@@ -9,6 +9,7 @@ import {
 export const askCommand = cli({
     site: 'claude',
     name: 'ask',
+    access: 'write',
     description: 'Send a prompt to Claude and get the response',
     domain: CLAUDE_DOMAIN,
     strategy: Strategy.COOKIE,

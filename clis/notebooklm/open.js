@@ -5,6 +5,7 @@ import { buildNotebooklmNotebookUrl, getNotebooklmPageState, parseNotebooklmNote
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'open',
+    access: 'read',
     aliases: ['select'],
     description: 'Open one NotebookLM notebook in the automation workspace by id or URL',
     domain: NOTEBOOKLM_DOMAIN,

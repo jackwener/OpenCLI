@@ -9,6 +9,7 @@ import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.j
 cli({
     site: 'yollomi',
     name: 'remove-bg',
+    access: 'write',
     description: 'Remove image background with AI (free)',
     domain: YOLLOMI_DOMAIN,
     strategy: Strategy.COOKIE,

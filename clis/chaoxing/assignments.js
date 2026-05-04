@@ -4,6 +4,7 @@ import { getCourses, initSession, enterCourse, getTabIframeUrl, parseAssignments
 cli({
     site: 'chaoxing',
     name: 'assignments',
+    access: 'read',
     description: '学习通作业列表',
     domain: 'mooc2-ans.chaoxing.com',
     strategy: Strategy.COOKIE,

@@ -3,6 +3,7 @@ import { browserFetch } from './_shared/browser-fetch.js';
 cli({
     site: 'douyin',
     name: 'activities',
+    access: 'read',
     description: '官方活动列表',
     domain: 'creator.douyin.com',
     strategy: Strategy.COOKIE,

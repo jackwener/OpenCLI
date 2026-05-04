@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'twitter',
     name: 'followers',
+    access: 'read',
     description: 'Get accounts following a Twitter/X user',
     domain: 'x.com',
     strategy: Strategy.INTERCEPT,

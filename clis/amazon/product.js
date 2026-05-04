@@ -65,6 +65,7 @@ async function readProductPayload(page, input) {
 cli({
     site: 'amazon',
     name: 'product',
+    access: 'read',
     description: 'Amazon product page facts for candidate validation',
     domain: 'amazon.com',
     strategy: Strategy.COOKIE,

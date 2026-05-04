@@ -12,6 +12,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'band',
     name: 'mentions',
+    access: 'read',
     description: 'Show Band notifications where you are @mentioned',
     domain: 'www.band.us',
     strategy: Strategy.INTERCEPT,

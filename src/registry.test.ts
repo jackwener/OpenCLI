@@ -9,7 +9,7 @@ describe('cli() registration', () => {
   it('registers a command and returns it', () => {
     const cmd = cli({
       site: 'test-registry',
-      name: 'hello',
+      name: 'hello', access: 'read',
       description: 'A test command',
       strategy: Strategy.PUBLIC,
       browser: false,
@@ -17,6 +17,7 @@ describe('cli() registration', () => {
 
     expect(cmd.site).toBe('test-registry');
     expect(cmd.name).toBe('hello');
+    expect(cmd.access).toBe('read');
     expect(cmd.strategy).toBe(Strategy.PUBLIC);
     expect(cmd.browser).toBe(false);
     expect(cmd.args).toEqual([]);
@@ -25,7 +26,7 @@ describe('cli() registration', () => {
   it('puts registered command in the registry', () => {
     cli({
       site: 'test-registry',
-      name: 'registered',
+      name: 'registered', access: 'read',
       description: 'test',
     });
 
@@ -36,7 +37,7 @@ describe('cli() registration', () => {
   it('defaults strategy to COOKIE when browser is true', () => {
     const cmd = cli({
       site: 'test-registry',
-      name: 'default-strategy',
+      name: 'default-strategy', access: 'read',
     });
 
     expect(cmd.strategy).toBe(Strategy.COOKIE);
@@ -46,7 +47,7 @@ describe('cli() registration', () => {
   it('defaults strategy to PUBLIC when browser is false', () => {
     const cmd = cli({
       site: 'test-registry',
-      name: 'no-browser',
+      name: 'no-browser', access: 'read',
       browser: false,
     });
 
@@ -56,7 +57,7 @@ describe('cli() registration', () => {
   it('preserves LOCAL strategy on registration', () => {
     const cmd = cli({
       site: 'test-registry',
-      name: 'local-strategy',
+      name: 'local-strategy', access: 'read',
       description: 'reads local credentials',
       strategy: Strategy.LOCAL,
       browser: false,
@@ -67,8 +68,8 @@ describe('cli() registration', () => {
   });
 
   it('overwrites existing command on re-registration', () => {
-    cli({ site: 'test-registry', name: 'overwrite', description: 'v1' });
-    cli({ site: 'test-registry', name: 'overwrite', description: 'v2' });
+    cli({ site: 'test-registry', name: 'overwrite', access: 'read', description: 'v1' });
+    cli({ site: 'test-registry', name: 'overwrite', access: 'read', description: 'v2' });
 
     const reg = getRegistry();
     expect(reg.get('test-registry/overwrite')?.description).toBe('v2');
@@ -77,7 +78,7 @@ describe('cli() registration', () => {
   it('registers aliases as alternate registry keys for the same command', () => {
     const cmd = cli({
       site: 'test-registry',
-      name: 'canonical',
+      name: 'canonical', access: 'read',
       description: 'test aliases',
       aliases: ['compat', 'legacy-name'],
     });
@@ -92,7 +93,7 @@ describe('cli() registration', () => {
   it('preserves defaultFormat on the registered command', () => {
     const cmd = cli({
       site: 'test-registry',
-      name: 'plain-default',
+      name: 'plain-default', access: 'read',
       description: 'prefers plain output',
       defaultFormat: 'plain',
     });
@@ -100,12 +101,19 @@ describe('cli() registration', () => {
     expect(cmd.defaultFormat).toBe('plain');
     expect(getRegistry().get('test-registry/plain-default')?.defaultFormat).toBe('plain');
   });
+
+  it('rejects commands without explicit access metadata', () => {
+    expect(() => cli({
+      site: 'test-registry',
+      name: 'missing-access',
+    } as any)).toThrow("Command test-registry/missing-access must declare access: 'read' | 'write'");
+  });
 });
 
 describe('fullName', () => {
   it('returns site/name', () => {
     const cmd: CliCommand = {
-      site: 'bilibili', name: 'hot', description: '', args: [],
+      site: 'bilibili', name: 'hot', access: 'read', description: '', args: [],
     };
     expect(fullName(cmd)).toBe('bilibili/hot');
   });
@@ -114,7 +122,7 @@ describe('fullName', () => {
 describe('strategyLabel', () => {
   it('returns strategy string', () => {
     const cmd: CliCommand = {
-      site: 'test', name: 'test', description: '', args: [],
+      site: 'test', name: 'test', access: 'read', description: '', args: [],
       strategy: Strategy.INTERCEPT,
     };
     expect(strategyLabel(cmd)).toBe('intercept');
@@ -122,7 +130,7 @@ describe('strategyLabel', () => {
 
   it('returns public when no strategy set', () => {
     const cmd: CliCommand = {
-      site: 'test', name: 'test', description: '', args: [],
+      site: 'test', name: 'test', access: 'read', description: '', args: [],
     };
     expect(strategyLabel(cmd)).toBe('public');
   });
@@ -132,7 +140,7 @@ describe('registerCommand', () => {
   it('registers a pre-built command', () => {
     const cmd: CliCommand = {
       site: 'test-registry',
-      name: 'direct-reg',
+      name: 'direct-reg', access: 'read',
       description: 'directly registered',
       args: [],
       strategy: Strategy.HEADER,
@@ -148,7 +156,7 @@ describe('registerCommand', () => {
 describe('normalizeCommand (via registerCommand)', () => {
   it('COOKIE + domain → navigateBefore is the domain URL', () => {
     registerCommand({
-      site: 'test-norm', name: 'cookie-domain', description: '', args: [],
+      site: 'test-norm', name: 'cookie-domain', access: 'read', description: '', args: [],
       strategy: Strategy.COOKIE, domain: 'x.com',
     });
     const cmd = getRegistry().get('test-norm/cookie-domain')!;
@@ -158,7 +166,7 @@ describe('normalizeCommand (via registerCommand)', () => {
 
   it('COOKIE without domain → navigateBefore is true (auth context, no URL)', () => {
     registerCommand({
-      site: 'test-norm', name: 'cookie-nodomain', description: '', args: [],
+      site: 'test-norm', name: 'cookie-nodomain', access: 'read', description: '', args: [],
       strategy: Strategy.COOKIE,
     });
     const cmd = getRegistry().get('test-norm/cookie-nodomain')!;
@@ -168,7 +176,7 @@ describe('normalizeCommand (via registerCommand)', () => {
 
   it('INTERCEPT → navigateBefore is true (auth context)', () => {
     registerCommand({
-      site: 'test-norm', name: 'intercept', description: '', args: [],
+      site: 'test-norm', name: 'intercept', access: 'read', description: '', args: [],
       strategy: Strategy.INTERCEPT, domain: 'example.com',
     });
     const cmd = getRegistry().get('test-norm/intercept')!;
@@ -178,7 +186,7 @@ describe('normalizeCommand (via registerCommand)', () => {
 
   it('PUBLIC → browser false, navigateBefore undefined', () => {
     registerCommand({
-      site: 'test-norm', name: 'public', description: '', args: [],
+      site: 'test-norm', name: 'public', access: 'read', description: '', args: [],
       strategy: Strategy.PUBLIC,
     });
     const cmd = getRegistry().get('test-norm/public')!;
@@ -188,7 +196,7 @@ describe('normalizeCommand (via registerCommand)', () => {
 
   it('LOCAL → browser false, navigateBefore undefined', () => {
     registerCommand({
-      site: 'test-norm', name: 'local', description: '', args: [],
+      site: 'test-norm', name: 'local', access: 'read', description: '', args: [],
       strategy: Strategy.LOCAL,
     });
     const cmd = getRegistry().get('test-norm/local')!;
@@ -200,7 +208,7 @@ describe('normalizeCommand (via registerCommand)', () => {
 
   it('explicit navigateBefore: false overrides COOKIE + domain', () => {
     registerCommand({
-      site: 'test-norm', name: 'cookie-override', description: '', args: [],
+      site: 'test-norm', name: 'cookie-override', access: 'read', description: '', args: [],
       strategy: Strategy.COOKIE, domain: 'amazon.com', navigateBefore: false,
     });
     const cmd = getRegistry().get('test-norm/cookie-override')!;
@@ -210,7 +218,7 @@ describe('normalizeCommand (via registerCommand)', () => {
 
   it('explicit navigateBefore URL overrides strategy default', () => {
     registerCommand({
-      site: 'test-norm', name: 'explicit-url', description: '', args: [],
+      site: 'test-norm', name: 'explicit-url', access: 'read', description: '', args: [],
       strategy: Strategy.COOKIE, domain: 'x.com',
       navigateBefore: 'https://x.com/explore',
     });

@@ -5,6 +5,7 @@ import { CLAUDE_DOMAIN, CLAUDE_URL, ensureOnClaude, sendMessage, parseBoolFlag, 
 export const sendCommand = cli({
     site: 'claude',
     name: 'send',
+    access: 'write',
     description: 'Send a prompt to Claude without waiting for the response',
     domain: CLAUDE_DOMAIN,
     strategy: Strategy.COOKIE,

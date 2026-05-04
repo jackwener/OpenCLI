@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'instagram',
     name: 'unfollow',
+    access: 'write',
     description: 'Unfollow an Instagram user',
     domain: 'www.instagram.com',
     args: [

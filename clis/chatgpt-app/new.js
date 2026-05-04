@@ -4,6 +4,7 @@ import { ConfigError, getErrorMessage } from '@jackwener/opencli/errors';
 export const newCommand = cli({
     site: 'chatgpt-app',
     name: 'new',
+    access: 'read',
     description: 'Open a new chat in ChatGPT Desktop App',
     domain: 'localhost',
     strategy: Strategy.PUBLIC,

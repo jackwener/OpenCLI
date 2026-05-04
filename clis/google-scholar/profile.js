@@ -5,6 +5,7 @@ import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
 cli({
     site: 'google-scholar',
     name: 'profile',
+    access: 'read',
     description: 'View a Google Scholar author profile',
     domain: 'scholar.google.com',
     strategy: Strategy.PUBLIC,

@@ -732,6 +732,7 @@ async function resolveLatestReelUrl(page, existingPaths) {
 cli({
     site: 'instagram',
     name: 'reel',
+    access: 'write',
     description: 'Post an Instagram reel video',
     domain: 'www.instagram.com',
     strategy: Strategy.UI,

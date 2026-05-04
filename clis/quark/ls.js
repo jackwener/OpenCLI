@@ -43,6 +43,7 @@ function flattenTree(nodes, level = 0) {
 cli({
     site: 'quark',
     name: 'ls',
+    access: 'read',
     description: 'List files in your Quark Drive',
     domain: 'pan.quark.cn',
     strategy: Strategy.COOKIE,

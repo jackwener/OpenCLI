@@ -260,6 +260,7 @@ export const imageCommand = cli({
   site: 'grok',
   name: 'image',
   description: 'Generate images on grok.com and return image URLs',
+  access: 'write',
   domain: 'grok.com',
   strategy: Strategy.COOKIE,
   browser: true,

@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'xiaohongshu',
     name: 'feed',
+    access: 'read',
     description: '小红书首页推荐 Feed (via Pinia Store Action)',
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.INTERCEPT,

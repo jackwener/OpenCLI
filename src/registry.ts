@@ -32,12 +32,14 @@ export interface RequiredEnv {
 export type CommandArgs = Record<string, any>;
 export type BrowserCommandFunc = (page: IPage, kwargs: CommandArgs, debug?: boolean) => Promise<unknown>;
 export type NonBrowserCommandFunc = (kwargs: CommandArgs, debug?: boolean) => Promise<unknown>;
+export type CommandAccess = 'read' | 'write';
 
 interface BaseCliCommand {
   site: string;
   name: string;
   aliases?: string[];
   description: string;
+  access: CommandAccess;
   domain?: string;
   strategy?: Strategy;
   args: Arg[];
@@ -100,6 +102,7 @@ export type InternalCliCommand = CliCommand & {
 type RequiredCliOptions = {
   site: string;
   name: string;
+  access: CommandAccess;
   description?: string;
   args?: Arg[];
 };
@@ -129,6 +132,7 @@ export function cli(opts: CliOptions): CliCommand {
     name: opts.name,
     aliases: opts.aliases,
     description: opts.description ?? '',
+    access: opts.access,
     domain: opts.domain,
     strategy: opts.strategy,
     browser: opts.browser,
@@ -175,6 +179,8 @@ export function strategyLabel(cmd: CliCommand): string {
  *   2. Derived from strategy + domain (the defaults below)
  */
 function normalizeCommand(cmd: RawCliCommand): CliCommand {
+  assertCommandAccess(cmd);
+
   const strategy = cmd.strategy ?? (cmd.browser === false ? Strategy.PUBLIC : Strategy.COOKIE);
   const browser = cmd.browser ?? (strategy !== Strategy.PUBLIC && strategy !== Strategy.LOCAL);
 
@@ -193,6 +199,12 @@ function normalizeCommand(cmd: RawCliCommand): CliCommand {
   return browser
     ? { ...cmd, strategy, browser: true, navigateBefore } as BrowserCliCommand
     : { ...cmd, strategy, browser: false, navigateBefore } as NonBrowserCliCommand;
+}
+
+function assertCommandAccess(cmd: Pick<RawCliCommand, 'site' | 'name'> & { access?: unknown }): asserts cmd is RawCliCommand {
+  if (cmd.access === 'read' || cmd.access === 'write') return;
+  const key = `${cmd.site}/${cmd.name}`;
+  throw new Error(`Command ${key} must declare access: 'read' | 'write'`);
 }
 
 export function registerCommand(cmd: RawCliCommand): void {

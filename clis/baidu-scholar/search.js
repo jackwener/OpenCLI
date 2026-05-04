@@ -4,6 +4,7 @@ import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
 cli({
     site: 'baidu-scholar',
     name: 'search',
+    access: 'read',
     description: '百度学术搜索',
     domain: 'xueshu.baidu.com',
     strategy: Strategy.PUBLIC,

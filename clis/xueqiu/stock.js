@@ -15,6 +15,7 @@ function fmtAmount(v) {
 cli({
     site: 'xueqiu',
     name: 'stock',
+    access: 'read',
     description: '获取雪球股票实时行情',
     domain: 'xueqiu.com',
     browser: true,

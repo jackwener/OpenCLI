@@ -4,6 +4,7 @@ import { DRIVE_API, apiPost, findFolder, pollTask } from './utils.js';
 cli({
     site: 'quark',
     name: 'mv',
+    access: 'write',
     description: 'Move files to a folder in your Quark Drive',
     domain: 'pan.quark.cn',
     strategy: Strategy.COOKIE,

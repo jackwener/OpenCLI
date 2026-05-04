@@ -3,6 +3,7 @@ import { requirePage, navigateToChat, bossFetch, findFriendByUid } from './utils
 cli({
     site: 'boss',
     name: 'chatmsg',
+    access: 'read',
     description: 'BOSS直聘查看与候选人的聊天消息',
     domain: 'www.zhipin.com',
     strategy: Strategy.COOKIE,

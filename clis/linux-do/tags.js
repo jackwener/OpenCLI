@@ -3,6 +3,7 @@ import { fetchLinuxDoJson } from './feed.js';
 cli({
     site: 'linux-do',
     name: 'tags',
+    access: 'read',
     description: 'linux.do 标签列表',
     domain: 'linux.do',
     strategy: Strategy.COOKIE,

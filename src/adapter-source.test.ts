@@ -5,7 +5,7 @@ import { resolveAdapterSourcePath } from './adapter-source.js';
 function makeCmd(overrides: Partial<InternalCliCommand> = {}): InternalCliCommand {
   return {
     site: 'test-site',
-    name: 'test-cmd',
+    name: 'test-cmd', access: 'read',
     description: 'test',
     args: [],
     ...overrides,

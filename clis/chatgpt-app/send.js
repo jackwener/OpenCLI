@@ -4,6 +4,7 @@ import { activateChatGPT, selectModel, MODEL_CHOICES, sendPrompt } from './ax.js
 export const sendCommand = cli({
     site: 'chatgpt-app',
     name: 'send',
+    access: 'write',
     description: 'Send a message to the active ChatGPT Desktop App window',
     domain: 'localhost',
     strategy: Strategy.PUBLIC,

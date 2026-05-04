@@ -4,6 +4,7 @@ import { getActiveGroupId, browserJsonRequest, ensureZsxqAuth, ensureZsxqPage, f
 cli({
     site: 'zsxq',
     name: 'topic',
+    access: 'read',
     description: '获取单个话题详情和评论',
     domain: 'wx.zsxq.com',
     strategy: Strategy.COOKIE,

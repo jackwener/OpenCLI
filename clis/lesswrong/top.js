@@ -3,6 +3,7 @@ import { DOMAIN, SITE, gqlRequest } from './_helpers.js';
 cli({
     site: SITE,
     name: 'top',
+    access: 'read',
     description: 'Top all-time',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,

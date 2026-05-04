@@ -210,6 +210,7 @@ function indentLines(text, depth) {
 cli({
     site: 'stackoverflow',
     name: 'read',
+    access: 'read',
     description: 'Read a Stack Overflow question with answers and comments',
     domain: 'stackoverflow.com',
     strategy: Strategy.PUBLIC,

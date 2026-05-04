@@ -4,6 +4,7 @@ import { DOMAIN, SITE, gqlEscape, gqlRequest, parsePostId, stripHtml, } from './
 cli({
     site: SITE,
     name: 'comments',
+    access: 'read',
     description: 'Top comments on a post',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,

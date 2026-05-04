@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'twitter',
     name: 'unbookmark',
+    access: 'write',
     description: 'Remove a tweet from bookmarks',
     domain: 'x.com',
     strategy: Strategy.UI,

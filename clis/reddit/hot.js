@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'hot',
+    access: 'read',
     description: 'Reddit 热门帖子',
     domain: 'www.reddit.com',
     args: [

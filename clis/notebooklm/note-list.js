@@ -5,6 +5,7 @@ import { getNotebooklmPageState, listNotebooklmNotesFromPage, requireNotebooklmS
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'note-list',
+    access: 'read',
     aliases: ['notes-list'],
     description: 'List saved notes from the Studio panel of the current NotebookLM notebook',
     domain: NOTEBOOKLM_DOMAIN,

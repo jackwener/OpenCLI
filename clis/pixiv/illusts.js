@@ -11,6 +11,7 @@ import { pixivFetch, BATCH_SIZE } from './utils.js';
 cli({
     site: 'pixiv',
     name: 'illusts',
+    access: 'read',
     description: "List a Pixiv artist's illustrations",
     domain: 'www.pixiv.net',
     strategy: Strategy.COOKIE,

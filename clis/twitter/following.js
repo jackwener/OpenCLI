@@ -134,6 +134,7 @@ function normalizeScreenName(value) {
 cli({
     site: 'twitter',
     name: 'following',
+    access: 'read',
     description: 'Get accounts a Twitter/X user is following',
     domain: 'x.com',
     strategy: Strategy.COOKIE,

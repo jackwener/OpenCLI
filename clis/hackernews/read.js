@@ -72,6 +72,7 @@ function moreRepliesIndent(depth) {
 cli({
     site: 'hackernews',
     name: 'read',
+    access: 'read',
     description: 'Read a Hacker News story and its comment tree',
     domain: 'news.ycombinator.com',
     strategy: Strategy.PUBLIC,

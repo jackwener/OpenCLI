@@ -3,6 +3,7 @@ import { fetchWebApi } from './utils.js';
 cli({
     site: 'weread',
     name: 'ranking',
+    access: 'read',
     description: 'WeRead book rankings by category',
     domain: 'weread.qq.com',
     strategy: Strategy.PUBLIC,

@@ -20,6 +20,7 @@ function buildQuery(project, assign) {
 cli({
     site: 'ones',
     name: 'tasks',
+    access: 'read',
     description: 'ONES Project API — list work items (POST team/:team/filters/peek); use token-info -f json for team uuid',
     domain: 'ones.cn',
     strategy: Strategy.COOKIE,

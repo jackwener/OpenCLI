@@ -3,6 +3,7 @@ import { getHupuThreadUrl, readHupuNextData, stripHtml } from './utils.js';
 cli({
     site: 'hupu',
     name: 'detail',
+    access: 'read',
     description: '获取虎扑帖子详情 (使用Next.js JSON数据)',
     domain: 'bbs.hupu.com',
     strategy: Strategy.PUBLIC,

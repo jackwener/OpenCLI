@@ -31,6 +31,7 @@ function getWeekRange() {
 cli({
     site: 'hf',
     name: 'top',
+    access: 'read',
     description: 'Top upvoted Hugging Face papers',
     domain: 'huggingface.co',
     strategy: Strategy.PUBLIC,

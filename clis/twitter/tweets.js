@@ -144,6 +144,7 @@ function parseUserTweets(data, seen) {
 cli({
     site: 'twitter',
     name: 'tweets',
+    access: 'read',
     description: "Fetch a Twitter user's most recent tweets (chronological, excludes pinned)",
     domain: 'x.com',
     strategy: Strategy.COOKIE,

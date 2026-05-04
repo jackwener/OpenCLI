@@ -5,6 +5,7 @@ import { CLAUDE_DOMAIN, getConversationList, ensureClaudeLogin, requirePositiveI
 export const historyCommand = cli({
     site: 'claude',
     name: 'history',
+    access: 'read',
     description: 'List conversation history from Claude /recents',
     domain: CLAUDE_DOMAIN,
     strategy: Strategy.COOKIE,

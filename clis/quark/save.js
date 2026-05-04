@@ -16,6 +16,7 @@ async function saveShare(page, pwdId, stoken, fidList, targetFid, saveAll) {
 cli({
     site: 'quark',
     name: 'save',
+    access: 'write',
     description: 'Save shared files to your Quark Drive',
     domain: 'pan.quark.cn',
     strategy: Strategy.COOKIE,

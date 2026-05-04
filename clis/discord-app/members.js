@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const membersCommand = cli({
     site: 'discord-app',
     name: 'members',
+    access: 'read',
     description: 'List online members in the current Discord channel',
     domain: 'localhost',
     strategy: Strategy.UI,

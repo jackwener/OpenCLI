@@ -14,6 +14,7 @@ import { pixivFetch } from './utils.js';
 cli({
     site: 'pixiv',
     name: 'download',
+    access: 'read',
     description: 'Download illustration images from Pixiv',
     domain: 'www.pixiv.net',
     strategy: Strategy.COOKIE,

@@ -17,6 +17,7 @@ function parseDeepResearchProgress(text) {
 export const deepResearchCommand = cli({
     site: 'gemini',
     name: 'deep-research',
+    access: 'write',
     description: 'Start a Gemini Deep Research run and confirm it',
     domain: GEMINI_DOMAIN,
     strategy: Strategy.COOKIE,

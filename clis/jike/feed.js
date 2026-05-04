@@ -9,6 +9,7 @@ import { getPostDataJs } from './utils.js';
 cli({
     site: 'jike',
     name: 'feed',
+    access: 'read',
     description: '即刻首页动态流',
     domain: 'web.okjike.com',
     strategy: Strategy.COOKIE,

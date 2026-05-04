@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'search',
+    access: 'read',
     description: 'Search Reddit Posts',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,

@@ -5,6 +5,7 @@ const TWEET_RESULT_BY_REST_ID_QUERY_ID = '7xflPyRiUxGVbJd4uWmbfg';
 cli({
     site: 'twitter',
     name: 'article',
+    access: 'read',
     description: 'Fetch a Twitter Article (long-form content) and export as Markdown',
     domain: 'x.com',
     strategy: Strategy.COOKIE,

@@ -7,6 +7,7 @@ import { getSelfUid } from './utils.js';
 cli({
     site: 'weibo',
     name: 'me',
+    access: 'read',
     description: 'My Weibo profile info',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,

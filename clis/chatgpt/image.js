@@ -50,6 +50,7 @@ async function currentChatGPTLink(page) {
 export const imageCommand = cli({
     site: 'chatgpt',
     name: 'image',
+    access: 'write',
     description: 'Generate images with ChatGPT web and save them locally',
     domain: CHATGPT_DOMAIN,
     strategy: Strategy.COOKIE,

@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'jimeng',
     name: 'history',
+    access: 'read',
     description: '即梦AI 查看最近生成的作品',
     domain: 'jimeng.jianying.com',
     strategy: Strategy.COOKIE,

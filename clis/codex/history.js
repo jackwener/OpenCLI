@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const historyCommand = cli({
     site: 'codex',
     name: 'history',
+    access: 'read',
     description: 'List recent conversation threads in Codex',
     domain: 'localhost',
     strategy: Strategy.UI,

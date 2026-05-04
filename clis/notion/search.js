@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const searchCommand = cli({
     site: 'notion',
     name: 'search',
+    access: 'read',
     description: 'Search pages and databases in Notion via Quick Find (Cmd+P)',
     domain: 'localhost',
     strategy: Strategy.UI,

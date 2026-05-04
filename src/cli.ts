@@ -504,13 +504,14 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
               name: c.name,
               aliases: c.aliases?.join(', ') ?? '',
               description: c.description,
+              access: c.access,
               strategy: strategyLabel(c),
               browser: !!c.browser,
               args: formatArgSummary(c.args),
             }));
         renderOutput(rows, {
           fmt,
-          columns: ['command', 'site', 'name', 'aliases', 'description', 'strategy', 'browser', 'args',
+          columns: ['command', 'site', 'name', 'aliases', 'description', 'access', 'strategy', 'browser', 'args',
                      ...(isStructured ? ['columns', 'domain'] : [])],
           title: 'opencli/list',
           source: 'opencli list',
@@ -1963,6 +1964,7 @@ cli({
   site: '${site}',
   name: '${command}',
   description: '', // TODO: describe what this command does
+  access: 'read',  // TODO: 'read' for queries, 'write' for remote/account state changes
   domain: '${domain}',
   strategy: Strategy.PUBLIC, // TODO: PUBLIC (no auth), COOKIE (needs login), UI (DOM interaction)
   browser: false,            // TODO: set true if needs browser

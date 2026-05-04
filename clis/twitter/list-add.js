@@ -65,6 +65,7 @@ function buildUserByScreenNameUrl(queryId, screenName) {
 cli({
     site: 'twitter',
     name: 'list-add',
+    access: 'write',
     description: 'Add a user to a Twitter/X list you own (no-op if already a member)',
     domain: 'x.com',
     strategy: Strategy.UI,

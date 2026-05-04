@@ -94,6 +94,7 @@ async function navigateToSearch(page, query, filter) {
 cli({
     site: 'twitter',
     name: 'search',
+    access: 'read',
     description: 'Search Twitter/X for tweets',
     domain: 'x.com',
     strategy: Strategy.INTERCEPT, // Use intercept strategy

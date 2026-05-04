@@ -7,6 +7,7 @@ import { extractJsonLd, forceEnglishUrl, formatDuration, getCurrentImdbId, isCha
 cli({
     site: 'imdb',
     name: 'title',
+    access: 'read',
     description: 'Get movie or TV show details',
     domain: 'www.imdb.com',
     strategy: Strategy.PUBLIC,

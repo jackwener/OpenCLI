@@ -4,6 +4,7 @@ import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
 cli({
     site: 'wanfang',
     name: 'search',
+    access: 'read',
     description: '万方数据论文搜索',
     domain: 's.wanfangdata.com.cn',
     strategy: Strategy.PUBLIC,

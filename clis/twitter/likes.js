@@ -137,6 +137,7 @@ function parseLikes(data, seen) {
 cli({
     site: 'twitter',
     name: 'likes',
+    access: 'read',
     description: 'Fetch liked tweets of a Twitter user',
     domain: 'x.com',
     strategy: Strategy.COOKIE,

@@ -5,7 +5,7 @@ import { shouldUseBrowserSession } from './capabilityRouting.js';
 function makeCmd(partial: Partial<CliCommand>): CliCommand {
   return {
     site: 'test',
-    name: 'command',
+    name: 'command', access: 'read',
     description: '',
     args: [],
     ...partial,

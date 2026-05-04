@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const readCommand = cli({
     site: 'notion',
     name: 'read',
+    access: 'read',
     description: 'Read the content of the currently open Notion page',
     domain: 'localhost',
     strategy: Strategy.UI,

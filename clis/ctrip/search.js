@@ -26,6 +26,7 @@ function mapSearchResults(results, limit) {
 cli({
     site: 'ctrip',
     name: 'search',
+    access: 'read',
     description: '搜索携程目的地、景区和酒店联想结果',
     strategy: Strategy.PUBLIC,
     browser: false,

@@ -82,6 +82,7 @@ function buildSendMessageEvaluate(text) {
 cli({
     site: 'xianyu',
     name: 'chat',
+    access: 'write',
     description: '打开闲鱼聊一聊会话，并可选发送消息',
     domain: 'www.goofish.com',
     strategy: Strategy.COOKIE,

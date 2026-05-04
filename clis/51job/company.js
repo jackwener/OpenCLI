@@ -13,6 +13,7 @@ import { JOBS_ORIGIN, requirePage, navigateTo, parseCompanyJobCard } from './uti
 cli({
     site: '51job',
     name: 'company',
+    access: 'read',
     description: '51job 公司简介 + 在招职位（按 encCoId）',
     domain: 'jobs.51job.com',
     strategy: Strategy.COOKIE,

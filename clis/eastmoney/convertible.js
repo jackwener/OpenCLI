@@ -19,6 +19,7 @@ const SORTS = {
 cli({
   site: 'eastmoney',
   name: 'convertible',
+    access: 'read',
   description: '可转债行情列表（默认按成交额排序）',
   domain: 'push2.eastmoney.com',
   strategy: Strategy.PUBLIC,

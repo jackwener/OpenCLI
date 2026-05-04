@@ -4,6 +4,7 @@ import { arxivFetch, normalizeArxivCategory, normalizeArxivLimit, parseEntries }
 cli({
     site: 'arxiv',
     name: 'recent',
+    access: 'read',
     description: 'List recent arXiv submissions in a category',
     strategy: Strategy.PUBLIC,
     browser: false,

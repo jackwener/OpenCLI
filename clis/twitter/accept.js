@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'twitter',
     name: 'accept',
+    access: 'write',
     description: 'Auto-accept DM requests containing specific keywords',
     domain: 'x.com',
     strategy: Strategy.UI,

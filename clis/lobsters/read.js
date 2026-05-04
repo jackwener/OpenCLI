@@ -81,6 +81,7 @@ function moreRepliesIndent(depth) {
 cli({
     site: 'lobsters',
     name: 'read',
+    access: 'read',
     description: 'Read a Lobste.rs story and its comment tree',
     domain: 'lobste.rs',
     strategy: Strategy.PUBLIC,

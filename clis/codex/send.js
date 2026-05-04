@@ -3,6 +3,7 @@ import { selectorError } from '@jackwener/opencli/errors';
 export const sendCommand = cli({
     site: 'codex',
     name: 'send',
+    access: 'write',
     description: 'Send text/commands to the Codex AI composer',
     domain: 'localhost',
     strategy: Strategy.UI,

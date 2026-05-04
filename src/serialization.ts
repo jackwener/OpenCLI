@@ -43,6 +43,7 @@ export function serializeCommand(cmd: CliCommand) {
     name: cmd.name,
     aliases: cmd.aliases ?? [],
     description: cmd.description,
+    access: cmd.access,
     strategy: strategyLabel(cmd),
     browser: !!cmd.browser,
     args: cmd.args.map(serializeArg),

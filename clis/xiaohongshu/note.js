@@ -12,6 +12,7 @@ import { parseNoteId, buildNoteUrl } from './note-helpers.js';
 cli({
     site: 'xiaohongshu',
     name: 'note',
+    access: 'read',
     description: '获取小红书笔记正文和互动数据',
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,

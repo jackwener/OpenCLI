@@ -25,7 +25,7 @@ import { registerCommandToProgram } from './commanderAdapter.js';
 describe('commanderAdapter arg passing', () => {
   const cmd: CliCommand = {
     site: 'paperreview',
-    name: 'submit',
+    name: 'submit', access: 'read',
     description: 'Submit a PDF',
     browser: false,
     args: [
@@ -114,7 +114,7 @@ describe('commanderAdapter arg passing', () => {
 describe('commanderAdapter boolean alias support', () => {
   const cmd: CliCommand = {
     site: 'reddit',
-    name: 'save',
+    name: 'save', access: 'read',
     description: 'Save a post',
     browser: false,
     args: [
@@ -161,7 +161,7 @@ describe('commanderAdapter boolean alias support', () => {
 describe('commanderAdapter value-required optional options', () => {
   const cmd: CliCommand = {
     site: 'instagram',
-    name: 'post',
+    name: 'post', access: 'read',
     description: 'Post to Instagram',
     browser: true,
     args: [
@@ -213,6 +213,7 @@ describe('commanderAdapter command aliases', () => {
   const cmd: CliCommand = {
     site: 'notebooklm',
     name: 'get',
+    access: 'read',
     aliases: ['metadata'],
     description: 'Get notebook metadata',
     browser: false,
@@ -255,7 +256,7 @@ describe('commanderAdapter validation preparation', () => {
 
     registerCommandToProgram(siteCmd, {
       site: 'test',
-      name: 'run',
+      name: 'run', access: 'read',
       description: 'Run test command',
       browser: false,
       args: [{ name: 'count', default: '1', help: 'Count' }],
@@ -278,7 +279,7 @@ describe('commanderAdapter validation preparation', () => {
 describe('commanderAdapter default formats', () => {
   const cmd: CliCommand = {
     site: 'gemini',
-    name: 'ask',
+    name: 'ask', access: 'read',
     description: 'Ask Gemini',
     browser: false,
     args: [],
@@ -325,7 +326,7 @@ describe('commanderAdapter default formats', () => {
 describe('commanderAdapter error envelope output', () => {
   const cmd: CliCommand = {
     site: 'xiaohongshu',
-    name: 'note',
+    name: 'note', access: 'read',
     description: 'Read one note',
     browser: false,
     args: [

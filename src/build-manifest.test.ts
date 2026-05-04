@@ -38,12 +38,13 @@ describe('manifest helper rules', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-manifest-'));
     tempDirs.push(dir);
     const file = path.join(dir, `${site}.ts`);
-    fs.writeFileSync(file, `export const command = cli({ site: '${site}', name: 'dynamic' });`);
+    fs.writeFileSync(file, `export const command = cli({ site: '${site}', name: 'dynamic', access: 'read' });`);
 
     const entries = await loadManifestEntries(file, site, async () => ({
       command: cli({
         site,
         name: 'dynamic',
+        access: 'read',
         description: 'dynamic command',
         strategy: Strategy.PUBLIC,
         browser: false,
@@ -69,6 +70,7 @@ describe('manifest helper rules', () => {
       {
         site,
         name: 'dynamic',
+        access: 'read',
         description: 'dynamic command',
         domain: 'localhost',
         strategy: 'public',
@@ -105,12 +107,13 @@ describe('manifest helper rules', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-manifest-'));
     tempDirs.push(dir);
     const file = path.join(dir, `${site}.ts`);
-    fs.writeFileSync(file, `cli({ site: '${site}', name: 'legacy' });`);
+    fs.writeFileSync(file, `cli({ site: '${site}', name: 'legacy', access: 'read' });`);
 
     const entries = await loadManifestEntries(file, site, async () => {
       cli({
         site,
         name: 'legacy',
+        access: 'read',
         description: 'legacy command',
         deprecated: 'legacy is deprecated',
         replacedBy: 'opencli demo new',
@@ -122,6 +125,7 @@ describe('manifest helper rules', () => {
       {
         site,
         name: 'legacy',
+        access: 'read',
         description: 'legacy command',
         strategy: 'cookie',
         browser: true,
@@ -145,17 +149,19 @@ describe('manifest helper rules', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-manifest-'));
     tempDirs.push(dir);
     const file = path.join(dir, `${site}.ts`);
-    fs.writeFileSync(file, `export const screen = cli({ site: '${site}', name: 'screen' });`);
+    fs.writeFileSync(file, `export const screen = cli({ site: '${site}', name: 'screen', access: 'read' });`);
 
     const entries = await loadManifestEntries(file, site, async () => ({
       screen: cli({
         site,
         name: 'screen',
+        access: 'read',
         description: 'capture screen',
       }),
       status: cli({
         site,
         name: 'status',
+        access: 'read',
         description: 'show status',
       }),
     }));
@@ -174,7 +180,7 @@ describe('manifest helper rules', () => {
   it('serializes manifest json with a trailing newline', () => {
     const serialized = serializeManifest([{
       site: 'demo',
-      name: 'status',
+      name: 'status', access: 'read',
       description: '',
       strategy: 'public',
       browser: false,
@@ -193,7 +199,7 @@ describe('manifest helper rules', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-manifest-fail-'));
     tempDirs.push(dir);
     const file = path.join(dir, 'broken.ts');
-    fs.writeFileSync(file, `export const command = cli({ site: 'demo', name: 'broken' });`);
+    fs.writeFileSync(file, `export const command = cli({ site: 'demo', name: 'broken', access: 'read' });`);
 
     const importer = async () => { throw new Error('boom: stale dist'); };
 
@@ -228,13 +234,13 @@ describe('manifest helper rules', () => {
     const siteDir = path.join(root, 'demo');
     fs.mkdirSync(siteDir);
     fs.writeFileSync(path.join(siteDir, 'good.js'),
-      `export const cmd = cli({ site: 'demo', name: 'good' });`);
+      `export const cmd = cli({ site: 'demo', name: 'good', access: 'read' });`);
     fs.writeFileSync(path.join(siteDir, 'broken.js'),
-      `export const cmd = cli({ site: 'demo', name: 'broken' });`);
+      `export const cmd = cli({ site: 'demo', name: 'broken', access: 'read' });`);
 
     const importer = async (href: string): Promise<unknown> => {
       if (href.endsWith('broken.js')) throw new Error('stale dist drops broken');
-      return { cmd: cli({ site: 'demo', name: 'good', description: 'ok' }) };
+      return { cmd: cli({ site: 'demo', name: 'good', access: 'read', description: 'ok' }) };
     };
 
     const result = await scanClisDir(root, importer);
@@ -250,12 +256,12 @@ describe('manifest helper rules', () => {
 
   it('diffRemovedEntries returns site/name keys present only in prev', () => {
     const prev: ManifestEntry[] = [
-      { site: 'a', name: '1', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
-      { site: 'a', name: '2', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
-      { site: 'b', name: '3', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
+      { site: 'a', name: '1', access: 'read', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
+      { site: 'a', name: '2', access: 'read', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
+      { site: 'b', name: '3', access: 'read', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
     ];
     const next: ManifestEntry[] = [
-      { site: 'a', name: '1', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
+      { site: 'a', name: '1', access: 'read', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
     ];
     expect(diffRemovedEntries(prev, next)).toEqual(['a/2', 'b/3']);
     expect(diffRemovedEntries(prev, prev)).toEqual([]);

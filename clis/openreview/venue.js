@@ -14,6 +14,7 @@ import { noteToRow, openreviewFetch, requireBoundedInt, requireNonNegativeInt } 
 cli({
     site: 'openreview',
     name: 'venue',
+    access: 'read',
     description: 'List papers at an OpenReview venue (e.g. "ICLR 2024 oral" or full invitation id)',
     domain: 'openreview.net',
     strategy: Strategy.PUBLIC,

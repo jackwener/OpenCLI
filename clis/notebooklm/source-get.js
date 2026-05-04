@@ -5,6 +5,7 @@ import { findNotebooklmSourceRow, getNotebooklmPageState, listNotebooklmSourcesF
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'source-get',
+    access: 'read',
     description: 'Get one source from the currently opened NotebookLM notebook by id or title',
     domain: NOTEBOOKLM_DOMAIN,
     strategy: Strategy.COOKIE,

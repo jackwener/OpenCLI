@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'twitter',
     name: 'notifications',
+    access: 'read',
     description: 'Get Twitter/X notifications',
     domain: 'x.com',
     strategy: Strategy.INTERCEPT,

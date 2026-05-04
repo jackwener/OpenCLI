@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'tiktok',
     name: 'friends',
+    access: 'read',
     description: 'Get TikTok friend suggestions',
     domain: 'www.tiktok.com',
     args: [

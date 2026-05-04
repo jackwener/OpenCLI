@@ -10,6 +10,7 @@ import { CliError } from '@jackwener/opencli/errors';
 cli({
   site: 'eastmoney',
   name: 'northbound',
+    access: 'read',
   description: '沪深港通北向/南向资金当日分时净流入（万元）',
   domain: 'push2.eastmoney.com',
   strategy: Strategy.PUBLIC,

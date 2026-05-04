@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
   site: 'eastmoney',
   name: 'hot-rank',
+    access: 'read',
   description: '东方财富热股榜',
   domain: 'guba.eastmoney.com',
   strategy: Strategy.COOKIE,

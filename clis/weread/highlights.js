@@ -3,6 +3,7 @@ import { fetchPrivateApi, formatDate } from './utils.js';
 cli({
     site: 'weread',
     name: 'highlights',
+    access: 'read',
     description: 'List your highlights (underlines) in a book',
     domain: 'weread.qq.com',
     strategy: Strategy.COOKIE,

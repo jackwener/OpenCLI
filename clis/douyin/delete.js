@@ -3,6 +3,7 @@ import { browserFetch } from './_shared/browser-fetch.js';
 cli({
     site: 'douyin',
     name: 'delete',
+    access: 'write',
     description: '删除作品',
     domain: 'creator.douyin.com',
     strategy: Strategy.COOKIE,

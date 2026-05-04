@@ -55,6 +55,7 @@ function requireArticleBody(article, id) {
 cli({
     site: 'devto',
     name: 'read',
+    access: 'read',
     description: 'Read a DEV.to article body by id',
     domain: 'dev.to',
     strategy: Strategy.PUBLIC,

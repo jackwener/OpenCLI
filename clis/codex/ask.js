@@ -3,6 +3,7 @@ import { selectorError } from '@jackwener/opencli/errors';
 export const askCommand = cli({
     site: 'codex',
     name: 'ask',
+    access: 'write',
     description: 'Send a prompt and wait for the AI response (send + wait + read)',
     domain: 'localhost',
     strategy: Strategy.UI,

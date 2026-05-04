@@ -3,6 +3,7 @@ import { DOUBAO_DOMAIN, startNewDoubaoChat } from './utils.js';
 export const newCommand = cli({
     site: 'doubao',
     name: 'new',
+    access: 'read',
     description: 'Start a new conversation in Doubao web chat',
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,

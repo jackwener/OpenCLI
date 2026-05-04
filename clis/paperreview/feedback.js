@@ -4,6 +4,7 @@ import { PAPERREVIEW_DOMAIN, ensureSuccess, parseYesNo, requestJson, summarizeFe
 cli({
     site: 'paperreview',
     name: 'feedback',
+    access: 'write',
     description: 'Submit feedback for a paperreview.ai review token',
     domain: PAPERREVIEW_DOMAIN,
     strategy: Strategy.PUBLIC,

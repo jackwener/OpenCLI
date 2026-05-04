@@ -6,6 +6,7 @@ const WEIXIN_DOMAIN = 'mp.weixin.qq.com';
 export const draftsCommand = cli({
     site: 'weixin',
     name: 'drafts',
+    access: 'read',
     description: '列出微信公众号草稿箱',
     domain: WEIXIN_DOMAIN,
     strategy: Strategy.COOKIE,

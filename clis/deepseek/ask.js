@@ -8,6 +8,7 @@ import {
 export const askCommand = cli({
     site: 'deepseek',
     name: 'ask',
+    access: 'write',
     description: 'Send a prompt to DeepSeek and get the response',
     domain: DEEPSEEK_DOMAIN,
     strategy: Strategy.COOKIE,

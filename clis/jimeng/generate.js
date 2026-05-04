@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'jimeng',
     name: 'generate',
+    access: 'write',
     description: '即梦AI 文生图 — 输入 prompt 生成图片',
     domain: 'jimeng.jianying.com',
     strategy: Strategy.COOKIE,

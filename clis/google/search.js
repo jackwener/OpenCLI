@@ -12,6 +12,7 @@ import { CliError } from '@jackwener/opencli/errors';
 cli({
     site: 'google',
     name: 'search',
+    access: 'read',
     description: 'Search Google',
     domain: 'google.com',
     strategy: Strategy.PUBLIC,

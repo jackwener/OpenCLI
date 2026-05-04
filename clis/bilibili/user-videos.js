@@ -3,6 +3,7 @@ import { apiGet, payloadData, resolveUid } from './utils.js';
 cli({
     site: 'bilibili',
     name: 'user-videos',
+    access: 'read',
     description: '查看指定用户的投稿视频',
     domain: 'www.bilibili.com',
     strategy: Strategy.COOKIE,

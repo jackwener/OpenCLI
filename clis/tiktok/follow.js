@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'tiktok',
     name: 'follow',
+    access: 'write',
     description: 'Follow a TikTok user',
     domain: 'www.tiktok.com',
     args: [

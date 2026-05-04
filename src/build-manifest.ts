@@ -98,6 +98,7 @@ function isCliCommandValue(value: unknown, site: string): value is CliCommand {
     && typeof value.site === 'string'
     && value.site === site
     && typeof value.name === 'string'
+    && (value.access === 'read' || value.access === 'write')
     && Array.isArray(value.args);
 }
 
@@ -107,6 +108,7 @@ function toManifestEntry(cmd: CliCommand, modulePath: string, sourceFile?: strin
     name: cmd.name,
     aliases: cmd.aliases,
     description: cmd.description ?? '',
+    access: cmd.access,
     domain: cmd.domain,
     strategy: (cmd.strategy ?? 'public').toString().toLowerCase(),
     browser: cmd.browser ?? true,

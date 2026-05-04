@@ -8,6 +8,7 @@ import { noteToRow, openreviewFetch, requireForumId } from './utils.js';
 cli({
     site: 'openreview',
     name: 'paper',
+    access: 'read',
     description: 'Show full metadata for a single OpenReview paper',
     domain: 'openreview.net',
     strategy: Strategy.PUBLIC,

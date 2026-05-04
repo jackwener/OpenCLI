@@ -34,6 +34,7 @@ async function fetchTopComments(page, awemeId, count) {
 cli({
     site: 'douyin',
     name: 'user-videos',
+    access: 'read',
     description: '获取指定用户的视频列表（含下载地址和热门评论）',
     domain: 'www.douyin.com',
     strategy: Strategy.COOKIE,

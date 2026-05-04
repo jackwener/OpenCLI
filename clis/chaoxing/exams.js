@@ -3,6 +3,7 @@ import { getCourses, initSession, enterCourse, getTabIframeUrl, parseExamsFromDo
 cli({
     site: 'chaoxing',
     name: 'exams',
+    access: 'read',
     description: '学习通考试列表',
     domain: 'mooc2-ans.chaoxing.com',
     strategy: Strategy.COOKIE,

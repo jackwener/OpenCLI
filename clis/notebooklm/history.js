@@ -5,6 +5,7 @@ import { getNotebooklmPageState, listNotebooklmHistoryViaRpc, requireNotebooklmS
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'history',
+    access: 'read',
     description: 'List NotebookLM conversation history threads in the current notebook',
     domain: NOTEBOOKLM_DOMAIN,
     strategy: Strategy.COOKIE,

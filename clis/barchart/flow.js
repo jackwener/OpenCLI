@@ -7,6 +7,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'barchart',
     name: 'flow',
+    access: 'read',
     description: 'Barchart unusual options activity / options flow',
     domain: 'www.barchart.com',
     strategy: Strategy.COOKIE,

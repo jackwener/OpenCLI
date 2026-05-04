@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'instagram',
     name: 'collection-delete',
+    access: 'write',
     description: 'Delete an Instagram saved-posts collection (folder) by name or id',
     domain: 'www.instagram.com',
     args: [

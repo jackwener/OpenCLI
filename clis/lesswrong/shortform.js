@@ -3,6 +3,7 @@ import { DOMAIN, SITE, gqlRequest } from './_helpers.js';
 cli({
     site: SITE,
     name: 'shortform',
+    access: 'read',
     description: 'Quick takes / shortform posts',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,

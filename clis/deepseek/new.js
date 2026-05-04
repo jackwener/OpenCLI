@@ -4,6 +4,7 @@ import { DEEPSEEK_DOMAIN, DEEPSEEK_URL } from './utils.js';
 export const newCommand = cli({
     site: 'deepseek',
     name: 'new',
+    access: 'read',
     description: 'Start a new conversation in DeepSeek',
     domain: DEEPSEEK_DOMAIN,
     strategy: Strategy.COOKIE,

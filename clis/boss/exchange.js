@@ -6,6 +6,7 @@ import { requirePage, navigateToChat, bossFetch, findFriendByUid, verbose } from
 cli({
     site: 'boss',
     name: 'exchange',
+    access: 'write',
     description: 'BOSS直聘交换联系方式（请求手机/微信）',
     domain: 'www.zhipin.com',
     strategy: Strategy.COOKIE,

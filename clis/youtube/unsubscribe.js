@@ -8,6 +8,7 @@ import { CommandExecutionError, AuthRequiredError } from '@jackwener/opencli/err
 cli({
     site: 'youtube',
     name: 'unsubscribe',
+    access: 'write',
     description: 'Unsubscribe from a YouTube channel',
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,

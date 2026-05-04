@@ -12,6 +12,7 @@ function normalizeLimit(value) {
 cli({
   site: 'facebook',
   name: 'marketplace-listings',
+    access: 'read',
   description: 'List your Facebook Marketplace seller listings',
   domain: 'www.facebook.com',
   strategy: Strategy.COOKIE,

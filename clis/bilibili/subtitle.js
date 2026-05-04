@@ -4,6 +4,7 @@ import { apiGet, resolveBvid } from './utils.js';
 cli({
     site: 'bilibili',
     name: 'subtitle',
+    access: 'read',
     description: '获取 Bilibili 视频的字幕',
     strategy: Strategy.COOKIE,
     args: [

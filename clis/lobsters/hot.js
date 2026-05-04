@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'lobsters',
     name: 'hot',
+    access: 'read',
     description: 'Lobste.rs hottest stories',
     domain: 'lobste.rs',
     strategy: Strategy.PUBLIC,

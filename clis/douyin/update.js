@@ -5,6 +5,7 @@ import { toUnixSeconds, validateTiming } from './_shared/timing.js';
 cli({
     site: 'douyin',
     name: 'update',
+    access: 'write',
     description: '更新视频信息',
     domain: 'creator.douyin.com',
     strategy: Strategy.COOKIE,

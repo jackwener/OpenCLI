@@ -352,6 +352,7 @@ async function waitForYuanbaoResponse(page, baselineAssistantCount, beforeLines,
 export const askCommand = cli({
     site: 'yuanbao',
     name: 'ask',
+    access: 'write',
     description: 'Send a prompt to Yuanbao web chat and wait for the assistant response',
     domain: YUANBAO_DOMAIN,
     strategy: Strategy.COOKIE,

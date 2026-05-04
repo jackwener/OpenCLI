@@ -10,6 +10,7 @@ const TIMELINE_ENDPOINTS = {
 cli({
     site: 'weibo',
     name: 'feed',
+    access: 'read',
     description: 'Fetch Weibo timeline (for-you or following)',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,

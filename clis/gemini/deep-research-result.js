@@ -38,6 +38,7 @@ async function resolveDeepResearchExportResponse(page, timeoutSeconds) {
 export const deepResearchResultCommand = cli({
     site: 'gemini',
     name: 'deep-research-result',
+    access: 'read',
     description: 'Export Deep Research report URL from a Gemini conversation',
     domain: GEMINI_DOMAIN,
     strategy: Strategy.COOKIE,

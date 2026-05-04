@@ -4,6 +4,7 @@ import { arxivFetch, parseEntries } from './utils.js';
 cli({
     site: 'arxiv',
     name: 'paper',
+    access: 'read',
     description: 'Get arXiv paper details by ID',
     strategy: Strategy.PUBLIC,
     browser: false,

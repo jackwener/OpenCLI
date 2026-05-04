@@ -5,6 +5,7 @@ import { buildResultRow, requireExecute } from './write-shared.js';
 cli({
     site: 'zhihu',
     name: 'follow',
+    access: 'write',
     description: 'Follow a Zhihu user or question',
     domain: 'www.zhihu.com',
     strategy: Strategy.COOKIE,

@@ -3,6 +3,7 @@ import { DOMAIN, SITE, gqlRequest } from './_helpers.js';
 cli({
     site: SITE,
     name: 'curated',
+    access: 'read',
     description: "Curated editor's picks",
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,

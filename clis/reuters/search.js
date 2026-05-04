@@ -5,6 +5,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reuters',
     name: 'search',
+    access: 'read',
     description: 'Reuters 路透社新闻搜索',
     domain: 'www.reuters.com',
     strategy: Strategy.COOKIE,

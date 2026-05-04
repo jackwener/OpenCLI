@@ -3,6 +3,7 @@ import { selectorError } from '@jackwener/opencli/errors';
 export const composerCommand = cli({
     site: 'cursor',
     name: 'composer',
+    access: 'write',
     description: 'Send a prompt directly into Cursor Composer (Cmd+I shortcut)',
     domain: 'localhost',
     strategy: Strategy.UI,

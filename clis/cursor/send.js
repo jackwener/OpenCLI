@@ -3,6 +3,7 @@ import { selectorError } from '@jackwener/opencli/errors';
 export const sendCommand = cli({
     site: 'cursor',
     name: 'send',
+    access: 'write',
     description: 'Send a prompt directly into Cursor Composer/Chat',
     domain: 'localhost',
     strategy: Strategy.UI,

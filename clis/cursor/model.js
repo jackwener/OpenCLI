@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const modelCommand = cli({
     site: 'cursor',
     name: 'model',
+    access: 'read',
     description: 'Get or switch the currently active AI model in Cursor',
     domain: 'localhost',
     strategy: Strategy.UI,

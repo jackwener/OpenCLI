@@ -3,6 +3,7 @@ import { DOMAIN, SITE, gqlEscape, gqlRequest, resolveUserId } from './_helpers.j
 cli({
     site: SITE,
     name: 'user-posts',
+    access: 'read',
     description: "List a user's posts",
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,

@@ -11,6 +11,7 @@ import { CommandExecutionError } from '@jackwener/opencli/errors';
 cli({
     site: 'reddit',
     name: 'read',
+    access: 'read',
     description: 'Read a Reddit post and its comments',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,

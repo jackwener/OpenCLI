@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const extractDiffCommand = cli({
     site: 'codex',
     name: 'extract-diff',
+    access: 'read',
     description: 'Extract visual code review diff patches from Codex',
     domain: 'localhost',
     strategy: Strategy.UI,

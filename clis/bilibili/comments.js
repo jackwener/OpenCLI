@@ -7,6 +7,7 @@ import { apiGet, resolveBvid } from './utils.js';
 cli({
     site: 'bilibili',
     name: 'comments',
+    access: 'read',
     description: '获取 B站视频评论（使用官方 API + WBI 签名）',
     domain: 'www.bilibili.com',
     strategy: Strategy.COOKIE,

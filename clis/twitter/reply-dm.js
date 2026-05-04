@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'twitter',
     name: 'reply-dm',
+    access: 'write',
     description: 'Send a message to recent DM conversations',
     domain: 'x.com',
     strategy: Strategy.UI,

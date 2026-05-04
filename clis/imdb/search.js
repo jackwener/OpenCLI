@@ -7,6 +7,7 @@ import { forceEnglishUrl, isChallengePage, normalizeImdbTitleType, waitForImdbPa
 cli({
     site: 'imdb',
     name: 'search',
+    access: 'read',
     description: 'Search IMDb for movies, TV shows, and people',
     domain: 'www.imdb.com',
     strategy: Strategy.PUBLIC,

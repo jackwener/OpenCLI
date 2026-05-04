@@ -95,6 +95,7 @@ function parseTweetDetail(data, seen) {
 cli({
     site: 'twitter',
     name: 'thread',
+    access: 'read',
     description: 'Get a tweet thread (original + all replies)',
     domain: 'x.com',
     strategy: Strategy.COOKIE,

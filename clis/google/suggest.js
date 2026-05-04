@@ -7,6 +7,7 @@ import { CliError } from '@jackwener/opencli/errors';
 cli({
     site: 'google',
     name: 'suggest',
+    access: 'read',
     description: 'Get Google search suggestions',
     strategy: Strategy.PUBLIC,
     browser: false,

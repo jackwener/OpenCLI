@@ -3,6 +3,7 @@ import { DOMAIN, SITE, gqlRequest } from './_helpers.js';
 cli({
     site: SITE,
     name: 'tags',
+    access: 'read',
     description: 'List popular tags',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,

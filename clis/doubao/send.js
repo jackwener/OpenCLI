@@ -3,6 +3,7 @@ import { DOUBAO_DOMAIN, sendDoubaoMessage } from './utils.js';
 export const sendCommand = cli({
     site: 'doubao',
     name: 'send',
+    access: 'write',
     description: 'Send a message to Doubao web chat',
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,

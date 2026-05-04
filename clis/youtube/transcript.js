@@ -16,6 +16,7 @@ import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/erro
 cli({
     site: 'youtube',
     name: 'transcript',
+    access: 'read',
     description: 'Get YouTube video transcript/subtitles',
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,

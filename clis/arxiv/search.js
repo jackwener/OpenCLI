@@ -4,6 +4,7 @@ import { arxivFetch, normalizeArxivLimit, parseEntries } from './utils.js';
 cli({
     site: 'arxiv',
     name: 'search',
+    access: 'read',
     description: 'Search arXiv papers',
     strategy: Strategy.PUBLIC,
     browser: false,

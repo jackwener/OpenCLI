@@ -6,6 +6,7 @@ import { requirePage, navigateToChat, fetchRecommendList, clickCandidateInList, 
 cli({
     site: 'boss',
     name: 'batchgreet',
+    access: 'write',
     description: 'BOSS直聘批量向推荐候选人发送招呼',
     domain: 'www.zhipin.com',
     strategy: Strategy.COOKIE,

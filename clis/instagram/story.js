@@ -82,6 +82,7 @@ function buildStorySuccessResult(mediaItem, url) {
 cli({
     site: 'instagram',
     name: 'story',
+    access: 'write',
     description: 'Post a single Instagram story image or video',
     domain: 'www.instagram.com',
     strategy: Strategy.UI,

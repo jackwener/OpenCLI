@@ -5,6 +5,7 @@ import { CLAUDE_DOMAIN, getVisibleMessages, ensureClaudeLogin, requireConversati
 export const detailCommand = cli({
     site: 'claude',
     name: 'detail',
+    access: 'read',
     description: 'Open a Claude conversation by ID and read its messages',
     domain: CLAUDE_DOMAIN,
     strategy: Strategy.COOKIE,

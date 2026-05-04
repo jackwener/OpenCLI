@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'tiktok',
     name: 'user',
+    access: 'read',
     description: 'Get recent videos from a TikTok user',
     domain: 'www.tiktok.com',
     args: [

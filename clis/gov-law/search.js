@@ -5,6 +5,7 @@ import { extractLawResults, navigateViaVueRouter } from './shared.js';
 cli({
     site: 'gov-law',
     name: 'search',
+    access: 'read',
     description: '国家法律法规数据库搜索',
     domain: 'flk.npc.gov.cn',
     strategy: Strategy.PUBLIC,

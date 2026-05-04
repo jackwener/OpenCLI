@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'twitter',
     name: 'like',
+    access: 'write',
     description: 'Like a specific tweet',
     domain: 'x.com',
     strategy: Strategy.UI, // Utilizes internal DOM flows for interaction

@@ -5,6 +5,7 @@ const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
 cli({
     site: 'twitter',
     name: 'profile',
+    access: 'read',
     description: 'Fetch a Twitter user profile (bio, stats, etc.)',
     domain: 'x.com',
     strategy: Strategy.COOKIE,

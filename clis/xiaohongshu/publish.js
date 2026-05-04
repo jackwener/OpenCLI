@@ -450,6 +450,7 @@ async function waitForEditForm(page, maxWaitMs = 10_000) {
 cli({
     site: 'xiaohongshu',
     name: 'publish',
+    access: 'write',
     description: '小红书发布图文笔记 (creator center UI automation)',
     domain: 'creator.xiaohongshu.com',
     strategy: Strategy.COOKIE,

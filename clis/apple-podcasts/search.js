@@ -4,6 +4,7 @@ import { itunesFetch } from './utils.js';
 cli({
     site: 'apple-podcasts',
     name: 'search',
+    access: 'read',
     description: 'Search Apple Podcasts',
     strategy: Strategy.PUBLIC,
     browser: false,

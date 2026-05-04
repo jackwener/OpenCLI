@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const serversCommand = cli({
     site: 'discord-app',
     name: 'servers',
+    access: 'read',
     description: 'List all Discord servers (guilds) in the sidebar',
     domain: 'localhost',
     strategy: Strategy.UI,

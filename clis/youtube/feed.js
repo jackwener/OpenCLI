@@ -8,6 +8,7 @@ import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/erro
 cli({
     site: 'youtube',
     name: 'feed',
+    access: 'read',
     description: 'Get YouTube homepage recommended videos',
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,

@@ -4,6 +4,7 @@ import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
 cli({
     site: 'google-scholar',
     name: 'search',
+    access: 'read',
     description: 'Google Scholar 学术搜索',
     domain: 'scholar.google.com',
     strategy: Strategy.PUBLIC,

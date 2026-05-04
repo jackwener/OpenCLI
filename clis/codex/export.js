@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const exportCommand = cli({
     site: 'codex',
     name: 'export',
+    access: 'read',
     description: 'Export the current Codex conversation to a Markdown file',
     domain: 'localhost',
     strategy: Strategy.UI,

@@ -3,6 +3,7 @@ import { runProcurementDetail } from './shared/procurement-detail.js';
 cli({
     site: 'jianyu',
     name: 'detail',
+    access: 'read',
     description: '读取剑鱼标讯详情页并抽取证据字段',
     domain: 'www.jianyu360.cn',
     strategy: Strategy.COOKIE,

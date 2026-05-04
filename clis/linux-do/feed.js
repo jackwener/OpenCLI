@@ -368,6 +368,7 @@ export function buildLinuxDoCompatFooter(replacement) {
 cli({
     site: 'linux-do',
     name: 'feed',
+    access: 'read',
     description: 'linux.do 话题列表（需登录；支持全站、标签、分类）',
     domain: 'linux.do',
     strategy: Strategy.COOKIE,

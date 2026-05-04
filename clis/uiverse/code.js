@@ -10,6 +10,7 @@ import {
 cli({
   site: 'uiverse',
   name: 'code',
+    access: 'read',
   description: 'Export Uiverse component code (HTML, CSS, React, or Vue)',
   domain: 'uiverse.io',
   strategy: Strategy.PUBLIC,

@@ -5,6 +5,7 @@ import { getNotebooklmDetailViaRpc, getNotebooklmPageState, readCurrentNotebookl
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'get',
+    access: 'read',
     aliases: ['metadata'],
     description: 'Get rich metadata for the currently opened NotebookLM notebook',
     domain: NOTEBOOKLM_DOMAIN,

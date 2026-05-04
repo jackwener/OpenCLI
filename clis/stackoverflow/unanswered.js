@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'stackoverflow',
     name: 'unanswered',
+    access: 'read',
     description: 'Top voted unanswered questions on Stack Overflow',
     domain: 'stackoverflow.com',
     strategy: Strategy.PUBLIC,

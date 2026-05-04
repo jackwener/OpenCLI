@@ -64,6 +64,7 @@ function validateImagePaths(raw) {
 cli({
     site: 'weibo',
     name: 'publish',
+    access: 'write',
     description: 'Publish a new Weibo post immediately',
     domain: 'weibo.com',
     strategy: Strategy.UI,

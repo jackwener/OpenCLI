@@ -9,6 +9,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'smzdm',
     name: 'search',
+    access: 'read',
     description: '什么值得买搜索好价',
     domain: 'www.smzdm.com',
     strategy: Strategy.COOKIE,

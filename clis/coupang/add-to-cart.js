@@ -94,6 +94,7 @@ function buildAddToCartEvaluate(expectedProductId) {
 cli({
     site: 'coupang',
     name: 'add-to-cart',
+    access: 'write',
     description: 'Add a Coupang product to cart using logged-in browser session',
     domain: 'www.coupang.com',
     strategy: Strategy.COOKIE,

@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'facebook',
     name: 'friends',
+    access: 'read',
     description: 'Get Facebook friend suggestions',
     domain: 'www.facebook.com',
     args: [

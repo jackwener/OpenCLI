@@ -16,6 +16,7 @@ import {
 cli({
     site: '51job',
     name: 'hot',
+    access: 'read',
     description: '51job 推荐职位（按城市/行业/排序浏览）',
     domain: 'we.51job.com',
     strategy: Strategy.COOKIE,

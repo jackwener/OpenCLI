@@ -5,6 +5,7 @@ import { buildResultRow, requireExecute, resolveCurrentUserIdentity, resolvePayl
 cli({
     site: 'zhihu',
     name: 'answer',
+    access: 'write',
     description: 'Answer a Zhihu question',
     domain: 'www.zhihu.com',
     strategy: Strategy.COOKIE,

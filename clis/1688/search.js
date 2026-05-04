@@ -275,6 +275,7 @@ async function collectSearchRows(page, query, limit) {
 cli({
     site: '1688',
     name: 'search',
+    access: 'read',
     description: '1688 商品搜索（结果候选、卖家链接、价格/MOQ/销量文本）',
     domain: 'www.1688.com',
     strategy: Strategy.COOKIE,

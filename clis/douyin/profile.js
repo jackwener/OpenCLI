@@ -4,6 +4,7 @@ import { CommandExecutionError } from '@jackwener/opencli/errors';
 cli({
     site: 'douyin',
     name: 'profile',
+    access: 'read',
     description: '获取账号信息',
     domain: 'creator.douyin.com',
     strategy: Strategy.COOKIE,

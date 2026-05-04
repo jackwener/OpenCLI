@@ -81,6 +81,7 @@ function assertSupportedPage(kwargs) {
 cli({
     site: 'tieba',
     name: 'search',
+    access: 'read',
     description: 'Search posts across tieba',
     domain: 'tieba.baidu.com',
     strategy: Strategy.COOKIE,

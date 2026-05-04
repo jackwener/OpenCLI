@@ -4,6 +4,7 @@ import { CLAUDE_DOMAIN, CLAUDE_URL, ensureClaudeComposer } from './utils.js';
 export const newCommand = cli({
     site: 'claude',
     name: 'new',
+    access: 'read',
     description: 'Start a new conversation in Claude',
     domain: CLAUDE_DOMAIN,
     strategy: Strategy.COOKIE,

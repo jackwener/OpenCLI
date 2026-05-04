@@ -4,6 +4,7 @@ import { PAPERREVIEW_DOMAIN, buildReviewUrl, ensureSuccess, requestJson, summari
 cli({
     site: 'paperreview',
     name: 'review',
+    access: 'read',
     description: 'Fetch a paperreview.ai review by token',
     domain: PAPERREVIEW_DOMAIN,
     strategy: Strategy.PUBLIC,

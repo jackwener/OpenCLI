@@ -18,6 +18,7 @@ const RANGES = {
 cli({
   site: 'eastmoney',
   name: 'money-flow',
+    access: 'read',
   description: '主力资金净流入排行（今日/5日/10日）',
   domain: 'push2.eastmoney.com',
   strategy: Strategy.PUBLIC,

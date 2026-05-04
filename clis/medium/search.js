@@ -3,6 +3,7 @@ import { buildMediumSearchUrl, loadMediumPosts } from './utils.js';
 cli({
     site: 'medium',
     name: 'search',
+    access: 'read',
     description: '搜索 Medium 文章',
     domain: 'medium.com',
     strategy: Strategy.COOKIE,

@@ -4,6 +4,7 @@ import { stripHtml } from './utils.js';
 cli({
     site: 'hupu',
     name: 'mentions',
+    access: 'read',
     aliases: ['mention'],
     description: '查看虎扑提到我的回复 (需要登录)',
     domain: 'my.hupu.com',

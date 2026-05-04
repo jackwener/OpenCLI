@@ -171,6 +171,7 @@ cli({
   site: 'my-plugin',
   name: 'my-command',
   description: 'My custom command',
+  access: 'read', // 'read' | 'write'
   strategy: Strategy.PUBLIC,
   browser: false,
   args: [

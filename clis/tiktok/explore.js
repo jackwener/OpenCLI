@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'tiktok',
     name: 'explore',
+    access: 'read',
     description: 'Get trending TikTok videos from explore page',
     domain: 'www.tiktok.com',
     args: [

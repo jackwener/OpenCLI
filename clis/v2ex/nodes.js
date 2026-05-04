@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'v2ex',
     name: 'nodes',
+    access: 'read',
     description: 'V2EX 所有节点列表',
     domain: 'www.v2ex.com',
     strategy: Strategy.PUBLIC,

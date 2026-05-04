@@ -3,6 +3,7 @@ import { buildLinuxDoCompatFooter, executeLinuxDoFeed } from './feed.js';
 cli({
     site: 'linux-do',
     name: 'latest',
+    access: 'read',
     description: 'linux.do 最新话题',
     domain: 'linux.do',
     strategy: Strategy.COOKIE,

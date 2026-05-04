@@ -23,6 +23,7 @@ const SORTS = {
 cli({
   site: 'eastmoney',
   name: 'sectors',
+    access: 'read',
   description: '板块排行（行业/概念/地域）按涨跌幅、主力资金或成交额排序',
   domain: 'push2.eastmoney.com',
   strategy: Strategy.PUBLIC,

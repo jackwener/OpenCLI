@@ -4,6 +4,7 @@ import { DOMAIN, SITE, gqlRequest, resolveTagId } from './_helpers.js';
 cli({
     site: SITE,
     name: 'tag',
+    access: 'read',
     description: 'Posts by tag',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,

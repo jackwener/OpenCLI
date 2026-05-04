@@ -100,6 +100,7 @@ function parseBookmarks(data, seen) {
 cli({
     site: 'twitter',
     name: 'bookmarks',
+    access: 'read',
     description: 'Fetch Twitter/X bookmarks',
     domain: 'x.com',
     strategy: Strategy.COOKIE,

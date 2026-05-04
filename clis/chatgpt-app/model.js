@@ -4,6 +4,7 @@ import { activateChatGPT, selectModel, MODEL_CHOICES } from './ax.js';
 export const modelCommand = cli({
     site: 'chatgpt-app',
     name: 'model',
+    access: 'read',
     description: 'Switch ChatGPT Desktop model/mode (auto, instant, thinking, 5.2-instant, 5.2-thinking)',
     domain: 'localhost',
     strategy: Strategy.PUBLIC,

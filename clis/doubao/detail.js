@@ -3,6 +3,7 @@ import { DOUBAO_DOMAIN, getConversationDetail, parseDoubaoConversationId } from 
 export const detailCommand = cli({
     site: 'doubao',
     name: 'detail',
+    access: 'read',
     description: 'Read a specific Doubao conversation by ID',
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,

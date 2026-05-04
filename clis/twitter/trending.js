@@ -12,6 +12,7 @@ import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
 cli({
     site: 'twitter',
     name: 'trending',
+    access: 'read',
     description: 'Twitter/X trending topics',
     domain: 'x.com',
     strategy: Strategy.COOKIE,

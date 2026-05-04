@@ -7,7 +7,7 @@ describe('formatRegistryHelpText', () => {
   it('summarizes long choices lists so help text stays readable', () => {
     const cmd: CliCommand = {
       site: 'demo',
-      name: 'dynamic',
+      name: 'dynamic', access: 'read',
       description: 'Demo command',
       strategy: Strategy.PUBLIC,
       browser: false,
@@ -28,6 +28,7 @@ describe('formatRegistryHelpText', () => {
     const cmd: CliCommand = {
       site: 'demo',
       name: 'get',
+      access: 'read',
       aliases: ['metadata'],
       description: 'Demo command',
       strategy: Strategy.COOKIE,
@@ -37,6 +38,7 @@ describe('formatRegistryHelpText', () => {
 
     expect(serializeCommand(cmd)).toMatchObject({
       command: 'demo/get',
+      access: 'read',
       aliases: ['metadata'],
     });
     expect(formatRegistryHelpText(cmd)).toContain('Aliases: metadata');

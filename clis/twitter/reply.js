@@ -213,6 +213,7 @@ async function submitReply(page, text) {
 cli({
     site: 'twitter',
     name: 'reply',
+    access: 'write',
     description: 'Reply to a specific tweet, optionally with a local or remote image',
     domain: 'x.com',
     strategy: Strategy.UI, // Uses the UI directly to input and click post

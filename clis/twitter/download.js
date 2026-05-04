@@ -11,6 +11,7 @@ import { downloadMedia } from '@jackwener/opencli/download/media-download';
 cli({
     site: 'twitter',
     name: 'download',
+    access: 'read',
     description: '下载 Twitter/X 媒体（图片和视频）',
     domain: 'x.com',
     strategy: Strategy.COOKIE,

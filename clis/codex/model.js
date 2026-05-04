@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const modelCommand = cli({
     site: 'codex',
     name: 'model',
+    access: 'read',
     description: 'Get or switch the currently active AI model in Codex Desktop',
     domain: 'localhost',
     strategy: Strategy.UI,

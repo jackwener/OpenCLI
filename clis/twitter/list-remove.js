@@ -74,6 +74,7 @@ export function interpretRemoveResponse(status, json) {
 cli({
     site: 'twitter',
     name: 'list-remove',
+    access: 'write',
     description: 'Remove a user from a Twitter/X list you own (toggles via UI; no-op if not currently a member)',
     domain: 'x.com',
     strategy: Strategy.UI,

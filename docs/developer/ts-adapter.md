@@ -12,6 +12,7 @@ cli({
   site: 'mysite',
   name: 'search',
   description: 'Search MySite',
+  access: 'read', // 'read' | 'write'
   domain: 'www.mysite.com',
   strategy: Strategy.COOKIE,      // PUBLIC | COOKIE | HEADER
   args: [
@@ -46,6 +47,14 @@ cli({
   },
 });
 ```
+
+## Access Metadata
+
+Every adapter must declare `access: 'read' | 'write'`.
+
+- Use `read` when the command only retrieves data from the target product or account.
+- Use `write` when the command changes remote product/account state, such as sending messages, publishing, liking, following, buying, deleting, creating remote assets, or starting paid/credit-consuming generation.
+- `download` and `export` commands are `read` when they only read remote data and write local files; local filesystem writes are a separate permission dimension.
 
 ## Strategy Types
 

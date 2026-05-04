@@ -4,6 +4,7 @@ import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
 cli({
     site: 'gov-policy',
     name: 'search',
+    access: 'read',
     description: '中国政府网政策文件搜索',
     domain: 'sousuo.www.gov.cn',
     strategy: Strategy.PUBLIC,

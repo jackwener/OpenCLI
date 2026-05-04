@@ -5,6 +5,7 @@ import { getNotebooklmPageState, readCurrentNotebooklm, requireNotebooklmSession
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'current',
+    access: 'read',
     description: 'Show metadata for the currently opened NotebookLM notebook tab',
     domain: NOTEBOOKLM_DOMAIN,
     strategy: Strategy.COOKIE,

@@ -107,6 +107,7 @@ export function parseListTimeline(data, seen) {
 cli({
     site: 'twitter',
     name: 'list-tweets',
+    access: 'read',
     description: 'Fetch tweets from a Twitter/X list timeline',
     domain: 'x.com',
     strategy: Strategy.COOKIE,

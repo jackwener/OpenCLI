@@ -4,6 +4,7 @@ import { itunesFetch, formatDuration, formatDate } from './utils.js';
 cli({
     site: 'apple-podcasts',
     name: 'episodes',
+    access: 'read',
     description: 'List recent episodes of an Apple Podcast (use ID from search)',
     strategy: Strategy.PUBLIC,
     browser: false,

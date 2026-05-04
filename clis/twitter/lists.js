@@ -87,6 +87,7 @@ export function parseListsManagement(data, seen) {
 export const command = cli({
     site: 'twitter',
     name: 'lists',
+    access: 'read',
     description: 'Get Twitter/X lists for the logged-in user (owned + subscribed)',
     domain: 'x.com',
     strategy: Strategy.COOKIE,

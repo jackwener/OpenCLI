@@ -261,6 +261,7 @@ async function runExplicitWebAsk(page, prompt, timeoutMs, newChat) {
 export const askCommand = cli({
     site: 'grok',
     name: 'ask',
+    access: 'write',
     description: 'Send a message to Grok and get response',
     domain: 'grok.com',
     strategy: Strategy.COOKIE,

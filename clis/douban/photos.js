@@ -3,6 +3,7 @@ import { loadDoubanSubjectPhotos, normalizeDoubanSubjectId } from './utils.js';
 cli({
     site: 'douban',
     name: 'photos',
+    access: 'read',
     description: '获取电影海报/剧照图片列表',
     domain: 'movie.douban.com',
     strategy: Strategy.COOKIE,

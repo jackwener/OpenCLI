@@ -70,6 +70,7 @@ function buildDeleteScript(tweetId) {
 cli({
     site: 'twitter',
     name: 'delete',
+    access: 'write',
     description: 'Delete a specific tweet by URL',
     domain: 'x.com',
     strategy: Strategy.UI, // Utilizes internal DOM flows for interaction

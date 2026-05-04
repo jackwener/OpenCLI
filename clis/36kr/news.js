@@ -5,6 +5,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: '36kr',
     name: 'news',
+    access: 'read',
     description: 'Latest tech/startup news from 36kr (36氪)',
     domain: 'www.36kr.com',
     strategy: Strategy.PUBLIC,

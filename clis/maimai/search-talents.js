@@ -7,6 +7,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
   site: 'maimai',
   name: 'search-talents',
+    access: 'read',
   description: 'Search for candidates on Maimai with multi-dimensional filters',
   domain: 'maimai.cn',
   strategy: Strategy.COOKIE,

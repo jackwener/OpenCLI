@@ -4,6 +4,7 @@ import { normalizeTiebaLimit } from './utils.js';
 cli({
     site: 'tieba',
     name: 'hot',
+    access: 'read',
     description: 'Tieba hot topics',
     domain: 'tieba.baidu.com',
     strategy: Strategy.PUBLIC,

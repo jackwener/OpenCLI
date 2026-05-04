@@ -5,6 +5,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'weibo',
     name: 'hot',
+    access: 'read',
     description: '微博热搜',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,

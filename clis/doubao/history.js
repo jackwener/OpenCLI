@@ -3,6 +3,7 @@ import { DOUBAO_DOMAIN, getDoubaoConversationList } from './utils.js';
 export const historyCommand = cli({
     site: 'doubao',
     name: 'history',
+    access: 'read',
     description: 'List conversation history from Doubao sidebar',
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,

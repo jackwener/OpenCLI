@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const sidebarCommand = cli({
     site: 'notion',
     name: 'sidebar',
+    access: 'read',
     description: 'List pages and databases from the Notion sidebar',
     domain: 'localhost',
     strategy: Strategy.UI,

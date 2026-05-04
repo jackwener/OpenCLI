@@ -3,6 +3,7 @@ import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
 cli({
     site: 'cnki',
     name: 'search',
+    access: 'read',
     description: '中国知网论文搜索（海外版）',
     domain: 'oversea.cnki.net',
     strategy: Strategy.COOKIE,

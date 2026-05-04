@@ -8,6 +8,7 @@ import { CommandExecutionError, AuthRequiredError } from '@jackwener/opencli/err
 cli({
     site: 'youtube',
     name: 'unlike',
+    access: 'write',
     description: 'Remove like from a YouTube video',
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,

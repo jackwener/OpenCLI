@@ -8,6 +8,7 @@ import { parseRssItems } from './utils.js';
 cli({
     site: 'google',
     name: 'trends',
+    access: 'read',
     description: 'Get Google Trends daily trending searches',
     strategy: Strategy.PUBLIC,
     browser: false,

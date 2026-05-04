@@ -3,6 +3,7 @@ import { DOUBAO_DOMAIN, getDoubaoVisibleTurns } from './utils.js';
 export const readCommand = cli({
     site: 'doubao',
     name: 'read',
+    access: 'read',
     description: 'Read the current Doubao conversation history',
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,

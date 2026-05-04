@@ -365,6 +365,7 @@ function formatDiagnostics(data, networkEntries, captureSupported) {
 const command = cli({
     site: 'web',
     name: 'read',
+    access: 'read',
     description: 'Fetch any web page and export as Markdown',
     strategy: Strategy.COOKIE,
     navigateBefore: false, // we handle navigation ourselves

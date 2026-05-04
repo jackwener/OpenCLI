@@ -136,6 +136,7 @@ function parseHomeTimeline(data, seen) {
 cli({
     site: 'twitter',
     name: 'timeline',
+    access: 'read',
     description: 'Fetch Twitter timeline (for-you or following)',
     domain: 'x.com',
     strategy: Strategy.COOKIE,

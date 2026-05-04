@@ -3,6 +3,7 @@ import { DOUBAO_DOMAIN, getDoubaoTranscriptLines, getDoubaoVisibleTurns, sendDou
 export const askCommand = cli({
     site: 'doubao',
     name: 'ask',
+    access: 'write',
     description: 'Send a prompt and wait for the Doubao response',
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,

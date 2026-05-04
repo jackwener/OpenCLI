@@ -4,6 +4,7 @@ import { clampInt } from '../_shared/common.js';
 cli({
     site: 'gov-policy',
     name: 'recent',
+    access: 'read',
     description: '国务院最新政策文件',
     domain: 'www.gov.cn',
     strategy: Strategy.PUBLIC,

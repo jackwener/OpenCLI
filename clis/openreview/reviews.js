@@ -84,6 +84,7 @@ function truncate(text, maxLength) {
 cli({
     site: 'openreview',
     name: 'reviews',
+    access: 'read',
     description: 'Show full review thread (paper + reviews + decisions) for an OpenReview forum',
     domain: 'openreview.net',
     strategy: Strategy.PUBLIC,

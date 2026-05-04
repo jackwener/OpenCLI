@@ -23,6 +23,7 @@ function parsePlaylistId(input) {
 cli({
     site: 'youtube',
     name: 'playlist',
+    access: 'read',
     description: 'Get YouTube playlist info and video list',
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,

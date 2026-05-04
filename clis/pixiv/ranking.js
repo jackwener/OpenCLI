@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'pixiv',
     name: 'ranking',
+    access: 'read',
     description: 'Pixiv illustration rankings (daily/weekly/monthly)',
     domain: 'www.pixiv.net',
     strategy: Strategy.COOKIE,

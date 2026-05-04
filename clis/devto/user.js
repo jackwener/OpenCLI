@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'devto',
     name: 'user',
+    access: 'read',
     description: 'Recent DEV.to articles from a specific user',
     domain: 'dev.to',
     strategy: Strategy.PUBLIC,

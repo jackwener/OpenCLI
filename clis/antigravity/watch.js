@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const watchCommand = cli({
     site: 'antigravity',
     name: 'watch',
+    access: 'read',
     description: 'Stream new chat messages from Antigravity in real-time',
     domain: 'localhost',
     strategy: Strategy.UI,

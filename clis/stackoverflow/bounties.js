@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'stackoverflow',
     name: 'bounties',
+    access: 'read',
     description: 'Active bounties on Stack Overflow',
     domain: 'stackoverflow.com',
     strategy: Strategy.PUBLIC,

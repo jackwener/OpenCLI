@@ -11,6 +11,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'xiaohongshu',
     name: 'creator-stats',
+    access: 'read',
     description: '小红书创作者数据总览 (观看/点赞/收藏/评论/分享/涨粉，含每日趋势)',
     domain: 'creator.xiaohongshu.com',
     strategy: Strategy.COOKIE,

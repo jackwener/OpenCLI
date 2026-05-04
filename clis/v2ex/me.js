@@ -6,6 +6,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'v2ex',
     name: 'me',
+    access: 'read',
     description: 'V2EX 获取个人资料 (余额/未读提醒)',
     domain: 'www.v2ex.com',
     strategy: Strategy.COOKIE,

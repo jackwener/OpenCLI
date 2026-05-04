@@ -3,6 +3,7 @@ import { DOUBAO_DOMAIN, openMeetingPanel, getMeetingSummary, getMeetingChapters,
 export const meetingSummaryCommand = cli({
     site: 'doubao',
     name: 'meeting-summary',
+    access: 'read',
     description: 'Get meeting summary and chapters from a Doubao conversation',
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,

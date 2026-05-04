@@ -3,6 +3,7 @@ import { injectTextScript, clickSendScript } from './utils.js';
 export const sendCommand = cli({
     site: 'doubao-app',
     name: 'send',
+    access: 'write',
     description: 'Send a message to Doubao desktop app',
     domain: 'doubao-app',
     strategy: Strategy.UI,

@@ -115,6 +115,7 @@ async function loadSearchHtmlEntries(query) {
 cli({
     site: 'weread',
     name: 'search',
+    access: 'read',
     description: 'Search books on WeRead',
     domain: 'weread.qq.com',
     strategy: Strategy.PUBLIC,

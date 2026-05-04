@@ -5,6 +5,7 @@ import { requireNonEmptyQuery } from '../_shared/common.js';
 cli({
     site: 'google-scholar',
     name: 'cite',
+    access: 'read',
     description: 'Get citation for a Google Scholar paper',
     domain: 'scholar.google.com',
     strategy: Strategy.PUBLIC,

@@ -45,6 +45,7 @@ cli({
   site: 'mysite',
   name: 'search',
   description: 'Search MySite',
+  access: 'read', // 'read' | 'write'
   domain: 'www.mysite.com',
   strategy: Strategy.COOKIE,
   args: [

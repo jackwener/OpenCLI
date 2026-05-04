@@ -4,6 +4,7 @@ import { getOnesBaseUrl, onesFetchInPage } from './common.js';
 cli({
     site: 'ones',
     name: 'login',
+    access: 'write',
     description: 'ONES Project API — login via Chrome Bridge (POST auth/login); stderr prints export hints for ONES_USER_ID / TOKEN',
     domain: 'ones.cn',
     strategy: Strategy.COOKIE,

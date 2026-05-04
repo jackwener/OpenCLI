@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'stackoverflow',
     name: 'hot',
+    access: 'read',
     description: 'Hot Stack Overflow questions',
     domain: 'stackoverflow.com',
     strategy: Strategy.PUBLIC,

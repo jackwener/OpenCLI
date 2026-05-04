@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'tiktok',
     name: 'unfollow',
+    access: 'write',
     description: 'Unfollow a TikTok user',
     domain: 'www.tiktok.com',
     args: [

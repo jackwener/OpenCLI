@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'twitter',
     name: 'hide-reply',
+    access: 'write',
     description: 'Hide a reply on your tweet (useful for hiding bot/spam replies)',
     domain: 'x.com',
     strategy: Strategy.UI,

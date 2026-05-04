@@ -3,6 +3,7 @@ import { selectorError } from '@jackwener/opencli/errors';
 export const modelCommand = cli({
     site: 'chatwise',
     name: 'model',
+    access: 'read',
     description: 'Get or switch the active AI model in ChatWise',
     domain: 'localhost',
     strategy: Strategy.UI,

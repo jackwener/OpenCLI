@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'tiktok',
     name: 'save',
+    access: 'write',
     description: 'Add a TikTok video to Favorites',
     domain: 'www.tiktok.com',
     args: [

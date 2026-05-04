@@ -21,6 +21,7 @@ function resolveActionLabel(type) {
 cli({
     site: 'jike',
     name: 'notifications',
+    access: 'read',
     description: '即刻通知',
     domain: 'web.okjike.com',
     strategy: Strategy.COOKIE,

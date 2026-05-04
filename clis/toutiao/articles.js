@@ -52,6 +52,7 @@ export function parseToutiaoArticlesText(text) {
 cli({
     site: 'toutiao',
     name: 'articles',
+    access: 'read',
     description: '获取头条号创作者后台文章列表及数据',
     domain: 'mp.toutiao.com',
     args: [

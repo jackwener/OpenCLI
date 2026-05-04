@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'facebook',
     name: 'notifications',
+    access: 'read',
     description: 'Get recent Facebook notifications',
     domain: 'www.facebook.com',
     args: [

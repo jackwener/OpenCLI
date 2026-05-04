@@ -1397,6 +1397,7 @@ async function resolveLatestPostUrl(page, existingPostPaths) {
 cli({
     site: 'instagram',
     name: 'post',
+    access: 'write',
     description: 'Post an Instagram feed image or mixed-media carousel',
     domain: 'www.instagram.com',
     strategy: Strategy.UI,

@@ -97,6 +97,7 @@ function dedupeFavorites(items, favUrl) {
 cli({
   site: 'weibo',
   name: 'favorites',
+    access: 'read',
   description: '我的微博收藏列表',
   domain: 'weibo.com',
   strategy: Strategy.COOKIE,

@@ -5,6 +5,7 @@ import { getNotebooklmPageState, getNotebooklmSummaryViaRpc, readNotebooklmSumma
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'summary',
+    access: 'read',
     description: 'Get the summary block from the currently opened NotebookLM notebook',
     domain: NOTEBOOKLM_DOMAIN,
     strategy: Strategy.COOKIE,

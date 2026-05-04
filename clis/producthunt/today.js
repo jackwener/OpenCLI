@@ -9,6 +9,7 @@ import { fetchFeed } from './utils.js';
 cli({
     site: 'producthunt',
     name: 'today',
+    access: 'read',
     description: "Today's Product Hunt launches (most recent day in feed)",
     domain: 'www.producthunt.com',
     strategy: Strategy.PUBLIC,

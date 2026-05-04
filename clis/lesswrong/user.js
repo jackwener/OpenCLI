@@ -4,6 +4,7 @@ import { DOMAIN, SITE, gqlEscape, gqlRequest, stripHtml } from './_helpers.js';
 cli({
     site: SITE,
     name: 'user',
+    access: 'read',
     description: 'User profile',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,

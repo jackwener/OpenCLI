@@ -10,6 +10,7 @@ const NO_RESPONSE_PREFIX = '[NO RESPONSE]';
 export const askCommand = cli({
     site: 'gemini',
     name: 'ask',
+    access: 'write',
     description: 'Send a prompt to Gemini and return only the assistant response',
     domain: GEMINI_DOMAIN,
     strategy: Strategy.COOKIE,

@@ -3,6 +3,7 @@ import { selectorError } from '@jackwener/opencli/errors';
 export const sendCommand = cli({
     site: 'chatwise',
     name: 'send',
+    access: 'write',
     description: 'Send a message to the active ChatWise conversation',
     domain: 'localhost',
     strategy: Strategy.UI,

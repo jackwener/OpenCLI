@@ -46,6 +46,7 @@ export function summarizeCreatorNote(note, rows, rank) {
 cli({
     site: 'xiaohongshu',
     name: 'creator-notes-summary',
+    access: 'read',
     description: '小红书最近笔记批量摘要 (列表 + 单篇关键数据汇总)',
     domain: 'creator.xiaohongshu.com',
     strategy: Strategy.COOKIE,

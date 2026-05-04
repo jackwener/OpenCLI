@@ -6,6 +6,7 @@ import { CommandExecutionError } from '@jackwener/opencli/errors';
 cli({
     site: 'weibo',
     name: 'user',
+    access: 'read',
     description: 'Get Weibo user profile',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,

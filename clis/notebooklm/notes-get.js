@@ -12,6 +12,7 @@ function matchesNoteTitle(title, query) {
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'notes-get',
+    access: 'read',
     description: 'Get one note from the current NotebookLM notebook by title from the visible note editor',
     domain: NOTEBOOKLM_DOMAIN,
     strategy: Strategy.COOKIE,

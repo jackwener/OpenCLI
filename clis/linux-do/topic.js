@@ -30,6 +30,7 @@ function strip(html) {
 cli({
     site: 'linux-do',
     name: 'topic',
+    access: 'read',
     description: 'linux.do 帖子首页摘要和回复（首屏）',
     domain: 'linux.do',
     strategy: Strategy.COOKIE,

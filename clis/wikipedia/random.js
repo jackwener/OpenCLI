@@ -4,6 +4,7 @@ import { formatSummaryRow, wikiFetch } from './utils.js';
 cli({
     site: 'wikipedia',
     name: 'random',
+    access: 'read',
     description: 'Get a random Wikipedia article',
     strategy: Strategy.PUBLIC,
     browser: false,

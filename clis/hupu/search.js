@@ -3,6 +3,7 @@ import { decodeHtmlEntities, getHupuSearchUrl, readHupuSearchData, stripHtml } f
 cli({
     site: 'hupu',
     name: 'search',
+    access: 'read',
     description: '搜索虎扑帖子 (使用官方API)',
     domain: 'bbs.hupu.com',
     strategy: Strategy.PUBLIC, // 公开API，不需要Cookie

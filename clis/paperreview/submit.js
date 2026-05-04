@@ -4,6 +4,7 @@ import { PAPERREVIEW_DOMAIN, ensureApiSuccess, ensureSuccess, normalizeVenue, re
 cli({
     site: 'paperreview',
     name: 'submit',
+    access: 'write',
     description: 'Submit a PDF to paperreview.ai for review',
     domain: PAPERREVIEW_DOMAIN,
     strategy: Strategy.PUBLIC,

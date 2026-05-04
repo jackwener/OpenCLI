@@ -46,6 +46,7 @@ async function currentGeminiLink(page) {
 export const imageCommand = cli({
     site: 'gemini',
     name: 'image',
+    access: 'write',
     description: 'Generate images with Gemini web and save them locally',
     domain: GEMINI_DOMAIN,
     strategy: Strategy.COOKIE,

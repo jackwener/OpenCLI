@@ -53,6 +53,7 @@ function fmtMktCap(val) {
 cli({
     site: 'sinafinance',
     name: 'stock',
+    access: 'read',
     description: '新浪财经行情（A股/港股/美股）',
     domain: 'suggest3.sinajs.cn,hq.sinajs.cn',
     strategy: Strategy.PUBLIC,

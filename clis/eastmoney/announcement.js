@@ -9,6 +9,7 @@ import { CliError } from '@jackwener/opencli/errors';
 cli({
   site: 'eastmoney',
   name: 'announcement',
+    access: 'read',
   description: '上市公司公告（按交易所筛选）',
   domain: 'np-anotice-stock.eastmoney.com',
   strategy: Strategy.PUBLIC,

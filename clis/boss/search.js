@@ -94,6 +94,7 @@ function formatBossOnline(value) {
 cli({
     site: 'boss',
     name: 'search',
+    access: 'read',
     description: 'BOSS直聘搜索职位（不带关键词时返回为你推荐职位）',
     domain: 'www.zhipin.com',
     strategy: Strategy.COOKIE,

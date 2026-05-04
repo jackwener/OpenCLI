@@ -9,6 +9,7 @@ import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.j
 cli({
     site: 'yollomi',
     name: 'try-on',
+    access: 'write',
     description: 'Virtual try-on — see how clothes look on a person (3 credits)',
     domain: YOLLOMI_DOMAIN,
     strategy: Strategy.COOKIE,

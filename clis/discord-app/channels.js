@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const channelsCommand = cli({
     site: 'discord-app',
     name: 'channels',
+    access: 'read',
     description: 'List channels in the current Discord server',
     domain: 'localhost',
     strategy: Strategy.UI,

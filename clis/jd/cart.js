@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'jd',
     name: 'cart',
+    access: 'read',
     description: '查看京东购物车',
     domain: 'cart.jd.com',
     strategy: Strategy.COOKIE,

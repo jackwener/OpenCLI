@@ -7,6 +7,7 @@ import { parseVideoId } from './utils.js';
 cli({
     site: 'youtube',
     name: 'comments',
+    access: 'read',
     description: 'Get YouTube video comments',
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,

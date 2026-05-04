@@ -5,6 +5,7 @@ import { CLAUDE_DOMAIN, ensureOnClaude, getVisibleMessages, ensureClaudeLogin } 
 export const readCommand = cli({
     site: 'claude',
     name: 'read',
+    access: 'read',
     description: 'Read the current Claude conversation',
     domain: CLAUDE_DOMAIN,
     strategy: Strategy.COOKIE,

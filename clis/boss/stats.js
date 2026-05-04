@@ -6,6 +6,7 @@ import { requirePage, navigateToChat, bossFetch, fetchFriendList, verbose } from
 cli({
     site: 'boss',
     name: 'stats',
+    access: 'read',
     description: 'BOSS直聘职位数据统计',
     domain: 'www.zhipin.com',
     strategy: Strategy.COOKIE,

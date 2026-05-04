@@ -4,6 +4,7 @@ import { DEEPSEEK_DOMAIN, ensureOnDeepSeek, getVisibleMessages } from './utils.j
 export const readCommand = cli({
     site: 'deepseek',
     name: 'read',
+    access: 'read',
     description: 'Read the current DeepSeek conversation',
     domain: DEEPSEEK_DOMAIN,
     strategy: Strategy.COOKIE,

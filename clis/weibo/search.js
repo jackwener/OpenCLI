@@ -6,6 +6,7 @@ import { CliError } from '@jackwener/opencli/errors';
 cli({
     site: 'weibo',
     name: 'search',
+    access: 'read',
     description: '搜索微博',
     domain: 'weibo.com',
     browser: true,

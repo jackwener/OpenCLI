@@ -64,6 +64,7 @@ function normalizeUrl(value) {
 cli({
     site: 'gitee',
     name: 'search',
+    access: 'read',
     description: 'Search repositories on Gitee',
     domain: 'gitee.com',
     strategy: Strategy.PUBLIC,

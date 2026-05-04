@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const readCommand = cli({
     site: 'codex',
     name: 'read',
+    access: 'read',
     description: 'Read the contents of the current Codex conversation thread',
     domain: 'localhost',
     strategy: Strategy.UI,

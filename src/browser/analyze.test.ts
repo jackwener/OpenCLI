@@ -29,8 +29,10 @@ function mkCmd(site: string, name: string, domain?: string): CliCommand {
   return {
     site,
     name,
+    access: 'read',
     description: '',
     domain,
+    browser: false,
     args: [],
   };
 }

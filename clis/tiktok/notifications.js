@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'tiktok',
     name: 'notifications',
+    access: 'read',
     description: 'Get TikTok notifications (likes, comments, mentions, followers)',
     domain: 'www.tiktok.com',
     args: [

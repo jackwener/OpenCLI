@@ -14,7 +14,7 @@ describe('executeCommand — non-browser timeout', () => {
   it('applies timeoutSeconds to non-browser commands', async () => {
     const cmd = cli({
       site: 'test-execution',
-      name: 'non-browser-timeout',
+      name: 'non-browser-timeout', access: 'read',
       description: 'test non-browser timeout',
       browser: false,
       strategy: Strategy.PUBLIC,
@@ -37,7 +37,7 @@ describe('executeCommand — non-browser timeout', () => {
   it('skips timeout when timeoutSeconds is 0', async () => {
     const cmd = cli({
       site: 'test-execution',
-      name: 'non-browser-zero-timeout',
+      name: 'non-browser-zero-timeout', access: 'read',
       description: 'test zero timeout bypasses wrapping',
       browser: false,
       strategy: Strategy.PUBLIC,
@@ -65,7 +65,7 @@ describe('executeCommand — non-browser timeout', () => {
 
     const cmd = cli({
       site: 'test-execution',
-      name: 'browser-close-on-error',
+      name: 'browser-close-on-error', access: 'read',
       description: 'test closeWindow on failure',
       browser: true,
       strategy: Strategy.PUBLIC,
@@ -90,7 +90,7 @@ describe('executeCommand — non-browser timeout', () => {
     try {
       const cmd = cli({
         site: 'test-execution',
-        name: 'browser-live-success',
+        name: 'browser-live-success', access: 'read',
         description: 'test closeWindow skipped with --live on success',
         browser: true,
         strategy: Strategy.PUBLIC,
@@ -118,7 +118,7 @@ describe('executeCommand — non-browser timeout', () => {
     try {
       const cmd = cli({
         site: 'test-execution',
-        name: 'browser-live-failure',
+        name: 'browser-live-failure', access: 'read',
         description: 'test closeWindow skipped with --live on failure',
         browser: true,
         strategy: Strategy.PUBLIC,
@@ -138,7 +138,7 @@ describe('executeCommand — non-browser timeout', () => {
     const validateArgs = vi.fn();
     const cmd: CliCommand = {
       site: 'test-execution',
-      name: 'prepared-validation',
+      name: 'prepared-validation', access: 'read',
       description: 'test prepared validation path',
       browser: false,
       strategy: Strategy.PUBLIC,
@@ -186,7 +186,7 @@ describe('executeCommand — non-browser timeout', () => {
     try {
       const cmd = cli({
         site: 'test-execution',
-        name: 'browser-trace-failure',
+        name: 'browser-trace-failure', access: 'read',
         description: 'test trace export',
         browser: true,
         strategy: Strategy.PUBLIC,
@@ -249,7 +249,7 @@ describe('executeCommand — non-browser timeout', () => {
     try {
       const cmd = cli({
         site: 'test-execution',
-        name: 'browser-trace-success',
+        name: 'browser-trace-success', access: 'read',
         description: 'test trace export on success',
         browser: true,
         strategy: Strategy.PUBLIC,
@@ -308,7 +308,7 @@ describe('executeCommand — non-browser timeout', () => {
     try {
       const cmd = cli({
         site: 'test-execution',
-        name: 'browser-trace-export-fails',
+        name: 'browser-trace-export-fails', access: 'read',
         description: 'test trace export failure handling',
         browser: true,
         strategy: Strategy.PUBLIC,
