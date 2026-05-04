@@ -78,6 +78,41 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
+  it('routes browser-backed adapters through CDP when OPENCLI_CDP_ENDPOINT is set', async () => {
+    const mockPage = { closeWindow: vi.fn().mockResolvedValue(undefined) } as any;
+    let capturedFactoryName = '';
+    let capturedOpts: unknown;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (Factory, fn, opts) => {
+      capturedFactoryName = Factory.name;
+      capturedOpts = opts;
+      return fn(mockPage);
+    });
+
+    const prevEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
+    process.env.OPENCLI_CDP_ENDPOINT = 'http://127.0.0.1:9222';
+    try {
+      const cmd = cli({
+        site: 'test-execution',
+        name: 'browser-cdp-endpoint', access: 'read',
+        description: 'test CDP endpoint routing',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => [{ ok: true }],
+      });
+
+      await executeCommand(cmd, {});
+
+      expect(capturedFactoryName).toBe('CDPBridge');
+      expect(capturedOpts).toMatchObject({ cdpEndpoint: 'http://127.0.0.1:9222' });
+    } finally {
+      if (prevEndpoint === undefined) delete process.env.OPENCLI_CDP_ENDPOINT;
+      else process.env.OPENCLI_CDP_ENDPOINT = prevEndpoint;
+      vi.restoreAllMocks();
+    }
+  });
+
   it('skips closeWindow when OPENCLI_LIVE=1 (success path)', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;

@@ -12,6 +12,8 @@ import { PKG_VERSION } from './version.js';
 const {
   mockBrowserConnect,
   mockBrowserClose,
+  mockCdpConnect,
+  mockCdpClose,
   mockBindTab,
   mockSendCommand,
   mockExecFileSync,
@@ -19,6 +21,8 @@ const {
 } = vi.hoisted(() => ({
   mockBrowserConnect: vi.fn(),
   mockBrowserClose: vi.fn(),
+  mockCdpConnect: vi.fn(),
+  mockCdpClose: vi.fn(),
   mockBindTab: vi.fn(),
   mockSendCommand: vi.fn(),
   mockExecFileSync: vi.fn(),
@@ -27,10 +31,15 @@ const {
 
 vi.mock('./browser/index.js', () => {
   mockBrowserConnect.mockImplementation(async () => browserState.page as IPage);
+  mockCdpConnect.mockImplementation(async () => browserState.page as IPage);
   return {
     BrowserBridge: class {
       connect = mockBrowserConnect;
       close = mockBrowserClose;
+    },
+    CDPBridge: class {
+      connect = mockCdpConnect;
+      close = mockCdpClose;
     },
   };
 });
@@ -472,6 +481,8 @@ describe('browser tab targeting commands', () => {
     stderrSpy.mockClear();
     mockBrowserConnect.mockClear();
     mockBrowserClose.mockReset().mockResolvedValue(undefined);
+    mockCdpConnect.mockClear();
+    mockCdpClose.mockReset().mockResolvedValue(undefined);
     mockBindTab.mockReset().mockResolvedValue({
       workspace: 'bound:default',
       page: 'tab-2',
@@ -548,6 +559,30 @@ describe('browser tab targeting commands', () => {
 
     expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, workspace: 'bound:default' });
     expect(browserState.page?.snapshot).toHaveBeenCalled();
+  });
+
+  it('routes browser commands through CDP when an endpoint is provided', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync([
+      'node',
+      'opencli',
+      'browser',
+      '--cdp-endpoint',
+      'http://127.0.0.1:9222',
+      '--cdp-target',
+      'example',
+      'state',
+    ]);
+
+    expect(mockBrowserConnect).not.toHaveBeenCalled();
+    expect(mockCdpConnect).toHaveBeenCalledWith({
+      timeout: 30,
+      cdpEndpoint: 'http://127.0.0.1:9222',
+      cdpTarget: 'example',
+    });
+    expect(browserState.page?.snapshot).toHaveBeenCalled();
+    expect(mockCdpClose).toHaveBeenCalledTimes(1);
   });
 
   it('blocks history navigation on bound workspaces unless explicitly allowed', async () => {

@@ -37,6 +37,13 @@ Use `127.0.0.1` instead of `localhost` in the SSH command to avoid IPv6 resoluti
 export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
 ```
 
+For one-off browser automation commands, pass the endpoint directly:
+
+```bash
+opencli browser --cdp-endpoint http://127.0.0.1:9222 state
+opencli browser --cdp-endpoint http://127.0.0.1:9222 open https://example.com
+```
+
 ### 4. Verify
 
 ```bash

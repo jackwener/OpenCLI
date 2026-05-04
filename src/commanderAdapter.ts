@@ -105,6 +105,8 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       const result = await executeCommand(cmd, kwargs, verbose, {
         prepared: true,
         ...(typeof globals.profile === 'string' && globals.profile.trim() ? { profile: globals.profile.trim() } : {}),
+        ...(typeof globals.cdpEndpoint === 'string' && globals.cdpEndpoint.trim() ? { cdpEndpoint: globals.cdpEndpoint.trim() } : {}),
+        ...(typeof globals.cdpTarget === 'string' && globals.cdpTarget.trim() ? { cdpTarget: globals.cdpTarget.trim() } : {}),
         ...(typeof optionsRecord.trace === 'string' && optionsRecord.trace !== 'off' ? { trace: optionsRecord.trace } : {}),
       });
       if (result === null || result === undefined) {
