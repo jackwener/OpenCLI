@@ -18,6 +18,12 @@ import { formatRegistryHelpText } from './serialization.js';
 import { render as renderOutput } from './output.js';
 import { executeCommand, prepareCommandArgs } from './execution.js';
 import {
+  commandHelpData,
+  formatSiteCommandDescription,
+  installStructuredHelp,
+  siteHelpData,
+} from './help.js';
+import {
   CliError,
   EXIT_CODES,
   toEnvelope,
@@ -29,8 +35,7 @@ import {
 export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): void {
   if (siteCmd.commands.some((c: Command) => c.name() === cmd.name)) return;
 
-  const deprecatedSuffix = cmd.deprecated ? ' [deprecated]' : '';
-  const subCmd = siteCmd.command(cmd.name).description(`${cmd.description}${deprecatedSuffix}`);
+  const subCmd = siteCmd.command(cmd.name).description(formatSiteCommandDescription(cmd));
   if (cmd.aliases?.length) subCmd.aliases(cmd.aliases);
 
   // Register positional args first, then named options
@@ -53,7 +58,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
     .option('--trace <mode>', 'Trace capture: off, on, retain-on-failure', 'off')
     .option('-v, --verbose', 'Debug output', false);
 
-  subCmd.addHelpText('after', formatRegistryHelpText(cmd));
+  installStructuredHelp(subCmd, () => commandHelpData(cmd), () => formatRegistryHelpText(cmd));
 
   subCmd.action(async (...actionArgs: unknown[]) => {
     const actionOpts = actionArgs[positionalArgs.length] ?? {};
@@ -173,7 +178,7 @@ function renderError(err: unknown, cmdName: string, verbose: boolean, traceMode?
 export function registerAllCommands(
   program: Command,
   siteGroups: Map<string, Command>,
-): void {
+): string[] {
   const seen = new Set<CliCommand>();
   const commandsBySite = new Map<string, CliCommand[]>();
   for (const [, cmd] of getRegistry()) {
@@ -193,5 +198,7 @@ export function registerAllCommands(
     for (const cmd of commands) {
       registerCommandToProgram(siteCmd, cmd);
     }
+    installStructuredHelp(siteCmd, () => siteHelpData(site, commands));
   }
+  return [...commandsBySite.keys()].sort((a, b) => a.localeCompare(b));
 }

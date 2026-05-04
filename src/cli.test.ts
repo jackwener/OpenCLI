@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import yaml from 'js-yaml';
+import { cli, getRegistry, Strategy } from './registry.js';
 import { BrowserCommandError } from './browser/daemon-client.js';
 import type { IPage } from './types.js';
 import { TargetError } from './browser/target-errors.js';
@@ -76,6 +78,111 @@ describe('createProgram root help descriptions', () => {
 
     expect(descriptionFor(program, 'list')).toBe('List all available CLI commands');
     expect(descriptionFor(program, 'doctor')).toBe('Diagnose opencli browser bridge connectivity');
+  });
+
+  it('keeps site adapters out of root commands and lists sites in the root help tail', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'hot',
+        access: 'read',
+        description: 'Bilibili hot videos',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+      });
+      cli({
+        site: 'youtube',
+        name: 'search',
+        access: 'read',
+        description: 'Search YouTube',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+      });
+
+      const program = createProgram('', '');
+      const help = program.helpInformation();
+
+      expect(help).toContain('Site adapters (2):');
+      expect(help).toContain('bilibili, youtube');
+      expect(help).toContain("opencli <site> --help -f yaml");
+      expect(help).not.toMatch(/\n  bilibili\s+hot/);
+      expect(help).not.toMatch(/\n  youtube\s+search/);
+    } finally {
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
+  });
+
+  it('renders root structured help with built-ins and site adapter names', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    const argv = process.argv;
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'hot',
+        access: 'read',
+        description: 'Bilibili hot videos',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+      });
+
+      const program = createProgram('', '');
+      process.argv = ['node', 'opencli', '--help', '-f', 'yaml'];
+      const data = yaml.load(program.helpInformation()) as any;
+
+      expect(data.site_adapters.count).toBe(1);
+      expect(data.site_adapters.sites).toEqual(['bilibili']);
+      expect(data.commands.map((cmd: any) => cmd.name)).toContain('list');
+      expect(data.commands.map((cmd: any) => cmd.name)).not.toContain('bilibili');
+    } finally {
+      process.argv = argv;
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
+  });
+
+  it('renders per-site structured help with all commands, access, args, and examples', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    const argv = process.argv;
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'hot',
+        access: 'read',
+        description: 'Bilibili hot videos',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+        args: [{ name: 'limit', type: 'int', default: 20, help: 'Number of videos' }],
+      });
+
+      const program = createProgram('', '');
+      const site = program.commands.find(cmd => cmd.name() === 'bilibili');
+      expect(site).toBeTruthy();
+      process.argv = ['node', 'opencli', 'bilibili', '--help', '-f', 'yaml'];
+      const data = yaml.load(site!.helpInformation()) as any;
+
+      expect(data.site).toBe('bilibili');
+      expect(data.commands).toMatchObject([
+        {
+          name: 'hot',
+          access: 'read',
+          description: 'Bilibili hot videos',
+          example: 'opencli bilibili hot -f yaml',
+          args: [{ name: 'limit', type: 'int', default: 20 }],
+        },
+      ]);
+    } finally {
+      process.argv = argv;
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
   });
 });
 

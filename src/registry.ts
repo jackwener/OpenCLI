@@ -40,6 +40,8 @@ interface BaseCliCommand {
   aliases?: string[];
   description: string;
   access: CommandAccess;
+  /** Canonical invocation shown in agent-facing help. Generated when omitted. */
+  example?: string;
   domain?: string;
   strategy?: Strategy;
   args: Arg[];

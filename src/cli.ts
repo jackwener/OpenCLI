@@ -19,6 +19,7 @@ import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
+import { formatRootAdapterHelpText, installStructuredHelp, rootHelpData } from './help.js';
 import { EXIT_CODES, getErrorMessage, BrowserConnectError } from './errors.js';
 import { TargetError, type TargetErrorCode } from './browser/target-errors.js';
 import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesResolvedJs, selectResolvedJs, isAutocompleteResolvedJs, clickResolvedJs, type ResolveOptions, type TargetMatchLevel } from './browser/target-resolver.js';
@@ -1965,6 +1966,7 @@ cli({
   name: '${command}',
   description: '', // TODO: describe what this command does
   access: 'read',  // TODO: 'read' for queries, 'write' for remote/account state changes
+  example: 'opencli ${site} ${command} -f yaml',
   domain: '${domain}',
   strategy: Strategy.PUBLIC, // TODO: PUBLIC (no auth), COOKIE (needs login), UI (DOM interaction)
   browser: false,            // TODO: set true if needs browser
@@ -2671,8 +2673,13 @@ cli({
 
   const siteGroups = new Map<string, Command>();
   siteGroups.set('antigravity', antigravityCmd);
-  registerAllCommands(program, siteGroups);
+  const siteNames = registerAllCommands(program, siteGroups);
   applyRootSubcommandSummaries(program);
+  const siteNameSet = new Set(siteNames);
+  program.configureHelp({
+    visibleCommands: (command) => command.commands.filter(child => command !== program || !siteNameSet.has(child.name())),
+  });
+  installStructuredHelp(program, () => rootHelpData(program, siteNames), () => formatRootAdapterHelpText(siteNames));
 
   // ── Unknown command fallback ──────────────────────────────────────────────
   // Security: do NOT auto-discover and register arbitrary system binaries.
