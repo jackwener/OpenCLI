@@ -34,8 +34,11 @@
 
 ## `read` columns
 
-`stackoverflow read <id>` fetches the question, all answers (accepted first,
-then by votes), question comments, and answer comments. It mirrors the
+`stackoverflow read <id>` fetches the question, answers up to
+`--answers-limit` (accepted first, then by votes — if the accepted
+answer is outside the votes-sorted page it is fetched separately and
+prepended), question comments up to `--comments-limit`, and answer
+comments up to `--comments-limit` per answer. It mirrors the
 `hackernews read` and `lobsters read` thread shape.
 
 | Column | Description |
