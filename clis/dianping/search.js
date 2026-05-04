@@ -5,6 +5,10 @@
  * server-side, so the func only needs to parse the SSR DOM after navigate.
  * m.dianping.com (mobile) is intentionally crippled for non-mobile UAs and
  * does not return data without app installation, so it's not used.
+ *
+ * The DOM extractor is defined as a plain top-level function and injected
+ * into `page.evaluate` via `.toString()`, so the same code is exercised by
+ * a JSDOM-against-frozen-fixture unit test (see dianping.test.js).
  */
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
@@ -18,6 +22,72 @@ import {
     resolveCityId,
     wrapDianpingStep,
 } from './utils.js';
+
+/**
+ * Pure DOM extractor for the dianping search-results page.
+ *
+ * Uses bare `document` / `location` so it runs identically in:
+ *   - the live browser (injected via `${extractSearchRows.toString()}`)
+ *   - JSDOM unit tests (which swap `globalThis.document` / `globalThis.location`)
+ */
+export function extractSearchRows() {
+    const items = document.querySelectorAll('#shop-all-list li');
+    if (items.length === 0) {
+        const body = document.body;
+        const sampleText = (body && (body.innerText || body.textContent)) || '';
+        return {
+            ok: false,
+            sample: sampleText.slice(0, 800),
+            url: location.href,
+        };
+    }
+    const rows = [];
+    items.forEach((el, i) => {
+        const resultShape = el.querySelector('.tit h4, .review-num, .mean-price, .tag-addr')
+            || el.querySelector('.tit a, a[data-shopid], a[href*="/shop/"]');
+        if (!resultShape) return;
+
+        const link = el.querySelector('.tit a[href*="/shop/"]')
+            || el.querySelector('a[data-shopid]')
+            || el.querySelector('a[href*="/shop/"]');
+        const shopId = (link && link.getAttribute('data-shopid'))
+            || (link && (link.getAttribute('href') || '').match(/\/shop\/([^?#/]+)/)?.[1])
+            || '';
+        const titleEl = el.querySelector('.tit h4');
+        const name = (titleEl && titleEl.textContent && titleEl.textContent.trim())
+            || (link && link.getAttribute('title'))
+            || '';
+        const reviewEl = el.querySelector('.review-num b');
+        const reviewsRaw = (reviewEl && reviewEl.textContent && reviewEl.textContent.trim()) || '';
+        const priceEl = el.querySelector('.mean-price b');
+        const priceRaw = (priceEl && priceEl.textContent && priceEl.textContent.trim()) || '';
+        const tagAddr = Array.from(el.querySelectorAll('.tag-addr .tag'))
+            .map((t) => t.textContent.trim())
+            .filter(Boolean);
+        let starClass = '';
+        const starWrap = el.querySelector('.nebula_star');
+        if (starWrap) {
+            const m = starWrap.outerHTML.match(/star_(\d{2})/g);
+            if (m && m.length) {
+                const last = m[m.length - 1];
+                const lastDigits = last.match(/star_(\d{2})/)[1];
+                starClass = lastDigits;
+            }
+        }
+        rows.push({
+            rank: i + 1,
+            shop_id: shopId,
+            name,
+            starClass,
+            reviewsRaw,
+            priceRaw,
+            cuisine: tagAddr[0] || '',
+            district: tagAddr[1] || '',
+            url: shopId ? 'https://www.dianping.com/shop/' + shopId : '',
+        });
+    });
+    return { ok: true, rows };
+}
 
 cli({
     site: 'dianping',
@@ -49,62 +119,10 @@ cli({
             await page.wait(2);
         });
 
-        const result = await wrapDianpingStep(`search "${keyword}" extraction`, () => page.evaluate(`
-            (() => {
-                const items = document.querySelectorAll('#shop-all-list li');
-                if (items.length === 0) {
-                    return {
-                        ok: false,
-                        bodyLen: document.body.innerText.length,
-                        sample: document.body.innerText.slice(0, 800),
-                        url: location.href,
-                    };
-                }
-                const rows = [];
-                items.forEach((el, i) => {
-                    const resultShape = el.querySelector('.tit h4, .review-num, .mean-price, .tag-addr')
-                        || el.querySelector('.tit a, a[data-shopid], a[href*="/shop/"]');
-                    if (!resultShape) return;
-
-                    const link = el.querySelector('.tit a[href*="/shop/"]')
-                        || el.querySelector('a[data-shopid]')
-                        || el.querySelector('a[href*="/shop/"]');
-                    const shopId = link?.getAttribute('data-shopid')
-                        || (link?.getAttribute('href') || '').match(/\\/shop\\/([^?#/]+)/)?.[1]
-                        || '';
-                    const name = el.querySelector('.tit h4')?.textContent?.trim()
-                        || link?.getAttribute('title')
-                        || '';
-                    const reviewsRaw = el.querySelector('.review-num b')?.textContent?.trim() || '';
-                    const priceRaw = el.querySelector('.mean-price b')?.textContent?.trim() || '';
-                    const tagAddr = Array.from(el.querySelectorAll('.tag-addr .tag'))
-                        .map((t) => t.textContent.trim())
-                        .filter(Boolean);
-                    let starClass = '';
-                    const starWrap = el.querySelector('.nebula_star');
-                    if (starWrap) {
-                        const m = starWrap.outerHTML.match(/star_(\\d{2})/g);
-                        if (m && m.length) {
-                            const last = m[m.length - 1];
-                            const lastDigits = last.match(/star_(\\d{2})/)[1];
-                            starClass = lastDigits;
-                        }
-                    }
-                    rows.push({
-                        rank: i + 1,
-                        shop_id: shopId,
-                        name,
-                        starClass,
-                        reviewsRaw,
-                        priceRaw,
-                        cuisine: tagAddr[0] || '',
-                        district: tagAddr[1] || '',
-                        url: shopId ? 'https://www.dianping.com/shop/' + shopId : '',
-                    });
-                });
-                return { ok: true, rows };
-            })()
-        `));
+        const result = await wrapDianpingStep(
+            `search "${keyword}" extraction`,
+            () => page.evaluate(`(${extractSearchRows.toString()})()`),
+        );
 
         if (!result || !result.ok) {
             detectAuthOrPageFailure(
