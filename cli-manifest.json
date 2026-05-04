@@ -20065,11 +20065,15 @@
     ],
     "columns": [
       "rank",
+      "id",
       "title",
       "subreddit",
       "score",
       "comments",
-      "url"
+      "author",
+      "url",
+      "created_utc",
+      "selftext"
     ],
     "type": "js",
     "modulePath": "reddit/popular.js",
@@ -20294,12 +20298,15 @@
       }
     ],
     "columns": [
+      "id",
       "title",
       "subreddit",
       "author",
       "score",
       "comments",
-      "url"
+      "url",
+      "created_utc",
+      "selftext"
     ],
     "type": "js",
     "modulePath": "reddit/search.js",
@@ -20345,11 +20352,15 @@
       }
     ],
     "columns": [
+      "id",
       "title",
+      "subreddit",
       "author",
       "upvotes",
       "comments",
-      "url"
+      "url",
+      "created_utc",
+      "selftext"
     ],
     "type": "js",
     "modulePath": "reddit/subreddit.js",
@@ -20413,6 +20424,35 @@
     "type": "js",
     "modulePath": "reddit/subscribe.js",
     "sourceFile": "reddit/subscribe.js",
+    "navigateBefore": "https://reddit.com"
+  },
+  {
+    "site": "reddit",
+    "name": "subscribed",
+    "description": "List subreddits you are subscribed to",
+    "access": "read",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max subreddits to return (auto-paginates; hard cap 1000)"
+      }
+    ],
+    "columns": [
+      "subreddit",
+      "title",
+      "subscribers",
+      "description",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "reddit/subscribed.js",
+    "sourceFile": "reddit/subscribed.js",
     "navigateBefore": "https://reddit.com"
   },
   {

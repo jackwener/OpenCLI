@@ -583,13 +583,6 @@
     ]
   },
   {
-    "command": "reddit/popular",
-    "file": "clis/reddit/popular.js",
-    "missing": [
-      "author"
-    ]
-  },
-  {
     "command": "tieba/search",
     "file": "clis/tieba/search.js",
     "missing": [

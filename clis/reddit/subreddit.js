@@ -23,7 +23,7 @@ cli({
         },
         { name: 'limit', type: 'int', default: 15 },
     ],
-    columns: ['title', 'author', 'upvotes', 'comments', 'url'],
+    columns: ['id', 'title', 'subreddit', 'author', 'upvotes', 'comments', 'url', 'created_utc', 'selftext'],
     pipeline: [
         { navigate: 'https://www.reddit.com' },
         { evaluate: `(async () => {
@@ -42,11 +42,15 @@ cli({
 })()
 ` },
         { map: {
+                id: '${{ item.data.id }}',
                 title: '${{ item.data.title }}',
+                subreddit: '${{ item.data.subreddit_name_prefixed }}',
                 author: '${{ item.data.author }}',
                 upvotes: '${{ item.data.score }}',
                 comments: '${{ item.data.num_comments }}',
                 url: 'https://www.reddit.com${{ item.data.permalink }}',
+                created_utc: '${{ item.data.created_utc }}',
+                selftext: '${{ item.data.selftext }}',
             } },
         { limit: '${{ args.limit }}' },
     ],
