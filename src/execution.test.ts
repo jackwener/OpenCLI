@@ -78,15 +78,15 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
-  it('skips closeWindow when OPENCLI_LIVE=1 (success path)', async () => {
+  it('skips closeWindow when OPENCLI_WINDOW_LIVE=1 (success path)', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
 
     vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
     vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
 
-    const prev = process.env.OPENCLI_LIVE;
-    process.env.OPENCLI_LIVE = '1';
+    const prev = process.env.OPENCLI_WINDOW_LIVE;
+    process.env.OPENCLI_WINDOW_LIVE = '1';
     try {
       const cmd = cli({
         site: 'test-execution',
@@ -100,21 +100,21 @@ describe('executeCommand — non-browser timeout', () => {
       await executeCommand(cmd, {});
       expect(closeWindow).not.toHaveBeenCalled();
     } finally {
-      if (prev === undefined) delete process.env.OPENCLI_LIVE;
-      else process.env.OPENCLI_LIVE = prev;
+      if (prev === undefined) delete process.env.OPENCLI_WINDOW_LIVE;
+      else process.env.OPENCLI_WINDOW_LIVE = prev;
       vi.restoreAllMocks();
     }
   });
 
-  it('skips closeWindow when OPENCLI_LIVE=1 (failure path)', async () => {
+  it('skips closeWindow when OPENCLI_WINDOW_LIVE=1 (failure path)', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
 
     vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
     vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
 
-    const prev = process.env.OPENCLI_LIVE;
-    process.env.OPENCLI_LIVE = '1';
+    const prev = process.env.OPENCLI_WINDOW_LIVE;
+    process.env.OPENCLI_WINDOW_LIVE = '1';
     try {
       const cmd = cli({
         site: 'test-execution',
@@ -128,8 +128,8 @@ describe('executeCommand — non-browser timeout', () => {
       await expect(executeCommand(cmd, {})).rejects.toThrow('adapter failure');
       expect(closeWindow).not.toHaveBeenCalled();
     } finally {
-      if (prev === undefined) delete process.env.OPENCLI_LIVE;
-      else process.env.OPENCLI_LIVE = prev;
+      if (prev === undefined) delete process.env.OPENCLI_WINDOW_LIVE;
+      else process.env.OPENCLI_WINDOW_LIVE = prev;
       vi.restoreAllMocks();
     }
   });

@@ -299,9 +299,9 @@ export async function executeCommand(
             throw wrapped;
           }
         }
-        // --live / OPENCLI_LIVE=1 keeps the automation window open after the
+        // --live / OPENCLI_WINDOW_LIVE=1 keeps the automation window open after the
         // command finishes, so agents (or humans) can inspect the page state.
-        const keepOpen = process.env.OPENCLI_LIVE === '1' || process.env.OPENCLI_LIVE === 'true';
+        const keepOpen = process.env.OPENCLI_WINDOW_LIVE === '1' || process.env.OPENCLI_WINDOW_LIVE === 'true';
         try {
           const result = await runWithTimeout(runCommand(cmd, page, kwargs, debug), {
             timeout: cmd.timeoutSeconds ?? getConfiguredBrowserCommandTimeout(),

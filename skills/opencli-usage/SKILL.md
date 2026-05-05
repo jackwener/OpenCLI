@@ -80,6 +80,7 @@ A few commands override the default via `cmd.defaultFormat` (e.g. chat commands 
 | `OPENCLI_BROWSER_EXPLORE_TIMEOUT` | `120` | For long-running recon (plugin/adapter scaffolding). |
 | `OPENCLI_CACHE_DIR` | `~/.opencli/cache` | Network capture + browser-state cache. |
 | `OPENCLI_WINDOW_FOCUSED` | `false` | `1` → automation window opens in the foreground. |
+| `OPENCLI_WINDOW_LIVE` | `false` | `1` → keep the automation lease open after adapter commands. |
 | `OPENCLI_VERBOSE` | `false` | Verbose logging (also triggered by `-v`). |
 
 Persistent config lives in `~/.opencli/config.yaml`:
