@@ -154,4 +154,6 @@ cli({
 export const __test__ = {
     normalizeNumericId,
     buildChatUrl,
+    buildExtractChatStateEvaluate,
+    buildSendMessageEvaluate,
 };
