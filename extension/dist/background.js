@@ -436,23 +436,33 @@ async function refreshMappings() {
 let ws = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
+let currentDaemonPort = resolveDaemonPort(void 0);
+let daemonPortLoaded = false;
+let daemonPortLoadPromise = null;
 const CONTEXT_ID_KEY = "opencli_context_id_v1";
 let currentContextId = "default";
 let contextIdPromise = null;
 async function getConfiguredDaemonPort() {
+  if (daemonPortLoaded) return currentDaemonPort;
+  if (daemonPortLoadPromise) return daemonPortLoadPromise;
+  daemonPortLoadPromise = loadConfiguredDaemonPort();
+  return daemonPortLoadPromise;
+}
+async function loadConfiguredDaemonPort() {
   try {
     const local = chrome.storage?.local;
-    if (!local) return resolveDaemonPort(void 0);
+    if (!local) return setDaemonPortCache(resolveDaemonPort(void 0));
     const raw = await local.get(DAEMON_PORT_STORAGE_KEY);
-    return resolveDaemonPort(raw[DAEMON_PORT_STORAGE_KEY]);
+    return setDaemonPortCache(resolveDaemonPort(raw[DAEMON_PORT_STORAGE_KEY]));
   } catch {
-    return resolveDaemonPort(void 0);
+    return setDaemonPortCache(resolveDaemonPort(void 0));
   }
 }
 async function setConfiguredDaemonPort(value) {
   const port = parseDaemonPort(value);
   if (!port) throw new Error("daemon port must be an integer between 1 and 65535");
   await chrome.storage?.local?.set({ [DAEMON_PORT_STORAGE_KEY]: port });
+  setDaemonPortCache(port);
   return port;
 }
 async function resetConfiguredDaemonPort() {
@@ -462,7 +472,20 @@ async function resetConfiguredDaemonPort() {
   } else {
     await local?.set?.({ [DAEMON_PORT_STORAGE_KEY]: void 0 });
   }
-  return resolveDaemonPort(void 0);
+  return setDaemonPortCache(resolveDaemonPort(void 0));
+}
+function setDaemonPortCache(port) {
+  currentDaemonPort = port;
+  daemonPortLoaded = true;
+  daemonPortLoadPromise = null;
+  return currentDaemonPort;
+}
+function handleDaemonPortStorageChange(changes, areaName) {
+  if (areaName !== "local" || !(DAEMON_PORT_STORAGE_KEY in changes)) return;
+  const daemonPort = resolveDaemonPort(changes[DAEMON_PORT_STORAGE_KEY]?.newValue);
+  const unchanged = daemonPortLoaded && daemonPort === currentDaemonPort;
+  setDaemonPortCache(daemonPort);
+  if (!unchanged) reconnectDaemon();
 }
 function reconnectDaemon() {
   if (reconnectTimer) {
@@ -472,8 +495,13 @@ function reconnectDaemon() {
   reconnectAttempts = 0;
   const existing = ws;
   ws = null;
-  if (existing && existing.readyState !== WebSocket.CLOSED) {
-    existing.close();
+  if (existing) {
+    existing.onclose = null;
+    existing.onerror = null;
+    try {
+      existing.close();
+    } catch {
+    }
   }
   void connect();
 }
@@ -554,6 +582,7 @@ async function connect() {
   }
   try {
     const contextId = await getCurrentContextId();
+    if (daemonPort !== currentDaemonPort) return;
     ws = new WebSocket(wsUrl);
     currentContextId = contextId;
   } catch {
@@ -945,6 +974,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onStartup.addListener(() => {
   initialize();
 });
+chrome.storage?.onChanged?.addListener(handleDaemonPortStorageChange);
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "keepalive") void connect();
   const workspace = workspaceFromAlarmName(alarm.name);
@@ -957,7 +987,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       const connected = ws?.readyState === WebSocket.OPEN;
       const daemonPort = await getConfiguredDaemonPort();
       const extensionVersion = chrome.runtime.getManifest().version;
-      const daemonVersion = connected ? await fetchDaemonVersion() : null;
+      const daemonVersion = connected ? await fetchDaemonVersion(daemonPort) : null;
       sendResponse({
         connected,
         reconnecting: reconnectTimer !== null,
@@ -993,9 +1023,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   return false;
 });
-async function fetchDaemonVersion() {
+async function fetchDaemonVersion(daemonPort) {
   try {
-    const daemonPort = await getConfiguredDaemonPort();
     const res = await fetch(daemonStatusUrl(daemonPort), {
       method: "GET",
       headers: { "X-OpenCLI": "1" },
