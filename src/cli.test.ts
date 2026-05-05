@@ -580,7 +580,7 @@ describe('config command', () => {
 
     await program.parseAsync(['node', 'opencli', 'config', 'set', 'daemon.port', '23456']);
     expect(stdoutSpy.mock.calls.flat().join('\n')).toContain('daemon.port = 23456');
-    expect(fs.readFileSync(path.join(homeDir, '.opencli', 'config.json'), 'utf-8')).toContain('"port": 23456');
+    expect(fs.readFileSync(path.join(homeDir, '.opencli', 'config.toml'), 'utf-8')).toContain('port = 23456');
 
     stdoutSpy.mockClear();
     await program.parseAsync(['node', 'opencli', 'config', 'get', 'daemon.port']);

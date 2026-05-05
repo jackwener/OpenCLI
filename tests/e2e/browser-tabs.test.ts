@@ -199,8 +199,8 @@ describe('browser tab CLI e2e', () => {
     const configDir = path.join(homeDir, '.opencli');
     fs.mkdirSync(configDir, { recursive: true });
     fs.writeFileSync(
-      path.join(configDir, 'config.json'),
-      JSON.stringify({ version: 1, daemon: { port: daemon.port } }, null, 2) + '\n',
+      path.join(configDir, 'config.toml'),
+      `[daemon]\nport = ${daemon.port}\n`,
       'utf-8',
     );
     return { HOME: homeDir, USERPROFILE: homeDir, ...extra };

@@ -33,8 +33,8 @@ describe('opencli config', () => {
     fs.rmSync(homeDir, { recursive: true, force: true });
   });
 
-  it('uses ~/.opencli/config.json', () => {
-    expect(getConfigPath()).toBe(path.join(homeDir, '.opencli', 'config.json'));
+  it('uses ~/.opencli/config.toml', () => {
+    expect(getConfigPath()).toBe(path.join(homeDir, '.opencli', 'config.toml'));
   });
 
   it('returns the default daemon port when config is missing or malformed', () => {

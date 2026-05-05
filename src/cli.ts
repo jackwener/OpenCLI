@@ -32,7 +32,7 @@ import { buildHtmlTreeJs, type HtmlTreeResult } from './browser/html-tree.js';
 import { buildExtractHtmlJs, runExtractFromHtml } from './browser/extract.js';
 import { analyzeSite, type PageSignals } from './browser/analyze.js';
 import { daemonRestart, daemonStatus, daemonStop } from './commands/daemon.js';
-import { getConfigPath, getConfigValue, isSupportedConfigKey, loadConfig, setConfigValue, unsetConfigValue, type SupportedConfigKey } from './config.js';
+import { getConfigValue, isSupportedConfigKey, setConfigValue, unsetConfigValue, type SupportedConfigKey } from './config.js';
 import { log } from './logger.js';
 import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
@@ -2619,21 +2619,10 @@ cli({
   }
 
   configCmd
-    .command('path')
-    .description('Print the OpenCLI config file path')
-    .action(() => {
-      console.log(getConfigPath());
-    });
-
-  configCmd
     .command('get')
-    .description('Get config as JSON, or print one effective config value')
-    .argument('[key]', 'Config key, currently only daemon.port')
-    .action((rawKey?: string) => {
-      if (!rawKey) {
-        console.log(JSON.stringify(loadConfig(), null, 2));
-        return;
-      }
+    .description('Print one effective config value')
+    .argument('<key>', 'Config key, currently only daemon.port')
+    .action((rawKey: string) => {
       const key = requireConfigKey(rawKey);
       if (!key) return;
       console.log(String(getConfigValue(key)));

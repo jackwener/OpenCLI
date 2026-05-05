@@ -169,8 +169,8 @@ describe('daemon-client', () => {
     const configDir = path.join(homeDir, '.opencli');
     fs.mkdirSync(configDir, { recursive: true });
     fs.writeFileSync(
-      path.join(configDir, 'config.json'),
-      JSON.stringify({ version: 1, daemon: { port: 23456 } }),
+      path.join(configDir, 'config.toml'),
+      '[daemon]\nport = 23456\n',
       'utf-8',
     );
     vi.mocked(fetch).mockResolvedValue({

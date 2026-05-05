@@ -206,7 +206,7 @@ OpenCLI is not only for websites. It can also:
 | `OPENCLI_VERBOSE` | `false` | Enable verbose logging (`-v` flag also works) |
 | `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |
 
-Persistent OpenCLI config is stored in `~/.opencli/config.json`. To change the Browser Bridge daemon port:
+Persistent OpenCLI config is stored in `~/.opencli/config.toml`. To change the Browser Bridge daemon port:
 
 ```bash
 opencli config set daemon.port 23456

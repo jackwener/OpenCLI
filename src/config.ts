@@ -3,6 +3,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { DEFAULT_DAEMON_PORT } from './constants.js';
 
+// Hand-rolled TOML is intentionally limited to [daemon].port. Switch to a TOML
+// library before adding more sections or string/path values.
 export type OpenCliConfig = {
   version: 1;
   daemon?: {
@@ -18,7 +20,7 @@ export function getConfigDir(): string {
 }
 
 export function getConfigPath(): string {
-  return path.join(getConfigDir(), 'config.json');
+  return path.join(getConfigDir(), 'config.toml');
 }
 
 export function emptyConfig(): OpenCliConfig {
@@ -36,15 +38,45 @@ export function parseDaemonPort(value: unknown): number | null {
   return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : null;
 }
 
+function stripTomlComment(value: string): string {
+  const hash = value.indexOf('#');
+  return (hash === -1 ? value : value.slice(0, hash)).trim();
+}
+
+export function parseConfigToml(raw: string): OpenCliConfig {
+  let section = '';
+  let daemonPort: number | null = null;
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const sectionMatch = /^\[([A-Za-z0-9_.-]+)\]$/.exec(trimmed);
+    if (sectionMatch) {
+      section = sectionMatch[1];
+      continue;
+    }
+    if (section !== 'daemon') continue;
+    const assignment = /^([A-Za-z0-9_.-]+)\s*=\s*(.+)$/.exec(trimmed);
+    if (!assignment) continue;
+    if (assignment[1] === 'port') daemonPort = parseDaemonPort(stripTomlComment(assignment[2]));
+  }
+  return {
+    version: 1,
+    ...(daemonPort == null ? {} : { daemon: { port: daemonPort } }),
+  };
+}
+
+export function serializeConfigToml(config: OpenCliConfig): string {
+  const lines: string[] = [];
+  if (config.daemon?.port != null) {
+    lines.push('[daemon]', `port = ${config.daemon.port}`);
+  }
+  return lines.length === 0 ? '' : `${lines.join('\n')}\n`;
+}
+
 export function loadConfig(): OpenCliConfig {
   try {
     const raw = fs.readFileSync(getConfigPath(), 'utf-8');
-    const parsed = JSON.parse(raw) as Partial<OpenCliConfig>;
-    const daemonPort = parseDaemonPort(parsed.daemon?.port);
-    return {
-      version: 1,
-      ...(daemonPort == null ? {} : { daemon: { port: daemonPort } }),
-    };
+    return parseConfigToml(raw);
   } catch {
     return emptyConfig();
   }
@@ -55,7 +87,7 @@ export function saveConfig(config: OpenCliConfig): void {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
   try {
-    fs.writeFileSync(tmp, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+    fs.writeFileSync(tmp, serializeConfigToml(config), 'utf-8');
     fs.renameSync(tmp, target);
   } finally {
     try {
