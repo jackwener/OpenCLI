@@ -188,6 +188,7 @@ DONE
 | `references/site-memory/<site>.md` | Step 2 读站点公共知识（eastmoney / xueqiu / bilibili / tonghuashun 已铺） |
 | `references/success-rate-pitfalls.md` | Step 7 / 11 踩坑前翻：10 种"verify 能过但数据是错的"静默失败 |
 | `references/jsdom-fixture-pattern.md` | 当 adapter 走 `page.evaluate` 内 DOM 抽取、且 mocked-evaluate 单测漏 silent bug 时——把 HTML 冻进 `clis/<site>/__fixtures__/` 用 JSDOM 跑（含 fixture 创建 mandatory `awk 'NF>0'` 收紧 + reverse-validate 纪律） |
+| `references/typed-errors.md` | 写 `func` 主体之前必读：5 类 typed error 落点表（ArgumentError / EmptyResultError / CommandExecutionError / AuthRequiredError / TimeoutError）+ 三大 silent anti-pattern（silent-clamp / sentinel-row / generic CliError）的反例修法 |
 
 ---
 
@@ -195,7 +196,9 @@ DONE
 
 - adapter 只引 `@jackwener/opencli/registry` + `@jackwener/opencli/errors`，不用第三方
 - `columns` 数组和 `func` 返回对象 keys 完全对齐（含顺序）
-- 已知失败抛 `CliError('CODE', 'msg')` 或 `AuthRequiredError(domain)`，不要 silent `return []`
+- **中间解析对象 key 不能跟 `columns` 任一项重叠**（否则 silent-column-drop audit 误判，PR #1329 R1 真踩过；改成专属命名 + push row 时 destructure aliasing）
+- **`browser:` field 决定 func 签名**：`browser:false → (args)`，`browser:true → (page, args)`。搞反时 `args` 实际是 debug flag，所有外部参数 silent fallback 到 default（PR #1329 upstream 之前 8 个 non-browser adapter 全踩过这个）
+- 已知失败按 [`references/typed-errors.md`](./references/typed-errors.md) 5-classification 抛对应 typed error；**不要** silent `return []`，**不要** silent `return [{sentinel}]`，**不要** `Math.max/min` silent clamp 外部参数
 - 写私人 adapter 用 `~/.opencli/clis/<site>/<name>.js`（免 build）；要提 PR 才 copy 到 `clis/<site>/<name>.js`
 - 站点记忆每轮回写：没记忆 → 用 skill → 产生记忆 → 下次变 5 分钟
 - **调试过程中的原始 dump / 抓包 / HTML 样本只能落在 `~/.opencli/sites/<site>/fixtures/` 或 `/tmp/`。严禁在 repo 根目录、`clis/<site>/` 或当前工作目录留 `.dbg-*.html / raw-*.json / sample.*` 这类临时文件**（PR diff 会带上去，别人 review 时很烦）。
