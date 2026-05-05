@@ -26,7 +26,8 @@ import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
 import { adapterLoadError, ArgumentError, CommandExecutionError, attachTraceReceipt, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
-import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
+import { getBrowserFactory, browserSession, runWithTimeout } from './runtime.js';
+import { getConfiguredBrowserCommandTimeout, getConfiguredCdpEndpoint } from './config.js';
 import { resolveProfileContextId } from './browser/profile.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
@@ -211,7 +212,7 @@ export async function executeCommand(
 
       if (electron) {
         // Electron apps: respect manual endpoint override, then try auto-detect
-        const manualEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
+        const manualEndpoint = getConfiguredCdpEndpoint();
         if (manualEndpoint) {
           const port = Number(new URL(manualEndpoint).port);
           if (!await probeCDP(port)) {
@@ -303,7 +304,7 @@ export async function executeCommand(
         const keepOpen = process.env.OPENCLI_LIVE === '1' || process.env.OPENCLI_LIVE === 'true';
         try {
           const result = await runWithTimeout(runCommand(cmd, page, kwargs, debug), {
-            timeout: cmd.timeoutSeconds ?? DEFAULT_BROWSER_COMMAND_TIMEOUT,
+            timeout: cmd.timeoutSeconds ?? getConfiguredBrowserCommandTimeout(),
             label: fullName(cmd),
           });
           observation?.record({

@@ -14,7 +14,7 @@ Control the **ChatWise Desktop App** from the terminal via Chrome DevTools Proto
 ## Setup
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9228"
+opencli config set browser.cdp_endpoint http://127.0.0.1:9228
 ```
 
 ## Commands

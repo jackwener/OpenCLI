@@ -19,6 +19,7 @@ import { waitForDomStableJs } from './dom-helpers.js';
 import { isRecord, saveBase64ToFile } from '../utils.js';
 import { getAllElectronApps } from '../electron-apps.js';
 import { BasePage } from './base-page.js';
+import { getConfiguredCdpEndpoint } from '../config.js';
 
 export interface CDPTarget {
   type?: string;
@@ -56,8 +57,8 @@ export class CDPBridge implements IBrowserFactory {
   async connect(opts?: { timeout?: number; workspace?: string; cdpEndpoint?: string; contextId?: string }): Promise<IPage> {
     if (this._ws) throw new Error('CDPBridge is already connected. Call close() before reconnecting.');
 
-    const endpoint = opts?.cdpEndpoint ?? process.env.OPENCLI_CDP_ENDPOINT;
-    if (!endpoint) throw new Error('CDP endpoint not provided (pass cdpEndpoint or set OPENCLI_CDP_ENDPOINT)');
+    const endpoint = opts?.cdpEndpoint ?? getConfiguredCdpEndpoint();
+    if (!endpoint) throw new Error('CDP endpoint not provided (pass cdpEndpoint or run `opencli config set browser.cdp_endpoint <endpoint>`)');
 
     let wsUrl = endpoint;
     if (endpoint.startsWith('http')) {

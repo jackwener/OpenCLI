@@ -2603,7 +2603,7 @@ cli({
   function requireConfigKey(raw: string): SupportedConfigKey | null {
     if (isSupportedConfigKey(raw)) return raw;
     console.error(styleText('red', `Error: unsupported config key "${raw}".`));
-    console.error(styleText('dim', 'Supported keys: daemon.port'));
+    console.error(styleText('dim', 'Supported keys: daemon.port, browser.connect_timeout, browser.command_timeout, browser.cdp_endpoint'));
     process.exitCode = EXIT_CODES.USAGE_ERROR;
     return null;
   }
@@ -2621,28 +2621,28 @@ cli({
   configCmd
     .command('get')
     .description('Print one effective config value')
-    .argument('<key>', 'Config key, currently only daemon.port')
+    .argument('<key>', 'Config key')
     .action((rawKey: string) => {
       const key = requireConfigKey(rawKey);
       if (!key) return;
-      console.log(String(getConfigValue(key)));
+      console.log(String(getConfigValue(key) ?? ''));
     });
 
   configCmd
     .command('set')
     .description('Set a config value')
-    .argument('<key>', 'Config key, currently only daemon.port')
+    .argument('<key>', 'Config key')
     .argument('<value>', 'Config value')
     .action(async (rawKey: string, value: string) => {
       const key = requireConfigKey(rawKey);
       if (!key) return;
-      const previousPort = getConfigValue('daemon.port');
-      const status = await fetchDaemonStatus({ timeout: 500 });
+      const previousPort = key === 'daemon.port' ? getConfigValue('daemon.port') : undefined;
+      const status = key === 'daemon.port' ? await fetchDaemonStatus({ timeout: 500 }) : null;
       try {
         setConfigValue(key, value);
-        const nextPort = getConfigValue('daemon.port');
-        console.log(`${key} = ${nextPort}`);
-        if (key === 'daemon.port') printDaemonPortApplyHint(previousPort, nextPort, status);
+        const nextValue = getConfigValue(key);
+        console.log(`${key} = ${nextValue ?? ''}`);
+        if (key === 'daemon.port') printDaemonPortApplyHint(Number(previousPort), Number(nextValue), status);
       } catch (err) {
         console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
@@ -2652,16 +2652,16 @@ cli({
   configCmd
     .command('unset')
     .description('Unset a config value and return to its default')
-    .argument('<key>', 'Config key, currently only daemon.port')
+    .argument('<key>', 'Config key')
     .action(async (rawKey: string) => {
       const key = requireConfigKey(rawKey);
       if (!key) return;
-      const previousPort = getConfigValue('daemon.port');
-      const status = await fetchDaemonStatus({ timeout: 500 });
+      const previousPort = key === 'daemon.port' ? getConfigValue('daemon.port') : undefined;
+      const status = key === 'daemon.port' ? await fetchDaemonStatus({ timeout: 500 }) : null;
       unsetConfigValue(key);
-      const nextPort = getConfigValue('daemon.port');
-      console.log(`${key} = ${nextPort} (default)`);
-      if (key === 'daemon.port') printDaemonPortApplyHint(previousPort, nextPort, status);
+      const nextValue = getConfigValue(key);
+      console.log(`${key} = ${nextValue ?? ''} (default)`);
+      if (key === 'daemon.port') printDaemonPortApplyHint(Number(previousPort), Number(nextValue), status);
     });
 
   // ── Built-in: daemon ──────────────────────────────────────────────────────

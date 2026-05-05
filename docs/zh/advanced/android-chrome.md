@@ -80,7 +80,7 @@ curl http://localhost:9222/json
 ### 第四步：执行 OpenCLI 命令
 
 ```bash
-export OPENCLI_CDP_ENDPOINT=http://localhost:9222
+opencli config set browser.cdp_endpoint http://localhost:9222
 opencli hackernews top --limit 5
 ```
 
@@ -97,7 +97,8 @@ OPENCLI_CDP_TARGET="twitter" opencli twitter trending
 也可直接使用 `/json` 返回的 WebSocket 地址精确连接某个标签页：
 
 ```bash
-OPENCLI_CDP_ENDPOINT=ws://localhost:9222/devtools/page/3941 opencli ...
+opencli config set browser.cdp_endpoint ws://localhost:9222/devtools/page/3941
+opencli ...
 ```
 
 ---
@@ -154,8 +155,10 @@ adb -s <设备1序列号> forward tcp:9222 localabstract:chrome_devtools_remote
 adb -s <设备2序列号> forward tcp:9223 localabstract:chrome_devtools_remote
 
 # 分别执行命令
-OPENCLI_CDP_ENDPOINT=http://localhost:9222 opencli twitter trending
-OPENCLI_CDP_ENDPOINT=http://localhost:9223 opencli twitter trending
+opencli config set browser.cdp_endpoint http://localhost:9222
+opencli twitter trending
+opencli config set browser.cdp_endpoint http://localhost:9223
+opencli twitter trending
 ```
 
 ---

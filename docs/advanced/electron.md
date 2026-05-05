@@ -82,7 +82,7 @@ await page.wait(1); // Wait for re-render
 
 ## Environment Variable
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
+opencli config set browser.cdp_endpoint http://127.0.0.1:9222
 ```
 
 ## Non-Electron Pattern (AppleScript)

@@ -80,7 +80,7 @@ A successful response lists the open tabs:
 ### 4. Run any OpenCLI command
 
 ```bash
-export OPENCLI_CDP_ENDPOINT=http://localhost:9222
+opencli config set browser.cdp_endpoint http://localhost:9222
 opencli hackernews top --limit 5
 ```
 
@@ -97,7 +97,8 @@ OPENCLI_CDP_TARGET="twitter" opencli twitter trending
 You can also connect directly to a specific tab's WebSocket URL (from `/json`):
 
 ```bash
-OPENCLI_CDP_ENDPOINT=ws://localhost:9222/devtools/page/3941 opencli ...
+opencli config set browser.cdp_endpoint ws://localhost:9222/devtools/page/3941
+opencli ...
 ```
 
 ---
@@ -154,8 +155,10 @@ adb -s <device1-serial> forward tcp:9222 localabstract:chrome_devtools_remote
 adb -s <device2-serial> forward tcp:9223 localabstract:chrome_devtools_remote
 
 # Run commands targeting each device
-OPENCLI_CDP_ENDPOINT=http://localhost:9222 opencli twitter trending
-OPENCLI_CDP_ENDPOINT=http://localhost:9223 opencli twitter trending
+opencli config set browser.cdp_endpoint http://localhost:9222
+opencli twitter trending
+opencli config set browser.cdp_endpoint http://localhost:9223
+opencli twitter trending
 ```
 
 ---

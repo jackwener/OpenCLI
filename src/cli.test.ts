@@ -580,7 +580,7 @@ describe('config command', () => {
 
     await program.parseAsync(['node', 'opencli', 'config', 'set', 'daemon.port', '23456']);
     expect(stdoutSpy.mock.calls.flat().join('\n')).toContain('daemon.port = 23456');
-    expect(fs.readFileSync(path.join(homeDir, '.opencli', 'config.toml'), 'utf-8')).toContain('port = 23456');
+    expect(fs.readFileSync(path.join(homeDir, '.opencli', 'config.yaml'), 'utf-8')).toContain('port: 23456');
 
     stdoutSpy.mockClear();
     await program.parseAsync(['node', 'opencli', 'config', 'get', 'daemon.port']);
@@ -589,6 +589,22 @@ describe('config command', () => {
     stdoutSpy.mockClear();
     await program.parseAsync(['node', 'opencli', 'config', 'unset', 'daemon.port']);
     expect(stdoutSpy.mock.calls.flat().join('\n')).toContain('daemon.port = 19825 (default)');
+  });
+
+  it('sets, gets, and unsets browser config values', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'config', 'set', 'browser.connect_timeout', '45']);
+    await program.parseAsync(['node', 'opencli', 'config', 'set', 'browser.command_timeout', '90']);
+    await program.parseAsync(['node', 'opencli', 'config', 'set', 'browser.cdp_endpoint', 'http://127.0.0.1:9222']);
+
+    stdoutSpy.mockClear();
+    await program.parseAsync(['node', 'opencli', 'config', 'get', 'browser.cdp_endpoint']);
+    expect(stdoutSpy).toHaveBeenLastCalledWith('http://127.0.0.1:9222');
+
+    stdoutSpy.mockClear();
+    await program.parseAsync(['node', 'opencli', 'config', 'unset', 'browser.cdp_endpoint']);
+    expect(stdoutSpy).toHaveBeenLastCalledWith('browser.cdp_endpoint =  (default)');
   });
 
   it('rejects unsupported config keys', async () => {

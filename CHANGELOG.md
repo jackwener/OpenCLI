@@ -5,6 +5,7 @@
 ### Breaking Changes
 
 * **daemon** — removed `OPENCLI_DAEMON_PORT`; use `opencli config set daemon.port <port>` and set the same port in the Browser Bridge extension popup.
+* **browser** — removed `OPENCLI_BROWSER_CONNECT_TIMEOUT` / `OPENCLI_BROWSER_COMMAND_TIMEOUT` / `OPENCLI_CDP_ENDPOINT`; use `opencli config set browser.connect_timeout|command_timeout|cdp_endpoint <value>`.
 
 ### Features
 

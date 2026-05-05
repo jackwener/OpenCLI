@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 const { MockWebSocket } = vi.hoisted(() => {
   class MockWebSocket {
@@ -39,13 +42,35 @@ vi.mock('ws', () => ({
 import { CDPBridge } from './cdp.js';
 
 describe('CDPBridge cookies', () => {
+  let homeDir: string;
+  let originalHome: string | undefined;
+  let originalUserProfile: string | undefined;
+
   beforeEach(() => {
     vi.unstubAllEnvs();
+    originalHome = process.env.HOME;
+    originalUserProfile = process.env.USERPROFILE;
+    homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-cdp-home-'));
+    process.env.HOME = homeDir;
+    process.env.USERPROFILE = homeDir;
   });
 
-  it('filters cookies by actual domain match instead of substring match', async () => {
-    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+  afterEach(() => {
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+    if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = originalUserProfile;
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  });
 
+  function writeCdpEndpointConfig(endpoint: string): void {
+    const configDir = path.join(homeDir, '.opencli');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.yaml'), `browser:\n  cdp_endpoint: ${JSON.stringify(endpoint)}\n`, 'utf-8');
+  }
+
+  it('filters cookies by actual domain match instead of substring match', async () => {
+    writeCdpEndpointConfig('ws://127.0.0.1:9222/devtools/page/1');
     const bridge = new CDPBridge();
     vi.spyOn(bridge, 'send').mockResolvedValue({
       cookies: [
@@ -65,7 +90,7 @@ describe('CDPBridge cookies', () => {
   });
 
   it('exposes native input helpers on direct CDP pages', async () => {
-    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+    writeCdpEndpointConfig('ws://127.0.0.1:9222/devtools/page/1');
 
     const bridge = new CDPBridge();
     const send = vi.spyOn(bridge, 'send').mockResolvedValue({});

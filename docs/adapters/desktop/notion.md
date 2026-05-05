@@ -12,7 +12,7 @@ Launch with remote debugging port:
 ## Setup
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9230"
+opencli config set browser.cdp_endpoint http://127.0.0.1:9230
 ```
 
 ## Commands

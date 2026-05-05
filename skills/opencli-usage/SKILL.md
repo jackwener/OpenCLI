@@ -77,16 +77,21 @@ A few commands override the default via `cmd.defaultFormat` (e.g. chat commands 
 
 | variable | default | purpose |
 |----------|---------|---------|
-| `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | Seconds to wait for the browser bridge. |
-| `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Per-command timeout. |
 | `OPENCLI_BROWSER_EXPLORE_TIMEOUT` | `120` | For long-running recon (plugin/adapter scaffolding). |
-| `OPENCLI_CDP_ENDPOINT` | — | Manual CDP endpoint override (dev / remote Chrome / Electron). |
-
-Daemon port is persistent config, not an environment variable:
-`opencli config set daemon.port <port>`, then set the same port in the Browser Bridge extension popup.
 | `OPENCLI_CACHE_DIR` | `~/.opencli/cache` | Network capture + browser-state cache. |
 | `OPENCLI_WINDOW_FOCUSED` | `false` | `1` → automation window opens in the foreground. |
 | `OPENCLI_VERBOSE` | `false` | Verbose logging (also triggered by `-v`). |
+
+Persistent config lives in `~/.opencli/config.yaml`:
+
+```bash
+opencli config set daemon.port <port>
+opencli config set browser.connect_timeout <seconds>
+opencli config set browser.command_timeout <seconds>
+opencli config set browser.cdp_endpoint <endpoint>
+```
+
+After changing `daemon.port`, restart the daemon and set the same port in the Browser Bridge extension popup.
 
 ## Self-repair
 

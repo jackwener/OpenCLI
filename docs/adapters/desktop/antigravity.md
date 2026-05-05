@@ -19,7 +19,7 @@ Start the Antigravity desktop app with the Chrome DevTools `remote-debugging-por
 Then set the target port:
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9224"
+opencli config set browser.cdp_endpoint http://127.0.0.1:9224
 ```
 
 ## Commands

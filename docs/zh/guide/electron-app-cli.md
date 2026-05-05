@@ -37,7 +37,7 @@ ls /Applications/AppName.app/Contents/Frameworks/Electron\ Framework.framework
 然后把 OpenCLI 指到这个端口：
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
+opencli config set browser.cdp_endpoint http://127.0.0.1:9222
 ```
 
 ### 3. 先做 5 个基础命令

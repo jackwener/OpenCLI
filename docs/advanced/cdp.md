@@ -79,12 +79,12 @@ This will print a forwarding URL, such as `https://abcdef.ngrok.app`. **Copy thi
 
 Now switch to your **Remote Server** where OpenCLI is installed. 
 
-Depending on the network tunnel method you chose in Phase 2, set the `OPENCLI_CDP_ENDPOINT` environment variable and run your commands.
+Depending on the network tunnel method you chose in Phase 2, set `browser.cdp_endpoint` in OpenCLI config and run your commands.
 
 ### If you used Method A (SSH Tunnel):
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://localhost:9222"
+opencli config set browser.cdp_endpoint http://localhost:9222
 opencli doctor                    # Verify connection
 opencli bilibili hot --limit 5    # Test a command
 ```
@@ -93,11 +93,11 @@ opencli bilibili hot --limit 5    # Test a command
 
 ```bash
 # Use the URL you copied from ngrok earlier
-export OPENCLI_CDP_ENDPOINT="https://abcdef.ngrok.app"
+opencli config set browser.cdp_endpoint https://abcdef.ngrok.app
 opencli doctor                    # Verify connection
 opencli bilibili hot --limit 5    # Test a command
 ```
 
 > *Tip: If you provide a standard HTTP/HTTPS CDP endpoint, OpenCLI requests the `/json` target list and picks the most likely inspectable app/page target automatically. If multiple app targets exist, you can further narrow selection with `OPENCLI_CDP_TARGET` (for example `antigravity` or `codex`).*
 
-If you plan to use this setup frequently, you can persist the environment variable by adding the `export` line to your `~/.bashrc` or `~/.zshrc` on the server.
+If you need to change back to Browser Bridge mode, run `opencli config unset browser.cdp_endpoint`.
