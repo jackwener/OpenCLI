@@ -604,7 +604,7 @@ describe('config command', () => {
 
     stdoutSpy.mockClear();
     await program.parseAsync(['node', 'opencli', 'config', 'unset', 'browser.cdp_endpoint']);
-    expect(stdoutSpy).toHaveBeenLastCalledWith('browser.cdp_endpoint =  (default)');
+    expect(stdoutSpy).toHaveBeenLastCalledWith('browser.cdp_endpoint = (unset)');
   });
 
   it('rejects unsupported config keys', async () => {
