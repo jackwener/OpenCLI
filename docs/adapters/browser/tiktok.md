@@ -14,6 +14,7 @@
 | `opencli tiktok friends` | Friend suggestions |
 | `opencli tiktok live` | Browse live streams |
 | `opencli tiktok notifications` | Get notifications |
+| `opencli tiktok creator-videos` | List TikTok Studio creator videos and metrics |
 | `opencli tiktok like` | Like a video |
 | `opencli tiktok unlike` | Unlike a video |
 | `opencli tiktok save` | Add to Favorites |
@@ -39,6 +40,9 @@ opencli tiktok live --limit 10
 
 # List who you follow
 opencli tiktok following
+
+# List your TikTok Studio creator videos
+opencli tiktok creator-videos --limit 20
 
 # Friend suggestions
 opencli tiktok friends --limit 10
@@ -66,3 +70,4 @@ opencli tiktok profile --username tiktok -f json
 
 - Chrome running and **logged into** tiktok.com
 - [Browser Bridge extension](/guide/browser-bridge) installed
+- `creator-videos` requires access to TikTok Studio for the logged-in creator account

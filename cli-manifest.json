@@ -17628,17 +17628,18 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of creator videos to return"
+        "help": "Number of creator videos to return (max 250)"
       },
       {
         "name": "cursor",
         "type": "string",
         "default": "0",
         "required": false,
-        "help": "Pagination cursor"
+        "help": "Non-negative TikTok Studio pagination cursor"
       }
     ],
     "columns": [
+      "video_id",
       "title",
       "date",
       "views",
@@ -17651,7 +17652,7 @@
     "type": "js",
     "modulePath": "tiktok/creator-videos.js",
     "sourceFile": "tiktok/creator-videos.js",
-    "navigateBefore": "https://www.tiktok.com"
+    "navigateBefore": "https://www.tiktok.com/tiktokstudio/content"
   },
   {
     "site": "tiktok",
