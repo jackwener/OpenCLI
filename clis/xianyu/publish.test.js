@@ -40,7 +40,7 @@ function makePage({ evaluateResults = [], overrides = {} } = {}) {
         wait: vi.fn().mockResolvedValue(undefined),
         evaluate,
         setFileInput: vi.fn().mockResolvedValue(undefined),
-        url: vi.fn(() => 'https://www.goofish.com/publish'),
+        getCurrentUrl: vi.fn().mockResolvedValue('https://www.goofish.com/publish'),
         ...overrides,
     };
 }
@@ -98,6 +98,28 @@ describe('xianyu/publish', () => {
             url: 'https://www.goofish.com/item?id=123456789012',
             message: '发布成功',
         }]);
+    });
+
+    it('uses IPage getCurrentUrl instead of a non-existent page.url method', async () => {
+        const page = makePage({
+            evaluateResults: [
+                { hasPublishForm: true },
+                { ok: true },
+                { ok: true, filled: ['title', 'description', 'price', 'condition'], missing: [] },
+                { ok: true },
+                { status: 'published', item_id: '123456789012' },
+            ],
+            overrides: {
+                getCurrentUrl: vi.fn().mockResolvedValue('https://www.goofish.com/item?id=123456789012'),
+            },
+        });
+
+        expect(page.url).toBeUndefined();
+
+        const rows = await publishCommand.func(page, validArgs);
+
+        expect(page.getCurrentUrl).toHaveBeenCalled();
+        expect(rows[0].url).toBe('https://www.goofish.com/item?id=123456789012');
     });
 
     it('maps login walls to AuthRequiredError', async () => {

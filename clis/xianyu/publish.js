@@ -11,6 +11,18 @@ function buildPublishUrl() {
     return 'https://www.goofish.com/publish';
 }
 
+async function getCurrentPageUrl(page) {
+    if (page.getCurrentUrl) {
+        try {
+            const currentUrl = await page.getCurrentUrl();
+            if (currentUrl) return currentUrl;
+        } catch {
+            // Best-effort URL is only used for operator diagnostics after submit.
+        }
+    }
+    return buildPublishUrl();
+}
+
 function requireText(value, label) {
     const text = String(value ?? '').replace(/\s+/g, ' ').trim();
     if (!text) {
@@ -428,13 +440,13 @@ export const publishCommand = cli({
         // 7. 等待发布结果（最多 15 秒轮询）
         await page.wait(2);
         let itemId = '';
-        let finalUrl = page.url();
+        let finalUrl = await getCurrentPageUrl(page);
         let failReason = '';
 
         for (let i = 0; i < 10; i++) {
             await page.wait(1.5);
             const result = await page.evaluate(buildDetectSuccessEvaluate());
-            finalUrl = page.url();
+            finalUrl = await getCurrentPageUrl(page);
 
             if (result?.status === 'published') {
                 itemId = String(result.item_id || '').replace(/\D/g, '');
@@ -465,6 +477,7 @@ export const __test__ = {
     validateImagePaths,
     normalizePublishArgs,
     buildPublishUrl,
+    getCurrentPageUrl,
     buildFillFormEvaluate,
     buildSelectCategoryEvaluate,
     buildFindFileInputSelectorEvaluate,
