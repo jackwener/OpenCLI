@@ -58,17 +58,53 @@ export function wrapCommaList(
   return lines.join('\n');
 }
 
-export function formatRootAdapterHelpText(siteNames: readonly string[]): string {
-  if (siteNames.length === 0) return '';
+/**
+ * Adapter category for help-text grouping.
+ *
+ * - `site`: web site adapter (real DNS-style domain, e.g. `www.bilibili.com`)
+ * - `app`: desktop app adapter (Electron/osascript, signaled by `domain: 'localhost'`
+ *   or other non-DNS string like `'doubao-app'`)
+ *
+ * Classification is derived from the adapter's `domain` field — no new schema
+ * required. Adapters without a `domain` field default to `site` (most are
+ * public web scrapers).
+ */
+export type AdapterKind = 'site' | 'app';
+
+export function classifyAdapter(domain: string | undefined): AdapterKind {
+  if (!domain) return 'site';
+  return domain.includes('.') ? 'site' : 'app';
+}
+
+export interface RootAdapterGroups {
+  /** Externally-registered CLIs (docker, gh, vercel, ...) — passthrough binaries */
+  external: readonly string[];
+  /** Desktop-app adapters (chatgpt-app, chatwise, codex, ...) */
+  apps: readonly string[];
+  /** Web-site adapters (bilibili, dianping, ...) */
+  sites: readonly string[];
+}
+
+function formatGroupSection(label: string, names: readonly string[]): string[] {
+  if (names.length === 0) return [];
   return [
+    `${label} (${names.length}):`,
+    wrapCommaList(names),
     '',
-    `Site adapters (${siteNames.length}):`,
-    wrapCommaList(siteNames),
-    '',
-    "Run 'opencli list' for full command details, or 'opencli <site> --help' to inspect one site.",
-    "Agent tip: use 'opencli <site> --help -f yaml' for structured commands, args, access, and examples.",
-    '',
-  ].join('\n');
+  ];
+}
+
+export function formatRootAdapterHelpText(groups: RootAdapterGroups): string {
+  const total = groups.external.length + groups.apps.length + groups.sites.length;
+  if (total === 0) return '';
+  const lines: string[] = [''];
+  lines.push(...formatGroupSection('External CLIs', groups.external));
+  lines.push(...formatGroupSection('App adapters', groups.apps));
+  lines.push(...formatGroupSection('Site adapters', groups.sites));
+  lines.push("Run 'opencli list' for full command details, or 'opencli <site> --help' to inspect one site.");
+  lines.push("Agent tip: use 'opencli <site> --help -f yaml' for structured commands, args, access, and examples.");
+  lines.push('');
+  return lines.join('\n');
 }
 
 function compactArg(arg: Arg): Record<string, unknown> {
@@ -99,22 +135,31 @@ function compactCommand(cmd: CliCommand, opts: { includeColumns?: boolean } = {}
   };
 }
 
-export function rootHelpData(program: Command, siteNames: readonly string[]): Record<string, unknown> {
-  const siteSet = new Set(siteNames);
+export function rootHelpData(program: Command, groups: RootAdapterGroups): Record<string, unknown> {
+  const adapterNames = new Set<string>([...groups.external, ...groups.apps, ...groups.sites]);
   const commands = program.commands
-    .filter(command => !siteSet.has(command.name()))
+    .filter(command => !adapterNames.has(command.name()))
     .map(command => ({
       name: command.name(),
       description: command.description(),
     }));
 
+  const sortLocale = (a: string, b: string) => a.localeCompare(b);
   return {
     name: program.name(),
     description: program.description(),
     commands,
+    external_clis: {
+      count: groups.external.length,
+      clis: [...groups.external].sort(sortLocale),
+    },
+    app_adapters: {
+      count: groups.apps.length,
+      apps: [...groups.apps].sort(sortLocale),
+    },
     site_adapters: {
-      count: siteNames.length,
-      sites: [...siteNames].sort((a, b) => a.localeCompare(b)),
+      count: groups.sites.length,
+      sites: [...groups.sites].sort(sortLocale),
     },
     next: [
       'opencli <site> --help -f yaml',

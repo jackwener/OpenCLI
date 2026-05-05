@@ -116,6 +116,93 @@ describe('createProgram root help descriptions', () => {
     }
   });
 
+  it('groups adapters into App / Site buckets by domain field', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'hot',
+        access: 'read',
+        description: 'Bilibili hot videos',
+        domain: 'www.bilibili.com',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+      });
+      cli({
+        site: 'chatwise',
+        name: 'ask',
+        access: 'write',
+        description: 'Ask Chatwise desktop app',
+        domain: 'localhost',
+        strategy: Strategy.UI,
+        browser: true,
+      });
+
+      const program = createProgram('', '');
+      const help = program.helpInformation();
+
+      // Two separate sections, each with own count
+      expect(help).toContain('App adapters (1):');
+      expect(help).toMatch(/App adapters \(1\):\n {2}chatwise/);
+      expect(help).toContain('Site adapters (1):');
+      expect(help).toMatch(/Site adapters \(1\):\n {2}bilibili/);
+
+      // App adapters appear before Site adapters (External CLIs are absent here)
+      expect(help.indexOf('App adapters')).toBeLessThan(help.indexOf('Site adapters'));
+    } finally {
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
+  });
+
+  it('exposes external_clis / app_adapters / site_adapters in structured help', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    const argv = process.argv;
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'hot',
+        access: 'read',
+        description: 'Bilibili hot videos',
+        domain: 'www.bilibili.com',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+      });
+      cli({
+        site: 'chatwise',
+        name: 'ask',
+        access: 'write',
+        description: 'Ask Chatwise desktop app',
+        domain: 'localhost',
+        strategy: Strategy.UI,
+        browser: true,
+      });
+
+      const program = createProgram('', '');
+      process.argv = ['node', 'opencli', '--help', '-f', 'yaml'];
+      const data = yaml.load(program.helpInformation()) as any;
+
+      expect(data.app_adapters.count).toBe(1);
+      expect(data.app_adapters.apps).toEqual(['chatwise']);
+      expect(data.site_adapters.count).toBe(1);
+      expect(data.site_adapters.sites).toEqual(['bilibili']);
+      expect(data.external_clis.count).toBeGreaterThanOrEqual(0);
+      expect(Array.isArray(data.external_clis.clis)).toBe(true);
+      // Adapters must NOT leak into the core commands list
+      const commandNames = data.commands.map((cmd: any) => cmd.name);
+      expect(commandNames).not.toContain('bilibili');
+      expect(commandNames).not.toContain('chatwise');
+    } finally {
+      process.argv = argv;
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
+  });
+
   it('renders root structured help with built-ins and site adapter names', () => {
     const registry = getRegistry();
     const snapshot = new Map(registry);

@@ -19,7 +19,7 @@ import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
-import { formatRootAdapterHelpText, installStructuredHelp, rootHelpData } from './help.js';
+import { classifyAdapter, formatRootAdapterHelpText, installStructuredHelp, rootHelpData, type RootAdapterGroups } from './help.js';
 import { EXIT_CODES, getErrorMessage, BrowserConnectError } from './errors.js';
 import { TargetError, type TargetErrorCode } from './browser/target-errors.js';
 import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesResolvedJs, selectResolvedJs, isAutocompleteResolvedJs, clickResolvedJs, type ResolveOptions, type TargetMatchLevel } from './browser/target-resolver.js';
@@ -2713,11 +2713,27 @@ cli({
   siteGroups.set('antigravity', antigravityCmd);
   const siteNames = registerAllCommands(program, siteGroups);
   applyRootSubcommandSummaries(program);
-  const siteNameSet = new Set(siteNames);
+
+  // ── Help-text grouping: External CLIs / App adapters / Site adapters ──
+  // Classification derives from each adapter's `domain` field — see classifyAdapter.
+  // External CLIs are taken from the externalClis registry (passthrough binaries).
+  const externalNames = externalClis.map(ext => ext.name);
+  const siteDomains = new Map<string, string | undefined>();
+  for (const [, cmd] of getRegistry()) {
+    if (!siteDomains.has(cmd.site)) siteDomains.set(cmd.site, cmd.domain);
+  }
+  const apps: string[] = [];
+  const sites: string[] = [];
+  for (const site of siteNames) {
+    if (classifyAdapter(siteDomains.get(site)) === 'app') apps.push(site);
+    else sites.push(site);
+  }
+  const adapterGroups: RootAdapterGroups = { external: externalNames, apps, sites };
+  const adapterNameSet = new Set<string>([...externalNames, ...siteNames]);
   program.configureHelp({
-    visibleCommands: (command) => command.commands.filter(child => command !== program || !siteNameSet.has(child.name())),
+    visibleCommands: (command) => command.commands.filter(child => command !== program || !adapterNameSet.has(child.name())),
   });
-  installStructuredHelp(program, () => rootHelpData(program, siteNames), () => formatRootAdapterHelpText(siteNames));
+  installStructuredHelp(program, () => rootHelpData(program, adapterGroups), () => formatRootAdapterHelpText(adapterGroups));
 
   // ── Unknown command fallback ──────────────────────────────────────────────
   // Security: do NOT auto-discover and register arbitrary system binaries.
