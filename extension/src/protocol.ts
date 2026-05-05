@@ -91,15 +91,10 @@ export interface Result {
   page?: string;
 }
 
-declare const __OPENCLI_DAEMON_PORT__: string | number | undefined;
-
 /** Default daemon port */
 export const DEFAULT_DAEMON_PORT = 19825;
 export const DAEMON_PORT_STORAGE_KEY = 'opencli_daemon_port_v1';
 export const DAEMON_HOST = 'localhost';
-export const BUILD_DAEMON_PORT = typeof __OPENCLI_DAEMON_PORT__ !== 'undefined'
-  ? __OPENCLI_DAEMON_PORT__
-  : undefined;
 
 export function parseDaemonPort(value: unknown): number | null {
   const port = typeof value === 'number'
@@ -111,9 +106,8 @@ export function parseDaemonPort(value: unknown): number | null {
   return port;
 }
 
-export function resolveDaemonPort(storedValue: unknown, buildValue: unknown = BUILD_DAEMON_PORT): number {
+export function resolveDaemonPort(storedValue: unknown): number {
   return parseDaemonPort(storedValue)
-    ?? parseDaemonPort(buildValue)
     ?? DEFAULT_DAEMON_PORT;
 }
 

@@ -180,12 +180,20 @@ OpenCLI 不只是网站 CLI，还可以：
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `OPENCLI_DAEMON_PORT` | `19825` | daemon-extension 通信端口 |
 | `OPENCLI_WINDOW_FOCUSED` | `false` | 设为 `1` 时 automation 窗口在前台打开（适合调试）。`--focus` 标志会设置此变量 |
 | `OPENCLI_LIVE` | `false` | 设为 `1` 时 adapter 命令执行完后保留 automation 窗口不关闭（适合检查页面）。`--live` 标志会设置此变量 |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | 浏览器连接超时（秒） |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | 单个浏览器命令超时（秒） |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol 端点，用于远程浏览器或 Electron 应用 |
+
+持久化 OpenCLI 配置位于 `~/.opencli/config.json`。修改 Browser Bridge daemon 端口：
+
+```bash
+opencli config set daemon.port 23456
+opencli daemon restart
+```
+
+同时在 Browser Bridge 扩展 popup 里设置相同端口。
 | `OPENCLI_CDP_TARGET` | — | 按 URL 子串过滤 CDP target（如 `detail.1688.com`） |
 | `OPENCLI_VERBOSE` | `false` | 启用详细日志（`-v` 也可以） |
 | `DEBUG_SNAPSHOT` | — | 设为 `1` 输出 DOM 快照调试信息 |

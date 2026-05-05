@@ -17,19 +17,19 @@
  * Lifecycle:
  *   - Auto-spawned by opencli on first browser command
  *   - Persistent — stays alive until explicit shutdown, SIGTERM, or uninstall
- *   - Listens on localhost:19825
+ *   - Listens on the configured localhost port (default 19825)
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
-import { DEFAULT_DAEMON_PORT } from './constants.js';
+import { getConfiguredDaemonPort } from './config.js';
 import { EXIT_CODES } from './errors.js';
 import { log } from './logger.js';
 import { PKG_VERSION } from './version.js';
 import { DEFAULT_CONTEXT_ID } from './browser/profile.js';
 import { recordExtensionVersion } from './update-check.js';
 
-const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
+const PORT = getConfiguredDaemonPort();
 
 // ─── State ───────────────────────────────────────────────────────────
 

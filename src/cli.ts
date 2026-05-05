@@ -32,6 +32,7 @@ import { buildHtmlTreeJs, type HtmlTreeResult } from './browser/html-tree.js';
 import { buildExtractHtmlJs, runExtractFromHtml } from './browser/extract.js';
 import { analyzeSite, type PageSignals } from './browser/analyze.js';
 import { daemonRestart, daemonStatus, daemonStop } from './commands/daemon.js';
+import { getConfigPath, getConfigValue, isSupportedConfigKey, loadConfig, setConfigValue, unsetConfigValue, type SupportedConfigKey } from './config.js';
 import { log } from './logger.js';
 import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
@@ -2594,6 +2595,84 @@ cli({
         console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
       }
+    });
+
+  // ── Built-in: persistent config ───────────────────────────────────────────
+  const configCmd = program.command('config').description('Manage persistent OpenCLI config');
+
+  function requireConfigKey(raw: string): SupportedConfigKey | null {
+    if (isSupportedConfigKey(raw)) return raw;
+    console.error(styleText('red', `Error: unsupported config key "${raw}".`));
+    console.error(styleText('dim', 'Supported keys: daemon.port'));
+    process.exitCode = EXIT_CODES.USAGE_ERROR;
+    return null;
+  }
+
+  function printDaemonPortApplyHint(previousPort: number, nextPort: number, status: Awaited<ReturnType<typeof fetchDaemonStatus>>): void {
+    if (previousPort === nextPort) return;
+    if (status) {
+      console.log(styleText('yellow', `Daemon currently running on port ${status.port}. Run \`opencli daemon restart\` to apply.`));
+    } else {
+      console.log(styleText('dim', 'Run `opencli daemon restart` to apply if the daemon is already running.'));
+    }
+    console.log(styleText('dim', `Set the Browser Bridge extension popup Port to ${nextPort}.`));
+  }
+
+  configCmd
+    .command('path')
+    .description('Print the OpenCLI config file path')
+    .action(() => {
+      console.log(getConfigPath());
+    });
+
+  configCmd
+    .command('get')
+    .description('Get config as JSON, or print one effective config value')
+    .argument('[key]', 'Config key, currently only daemon.port')
+    .action((rawKey?: string) => {
+      if (!rawKey) {
+        console.log(JSON.stringify(loadConfig(), null, 2));
+        return;
+      }
+      const key = requireConfigKey(rawKey);
+      if (!key) return;
+      console.log(String(getConfigValue(key)));
+    });
+
+  configCmd
+    .command('set')
+    .description('Set a config value')
+    .argument('<key>', 'Config key, currently only daemon.port')
+    .argument('<value>', 'Config value')
+    .action(async (rawKey: string, value: string) => {
+      const key = requireConfigKey(rawKey);
+      if (!key) return;
+      const previousPort = getConfigValue('daemon.port');
+      const status = await fetchDaemonStatus({ timeout: 500 });
+      try {
+        setConfigValue(key, value);
+        const nextPort = getConfigValue('daemon.port');
+        console.log(`${key} = ${nextPort}`);
+        if (key === 'daemon.port') printDaemonPortApplyHint(previousPort, nextPort, status);
+      } catch (err) {
+        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+      }
+    });
+
+  configCmd
+    .command('unset')
+    .description('Unset a config value and return to its default')
+    .argument('<key>', 'Config key, currently only daemon.port')
+    .action(async (rawKey: string) => {
+      const key = requireConfigKey(rawKey);
+      if (!key) return;
+      const previousPort = getConfigValue('daemon.port');
+      const status = await fetchDaemonStatus({ timeout: 500 });
+      unsetConfigValue(key);
+      const nextPort = getConfigValue('daemon.port');
+      console.log(`${key} = ${nextPort} (default)`);
+      if (key === 'daemon.port') printDaemonPortApplyHint(previousPort, nextPort, status);
     });
 
   // ── Built-in: daemon ──────────────────────────────────────────────────────

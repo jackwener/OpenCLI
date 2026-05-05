@@ -196,7 +196,6 @@ OpenCLI is not only for websites. It can also:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENCLI_DAEMON_PORT` | `19825` | HTTP port for the daemon-extension bridge. The CLI/daemon read this at runtime; the extension uses the same value when built from source, and packaged extensions can override it from the popup Port field. |
 | `OPENCLI_PROFILE` | — | Browser Bridge profile alias/contextId to use when multiple Chrome profiles are connected |
 | `OPENCLI_WINDOW_FOCUSED` | `false` | Set to `1` to open the automation container in the foreground (useful for debugging). The `--focus` flag sets this. |
 | `OPENCLI_LIVE` | `false` | Set to `1` to keep the automation lease open after an adapter command finishes (useful for inspection). The `--live` flag sets this. |
@@ -206,6 +205,15 @@ OpenCLI is not only for websites. It can also:
 | `OPENCLI_CDP_TARGET` | — | Filter CDP targets by URL substring (e.g. `detail.1688.com`) |
 | `OPENCLI_VERBOSE` | `false` | Enable verbose logging (`-v` flag also works) |
 | `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |
+
+Persistent OpenCLI config is stored in `~/.opencli/config.json`. To change the Browser Bridge daemon port:
+
+```bash
+opencli config set daemon.port 23456
+opencli daemon restart
+```
+
+Set the same port in the Browser Bridge extension popup.
 
 `--focus` works for both `opencli browser *` and browser-backed adapter commands. `--live` is mainly for adapter commands: browser subcommands already keep the automation lease open until you run `opencli browser close` or the idle timeout expires.
 

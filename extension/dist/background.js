@@ -1,14 +1,13 @@
 const DEFAULT_DAEMON_PORT = 19825;
 const DAEMON_PORT_STORAGE_KEY = "opencli_daemon_port_v1";
 const DAEMON_HOST = "localhost";
-const BUILD_DAEMON_PORT = "" ;
 function parseDaemonPort(value) {
   const port = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value.trim()) : NaN;
   if (!Number.isInteger(port) || port <= 0 || port > 65535) return null;
   return port;
 }
-function resolveDaemonPort(storedValue, buildValue = BUILD_DAEMON_PORT) {
-  return parseDaemonPort(storedValue) ?? parseDaemonPort(buildValue) ?? DEFAULT_DAEMON_PORT;
+function resolveDaemonPort(storedValue) {
+  return parseDaemonPort(storedValue) ?? DEFAULT_DAEMON_PORT;
 }
 function daemonWsUrl(port) {
   return `ws://${DAEMON_HOST}:${port}/ext`;
@@ -994,7 +993,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         contextId,
         daemonPort,
         defaultDaemonPort: DEFAULT_DAEMON_PORT,
-        buildDaemonPort: parseDaemonPort(BUILD_DAEMON_PORT) ?? void 0,
         extensionVersion,
         daemonVersion
       });

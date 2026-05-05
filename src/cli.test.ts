@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -541,6 +541,63 @@ describe('profile list', () => {
     const output = stdoutSpy.mock.calls.flat().join('\n');
     expect(output).toContain('No Browser Bridge profiles connected');
     expect(output).not.toContain('opencli daemon restart');
+  });
+});
+
+describe('config command', () => {
+  let homeDir: string;
+  let originalHome: string | undefined;
+  let originalUserProfile: string | undefined;
+  const stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    originalHome = process.env.HOME;
+    originalUserProfile = process.env.USERPROFILE;
+    homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-cli-config-home-'));
+    process.env.HOME = homeDir;
+    process.env.USERPROFILE = homeDir;
+    stdoutSpy.mockClear();
+    stderrSpy.mockClear();
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('offline');
+    }));
+  });
+
+  afterEach(() => {
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+    if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = originalUserProfile;
+    fs.rmSync(homeDir, { recursive: true, force: true });
+    vi.unstubAllGlobals();
+    process.exitCode = undefined;
+  });
+
+  it('sets, gets, unsets daemon.port through persistent config', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'config', 'set', 'daemon.port', '23456']);
+    expect(stdoutSpy.mock.calls.flat().join('\n')).toContain('daemon.port = 23456');
+    expect(fs.readFileSync(path.join(homeDir, '.opencli', 'config.json'), 'utf-8')).toContain('"port": 23456');
+
+    stdoutSpy.mockClear();
+    await program.parseAsync(['node', 'opencli', 'config', 'get', 'daemon.port']);
+    expect(stdoutSpy).toHaveBeenLastCalledWith('23456');
+
+    stdoutSpy.mockClear();
+    await program.parseAsync(['node', 'opencli', 'config', 'unset', 'daemon.port']);
+    expect(stdoutSpy.mock.calls.flat().join('\n')).toContain('daemon.port = 19825 (default)');
+  });
+
+  it('rejects unsupported config keys', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'config', 'get', 'unknown.key']);
+
+    expect(process.exitCode).toBe(2);
+    expect(stderrSpy.mock.calls.flat().join('\n')).toContain('unsupported config key');
   });
 });
 

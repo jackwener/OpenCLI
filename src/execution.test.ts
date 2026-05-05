@@ -154,9 +154,11 @@ describe('executeCommand — non-browser timeout', () => {
   });
 
   it('exports a profile-scoped trace artifact on browser command failure when requested', async () => {
-    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-exec-trace-'));
-    const prevConfigDir = process.env.OPENCLI_CONFIG_DIR;
-    process.env.OPENCLI_CONFIG_DIR = baseDir;
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-exec-trace-home-'));
+    const prevHome = process.env.HOME;
+    const prevUserProfile = process.env.USERPROFILE;
+    process.env.HOME = homeDir;
+    process.env.USERPROFILE = homeDir;
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = {
@@ -197,7 +199,7 @@ describe('executeCommand — non-browser timeout', () => {
       expect(thrown).toBeInstanceOf(Error);
       expect((thrown as Error).message).toContain('adapter failure');
 
-      const tracesRoot = path.join(baseDir, 'profiles', 'default', 'traces');
+      const tracesRoot = path.join(homeDir, '.opencli', 'profiles', 'default', 'traces');
       const traceId = fs.readdirSync(tracesRoot)[0];
       const traceDir = path.join(tracesRoot, traceId);
       expect(fs.existsSync(path.join(traceDir, 'trace.jsonl'))).toBe(true);
@@ -217,18 +219,22 @@ describe('executeCommand — non-browser timeout', () => {
       });
       expect(closeWindow).toHaveBeenCalledTimes(1);
     } finally {
-      if (prevConfigDir === undefined) delete process.env.OPENCLI_CONFIG_DIR;
-      else process.env.OPENCLI_CONFIG_DIR = prevConfigDir;
+      if (prevHome === undefined) delete process.env.HOME;
+      else process.env.HOME = prevHome;
+      if (prevUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = prevUserProfile;
       stderrSpy.mockRestore();
-      fs.rmSync(baseDir, { recursive: true, force: true });
+      fs.rmSync(homeDir, { recursive: true, force: true });
       vi.restoreAllMocks();
     }
   });
 
   it('exports a trace receipt on browser command success when trace is on', async () => {
-    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-exec-trace-success-'));
-    const prevConfigDir = process.env.OPENCLI_CONFIG_DIR;
-    process.env.OPENCLI_CONFIG_DIR = baseDir;
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-exec-trace-success-home-'));
+    const prevHome = process.env.HOME;
+    const prevUserProfile = process.env.USERPROFILE;
+    process.env.HOME = homeDir;
+    process.env.USERPROFILE = homeDir;
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const onTraceExport = vi.fn();
     const closeWindow = vi.fn().mockResolvedValue(undefined);
@@ -260,11 +266,11 @@ describe('executeCommand — non-browser timeout', () => {
 
       const stderr = stderrSpy.mock.calls.flat().join('\n');
       expect(stderr).toContain('OpenCLI trace artifact:');
-      const tracesRoot = path.join(baseDir, 'profiles', 'default', 'traces');
+      const tracesRoot = path.join(homeDir, '.opencli', 'profiles', 'default', 'traces');
       const traceId = fs.readdirSync(tracesRoot)[0];
       const receipt = JSON.parse(fs.readFileSync(path.join(tracesRoot, traceId, 'receipt.json'), 'utf-8'));
       expect(receipt.status).toBe('success');
-      expect(receipt.traceDir).toContain(path.join(baseDir, 'profiles', 'default', 'traces'));
+      expect(receipt.traceDir).toContain(path.join(homeDir, '.opencli', 'profiles', 'default', 'traces'));
       expect(receipt.scope).toMatchObject({
         site: 'test-execution',
         command: 'test-execution/browser-trace-success',
@@ -276,20 +282,24 @@ describe('executeCommand — non-browser timeout', () => {
       }));
       expect(closeWindow).toHaveBeenCalledTimes(1);
     } finally {
-      if (prevConfigDir === undefined) delete process.env.OPENCLI_CONFIG_DIR;
-      else process.env.OPENCLI_CONFIG_DIR = prevConfigDir;
+      if (prevHome === undefined) delete process.env.HOME;
+      else process.env.HOME = prevHome;
+      if (prevUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = prevUserProfile;
       stderrSpy.mockRestore();
-      fs.rmSync(baseDir, { recursive: true, force: true });
+      fs.rmSync(homeDir, { recursive: true, force: true });
       vi.restoreAllMocks();
     }
   });
 
   it('keeps the original adapter error when trace export fails', async () => {
-    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-exec-trace-fail-'));
-    const blockedPath = path.join(baseDir, 'not-a-dir');
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-exec-trace-fail-home-'));
+    const blockedPath = path.join(homeDir, '.opencli');
     fs.writeFileSync(blockedPath, 'file');
-    const prevConfigDir = process.env.OPENCLI_CONFIG_DIR;
-    process.env.OPENCLI_CONFIG_DIR = blockedPath;
+    const prevHome = process.env.HOME;
+    const prevUserProfile = process.env.USERPROFILE;
+    process.env.HOME = homeDir;
+    process.env.USERPROFILE = homeDir;
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const mockPage = {
       closeWindow: vi.fn().mockResolvedValue(undefined),
@@ -318,10 +328,12 @@ describe('executeCommand — non-browser timeout', () => {
       await expect(executeCommand(cmd, {}, false, { trace: 'retain-on-failure' })).rejects.toThrow('adapter failure');
       expect(stderrSpy.mock.calls.flat().join('\n')).toContain('[trace] Failed to export trace artifact');
     } finally {
-      if (prevConfigDir === undefined) delete process.env.OPENCLI_CONFIG_DIR;
-      else process.env.OPENCLI_CONFIG_DIR = prevConfigDir;
+      if (prevHome === undefined) delete process.env.HOME;
+      else process.env.HOME = prevHome;
+      if (prevUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = prevUserProfile;
       stderrSpy.mockRestore();
-      fs.rmSync(baseDir, { recursive: true, force: true });
+      fs.rmSync(homeDir, { recursive: true, force: true });
       vi.restoreAllMocks();
     }
   });

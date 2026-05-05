@@ -29,15 +29,14 @@ opencli doctor            # Check extension + daemon connectivity
 
 The default Browser Bridge port is `19825`.
 
-For source builds, set `OPENCLI_DAEMON_PORT` before building the extension so the generated background service worker uses the same port as the CLI/daemon:
+If another local service occupies that port, set a persistent OpenCLI daemon port:
 
 ```bash
-cd extension
-OPENCLI_DAEMON_PORT=21350 npm run build
-OPENCLI_DAEMON_PORT=21350 opencli doctor
+opencli config set daemon.port 23456
+opencli daemon restart
 ```
 
-For an already installed extension, open the OpenCLI extension popup, edit the **Port** field, and click **Save**. The saved extension port overrides the build-time value. Click **Reset** to fall back to the build-time value, or to `19825` when no build-time value is configured.
+Then open the OpenCLI extension popup, edit the **Port** field to the same value, and click **Save**. Click **Reset** to return the extension to `19825`.
 
 ## Tab Targeting
 

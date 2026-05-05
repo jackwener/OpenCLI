@@ -47,7 +47,7 @@
     "copy-yaml": "node scripts/copy-yaml.cjs",
     "start": "node dist/src/main.js",
     "start:bun": "bun dist/src/main.js",
-    "preuninstall": "node -e \"fetch('http://127.0.0.1:'+(process.env.OPENCLI_DAEMON_PORT||'19825')+'/shutdown',{method:'POST',headers:{'X-OpenCLI':'1'},signal:AbortSignal.timeout(3000)}).catch(()=>{})\" || true",
+    "preuninstall": "node scripts/preuninstall.cjs || true",
     "postinstall": "node scripts/postinstall.js || true; node scripts/fetch-adapters.js || true",
     "typecheck": "tsc --noEmit",
     "prepare": "[ -d src ] && npm run build || true",

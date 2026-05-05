@@ -11,8 +11,7 @@ export type ProfileConfig = {
 };
 
 function profileConfigPath(): string {
-  const baseDir = process.env.OPENCLI_CONFIG_DIR || path.join(os.homedir(), '.opencli');
-  return path.join(baseDir, 'browser-profiles.json');
+  return path.join(os.homedir(), '.opencli', 'browser-profiles.json');
 }
 
 export function normalizeContextId(value: string | undefined | null): string | undefined {

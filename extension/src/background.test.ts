@@ -157,15 +157,15 @@ describe('background tab isolation', () => {
     vi.unstubAllGlobals();
   });
 
-  it('resolves daemon port from stored value, build value, then default', async () => {
+  it('resolves daemon port from stored value then default', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
     const mod = await import('./background');
 
-    expect(mod.__test__.resolveDaemonPort('24567', '23456')).toBe(24567);
-    expect(mod.__test__.resolveDaemonPort('', '23456')).toBe(23456);
-    expect(mod.__test__.resolveDaemonPort('not-a-port', 'also-bad')).toBe(19825);
+    expect(mod.__test__.resolveDaemonPort('24567')).toBe(24567);
+    expect(mod.__test__.resolveDaemonPort('')).toBe(19825);
+    expect(mod.__test__.resolveDaemonPort('not-a-port')).toBe(19825);
     expect(mod.__test__.parseDaemonPort(65536)).toBeNull();
   });
 

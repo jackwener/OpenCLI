@@ -9,7 +9,6 @@ declare const __OPENCLI_COMPAT_RANGE__: string;
 
 import type { Command, Result } from './protocol';
 import {
-  BUILD_DAEMON_PORT,
   DAEMON_PORT_STORAGE_KEY,
   DEFAULT_DAEMON_PORT,
   daemonPingUrl,
@@ -724,7 +723,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         contextId,
         daemonPort,
         defaultDaemonPort: DEFAULT_DAEMON_PORT,
-        buildDaemonPort: parseDaemonPort(BUILD_DAEMON_PORT) ?? undefined,
         extensionVersion,
         daemonVersion,
       });

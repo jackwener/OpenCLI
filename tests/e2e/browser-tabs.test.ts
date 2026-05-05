@@ -191,10 +191,27 @@ async function startFakeDaemon(): Promise<FakeDaemon> {
 describe('browser tab CLI e2e', () => {
   const daemons: FakeDaemon[] = [];
   const cacheDirs: string[] = [];
+  const homeDirs: string[] = [];
+
+  function envForDaemon(daemon: FakeDaemon, extra: Record<string, string> = {}): Record<string, string> {
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tabs-home-'));
+    homeDirs.push(homeDir);
+    const configDir = path.join(homeDir, '.opencli');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, 'config.json'),
+      JSON.stringify({ version: 1, daemon: { port: daemon.port } }, null, 2) + '\n',
+      'utf-8',
+    );
+    return { HOME: homeDir, USERPROFILE: homeDir, ...extra };
+  }
 
   afterEach(async () => {
     while (daemons.length > 0) {
       await daemons.pop()!.close();
+    }
+    while (homeDirs.length > 0) {
+      fs.rmSync(homeDirs.pop()!, { recursive: true, force: true });
     }
     while (cacheDirs.length > 0) {
       fs.rmSync(cacheDirs.pop()!, { recursive: true, force: true });
@@ -204,7 +221,7 @@ describe('browser tab CLI e2e', () => {
   it('lists, creates, and closes tabs through the built CLI', async () => {
     const daemon = await startFakeDaemon();
     daemons.push(daemon);
-    const env = { OPENCLI_DAEMON_PORT: String(daemon.port) };
+    const env = envForDaemon(daemon);
 
     const listed = await runCli(['browser', 'tab', 'list'], { env });
     expect(listed.code).toBe(0);
@@ -237,7 +254,7 @@ describe('browser tab CLI e2e', () => {
   it('routes concurrent browser commands to their requested tabs', async () => {
     const daemon = await startFakeDaemon();
     daemons.push(daemon);
-    const env = { OPENCLI_DAEMON_PORT: String(daemon.port) };
+    const env = envForDaemon(daemon);
 
     const [left, right] = await Promise.all([
       runCli(['browser', 'eval', '--tab', 'tab-1', 'window.__delay = "left"'], { env, timeout: 30_000 }),
@@ -260,10 +277,7 @@ describe('browser tab CLI e2e', () => {
     daemons.push(daemon);
     const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tabs-'));
     cacheDirs.push(cacheDir);
-    const env = {
-      OPENCLI_DAEMON_PORT: String(daemon.port),
-      OPENCLI_CACHE_DIR: cacheDir,
-    };
+    const env = envForDaemon(daemon, { OPENCLI_CACHE_DIR: cacheDir });
 
     const created = await runCli(['browser', 'tab', 'new', 'https://three.example/'], { env });
     expect(created.code).toBe(0);
@@ -279,10 +293,7 @@ describe('browser tab CLI e2e', () => {
     daemons.push(daemon);
     const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tabs-'));
     cacheDirs.push(cacheDir);
-    const env = {
-      OPENCLI_DAEMON_PORT: String(daemon.port),
-      OPENCLI_CACHE_DIR: cacheDir,
-    };
+    const env = envForDaemon(daemon, { OPENCLI_CACHE_DIR: cacheDir });
 
     const selected = await runCli(['browser', 'tab', 'select', 'tab-2'], { env });
     expect(selected.code).toBe(0);

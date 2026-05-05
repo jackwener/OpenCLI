@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Breaking Changes
+
+* **daemon** — removed `OPENCLI_DAEMON_PORT`; use `opencli config set daemon.port <port>` and set the same port in the Browser Bridge extension popup.
+
 ### Features
 
 * **observation** — add trace artifact primitives, `browser console`, `browser network --since/--follow/--failed`, and adapter `--trace=retain-on-failure` for failure-retained browser evidence.

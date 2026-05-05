@@ -17,7 +17,7 @@ export interface ExportObservationOptions {
 }
 
 function baseOpenCliDir(): string {
-  return process.env.OPENCLI_CONFIG_DIR || path.join(os.homedir(), '.opencli');
+  return path.join(os.homedir(), '.opencli');
 }
 
 function safeSegment(value: string | undefined): string {

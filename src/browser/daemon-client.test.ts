@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 import {
   fetchDaemonStatus,
@@ -8,11 +11,25 @@ import {
 } from './daemon-client.js';
 
 describe('daemon-client', () => {
+  let homeDir: string;
+  let originalHome: string | undefined;
+  let originalUserProfile: string | undefined;
+
   beforeEach(() => {
+    originalHome = process.env.HOME;
+    originalUserProfile = process.env.USERPROFILE;
+    homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-daemon-client-home-'));
+    process.env.HOME = homeDir;
+    process.env.USERPROFILE = homeDir;
     vi.stubGlobal('fetch', vi.fn());
   });
 
   afterEach(() => {
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+    if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = originalUserProfile;
+    fs.rmSync(homeDir, { recursive: true, force: true });
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
@@ -146,6 +163,32 @@ describe('daemon-client', () => {
     await fetchDaemonStatus({ contextId: 'work' });
 
     expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/\/status\?contextId=work$/);
+  });
+
+  it('fetchDaemonStatus uses daemon.port from opencli config', async () => {
+    const configDir = path.join(homeDir, '.opencli');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, 'config.json'),
+      JSON.stringify({ version: 1, daemon: { port: 23456 } }),
+      'utf-8',
+    );
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        ok: true,
+        pid: 1,
+        uptime: 0,
+        extensionConnected: true,
+        pending: 0,
+        memoryMB: 1,
+        port: 23456,
+      }),
+    } as Response);
+
+    await fetchDaemonStatus();
+
+    expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/^http:\/\/127\.0\.0\.1:23456\/status$/);
   });
 
   it('sendCommand includes the current pid in generated command ids', async () => {
