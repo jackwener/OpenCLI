@@ -881,6 +881,32 @@
     "navigateBefore": false
   },
   {
+    "site": "aibase",
+    "name": "news",
+    "description": "AIbase 日报 - 每天三分钟关注AI行业趋势",
+    "access": "read",
+    "domain": "www.aibase.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of news items to return (max 50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "aibase/news.js",
+    "sourceFile": "aibase/news.js"
+  },
+  {
     "site": "amazon",
     "name": "bestsellers",
     "description": "Amazon Best Sellers pages for category candidate discovery",
@@ -19440,6 +19466,33 @@
     "modulePath": "twitter/unfollow.js",
     "sourceFile": "twitter/unfollow.js",
     "navigateBefore": true
+  },
+  {
+    "site": "uisdc",
+    "name": "news",
+    "description": "优设读报 - 最新 AI/设计行业新闻",
+    "access": "read",
+    "domain": "www.uisdc.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of news items to return (max 50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "summary",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "uisdc/news.js",
+    "sourceFile": "uisdc/news.js"
   },
   {
     "site": "uiverse",
