@@ -1,5 +1,11 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { selectorError } from '@jackwener/opencli/errors';
+import { selectorError, TimeoutError } from '@jackwener/opencli/errors';
+import {
+    buildChatwiseInjectTextJs,
+    buildChatwiseMessageCountJs,
+    buildChatwiseResponseAfterJs,
+    normalizeTimeout,
+} from './utils.js';
 export const askCommand = cli({
     site: 'chatwise',
     name: 'ask',
@@ -15,34 +21,11 @@ export const askCommand = cli({
     columns: ['Role', 'Text'],
     func: async (page, kwargs) => {
         const text = kwargs.text;
-        const timeout = parseInt(kwargs.timeout, 10) || 30;
+        const timeout = normalizeTimeout(kwargs.timeout);
         // Snapshot content length
-        const beforeLen = await page.evaluate(`
-      (function() {
-        const msgs = document.querySelectorAll('[data-message-id], [class*="message"], [class*="bubble"]');
-        return msgs.length;
-      })()
-    `);
+        const beforeLen = await page.evaluate(buildChatwiseMessageCountJs());
         // Send message
-        const injected = await page.evaluate(`
-      (function(text) {
-        let composer = document.querySelector('textarea');
-        if (!composer) {
-          const editables = Array.from(document.querySelectorAll('[contenteditable="true"]'));
-          composer = editables.length > 0 ? editables[editables.length - 1] : null;
-        }
-        if (!composer) return false;
-        composer.focus();
-        if (composer.tagName === 'TEXTAREA') {
-          const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-          setter.call(composer, text);
-          composer.dispatchEvent(new Event('input', { bubbles: true }));
-        } else {
-          document.execCommand('insertText', false, text);
-        }
-        return true;
-      })(${JSON.stringify(text)})
-    `);
+        const injected = await page.evaluate(buildChatwiseInjectTextJs(text));
         if (!injected)
             throw selectorError('ChatWise input element');
         await page.wait(0.5);
@@ -53,25 +36,15 @@ export const askCommand = cli({
         let response = '';
         for (let i = 0; i < maxPolls; i++) {
             await page.wait(pollInterval);
-            const result = await page.evaluate(`
-        (function(prevLen) {
-          const msgs = document.querySelectorAll('[data-message-id], [class*="message"], [class*="bubble"]');
-          if (msgs.length <= prevLen) return null;
-          const last = msgs[msgs.length - 1];
-          const text = last.innerText || last.textContent;
-          return text ? text.trim() : null;
-        })(${beforeLen})
-      `);
+            const result = await page.evaluate(buildChatwiseResponseAfterJs(beforeLen, text));
             if (result) {
-                response = result;
-                break;
+                const next = String(result).trim();
+                if (next === response) break;
+                response = next;
             }
         }
         if (!response) {
-            return [
-                { Role: 'User', Text: text },
-                { Role: 'System', Text: `No response within ${timeout}s.` },
-            ];
+            throw new TimeoutError('ChatWise response', timeout, 'Confirm ChatWise is done generating, then retry with a larger --timeout if needed.');
         }
         return [
             { Role: 'User', Text: text },
