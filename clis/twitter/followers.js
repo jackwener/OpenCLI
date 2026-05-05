@@ -71,6 +71,10 @@ async function extractFollowersFromDOM(page) {
     return page.evaluate(script);
 }
 
+function normalizeScreenName(value) {
+    return String(value ?? '').trim().replace(/^\/+/, '').replace(/^@+/, '');
+}
+
 cli({
     site: 'twitter',
     name: 'followers',
@@ -92,7 +96,7 @@ cli({
             throw new ArgumentError('limit must be a positive integer');
         }
 
-        let targetUser = kwargs.user;
+        let targetUser = normalizeScreenName(kwargs.user);
         if (!targetUser) {
             await page.goto('https://x.com/home');
             await page.wait({ selector: '[data-testid="primaryColumn"]' });
@@ -103,7 +107,10 @@ cli({
             if (!href) {
                 throw new AuthRequiredError('x.com', 'Could not find logged-in user profile link. Are you logged in?');
             }
-            targetUser = href.replace('/', '');
+            targetUser = normalizeScreenName(href);
+        }
+        if (!targetUser) {
+            throw new ArgumentError('twitter followers user cannot be empty', 'Example: opencli twitter followers @elonmusk --limit 100');
         }
 
         // 1. Navigate to profile page
@@ -150,7 +157,7 @@ cli({
                 sameCount = 0;
             }
             if (allFollowers.length >= limit) break;
-            await page.scroll('bottom');
+            await page.autoScroll({ times: 1, delayMs: 500 });
             await page.wait(2);
         }
         if (allFollowers.length === 0) {

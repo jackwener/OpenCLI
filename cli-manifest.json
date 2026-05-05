@@ -18312,7 +18312,7 @@
     "description": "Get accounts following a Twitter/X user",
     "access": "read",
     "domain": "x.com",
-    "strategy": "intercept",
+    "strategy": "ui",
     "browser": true,
     "args": [
       {
@@ -18333,8 +18333,7 @@
     "columns": [
       "screen_name",
       "name",
-      "bio",
-      "followers"
+      "bio"
     ],
     "type": "js",
     "modulePath": "twitter/followers.js",
