@@ -271,6 +271,7 @@ npm link
 | **devto** | `top` `tag` `user` | 公开 |
 | **dictionary** | `search` `synonyms` `examples` | 公开 |
 | **arxiv** | `search` `paper` | 公开 |
+| **pubmed** | `search` `article` `author` `citations` `related` | 公开 |
 | **openreview** | `search` `venue` `paper` `reviews` | 公开 |
 | **paperreview** | `submit` `review` `feedback` | 公开 |
 | **wikipedia** | `search` `summary` `random` `trending` | 公开 |

@@ -124,6 +124,7 @@ export default defineConfig({
                 { text: 'Yahoo Finance', link: '/adapters/browser/yahoo-finance' },
                 { text: 'arXiv', link: '/adapters/browser/arxiv' },
                 { text: 'dblp', link: '/adapters/browser/dblp' },
+                { text: 'PubMed', link: '/adapters/browser/pubmed' },
                 { text: 'paperreview.ai', link: '/adapters/browser/paperreview' },
                 { text: 'Barchart', link: '/adapters/browser/barchart' },
                 { text: 'Hugging Face', link: '/adapters/browser/hf' },

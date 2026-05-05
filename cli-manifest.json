@@ -15182,6 +15182,329 @@
     "sourceFile": "producthunt/today.js"
   },
   {
+    "site": "pubmed",
+    "name": "article",
+    "aliases": [
+      "paper",
+      "read"
+    ],
+    "description": "Get detailed information for a PubMed article by PMID",
+    "access": "read",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "pmid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "PubMed ID, e.g. 37780221"
+      },
+      {
+        "name": "full-abstract",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Do not truncate the abstract in table output"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "pubmed/article.js",
+    "sourceFile": "pubmed/article.js"
+  },
+  {
+    "site": "pubmed",
+    "name": "author",
+    "description": "Search PubMed articles by author name and optional affiliation",
+    "access": "read",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Author name, e.g. \"Smith J\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-100)"
+      },
+      {
+        "name": "affiliation",
+        "type": "str",
+        "required": false,
+        "help": "Filter by author affiliation"
+      },
+      {
+        "name": "position",
+        "type": "str",
+        "default": "any",
+        "required": false,
+        "help": "Author position: any, first, or last",
+        "choices": [
+          "any",
+          "first",
+          "last"
+        ]
+      },
+      {
+        "name": "year-from",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year from"
+      },
+      {
+        "name": "year-to",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year to"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "date",
+        "required": false,
+        "help": "Sort by date or relevance",
+        "choices": [
+          "date",
+          "relevance"
+        ]
+      }
+    ],
+    "columns": [
+      "rank",
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "article_type",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pubmed/author.js",
+    "sourceFile": "pubmed/author.js"
+  },
+  {
+    "site": "pubmed",
+    "name": "citations",
+    "description": "Get PubMed citation relationships for an article",
+    "access": "read",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "pmid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "PubMed ID, e.g. 37780221"
+      },
+      {
+        "name": "direction",
+        "type": "str",
+        "default": "citedby",
+        "required": false,
+        "help": "citedby or references",
+        "choices": [
+          "citedby",
+          "references"
+        ]
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "article_type",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pubmed/citations.js",
+    "sourceFile": "pubmed/citations.js"
+  },
+  {
+    "site": "pubmed",
+    "name": "related",
+    "description": "Find articles related to a PubMed article",
+    "access": "read",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "pmid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "PubMed ID, e.g. 37780221"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-100)"
+      },
+      {
+        "name": "score",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Show similarity scores when available"
+      }
+    ],
+    "columns": [
+      "rank",
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "article_type",
+      "score",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pubmed/related.js",
+    "sourceFile": "pubmed/related.js"
+  },
+  {
+    "site": "pubmed",
+    "name": "search",
+    "description": "Search PubMed articles with advanced filters",
+    "access": "read",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search query, e.g. \"machine learning cancer\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-100)"
+      },
+      {
+        "name": "author",
+        "type": "str",
+        "required": false,
+        "help": "Filter by author name"
+      },
+      {
+        "name": "journal",
+        "type": "str",
+        "required": false,
+        "help": "Filter by journal name"
+      },
+      {
+        "name": "year-from",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year from"
+      },
+      {
+        "name": "year-to",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year to"
+      },
+      {
+        "name": "article-type",
+        "type": "str",
+        "required": false,
+        "help": "Filter by publication type, e.g. Review or Clinical Trial"
+      },
+      {
+        "name": "has-abstract",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Only include articles with abstracts"
+      },
+      {
+        "name": "free-full-text",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Only include free full text articles"
+      },
+      {
+        "name": "humans-only",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Only include human studies"
+      },
+      {
+        "name": "english-only",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Only include English articles"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "relevance",
+        "required": false,
+        "help": "Sort by relevance, date, author, or journal",
+        "choices": [
+          "relevance",
+          "date",
+          "author",
+          "journal"
+        ]
+      }
+    ],
+    "columns": [
+      "rank",
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "article_type",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pubmed/search.js",
+    "sourceFile": "pubmed/search.js"
+  },
+  {
     "site": "quark",
     "name": "ls",
     "description": "List files in your Quark Drive",
