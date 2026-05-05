@@ -18085,6 +18085,70 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "board-profile",
+    "description": "Open a Xiaohongshu board card, click the author avatar, and collect notes from that profile",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Board URL with optional #card=N index"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "Number of profile notes to return"
+      },
+      {
+        "name": "home-url",
+        "type": "string",
+        "default": "https://www.xiaohongshu.com/explore",
+        "required": false,
+        "help": "Xiaohongshu home page to open before visiting the board"
+      },
+      {
+        "name": "home-wait-seconds",
+        "type": "number",
+        "default": 6,
+        "required": false,
+        "help": "Seconds to stay on the home page before visiting the board"
+      },
+      {
+        "name": "board-wait-seconds",
+        "type": "number",
+        "default": 3,
+        "required": false,
+        "help": "Seconds to stay on the board before clicking the card image"
+      },
+      {
+        "name": "profile-wait-seconds",
+        "type": "number",
+        "default": 3,
+        "required": false,
+        "help": "Seconds to wait after entering the author profile"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "type",
+      "likes",
+      "author",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/board-profile.js",
+    "sourceFile": "xiaohongshu/board-profile.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "comments",
     "description": "获取小红书笔记评论（支持楼中楼子回复）",
     "domain": "www.xiaohongshu.com",
@@ -18500,6 +18564,20 @@
         "default": 15,
         "required": false,
         "help": "Number of notes to return"
+      },
+      {
+        "name": "home-url",
+        "type": "string",
+        "default": "https://www.xiaohongshu.com/explore",
+        "required": false,
+        "help": "Xiaohongshu home page to open before visiting the target profile"
+      },
+      {
+        "name": "home-wait-seconds",
+        "type": "number",
+        "default": 6,
+        "required": false,
+        "help": "Seconds to stay on the home page before visiting the target profile"
       }
     ],
     "columns": [

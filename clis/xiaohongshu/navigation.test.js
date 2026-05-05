@@ -5,6 +5,7 @@ import './comments.js';
 import './download.js';
 import './search.js';
 import './user.js';
+import './board-profile.js';
 import './publish.js';
 import './creator-notes.js';
 import './creator-note-detail.js';
@@ -19,6 +20,7 @@ describe('xiaohongshu navigateBefore hardening', () => {
         'xiaohongshu/download',
         'xiaohongshu/search',
         'xiaohongshu/user',
+        'xiaohongshu/board-profile',
         'xiaohongshu/publish',
         'xiaohongshu/creator-notes',
         'xiaohongshu/creator-note-detail',

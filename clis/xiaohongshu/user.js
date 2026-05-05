@@ -1,5 +1,24 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { extractXhsUserNotes, normalizeXhsUserId } from './user-helpers.js';
+const DEFAULT_HOME_URL = process.env.OPENCLI_XHS_USER_HOME_URL?.trim() || 'https://www.xiaohongshu.com/explore';
+const DEFAULT_HOME_WAIT_SECONDS = Math.max(0, Number(process.env.OPENCLI_XHS_USER_HOME_WAIT_SECONDS ?? 6));
+function normalizeXhsHomeUrl(value) {
+    const raw = String(value || DEFAULT_HOME_URL).trim();
+    try {
+        const url = new URL(raw);
+        if (!url.hostname.endsWith('xiaohongshu.com')) {
+            return DEFAULT_HOME_URL;
+        }
+        return url.toString();
+    }
+    catch {
+        return DEFAULT_HOME_URL;
+    }
+}
+function toNonNegativeNumber(value, fallback) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
 async function readUserSnapshot(page) {
     return await page.evaluate(`
     (() => {
@@ -30,11 +49,19 @@ cli({
     args: [
         { name: 'id', type: 'string', required: true, positional: true, help: 'User id or profile URL' },
         { name: 'limit', type: 'int', default: 15, help: 'Number of notes to return' },
+        { name: 'home-url', type: 'string', default: DEFAULT_HOME_URL, help: 'Xiaohongshu home page to open before visiting the target profile' },
+        { name: 'home-wait-seconds', type: 'number', default: DEFAULT_HOME_WAIT_SECONDS, help: 'Seconds to stay on the home page before visiting the target profile' },
     ],
     columns: ['id', 'title', 'type', 'likes', 'url'],
     func: async (page, kwargs) => {
         const userId = normalizeXhsUserId(String(kwargs.id));
         const limit = Math.max(1, Number(kwargs.limit ?? 15));
+        const homeUrl = normalizeXhsHomeUrl(kwargs['home-url']);
+        const homeWaitSeconds = toNonNegativeNumber(kwargs['home-wait-seconds'], DEFAULT_HOME_WAIT_SECONDS);
+        await page.goto(homeUrl);
+        if (homeWaitSeconds > 0) {
+            await page.wait({ time: homeWaitSeconds });
+        }
         await page.goto(`https://www.xiaohongshu.com/user/profile/${userId}`);
         let snapshot = await readUserSnapshot(page);
         let results = extractXhsUserNotes(snapshot ?? {}, userId);
@@ -51,6 +78,14 @@ cli({
         }
         if (results.length === 0) {
             throw new Error('No public notes found for this Xiaohongshu user.');
+        }
+        const dwellSeconds = Math.max(0, Number(process.env.OPENCLI_XHS_USER_DWELL_SECONDS ?? 8));
+        const dwellJitterSeconds = Math.max(0, Number(process.env.OPENCLI_XHS_USER_DWELL_JITTER_SECONDS ?? 4));
+        if (Number.isFinite(dwellSeconds) && dwellSeconds > 0) {
+            const jitter = Number.isFinite(dwellJitterSeconds) && dwellJitterSeconds > 0
+                ? Math.random() * dwellJitterSeconds
+                : 0;
+            await page.wait({ time: dwellSeconds + jitter });
         }
         return results.slice(0, limit);
     },
