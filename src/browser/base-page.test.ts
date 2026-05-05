@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CliError } from '../errors.js';
 import { BasePage } from './base-page.js';
+import { TargetError } from './target-errors.js';
 
 class TestPage extends BasePage {
   result: unknown;
@@ -169,6 +170,83 @@ describe('BasePage native input routing', () => {
     expect(page.nativeType).toHaveBeenCalledWith('hello');
     expect(page.scripts).toHaveLength(3);
     expect(page.scripts[2]).toContain("return 'typed'");
+  });
+
+  it('fills text through the native input path and verifies the exact value', async () => {
+    const page = new ActionPage();
+    page.nativeType = vi.fn().mockResolvedValue(undefined);
+    page.results = [
+      resolveOk,
+      { ok: true, mode: 'textarea' },
+      { ok: true, actual: 'line1\\n/ / raw', expected: 'line1\\n/ / raw', length: 14, mode: 'textarea' },
+    ];
+
+    await expect(page.fillText('#message', 'line1\\n/ / raw')).resolves.toEqual({
+      filled: true,
+      verified: true,
+      expected: 'line1\\n/ / raw',
+      actual: 'line1\\n/ / raw',
+      length: 14,
+      matches_n: 1,
+      match_level: 'exact',
+      mode: 'textarea',
+    });
+
+    expect(page.nativeType).toHaveBeenCalledWith('line1\\n/ / raw');
+    expect(page.scripts).toHaveLength(3);
+    expect(page.scripts[2]).toContain('actual ===');
+  });
+
+  it('falls back to the DOM setter when native fill insertion is unavailable', async () => {
+    const page = new ActionPage();
+    page.results = [
+      resolveOk,
+      { ok: true, mode: 'input' },
+      'typed',
+      { ok: true, actual: 'hello', expected: 'hello', length: 5, mode: 'input' },
+    ];
+
+    await expect(page.fillText('#q', 'hello')).resolves.toEqual(expect.objectContaining({
+      filled: true,
+      verified: true,
+      actual: 'hello',
+      mode: 'input',
+    }));
+
+    expect(page.scripts).toHaveLength(4);
+    expect(page.scripts[2]).toContain("return 'typed'");
+  });
+
+  it('falls back to DOM fill if native insertion does not verify', async () => {
+    const page = new ActionPage();
+    page.nativeType = vi.fn().mockResolvedValue(undefined);
+    page.results = [
+      resolveOk,
+      { ok: true, mode: 'input' },
+      { ok: false, actual: '', expected: 'hello', length: 0, mode: 'input' },
+      'typed',
+      { ok: true, actual: 'hello', expected: 'hello', length: 5, mode: 'input' },
+    ];
+
+    await expect(page.fillText('#q', 'hello')).resolves.toEqual(expect.objectContaining({
+      filled: true,
+      verified: true,
+      actual: 'hello',
+    }));
+
+    expect(page.nativeType).toHaveBeenCalledWith('hello');
+    expect(page.scripts).toHaveLength(5);
+    expect(page.scripts[3]).toContain("return 'typed'");
+  });
+
+  it('throws a structured not_editable error for non-fillable targets', async () => {
+    const page = new ActionPage();
+    page.results = [resolveOk, { ok: false, reason: 'not_editable', tag: 'button' }];
+
+    const err = await page.fillText('button', 'hello').catch((error: unknown) => error);
+
+    expect(err).toBeInstanceOf(TargetError);
+    expect((err as TargetError).code).toBe('not_editable');
   });
 
   it('uses CDP DOM scrollIntoViewIfNeeded before JS click when available', async () => {

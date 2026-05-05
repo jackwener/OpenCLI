@@ -1999,6 +1999,16 @@ describe('browser click/type commands', () => {
     evaluate: vi.fn().mockResolvedValue(false),
     click: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
     typeText: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
+    fillText: vi.fn().mockResolvedValue({
+      filled: true,
+      verified: true,
+      expected: '',
+      actual: '',
+      length: 0,
+      matches_n: 1,
+      match_level: 'exact',
+      mode: 'input',
+    }),
     wait: vi.fn().mockResolvedValue(undefined),
   }));
 
@@ -2125,6 +2135,71 @@ describe('browser click/type commands', () => {
 
     expect(browserState.page!.click).toHaveBeenCalledWith('.field', { nth: 3 });
     expect(browserState.page!.typeText).toHaveBeenCalledWith('.field', 'x', { nth: 3 });
+  });
+
+  it('fill: delegates exact raw text to page.fillText and emits verification details', async () => {
+    (browserState.page!.fillText as any).mockResolvedValueOnce({
+      filled: true,
+      verified: true,
+      expected: 'line1\\n/ / raw',
+      actual: 'line1\\n/ / raw',
+      length: 14,
+      matches_n: 1,
+      match_level: 'exact',
+      mode: 'textarea',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'fill', '#msg', 'line1\\n/ / raw']);
+
+    expect(browserState.page!.fillText).toHaveBeenCalledWith('#msg', 'line1\\n/ / raw', {});
+    expect(lastJsonLog()).toEqual({
+      filled: true,
+      verified: true,
+      target: '#msg',
+      text: 'line1\\n/ / raw',
+      actual: 'line1\\n/ / raw',
+      length: 14,
+      matches_n: 1,
+      match_level: 'exact',
+      mode: 'textarea',
+    });
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('fill: sets a non-zero exit code when verification fails', async () => {
+    (browserState.page!.fillText as any).mockResolvedValueOnce({
+      filled: true,
+      verified: false,
+      expected: 'expected',
+      actual: 'actual',
+      length: 6,
+      matches_n: 1,
+      match_level: 'exact',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'fill', '#msg', 'expected']);
+
+    expect(lastJsonLog()).toEqual({
+      filled: true,
+      verified: false,
+      target: '#msg',
+      text: 'expected',
+      actual: 'actual',
+      length: 6,
+      matches_n: 1,
+      match_level: 'exact',
+    });
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('fill: forwards --nth to page.fillText', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'fill', '.field', 'x', '--nth', '2']);
+
+    expect(browserState.page!.fillText).toHaveBeenCalledWith('.field', 'x', { nth: 2 });
   });
 });
 

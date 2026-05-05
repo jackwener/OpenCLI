@@ -17,6 +17,7 @@ function createMockPage(overrides: Partial<IPage> = {}): IPage {
     snapshot: vi.fn().mockResolvedValue(''),
     click: vi.fn(),
     typeText: vi.fn(),
+    fillText: vi.fn(),
     pressKey: vi.fn(),
     getFormState: vi.fn().mockResolvedValue({}),
     wait: vi.fn(),
@@ -175,6 +176,14 @@ describe('executePipeline', () => {
       { click: '@5' },
     ]);
     expect(page.click).toHaveBeenCalledWith('5');
+  });
+
+  it('fill step calls page.fillText with raw rendered text', async () => {
+    const page = createMockPage();
+    await executePipeline(page, [
+      { fill: { ref: '@5', text: 'line1\\n/ / ${{ args.tail }}' } },
+    ], { args: { tail: 'raw' } });
+    expect(page.fillText).toHaveBeenCalledWith('5', 'line1\\n/ / raw');
   });
 
   it('navigate preserves existing data through pipeline', async () => {

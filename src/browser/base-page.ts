@@ -26,7 +26,9 @@ import {
   clickResolvedJs,
   typeResolvedJs,
   prepareNativeTypeResolvedJs,
+  verifyFilledResolvedJs,
   scrollResolvedJs,
+  type FillResolvedResult,
   type ResolveOptions,
   type TargetMatchLevel,
 } from './target-resolver.js';
@@ -42,6 +44,15 @@ export interface ResolveSuccess {
    * clean `exact` match — the page changed, the action still succeeded.
    */
   match_level: TargetMatchLevel;
+}
+
+export interface FillTextResult extends ResolveSuccess {
+  filled: boolean;
+  verified: boolean;
+  expected: string;
+  actual: string;
+  length: number;
+  mode?: 'input' | 'textarea' | 'contenteditable';
 }
 
 /**
@@ -378,6 +389,57 @@ export abstract class BasePage implements IPage {
       await this.evaluate(typeResolvedJs(text));
     }
     return resolved;
+  }
+
+  async fillText(ref: string, text: string, opts: ResolveOptions = {}): Promise<FillTextResult> {
+    const resolved = await runResolve(this, ref, opts);
+    let nativeScrolled = false;
+    let nativeFocused = false;
+
+    try {
+      nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
+      nativeFocused = await this.tryCdpOnResolvedElement('DOM.focus');
+    } catch {
+      // CDP focus/scroll is best-effort; DOM preparation below remains authoritative.
+    }
+
+    const preparation = await this.evaluate(prepareNativeTypeResolvedJs({
+      skipScroll: nativeScrolled,
+      skipFocus: nativeFocused,
+    })) as
+      | { ok?: boolean; mode?: string; reason?: string; tag?: string }
+      | null;
+
+    if (preparation?.ok !== true) {
+      throw new TargetError({
+        code: 'not_editable',
+        message: `Target "${ref}" is not a fillable input, textarea, or contenteditable element.`,
+        hint: 'Use `opencli browser state` to pick an editable target, or use `browser type` for keyboard-like interactions.',
+      });
+    }
+
+    const usedNativeInput = await this.tryNativeType(text);
+    if (!usedNativeInput) {
+      await this.evaluate(typeResolvedJs(text));
+    }
+
+    let verification = await this.evaluate(verifyFilledResolvedJs(text)) as FillResolvedResult | null;
+    if (usedNativeInput && verification?.ok !== true) {
+      await this.evaluate(typeResolvedJs(text));
+      verification = await this.evaluate(verifyFilledResolvedJs(text)) as FillResolvedResult | null;
+    }
+    const actual = verification && 'actual' in verification ? verification.actual : '';
+    const mode = verification && 'mode' in verification ? verification.mode : undefined;
+
+    return {
+      ...resolved,
+      filled: true,
+      verified: verification?.ok === true,
+      expected: text,
+      actual,
+      length: actual.length,
+      ...(mode ? { mode } : {}),
+    };
   }
 
   async pressKey(key: string): Promise<void> {

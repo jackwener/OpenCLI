@@ -12,7 +12,7 @@ OpenCLI turns **any website** or **Electron app** into a command-line interface 
 ## Highlights
 
 - **Desktop App Control** — Drive Electron apps (Cursor, Codex, ChatGPT, Notion, etc.) directly from the terminal via CDP.
-- **Browser Automation** — `browser` gives AI agents direct browser control: click, type, extract, screenshot — fully scriptable.
+- **Browser Automation** — `browser` gives AI agents direct browser control: click, type/fill, extract, screenshot — fully scriptable.
 - **Website → CLI** — Turn any website into a deterministic CLI: 100+ site surfaces are already registered, or author your own with the `opencli-adapter-author` skill.
 - **Account-safe** — Reuses Chrome's logged-in state; your credentials never leave the browser.
 - **AI Agent ready** — `opencli browser *` primitives (`open` / `network` / `state` / `eval` / `init` / `verify`) drive the adapter-authoring loop.

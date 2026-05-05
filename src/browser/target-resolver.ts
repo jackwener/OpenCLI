@@ -355,6 +355,11 @@ export function typeResolvedJs(text: string): string {
   `;
 }
 
+export type FillResolvedResult =
+  | { ok: true; actual: string; expected: string; length: number; mode: 'input' | 'textarea' | 'contenteditable' }
+  | { ok: false; actual: string; expected: string; length: number; mode: 'input' | 'textarea' | 'contenteditable' }
+  | { ok: false; reason: string; tag?: string; type?: string; role?: string };
+
 /**
  * Prepare the resolved element for native CDP Input.insertText.
  *
@@ -431,6 +436,50 @@ export function prepareNativeTypeResolvedJs(opts: { skipScroll?: boolean; skipFo
       return selected
         ? { ok: true, mode: isTextarea ? 'textarea' : 'input' }
         : { ok: false, reason: 'selection_unavailable', mode: isTextarea ? 'textarea' : 'input' };
+    })()
+  `;
+}
+
+/**
+ * Verify the exact value/text currently held by the resolved editable target.
+ * Assumes resolveTargetJs and prepareNativeTypeResolvedJs have already set
+ * `window.__resolved` to the normalized editable host.
+ */
+export function verifyFilledResolvedJs(expected: string): string {
+  const safeText = JSON.stringify(expected);
+  return `
+    (() => {
+      const el = window.__resolved;
+      if (!el) return { ok: false, reason: 'no_resolved_element' };
+
+      const tag = el.tagName ? el.tagName.toLowerCase() : '';
+      const isInput = el instanceof HTMLInputElement;
+      const isTextarea = el instanceof HTMLTextAreaElement;
+      const mode = el.isContentEditable
+        ? 'contenteditable'
+        : isTextarea
+          ? 'textarea'
+          : isInput
+            ? 'input'
+            : '';
+
+      if (!mode) {
+        return {
+          ok: false,
+          reason: 'not_editable',
+          tag,
+          role: el.getAttribute ? (el.getAttribute('role') || '') : '',
+        };
+      }
+
+      const actual = mode === 'contenteditable' ? (el.innerText || '') : String(el.value || '');
+      return {
+        ok: actual === ${safeText},
+        actual,
+        expected: ${safeText},
+        length: actual.length,
+        mode,
+      };
     })()
   `;
 }

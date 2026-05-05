@@ -75,6 +75,16 @@ export interface IPage {
   snapshot(opts?: SnapshotOptions): Promise<any>;
   click(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
   typeText(ref: string, text: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
+  fillText(ref: string, text: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{
+    filled: boolean;
+    verified: boolean;
+    expected: string;
+    actual: string;
+    length: number;
+    matches_n: number;
+    match_level: 'exact' | 'stable' | 'reidentified';
+    mode?: 'input' | 'textarea' | 'contenteditable';
+  }>;
   pressKey(key: string): Promise<void>;
   scrollTo(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<any>;
   getFormState(): Promise<any>;

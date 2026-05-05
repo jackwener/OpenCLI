@@ -19,7 +19,7 @@ features:
     details: Drive Electron apps (Cursor, Codex, ChatGPT, Notion, etc.) directly from the terminal via CDP.
   - icon: 🌐
     title: Browser Automation
-    details: "AI agents get direct browser control: click, type, extract, screenshot — any interaction, fully scriptable."
+    details: "AI agents get direct browser control: click, type/fill, extract, screenshot — any interaction, fully scriptable."
   - icon: 🔐
     title: Account Safe
     details: Reuses Chrome's logged-in state. Your credentials never leave the browser — no tokens, no exposed passwords.
