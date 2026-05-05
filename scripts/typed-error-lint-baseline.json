@@ -1273,22 +1273,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "twitter/followers",
-    "file": "clis/twitter/followers.js",
-    "line": 87,
-    "text": "name: core.name || legacy.name || 'unknown',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "twitter/followers",
-    "file": "clis/twitter/followers.js",
-    "line": 86,
-    "text": "screen_name: core.screen_name || legacy.screen_name || 'unknown',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "twitter/following",
     "file": "clis/twitter/following.js",
     "line": 94,
