@@ -20495,6 +20495,7 @@
     "site": "xianyu",
     "name": "publish",
     "description": "发布闲鱼宝贝（需先在浏览器中登录闲鱼）",
+    "access": "write",
     "domain": "www.goofish.com",
     "strategy": "cookie",
     "browser": true,

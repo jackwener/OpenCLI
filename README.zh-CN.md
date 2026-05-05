@@ -315,7 +315,7 @@ npm link
 | **pixiv** | `ranking` `search` `user` `illusts` `detail` `download` | 浏览器 |
 | **tiktok** | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` | 浏览器 |
 | **bluesky** | `search` `trending` `user` `profile` `thread` `feeds` `followers` `following` `starter-packs` | 公开 |
-| **xianyu** | `search` `item` `chat` | 浏览器 |
+| **xianyu** | `search` `item` `chat` `publish` | 浏览器 |
 | **douyin** | `videos` `publish` `drafts` `draft` `delete` `stats` `profile` `update` `hashtag` `location` `activities` `collections` | 浏览器 |
 | **yuanbao** | `new` `ask` | 浏览器 |
 

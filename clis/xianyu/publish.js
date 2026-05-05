@@ -1,9 +1,83 @@
-import { AuthRequiredError, selectorError } from '@jackwener/opencli/errors';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { normalizeNumericId } from './utils.js';
+
+const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+const MAX_IMAGES = 9;
+const CONDITION_CHOICES = ['全新', '几乎全新', '轻微使用', '明显使用', '老旧'];
 
 function buildPublishUrl() {
     return 'https://www.goofish.com/publish';
+}
+
+function requireText(value, label) {
+    const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+    if (!text) {
+        throw new ArgumentError(`xianyu publish ${label} cannot be empty`);
+    }
+    return text;
+}
+
+function parsePositivePrice(value, label) {
+    if (value == null || String(value).trim() === '') {
+        return null;
+    }
+    const text = String(value).trim();
+    if (!/^\d+(?:\.\d{1,2})?$/.test(text)) {
+        throw new ArgumentError(`xianyu publish ${label} must be a positive price with at most 2 decimals`);
+    }
+    const price = Number(text);
+    if (!Number.isFinite(price) || price <= 0) {
+        throw new ArgumentError(`xianyu publish ${label} must be a positive price`);
+    }
+    return text;
+}
+
+function validateCondition(value) {
+    const condition = requireText(value, 'condition');
+    if (!CONDITION_CHOICES.includes(condition)) {
+        throw new ArgumentError(`xianyu publish condition must be one of: ${CONDITION_CHOICES.join(', ')}`);
+    }
+    return condition;
+}
+
+function validateImagePaths(raw) {
+    if (!raw) return [];
+    const paths = String(raw).split(',').map((item) => item.trim()).filter(Boolean);
+    if (paths.length === 0) return [];
+    if (paths.length > MAX_IMAGES) {
+        throw new ArgumentError(`xianyu publish images supports at most ${MAX_IMAGES} files`);
+    }
+    return paths.map((item) => {
+        const absPath = path.resolve(item);
+        const ext = path.extname(absPath).toLowerCase();
+        if (!SUPPORTED_IMAGE_EXTENSIONS.has(ext)) {
+            throw new ArgumentError(`Unsupported image format "${ext}". Supported: jpg, jpeg, png, webp`);
+        }
+        const stat = fs.statSync(absPath, { throwIfNoEntry: false });
+        if (!stat || !stat.isFile()) {
+            throw new ArgumentError(`Not a valid image file: ${absPath}`);
+        }
+        return absPath;
+    });
+}
+
+function normalizePublishArgs(kwargs) {
+    const price = parsePositivePrice(kwargs.price, 'price');
+    if (price == null) {
+        throw new ArgumentError('xianyu publish price cannot be empty');
+    }
+    const normalized = {};
+    normalized.title = requireText(kwargs.title, 'title');
+    normalized.description = requireText(kwargs.description, 'description');
+    normalized.price = price;
+    normalized.condition = validateCondition(kwargs.condition);
+    normalized.category = requireText(kwargs.category, 'category');
+    normalized.original_price = parsePositivePrice(kwargs.original_price, 'original_price');
+    normalized.location = kwargs.location ? requireText(kwargs.location, 'location') : '';
+    normalized.images = validateImagePaths(kwargs.images);
+    return normalized;
 }
 
 // ===== 表单填充 evaluate scripts =====
@@ -13,14 +87,8 @@ function buildFillFormEvaluate(data) {
     (() => {
       const clean = (value) => String(value ?? '').replace(/\\s+/g, ' ').trim();
 
-      const waitFor = async (predicate, timeoutMs = 10000) => {
-        const start = Date.now();
-        while (Date.now() - start < timeoutMs) {
-          if (predicate()) return true;
-          await new Promise((r) => setTimeout(r, 200));
-        }
-        return false;
-      };
+      const filled = [];
+      const missing = [];
 
       // 1. 填标题
       const titleInput = document.querySelector('input[id*="title"], input[placeholder*="标题"], textarea[id*="title"], [class*="titleInput"]');
@@ -32,8 +100,10 @@ function buildFillFormEvaluate(data) {
           setter.call(titleInput, ${JSON.stringify(data.title)});
           titleInput.dispatchEvent(new Event('input', { bubbles: true }));
           titleInput.dispatchEvent(new Event('change', { bubbles: true }));
+          filled.push('title');
         }
       }
+      if (!filled.includes('title')) missing.push('title');
 
       // 2. 填描述
       const descInput = document.querySelector('textarea[id*="desc"], textarea[id*="description"], [class*="descInput"], [class*="description"]');
@@ -44,8 +114,10 @@ function buildFillFormEvaluate(data) {
           setter.call(descInput, ${JSON.stringify(data.description)});
           descInput.dispatchEvent(new Event('input', { bubbles: true }));
           descInput.dispatchEvent(new Event('change', { bubbles: true }));
+          filled.push('description');
         }
       }
+      if (!filled.includes('description')) missing.push('description');
 
       // 3. 填价格
       const priceInput = document.querySelector('input[id*="price"], input[placeholder*="价"], input[class*="price"]');
@@ -56,8 +128,10 @@ function buildFillFormEvaluate(data) {
           setter.call(priceInput, ${JSON.stringify(String(data.price))});
           priceInput.dispatchEvent(new Event('input', { bubbles: true }));
           priceInput.dispatchEvent(new Event('change', { bubbles: true }));
+          filled.push('price');
         }
       }
+      if (!filled.includes('price')) missing.push('price');
 
       // 4. 填原价（可选）
       ${data.original_price ? `
@@ -69,6 +143,7 @@ function buildFillFormEvaluate(data) {
           setter.call(originalPriceInput, ${JSON.stringify(String(data.original_price))});
           originalPriceInput.dispatchEvent(new Event('input', { bubbles: true }));
           originalPriceInput.dispatchEvent(new Event('change', { bubbles: true }));
+          filled.push('original_price');
         }
       }
       ` : ''}
@@ -83,6 +158,7 @@ function buildFillFormEvaluate(data) {
           setter.call(locationInput, ${JSON.stringify(data.location)});
           locationInput.dispatchEvent(new Event('input', { bubbles: true }));
           locationInput.dispatchEvent(new Event('change', { bubbles: true }));
+          filled.push('location');
         }
       }
       ` : ''}
@@ -105,17 +181,19 @@ function buildFillFormEvaluate(data) {
         });
         if (matchBtn) {
           matchBtn.click();
+          filled.push('condition');
         }
       }
+      if (!filled.includes('condition')) missing.push('condition');
 
-      return { ok: true, filled: ['title', 'description', 'price', 'original_price', 'location', 'condition'] };
+      return { ok: missing.length === 0, filled, missing };
     })()
   `;
 }
 
 function buildSelectCategoryEvaluate(categoryName) {
     return `
-    (() => {
+    (async () => {
       const clean = (value) => String(value ?? '').replace(/\\s+/g, ' ').trim();
 
       // 点击分类选择器
@@ -125,6 +203,8 @@ function buildSelectCategoryEvaluate(categoryName) {
 
       if (categoryTrigger) {
         categoryTrigger.click();
+      } else {
+        return { ok: false, reason: 'category-trigger-not-found' };
       }
 
       // 等待分类弹窗/面板出现
@@ -167,7 +247,8 @@ function buildFindFileInputSelectorEvaluate() {
       if (!fileInput) return { ok: false, reason: 'no-file-input' };
 
       // 获取 selector 来唯一标识这个 input
-      const selector = fileInput.id ? '#' + fileInput.id
+      const escapeAttr = (value) => String(value).replace(/["\\\\]/g, '\\\\$&');
+      const selector = fileInput.id ? '[id="' + escapeAttr(fileInput.id) + '"]'
         : fileInput.name ? '[name="' + fileInput.name + '"]'
         : fileInput.className ? 'input.' + fileInput.className.split(' ').join('.')
         : 'input[type="file"]';
@@ -210,21 +291,21 @@ function buildDetectSuccessEvaluate() {
       // 成功标志：URL 变为商品详情页
       if (/item\\?id=\\d+/.test(url)) {
         const match = url.match(/item\\?id=(\\d+)/);
-        return { ok: true, success: true, item_id: match ? match[1] : '', url };
+        return { status: 'published', item_id: match ? match[1] : '', url, message: '发布成功' };
       }
 
       // 成功标志：页面出现"发布成功"
       if (/发布成功|上架成功|发布完成/.test(bodyText)) {
         const idMatch = url.match(/item\\?id=(\\d+)/) || bodyText.match(/id[：:]?\\s*(\\d{10,})/);
-        return { ok: true, success: true, item_id: idMatch ? (idMatch[1] || idMatch[0]) : '', url };
+        return { status: 'published', item_id: idMatch ? (idMatch[1] || idMatch[0]) : '', url, message: '发布成功' };
       }
 
       // 失败标志
-      if (/发布失败|上架失败|异常|错误/.test(bodyText)) {
-        const errMatch = Array.from(document.querySelectorAll('[class*="error"], [class*="fail"]'))
-          .map((el) => clean(el.textContent || ''))
-          .filter(Boolean);
-        return { ok: true, success: false, reason: errMatch.join(' | ') || 'publish-failed' };
+      const errMatch = Array.from(document.querySelectorAll('[class*="error"], [class*="fail"]'))
+        .map((el) => clean(el.textContent || ''))
+        .filter(Boolean);
+      if (errMatch.length || /发布失败|上架失败|异常|错误|违规/.test(bodyText)) {
+        return { status: 'failed', message: errMatch.join(' | ') || 'publish-failed' };
       }
 
       return { ok: false, reason: 'unknown-state' };
@@ -262,18 +343,19 @@ function buildExtractPageStateEvaluate() {
         priceInput,
         conditionSelect,
         submitBtn: !!submitBtn,
-        url,
+        pageUrl: url,
         bodySnippet: bodyText.slice(0, 500),
       };
     })()
-  `;
+    `;
 }
 
 // ===== CLI definition =====
 
-cli({
+export const publishCommand = cli({
     site: 'xianyu',
     name: 'publish',
+    access: 'write',
     description: '发布闲鱼宝贝（需先在浏览器中登录闲鱼）',
     domain: 'www.goofish.com',
     strategy: Strategy.COOKIE,
@@ -291,6 +373,7 @@ cli({
     ],
     columns: ['status', 'item_id', 'title', 'price', 'condition', 'url', 'message'],
     func: async (page, kwargs) => {
+        const data = normalizePublishArgs(kwargs);
         // 1. 导航到发布页
         await page.goto(buildPublishUrl());
         await page.wait(3);
@@ -301,52 +384,51 @@ cli({
             throw new AuthRequiredError('www.goofish.com', '发布闲鱼需要先登录，请在 Chrome 中打开 goofish.com 并完成登录');
         }
         if (!initState?.hasPublishForm) {
-            throw new selectorError('闲鱼发布表单', '未检测到发布表单，请确认已登录且页面正常加载');
+            throw new CommandExecutionError('Xianyu publish form was not detected', 'Confirm goofish.com is logged in and the publish page finished loading.');
         }
 
         // 3. 选择分类（先于其他字段，因为分类可能影响表单结构）
-        await page.evaluate(buildSelectCategoryEvaluate(kwargs.category));
+        const categoryResult = await page.evaluate(buildSelectCategoryEvaluate(data.category));
+        if (!categoryResult?.ok) {
+            throw new CommandExecutionError(`Xianyu category selection failed: ${categoryResult?.reason || 'unknown-reason'}`);
+        }
         await page.wait(1.5);
 
         // 4. 填充表单
-        const fillData = {
-            title: kwargs.title,
-            description: kwargs.description,
-            price: kwargs.price,
-            condition: kwargs.condition,
-            original_price: kwargs.original_price,
-            location: kwargs.location,
-        };
-        await page.evaluate(buildFillFormEvaluate(fillData));
+        const fillResult = await page.evaluate(buildFillFormEvaluate(data));
+        if (!fillResult?.ok) {
+            const missing = Array.isArray(fillResult?.missing) ? fillResult.missing.join(', ') : 'unknown';
+            throw new CommandExecutionError(`Xianyu publish form fill failed; missing fields: ${missing}`);
+        }
         await page.wait(1);
 
         // 5. 上传图片（如果有）
-        const images = kwargs.images;
-        if (images) {
-            const paths = String(images).split(',').map((p) => p.trim()).filter(Boolean);
-            if (paths.length > 0) {
-                // 通过 CDP setFileInput 上传（支持本地路径）
-                try {
-                    await page.setFileInput(paths, 'input[type="file"]');
-                    await page.wait(3); // 等待图片上传处理
-                } catch (err) {
-                    throw selectorError('图片上传', `图片上传失败：${err?.message || err}。请确保图片路径存在且可读。`);
-                }
+        if (data.images.length > 0) {
+            if (!page.setFileInput) {
+                throw new CommandExecutionError('Xianyu publish requires Browser Bridge file upload support', 'Use a browser mode that supports setFileInput.');
+            }
+            const fileInput = await page.evaluate(buildFindFileInputSelectorEvaluate());
+            if (!fileInput?.ok) {
+                throw new CommandExecutionError(`Xianyu image upload input was not found: ${fileInput?.reason || 'unknown-reason'}`);
+            }
+            try {
+                await page.setFileInput(data.images, fileInput.selector || 'input[type="file"]');
+                await page.wait(3); // 等待图片上传处理
+            } catch (err) {
+                throw new CommandExecutionError(`Xianyu image upload failed: ${err?.message || err}`);
             }
         }
 
         // 6. 点击发布按钮
         const submitResult = await page.evaluate(buildSubmitEvaluate());
         if (!submitResult?.ok) {
-            throw selectorError('发布按钮', `未能点击发布按钮：${submitResult?.reason || 'unknown'}`);
+            throw new CommandExecutionError(`Xianyu publish submit failed: ${submitResult?.reason || 'unknown-reason'}`);
         }
 
         // 7. 等待发布结果（最多 15 秒轮询）
         await page.wait(2);
-        let success = false;
         let itemId = '';
         let finalUrl = page.url();
-        let message = '';
         let failReason = '';
 
         for (let i = 0; i < 10; i++) {
@@ -354,45 +436,37 @@ cli({
             const result = await page.evaluate(buildDetectSuccessEvaluate());
             finalUrl = page.url();
 
-            if (result?.success) {
-                success = true;
+            if (result?.status === 'published') {
                 itemId = String(result.item_id || '').replace(/\D/g, '');
-                message = '发布成功';
-                break;
+                return [{
+                    status: 'published',
+                    item_id: itemId,
+                    title: data.title.slice(0, 50),
+                    price: `¥${data.price}`,
+                    condition: data.condition,
+                    url: result.url || finalUrl,
+                    message: '发布成功',
+                }];
             }
 
-            if (result && typeof result.success === 'boolean' && !result.success) {
-                success = false;
-                failReason = result.reason || '发布失败';
+            if (result?.status === 'failed') {
+                failReason = result.message || '发布失败';
                 break;
             }
         }
 
-        if (success) {
-            return [{
-                status: 'published',
-                item_id: itemId,
-                title: String(kwargs.title).slice(0, 50),
-                price: `¥${kwargs.price}`,
-                condition: kwargs.condition,
-                url: finalUrl,
-                message: '发布成功',
-            }];
-        } else {
-            return [{
-                status: 'failed',
-                item_id: '',
-                title: String(kwargs.title).slice(0, 50),
-                price: `¥${kwargs.price}`,
-                condition: kwargs.condition,
-                url: finalUrl,
-                message: failReason || '发布未成功，请手动检查页面状态',
-            }];
-        }
+        throw new CommandExecutionError(failReason || 'Xianyu publish result was not confirmed before timeout', `Open ${finalUrl} and verify whether the listing was published.`);
     },
 });
 
 export const __test__ = {
-    normalizeNumericId,
+    CONDITION_CHOICES,
+    MAX_IMAGES,
+    validateImagePaths,
+    normalizePublishArgs,
     buildPublishUrl,
+    buildFillFormEvaluate,
+    buildSelectCategoryEvaluate,
+    buildFindFileInputSelectorEvaluate,
+    buildDetectSuccessEvaluate,
 };

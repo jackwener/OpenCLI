@@ -264,7 +264,7 @@ To load the source Browser Bridge extension:
 | **yuanbao** | `new` `ask` |
 | **notebooklm** | `status` `list` `open` `current` `get` `history` `summary` `note-list` `notes-get` `source-list` `source-get` `source-fulltext` `source-guide` |
 | **spotify** | `auth` `status` `play` `pause` `next` `prev` `volume` `search` `queue` `shuffle` `repeat` |
-| **xianyu** | `search` `item` `chat` |
+| **xianyu** | `search` `item` `chat` `publish` |
 | **xiaoe** | `courses` `detail` `catalog` `play-url` `content` |
 | **quark** | `ls` `mkdir` `mv` `rename` `rm` `save` `share-tree` |
 | **uiverse** | `code` `preview` |
