@@ -7,6 +7,9 @@ chrome.runtime.sendMessage({ type: 'getStatus' }, (resp) => {
   const profileRow = document.getElementById('profileRow');
   const contextId = document.getElementById('contextId');
   const copyBtn = document.getElementById('copyBtn');
+  const daemonPortInput = document.getElementById('daemonPort');
+  const savePortBtn = document.getElementById('savePortBtn');
+  const resetPortBtn = document.getElementById('resetPortBtn');
   const hint = document.getElementById('hint');
   const extVersion = document.getElementById('extVersion');
 
@@ -30,6 +33,12 @@ chrome.runtime.sendMessage({ type: 'getStatus' }, (resp) => {
   } else {
     profileRow.style.display = 'none';
   }
+
+  if (typeof resp.daemonPort === 'number') {
+    daemonPortInput.value = String(resp.daemonPort);
+  }
+  savePortBtn.addEventListener('click', () => saveDaemonPort(daemonPortInput, savePortBtn));
+  resetPortBtn.addEventListener('click', () => resetDaemonPort(daemonPortInput, resetPortBtn));
 
   if (resp.connected) {
     setState(card, dot, 'connected');
@@ -74,4 +83,41 @@ function copyToClipboard(text, btn) {
       setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
     },
   );
+}
+
+function saveDaemonPort(input, btn) {
+  const port = Number(input.value);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    flashButton(btn, 'Invalid');
+    return;
+  }
+  chrome.runtime.sendMessage({ type: 'setDaemonPort', port }, (resp) => {
+    if (resp && resp.ok && typeof resp.daemonPort === 'number') {
+      input.value = String(resp.daemonPort);
+      flashButton(btn, 'Saved');
+    } else {
+      flashButton(btn, 'Failed');
+    }
+  });
+}
+
+function resetDaemonPort(input, btn) {
+  chrome.runtime.sendMessage({ type: 'resetDaemonPort' }, (resp) => {
+    if (resp && resp.ok && typeof resp.daemonPort === 'number') {
+      input.value = String(resp.daemonPort);
+      flashButton(btn, 'Reset');
+    } else {
+      flashButton(btn, 'Failed');
+    }
+  });
+}
+
+function flashButton(btn, text) {
+  const original = btn.textContent;
+  btn.textContent = text;
+  btn.classList.add('copied');
+  setTimeout(() => {
+    btn.textContent = original;
+    btn.classList.remove('copied');
+  }, 1200);
 }

@@ -91,12 +91,44 @@ export interface Result {
   page?: string;
 }
 
+declare const __OPENCLI_DAEMON_PORT__: string | number | undefined;
+
 /** Default daemon port */
-export const DAEMON_PORT = 19825;
+export const DEFAULT_DAEMON_PORT = 19825;
+export const DAEMON_PORT_STORAGE_KEY = 'opencli_daemon_port_v1';
 export const DAEMON_HOST = 'localhost';
-export const DAEMON_WS_URL = `ws://${DAEMON_HOST}:${DAEMON_PORT}/ext`;
+export const BUILD_DAEMON_PORT = typeof __OPENCLI_DAEMON_PORT__ !== 'undefined'
+  ? __OPENCLI_DAEMON_PORT__
+  : undefined;
+
+export function parseDaemonPort(value: unknown): number | null {
+  const port = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim()
+      ? Number(value.trim())
+      : NaN;
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) return null;
+  return port;
+}
+
+export function resolveDaemonPort(storedValue: unknown, buildValue: unknown = BUILD_DAEMON_PORT): number {
+  return parseDaemonPort(storedValue)
+    ?? parseDaemonPort(buildValue)
+    ?? DEFAULT_DAEMON_PORT;
+}
+
+export function daemonWsUrl(port: number): string {
+  return `ws://${DAEMON_HOST}:${port}/ext`;
+}
+
 /** Lightweight health-check endpoint — probed before each WebSocket attempt. */
-export const DAEMON_PING_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}/ping`;
+export function daemonPingUrl(port: number): string {
+  return `http://${DAEMON_HOST}:${port}/ping`;
+}
+
+export function daemonStatusUrl(port: number): string {
+  return `http://${DAEMON_HOST}:${port}/status`;
+}
 
 /** Base reconnect delay for extension WebSocket (ms) */
 export const WS_RECONNECT_BASE_DELAY = 2000;

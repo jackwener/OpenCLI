@@ -120,6 +120,9 @@ function createChromeMock() {
         set: vi.fn(async (items: Record<string, unknown>) => {
           Object.assign(storageState, items);
         }),
+        remove: vi.fn(async (key: string) => {
+          delete storageState[key];
+        }),
       },
     },
     runtime: {
@@ -146,6 +149,18 @@ describe('background tab isolation', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it('resolves daemon port from stored value, build value, then default', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+
+    expect(mod.__test__.resolveDaemonPort('24567', '23456')).toBe(24567);
+    expect(mod.__test__.resolveDaemonPort('', '23456')).toBe(23456);
+    expect(mod.__test__.resolveDaemonPort('not-a-port', 'also-bad')).toBe(19825);
+    expect(mod.__test__.parseDaemonPort(65536)).toBeNull();
   });
 
   it('lists only automation-window web tabs', async () => {

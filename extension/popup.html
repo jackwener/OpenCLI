@@ -92,6 +92,26 @@
     .copy-btn:hover { background: #f0f6ff; }
     .copy-btn:active { background: #e1edff; }
     .copy-btn.copied { color: #34c759; border-color: #34c759; background: #f0fdf4; }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-top: 1px solid #ececec;
+      background: #fff;
+    }
+    .settings-row input {
+      flex: 1;
+      min-width: 0;
+      padding: 5px 7px;
+      font: inherit;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      border: 1px solid #d2d2d7;
+      border-radius: 6px;
+    }
+    .settings-row .copy-btn {
+      padding-inline: 7px;
+    }
     .hint {
       padding: 10px 12px;
       border-top: 1px solid #ececec;
@@ -133,6 +153,12 @@
       <span class="profile-label">Profile</span>
       <span class="profile-id" id="contextId"></span>
       <button type="button" class="copy-btn" id="copyBtn" title="Copy contextId">Copy</button>
+    </div>
+    <div class="settings-row">
+      <span class="profile-label">Port</span>
+      <input id="daemonPort" inputmode="numeric" pattern="[0-9]*" aria-label="Daemon port">
+      <button type="button" class="copy-btn" id="savePortBtn">Save</button>
+      <button type="button" class="copy-btn" id="resetPortBtn">Reset</button>
     </div>
     <div class="hint" id="hint" style="display: none;">
       The extension connects automatically when you run any <code>opencli</code> command.
