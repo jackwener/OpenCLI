@@ -277,6 +277,31 @@ function buildRenderAwareExtractorJs(options) {
               result.diagnostics.includedFrameCount += 1;
             } catch {}
           });
+
+          // Also extract same-origin iframes that live outside contentEl.
+          // originalFrames only covers iframes inside the selected content element;
+          // meaningful iframes elsewhere in the document (e.g. above the fold) are
+          // never processed by the loop above, so their content is silently dropped.
+          allFrames.forEach((frame, index) => {
+            if (contentEl.contains(frame)) return; // already handled above
+            const desc = describeFrame(frame, index);
+            if (!desc.sameOrigin || !desc.accessible || (desc.textLength || 0) < 50) return;
+            try {
+              const doc = frame.contentDocument;
+              if (!doc?.body) return;
+              const frameBody = doc.body.cloneNode(true);
+              absolutizeTree(frameBody, desc.src || window.location.href);
+              collectEmptyContainers(frameBody, 'iframe', desc.src);
+              const section = document.createElement('section');
+              section.setAttribute('data-opencli-iframe-source', desc.src);
+              const heading = document.createElement('h2');
+              heading.textContent = '来自 iframe: ' + (desc.src || frame.getAttribute('src') || ('#' + index));
+              section.appendChild(heading);
+              Array.from(frameBody.childNodes).forEach(node => section.appendChild(node));
+              clone.appendChild(section);
+              result.diagnostics.includedFrameCount += 1;
+            } catch {}
+          });
         }
 
         collectEmptyContainers(clone, 'main', window.location.href);
