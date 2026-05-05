@@ -17616,6 +17616,45 @@
   },
   {
     "site": "tiktok",
+    "name": "creator-videos",
+    "description": "TikTok Studio creator content list (views/likes/comments/saves/shares)",
+    "access": "read",
+    "domain": "www.tiktok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of creator videos to return"
+      },
+      {
+        "name": "cursor",
+        "type": "string",
+        "default": "0",
+        "required": false,
+        "help": "Pagination cursor"
+      }
+    ],
+    "columns": [
+      "title",
+      "date",
+      "views",
+      "likes",
+      "comments",
+      "saves",
+      "shares",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "tiktok/creator-videos.js",
+    "sourceFile": "tiktok/creator-videos.js",
+    "navigateBefore": "https://www.tiktok.com"
+  },
+  {
+    "site": "tiktok",
     "name": "explore",
     "description": "Get trending TikTok videos from explore page",
     "access": "read",

@@ -17,12 +17,16 @@ cli({
         { navigate: { url: 'https://www.tiktok.com/tiktokstudio/content', settleMs: 6000 } },
         {
             evaluate: `(async () => {
-  const limit = Math.max(1, Number(\${{ args.limit }}) || 20);
+  const limit = Number(\${{ args.limit }});
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error('limit must be a positive integer');
+  }
   const cursor = \${{ args.cursor | json }};
   const apiPath = '${ITEM_LIST_API_PATH}';
   const apiUrl = apiPath + '?aid=1988';
-  const pageSize = Math.min(Math.max(limit, 1), 50);
-  const maxPages = Math.max(1, Math.ceil(limit / pageSize));
+  const SERVER_PAGE_MAX = 50;
+  const pageSize = limit < SERVER_PAGE_MAX ? limit : SERVER_PAGE_MAX;
+  const maxPages = Math.ceil(limit / pageSize);
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   function toNumber(value) {
