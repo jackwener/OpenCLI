@@ -244,16 +244,58 @@ class CDPPage extends BasePage {
   }
 
   async screenshot(options: ScreenshotOptions = {}): Promise<string> {
-    const result = await this.bridge.send('Page.captureScreenshot', {
-      format: options.format ?? 'png',
-      quality: options.format === 'jpeg' ? (options.quality ?? 80) : undefined,
-      captureBeyondViewport: options.fullPage ?? false,
-    });
-    const base64 = isRecord(result) && typeof result.data === 'string' ? result.data : '';
-    if (options.path) {
-      await saveBase64ToFile(base64, options.path);
+    const fullPage = options.fullPage === true;
+    const overrideWidth = options.width && options.width > 0 ? Math.ceil(options.width) : undefined;
+    // height is ignored under fullPage so the captureBeyondViewport path stays unchanged for users who pass --height alongside --full-page.
+    const overrideHeight = !fullPage && options.height && options.height > 0 ? Math.ceil(options.height) : undefined;
+    const needsOverride = overrideWidth !== undefined || overrideHeight !== undefined;
+
+    if (needsOverride) {
+      if (overrideWidth !== undefined && fullPage) {
+        await this.bridge.send('Emulation.setDeviceMetricsOverride', {
+          mobile: false,
+          width: overrideWidth,
+          height: 0,
+          deviceScaleFactor: 1,
+        });
+      }
+      let finalWidth = overrideWidth ?? 0;
+      let finalHeight = overrideHeight ?? 0;
+      if (fullPage) {
+        const metrics = await this.bridge.send('Page.getLayoutMetrics');
+        const m = isRecord(metrics) ? metrics : {};
+        const css = isRecord(m.cssContentSize) ? m.cssContentSize : undefined;
+        const fb = isRecord(m.contentSize) ? m.contentSize : undefined;
+        const size = css ?? fb;
+        if (size && typeof size.width === 'number' && typeof size.height === 'number') {
+          if (finalWidth === 0) finalWidth = Math.ceil(size.width);
+          finalHeight = Math.ceil(size.height);
+        }
+      }
+      await this.bridge.send('Emulation.setDeviceMetricsOverride', {
+        mobile: false,
+        width: finalWidth,
+        height: finalHeight,
+        deviceScaleFactor: 1,
+      });
     }
-    return base64;
+
+    try {
+      const result = await this.bridge.send('Page.captureScreenshot', {
+        format: options.format ?? 'png',
+        quality: options.format === 'jpeg' ? (options.quality ?? 80) : undefined,
+        captureBeyondViewport: !needsOverride && fullPage,
+      });
+      const base64 = isRecord(result) && typeof result.data === 'string' ? result.data : '';
+      if (options.path) {
+        await saveBase64ToFile(base64, options.path);
+      }
+      return base64;
+    } finally {
+      if (needsOverride) {
+        await this.bridge.send('Emulation.clearDeviceMetricsOverride').catch(() => {});
+      }
+    }
   }
 
   async startNetworkCapture(pattern: string = ''): Promise<boolean> {

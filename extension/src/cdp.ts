@@ -190,29 +190,46 @@ export const evaluateAsync = evaluate;
  */
 export async function screenshot(
   tabId: number,
-  options: { format?: 'png' | 'jpeg'; quality?: number; fullPage?: boolean } = {},
+  options: { format?: 'png' | 'jpeg'; quality?: number; fullPage?: boolean; width?: number; height?: number } = {},
 ): Promise<string> {
   await ensureAttached(tabId);
 
   const format = options.format ?? 'png';
+  const fullPage = options.fullPage === true;
+  const overrideWidth = options.width && options.width > 0 ? Math.ceil(options.width) : undefined;
+  // height is ignored under fullPage so the existing measure-from-content path stays unchanged for users who pass --height alongside --full-page.
+  const overrideHeight = !fullPage && options.height && options.height > 0 ? Math.ceil(options.height) : undefined;
+  const needsOverride = fullPage || overrideWidth !== undefined || overrideHeight !== undefined;
 
-  // For full-page screenshots, get the full page dimensions first
-  if (options.fullPage) {
-    // Get full page metrics
-    const metrics = await chrome.debugger.sendCommand({ tabId }, 'Page.getLayoutMetrics') as {
-      contentSize?: { width: number; height: number };
-      cssContentSize?: { width: number; height: number };
-    };
-    const size = metrics.cssContentSize || metrics.contentSize;
-    if (size) {
-      // Set device metrics to full page size
+  if (needsOverride) {
+    // When width is set, apply it first so layout reflows before we read content size.
+    if (overrideWidth !== undefined && fullPage) {
       await chrome.debugger.sendCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
         mobile: false,
-        width: Math.ceil(size.width),
-        height: Math.ceil(size.height),
+        width: overrideWidth,
+        height: 0,
         deviceScaleFactor: 1,
       });
     }
+    let finalWidth = overrideWidth ?? 0;
+    let finalHeight = overrideHeight ?? 0;
+    if (fullPage) {
+      const metrics = await chrome.debugger.sendCommand({ tabId }, 'Page.getLayoutMetrics') as {
+        contentSize?: { width: number; height: number };
+        cssContentSize?: { width: number; height: number };
+      };
+      const size = metrics.cssContentSize || metrics.contentSize;
+      if (size) {
+        if (finalWidth === 0) finalWidth = Math.ceil(size.width);
+        finalHeight = Math.ceil(size.height);
+      }
+    }
+    await chrome.debugger.sendCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
+      mobile: false,
+      width: finalWidth,
+      height: finalHeight,
+      deviceScaleFactor: 1,
+    });
   }
 
   try {
@@ -227,8 +244,7 @@ export async function screenshot(
 
     return result.data;
   } finally {
-    // Reset device metrics if we changed them for full-page
-    if (options.fullPage) {
+    if (needsOverride) {
       await chrome.debugger.sendCommand({ tabId }, 'Emulation.clearDeviceMetricsOverride').catch(() => {});
     }
   }

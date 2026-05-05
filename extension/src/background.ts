@@ -1267,6 +1267,8 @@ async function handleScreenshot(cmd: Command, workspace: string): Promise<Result
       format: cmd.format,
       quality: cmd.quality,
       fullPage: cmd.fullPage,
+      width: cmd.width,
+      height: cmd.height,
     });
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {

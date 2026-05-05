@@ -9,7 +9,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Command } from 'commander';
+import { Command, InvalidArgumentError } from 'commander';
 import { styleText } from 'node:util';
 import { findPackageRoot, getBuiltEntryCandidates } from './package-paths.js';
 import { type CliCommand, fullName, getRegistry, strategyLabel } from './registry.js';
@@ -36,6 +36,7 @@ import { log } from './logger.js';
 import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
+import type { ScreenshotOptions } from './types.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
@@ -451,6 +452,17 @@ function parsePositiveIntOption(val: string | undefined, label: string, fallback
   if (Number.isNaN(parsed) || parsed <= 0) {
     console.error(`[cli] Invalid ${label}="${val}", using default ${fallback}`);
     return fallback;
+  }
+  return parsed;
+}
+
+function parseScreenshotDim(val: string, label: string): number {
+  if (!/^\d+$/.test(val)) {
+    throw new InvalidArgumentError(`--${label} must be a positive integer (got "${val}")`);
+  }
+  const parsed = parseInt(val, 10);
+  if (parsed <= 0) {
+    throw new InvalidArgumentError(`--${label} must be a positive integer (got "${val}")`);
   }
   return parsed;
 }
@@ -974,13 +986,21 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }));
 
   addBrowserTabOption(browser.command('screenshot').argument('[path]', 'Save to file (base64 if omitted)'))
+    .option('--full-page', 'Capture the full scrollable page, not just the viewport', false)
+    .option('--width <n>', 'Override viewport width in CSS pixels for this screenshot only', (v: string) => parseScreenshotDim(v, 'width'))
+    .option('--height <n>', 'Override viewport height in CSS pixels for this screenshot only (ignored with --full-page)', (v: string) => parseScreenshotDim(v, 'height'))
     .description('Take screenshot')
-    .action(browserAction(async (page, path) => {
+    .action(browserAction(async (page, path, opts) => {
+      const shotOpts: ScreenshotOptions = {
+        fullPage: opts.fullPage === true,
+        width: opts.width,
+        height: opts.height,
+      };
       if (path) {
-        await page.screenshot({ path });
+        await page.screenshot({ ...shotOpts, path });
         console.log(`Screenshot saved to: ${path}`);
       } else {
-        console.log(await page.screenshot({ format: 'png' }));
+        console.log(await page.screenshot({ ...shotOpts, format: 'png' }));
       }
     }));
 

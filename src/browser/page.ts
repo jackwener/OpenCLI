@@ -213,6 +213,8 @@ export class Page extends BasePage {
       format: options.format,
       quality: options.quality,
       fullPage: options.fullPage,
+      width: options.width,
+      height: options.height,
     }) as string;
 
     if (options.path) {

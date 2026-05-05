@@ -35,6 +35,10 @@ export interface ScreenshotOptions {
   format?: 'png' | 'jpeg';
   quality?: number;
   fullPage?: boolean;
+  /** Override viewport width in CSS pixels for the screenshot only (cleared after). */
+  width?: number;
+  /** Override viewport height in CSS pixels for the screenshot only (ignored when fullPage). */
+  height?: number;
   path?: string;
 }
 

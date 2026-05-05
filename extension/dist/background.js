@@ -119,17 +119,35 @@ const evaluateAsync = evaluate;
 async function screenshot(tabId, options = {}) {
   await ensureAttached(tabId);
   const format = options.format ?? "png";
-  if (options.fullPage) {
-    const metrics = await chrome.debugger.sendCommand({ tabId }, "Page.getLayoutMetrics");
-    const size = metrics.cssContentSize || metrics.contentSize;
-    if (size) {
+  const fullPage = options.fullPage === true;
+  const overrideWidth = options.width && options.width > 0 ? Math.ceil(options.width) : void 0;
+  const overrideHeight = !fullPage && options.height && options.height > 0 ? Math.ceil(options.height) : void 0;
+  const needsOverride = fullPage || overrideWidth !== void 0 || overrideHeight !== void 0;
+  if (needsOverride) {
+    if (overrideWidth !== void 0 && fullPage) {
       await chrome.debugger.sendCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
         mobile: false,
-        width: Math.ceil(size.width),
-        height: Math.ceil(size.height),
+        width: overrideWidth,
+        height: 0,
         deviceScaleFactor: 1
       });
     }
+    let finalWidth = overrideWidth ?? 0;
+    let finalHeight = overrideHeight ?? 0;
+    if (fullPage) {
+      const metrics = await chrome.debugger.sendCommand({ tabId }, "Page.getLayoutMetrics");
+      const size = metrics.cssContentSize || metrics.contentSize;
+      if (size) {
+        if (finalWidth === 0) finalWidth = Math.ceil(size.width);
+        finalHeight = Math.ceil(size.height);
+      }
+    }
+    await chrome.debugger.sendCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
+      mobile: false,
+      width: finalWidth,
+      height: finalHeight,
+      deviceScaleFactor: 1
+    });
   }
   try {
     const params = { format };
@@ -139,7 +157,7 @@ async function screenshot(tabId, options = {}) {
     const result = await chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", params);
     return result.data;
   } finally {
-    if (options.fullPage) {
+    if (needsOverride) {
       await chrome.debugger.sendCommand({ tabId }, "Emulation.clearDeviceMetricsOverride").catch(() => {
       });
     }
@@ -1434,7 +1452,9 @@ async function handleScreenshot(cmd, workspace) {
     const data = await screenshot(tabId, {
       format: cmd.format,
       quality: cmd.quality,
-      fullPage: cmd.fullPage
+      fullPage: cmd.fullPage,
+      width: cmd.width,
+      height: cmd.height
     });
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
