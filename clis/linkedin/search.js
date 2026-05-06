@@ -259,13 +259,26 @@ async function fetchJobCards(page, input) {
     }));
 }
 // ── Job detail enrichment (--details flag) ────────────────────────────
+//
+// Per-row failures should NOT abort the whole list (--details enriches N rows;
+// partial failure is expected). But silent empty-string fields hide the failure
+// from callers — previously `catch {}` and the `if (!job.url)` early-return
+// both produced indistinguishable `description: '', apply_url: ''` payloads,
+// so users could not tell "fetch failed" from "upstream had no description".
+//
+// The fix: surface `null` instead of `''` for missing/failed rows, set
+// `detail_error` to a short reason ("no url" / "fetch failed: <message>" /
+// "missing description"), and log every failure to stderr with the offending
+// URL so debugging is possible. Successful rows have `detail_error: null`.
 async function enrichJobDetails(page, jobs) {
     const enriched = [];
     for (let i = 0; i < jobs.length; i++) {
         const job = jobs[i];
         console.error(`[opencli:linkedin] Fetching details ${i + 1}/${jobs.length}: ${job.title}`);
         if (!job.url) {
-            enriched.push({ ...job, description: '', apply_url: '' });
+            const reason = 'no url';
+            console.error(`[opencli:linkedin] Skipping detail for "${job.title}": ${reason}`);
+            enriched.push({ ...job, description: null, apply_url: null, detail_error: reason });
             continue;
         }
         try {
@@ -301,14 +314,23 @@ async function enrichJobDetails(page, jobs) {
 
         return { description, applyUrl: applyLink?.href || '' };
       })()`);
+            const description = normalizeWhitespace(detail?.description);
+            const apply_url = decodeLinkedinRedirect(String(detail?.applyUrl ?? ''));
+            // Empty description after a successful fetch is itself a
+            // recognizable signal — surface it via detail_error instead of
+            // silently emitting an empty string.
+            const detail_error = description ? null : 'missing description';
             enriched.push({
                 ...job,
-                description: normalizeWhitespace(detail?.description),
-                apply_url: decodeLinkedinRedirect(String(detail?.applyUrl ?? '')),
+                description: description || null,
+                apply_url: apply_url || null,
+                detail_error,
             });
         }
-        catch {
-            enriched.push({ ...job, description: '', apply_url: '' });
+        catch (err) {
+            const reason = `fetch failed: ${err?.message || err}`;
+            console.error(`[opencli:linkedin] Detail fetch failed for ${job.url}: ${reason}`);
+            enriched.push({ ...job, description: null, apply_url: null, detail_error: reason });
         }
     }
     return enriched;
@@ -366,3 +388,15 @@ cli({
         return enrichJobDetails(page, data);
     },
 });
+
+export const __test__ = {
+    parseCsvArg,
+    mapFilterValues,
+    decodeLinkedinRedirect,
+    enrichJobDetails,
+    EXPERIENCE_LEVELS,
+    JOB_TYPES,
+    DATE_POSTED,
+    REMOTE_TYPES,
+};
+
