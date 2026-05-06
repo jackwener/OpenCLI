@@ -1,17 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
 import { __test__ } from './search.js';
 
 const {
     parseCsvArg,
+    parseIntegerArg,
     mapFilterValues,
     decodeLinkedinRedirect,
+    looksLinkedInAuthWallText,
     enrichJobDetails,
     EXPERIENCE_LEVELS,
     JOB_TYPES,
     DATE_POSTED,
     REMOTE_TYPES,
 } = __test__;
+
+const getSearchCommand = () => getRegistry().get('linkedin/search');
 
 describe('linkedin parseCsvArg', () => {
     it('returns empty array for empty / null / undefined', () => {
@@ -40,6 +45,48 @@ describe('linkedin mapFilterValues', () => {
     it('returns empty array for empty input', () => {
         expect(mapFilterValues('', EXPERIENCE_LEVELS, 'experience_level')).toEqual([]);
         expect(mapFilterValues(undefined, DATE_POSTED, 'date_posted')).toEqual([]);
+    });
+});
+
+describe('linkedin argument validation', () => {
+    it('rejects --limit outside 1..100 instead of silently clamping', () => {
+        expect(() => parseIntegerArg(0, '--limit', 10, 1, 100)).toThrow(ArgumentError);
+        expect(() => parseIntegerArg(101, '--limit', 10, 1, 100)).toThrow(ArgumentError);
+        expect(() => parseIntegerArg('10.5', '--limit', 10, 1, 100)).toThrow(ArgumentError);
+    });
+
+    it('rejects negative --start instead of silently clamping to zero', () => {
+        expect(() => parseIntegerArg(-1, '--start', 0, 0)).toThrow(ArgumentError);
+        expect(parseIntegerArg(undefined, '--start', 0, 0)).toBe(0);
+        expect(parseIntegerArg('25', '--start', 0, 0)).toBe(25);
+    });
+
+    it('validates command args before browser navigation', async () => {
+        const command = getSearchCommand();
+        const page = { goto: vi.fn(), wait: vi.fn(), evaluate: vi.fn() };
+
+        await expect(command.func(page, { query: 'engineer', limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func(page, { query: 'engineer', start: -1 })).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+});
+
+describe('linkedin auth wall detection', () => {
+    it('recognizes login/authwall signals', () => {
+        expect(looksLinkedInAuthWallText('https://www.linkedin.com/authwall?trk=guest Sign in to continue')).toBe(true);
+        expect(looksLinkedInAuthWallText('LinkedIn Login, Sign in')).toBe(true);
+        expect(looksLinkedInAuthWallText('About the job Senior infrastructure engineer')).toBe(false);
+    });
+
+    it('throws AuthRequiredError when search lands on a login wall', async () => {
+        const command = getSearchCommand();
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue(true),
+        };
+
+        await expect(command.func(page, { query: 'engineer', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
     });
 });
 
@@ -108,6 +155,7 @@ describe('linkedin enrichJobDetails (silent failure fix)', () => {
     it('surfaces detail_error="missing description" on empty description (signals upstream gap, not crash)', async () => {
         const page = makeFakePage({
             evaluateResults: [
+                false, // auth wall probe
                 undefined, // expand-show-more click result (ignored)
                 { description: '', applyUrl: '' },
             ],
@@ -123,6 +171,7 @@ describe('linkedin enrichJobDetails (silent failure fix)', () => {
     it('surfaces detail_error=null on a fully successful enrichment', async () => {
         const page = makeFakePage({
             evaluateResults: [
+                false, // auth wall probe
                 undefined,
                 { description: '  An interesting role  ', applyUrl: 'https://example.com/apply' },
             ],
@@ -141,9 +190,11 @@ describe('linkedin enrichJobDetails (silent failure fix)', () => {
         const page = makeFakePage({
             evaluateResults: [
                 // Row 1 (success)
+                false,
                 undefined,
                 { description: 'Good', applyUrl: 'https://a.example/' },
                 // Row 3 (success — row 2 had no URL so didn't navigate)
+                false,
                 undefined,
                 { description: 'Also good', applyUrl: 'https://b.example/' },
             ],
@@ -159,5 +210,13 @@ describe('linkedin enrichJobDetails (silent failure fix)', () => {
         expect(out[2].detail_error).toBeNull();
         // Goto was only called for rows with URL (1 and 3)
         expect(page.goto).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws AuthRequiredError on detail auth wall instead of burying it in detail_error', async () => {
+        const page = makeFakePage({ evaluateResults: [true] });
+
+        await expect(enrichJobDetails(page, [
+            { rank: 1, title: 'Needs Auth', company: 'X', url: 'https://www.linkedin.com/jobs/view/4' },
+        ])).rejects.toBeInstanceOf(AuthRequiredError);
     });
 });
