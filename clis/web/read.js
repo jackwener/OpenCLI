@@ -202,6 +202,26 @@ function buildRenderAwareExtractorJs(options) {
             });
           });
         };
+        const hasDataContainerSignal = (root) => {
+          const likely = 'table, tbody, ul[id], ol[id], [id*="grid"], [id*="data"], [id*="list"], [id*="content"], [id*="result"], [class*="grid"], [class*="data"], [class*="list"], [class*="content"], [class*="result"]';
+          return !!root.querySelector?.(likely);
+        };
+        const shouldIncludeExternalFrame = (frameBody) => {
+          if (textLen(frameBody) >= 50) return true;
+          if (frameBody.querySelector?.('article, main, [role="main"], table, tbody, ul li, ol li')) return true;
+          return hasDataContainerSignal(frameBody);
+        };
+        const buildFrameSection = (frameBody, desc, fallbackLabel) => {
+          absolutizeTree(frameBody, desc.src || window.location.href);
+          collectEmptyContainers(frameBody, 'iframe', desc.src);
+          const section = document.createElement('section');
+          section.setAttribute('data-opencli-iframe-source', desc.src);
+          const heading = document.createElement('h2');
+          heading.textContent = '来自 iframe: ' + (desc.src || fallbackLabel);
+          section.appendChild(heading);
+          Array.from(frameBody.childNodes).forEach(node => section.appendChild(node));
+          return section;
+        };
 
         const ogTitle = document.querySelector('meta[property="og:title"]');
         if (ogTitle) result.title = ogTitle.getAttribute('content')?.trim() || '';
@@ -253,27 +273,37 @@ function buildRenderAwareExtractorJs(options) {
         const originalFrames = Array.from(contentEl.querySelectorAll('iframe'));
         const clonedFrames = Array.from(clone.querySelectorAll('iframe'));
         const allFrames = Array.from(document.querySelectorAll('iframe'));
-        result.diagnostics.frames = allFrames.map(describeFrame);
+        const frameDescriptions = new Map();
+        allFrames.forEach((frame, index) => frameDescriptions.set(frame, describeFrame(frame, index)));
+        const getFrameDescription = (frame, fallbackIndex) => frameDescriptions.get(frame) || describeFrame(frame, fallbackIndex);
+        result.diagnostics.frames = allFrames.map(frame => frameDescriptions.get(frame));
 
         if (frameMode === 'same-origin') {
           originalFrames.forEach((frame, index) => {
             const cloned = clonedFrames[index];
             if (!cloned) return;
-            const desc = describeFrame(frame, index);
+            const desc = getFrameDescription(frame, index);
             if (!desc.sameOrigin || !desc.accessible) return;
             try {
               const doc = frame.contentDocument;
               if (!doc?.body) return;
               const frameBody = doc.body.cloneNode(true);
-              absolutizeTree(frameBody, desc.src || window.location.href);
-              collectEmptyContainers(frameBody, 'iframe', desc.src);
-              const section = document.createElement('section');
-              section.setAttribute('data-opencli-iframe-source', desc.src);
-              const heading = document.createElement('h2');
-              heading.textContent = '来自 iframe: ' + (desc.src || frame.getAttribute('src') || ('#' + index));
-              section.appendChild(heading);
-              Array.from(frameBody.childNodes).forEach(node => section.appendChild(node));
+              const section = buildFrameSection(frameBody, desc, frame.getAttribute('src') || ('#' + index));
               cloned.replaceWith(section);
+              result.diagnostics.includedFrameCount += 1;
+            } catch {}
+          });
+          allFrames.forEach((frame, index) => {
+            if (contentEl.contains(frame)) return;
+            const desc = getFrameDescription(frame, index);
+            if (!desc.sameOrigin || !desc.accessible) return;
+            try {
+              const doc = frame.contentDocument;
+              if (!doc?.body) return;
+              const frameBody = doc.body.cloneNode(true);
+              if (!shouldIncludeExternalFrame(frameBody)) return;
+              const section = buildFrameSection(frameBody, desc, frame.getAttribute('src') || ('#' + index));
+              clone.appendChild(section);
               result.diagnostics.includedFrameCount += 1;
             } catch {}
           });
