@@ -1305,9 +1305,16 @@
     "domain": "localhost",
     "strategy": "ui",
     "browser": true,
-    "args": [],
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 86400,
+        "required": false,
+        "help": "Max seconds to keep watching (default: 86400 — 24h)"
+      }
+    ],
     "columns": [],
-    "timeout": 86400,
     "type": "js",
     "modulePath": "antigravity/watch.js",
     "sourceFile": "antigravity/watch.js",
@@ -4037,6 +4044,13 @@
         "default": 20,
         "required": false,
         "help": "最大返回数量"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 90,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 90)"
       }
     ],
     "columns": [
@@ -4047,7 +4061,6 @@
       "status",
       "score"
     ],
-    "timeout": 90,
     "type": "js",
     "modulePath": "chaoxing/assignments.js",
     "sourceFile": "chaoxing/assignments.js",
@@ -4087,6 +4100,13 @@
         "default": 20,
         "required": false,
         "help": "最大返回数量"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 90,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 90)"
       }
     ],
     "columns": [
@@ -4098,7 +4118,6 @@
       "status",
       "score"
     ],
-    "timeout": 90,
     "type": "js",
     "modulePath": "chaoxing/exams.js",
     "sourceFile": "chaoxing/exams.js",
@@ -4132,6 +4151,13 @@
         "default": false,
         "required": false,
         "help": "Skip download shorthand; only show ChatGPT link"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 240,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 240)"
       }
     ],
     "columns": [
@@ -4139,7 +4165,6 @@
       "file",
       "link"
     ],
-    "timeout": 240,
     "type": "js",
     "modulePath": "chatgpt/image.js",
     "sourceFile": "chatgpt/image.js",
@@ -4513,7 +4538,6 @@
     "columns": [
       "response"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "claude/ask.js",
     "sourceFile": "claude/ask.js",
@@ -5912,7 +5936,6 @@
         "help": "Attach a file (PDF, image, text) with the prompt"
       }
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "deepseek/ask.js",
     "sourceFile": "deepseek/ask.js",
@@ -6034,7 +6057,6 @@
       "Status",
       "InjectedText"
     ],
-    "timeout": 60,
     "type": "js",
     "modulePath": "deepseek/send.js",
     "sourceFile": "deepseek/send.js",
@@ -7144,7 +7166,6 @@
       "Role",
       "Text"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "doubao/ask.js",
     "sourceFile": "doubao/ask.js",
@@ -9122,7 +9143,6 @@
     "columns": [
       "response"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "gemini/ask.js",
     "sourceFile": "gemini/ask.js",
@@ -9147,9 +9167,9 @@
       {
         "name": "timeout",
         "type": "int",
-        "default": 30,
+        "default": 180,
         "required": false,
-        "help": "Max seconds to wait for confirm (default: 30)"
+        "help": "Max seconds for the overall command (default: 180; confirm-wait clamps internally to 6-20s)"
       },
       {
         "name": "tool",
@@ -9168,7 +9188,6 @@
       "status",
       "url"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "gemini/deep-research.js",
     "sourceFile": "gemini/deep-research.js",
@@ -9260,6 +9279,13 @@
         "default": false,
         "required": false,
         "help": "Skip download shorthand; only show Gemini page link"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 240,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 240)"
       }
     ],
     "columns": [
@@ -9267,7 +9293,6 @@
       "file",
       "link"
     ],
-    "timeout": 240,
     "type": "js",
     "modulePath": "gemini/image.js",
     "sourceFile": "gemini/image.js",
@@ -11437,6 +11462,13 @@
         "required": true,
         "positional": true,
         "help": "Note text (max 60 characters)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 120)"
       }
     ],
     "columns": [
@@ -11444,7 +11476,6 @@
       "detail",
       "noteId"
     ],
-    "timeout": 120,
     "type": "js",
     "modulePath": "instagram/note.js",
     "sourceFile": "instagram/note.js",
@@ -11472,6 +11503,13 @@
         "required": false,
         "positional": true,
         "help": "Caption text"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 300)"
       }
     ],
     "columns": [
@@ -11479,7 +11517,6 @@
       "detail",
       "url"
     ],
-    "timeout": 300,
     "type": "js",
     "modulePath": "instagram/post.js",
     "sourceFile": "instagram/post.js",
@@ -11538,6 +11575,13 @@
         "required": false,
         "positional": true,
         "help": "Caption text"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 600)"
       }
     ],
     "columns": [
@@ -11545,7 +11589,6 @@
       "detail",
       "url"
     ],
-    "timeout": 600,
     "type": "js",
     "modulePath": "instagram/reel.js",
     "sourceFile": "instagram/reel.js",
@@ -11673,6 +11716,13 @@
         "required": false,
         "valueRequired": true,
         "help": "Path to a single story image or video file"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 300)"
       }
     ],
     "columns": [
@@ -11680,7 +11730,6 @@
       "detail",
       "url"
     ],
-    "timeout": 300,
     "type": "js",
     "modulePath": "instagram/story.js",
     "sourceFile": "instagram/story.js",
@@ -16803,6 +16852,13 @@
         "type": "str",
         "required": false,
         "help": "Optional free-text feedback"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 30)"
       }
     ],
     "columns": [
@@ -16813,7 +16869,6 @@
       "actionable_suggestions",
       "message"
     ],
-    "timeout": 30,
     "type": "js",
     "modulePath": "paperreview/feedback.js",
     "sourceFile": "paperreview/feedback.js"
@@ -16833,6 +16888,13 @@
         "required": true,
         "positional": true,
         "help": "Review token returned by paperreview.ai"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 30)"
       }
     ],
     "columns": [
@@ -16843,7 +16905,6 @@
       "has_feedback",
       "review_url"
     ],
-    "timeout": 30,
     "type": "js",
     "modulePath": "paperreview/review.js",
     "sourceFile": "paperreview/review.js"
@@ -16889,6 +16950,13 @@
         "default": false,
         "required": false,
         "help": "Request an upload slot but stop before uploading the PDF"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 120)"
       }
     ],
     "columns": [
@@ -16900,7 +16968,6 @@
       "review_url",
       "message"
     ],
-    "timeout": 120,
     "type": "js",
     "modulePath": "paperreview/submit.js",
     "sourceFile": "paperreview/submit.js"
@@ -17844,9 +17911,15 @@
         "default": "",
         "required": false,
         "help": "Destination folder ID (overrides --to)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 120)"
       }
     ],
-    "timeout": 120,
     "type": "js",
     "modulePath": "quark/mv.js",
     "sourceFile": "quark/mv.js",
@@ -17952,9 +18025,15 @@
         "default": "",
         "required": false,
         "help": "Share passcode (if required)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 120)"
       }
     ],
-    "timeout": 120,
     "type": "js",
     "modulePath": "quark/save.js",
     "sourceFile": "quark/save.js",
@@ -18052,7 +18131,6 @@
       "Role",
       "Text"
     ],
-    "timeout": 240,
     "type": "js",
     "modulePath": "qwen/ask.js",
     "sourceFile": "qwen/ask.js",
@@ -18136,7 +18214,6 @@
       "File",
       "Link"
     ],
-    "timeout": 300,
     "type": "js",
     "modulePath": "qwen/image.js",
     "sourceFile": "qwen/image.js",
@@ -21236,6 +21313,13 @@
         "default": 20,
         "required": false,
         "help": "Maximum number of requests to accept (default: 20)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 600 — batch op)"
       }
     ],
     "columns": [
@@ -21244,7 +21328,6 @@
       "user",
       "message"
     ],
-    "timeout": 600,
     "type": "js",
     "modulePath": "twitter/accept.js",
     "sourceFile": "twitter/accept.js",
@@ -21936,6 +22019,13 @@
         "default": true,
         "required": false,
         "help": "Skip conversations where you already sent the same text (default: true)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 600 — batch op)"
       }
     ],
     "columns": [
@@ -21944,7 +22034,6 @@
       "user",
       "message"
     ],
-    "timeout": 600,
     "type": "js",
     "modulePath": "twitter/reply-dm.js",
     "sourceFile": "twitter/reply-dm.js",
@@ -23122,13 +23211,19 @@
         "type": "str",
         "required": false,
         "help": "文章摘要"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 180,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 180)"
       }
     ],
     "columns": [
       "status",
       "detail"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "weixin/create-draft.js",
     "sourceFile": "weixin/create-draft.js",
@@ -23199,7 +23294,6 @@
       "Title",
       "Time"
     ],
-    "timeout": 60,
     "type": "js",
     "modulePath": "weixin/drafts.js",
     "sourceFile": "weixin/drafts.js",
@@ -24304,6 +24398,13 @@
         "default": 3,
         "required": false,
         "help": "Number of recent notes to summarize"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 180,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 180)"
       }
     ],
     "columns": [
@@ -24321,7 +24422,6 @@
       "top_interest",
       "url"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "xiaohongshu/creator-notes-summary.js",
     "sourceFile": "xiaohongshu/creator-notes-summary.js",
@@ -26332,7 +26432,6 @@
       "Role",
       "Text"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "yuanbao/ask.js",
     "sourceFile": "yuanbao/ask.js",

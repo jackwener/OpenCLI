@@ -16,7 +16,6 @@ export const sendCommand = cli({
     strategy: Strategy.COOKIE,
     browser: true,
     navigateBefore: false,
-    timeoutSeconds: 60,
     args: [
         { name: 'id', required: true, positional: true, help: 'Conversation ID (UUID) or full /a/chat/s/<id> URL' },
         { name: 'prompt', required: true, positional: true, help: 'Prompt to send' },

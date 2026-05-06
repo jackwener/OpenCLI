@@ -7,8 +7,9 @@ export const watchCommand = cli({
     domain: 'localhost',
     strategy: Strategy.UI,
     browser: true,
-    args: [],
-    timeoutSeconds: 86400, // Run for up to 24 hours
+    args: [
+        { name: 'timeout', type: 'int', required: false, default: 86400, help: 'Max seconds to keep watching (default: 86400 — 24h)' },
+    ],
     columns: [], // We use direct stdout streaming
     func: async (page) => {
         console.log('Watching Antigravity chat... (Press Ctrl+C to stop)');

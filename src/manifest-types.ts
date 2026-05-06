@@ -29,7 +29,6 @@ export interface ManifestEntry {
   }>;
   columns?: string[];
   pipeline?: Record<string, unknown>[];
-  timeout?: number;
   deprecated?: boolean | string;
   replacedBy?: string;
   type: 'js';

@@ -47,7 +47,6 @@ interface BaseCliCommand {
   args: Arg[];
   columns?: string[];
   pipeline?: Record<string, unknown>[];
-  timeoutSeconds?: number;
   /** Origin of this command: 'yaml', 'ts', or plugin name. */
   source?: string;
   footerExtra?: (kwargs: CommandArgs) => string | undefined;
@@ -142,7 +141,6 @@ export function cli(opts: CliOptions): CliCommand {
     columns: opts.columns,
     func: opts.func,
     pipeline: opts.pipeline,
-    timeoutSeconds: opts.timeoutSeconds,
     footerExtra: opts.footerExtra,
     requiredEnv: opts.requiredEnv,
     deprecated: opts.deprecated,

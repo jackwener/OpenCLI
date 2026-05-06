@@ -9,7 +9,6 @@ export const askCommand = cli({
     strategy: Strategy.COOKIE,
     browser: true,
     navigateBefore: false,
-    timeoutSeconds: 180,
     args: [
         { name: 'text', required: true, positional: true, help: 'Prompt to send' },
         { name: 'timeout', required: false, help: 'Max seconds to wait (default: 60)', default: '60' },

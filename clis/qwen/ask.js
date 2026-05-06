@@ -26,7 +26,6 @@ cli({
     browser: true,
     navigateBefore: false,
     defaultFormat: 'plain',
-    timeoutSeconds: 240,
     args: [
         { name: 'prompt', required: true, positional: true, help: 'Prompt to send to Qianwen' },
         { name: 'timeout', type: 'int', default: 120, help: 'Max seconds to wait for the response' },

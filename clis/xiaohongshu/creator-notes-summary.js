@@ -54,9 +54,9 @@ cli({
     navigateBefore: false,
     args: [
         { name: 'limit', type: 'int', default: 3, help: 'Number of recent notes to summarize' },
+        { name: 'timeout', type: 'int', required: false, default: 180, help: 'Max seconds for the overall command (default: 180)' },
     ],
     columns: ['rank', 'id', 'title', 'views', 'likes', 'collects', 'comments', 'shares', 'avg_view_time', 'rise_fans', 'top_source', 'top_interest', 'url'],
-    timeoutSeconds: 180,
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 3;
         const notes = await fetchCreatorNotes(page, limit);

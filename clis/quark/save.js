@@ -21,7 +21,6 @@ cli({
     domain: 'pan.quark.cn',
     strategy: Strategy.COOKIE,
     defaultFormat: 'json',
-    timeoutSeconds: 120,
     args: [
         { name: 'url', required: true, positional: true, help: 'Quark share URL or pwd_id' },
         { name: 'to', default: '', help: 'Destination folder path' },
@@ -29,6 +28,7 @@ cli({
         { name: 'fids', default: '', help: 'File IDs to save (comma-separated, from share-tree). Omit to save all.' },
         { name: 'stoken', default: '', help: 'Share token (from share-tree output, required with --fids)' },
         { name: 'passcode', default: '', help: 'Share passcode (if required)' },
+        { name: 'timeout', type: 'int', required: false, default: 120, help: 'Max seconds for the overall command (default: 120)' },
     ],
     func: async (page, kwargs) => {
         const url = kwargs.url;

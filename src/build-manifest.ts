@@ -115,7 +115,6 @@ function toManifestEntry(cmd: CliCommand, modulePath: string, sourceFile?: strin
     browser: cmd.browser ?? true,
     args: toManifestArgs(cmd.args),
     columns: cmd.columns,
-    timeout: cmd.timeoutSeconds,
     deprecated: cmd.deprecated,
     replacedBy: cmd.replacedBy,
     type: 'js',

@@ -359,7 +359,6 @@ export const askCommand = cli({
     browser: true,
     navigateBefore: false,
     defaultFormat: 'plain',
-    timeoutSeconds: 180,
     args: [
         { name: 'prompt', required: true, positional: true, help: 'Prompt to send' },
         { name: 'timeout', required: false, help: 'Max seconds to wait (default: 60)', default: '60' },

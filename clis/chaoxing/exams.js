@@ -7,7 +7,6 @@ cli({
     description: '学习通考试列表',
     domain: 'mooc2-ans.chaoxing.com',
     strategy: Strategy.COOKIE,
-    timeoutSeconds: 90,
     args: [
         { name: 'course', type: 'string', help: '按课程名过滤（模糊匹配）' },
         {
@@ -18,6 +17,7 @@ cli({
             help: '按状态过滤',
         },
         { name: 'limit', type: 'int', default: 20, help: '最大返回数量' },
+        { name: 'timeout', type: 'int', required: false, default: 90, help: 'Max seconds for the overall command (default: 90)' },
     ],
     columns: ['rank', 'course', 'title', 'start', 'end', 'status', 'score'],
     func: async (page, kwargs) => {

@@ -57,11 +57,11 @@ export const imageCommand = cli({
     browser: true,
     navigateBefore: false,
     defaultFormat: 'plain',
-    timeoutSeconds: 240,
     args: [
         { name: 'prompt', positional: true, required: true, help: 'Image prompt to send to ChatGPT' },
         { name: 'op', help: 'Output directory (default: ~/Pictures/chatgpt)' },
         { name: 'sd', type: 'boolean', default: false, help: 'Skip download shorthand; only show ChatGPT link' },
+        { name: 'timeout', type: 'int', required: false, default: 240, help: 'Max seconds for the overall command (default: 240)' },
     ],
     columns: ['status', 'file', 'link'],
     func: async (page, kwargs) => {

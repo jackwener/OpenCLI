@@ -9,13 +9,13 @@ cli({
     domain: PAPERREVIEW_DOMAIN,
     strategy: Strategy.PUBLIC,
     browser: false,
-    timeoutSeconds: 120,
     args: [
         { name: 'pdf', positional: true, required: true, help: 'Path to the paper PDF' },
         { name: 'email', required: true, help: 'Email address for the submission' },
         { name: 'venue', help: 'Optional target venue such as ICLR or NeurIPS' },
         { name: 'dry-run', type: 'bool', default: false, help: 'Validate the input and stop before remote submission' },
         { name: 'prepare-only', type: 'bool', default: false, help: 'Request an upload slot but stop before uploading the PDF' },
+        { name: 'timeout', type: 'int', required: false, default: 120, help: 'Max seconds for the overall command (default: 120)' },
     ],
     columns: ['status', 'file', 'email', 'venue', 'token', 'review_url', 'message'],
     footerExtra: (kwargs) => {

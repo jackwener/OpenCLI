@@ -24,10 +24,9 @@ export const deepResearchCommand = cli({
     browser: true,
     navigateBefore: false,
     defaultFormat: 'plain',
-    timeoutSeconds: 180,
     args: [
         { name: 'prompt', positional: true, required: true, help: 'Prompt to send' },
-        { name: 'timeout', type: 'int', required: false, help: 'Max seconds to wait for confirm (default: 30)', default: 30 },
+        { name: 'timeout', type: 'int', required: false, help: 'Max seconds for the overall command (default: 180; confirm-wait clamps internally to 6-20s)', default: 180 },
         { name: 'tool', required: false, help: 'Override tool label (default: Deep Research)' },
         { name: 'confirm', required: false, help: 'Override confirm button label (default: Start research)' },
     ],

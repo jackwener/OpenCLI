@@ -131,7 +131,6 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
         args: entry.args ?? [],
         columns: entry.columns,
         pipeline: entry.pipeline,
-        timeoutSeconds: entry.timeout,
         source: entry.sourceFile ? path.resolve(clisDir, entry.sourceFile) : modulePath,
         deprecated: entry.deprecated,
         replacedBy: entry.replacedBy,

@@ -12,7 +12,6 @@ export const draftsCommand = cli({
     strategy: Strategy.COOKIE,
     browser: true,
     navigateBefore: false,
-    timeoutSeconds: 60,
     args: [
         { name: 'limit', type: 'int', default: 10, help: '最多显示条数' },
     ],

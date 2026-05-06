@@ -179,13 +179,13 @@ export const createDraftCommand = cli({
     strategy: Strategy.COOKIE,
     browser: true,
     navigateBefore: false,
-    timeoutSeconds: 180,
     args: [
         { name: 'title', required: true, help: '文章标题 (最长64字)' },
         { name: 'content', required: true, positional: true, help: '文章正文' },
         { name: 'author', help: '作者名 (最长8字)' },
         { name: 'cover-image', help: '封面图片路径 (会先上传到正文再设为封面)' },
         { name: 'summary', help: '文章摘要' },
+        { name: 'timeout', type: 'int', required: false, default: 180, help: 'Max seconds for the overall command (default: 180)' },
     ],
     columns: ['status', 'detail'],
 
