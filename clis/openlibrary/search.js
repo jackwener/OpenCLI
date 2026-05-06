@@ -8,6 +8,19 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { EmptyResultError } from '@jackwener/opencli/errors';
 import { OL_BASE, olFetch, requireBoundedInt, requireString } from './utils.js';
 
+const SEARCH_FIELDS = [
+    'key',
+    'title',
+    'author_name',
+    'first_publish_year',
+    'edition_count',
+    'ebook_access',
+    'language',
+    'isbn',
+    'subject',
+    'cover_i',
+];
+
 function pickWorkKey(doc) {
     const k = String(doc?.key ?? '').trim();
     if (!k) return '';
@@ -37,7 +50,12 @@ cli({
     func: async (args) => {
         const query = requireString(args.query, 'query');
         const limit = requireBoundedInt(args.limit, 20, 100);
-        const url = `${OL_BASE}/search.json?q=${encodeURIComponent(query)}&limit=${limit}`;
+        const params = new URLSearchParams({
+            q: query,
+            limit: String(limit),
+            fields: SEARCH_FIELDS.join(','),
+        });
+        const url = `${OL_BASE}/search.json?${params}`;
         const body = await olFetch(url, 'openlibrary search');
         const list = Array.isArray(body?.docs) ? body.docs : [];
         if (!list.length) {

@@ -32,7 +32,7 @@ describe('openlibrary search adapter', () => {
     });
 
     it('round-trips work key into /works/<id> URL', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
             docs: [{
                 key: '/works/OL45804W',
                 title: 'Fantastic Mr Fox',
@@ -41,16 +41,23 @@ describe('openlibrary search adapter', () => {
                 edition_count: 139,
                 ebook_access: 'borrowable',
                 language: ['eng', 'sco'],
+                isbn: ['9780140328721', '0140328726'],
+                subject: ['Foxes', 'Juvenile fiction'],
                 cover_i: 6498519,
             }],
-        }), { status: 200 })));
+        }), { status: 200 }));
+        vi.stubGlobal('fetch', fetchMock);
 
         const rows = await cmd.func({ query: 'mr fox', limit: 5 });
+        const url = new URL(fetchMock.mock.calls[0][0]);
+        expect(url.searchParams.get('fields')).toBe('key,title,author_name,first_publish_year,edition_count,ebook_access,language,isbn,subject,cover_i');
         expect(rows[0]).toMatchObject({
             rank: 1,
             workKey: 'OL45804W',
             title: 'Fantastic Mr Fox',
             language: 'eng, sco',
+            isbn: '9780140328721, 0140328726',
+            subjects: 'Foxes, Juvenile fiction',
             url: 'https://openlibrary.org/works/OL45804W',
         });
     });
