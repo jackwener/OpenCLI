@@ -28,26 +28,35 @@ export function parseLimit(raw, fallback = 15) {
 }
 
 export async function fetchSuggest(query, searchType) {
-    const response = await fetch(ENDPOINT, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-            keyword: query,
-            searchType,
-            platform: 'online',
-            pageID: '102001',
-            head: {
-                Locale: 'zh-CN',
-                LocaleController: 'zh_cn',
-                Currency: 'CNY',
-                PageId: '102001',
-                clientID: 'opencli-ctrip',
-                group: 'ctrip',
-                Frontend: { sessionID: 1, pvid: 1 },
-                HotelExtension: { group: 'CTRIP', WebpSupport: false },
-            },
-        }),
-    });
+    let response;
+    try {
+        response = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                keyword: query,
+                searchType,
+                platform: 'online',
+                pageID: '102001',
+                head: {
+                    Locale: 'zh-CN',
+                    LocaleController: 'zh_cn',
+                    Currency: 'CNY',
+                    PageId: '102001',
+                    clientID: 'opencli-ctrip',
+                    group: 'ctrip',
+                    Frontend: { sessionID: 1, pvid: 1 },
+                    HotelExtension: { group: 'CTRIP', WebpSupport: false },
+                },
+            }),
+        });
+    } catch (err) {
+        throw new CliError(
+            'FETCH_ERROR',
+            `ctrip suggest fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+            'Check your network connection and retry',
+        );
+    }
     if (!response.ok) {
         throw new CliError(
             'FETCH_ERROR',
@@ -55,7 +64,16 @@ export async function fetchSuggest(query, searchType) {
             'Retry the command or verify ctrip.com is reachable',
         );
     }
-    const payload = await response.json();
+    let payload;
+    try {
+        payload = await response.json();
+    } catch (err) {
+        throw new CliError(
+            'COMMAND_EXEC',
+            `ctrip suggest returned invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+            'Ctrip may have changed the endpoint response format; retry later',
+        );
+    }
     if (payload && payload.Result === false) {
         const code = payload.ErrorCode ?? 'unknown';
         throw new CliError(

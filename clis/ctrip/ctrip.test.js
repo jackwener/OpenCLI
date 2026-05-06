@@ -152,6 +152,22 @@ describe('ctrip search command (registry-level)', () => {
         });
     });
 
+    it('wraps network failures as typed FETCH_ERROR', async () => {
+        vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('socket hang up'))));
+        await expect(cmd.func({ query: '上海', limit: 3 })).rejects.toMatchObject({
+            code: 'FETCH_ERROR',
+            message: expect.stringContaining('socket hang up'),
+        });
+    });
+
+    it('wraps invalid JSON as typed COMMAND_EXEC', async () => {
+        vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('not json', { status: 200 }))));
+        await expect(cmd.func({ query: '上海', limit: 3 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('invalid JSON'),
+        });
+    });
+
     it('surfaces in-band Result=false as typed COMMAND_EXEC', async () => {
         vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(ok({
             Result: false, ErrorCode: 17,
