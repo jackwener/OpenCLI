@@ -3,14 +3,10 @@ import { ArgumentError } from '@jackwener/opencli/errors';
 export const MESSAGE_WRAPPER_SELECTOR = '[class*="group/message"]';
 export const MIN_COMPOSER_SCORE = 120;
 
-export function normalizeTimeout(value, defaultSeconds = 30, maxSeconds = 300) {
-    const raw = value ?? defaultSeconds;
-    const timeout = Number(raw);
+export function requirePositiveTimeout(value) {
+    const timeout = value;
     if (!Number.isInteger(timeout) || timeout <= 0) {
-        throw new ArgumentError('timeout must be a positive integer', `Example: opencli chatwise ask "hello" --timeout ${defaultSeconds}`);
-    }
-    if (timeout > maxSeconds) {
-        throw new ArgumentError(`timeout must be <= ${maxSeconds}`, `Example: opencli chatwise ask "hello" --timeout ${maxSeconds}`);
+        throw new ArgumentError('--timeout must be a positive integer (seconds)');
     }
     return timeout;
 }

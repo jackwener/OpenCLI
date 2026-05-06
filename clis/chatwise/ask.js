@@ -4,7 +4,7 @@ import {
     buildChatwiseInjectTextJs,
     buildChatwiseMessageCountJs,
     buildChatwiseResponseAfterJs,
-    normalizeTimeout,
+    requirePositiveTimeout,
 } from './utils.js';
 export const askCommand = cli({
     site: 'chatwise',
@@ -16,12 +16,12 @@ export const askCommand = cli({
     browser: true,
     args: [
         { name: 'text', required: true, positional: true, help: 'Prompt to send' },
-        { name: 'timeout', required: false, help: 'Max seconds to wait (default: 30)', default: '30' },
+        { name: 'timeout', type: 'int', required: false, help: 'Max seconds to wait (default: 30)', default: 30 },
     ],
     columns: ['Role', 'Text'],
     func: async (page, kwargs) => {
         const text = kwargs.text;
-        const timeout = normalizeTimeout(kwargs.timeout);
+        const timeout = requirePositiveTimeout(kwargs.timeout);
         // Snapshot content length
         const beforeLen = await page.evaluate(buildChatwiseMessageCountJs());
         // Send message

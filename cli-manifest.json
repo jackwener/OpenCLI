@@ -4201,8 +4201,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "30",
+        "type": "int",
+        "default": 30,
         "required": false,
         "help": "Max seconds to wait for response (default: 30)"
       }
@@ -4351,8 +4351,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "30",
+        "type": "int",
+        "default": 30,
         "required": false,
         "help": "Max seconds to wait (default: 30)"
       }
@@ -4742,8 +4742,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "60",
+        "type": "int",
+        "default": 60,
         "required": false,
         "help": "Max seconds to wait for response (default: 60)"
       },
@@ -5544,8 +5544,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "30",
+        "type": "int",
+        "default": 30,
         "required": false,
         "help": "Max seconds to wait for response (default: 30)"
       }
@@ -7156,8 +7156,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "60",
+        "type": "int",
+        "default": 60,
         "required": false,
         "help": "Max seconds to wait (default: 60)"
       }
@@ -9127,8 +9127,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "60",
+        "type": "int",
+        "default": 60,
         "required": false,
         "help": "Max seconds to wait (default: 60)"
       },
@@ -26408,8 +26408,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "60",
+        "type": "int",
+        "default": 60,
         "required": false,
         "help": "Max seconds to wait (default: 60)"
       },

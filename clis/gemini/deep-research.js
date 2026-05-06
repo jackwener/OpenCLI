@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { GEMINI_DEEP_RESEARCH_DEFAULT_CONFIRM_LABELS, GEMINI_DEEP_RESEARCH_DEFAULT_TOOL_LABELS, GEMINI_APP_URL, GEMINI_DOMAIN, getCurrentGeminiUrl, getLatestGeminiAssistantResponse, parseGeminiPositiveInt, readGeminiSnapshot, resolveGeminiLabels, selectGeminiTool, sendGeminiMessage, startNewGeminiChat, waitForGeminiSubmission, waitForGeminiConfirmButton, } from './utils.js';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import { GEMINI_DEEP_RESEARCH_DEFAULT_CONFIRM_LABELS, GEMINI_DEEP_RESEARCH_DEFAULT_TOOL_LABELS, GEMINI_APP_URL, GEMINI_DOMAIN, getCurrentGeminiUrl, getLatestGeminiAssistantResponse, readGeminiSnapshot, resolveGeminiLabels, selectGeminiTool, sendGeminiMessage, startNewGeminiChat, waitForGeminiSubmission, waitForGeminiConfirmButton, } from './utils.js';
 function isGeminiRootAppUrl(url) {
     try {
         const parsed = new URL(url);
@@ -33,7 +34,10 @@ export const deepResearchCommand = cli({
     columns: ['status', 'url'],
     func: async (page, kwargs) => {
         const prompt = kwargs.prompt;
-        const timeout = parseGeminiPositiveInt(kwargs.timeout, 30);
+        const timeout = kwargs.timeout;
+        if (!Number.isInteger(timeout) || timeout < 1) {
+            throw new ArgumentError('--timeout must be a positive integer (seconds)');
+        }
         const submitTimeout = Math.min(Math.max(timeout, 6), 20);
         await startNewGeminiChat(page);
         const toolLabels = resolveGeminiLabels(kwargs.tool, GEMINI_DEEP_RESEARCH_DEFAULT_TOOL_LABELS);
