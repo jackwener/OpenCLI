@@ -145,6 +145,24 @@ describe('doubao send strategy', () => {
     });
 });
 describe('doubao receive strategy', () => {
+    it('supports current Doubao sidebar conversation anchors', () => {
+        const listScript = __test__.getConversationListScript();
+        expect(listScript).toContain('#flow_chat_sidebar');
+        expect(listScript).toContain('a[id^="conversation_"]');
+        expect(listScript).toContain('a[href^="/chat/"]');
+        expect(listScript).toContain('idAttr.match');
+        expect(listScript).toContain('seen.has(id)');
+    });
+
+    it('supports current Doubao detail message containers', () => {
+        const detailScript = __test__.getConversationDetailScript();
+        expect(detailScript).toContain('[class*="message-list"]');
+        expect(detailScript).toContain('[aria-label="doc_editor"]');
+        expect(detailScript).toContain('[class^="item-"]');
+        expect(detailScript).toContain('[class*="bg-g-send-msg-bubble"]');
+        expect(detailScript).toContain('.flow-markdown-body');
+    });
+
     it('keeps both the new skin selectors and the older structural fallbacks in the turns script', () => {
         const turnsScript = __test__.getTurnsScript();
         expect(turnsScript).toContain('[class*="message-list-S2Fv2S"]');

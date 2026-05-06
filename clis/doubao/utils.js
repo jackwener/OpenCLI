@@ -798,24 +798,32 @@ export function collectDoubaoTranscriptAdditions(beforeLines, currentLines, prom
 function getConversationListScript() {
     return `
     (() => {
-      const sidebar = document.querySelector('[data-testid="flow_chat_sidebar"]');
+      const sidebar = document.querySelector('[data-testid="flow_chat_sidebar"], #flow_chat_sidebar');
       if (!sidebar) return [];
 
+      const clean = (value) => (value || '')
+        .replace(/\\u00a0/g, ' ')
+        .replace(/\\s+/g, ' ')
+        .trim();
+
       const items = Array.from(
-        sidebar.querySelectorAll('a[data-testid="chat_list_thread_item"]')
+        sidebar.querySelectorAll('a[data-testid="chat_list_thread_item"], a[id^="conversation_"], a[href^="/chat/"]')
       );
 
+      const seen = new Set();
       return items
         .map(a => {
           const href = a.getAttribute('href') || '';
-          const match = href.match(/\\/chat\\/(\\d{10,})/);
+          const idAttr = a.getAttribute('id') || '';
+          const match = href.match(/\\/chat\\/(\\d{10,})/) || idAttr.match(/^conversation_(\\d{10,})$/);
           if (!match) return null;
           const id = match[1];
-          const textContent = (a.textContent || a.innerText || '').trim();
-          const title = textContent
-            .replace(/\\s+/g, ' ')
+          if (seen.has(id)) return null;
+          seen.add(id);
+          const titleNode = a.querySelector('[title], span') || a;
+          const title = clean(titleNode.getAttribute?.('title') || titleNode.textContent || a.textContent)
             .substring(0, 200);
-          return { id, title, href };
+          return { id, title: title || id, href };
         })
         .filter(Boolean);
     })()
@@ -839,9 +847,15 @@ export function parseDoubaoConversationId(input) {
 function getConversationDetailScript() {
     return `
     (() => {
-      const clean = (v) => (v || '').replace(/\\u00a0/g, ' ').replace(/\\n{3,}/g, '\\n\\n').trim();
+      const clean = (v) => (v || '')
+        .replace(/\\u00a0/g, ' ')
+        .split('\\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .join('\\n')
+        .trim();
 
-      const messageList = document.querySelector('[data-testid="message-list"]');
+      const messageList = document.querySelector('[data-testid="message-list"], [class*="message-list"], [aria-label="doc_editor"]');
       if (!messageList) return { messages: [], meeting: null };
 
       const meetingCard = messageList.querySelector('[data-testid="meeting-minutes-card"]');
@@ -855,16 +869,19 @@ function getConversationDetailScript() {
         };
       }
 
-      const unions = Array.from(messageList.querySelectorAll('[data-testid="union_message"]'));
-      const messages = unions.map(u => {
-        const isSend = !!u.querySelector('[data-testid="send_message"]');
-        const isReceive = !!u.querySelector('[data-testid="receive_message"]');
-        const textEl = u.querySelector('[data-testid="message_text_content"]');
+      const itemRoots = Array.from(messageList.querySelectorAll('[data-testid="union_message"], [class^="item-"], [class*=" item-"]'));
+      const messages = itemRoots.map((root) => {
+        const sendTextEl = root.querySelector('[data-testid="send_message"] [data-testid="message_text_content"], [data-testid="send_message"], [class*="bg-g-send-msg-bubble"]');
+        const receiveTextEl = root.querySelector('[data-testid="receive_message"] [data-testid="message_text_content"], [data-testid="receive_message"], .flow-markdown-body, [class*="bg-g-receive-msg-bubble"]');
+        const hasMeetingCard = !!root.querySelector('[data-testid="meeting-minutes-card"]');
+        const isSend = !!sendTextEl;
+        const isReceive = !isSend && !!receiveTextEl;
+        const textEl = isSend ? sendTextEl : receiveTextEl;
         const text = textEl ? clean(textEl.innerText || textEl.textContent || '') : '';
         return {
           role: isSend ? 'User' : isReceive ? 'Assistant' : 'System',
           text,
-          hasMeetingCard: !!u.querySelector('[data-testid="meeting-minutes-card"]'),
+          hasMeetingCard,
         };
       }).filter(m => m.text);
 
@@ -1116,6 +1133,8 @@ export const __test__ = {
     clickSendButtonScript,
     composerStateScript,
     detectDoubaoVerificationScript,
+    getConversationDetailScript,
+    getConversationListScript,
     getTurnsScript,
     getTranscriptLinesScript,
 };
