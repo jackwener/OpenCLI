@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ArgumentError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './search.js';
 import './article-detail.js';
-import { buildArticleDetailScript, buildSearchScript, mapArticleDetail, mapSearchArticles, parseLimit } from './utils.js';
+import { buildArticleDetailScript, buildSearchScript, isAuthStatus, looksAuthWallText, mapArticleDetail, mapSearchArticles, parseLimit } from './utils.js';
 
 function makePage(evaluateResult) {
     return {
@@ -38,6 +38,17 @@ describe('reuters buildSearchScript', () => {
         const script = buildSearchScript('hello "world"', 5);
         expect(script).toContain('"hello \\"world\\""');
         expect(script).toContain('size: 5');
+    });
+});
+
+describe('reuters auth-wall helpers', () => {
+    it('detects auth statuses and Reuters challenge/paywall text', () => {
+        expect(isAuthStatus(401)).toBe(true);
+        expect(isAuthStatus(403)).toBe(true);
+        expect(isAuthStatus(500)).toBe(false);
+        expect(looksAuthWallText('DataDome verify you are human')).toBe(true);
+        expect(looksAuthWallText('Subscribe to continue reading')).toBe(true);
+        expect(looksAuthWallText('ordinary article body')).toBe(false);
     });
 });
 
@@ -153,9 +164,9 @@ describe('reuters search command (registry-level)', () => {
         expect(page.goto).not.toHaveBeenCalled();
     });
 
-    it('rejects empty query as ARGUMENT_INVALID', async () => {
+    it('rejects empty query as ArgumentError', async () => {
         const page = makePage(null);
-        await expect(cmd.func(page, { query: '   ', limit: 5 })).rejects.toMatchObject({ code: 'ARGUMENT_INVALID' });
+        await expect(cmd.func(page, { query: '   ', limit: 5 })).rejects.toBeInstanceOf(ArgumentError);
     });
 
     it('throws CommandExecutionError when in-page fetch errored', async () => {
@@ -163,9 +174,19 @@ describe('reuters search command (registry-level)', () => {
         await expect(cmd.func(page, { query: 'x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
-    it('throws CliError FETCH_ERROR on non-2xx upstream', async () => {
+    it('throws AuthRequiredError on Reuters auth/challenge status', async () => {
         const page = makePage({ ok: false, status: 403, body: { html: '<captcha/>' } });
-        await expect(cmd.func(page, { query: 'x', limit: 5 })).rejects.toMatchObject({ code: 'FETCH_ERROR' });
+        await expect(cmd.func(page, { query: 'x', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('throws CommandExecutionError on non-auth upstream failure', async () => {
+        const page = makePage({ ok: false, status: 500, statusText: 'Server Error', body: { error: 'upstream' } });
+        await expect(cmd.func(page, { query: 'x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('throws AuthRequiredError when 200 body is Reuters challenge HTML', async () => {
+        const page = makePage({ ok: true, status: 200, body: null, textPreview: 'DataDome verify you are human', parseError: 'Unexpected token <' });
+        await expect(cmd.func(page, { query: 'x', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
     it('throws CommandExecutionError when 200 but body is null (captcha HTML)', async () => {
@@ -209,14 +230,19 @@ describe('reuters article-detail command (registry-level)', () => {
         await expect(cmd.func(page, { url: 'https://example.com/article' })).rejects.toThrow('must be on reuters.com');
     });
 
-    it('throws CliError FETCH_ERROR when in-page returns nothing', async () => {
+    it('throws CommandExecutionError when in-page returns nothing', async () => {
         const page = makePage(null);
-        await expect(cmd.func(page, { url: 'https://www.reuters.com/world/x/' })).rejects.toMatchObject({ code: 'FETCH_ERROR' });
+        await expect(cmd.func(page, { url: 'https://www.reuters.com/world/x/' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('throws CommandExecutionError when in-page errored', async () => {
         const page = makePage({ ok: false, error: 'boom' });
         await expect(cmd.func(page, { url: 'https://www.reuters.com/world/x/' })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('throws AuthRequiredError when page reports a paywall/challenge', async () => {
+        const page = makePage({ ok: true, authRequired: true, body: { article: null, bodyText: null } });
+        await expect(cmd.func(page, { url: 'https://www.reuters.com/world/x/' })).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
     it('throws EmptyResultError when page rendered no article body', async () => {

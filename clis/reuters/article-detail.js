@@ -4,7 +4,7 @@
  * Pairs with `reuters search` (use the `url` column to round-trip into
  * detail). Reads the in-page Fusion globalContent payload + paragraph DOM.
  */
-import { ArgumentError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { buildArticleDetailScript, mapArticleDetail } from './utils.js';
 
@@ -35,9 +35,11 @@ cli({
         if (result?.error) {
             throw new CommandExecutionError(`Reuters article-detail failed inside the page: ${result.error}`);
         }
+        if (result?.authRequired) {
+            throw new AuthRequiredError('www.reuters.com', 'Reuters article-detail is gated by login, subscription, or human verification');
+        }
         if (!result || result.ok !== true) {
-            throw new CliError(
-                'FETCH_ERROR',
+            throw new CommandExecutionError(
                 'Reuters article-detail returned no payload',
                 'Check that the URL points to a Reuters article and that the page loaded',
             );

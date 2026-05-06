@@ -50,8 +50,8 @@ opencli reuters search "tariff" -f json
 | Condition | Error |
 |-----------|-------|
 | In-page `fetch()` threw | `CommandExecutionError` |
-| HTTP non-2xx (e.g. 403 captcha) | `CliError` code `FETCH_ERROR` |
-| HTTP 200 but body is HTML/non-JSON | `CommandExecutionError` (captcha) |
+| HTTP 401/403 or Datadome/paywall/challenge page | `AuthRequiredError` |
+| Other HTTP non-2xx / malformed body | `CommandExecutionError` |
 | API returned `articles: []` | `EmptyResultError` |
 | `--limit` out of `[1, 40]` | `ArgumentError` |
 | `article-detail` URL not on `reuters.com` | `ArgumentError` |

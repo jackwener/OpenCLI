@@ -39,9 +39,14 @@ export function buildSearchScript(query, count) {
       try {
         const resp = await fetch(apiUrl, { credentials: 'include' });
         const status = resp.status;
+        const statusText = resp.statusText || '';
+        const text = await resp.text();
         let body = null;
-        try { body = await resp.json(); } catch (e) { body = null; }
-        return { ok: resp.ok, status, body };
+        let parseError = null;
+        if ((text || '').trim()) {
+          try { body = JSON.parse(text); } catch (e) { parseError = String((e && e.message) || e); }
+        }
+        return { ok: resp.ok, status, statusText, body, parseError, textPreview: (text || '').slice(0, 500) };
       } catch (e) {
         return { ok: false, status: 0, body: null, error: String((e && e.message) || e) };
       }
@@ -58,6 +63,12 @@ export function buildArticleDetailScript() {
     return `
     (() => {
       try {
+        const pageText = document.body ? (document.body.innerText || '') : '';
+        const authRequired = ${looksAuthWallText.toString()}([
+          window.location.href || '',
+          document.title || '',
+          pageText.slice(0, 4000),
+        ].join('\\n')) || Boolean(document.querySelector('[data-testid*="paywall" i], [class*="paywall" i], [id*="paywall" i], [data-testid*="captcha" i], [class*="captcha" i]'));
         const meta = document.getElementById('fusion-metadata');
         let fusion = null;
         if (meta) {
@@ -68,12 +79,21 @@ export function buildArticleDetailScript() {
           .map((p) => (p.textContent || '').trim())
           .filter(Boolean);
         const bodyText = paragraphs.length ? paragraphs.join('\\n\\n') : ((document.querySelector('article')?.innerText || '').trim() || null);
-        return { ok: true, body: { article, bodyText } };
+        return { ok: true, authRequired, body: { article, bodyText } };
       } catch (e) {
         return { ok: false, error: String((e && e.message) || e) };
       }
     })()
   `;
+}
+
+export function isAuthStatus(status) {
+    return Number(status) === 401 || Number(status) === 403;
+}
+
+export function looksAuthWallText(value) {
+    const text = String(value ?? '').toLowerCase();
+    return /datadome|captcha|verify you are human|human verification|access to this page has been denied|unusual traffic|subscribe to continue|subscription required|sign in to (continue|read|access)|log in to (continue|read|access)/.test(text);
 }
 
 function pickAuthors(a) {
