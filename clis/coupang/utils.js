@@ -1,3 +1,36 @@
+import { ArgumentError } from '@jackwener/opencli/errors';
+
+/**
+ * Parse a positive integer arg (--limit / --page / --review-page).
+ *
+ * Throws ArgumentError on out-of-range / non-integer values rather than
+ * silently clamping. We prefer typed-fail-fast over silent clamping for the
+ * same reason as feedback_typed_fail_fast_for_adapters: callers cannot tell
+ * that their value was rewritten and end up confused why "limit=999" returned
+ * 50 rows.
+ */
+export function parseLimitArg(raw, fallback, max) {
+    if (raw === undefined || raw === null || raw === '') {
+        return fallback;
+    }
+    const num = Number(raw);
+    if (!Number.isInteger(num) || num < 1 || num > max) {
+        throw new ArgumentError(`--limit must be an integer between 1 and ${max} (got ${raw})`);
+    }
+    return num;
+}
+
+export function parsePageArg(raw, fallback) {
+    if (raw === undefined || raw === null || raw === '') {
+        return fallback;
+    }
+    const num = Number(raw);
+    if (!Number.isInteger(num) || num < 1) {
+        throw new ArgumentError(`--page must be a positive integer (got ${raw})`);
+    }
+    return num;
+}
+
 function itemKey(item) {
     return item.url || item.product_id || `${item.title}:${item.price ?? ''}`;
 }

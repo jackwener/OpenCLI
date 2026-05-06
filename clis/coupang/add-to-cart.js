@@ -1,3 +1,4 @@
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { canonicalizeProductUrl, normalizeProductId } from './utils.js';
 function escapeJsString(value) {
@@ -105,31 +106,32 @@ cli({
     ],
     columns: ['ok', 'product_id', 'url', 'message'],
     func: async (page, kwargs) => {
-        const rawProductId = kwargs['product-id'] ?? kwargs['product-id'];
+        const rawProductId = kwargs['product-id'];
         const productId = normalizeProductId(rawProductId);
         const targetUrl = canonicalizeProductUrl(kwargs.url, productId);
         if (!productId && !targetUrl) {
-            throw new Error('Either --product-id or --url is required');
+            throw new ArgumentError('Either --product-id or --url is required');
         }
         const finalUrl = targetUrl || canonicalizeProductUrl('', productId);
         await page.goto(finalUrl);
         const result = await page.evaluate(buildAddToCartEvaluate(productId));
         const loginHints = result?.loginHints ?? {};
         if (loginHints.hasLoginLink && !loginHints.hasMyCoupang) {
-            throw new Error('Coupang login required. Please log into Coupang in Chrome and retry.');
+            throw new AuthRequiredError('coupang.com', 'Please log into Coupang in Chrome and retry.');
         }
         const actualProductId = normalizeProductId(result?.currentProductId || productId);
         if (result?.reason === 'PRODUCT_MISMATCH') {
-            throw new Error(`Product mismatch: expected ${productId}, got ${actualProductId || 'unknown'}`);
+            const observed = actualProductId ? `got ${actualProductId}` : 'no product id observed';
+            throw new CommandExecutionError(`Product mismatch: expected ${productId}, ${observed}`);
         }
         if (result?.reason === 'OPTION_REQUIRED') {
-            throw new Error('This product requires option selection and is not supported in v1.');
+            throw new CommandExecutionError('This product requires option selection and is not supported in v1.');
         }
         if (result?.reason === 'ADD_TO_CART_BUTTON_NOT_FOUND') {
-            throw new Error('Could not find an add-to-cart button on the product page.');
+            throw new CommandExecutionError('Could not find an add-to-cart button on the product page.');
         }
         if (!result?.ok) {
-            throw new Error('Failed to confirm add-to-cart success.');
+            throw new CommandExecutionError('Failed to confirm add-to-cart success.');
         }
         return [{
                 ok: true,

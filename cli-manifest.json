@@ -5310,6 +5310,49 @@
   },
   {
     "site": "coupang",
+    "name": "product",
+    "description": "Read full product detail (price, rating, seller, delivery) for a Coupang product",
+    "access": "read",
+    "domain": "www.coupang.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "product-id",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Coupang product ID (digits only)"
+      },
+      {
+        "name": "url",
+        "type": "str",
+        "required": false,
+        "help": "Canonical Coupang product URL (alternative to --product-id)"
+      }
+    ],
+    "columns": [
+      "product_id",
+      "title",
+      "price",
+      "original_price",
+      "discount_rate",
+      "rating",
+      "review_count",
+      "seller",
+      "brand",
+      "rocket",
+      "delivery_promise",
+      "image_url",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "coupang/product.js",
+    "sourceFile": "coupang/product.js",
+    "navigateBefore": "https://www.coupang.com"
+  },
+  {
+    "site": "coupang",
     "name": "search",
     "description": "Search Coupang products with logged-in browser session",
     "access": "read",
@@ -5347,6 +5390,7 @@
     ],
     "columns": [
       "rank",
+      "product_id",
       "title",
       "price",
       "unit_price",

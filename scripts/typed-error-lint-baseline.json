@@ -137,14 +137,6 @@
   },
   {
     "rule": "silent-clamp",
-    "command": "coupang/search",
-    "file": "clis/coupang/search.js",
-    "line": 417,
-    "text": "const limit = Math.min(Math.max(Number(kwargs.limit || 20), 1), 50);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-clamp",
     "command": "douyin/user-videos",
     "file": "clis/douyin/user-videos.js",
     "line": 16,
@@ -965,14 +957,6 @@
     "file": "clis/boss/stats.js",
     "line": 39,
     "text": "const jobName = f.jobName || 'unknown';",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "coupang/add-to-cart",
-    "file": "clis/coupang/add-to-cart.js",
-    "line": 123,
-    "text": "throw new Error(`Product mismatch: expected ${productId}, got ${actualProductId || 'unknown'}`);",
     "occurrence": 0
   },
   {
