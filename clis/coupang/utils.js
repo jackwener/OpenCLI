@@ -94,7 +94,14 @@ export function normalizeProductId(raw) {
     if (!text)
         return '';
     const match = text.match(/\/vp\/products\/(\d+)/) || text.match(/\b(\d{6,})\b/);
-    return match?.[1] ?? text;
+    return match?.[1] ?? '';
+}
+export function requireProductIdArg(raw, label = '--product-id') {
+    const productId = normalizeProductId(raw);
+    if (!/^\d{6,}$/.test(productId)) {
+        throw new ArgumentError(`${label} must be a numeric Coupang product ID`);
+    }
+    return productId;
 }
 export function canonicalizeProductUrl(rawUrl, productId) {
     const raw = asString(rawUrl);

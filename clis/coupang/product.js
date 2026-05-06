@@ -1,6 +1,6 @@
-import { ArgumentError, AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { canonicalizeProductUrl, normalizeProductId } from './utils.js';
+import { canonicalizeProductUrl, normalizeProductId, requireProductIdArg } from './utils.js';
 
 function escapeJsString(value) {
     return JSON.stringify(value);
@@ -207,15 +207,23 @@ cli({
     ],
     func: async (page, kwargs) => {
         const rawProductId = kwargs['product-id'];
-        const productId = normalizeProductId(rawProductId);
-        const targetUrl = canonicalizeProductUrl(kwargs.url, productId);
-        if (!productId && !targetUrl) {
+        if (!rawProductId && !kwargs.url) {
             throw new ArgumentError('Either --product-id or --url is required');
         }
+        const productId = rawProductId
+            ? requireProductIdArg(rawProductId, 'product-id')
+            : requireProductIdArg(kwargs.url, '--url');
+        const targetUrl = canonicalizeProductUrl(kwargs.url, productId);
         const finalUrl = targetUrl || canonicalizeProductUrl('', productId);
-        await page.goto(finalUrl);
-        await page.wait(2);
-        const result = await page.evaluate(buildProductDetailEvaluate(productId));
+        await page.goto(finalUrl).catch((error) => {
+            throw new CommandExecutionError(`coupang product navigation failed: ${error?.message || error}`);
+        });
+        await page.wait(2).catch((error) => {
+            throw new CommandExecutionError(`coupang product wait failed: ${error?.message || error}`);
+        });
+        const result = await page.evaluate(buildProductDetailEvaluate(productId)).catch((error) => {
+            throw new CommandExecutionError(`coupang product extraction failed: ${error?.message || error}`);
+        });
         const loginHints = result?.loginHints ?? {};
         if (loginHints.hasLoginLink && !loginHints.hasMyCoupang) {
             throw new AuthRequiredError('coupang.com', 'Please log into Coupang in Chrome and retry.');

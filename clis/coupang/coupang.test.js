@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './search.js';
 import './product.js';
 import './add-to-cart.js';
-import { parseLimitArg, parsePageArg } from './utils.js';
+import { parseLimitArg, parsePageArg, requireProductIdArg } from './utils.js';
 
 describe('coupang utils — parseLimitArg / parsePageArg (no silent clamp)', () => {
     it('parseLimitArg returns fallback for empty / undefined', () => {
@@ -42,6 +42,18 @@ describe('coupang utils — parseLimitArg / parsePageArg (no silent clamp)', () 
         expect(() => parsePageArg(0, 1)).toThrow(ArgumentError);
         expect(() => parsePageArg(-1, 1)).toThrow(ArgumentError);
         expect(() => parsePageArg('abc', 1)).toThrow(ArgumentError);
+    });
+});
+
+describe('coupang utils — product id validation', () => {
+    it('extracts numeric ids from ids and URLs', () => {
+        expect(requireProductIdArg('123456789')).toBe('123456789');
+        expect(requireProductIdArg('https://www.coupang.com/vp/products/123456789?itemId=1', '--url')).toBe('123456789');
+    });
+
+    it('rejects malformed product ids instead of building fake URLs', () => {
+        expect(() => requireProductIdArg('abc')).toThrow(ArgumentError);
+        expect(() => requireProductIdArg('https://www.coupang.com/not-a-product', '--url')).toThrow(ArgumentError);
     });
 });
 
@@ -108,6 +120,18 @@ describe('coupang product — typed errors', () => {
         const fakePage = { goto: () => { throw new Error('should not navigate'); } };
         await expect(product.func(fakePage, {})).rejects.toThrow(ArgumentError);
     });
+
+    it('rejects malformed product id before navigation', async () => {
+        const product = getRegistry().get('coupang/product');
+        const fakePage = { goto: () => { throw new Error('should not navigate'); } };
+        await expect(product.func(fakePage, { 'product-id': 'abc' })).rejects.toThrow(ArgumentError);
+    });
+
+    it('wraps browser failures as CommandExecutionError', async () => {
+        const product = getRegistry().get('coupang/product');
+        const fakePage = { goto: () => Promise.reject(new Error('browser down')) };
+        await expect(product.func(fakePage, { 'product-id': '123456789' })).rejects.toThrow(CommandExecutionError);
+    });
 });
 
 describe('coupang add-to-cart — typed errors', () => {
@@ -115,5 +139,17 @@ describe('coupang add-to-cart — typed errors', () => {
         const cart = getRegistry().get('coupang/add-to-cart');
         const fakePage = { goto: () => { throw new Error('should not navigate'); } };
         await expect(cart.func(fakePage, {})).rejects.toThrow(ArgumentError);
+    });
+
+    it('rejects malformed product id before navigation', async () => {
+        const cart = getRegistry().get('coupang/add-to-cart');
+        const fakePage = { goto: () => { throw new Error('should not navigate'); } };
+        await expect(cart.func(fakePage, { 'product-id': 'abc' })).rejects.toThrow(ArgumentError);
+    });
+
+    it('wraps browser failures as CommandExecutionError', async () => {
+        const cart = getRegistry().get('coupang/add-to-cart');
+        const fakePage = { goto: () => Promise.reject(new Error('browser down')) };
+        await expect(cart.func(fakePage, { 'product-id': '123456789' })).rejects.toThrow(CommandExecutionError);
     });
 });
