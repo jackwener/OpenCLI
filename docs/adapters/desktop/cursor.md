@@ -13,7 +13,7 @@ Control the **Cursor IDE** from the terminal via Chrome DevTools Protocol (CDP).
 ## Setup
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9226"
+opencli config set browser.cdp_endpoint http://127.0.0.1:9226
 ```
 
 ## Commands

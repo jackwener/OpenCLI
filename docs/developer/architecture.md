@@ -106,7 +106,7 @@ This path is used for:
 
 ### Direct CDP mode
 
-Used when OpenCLI talks directly to a Chrome or Electron debugging endpoint through `OPENCLI_CDP_ENDPOINT`.
+Used when OpenCLI talks directly to a Chrome or Electron debugging endpoint through `browser.cdp_endpoint` config.
 
 Typical uses:
 

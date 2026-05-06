@@ -8,16 +8,101 @@
 declare const __OPENCLI_COMPAT_RANGE__: string;
 
 import type { Command, Result } from './protocol';
-import { DAEMON_HOST, DAEMON_PORT, DAEMON_WS_URL, DAEMON_PING_URL, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
+import {
+  DAEMON_PORT_STORAGE_KEY,
+  DEFAULT_DAEMON_PORT,
+  daemonPingUrl,
+  daemonStatusUrl,
+  daemonWsUrl,
+  parseDaemonPort,
+  resolveDaemonPort,
+  WS_RECONNECT_BASE_DELAY,
+  WS_RECONNECT_MAX_DELAY,
+} from './protocol';
 import * as executor from './cdp';
 import * as identity from './identity';
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
+let currentDaemonPort = resolveDaemonPort(undefined);
+let daemonPortLoaded = false;
+let daemonPortLoadPromise: Promise<number> | null = null;
 const CONTEXT_ID_KEY = 'opencli_context_id_v1';
 let currentContextId = 'default';
 let contextIdPromise: Promise<string> | null = null;
+
+async function getConfiguredDaemonPort(): Promise<number> {
+  if (daemonPortLoaded) return currentDaemonPort;
+  if (daemonPortLoadPromise) return daemonPortLoadPromise;
+
+  daemonPortLoadPromise = loadConfiguredDaemonPort();
+  return daemonPortLoadPromise;
+}
+
+async function loadConfiguredDaemonPort(): Promise<number> {
+  try {
+    const local = chrome.storage?.local;
+    if (!local) return setDaemonPortCache(resolveDaemonPort(undefined));
+    const raw = await local.get(DAEMON_PORT_STORAGE_KEY) as Record<string, unknown>;
+    return setDaemonPortCache(resolveDaemonPort(raw[DAEMON_PORT_STORAGE_KEY]));
+  } catch {
+    return setDaemonPortCache(resolveDaemonPort(undefined));
+  }
+}
+
+async function setConfiguredDaemonPort(value: unknown): Promise<number> {
+  const port = parseDaemonPort(value);
+  if (!port) throw new Error('daemon port must be an integer between 1 and 65535');
+  await chrome.storage?.local?.set({ [DAEMON_PORT_STORAGE_KEY]: port });
+  setDaemonPortCache(port);
+  return port;
+}
+
+async function resetConfiguredDaemonPort(): Promise<number> {
+  const local = chrome.storage?.local;
+  if (typeof local?.remove === 'function') {
+    await local.remove(DAEMON_PORT_STORAGE_KEY);
+  } else {
+    await local?.set?.({ [DAEMON_PORT_STORAGE_KEY]: undefined });
+  }
+  return setDaemonPortCache(resolveDaemonPort(undefined));
+}
+
+function setDaemonPortCache(port: number): number {
+  currentDaemonPort = port;
+  daemonPortLoaded = true;
+  daemonPortLoadPromise = null;
+  return currentDaemonPort;
+}
+
+function handleDaemonPortStorageChange(changes: Record<string, chrome.storage.StorageChange>, areaName: string): void {
+  if (areaName !== 'local' || !(DAEMON_PORT_STORAGE_KEY in changes)) return;
+  const daemonPort = resolveDaemonPort(changes[DAEMON_PORT_STORAGE_KEY]?.newValue);
+  const unchanged = daemonPortLoaded && daemonPort === currentDaemonPort;
+  setDaemonPortCache(daemonPort);
+  if (!unchanged) reconnectDaemon();
+}
+
+function reconnectDaemon(): void {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  reconnectAttempts = 0;
+  const existing = ws;
+  ws = null;
+  if (existing) {
+    existing.onclose = null;
+    existing.onerror = null;
+    try {
+      existing.close();
+    } catch {
+      // Closing is best-effort; the next connect() call uses the updated port.
+    }
+  }
+  void connect();
+}
 
 async function getCurrentContextId(): Promise<string> {
   if (contextIdPromise) return contextIdPromise;
@@ -93,8 +178,12 @@ console.error = (...args: unknown[]) => { _origError(...args); forwardLog('error
 async function connect(): Promise<void> {
   if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
 
+  const daemonPort = await getConfiguredDaemonPort();
+  const pingUrl = daemonPingUrl(daemonPort);
+  const wsUrl = daemonWsUrl(daemonPort);
+
   try {
-    const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1000) });
+    const res = await fetch(pingUrl, { signal: AbortSignal.timeout(1000) });
     if (!res.ok) return; // unexpected response — not our daemon
   } catch {
     return; // daemon not running — skip WebSocket to avoid console noise
@@ -102,7 +191,8 @@ async function connect(): Promise<void> {
 
   try {
     const contextId = await getCurrentContextId();
-    ws = new WebSocket(DAEMON_WS_URL);
+    if (daemonPort !== currentDaemonPort) return; // Port changed while /ping was in flight.
+    ws = new WebSocket(wsUrl);
     currentContextId = contextId;
   } catch {
     scheduleReconnect();
@@ -609,6 +699,8 @@ chrome.runtime.onStartup.addListener(() => {
   initialize();
 });
 
+chrome.storage?.onChanged?.addListener(handleDaemonPortStorageChange);
+
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'keepalive') void connect();
   const workspace = workspaceFromAlarmName(alarm.name);
@@ -622,15 +714,38 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     void (async () => {
       const contextId = await getCurrentContextId();
       const connected = ws?.readyState === WebSocket.OPEN;
+      const daemonPort = await getConfiguredDaemonPort();
       const extensionVersion = chrome.runtime.getManifest().version;
-      const daemonVersion = connected ? await fetchDaemonVersion() : null;
+      const daemonVersion = connected ? await fetchDaemonVersion(daemonPort) : null;
       sendResponse({
         connected,
         reconnecting: reconnectTimer !== null,
         contextId,
+        daemonPort,
+        defaultDaemonPort: DEFAULT_DAEMON_PORT,
         extensionVersion,
         daemonVersion,
       });
+    })();
+    return true;
+  }
+  if (msg?.type === 'setDaemonPort') {
+    void (async () => {
+      try {
+        const daemonPort = await setConfiguredDaemonPort((msg as { port?: unknown }).port);
+        sendResponse({ ok: true, daemonPort });
+        reconnectDaemon();
+      } catch (err) {
+        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
+    })();
+    return true;
+  }
+  if (msg?.type === 'resetDaemonPort') {
+    void (async () => {
+      const daemonPort = await resetConfiguredDaemonPort();
+      sendResponse({ ok: true, daemonPort });
+      reconnectDaemon();
     })();
     return true;
   }
@@ -642,9 +757,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
  * Resolves to null on any failure — the popup degrades to showing connection
  * state without the version label.
  */
-async function fetchDaemonVersion(): Promise<string | null> {
+async function fetchDaemonVersion(daemonPort: number): Promise<string | null> {
   try {
-    const res = await fetch(`http://${DAEMON_HOST}:${DAEMON_PORT}/status`, {
+    const res = await fetch(daemonStatusUrl(daemonPort), {
       method: 'GET',
       headers: { 'X-OpenCLI': '1' },
       signal: AbortSignal.timeout(1500),
@@ -1552,6 +1667,9 @@ async function handleBind(cmd: Command, workspace: string): Promise<Result> {
 }
 
 export const __test__ = {
+  parseDaemonPort,
+  resolveDaemonPort,
+  getConfiguredDaemonPort,
   handleExec,
   handleNavigate,
   isTargetUrl,

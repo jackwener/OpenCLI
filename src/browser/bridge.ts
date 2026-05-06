@@ -7,7 +7,7 @@ import type { IPage } from '../types.js';
 import type { IBrowserFactory } from '../runtime.js';
 import { Page } from './page.js';
 import { getDaemonHealth, requestDaemonShutdown } from './daemon-client.js';
-import { DEFAULT_DAEMON_PORT } from '../constants.js';
+import { getConfiguredDaemonPort } from '../config.js';
 import { BrowserConnectError } from '../errors.js';
 import { PKG_VERSION } from '../version.js';
 import { resolveProfileContextId } from './profile.js';
@@ -189,7 +189,7 @@ export class BrowserBridge implements IBrowserFactory {
 
     throw new BrowserConnectError(
       'Failed to start opencli daemon',
-      `Try running manually:\n  node ${resolveDaemonLaunchSpec().scriptPath}\nMake sure port ${DEFAULT_DAEMON_PORT} is available.`,
+      `Try running manually:\n  node ${resolveDaemonLaunchSpec().scriptPath}\nMake sure port ${getConfiguredDaemonPort()} is available.`,
       'daemon-not-running',
     );
   }

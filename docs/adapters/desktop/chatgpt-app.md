@@ -32,10 +32,10 @@ ChatGPT Desktop is also an Electron app and can be launched with a remote debugg
 ```
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9224"
+opencli config set browser.cdp_endpoint http://127.0.0.1:9224
 ```
 
-> The CDP approach is primarily for advanced automation and future desktop-only commands. The built-in command set above still works in the default AppleScript path unless you explicitly route through `OPENCLI_CDP_ENDPOINT`.
+> The CDP approach is primarily for advanced automation and future desktop-only commands. The built-in command set above still works in the default AppleScript path unless you explicitly route through `browser.cdp_endpoint`.
 
 ## How It Works
 

@@ -5,9 +5,9 @@
  */
 
 import { styleText } from 'node:util';
-import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { BrowserBridge } from './browser/index.js';
 import { getDaemonHealth, listSessions } from './browser/daemon-client.js';
+import { getConfiguredDaemonPort } from './config.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
@@ -66,6 +66,7 @@ export type DoctorReport = {
   daemonRunning: boolean;
   daemonFlaky?: boolean;
   daemonStale?: boolean;
+  daemonPort?: number;
   daemonVersion?: string;
   extensionConnected: boolean;
   extensionFlaky?: boolean;
@@ -229,6 +230,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     daemonRunning,
     daemonFlaky,
     daemonStale,
+    daemonPort: health.status?.port ?? getConfiguredDaemonPort(),
     daemonVersion: health.status?.daemonVersion,
     extensionConnected,
     extensionFlaky,
@@ -254,7 +256,7 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
   const daemonLabel = report.daemonFlaky
     ? 'unstable (running during live check, then stopped)'
     : report.daemonRunning
-      ? `running on port ${DEFAULT_DAEMON_PORT} (${report.daemonStale
+      ? `running on port ${report.daemonPort ?? getConfiguredDaemonPort()} (${report.daemonStale
         ? `${formatDaemonVersion(report)}, stale; CLI v${report.cliVersion ?? 'unknown'}`
         : formatDaemonVersion(report)})`
       : 'not running';

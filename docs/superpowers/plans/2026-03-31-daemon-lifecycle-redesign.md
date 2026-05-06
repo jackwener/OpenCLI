@@ -171,9 +171,10 @@ In `src/daemon.ts`, replace the idle timeout section (lines 27, 29-57) with:
 
 Replace the `IDLE_TIMEOUT` constant (line 27):
 ```typescript
-import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_IDLE_TIMEOUT } from './constants.js';
+import { DEFAULT_DAEMON_IDLE_TIMEOUT } from './constants.js';
+import { getConfiguredDaemonPort } from './config.js';
 
-const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
+const PORT = getConfiguredDaemonPort();
 const IDLE_TIMEOUT = DEFAULT_DAEMON_IDLE_TIMEOUT;
 ```
 
@@ -423,10 +424,9 @@ Create `src/commands/daemon.ts`:
  */
 
 import chalk from 'chalk';
-import { DEFAULT_DAEMON_PORT } from '../constants.js';
+import { getConfiguredDaemonPort } from '../config.js';
 
-const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
-const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
+const DAEMON_URL = `http://127.0.0.1:${getConfiguredDaemonPort()}`;
 
 interface DaemonStatus {
   ok: boolean;
@@ -793,7 +793,7 @@ private async _ensureDaemon(timeoutSeconds?: number): Promise<void> {
   throw new Error(
     'Failed to start opencli daemon. Try running manually:\n' +
     `  node ${daemonPath}\n` +
-    `Make sure port ${DEFAULT_DAEMON_PORT} is available.`,
+    `Make sure the configured daemon port is available.`,
   );
 }
 ```

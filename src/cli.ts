@@ -32,6 +32,7 @@ import { buildHtmlTreeJs, type HtmlTreeResult } from './browser/html-tree.js';
 import { buildExtractHtmlJs, runExtractFromHtml } from './browser/extract.js';
 import { analyzeSite, type PageSignals } from './browser/analyze.js';
 import { daemonRestart, daemonStatus, daemonStop } from './commands/daemon.js';
+import { getConfigValue, getConfiguredDaemonPort, isSupportedConfigKey, setConfigValue, unsetConfigValue, type SupportedConfigKey } from './config.js';
 import { log } from './logger.js';
 import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
@@ -2622,6 +2623,82 @@ cli({
       } catch (err) {
         console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
+      }
+    });
+
+  // ── Built-in: persistent config ───────────────────────────────────────────
+  const configCmd = program.command('config').description('Manage persistent OpenCLI config');
+
+  function requireConfigKey(raw: string): SupportedConfigKey | null {
+    if (isSupportedConfigKey(raw)) return raw;
+    console.error(styleText('red', `Error: unsupported config key "${raw}".`));
+    console.error(styleText('dim', 'Supported keys: daemon.port, browser.connect_timeout, browser.command_timeout, browser.cdp_endpoint'));
+    process.exitCode = EXIT_CODES.USAGE_ERROR;
+    return null;
+  }
+
+  function printDaemonPortApplyHint(previousPort: number, nextPort: number, status: Awaited<ReturnType<typeof fetchDaemonStatus>>): void {
+    if (previousPort === nextPort) return;
+    if (status) {
+      console.log(styleText('yellow', `Daemon currently running on port ${status.port}. Run \`opencli daemon restart\` to apply.`));
+    } else {
+      console.log(styleText('dim', 'Run `opencli daemon restart` to apply if the daemon is already running.'));
+    }
+    console.log(styleText('dim', `Set the Browser Bridge extension popup Port to ${nextPort}.`));
+  }
+
+  function formatUnsetConfigValue(key: SupportedConfigKey, value: number | string | undefined): string {
+    if (value === undefined) return `${key} = (unset)`;
+    return `${key} = ${value} (default)`;
+  }
+
+  configCmd
+    .command('get')
+    .description('Print one effective config value')
+    .argument('<key>', 'Config key')
+    .action((rawKey: string) => {
+      const key = requireConfigKey(rawKey);
+      if (!key) return;
+      console.log(String(getConfigValue(key) ?? ''));
+    });
+
+  configCmd
+    .command('set')
+    .description('Set a config value')
+    .argument('<key>', 'Config key')
+    .argument('<value>', 'Config value')
+    .action(async (rawKey: string, value: string) => {
+      const key = requireConfigKey(rawKey);
+      if (!key) return;
+      const previousPort = key === 'daemon.port' ? getConfiguredDaemonPort() : undefined;
+      const status = key === 'daemon.port' ? await fetchDaemonStatus({ timeout: 500 }) : null;
+      try {
+        setConfigValue(key, value);
+        const nextValue = getConfigValue(key);
+        console.log(`${key} = ${nextValue ?? ''}`);
+        if (key === 'daemon.port' && previousPort !== undefined) {
+          printDaemonPortApplyHint(previousPort, getConfiguredDaemonPort(), status);
+        }
+      } catch (err) {
+        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+      }
+    });
+
+  configCmd
+    .command('unset')
+    .description('Unset a config value and return to its default')
+    .argument('<key>', 'Config key')
+    .action(async (rawKey: string) => {
+      const key = requireConfigKey(rawKey);
+      if (!key) return;
+      const previousPort = key === 'daemon.port' ? getConfiguredDaemonPort() : undefined;
+      const status = key === 'daemon.port' ? await fetchDaemonStatus({ timeout: 500 }) : null;
+      unsetConfigValue(key);
+      const nextValue = getConfigValue(key);
+      console.log(formatUnsetConfigValue(key, nextValue));
+      if (key === 'daemon.port' && previousPort !== undefined) {
+        printDaemonPortApplyHint(previousPort, getConfiguredDaemonPort(), status);
       }
     });
 

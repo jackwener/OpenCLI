@@ -14,7 +14,7 @@ Control the **OpenAI Codex Desktop App** headless or headfully via Chrome DevToo
 ## Setup
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
+opencli config set browser.cdp_endpoint http://127.0.0.1:9222
 ```
 
 ## Commands

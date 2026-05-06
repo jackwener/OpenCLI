@@ -41,7 +41,7 @@ If Electron is present, the next step is usually to launch the app with a debugg
 Then point OpenCLI at that CDP endpoint:
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
+opencli config set browser.cdp_endpoint http://127.0.0.1:9222
 ```
 
 ### 3. Start with the 5-command pattern

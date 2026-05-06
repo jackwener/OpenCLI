@@ -3,6 +3,7 @@ import type { IPage } from './types.js';
 import { TimeoutError } from './errors.js';
 import { isElectronApp } from './electron-apps.js';
 import { log } from './logger.js';
+import { getConfiguredBrowserConnectTimeout } from './config.js';
 
 /**
  * Returns the appropriate browser factory based on site type.
@@ -24,8 +25,6 @@ function parseEnvTimeout(envVar: string, fallback: number): number {
   return parsed;
 }
 
-export const DEFAULT_BROWSER_CONNECT_TIMEOUT = parseEnvTimeout('OPENCLI_BROWSER_CONNECT_TIMEOUT', 30);
-export const DEFAULT_BROWSER_COMMAND_TIMEOUT = parseEnvTimeout('OPENCLI_BROWSER_COMMAND_TIMEOUT', 60);
 export const DEFAULT_BROWSER_EXPLORE_TIMEOUT = parseEnvTimeout('OPENCLI_BROWSER_EXPLORE_TIMEOUT', 120);
 
 /**
@@ -76,7 +75,7 @@ export async function browserSession<T>(
   const browser = new BrowserFactory();
   try {
     const page = await browser.connect({
-      timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT,
+      timeout: getConfiguredBrowserConnectTimeout(),
       workspace: opts.workspace,
       cdpEndpoint: opts.cdpEndpoint,
       contextId: opts.contextId,

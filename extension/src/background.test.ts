@@ -17,13 +17,16 @@ type MockTab = {
 class MockWebSocket {
   static OPEN = 1;
   static CONNECTING = 0;
+  static urls: string[] = [];
   readyState = MockWebSocket.CONNECTING;
   onopen: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
   onclose: (() => void) | null = null;
   onerror: (() => void) | null = null;
 
-  constructor(_url: string) {}
+  constructor(url: string) {
+    MockWebSocket.urls.push(url);
+  }
   send(_data: string): void {}
   close(): void {
     this.onclose?.();
@@ -120,7 +123,11 @@ function createChromeMock() {
         set: vi.fn(async (items: Record<string, unknown>) => {
           Object.assign(storageState, items);
         }),
+        remove: vi.fn(async (key: string) => {
+          delete storageState[key];
+        }),
       },
+      onChanged: { addListener: vi.fn(), removeListener: vi.fn() } as Listener<(changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void>,
     },
     runtime: {
       onInstalled: { addListener: vi.fn() } as Listener<() => void>,
@@ -139,13 +146,162 @@ function createChromeMock() {
 describe('background tab isolation', () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.doUnmock('./cdp');
     vi.useRealTimers();
+    MockWebSocket.urls = [];
     vi.stubGlobal('WebSocket', MockWebSocket);
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it('resolves daemon port from stored value then default', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+
+    expect(mod.__test__.resolveDaemonPort('24567')).toBe(24567);
+    expect(mod.__test__.resolveDaemonPort('')).toBe(19825);
+    expect(mod.__test__.resolveDaemonPort('not-a-port')).toBe(19825);
+    expect(mod.__test__.parseDaemonPort(65536)).toBeNull();
+  });
+
+  it('returns the configured daemon port from popup status', async () => {
+    const { chrome } = createChromeMock();
+    await chrome.storage.local.set({ opencli_daemon_port_v1: 23456 });
+    vi.stubGlobal('chrome', chrome);
+
+    await import('./background');
+    const onMessageListener = chrome.runtime.onMessage.addListener.mock.calls[0][0];
+    const sendResponse = vi.fn();
+
+    const keepAlive = onMessageListener({ type: 'getStatus' }, {}, sendResponse);
+
+    expect(keepAlive).toBe(true);
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+        daemonPort: 23456,
+      }));
+    });
+    expect(chrome.storage.local.get).toHaveBeenCalledTimes(2); // contextId + daemon port
+  });
+
+  it('persists daemon port updates and reconnects against the new port', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    const fetchMock = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await import('./background');
+    const onMessageListener = chrome.runtime.onMessage.addListener.mock.calls[0][0];
+    const sendResponse = vi.fn();
+
+    const keepAlive = onMessageListener({ type: 'setDaemonPort', port: '24567' }, {}, sendResponse);
+
+    expect(keepAlive).toBe(true);
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({ ok: true, daemonPort: 24567 });
+    });
+    await expect(chrome.storage.local.get('opencli_daemon_port_v1')).resolves.toEqual({
+      opencli_daemon_port_v1: 24567,
+    });
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('http://localhost:24567/ping', expect.any(Object));
+    });
+  });
+
+  it('rejects invalid daemon port updates', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    await import('./background');
+    const onMessageListener = chrome.runtime.onMessage.addListener.mock.calls[0][0];
+    const sendResponse = vi.fn();
+
+    const keepAlive = onMessageListener({ type: 'setDaemonPort', port: '65536' }, {}, sendResponse);
+
+    expect(keepAlive).toBe(true);
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({
+        ok: false,
+        error: 'daemon port must be an integer between 1 and 65535',
+      });
+    });
+  });
+
+  it('connects to the daemon port stored by the extension', async () => {
+    const { chrome } = createChromeMock();
+    await chrome.storage.local.set({ opencli_daemon_port_v1: 24567 });
+    vi.stubGlobal('chrome', chrome);
+    const fetchMock = vi.fn(async () => ({ ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await import('./background');
+    const onStartupListener = chrome.runtime.onStartup.addListener.mock.calls[0][0];
+    onStartupListener();
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('http://localhost:24567/ping', expect.any(Object));
+      expect(MockWebSocket.urls).toContain('ws://localhost:24567/ext');
+    });
+  });
+
+  it('updates the cached daemon port from storage changes without re-reading storage', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    const fetchMock = vi.fn(async () => ({ ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await import('./background');
+    const onStartupListener = chrome.runtime.onStartup.addListener.mock.calls[0][0];
+    onStartupListener();
+    await vi.waitFor(() => {
+      expect(MockWebSocket.urls).toContain('ws://localhost:19825/ext');
+    });
+
+    chrome.storage.local.get.mockClear();
+    const onChangedListener = chrome.storage.onChanged.addListener.mock.calls[0][0];
+    onChangedListener({
+      opencli_daemon_port_v1: { oldValue: undefined, newValue: 24567 },
+    }, 'local');
+
+    await vi.waitFor(() => {
+      expect(MockWebSocket.urls).toContain('ws://localhost:24567/ext');
+    });
+    expect(chrome.storage.local.get).not.toHaveBeenCalledWith('opencli_daemon_port_v1');
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:24567/ping', expect.any(Object));
+  });
+
+  it('resets the cached daemon port on storage removal', async () => {
+    const { chrome } = createChromeMock();
+    await chrome.storage.local.set({ opencli_daemon_port_v1: 24567 });
+    vi.stubGlobal('chrome', chrome);
+    const fetchMock = vi.fn(async () => ({ ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await import('./background');
+    const onStartupListener = chrome.runtime.onStartup.addListener.mock.calls[0][0];
+    onStartupListener();
+    await vi.waitFor(() => {
+      expect(MockWebSocket.urls).toContain('ws://localhost:24567/ext');
+    });
+
+    chrome.storage.local.get.mockClear();
+    const onChangedListener = chrome.storage.onChanged.addListener.mock.calls[0][0];
+    onChangedListener({
+      opencli_daemon_port_v1: { oldValue: 24567, newValue: undefined },
+    }, 'local');
+
+    await vi.waitFor(() => {
+      expect(MockWebSocket.urls).toContain('ws://localhost:19825/ext');
+    });
+    expect(chrome.storage.local.get).not.toHaveBeenCalledWith('opencli_daemon_port_v1');
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:19825/ping', expect.any(Object));
   });
 
   it('lists only automation-window web tabs', async () => {

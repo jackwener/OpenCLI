@@ -219,7 +219,7 @@ export async function resolveElectronEndpoint(site: string): Promise<string> {
       `${label} is not reachable on CDP port ${port}.`,
       `Auto-launch is not yet supported on ${process.platform}.\n` +
       `Start ${label} manually with --remote-debugging-port=${port}, then either:\n` +
-      `  • Set OPENCLI_CDP_ENDPOINT=http://127.0.0.1:${port}\n` +
+      `  • Run: opencli config set browser.cdp_endpoint http://127.0.0.1:${port}\n` +
       `  • Or just re-run the command once ${label} is listening on port ${port}.`,
     );
   }

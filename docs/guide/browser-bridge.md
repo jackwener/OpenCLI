@@ -25,6 +25,19 @@ That's it! The daemon auto-starts when you run any browser command. No tokens, n
 opencli doctor            # Check extension + daemon connectivity
 ```
 
+## Custom Daemon Port
+
+The default Browser Bridge port is `19825`.
+
+If another local service occupies that port, set a persistent OpenCLI daemon port:
+
+```bash
+opencli config set daemon.port 23456
+opencli daemon restart
+```
+
+Then open the OpenCLI extension popup, edit the **Port** field to the same value, and click **Save**. Click **Reset** to return the extension to `19825`.
+
 ## Tab Targeting
 
 Browser commands run inside the shared `browser:default` workspace unless you explicitly choose another tab target.

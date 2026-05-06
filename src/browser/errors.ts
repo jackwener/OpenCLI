@@ -6,7 +6,7 @@
  */
 
 import { BrowserConnectError, type BrowserConnectKind } from '../errors.js';
-import { DEFAULT_DAEMON_PORT } from '../constants.js';
+import { getConfiguredDaemonPort } from '../config.js';
 
 /**
  * Unified browser error classification.
@@ -105,7 +105,7 @@ export function formatBrowserConnectError(kind: ConnectFailureKind, detail?: str
     case 'daemon-not-running':
       return new BrowserConnectError(
         'Cannot connect to opencli daemon.' + (detail ? `\n\n${detail}` : ''),
-        `The daemon should auto-start. If it keeps failing, make sure port ${DEFAULT_DAEMON_PORT} is available.`,
+        `The daemon should auto-start. If it keeps failing, make sure port ${getConfiguredDaemonPort()} is available.`,
         kind,
       );
     case 'extension-not-connected':

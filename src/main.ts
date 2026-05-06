@@ -37,7 +37,7 @@ const USER_CLIS = path.join(os.homedir(), '.opencli', 'clis');
 {
   const liveIdx = process.argv.indexOf('--live');
   if (liveIdx !== -1) {
-    process.env.OPENCLI_LIVE = '1';
+    process.env.OPENCLI_WINDOW_LIVE = '1';
     process.argv.splice(liveIdx, 1);
   }
   const focusIdx = process.argv.indexOf('--focus');

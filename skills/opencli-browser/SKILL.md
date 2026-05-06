@@ -27,7 +27,7 @@ Until `doctor` is green, nothing else will work. Typical failures: Chrome not ru
 - `opencli browser *` commands keep an owned tab lease alive between calls. Owned leases share a dedicated automation container and are released with `opencli browser close` or when the idle timeout expires.
 - `opencli browser bind` binds a `bound:*` workspace to the Chrome tab you already have open. Use this for logged-in pages, SSO flows, or pages you manually positioned before handing control to the agent.
 - `--focus` (or `OPENCLI_WINDOW_FOCUSED=1`) opens the automation container in the foreground. Use it when you want to watch the page live.
-- `--live` (or `OPENCLI_LIVE=1`) is mainly for browser-backed adapter commands such as `opencli xiaohongshu note ...`. It keeps the adapter's automation lease open after the command returns so you can inspect the final page state.
+- `--live` (or `OPENCLI_WINDOW_LIVE=1`) is mainly for browser-backed adapter commands such as `opencli xiaohongshu note ...`. It keeps the adapter's automation lease open after the command returns so you can inspect the final page state.
 
 ### Bind Tab
 

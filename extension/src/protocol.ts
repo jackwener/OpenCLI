@@ -92,11 +92,37 @@ export interface Result {
 }
 
 /** Default daemon port */
-export const DAEMON_PORT = 19825;
+export const DEFAULT_DAEMON_PORT = 19825;
+export const DAEMON_PORT_STORAGE_KEY = 'opencli_daemon_port_v1';
 export const DAEMON_HOST = 'localhost';
-export const DAEMON_WS_URL = `ws://${DAEMON_HOST}:${DAEMON_PORT}/ext`;
+
+export function parseDaemonPort(value: unknown): number | null {
+  const port = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim()
+      ? Number(value.trim())
+      : NaN;
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) return null;
+  return port;
+}
+
+export function resolveDaemonPort(storedValue: unknown): number {
+  return parseDaemonPort(storedValue)
+    ?? DEFAULT_DAEMON_PORT;
+}
+
+export function daemonWsUrl(port: number): string {
+  return `ws://${DAEMON_HOST}:${port}/ext`;
+}
+
 /** Lightweight health-check endpoint — probed before each WebSocket attempt. */
-export const DAEMON_PING_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}/ping`;
+export function daemonPingUrl(port: number): string {
+  return `http://${DAEMON_HOST}:${port}/ping`;
+}
+
+export function daemonStatusUrl(port: number): string {
+  return `http://${DAEMON_HOST}:${port}/status`;
+}
 
 /** Base reconnect delay for extension WebSocket (ms) */
 export const WS_RECONNECT_BASE_DELAY = 2000;
