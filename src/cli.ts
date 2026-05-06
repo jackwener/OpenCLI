@@ -42,6 +42,7 @@ const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
 const DEFAULT_BOUND_WORKSPACE = 'bound:default';
 const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"';
 const FOLLOW_POLL_MS = 1_000;
+const BROWSER_PAGE_CLEANUP = Symbol('opencli.browserPageCleanup');
 
 type BrowserNetworkItem = {
   url: string;
@@ -56,6 +57,10 @@ type BrowserNetworkItem = {
   bodyTruncated?: boolean;
   /** Epoch milliseconds when the request was observed. */
   timestamp?: number;
+};
+
+type BrowserPageWithCleanup = import('./types.js').IPage & {
+  [BROWSER_PAGE_CLEANUP]?: () => Promise<void>;
 };
 
 function parseDurationMs(raw: unknown, flagName: string): number | null | { error: string } {
@@ -374,7 +379,31 @@ async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scop
 }
 
 /** Create a browser page for browser commands. Uses a dedicated browser workspace for session persistence. */
-async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_BROWSER_WORKSPACE, contextId?: string): Promise<import('./types.js').IPage> {
+async function getBrowserPage(
+  targetPage?: string,
+  workspace: string = DEFAULT_BROWSER_WORKSPACE,
+  contextId?: string,
+  opts: { cdpEndpoint?: string; cdpTarget?: string } = {},
+): Promise<import('./types.js').IPage> {
+  const cdpEndpoint = opts.cdpEndpoint?.trim();
+  if (cdpEndpoint) {
+    if (targetPage) {
+      throw new Error('Direct CDP mode does not support --tab. Use --cdp-target/OPENCLI_CDP_TARGET or pass a page WebSocket URL as --cdp-endpoint.');
+    }
+    const { CDPBridge } = await import('./browser/index.js');
+    const bridge = new CDPBridge();
+    const page = await bridge.connect({
+      timeout: 30,
+      cdpEndpoint,
+      ...(opts.cdpTarget?.trim() ? { cdpTarget: opts.cdpTarget.trim() } : {}),
+    }) as BrowserPageWithCleanup;
+    Object.defineProperty(page, BROWSER_PAGE_CLEANUP, {
+      value: () => bridge.close(),
+      configurable: true,
+    });
+    return page;
+  }
+
   const { BrowserBridge } = await import('./browser/index.js');
   const bridge = new BrowserBridge();
   const envTimeout = process.env.OPENCLI_BROWSER_TIMEOUT;
@@ -428,6 +457,20 @@ function getBrowserContextId(command?: Command): string | undefined {
   return resolveProfileContextId(typeof raw === 'string' && raw.trim() ? raw.trim() : undefined);
 }
 
+function getBrowserCdpEndpoint(command?: Command): string | undefined {
+  const raw = getCommandOption(command, 'cdpEndpoint');
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  const env = process.env.OPENCLI_CDP_ENDPOINT;
+  return typeof env === 'string' && env.trim() ? env.trim() : undefined;
+}
+
+function getBrowserCdpTarget(command?: Command): string | undefined {
+  const raw = getCommandOption(command, 'cdpTarget');
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  const env = process.env.OPENCLI_CDP_TARGET;
+  return typeof env === 'string' && env.trim() ? env.trim() : undefined;
+}
+
 function getPageWorkspace(page: import('./types.js').IPage): string {
   const workspace = (page as unknown as { workspace?: unknown }).workspace;
   return typeof workspace === 'string' && workspace.trim() ? workspace.trim() : DEFAULT_BROWSER_WORKSPACE;
@@ -436,6 +479,10 @@ function getPageWorkspace(page: import('./types.js').IPage): string {
 function getPageScope(page: import('./types.js').IPage): string {
   const contextId = (page as unknown as { contextId?: unknown }).contextId;
   return getBrowserScope(getPageWorkspace(page), typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined);
+}
+
+async function closeBrowserPageTransport(page: import('./types.js').IPage): Promise<void> {
+  await (page as BrowserPageWithCleanup)[BROWSER_PAGE_CLEANUP]?.().catch(() => {});
 }
 
 function resolveBrowserTabTarget(targetId?: string, opts?: { tab?: string } | Command): string | undefined {
@@ -482,6 +529,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .description('Make any website your CLI. Zero setup. AI-powered.')
     .version(PKG_VERSION)
     .option('--profile <name>', 'Chrome profile/context alias for Browser Bridge commands')
+    .option('--cdp-endpoint <url>', 'Chrome DevTools Protocol endpoint for direct browser automation')
+    .option('--cdp-target <pattern>', 'Filter CDP targets by title or URL substring')
     .enablePositionalOptions();
 
   // ── Built-in: list ────────────────────────────────────────────────────────
@@ -613,6 +662,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   const browser = program
     .command('browser')
     .option('--workspace <name>', 'Browser workspace to use (default: browser:default; bound tabs use bound:<name>)')
+    .option('--cdp-endpoint <url>', 'Chrome DevTools Protocol endpoint for direct browser automation')
+    .option('--cdp-target <pattern>', 'Filter CDP targets by title or URL substring')
     .description('Browser control — navigate, click, type, extract, wait (no LLM needed)');
 
   /**
@@ -691,8 +742,15 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         const targetPage = getBrowserTargetId(command);
         const workspace = getBrowserWorkspace(command);
         const contextId = getBrowserContextId(command);
-        const page = await getBrowserPage(targetPage, workspace, contextId);
-        await fn(page, ...args);
+        const page = await getBrowserPage(targetPage, workspace, contextId, {
+          cdpEndpoint: getBrowserCdpEndpoint(command),
+          cdpTarget: getBrowserCdpTarget(command),
+        });
+        try {
+          await fn(page, ...args);
+        } finally {
+          await closeBrowserPageTransport(page);
+        }
       } catch (err) {
         if (err instanceof BrowserConnectError) {
           log.error(err.message);

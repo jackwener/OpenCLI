@@ -26,12 +26,12 @@ import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
 import { adapterLoadError, ArgumentError, CommandExecutionError, attachTraceReceipt, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
-import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
+import { getBrowserFactoryForEndpoint, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
 import { resolveProfileContextId } from './browser/profile.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
 import { isElectronApp } from './electron-apps.js';
-import { probeCDP, resolveElectronEndpoint } from './launcher.js';
+import { resolveElectronEndpoint } from './launcher.js';
 import { ObservationSession, exportObservationSession, type ObservationExportResult, type ObservationExportStatus } from './observation/index.js';
 import { resolveAdapterSourcePath } from './adapter-source.js';
 
@@ -182,6 +182,8 @@ export async function executeCommand(
   opts: {
     prepared?: boolean;
     profile?: string;
+    cdpEndpoint?: string;
+    cdpTarget?: string;
     trace?: string;
     onTraceExport?: (trace: ObservationExportResult) => void;
   } = {},
@@ -207,27 +209,14 @@ export async function executeCommand(
   try {
     if (shouldUseBrowserSession(cmd)) {
       const electron = isElectronApp(cmd.site);
-      let cdpEndpoint: string | undefined;
+      let cdpEndpoint = opts.cdpEndpoint ?? process.env.OPENCLI_CDP_ENDPOINT;
 
-      if (electron) {
-        // Electron apps: respect manual endpoint override, then try auto-detect
-        const manualEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
-        if (manualEndpoint) {
-          const port = Number(new URL(manualEndpoint).port);
-          if (!await probeCDP(port)) {
-            throw new CommandExecutionError(
-              `CDP not reachable at ${manualEndpoint}`,
-              'Check that the app is running with --remote-debugging-port and the endpoint is correct.',
-            );
-          }
-          cdpEndpoint = manualEndpoint;
-        } else {
-          cdpEndpoint = await resolveElectronEndpoint(cmd.site);
-        }
+      if (electron && !cdpEndpoint) {
+        cdpEndpoint = await resolveElectronEndpoint(cmd.site);
       }
 
       ensureRequiredEnv(cmd);
-      const BrowserFactory = getBrowserFactory(cmd.site);
+      const BrowserFactory = getBrowserFactoryForEndpoint(cdpEndpoint, cmd.site);
       const contextId = resolveProfileContextId(opts.profile);
       const internal = cmd as InternalCliCommand;
       result = await browserSession(BrowserFactory, async (page) => {
@@ -343,7 +332,12 @@ export async function executeCommand(
           if (!keepOpen) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { workspace: `site:${cmd.site}:${crypto.randomUUID()}`, cdpEndpoint, contextId });
+      }, {
+        workspace: `site:${cmd.site}:${crypto.randomUUID()}`,
+        cdpEndpoint,
+        cdpTarget: opts.cdpTarget,
+        contextId,
+      });
     } else {
       // Non-browser commands: apply timeout only when explicitly configured.
       const timeout = cmd.timeoutSeconds;

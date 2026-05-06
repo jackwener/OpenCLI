@@ -13,6 +13,11 @@ export function getBrowserFactory(site?: string): new () => IBrowserFactory {
   return BrowserBridge;
 }
 
+export function getBrowserFactoryForEndpoint(cdpEndpoint?: string, site?: string): new () => IBrowserFactory {
+  if (cdpEndpoint) return CDPBridge;
+  return getBrowserFactory(site);
+}
+
 function parseEnvTimeout(envVar: string, fallback: number): number {
   const raw = process.env[envVar];
   if (raw === undefined) return fallback;
@@ -64,14 +69,21 @@ export function withTimeoutMs<T>(
 
 /** Interface for browser factory (BrowserBridge or test mocks) */
 export interface IBrowserFactory {
-  connect(opts?: { timeout?: number; workspace?: string; cdpEndpoint?: string; contextId?: string }): Promise<IPage>;
+  connect(opts?: {
+    timeout?: number;
+    workspace?: string;
+    idleTimeout?: number;
+    cdpEndpoint?: string;
+    cdpTarget?: string;
+    contextId?: string;
+  }): Promise<IPage>;
   close(): Promise<void>;
 }
 
 export async function browserSession<T>(
   BrowserFactory: new () => IBrowserFactory,
   fn: (page: IPage) => Promise<T>,
-  opts: { workspace?: string; cdpEndpoint?: string; contextId?: string } = {},
+  opts: { workspace?: string; cdpEndpoint?: string; cdpTarget?: string; contextId?: string } = {},
 ): Promise<T> {
   const browser = new BrowserFactory();
   try {
@@ -79,6 +91,7 @@ export async function browserSession<T>(
       timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT,
       workspace: opts.workspace,
       cdpEndpoint: opts.cdpEndpoint,
+      cdpTarget: opts.cdpTarget,
       contextId: opts.contextId,
     });
     return await fn(page);

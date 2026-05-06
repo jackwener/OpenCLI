@@ -207,6 +207,13 @@ OpenCLI is not only for websites. It can also:
 | `OPENCLI_VERBOSE` | `false` | Enable verbose logging (`-v` flag also works) |
 | `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |
 
+You can also pass CDP settings per command:
+
+```bash
+opencli --cdp-endpoint http://127.0.0.1:9222 <site> <command>
+opencli browser --cdp-endpoint http://127.0.0.1:9222 state
+```
+
 `--focus` works for both `opencli browser *` and browser-backed adapter commands. `--live` is mainly for adapter commands: browser subcommands already keep the automation lease open until you run `opencli browser close` or the idle timeout expires.
 
 ## Update
