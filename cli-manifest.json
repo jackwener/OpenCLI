@@ -6051,6 +6051,13 @@
         "required": true,
         "positional": true,
         "help": "Prompt to send"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 60)"
       }
     ],
     "columns": [
@@ -23287,6 +23294,13 @@
         "default": 10,
         "required": false,
         "help": "最多显示条数"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 60)"
       }
     ],
     "columns": [

@@ -29,7 +29,8 @@ describe('deepseek send', () => {
     expect(command.strategy).toBe('cookie');
     expect(command.access).toBe('write');
     expect(command.columns).toEqual(['Status', 'InjectedText']);
-    expect(command.args.map((a) => a.name)).toEqual(['id', 'prompt']);
+    expect(command.args.map((a) => a.name)).toEqual(['id', 'prompt', 'timeout']);
+    expect(command.args.find((a) => a.name === 'timeout')).toMatchObject({ type: 'int', default: 60 });
   });
 
   it('rejects malformed conversation IDs before any browser navigation', async () => {
