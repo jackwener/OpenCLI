@@ -21129,6 +21129,37 @@
     "navigateBefore": "https://mp.toutiao.com"
   },
   {
+    "site": "toutiao",
+    "name": "hot",
+    "description": "今日头条首页热榜（公开 API，无需登录）",
+    "access": "read",
+    "domain": "www.toutiao.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "返回条数 (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "query",
+      "hot_value",
+      "label",
+      "url",
+      "image"
+    ],
+    "type": "js",
+    "modulePath": "toutiao/hot.js",
+    "sourceFile": "toutiao/hot.js"
+  },
+  {
     "site": "tvmaze",
     "name": "search",
     "description": "TVmaze TV show search by title (returns id, name, network, premiered/ended, rating)",
