@@ -1,7 +1,33 @@
+import { ArgumentError } from '@jackwener/opencli/errors';
+
 export const DEEPSEEK_DOMAIN = 'chat.deepseek.com';
 export const DEEPSEEK_URL = 'https://chat.deepseek.com/';
 export const TEXTAREA_SELECTOR = 'textarea[placeholder*="DeepSeek"]';
 export const MESSAGE_SELECTOR = '.ds-message';
+const CONVERSATION_ID_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+
+/**
+ * Normalize a DeepSeek conversation ID. Accepts a bare UUID or any URL that
+ * embeds one (`/a/chat/s/<id>` or full chat URL).
+ *
+ * Throws ArgumentError when the input does not contain a UUID-shaped id, so
+ * `detail` fails before any browser navigation happens.
+ */
+export function parseDeepSeekConversationId(input) {
+    const raw = String(input ?? '').trim();
+    if (!raw) {
+        throw new ArgumentError('id', 'must be a non-empty conversation ID or URL');
+    }
+    const urlMatch = raw.match(/\/a\/chat\/s\/([a-f0-9-]+)/i);
+    const candidate = urlMatch ? urlMatch[1] : raw;
+    if (!CONVERSATION_ID_RE.test(candidate)) {
+        throw new ArgumentError(
+            'id',
+            `not a valid DeepSeek conversation ID (got "${input}"); expected a UUID like "749e6bbd-6a45-4440-beaa-ae5238bf06d8" or a full /a/chat/s/<id> URL`,
+        );
+    }
+    return candidate.toLowerCase();
+}
 
 export async function isOnDeepSeek(page) {
     const url = await page.evaluate('window.location.href').catch(() => '');

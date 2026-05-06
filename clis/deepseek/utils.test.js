@@ -2,7 +2,46 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { selectModel, sendWithFile, parseThinkingResponse, pickResumeUrl } from './utils.js';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import {
+  selectModel,
+  sendWithFile,
+  parseThinkingResponse,
+  parseDeepSeekConversationId,
+  pickResumeUrl,
+} from './utils.js';
+
+describe('deepseek parseDeepSeekConversationId', () => {
+  const id = '749e6bbd-6a45-4440-beaa-ae5238bf06d8';
+
+  it('returns a bare UUID unchanged', () => {
+    expect(parseDeepSeekConversationId(id)).toBe(id);
+  });
+
+  it('lowercases an upper-case UUID', () => {
+    expect(parseDeepSeekConversationId(id.toUpperCase())).toBe(id);
+  });
+
+  it('extracts the UUID from a full /a/chat/s/<id> URL', () => {
+    expect(parseDeepSeekConversationId(`https://chat.deepseek.com/a/chat/s/${id}`)).toBe(id);
+    expect(parseDeepSeekConversationId(`https://chat.deepseek.com/a/chat/s/${id}?from=share`)).toBe(id);
+    expect(parseDeepSeekConversationId(`/a/chat/s/${id}`)).toBe(id);
+  });
+
+  it('throws ArgumentError on empty input', () => {
+    expect(() => parseDeepSeekConversationId('')).toThrow(ArgumentError);
+    expect(() => parseDeepSeekConversationId(null)).toThrow(ArgumentError);
+    expect(() => parseDeepSeekConversationId(undefined)).toThrow(ArgumentError);
+    expect(() => parseDeepSeekConversationId('   ')).toThrow(ArgumentError);
+  });
+
+  it('throws ArgumentError on non-UUID input', () => {
+    expect(() => parseDeepSeekConversationId('not-an-id')).toThrow(ArgumentError);
+    expect(() => parseDeepSeekConversationId('123')).toThrow(ArgumentError);
+    // URL with the wrong path shape must not silently fall through to "use raw input".
+    expect(() => parseDeepSeekConversationId('https://chat.deepseek.com/somewhere/else')).toThrow(ArgumentError);
+  });
+});
 
 describe('deepseek parseThinkingResponse', () => {
   it('returns plain response when no thinking header is present', () => {

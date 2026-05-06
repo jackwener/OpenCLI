@@ -5869,6 +5869,32 @@
   },
   {
     "site": "deepseek",
+    "name": "detail",
+    "description": "Read a specific DeepSeek conversation by ID",
+    "access": "read",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID (UUID) or full /a/chat/s/<id> URL"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "deepseek/detail.js",
+    "sourceFile": "deepseek/detail.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "deepseek",
     "name": "history",
     "description": "List conversation history from DeepSeek sidebar",
     "access": "read",
@@ -5927,6 +5953,40 @@
     "type": "js",
     "modulePath": "deepseek/read.js",
     "sourceFile": "deepseek/read.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "deepseek",
+    "name": "send",
+    "description": "Send a prompt to a specific DeepSeek conversation by ID, without waiting for a response",
+    "access": "write",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID (UUID) or full /a/chat/s/<id> URL"
+      },
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send"
+      }
+    ],
+    "columns": [
+      "Status",
+      "InjectedText"
+    ],
+    "timeout": 60,
+    "type": "js",
+    "modulePath": "deepseek/send.js",
+    "sourceFile": "deepseek/send.js",
     "navigateBefore": false
   },
   {
