@@ -16237,6 +16237,107 @@
     "sourceFile": "openalex/work.js"
   },
   {
+    "site": "openfda",
+    "name": "drug-label",
+    "description": "Search FDA-approved drug labels (brand or generic name)",
+    "access": "read",
+    "domain": "fda.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Brand or generic drug name (e.g. \"aspirin\", \"lisinopril\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Max rows (1-25, default 5; openFDA caps anonymous tier at 25/page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "brandName",
+      "genericName",
+      "manufacturer",
+      "productType",
+      "route",
+      "productNdc",
+      "pharmClass",
+      "purpose",
+      "indications",
+      "warnings",
+      "dosage",
+      "effectiveTime"
+    ],
+    "type": "js",
+    "modulePath": "openfda/drug-label.js",
+    "sourceFile": "openfda/drug-label.js"
+  },
+  {
+    "site": "openfda",
+    "name": "food-recall",
+    "description": "FDA food recall and enforcement actions (most recent first)",
+    "access": "read",
+    "domain": "fda.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": false,
+        "help": "Free-text Lucene query (e.g. \"salmonella\", \"listeria\"); default: all recent recalls"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "required": false,
+        "help": "Filter by status: \"Ongoing\", \"Completed\", \"Terminated\""
+      },
+      {
+        "name": "classification",
+        "type": "str",
+        "required": false,
+        "help": "Filter by class: \"Class I\" (most serious), \"Class II\", \"Class III\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Max rows (1-100, default 10; openFDA caps anonymous tier at 100/page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "recallNumber",
+      "status",
+      "classification",
+      "voluntary",
+      "recallingFirm",
+      "city",
+      "state",
+      "country",
+      "productDescription",
+      "reasonForRecall",
+      "productQuantity",
+      "distributionPattern",
+      "reportDate",
+      "recallInitiationDate",
+      "terminationDate"
+    ],
+    "type": "js",
+    "modulePath": "openfda/food-recall.js",
+    "sourceFile": "openfda/food-recall.js"
+  },
+  {
     "site": "openreview",
     "name": "paper",
     "description": "Show full metadata for a single OpenReview paper",
@@ -23520,6 +23621,93 @@
     "type": "js",
     "modulePath": "wikipedia/trending.js",
     "sourceFile": "wikipedia/trending.js"
+  },
+  {
+    "site": "wttr",
+    "name": "current",
+    "description": "Current weather conditions for a location (city, lat,lon, or airport code)",
+    "access": "read",
+    "domain": "wttr.in",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "location",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "City name, \"lat,lon\", airport ICAO code, or \"@domain\""
+      }
+    ],
+    "columns": [
+      "location",
+      "region",
+      "country",
+      "latitude",
+      "longitude",
+      "observedAt",
+      "tempC",
+      "tempF",
+      "feelsLikeC",
+      "feelsLikeF",
+      "description",
+      "humidity",
+      "cloudCover",
+      "pressure",
+      "precipMm",
+      "visibilityKm",
+      "uvIndex",
+      "windKmph",
+      "windDirection",
+      "windDirectionDegree"
+    ],
+    "type": "js",
+    "modulePath": "wttr/current.js",
+    "sourceFile": "wttr/current.js"
+  },
+  {
+    "site": "wttr",
+    "name": "forecast",
+    "description": "Multi-day weather forecast (up to 3 days, wttr.in free tier max)",
+    "access": "read",
+    "domain": "wttr.in",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "location",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "City name, \"lat,lon\", airport ICAO code, or \"@domain\""
+      },
+      {
+        "name": "days",
+        "type": "int",
+        "default": 3,
+        "required": false,
+        "help": "Max forecast days (1-3, wttr.in caps the response at 3 days)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "date",
+      "minTempC",
+      "maxTempC",
+      "avgTempC",
+      "minTempF",
+      "maxTempF",
+      "avgTempF",
+      "sunHour",
+      "totalSnowCm",
+      "uvIndex",
+      "description",
+      "sunrise",
+      "sunset"
+    ],
+    "type": "js",
+    "modulePath": "wttr/forecast.js",
+    "sourceFile": "wttr/forecast.js"
   },
   {
     "site": "xianyu",

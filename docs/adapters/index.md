@@ -134,6 +134,8 @@ Run `opencli list` for the live registry.
 | **[nuget](./browser/nuget.md)**                   | `search` `package`                                                                                                                             | 🌐 Public    |
 | **[flathub](./browser/flathub.md)**               | `search` `app`                                                                                                                                 | 🌐 Public    |
 | **[oeis](./browser/oeis.md)**                     | `search` `sequence`                                                                                                                            | 🌐 Public    |
+| **[wttr](./browser/wttr.md)**                     | `current` `forecast`                                                                                                                           | 🌐 Public    |
+| **[openfda](./browser/openfda.md)**               | `drug-label` `food-recall`                                                                                                                     | 🌐 Public    |
 
 ## Desktop Adapters
 
