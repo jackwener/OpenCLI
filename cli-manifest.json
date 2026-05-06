@@ -8978,6 +8978,104 @@
     "sourceFile": "flathub/search.js"
   },
   {
+    "site": "gbif",
+    "name": "occurrence",
+    "description": "Search GBIF biodiversity occurrence records",
+    "access": "read",
+    "domain": "api.gbif.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "taxon-key",
+        "type": "str",
+        "required": false,
+        "help": "GBIF taxon key (from `gbif species`)"
+      },
+      {
+        "name": "query",
+        "type": "str",
+        "required": false,
+        "help": "Free-text scientific name search (alternative to --taxon-key)"
+      },
+      {
+        "name": "country",
+        "type": "str",
+        "required": false,
+        "help": "ISO 3166-1 alpha-2 country code (e.g. \"US\", \"BR\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows (1-300, default 20)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "occurrenceKey",
+      "taxonKey",
+      "scientificName",
+      "eventDate",
+      "country",
+      "stateProvince",
+      "latitude",
+      "longitude",
+      "basisOfRecord",
+      "datasetName",
+      "recordedBy",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "gbif/occurrence.js",
+    "sourceFile": "gbif/occurrence.js"
+  },
+  {
+    "site": "gbif",
+    "name": "species",
+    "description": "Search the GBIF Backbone Taxonomy (species, genera, families)",
+    "access": "read",
+    "domain": "api.gbif.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Species or scientific name (e.g. \"Panthera leo\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows (1-100, default 20)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "taxonKey",
+      "scientificName",
+      "canonicalName",
+      "rank_taxon",
+      "taxonomicStatus",
+      "kingdom",
+      "phylum",
+      "class",
+      "order",
+      "family",
+      "genus",
+      "species",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "gbif/species.js",
+    "sourceFile": "gbif/species.js"
+  },
+  {
     "site": "gemini",
     "name": "ask",
     "description": "Send a prompt to Gemini and return only the assistant response",
@@ -14545,6 +14643,164 @@
     "navigateBefore": "https://mubu.com"
   },
   {
+    "site": "nasa-apod",
+    "name": "range",
+    "description": "NASA APOD entries between two dates, newest first",
+    "access": "read",
+    "domain": "api.nasa.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "start",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Start date YYYY-MM-DD (inclusive)"
+      },
+      {
+        "name": "end",
+        "type": "str",
+        "required": false,
+        "help": "End date YYYY-MM-DD (inclusive, default: same day as start)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "date",
+      "title",
+      "mediaType",
+      "url",
+      "hdUrl",
+      "copyright",
+      "pageUrl"
+    ],
+    "type": "js",
+    "modulePath": "nasa-apod/range.js",
+    "sourceFile": "nasa-apod/range.js"
+  },
+  {
+    "site": "nasa-apod",
+    "name": "today",
+    "description": "NASA Astronomy Picture Of the Day (single date, default: today)",
+    "access": "read",
+    "domain": "api.nasa.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "YYYY-MM-DD (default: today, must be >= 1995-06-16)"
+      }
+    ],
+    "columns": [
+      "date",
+      "title",
+      "mediaType",
+      "explanation",
+      "url",
+      "hdUrl",
+      "copyright",
+      "serviceVersion",
+      "pageUrl"
+    ],
+    "type": "js",
+    "modulePath": "nasa-apod/today.js",
+    "sourceFile": "nasa-apod/today.js"
+  },
+  {
+    "site": "nhl",
+    "name": "schedule",
+    "description": "NHL game schedule for a 7-day window",
+    "access": "read",
+    "domain": "api-web.nhle.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "YYYY-MM-DD anchor date (default: now)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max games (1-200, default 50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "gameId",
+      "startTime",
+      "gameDate",
+      "gameType",
+      "awayAbbrev",
+      "awayName",
+      "awayScore",
+      "homeAbbrev",
+      "homeName",
+      "homeScore",
+      "venue",
+      "gameState",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "nhl/schedule.js",
+    "sourceFile": "nhl/schedule.js"
+  },
+  {
+    "site": "nhl",
+    "name": "standings",
+    "description": "NHL league standings (current or as-of date)",
+    "access": "read",
+    "domain": "api-web.nhle.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "YYYY-MM-DD as-of date (default: now)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 32,
+        "required": false,
+        "help": "Max teams (1-32, default 32)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "teamAbbrev",
+      "teamName",
+      "conference",
+      "division",
+      "gamesPlayed",
+      "wins",
+      "losses",
+      "otLosses",
+      "points",
+      "pointPct",
+      "goalDiff",
+      "streakCode",
+      "streakCount",
+      "homeRecord",
+      "roadRecord",
+      "l10Record",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "nhl/standings.js",
+    "sourceFile": "nhl/standings.js"
+  },
+  {
     "site": "notebooklm",
     "name": "current",
     "description": "Show metadata for the currently opened NotebookLM notebook tab",
@@ -16237,6 +16493,80 @@
     "sourceFile": "openalex/work.js"
   },
   {
+    "site": "openlibrary",
+    "name": "search",
+    "description": "Search Open Library books by title / author / keyword",
+    "access": "read",
+    "domain": "openlibrary.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search text (title, author, or keyword)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows (1-100, default 20)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "olid",
+      "title",
+      "firstAuthor",
+      "firstPublishYear",
+      "editionCount",
+      "isbnCount",
+      "subjects",
+      "language",
+      "coverUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "openlibrary/search.js",
+    "sourceFile": "openlibrary/search.js"
+  },
+  {
+    "site": "openlibrary",
+    "name": "work",
+    "description": "Open Library Work detail by OLID or ISBN",
+    "access": "read",
+    "domain": "openlibrary.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "ref",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "OLID (e.g. \"OL45804W\") or ISBN-10/-13"
+      }
+    ],
+    "columns": [
+      "olid",
+      "title",
+      "firstPublishDate",
+      "subjects",
+      "subjectPlaces",
+      "subjectTimes",
+      "authorOlids",
+      "description",
+      "coverUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "openlibrary/work.js",
+    "sourceFile": "openlibrary/work.js"
+  },
+  {
     "site": "openreview",
     "name": "paper",
     "description": "Show full metadata for a single OpenReview paper",
@@ -16964,6 +17294,157 @@
     "modulePath": "pixiv/user.js",
     "sourceFile": "pixiv/user.js",
     "navigateBefore": "https://www.pixiv.net"
+  },
+  {
+    "site": "poetrydb",
+    "name": "random",
+    "description": "Fetch random poems from PoetryDB",
+    "access": "read",
+    "domain": "poetrydb.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "count",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "How many random poems (1-50, default 1)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "author",
+      "lineCount",
+      "firstLine",
+      "lastLine",
+      "text",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "poetrydb/random.js",
+    "sourceFile": "poetrydb/random.js"
+  },
+  {
+    "site": "poetrydb",
+    "name": "search",
+    "description": "Search PoetryDB by --author and/or --title",
+    "access": "read",
+    "domain": "poetrydb.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "author",
+        "type": "str",
+        "required": false,
+        "help": "Author name (substring match)"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": false,
+        "help": "Title text (substring match)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max poems (1-200, default 20)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "author",
+      "lineCount",
+      "firstLine",
+      "lastLine",
+      "text",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "poetrydb/search.js",
+    "sourceFile": "poetrydb/search.js"
+  },
+  {
+    "site": "pokeapi",
+    "name": "move",
+    "description": "Look up a Pokémon move by id or kebab-case name",
+    "access": "read",
+    "domain": "pokeapi.co",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "ref",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Move id (e.g. 1) or kebab-case name (e.g. \"thunderbolt\", \"u-turn\")"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "displayName",
+      "type",
+      "damageClass",
+      "power",
+      "accuracy",
+      "pp",
+      "priority",
+      "effectChance",
+      "target",
+      "generation",
+      "flavorText",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pokeapi/move.js",
+    "sourceFile": "pokeapi/move.js"
+  },
+  {
+    "site": "pokeapi",
+    "name": "pokemon",
+    "description": "Look up a Pokémon by national-dex id or name",
+    "access": "read",
+    "domain": "pokeapi.co",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "ref",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "National-dex id (e.g. 25) or kebab-case name (e.g. \"pikachu\", \"tapu-koko\")"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "types",
+      "abilities",
+      "heightM",
+      "weightKg",
+      "baseExperience",
+      "hp",
+      "attack",
+      "defense",
+      "specialAttack",
+      "specialDefense",
+      "speed",
+      "totalStats",
+      "spriteUrl",
+      "artworkUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pokeapi/pokemon.js",
+    "sourceFile": "pokeapi/pokemon.js"
   },
   {
     "site": "powerchina",

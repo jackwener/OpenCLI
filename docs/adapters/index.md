@@ -134,6 +134,12 @@ Run `opencli list` for the live registry.
 | **[nuget](./browser/nuget.md)**                   | `search` `package`                                                                                                                             | 🌐 Public    |
 | **[flathub](./browser/flathub.md)**               | `search` `app`                                                                                                                                 | 🌐 Public    |
 | **[oeis](./browser/oeis.md)**                     | `search` `sequence`                                                                                                                            | 🌐 Public    |
+| **[nhl](./browser/nhl.md)**                       | `standings` `schedule`                                                                                                                         | 🌐 Public    |
+| **[nasa-apod](./browser/nasa-apod.md)**           | `today` `range`                                                                                                                                | 🌐 Public    |
+| **[gbif](./browser/gbif.md)**                     | `species` `occurrence`                                                                                                                         | 🌐 Public    |
+| **[poetrydb](./browser/poetrydb.md)**             | `search` `random`                                                                                                                              | 🌐 Public    |
+| **[pokeapi](./browser/pokeapi.md)**               | `pokemon` `move`                                                                                                                               | 🌐 Public    |
+| **[openlibrary](./browser/openlibrary.md)**       | `search` `work`                                                                                                                                | 🌐 Public    |
 
 ## Desktop Adapters
 
