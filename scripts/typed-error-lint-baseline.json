@@ -505,14 +505,6 @@
   },
   {
     "rule": "silent-clamp",
-    "command": "reuters/search",
-    "file": "clis/reuters/search.js",
-    "line": 18,
-    "text": "const count = Math.min(kwargs.limit || 10, 40);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-clamp",
     "command": "sinablog/search",
     "file": "clis/sinablog/search.js",
     "line": 51,

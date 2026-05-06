@@ -18914,6 +18914,39 @@
   },
   {
     "site": "reuters",
+    "name": "article-detail",
+    "description": "Reuters 路透社文章详情：标题/作者/正文文本",
+    "access": "read",
+    "domain": "www.reuters.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Reuters article URL (must be on reuters.com)"
+      }
+    ],
+    "columns": [
+      "title",
+      "date",
+      "section",
+      "section_path",
+      "authors",
+      "description",
+      "word_count",
+      "url",
+      "body"
+    ],
+    "type": "js",
+    "modulePath": "reuters/article-detail.js",
+    "sourceFile": "reuters/article-detail.js",
+    "navigateBefore": "https://www.reuters.com"
+  },
+  {
+    "site": "reuters",
     "name": "search",
     "description": "Reuters 路透社新闻搜索",
     "access": "read",
@@ -18933,7 +18966,7 @@
         "type": "int",
         "default": 10,
         "required": false,
-        "help": "Number of results (max 40)"
+        "help": "Number of results (1-40)"
       }
     ],
     "columns": [
@@ -18941,6 +18974,8 @@
       "title",
       "date",
       "section",
+      "section_path",
+      "authors",
       "url"
     ],
     "type": "js",
