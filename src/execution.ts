@@ -298,8 +298,8 @@ export async function executeCommand(
             throw wrapped;
           }
         }
-        // --live / OPENCLI_LIVE=1 keeps the automation window open after the
-        // command finishes, so agents (or humans) can inspect the page state.
+        // --live / OPENCLI_LIVE=1 keeps the current automation tab lease after
+        // the command finishes, so agents (or humans) can inspect the page state.
         const keepOpen = process.env.OPENCLI_LIVE === '1' || process.env.OPENCLI_LIVE === 'true';
         try {
           const result = await runWithTimeout(runCommand(cmd, page, kwargs, debug), {
@@ -315,8 +315,9 @@ export async function executeCommand(
             await collectObservationEvidence(observation, page).catch(() => {});
             exportTraceArtifact(observation, 'success', undefined, opts.onTraceExport);
           }
-          // Adapter commands are one-shot — close the automation window immediately
-          // instead of waiting for the 30s idle timeout.
+          // Adapter commands are one-shot — release the current tab lease immediately
+          // instead of waiting for the 30s idle timeout. The automation container
+          // window stays open for reuse.
           if (!keepOpen) await page.closeWindow?.().catch(() => {});
           return result;
         } catch (err) {
@@ -337,9 +338,9 @@ export async function executeCommand(
               exportTraceArtifact(observation, 'failure', err, opts.onTraceExport);
             }
           }
-          // Close the automation window on failure too — without this, the window
-          // lingers until the extension's idle timer fires (unreliable on Windows
-          // where MV3 service workers may be suspended before setTimeout triggers).
+          // Release the tab lease on failure too — without this, the lease lingers
+          // until the extension's idle timer fires (unreliable on Windows where
+          // MV3 service workers may be suspended before setTimeout triggers).
           if (!keepOpen) await page.closeWindow?.().catch(() => {});
           throw err;
         }

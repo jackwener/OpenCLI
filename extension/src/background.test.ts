@@ -571,7 +571,7 @@ describe('background tab isolation', () => {
     expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'about:blank', active: true });
   });
 
-  it('releases owned workspaces as tab leases before closing the shared container', async () => {
+  it('releases owned workspaces without closing the shared container', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
@@ -583,13 +583,14 @@ describe('background tab isolation', () => {
     const closeSecond = await mod.__test__.handleCommand({ id: 'close-second', action: 'close-window', workspace: 'site:second' });
     expect(closeSecond).toEqual(expect.objectContaining({ ok: true }));
     expect(chrome.tabs.remove).toHaveBeenCalledWith(10);
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(10, { url: 'about:blank', active: true });
     expect(chrome.windows.remove).not.toHaveBeenCalled();
     expect(mod.__test__.getSession('site:first')).not.toBeNull();
     expect(mod.__test__.getSession('site:second')).toBeNull();
 
     await mod.__test__.handleCommand({ id: 'close-first', action: 'close-window', workspace: 'site:first' });
-    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
-    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
   });
 
   it('releases the current owned tab lease when tabs close targets it', async () => {
@@ -609,12 +610,12 @@ describe('background tab isolation', () => {
       ok: true,
       data: { closed: 'target-1' },
     }));
-    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
-    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
     expect(mod.__test__.getSession('site:closetab')).toBeNull();
   });
 
-  it('reconciles an owned container with no stored leases by closing it', async () => {
+  it('reconciles an owned container with no stored leases without closing it', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
     await chrome.storage.local.set({
@@ -629,7 +630,15 @@ describe('background tab isolation', () => {
     const mod = await import('./background');
     await mod.__test__.reconcileTargetLeaseRegistry();
 
-    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+    expect(mod.__test__.getAutomationWindowId()).toBeNull();
+    chrome.windows.create.mockClear();
+
+    const tabId = await mod.__test__.resolveTabId(undefined, 'site:after-restart', 'https://after.example');
+
+    expect(tabId).toBe(1);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'https://after.example' });
   });
 
   it('restores owned and borrowed leases from the registry', async () => {
@@ -704,9 +713,30 @@ describe('background tab isolation', () => {
     const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
     await onAlarmListener({ name: 'opencli:lease-idle:site%3Aalarm' });
 
-    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
-    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
     expect(mod.__test__.getSession('site:alarm')).toBeNull();
+  });
+
+  it('reuses the placeholder tab left by an idle release', async () => {
+    const { chrome, tabs } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, 'site:first');
+
+    const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
+    await onAlarmListener({ name: 'opencli:lease-idle:site%3Afirst' });
+
+    expect(tabs[0].url).toBe('about:blank');
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+    chrome.windows.create.mockClear();
+
+    const reused = await mod.__test__.resolveTabId(undefined, 'site:next', 'https://next.example');
+
+    expect(reused).toBe(1);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'https://next.example' });
   });
 
   it('deduplicates concurrent automation container creation', async () => {
@@ -958,7 +988,7 @@ describe('background tab isolation', () => {
     mod.__test__.resetWindowIdleTimer('site:notebooklm');
     await vi.advanceTimersByTimeAsync(30001);
 
-    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
     expect(mod.__test__.getSession('site:notebooklm')).toBeNull();
   });
 
@@ -977,7 +1007,7 @@ describe('background tab isolation', () => {
 
     // After 10 min total, session should be cleaned up
     await vi.advanceTimersByTimeAsync(600000 - 30001);
-    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
     expect(mod.__test__.getSession('browser:default')).toBeNull();
   });
 
@@ -1167,6 +1197,26 @@ describe('background tab isolation', () => {
 
     expect(chrome.windows.remove).not.toHaveBeenCalled();
     expect(mod.__test__.getSession('bound:default')).not.toBeNull();
+  });
+
+  it('explicit close on a borrowed bound session detaches without touching tabs or windows', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession('bound:default', { windowId: 2, owned: false, preferredTabId: 2 });
+
+    const result = await mod.__test__.handleCommand({
+      id: 'bound-close',
+      action: 'close-window',
+      workspace: 'bound:default',
+    });
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.tabs.remove).not.toHaveBeenCalled();
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession('bound:default')).toBeNull();
   });
 
   it('cleans borrowed sessions when the bound tab is closed', async () => {

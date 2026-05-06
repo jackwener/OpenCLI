@@ -48,7 +48,7 @@ export async function executePipeline(
       }
     }
   } catch (err) {
-    // Attempt cleanup: close automation window on pipeline failure
+    // Attempt cleanup: release automation tab lease on pipeline failure.
     if (page?.closeWindow) {
       try { await page.closeWindow(); } catch { /* ignore */ }
     }

@@ -150,7 +150,7 @@ export class Page extends BasePage {
     return Array.isArray(result) ? result : [];
   }
 
-  /** Close the automation window in the extension */
+  /** Release the current automation tab lease in the extension */
   async closeWindow(): Promise<void> {
     try {
       await sendCommand('close-window', { ...this._wsOpt() });

@@ -908,15 +908,6 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
       console.log(`[opencli] Workspace ${workspace} lease detached from tab ${tabId} (tab closed)`);
     }
   }
-  if (ownedContainerWindowId !== null) {
-    const hasOwnedLease = [...automationSessions.values()].some((s) => s.owned && s.windowId === ownedContainerWindowId);
-    if (!hasOwnedLease) {
-      await chrome.windows.remove(ownedContainerWindowId).catch(() => {
-      });
-      ownedContainerWindowId = null;
-      ownedContainerGroupId = null;
-    }
-  }
   await persistRuntimeState();
 });
 let initialized = false;
@@ -1604,16 +1595,28 @@ async function releaseWorkspaceLease(workspace, reason = "released") {
   if (session.owned) {
     const tabId = session.preferredTabId;
     if (tabId !== null) {
+      const hasOtherOwnedLease = [...automationSessions.entries()].some(
+        ([otherWorkspace, otherSession]) => otherWorkspace !== workspace && otherSession.owned && otherSession.windowId === session.windowId && otherSession.preferredTabId !== null
+      );
       await safeDetach(tabId);
-      await chrome.tabs.remove(tabId).catch(() => {
-      });
-      console.log(`[opencli] Released owned tab lease ${tabId} (${workspace}, ${reason})`);
+      evictTab(tabId);
+      if (hasOtherOwnedLease) {
+        await chrome.tabs.remove(tabId).catch(() => {
+        });
+        console.log(`[opencli] Released owned tab lease ${tabId} (${workspace}, ${reason})`);
+      } else {
+        try {
+          const tab = await chrome.tabs.update(tabId, { url: BLANK_PAGE, active: true });
+          await ensureOwnedContainerTabGroup(session.windowId, [tab.id ?? tabId]);
+          console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (${workspace}, ${reason})`);
+        } catch {
+          await chrome.tabs.remove(tabId).catch(() => {
+          });
+          console.log(`[opencli] Released owned tab lease ${tabId} (${workspace}, ${reason})`);
+        }
+      }
     } else {
-      await chrome.windows.remove(session.windowId).catch(() => {
-      });
-      if (ownedContainerWindowId === session.windowId) ownedContainerWindowId = null;
-      if (ownedContainerWindowId === null) ownedContainerGroupId = null;
-      console.log(`[opencli] Released legacy owned window lease ${session.windowId} (${workspace}, ${reason})`);
+      console.log(`[opencli] Released legacy owned window lease ${session.windowId} without closing container (${workspace}, ${reason})`);
     }
   } else if (session.preferredTabId !== null) {
     await safeDetach(session.preferredTabId);
@@ -1621,15 +1624,6 @@ async function releaseWorkspaceLease(workspace, reason = "released") {
   }
   automationSessions.delete(workspace);
   workspaceTimeoutOverrides.delete(workspace);
-  if (ownedContainerWindowId !== null) {
-    const stillHasOwnedLeases = [...automationSessions.values()].some((s) => s.owned && s.windowId === ownedContainerWindowId);
-    if (!stillHasOwnedLeases) {
-      await chrome.windows.remove(ownedContainerWindowId).catch(() => {
-      });
-      ownedContainerWindowId = null;
-      ownedContainerGroupId = null;
-    }
-  }
   await persistRuntimeState();
 }
 async function reconcileTargetLeaseRegistry() {
@@ -1673,15 +1667,6 @@ async function reconcileTargetLeaseRegistry() {
         }
       }
     } catch {
-    }
-  }
-  if (ownedContainerWindowId !== null) {
-    const hasOwnedLease = [...automationSessions.values()].some((s) => s.owned && s.windowId === ownedContainerWindowId);
-    if (!hasOwnedLease) {
-      await chrome.windows.remove(ownedContainerWindowId).catch(() => {
-      });
-      ownedContainerWindowId = null;
-      ownedContainerGroupId = null;
     }
   }
   await persistRuntimeState();

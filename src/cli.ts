@@ -2205,10 +2205,10 @@ cli({
 
   // ── Session ──
 
-  browser.command('close').description('Close the automation window')
+  browser.command('close').description('Release the current automation tab lease')
     .action(browserAction(async (page) => {
       await page.closeWindow?.();
-      console.log('Automation window closed');
+      console.log('Automation tab lease released');
     }));
 
   // ── Built-in: doctor / completion ──────────────────────────────────────────
