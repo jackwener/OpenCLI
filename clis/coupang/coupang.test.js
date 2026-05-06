@@ -53,7 +53,11 @@ describe('coupang utils — product id validation', () => {
 
     it('rejects malformed product ids instead of building fake URLs', () => {
         expect(() => requireProductIdArg('abc')).toThrow(ArgumentError);
+        expect(() => requireProductIdArg('abc 123456789')).toThrow(ArgumentError);
         expect(() => requireProductIdArg('https://www.coupang.com/not-a-product', '--url')).toThrow(ArgumentError);
+        expect(() => requireProductIdArg('https://www.coupang.com/not-a-product/123456789', '--url')).toThrow(ArgumentError);
+        expect(() => requireProductIdArg('https://notcoupang.com/vp/products/123456789', '--url')).toThrow(ArgumentError);
+        expect(() => requireProductIdArg('https://example.com/vp/products/123456789', '--url')).toThrow(ArgumentError);
     });
 });
 

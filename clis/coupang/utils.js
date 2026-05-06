@@ -97,11 +97,25 @@ export function normalizeProductId(raw) {
     return match?.[1] ?? '';
 }
 export function requireProductIdArg(raw, label = '--product-id') {
-    const productId = normalizeProductId(raw);
-    if (!/^\d{6,}$/.test(productId)) {
+    const text = asString(raw);
+    if (label === '--url') {
+        try {
+            const url = new URL(text.startsWith('http') ? text : `https://www.coupang.com${text}`);
+            const match = url.pathname.match(/^\/vp\/products\/(\d{6,})(?:\/|$)/);
+            const isCoupangHost = url.hostname === 'coupang.com' || url.hostname.endsWith('.coupang.com');
+            if (isCoupangHost && match) {
+                return match[1];
+            }
+        }
+        catch {
+            // Fall through to the typed validation error below.
+        }
+        throw new ArgumentError(`${label} must be a Coupang product URL containing /vp/products/<id>`);
+    }
+    if (!/^\d{6,}$/.test(text)) {
         throw new ArgumentError(`${label} must be a numeric Coupang product ID`);
     }
-    return productId;
+    return text;
 }
 export function canonicalizeProductUrl(rawUrl, productId) {
     const raw = asString(rawUrl);
