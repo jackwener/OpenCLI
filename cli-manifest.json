@@ -5417,6 +5417,88 @@
     "sourceFile": "crates/search.js"
   },
   {
+    "site": "crossref",
+    "name": "work",
+    "description": "Fetch full Crossref metadata for a DOI",
+    "access": "read",
+    "domain": "api.crossref.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "doi",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "DOI (e.g. \"10.1038/nature12373\"; \"doi:\" / \"https://doi.org/\" prefixes accepted)"
+      }
+    ],
+    "columns": [
+      "doi",
+      "title",
+      "authors",
+      "container",
+      "publisher",
+      "type",
+      "published",
+      "pages",
+      "volume",
+      "issue",
+      "issn",
+      "isbn",
+      "language",
+      "citations",
+      "referenceCount",
+      "license",
+      "subject",
+      "abstract",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "crossref/work.js",
+    "sourceFile": "crossref/work.js"
+  },
+  {
+    "site": "crossref",
+    "name": "works",
+    "description": "Search Crossref scholarly works (DOIs) by keyword",
+    "access": "read",
+    "domain": "api.crossref.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (title / author / abstract terms)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max works (1-100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "doi",
+      "title",
+      "authors",
+      "container",
+      "publisher",
+      "type",
+      "published",
+      "citations",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "crossref/works.js",
+    "sourceFile": "crossref/works.js"
+  },
+  {
     "site": "ctrip",
     "name": "search",
     "description": "搜索携程目的地、景区和酒店联想结果",
@@ -10097,6 +10179,81 @@
     "type": "js",
     "modulePath": "hackernews/user.js",
     "sourceFile": "hackernews/user.js"
+  },
+  {
+    "site": "hex-pm",
+    "name": "package",
+    "description": "Fetch full Hex.pm package metadata (Erlang / Elixir)",
+    "access": "read",
+    "domain": "hex.pm",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "package",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Hex package name (e.g. \"phoenix\", \"ecto\", \"plug\")"
+      }
+    ],
+    "columns": [
+      "package",
+      "latestVersion",
+      "latestStableVersion",
+      "description",
+      "licenses",
+      "github",
+      "docsUrl",
+      "downloadsAll",
+      "downloadsRecent",
+      "downloadsWeek",
+      "downloadsDay",
+      "owners",
+      "releaseCount",
+      "insertedAt",
+      "updatedAt",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "hex-pm/package.js",
+    "sourceFile": "hex-pm/package.js"
+  },
+  {
+    "site": "hex-pm",
+    "name": "versions",
+    "description": "List every published Hex.pm package version (newest first)",
+    "access": "read",
+    "domain": "hex.pm",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "package",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Hex package name"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max rows to return (1-500)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "package",
+      "version",
+      "insertedAt",
+      "hasDocs",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "hex-pm/versions.js",
+    "sourceFile": "hex-pm/versions.js"
   },
   {
     "site": "hf",
@@ -16158,6 +16315,103 @@
     "navigateBefore": false
   },
   {
+    "site": "open-meteo",
+    "name": "forecast",
+    "description": "Daily weather forecast for a lat/lon pair (no API key required)",
+    "access": "read",
+    "domain": "api.open-meteo.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "latitude",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Latitude in decimal degrees (-90 to 90)"
+      },
+      {
+        "name": "longitude",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Longitude in decimal degrees (-180 to 180)"
+      },
+      {
+        "name": "days",
+        "type": "int",
+        "default": 7,
+        "required": false,
+        "help": "Forecast days (1-16)"
+      }
+    ],
+    "columns": [
+      "date",
+      "weatherCode",
+      "weather",
+      "tempMax",
+      "tempMin",
+      "apparentMax",
+      "apparentMin",
+      "sunrise",
+      "sunset",
+      "precipSum",
+      "precipHours",
+      "precipProbabilityMax",
+      "windMax",
+      "windGustMax",
+      "uvIndexMax",
+      "tempUnit",
+      "precipUnit",
+      "windUnit"
+    ],
+    "type": "js",
+    "modulePath": "open-meteo/forecast.js",
+    "sourceFile": "open-meteo/forecast.js"
+  },
+  {
+    "site": "open-meteo",
+    "name": "geocode",
+    "description": "Resolve a city / place name to lat/lon via Open-Meteo geocoding",
+    "access": "read",
+    "domain": "geocoding-api.open-meteo.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Place name (e.g. \"Tokyo\", \"San Francisco\", \"Munich\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Max results (1-100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "name",
+      "country",
+      "admin1",
+      "latitude",
+      "longitude",
+      "elevation",
+      "population",
+      "timezone",
+      "featureCode",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "open-meteo/geocode.js",
+    "sourceFile": "open-meteo/geocode.js"
+  },
+  {
     "site": "openalex",
     "name": "search",
     "description": "Search OpenAlex Works (papers, books, preprints) by keyword",
@@ -16235,6 +16489,86 @@
     "type": "js",
     "modulePath": "openalex/work.js",
     "sourceFile": "openalex/work.js"
+  },
+  {
+    "site": "openlibrary",
+    "name": "search",
+    "description": "Search Open Library books by keyword",
+    "access": "read",
+    "domain": "openlibrary.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (title / author / subject)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max books (1-100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "workKey",
+      "title",
+      "author",
+      "firstPublished",
+      "editions",
+      "ebook",
+      "language",
+      "isbn",
+      "subjects",
+      "coverId",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "openlibrary/search.js",
+    "sourceFile": "openlibrary/search.js"
+  },
+  {
+    "site": "openlibrary",
+    "name": "work",
+    "description": "Fetch Open Library metadata for a work id (OL...W)",
+    "access": "read",
+    "domain": "openlibrary.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "workKey",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Open Library work key (e.g. \"OL45804W\"; \"/works/OL45804W\" or full URL accepted)"
+      }
+    ],
+    "columns": [
+      "workKey",
+      "title",
+      "subtitle",
+      "authors",
+      "description",
+      "subjects",
+      "subjectPlaces",
+      "subjectPeople",
+      "subjectTimes",
+      "firstPublished",
+      "coverIds",
+      "rating",
+      "ratingsCount",
+      "editionsUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "openlibrary/work.js",
+    "sourceFile": "openlibrary/work.js"
   },
   {
     "site": "openreview",
@@ -17130,6 +17464,78 @@
     "type": "js",
     "modulePath": "producthunt/today.js",
     "sourceFile": "producthunt/today.js"
+  },
+  {
+    "site": "pub-dev",
+    "name": "package",
+    "description": "Fetch latest pub.dev package metadata (Dart / Flutter)",
+    "access": "read",
+    "domain": "pub.dev",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "package",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "pub.dev package name (e.g. \"http\", \"provider\", \"riverpod\")"
+      }
+    ],
+    "columns": [
+      "package",
+      "version",
+      "publishedAt",
+      "description",
+      "repository",
+      "homepage",
+      "sdk",
+      "flutter",
+      "dependencies",
+      "devDependencies",
+      "topics",
+      "archive",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pub-dev/package.js",
+    "sourceFile": "pub-dev/package.js"
+  },
+  {
+    "site": "pub-dev",
+    "name": "versions",
+    "description": "List every published pub.dev package version (newest first)",
+    "access": "read",
+    "domain": "pub.dev",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "package",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "pub.dev package name"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max rows to return (1-500)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "package",
+      "version",
+      "publishedAt",
+      "archive",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pub-dev/versions.js",
+    "sourceFile": "pub-dev/versions.js"
   },
   {
     "site": "pubmed",

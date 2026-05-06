@@ -134,6 +134,11 @@ Run `opencli list` for the live registry.
 | **[nuget](./browser/nuget.md)**                   | `search` `package`                                                                                                                             | 🌐 Public    |
 | **[flathub](./browser/flathub.md)**               | `search` `app`                                                                                                                                 | 🌐 Public    |
 | **[oeis](./browser/oeis.md)**                     | `search` `sequence`                                                                                                                            | 🌐 Public    |
+| **[crossref](./browser/crossref.md)**             | `works` `work`                                                                                                                                 | 🌐 Public    |
+| **[openlibrary](./browser/openlibrary.md)**       | `search` `work`                                                                                                                                | 🌐 Public    |
+| **[pub-dev](./browser/pub-dev.md)**               | `package` `versions`                                                                                                                           | 🌐 Public    |
+| **[hex-pm](./browser/hex-pm.md)**                 | `package` `versions`                                                                                                                           | 🌐 Public    |
+| **[open-meteo](./browser/open-meteo.md)**         | `geocode` `forecast`                                                                                                                           | 🌐 Public    |
 
 ## Desktop Adapters
 
