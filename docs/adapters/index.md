@@ -134,6 +134,12 @@ Run `opencli list` for the live registry.
 | **[nuget](./browser/nuget.md)**                   | `search` `package`                                                                                                                             | 🌐 Public    |
 | **[flathub](./browser/flathub.md)**               | `search` `app`                                                                                                                                 | 🌐 Public    |
 | **[oeis](./browser/oeis.md)**                     | `search` `sequence`                                                                                                                            | 🌐 Public    |
+| **[rickandmorty](./browser/rickandmorty.md)**     | `character` `episode`                                                                                                                          | 🌐 Public    |
+| **[coinpaprika](./browser/coinpaprika.md)**       | `coins` `ticker`                                                                                                                               | 🌐 Public    |
+| **[eonet](./browser/eonet.md)**                   | `events` `categories`                                                                                                                          | 🌐 Public    |
+| **[openf1](./browser/openf1.md)**                 | `sessions` `drivers`                                                                                                                           | 🌐 Public    |
+| **[iceandfire](./browser/iceandfire.md)**         | `books` `characters`                                                                                                                           | 🌐 Public    |
+| **[ghibli](./browser/ghibli.md)**                 | `films` `people`                                                                                                                               | 🌐 Public    |
 
 ## Desktop Adapters
 

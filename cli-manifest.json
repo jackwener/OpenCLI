@@ -5252,6 +5252,82 @@
     "sourceFile": "coingecko/trending.js"
   },
   {
+    "site": "coinpaprika",
+    "name": "coins",
+    "description": "List Coinpaprika coins (ranked, with id for ticker round-trip)",
+    "access": "read",
+    "domain": "coinpaprika.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max rows (1-1000, default 50)"
+      },
+      {
+        "name": "active",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Only include active (non-delisted) coins"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "name",
+      "symbol",
+      "type",
+      "isNew",
+      "isActive",
+      "coinRank"
+    ],
+    "type": "js",
+    "modulePath": "coinpaprika/coins.js",
+    "sourceFile": "coinpaprika/coins.js"
+  },
+  {
+    "site": "coinpaprika",
+    "name": "ticker",
+    "description": "Live price + market cap + supply for a single coin",
+    "access": "read",
+    "domain": "coinpaprika.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "coin",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Coinpaprika coin id (e.g. btc-bitcoin, eth-ethereum)"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "symbol",
+      "rank",
+      "priceUsd",
+      "volume24hUsd",
+      "marketCapUsd",
+      "percentChange1h",
+      "percentChange24h",
+      "percentChange7d",
+      "totalSupply",
+      "maxSupply",
+      "circulatingSupply",
+      "firstDataAt",
+      "lastUpdated"
+    ],
+    "type": "js",
+    "modulePath": "coinpaprika/ticker.js",
+    "sourceFile": "coinpaprika/ticker.js"
+  },
+  {
     "site": "coupang",
     "name": "add-to-cart",
     "description": "Add a Coupang product to cart using logged-in browser session",
@@ -8556,6 +8632,80 @@
     "sourceFile": "endoflife/product.js"
   },
   {
+    "site": "eonet",
+    "name": "categories",
+    "description": "List EONET event categories (ids round-trip to events --category)",
+    "access": "read",
+    "domain": "gsfc.nasa.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "description",
+      "link"
+    ],
+    "type": "js",
+    "modulePath": "eonet/categories.js",
+    "sourceFile": "eonet/categories.js"
+  },
+  {
+    "site": "eonet",
+    "name": "events",
+    "description": "Natural events from NASA EONET (wildfires / storms / volcanoes / icebergs)",
+    "access": "read",
+    "domain": "gsfc.nasa.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows (1-200, default 20)"
+      },
+      {
+        "name": "days",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Days back to search (1-365, default 30)"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "required": false,
+        "help": "Event status: open (active) | closed (resolved). Default: open"
+      },
+      {
+        "name": "category",
+        "type": "str",
+        "required": false,
+        "help": "Category id (e.g. wildfires, volcanoes, severeStorms)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "description",
+      "closed",
+      "categories",
+      "sources",
+      "geometryType",
+      "lastDate",
+      "magnitudeValue",
+      "magnitudeUnit",
+      "link"
+    ],
+    "type": "js",
+    "modulePath": "eonet/events.js",
+    "sourceFile": "eonet/events.js"
+  },
+  {
     "site": "facebook",
     "name": "add-friend",
     "description": "Send a friend request on Facebook",
@@ -9179,6 +9329,76 @@
     "modulePath": "gemini/new.js",
     "sourceFile": "gemini/new.js",
     "navigateBefore": false
+  },
+  {
+    "site": "ghibli",
+    "name": "films",
+    "description": "Studio Ghibli films (title, director, release year, RT score)",
+    "access": "read",
+    "domain": "ghibliapi.vercel.app",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max rows (1-50, default 50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "originalTitle",
+      "originalTitleRomanised",
+      "description",
+      "director",
+      "producer",
+      "releaseDate",
+      "runningTime",
+      "rtScore",
+      "image",
+      "movieBanner",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ghibli/films.js",
+    "sourceFile": "ghibli/films.js"
+  },
+  {
+    "site": "ghibli",
+    "name": "people",
+    "description": "Studio Ghibli characters (across all films)",
+    "access": "read",
+    "domain": "ghibliapi.vercel.app",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max rows (1-100, default 50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "name",
+      "gender",
+      "age",
+      "eyeColor",
+      "hairColor",
+      "speciesId",
+      "filmsCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ghibli/people.js",
+    "sourceFile": "ghibli/people.js"
   },
   {
     "site": "gitee",
@@ -10734,6 +10954,114 @@
     "modulePath": "hupu/unlike.js",
     "sourceFile": "hupu/unlike.js",
     "navigateBefore": false
+  },
+  {
+    "site": "iceandfire",
+    "name": "books",
+    "description": "Game of Thrones / ASOIAF books (filter by name + release date)",
+    "access": "read",
+    "domain": "anapioficeandfire.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows (1-200, default 20)"
+      },
+      {
+        "name": "name",
+        "type": "str",
+        "required": false,
+        "help": "Filter by book name substring"
+      },
+      {
+        "name": "from-release-date",
+        "type": "str",
+        "required": false,
+        "help": "ISO 8601 lower bound (e.g. 1996-01-01)"
+      },
+      {
+        "name": "to-release-date",
+        "type": "str",
+        "required": false,
+        "help": "ISO 8601 upper bound (e.g. 2025-12-31)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "name",
+      "isbn",
+      "authors",
+      "numberOfPages",
+      "publisher",
+      "country",
+      "mediaType",
+      "released",
+      "charactersCount",
+      "povCharactersCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "iceandfire/books.js",
+    "sourceFile": "iceandfire/books.js"
+  },
+  {
+    "site": "iceandfire",
+    "name": "characters",
+    "description": "ASOIAF character listing (filter by name / culture / gender)",
+    "access": "read",
+    "domain": "anapioficeandfire.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows (1-500, default 20)"
+      },
+      {
+        "name": "name",
+        "type": "str",
+        "required": false,
+        "help": "Filter by name substring"
+      },
+      {
+        "name": "culture",
+        "type": "str",
+        "required": false,
+        "help": "Filter by culture (e.g. Northmen, Dornish)"
+      },
+      {
+        "name": "gender",
+        "type": "str",
+        "required": false,
+        "help": "Filter by gender (Male | Female)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "name",
+      "gender",
+      "culture",
+      "born",
+      "died",
+      "aliases",
+      "titles",
+      "allegiances",
+      "books",
+      "tvSeries",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "iceandfire/characters.js",
+    "sourceFile": "iceandfire/characters.js"
   },
   {
     "site": "imdb",
@@ -16237,6 +16565,103 @@
     "sourceFile": "openalex/work.js"
   },
   {
+    "site": "openf1",
+    "name": "drivers",
+    "description": "F1 drivers entered for a session (use sessions to find session_key)",
+    "access": "read",
+    "domain": "openf1.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "session-key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "session_key from `openf1 sessions` (e.g. 9472)"
+      },
+      {
+        "name": "driver-number",
+        "type": "str",
+        "required": false,
+        "help": "Filter to a specific driver number (e.g. 1, 44)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "driverNumber",
+      "broadcastName",
+      "fullName",
+      "nameAcronym",
+      "firstName",
+      "lastName",
+      "teamName",
+      "teamColour",
+      "countryCode",
+      "sessionKey",
+      "meetingKey",
+      "headshotUrl"
+    ],
+    "type": "js",
+    "modulePath": "openf1/drivers.js",
+    "sourceFile": "openf1/drivers.js"
+  },
+  {
+    "site": "openf1",
+    "name": "sessions",
+    "description": "F1 sessions (Race / Qualifying / Practice / Sprint) with session_key for drilldown",
+    "access": "read",
+    "domain": "openf1.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max rows (1-200, default 30)"
+      },
+      {
+        "name": "year",
+        "type": "str",
+        "required": false,
+        "help": "Filter by season year (e.g. 2024)"
+      },
+      {
+        "name": "session-type",
+        "type": "str",
+        "required": false,
+        "help": "Race | Qualifying | Practice | Sprint | Sprint Shootout"
+      },
+      {
+        "name": "country-code",
+        "type": "str",
+        "required": false,
+        "help": "3-letter country code (e.g. BRN, MON, GBR)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "sessionKey",
+      "meetingKey",
+      "sessionType",
+      "sessionName",
+      "circuit",
+      "countryCode",
+      "countryName",
+      "location",
+      "dateStart",
+      "dateEnd",
+      "gmtOffset",
+      "year",
+      "isCancelled"
+    ],
+    "type": "js",
+    "modulePath": "openf1/sessions.js",
+    "sourceFile": "openf1/sessions.js"
+  },
+  {
     "site": "openreview",
     "name": "paper",
     "description": "Show full metadata for a single OpenReview paper",
@@ -18770,6 +19195,103 @@
     "type": "js",
     "modulePath": "rfc/rfc.js",
     "sourceFile": "rfc/rfc.js"
+  },
+  {
+    "site": "rickandmorty",
+    "name": "character",
+    "description": "Search Rick and Morty characters by name / status / species",
+    "access": "read",
+    "domain": "rickandmortyapi.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows (1-100, default 20)"
+      },
+      {
+        "name": "name",
+        "type": "str",
+        "required": false,
+        "help": "Filter by name substring (case-insensitive)"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "required": false,
+        "help": "alive | dead | unknown"
+      },
+      {
+        "name": "species",
+        "type": "str",
+        "required": false,
+        "help": "Species filter (e.g. Human, Alien, Robot)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "name",
+      "status",
+      "species",
+      "type",
+      "gender",
+      "origin",
+      "location",
+      "episodes",
+      "image",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rickandmorty/character.js",
+    "sourceFile": "rickandmorty/character.js"
+  },
+  {
+    "site": "rickandmorty",
+    "name": "episode",
+    "description": "List Rick and Morty episodes (filter by name or season/episode code)",
+    "access": "read",
+    "domain": "rickandmortyapi.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows (1-100, default 20)"
+      },
+      {
+        "name": "name",
+        "type": "str",
+        "required": false,
+        "help": "Filter by episode title substring"
+      },
+      {
+        "name": "episode",
+        "type": "str",
+        "required": false,
+        "help": "Filter by production code (e.g. S01, S01E01)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "name",
+      "airDate",
+      "episodeCode",
+      "characters",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rickandmorty/episode.js",
+    "sourceFile": "rickandmorty/episode.js"
   },
   {
     "site": "rubygems",
