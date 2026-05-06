@@ -95,7 +95,7 @@ async function uploadImages(page, absPaths) {
         catch (err) {
             // If set-file-input action is not supported by extension, fall through to legacy
             const msg = err instanceof Error ? err.message : String(err);
-            if (msg.includes('Unknown action') || msg.includes('not supported')) {
+            if (msg.includes('Unknown action') || msg.includes('not supported') || msg.includes('Not allowed')) {
                 // Extension too old — fall through to legacy base64 method
             }
             else {
