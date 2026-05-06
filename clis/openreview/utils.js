@@ -55,6 +55,20 @@ export function requireForumId(value, label = 'id') {
     return id;
 }
 
+/** OpenReview profile ids look like `~First_Last1` or `~First_Middle_LastN`. */
+const PROFILE_ID_PATTERN = /^~[A-Za-z]+(?:_[A-Za-z]+)*\d+$/;
+
+export function requireProfileId(value, label = 'profile') {
+    const id = String(value ?? '').trim();
+    if (!id) {
+        throw new ArgumentError(`openreview ${label} is required`);
+    }
+    if (!PROFILE_ID_PATTERN.test(id)) {
+        throw new ArgumentError(`openreview ${label} "${value}" is not a valid profile id (expected "~First_Last1" or similar; find it on the author's openreview.net profile URL)`);
+    }
+    return id;
+}
+
 /** Wrap fetch + json with typed errors so failures never look like empty results. */
 export async function openreviewFetch(path, label) {
     const url = `${OPENREVIEW_API}${path}`;

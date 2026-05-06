@@ -17183,6 +17183,43 @@
   },
   {
     "site": "openreview",
+    "name": "author",
+    "description": "List OpenReview submissions by an author profile id (newest first)",
+    "access": "read",
+    "domain": "openreview.net",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "profile",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "OpenReview profile id (e.g. \"~Yoshua_Bengio1\"). Find it on the author profile URL on openreview.net."
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max submissions (1-1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "authors",
+      "venue",
+      "pdate",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "openreview/author.js",
+    "sourceFile": "openreview/author.js"
+  },
+  {
+    "site": "openreview",
     "name": "paper",
     "description": "Show full metadata for a single OpenReview paper",
     "access": "read",
