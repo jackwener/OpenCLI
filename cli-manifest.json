@@ -13469,52 +13469,6 @@
   },
   {
     "site": "linux-do",
-    "name": "category",
-    "description": "linux.do 分类内话题",
-    "access": "read",
-    "domain": "linux.do",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "slug",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Category slug (legacy compatibility argument)"
-      },
-      {
-        "name": "id",
-        "type": "int",
-        "required": true,
-        "positional": true,
-        "help": "Category ID"
-      },
-      {
-        "name": "limit",
-        "type": "int",
-        "default": 20,
-        "required": false,
-        "help": "Number of items (per_page)"
-      }
-    ],
-    "columns": [
-      "title",
-      "replies",
-      "created",
-      "likes",
-      "views",
-      "url"
-    ],
-    "deprecated": "opencli linux-do category is kept for backward compatibility.",
-    "replacedBy": "opencli linux-do feed --category <id-or-name>",
-    "type": "js",
-    "modulePath": "linux-do/category.js",
-    "sourceFile": "linux-do/category.js",
-    "navigateBefore": "https://linux.do"
-  },
-  {
-    "site": "linux-do",
     "name": "feed",
     "description": "linux.do 话题列表（需登录；支持全站、标签、分类）",
     "access": "read",
@@ -13604,85 +13558,6 @@
     "type": "js",
     "modulePath": "linux-do/categories.js",
     "sourceFile": "linux-do/categories.js",
-    "navigateBefore": "https://linux.do"
-  },
-  {
-    "site": "linux-do",
-    "name": "hot",
-    "description": "linux.do 热门话题",
-    "access": "read",
-    "domain": "linux.do",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "limit",
-        "type": "int",
-        "default": 20,
-        "required": false,
-        "help": "Number of items (per_page)"
-      },
-      {
-        "name": "period",
-        "type": "str",
-        "default": "weekly",
-        "required": false,
-        "help": "Time period",
-        "choices": [
-          "all",
-          "daily",
-          "weekly",
-          "monthly",
-          "quarterly",
-          "yearly"
-        ]
-      }
-    ],
-    "columns": [
-      "title",
-      "replies",
-      "created",
-      "likes",
-      "views",
-      "url"
-    ],
-    "deprecated": "opencli linux-do hot is kept for backward compatibility.",
-    "replacedBy": "opencli linux-do feed --view top --period <period>",
-    "type": "js",
-    "modulePath": "linux-do/hot.js",
-    "sourceFile": "linux-do/hot.js",
-    "navigateBefore": "https://linux.do"
-  },
-  {
-    "site": "linux-do",
-    "name": "latest",
-    "description": "linux.do 最新话题",
-    "access": "read",
-    "domain": "linux.do",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "limit",
-        "type": "int",
-        "default": 20,
-        "required": false,
-        "help": "Number of items (per_page)"
-      }
-    ],
-    "columns": [
-      "title",
-      "replies",
-      "created",
-      "likes",
-      "views",
-      "url"
-    ],
-    "deprecated": "opencli linux-do latest is kept for backward compatibility.",
-    "replacedBy": "opencli linux-do feed --view latest",
-    "type": "js",
-    "modulePath": "linux-do/latest.js",
-    "sourceFile": "linux-do/latest.js",
     "navigateBefore": "https://linux.do"
   },
   {
