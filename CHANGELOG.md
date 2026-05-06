@@ -10,6 +10,10 @@
 * **browser lifecycle** — owned browser workspaces now lease tabs inside a shared dedicated automation container instead of owning one Chrome window per workspace; lease state is persisted for MV3 service-worker reconciliation and idle cleanup is backed by alarms.
 * **web read** — make page extraction render-aware: same-origin iframe content is merged into the Markdown source, `--wait-for` can wait inside main/iframe documents, `--wait-until networkidle` waits for captured requests to settle, and `--diagnose` reports frames, empty containers, and API-like XHRs for shell/AJAX pages.
 
+### Breaking Changes
+
+* **registry** — remove the unused `Strategy.HEADER`; adapter authors should use `Strategy.COOKIE` and set headers explicitly inside browser-side fetches.
+
 ## [1.7.8](https://github.com/jackwener/opencli/compare/v1.7.7...v1.7.8) (2026-04-25)
 
 ### Features
