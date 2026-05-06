@@ -194,6 +194,7 @@ export async function executeCommand(
     throw new ArgumentError(getErrorMessage(err));
   }
 
+  const userTimeoutSec = readUserTimeoutSeconds(cmd, kwargs);
   const traceMode = normalizeTraceMode(opts.trace);
 
   const hookCtx: HookContext = {
@@ -302,7 +303,6 @@ export async function executeCommand(
         // the command finishes, so agents (or humans) can inspect the page state.
         const keepOpen = process.env.OPENCLI_LIVE === '1' || process.env.OPENCLI_LIVE === 'true';
         try {
-          const userTimeoutSec = readUserTimeoutSeconds(cmd, kwargs);
           const browserTimeout = userTimeoutSec !== null
             ? userTimeoutSec + RUNTIME_TIMEOUT_PADDING_SECONDS
             : DEFAULT_BROWSER_COMMAND_TIMEOUT;
@@ -354,7 +354,6 @@ export async function executeCommand(
       // a `--timeout` arg (and the resolved value is positive). Without that
       // arg there is no meaningful default — non-browser cmds are diverse
       // enough that a hard cap would do more harm than good.
-      const userTimeoutSec = readUserTimeoutSeconds(cmd, kwargs);
       if (userTimeoutSec !== null) {
         const ceiling = userTimeoutSec + RUNTIME_TIMEOUT_PADDING_SECONDS;
         result = await runWithTimeout(runCommand(cmd, null, kwargs, debug), {

@@ -192,6 +192,28 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
+  it('rejects invalid browser --timeout before opening a session or pre-navigating', async () => {
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    const browserSessionSpy = vi.spyOn(runtime, 'browserSession');
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-invalid-timeout-prenav', access: 'read',
+      description: 'test invalid browser --timeout fails before session setup',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      navigateBefore: 'https://example.com/',
+      args: [
+        { name: 'timeout', type: 'int', required: false, default: 5, help: 'Max seconds' },
+      ],
+      func: async () => [{ ok: true }],
+    });
+
+    await expect(executeCommand(cmd, { timeout: 0 })).rejects.toBeInstanceOf(ArgumentError);
+    expect(browserSessionSpy).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
   it('calls closeWindow on browser command failure', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
