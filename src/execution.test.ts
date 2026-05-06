@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import type { CliCommand } from './registry.js';
 import { executeCommand, prepareCommandArgs } from './execution.js';
-import { TimeoutError, toEnvelope } from './errors.js';
+import { ArgumentError, TimeoutError, toEnvelope } from './errors.js';
 import { cli, Strategy } from './registry.js';
 import { withTimeoutMs } from './runtime.js';
 import * as runtime from './runtime.js';
@@ -87,6 +87,27 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
+  it('rejects invalid --timeout values instead of silently disabling the non-browser ceiling', async () => {
+    const runWithTimeoutSpy = vi.spyOn(runtime, 'runWithTimeout');
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'non-browser-invalid-timeout', access: 'read',
+      description: 'test invalid --timeout fails upfront',
+      browser: false,
+      strategy: Strategy.PUBLIC,
+      args: [
+        { name: 'timeout', type: 'int', required: false, default: 5, help: 'Max seconds' },
+      ],
+      func: async () => [{ ok: true }],
+    });
+
+    await expect(executeCommand(cmd, { timeout: 0 })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(executeCommand(cmd, { timeout: -1 })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(executeCommand(cmd, { timeout: 1.5 })).rejects.toBeInstanceOf(ArgumentError);
+    expect(runWithTimeoutSpy).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
   it('applies the user --timeout arg as the ceiling for browser commands (with +30s padding)', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
@@ -141,6 +162,33 @@ describe('executeCommand — non-browser timeout', () => {
       timeout: runtime.DEFAULT_BROWSER_COMMAND_TIMEOUT,
       label: 'test-execution/browser-no-timeout',
     });
+    vi.restoreAllMocks();
+  });
+
+  it('rejects invalid --timeout values instead of falling back to the browser default', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+    const runWithTimeoutSpy = vi.spyOn(runtime, 'runWithTimeout');
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-invalid-timeout', access: 'read',
+      description: 'test invalid browser --timeout fails upfront',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      args: [
+        { name: 'timeout', type: 'int', required: false, default: 5, help: 'Max seconds' },
+      ],
+      func: async () => [{ ok: true }],
+    });
+
+    await expect(executeCommand(cmd, { timeout: 0 })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(executeCommand(cmd, { timeout: -1 })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(executeCommand(cmd, { timeout: 1.5 })).rejects.toBeInstanceOf(ArgumentError);
+    expect(runWithTimeoutSpy).not.toHaveBeenCalled();
     vi.restoreAllMocks();
   });
 

@@ -475,13 +475,20 @@ const RUNTIME_TIMEOUT_PADDING_SECONDS = 30;
  * into `kwargs.timeout`, so by the time runtime enforcement runs, the value
  * is the merged user-supplied-or-default seconds.
  *
- * Returns the parsed positive integer (seconds) or null if the command does
- * not expose a `timeout` arg or the value is unparseable.
+ * Returns the parsed positive integer (seconds), or null if the command does
+ * not expose a `timeout` arg. Declaring `timeout` opts into runtime timeout
+ * enforcement, so invalid values must fail upfront instead of silently
+ * disabling the runtime ceiling.
  */
 function readUserTimeoutSeconds(cmd: CliCommand, kwargs: CommandArgs): number | null {
   if (!cmd.args.some(a => a.name === 'timeout')) return null;
   const raw = kwargs.timeout;
-  if (raw === undefined || raw === null || raw === '') return null;
-  const parsed = parseInt(String(raw), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  if (raw === undefined || raw === null || raw === '') {
+    throw new ArgumentError(`Argument "timeout" must be a positive integer. Received: "${String(raw)}"`);
+  }
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new ArgumentError(`Argument "timeout" must be a positive integer. Received: "${String(raw)}"`);
+  }
+  return parsed;
 }
