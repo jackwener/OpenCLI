@@ -138,10 +138,10 @@ export function mapSearchArticles(body, limit) {
             authors: pickAuthors(a.authors),
             url: articleUrl(a.canonical_url),
         }))
-        .filter((row) => row.title);
+        .filter((row) => row.title && row.url);
 }
 
-export function mapArticleDetail(article, bodyText) {
+export function mapArticleDetail(article, bodyText, fallbackUrl = null) {
     if (!article && !bodyText) return null;
     return {
         title: trimOrNull(article?.title || article?.headlines?.basic),
@@ -151,7 +151,7 @@ export function mapArticleDetail(article, bodyText) {
         authors: pickAuthors(article?.authors),
         description: trimOrNull(article?.description?.basic || article?.subheadlines?.basic),
         word_count: Number.isFinite(article?.word_count) ? article.word_count : null,
-        url: articleUrl(article?.canonical_url),
+        url: articleUrl(article?.canonical_url) || trimOrNull(fallbackUrl),
         body: trimOrNull(bodyText),
     };
 }

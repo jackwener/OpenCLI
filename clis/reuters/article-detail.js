@@ -44,7 +44,7 @@ cli({
                 'Check that the URL points to a Reuters article and that the page loaded',
             );
         }
-        const detail = mapArticleDetail(result.body?.article, result.body?.bodyText);
+        const detail = mapArticleDetail(result.body?.article, result.body?.bodyText, url);
         if (!detail || (!detail.title && !detail.body)) {
             throw new EmptyResultError('reuters article-detail', 'Page rendered no article body — likely paywalled or a non-article URL');
         }

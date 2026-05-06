@@ -115,6 +115,21 @@ describe('reuters mapSearchArticles', () => {
         const rows = mapSearchArticles({ articles: [{ canonical_url: '/x/' }] }, 5);
         expect(rows).toEqual([]);
     });
+
+    it('drops rows without url because search.url is the article-detail id', () => {
+        const rows = mapSearchArticles({ articles: [{ title: 'No URL' }, { title: 'Has URL', canonical_url: '/world/has-url/' }] }, 5);
+        expect(rows).toEqual([
+            {
+                rank: 2,
+                title: 'Has URL',
+                date: null,
+                section: null,
+                section_path: null,
+                authors: null,
+                url: 'https://www.reuters.com/world/has-url/',
+            },
+        ]);
+    });
 });
 
 describe('reuters mapArticleDetail', () => {
@@ -146,6 +161,11 @@ describe('reuters mapArticleDetail', () => {
 
     it('returns null when neither article nor body text', () => {
         expect(mapArticleDetail(null, '')).toBeNull();
+    });
+
+    it('uses input URL fallback when fusion metadata has no canonical URL', () => {
+        const detail = mapArticleDetail({ title: 'Body-only' }, 'Body text', 'https://www.reuters.com/world/body-only/');
+        expect(detail.url).toBe('https://www.reuters.com/world/body-only/');
     });
 });
 
