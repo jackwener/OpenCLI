@@ -87,6 +87,63 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
+  it('applies the user --timeout arg as the ceiling for browser commands (with +30s padding)', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+    const runWithTimeoutSpy = vi.spyOn(runtime, 'runWithTimeout');
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-with-timeout', access: 'read',
+      description: 'test browser --timeout enforcement',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      args: [
+        { name: 'timeout', type: 'int', required: false, default: 5, help: 'Max seconds' },
+      ],
+      func: async () => [{ ok: true }],
+    });
+
+    await executeCommand(cmd, {});
+
+    expect(runWithTimeoutSpy).toHaveBeenCalledTimes(1);
+    expect(runWithTimeoutSpy.mock.calls[0]?.[1]).toMatchObject({
+      timeout: 35,
+      label: 'test-execution/browser-with-timeout',
+    });
+    vi.restoreAllMocks();
+  });
+
+  it('falls back to DEFAULT_BROWSER_COMMAND_TIMEOUT for browser commands without a --timeout arg', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+    const runWithTimeoutSpy = vi.spyOn(runtime, 'runWithTimeout');
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-no-timeout', access: 'read',
+      description: 'test browser fallback to global default',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      func: async () => [{ ok: true }],
+    });
+
+    await executeCommand(cmd, {});
+
+    expect(runWithTimeoutSpy).toHaveBeenCalledTimes(1);
+    expect(runWithTimeoutSpy.mock.calls[0]?.[1]).toMatchObject({
+      timeout: runtime.DEFAULT_BROWSER_COMMAND_TIMEOUT,
+      label: 'test-execution/browser-no-timeout',
+    });
+    vi.restoreAllMocks();
+  });
+
   it('calls closeWindow on browser command failure', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;

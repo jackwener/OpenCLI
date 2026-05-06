@@ -70,6 +70,7 @@ describe('chatgpt image failure contracts', () => {
             prompt: 'cat',
             op: '',
             sd: false,
+            timeout: 240,
         })).rejects.toMatchObject({
             code: 'EMPTY_RESULT',
             message: expect.stringContaining('chatgpt image returned no data'),
@@ -84,6 +85,7 @@ describe('chatgpt image failure contracts', () => {
             prompt: 'cat',
             op: '',
             sd: false,
+            timeout: 240,
         })).rejects.toMatchObject({
             code: 'COMMAND_EXEC',
             message: expect.stringContaining('Failed to export generated ChatGPT image assets'),
