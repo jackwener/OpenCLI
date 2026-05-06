@@ -190,11 +190,14 @@ type TargetLease = {
 
 const automationSessions = new Map<string, TargetLease>();
 let ownedContainerWindowId: number | null = null;
+let ownedContainerGroupId: number | null = null;
 const IDLE_TIMEOUT_DEFAULT = 30_000;      // 30s — adapter-driven automation
 const IDLE_TIMEOUT_INTERACTIVE = 600_000; // 10min — human-paced browser:* / operate:*
 const IDLE_TIMEOUT_NONE = -1;             // borrowed bound tabs stay bound until unbound/closed
 const REGISTRY_KEY = 'opencli_target_lease_registry_v1';
 const LEASE_IDLE_ALARM_PREFIX = 'opencli:lease-idle:';
+const AUTOMATION_TAB_GROUP_TITLE = 'OpenCLI';
+const AUTOMATION_TAB_GROUP_COLOR: chrome.tabGroups.ColorEnum = 'orange';
 let leaseMutationQueue: Promise<void> = Promise.resolve();
 let ownedContainerWindowPromise: Promise<{ windowId: number; initialTabId?: number }> | null = null;
 
@@ -383,6 +386,58 @@ function resetWindowIdleTimer(workspace: string): void {
   }, timeout);
 }
 
+async function getOwnedContainerGroupId(windowId: number): Promise<number | null> {
+  if (ownedContainerGroupId !== null) {
+    try {
+      const group = await chrome.tabGroups.get(ownedContainerGroupId);
+      if (group.windowId === windowId) return ownedContainerGroupId;
+    } catch {
+      // Group IDs are browser-session state and can disappear when the last tab closes.
+    }
+    ownedContainerGroupId = null;
+  }
+
+  const groups = await chrome.tabGroups.query({ windowId, title: AUTOMATION_TAB_GROUP_TITLE });
+  const existing = groups.find((group) => group.title === AUTOMATION_TAB_GROUP_TITLE);
+  if (!existing) return null;
+  ownedContainerGroupId = existing.id;
+  return existing.id;
+}
+
+async function ensureOwnedContainerTabGroup(windowId: number, tabIds: Array<number | undefined>): Promise<void> {
+  const ids = [...new Set(tabIds.filter((id): id is number => id !== undefined))];
+  if (ids.length === 0) return;
+
+  try {
+    const existingGroupId = await getOwnedContainerGroupId(windowId);
+    if (existingGroupId !== null) {
+      const tabs = await chrome.tabs.query({ windowId });
+      const alreadyGrouped = new Set(
+        tabs
+          .filter((tab) => tab.id !== undefined && ids.includes(tab.id) && tab.groupId === existingGroupId)
+          .map((tab) => tab.id!),
+      );
+      const missing = ids.filter((id) => !alreadyGrouped.has(id));
+      if (missing.length > 0) await chrome.tabs.group({ groupId: existingGroupId, tabIds: missing });
+      await chrome.tabGroups.update(existingGroupId, {
+        color: AUTOMATION_TAB_GROUP_COLOR,
+        title: AUTOMATION_TAB_GROUP_TITLE,
+        collapsed: false,
+      });
+      return;
+    }
+
+    ownedContainerGroupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
+    await chrome.tabGroups.update(ownedContainerGroupId, {
+      color: AUTOMATION_TAB_GROUP_COLOR,
+      title: AUTOMATION_TAB_GROUP_TITLE,
+      collapsed: false,
+    });
+  } catch (err) {
+    console.warn(`[opencli] Failed to mark automation tab group: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 /**
  * Ensure the shared owned automation surface exists.
  *
@@ -404,12 +459,15 @@ async function ensureOwnedContainerWindowUnlocked(initialUrl?: string): Promise<
   if (ownedContainerWindowId !== null) {
     try {
       await chrome.windows.get(ownedContainerWindowId);
+      const initialTabId = await findReusableOwnedContainerTab(ownedContainerWindowId);
+      await ensureOwnedContainerTabGroup(ownedContainerWindowId, [initialTabId]);
       return {
         windowId: ownedContainerWindowId,
-        initialTabId: await findReusableOwnedContainerTab(ownedContainerWindowId),
+        initialTabId,
       };
     } catch {
       ownedContainerWindowId = null;
+      ownedContainerGroupId = null;
     }
   }
 
@@ -449,6 +507,7 @@ async function ensureOwnedContainerWindowUnlocked(initialUrl?: string): Promise<
       }
     });
   }
+  await ensureOwnedContainerTabGroup(ownedContainerWindowId, [initialTabId]);
   await persistRuntimeState();
   return { windowId: ownedContainerWindowId, initialTabId };
 }
@@ -495,6 +554,7 @@ async function createOwnedTabLeaseUnlocked(workspace: string, initialUrl?: strin
     tab = await chrome.tabs.create({ windowId, url: targetUrl, active: true });
   }
   if (!tab.id) throw new Error('Failed to create tab lease in automation container');
+  await ensureOwnedContainerTabGroup(windowId, [tab.id]);
 
   setWorkspaceSession(workspace, {
     windowId,
@@ -548,6 +608,7 @@ async function getAutomationWindow(workspace: string, initialUrl?: string): Prom
 chrome.windows.onRemoved.addListener(async (windowId) => {
   if (ownedContainerWindowId === windowId) {
     ownedContainerWindowId = null;
+    ownedContainerGroupId = null;
   }
   for (const [workspace, session] of automationSessions.entries()) {
     if (session.windowId === windowId) {
@@ -578,6 +639,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
     if (!hasOwnedLease) {
       await chrome.windows.remove(ownedContainerWindowId).catch(() => {});
       ownedContainerWindowId = null;
+      ownedContainerGroupId = null;
     }
   }
   await persistRuntimeState();
@@ -1175,6 +1237,7 @@ async function handleTabs(cmd: Command, workspace: string): Promise<Result> {
       const windowId = await getAutomationWindow(workspace);
       const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
       if (!tab.id) return { id: cmd.id, ok: false, error: 'Failed to create tab' };
+      await ensureOwnedContainerTabGroup(windowId, [tab.id]);
       setWorkspaceSession(workspace, {
         windowId: tab.windowId,
         owned: true,
@@ -1401,6 +1464,7 @@ async function releaseWorkspaceLease(workspace: string, reason: string = 'releas
       // Legacy fallback for sessions created before tab leases existed.
       await chrome.windows.remove(session.windowId).catch(() => {});
       if (ownedContainerWindowId === session.windowId) ownedContainerWindowId = null;
+      if (ownedContainerWindowId === null) ownedContainerGroupId = null;
       console.log(`[opencli] Released legacy owned window lease ${session.windowId} (${workspace}, ${reason})`);
     }
   } else if (session.preferredTabId !== null) {
@@ -1416,6 +1480,7 @@ async function releaseWorkspaceLease(workspace: string, reason: string = 'releas
     if (!stillHasOwnedLeases) {
       await chrome.windows.remove(ownedContainerWindowId).catch(() => {});
       ownedContainerWindowId = null;
+      ownedContainerGroupId = null;
     }
   }
 
@@ -1431,6 +1496,7 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
       await chrome.windows.get(ownedContainerWindowId);
     } catch {
       ownedContainerWindowId = null;
+      ownedContainerGroupId = null;
     }
   }
 
@@ -1453,6 +1519,7 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
         idleDeadlineAt: stored.idleDeadlineAt,
       });
       if (session.owned && ownedContainerWindowId === null) ownedContainerWindowId = tab.windowId;
+      if (session.owned) await ensureOwnedContainerTabGroup(tab.windowId, [tabId]);
       const remaining = stored.idleDeadlineAt > 0 ? stored.idleDeadlineAt - Date.now() : timeout;
       if (timeout > 0) {
         if (remaining <= 0) {
@@ -1472,6 +1539,7 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
     if (!hasOwnedLease) {
       await chrome.windows.remove(ownedContainerWindowId).catch(() => {});
       ownedContainerWindowId = null;
+      ownedContainerGroupId = null;
     }
   }
 

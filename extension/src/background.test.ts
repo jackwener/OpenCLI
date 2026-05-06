@@ -12,6 +12,15 @@ type MockTab = {
   title?: string;
   active?: boolean;
   status?: string;
+  groupId?: number;
+};
+
+type MockTabGroup = {
+  id: number;
+  windowId: number;
+  title?: string;
+  color?: chrome.tabGroups.ColorEnum;
+  collapsed?: boolean;
 };
 
 class MockWebSocket {
@@ -32,12 +41,14 @@ class MockWebSocket {
 
 function createChromeMock() {
   let nextTabId = 10;
+  let nextGroupId = 100;
   const storageState: Record<string, unknown> = {};
   const tabs: MockTab[] = [
-    { id: 1, windowId: 1, url: 'https://automation.example', title: 'automation', active: true, status: 'complete' },
-    { id: 2, windowId: 2, url: 'https://user.example', title: 'user', active: true, status: 'complete' },
-    { id: 3, windowId: 1, url: 'chrome://extensions', title: 'chrome', active: false, status: 'complete' },
+    { id: 1, windowId: 1, url: 'https://automation.example', title: 'automation', active: true, status: 'complete', groupId: -1 },
+    { id: 2, windowId: 2, url: 'https://user.example', title: 'user', active: true, status: 'complete', groupId: -1 },
+    { id: 3, windowId: 1, url: 'chrome://extensions', title: 'chrome', active: false, status: 'complete', groupId: -1 },
   ];
+  const groups: MockTabGroup[] = [];
   let lastFocusedWindowId = 2;
 
   const query = vi.fn(async (queryInfo: { windowId?: number; active?: boolean; lastFocusedWindow?: boolean } = {}) => {
@@ -56,6 +67,7 @@ function createChromeMock() {
       title: url ?? 'blank',
       active: !!active,
       status: 'complete',
+      groupId: -1,
     };
     tabs.push(tab);
     return tab;
@@ -85,8 +97,45 @@ function createChromeMock() {
         tab.windowId = moveProps.windowId;
         return tab;
       }),
+      group: vi.fn(async (options: { tabIds?: number | number[]; groupId?: number; createProperties?: { windowId?: number } }) => {
+        const tabIds = Array.isArray(options.tabIds) ? options.tabIds : [options.tabIds].filter((id): id is number => typeof id === 'number');
+        let groupId = options.groupId;
+        if (groupId === undefined) {
+          groupId = nextGroupId++;
+          groups.push({
+            id: groupId,
+            windowId: options.createProperties?.windowId ?? tabs.find((tab) => tab.id === tabIds[0])?.windowId ?? 1,
+            collapsed: false,
+          });
+        }
+        for (const tabId of tabIds) {
+          const tab = tabs.find((entry) => entry.id === tabId);
+          if (!tab) throw new Error(`Unknown tab ${tabId}`);
+          tab.groupId = groupId;
+        }
+        return groupId;
+      }),
       onUpdated: { addListener: vi.fn(), removeListener: vi.fn() } as Listener<(id: number, info: chrome.tabs.TabChangeInfo) => void>,
       onRemoved: { addListener: vi.fn() } as Listener<(tabId: number) => void>,
+    },
+    tabGroups: {
+      TAB_GROUP_ID_NONE: -1,
+      get: vi.fn(async (groupId: number) => {
+        const group = groups.find((entry) => entry.id === groupId);
+        if (!group) throw new Error(`Unknown group ${groupId}`);
+        return group;
+      }),
+      query: vi.fn(async (queryInfo: { windowId?: number; title?: string } = {}) => groups.filter((group) => {
+        if (queryInfo.windowId !== undefined && group.windowId !== queryInfo.windowId) return false;
+        if (queryInfo.title !== undefined && group.title !== queryInfo.title) return false;
+        return true;
+      })),
+      update: vi.fn(async (groupId: number, updates: { title?: string; color?: chrome.tabGroups.ColorEnum; collapsed?: boolean }) => {
+        const group = groups.find((entry) => entry.id === groupId);
+        if (!group) throw new Error(`Unknown group ${groupId}`);
+        Object.assign(group, updates);
+        return group;
+      }),
     },
     debugger: {
       getTargets: vi.fn(async () => tabs.map(t => ({
@@ -133,7 +182,7 @@ function createChromeMock() {
     },
   };
 
-  return { chrome, tabs, query, create, update };
+  return { chrome, tabs, groups, query, create, update };
 }
 
 describe('background tab isolation', () => {
@@ -680,6 +729,56 @@ describe('background tab isolation', () => {
     expect(first).toEqual(expect.objectContaining({ ok: true }));
     expect(second).toEqual(expect.objectContaining({ ok: true }));
     expect(chrome.windows.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks a newly created owned automation window with an OpenCLI tab group', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, 'site:new-group');
+
+    expect(tabId).toBe(1);
+    expect(tabs[0].groupId).toBe(100);
+    expect(groups).toEqual([
+      expect.objectContaining({
+        id: 100,
+        windowId: 1,
+        title: 'OpenCLI',
+        color: 'orange',
+        collapsed: false,
+      }),
+    ]);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ tabIds: [1], createProperties: { windowId: 1 } });
+  });
+
+  it('reuses the existing automation tab group when adding another owned lease tab', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, 'site:first');
+    const secondTabId = await mod.__test__.resolveTabId(undefined, 'site:second');
+
+    expect(secondTabId).toBe(10);
+    expect(groups).toHaveLength(1);
+    expect(tabs.find((tab) => tab.id === 10)?.groupId).toBe(100);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 100, tabIds: [10] });
+  });
+
+  it('does not group borrowed user tabs for bound workspaces', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const result = await mod.__test__.handleBind(
+      { id: 'bind', action: 'bind', workspace: 'bound:default' },
+      'bound:default',
+    );
+
+    expect(result.ok).toBe(true);
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
   });
 
   it('keeps site:notebooklm inside its owned automation lease instead of rebinding to a user tab', async () => {
