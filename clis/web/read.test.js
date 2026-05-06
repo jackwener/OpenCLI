@@ -217,7 +217,7 @@ describe('web/read render-aware helpers', () => {
         `, { url: 'https://example.com/main.html', runScripts: 'outside-only' });
         const frame = dom.window.document.querySelector('iframe');
         frame.contentDocument.open();
-        frame.contentDocument.write('<body><table id="gridHd"><tr><th>Name</th></tr></table><ul id="gridDatas"><li>Station A 42</li></ul></body>');
+        frame.contentDocument.write('<body><table id="gridHd"><tr><th>Name</th></tr></table><ul id="gridDatas"></ul><p>Station A 42</p></body>');
         frame.contentDocument.close();
 
         const result = dom.window.eval(__test__.buildRenderAwareExtractorJs({ frames: 'same-origin' }));
@@ -226,6 +226,10 @@ describe('web/read render-aware helpers', () => {
         expect(result.contentHtml).toContain('data-opencli-iframe-source="https://example.com/frame.html"');
         expect(result.contentHtml).toContain('来自 iframe: https://example.com/frame.html');
         expect(result.contentHtml).toContain('Station A 42');
+        expect(result.diagnostics.emptyContainers).toEqual(expect.arrayContaining([
+            expect.objectContaining({ scope: 'iframe', id: 'gridDatas', url: 'https://example.com/frame.html' }),
+        ]));
+        expect(result.diagnostics.emptyContainers.every(item => item.scope === 'iframe')).toBe(true);
     });
 
     it('merges readable same-origin iframes outside the selected content element', () => {
@@ -271,6 +275,7 @@ describe('web/read render-aware helpers', () => {
         expect(result.diagnostics.emptyContainers).toEqual(expect.arrayContaining([
             expect.objectContaining({ scope: 'iframe', id: 'gridDatas', url: 'https://example.com/data.html' }),
         ]));
+        expect(result.diagnostics.emptyContainers.every(item => item.scope === 'iframe')).toBe(true);
     });
 
     it('skips short non-structural iframes outside the selected content element', () => {

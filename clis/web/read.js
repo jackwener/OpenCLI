@@ -18,6 +18,7 @@ import { downloadArticle } from '@jackwener/opencli/download/article-download';
 
 const NETWORK_IDLE_QUIET_MS = 1000;
 const NETWORK_IDLE_POLL_MS = 500;
+const MIN_NON_STRUCTURAL_IFRAME_TEXT_CHARS = 50;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -144,6 +145,7 @@ function buildRenderAwareExtractorJs(options) {
     return `
       (() => {
         const frameMode = ${JSON.stringify(options.frames)};
+        const minNonStructuralIframeTextChars = ${MIN_NON_STRUCTURAL_IFRAME_TEXT_CHARS};
         const result = {
           title: '',
           author: '',
@@ -188,6 +190,7 @@ function buildRenderAwareExtractorJs(options) {
         const collectEmptyContainers = (root, scope, baseUrl) => {
           const likely = 'table, tbody, ul[id], ol[id], div[id], section[id], [class*="grid"], [class*="data"], [class*="list"], [id*="grid"], [id*="data"], [id*="list"]';
           root.querySelectorAll?.(likely).forEach((el) => {
+            if (scope === 'main' && el.closest?.('[data-opencli-iframe-source]')) return;
             const id = el.getAttribute('id') || '';
             const cls = el.getAttribute('class') || '';
             const name = [id, cls].join(' ').toLowerCase();
@@ -207,7 +210,10 @@ function buildRenderAwareExtractorJs(options) {
           return !!root.querySelector?.(likely);
         };
         const shouldIncludeExternalFrame = (frameBody) => {
-          if (textLen(frameBody) >= 50) return true;
+          // Outside-content iframes are less trusted than placeholders inside
+          // contentEl. Long plain text is the fallback for simple same-origin
+          // frames that lack article/table/list structure.
+          if (textLen(frameBody) >= minNonStructuralIframeTextChars) return true;
           if (frameBody.querySelector?.('article, main, [role="main"], table, tbody, ul li, ol li')) return true;
           return hasDataContainerSignal(frameBody);
         };
@@ -272,6 +278,11 @@ function buildRenderAwareExtractorJs(options) {
 
         const originalFrames = Array.from(contentEl.querySelectorAll('iframe'));
         const clonedFrames = Array.from(clone.querySelectorAll('iframe'));
+        const clonedFrameByOriginal = new Map();
+        originalFrames.forEach((frame, index) => {
+          const cloned = clonedFrames[index];
+          if (cloned) clonedFrameByOriginal.set(frame, cloned);
+        });
         const allFrames = Array.from(document.querySelectorAll('iframe'));
         const frameDescriptions = new Map();
         allFrames.forEach((frame, index) => frameDescriptions.set(frame, describeFrame(frame, index)));
@@ -279,31 +290,20 @@ function buildRenderAwareExtractorJs(options) {
         result.diagnostics.frames = allFrames.map(frame => frameDescriptions.get(frame));
 
         if (frameMode === 'same-origin') {
-          originalFrames.forEach((frame, index) => {
-            const cloned = clonedFrames[index];
-            if (!cloned) return;
-            const desc = getFrameDescription(frame, index);
-            if (!desc.sameOrigin || !desc.accessible) return;
-            try {
-              const doc = frame.contentDocument;
-              if (!doc?.body) return;
-              const frameBody = doc.body.cloneNode(true);
-              const section = buildFrameSection(frameBody, desc, frame.getAttribute('src') || ('#' + index));
-              cloned.replaceWith(section);
-              result.diagnostics.includedFrameCount += 1;
-            } catch {}
-          });
           allFrames.forEach((frame, index) => {
-            if (contentEl.contains(frame)) return;
+            const insideContent = contentEl.contains(frame);
+            const cloned = insideContent ? clonedFrameByOriginal.get(frame) : null;
+            if (insideContent && !cloned) return;
             const desc = getFrameDescription(frame, index);
             if (!desc.sameOrigin || !desc.accessible) return;
             try {
               const doc = frame.contentDocument;
               if (!doc?.body) return;
               const frameBody = doc.body.cloneNode(true);
-              if (!shouldIncludeExternalFrame(frameBody)) return;
+              if (!insideContent && !shouldIncludeExternalFrame(frameBody)) return;
               const section = buildFrameSection(frameBody, desc, frame.getAttribute('src') || ('#' + index));
-              clone.appendChild(section);
+              if (insideContent) cloned.replaceWith(section);
+              else clone.appendChild(section);
               result.diagnostics.includedFrameCount += 1;
             } catch {}
           });
