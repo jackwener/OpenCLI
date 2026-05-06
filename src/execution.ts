@@ -182,6 +182,7 @@ export async function executeCommand(
   opts: {
     prepared?: boolean;
     profile?: string;
+    workspace?: string;
     trace?: string;
     onTraceExport?: (trace: ObservationExportResult) => void;
   } = {},
@@ -208,6 +209,11 @@ export async function executeCommand(
     if (shouldUseBrowserSession(cmd)) {
       const electron = isElectronApp(cmd.site);
       let cdpEndpoint: string | undefined;
+      const requestedWorkspace = typeof opts.workspace === 'string' && opts.workspace.trim()
+        ? opts.workspace.trim()
+        : undefined;
+      const sessionWorkspace = requestedWorkspace ?? `site:${cmd.site}:${crypto.randomUUID()}`;
+      const keepWorkspaceOpen = requestedWorkspace !== undefined;
 
       if (electron) {
         // Electron apps: respect manual endpoint override, then try auto-detect
@@ -236,7 +242,7 @@ export async function executeCommand(
           : new ObservationSession({
             scope: {
               contextId,
-              workspace: `site:${cmd.site}`,
+              workspace: sessionWorkspace,
               target: page.getActivePage?.(),
               site: cmd.site,
               command: fullName(cmd),
@@ -317,7 +323,7 @@ export async function executeCommand(
           }
           // Adapter commands are one-shot — close the automation window immediately
           // instead of waiting for the 30s idle timeout.
-          if (!keepOpen) await page.closeWindow?.().catch(() => {});
+          if (!keepOpen && !keepWorkspaceOpen) await page.closeWindow?.().catch(() => {});
           return result;
         } catch (err) {
           if (observation) {
@@ -340,10 +346,10 @@ export async function executeCommand(
           // Close the automation window on failure too — without this, the window
           // lingers until the extension's idle timer fires (unreliable on Windows
           // where MV3 service workers may be suspended before setTimeout triggers).
-          if (!keepOpen) await page.closeWindow?.().catch(() => {});
+          if (!keepOpen && !keepWorkspaceOpen) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { workspace: `site:${cmd.site}:${crypto.randomUUID()}`, cdpEndpoint, contextId });
+      }, { workspace: sessionWorkspace, cdpEndpoint, contextId });
     } else {
       // Non-browser commands: apply timeout only when explicitly configured.
       const timeout = cmd.timeoutSeconds;

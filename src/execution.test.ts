@@ -78,6 +78,35 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
+  it('uses an explicit workspace for browser commands and leaves that workspace open', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    const browserSessionSpy = vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => {
+      return fn(mockPage);
+    });
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-explicit-workspace', access: 'read',
+      description: 'test explicit workspace reuse',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      func: async () => [{ ok: true }],
+    });
+
+    await expect(executeCommand(cmd, {}, false, { workspace: 'bound:geogebra' })).resolves.toEqual([{ ok: true }]);
+    expect(browserSessionSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(Function),
+      expect.objectContaining({ workspace: 'bound:geogebra' }),
+    );
+    expect(closeWindow).not.toHaveBeenCalled();
+
+    vi.restoreAllMocks();
+  });
+
   it('skips closeWindow when OPENCLI_LIVE=1 (success path)', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;

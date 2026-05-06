@@ -57,6 +57,12 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
     .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', 'table')
     .option('--trace <mode>', 'Trace capture: off, on, retain-on-failure', 'off')
     .option('-v, --verbose', 'Debug output', false);
+  if (cmd.browser) {
+    subCmd.option(
+      '--workspace <name>',
+      'Browser workspace to use (use bound:<name> to target a bound user tab)',
+    );
+  }
 
   installStructuredHelp(subCmd, () => commandHelpData(cmd), () => formatRegistryHelpText(cmd));
 
@@ -105,6 +111,9 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       const result = await executeCommand(cmd, kwargs, verbose, {
         prepared: true,
         ...(typeof globals.profile === 'string' && globals.profile.trim() ? { profile: globals.profile.trim() } : {}),
+        ...(typeof optionsRecord.workspace === 'string' && optionsRecord.workspace.trim()
+          ? { workspace: optionsRecord.workspace.trim() }
+          : {}),
         ...(typeof optionsRecord.trace === 'string' && optionsRecord.trace !== 'off' ? { trace: optionsRecord.trace } : {}),
       });
       if (result === null || result === undefined) {

@@ -209,6 +209,51 @@ describe('commanderAdapter value-required optional options', () => {
   });
 });
 
+describe('commanderAdapter browser workspace option', () => {
+  const cmd: CliCommand = {
+    site: 'geogebra',
+    name: 'triangle', access: 'write',
+    description: 'Draw triangle',
+    browser: true,
+    args: [
+      { name: 'size', default: '2', help: 'Side length' },
+    ],
+    func: vi.fn(),
+  };
+
+  beforeEach(() => {
+    mockExecuteCommand.mockReset();
+    mockExecuteCommand.mockResolvedValue([]);
+    mockRenderOutput.mockReset();
+    delete process.env.OPENCLI_VERBOSE;
+    process.exitCode = undefined;
+  });
+
+  it('passes explicit workspace through to executeCommand for browser adapters', async () => {
+    const program = new Command();
+    const siteCmd = program.command('geogebra');
+    registerCommandToProgram(siteCmd, cmd);
+
+    await program.parseAsync([
+      'node',
+      'opencli',
+      'geogebra',
+      'triangle',
+      '--workspace',
+      'bound:geogebra',
+      '--size',
+      '4',
+    ]);
+
+    expect(mockExecuteCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ site: 'geogebra', name: 'triangle' }),
+      expect.objectContaining({ size: '4' }),
+      false,
+      { prepared: true, workspace: 'bound:geogebra' },
+    );
+  });
+});
+
 describe('commanderAdapter command aliases', () => {
   const cmd: CliCommand = {
     site: 'notebooklm',
