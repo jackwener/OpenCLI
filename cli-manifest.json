@@ -21147,13 +21147,13 @@
     ],
     "columns": [
       "rank",
-      "id",
+      "group_id",
       "title",
       "query",
       "hot_value",
       "label",
       "url",
-      "image"
+      "image_url"
     ],
     "type": "js",
     "modulePath": "toutiao/hot.js",

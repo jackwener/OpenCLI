@@ -115,7 +115,11 @@ function trimOrNull(v) {
 function pickImage(item) {
     const url = item?.Image?.url;
     if (typeof url === 'string' && url) return url;
-    const firstFromList = Array.isArray(item?.Image?.url_list) ? item.Image.url_list.find((u) => typeof u === 'string' && u) : null;
+    const firstFromList = Array.isArray(item?.Image?.url_list)
+        ? item.Image.url_list
+            .map((entry) => typeof entry === 'string' ? entry : entry?.url)
+            .find((u) => typeof u === 'string' && u)
+        : null;
     return firstFromList || null;
 }
 
@@ -129,21 +133,29 @@ function parseHot(v) {
  */
 export function mapHotRow(item, index) {
     if (!item || typeof item !== 'object') return null;
-    const id = trimOrNull(item.ClusterIdStr || (item.ClusterId != null ? String(item.ClusterId) : null));
+    const groupId = trimOrNull(item.ClusterIdStr || (item.ClusterId != null ? String(item.ClusterId) : null));
     const title = trimOrNull(item.Title);
     if (!title) return null;
     return {
         rank: index + 1,
-        id,
+        group_id: groupId,
         title,
         query: trimOrNull(item.QueryWord) || title,
         hot_value: parseHot(item.HotValue),
         label: trimOrNull(item.Label),
         url: trimOrNull(item.Url),
-        image: pickImage(item),
+        image_url: pickImage(item),
     };
 }
 
 export const HOT_BOARD_URL = 'https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc';
+
+export function looksToutiaoAuthWallText(value) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!text) return false;
+    return /登录|请登录|账号登录|扫码登录|安全验证|验证码|captcha/.test(text) ||
+        /\b(login|sign in|captcha|verification required)\b/.test(text) ||
+        /mp\.toutiao\.com\/profile_v4\/login/.test(text);
+}
 
 export const __test__ = { ARTICLES_MIN_PAGE, ARTICLES_MAX_PAGE, HOT_MIN_LIMIT, HOT_MAX_LIMIT };

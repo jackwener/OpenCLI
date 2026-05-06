@@ -22,7 +22,7 @@ cli({
     args: [
         { name: 'limit', type: 'int', default: 30, help: '返回条数 (1-50)' },
     ],
-    columns: ['rank', 'id', 'title', 'query', 'hot_value', 'label', 'url', 'image'],
+    columns: ['rank', 'group_id', 'title', 'query', 'hot_value', 'label', 'url', 'image_url'],
     func: async (_page, kwargs) => {
         const limit = parseHotLimit(kwargs?.limit, 30);
         let resp;
@@ -45,6 +45,12 @@ cli({
             payload = await resp.json();
         } catch (error) {
             throw new CommandExecutionError(`toutiao hot-board returned malformed JSON: ${error?.message || error}`);
+        }
+        if (payload?.status && payload.status !== 'success') {
+            throw new CommandExecutionError(`toutiao hot-board returned status=${payload.status}`);
+        }
+        if (payload?.error || payload?.message) {
+            throw new CommandExecutionError(`toutiao hot-board returned error: ${payload.error || payload.message}`);
         }
         const list = Array.isArray(payload?.data) ? payload.data : [];
         const rows = list.map(mapHotRow).filter(Boolean).slice(0, limit);

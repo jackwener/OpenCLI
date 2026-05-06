@@ -3,8 +3,8 @@
  * from the rendered creator dashboard page text.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
-import { parseArticlesPage, parseToutiaoArticlesText } from './utils.js';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { looksToutiaoAuthWallText, parseArticlesPage, parseToutiaoArticlesText } from './utils.js';
 
 cli({
     site: 'toutiao',
@@ -20,15 +20,23 @@ cli({
     columns: ['title', 'date', 'status', '展现', '阅读', '点赞', '评论'],
     func: async (page, kwargs) => {
         const articlePage = parseArticlesPage(kwargs.page, 1);
-        await page.goto(`https://mp.toutiao.com/profile_v4/manage/content/all?page=${articlePage}`);
-        await page.wait('networkidle');
-        await page.wait(3);
-        const text = await page.evaluate(`
+        let text;
+        try {
+            await page.goto(`https://mp.toutiao.com/profile_v4/manage/content/all?page=${articlePage}`);
+            await page.wait('networkidle');
+            await page.wait(3);
+            text = await page.evaluate(`
 (async () => {
     await new Promise(r => setTimeout(r, 2000));
     return document.body.innerText || '';
 })()
 `);
+        } catch (error) {
+            throw new CommandExecutionError(`toutiao articles render failed: ${error?.message || error}`);
+        }
+        if (looksToutiaoAuthWallText(text)) {
+            throw new AuthRequiredError('mp.toutiao.com', 'Toutiao creator articles require a logged-in mp.toutiao.com browser session');
+        }
         const rows = parseToutiaoArticlesText(text);
         if (rows.length === 0) {
             throw new EmptyResultError(

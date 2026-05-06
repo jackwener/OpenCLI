@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
 import {
     HOT_BOARD_URL,
     __test__,
     mapHotRow,
+    looksToutiaoAuthWallText,
     parseArticlesPage,
     parseHotLimit,
     parseToutiaoArticlesText,
@@ -140,6 +141,14 @@ describe('toutiao parseToutiaoArticlesText (silent column drop fix)', () => {
     });
 });
 
+describe('toutiao auth wall detection', () => {
+    it('recognizes creator-login/captcha pages', () => {
+        expect(looksToutiaoAuthWallText('账号登录 请登录 mp.toutiao.com/profile_v4/login')).toBe(true);
+        expect(looksToutiaoAuthWallText('安全验证 captcha')).toBe(true);
+        expect(looksToutiaoAuthWallText('短标题 04-20 20:30 已发布 展现 1 阅读 1')).toBe(false);
+    });
+});
+
 describe('toutiao mapHotRow', () => {
     it('projects upstream item to stable 8-column shape', () => {
         const upstream = {
@@ -154,19 +163,19 @@ describe('toutiao mapHotRow', () => {
         };
         expect(mapHotRow(upstream, 0)).toEqual({
             rank: 1,
-            id: '12345',
+            group_id: '12345',
             title: '某热点新闻',
             query: '某热点',
             hot_value: 987654,
             label: '热',
             url: 'https://www.toutiao.com/trending/12345/',
-            image: 'https://p.image/x.jpg',
+            image_url: 'https://p.image/x.jpg',
         });
     });
 
     it('falls back to ClusterId numeric when ClusterIdStr missing', () => {
         const out = mapHotRow({ ClusterId: 7, Title: 'X' }, 5);
-        expect(out.id).toBe('7');
+        expect(out.group_id).toBe('7');
         expect(out.rank).toBe(6);
     });
 
@@ -180,13 +189,21 @@ describe('toutiao mapHotRow', () => {
             Title: 'Y',
             Image: { url_list: ['https://list.image/y.png'] },
         }, 0);
-        expect(out.image).toBe('https://list.image/y.png');
+        expect(out.image_url).toBe('https://list.image/y.png');
+    });
+
+    it('handles live Image.url_list entries shaped as objects', () => {
+        const out = mapHotRow({
+            Title: 'Y',
+            Image: { url_list: [{ url: 'https://list.image/y.png' }] },
+        }, 0);
+        expect(out.image_url).toBe('https://list.image/y.png');
     });
 
     it('returns null image when Image missing or all variants empty', () => {
-        expect(mapHotRow({ Title: 'Z' }, 0).image).toBeNull();
-        expect(mapHotRow({ Title: 'Z', Image: {} }, 0).image).toBeNull();
-        expect(mapHotRow({ Title: 'Z', Image: { url_list: [] } }, 0).image).toBeNull();
+        expect(mapHotRow({ Title: 'Z' }, 0).image_url).toBeNull();
+        expect(mapHotRow({ Title: 'Z', Image: {} }, 0).image_url).toBeNull();
+        expect(mapHotRow({ Title: 'Z', Image: { url_list: [] } }, 0).image_url).toBeNull();
     });
 
     it('drops untitled rows (returns null) instead of emitting empty-title row', () => {
@@ -217,7 +234,49 @@ describe('toutiao registry shape', () => {
         expect(hot).toBeTruthy();
         expect(hot.access).toBe('read');
         expect(hot.browser).toBe(false);
-        expect(hot.columns).toEqual(['rank', 'id', 'title', 'query', 'hot_value', 'label', 'url', 'image']);
+        expect(hot.columns).toEqual(['rank', 'group_id', 'title', 'query', 'hot_value', 'label', 'url', 'image_url']);
+    });
+});
+
+describe('toutiao articles adapter (registry func)', () => {
+    const cmd = getRegistry().get('toutiao/articles');
+
+    it('rejects invalid page before browser navigation', async () => {
+        const page = { goto: vi.fn(), wait: vi.fn(), evaluate: vi.fn() };
+
+        await expect(cmd.func(page, { page: 0 })).rejects.toThrow(ArgumentError);
+        await expect(cmd.func(page, { page: 5 })).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequiredError when creator backend renders a login wall', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue('账号登录 请登录'),
+        };
+
+        await expect(cmd.func(page, { page: 1 })).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('wraps render failures as CommandExecutionError', async () => {
+        const page = {
+            goto: vi.fn().mockRejectedValue(new Error('browser down')),
+            wait: vi.fn(),
+            evaluate: vi.fn(),
+        };
+
+        await expect(cmd.func(page, { page: 1 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('throws EmptyResultError when rendered article text has no rows', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue('没有文章'),
+        };
+
+        await expect(cmd.func(page, { page: 1 })).rejects.toBeInstanceOf(EmptyResultError);
     });
 });
 
@@ -249,8 +308,8 @@ describe('toutiao hot adapter (registry func)', () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(fetchMock.mock.calls[0][0]).toBe(HOT_BOARD_URL);
         expect(rows).toHaveLength(2);
-        expect(rows[0]).toMatchObject({ rank: 1, id: '1', title: 'A', hot_value: 100 });
-        expect(rows[1]).toMatchObject({ rank: 2, id: '2', title: 'B', hot_value: 200 });
+        expect(rows[0]).toMatchObject({ rank: 1, group_id: '1', title: 'A', hot_value: 100 });
+        expect(rows[1]).toMatchObject({ rank: 2, group_id: '2', title: 'B', hot_value: 200 });
     });
 
     it('throws CommandExecutionError on non-OK HTTP', async () => {
@@ -264,6 +323,14 @@ describe('toutiao hot adapter (registry func)', () => {
     it('throws CommandExecutionError on malformed JSON', async () => {
         vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
             new Response('not-json{{{', { status: 200 }),
+        )));
+
+        await expect(cmd.func(null, { limit: 5 })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('throws CommandExecutionError on in-band error envelope', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
+            new Response(JSON.stringify({ status: 'error', message: 'rate limited' }), { status: 200 }),
         )));
 
         await expect(cmd.func(null, { limit: 5 })).rejects.toThrow(CommandExecutionError);

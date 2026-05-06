@@ -28,19 +28,20 @@ opencli toutiao articles --page 1 -f json
 | Column | Type | Notes |
 |--------|------|-------|
 | `rank` | int | 1-based, dense after empty-title rows are dropped |
-| `id` | string \| null | `ClusterIdStr`, falls back to numeric `ClusterId` |
+| `group_id` | string \| null | Topic/cluster id (`ClusterIdStr`, falls back to numeric `ClusterId`) |
 | `title` | string | Trending topic title |
 | `query` | string | Search keyword (`QueryWord`); falls back to `title` if absent |
 | `hot_value` | int \| null | `HotValue` parsed as non-negative number; `null` if missing |
 | `label` | string \| null | Hot tag (e.g. 热 / 新 / 沸) when present |
 | `url` | string \| null | Topic permalink |
-| `image` | string \| null | First non-empty image URL (`Image.url` → `Image.url_list[*]`) |
+| `image_url` | string \| null | First non-empty image URL (`Image.url` → `Image.url_list[*]`) |
 
 ### `articles`
 
 `title` · `date` · `status` · `展现` · `阅读` · `点赞` · `评论`
 
 If a row's stats span has not finished rendering by the time the page text is read, the row still surfaces with `null` stat columns instead of being silently dropped — this masking previously hid creator-backend slow-render bugs.
+Login/captcha pages abort with `AuthRequiredError`; browser render failures abort with `CommandExecutionError`.
 
 ## Prerequisites
 
