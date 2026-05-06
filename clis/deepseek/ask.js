@@ -3,6 +3,7 @@ import { CliError, CommandExecutionError, EXIT_CODES } from '@jackwener/opencli/
 import {
     DEEPSEEK_DOMAIN, DEEPSEEK_URL, ensureOnDeepSeek, selectModel, setFeature,
     sendMessage, sendWithFile, getBubbleCount, waitForResponse, parseBoolFlag, withRetry,
+    pickResumeUrl,
 } from './utils.js';
 
 export const askCommand = cli({
@@ -38,12 +39,16 @@ export const askCommand = cli({
         } else {
             const navigated = await ensureOnDeepSeek(page);
             if (navigated) {
-                // Workspace was recycled; try to resume the most recent
-                // conversation instead of starting a new one.
-                await page.evaluate(`(() => {
-                    var link = document.querySelector('a[href*="/a/chat/s/"]');
-                    if (link) link.click();
-                })()`);
+                // Pinned conversations sit in their own DOM section and are
+                // skipped so the resume never lands on a topped chat.
+                const resumeUrl = await pickResumeUrl(page);
+                if (!resumeUrl) {
+                    throw new CommandExecutionError(
+                        'Workspace was recycled but no prior conversation could be loaded',
+                        'Pass --new to start a fresh chat, or wait for the sidebar to populate before retrying.',
+                    );
+                }
+                await page.goto(resumeUrl);
                 await page.wait(2);
             }
         }
