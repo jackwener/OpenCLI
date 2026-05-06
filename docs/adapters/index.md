@@ -128,6 +128,12 @@ Run `opencli list` for the live registry.
 | **[goproxy](./browser/goproxy.md)**               | `module` `versions`                                                                                                                            | 🌐 Public    |
 | **[tvmaze](./browser/tvmaze.md)**                 | `search` `show`                                                                                                                                | 🌐 Public    |
 | **[rfc](./browser/rfc.md)**                       | `rfc`                                                                                                                                          | 🌐 Public    |
+| **[frankfurter](./browser/frankfurter.md)**       | `latest` `historical`                                                                                                                          | 🌐 Public    |
+| **[disease-sh](./browser/disease-sh.md)**         | `global` `country`                                                                                                                             | 🌐 Public    |
+| **[nws](./browser/nws.md)**                       | `forecast` `alerts`                                                                                                                            | 🌐 Public    |
+| **[jikan](./browser/jikan.md)**                   | `anime` `manga`                                                                                                                                | 🌐 Public    |
+| **[worldbank](./browser/worldbank.md)**           | `country` `indicator`                                                                                                                          | 🌐 Public    |
+| **[mealdb](./browser/mealdb.md)**                 | `search` `random`                                                                                                                              | 🌐 Public    |
 
 ## Desktop Adapters
 
