@@ -717,7 +717,7 @@ async function getOwnedContainerGroupId(windowId) {
     ownedContainerGroupId = null;
   }
   const groups = await chrome.tabGroups.query({ windowId, title: AUTOMATION_TAB_GROUP_TITLE });
-  const existing = groups.find((group) => group.title === AUTOMATION_TAB_GROUP_TITLE);
+  const existing = groups[0];
   if (!existing) return null;
   ownedContainerGroupId = existing.id;
   return existing.id;
@@ -734,11 +734,6 @@ async function ensureOwnedContainerTabGroup(windowId, tabIds) {
       );
       const missing = ids.filter((id) => !alreadyGrouped.has(id));
       if (missing.length > 0) await chrome.tabs.group({ groupId: existingGroupId, tabIds: missing });
-      await chrome.tabGroups.update(existingGroupId, {
-        color: AUTOMATION_TAB_GROUP_COLOR,
-        title: AUTOMATION_TAB_GROUP_TITLE,
-        collapsed: false
-      });
       return;
     }
     ownedContainerGroupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
