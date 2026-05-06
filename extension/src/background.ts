@@ -210,6 +210,7 @@ type StoredRegistry = {
   version: 1;
   contextId: BrowserContextId;
   ownedContainerWindowId: number | null;
+  ownedContainerGroupId?: number | null;
   leases: Record<string, StoredLease>;
 };
 
@@ -283,6 +284,7 @@ function emptyRegistry(): StoredRegistry {
     version: 1,
     contextId: currentContextId,
     ownedContainerWindowId,
+    ownedContainerGroupId,
     leases: {},
   };
 }
@@ -298,6 +300,7 @@ async function readRegistry(): Promise<StoredRegistry> {
       version: 1,
       contextId: currentContextId,
       ownedContainerWindowId: typeof stored.ownedContainerWindowId === 'number' ? stored.ownedContainerWindowId : null,
+      ownedContainerGroupId: typeof stored.ownedContainerGroupId === 'number' ? stored.ownedContainerGroupId : null,
       leases: stored.leases as Record<string, StoredLease>,
     };
   } catch {
@@ -332,6 +335,7 @@ async function persistRuntimeState(): Promise<void> {
     version: 1,
     contextId: currentContextId,
     ownedContainerWindowId,
+    ownedContainerGroupId,
     leases,
   });
 }
@@ -1485,6 +1489,7 @@ async function releaseWorkspaceLease(workspace: string, reason: string = 'releas
 async function reconcileTargetLeaseRegistry(): Promise<void> {
   const registry = await readRegistry();
   ownedContainerWindowId = registry.ownedContainerWindowId;
+  ownedContainerGroupId = registry.ownedContainerGroupId ?? null;
 
   if (ownedContainerWindowId !== null) {
     try {

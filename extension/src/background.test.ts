@@ -787,6 +787,95 @@ describe('background tab isolation', () => {
     expect(chrome.tabGroups.update).not.toHaveBeenCalled();
   });
 
+  it('reuses a persisted automation group id after service worker restart even if the user renamed it', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    groups.push({
+      id: 99,
+      windowId: 1,
+      title: 'My Automation',
+      color: 'cyan',
+      collapsed: true,
+    });
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      opencli_target_lease_registry_v1: {
+        version: 1,
+        contextId: 'user-default',
+        ownedContainerWindowId: 1,
+        ownedContainerGroupId: 99,
+        leases: {
+          'site:restored-group': {
+            windowId: 1,
+            owned: true,
+            preferredTabId: 1,
+            contextId: 'user-default',
+            ownership: 'owned',
+            lifecycle: 'ephemeral',
+            surface: 'dedicated-container',
+            idleDeadlineAt: Date.now() + 30_000,
+            updatedAt: Date.now(),
+          },
+        },
+      },
+    });
+
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+
+    expect(tabs[0].groupId).toBe(99);
+    expect(groups).toEqual([
+      expect.objectContaining({
+        id: 99,
+        title: 'My Automation',
+        color: 'cyan',
+        collapsed: true,
+      }),
+    ]);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 99, tabIds: [1] });
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+  });
+
+  it('falls back to title discovery when a persisted automation group id is stale', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    groups.push({
+      id: 99,
+      windowId: 1,
+      title: 'OpenCLI',
+      color: 'orange',
+      collapsed: true,
+    });
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      opencli_target_lease_registry_v1: {
+        version: 1,
+        contextId: 'user-default',
+        ownedContainerWindowId: 1,
+        ownedContainerGroupId: 404,
+        leases: {
+          'site:restored-group': {
+            windowId: 1,
+            owned: true,
+            preferredTabId: 1,
+            contextId: 'user-default',
+            ownership: 'owned',
+            lifecycle: 'ephemeral',
+            surface: 'dedicated-container',
+            idleDeadlineAt: Date.now() + 30_000,
+            updatedAt: Date.now(),
+          },
+        },
+      },
+    });
+
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+
+    expect(tabs[0].groupId).toBe(99);
+    expect(groups).toHaveLength(1);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 99, tabIds: [1] });
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+  });
+
   it('does not group borrowed user tabs for bound workspaces', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);

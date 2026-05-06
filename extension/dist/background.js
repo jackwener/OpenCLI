@@ -615,6 +615,7 @@ function emptyRegistry() {
     version: 1,
     contextId: currentContextId,
     ownedContainerWindowId,
+    ownedContainerGroupId,
     leases: {}
   };
 }
@@ -629,6 +630,7 @@ async function readRegistry() {
       version: 1,
       contextId: currentContextId,
       ownedContainerWindowId: typeof stored.ownedContainerWindowId === "number" ? stored.ownedContainerWindowId : null,
+      ownedContainerGroupId: typeof stored.ownedContainerGroupId === "number" ? stored.ownedContainerGroupId : null,
       leases: stored.leases
     };
   } catch {
@@ -660,6 +662,7 @@ async function persistRuntimeState() {
     version: 1,
     contextId: currentContextId,
     ownedContainerWindowId,
+    ownedContainerGroupId,
     leases
   });
 }
@@ -1632,6 +1635,7 @@ async function releaseWorkspaceLease(workspace, reason = "released") {
 async function reconcileTargetLeaseRegistry() {
   const registry = await readRegistry();
   ownedContainerWindowId = registry.ownedContainerWindowId;
+  ownedContainerGroupId = registry.ownedContainerGroupId ?? null;
   if (ownedContainerWindowId !== null) {
     try {
       await chrome.windows.get(ownedContainerWindowId);
