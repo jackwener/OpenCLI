@@ -5949,6 +5949,78 @@
     "navigateBefore": false
   },
   {
+    "site": "defillama",
+    "name": "protocol",
+    "description": "Single DefiLlama protocol details (current TVL, mcap, chains, twitter, github, description)",
+    "access": "read",
+    "domain": "defillama.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "slug",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "DefiLlama protocol slug (e.g. \"aave\", \"lido\")"
+      }
+    ],
+    "columns": [
+      "slug",
+      "name",
+      "category",
+      "isParent",
+      "tvl",
+      "tvlAt",
+      "mcap",
+      "chains",
+      "twitter",
+      "github",
+      "audits",
+      "listedAt",
+      "description",
+      "website",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "defillama/protocol.js",
+    "sourceFile": "defillama/protocol.js"
+  },
+  {
+    "site": "defillama",
+    "name": "protocols",
+    "description": "Top DeFi protocols on DefiLlama by current TVL (slug, name, category, TVL, mcap, change_1d/7d, chains)",
+    "access": "read",
+    "domain": "defillama.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number of rows to return (1-500)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "slug",
+      "name",
+      "category",
+      "tvl",
+      "mcap",
+      "change_1d",
+      "change_7d",
+      "chains",
+      "listedAt",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "defillama/protocols.js",
+    "sourceFile": "defillama/protocols.js"
+  },
+  {
     "site": "devto",
     "name": "latest",
     "description": "Newest dev.to articles (firehose, all tags)",
@@ -8450,6 +8522,40 @@
     "sourceFile": "eastmoney/sectors.js"
   },
   {
+    "site": "endoflife",
+    "name": "product",
+    "description": "Release cycles + EOL / LTS / support dates for one product on endoflife.date",
+    "access": "read",
+    "domain": "endoflife.date",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "product",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "endoflife.date product slug (e.g. \"nodejs\", \"python\", \"ubuntu\")"
+      }
+    ],
+    "columns": [
+      "product",
+      "cycle",
+      "releaseDate",
+      "latest",
+      "latestReleaseDate",
+      "lts",
+      "support",
+      "eol",
+      "extendedSupport",
+      "eolStatus",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "endoflife/product.js",
+    "sourceFile": "endoflife/product.js"
+  },
+  {
     "site": "facebook",
     "name": "add-friend",
     "description": "Send a friend request on Facebook",
@@ -9352,6 +9458,80 @@
     "modulePath": "google-scholar/search.js",
     "sourceFile": "google-scholar/search.js",
     "navigateBefore": false
+  },
+  {
+    "site": "goproxy",
+    "name": "module",
+    "description": "Latest version + VCS origin metadata for a Go module on proxy.golang.org",
+    "access": "read",
+    "domain": "proxy.golang.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "module",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Go module path (e.g. \"github.com/gin-gonic/gin\", \"golang.org/x/net\")"
+      }
+    ],
+    "columns": [
+      "module",
+      "version",
+      "publishedAt",
+      "vcs",
+      "repository",
+      "commit",
+      "ref",
+      "pkgGoDevUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "goproxy/module.js",
+    "sourceFile": "goproxy/module.js"
+  },
+  {
+    "site": "goproxy",
+    "name": "versions",
+    "description": "Published version tags for a Go module (newest first), optionally with publish times",
+    "access": "read",
+    "domain": "proxy.golang.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "module",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Go module path (e.g. \"github.com/gin-gonic/gin\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max rows to return (1-200)"
+      },
+      {
+        "name": "with-time",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Fetch each version's publish time (one extra request per row)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "module",
+      "version",
+      "publishedAt",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "goproxy/versions.js",
+    "sourceFile": "goproxy/versions.js"
   },
   {
     "site": "gov-law",
@@ -15891,6 +16071,90 @@
     "sourceFile": "openreview/venue.js"
   },
   {
+    "site": "osv",
+    "name": "query",
+    "description": "OSV.dev vulnerabilities affecting a package (optionally pinned to a version)",
+    "access": "read",
+    "domain": "osv.dev",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "package",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Package name (e.g. \"lodash\", \"django\")"
+      },
+      {
+        "name": "ecosystem",
+        "type": "string",
+        "required": true,
+        "help": "OSV ecosystem (npm / PyPI / Go / Maven / NuGet / RubyGems / crates.io / Packagist / ...)"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "required": false,
+        "help": "Pin to a specific version (e.g. \"4.17.20\"); omit for all known vulns"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max rows to return (1-200)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "summary",
+      "severity",
+      "aliases",
+      "published",
+      "modified",
+      "affectedPackages",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "osv/query.js",
+    "sourceFile": "osv/query.js"
+  },
+  {
+    "site": "osv",
+    "name": "vulnerability",
+    "description": "Single OSV.dev vulnerability detail (severity, affected packages, CVE/GHSA aliases)",
+    "access": "read",
+    "domain": "osv.dev",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "OSV vulnerability id (e.g. \"GHSA-29mw-wpgm-hmr9\", \"CVE-2020-28500\")"
+      }
+    ],
+    "columns": [
+      "id",
+      "summary",
+      "severity",
+      "aliases",
+      "published",
+      "modified",
+      "affectedPackages",
+      "cwes",
+      "referenceCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "osv/vulnerability.js",
+    "sourceFile": "osv/vulnerability.js"
+  },
+  {
     "site": "packagist",
     "name": "package",
     "description": "Fetch a Packagist package's metadata (version, downloads, license, repo, GitHub stars)",
@@ -18053,6 +18317,41 @@
     "navigateBefore": "https://www.reuters.com"
   },
   {
+    "site": "rfc",
+    "name": "rfc",
+    "description": "Single IETF RFC metadata (title, abstract, working group, authors, std level)",
+    "access": "read",
+    "domain": "datatracker.ietf.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "number",
+        "type": "int",
+        "required": true,
+        "positional": true,
+        "help": "RFC number (e.g. 9000, 791, 2616)"
+      }
+    ],
+    "columns": [
+      "rfc",
+      "title",
+      "state",
+      "stdLevel",
+      "group",
+      "groupType",
+      "pages",
+      "published",
+      "authors",
+      "abstract",
+      "rfcEditorUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rfc/rfc.js",
+    "sourceFile": "rfc/rfc.js"
+  },
+  {
     "site": "rubygems",
     "name": "gem",
     "description": "Fetch a RubyGems.org gem's metadata (version, downloads, license, links)",
@@ -20161,6 +20460,92 @@
     "modulePath": "toutiao/articles.js",
     "sourceFile": "toutiao/articles.js",
     "navigateBefore": "https://mp.toutiao.com"
+  },
+  {
+    "site": "tvmaze",
+    "name": "search",
+    "description": "TVmaze TV show search by title (returns id, name, network, premiered/ended, rating)",
+    "access": "read",
+    "domain": "tvmaze.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "TV show title or fragment to search for"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows to return (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "name",
+      "type",
+      "language",
+      "genres",
+      "status",
+      "premiered",
+      "ended",
+      "network",
+      "rating",
+      "matchScore",
+      "summary",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "tvmaze/search.js",
+    "sourceFile": "tvmaze/search.js"
+  },
+  {
+    "site": "tvmaze",
+    "name": "show",
+    "description": "Single TVmaze TV show detail by id (network, schedule, rating, IMDB/TheTVDB cross-refs)",
+    "access": "read",
+    "domain": "tvmaze.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "int",
+        "required": true,
+        "positional": true,
+        "help": "TVmaze show id (positive integer)"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "type",
+      "language",
+      "genres",
+      "status",
+      "premiered",
+      "ended",
+      "runtime",
+      "averageRuntime",
+      "network",
+      "country",
+      "schedule",
+      "rating",
+      "imdb",
+      "thetvdb",
+      "officialSite",
+      "summary",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "tvmaze/show.js",
+    "sourceFile": "tvmaze/show.js"
   },
   {
     "site": "twitter",

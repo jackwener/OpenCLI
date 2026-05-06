@@ -122,6 +122,12 @@ Run `opencli list` for the live registry.
 | **[packagist](./browser/packagist.md)**           | `search` `package`                                                                                                                             | 🌐 Public    |
 | **[maven](./browser/maven.md)**                   | `search` `artifact`                                                                                                                            | 🌐 Public    |
 | **[openalex](./browser/openalex.md)**             | `search` `work`                                                                                                                                | 🌐 Public    |
+| **[defillama](./browser/defillama.md)**           | `protocols` `protocol`                                                                                                                         | 🌐 Public    |
+| **[endoflife](./browser/endoflife.md)**           | `product`                                                                                                                                      | 🌐 Public    |
+| **[osv](./browser/osv.md)**                       | `vulnerability` `query`                                                                                                                        | 🌐 Public    |
+| **[goproxy](./browser/goproxy.md)**               | `module` `versions`                                                                                                                            | 🌐 Public    |
+| **[tvmaze](./browser/tvmaze.md)**                 | `search` `show`                                                                                                                                | 🌐 Public    |
+| **[rfc](./browser/rfc.md)**                       | `rfc`                                                                                                                                          | 🌐 Public    |
 
 ## Desktop Adapters
 
