@@ -32,7 +32,7 @@ function boolish(value) {
 
 function normalizeFrameMode(value) {
     const mode = String(value || 'same-origin').toLowerCase();
-    if (['same-origin', 'none'].includes(mode)) return mode;
+    if (['same-origin', 'all-same-origin', 'none'].includes(mode)) return mode;
     return 'same-origin';
 }
 
@@ -289,7 +289,7 @@ function buildRenderAwareExtractorJs(options) {
         const getFrameDescription = (frame, fallbackIndex) => frameDescriptions.get(frame) || describeFrame(frame, fallbackIndex);
         result.diagnostics.frames = allFrames.map(frame => frameDescriptions.get(frame));
 
-        if (frameMode === 'same-origin') {
+        if (frameMode === 'same-origin' || frameMode === 'all-same-origin') {
           allFrames.forEach((frame, index) => {
             const insideContent = contentEl.contains(frame);
             const cloned = insideContent ? clonedFrameByOriginal.get(frame) : null;
@@ -300,7 +300,7 @@ function buildRenderAwareExtractorJs(options) {
               const doc = frame.contentDocument;
               if (!doc?.body) return;
               const frameBody = doc.body.cloneNode(true);
-              if (!insideContent && !shouldIncludeExternalFrame(frameBody)) return;
+              if (frameMode !== 'all-same-origin' && !insideContent && !shouldIncludeExternalFrame(frameBody)) return;
               const section = buildFrameSection(frameBody, desc, frame.getAttribute('src') || ('#' + index));
               if (insideContent) cloned.replaceWith(section);
               else clone.appendChild(section);
@@ -406,7 +406,7 @@ const command = cli({
         { name: 'wait', type: 'int', default: 3, help: 'Seconds to wait after page load' },
         { name: 'wait-for', valueRequired: true, help: 'CSS selector to wait for in the main document or same-origin iframes' },
         { name: 'wait-until', default: 'domstable', choices: ['domstable', 'networkidle'], help: 'Readiness policy after navigation: domstable or networkidle' },
-        { name: 'frames', default: 'same-origin', choices: ['same-origin', 'none'], help: 'Iframe handling mode: same-origin or none' },
+        { name: 'frames', default: 'same-origin', choices: ['same-origin', 'all-same-origin', 'none'], help: 'Iframe handling mode: relevant same-origin, all-same-origin, or none' },
         { name: 'diagnose', type: 'boolean', default: false, help: 'Print render diagnostics (frames, empty containers, XHR/API-like requests) to stderr' },
         { name: 'stdout', type: 'boolean', default: false, help: 'Print markdown to stdout instead of saving to a file' },
     ],

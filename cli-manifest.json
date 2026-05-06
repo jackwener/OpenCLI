@@ -22789,9 +22789,10 @@
         "type": "str",
         "default": "same-origin",
         "required": false,
-        "help": "Iframe handling mode: same-origin or none",
+        "help": "Iframe handling mode: relevant same-origin, all-same-origin, or none",
         "choices": [
           "same-origin",
+          "all-same-origin",
           "none"
         ]
       },
