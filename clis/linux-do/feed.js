@@ -355,7 +355,7 @@ export const LINUX_DO_FEED_ARGS = [
         choices: ['all', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'],
     },
 ];
-async function executeLinuxDoFeed(page, kwargs) {
+async function runLinuxDoFeed(page, kwargs) {
     const limit = (kwargs.limit || 20);
     await ensureLinuxDoHome(page);
     const request = await resolveFeedRequest(page, kwargs);
@@ -372,7 +372,7 @@ cli({
     browser: true,
     columns: ['title', 'replies', 'created', 'likes', 'views', 'url'],
     args: LINUX_DO_FEED_ARGS,
-    func: executeLinuxDoFeed,
+    func: runLinuxDoFeed,
 });
 export const __test__ = {
     resetMetadataCaches() {
