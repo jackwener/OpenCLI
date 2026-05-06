@@ -35,9 +35,13 @@ cli({
     func: async (args) => {
         const query = requireString(args.query, 'query');
         const limit = requireBoundedInt(args.limit, 5, 25);
-        // openfda uses Lucene-style search; quoted phrase across brand or generic.
-        const search = `openfda.brand_name:"${query}"+openfda.generic_name:"${query}"`;
-        const url = `${OPENFDA_BASE}/drug/label.json?search=${encodeURIComponent(search)}&limit=${limit}`;
+        const brand = `openfda.brand_name:"${query}"`;
+        const generic = `openfda.generic_name:"${query}"`;
+        // URLSearchParams encodes spaces/operators in ways openFDA's Lucene
+        // parser handles poorly. Keep the OR literal visible and encode only
+        // each clause, matching food-recall's manual +AND+ handling.
+        const search = `${encodeURIComponent(brand)}+OR+${encodeURIComponent(generic)}`;
+        const url = `${OPENFDA_BASE}/drug/label.json?search=${search}&limit=${limit}`;
         const body = await openfdaFetch(url, 'openfda drug-label');
         const list = Array.isArray(body?.results) ? body.results : [];
         if (!list.length) {

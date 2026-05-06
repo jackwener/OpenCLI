@@ -67,6 +67,18 @@ describe('openfda drug-label', () => {
             pharmClass: 'Nonsteroidal Anti-inflammatory Drug [EPC]',
         });
     });
+
+    it('uses brand OR generic search instead of requiring both fields to match', async () => {
+        const calls = [];
+        global.fetch = vi.fn((url) => {
+            calls.push(url);
+            return Promise.resolve(new Response(JSON.stringify({ results: [sampleLabel] }), { status: 200 }));
+        });
+        await cmd.func({ query: 'tylenol', limit: 1 });
+        expect(calls[0]).toContain('+OR+');
+        expect(calls[0]).toContain('openfda.brand_name');
+        expect(calls[0]).toContain('openfda.generic_name');
+    });
 });
 
 describe('openfda food-recall', () => {
