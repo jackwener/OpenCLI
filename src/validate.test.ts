@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { getRegisteredStepNames, registerStep } from './pipeline/registry.js';
-import { cli, getRegistry } from './registry.js';
+import { cli, getRegistry, Strategy } from './registry.js';
 import { validateClisWithTarget } from './validate.js';
 
 describe('validate.ts pipeline step allowlist', () => {
@@ -35,7 +35,7 @@ describe('validate.ts pipeline step allowlist', () => {
       name: 'all-steps',
       access: 'read',
       browser: false,
-      strategy: 'public' as never,
+      strategy: Strategy.PUBLIC,
       args: [],
       pipeline: allRegisteredSteps.map(stepName => ({ [stepName]: {} })),
       func: async () => [],
@@ -70,7 +70,7 @@ describe('validate.ts pipeline step allowlist', () => {
         name: 'uses-custom',
         access: 'read',
         browser: false,
-        strategy: 'public' as never,
+        strategy: Strategy.PUBLIC,
         args: [],
         pipeline: [{ [customStep]: {} }],
         func: async () => [],
