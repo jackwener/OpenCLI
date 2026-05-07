@@ -327,7 +327,7 @@ describe('buildNotificationsScript — IIFE invariants', () => {
     it('contains an auth-redirect guard before the DOM walk', () => {
         const script = buildNotificationsScript(15);
         expect(script).toMatch(/AUTH_REQUIRED.*facebook/i);
-        expect(script).toContain('/(^|\\/)(login|checkpoint)(\\/|$)/i');
+        expect(script).toContain('/(^|\\/)(login(?:\\.php)?|checkpoint)(\\/|$)/i');
     });
 
     it('does NOT contain the legacy silent-truncation slice/substring — anti-pattern regression guard', () => {

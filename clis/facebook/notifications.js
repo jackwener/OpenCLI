@@ -238,7 +238,7 @@ export function buildNotificationsScript(limit) {
   const FB_HOST = ${JSON.stringify(FB_HOST)};
   const MARK_AS_READ_PREFIXES = ${JSON.stringify(MARK_AS_READ_PREFIXES)};
   const UNREAD_BADGE_LABELS = ${JSON.stringify(UNREAD_BADGE_LABELS)};
-  if (/(^|\\/)(login|checkpoint)(\\/|$)/i.test(window.location.pathname || '')) {
+  if (/(^|\\/)(login(?:\\.php)?|checkpoint)(\\/|$)/i.test(window.location.pathname || '')) {
     throw new Error('AUTH_REQUIRED: facebook.com redirected to login');
   }
   ${stripMarkAsReadPrefix.toString()}
