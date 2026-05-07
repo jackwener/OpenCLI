@@ -127,6 +127,7 @@ export function cli(opts: CliOptions): CliCommand {
     aliases: opts.aliases,
     description: opts.description ?? '',
     access: opts.access,
+    example: opts.example,
     domain: opts.domain,
     strategy: opts.strategy,
     browser: opts.browser,
