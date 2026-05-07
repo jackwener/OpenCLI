@@ -135,6 +135,7 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
         deprecated: entry.deprecated,
         replacedBy: entry.replacedBy,
         navigateBefore: entry.navigateBefore,
+        browserSession: entry.browserSession,
         _lazy: true,
         _modulePath: modulePath,
       };

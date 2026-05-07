@@ -31,7 +31,7 @@ const BUILTIN_CLIS = path.join(findPackageRoot(__filename), 'clis');
 const USER_CLIS = path.join(os.homedir(), '.opencli', 'clis');
 
 // ── Session lifecycle flags ──────────────────────────────────────────────
-// `--live` / `--focus` are top-level-ish toggles that tweak the automation
+// `--live` / `--focus` / `--reuse` are top-level-ish toggles that tweak the automation
 // window's lifecycle. We strip them from argv before Commander runs so they
 // can be placed anywhere and work on any subcommand (adapter or browser).
 {
@@ -44,6 +44,19 @@ const USER_CLIS = path.join(os.homedir(), '.opencli', 'clis');
   if (focusIdx !== -1) {
     process.env.OPENCLI_WINDOW_FOCUSED = '1';
     process.argv.splice(focusIdx, 1);
+  }
+  const reuseIdx = process.argv.findIndex(arg => arg === '--reuse' || arg.startsWith('--reuse='));
+  if (reuseIdx !== -1) {
+    const arg = process.argv[reuseIdx];
+    const value = arg.startsWith('--reuse=')
+      ? arg.slice('--reuse='.length)
+      : process.argv[reuseIdx + 1];
+    if (value !== 'none' && value !== 'site') {
+      process.stderr.write(`--reuse must be one of: none, site. Received: "${value ?? ''}"\n`);
+      process.exit(EXIT_CODES.USAGE_ERROR);
+    }
+    process.env.OPENCLI_BROWSER_REUSE = value;
+    process.argv.splice(reuseIdx, arg.startsWith('--reuse=') ? 1 : 2);
   }
 }
 

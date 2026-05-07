@@ -27,6 +27,17 @@ export type CommandArgs = Record<string, any>;
 export type BrowserCommandFunc = (page: IPage, kwargs: CommandArgs, debug?: boolean) => Promise<unknown>;
 export type NonBrowserCommandFunc = (kwargs: CommandArgs, debug?: boolean) => Promise<unknown>;
 export type CommandAccess = 'read' | 'write';
+export type BrowserSessionReuse = 'none' | 'site';
+
+export interface BrowserSessionOptions {
+  /**
+   * Control whether browser-backed adapter commands reuse a stable tab lease.
+   *
+   * - `none`: one-shot workspace per command execution (default)
+   * - `site`: all commands for this site share `site:<site>` until idle expiry
+   */
+  reuse?: BrowserSessionReuse;
+}
 
 interface BaseCliCommand {
   site: string;
@@ -65,6 +76,8 @@ interface BaseCliCommand {
    * Adapter authors can set this explicitly to override the strategy-based default.
    */
   navigateBefore?: boolean | string;
+  /** Browser session lifecycle defaults for adapter commands. */
+  browserSession?: BrowserSessionOptions;
   /** Override the default CLI output format when the user does not pass -f/--format. */
   defaultFormat?: 'table' | 'plain' | 'json' | 'yaml' | 'yml' | 'md' | 'markdown' | 'csv';
 }
@@ -138,6 +151,7 @@ export function cli(opts: CliOptions): CliCommand {
     deprecated: opts.deprecated,
     replacedBy: opts.replacedBy,
     navigateBefore: opts.navigateBefore,
+    browserSession: opts.browserSession,
     defaultFormat: opts.defaultFormat,
   };
 
@@ -172,6 +186,7 @@ export function strategyLabel(cmd: CliCommand): string {
  */
 function normalizeCommand(cmd: RawCliCommand): CliCommand {
   assertCommandAccess(cmd);
+  assertBrowserSessionOptions(cmd);
 
   const strategy = cmd.strategy ?? (cmd.browser === false ? Strategy.PUBLIC : Strategy.COOKIE);
   const browser = cmd.browser ?? (strategy !== Strategy.PUBLIC && strategy !== Strategy.LOCAL);
@@ -197,6 +212,18 @@ function assertCommandAccess(cmd: Pick<RawCliCommand, 'site' | 'name'> & { acces
   if (cmd.access === 'read' || cmd.access === 'write') return;
   const key = `${cmd.site}/${cmd.name}`;
   throw new Error(`Command ${key} must declare access: 'read' | 'write'`);
+}
+
+function assertBrowserSessionOptions(cmd: Pick<RawCliCommand, 'site' | 'name'> & { browserSession?: unknown }): void {
+  if (cmd.browserSession === undefined) return;
+  const key = `${cmd.site}/${cmd.name}`;
+  if (cmd.browserSession === null || typeof cmd.browserSession !== 'object' || Array.isArray(cmd.browserSession)) {
+    throw new Error(`Command ${key} browserSession must be an object`);
+  }
+  const reuse = (cmd.browserSession as BrowserSessionOptions).reuse;
+  if (reuse !== undefined && reuse !== 'none' && reuse !== 'site') {
+    throw new Error(`Command ${key} browserSession.reuse must be one of: none, site`);
+  }
 }
 
 export function registerCommand(cmd: RawCliCommand): void {

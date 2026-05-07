@@ -52,6 +52,7 @@ export function serializeCommand(cmd: CliCommand) {
     example: formatCommandExample(cmd),
     deprecated: cmd.deprecated ?? null,
     replacedBy: cmd.replacedBy ?? null,
+    browserSession: cmd.browserSession ?? null,
   };
 }
 

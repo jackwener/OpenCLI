@@ -9967,7 +9967,10 @@
     "type": "js",
     "modulePath": "grok/ask.js",
     "sourceFile": "grok/ask.js",
-    "navigateBefore": "https://grok.com"
+    "navigateBefore": "https://grok.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "hackernews",

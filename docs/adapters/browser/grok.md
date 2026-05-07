@@ -48,7 +48,8 @@ opencli grok image "a watercolor lighthouse on a cliff" --out /tmp/grok-img --ti
 - `opencli grok ask` keeps the upstream/default behavior intact.
 - `opencli grok ask --web` switches to the newer hardened consumer-web implementation.
 - The `--web` path adds stricter composer detection, clearer blocked/session-gated hints, and waits for a stabilized assistant bubble before returning.
-- `opencli grok image` reuses the existing browser-backed Grok session, waits for the latest assistant image bubble to stabilize, and can optionally download the resulting images through the authenticated page context.
+- `opencli grok ask` and `opencli grok image` default to site-level browser tab reuse, so repeated Grok commands continue in the same Grok page. Pass `--reuse none` for a one-shot tab.
+- `opencli grok image` waits for the latest assistant image bubble to stabilize and can optionally download the resulting images through the authenticated page context.
 
 ## Prerequisites
 
