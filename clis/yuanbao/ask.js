@@ -1,7 +1,16 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { htmlToMarkdown } from '@jackwener/opencli/utils';
 import { ArgumentError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
-import { YUANBAO_DOMAIN, IS_VISIBLE_JS, authRequired, isOnYuanbao, ensureYuanbaoPage, hasLoginGate } from './shared.js';
+import {
+    YUANBAO_DOMAIN,
+    IS_VISIBLE_JS,
+    authRequired,
+    isOnYuanbao,
+    ensureYuanbaoPage,
+    hasLoginGate,
+    normalizeBooleanFlag,
+    sendYuanbaoMessage,
+} from './shared.js';
 const YUANBAO_RESPONSE_POLL_INTERVAL_SECONDS = 2;
 const YUANBAO_MIN_WAIT_MS = 8_000;
 const YUANBAO_STABLE_POLLS_REQUIRED = 3;
@@ -11,14 +20,6 @@ function sendFailure(reason, detail) {
 }
 function normalizeText(value) {
     return typeof value === 'string' ? value.trim() : '';
-}
-function normalizeBooleanFlag(value, fallback) {
-    if (typeof value === 'boolean')
-        return value;
-    if (value == null || value === '')
-        return fallback;
-    const normalized = String(value).trim().toLowerCase();
-    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
 }
 export function convertYuanbaoHtmlToMarkdown(value) {
     return htmlToMarkdown(value, (td) => {
@@ -271,59 +272,6 @@ async function setYuanbaoDeepThink(page, enabled) {
     if (button instanceof HTMLElement) button.click();
   })()`);
     await page.wait(0.5);
-}
-async function sendYuanbaoMessage(page, prompt) {
-    return await page.evaluate(`(async () => {
-    const waitFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    ${IS_VISIBLE_JS}
-
-    const composer = Array.from(document.querySelectorAll('.ql-editor[contenteditable="true"], .ql-editor, [contenteditable="true"]'))
-      .find(isVisible);
-
-    if (!(composer instanceof HTMLElement)) {
-      return {
-        ok: false,
-        reason: 'Yuanbao composer was not found.',
-      };
-    }
-
-    try {
-      composer.focus();
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(composer);
-      range.collapse(false);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      composer.textContent = '';
-      document.execCommand('insertText', false, ${JSON.stringify(prompt)});
-      composer.dispatchEvent(new InputEvent('input', { bubbles: true, data: ${JSON.stringify(prompt)}, inputType: 'insertText' }));
-      await waitFor(200);
-    } catch (error) {
-      return {
-        ok: false,
-        reason: 'Failed to insert the prompt into the Yuanbao composer.',
-        detail: error instanceof Error ? error.message : String(error),
-      };
-    }
-
-    const submit = Array.from(document.querySelectorAll('a[class*="send-btn"], button[class*="send-btn"]'))
-      .find((node) => {
-        if (!(node instanceof HTMLElement) || !isVisible(node)) return false;
-        const className = node.className || '';
-        if (typeof className === 'string' && className.includes('disabled')) return false;
-        return true;
-      });
-
-    if (submit instanceof HTMLElement) {
-      submit.click();
-      return { ok: true, action: 'click' };
-    }
-
-    composer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
-    composer.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
-    return { ok: true, action: 'enter' };
-  })()`);
 }
 async function waitForYuanbaoResponse(page, baselineAssistantCount, beforeLines, prompt, timeoutSeconds) {
     const startTime = Date.now();

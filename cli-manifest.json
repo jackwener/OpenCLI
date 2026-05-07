@@ -26805,6 +26805,67 @@
   },
   {
     "site": "yuanbao",
+    "name": "detail",
+    "description": "Open a Yuanbao conversation by ID and read its messages",
+    "access": "read",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full https://yuanbao.tencent.com/chat/<agentId>/<convId> URL or \"<agentId>/<convId>\" pair (a UUID alone is not enough — Yuanbao requires the agent slug)"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/detail.js",
+    "sourceFile": "yuanbao/detail.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "yuanbao",
+    "name": "history",
+    "description": "List recent Yuanbao conversations from the sidebar (requires login)",
+    "access": "read",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max conversations to list (sidebar virtual scroll caps actual count)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "AgentId",
+      "SessionId",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/history.js",
+    "sourceFile": "yuanbao/history.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "yuanbao",
     "name": "new",
     "description": "Start a new conversation in Yuanbao web chat",
     "access": "read",
@@ -26819,6 +26880,89 @@
     "type": "js",
     "modulePath": "yuanbao/new.js",
     "sourceFile": "yuanbao/new.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "yuanbao",
+    "name": "read",
+    "description": "Read messages in the current Yuanbao conversation",
+    "access": "read",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/read.js",
+    "sourceFile": "yuanbao/read.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "yuanbao",
+    "name": "send",
+    "description": "Fire-and-forget: send a prompt to Yuanbao without waiting for the reply",
+    "access": "write",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send to Yuanbao"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Prompt"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/send.js",
+    "sourceFile": "yuanbao/send.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "yuanbao",
+    "name": "status",
+    "description": "Check Yuanbao page availability, login state, current session and model",
+    "access": "read",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Login",
+      "Model",
+      "ModelId",
+      "AgentId",
+      "SessionId",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/status.js",
+    "sourceFile": "yuanbao/status.js",
     "navigateBefore": false,
     "browserSession": {
       "reuse": "site"
