@@ -108,7 +108,13 @@ export function parseQianwenSessionId(input) {
     if (!raw) {
         throw new ArgumentError('id', 'must be a non-empty session ID or qianwen.com chat URL');
     }
-    const urlMatch = raw.match(/qianwen\.com\/chat\/([a-f0-9]{32})/i);
+    // Anchor the right-hand side so a 33+ hex URL does not silently truncate
+    // to its first 32 chars. Acceptable terminators: end-of-string, path slash,
+    // query string, or fragment. Without the boundary,
+    // `https://www.qianwen.com/chat/<33 hex>` would parse as a valid 32-char
+    // ID instead of being rejected — opening the wrong conversation is a
+    // worse failure mode than throwing.
+    const urlMatch = raw.match(/qianwen\.com\/chat\/([a-f0-9]{32})(?:[/?#]|$)/i);
     const candidate = urlMatch ? urlMatch[1] : raw;
     if (!QIANWEN_SESSION_ID_RE.test(candidate)) {
         throw new ArgumentError(

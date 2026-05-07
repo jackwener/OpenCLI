@@ -37,5 +37,9 @@ describe('qwen parseQianwenSessionId', () => {
         expect(() => parseQianwenSessionId('abcd1234ef567890abcd1234ef5678900')).toThrow(ArgumentError);
         // URL with the wrong path shape must not silently fall through.
         expect(() => parseQianwenSessionId('https://www.qianwen.com/somewhere/else')).toThrow(ArgumentError);
+        // URL embedding a 33+ hex tail must not silently truncate to 32 chars
+        // and open the wrong conversation.
+        expect(() => parseQianwenSessionId(`https://www.qianwen.com/chat/${id}0`)).toThrow(ArgumentError);
+        expect(() => parseQianwenSessionId(`https://www.qianwen.com/chat/${id}abc`)).toThrow(ArgumentError);
     });
 });
