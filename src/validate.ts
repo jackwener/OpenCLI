@@ -1,9 +1,9 @@
 /** Validate CLI definitions from the registry (JS-first). */
 import { getRegistry, fullName, type CliCommand, type InternalCliCommand } from './registry.js';
 
-/** All recognized pipeline step names */
+/** All recognized pipeline step names — must stay in sync with src/pipeline/registry.ts */
 const KNOWN_STEP_NAMES = new Set([
-  'navigate', 'click', 'type', 'wait', 'press', 'snapshot',
+  'navigate', 'click', 'type', 'fill', 'wait', 'press', 'snapshot',
   'fetch', 'evaluate',
   'select', 'map', 'filter', 'sort', 'limit',
   'intercept', 'tap', 'download',
