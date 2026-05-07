@@ -102,10 +102,8 @@ cli({
                 '&page=' + page +
                 '&starttime=' + starttime +
                 '&endtime=' + endtime +
-                '&hasori=' + (hasRetweet ? 1 : 1) +
+                '&hasori=1' +
                 '&hasret=' + hasRetweet +
-                '&hastext=1' +
-                '&haspic=1' +
                 '&hasvideo=' + hasVideo +
                 '&hasmusic=' + hasMusic;
 
