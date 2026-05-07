@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { normalizeBooleanFlag, parseGrokSessionId } from './utils.js';
+import { isOnGrok, normalizeBooleanFlag, parseGrokSessionId } from './utils.js';
 
 describe('grok parseGrokSessionId', () => {
     const id = '7c4197f2-10a1-4ebb-a84a-fea89f4f1d06';
@@ -48,6 +48,31 @@ describe('grok parseGrokSessionId', () => {
         // and open the wrong conversation.
         expect(() => parseGrokSessionId(`https://grok.com/c/${id}0`)).toThrow(ArgumentError);
         expect(() => parseGrokSessionId(`https://grok.com/c/${id}-extra`)).toThrow(ArgumentError);
+    });
+});
+
+describe('grok isOnGrok', () => {
+    const fakePage = (url) => ({
+        evaluate: () => url instanceof Error ? Promise.reject(url) : Promise.resolve(url),
+    });
+
+    it('returns true for grok.com URLs', async () => {
+        expect(await isOnGrok(fakePage('https://grok.com/'))).toBe(true);
+        expect(await isOnGrok(fakePage('https://grok.com/c/abc'))).toBe(true);
+    });
+
+    it('returns true for grok.com subdomains', async () => {
+        expect(await isOnGrok(fakePage('https://api.grok.com/v1'))).toBe(true);
+    });
+
+    it('returns false for non-grok domains and rejects substring matches', async () => {
+        expect(await isOnGrok(fakePage('https://fakegrok.com/'))).toBe(false);
+        expect(await isOnGrok(fakePage('https://example.com/?next=grok.com'))).toBe(false);
+        expect(await isOnGrok(fakePage('about:blank'))).toBe(false);
+    });
+
+    it('returns false when evaluate throws (detached tab)', async () => {
+        expect(await isOnGrok(fakePage(new Error('detached')))).toBe(false);
     });
 });
 

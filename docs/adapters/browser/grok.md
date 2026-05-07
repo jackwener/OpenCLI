@@ -39,9 +39,6 @@ opencli grok ask "Explain quantum computing in simple terms"
 # Ask in a brand-new chat
 opencli grok ask "Hello" --new true
 
-# Use the explicit consumer-web path (TipTap composer + Submit button)
-opencli grok ask "Explain quantum computing" --web true --timeout 180
-
 # Fire-and-forget (don't wait for the reply)
 opencli grok send "continue the previous answer"
 
@@ -61,7 +58,6 @@ opencli grok image "a cyberpunk mechanical owl, neon purple and blue" --new true
 | `prompt` | Prompt to send (required positional) |
 | `--new` | Start a new chat before sending (default: `false`) |
 | `--timeout` | (`ask` only) Max seconds to wait for the reply (default: `120`) |
-| `--web` | (`ask` only) Use the explicit grok.com consumer-web composer path (default: `false`) |
 
 ### `read`
 

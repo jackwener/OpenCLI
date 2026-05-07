@@ -1,54 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { __test__ } from './ask.js';
+
 describe('grok ask helpers', () => {
-    describe('isOnGrok', () => {
-        const fakePage = (url) => ({ evaluate: () => url instanceof Error ? Promise.reject(url) : Promise.resolve(url) });
-        it('returns true for grok.com URLs', async () => {
-            expect(await __test__.isOnGrok(fakePage('https://grok.com/'))).toBe(true);
-            expect(await __test__.isOnGrok(fakePage('https://grok.com/chat/abc123'))).toBe(true);
+    describe('getBaselineLastAssistantId', () => {
+        const fakePage = (bubbles) => ({
+            // getMessageBubbles in utils.js drives a page.evaluate; in tests we
+            // route directly to the in-memory bubble array.
+            evaluate: () => Promise.resolve(bubbles),
         });
-        it('returns true for grok.com subdomains', async () => {
-            expect(await __test__.isOnGrok(fakePage('https://api.grok.com/v1'))).toBe(true);
+
+        it('returns the id of the most recent Assistant bubble, ignoring later User turns', async () => {
+            const bubbles = [
+                { id: 'a1', role: 'Assistant', text: 'first answer', html: '' },
+                { id: 'u1', role: 'User', text: 'follow-up', html: '' },
+                { id: 'a2', role: 'Assistant', text: 'second answer', html: '' },
+                { id: 'u2', role: 'User', text: 'newest user turn', html: '' },
+            ];
+            expect(await __test__.getBaselineLastAssistantId(fakePage(bubbles))).toBe('a2');
         });
-        it('returns false for non-grok domains', async () => {
-            expect(await __test__.isOnGrok(fakePage('https://fakegrok.com/'))).toBe(false);
-            expect(await __test__.isOnGrok(fakePage('https://example.com/?next=grok.com'))).toBe(false);
-            expect(await __test__.isOnGrok(fakePage('about:blank'))).toBe(false);
-        });
-        it('returns false when evaluate throws (detached tab)', async () => {
-            expect(await __test__.isOnGrok(fakePage(new Error('detached')))).toBe(false);
-        });
-    });
-    it('normalizes boolean flags for explicit web routing', () => {
-        expect(__test__.normalizeBooleanFlag(true)).toBe(true);
-        expect(__test__.normalizeBooleanFlag('true')).toBe(true);
-        expect(__test__.normalizeBooleanFlag('1')).toBe(true);
-        expect(__test__.normalizeBooleanFlag('yes')).toBe(true);
-        expect(__test__.normalizeBooleanFlag('on')).toBe(true);
-        expect(__test__.normalizeBooleanFlag(false)).toBe(false);
-        expect(__test__.normalizeBooleanFlag('false')).toBe(false);
-        expect(__test__.normalizeBooleanFlag(undefined)).toBe(false);
-    });
-    it('ignores baseline bubbles and the echoed prompt when choosing the latest assistant candidate', () => {
-        const candidate = __test__.pickLatestAssistantCandidate(['older assistant answer', 'Prompt text', 'Assistant draft', 'Assistant final'], 1, 'Prompt text');
-        expect(candidate).toBe('Assistant final');
-    });
-    it('returns empty when only the echoed prompt appeared after send', () => {
-        const candidate = __test__.pickLatestAssistantCandidate(['older assistant answer', 'Prompt text'], 1, 'Prompt text');
-        expect(candidate).toBe('');
-    });
-    it('tracks stabilization by incrementing repeats and resetting on changes', () => {
-        expect(__test__.updateStableState('', 0, 'First chunk')).toEqual({
-            previousText: 'First chunk',
-            stableCount: 0,
-        });
-        expect(__test__.updateStableState('First chunk', 0, 'First chunk')).toEqual({
-            previousText: 'First chunk',
-            stableCount: 1,
-        });
-        expect(__test__.updateStableState('First chunk', 1, 'Second chunk')).toEqual({
-            previousText: 'Second chunk',
-            stableCount: 0,
+
+        it('returns empty string when no Assistant bubble exists yet (fresh chat)', async () => {
+            expect(await __test__.getBaselineLastAssistantId(fakePage([]))).toBe('');
+            expect(await __test__.getBaselineLastAssistantId(fakePage([
+                { id: 'u1', role: 'User', text: 'hello', html: '' },
+            ]))).toBe('');
         });
     });
 });
