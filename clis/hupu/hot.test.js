@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
-import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import {
     HOT_LIMIT_DEFAULT,
@@ -183,6 +183,13 @@ describe('hupu/hot — getHupuHot func wiring', () => {
         };
     }
 
+    function createFailingPageMock(error) {
+        return {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockRejectedValue(error),
+        };
+    }
+
     it('validates --limit upfront BEFORE calling page.goto (no wasted navigation)', async () => {
         const page = createPageMock([]);
         await expect(hotCommand.func(page, { limit: 0 })).rejects.toThrow(ArgumentError);
@@ -193,6 +200,12 @@ describe('hupu/hot — getHupuHot func wiring', () => {
     it('throws EmptyResultError when the page returns an empty row list', async () => {
         const page = createPageMock([]);
         await expect(hotCommand.func(page, { limit: 20 })).rejects.toThrow(EmptyResultError);
+        expect(page.goto).toHaveBeenCalledTimes(1);
+    });
+
+    it('wraps page.evaluate failures as CommandExecutionError', async () => {
+        const page = createFailingPageMock(new Error('selector crashed'));
+        await expect(hotCommand.func(page, { limit: 20 })).rejects.toThrow(CommandExecutionError);
         expect(page.goto).toHaveBeenCalledTimes(1);
     });
 
