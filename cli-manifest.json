@@ -20679,7 +20679,7 @@
   {
     "site": "tiktok",
     "name": "explore",
-    "description": "Get trending TikTok videos from explore page",
+    "description": "Get trending TikTok videos from the recommend feed via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20690,14 +20690,22 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of videos"
+        "help": "Number of videos to return (max 120)"
       }
     ],
     "columns": [
-      "rank",
+      "index",
+      "id",
       "author",
-      "views",
-      "url"
+      "url",
+      "cover",
+      "title",
+      "desc",
+      "plays",
+      "likes",
+      "comments",
+      "shares",
+      "createTime"
     ],
     "type": "js",
     "modulePath": "tiktok/explore.js",
@@ -20733,7 +20741,7 @@
   {
     "site": "tiktok",
     "name": "following",
-    "description": "List accounts you follow on TikTok",
+    "description": "List accounts the logged-in user follows on TikTok via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20744,13 +20752,18 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of accounts"
+        "help": "Number of accounts (max 200)"
       }
     ],
     "columns": [
       "index",
       "username",
-      "name"
+      "name",
+      "secUid",
+      "verified",
+      "followers",
+      "following",
+      "url"
     ],
     "type": "js",
     "modulePath": "tiktok/following.js",
@@ -20760,7 +20773,7 @@
   {
     "site": "tiktok",
     "name": "friends",
-    "description": "Get TikTok friend suggestions",
+    "description": "Get TikTok friend / who-to-follow suggestions via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20771,13 +20784,18 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of suggestions"
+        "help": "Number of suggestions (max 100)"
       }
     ],
     "columns": [
       "index",
       "username",
-      "name"
+      "name",
+      "secUid",
+      "verified",
+      "followers",
+      "following",
+      "url"
     ],
     "type": "js",
     "modulePath": "tiktok/friends.js",
@@ -20814,7 +20832,7 @@
   {
     "site": "tiktok",
     "name": "live",
-    "description": "Browse live streams on TikTok",
+    "description": "Browse TikTok live streams via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20825,13 +20843,17 @@
         "type": "int",
         "default": 10,
         "required": false,
-        "help": "Number of streams"
+        "help": "Number of streams (max 60)"
       }
     ],
     "columns": [
       "index",
       "streamer",
+      "name",
+      "title",
       "viewers",
+      "likes",
+      "secUid",
       "url"
     ],
     "type": "js",
@@ -20842,7 +20864,7 @@
   {
     "site": "tiktok",
     "name": "notifications",
-    "description": "Get TikTok notifications (likes, comments, mentions, followers)",
+    "description": "Read TikTok inbox notifications (likes, comments, mentions, followers) via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20853,7 +20875,7 @@
         "type": "int",
         "default": 15,
         "required": false,
-        "help": "Number of notifications"
+        "help": "Number of notifications (max 100)"
       },
       {
         "name": "type",
@@ -20872,7 +20894,10 @@
     ],
     "columns": [
       "index",
-      "text"
+      "id",
+      "from",
+      "text",
+      "createTime"
     ],
     "type": "js",
     "modulePath": "tiktok/notifications.js",

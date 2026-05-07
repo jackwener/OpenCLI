@@ -1193,14 +1193,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "tiktok/explore",
-    "file": "clis/tiktok/explore.js",
-    "line": 27,
-    "text": "views: a.textContent.trim() || '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "tiktok/user",
     "file": "clis/tiktok/user.js",
     "line": 32,
@@ -1363,7 +1355,7 @@
     "rule": "silent-sentinel",
     "command": "web/read",
     "file": "clis/web/read.js",
-    "line": 348,
+    "line": 378,
     "text": "lines.push(`  [frame ${frame.index}] ${frame.sameOrigin ? 'same-origin' : 'cross-origin'} ${frame.accessible ? 'accessible' : 'blocked'} text=${frame.textLength || 0} ${frame.src || '-'}`);",
     "occurrence": 0
   },
@@ -1371,7 +1363,7 @@
     "rule": "silent-sentinel",
     "command": "web/read",
     "file": "clis/web/read.js",
-    "line": 360,
+    "line": 390,
     "text": "lines.push(`  ${entry.method} ${entry.status || '-'} ${entry.contentType || '-'} ${entry.url}`);",
     "occurrence": 0
   },
@@ -1379,7 +1371,7 @@
     "rule": "silent-sentinel",
     "command": "web/read",
     "file": "clis/web/read.js",
-    "line": 354,
+    "line": 384,
     "text": "lines.push(`  ${item.scope}: ${selector} (${item.url || '-'})`);",
     "occurrence": 0
   },
@@ -1387,7 +1379,7 @@
     "rule": "silent-sentinel",
     "command": "web/read",
     "file": "clis/web/read.js",
-    "line": 345,
+    "line": 375,
     "text": "lines.push(`url: ${diag.url || '-'}`);",
     "occurrence": 0
   },
