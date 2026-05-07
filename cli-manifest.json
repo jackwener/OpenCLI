@@ -9090,7 +9090,7 @@
     "type": "js",
     "modulePath": "facebook/notifications.js",
     "sourceFile": "facebook/notifications.js",
-    "navigateBefore": "https://www.facebook.com"
+    "navigateBefore": false
   },
   {
     "site": "facebook",

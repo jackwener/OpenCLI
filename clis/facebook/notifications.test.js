@@ -51,9 +51,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const fixturePath = resolve(__dirname, '__fixtures__/notifications-page.html');
 const fixtureHtml = readFileSync(fixturePath, 'utf8');
+const manifestPath = resolve(__dirname, '../../cli-manifest.json');
 
 function loadFixtureDoc() {
     return new JSDOM(fixtureHtml, { url: 'https://www.facebook.com/notifications' }).window.document;
+}
+
+function loadManifestCommand() {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    return manifest.find(cmd => cmd.site === 'facebook' && cmd.name === 'notifications');
 }
 
 const fixtureHelpers = {
@@ -72,6 +78,7 @@ describe('facebook/notifications — registration contract', () => {
         expect(notificationsCommand.access).toBe('read');
         expect(notificationsCommand.strategy).toBe('cookie');
         expect(notificationsCommand.browser).toBe(true);
+        expect(notificationsCommand.navigateBefore).toBe(false);
     });
 
     it('exposes the seven enrichment columns in stable order', () => {
@@ -92,6 +99,12 @@ describe('facebook/notifications — registration contract', () => {
         expect(limit.type).toBe('int');
         expect(limit.default).toBe(NOTIFICATIONS_LIMIT_DEFAULT);
         expect(limit.help).toContain(String(NOTIFICATIONS_LIMIT_MAX));
+    });
+
+    it('build manifest preserves navigateBefore=false so invalid limits do not pre-nav', () => {
+        const manifestCommand = loadManifestCommand();
+        expect(manifestCommand).toBeDefined();
+        expect(manifestCommand.navigateBefore).toBe(false);
     });
 });
 

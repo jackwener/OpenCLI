@@ -315,6 +315,7 @@ export const notificationsCommand = cli({
     domain: 'www.facebook.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    navigateBefore: false,
     args: [
         {
             name: 'limit',

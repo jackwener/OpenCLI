@@ -327,6 +327,43 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
+  it('respects navigateBefore=false so adapter range validation fails before browser navigation', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const goto = vi.fn().mockResolvedValue(undefined);
+    const mockPage = {
+      closeWindow,
+      goto,
+      getCurrentUrl: vi.fn().mockResolvedValue('about:blank'),
+    } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-invalid-limit-no-prenav', access: 'read',
+      description: 'test adapter range validation can fail before pre-nav',
+      browser: true,
+      strategy: Strategy.COOKIE,
+      domain: 'www.facebook.com',
+      navigateBefore: false,
+      args: [
+        { name: 'limit', type: 'int', required: false, default: 15, help: 'Limit' },
+      ],
+      func: async (_page, args) => {
+        const limit = Number(args.limit);
+        if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+          throw new ArgumentError('--limit must be a positive integer in [1, 100]');
+        }
+        return [{ ok: true }];
+      },
+    });
+
+    await expect(executeCommand(cmd, { limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
+    expect(goto).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
   it('rejects invalid --timeout values instead of falling back to the browser default', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
