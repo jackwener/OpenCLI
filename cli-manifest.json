@@ -20716,7 +20716,7 @@
   {
     "site": "tiktok",
     "name": "comment",
-    "description": "Comment on a TikTok video",
+    "description": "Post a comment on a TikTok video",
     "access": "write",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20727,20 +20727,20 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "TikTok video URL"
+        "help": "TikTok video URL (https://www.tiktok.com/@user/video/<id>)"
       },
       {
         "name": "text",
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Comment text"
+        "help": "Comment text (≤150 chars)"
       }
     ],
     "columns": [
-      "status",
       "url",
-      "text"
+      "text",
+      "result"
     ],
     "type": "js",
     "modulePath": "tiktok/comment.js",
@@ -20826,7 +20826,7 @@
   {
     "site": "tiktok",
     "name": "follow",
-    "description": "Follow a TikTok user",
+    "description": "Follow a TikTok user by username",
     "access": "write",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20841,8 +20841,9 @@
       }
     ],
     "columns": [
-      "status",
-      "username"
+      "username",
+      "url",
+      "result"
     ],
     "type": "js",
     "modulePath": "tiktok/follow.js",
@@ -21115,7 +21116,7 @@
   {
     "site": "tiktok",
     "name": "unfollow",
-    "description": "Unfollow a TikTok user",
+    "description": "Unfollow a TikTok user by username",
     "access": "write",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -21130,8 +21131,9 @@
       }
     ],
     "columns": [
-      "status",
-      "username"
+      "username",
+      "url",
+      "result"
     ],
     "type": "js",
     "modulePath": "tiktok/unfollow.js",
