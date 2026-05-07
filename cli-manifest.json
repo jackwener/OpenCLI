@@ -10747,10 +10747,10 @@
   {
     "site": "hupu",
     "name": "hot",
-    "description": "虎扑热门帖子",
+    "description": "虎扑首页热门帖子（含 lights / replies / forum / is_hot 列）",
     "access": "read",
     "domain": "bbs.hupu.com",
-    "strategy": "cookie",
+    "strategy": "public",
     "browser": true,
     "args": [
       {
@@ -10758,19 +10758,22 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of hot posts"
+        "help": "Number of threads (1-100)"
       }
     ],
     "columns": [
       "rank",
       "tid",
       "title",
+      "lights",
+      "replies",
+      "forum",
+      "is_hot",
       "url"
     ],
     "type": "js",
     "modulePath": "hupu/hot.js",
-    "sourceFile": "hupu/hot.js",
-    "navigateBefore": "https://bbs.hupu.com"
+    "sourceFile": "hupu/hot.js"
   },
   {
     "site": "hupu",
