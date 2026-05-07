@@ -21083,7 +21083,7 @@
   {
     "site": "tiktok",
     "name": "user",
-    "description": "Get recent videos from a TikTok user",
+    "description": "Get recent videos from a TikTok user via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -21099,15 +21099,25 @@
       {
         "name": "limit",
         "type": "int",
-        "default": 10,
+        "default": 20,
         "required": false,
-        "help": "Number of videos"
+        "help": "Number of videos to return (max 120)"
       }
     ],
     "columns": [
       "index",
-      "views",
-      "url"
+      "id",
+      "source",
+      "author",
+      "url",
+      "cover",
+      "title",
+      "desc",
+      "plays",
+      "likes",
+      "comments",
+      "shares",
+      "createTime"
     ],
     "type": "js",
     "modulePath": "tiktok/user.js",

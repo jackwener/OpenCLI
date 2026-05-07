@@ -1193,14 +1193,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "tiktok/user",
-    "file": "clis/tiktok/user.js",
-    "line": 32,
-    "text": "views: a.textContent.trim() || '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "twitter/accept",
     "file": "clis/twitter/accept.js",
     "line": 75,

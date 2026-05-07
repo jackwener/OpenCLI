@@ -9,7 +9,7 @@
 | `opencli tiktok profile` | Get user profile info |
 | `opencli tiktok search` | Search videos |
 | `opencli tiktok explore` | Trending videos from explore page |
-| `opencli tiktok user` | Get recent videos from a user |
+| `opencli tiktok user` | Get recent videos from a user via page-context APIs |
 | `opencli tiktok following` | List accounts you follow |
 | `opencli tiktok friends` | Friend suggestions |
 | `opencli tiktok live` | Browse live streams |
@@ -34,6 +34,9 @@ opencli tiktok search "cooking" --limit 10
 
 # Trending explore videos
 opencli tiktok explore --limit 20
+
+# Recent videos from a user
+opencli tiktok user dictogo --limit 20
 
 # Browse live streams
 opencli tiktok live --limit 10
@@ -84,6 +87,19 @@ opencli tiktok profile --username tiktok -f json
 | `comments` | int \| null | Comment count |
 | `shares` | int \| null | Share count |
 | `createTime` | int \| null | Unix seconds when the video was posted |
+
+### `user`
+
+Same video columns as `explore`, plus:
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `source` | string | `profile-api`, `bootstrap`, or lower-authority `search-fallback` |
+
+`user` resolves the profile `secUid`, pages `/api/post/item_list/`, and uses
+exact-author `/api/search/general/full/` only as a fallback when profile data is
+short. `source` lets callers distinguish first-party profile rows from fallback
+search rows.
 
 ### `friends`
 
@@ -139,6 +155,7 @@ caps:
 | Command | Default | Max |
 |---------|--------:|----:|
 | `explore` | 20 | 120 |
+| `user` | 20 | 120 |
 | `friends` | 20 | 100 |
 | `following` | 20 | 200 |
 | `notifications` | 15 | 100 |
@@ -152,19 +169,19 @@ empty rows — callers can treat any returned row as real data.
 
 ## Implementation Notes
 
-`explore` / `friends` / `following` / `notifications` / `live` all run inside
+`explore` / `user` / `friends` / `following` / `notifications` / `live` all run inside
 the live page (`Strategy.COOKIE` + `browser: true`) and call TikTok's own
 internal JSON endpoints with `fetch(..., { credentials: 'include' })`. The
 session cookie + `msToken` come from the logged-in browser, the same way
 TikTok's web client requests them. Each command first reads the warm
 `__UNIVERSAL_DATA_FOR_REHYDRATION__` snapshot for fast first-page results, then
 falls back to the corresponding API endpoint when more rows are requested
-(`/api/recommend/item_list/`, `/api/recommend/user/`, `/api/user/list/`,
+(`/api/recommend/item_list/`, `/api/user/detail/`, `/api/post/item_list/`,
+`/api/search/general/full/`, `/api/recommend/user/`, `/api/user/list/`,
 `/api/notice/multi/`, `/api/live/discover/get/`).
 
-This refactor follows the same baseline as `tiktok user` (PR #1382): page-
-context API call, typed errors, full numeric stats columns, no DOM-link
-scraping.
+This refactor applies the page-context API baseline across TikTok read commands:
+typed errors, full numeric stats columns, and no DOM-link scraping.
 
 ## Prerequisites
 

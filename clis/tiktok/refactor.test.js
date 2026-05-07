@@ -1,5 +1,5 @@
 // Contract tests for the Phase-3 refactor that retired the legacy DOM-link
-// scraping pattern across explore / friends / following / notifications / live.
+// scraping pattern across explore / user / friends / following / notifications / live.
 // Each adapter is now func + Strategy.COOKIE + browser:true with shared helpers
 // from utils.js — these tests pin down (a) registration metadata, (b) typed-
 // error boundary, (c) build-script invariants (no raw user-input concatenation,
@@ -17,6 +17,7 @@ import { friendsCommand, __test__ as friendsTest } from './friends.js';
 import { followingCommand, __test__ as followingTest } from './following.js';
 import { notificationsCommand, __test__ as notificationsTest } from './notifications.js';
 import { liveCommand, __test__ as liveTest } from './live.js';
+import { userCommand, __test__ as userTest } from './user.js';
 import {
     BROWSER_HELPERS,
     NOTIFICATION_TYPES,
@@ -58,6 +59,11 @@ const sampleVideoRow = {
     comments: 9,
     shares: 1,
     createTime: 1710000000,
+};
+
+const sampleUserVideoRow = {
+    ...sampleVideoRow,
+    source: 'profile-api',
 };
 
 const sampleUserRow = {
@@ -179,6 +185,55 @@ describe('tiktok/explore (page-context refactor)', () => {
         expect(script).toContain("assertTikTokApiSuccess(data, 'recommend')");
         expect(script).toContain('findUniversalData');
         expect(script).toContain('normalizeVideoItem');
+    });
+});
+
+describe('tiktok/user (page-context refactor)', () => {
+    it('registers as read-only browser COOKIE adapter with sourced video columns', () => {
+        expect(userCommand.access).toBe('read');
+        expect(userCommand.browser).toBe(true);
+        expect(userCommand.strategy).toBe('cookie');
+        expect(userCommand.columns).toEqual([
+            'index', 'id', 'source', 'author', 'url', 'cover', 'title', 'desc',
+            'plays', 'likes', 'comments', 'shares', 'createTime',
+        ]);
+    });
+
+    it('validates username and --limit upfront before navigating', async () => {
+        const page = makePage([]);
+        await expect(userCommand.func(page, { username: '', limit: 5 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(userCommand.func(page, { username: '@bad/name', limit: 5 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(userCommand.func(page, { username: 'dictogo', limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(userCommand.func(page, { username: 'dictogo', limit: userTest.MAX_LIMIT + 1 })).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('navigates to the profile and returns full sourced video rows', async () => {
+        const page = makePage([sampleUserVideoRow]);
+        await expect(userCommand.func(page, { username: '@dictogo', limit: 5 })).resolves.toEqual([sampleUserVideoRow]);
+        expect(page.goto).toHaveBeenCalledWith('https://www.tiktok.com/@dictogo', { waitUntil: 'load', settleMs: 6000 });
+    });
+
+    it('maps empty, auth, upstream, and invalid JSON failures to typed errors', async () => {
+        await expect(userCommand.func(makePage([]), { username: 'dictogo', limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+        await expect(userCommand.func(makeFailingPage(new Error('No videos found for @dictogo')), { username: 'dictogo', limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+        await expect(userCommand.func(makeFailingPage(new Error('No videos found for @dictogo (profile/search API failed: HTTP 500)')), { username: 'dictogo', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(userCommand.func(makeFailingPage(new Error('No videos found for @dictogo (profile/search API failed: HTTP 403)')), { username: 'dictogo', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+        await expect(userCommand.func(makeFailingPage(new Error('No videos found for @dictogo (profile/search API failed: invalid JSON)')), { username: 'dictogo', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('build script resolves secUid, pages post-list, and exact-author search fallback', () => {
+        const script = userTest.buildUserScript('dictogo', 20);
+        expect(script).toContain('/api/user/detail/');
+        expect(script).toContain("assertTikTokApiSuccess(detail, 'user-detail')");
+        expect(script).toContain('/api/post/item_list/');
+        expect(script).toContain("assertTikTokApiSuccess(data, 'post-list')");
+        expect(script).toContain('/api/search/general/full/');
+        expect(script).toContain("assertTikTokApiSuccess(data, 'search')");
+        expect(script).toContain("'profile-api'");
+        expect(script).toContain("'bootstrap'");
+        expect(script).toContain("'search-fallback'");
+        expect(script).toContain(JSON.stringify('dictogo'));
     });
 });
 
