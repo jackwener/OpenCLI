@@ -95,12 +95,6 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       let format = typeof optionsRecord.format === 'string' ? optionsRecord.format : 'table';
       const formatExplicit = subCmd.getOptionValueSource('format') === 'cli';
       if (verbose) process.env.OPENCLI_VERBOSE = '1';
-      if (cmd.deprecated) {
-        const message = typeof cmd.deprecated === 'string' ? cmd.deprecated : `${fullName(cmd)} is deprecated.`;
-        const replacement = cmd.replacedBy ? ` Use ${cmd.replacedBy} instead.` : '';
-        log.warn(`Deprecated: ${message}${replacement}`);
-      }
-
       const globals = typeof subCmd.optsWithGlobals === 'function' ? subCmd.optsWithGlobals() as Record<string, unknown> : {};
       const result = await executeCommand(cmd, kwargs, verbose, {
         prepared: true,

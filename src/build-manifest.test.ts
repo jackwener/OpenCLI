@@ -61,8 +61,7 @@ describe('manifest helper rules', () => {
         ],
         domain: 'localhost',
         navigateBefore: 'https://example.com/session',
-        deprecated: 'legacy command',
-        replacedBy: 'opencli demo new',
+        defaultFormat: 'plain',
       }),
     }));
 
@@ -90,8 +89,7 @@ describe('manifest helper rules', () => {
         type: 'js',
         modulePath: `${site}/${site}.js`,
         navigateBefore: 'https://example.com/session',
-        deprecated: 'legacy command',
-        replacedBy: 'opencli demo new',
+        defaultFormat: 'plain',
       },
     ]);
     // Verify sourceFile is included and stable for manifest consumers.
@@ -115,8 +113,6 @@ describe('manifest helper rules', () => {
         name: 'legacy',
         access: 'read',
         description: 'legacy command',
-        deprecated: 'legacy is deprecated',
-        replacedBy: 'opencli demo new',
       });
       return {};
     });
@@ -132,8 +128,6 @@ describe('manifest helper rules', () => {
         args: [],
         type: 'js',
         modulePath: `${site}/${site}.js`,
-        deprecated: 'legacy is deprecated',
-        replacedBy: 'opencli demo new',
       },
     ]);
     // Verify sourceFile is included

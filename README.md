@@ -172,7 +172,7 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 
 1. Recon the site and classify its pattern (SPA / SSR / JSONP / Token / Streaming).
 2. Discover the right endpoint — network inspection, initial state, bundle search, token trace, or interceptor fallback.
-3. Decide the auth strategy — `PUBLIC` / `COOKIE` / `HEADER` / `INTERCEPT`.
+3. Decide the auth strategy — `PUBLIC` / `COOKIE` / `INTERCEPT` / `UI` / `LOCAL`.
 4. Decode response fields and design output columns.
 5. `opencli browser analyze <url>` for one-shot recon, then `opencli browser init <site>/<name>` → write adapter → `opencli browser verify <site>/<name>`.
 6. Persist site knowledge to `~/.opencli/sites/<site>/` so the next adapter for the same site is faster.
@@ -407,7 +407,7 @@ Before writing any adapter code, read the [`opencli-adapter-author` skill](./ski
 
 - Recon the site and pick a pattern (SPA / SSR / JSONP / Token / Streaming).
 - Discover the right endpoint via `opencli browser network`, `eval`, or the interceptor fallback.
-- Decide auth strategy (`PUBLIC` / `COOKIE` / `HEADER` / `INTERCEPT`).
+- Decide auth strategy (`PUBLIC` / `COOKIE` / `INTERCEPT` / `UI` / `LOCAL`).
 - Run `opencli browser analyze <url>` for one-shot recon, decode response fields, design columns, scaffold with `opencli browser init`.
 - Verify with `opencli browser verify <site>/<name>` before shipping.
 

@@ -130,9 +130,8 @@ function compactCommand(cmd: CliCommand, opts: { includeColumns?: boolean } = {}
     args: cmd.args.map(compactArg),
     example: formatCommandExample(cmd),
     ...(cmd.browserSession ? { browserSession: cmd.browserSession } : {}),
+    ...(cmd.defaultFormat ? { defaultFormat: cmd.defaultFormat } : {}),
     ...(opts.includeColumns && cmd.columns?.length ? { columns: cmd.columns } : {}),
-    ...(cmd.deprecated ? { deprecated: cmd.deprecated } : {}),
-    ...(cmd.replacedBy ? { replacedBy: cmd.replacedBy } : {}),
   };
 }
 
@@ -208,6 +207,5 @@ export function installStructuredHelp(
 
 export function formatSiteCommandDescription(cmd: CliCommand): string {
   const access = cmd.access === 'write' ? '[write]' : '[read]';
-  const deprecatedSuffix = cmd.deprecated ? ' [deprecated]' : '';
-  return `${access} ${cmd.description}${deprecatedSuffix}`;
+  return `${access} ${cmd.description}`;
 }

@@ -4274,6 +4274,7 @@
       "file",
       "link"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "chatgpt/image.js",
     "sourceFile": "chatgpt/image.js",
@@ -9487,6 +9488,7 @@
     "columns": [
       "response"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "gemini/ask.js",
     "sourceFile": "gemini/ask.js",
@@ -9535,6 +9537,7 @@
       "status",
       "url"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "gemini/deep-research.js",
     "sourceFile": "gemini/deep-research.js",
@@ -9581,6 +9584,7 @@
     "columns": [
       "response"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "gemini/deep-research-result.js",
     "sourceFile": "gemini/deep-research-result.js",
@@ -9646,6 +9650,7 @@
       "file",
       "link"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "gemini/image.js",
     "sourceFile": "gemini/image.js",
@@ -14205,6 +14210,7 @@
     "columns": [
       "content"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "linux-do/topic-content.js",
     "sourceFile": "linux-do/topic-content.js",
@@ -14935,6 +14941,7 @@
     "columns": [
       "content"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "mubu/doc.js",
     "sourceFile": "mubu/doc.js",
@@ -18283,6 +18290,7 @@
         "help": "Parent folder fid (use directly)"
       }
     ],
+    "defaultFormat": "json",
     "type": "js",
     "modulePath": "quark/mkdir.js",
     "sourceFile": "quark/mkdir.js",
@@ -18326,6 +18334,7 @@
         "help": "Max seconds for the overall command (default: 120)"
       }
     ],
+    "defaultFormat": "json",
     "type": "js",
     "modulePath": "quark/mv.js",
     "sourceFile": "quark/mv.js",
@@ -18354,6 +18363,7 @@
         "help": "New file name"
       }
     ],
+    "defaultFormat": "json",
     "type": "js",
     "modulePath": "quark/rename.js",
     "sourceFile": "quark/rename.js",
@@ -18376,6 +18386,7 @@
         "help": "File IDs to delete (comma-separated)"
       }
     ],
+    "defaultFormat": "json",
     "type": "js",
     "modulePath": "quark/rm.js",
     "sourceFile": "quark/rm.js",
@@ -18440,6 +18451,7 @@
         "help": "Max seconds for the overall command (default: 120)"
       }
     ],
+    "defaultFormat": "json",
     "type": "js",
     "modulePath": "quark/save.js",
     "sourceFile": "quark/save.js",
@@ -18476,6 +18488,7 @@
         "help": "Max directory depth"
       }
     ],
+    "defaultFormat": "json",
     "type": "js",
     "modulePath": "quark/share-tree.js",
     "sourceFile": "quark/share-tree.js",
@@ -18537,6 +18550,7 @@
       "Role",
       "Text"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "qwen/ask.js",
     "sourceFile": "qwen/ask.js",
@@ -18662,6 +18676,7 @@
       "File",
       "Link"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "qwen/image.js",
     "sourceFile": "qwen/image.js",
@@ -23917,6 +23932,7 @@
         "help": "Output structured rows (chapter/idx/level/text) for programmatic use"
       }
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "weread/ai-outline.js",
     "sourceFile": "weread/ai-outline.js",
@@ -26970,6 +26986,7 @@
       "Role",
       "Text"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "yuanbao/ask.js",
     "sourceFile": "yuanbao/ask.js",

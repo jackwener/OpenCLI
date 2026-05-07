@@ -50,8 +50,7 @@ export function serializeCommand(cmd: CliCommand) {
     columns: cmd.columns ?? [],
     domain: cmd.domain ?? null,
     example: formatCommandExample(cmd),
-    deprecated: cmd.deprecated ?? null,
-    replacedBy: cmd.replacedBy ?? null,
+    defaultFormat: cmd.defaultFormat ?? null,
     browserSession: cmd.browserSession ?? null,
   };
 }
@@ -108,8 +107,7 @@ export function formatRegistryHelpText(cmd: CliCommand): string {
   meta.push(`Access: ${cmd.access}`);
   meta.push(`Browser: ${cmd.browser ? 'yes' : 'no'}`);
   if (cmd.domain) meta.push(`Domain: ${cmd.domain}`);
-  if (cmd.deprecated) meta.push(`Deprecated: ${typeof cmd.deprecated === 'string' ? cmd.deprecated : 'yes'}`);
-  if (cmd.replacedBy) meta.push(`Use instead: ${cmd.replacedBy}`);
+  if (cmd.defaultFormat) meta.push(`Default format: ${cmd.defaultFormat}`);
   if (cmd.aliases?.length) meta.push(`Aliases: ${cmd.aliases.join(', ')}`);
   lines.push(meta.join(' | '));
   lines.push(`Example: ${formatCommandExample(cmd)}`);

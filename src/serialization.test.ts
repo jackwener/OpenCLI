@@ -65,4 +65,23 @@ describe('formatRegistryHelpText', () => {
     expect(formatRegistryHelpText(cmd)).toContain('Example: opencli bilibili hot -f yaml');
     expect(formatRegistryHelpText(cmd)).not.toContain('Strategy:');
   });
+
+  it('surfaces command default output format in structured serialization and help text', () => {
+    const cmd: CliCommand = {
+      site: 'gemini',
+      name: 'ask',
+      access: 'read',
+      description: 'Ask Gemini',
+      strategy: Strategy.COOKIE,
+      browser: true,
+      args: [],
+      defaultFormat: 'plain',
+    };
+
+    expect(serializeCommand(cmd)).toMatchObject({
+      command: 'gemini/ask',
+      defaultFormat: 'plain',
+    });
+    expect(formatRegistryHelpText(cmd)).toContain('Default format: plain');
+  });
 });

@@ -29,8 +29,7 @@ export interface ManifestEntry {
   }>;
   columns?: string[];
   pipeline?: Record<string, unknown>[];
-  deprecated?: boolean | string;
-  replacedBy?: string;
+  defaultFormat?: 'table' | 'plain' | 'json' | 'yaml' | 'yml' | 'md' | 'markdown' | 'csv';
   type: 'js';
   /** Relative path from clis/ dir, e.g. 'bilibili/search.js' */
   modulePath?: string;

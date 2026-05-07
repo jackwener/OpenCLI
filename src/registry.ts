@@ -56,10 +56,6 @@ interface BaseCliCommand {
   source?: string;
   footerExtra?: (kwargs: CommandArgs) => string | undefined;
   validateArgs?: (kwargs: CommandArgs) => void;
-  /** Deprecation note shown in help / execution warnings. */
-  deprecated?: boolean | string;
-  /** Preferred replacement command, if any. */
-  replacedBy?: string;
   /**
    * Control pre-navigation and browser-session requirement.
    *
@@ -149,8 +145,6 @@ export function cli(opts: CliOptions): CliCommand {
     func: opts.func,
     pipeline: opts.pipeline,
     footerExtra: opts.footerExtra,
-    deprecated: opts.deprecated,
-    replacedBy: opts.replacedBy,
     navigateBefore: opts.navigateBefore,
     browserSession: opts.browserSession,
     defaultFormat: opts.defaultFormat,
