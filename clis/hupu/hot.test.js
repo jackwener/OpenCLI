@@ -95,6 +95,7 @@ describe('hupu/hot — extractHupuHotRowsFromDoc against frozen fixture', () => 
         const rows = extractHupuHotRowsFromDoc(doc, 50, parseHupuCount);
 
         expect(rows).toHaveLength(6);
+        expect(rows.some((row) => row.tid === '639999999')).toBe(false);
         // Row 0: hot row, ASCII counts
         expect(rows[0]).toEqual({
             rank: 1,
