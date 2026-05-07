@@ -124,7 +124,7 @@ export function parseTikTokVideoUrl(value) {
             'Example: https://www.tiktok.com/@user/video/1234567890',
         );
     }
-    const match = parsed.pathname.match(/^\/@([A-Za-z0-9._-]+)\/video\/(\d+)/);
+    const match = parsed.pathname.match(/^\/@([A-Za-z0-9._-]+)\/video\/(\d+)\/?$/);
     if (!match) {
         throw new ArgumentError(
             'URL must follow /@<username>/video/<id> format',

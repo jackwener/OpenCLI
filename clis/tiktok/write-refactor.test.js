@@ -73,12 +73,14 @@ describe('tiktok/utils (P0.5 button-walker additions)', () => {
         expect(() => parseTikTokVideoUrl('not a url')).toThrow(ArgumentError);
         expect(() => parseTikTokVideoUrl('https://example.com/@u/video/123')).toThrow(ArgumentError);
         expect(() => parseTikTokVideoUrl('https://www.tiktok.com/@user/photo/123')).toThrow(ArgumentError);
+        expect(() => parseTikTokVideoUrl('https://www.tiktok.com/@user/video/123abc')).toThrow(ArgumentError);
+        expect(() => parseTikTokVideoUrl('https://www.tiktok.com/@user/video/123/extra')).toThrow(ArgumentError);
         expect(() => parseTikTokVideoUrl('https://vm.tiktok.com/abc')).toThrow(ArgumentError);
         const parsed = parseTikTokVideoUrl(VIDEO_URL);
         expect(parsed.username).toBe('creator');
         expect(parsed.videoId).toBe('7350000000000000000');
         expect(parsed.url).toBe(VIDEO_URL);
-        // accepts trailing slash + extra path segments
+        // accepts a trailing slash plus query string, but not extra path segments
         expect(parseTikTokVideoUrl(`${VIDEO_URL}/?lang=en`).videoId).toBe('7350000000000000000');
     });
 
