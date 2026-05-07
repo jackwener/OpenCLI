@@ -4,7 +4,7 @@
  */
 
 import { htmlToMarkdown } from '@jackwener/opencli/utils';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 
 export const CHATGPT_DOMAIN = 'chatgpt.com';
 export const CHATGPT_URL = 'https://chatgpt.com';
@@ -278,7 +278,7 @@ export async function getVisibleMessages(page) {
             return '';
         };
 
-        let nodes = Array.from(document.querySelectorAll('[data-message-author-role], article[data-testid*="conversation-turn"], article'));
+        let nodes = Array.from(document.querySelectorAll('[data-message-author-role], article[data-testid*="conversation-turn"]'));
         nodes = nodes.filter((node) => node instanceof HTMLElement && isVisible(node));
 
         const rows = [];
@@ -353,7 +353,11 @@ export async function waitForChatGPTResponse(page, baselineCount, prompt, timeou
         }
     }
 
-    return lastText || null;
+    throw new TimeoutError(
+        'chatgpt ask',
+        timeoutSeconds,
+        'No ChatGPT response appeared before timeout. Re-run with a higher --timeout if it is still generating.',
+    );
 }
 
 export async function getConversationList(page) {

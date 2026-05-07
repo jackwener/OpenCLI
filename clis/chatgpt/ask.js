@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     CHATGPT_DOMAIN,
     CHATGPT_URL,
@@ -52,13 +52,6 @@ export const askCommand = cli({
             throw new CommandExecutionError('Failed to send message to ChatGPT', `Open ${CHATGPT_URL} and verify the composer is ready.`);
         }
 
-        const response = await waitForChatGPTResponse(page, baseline, prompt, timeout);
-        if (!response) {
-            throw new EmptyResultError(
-                'chatgpt ask',
-                `No ChatGPT response appeared within ${timeout}s. Re-run with a higher --timeout if it is still generating.`,
-            );
-        }
-        return [{ response }];
+        return [{ response: await waitForChatGPTResponse(page, baseline, prompt, timeout) }];
     },
 });

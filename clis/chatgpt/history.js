@@ -3,6 +3,7 @@ import { EmptyResultError } from '@jackwener/opencli/errors';
 import {
     CHATGPT_DOMAIN,
     ensureChatGPTLogin,
+    ensureOnChatGPT,
     getConversationList,
     requirePositiveInt,
 } from './utils.js';
@@ -27,8 +28,9 @@ export const historyCommand = cli({
             'chatgpt history --limit',
             'Example: opencli chatgpt history --limit 20',
         );
-        const conversations = await getConversationList(page);
+        await ensureOnChatGPT(page);
         await ensureChatGPTLogin(page, 'ChatGPT history requires a logged-in ChatGPT session.');
+        const conversations = await getConversationList(page);
         if (!conversations.length) {
             throw new EmptyResultError('chatgpt history', 'No ChatGPT conversation links were visible in the sidebar.');
         }

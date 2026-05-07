@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { saveBase64ToFile } from '@jackwener/opencli/utils';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { getChatGPTVisibleImageUrls, sendChatGPTMessage, waitForChatGPTImages, getChatGPTImageAssets } from './utils.js';
+import { getChatGPTVisibleImageUrls, normalizeBooleanFlag, sendChatGPTMessage, waitForChatGPTImages, getChatGPTImageAssets } from './utils.js';
 
 const CHATGPT_DOMAIN = 'chatgpt.com';
 
@@ -13,12 +13,6 @@ function extFromMime(mime) {
     if (mime.includes('webp')) return '.webp';
     if (mime.includes('gif')) return '.gif';
     return '.jpg';
-}
-
-function normalizeBooleanFlag(value) {
-    if (typeof value === 'boolean') return value;
-    const normalized = String(value ?? '').trim().toLowerCase();
-    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
 }
 
 function displayPath(filePath) {
@@ -83,7 +77,10 @@ export const imageCommand = cli({
         // Send the image generation prompt - must be explicit
         const sent = await sendChatGPTMessage(page, `Generate an image of: ${prompt}`);
         if (!sent) {
-            return [{ status: '⚠️ send-failed', file: '📁 -', link: `🔗 ${await currentChatGPTLink(page)}` }];
+            throw new CommandExecutionError(
+                'Failed to send image prompt to ChatGPT',
+                `Open ${await currentChatGPTLink(page)} and verify the composer is ready.`,
+            );
         }
 
         // ChatGPT briefly navigates to /c/{id} after sending, then may
