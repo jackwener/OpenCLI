@@ -1,9 +1,9 @@
 /**
- * YouTube transcript — uses InnerTube player API with Android client context.
+ * YouTube transcript — extracts caption tracks from watch page bootstrap data.
  *
- * The Web client's caption URLs require a PoToken (proof of origin) generated
- * by BotGuard at runtime. The Android client returns caption URLs that work
- * without PoToken — same approach used by youtube-transcript-api (Python).
+ * The old Android InnerTube client path stopped reliably returning captions.
+ * We now match youtube/video.js: fetch watch HTML with the browser session and
+ * parse ytInitialPlayerResponse.captions.playerCaptionsTracklistRenderer.
  *
  * Modes:
  *   --mode grouped (default): sentences merged, speaker detection, chapters
