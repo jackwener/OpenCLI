@@ -13,6 +13,7 @@
 * **browser** — `bind` attaches `bound:*` workspaces to user-owned Chrome tabs without taking over window lifecycle; `sessions` reports `idleMsRemaining: null` for bound workspaces because they do not schedule idle close timers. ([#1169](https://github.com/jackwener/opencli/issues/1169), [#929](https://github.com/jackwener/opencli/issues/929))
 * **browser lifecycle** — owned browser workspaces now lease tabs inside a shared dedicated automation container instead of owning one Chrome window per workspace; lease state is persisted for MV3 service-worker reconciliation and idle cleanup is backed by alarms.
 * **browser session** — adapter commands can opt into site-level tab reuse with `browserSession.reuse = 'site'`; Grok and other browser-backed LLM adapters now keep a shared site tab by default, and users can override with `--reuse <none|site>`.
+* **chatgpt** — add browser-web baseline commands: `ask`, `send`, `read`, `history`, `detail`, `new`, and `status`.
 * **web read** — make page extraction render-aware: same-origin iframe content is merged into the Markdown source, `--wait-for` can wait inside main/iframe documents, `--wait-until networkidle` waits for captured requests to settle, and `--diagnose` reports frames, empty containers, and API-like XHRs for shell/AJAX pages.
 
 ### Breaking Changes

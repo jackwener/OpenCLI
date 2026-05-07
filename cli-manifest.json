@@ -4124,6 +4124,116 @@
   },
   {
     "site": "chatgpt",
+    "name": "ask",
+    "description": "Send a prompt to ChatGPT web and wait for the response",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds to wait for response"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      }
+    ],
+    "columns": [
+      "response"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/ask.js",
+    "sourceFile": "chatgpt/ask.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
+    "name": "detail",
+    "description": "Open a ChatGPT web conversation by ID and read its messages",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID or full /c/<id> URL"
+      },
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/detail.js",
+    "sourceFile": "chatgpt/detail.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
+    "name": "history",
+    "description": "List visible ChatGPT web conversation history from the sidebar",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max conversations to show"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Id",
+      "Title",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/history.js",
+    "sourceFile": "chatgpt/history.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
     "name": "image",
     "description": "Generate images with ChatGPT web and save them locally",
     "access": "write",
@@ -4167,6 +4277,114 @@
     "type": "js",
     "modulePath": "chatgpt/image.js",
     "sourceFile": "chatgpt/image.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
+    "name": "new",
+    "description": "Start a new ChatGPT web conversation",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/new.js",
+    "sourceFile": "chatgpt/new.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
+    "name": "read",
+    "description": "Read messages in the current ChatGPT web conversation",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/read.js",
+    "sourceFile": "chatgpt/read.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
+    "name": "send",
+    "description": "Send a prompt to ChatGPT web without waiting for the response",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      }
+    ],
+    "columns": [
+      "Status",
+      "InjectedText"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/send.js",
+    "sourceFile": "chatgpt/send.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
+    "name": "status",
+    "description": "Check ChatGPT web page availability and login state",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Login",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/status.js",
+    "sourceFile": "chatgpt/status.js",
     "navigateBefore": false,
     "browserSession": {
       "reuse": "site"

@@ -61,3 +61,16 @@ describe('chatgpt image wait contract', () => {
         )).toBe(false);
     });
 });
+
+describe('chatgpt conversation id parsing', () => {
+    it('accepts ids and chatgpt conversation URLs', () => {
+        expect(__test__.parseChatGPTConversationId('abc_123-def')).toBe('abc_123-def');
+        expect(__test__.parseChatGPTConversationId('https://chatgpt.com/c/abc_123-def?model=gpt-5')).toBe('abc_123-def');
+        expect(__test__.parseChatGPTConversationId('/c/abc_123-def')).toBe('abc_123-def');
+    });
+
+    it('rejects invalid detail ids', () => {
+        expect(() => __test__.parseChatGPTConversationId('')).toThrow(/conversation id/);
+        expect(() => __test__.parseChatGPTConversationId('https://chatgpt.com/')).toThrow(/conversation id/);
+    });
+});
