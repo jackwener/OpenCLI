@@ -24293,6 +24293,7 @@
     ],
     "columns": [
       "title",
+      "content",
       "content_length",
       "image_count"
     ],
