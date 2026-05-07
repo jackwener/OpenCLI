@@ -16,6 +16,7 @@ export const askCommand = cli({
     domain: GEMINI_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    browserSession: { reuse: 'site' },
     navigateBefore: false,
     defaultFormat: 'plain',
     args: [

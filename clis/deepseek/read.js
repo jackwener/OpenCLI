@@ -9,6 +9,7 @@ export const readCommand = cli({
     domain: DEEPSEEK_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    browserSession: { reuse: 'site' },
     navigateBefore: false,
     args: [],
     columns: ['Role', 'Text'],

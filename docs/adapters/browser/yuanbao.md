@@ -60,5 +60,6 @@ opencli yuanbao ask "你好" --think true
 ## Caveats
 
 - This adapter drives the Yuanbao web UI, not a public API.
+- Yuanbao commands default to site-level browser tab reuse, so consecutive `yuanbao ask` / `yuanbao new` invocations continue in the same Yuanbao page. Pass `--reuse none` for a one-shot tab.
 - It depends on the current browser session and may fail if Yuanbao shows login, consent, challenge, or other gating UI.
 - DOM or product changes on Yuanbao can break composer detection, submit behavior, or transcript extraction.

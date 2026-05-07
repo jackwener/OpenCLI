@@ -10,6 +10,7 @@ export const detailCommand = cli({
     domain: CLAUDE_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    browserSession: { reuse: 'site' },
     navigateBefore: false,
     args: [
         { name: 'id', positional: true, required: true, help: 'Conversation ID (UUID from /chat/<id>)' },

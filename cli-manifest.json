@@ -4167,7 +4167,10 @@
     "type": "js",
     "modulePath": "chatgpt/image.js",
     "sourceFile": "chatgpt/image.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "chatgpt-app",
@@ -4540,7 +4543,10 @@
     "type": "js",
     "modulePath": "claude/ask.js",
     "sourceFile": "claude/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "claude",
@@ -4567,7 +4573,10 @@
     "type": "js",
     "modulePath": "claude/detail.js",
     "sourceFile": "claude/detail.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "claude",
@@ -4595,7 +4604,10 @@
     "type": "js",
     "modulePath": "claude/history.js",
     "sourceFile": "claude/history.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "claude",
@@ -4612,7 +4624,10 @@
     "type": "js",
     "modulePath": "claude/new.js",
     "sourceFile": "claude/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "claude",
@@ -4631,7 +4646,10 @@
     "type": "js",
     "modulePath": "claude/read.js",
     "sourceFile": "claude/read.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "claude",
@@ -4665,7 +4683,10 @@
     "type": "js",
     "modulePath": "claude/send.js",
     "sourceFile": "claude/send.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "claude",
@@ -4684,7 +4705,10 @@
     "type": "js",
     "modulePath": "claude/status.js",
     "sourceFile": "claude/status.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "cnki",
@@ -5982,7 +6006,10 @@
     "type": "js",
     "modulePath": "deepseek/ask.js",
     "sourceFile": "deepseek/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "deepseek",
@@ -6008,7 +6035,10 @@
     "type": "js",
     "modulePath": "deepseek/detail.js",
     "sourceFile": "deepseek/detail.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "deepseek",
@@ -6035,7 +6065,10 @@
     "type": "js",
     "modulePath": "deepseek/history.js",
     "sourceFile": "deepseek/history.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "deepseek",
@@ -6052,7 +6085,10 @@
     "type": "js",
     "modulePath": "deepseek/new.js",
     "sourceFile": "deepseek/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "deepseek",
@@ -6070,7 +6106,10 @@
     "type": "js",
     "modulePath": "deepseek/read.js",
     "sourceFile": "deepseek/read.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "deepseek",
@@ -6110,7 +6149,10 @@
     "type": "js",
     "modulePath": "deepseek/send.js",
     "sourceFile": "deepseek/send.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "deepseek",
@@ -6129,7 +6171,10 @@
     "type": "js",
     "modulePath": "deepseek/status.js",
     "sourceFile": "deepseek/status.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "defillama",
@@ -7219,7 +7264,10 @@
     "type": "js",
     "modulePath": "doubao/ask.js",
     "sourceFile": "doubao/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7245,7 +7293,10 @@
     "type": "js",
     "modulePath": "doubao/detail.js",
     "sourceFile": "doubao/detail.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7273,7 +7324,10 @@
     "type": "js",
     "modulePath": "doubao/history.js",
     "sourceFile": "doubao/history.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7306,7 +7360,10 @@
     "type": "js",
     "modulePath": "doubao/meeting-summary.js",
     "sourceFile": "doubao/meeting-summary.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7339,7 +7396,10 @@
     "type": "js",
     "modulePath": "doubao/meeting-transcript.js",
     "sourceFile": "doubao/meeting-transcript.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7357,7 +7417,10 @@
     "type": "js",
     "modulePath": "doubao/new.js",
     "sourceFile": "doubao/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7375,7 +7438,10 @@
     "type": "js",
     "modulePath": "doubao/read.js",
     "sourceFile": "doubao/read.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7402,7 +7468,10 @@
     "type": "js",
     "modulePath": "doubao/send.js",
     "sourceFile": "doubao/send.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7422,7 +7491,10 @@
     "type": "js",
     "modulePath": "doubao/status.js",
     "sourceFile": "doubao/status.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao-app",
@@ -9196,7 +9268,10 @@
     "type": "js",
     "modulePath": "gemini/ask.js",
     "sourceFile": "gemini/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "gemini",
@@ -9241,7 +9316,10 @@
     "type": "js",
     "modulePath": "gemini/deep-research.js",
     "sourceFile": "gemini/deep-research.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "gemini",
@@ -9284,7 +9362,10 @@
     "type": "js",
     "modulePath": "gemini/deep-research-result.js",
     "sourceFile": "gemini/deep-research-result.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "gemini",
@@ -9346,7 +9427,10 @@
     "type": "js",
     "modulePath": "gemini/image.js",
     "sourceFile": "gemini/image.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "gemini",
@@ -9364,7 +9448,10 @@
     "type": "js",
     "modulePath": "gemini/new.js",
     "sourceFile": "gemini/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "gitee",
@@ -18053,7 +18140,10 @@
     "type": "js",
     "modulePath": "qwen/ask.js",
     "sourceFile": "qwen/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "qwen",
@@ -18081,7 +18171,10 @@
     "type": "js",
     "modulePath": "qwen/history.js",
     "sourceFile": "qwen/history.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "qwen",
@@ -18136,7 +18229,10 @@
     "type": "js",
     "modulePath": "qwen/image.js",
     "sourceFile": "qwen/image.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "qwen",
@@ -18153,7 +18249,10 @@
     "type": "js",
     "modulePath": "qwen/new.js",
     "sourceFile": "qwen/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "qwen",
@@ -18179,7 +18278,10 @@
     "type": "js",
     "modulePath": "qwen/read.js",
     "sourceFile": "qwen/read.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "qwen",
@@ -18226,7 +18328,10 @@
     "type": "js",
     "modulePath": "qwen/send.js",
     "sourceFile": "qwen/send.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "qwen",
@@ -18247,7 +18352,10 @@
     "type": "js",
     "modulePath": "qwen/status.js",
     "sourceFile": "qwen/status.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "reddit",
@@ -26391,7 +26499,10 @@
     "type": "js",
     "modulePath": "yuanbao/ask.js",
     "sourceFile": "yuanbao/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "yuanbao",
@@ -26409,7 +26520,10 @@
     "type": "js",
     "modulePath": "yuanbao/new.js",
     "sourceFile": "yuanbao/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "zhihu",
