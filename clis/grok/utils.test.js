@@ -34,11 +34,14 @@ describe('grok parseGrokSessionId', () => {
         expect(() => parseGrokSessionId('7c4197f210a14ebba84afea89f4f1d06')).toThrow(ArgumentError);
         // UUID-shaped but bad hex
         expect(() => parseGrokSessionId('zc4197f2-10a1-4ebb-a84a-fea89f4f1d06')).toThrow(ArgumentError);
+        // Bare-ID mode must not accept URL/query suffixes.
+        expect(() => parseGrokSessionId(`${id}?next=abc`)).toThrow(ArgumentError);
         // URL with the wrong path shape must not silently fall through.
         expect(() => parseGrokSessionId('https://grok.com/somewhere/else')).toThrow(ArgumentError);
         expect(() => parseGrokSessionId(`http://grok.com/c/${id}`)).toThrow(ArgumentError);
         expect(() => parseGrokSessionId(`https://evil.com/c/${id}`)).toThrow(ArgumentError);
         expect(() => parseGrokSessionId(`https://fakegrok.com/c/${id}`)).toThrow(ArgumentError);
+        expect(() => parseGrokSessionId(`https://grok.com.evil.com/c/${id}`)).toThrow(ArgumentError);
         expect(() => parseGrokSessionId(`https://evil.com/?next=https://grok.com/c/${id}`)).toThrow(ArgumentError);
         expect(() => parseGrokSessionId(`https://grok.com/c/${id}/extra`)).toThrow(ArgumentError);
         // URL embedding extra hex tail after the UUID must not silently truncate
