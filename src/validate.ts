@@ -1,13 +1,13 @@
 /** Validate CLI definitions from the registry (JS-first). */
 import { getRegistry, fullName, type CliCommand, type InternalCliCommand } from './registry.js';
+import { getRegisteredStepNames } from './pipeline/registry.js';
 
-/** All recognized pipeline step names — must stay in sync with src/pipeline/registry.ts */
-const KNOWN_STEP_NAMES = new Set([
-  'navigate', 'click', 'type', 'fill', 'wait', 'press', 'snapshot',
-  'fetch', 'evaluate',
-  'select', 'map', 'filter', 'sort', 'limit',
-  'intercept', 'tap', 'download',
-]);
+/**
+ * Pipeline step names — derived from the live pipeline registry so a new step
+ * registered in src/pipeline/registry.ts is automatically allowlisted here
+ * (no parallel hand-maintained list).
+ */
+const KNOWN_STEP_NAMES = new Set(getRegisteredStepNames());
 
 export interface CommandValidationResult {
   /** Display label: "site/name" or source path if available */
