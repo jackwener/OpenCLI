@@ -14,13 +14,17 @@ import { Command } from 'commander';
 import { log } from './logger.js';
 import yaml from 'js-yaml';
 import { type CliCommand, fullName, getRegistry } from './registry.js';
-import { formatRegistryHelpText } from './serialization.js';
 import { render as renderOutput } from './output.js';
 import { executeCommand, prepareCommandArgs } from './execution.js';
 import {
   commandHelpData,
+  formatCommandHelpText,
+  formatCommandListTerm,
   formatSiteCommandDescription,
+  formatSiteHelpText,
+  getRequestedHelpFormat,
   installStructuredHelp,
+  renderStructuredHelp,
   siteHelpData,
 } from './help.js';
 import {
@@ -58,7 +62,15 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
     .option('--trace <mode>', 'Trace capture: off, on, retain-on-failure', 'off')
     .option('-v, --verbose', 'Debug output', false);
 
-  installStructuredHelp(subCmd, () => commandHelpData(cmd), () => formatRegistryHelpText(cmd));
+  const originalHelpInformation = subCmd.helpInformation.bind(subCmd);
+  subCmd.helpInformation = ((contextOptions?: unknown) => {
+    const format = getRequestedHelpFormat();
+    if (format) return renderStructuredHelp(commandHelpData(cmd), format);
+    // Keep a fallback reference so future Commander upgrades still initialize
+    // internal help state before we render the cleaner grouped command help.
+    void originalHelpInformation(contextOptions as never);
+    return formatCommandHelpText(cmd);
+  }) as Command['helpInformation'];
 
   subCmd.action(async (...actionArgs: unknown[]) => {
     const actionOpts = actionArgs[positionalArgs.length] ?? {};
@@ -192,7 +204,17 @@ export function registerAllCommands(
     for (const cmd of commands) {
       registerCommandToProgram(siteCmd, cmd);
     }
-    installStructuredHelp(siteCmd, () => siteHelpData(site, commands));
+    const commandTerms = new Map(commands.map(cmd => [cmd.name, formatCommandListTerm(cmd)]));
+    siteCmd.configureHelp({
+      subcommandTerm: command => commandTerms.get(command.name()) ?? command.name(),
+    });
+    const originalSiteHelpInformation = siteCmd.helpInformation.bind(siteCmd);
+    siteCmd.helpInformation = ((contextOptions?: unknown) => {
+      const format = getRequestedHelpFormat();
+      if (format) return renderStructuredHelp(siteHelpData(site, commands), format);
+      void originalSiteHelpInformation(contextOptions as never);
+      return formatSiteHelpText(site, commands);
+    }) as Command['helpInformation'];
   }
   return [...commandsBySite.keys()].sort((a, b) => a.localeCompare(b));
 }

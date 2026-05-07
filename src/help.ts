@@ -6,6 +6,34 @@ import { formatCommandExample } from './serialization.js';
 
 export type StructuredHelpFormat = 'yaml' | 'json';
 
+const COMMON_OPTIONS = [
+  {
+    flags: '-f, --format <fmt>',
+    name: 'format',
+    help: 'Output format: table, plain, json, yaml, md, csv',
+    default: 'table',
+    choices: ['table', 'plain', 'json', 'yaml', 'md', 'csv'],
+  },
+  {
+    flags: '--trace <mode>',
+    name: 'trace',
+    help: 'Trace capture: off, on, retain-on-failure',
+    default: 'off',
+    choices: ['off', 'on', 'retain-on-failure'],
+  },
+  {
+    flags: '-v, --verbose',
+    name: 'verbose',
+    help: 'Debug output',
+    default: false,
+  },
+  {
+    flags: '-h, --help',
+    name: 'help',
+    help: 'display help for command',
+  },
+] as const;
+
 function normalizeStructuredHelpFormat(value: string | undefined): StructuredHelpFormat | undefined {
   const normalized = value?.toLowerCase();
   if (normalized === 'yaml' || normalized === 'yml') return 'yaml';
@@ -102,7 +130,7 @@ export function formatRootAdapterHelpText(groups: RootAdapterGroups): string {
   lines.push(...formatGroupSection('App adapters', groups.apps));
   lines.push(...formatGroupSection('Site adapters', groups.sites));
   lines.push("Run 'opencli list' for full command details, or 'opencli <site> --help' to inspect one site.");
-  lines.push("Agent tip: use 'opencli <site> --help -f yaml' for structured commands, args, access, and examples.");
+  lines.push("Agent tip: use 'opencli <site> --help -f yaml' for all command args/options in one structured response.");
   lines.push('');
   return lines.join('\n');
 }
@@ -120,18 +148,62 @@ function compactArg(arg: Arg): Record<string, unknown> {
   };
 }
 
-function compactCommand(cmd: CliCommand, opts: { includeColumns?: boolean } = {}): Record<string, unknown> {
+function compactCommonOption(option: typeof COMMON_OPTIONS[number]): Record<string, unknown> {
+  return {
+    name: option.name,
+    flags: option.flags,
+    help: option.help,
+    ...('default' in option ? { default: option.default } : {}),
+    ...('choices' in option ? { choices: option.choices } : {}),
+  };
+}
+
+function positionals(cmd: CliCommand): Arg[] {
+  return cmd.args.filter(arg => arg.positional);
+}
+
+function commandOptions(cmd: CliCommand): Arg[] {
+  return cmd.args.filter(arg => !arg.positional);
+}
+
+function formatPositionals(args: readonly Arg[]): string {
+  return args
+    .map(arg => arg.required ? `<${arg.name}>` : `[${arg.name}]`)
+    .join(' ');
+}
+
+function formatCommandOptionTerm(arg: Arg): string {
+  if (arg.required || arg.valueRequired) return `--${arg.name} <value>`;
+  return `--${arg.name} [value]`;
+}
+
+export function formatCommandListTerm(cmd: CliCommand): string {
+  const positionalText = formatPositionals(positionals(cmd));
+  const optionText = commandOptions(cmd).length > 0 ? ' [options]' : '';
+  return `${cmd.name}${positionalText ? ` ${positionalText}` : ''}${optionText}`;
+}
+
+function formatUsage(cmd: CliCommand): string {
+  const positionalText = formatPositionals(positionals(cmd));
+  return `opencli ${cmd.site} ${cmd.name}${positionalText ? ` ${positionalText}` : ''} [options]`;
+}
+
+function compactCommand(cmd: CliCommand): Record<string, unknown> {
   return {
     name: cmd.name,
     command: `opencli ${cmd.site} ${cmd.name}`,
+    usage: formatUsage(cmd),
     access: cmd.access,
     description: cmd.description,
+    browser: !!cmd.browser,
+    ...(cmd.domain ? { domain: cmd.domain } : {}),
     ...(cmd.aliases?.length ? { aliases: cmd.aliases } : {}),
-    args: cmd.args.map(compactArg),
+    positionals: positionals(cmd).map(compactArg),
+    command_options: commandOptions(cmd).map(compactArg),
     example: formatCommandExample(cmd),
     ...(cmd.browserSession ? { browserSession: cmd.browserSession } : {}),
     ...(cmd.defaultFormat ? { defaultFormat: cmd.defaultFormat } : {}),
-    ...(opts.includeColumns && cmd.columns?.length ? { columns: cmd.columns } : {}),
+    ...(cmd.columns?.length ? { columns: cmd.columns } : {}),
   };
 }
 
@@ -176,6 +248,7 @@ export function siteHelpData(site: string, commands: readonly CliCommand[]): Rec
     site,
     command_count: unique.length,
     commands: unique.map(cmd => compactCommand(cmd)),
+    common_options: COMMON_OPTIONS.map(compactCommonOption),
     next: [
       `opencli ${site} <command> --help -f yaml`,
       `opencli ${site} <command> -f yaml`,
@@ -186,9 +259,93 @@ export function siteHelpData(site: string, commands: readonly CliCommand[]): Rec
 export function commandHelpData(cmd: CliCommand): Record<string, unknown> {
   return {
     site: cmd.site,
-    ...compactCommand(cmd, { includeColumns: true }),
+    ...compactCommand(cmd),
+    common_options: COMMON_OPTIONS.map(compactCommonOption),
     output_formats: ['table', 'plain', 'yaml', 'json', 'md', 'csv'],
   };
+}
+
+function formatRows(rows: readonly [string, string][]): string[] {
+  if (rows.length === 0) return [];
+  const width = Math.min(Math.max(...rows.map(([left]) => left.length)), 34);
+  return rows.map(([left, right]) => `  ${left.padEnd(width + 2)}${right}`);
+}
+
+function formatArgHelp(arg: Arg): string {
+  const parts: string[] = [];
+  if (arg.help) parts.push(arg.help);
+  if (arg.default !== undefined) parts.push(`default: ${arg.default}`);
+  if (arg.choices?.length) parts.push(`choices: ${arg.choices.join(', ')}`);
+  return parts.join('  ');
+}
+
+export function formatCommonOptionsHelpText(): string {
+  const rows = COMMON_OPTIONS.map(option => {
+    const details: string[] = [option.help];
+    if ('default' in option) details.push(`default: ${option.default}`);
+    if ('choices' in option) details.push(`choices: ${option.choices.join(', ')}`);
+    return [option.flags, details.join('  ')] as [string, string];
+  });
+  return ['Common options:', ...formatRows(rows)].join('\n');
+}
+
+export function formatSiteHelpText(site: string, commands: readonly CliCommand[]): string {
+  const unique = [...new Map(commands.map(cmd => [fullName(cmd), cmd])).values()]
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const lines: string[] = [
+    `Usage: opencli ${site} <command> [args] [options]`,
+    '',
+    wrapCommaList(unique.map(cmd => cmd.name), { indent: '' }),
+    '',
+    'Commands:',
+    ...formatRows(unique.map(cmd => [formatCommandListTerm(cmd), formatSiteCommandDescription(cmd)])),
+    '',
+    formatCommonOptionsHelpText(),
+    '',
+    `Agent tip: use 'opencli ${site} --help -f yaml' to get all command args/options in one structured response.`,
+    '',
+  ];
+  return lines.join('\n');
+}
+
+export function formatCommandHelpText(cmd: CliCommand): string {
+  const lines: string[] = [
+    `Usage: ${formatUsage(cmd)}`,
+    '',
+    cmd.description,
+    '',
+  ];
+
+  const positionalRows = positionals(cmd).map(arg => [
+    arg.name,
+    formatArgHelp(arg),
+  ] as [string, string]);
+  if (positionalRows.length) {
+    lines.push('Arguments:', ...formatRows(positionalRows), '');
+  }
+
+  const optionRows = commandOptions(cmd).map(arg => [
+    formatCommandOptionTerm(arg),
+    formatArgHelp(arg),
+  ] as [string, string]);
+  if (optionRows.length) {
+    lines.push('Command options:', ...formatRows(optionRows), '');
+  }
+
+  lines.push(formatCommonOptionsHelpText(), '');
+
+  const meta: string[] = [];
+  meta.push(`Access: ${cmd.access}`);
+  meta.push(`Browser: ${cmd.browser ? 'yes' : 'no'}`);
+  if (cmd.domain) meta.push(`Domain: ${cmd.domain}`);
+  if (cmd.defaultFormat) meta.push(`Default format: ${cmd.defaultFormat}`);
+  if (cmd.aliases?.length) meta.push(`Aliases: ${cmd.aliases.join(', ')}`);
+  lines.push(meta.join(' | '));
+  lines.push(`Example: ${formatCommandExample(cmd)}`);
+  if (cmd.columns?.length) lines.push(`Output columns: ${cmd.columns.join(', ')}`);
+  lines.push("Agent tip: use '--help -f yaml' for structured args/options.");
+  lines.push('');
+  return lines.join('\n');
 }
 
 export function installStructuredHelp(

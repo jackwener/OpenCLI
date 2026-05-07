@@ -247,6 +247,7 @@ describe('createProgram root help descriptions', () => {
         strategy: Strategy.PUBLIC,
         browser: false,
         args: [{ name: 'limit', type: 'int', default: 20, help: 'Number of videos' }],
+        columns: ['title', 'url'],
       });
 
       const program = createProgram('', '');
@@ -261,10 +262,101 @@ describe('createProgram root help descriptions', () => {
           name: 'hot',
           access: 'read',
           description: 'Bilibili hot videos',
+          browser: false,
           example: 'opencli bilibili hot -f yaml',
-          args: [{ name: 'limit', type: 'int', default: 20 }],
+          command_options: [{ name: 'limit', type: 'int', default: 20 }],
+          columns: ['title', 'url'],
         },
       ]);
+      expect(data.commands[0]).not.toHaveProperty('args');
+    } finally {
+      process.argv = argv;
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
+  });
+
+  it('renders per-site text help without per-command common option noise', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'hot',
+        access: 'read',
+        description: 'Bilibili hot videos',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+        args: [{ name: 'limit', type: 'int', default: 20, help: 'Number of videos' }],
+      });
+      cli({
+        site: 'bilibili',
+        name: 'video',
+        access: 'read',
+        description: 'Read one video',
+        domain: 'www.bilibili.com',
+        strategy: Strategy.PUBLIC,
+        browser: true,
+        args: [{ name: 'bvid', positional: true, required: true, help: 'Video id' }],
+      });
+
+      const program = createProgram('', '');
+      const site = program.commands.find(cmd => cmd.name() === 'bilibili');
+      expect(site).toBeTruthy();
+      const help = site!.helpInformation();
+
+      expect(help).toContain('hot [options]  [read] Bilibili hot videos');
+      expect(help).toContain('video <bvid>   [read] Read one video');
+      expect(help).toContain('hot [options]');
+      expect(help).not.toContain('video <bvid> [options]');
+      expect(help).not.toContain('\nOptions:');
+      expect(help).toContain('Common options:');
+      expect(help).toContain('-f, --format <fmt>');
+      expect(help).toContain('--trace <mode>');
+      expect(help).toContain('get all command args/options in one structured response');
+    } finally {
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
+  });
+
+  it('separates command args from common options in structured help', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    const argv = process.argv;
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'video',
+        access: 'read',
+        description: 'Read one video',
+        strategy: Strategy.PUBLIC,
+        domain: 'www.bilibili.com',
+        browser: true,
+        args: [
+          { name: 'bvid', positional: true, required: true, help: 'Video id' },
+          { name: 'with-comments', type: 'boolean', default: false, help: 'Include comments' },
+        ],
+        columns: ['title', 'url'],
+      });
+
+      const program = createProgram('', '');
+      const site = program.commands.find(cmd => cmd.name() === 'bilibili');
+      const command = site!.commands.find(cmd => cmd.name() === 'video');
+      expect(command).toBeTruthy();
+      process.argv = ['node', 'opencli', 'bilibili', 'video', '--help', '-f', 'yaml'];
+      const data = yaml.load(command!.helpInformation()) as any;
+
+      expect(data.usage).toBe('opencli bilibili video <bvid> [options]');
+      expect(data.browser).toBe(true);
+      expect(data.domain).toBe('www.bilibili.com');
+      expect(data.positionals).toMatchObject([{ name: 'bvid', positional: true, required: true }]);
+      expect(data.command_options).toMatchObject([{ name: 'with-comments', default: false }]);
+      expect(data.common_options.map((option: any) => option.name)).toEqual(['format', 'trace', 'verbose', 'help']);
+      expect(data.columns).toEqual(['title', 'url']);
+      expect(data).not.toHaveProperty('args');
     } finally {
       process.argv = argv;
       registry.clear();
