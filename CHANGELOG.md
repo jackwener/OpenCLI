@@ -1,11 +1,15 @@
 # Changelog
 
-## Unreleased
+## [1.7.13](https://github.com/jackwener/opencli/compare/v1.7.12...v1.7.13) (2026-05-07)
+
+Extension bumped to 1.0.6 (screenshot `--width` / `--height` / `--full-page` flags, automation tab group color marker, automation container reuse fix).
 
 ### ⚠ BREAKING CHANGES
 
 * **linux-do** — remove deprecated compatibility shims `linux-do hot`, `linux-do category`, `linux-do latest`. Use `linux-do feed --view top --period <period>`, `linux-do feed --category <id-or-name>`, and `linux-do feed --view latest` instead.
 * **grok ask** — drop the `--web` flag and the legacy `<textarea>` composer path. The default flow is now the only path and uses the current ProseMirror+TipTap composer (the path that used to require `--web true`). Existing scripts passing `--web` will get an "unknown option" error from commander; remove the flag.
+* **env** — rename `OPENCLI_BROWSER_TIMEOUT` to `OPENCLI_BROWSER_IDLE_TIMEOUT`. The variable controls workspace lease idle release time, not per-command runtime; the new name reflects that. Old name was undocumented and removed without a fallback.
+* **registry** — remove the unused `Strategy.HEADER`; adapter authors should use `Strategy.COOKIE` and set headers explicitly inside browser-side fetches.
 
 ### Features
 
@@ -17,11 +21,19 @@
 * **chatgpt** — add browser-web baseline commands: `ask`, `send`, `read`, `history`, `detail`, `new`, and `status`.
 * **grok** — add browser-web baseline commands: `read`, `history`, `detail`, `new`, `send`, and `status` (existing `ask` and `image` unchanged).
 * **yuanbao** — add browser-web baseline commands: `send`, `status`, `read`, `history`, and `detail` (joining the existing `ask` and `new`).
+* **qwen** — add `detail` command for opening a specific historical conversation by id.
 * **web read** — make page extraction render-aware: same-origin iframe content is merged into the Markdown source, `--wait-for` can wait inside main/iframe documents, `--wait-until networkidle` waits for captured requests to settle, and `--diagnose` reports frames, empty containers, and API-like XHRs for shell/AJAX pages.
 
-### Breaking Changes
+### Bug Fixes
 
-* **registry** — remove the unused `Strategy.HEADER`; adapter authors should use `Strategy.COOKIE` and set headers explicitly inside browser-side fetches.
+* **pipeline / capabilityRouting** — the `fill` pipeline step (introduced in [#1222](https://github.com/jackwener/opencli/issues/1222)) now correctly triggers a browser session and gets transient retry coverage; previously a pipeline using only `fill` could crash on a missing page object. ([#1393](https://github.com/jackwener/opencli/issues/1393))
+* **xiaohongshu publish** — improve image publishing reliability via creator-center URL routing, tab priority handling, and DataTransfer fallback.
+* **youtube** — use watch-page HTML for transcript captions to recover when the public transcript API is unavailable.
+* **desktop adapters** — restore 11 desktop adapter commands that were lost from the manifest due to a factory-pattern regression.
+
+### Internal
+
+* **cleanup** — remove dead `src/analysis.ts` (179 lines, 0 importers), retire `OPENCLI_DIAGNOSTIC` test residue, derive validator step allowlist from the live pipeline registry to prevent future drift.
 
 ## [1.7.8](https://github.com/jackwener/opencli/compare/v1.7.7...v1.7.8) (2026-04-25)
 
