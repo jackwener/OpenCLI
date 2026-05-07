@@ -51,19 +51,19 @@ opencli tiktok creator-videos --limit 20
 opencli tiktok friends --limit 10
 
 # Like/unlike a video
-opencli tiktok like --url "https://www.tiktok.com/@user/video/123"
-opencli tiktok unlike --url "https://www.tiktok.com/@user/video/123"
+opencli tiktok like "https://www.tiktok.com/@user/video/123"
+opencli tiktok unlike "https://www.tiktok.com/@user/video/123"
 
 # Save/unsave (Favorites)
-opencli tiktok save --url "https://www.tiktok.com/@user/video/123"
-opencli tiktok unsave --url "https://www.tiktok.com/@user/video/123"
+opencli tiktok save "https://www.tiktok.com/@user/video/123"
+opencli tiktok unsave "https://www.tiktok.com/@user/video/123"
 
 # Follow/unfollow
-opencli tiktok follow --username nasa
-opencli tiktok unfollow --username nasa
+opencli tiktok follow nasa
+opencli tiktok unfollow nasa
 
 # Comment on a video
-opencli tiktok comment --url "https://www.tiktok.com/@user/video/123" --text "Great!"
+opencli tiktok comment "https://www.tiktok.com/@user/video/123" "Great!"
 
 # JSON output
 opencli tiktok profile --username tiktok -f json
