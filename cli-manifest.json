@@ -4658,6 +4658,23 @@
   },
   {
     "site": "chatwise",
+    "name": "new",
+    "description": "Start a new ChatWise conversation session",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "chatwise/new.js",
+    "sourceFile": "chatwise/new.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "chatwise",
     "name": "read",
     "description": "Read the current ChatWise conversation history",
     "access": "read",
@@ -4671,6 +4688,31 @@
     "type": "js",
     "modulePath": "chatwise/read.js",
     "sourceFile": "chatwise/read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "chatwise",
+    "name": "screenshot",
+    "description": "Capture a snapshot of the current ChatWise window (DOM + Accessibility tree)",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "output",
+        "type": "str",
+        "required": false,
+        "help": "Output file path (default: /tmp/chatwise-snapshot.txt)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "File"
+    ],
+    "type": "js",
+    "modulePath": "chatwise/screenshot.js",
+    "sourceFile": "chatwise/screenshot.js",
     "navigateBefore": true
   },
   {
@@ -4697,6 +4739,25 @@
     "type": "js",
     "modulePath": "chatwise/send.js",
     "sourceFile": "chatwise/send.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "chatwise",
+    "name": "status",
+    "description": "Check active CDP connection to ChatWise Desktop",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Url",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "chatwise/status.js",
+    "sourceFile": "chatwise/status.js",
     "navigateBefore": true
   },
   {
@@ -5026,6 +5087,24 @@
   },
   {
     "site": "codex",
+    "name": "dump",
+    "description": "Dump the DOM and Accessibility tree of codex for reverse-engineering",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "action",
+      "files"
+    ],
+    "type": "js",
+    "modulePath": "codex/dump.js",
+    "sourceFile": "codex/dump.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
     "name": "export",
     "description": "Export the current Codex conversation to a Markdown file",
     "access": "read",
@@ -5130,6 +5209,23 @@
   },
   {
     "site": "codex",
+    "name": "new",
+    "description": "Start a new Codex conversation session",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "codex/new.js",
+    "sourceFile": "codex/new.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
     "name": "projects",
     "description": "List Codex projects and visible conversations from the sidebar",
     "access": "read",
@@ -5208,6 +5304,31 @@
   },
   {
     "site": "codex",
+    "name": "screenshot",
+    "description": "Capture a snapshot of the current Codex window (DOM + Accessibility tree)",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "output",
+        "type": "str",
+        "required": false,
+        "help": "Output file path (default: /tmp/codex-snapshot.txt)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "File"
+    ],
+    "type": "js",
+    "modulePath": "codex/screenshot.js",
+    "sourceFile": "codex/screenshot.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
     "name": "send",
     "description": "Send text/commands to the current or selected Codex AI composer",
     "access": "write",
@@ -5256,6 +5377,25 @@
     "type": "js",
     "modulePath": "codex/send.js",
     "sourceFile": "codex/send.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "status",
+    "description": "Check active CDP connection to OpenAI Codex App",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Url",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "codex/status.js",
+    "sourceFile": "codex/status.js",
     "navigateBefore": true
   },
   {
@@ -5872,6 +6012,24 @@
   },
   {
     "site": "cursor",
+    "name": "dump",
+    "description": "Dump the DOM and Accessibility tree of cursor for reverse-engineering",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "action",
+      "files"
+    ],
+    "type": "js",
+    "modulePath": "cursor/dump.js",
+    "sourceFile": "cursor/dump.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "cursor",
     "name": "export",
     "description": "Export the current cursor conversation to a Markdown file",
     "access": "read",
@@ -5959,6 +6117,23 @@
   },
   {
     "site": "cursor",
+    "name": "new",
+    "description": "Start a new Cursor chat or Composer session",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "cursor/new.js",
+    "sourceFile": "cursor/new.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "cursor",
     "name": "read",
     "description": "Read the current Cursor chat/composer conversation history",
     "access": "read",
@@ -5973,6 +6148,31 @@
     "type": "js",
     "modulePath": "cursor/read.js",
     "sourceFile": "cursor/read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "cursor",
+    "name": "screenshot",
+    "description": "Capture a snapshot of the current cursor window (DOM + Accessibility tree)",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "output",
+        "type": "str",
+        "required": false,
+        "help": "Output file path (default: /tmp/cursor-snapshot.txt)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "File"
+    ],
+    "type": "js",
+    "modulePath": "cursor/screenshot.js",
+    "sourceFile": "cursor/screenshot.js",
     "navigateBefore": true
   },
   {
@@ -5999,6 +6199,25 @@
     "type": "js",
     "modulePath": "cursor/send.js",
     "sourceFile": "cursor/send.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "cursor",
+    "name": "status",
+    "description": "Check active CDP connection to Cursor AI Editor",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Url",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "cursor/status.js",
+    "sourceFile": "cursor/status.js",
     "navigateBefore": true
   },
   {

@@ -38,7 +38,13 @@ const CLIS_DIR = path.join(PACKAGE_ROOT, 'clis');
 // Write manifest next to clis/ so both dev and installed runtime can find it.
 const OUTPUT = getCliManifestPath(CLIS_DIR);
 
-const CLI_MODULE_PATTERN = /\bcli\s*\(/;
+// Module is treated as a CLI command source if it either:
+//   1. Calls `cli(...)` directly (the common case), or
+//   2. Calls a factory `make<Pascal>Command(...)` from clis/_shared/ that
+//      wraps `cli(...)`. Without (2), shared-factory adapters
+//      (codex/cursor/chatwise new/status/dump/screenshot) match no `cli(`
+//      token at the top level and silently drop out of the manifest.
+const CLI_MODULE_PATTERN = /\bcli\s*\(|\bmake[A-Z]\w*Command\s*\(/;
 
 /**
  * Thrown by `loadManifestEntries` when an adapter file looks like a CLI
