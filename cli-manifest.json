@@ -9064,7 +9064,7 @@
   {
     "site": "facebook",
     "name": "notifications",
-    "description": "Get recent Facebook notifications",
+    "description": "Get recent Facebook notifications (含 unread / time / url / notif_id / notif_type 列)",
     "access": "read",
     "domain": "www.facebook.com",
     "strategy": "cookie",
@@ -9075,13 +9075,17 @@
         "type": "int",
         "default": 15,
         "required": false,
-        "help": "Number of notifications"
+        "help": "Number of notifications (1-100)"
       }
     ],
     "columns": [
       "index",
+      "unread",
       "text",
-      "time"
+      "time",
+      "url",
+      "notif_id",
+      "notif_type"
     ],
     "type": "js",
     "modulePath": "facebook/notifications.js",
