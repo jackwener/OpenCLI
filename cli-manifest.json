@@ -23087,6 +23087,84 @@
   },
   {
     "site": "weibo",
+    "name": "search-by-user",
+    "description": "Download a user's posts in a time range to Markdown",
+    "access": "read",
+    "domain": "weibo.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "uid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "User ID (numeric uid) or screen name"
+      },
+      {
+        "name": "start",
+        "type": "str",
+        "required": false,
+        "help": "Start date (YYYY-MM-DD), default 30 days ago"
+      },
+      {
+        "name": "end",
+        "type": "str",
+        "required": false,
+        "help": "End date (YYYY-MM-DD), default today"
+      },
+      {
+        "name": "has-retweet",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Include retweets"
+      },
+      {
+        "name": "has-video",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Include posts with video"
+      },
+      {
+        "name": "has-music",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Include posts with music"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Maximum posts (0 = all)"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "required": false,
+        "help": "Output directory"
+      }
+    ],
+    "columns": [
+      "id",
+      "text",
+      "time",
+      "likes",
+      "comments",
+      "reposts",
+      "images",
+      "saved"
+    ],
+    "type": "js",
+    "modulePath": "weibo/search_by_user.js",
+    "sourceFile": "weibo/search_by_user.js",
+    "navigateBefore": "https://weibo.com"
+  },
+  {
+    "site": "weibo",
     "name": "user",
     "description": "Get Weibo user profile",
     "access": "read",
