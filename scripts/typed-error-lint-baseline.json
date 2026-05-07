@@ -1001,14 +1001,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "facebook/notifications",
-    "file": "clis/facebook/notifications.js",
-    "line": 31,
-    "text": "time: time || '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "gitee/search",
     "file": "clis/gitee/search.js",
     "line": 127,

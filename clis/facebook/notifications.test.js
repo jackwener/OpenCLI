@@ -19,11 +19,17 @@
 // `${fn.toString()}` so the extractor seen by these JSDOM tests is the
 // exact same code that runs in the browser.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import {
+    ArgumentError,
+    AuthRequiredError,
+    CommandExecutionError,
+    EmptyResultError,
+} from '@jackwener/opencli/errors';
 
 import {
     FB_HOST,
@@ -321,7 +327,7 @@ describe('buildNotificationsScript — IIFE invariants', () => {
     it('contains an auth-redirect guard before the DOM walk', () => {
         const script = buildNotificationsScript(15);
         expect(script).toMatch(/AUTH_REQUIRED.*facebook/i);
-        expect(script).toMatch(/\\\/login.*\\\/checkpoint/);
+        expect(script).toContain('/(^|\\/)(login|checkpoint)(\\/|$)/i');
     });
 
     it('does NOT contain the legacy silent-truncation slice/substring — anti-pattern regression guard', () => {
@@ -330,5 +336,60 @@ describe('buildNotificationsScript — IIFE invariants', () => {
         expect(script).not.toMatch(/text\.substring\(0,\s*150\)/);
         // Legacy: time || '-' — silent sentinel that this PR fixes.
         expect(script).not.toMatch(/time\s*\|\|\s*['"]-['"]/);
+    });
+});
+
+describe('facebook/notifications — func typed boundaries', () => {
+    function createPageMock(rows) {
+        return {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue(rows),
+        };
+    }
+
+    function createFailingPageMock(error, { failGoto = false } = {}) {
+        return {
+            goto: vi.fn(failGoto ? () => Promise.reject(error) : () => Promise.resolve()),
+            evaluate: vi.fn(failGoto ? () => Promise.resolve([]) : () => Promise.reject(error)),
+        };
+    }
+
+    it('validates --limit upfront before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(notificationsCommand.func(page, { limit: 0 })).rejects.toThrow(ArgumentError);
+        await expect(notificationsCommand.func(page, { limit: NOTIFICATIONS_LIMIT_MAX + 1 })).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(page.evaluate).not.toHaveBeenCalled();
+    });
+
+    it('returns rows verbatim on success', async () => {
+        const row = {
+            index: 1,
+            unread: true,
+            text: 'hello',
+            time: '2天',
+            url: 'https://www.facebook.com/notifications/?notif_id=1&notif_t=test',
+            notif_id: '1',
+            notif_type: 'test',
+        };
+        await expect(notificationsCommand.func(createPageMock([row]), { limit: 1 })).resolves.toEqual([row]);
+    });
+
+    it('maps empty rows to EmptyResultError', async () => {
+        await expect(notificationsCommand.func(createPageMock([]), { limit: 1 })).rejects.toThrow(EmptyResultError);
+    });
+
+    it('maps auth sentinel evaluate failures to AuthRequiredError', async () => {
+        const page = createFailingPageMock(new Error('AUTH_REQUIRED: facebook.com redirected to login'));
+        await expect(notificationsCommand.func(page, { limit: 1 })).rejects.toThrow(AuthRequiredError);
+    });
+
+    it('wraps navigation and evaluate failures as CommandExecutionError', async () => {
+        await expect(
+            notificationsCommand.func(createFailingPageMock(new Error('network down'), { failGoto: true }), { limit: 1 }),
+        ).rejects.toThrow(CommandExecutionError);
+        await expect(
+            notificationsCommand.func(createFailingPageMock(new Error('selector crashed')), { limit: 1 }),
+        ).rejects.toThrow(CommandExecutionError);
     });
 });

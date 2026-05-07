@@ -5,10 +5,9 @@
 // overlapping silent failures the new shape resolves:
 //   1. silent-bad-shape — `text.substring(0, 150)` truncated long
 //      notification bodies without telling the caller.
-//   2. silent-bad-shape — `time || '-'` returned the literal string `'-'`
-//      as the unknown sentinel; typed unknown should be `null` so an
-//      agent caller does not have to learn the dash is an in-band
-//      sentinel.
+//   2. silent-bad-shape — the old time field used a dash sentinel for
+//      unknown values; typed unknown should be `null` so an agent caller
+//      does not have to learn in-band sentinel strings.
 //   3. silent-column-drop — the IIFE saw the `<div>未读</div>` /
 //      `<div>Unread</div>` badge child and the anchor's `<a href>` URL
 //      but kept neither, so callers got a bare text blob with no way
@@ -27,7 +26,7 @@
 //     #1387 / xiaoe #1388 / dianping #1313 pattern). Helpers
 //     `stripMarkAsReadPrefix`, `stripAnchorChrome`, `parseNotifQuery`
 //     are also pure exports for the same reason.
-//   - Six columns instead of three:
+//   - Seven columns instead of three:
 //       index, unread (bool), text (full, no truncation),
 //       time (string|null), url (string), notif_id (string|null),
 //       notif_type (string|null)
@@ -168,7 +167,7 @@ export function extractNotificationRowsFromDoc(doc, limit, helpers) {
         const item = items[i];
         const anchor = item.querySelector('a[href]');
         if (!anchor) continue;
-        const href = anchor.getAttribute('href') || '';
+        const href = anchor.href || anchor.getAttribute('href') || '';
         if (!href) continue;
 
         const abbr = item.querySelector('abbr');
@@ -239,7 +238,7 @@ export function buildNotificationsScript(limit) {
   const FB_HOST = ${JSON.stringify(FB_HOST)};
   const MARK_AS_READ_PREFIXES = ${JSON.stringify(MARK_AS_READ_PREFIXES)};
   const UNREAD_BADGE_LABELS = ${JSON.stringify(UNREAD_BADGE_LABELS)};
-  if (/\\/login|\\/checkpoint/i.test(window.location.pathname || '')) {
+  if (/(^|\\/)(login|checkpoint)(\\/|$)/i.test(window.location.pathname || '')) {
     throw new Error('AUTH_REQUIRED: facebook.com redirected to login');
   }
   ${stripMarkAsReadPrefix.toString()}
