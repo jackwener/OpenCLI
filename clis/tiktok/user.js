@@ -92,7 +92,7 @@ function buildUserScript(username, limit) {
     secUid = String(detail?.userInfo?.user?.secUid || detail?.user?.secUid || '').trim();
   }
   if (!secUid) {
-    throw new Error('AUTH_REQUIRED: cannot resolve secUid for @' + username);
+    throw new Error('No videos found for @' + username);
   }
 
   const dedup = new Map();

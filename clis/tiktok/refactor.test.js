@@ -234,6 +234,7 @@ describe('tiktok/user (page-context refactor)', () => {
         expect(script).toContain("'bootstrap'");
         expect(script).toContain("'search-fallback'");
         expect(script).toContain(JSON.stringify('dictogo'));
+        expect(script).not.toContain('AUTH_REQUIRED: cannot resolve secUid');
     });
 });
 
