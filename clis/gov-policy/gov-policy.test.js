@@ -3,6 +3,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+    ArgumentError,
+    CommandExecutionError,
+    EmptyResultError,
+} from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { extractSearchRows } from './search.js';
 import { extractRecentRows } from './recent.js';
@@ -10,6 +15,18 @@ import { extractRecentRows } from './recent.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SEARCH_FIXTURE = readFileSync(join(__dirname, '__fixtures__/search.html'), 'utf8');
 const RECENT_FIXTURE = readFileSync(join(__dirname, '__fixtures__/recent.html'), 'utf8');
+
+function createPageMock(evaluateResult, overrides = {}) {
+    const evaluate = typeof evaluateResult === 'function'
+        ? vi.fn(evaluateResult)
+        : vi.fn().mockResolvedValue(evaluateResult);
+    return {
+        goto: vi.fn().mockResolvedValue(undefined),
+        wait: vi.fn().mockResolvedValue(undefined),
+        evaluate,
+        ...overrides,
+    };
+}
 
 describe('gov-policy commands — registration', () => {
     it('registers search and recent as public browser commands', () => {
@@ -29,11 +46,43 @@ describe('gov-policy commands — registration', () => {
     it('rejects empty search queries before browser navigation', async () => {
         const search = getRegistry().get('gov-policy/search');
         const page = { goto: vi.fn() };
-        await expect(search.func(page, { query: '   ' })).rejects.toMatchObject({
-            name: 'ArgumentError',
-            code: 'ARGUMENT',
-        });
+        await expect(search.func(page, { query: '   ' })).rejects.toThrow(ArgumentError);
         expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid limits before browser navigation', async () => {
+        const search = getRegistry().get('gov-policy/search');
+        const recent = getRegistry().get('gov-policy/recent');
+        const page = createPageMock({ ok: true, rows: [] });
+
+        await expect(search.func(page, { query: '数字经济', limit: '0' })).rejects.toThrow(ArgumentError);
+        await expect(search.func(page, { query: '数字经济', limit: '1.5' })).rejects.toThrow(ArgumentError);
+        await expect(search.func(page, { query: '数字经济', limit: '21' })).rejects.toThrow(ArgumentError);
+        await expect(recent.func(page, { limit: 'abc' })).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(page.evaluate).not.toHaveBeenCalled();
+    });
+
+    it('maps empty search pages, selector drift, and browser failures to typed errors', async () => {
+        const search = getRegistry().get('gov-policy/search');
+        const recent = getRegistry().get('gov-policy/recent');
+
+        await expect(search.func(createPageMock({
+            ok: false,
+            sample: '很抱歉，没有找到与 数字经济 相关的结果',
+            url: 'https://sousuo.www.gov.cn/sousuo/search.shtml?searchWord=x',
+        }), { query: '数字经济' })).rejects.toThrow(EmptyResultError);
+
+        await expect(recent.func(createPageMock({
+            ok: false,
+            sample: '<main>unexpected government page shell</main>',
+            url: 'https://www.gov.cn/zhengce/zuixin/index.htm',
+        }), {})).rejects.toThrow(CommandExecutionError);
+
+        await expect(search.func(createPageMock(
+            { ok: true, rows: [] },
+            { goto: vi.fn().mockRejectedValue(new Error('browser disconnected')) },
+        ), { query: '数字经济' })).rejects.toThrow(CommandExecutionError);
     });
 });
 

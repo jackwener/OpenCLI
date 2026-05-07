@@ -11,7 +11,12 @@
  */
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { clampInt } from '../_shared/common.js';
+import {
+    classifyExtractorFailure,
+    parseGovPolicyLimit,
+    requireRows,
+    wrapBrowserError,
+} from './utils.js';
 
 /**
  * Pure DOM extractor for the gov-policy "latest policies" listing page.
@@ -62,11 +67,12 @@ cli({
     ],
     columns: ['rank', 'title', 'date', 'source', 'url'],
     func: async (page, kwargs) => {
-        const limit = clampInt(kwargs.limit, 10, 1, 20);
-        await page.goto('https://www.gov.cn/zhengce/zuixin/index.htm');
-        await page.wait(4);
-        // Poll until the SSR listing mounts.
-        await page.evaluate(`
+        const limit = parseGovPolicyLimit(kwargs.limit, 'recent');
+        try {
+            await page.goto('https://www.gov.cn/zhengce/zuixin/index.htm');
+            await page.wait(4);
+            // Poll until the SSR listing mounts.
+            await page.evaluate(`
       (async () => {
         for (let i = 0; i < 20; i++) {
           if (document.querySelector('.news_box li, .list li, .list_item, .news-list li')) break;
@@ -74,8 +80,11 @@ cli({
         }
       })()
     `);
-        const result = await page.evaluate(`(${extractRecentRows.toString()})()`);
-        if (!result || !result.ok) return [];
-        return result.rows.slice(0, limit);
+            const result = await page.evaluate(`(${extractRecentRows.toString()})()`);
+            if (!result || !result.ok) classifyExtractorFailure('recent', result);
+            return requireRows('recent', result.rows).slice(0, limit);
+        } catch (error) {
+            wrapBrowserError('recent', error);
+        }
     },
 });

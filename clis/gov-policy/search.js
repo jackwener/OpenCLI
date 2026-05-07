@@ -10,7 +10,13 @@
  */
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
+import { requireNonEmptyQuery } from '../_shared/common.js';
+import {
+    classifyExtractorFailure,
+    parseGovPolicyLimit,
+    requireRows,
+    wrapBrowserError,
+} from './utils.js';
 
 /**
  * Pure DOM extractor for the gov-policy search-results page.
@@ -61,12 +67,13 @@ cli({
     ],
     columns: ['rank', 'title', 'description', 'date', 'url'],
     func: async (page, kwargs) => {
-        const limit = clampInt(kwargs.limit, 10, 1, 20);
+        const limit = parseGovPolicyLimit(kwargs.limit, 'search');
         const query = requireNonEmptyQuery(kwargs.query);
-        await page.goto(`https://sousuo.www.gov.cn/sousuo/search.shtml?code=17da70961a7&dataTypeId=107&searchWord=${encodeURIComponent(query)}`);
-        await page.wait(5);
-        // Poll until the SSR result list mounts.
-        await page.evaluate(`
+        try {
+            await page.goto(`https://sousuo.www.gov.cn/sousuo/search.shtml?code=17da70961a7&dataTypeId=107&searchWord=${encodeURIComponent(query)}`);
+            await page.wait(5);
+            // Poll until the SSR result list mounts.
+            await page.evaluate(`
       (async () => {
         for (let i = 0; i < 30; i++) {
           if (document.querySelectorAll('.basic_result_content .item, .js_basic_result_content .item').length > 0) break;
@@ -74,8 +81,11 @@ cli({
         }
       })()
     `);
-        const result = await page.evaluate(`(${extractSearchRows.toString()})()`);
-        if (!result || !result.ok) return [];
-        return result.rows.slice(0, limit);
+            const result = await page.evaluate(`(${extractSearchRows.toString()})()`);
+            if (!result || !result.ok) classifyExtractorFailure('search', result);
+            return requireRows('search', result.rows).slice(0, limit);
+        } catch (error) {
+            wrapBrowserError('search', error);
+        }
     },
 });
