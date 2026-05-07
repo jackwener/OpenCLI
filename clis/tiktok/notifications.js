@@ -64,7 +64,6 @@ function buildNotificationsScript(limit, typeKey) {
   let apiFailure = null;
   const msToken = getCookie('msToken');
   let maxTime = 0;
-  let authRequired = false;
   for (let page = 0; page < maxPages && dedup.size < limit; page += 1) {
     const params = new URLSearchParams({
       aid,
@@ -75,10 +74,7 @@ function buildNotificationsScript(limit, typeKey) {
     if (msToken) params.set('msToken', msToken);
     try {
       const data = await fetchJson('/api/notice/multi/?' + params.toString());
-      if (data?.status_code === 8 || data?.statusCode === 8) {
-        authRequired = true;
-        break;
-      }
+      assertTikTokApiSuccess(data, 'notice');
       const list = Array.isArray(data.notice_list_v1)
         ? data.notice_list_v1
         : (Array.isArray(data.noticeList) ? data.noticeList : (Array.isArray(data.notice_list) ? data.notice_list : []));
@@ -93,10 +89,6 @@ function buildNotificationsScript(limit, typeKey) {
       apiFailure = error instanceof Error ? error.message : String(error);
       break;
     }
-  }
-
-  if (authRequired) {
-    throw new Error('AUTH_REQUIRED: TikTok inbox requires login (' + noticeLabel + ')');
   }
 
   const rows = Array.from(dedup.values())

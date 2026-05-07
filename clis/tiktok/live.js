@@ -71,6 +71,7 @@ function buildLiveScript(limit) {
     if (msToken) params.set('msToken', msToken);
     try {
       const data = await fetchJson('/api/live/discover/get/?' + params.toString());
+      assertTikTokApiSuccess(data, 'live-discover');
       const list = Array.isArray(data.data?.list)
         ? data.data.list
         : (Array.isArray(data.list)

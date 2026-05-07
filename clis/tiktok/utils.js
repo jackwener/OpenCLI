@@ -136,6 +136,17 @@ async function fetchJson(url) {
   }
 }
 
+function assertTikTokApiSuccess(data, label) {
+  if (!data || typeof data !== 'object') return;
+  const code = data.status_code ?? data.statusCode;
+  if (code === undefined || code === null || Number(code) === 0) return;
+  const message = cleanText(data.status_msg ?? data.statusMsg ?? data.message ?? data.msg ?? code, 240);
+  if (Number(code) === 8 || /auth|captcha|login|permission|unauthori[sz]ed|forbidden/i.test(message)) {
+    throw new Error('AUTH_REQUIRED: ' + label + ' API failed: ' + message);
+  }
+  throw new Error(label + ' API failed: ' + message);
+}
+
 function findUniversalData() {
   const scripts = Array.from(document.querySelectorAll('script'));
   for (const script of scripts) {

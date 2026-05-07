@@ -116,13 +116,17 @@ describe('tiktok/utils', () => {
 
     it('BROWSER_HELPERS is a string template that exposes the expected helper names', () => {
         expect(typeof BROWSER_HELPERS).toBe('string');
-        for (const name of ['asNumber', 'cleanText', 'getCookie', 'fetchJson', 'findUniversalData', 'walkObjects']) {
+        for (const name of ['asNumber', 'cleanText', 'getCookie', 'fetchJson', 'assertTikTokApiSuccess', 'findUniversalData', 'walkObjects']) {
             expect(BROWSER_HELPERS).toContain('function ' + name + '(');
         }
         const asNumber = new Function(`${BROWSER_HELPERS}; return asNumber;`)();
         expect(asNumber(null)).toBeNull();
         expect(asNumber('')).toBeNull();
         expect(asNumber(0)).toBe(0);
+        const assertTikTokApiSuccess = new Function(`${BROWSER_HELPERS}; return assertTikTokApiSuccess;`)();
+        expect(() => assertTikTokApiSuccess({ status_code: 0 }, 'test')).not.toThrow();
+        expect(() => assertTikTokApiSuccess({ status_code: 8, status_msg: 'login required' }, 'test')).toThrow(/AUTH_REQUIRED/);
+        expect(() => assertTikTokApiSuccess({ status_code: 1001, status_msg: 'rate limited' }, 'test')).toThrow(/test API failed: rate limited/);
     });
 
     it('Item normalizers produce well-formed JS function declarations', () => {
@@ -172,6 +176,7 @@ describe('tiktok/explore (page-context refactor)', () => {
     it('build script targets recommend-feed state + recommend item_list endpoint', () => {
         const script = exploreTest.buildExploreScript(15);
         expect(script).toContain('/api/recommend/item_list/');
+        expect(script).toContain("assertTikTokApiSuccess(data, 'recommend')");
         expect(script).toContain('findUniversalData');
         expect(script).toContain('normalizeVideoItem');
     });
@@ -206,6 +211,7 @@ describe('tiktok/friends (page-context refactor)', () => {
     it('build script targets recommend-user endpoint via state-then-API', () => {
         const script = friendsTest.buildFriendsScript(20);
         expect(script).toContain('/api/recommend/user/');
+        expect(script).toContain("assertTikTokApiSuccess(data, 'recommend-user')");
         expect(script).toContain('findUniversalData');
         expect(script).toContain('normalizeUserRow');
     });
@@ -244,6 +250,7 @@ describe('tiktok/following (page-context refactor)', () => {
     it('build script resolves viewer secUid then pages user-list scene=21', () => {
         const script = followingTest.buildFollowingScript(20);
         expect(script).toContain('/api/user/list/');
+        expect(script).toContain("assertTikTokApiSuccess(data, 'user-list')");
         expect(script).toContain("scene: '21'");
         expect(script).toContain('findViewerSecUid');
         expect(script).toContain('normalizeUserRow');
@@ -285,6 +292,7 @@ describe('tiktok/notifications (page-context refactor)', () => {
             const script = notificationsTest.buildNotificationsScript(15, key);
             expect(script).toContain('const noticeType = ' + meta.code);
             expect(script).toContain('/api/notice/multi/');
+            expect(script).toContain("assertTikTokApiSuccess(data, 'notice')");
         }
     });
 });
@@ -318,6 +326,7 @@ describe('tiktok/live (page-context refactor)', () => {
     it('build script targets live-discover endpoint via state-then-API', () => {
         const script = liveTest.buildLiveScript(15);
         expect(script).toContain('/api/live/discover/get/');
+        expect(script).toContain("assertTikTokApiSuccess(data, 'live-discover')");
         expect(script).toContain('findUniversalData');
         expect(script).toContain('normalizeLiveItem');
     });

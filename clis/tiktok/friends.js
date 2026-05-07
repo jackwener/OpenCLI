@@ -73,6 +73,7 @@ function buildFriendsScript(limit) {
       if (msToken) params.set('msToken', msToken);
       try {
         const data = await fetchJson('/api/recommend/user/?' + params.toString());
+        assertTikTokApiSuccess(data, 'recommend-user');
         const list = Array.isArray(data.userList)
           ? data.userList
           : (Array.isArray(data.user_list) ? data.user_list : []);

@@ -92,6 +92,7 @@ function buildFollowingScript(limit) {
     if (msToken) params.set('msToken', msToken);
     try {
       const data = await fetchJson('/api/user/list/?' + params.toString());
+      assertTikTokApiSuccess(data, 'user-list');
       const list = Array.isArray(data.userList)
         ? data.userList
         : (Array.isArray(data.user_list) ? data.user_list : []);

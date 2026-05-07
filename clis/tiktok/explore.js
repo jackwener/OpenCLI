@@ -74,6 +74,7 @@ function buildExploreScript(limit) {
       if (msToken) params.set('msToken', msToken);
       try {
         const data = await fetchJson('/api/recommend/item_list/?' + params.toString());
+        assertTikTokApiSuccess(data, 'recommend');
         const items = Array.isArray(data.itemList) ? data.itemList : [];
         for (const item of items) {
           const row = normalizeVideoItem(item, dedup.size + 1);
