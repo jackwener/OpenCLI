@@ -36,13 +36,26 @@ export function parseGrokSessionId(input) {
     if (!raw) {
         throw new ArgumentError('id', 'must be a non-empty session ID or grok.com chat URL');
     }
-    // Anchor the right-hand side so an over-long URL tail does not silently
-    // truncate to the first 36 chars of a longer hex/dash sequence — opening
-    // the wrong conversation is a worse failure mode than throwing.
-    const urlMatch = raw.match(
-        /grok\.com\/c\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:[/?#]|$)/i,
-    );
-    const candidate = urlMatch ? urlMatch[1] : raw;
+    let candidate = raw;
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) {
+        let parsed;
+        try {
+            parsed = new URL(raw);
+        } catch {
+            throw new ArgumentError('id', `not a valid Grok URL (got "${input}")`);
+        }
+        const host = parsed.hostname.toLowerCase();
+        const pathMatch = parsed.pathname.match(
+            /^\/c\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i,
+        );
+        if (parsed.protocol !== 'https:' || (host !== 'grok.com' && !host.endsWith('.grok.com')) || !pathMatch) {
+            throw new ArgumentError(
+                'id',
+                `not a valid Grok conversation URL (got "${input}"); expected https://grok.com/c/<id>`,
+            );
+        }
+        candidate = pathMatch[1];
+    }
     if (!GROK_SESSION_ID_RE.test(candidate)) {
         throw new ArgumentError(
             'id',

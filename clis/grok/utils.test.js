@@ -15,8 +15,9 @@ describe('grok parseGrokSessionId', () => {
 
     it('extracts the session ID from a full grok.com chat URL', () => {
         expect(parseGrokSessionId(`https://grok.com/c/${id}`)).toBe(id);
+        expect(parseGrokSessionId(`https://grok.com/c/${id}/`)).toBe(id);
         expect(parseGrokSessionId(`https://grok.com/c/${id}?rid=abc`)).toBe(id);
-        expect(parseGrokSessionId(`http://grok.com/c/${id}`)).toBe(id);
+        expect(parseGrokSessionId(`https://x.grok.com/c/${id}`)).toBe(id);
     });
 
     it('throws ArgumentError on empty input', () => {
@@ -35,6 +36,11 @@ describe('grok parseGrokSessionId', () => {
         expect(() => parseGrokSessionId('zc4197f2-10a1-4ebb-a84a-fea89f4f1d06')).toThrow(ArgumentError);
         // URL with the wrong path shape must not silently fall through.
         expect(() => parseGrokSessionId('https://grok.com/somewhere/else')).toThrow(ArgumentError);
+        expect(() => parseGrokSessionId(`http://grok.com/c/${id}`)).toThrow(ArgumentError);
+        expect(() => parseGrokSessionId(`https://evil.com/c/${id}`)).toThrow(ArgumentError);
+        expect(() => parseGrokSessionId(`https://fakegrok.com/c/${id}`)).toThrow(ArgumentError);
+        expect(() => parseGrokSessionId(`https://evil.com/?next=https://grok.com/c/${id}`)).toThrow(ArgumentError);
+        expect(() => parseGrokSessionId(`https://grok.com/c/${id}/extra`)).toThrow(ArgumentError);
         // URL embedding extra hex tail after the UUID must not silently truncate
         // and open the wrong conversation.
         expect(() => parseGrokSessionId(`https://grok.com/c/${id}0`)).toThrow(ArgumentError);
