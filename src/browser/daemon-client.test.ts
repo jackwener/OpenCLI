@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  BrowserCommandError,
   fetchDaemonStatus,
   getDaemonHealth,
   requestDaemonShutdown,
@@ -206,5 +207,18 @@ describe('daemon-client', () => {
       return body.id;
     });
     expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it('sendCommand rewrites unknown actions as an extension version mismatch', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: () => Promise.resolve({ ok: false, error: 'Unknown action: bind' }),
+    } as Response);
+
+    await expect(sendCommand('bind', { workspace: 'bound:default' })).rejects.toMatchObject<Partial<BrowserCommandError>>({
+      name: 'BrowserCommandError',
+      code: 'extension_outdated',
+    });
   });
 });

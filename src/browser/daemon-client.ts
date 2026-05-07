@@ -194,6 +194,13 @@ async function sendCommandRaw(
       const result = (await res.json()) as DaemonResult;
 
       if (!result.ok) {
+        if (typeof result.error === 'string' && /^Unknown action:\s*/.test(result.error)) {
+          throw new BrowserCommandError(
+            `Browser extension is too old to handle "${action}".`,
+            'extension_outdated',
+            'Reload or update the OpenCLI Browser Bridge extension so it matches this CLI version, then retry.',
+          );
+        }
         const isDuplicateCommandId = res.status === 409
           || (result.error ?? '').includes('Duplicate command id');
         if (isDuplicateCommandId && attempt < maxRetries) {
