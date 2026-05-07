@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.7.14](https://github.com/jackwener/opencli/compare/v1.7.13...v1.7.14) (2026-05-08)
+
+### Features
+
+* **help** — adapter help is now agent-friendly: per-command listings drop the `[options]` noise from globally-shared options (`--format`, `--trace`, `-v`, `-h`, etc.) and only mention them at the site level, so `opencli twitter` etc. read like a flat command index. ([#1401](https://github.com/jackwener/opencli/issues/1401))
+* **twitter** — write-action symmetry P0: add `unlike`, `retweet`, `unretweet`, and `quote` to round out the read/write coverage. ([#1400](https://github.com/jackwener/opencli/issues/1400))
+
+### Bug Fixes
+
+* **browser daemon** — `npm install -g @jackwener/opencli@latest` now correctly auto-restarts a stale ready-state daemon so users pick up the new version without a manual `opencli daemon restart`. ([#1399](https://github.com/jackwener/opencli/issues/1399))
+
 ## [1.7.13](https://github.com/jackwener/opencli/compare/v1.7.12...v1.7.13) (2026-05-07)
 
 Extension bumped to 1.0.6 (screenshot `--width` / `--height` / `--full-page` flags, automation tab group color marker, automation container reuse fix).
