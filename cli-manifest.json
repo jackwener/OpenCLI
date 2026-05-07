@@ -10278,6 +10278,181 @@
     }
   },
   {
+    "site": "grok",
+    "name": "detail",
+    "description": "Open a Grok conversation by ID and read its messages",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Session ID (UUID) or full https://grok.com/c/<id> URL"
+      },
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "grok/detail.js",
+    "sourceFile": "grok/detail.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "grok",
+    "name": "history",
+    "description": "List recent Grok conversations from the sidebar (requires login)",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max conversations to show (default 20, max 100)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "grok/history.js",
+    "sourceFile": "grok/history.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "grok",
+    "name": "new",
+    "description": "Start a new conversation in Grok",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "grok/new.js",
+    "sourceFile": "grok/new.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "grok",
+    "name": "read",
+    "description": "Read messages in the current Grok conversation",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "grok/read.js",
+    "sourceFile": "grok/read.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "grok",
+    "name": "send",
+    "description": "Fire-and-forget: send a prompt to Grok without waiting for the reply",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send to Grok"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Prompt"
+    ],
+    "type": "js",
+    "modulePath": "grok/send.js",
+    "sourceFile": "grok/send.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "grok",
+    "name": "status",
+    "description": "Check Grok page availability, login state, current session and model",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Login",
+      "Model",
+      "SessionId",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "grok/status.js",
+    "sourceFile": "grok/status.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
     "site": "hackernews",
     "name": "ask",
     "description": "Hacker News Ask HN posts",
