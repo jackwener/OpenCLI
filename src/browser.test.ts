@@ -162,7 +162,11 @@ describe('BrowserBridge state', () => {
 
     const bridge = new BrowserBridge();
 
-    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Browser Bridge extension not connected');
+    await expect(bridge.connect({ timeout: 0.1 })).rejects.toMatchObject({
+      message: 'Browser Bridge extension not connected',
+      kind: 'extension-not-connected',
+      hint: expect.stringContaining('Try running the command again'),
+    });
   });
 
   it('attempts stale daemon replacement when daemonVersion is missing', async () => {

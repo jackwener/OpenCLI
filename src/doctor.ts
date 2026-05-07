@@ -173,7 +173,8 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     } else {
       issues.push(
         'Daemon is running but the Chrome/Chromium extension is not connected.\n' +
-        'If the extension is already installed, try: opencli daemon restart\n' +
+        'Try running the command again — the extension may need a moment to reconnect.\n' +
+        'If it still fails, reload OpenCLI in chrome://extensions and run: opencli daemon restart\n' +
         'If the extension is not installed:\n' +
         '  1. Download from https://github.com/jackwener/opencli/releases\n' +
         '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
