@@ -137,14 +137,6 @@
   },
   {
     "rule": "silent-clamp",
-    "command": "coupang/search",
-    "file": "clis/coupang/search.js",
-    "line": 417,
-    "text": "const limit = Math.min(Math.max(Number(kwargs.limit || 20), 1), 50);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-clamp",
     "command": "douyin/user-videos",
     "file": "clis/douyin/user-videos.js",
     "line": 16,
@@ -419,16 +411,8 @@
     "rule": "silent-clamp",
     "command": "linkedin/search",
     "file": "clis/linkedin/search.js",
-    "line": 207,
+    "line": 249,
     "text": "const count = Math.min(MAX_BATCH, input.limit - allJobs.length);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-clamp",
-    "command": "linkedin/search",
-    "file": "clis/linkedin/search.js",
-    "line": 339,
-    "text": "const limit = Math.max(1, Math.min(kwargs.limit ?? 10, 100));",
     "occurrence": 0
   },
   {
@@ -501,14 +485,6 @@
     "file": "clis/reddit/read.js",
     "line": 157,
     "text": "for (var i = 0; i < Math.min(t1TopLevel.length, limit); i++) {",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-clamp",
-    "command": "reuters/search",
-    "file": "clis/reuters/search.js",
-    "line": 18,
-    "text": "const count = Math.min(kwargs.limit || 10, 40);",
     "occurrence": 0
   },
   {
@@ -981,14 +957,6 @@
     "file": "clis/boss/stats.js",
     "line": 39,
     "text": "const jobName = f.jobName || 'unknown';",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "coupang/add-to-cart",
-    "file": "clis/coupang/add-to-cart.js",
-    "line": 123,
-    "text": "throw new Error(`Product mismatch: expected ${productId}, got ${actualProductId || 'unknown'}`);",
     "occurrence": 0
   },
   {

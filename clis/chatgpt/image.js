@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { saveBase64ToFile } from '@jackwener/opencli/utils';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getChatGPTVisibleImageUrls, sendChatGPTMessage, waitForChatGPTImages, getChatGPTImageAssets } from './utils.js';
 
 const CHATGPT_DOMAIN = 'chatgpt.com';
@@ -57,11 +57,11 @@ export const imageCommand = cli({
     browser: true,
     navigateBefore: false,
     defaultFormat: 'plain',
-    timeoutSeconds: 240,
     args: [
         { name: 'prompt', positional: true, required: true, help: 'Image prompt to send to ChatGPT' },
         { name: 'op', help: 'Output directory (default: ~/Pictures/chatgpt)' },
         { name: 'sd', type: 'boolean', default: false, help: 'Skip download shorthand; only show ChatGPT link' },
+        { name: 'timeout', type: 'int', required: false, default: 240, help: 'Max seconds for the overall command (default: 240)' },
     ],
     columns: ['status', 'file', 'link'],
     func: async (page, kwargs) => {
@@ -69,7 +69,10 @@ export const imageCommand = cli({
         const outputDir = resolveOutputDir(kwargs.op);
         const skipDownloadRaw = kwargs.sd;
         const skipDownload = skipDownloadRaw === '' || skipDownloadRaw === true || normalizeBooleanFlag(skipDownloadRaw);
-        const timeout = 120;
+        const timeout = kwargs.timeout;
+        if (!Number.isInteger(timeout) || timeout < 1) {
+            throw new ArgumentError('--timeout must be a positive integer (seconds)');
+        }
 
         // Navigate to chatgpt.com/new with full reload to clear React sidebar state
         await page.goto(`https://${CHATGPT_DOMAIN}/new`, { settleMs: 2000 });

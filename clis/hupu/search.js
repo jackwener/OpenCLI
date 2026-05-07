@@ -8,7 +8,6 @@ cli({
     domain: 'bbs.hupu.com',
     strategy: Strategy.PUBLIC, // 公开API，不需要Cookie
     browser: true,
-    navigateBefore: false,
     args: [
         {
             name: 'query',

@@ -278,3 +278,39 @@ describe('Page active target tracking', () => {
     expect(evalCall?.[1]).not.toHaveProperty('page');
   });
 });
+
+describe('Page.screenshot', () => {
+  beforeEach(() => {
+    sendCommandMock.mockReset();
+    sendCommandFullMock.mockReset();
+    warnMock.mockReset();
+  });
+
+  it('forwards width / height / fullPage options to the bridge', async () => {
+    sendCommandMock.mockResolvedValueOnce('BASE64');
+
+    const page = new Page('browser:default');
+    const data = await page.screenshot({ fullPage: true, width: 1080 });
+
+    expect(data).toBe('BASE64');
+    expect(sendCommandMock).toHaveBeenCalledWith('screenshot', expect.objectContaining({
+      workspace: 'browser:default',
+      fullPage: true,
+      width: 1080,
+    }));
+  });
+
+  it('omits viewport overrides when none are set', async () => {
+    sendCommandMock.mockResolvedValueOnce('BASE64');
+
+    const page = new Page('browser:default');
+    await page.screenshot();
+
+    const call = sendCommandMock.mock.calls.at(-1);
+    expect(call?.[0]).toBe('screenshot');
+    const args = call?.[1] as Record<string, unknown>;
+    expect(args.width).toBeUndefined();
+    expect(args.height).toBeUndefined();
+    expect(args.fullPage).toBeUndefined();
+  });
+});

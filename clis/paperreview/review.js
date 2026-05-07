@@ -9,9 +9,9 @@ cli({
     domain: PAPERREVIEW_DOMAIN,
     strategy: Strategy.PUBLIC,
     browser: false,
-    timeoutSeconds: 30,
     args: [
         { name: 'token', positional: true, required: true, help: 'Review token returned by paperreview.ai' },
+        { name: 'timeout', type: 'int', required: false, default: 30, help: 'Max seconds for the overall command (default: 30)' },
     ],
     columns: ['status', 'title', 'venue', 'numerical_score', 'has_feedback', 'review_url'],
     func: async (kwargs) => {

@@ -101,7 +101,6 @@ cli({
     browser: true,
     navigateBefore: false,
     defaultFormat: 'plain',
-    timeoutSeconds: 300,
     args: [
         { name: 'prompt', required: true, positional: true, help: 'Image prompt to send' },
         { name: 'op', default: '~/Pictures/qianwen', help: 'Output directory' },

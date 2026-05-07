@@ -8,11 +8,11 @@ cli({
     domain: 'x.com',
     strategy: Strategy.UI,
     browser: true,
-    timeoutSeconds: 600, // 10 min — batch operation
     args: [
         { name: 'text', type: 'string', required: true, positional: true, help: 'Message text to send (e.g. "我的微信 wxkabi")' },
         { name: 'max', type: 'int', required: false, default: 20, help: 'Maximum number of conversations to reply to (default: 20)' },
         { name: 'skip-replied', type: 'boolean', required: false, default: true, help: 'Skip conversations where you already sent the same text (default: true)' },
+        { name: 'timeout', type: 'int', required: false, default: 600, help: 'Max seconds for the overall command (default: 600 — batch op)' },
     ],
     columns: ['index', 'status', 'user', 'message'],
     func: async (page, kwargs) => {

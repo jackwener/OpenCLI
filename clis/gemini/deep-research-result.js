@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError } from '@jackwener/opencli/errors';
 import { GEMINI_DOMAIN, clickGeminiConversationByTitle, exportGeminiDeepResearchReport, getLatestGeminiAssistantResponse, getGeminiPageState, parseGeminiConversationUrl, parseGeminiTitleMatchMode, readGeminiSnapshot, resolveGeminiConversationForQuery, waitForGeminiTranscript, getGeminiConversationList, } from './utils.js';
 const DEEP_RESEARCH_WAITING_MESSAGE = 'Deep Research is still running. Please wait and retry later.';
 const DEEP_RESEARCH_NO_DOCS_MESSAGE = 'No Docs URL found. Please check Share & Export -> Export to Docs in Gemini UI.';
@@ -54,8 +55,10 @@ export const deepResearchResultCommand = cli({
     func: async (page, kwargs) => {
         const query = String(kwargs.query ?? '').trim();
         const matchMode = parseGeminiTitleMatchMode(kwargs.match);
-        const timeoutRaw = Number.parseInt(String(kwargs.timeout ?? ''), 10);
-        const timeoutSeconds = Number.isFinite(timeoutRaw) && timeoutRaw > 0 ? timeoutRaw : 120;
+        const timeoutSeconds = kwargs.timeout;
+        if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1) {
+            throw new ArgumentError('--timeout must be a positive integer (seconds)');
+        }
         if (!matchMode) {
             return [{ response: 'Invalid match mode. Use contains or exact.' }];
         }

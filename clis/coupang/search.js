@@ -1,5 +1,6 @@
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { mergeSearchItems, normalizeSearchItem, sanitizeSearchItems } from './utils.js';
+import { mergeSearchItems, normalizeSearchItem, parseLimitArg, parsePageArg, sanitizeSearchItems } from './utils.js';
 function escapeJsString(value) {
     return JSON.stringify(value);
 }
@@ -410,32 +411,50 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Max results (max 50)' },
         { name: 'filter', required: false, help: 'Optional search filter (currently supports: rocket)' },
     ],
-    columns: ['rank', 'title', 'price', 'unit_price', 'rating', 'review_count', 'rocket', 'delivery_type', 'delivery_promise', 'url'],
+    columns: ['rank', 'product_id', 'title', 'price', 'unit_price', 'rating', 'review_count', 'rocket', 'delivery_type', 'delivery_promise', 'url'],
     func: async (page, kwargs) => {
         const query = String(kwargs.query || '').trim();
-        const pageNumber = Math.max(Number(kwargs.page || 1), 1);
-        const limit = Math.min(Math.max(Number(kwargs.limit || 20), 1), 50);
+        if (!query) {
+            throw new ArgumentError('query cannot be empty');
+        }
+        const pageNumber = parsePageArg(kwargs.page, 1);
+        const limit = parseLimitArg(kwargs.limit, 20, 50);
         const filter = String(kwargs.filter || '').trim().toLowerCase();
-        if (!query)
-            throw new Error('Query is required');
+        if (filter && filter !== 'rocket') {
+            throw new ArgumentError(`Unsupported --filter "${filter}" (supported: rocket)`);
+        }
         const initialPage = filter ? 1 : pageNumber;
         const url = `https://www.coupang.com/np/search?q=${encodeURIComponent(query)}&channel=user&page=${initialPage}`;
-        await page.goto(url);
+        await page.goto(url).catch((error) => {
+            throw new CommandExecutionError(`coupang search navigation failed: ${error?.message || error}`);
+        });
         if (filter) {
-            const filterResult = await page.evaluate(buildApplyFilterEvaluate(filter));
+            const filterResult = await page.evaluate(buildApplyFilterEvaluate(filter)).catch((error) => {
+                throw new CommandExecutionError(`coupang search filter evaluation failed: ${error?.message || error}`);
+            });
             if (!filterResult?.ok) {
-                throw new Error(`Unsupported or unavailable filter: ${filter}`);
+                throw new EmptyResultError('coupang search', `Filter "${filter}" was not available on the current page; try without --filter or wait for Coupang to render the filter bar.`);
             }
-            await page.wait(3);
+            await page.wait(3).catch((error) => {
+                throw new CommandExecutionError(`coupang search wait failed: ${error?.message || error}`);
+            });
             if (pageNumber > 1) {
-                const locationInfo = await page.evaluate(buildCurrentLocationEvaluate());
+                const locationInfo = await page.evaluate(buildCurrentLocationEvaluate()).catch((error) => {
+                    throw new CommandExecutionError(`coupang search location evaluation failed: ${error?.message || error}`);
+                });
                 const filteredUrl = new URL(locationInfo?.href || url);
                 filteredUrl.searchParams.set('page', String(pageNumber));
-                await page.goto(filteredUrl.toString());
+                await page.goto(filteredUrl.toString()).catch((error) => {
+                    throw new CommandExecutionError(`coupang search filtered navigation failed: ${error?.message || error}`);
+                });
             }
         }
-        await page.autoScroll({ times: filter ? 3 : 2, delayMs: 1500 });
-        const raw = await page.evaluate(buildSearchEvaluate(query, limit, pageNumber));
+        await page.autoScroll({ times: filter ? 3 : 2, delayMs: 1500 }).catch((error) => {
+            throw new CommandExecutionError(`coupang search scroll failed: ${error?.message || error}`);
+        });
+        const raw = await page.evaluate(buildSearchEvaluate(query, limit, pageNumber)).catch((error) => {
+            throw new CommandExecutionError(`coupang search extraction failed: ${error?.message || error}`);
+        });
         const loginHints = raw?.loginHints ?? {};
         const items = Array.isArray(raw?.items) ? raw.items : [];
         const domItems = Array.isArray(raw?.domItems) ? raw.domItems : [];
@@ -444,8 +463,11 @@ cli({
         const normalized = filter
             ? sanitizeSearchItems(normalizedDom, limit)
             : mergeSearchItems(normalizedBase, normalizedDom, limit);
-        if (!normalized.length && loginHints.hasLoginLink && !loginHints.hasMyCoupang) {
-            throw new Error('Coupang login required. Please log into Coupang in Chrome and retry.');
+        if (!normalized.length) {
+            if (loginHints.hasLoginLink && !loginHints.hasMyCoupang) {
+                throw new AuthRequiredError('coupang.com', 'Please log into Coupang in Chrome and retry.');
+            }
+            throw new EmptyResultError('coupang search', `No products matched "${query}". Try a more specific keyword or remove --filter.`);
         }
         return normalized;
     },

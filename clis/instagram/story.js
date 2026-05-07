@@ -87,9 +87,9 @@ cli({
     domain: 'www.instagram.com',
     strategy: Strategy.UI,
     browser: true,
-    timeoutSeconds: 300,
     args: [
         { name: 'media', required: false, valueRequired: true, help: 'Path to a single story image or video file' },
+        { name: 'timeout', type: 'int', required: false, default: 300, help: 'Max seconds for the overall command (default: 300)' },
     ],
     columns: ['status', 'detail', 'url'],
     validateArgs: validateInstagramStoryArgs,

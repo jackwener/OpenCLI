@@ -13,7 +13,6 @@ cli({
         { name: 'limit', type: 'int', default: 10, help: '返回结果数量 (max 20)' },
     ],
     columns: ['rank', 'title', 'date', 'source', 'url'],
-    navigateBefore: false,
     func: async (page, kwargs) => {
         const limit = clampInt(kwargs.limit, 10, 1, 20);
         await page.goto('https://www.gov.cn/zhengce/zuixin/index.htm');

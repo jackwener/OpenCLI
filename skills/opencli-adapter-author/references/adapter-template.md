@@ -96,8 +96,8 @@ cli({
   name: 'convertible',        // 第二级，CLI 上的子命令
   description: '...',         // 一句话，出现在 `opencli list` 和 `opencli <site> -h`
   domain: 'push2.eastmoney.com',  // 主要请求域名（诊断面板用）
-  strategy: Strategy.PUBLIC,  // PUBLIC / COOKIE / HEADER / INTERCEPT / UI
-  browser: false,             // PUBLIC 几乎总是 false；COOKIE/HEADER 一律 true
+  strategy: Strategy.PUBLIC,  // PUBLIC / COOKIE / INTERCEPT / UI
+  browser: false,             // PUBLIC 几乎总是 false；COOKIE/INTERCEPT/UI 一律 true
   ...
 });
 ```

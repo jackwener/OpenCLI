@@ -143,13 +143,13 @@ describe('registerCommand', () => {
       name: 'direct-reg', access: 'read',
       description: 'directly registered',
       args: [],
-      strategy: Strategy.HEADER,
+      strategy: Strategy.COOKIE,
       browser: true,
     };
     registerCommand(cmd);
 
     const reg = getRegistry();
-    expect(reg.get('test-registry/direct-reg')?.strategy).toBe(Strategy.HEADER);
+    expect(reg.get('test-registry/direct-reg')?.strategy).toBe(Strategy.COOKIE);
   });
 });
 

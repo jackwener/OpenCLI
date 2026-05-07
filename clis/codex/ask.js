@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { selectorError } from '@jackwener/opencli/errors';
-import { conversationSelectionArgs, openCodexConversation, parsePositiveIntegerOption } from './sidebar.js';
+import { ArgumentError, selectorError } from '@jackwener/opencli/errors';
+import { conversationSelectionArgs, openCodexConversation } from './sidebar.js';
 export const askCommand = cli({
     site: 'codex',
     name: 'ask',
@@ -11,13 +11,16 @@ export const askCommand = cli({
     browser: true,
     args: [
         { name: 'text', required: true, positional: true, help: 'Prompt to send' },
-        { name: 'timeout', required: false, help: 'Max seconds to wait for response (default: 60)', default: '60' },
+        { name: 'timeout', type: 'int', required: false, help: 'Max seconds to wait for response (default: 60)', default: 60 },
         ...conversationSelectionArgs,
     ],
     columns: ['Role', 'Project', 'Conversation', 'Text'],
     func: async (page, kwargs) => {
         const text = kwargs.text;
-        const timeout = parsePositiveIntegerOption(kwargs.timeout ?? '60', 'codex ask --timeout');
+        const timeout = kwargs.timeout;
+        if (!Number.isInteger(timeout) || timeout < 1) {
+            throw new ArgumentError('--timeout must be a positive integer (seconds)');
+        }
         const selected = await openCodexConversation(page, kwargs);
         // Snapshot the current content length before sending
         const beforeLen = await page.evaluate(`

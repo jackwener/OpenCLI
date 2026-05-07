@@ -15,7 +15,7 @@ cli({
   access: 'read', // 'read' | 'write'
   example: 'opencli mysite search <query> -f yaml',
   domain: 'www.mysite.com',
-  strategy: Strategy.COOKIE,      // PUBLIC | COOKIE | HEADER
+  strategy: Strategy.COOKIE,      // PUBLIC | COOKIE | INTERCEPT | UI
   args: [
     { name: 'query', required: true, help: 'Search query' },
     { name: 'limit', type: 'int', default: 10, help: 'Max results' },
@@ -82,7 +82,8 @@ for context, the full pattern table, and how to add an id to a listing.
 |----------|----------|----------|
 | Public | `Strategy.PUBLIC` | No auth needed |
 | Cookie | `Strategy.COOKIE` | Browser session cookies |
-| Header | `Strategy.HEADER` | Custom headers/tokens |
+| Intercept | `Strategy.INTERCEPT` | Capture browser requests/responses |
+| UI | `Strategy.UI` | Drive authenticated browser UI |
 
 ## The `page` Object
 

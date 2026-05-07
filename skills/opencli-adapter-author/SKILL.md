@@ -123,7 +123,7 @@ DONE
 [ ] 5. 直接 fetch 候选 endpoint 验证：
        [ ] 返回 200
        [ ] 响应含目标数据（不是 HTML / 广告）
-[ ] 6. 定鉴权策略：裸 fetch 通 → PUBLIC；要 cookie → COOKIE；要 header → HEADER；拿不到签名 → INTERCEPT
+[ ] 6. 定鉴权策略：裸 fetch 通 → PUBLIC；要 cookie / token / csrf → COOKIE；拿不到签名 → INTERCEPT；只能点 UI → UI
 [ ] 7. 字段解码：
        [ ] 自解释 → 直接用 key
        [ ] 已知代号 → field-conventions.md 查表

@@ -1,5 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+const LINKEDIN_DOMAIN = 'linkedin.com';
+const MIN_LIMIT = 1;
+const MAX_LIMIT = 100;
+const MIN_START = 0;
 // ── Filter value mappings ──────────────────────────────────────────────
 const EXPERIENCE_LEVELS = {
     internship: '1',
@@ -66,6 +70,19 @@ function mapFilterValues(input, mapping, label) {
 function normalizeWhitespace(value) {
     return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
+function parseIntegerArg(value, label, fallback, min, max = Infinity) {
+    if (value === undefined || value === null || value === '')
+        return fallback;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+        throw new ArgumentError(`${label} must be an integer, got ${JSON.stringify(value)}`);
+    }
+    if (parsed < min || parsed > max) {
+        const range = Number.isFinite(max) ? `between ${min} and ${max}` : `at least ${min}`;
+        throw new ArgumentError(`${label} must be ${range}, got ${parsed}`);
+    }
+    return parsed;
+}
 function decodeLinkedinRedirect(url) {
     if (!url)
         return '';
@@ -119,6 +136,31 @@ function buildVoyagerUrl(input, offset, count) {
         .replace(/%28/gi, '(')
         .replace(/%29/gi, ')');
     return '/voyager/api/voyagerJobsDashJobCards?' + params.toString() + '&query=' + query + '&start=' + offset;
+}
+function looksLinkedInAuthWallText(value) {
+    const text = String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!text)
+        return false;
+    return /\b(sign in|log in|join linkedin)\b/.test(text) ||
+        /linkedin\.com\/(login|checkpoint|authwall)/i.test(text) ||
+        /\b(captcha|verification required)\b/.test(text) ||
+        /(请登录|登录领英|安全验证)/.test(text);
+}
+function buildLinkedInAuthProbeScript() {
+    return `(() => {
+      const text = [
+        window.location.href || '',
+        document.title || '',
+        document.body ? (document.body.innerText || '').slice(0, 4000) : '',
+      ].join('\\n');
+      return ${looksLinkedInAuthWallText.toString()}(text);
+    })()`;
+}
+async function assertLinkedInAuthenticated(page, context) {
+    const authRequired = await page.evaluate(buildLinkedInAuthProbeScript());
+    if (authRequired) {
+        throw new AuthRequiredError(LINKEDIN_DOMAIN, `${context} requires an active signed-in LinkedIn browser session`);
+    }
 }
 // ── Company ID resolution (requires DOM interaction) ──────────────────
 async function resolveCompanyIds(page, input) {
@@ -209,13 +251,25 @@ async function fetchJobCards(page, input) {
         const batch = await page.evaluate(`(async () => {
       const jsession = document.cookie.split(';').map(p => p.trim())
         .find(p => p.startsWith('JSESSIONID='))?.slice('JSESSIONID='.length);
-      if (!jsession) return { error: 'LinkedIn JSESSIONID cookie not found. Please sign in to LinkedIn in the browser.' };
+      if (!jsession) {
+        return {
+          authRequired: true,
+          error: 'LinkedIn JSESSIONID cookie not found. Please sign in to LinkedIn in the browser.'
+        };
+      }
 
       const csrf = jsession.replace(/^"|"$/g, '');
       const res = await fetch(${JSON.stringify(apiPath)}, {
         credentials: 'include',
         headers: { 'csrf-token': csrf, 'x-restli-protocol-version': '2.0.0' },
       });
+      if (res.status === 401 || res.status === 403) {
+        const text = await res.text();
+        return {
+          authRequired: true,
+          error: 'LinkedIn API authentication failed: HTTP ' + res.status + ' ' + text.slice(0, 200)
+        };
+      }
       if (!res.ok) {
         const text = await res.text();
         return { error: 'LinkedIn API error: HTTP ' + res.status + ' ' + text.slice(0, 200) };
@@ -223,6 +277,9 @@ async function fetchJobCards(page, input) {
       return res.json();
     })()`);
         if (!batch || batch.error) {
+            if (batch?.authRequired) {
+                throw new AuthRequiredError(LINKEDIN_DOMAIN, batch.error);
+            }
             throw new CommandExecutionError(batch?.error || 'LinkedIn search returned an unexpected response');
         }
         const elements = Array.isArray(batch?.elements) ? batch.elements : [];
@@ -259,17 +316,31 @@ async function fetchJobCards(page, input) {
     }));
 }
 // ── Job detail enrichment (--details flag) ────────────────────────────
+//
+// Per-row failures should NOT abort the whole list (--details enriches N rows;
+// partial failure is expected). But silent empty-string fields hide the failure
+// from callers — previously `catch {}` and the `if (!job.url)` early-return
+// both produced indistinguishable `description: '', apply_url: ''` payloads,
+// so users could not tell "fetch failed" from "upstream had no description".
+//
+// The fix: surface `null` instead of `''` for missing/failed rows, set
+// `detail_error` to a short reason ("no url" / "fetch failed: <message>" /
+// "missing description"), and log every failure to stderr with the offending
+// URL so debugging is possible. Successful rows have `detail_error: null`.
 async function enrichJobDetails(page, jobs) {
     const enriched = [];
     for (let i = 0; i < jobs.length; i++) {
         const job = jobs[i];
         console.error(`[opencli:linkedin] Fetching details ${i + 1}/${jobs.length}: ${job.title}`);
         if (!job.url) {
-            enriched.push({ ...job, description: '', apply_url: '' });
+            const reason = 'no url';
+            console.error(`[opencli:linkedin] Skipping detail for "${job.title}": ${reason}`);
+            enriched.push({ ...job, description: null, apply_url: null, detail_error: reason });
             continue;
         }
         try {
             await page.goto(job.url);
+            await assertLinkedInAuthenticated(page, 'LinkedIn job detail');
             await page.wait({ text: 'About the job', timeout: 8 });
             // Expand "Show more" button if present
             await page.evaluate(`(() => {
@@ -301,14 +372,25 @@ async function enrichJobDetails(page, jobs) {
 
         return { description, applyUrl: applyLink?.href || '' };
       })()`);
+            const description = normalizeWhitespace(detail?.description);
+            const apply_url = decodeLinkedinRedirect(String(detail?.applyUrl ?? ''));
+            // Empty description after a successful fetch is itself a
+            // recognizable signal — surface it via detail_error instead of
+            // silently emitting an empty string.
+            const detail_error = description ? null : 'missing description';
             enriched.push({
                 ...job,
-                description: normalizeWhitespace(detail?.description),
-                apply_url: decodeLinkedinRedirect(String(detail?.applyUrl ?? '')),
+                description: description || null,
+                apply_url: apply_url || null,
+                detail_error,
             });
         }
-        catch {
-            enriched.push({ ...job, description: '', apply_url: '' });
+        catch (err) {
+            if (err instanceof AuthRequiredError)
+                throw err;
+            const reason = `fetch failed: ${err?.message || err}`;
+            console.error(`[opencli:linkedin] Detail fetch failed for ${job.url}: ${reason}`);
+            enriched.push({ ...job, description: null, apply_url: null, detail_error: reason });
         }
     }
     return enriched;
@@ -320,7 +402,7 @@ cli({
     access: 'read',
     description: 'Search LinkedIn jobs',
     domain: 'www.linkedin.com',
-    strategy: Strategy.HEADER,
+    strategy: Strategy.COOKIE,
     browser: true,
     args: [
         { name: 'query', type: 'string', required: true, positional: true, help: 'Job search keywords' },
@@ -336,8 +418,8 @@ cli({
     ],
     columns: ['rank', 'title', 'company', 'location', 'listed', 'salary', 'url'],
     func: async (page, kwargs) => {
-        const limit = Math.max(1, Math.min(kwargs.limit ?? 10, 100));
-        const start = Math.max(0, kwargs.start ?? 0);
+        const limit = parseIntegerArg(kwargs.limit, '--limit', 10, MIN_LIMIT, MAX_LIMIT);
+        const start = parseIntegerArg(kwargs.start, '--start', 0, MIN_START);
         const includeDetails = Boolean(kwargs.details);
         const location = (kwargs.location ?? '').trim();
         const keywords = String(kwargs.query ?? '').trim();
@@ -347,6 +429,7 @@ cli({
         if (location)
             searchParams.set('location', location);
         await page.goto(`https://www.linkedin.com/jobs/search/?${searchParams.toString()}`);
+        await assertLinkedInAuthenticated(page, 'LinkedIn search');
         await page.wait({ text: 'Jobs', timeout: 10 });
         const companyIds = await resolveCompanyIds(page, kwargs.company);
         const input = {
@@ -366,3 +449,17 @@ cli({
         return enrichJobDetails(page, data);
     },
 });
+
+export const __test__ = {
+    parseCsvArg,
+    parseIntegerArg,
+    mapFilterValues,
+    decodeLinkedinRedirect,
+    looksLinkedInAuthWallText,
+    assertLinkedInAuthenticated,
+    enrichJobDetails,
+    EXPERIENCE_LEVELS,
+    JOB_TYPES,
+    DATE_POSTED,
+    REMOTE_TYPES,
+};

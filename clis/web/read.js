@@ -18,6 +18,7 @@ import { downloadArticle } from '@jackwener/opencli/download/article-download';
 
 const NETWORK_IDLE_QUIET_MS = 1000;
 const NETWORK_IDLE_POLL_MS = 500;
+const MIN_NON_STRUCTURAL_IFRAME_TEXT_CHARS = 50;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -31,7 +32,7 @@ function boolish(value) {
 
 function normalizeFrameMode(value) {
     const mode = String(value || 'same-origin').toLowerCase();
-    if (['same-origin', 'none'].includes(mode)) return mode;
+    if (['same-origin', 'all-same-origin', 'none'].includes(mode)) return mode;
     return 'same-origin';
 }
 
@@ -144,6 +145,7 @@ function buildRenderAwareExtractorJs(options) {
     return `
       (() => {
         const frameMode = ${JSON.stringify(options.frames)};
+        const minNonStructuralIframeTextChars = ${MIN_NON_STRUCTURAL_IFRAME_TEXT_CHARS};
         const result = {
           title: '',
           author: '',
@@ -188,6 +190,7 @@ function buildRenderAwareExtractorJs(options) {
         const collectEmptyContainers = (root, scope, baseUrl) => {
           const likely = 'table, tbody, ul[id], ol[id], div[id], section[id], [class*="grid"], [class*="data"], [class*="list"], [id*="grid"], [id*="data"], [id*="list"]';
           root.querySelectorAll?.(likely).forEach((el) => {
+            if (scope === 'main' && el.closest?.('[data-opencli-iframe-source]')) return;
             const id = el.getAttribute('id') || '';
             const cls = el.getAttribute('class') || '';
             const name = [id, cls].join(' ').toLowerCase();
@@ -201,6 +204,29 @@ function buildRenderAwareExtractorJs(options) {
               className: cls,
             });
           });
+        };
+        const hasDataContainerSignal = (root) => {
+          const likely = 'table, tbody, ul[id], ol[id], [id*="grid"], [id*="data"], [id*="list"], [id*="content"], [id*="result"], [class*="grid"], [class*="data"], [class*="list"], [class*="content"], [class*="result"]';
+          return !!root.querySelector?.(likely);
+        };
+        const shouldIncludeExternalFrame = (frameBody) => {
+          // Outside-content iframes are less trusted than placeholders inside
+          // contentEl. Long plain text is the fallback for simple same-origin
+          // frames that lack article/table/list structure.
+          if (textLen(frameBody) >= minNonStructuralIframeTextChars) return true;
+          if (frameBody.querySelector?.('article, main, [role="main"], table, tbody, ul li, ol li')) return true;
+          return hasDataContainerSignal(frameBody);
+        };
+        const buildFrameSection = (frameBody, desc, fallbackLabel) => {
+          absolutizeTree(frameBody, desc.src || window.location.href);
+          collectEmptyContainers(frameBody, 'iframe', desc.src);
+          const section = document.createElement('section');
+          section.setAttribute('data-opencli-iframe-source', desc.src);
+          const heading = document.createElement('h2');
+          heading.textContent = '来自 iframe: ' + (desc.src || fallbackLabel);
+          section.appendChild(heading);
+          Array.from(frameBody.childNodes).forEach(node => section.appendChild(node));
+          return section;
         };
 
         const ogTitle = document.querySelector('meta[property="og:title"]');
@@ -252,28 +278,32 @@ function buildRenderAwareExtractorJs(options) {
 
         const originalFrames = Array.from(contentEl.querySelectorAll('iframe'));
         const clonedFrames = Array.from(clone.querySelectorAll('iframe'));
+        const clonedFrameByOriginal = new Map();
+        originalFrames.forEach((frame, index) => {
+          const cloned = clonedFrames[index];
+          if (cloned) clonedFrameByOriginal.set(frame, cloned);
+        });
         const allFrames = Array.from(document.querySelectorAll('iframe'));
-        result.diagnostics.frames = allFrames.map(describeFrame);
+        const frameDescriptions = new Map();
+        allFrames.forEach((frame, index) => frameDescriptions.set(frame, describeFrame(frame, index)));
+        const getFrameDescription = (frame, fallbackIndex) => frameDescriptions.get(frame) || describeFrame(frame, fallbackIndex);
+        result.diagnostics.frames = allFrames.map(frame => frameDescriptions.get(frame));
 
-        if (frameMode === 'same-origin') {
-          originalFrames.forEach((frame, index) => {
-            const cloned = clonedFrames[index];
-            if (!cloned) return;
-            const desc = describeFrame(frame, index);
+        if (frameMode === 'same-origin' || frameMode === 'all-same-origin') {
+          allFrames.forEach((frame, index) => {
+            const insideContent = contentEl.contains(frame);
+            const cloned = insideContent ? clonedFrameByOriginal.get(frame) : null;
+            if (insideContent && !cloned) return;
+            const desc = getFrameDescription(frame, index);
             if (!desc.sameOrigin || !desc.accessible) return;
             try {
               const doc = frame.contentDocument;
               if (!doc?.body) return;
               const frameBody = doc.body.cloneNode(true);
-              absolutizeTree(frameBody, desc.src || window.location.href);
-              collectEmptyContainers(frameBody, 'iframe', desc.src);
-              const section = document.createElement('section');
-              section.setAttribute('data-opencli-iframe-source', desc.src);
-              const heading = document.createElement('h2');
-              heading.textContent = '来自 iframe: ' + (desc.src || frame.getAttribute('src') || ('#' + index));
-              section.appendChild(heading);
-              Array.from(frameBody.childNodes).forEach(node => section.appendChild(node));
-              cloned.replaceWith(section);
+              if (frameMode !== 'all-same-origin' && !insideContent && !shouldIncludeExternalFrame(frameBody)) return;
+              const section = buildFrameSection(frameBody, desc, frame.getAttribute('src') || ('#' + index));
+              if (insideContent) cloned.replaceWith(section);
+              else clone.appendChild(section);
               result.diagnostics.includedFrameCount += 1;
             } catch {}
           });
@@ -376,7 +406,7 @@ const command = cli({
         { name: 'wait', type: 'int', default: 3, help: 'Seconds to wait after page load' },
         { name: 'wait-for', valueRequired: true, help: 'CSS selector to wait for in the main document or same-origin iframes' },
         { name: 'wait-until', default: 'domstable', choices: ['domstable', 'networkidle'], help: 'Readiness policy after navigation: domstable or networkidle' },
-        { name: 'frames', default: 'same-origin', choices: ['same-origin', 'none'], help: 'Iframe handling mode: same-origin or none' },
+        { name: 'frames', default: 'same-origin', choices: ['same-origin', 'all-same-origin', 'none'], help: 'Iframe handling mode: relevant same-origin, all-same-origin, or none' },
         { name: 'diagnose', type: 'boolean', default: false, help: 'Print render diagnostics (frames, empty containers, XHR/API-like requests) to stderr' },
         { name: 'stdout', type: 'boolean', default: false, help: 'Print markdown to stdout instead of saving to a file' },
     ],

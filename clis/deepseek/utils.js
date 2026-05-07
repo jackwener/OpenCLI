@@ -1,7 +1,33 @@
+import { ArgumentError } from '@jackwener/opencli/errors';
+
 export const DEEPSEEK_DOMAIN = 'chat.deepseek.com';
 export const DEEPSEEK_URL = 'https://chat.deepseek.com/';
 export const TEXTAREA_SELECTOR = 'textarea[placeholder*="DeepSeek"]';
 export const MESSAGE_SELECTOR = '.ds-message';
+const CONVERSATION_ID_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+
+/**
+ * Normalize a DeepSeek conversation ID. Accepts a bare UUID or any URL that
+ * embeds one (`/a/chat/s/<id>` or full chat URL).
+ *
+ * Throws ArgumentError when the input does not contain a UUID-shaped id, so
+ * `detail` fails before any browser navigation happens.
+ */
+export function parseDeepSeekConversationId(input) {
+    const raw = String(input ?? '').trim();
+    if (!raw) {
+        throw new ArgumentError('id', 'must be a non-empty conversation ID or URL');
+    }
+    const urlMatch = raw.match(/\/a\/chat\/s\/([a-f0-9-]+)/i);
+    const candidate = urlMatch ? urlMatch[1] : raw;
+    if (!CONVERSATION_ID_RE.test(candidate)) {
+        throw new ArgumentError(
+            'id',
+            `not a valid DeepSeek conversation ID (got "${input}"); expected a UUID like "749e6bbd-6a45-4440-beaa-ae5238bf06d8" or a full /a/chat/s/<id> URL`,
+        );
+    }
+    return candidate.toLowerCase();
+}
 
 export async function isOnDeepSeek(page) {
     const url = await page.evaluate('window.location.href').catch(() => '');
@@ -272,6 +298,46 @@ export async function getConversationList(page) {
         if (Array.isArray(items) && items.length > 0) return items;
     }
     return [];
+}
+
+/**
+ * Pick the URL of the most recent non-pinned conversation, or the first overall
+ * if every visible conversation is pinned.
+ *
+ * Used by `ask` when the workspace was recycled and we need to resume an
+ * existing thread instead of opening a new chat. Polls the sidebar for up to
+ * 10s and returns null if no conversation links surface in time, so callers
+ * can fail fast instead of silently navigating to a fresh page.
+ *
+ * Pinned detection is text-based on the section header ("置顶" / "Pinned"),
+ * because DeepSeek's CSS-module class names are randomized per build.
+ */
+export async function pickResumeUrl(page) {
+    await page.evaluate(`(() => {
+        if (document.querySelectorAll('a[href*="/a/chat/s/"]').length === 0) {
+            const btn = document.querySelector('div[tabindex="0"][role="button"]');
+            if (btn) btn.click();
+        }
+    })()`);
+    for (let attempt = 0; attempt < 5; attempt++) {
+        await page.wait(2);
+        const url = await page.evaluate(`(() => {
+            const links = document.querySelectorAll('a[href*="/a/chat/s/"]');
+            if (links.length === 0) return null;
+            const PINNED_HEADER = /^\\s*(置\\s*顶|Pinned)\\s*$/i;
+            const isPinned = (link) => {
+                const section = link.parentElement;
+                const header = section && section.firstElementChild;
+                if (!header || header === link) return false;
+                return PINNED_HEADER.test((header.innerText || header.textContent || '').trim());
+            };
+            const target = Array.from(links).find((l) => !isPinned(l)) || links[0];
+            const href = target.getAttribute('href') || '';
+            return href ? 'https://chat.deepseek.com' + href : null;
+        })()`);
+        if (url) return url;
+    }
+    return null;
 }
 
 async function waitForFilePreview(page, fileName) {

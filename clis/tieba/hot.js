@@ -9,7 +9,6 @@ cli({
     domain: 'tieba.baidu.com',
     strategy: Strategy.PUBLIC,
     browser: true,
-    navigateBefore: false,
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Number of items to return' },
     ],

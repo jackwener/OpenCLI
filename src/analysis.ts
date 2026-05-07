@@ -119,7 +119,7 @@ export function inferCapabilityName(url: string, goal?: string): string {
 /** Infer auth strategy from detected indicators. */
 export function inferStrategy(authIndicators: string[]): string {
   if (authIndicators.includes('signature')) return 'intercept';
-  if (authIndicators.includes('bearer') || authIndicators.includes('csrf')) return 'header';
+  if (authIndicators.includes('bearer') || authIndicators.includes('csrf')) return 'cookie';
   return 'cookie';
 }
 

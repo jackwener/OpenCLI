@@ -9,13 +9,13 @@ cli({
     domain: PAPERREVIEW_DOMAIN,
     strategy: Strategy.PUBLIC,
     browser: false,
-    timeoutSeconds: 30,
     args: [
         { name: 'token', positional: true, required: true, help: 'Review token returned by paperreview.ai' },
         { name: 'helpfulness', required: true, type: 'int', help: 'Helpfulness score from 1 to 5' },
         { name: 'critical-error', required: true, choices: ['yes', 'no'], help: 'Whether the review contains a critical error' },
         { name: 'actionable-suggestions', required: true, choices: ['yes', 'no'], help: 'Whether the review contains actionable suggestions' },
         { name: 'additional-comments', help: 'Optional free-text feedback' },
+        { name: 'timeout', type: 'int', required: false, default: 30, help: 'Max seconds for the overall command (default: 30)' },
     ],
     columns: ['status', 'token', 'helpfulness', 'critical_error', 'actionable_suggestions', 'message'],
     func: async (kwargs) => {

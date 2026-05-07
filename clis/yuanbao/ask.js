@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { htmlToMarkdown } from '@jackwener/opencli/utils';
-import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import { YUANBAO_DOMAIN, IS_VISIBLE_JS, authRequired, isOnYuanbao, ensureYuanbaoPage, hasLoginGate } from './shared.js';
 const YUANBAO_RESPONSE_POLL_INTERVAL_SECONDS = 2;
 const YUANBAO_MIN_WAIT_MS = 8_000;
@@ -359,17 +359,19 @@ export const askCommand = cli({
     browser: true,
     navigateBefore: false,
     defaultFormat: 'plain',
-    timeoutSeconds: 180,
     args: [
         { name: 'prompt', required: true, positional: true, help: 'Prompt to send' },
-        { name: 'timeout', required: false, help: 'Max seconds to wait (default: 60)', default: '60' },
+        { name: 'timeout', type: 'int', required: false, help: 'Max seconds to wait (default: 60)', default: 60 },
         { name: 'search', type: 'boolean', required: false, help: 'Enable Yuanbao internet search (default: true)', default: true },
         { name: 'think', type: 'boolean', required: false, help: 'Enable Yuanbao deep thinking (default: false)', default: false },
     ],
     columns: ['Role', 'Text'],
     func: async (page, kwargs) => {
         const prompt = kwargs.prompt;
-        const timeout = parseInt(kwargs.timeout, 10) || 60;
+        const timeout = kwargs.timeout;
+        if (!Number.isInteger(timeout) || timeout < 1) {
+            throw new ArgumentError('--timeout must be a positive integer (seconds)');
+        }
         const useSearch = normalizeBooleanFlag(kwargs.search, true);
         const useThink = normalizeBooleanFlag(kwargs.think, false);
         await ensureYuanbaoPage(page);

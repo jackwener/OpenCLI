@@ -85,9 +85,9 @@ function validateCommand(cmd: CliCommand): CommandValidationResult {
 
   if (!cmd.description) warnings.push('Missing description');
 
-  // Browser commands should specify a domain for cookie/header context
+  // Browser commands should specify a domain for authenticated browser context
   if (cmd.browser && !cmd.domain) {
-    warnings.push('Browser command without "domain" — cookie/header context may not work');
+    warnings.push('Browser command without "domain" — authenticated browser context may not work');
   }
 
   // Pipeline validation: check step names for typos

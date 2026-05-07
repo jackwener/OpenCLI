@@ -1305,9 +1305,16 @@
     "domain": "localhost",
     "strategy": "ui",
     "browser": true,
-    "args": [],
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 86400,
+        "required": false,
+        "help": "Max seconds to keep watching (default: 86400 — 24h)"
+      }
+    ],
     "columns": [],
-    "timeout": 86400,
     "type": "js",
     "modulePath": "antigravity/watch.js",
     "sourceFile": "antigravity/watch.js",
@@ -1586,8 +1593,7 @@
     ],
     "type": "js",
     "modulePath": "baidu-scholar/search.js",
-    "sourceFile": "baidu-scholar/search.js",
-    "navigateBefore": false
+    "sourceFile": "baidu-scholar/search.js"
   },
   {
     "site": "band",
@@ -4037,6 +4043,13 @@
         "default": 20,
         "required": false,
         "help": "最大返回数量"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 90,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 90)"
       }
     ],
     "columns": [
@@ -4047,7 +4060,6 @@
       "status",
       "score"
     ],
-    "timeout": 90,
     "type": "js",
     "modulePath": "chaoxing/assignments.js",
     "sourceFile": "chaoxing/assignments.js",
@@ -4087,6 +4099,13 @@
         "default": 20,
         "required": false,
         "help": "最大返回数量"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 90,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 90)"
       }
     ],
     "columns": [
@@ -4098,7 +4117,6 @@
       "status",
       "score"
     ],
-    "timeout": 90,
     "type": "js",
     "modulePath": "chaoxing/exams.js",
     "sourceFile": "chaoxing/exams.js",
@@ -4132,6 +4150,13 @@
         "default": false,
         "required": false,
         "help": "Skip download shorthand; only show ChatGPT link"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 240,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 240)"
       }
     ],
     "columns": [
@@ -4139,7 +4164,6 @@
       "file",
       "link"
     ],
-    "timeout": 240,
     "type": "js",
     "modulePath": "chatgpt/image.js",
     "sourceFile": "chatgpt/image.js",
@@ -4176,8 +4200,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "30",
+        "type": "int",
+        "default": 30,
         "required": false,
         "help": "Max seconds to wait for response (default: 30)"
       }
@@ -4326,8 +4350,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "30",
+        "type": "int",
+        "default": 30,
         "required": false,
         "help": "Max seconds to wait (default: 30)"
       }
@@ -4513,7 +4537,6 @@
     "columns": [
       "response"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "claude/ask.js",
     "sourceFile": "claude/ask.js",
@@ -4718,8 +4741,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "60",
+        "type": "int",
+        "default": 60,
         "required": false,
         "help": "Max seconds to wait for response (default: 60)"
       },
@@ -5287,6 +5310,49 @@
   },
   {
     "site": "coupang",
+    "name": "product",
+    "description": "Read full product detail (price, rating, seller, delivery) for a Coupang product",
+    "access": "read",
+    "domain": "www.coupang.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "product-id",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Coupang product ID (digits only)"
+      },
+      {
+        "name": "url",
+        "type": "str",
+        "required": false,
+        "help": "Canonical Coupang product URL (alternative to --product-id)"
+      }
+    ],
+    "columns": [
+      "product_id",
+      "title",
+      "price",
+      "original_price",
+      "discount_rate",
+      "rating",
+      "review_count",
+      "seller",
+      "brand",
+      "rocket",
+      "delivery_promise",
+      "image_url",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "coupang/product.js",
+    "sourceFile": "coupang/product.js",
+    "navigateBefore": "https://www.coupang.com"
+  },
+  {
+    "site": "coupang",
     "name": "search",
     "description": "Search Coupang products with logged-in browser session",
     "access": "read",
@@ -5324,6 +5390,7 @@
     ],
     "columns": [
       "rank",
+      "product_id",
       "title",
       "price",
       "unit_price",
@@ -5418,8 +5485,8 @@
   },
   {
     "site": "ctrip",
-    "name": "search",
-    "description": "搜索携程目的地、景区和酒店联想结果",
+    "name": "hotel-suggest",
+    "description": "搜索携程酒店上下文联想：城市、商圈、单酒店匹配",
     "access": "read",
     "strategy": "public",
     "browser": false,
@@ -5429,22 +5496,73 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Search keyword (city or attraction)"
+        "help": "Search keyword (city, business area, or hotel name)"
       },
       {
         "name": "limit",
         "type": "int",
         "default": 15,
         "required": false,
-        "help": "Number of results"
+        "help": "Number of results (1-50)"
       }
     ],
     "columns": [
       "rank",
-      "name",
+      "id",
       "type",
+      "displayType",
+      "name",
+      "eName",
+      "cityId",
+      "cityName",
+      "provinceName",
+      "countryName",
+      "lat",
+      "lon",
       "score",
-      "price",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/hotel-suggest.js",
+    "sourceFile": "ctrip/hotel-suggest.js"
+  },
+  {
+    "site": "ctrip",
+    "name": "search",
+    "description": "搜索携程目的地、景区、火车站和地标联想结果",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (city, scenic spot, landmark)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "Number of results (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "type",
+      "displayType",
+      "name",
+      "eName",
+      "cityId",
+      "cityName",
+      "provinceName",
+      "countryName",
+      "lat",
+      "lon",
+      "score",
       "url"
     ],
     "type": "js",
@@ -5469,8 +5587,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "30",
+        "type": "int",
+        "default": 30,
         "required": false,
         "help": "Max seconds to wait for response (default: 30)"
       }
@@ -5861,10 +5979,35 @@
         "help": "Attach a file (PDF, image, text) with the prompt"
       }
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "deepseek/ask.js",
     "sourceFile": "deepseek/ask.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "deepseek",
+    "name": "detail",
+    "description": "Read a specific DeepSeek conversation by ID",
+    "access": "read",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID (UUID) or full /a/chat/s/<id> URL"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "deepseek/detail.js",
+    "sourceFile": "deepseek/detail.js",
     "navigateBefore": false
   },
   {
@@ -5931,6 +6074,46 @@
   },
   {
     "site": "deepseek",
+    "name": "send",
+    "description": "Send a prompt to a specific DeepSeek conversation by ID, without waiting for a response",
+    "access": "write",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID (UUID) or full /a/chat/s/<id> URL"
+      },
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 60)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "InjectedText"
+    ],
+    "type": "js",
+    "modulePath": "deepseek/send.js",
+    "sourceFile": "deepseek/send.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "deepseek",
     "name": "status",
     "description": "Check DeepSeek page availability and login state",
     "access": "read",
@@ -5947,6 +6130,78 @@
     "modulePath": "deepseek/status.js",
     "sourceFile": "deepseek/status.js",
     "navigateBefore": false
+  },
+  {
+    "site": "defillama",
+    "name": "protocol",
+    "description": "Single DefiLlama protocol details (current TVL, mcap, chains, twitter, github, description)",
+    "access": "read",
+    "domain": "defillama.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "slug",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "DefiLlama protocol slug (e.g. \"aave\", \"lido\")"
+      }
+    ],
+    "columns": [
+      "slug",
+      "name",
+      "category",
+      "isParent",
+      "tvl",
+      "tvlAt",
+      "mcap",
+      "chains",
+      "twitter",
+      "github",
+      "audits",
+      "listedAt",
+      "description",
+      "website",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "defillama/protocol.js",
+    "sourceFile": "defillama/protocol.js"
+  },
+  {
+    "site": "defillama",
+    "name": "protocols",
+    "description": "Top DeFi protocols on DefiLlama by current TVL (slug, name, category, TVL, mcap, change_1d/7d, chains)",
+    "access": "read",
+    "domain": "defillama.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number of rows to return (1-500)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "slug",
+      "name",
+      "category",
+      "tvl",
+      "mcap",
+      "change_1d",
+      "change_7d",
+      "chains",
+      "listedAt",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "defillama/protocols.js",
+    "sourceFile": "defillama/protocols.js"
   },
   {
     "site": "devto",
@@ -6471,6 +6726,76 @@
     "navigateBefore": true
   },
   {
+    "site": "dockerhub",
+    "name": "image",
+    "description": "Fetch a Docker Hub repository's public metadata (stars, pulls, last updated, status)",
+    "access": "read",
+    "domain": "hub.docker.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "image",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Image name (e.g. \"nginx\", \"library/nginx\", \"bitnami/redis\")"
+      }
+    ],
+    "columns": [
+      "image",
+      "official",
+      "stars",
+      "pulls",
+      "description",
+      "lastUpdated",
+      "lastModified",
+      "registered",
+      "status",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "dockerhub/image.js",
+    "sourceFile": "dockerhub/image.js"
+  },
+  {
+    "site": "dockerhub",
+    "name": "search",
+    "description": "Search Docker Hub repositories by keyword",
+    "access": "read",
+    "domain": "hub.docker.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (e.g. \"nginx\", \"bitnami redis\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Max repositories (1-100, single Docker Hub page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "image",
+      "official",
+      "stars",
+      "pulls",
+      "description",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "dockerhub/search.js",
+    "sourceFile": "dockerhub/search.js"
+  },
+  {
     "site": "douban",
     "name": "book-hot",
     "description": "豆瓣图书热门榜单",
@@ -6881,8 +7206,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "60",
+        "type": "int",
+        "default": 60,
         "required": false,
         "help": "Max seconds to wait (default: 60)"
       }
@@ -6891,7 +7216,6 @@
       "Role",
       "Text"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "doubao/ask.js",
     "sourceFile": "doubao/ask.js",
@@ -8380,6 +8704,40 @@
     "sourceFile": "eastmoney/sectors.js"
   },
   {
+    "site": "endoflife",
+    "name": "product",
+    "description": "Release cycles + EOL / LTS / support dates for one product on endoflife.date",
+    "access": "read",
+    "domain": "endoflife.date",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "product",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "endoflife.date product slug (e.g. \"nodejs\", \"python\", \"ubuntu\")"
+      }
+    ],
+    "columns": [
+      "product",
+      "cycle",
+      "releaseDate",
+      "latest",
+      "latestReleaseDate",
+      "lts",
+      "support",
+      "eol",
+      "extendedSupport",
+      "eolStatus",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "endoflife/product.js",
+    "sourceFile": "endoflife/product.js"
+  },
+  {
     "site": "facebook",
     "name": "add-friend",
     "description": "Send a friend request on Facebook",
@@ -8723,6 +9081,85 @@
     "navigateBefore": "https://www.facebook.com"
   },
   {
+    "site": "flathub",
+    "name": "app",
+    "description": "Full Flathub appstream metadata for an app id (license, categories, latest release)",
+    "access": "read",
+    "domain": "flathub.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "appId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "AppStream id (e.g. \"org.mozilla.firefox\", \"org.gnome.Calculator\")"
+      }
+    ],
+    "columns": [
+      "appId",
+      "name",
+      "summary",
+      "developer",
+      "license",
+      "isFreeLicense",
+      "isEol",
+      "categories",
+      "keywords",
+      "latestVersion",
+      "latestReleaseDate",
+      "homepage",
+      "bugtracker",
+      "donation",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "flathub/app.js",
+    "sourceFile": "flathub/app.js"
+  },
+  {
+    "site": "flathub",
+    "name": "search",
+    "description": "Search Flathub apps by keyword",
+    "access": "read",
+    "domain": "flathub.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Max apps (1-100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "appId",
+      "name",
+      "summary",
+      "developer",
+      "license",
+      "isFreeLicense",
+      "mainCategories",
+      "installsLastMonth",
+      "updatedAt",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "flathub/search.js",
+    "sourceFile": "flathub/search.js"
+  },
+  {
     "site": "gemini",
     "name": "ask",
     "description": "Send a prompt to Gemini and return only the assistant response",
@@ -8740,8 +9177,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "60",
+        "type": "int",
+        "default": 60,
         "required": false,
         "help": "Max seconds to wait (default: 60)"
       },
@@ -8756,7 +9193,6 @@
     "columns": [
       "response"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "gemini/ask.js",
     "sourceFile": "gemini/ask.js",
@@ -8781,9 +9217,9 @@
       {
         "name": "timeout",
         "type": "int",
-        "default": 30,
+        "default": 180,
         "required": false,
-        "help": "Max seconds to wait for confirm (default: 30)"
+        "help": "Max seconds for the overall command (default: 180; confirm-wait clamps internally to 6-20s)"
       },
       {
         "name": "tool",
@@ -8802,7 +9238,6 @@
       "status",
       "url"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "gemini/deep-research.js",
     "sourceFile": "gemini/deep-research.js",
@@ -8894,6 +9329,13 @@
         "default": false,
         "required": false,
         "help": "Skip download shorthand; only show Gemini page link"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 240,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 240)"
       }
     ],
     "columns": [
@@ -8901,7 +9343,6 @@
       "file",
       "link"
     ],
-    "timeout": 240,
     "type": "js",
     "modulePath": "gemini/image.js",
     "sourceFile": "gemini/image.js",
@@ -9470,8 +9911,7 @@
     ],
     "type": "js",
     "modulePath": "google-scholar/cite.js",
-    "sourceFile": "google-scholar/cite.js",
-    "navigateBefore": false
+    "sourceFile": "google-scholar/cite.js"
   },
   {
     "site": "google-scholar",
@@ -9505,8 +9945,7 @@
     ],
     "type": "js",
     "modulePath": "google-scholar/profile.js",
-    "sourceFile": "google-scholar/profile.js",
-    "navigateBefore": false
+    "sourceFile": "google-scholar/profile.js"
   },
   {
     "site": "google-scholar",
@@ -9543,8 +9982,81 @@
     ],
     "type": "js",
     "modulePath": "google-scholar/search.js",
-    "sourceFile": "google-scholar/search.js",
-    "navigateBefore": false
+    "sourceFile": "google-scholar/search.js"
+  },
+  {
+    "site": "goproxy",
+    "name": "module",
+    "description": "Latest version + VCS origin metadata for a Go module on proxy.golang.org",
+    "access": "read",
+    "domain": "proxy.golang.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "module",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Go module path (e.g. \"github.com/gin-gonic/gin\", \"golang.org/x/net\")"
+      }
+    ],
+    "columns": [
+      "module",
+      "version",
+      "publishedAt",
+      "vcs",
+      "repository",
+      "commit",
+      "ref",
+      "pkgGoDevUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "goproxy/module.js",
+    "sourceFile": "goproxy/module.js"
+  },
+  {
+    "site": "goproxy",
+    "name": "versions",
+    "description": "Published version tags for a Go module (newest first), optionally with publish times",
+    "access": "read",
+    "domain": "proxy.golang.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "module",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Go module path (e.g. \"github.com/gin-gonic/gin\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max rows to return (1-200)"
+      },
+      {
+        "name": "with-time",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Fetch each version's publish time (one extra request per row)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "module",
+      "version",
+      "publishedAt",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "goproxy/versions.js",
+    "sourceFile": "goproxy/versions.js"
   },
   {
     "site": "gov-law",
@@ -9573,8 +10085,7 @@
     ],
     "type": "js",
     "modulePath": "gov-law/recent.js",
-    "sourceFile": "gov-law/recent.js",
-    "navigateBefore": false
+    "sourceFile": "gov-law/recent.js"
   },
   {
     "site": "gov-law",
@@ -9610,8 +10121,7 @@
     ],
     "type": "js",
     "modulePath": "gov-law/search.js",
-    "sourceFile": "gov-law/search.js",
-    "navigateBefore": false
+    "sourceFile": "gov-law/search.js"
   },
   {
     "site": "gov-policy",
@@ -9639,8 +10149,7 @@
     ],
     "type": "js",
     "modulePath": "gov-policy/recent.js",
-    "sourceFile": "gov-policy/recent.js",
-    "navigateBefore": false
+    "sourceFile": "gov-policy/recent.js"
   },
   {
     "site": "gov-policy",
@@ -9675,8 +10184,7 @@
     ],
     "type": "js",
     "modulePath": "gov-policy/search.js",
-    "sourceFile": "gov-policy/search.js",
-    "navigateBefore": false
+    "sourceFile": "gov-policy/search.js"
   },
   {
     "site": "grok",
@@ -10263,6 +10771,117 @@
     "sourceFile": "hf/top.js"
   },
   {
+    "site": "homebrew",
+    "name": "cask",
+    "description": "Fetch a Homebrew cask's metadata (version, homepage, deprecation, download URL)",
+    "access": "read",
+    "domain": "formulae.brew.sh",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "token",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Cask token (e.g. \"firefox\", \"visual-studio-code\", \"google-chrome\")"
+      }
+    ],
+    "columns": [
+      "cask",
+      "tap",
+      "name",
+      "version",
+      "description",
+      "homepage",
+      "deprecated",
+      "disabled",
+      "download",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "homebrew/cask.js",
+    "sourceFile": "homebrew/cask.js"
+  },
+  {
+    "site": "homebrew",
+    "name": "formula",
+    "description": "Fetch a Homebrew formula's metadata (version, license, deps, deprecation, source)",
+    "access": "read",
+    "domain": "formulae.brew.sh",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Formula name (e.g. \"wget\", \"gcc@13\", \"imagemagick\")"
+      }
+    ],
+    "columns": [
+      "formula",
+      "tap",
+      "version",
+      "license",
+      "description",
+      "homepage",
+      "dependencies",
+      "deprecated",
+      "disabled",
+      "source",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "homebrew/formula.js",
+    "sourceFile": "homebrew/formula.js"
+  },
+  {
+    "site": "homebrew",
+    "name": "popular",
+    "description": "List most-installed Homebrew formulae or casks (Homebrew's analytics ranking)",
+    "access": "read",
+    "domain": "formulae.brew.sh",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "type",
+        "type": "str",
+        "default": "formula",
+        "required": false,
+        "help": "Package type (formula / cask)"
+      },
+      {
+        "name": "window",
+        "type": "str",
+        "default": "30d",
+        "required": false,
+        "help": "Time window (30d / 90d / 365d)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max rows (1-500)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "token",
+      "type",
+      "installs",
+      "percent",
+      "window",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "homebrew/popular.js",
+    "sourceFile": "homebrew/popular.js"
+  },
+  {
     "site": "hupu",
     "name": "detail",
     "description": "获取虎扑帖子详情 (使用Next.js JSON数据)",
@@ -10296,8 +10915,7 @@
     ],
     "type": "js",
     "modulePath": "hupu/detail.js",
-    "sourceFile": "hupu/detail.js",
-    "navigateBefore": false
+    "sourceFile": "hupu/detail.js"
   },
   {
     "site": "hupu",
@@ -10516,8 +11134,7 @@
     ],
     "type": "js",
     "modulePath": "hupu/search.js",
-    "sourceFile": "hupu/search.js",
-    "navigateBefore": false
+    "sourceFile": "hupu/search.js"
   },
   {
     "site": "hupu",
@@ -11149,6 +11766,13 @@
         "required": true,
         "positional": true,
         "help": "Note text (max 60 characters)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 120)"
       }
     ],
     "columns": [
@@ -11156,7 +11780,6 @@
       "detail",
       "noteId"
     ],
-    "timeout": 120,
     "type": "js",
     "modulePath": "instagram/note.js",
     "sourceFile": "instagram/note.js",
@@ -11184,6 +11807,13 @@
         "required": false,
         "positional": true,
         "help": "Caption text"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 300)"
       }
     ],
     "columns": [
@@ -11191,7 +11821,6 @@
       "detail",
       "url"
     ],
-    "timeout": 300,
     "type": "js",
     "modulePath": "instagram/post.js",
     "sourceFile": "instagram/post.js",
@@ -11250,6 +11879,13 @@
         "required": false,
         "positional": true,
         "help": "Caption text"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 600)"
       }
     ],
     "columns": [
@@ -11257,7 +11893,6 @@
       "detail",
       "url"
     ],
-    "timeout": 600,
     "type": "js",
     "modulePath": "instagram/reel.js",
     "sourceFile": "instagram/reel.js",
@@ -11385,6 +12020,13 @@
         "required": false,
         "valueRequired": true,
         "help": "Path to a single story image or video file"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 300)"
       }
     ],
     "columns": [
@@ -11392,7 +12034,6 @@
       "detail",
       "url"
     ],
-    "timeout": 300,
     "type": "js",
     "modulePath": "instagram/story.js",
     "sourceFile": "instagram/story.js",
@@ -12887,12 +13528,92 @@
     "sourceFile": "lesswrong/user-posts.js"
   },
   {
+    "site": "lichess",
+    "name": "top",
+    "description": "Top-N Lichess leaderboard for a perf type (bullet/blitz/rapid/classical/...)",
+    "access": "read",
+    "domain": "lichess.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "perf",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Perf type (bullet, blitz, rapid, classical, ultraBullet, chess960, ...)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Top-N rows (1-200)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "username",
+      "id",
+      "title",
+      "rating",
+      "progress",
+      "patron",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "lichess/top.js",
+    "sourceFile": "lichess/top.js"
+  },
+  {
+    "site": "lichess",
+    "name": "user",
+    "description": "Fetch a Lichess player profile by username (rating, perfs, counts)",
+    "access": "read",
+    "domain": "lichess.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "username",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Lichess username (case-insensitive)"
+      }
+    ],
+    "columns": [
+      "username",
+      "id",
+      "title",
+      "patron",
+      "online",
+      "tosViolation",
+      "createdAt",
+      "seenAt",
+      "gamesAll",
+      "gamesWin",
+      "gamesLoss",
+      "gamesDraw",
+      "topPerfName",
+      "topPerfRating",
+      "topPerfGames",
+      "fideRating",
+      "country",
+      "bio",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "lichess/user.js",
+    "sourceFile": "lichess/user.js"
+  },
+  {
     "site": "linkedin",
     "name": "search",
     "description": "Search LinkedIn jobs",
     "access": "read",
     "domain": "www.linkedin.com",
-    "strategy": "header",
+    "strategy": "cookie",
     "browser": true,
     "args": [
       {
@@ -13045,52 +13766,6 @@
   },
   {
     "site": "linux-do",
-    "name": "category",
-    "description": "linux.do 分类内话题",
-    "access": "read",
-    "domain": "linux.do",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "slug",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Category slug (legacy compatibility argument)"
-      },
-      {
-        "name": "id",
-        "type": "int",
-        "required": true,
-        "positional": true,
-        "help": "Category ID"
-      },
-      {
-        "name": "limit",
-        "type": "int",
-        "default": 20,
-        "required": false,
-        "help": "Number of items (per_page)"
-      }
-    ],
-    "columns": [
-      "title",
-      "replies",
-      "created",
-      "likes",
-      "views",
-      "url"
-    ],
-    "deprecated": "opencli linux-do category is kept for backward compatibility.",
-    "replacedBy": "opencli linux-do feed --category <id-or-name>",
-    "type": "js",
-    "modulePath": "linux-do/category.js",
-    "sourceFile": "linux-do/category.js",
-    "navigateBefore": "https://linux.do"
-  },
-  {
-    "site": "linux-do",
     "name": "feed",
     "description": "linux.do 话题列表（需登录；支持全站、标签、分类）",
     "access": "read",
@@ -13180,85 +13855,6 @@
     "type": "js",
     "modulePath": "linux-do/categories.js",
     "sourceFile": "linux-do/categories.js",
-    "navigateBefore": "https://linux.do"
-  },
-  {
-    "site": "linux-do",
-    "name": "hot",
-    "description": "linux.do 热门话题",
-    "access": "read",
-    "domain": "linux.do",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "limit",
-        "type": "int",
-        "default": 20,
-        "required": false,
-        "help": "Number of items (per_page)"
-      },
-      {
-        "name": "period",
-        "type": "str",
-        "default": "weekly",
-        "required": false,
-        "help": "Time period",
-        "choices": [
-          "all",
-          "daily",
-          "weekly",
-          "monthly",
-          "quarterly",
-          "yearly"
-        ]
-      }
-    ],
-    "columns": [
-      "title",
-      "replies",
-      "created",
-      "likes",
-      "views",
-      "url"
-    ],
-    "deprecated": "opencli linux-do hot is kept for backward compatibility.",
-    "replacedBy": "opencli linux-do feed --view top --period <period>",
-    "type": "js",
-    "modulePath": "linux-do/hot.js",
-    "sourceFile": "linux-do/hot.js",
-    "navigateBefore": "https://linux.do"
-  },
-  {
-    "site": "linux-do",
-    "name": "latest",
-    "description": "linux.do 最新话题",
-    "access": "read",
-    "domain": "linux.do",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "limit",
-        "type": "int",
-        "default": 20,
-        "required": false,
-        "help": "Number of items (per_page)"
-      }
-    ],
-    "columns": [
-      "title",
-      "replies",
-      "created",
-      "likes",
-      "views",
-      "url"
-    ],
-    "deprecated": "opencli linux-do latest is kept for backward compatibility.",
-    "replacedBy": "opencli linux-do feed --view latest",
-    "type": "js",
-    "modulePath": "linux-do/latest.js",
-    "sourceFile": "linux-do/latest.js",
     "navigateBefore": "https://linux.do"
   },
   {
@@ -13815,6 +14411,83 @@
     "modulePath": "maimai/search-talents.js",
     "sourceFile": "maimai/search-talents.js",
     "navigateBefore": "https://maimai.cn"
+  },
+  {
+    "site": "maven",
+    "name": "artifact",
+    "description": "Fetch a Maven Central artifact's version history (groupId:artifactId[:version])",
+    "access": "read",
+    "domain": "search.maven.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "coordinate",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Maven coord \"groupId:artifactId\" or \"groupId:artifactId:version\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max versions (1-200, ignored when version is pinned)"
+      }
+    ],
+    "columns": [
+      "groupId",
+      "artifactId",
+      "version",
+      "packaging",
+      "publishedAt",
+      "tags",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "maven/artifact.js",
+    "sourceFile": "maven/artifact.js"
+  },
+  {
+    "site": "maven",
+    "name": "search",
+    "description": "Search Maven Central by keyword (artifact name, groupId, tag)",
+    "access": "read",
+    "domain": "search.maven.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (e.g. \"jackson\", \"guava\", \"ai.koog\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max artifacts (1-200)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "coordinate",
+      "groupId",
+      "artifactId",
+      "latestVersion",
+      "packaging",
+      "versions",
+      "lastPublished",
+      "repository",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "maven/search.js",
+    "sourceFile": "maven/search.js"
   },
   {
     "site": "mdn",
@@ -15335,6 +16008,89 @@
     "sourceFile": "npm/search.js"
   },
   {
+    "site": "nuget",
+    "name": "package",
+    "description": "Full NuGet package version history (catalogEntry per release)",
+    "access": "read",
+    "domain": "api.nuget.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "NuGet package id (e.g. \"Newtonsoft.Json\", case-insensitive)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "version",
+      "title",
+      "authors",
+      "tags",
+      "language",
+      "licenseExpression",
+      "projectUrl",
+      "published",
+      "listed",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "nuget/package.js",
+    "sourceFile": "nuget/package.js"
+  },
+  {
+    "site": "nuget",
+    "name": "search",
+    "description": "Search NuGet packages by keyword",
+    "access": "read",
+    "domain": "api.nuget.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max packages (1-1000)"
+      },
+      {
+        "name": "prerelease",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Include prerelease versions"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "version",
+      "title",
+      "description",
+      "authors",
+      "tags",
+      "totalDownloads",
+      "verified",
+      "projectUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "nuget/search.js",
+    "sourceFile": "nuget/search.js"
+  },
+  {
     "site": "nvd",
     "name": "cve",
     "description": "NIST NVD CVE detail (description, CVSS, CWE, KEV flag)",
@@ -15367,6 +16123,82 @@
     "type": "js",
     "modulePath": "nvd/cve.js",
     "sourceFile": "nvd/cve.js"
+  },
+  {
+    "site": "oeis",
+    "name": "search",
+    "description": "Search OEIS sequences by keyword or numeric pattern",
+    "access": "read",
+    "domain": "oeis.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword or comma-separated terms (e.g. \"fibonacci\", \"1,1,2,3,5,8\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Max sequences (1-100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "name",
+      "keywords",
+      "preview",
+      "author",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "oeis/search.js",
+    "sourceFile": "oeis/search.js"
+  },
+  {
+    "site": "oeis",
+    "name": "sequence",
+    "description": "Full OEIS sequence detail by A-number (terms, name, keywords, formula counts)",
+    "access": "read",
+    "domain": "oeis.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "OEIS sequence id (e.g. \"A000045\" for Fibonacci)"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "keywords",
+      "preview",
+      "termCount",
+      "offset",
+      "author",
+      "created",
+      "revision",
+      "commentCount",
+      "formulaCount",
+      "referenceCount",
+      "xrefCount",
+      "linkCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "oeis/sequence.js",
+    "sourceFile": "oeis/sequence.js"
   },
   {
     "site": "ones",
@@ -15665,6 +16497,186 @@
     "navigateBefore": false
   },
   {
+    "site": "openalex",
+    "name": "search",
+    "description": "Search OpenAlex Works (papers, books, preprints) by keyword",
+    "access": "read",
+    "domain": "api.openalex.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search text (e.g. \"transformers\", \"open access scholarly\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max works (1-200, single OpenAlex page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "year",
+      "citations",
+      "firstAuthor",
+      "venue",
+      "openAccess",
+      "type",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "openalex/search.js",
+    "sourceFile": "openalex/search.js"
+  },
+  {
+    "site": "openalex",
+    "name": "work",
+    "description": "Fetch a single OpenAlex Work (paper / preprint / book) — metadata + abstract",
+    "access": "read",
+    "domain": "api.openalex.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "OpenAlex Work id (\"W2741809807\"), DOI (\"10.7717/peerj.4375\"), or full URL"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "type",
+      "year",
+      "date",
+      "language",
+      "authors",
+      "venue",
+      "citations",
+      "openAccess",
+      "openAccessUrl",
+      "referencedCount",
+      "doi",
+      "abstract",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "openalex/work.js",
+    "sourceFile": "openalex/work.js"
+  },
+  {
+    "site": "openfda",
+    "name": "drug-label",
+    "description": "Search FDA-approved drug labels (brand or generic name)",
+    "access": "read",
+    "domain": "fda.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Brand or generic drug name (e.g. \"aspirin\", \"lisinopril\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Max rows (1-25, default 5; openFDA caps anonymous tier at 25/page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "brandName",
+      "genericName",
+      "manufacturer",
+      "productType",
+      "route",
+      "productNdc",
+      "pharmClass",
+      "purpose",
+      "indications",
+      "warnings",
+      "dosage",
+      "effectiveTime"
+    ],
+    "type": "js",
+    "modulePath": "openfda/drug-label.js",
+    "sourceFile": "openfda/drug-label.js"
+  },
+  {
+    "site": "openfda",
+    "name": "food-recall",
+    "description": "FDA food recall and enforcement actions (most recent first)",
+    "access": "read",
+    "domain": "fda.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": false,
+        "help": "Free-text Lucene query (e.g. \"salmonella\", \"listeria\"); default: all recent recalls"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "required": false,
+        "help": "Filter by status: \"Ongoing\", \"Completed\", \"Terminated\""
+      },
+      {
+        "name": "classification",
+        "type": "str",
+        "required": false,
+        "help": "Filter by class: \"Class I\" (most serious), \"Class II\", \"Class III\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Max rows (1-100, default 10; openFDA caps anonymous tier at 100/page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "recallNumber",
+      "status",
+      "classification",
+      "voluntary",
+      "recallingFirm",
+      "city",
+      "state",
+      "country",
+      "productDescription",
+      "reasonForRecall",
+      "productQuantity",
+      "distributionPattern",
+      "reportDate",
+      "recallInitiationDate",
+      "terminationDate"
+    ],
+    "type": "js",
+    "modulePath": "openfda/food-recall.js",
+    "sourceFile": "openfda/food-recall.js"
+  },
+  {
     "site": "openreview",
     "name": "paper",
     "description": "Show full metadata for a single OpenReview paper",
@@ -15817,6 +16829,162 @@
     "sourceFile": "openreview/venue.js"
   },
   {
+    "site": "osv",
+    "name": "query",
+    "description": "OSV.dev vulnerabilities affecting a package (optionally pinned to a version)",
+    "access": "read",
+    "domain": "osv.dev",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "package",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Package name (e.g. \"lodash\", \"django\")"
+      },
+      {
+        "name": "ecosystem",
+        "type": "string",
+        "required": true,
+        "help": "OSV ecosystem (npm / PyPI / Go / Maven / NuGet / RubyGems / crates.io / Packagist / ...)"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "required": false,
+        "help": "Pin to a specific version (e.g. \"4.17.20\"); omit for all known vulns"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max rows to return (1-200)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "summary",
+      "severity",
+      "aliases",
+      "published",
+      "modified",
+      "affectedPackages",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "osv/query.js",
+    "sourceFile": "osv/query.js"
+  },
+  {
+    "site": "osv",
+    "name": "vulnerability",
+    "description": "Single OSV.dev vulnerability detail (severity, affected packages, CVE/GHSA aliases)",
+    "access": "read",
+    "domain": "osv.dev",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "OSV vulnerability id (e.g. \"GHSA-29mw-wpgm-hmr9\", \"CVE-2020-28500\")"
+      }
+    ],
+    "columns": [
+      "id",
+      "summary",
+      "severity",
+      "aliases",
+      "published",
+      "modified",
+      "affectedPackages",
+      "cwes",
+      "referenceCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "osv/vulnerability.js",
+    "sourceFile": "osv/vulnerability.js"
+  },
+  {
+    "site": "packagist",
+    "name": "package",
+    "description": "Fetch a Packagist package's metadata (version, downloads, license, repo, GitHub stars)",
+    "access": "read",
+    "domain": "packagist.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Composer package \"<vendor>/<package>\" (e.g. \"symfony/console\", \"monolog/monolog\")"
+      }
+    ],
+    "columns": [
+      "package",
+      "version",
+      "releasedAt",
+      "license",
+      "description",
+      "repository",
+      "githubStars",
+      "favers",
+      "downloads",
+      "monthlyDownloads",
+      "dailyDownloads",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "packagist/package.js",
+    "sourceFile": "packagist/package.js"
+  },
+  {
+    "site": "packagist",
+    "name": "search",
+    "description": "Search Packagist (PHP / Composer) packages by keyword",
+    "access": "read",
+    "domain": "packagist.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (e.g. \"symfony\", \"laravel http\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max packages (1-100, single Packagist page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "package",
+      "description",
+      "downloads",
+      "favers",
+      "repository",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "packagist/search.js",
+    "sourceFile": "packagist/search.js"
+  },
+  {
     "site": "paperreview",
     "name": "feedback",
     "description": "Submit feedback for a paperreview.ai review token",
@@ -15863,6 +17031,13 @@
         "type": "str",
         "required": false,
         "help": "Optional free-text feedback"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 30)"
       }
     ],
     "columns": [
@@ -15873,7 +17048,6 @@
       "actionable_suggestions",
       "message"
     ],
-    "timeout": 30,
     "type": "js",
     "modulePath": "paperreview/feedback.js",
     "sourceFile": "paperreview/feedback.js"
@@ -15893,6 +17067,13 @@
         "required": true,
         "positional": true,
         "help": "Review token returned by paperreview.ai"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 30)"
       }
     ],
     "columns": [
@@ -15903,7 +17084,6 @@
       "has_feedback",
       "review_url"
     ],
-    "timeout": 30,
     "type": "js",
     "modulePath": "paperreview/review.js",
     "sourceFile": "paperreview/review.js"
@@ -15949,6 +17129,13 @@
         "default": false,
         "required": false,
         "help": "Request an upload slot but stop before uploading the PDF"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 120)"
       }
     ],
     "columns": [
@@ -15960,7 +17147,6 @@
       "review_url",
       "message"
     ],
-    "timeout": 120,
     "type": "js",
     "modulePath": "paperreview/submit.js",
     "sourceFile": "paperreview/submit.js"
@@ -16904,9 +18090,15 @@
         "default": "",
         "required": false,
         "help": "Destination folder ID (overrides --to)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 120)"
       }
     ],
-    "timeout": 120,
     "type": "js",
     "modulePath": "quark/mv.js",
     "sourceFile": "quark/mv.js",
@@ -17012,9 +18204,15 @@
         "default": "",
         "required": false,
         "help": "Share passcode (if required)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 120)"
       }
     ],
-    "timeout": 120,
     "type": "js",
     "modulePath": "quark/save.js",
     "sourceFile": "quark/save.js",
@@ -17112,7 +18310,6 @@
       "Role",
       "Text"
     ],
-    "timeout": 240,
     "type": "js",
     "modulePath": "qwen/ask.js",
     "sourceFile": "qwen/ask.js",
@@ -17196,7 +18393,6 @@
       "File",
       "Link"
     ],
-    "timeout": 300,
     "type": "js",
     "modulePath": "qwen/image.js",
     "sourceFile": "qwen/image.js",
@@ -17871,6 +19067,141 @@
     "navigateBefore": "https://reddit.com"
   },
   {
+    "site": "rest-countries",
+    "name": "country",
+    "description": "Look up countries by name (common / official, substring match)",
+    "access": "read",
+    "domain": "restcountries.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Country name (e.g. \"japan\", \"united kingdom\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Max rows (1-250)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "commonName",
+      "officialName",
+      "cca2",
+      "cca3",
+      "ccn3",
+      "capital",
+      "region",
+      "subregion",
+      "population",
+      "area",
+      "languages",
+      "currencies",
+      "latitude",
+      "longitude",
+      "timezones",
+      "independent",
+      "unMember",
+      "landlocked",
+      "flag",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rest-countries/country.js",
+    "sourceFile": "rest-countries/country.js"
+  },
+  {
+    "site": "rest-countries",
+    "name": "region",
+    "description": "List countries in a region (africa / americas / asia / europe / oceania / antarctic)",
+    "access": "read",
+    "domain": "restcountries.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "region",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Region name (case-insensitive)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 250,
+        "required": false,
+        "help": "Max rows (1-250)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "commonName",
+      "officialName",
+      "cca2",
+      "cca3",
+      "ccn3",
+      "capital",
+      "region",
+      "subregion",
+      "population",
+      "area",
+      "languages",
+      "currencies",
+      "latitude",
+      "longitude",
+      "timezones",
+      "independent",
+      "unMember",
+      "landlocked",
+      "flag",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rest-countries/region.js",
+    "sourceFile": "rest-countries/region.js"
+  },
+  {
+    "site": "reuters",
+    "name": "article-detail",
+    "description": "Reuters 路透社文章详情：标题/作者/正文文本",
+    "access": "read",
+    "domain": "www.reuters.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Reuters article URL (must be on reuters.com)"
+      }
+    ],
+    "columns": [
+      "title",
+      "date",
+      "section",
+      "section_path",
+      "authors",
+      "description",
+      "word_count",
+      "url",
+      "body"
+    ],
+    "type": "js",
+    "modulePath": "reuters/article-detail.js",
+    "sourceFile": "reuters/article-detail.js",
+    "navigateBefore": "https://www.reuters.com"
+  },
+  {
     "site": "reuters",
     "name": "search",
     "description": "Reuters 路透社新闻搜索",
@@ -17891,7 +19222,7 @@
         "type": "int",
         "default": 10,
         "required": false,
-        "help": "Number of results (max 40)"
+        "help": "Number of results (1-40)"
       }
     ],
     "columns": [
@@ -17899,12 +19230,122 @@
       "title",
       "date",
       "section",
+      "section_path",
+      "authors",
       "url"
     ],
     "type": "js",
     "modulePath": "reuters/search.js",
     "sourceFile": "reuters/search.js",
     "navigateBefore": "https://www.reuters.com"
+  },
+  {
+    "site": "rfc",
+    "name": "rfc",
+    "description": "Single IETF RFC metadata (title, abstract, working group, authors, std level)",
+    "access": "read",
+    "domain": "datatracker.ietf.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "number",
+        "type": "int",
+        "required": true,
+        "positional": true,
+        "help": "RFC number (e.g. 9000, 791, 2616)"
+      }
+    ],
+    "columns": [
+      "rfc",
+      "title",
+      "state",
+      "stdLevel",
+      "group",
+      "groupType",
+      "pages",
+      "published",
+      "authors",
+      "abstract",
+      "rfcEditorUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rfc/rfc.js",
+    "sourceFile": "rfc/rfc.js"
+  },
+  {
+    "site": "rubygems",
+    "name": "gem",
+    "description": "Fetch a RubyGems.org gem's metadata (version, downloads, license, links)",
+    "access": "read",
+    "domain": "rubygems.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Gem name (e.g. \"rails\", \"sidekiq\")"
+      }
+    ],
+    "columns": [
+      "gem",
+      "version",
+      "releasedAt",
+      "downloads",
+      "versionDownloads",
+      "license",
+      "authors",
+      "homepage",
+      "source",
+      "bugs",
+      "info",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rubygems/gem.js",
+    "sourceFile": "rubygems/gem.js"
+  },
+  {
+    "site": "rubygems",
+    "name": "search",
+    "description": "Search RubyGems.org gems by keyword",
+    "access": "read",
+    "domain": "rubygems.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (e.g. \"rails\", \"redis\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max gems (1-100, single RubyGems page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "gem",
+      "version",
+      "downloads",
+      "license",
+      "authors",
+      "info",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rubygems/search.js",
+    "sourceFile": "rubygems/search.js"
   },
   {
     "site": "sinablog",
@@ -19290,8 +20731,7 @@
     ],
     "type": "js",
     "modulePath": "tieba/hot.js",
-    "sourceFile": "tieba/hot.js",
-    "navigateBefore": false
+    "sourceFile": "tieba/hot.js"
   },
   {
     "site": "tieba",
@@ -19944,6 +21384,123 @@
     "navigateBefore": "https://mp.toutiao.com"
   },
   {
+    "site": "toutiao",
+    "name": "hot",
+    "description": "今日头条首页热榜（公开 API，无需登录）",
+    "access": "read",
+    "domain": "www.toutiao.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "返回条数 (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "group_id",
+      "title",
+      "query",
+      "hot_value",
+      "label",
+      "url",
+      "image_url"
+    ],
+    "type": "js",
+    "modulePath": "toutiao/hot.js",
+    "sourceFile": "toutiao/hot.js"
+  },
+  {
+    "site": "tvmaze",
+    "name": "search",
+    "description": "TVmaze TV show search by title (returns id, name, network, premiered/ended, rating)",
+    "access": "read",
+    "domain": "tvmaze.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "TV show title or fragment to search for"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows to return (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "name",
+      "type",
+      "language",
+      "genres",
+      "status",
+      "premiered",
+      "ended",
+      "network",
+      "rating",
+      "matchScore",
+      "summary",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "tvmaze/search.js",
+    "sourceFile": "tvmaze/search.js"
+  },
+  {
+    "site": "tvmaze",
+    "name": "show",
+    "description": "Single TVmaze TV show detail by id (network, schedule, rating, IMDB/TheTVDB cross-refs)",
+    "access": "read",
+    "domain": "tvmaze.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "int",
+        "required": true,
+        "positional": true,
+        "help": "TVmaze show id (positive integer)"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "type",
+      "language",
+      "genres",
+      "status",
+      "premiered",
+      "ended",
+      "runtime",
+      "averageRuntime",
+      "network",
+      "country",
+      "schedule",
+      "rating",
+      "imdb",
+      "thetvdb",
+      "officialSite",
+      "summary",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "tvmaze/show.js",
+    "sourceFile": "tvmaze/show.js"
+  },
+  {
     "site": "twitter",
     "name": "accept",
     "description": "Auto-accept DM requests containing specific keywords",
@@ -19965,6 +21522,13 @@
         "default": 20,
         "required": false,
         "help": "Maximum number of requests to accept (default: 20)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 600 — batch op)"
       }
     ],
     "columns": [
@@ -19973,7 +21537,6 @@
       "user",
       "message"
     ],
-    "timeout": 600,
     "type": "js",
     "modulePath": "twitter/accept.js",
     "sourceFile": "twitter/accept.js",
@@ -20665,6 +22228,13 @@
         "default": true,
         "required": false,
         "help": "Skip conversations where you already sent the same text (default: true)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 600 — batch op)"
       }
     ],
     "columns": [
@@ -20673,7 +22243,6 @@
       "user",
       "message"
     ],
-    "timeout": 600,
     "type": "js",
     "modulePath": "twitter/reply-dm.js",
     "sourceFile": "twitter/reply-dm.js",
@@ -21423,8 +22992,7 @@
     ],
     "type": "js",
     "modulePath": "wanfang/search.js",
-    "sourceFile": "wanfang/search.js",
-    "navigateBefore": false
+    "sourceFile": "wanfang/search.js"
   },
   {
     "site": "web",
@@ -21484,9 +23052,10 @@
         "type": "str",
         "default": "same-origin",
         "required": false,
-        "help": "Iframe handling mode: same-origin or none",
+        "help": "Iframe handling mode: relevant same-origin, all-same-origin, or none",
         "choices": [
           "same-origin",
+          "all-same-origin",
           "none"
         ]
       },
@@ -21851,13 +23420,19 @@
         "type": "str",
         "required": false,
         "help": "文章摘要"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 180,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 180)"
       }
     ],
     "columns": [
       "status",
       "detail"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "weixin/create-draft.js",
     "sourceFile": "weixin/create-draft.js",
@@ -21921,6 +23496,13 @@
         "default": 10,
         "required": false,
         "help": "最多显示条数"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 60)"
       }
     ],
     "columns": [
@@ -21928,7 +23510,6 @@
       "Title",
       "Time"
     ],
-    "timeout": 60,
     "type": "js",
     "modulePath": "weixin/drafts.js",
     "sourceFile": "weixin/drafts.js",
@@ -22240,6 +23821,90 @@
     "navigateBefore": "https://weread.qq.com"
   },
   {
+    "site": "wikidata",
+    "name": "entity",
+    "description": "Fetch a Wikidata entity by Q/P/L id (label, description, aliases, claim summary)",
+    "access": "read",
+    "domain": "www.wikidata.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Entity id (e.g. Q937 = Albert Einstein, P31 = instance of)"
+      },
+      {
+        "name": "language",
+        "type": "str",
+        "default": "en",
+        "required": false,
+        "help": "Display language (ISO 639, falls back to English when missing)"
+      }
+    ],
+    "columns": [
+      "qid",
+      "type",
+      "label",
+      "description",
+      "aliases",
+      "claimPropertyCount",
+      "sitelinkCount",
+      "enwikiTitle",
+      "modified",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "wikidata/entity.js",
+    "sourceFile": "wikidata/entity.js"
+  },
+  {
+    "site": "wikidata",
+    "name": "search",
+    "description": "Search Wikidata items by keyword (returns Q-IDs)",
+    "access": "read",
+    "domain": "www.wikidata.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (label / alias)"
+      },
+      {
+        "name": "language",
+        "type": "str",
+        "default": "en",
+        "required": false,
+        "help": "Search & display language (ISO 639, e.g. en, fr, zh)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max items (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "qid",
+      "label",
+      "description",
+      "matchType",
+      "matchText",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "wikidata/search.js",
+    "sourceFile": "wikidata/search.js"
+  },
+  {
     "site": "wikipedia",
     "name": "page",
     "description": "Full plain-text extract of a Wikipedia article (optional paragraph cap).",
@@ -22412,6 +24077,93 @@
     "type": "js",
     "modulePath": "wikipedia/trending.js",
     "sourceFile": "wikipedia/trending.js"
+  },
+  {
+    "site": "wttr",
+    "name": "current",
+    "description": "Current weather conditions for a location (city, lat,lon, or airport code)",
+    "access": "read",
+    "domain": "wttr.in",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "location",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "City name, \"lat,lon\", airport ICAO code, or \"@domain\""
+      }
+    ],
+    "columns": [
+      "location",
+      "region",
+      "country",
+      "latitude",
+      "longitude",
+      "observedAt",
+      "tempC",
+      "tempF",
+      "feelsLikeC",
+      "feelsLikeF",
+      "description",
+      "humidity",
+      "cloudCover",
+      "pressure",
+      "precipMm",
+      "visibilityKm",
+      "uvIndex",
+      "windKmph",
+      "windDirection",
+      "windDirectionDegree"
+    ],
+    "type": "js",
+    "modulePath": "wttr/current.js",
+    "sourceFile": "wttr/current.js"
+  },
+  {
+    "site": "wttr",
+    "name": "forecast",
+    "description": "Multi-day weather forecast (up to 3 days, wttr.in free tier max)",
+    "access": "read",
+    "domain": "wttr.in",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "location",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "City name, \"lat,lon\", airport ICAO code, or \"@domain\""
+      },
+      {
+        "name": "days",
+        "type": "int",
+        "default": 3,
+        "required": false,
+        "help": "Max forecast days (1-3, wttr.in caps the response at 3 days)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "date",
+      "minTempC",
+      "maxTempC",
+      "avgTempC",
+      "minTempF",
+      "maxTempF",
+      "avgTempF",
+      "sunHour",
+      "totalSnowCm",
+      "uvIndex",
+      "description",
+      "sunrise",
+      "sunset"
+    ],
+    "type": "js",
+    "modulePath": "wttr/forecast.js",
+    "sourceFile": "wttr/forecast.js"
   },
   {
     "site": "xianyu",
@@ -22862,6 +24614,13 @@
         "default": 3,
         "required": false,
         "help": "Number of recent notes to summarize"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 180,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 180)"
       }
     ],
     "columns": [
@@ -22879,7 +24638,6 @@
       "top_interest",
       "url"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "xiaohongshu/creator-notes-summary.js",
     "sourceFile": "xiaohongshu/creator-notes-summary.js",
@@ -24866,8 +26624,8 @@
       },
       {
         "name": "timeout",
-        "type": "str",
-        "default": "60",
+        "type": "int",
+        "default": 60,
         "required": false,
         "help": "Max seconds to wait (default: 60)"
       },
@@ -24890,7 +26648,6 @@
       "Role",
       "Text"
     ],
-    "timeout": 180,
     "type": "js",
     "modulePath": "yuanbao/ask.js",
     "sourceFile": "yuanbao/ask.js",

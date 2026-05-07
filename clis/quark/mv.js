@@ -9,11 +9,11 @@ cli({
     domain: 'pan.quark.cn',
     strategy: Strategy.COOKIE,
     defaultFormat: 'json',
-    timeoutSeconds: 120,
     args: [
         { name: 'fids', required: true, positional: true, help: 'File IDs to move (comma-separated)' },
         { name: 'to', default: '', help: 'Destination folder path (required unless --to-fid is set)' },
         { name: 'to-fid', default: '', help: 'Destination folder ID (overrides --to)' },
+        { name: 'timeout', type: 'int', required: false, default: 120, help: 'Max seconds for the overall command (default: 120)' },
     ],
     func: async (page, kwargs) => {
         const to = kwargs.to;

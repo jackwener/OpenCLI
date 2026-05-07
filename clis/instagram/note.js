@@ -203,9 +203,9 @@ cli({
     domain: 'www.instagram.com',
     strategy: Strategy.UI,
     browser: true,
-    timeoutSeconds: 120,
     args: [
         { name: 'content', positional: true, required: true, help: 'Note text (max 60 characters)' },
+        { name: 'timeout', type: 'int', required: false, default: 120, help: 'Max seconds for the overall command (default: 120)' },
     ],
     columns: ['status', 'detail', 'noteId'],
     validateArgs: validateInstagramNoteArgs,

@@ -36,6 +36,10 @@ export interface DaemonCommand {
   format?: 'png' | 'jpeg';
   quality?: number;
   fullPage?: boolean;
+  /** Override viewport width in CSS pixels for screenshot (0 / undefined = use current) */
+  width?: number;
+  /** Override viewport height in CSS pixels for screenshot (0 / undefined = use current; ignored when fullPage) */
+  height?: number;
 
   /** Local file paths for set-file-input action */
   files?: string[];

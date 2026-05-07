@@ -5,7 +5,7 @@ import {
     buildChatwiseInjectTextJs,
     buildChatwiseMessageCountJs,
     buildChatwiseResponseAfterJs,
-    normalizeTimeout,
+    requirePositiveTimeout,
     scoreChatwiseComposerCandidate,
     selectBestChatwiseComposer,
 } from './utils.js';
@@ -168,9 +168,9 @@ describe('chatwise composer selection', () => {
     });
 
     it('validates timeout explicitly', () => {
-        expect(normalizeTimeout(undefined)).toBe(30);
-        expect(() => normalizeTimeout('0')).toThrow(ArgumentError);
-        expect(() => normalizeTimeout('301')).toThrow(ArgumentError);
+        expect(requirePositiveTimeout(30)).toBe(30);
+        expect(() => requirePositiveTimeout('30')).toThrow(ArgumentError);
+        expect(() => requirePositiveTimeout(0)).toThrow(ArgumentError);
     });
 
     it('fails fast when ask times out instead of returning a System success row', async () => {

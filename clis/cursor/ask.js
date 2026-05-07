@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { selectorError } from '@jackwener/opencli/errors';
+import { ArgumentError, selectorError } from '@jackwener/opencli/errors';
 export const askCommand = cli({
     site: 'cursor',
     name: 'ask',
@@ -10,12 +10,15 @@ export const askCommand = cli({
     browser: true,
     args: [
         { name: 'text', required: true, positional: true, help: 'Prompt to send' },
-        { name: 'timeout', required: false, help: 'Max seconds to wait for response (default: 30)', default: '30' },
+        { name: 'timeout', type: 'int', required: false, help: 'Max seconds to wait for response (default: 30)', default: 30 },
     ],
     columns: ['Role', 'Text'],
     func: async (page, kwargs) => {
         const text = kwargs.text;
-        const timeout = parseInt(kwargs.timeout, 10) || 30;
+        const timeout = kwargs.timeout;
+        if (!Number.isInteger(timeout) || timeout < 1) {
+            throw new ArgumentError('--timeout must be a positive integer (seconds)');
+        }
         // Count existing messages before sending
         const beforeCount = await page.evaluate(`
       document.querySelectorAll('[data-message-role]').length

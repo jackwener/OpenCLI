@@ -188,7 +188,7 @@ export function fetchAdapters() {
 
   // 3b. Clean up stale .yaml/.yml adapter files left by older versions (pre-1.7.0)
   // Older versions shipped adapters as YAML; current versions use .js only.
-  // These cause "Ignoring YAML adapter" warnings on every run (issue #953).
+  // These are no longer discoverable and can shadow the current .js adapter layout.
   let yamlCleaned = 0;
   for (const relPath of walkFiles(USER_CLIS_DIR)) {
     if (relPath.endsWith('.yaml') || relPath.endsWith('.yml')) {

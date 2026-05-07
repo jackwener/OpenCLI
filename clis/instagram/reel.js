@@ -737,10 +737,10 @@ cli({
     domain: 'www.instagram.com',
     strategy: Strategy.UI,
     browser: true,
-    timeoutSeconds: INSTAGRAM_REEL_TIMEOUT_SECONDS,
     args: [
         { name: 'video', required: false, valueRequired: true, help: 'Path to a single .mp4 video file' },
         { name: 'content', positional: true, required: false, help: 'Caption text' },
+        { name: 'timeout', type: 'int', required: false, default: INSTAGRAM_REEL_TIMEOUT_SECONDS, help: `Max seconds for the overall command (default: ${INSTAGRAM_REEL_TIMEOUT_SECONDS})` },
     ],
     columns: ['status', 'detail', 'url'],
     validateArgs: validateInstagramReelArgs,

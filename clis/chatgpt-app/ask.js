@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ConfigError } from '@jackwener/opencli/errors';
+import { ArgumentError, ConfigError } from '@jackwener/opencli/errors';
 import { activateChatGPT, getVisibleChatMessages, selectModel, MODEL_CHOICES, isGenerating, sendPrompt } from './ax.js';
 export const askCommand = cli({
     site: 'chatgpt-app',
@@ -13,7 +13,7 @@ export const askCommand = cli({
     args: [
         { name: 'text', required: true, positional: true, help: 'Prompt to send' },
         { name: 'model', required: false, help: 'Model/mode to use: auto, instant, thinking, 5.2-instant, 5.2-thinking', choices: MODEL_CHOICES },
-        { name: 'timeout', required: false, help: 'Max seconds to wait for response (default: 30)', default: '30' },
+        { name: 'timeout', type: 'int', required: false, help: 'Max seconds to wait for response (default: 30)', default: 30 },
     ],
     columns: ['Role', 'Text'],
     func: async (kwargs) => {
@@ -22,7 +22,10 @@ export const askCommand = cli({
         }
         const text = kwargs.text;
         const model = kwargs.model;
-        const timeout = parseInt(kwargs.timeout, 10) || 30;
+        const timeout = kwargs.timeout;
+        if (!Number.isInteger(timeout) || timeout < 1) {
+            throw new ArgumentError('--timeout must be a positive integer (seconds)');
+        }
         // Switch model before sending if requested
         if (model) {
             activateChatGPT();

@@ -12,9 +12,9 @@ export const draftsCommand = cli({
     strategy: Strategy.COOKIE,
     browser: true,
     navigateBefore: false,
-    timeoutSeconds: 60,
     args: [
         { name: 'limit', type: 'int', default: 10, help: '最多显示条数' },
+        { name: 'timeout', type: 'int', required: false, default: 60, help: 'Max seconds for the overall command (default: 60)' },
     ],
     columns: ['Index', 'Title', 'Time'],
 

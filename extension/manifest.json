@@ -9,7 +9,8 @@
     "cookies",
     "activeTab",
     "alarms",
-    "storage"
+    "storage",
+    "tabGroups"
   ],
   "host_permissions": [
     "<all_urls>"

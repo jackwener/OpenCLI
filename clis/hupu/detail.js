@@ -8,7 +8,6 @@ cli({
     domain: 'bbs.hupu.com',
     strategy: Strategy.PUBLIC,
     browser: true,
-    navigateBefore: false,
     args: [
         {
             name: 'tid',

@@ -355,15 +355,12 @@ export const LINUX_DO_FEED_ARGS = [
         choices: ['all', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'],
     },
 ];
-export async function executeLinuxDoFeed(page, kwargs) {
+async function runLinuxDoFeed(page, kwargs) {
     const limit = (kwargs.limit || 20);
     await ensureLinuxDoHome(page);
     const request = await resolveFeedRequest(page, kwargs);
     const data = await fetchLinuxDoJson(page, request.url, { skipNavigate: true });
     return topicListRichFromJson(data, limit);
-}
-export function buildLinuxDoCompatFooter(replacement) {
-    return `Deprecated compatibility command. Prefer: ${replacement}`;
 }
 cli({
     site: 'linux-do',
@@ -375,7 +372,7 @@ cli({
     browser: true,
     columns: ['title', 'replies', 'created', 'likes', 'views', 'url'],
     args: LINUX_DO_FEED_ARGS,
-    func: executeLinuxDoFeed,
+    func: runLinuxDoFeed,
 });
 export const __test__ = {
     resetMetadataCaches() {

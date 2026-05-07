@@ -122,13 +122,12 @@ OpenCLI currently uses these access strategies:
 |---|---|
 | `public` | direct fetch with no login |
 | `cookie` | reuse browser session cookies |
-| `header` | custom authenticated headers |
 | `intercept` | capture the app's own network responses |
 | `ui` | DOM / accessibility driven interaction |
 
 The key distinction is operational:
 
-- `public`, `header` favor direct network access
+- `public` favors direct network access
 - `cookie`, `intercept`, `ui` depend on a live browser or desktop surface
 
 ## High-Risk Change Zones
