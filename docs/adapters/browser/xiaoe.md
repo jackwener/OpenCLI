@@ -16,7 +16,7 @@
 
 ```bash
 # List purchased courses
-opencli xiaoe courses --limit 10
+opencli xiaoe courses
 
 # Read course metadata
 opencli xiaoe detail "https://appxxxx.h5.xet.citv.cn/p/course/ecourse/v_xxxxx"
@@ -70,8 +70,8 @@ Empty `content` (e.g. login expired, page renders an empty shell) raises
 
 Empty results raise `EmptyResultError`, never silent `[]` — for browser
 adapters this almost always indicates the cookie has expired or the URL
-is not a course page. `--url` is required (positional) for `content` /
-`catalog` / `detail` / `play-url`; missing `--url` raises
+is not a course page. The positional `url` argument is required for `content` /
+`catalog` / `detail` / `play-url`; missing `url` raises
 `ArgumentError` before any browser navigation happens.
 
 ## Prerequisites

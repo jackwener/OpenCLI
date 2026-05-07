@@ -27,6 +27,7 @@ import {
     contentCommand,
     countXiaoeImages,
     pickContentText,
+    requireXiaoePageUrl,
     __test__ as contentTest,
 } from './content.js';
 import {
@@ -155,6 +156,22 @@ describe('xiaoe/content — countXiaoeImages', () => {
     it('returns 0 on a doc with no <img> elements', () => {
         const doc = new JSDOM('<html><body><p>no images here</p></body></html>').window.document;
         expect(countXiaoeImages(doc)).toBe(0);
+    });
+});
+
+describe('xiaoe/content — requireXiaoePageUrl', () => {
+    it('rejects empty, malformed, and non-xiaoe URLs upfront', () => {
+        expect(() => requireXiaoePageUrl('', 'content')).toThrow(ArgumentError);
+        expect(() => requireXiaoePageUrl('not a url', 'content')).toThrow(ArgumentError);
+        expect(() => requireXiaoePageUrl('http://h5.xet.citv.cn/p/course/ecourse/v_x', 'content')).toThrow(ArgumentError);
+        expect(() => requireXiaoePageUrl('https://example.com/p/course/ecourse/v_x', 'content')).toThrow(ArgumentError);
+    });
+
+    it('accepts root and shop h5.xet.citv.cn URLs', () => {
+        expect(requireXiaoePageUrl('https://h5.xet.citv.cn/p/course/ecourse/v_x', 'content'))
+            .toBe('https://h5.xet.citv.cn/p/course/ecourse/v_x');
+        expect(requireXiaoePageUrl('https://appxxxx.h5.xet.citv.cn/p/course/ecourse/v_x', 'content'))
+            .toBe('https://appxxxx.h5.xet.citv.cn/p/course/ecourse/v_x');
     });
 });
 
@@ -326,7 +343,17 @@ describe('xiaoe/content — getXiaoeContent func wiring', () => {
         await expect(contentCommand.func(page, {})).rejects.toThrow(ArgumentError);
         await expect(contentCommand.func(page, { url: '' })).rejects.toThrow(ArgumentError);
         await expect(contentCommand.func(page, { url: '   ' })).rejects.toThrow(ArgumentError);
+        await expect(contentCommand.func(page, { url: 'https://example.com/p/x' })).rejects.toThrow(ArgumentError);
         expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('wraps browser navigation failures as CommandExecutionError', async () => {
+        const page = {
+            goto: vi.fn().mockRejectedValue(new Error('net::ERR_ABORTED')),
+            evaluate: vi.fn(),
+        };
+        await expect(contentCommand.func(page, { url: 'https://h5.xet.citv.cn/p/x' }))
+            .rejects.toThrow(CommandExecutionError);
     });
 
     it('throws EmptyResultError when no rows are returned', async () => {
@@ -378,7 +405,17 @@ describe('xiaoe/catalog — getXiaoeCatalog func wiring', () => {
     it('throws ArgumentError on missing url BEFORE calling page.goto', async () => {
         const page = pageMock([]);
         await expect(catalogCommand.func(page, {})).rejects.toThrow(ArgumentError);
+        await expect(catalogCommand.func(page, { url: 'https://example.com/p/c' })).rejects.toThrow(ArgumentError);
         expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('wraps browser navigation failures as CommandExecutionError', async () => {
+        const page = {
+            goto: vi.fn().mockRejectedValue(new Error('Execution context was destroyed')),
+            evaluate: vi.fn(),
+        };
+        await expect(catalogCommand.func(page, { url: 'https://h5.xet.citv.cn/p/c' }))
+            .rejects.toThrow(CommandExecutionError);
     });
 
     it('throws EmptyResultError when no chapters extracted (cookie likely expired)', async () => {
@@ -435,6 +472,14 @@ describe('xiaoe/courses — getXiaoeCourses func wiring', () => {
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn().mockRejectedValue(new Error('cdp')),
+        };
+        await expect(coursesCommand.func(page, {})).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('wraps browser navigation failures as CommandExecutionError', async () => {
+        const page = {
+            goto: vi.fn().mockRejectedValue(new Error('net::ERR_ABORTED')),
+            evaluate: vi.fn(),
         };
         await expect(coursesCommand.func(page, {})).rejects.toThrow(CommandExecutionError);
     });

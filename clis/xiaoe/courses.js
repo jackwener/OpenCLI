@@ -90,9 +90,9 @@ export function buildCoursesScript() {
 }
 
 async function getXiaoeCourses(page) {
-    await page.goto('https://study.xiaoe-tech.com/', { waitUntil: 'load', settleMs: 8000 });
     let rows;
     try {
+        await page.goto('https://study.xiaoe-tech.com/', { waitUntil: 'load', settleMs: 8000 });
         rows = await page.evaluate(buildCoursesScript());
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

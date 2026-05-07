@@ -20,7 +20,8 @@
 //     source of truth.
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { requireXiaoePageUrl } from './content.js';
 
 // resource_type → human label. 1=图文 2=直播 3=音频 4=视频 6=专栏 8=大专栏.
 // Returns the raw `String(t)` when the type is unknown (e.g. xiaoe rolls
@@ -185,13 +186,10 @@ export function buildCatalogScript() {
 }
 
 async function getXiaoeCatalog(page, args) {
-    const url = typeof args.url === 'string' ? args.url.trim() : '';
-    if (!url) {
-        throw new ArgumentError('url is required (positional)');
-    }
-    await page.goto(url, { waitUntil: 'load', settleMs: 8000 });
+    const url = requireXiaoePageUrl(args.url, 'catalog');
     let rows;
     try {
+        await page.goto(url, { waitUntil: 'load', settleMs: 8000 });
         rows = await page.evaluate(buildCatalogScript());
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

@@ -77,6 +77,36 @@ export function countXiaoeImages(doc) {
     return count;
 }
 
+export function requireXiaoePageUrl(value, commandName) {
+    const raw = typeof value === 'string' ? value.trim() : '';
+    if (!raw) {
+        throw new ArgumentError('url is required (positional)');
+    }
+    let parsed;
+    try {
+        parsed = new URL(raw);
+    } catch {
+        throw new ArgumentError(
+            `invalid xiaoe URL: ${raw}`,
+            `Example: opencli xiaoe ${commandName} https://appxxxx.h5.xet.citv.cn/p/course/ecourse/v_xxxxx`,
+        );
+    }
+    if (parsed.protocol !== 'https:') {
+        throw new ArgumentError(
+            `xiaoe URL must use https (got ${parsed.protocol.replace(':', '')})`,
+            `Example: opencli xiaoe ${commandName} https://appxxxx.h5.xet.citv.cn/p/course/ecourse/v_xxxxx`,
+        );
+    }
+    const host = parsed.hostname.toLowerCase();
+    if (host !== 'h5.xet.citv.cn' && !host.endsWith('.h5.xet.citv.cn')) {
+        throw new ArgumentError(
+            `url must be on h5.xet.citv.cn or a shop subdomain (got ${parsed.hostname})`,
+            `Example: opencli xiaoe ${commandName} https://appxxxx.h5.xet.citv.cn/p/course/ecourse/v_xxxxx`,
+        );
+    }
+    return parsed.toString();
+}
+
 export function buildContentScript() {
     return `
 (() => {
@@ -97,13 +127,10 @@ export function buildContentScript() {
 }
 
 async function getXiaoeContent(page, args) {
-    const url = typeof args.url === 'string' ? args.url.trim() : '';
-    if (!url) {
-        throw new ArgumentError('url is required (positional)');
-    }
-    await page.goto(url, { waitUntil: 'load', settleMs: 6000 });
+    const url = requireXiaoePageUrl(args.url, 'content');
     let rows;
     try {
+        await page.goto(url, { waitUntil: 'load', settleMs: 6000 });
         rows = await page.evaluate(buildContentScript());
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
