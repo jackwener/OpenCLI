@@ -4124,6 +4124,116 @@
   },
   {
     "site": "chatgpt",
+    "name": "ask",
+    "description": "Send a prompt to ChatGPT web and wait for the response",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds to wait for response"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      }
+    ],
+    "columns": [
+      "response"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/ask.js",
+    "sourceFile": "chatgpt/ask.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
+    "name": "detail",
+    "description": "Open a ChatGPT web conversation by ID and read its messages",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID or full /c/<id> URL"
+      },
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/detail.js",
+    "sourceFile": "chatgpt/detail.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
+    "name": "history",
+    "description": "List visible ChatGPT web conversation history from the sidebar",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max conversations to show"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Id",
+      "Title",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/history.js",
+    "sourceFile": "chatgpt/history.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
     "name": "image",
     "description": "Generate images with ChatGPT web and save them locally",
     "access": "write",
@@ -4167,7 +4277,118 @@
     "type": "js",
     "modulePath": "chatgpt/image.js",
     "sourceFile": "chatgpt/image.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
+    "name": "new",
+    "description": "Start a new ChatGPT web conversation",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/new.js",
+    "sourceFile": "chatgpt/new.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
+    "name": "read",
+    "description": "Read messages in the current ChatGPT web conversation",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/read.js",
+    "sourceFile": "chatgpt/read.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
+    "name": "send",
+    "description": "Send a prompt to ChatGPT web without waiting for the response",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      }
+    ],
+    "columns": [
+      "Status",
+      "InjectedText"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/send.js",
+    "sourceFile": "chatgpt/send.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "chatgpt",
+    "name": "status",
+    "description": "Check ChatGPT web page availability and login state",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Login",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/status.js",
+    "sourceFile": "chatgpt/status.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "chatgpt-app",
@@ -4540,7 +4761,10 @@
     "type": "js",
     "modulePath": "claude/ask.js",
     "sourceFile": "claude/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "claude",
@@ -4567,7 +4791,10 @@
     "type": "js",
     "modulePath": "claude/detail.js",
     "sourceFile": "claude/detail.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "claude",
@@ -4595,7 +4822,10 @@
     "type": "js",
     "modulePath": "claude/history.js",
     "sourceFile": "claude/history.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "claude",
@@ -4612,7 +4842,10 @@
     "type": "js",
     "modulePath": "claude/new.js",
     "sourceFile": "claude/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "claude",
@@ -4631,7 +4864,10 @@
     "type": "js",
     "modulePath": "claude/read.js",
     "sourceFile": "claude/read.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "claude",
@@ -4665,7 +4901,10 @@
     "type": "js",
     "modulePath": "claude/send.js",
     "sourceFile": "claude/send.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "claude",
@@ -4684,7 +4923,10 @@
     "type": "js",
     "modulePath": "claude/status.js",
     "sourceFile": "claude/status.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "cnki",
@@ -5982,7 +6224,10 @@
     "type": "js",
     "modulePath": "deepseek/ask.js",
     "sourceFile": "deepseek/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "deepseek",
@@ -6008,7 +6253,10 @@
     "type": "js",
     "modulePath": "deepseek/detail.js",
     "sourceFile": "deepseek/detail.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "deepseek",
@@ -6035,7 +6283,10 @@
     "type": "js",
     "modulePath": "deepseek/history.js",
     "sourceFile": "deepseek/history.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "deepseek",
@@ -6052,7 +6303,10 @@
     "type": "js",
     "modulePath": "deepseek/new.js",
     "sourceFile": "deepseek/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "deepseek",
@@ -6070,7 +6324,10 @@
     "type": "js",
     "modulePath": "deepseek/read.js",
     "sourceFile": "deepseek/read.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "deepseek",
@@ -6110,7 +6367,10 @@
     "type": "js",
     "modulePath": "deepseek/send.js",
     "sourceFile": "deepseek/send.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "deepseek",
@@ -6129,7 +6389,10 @@
     "type": "js",
     "modulePath": "deepseek/status.js",
     "sourceFile": "deepseek/status.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "defillama",
@@ -7219,7 +7482,10 @@
     "type": "js",
     "modulePath": "doubao/ask.js",
     "sourceFile": "doubao/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7245,7 +7511,10 @@
     "type": "js",
     "modulePath": "doubao/detail.js",
     "sourceFile": "doubao/detail.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7273,7 +7542,10 @@
     "type": "js",
     "modulePath": "doubao/history.js",
     "sourceFile": "doubao/history.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7306,7 +7578,10 @@
     "type": "js",
     "modulePath": "doubao/meeting-summary.js",
     "sourceFile": "doubao/meeting-summary.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7339,7 +7614,10 @@
     "type": "js",
     "modulePath": "doubao/meeting-transcript.js",
     "sourceFile": "doubao/meeting-transcript.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7357,7 +7635,10 @@
     "type": "js",
     "modulePath": "doubao/new.js",
     "sourceFile": "doubao/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7375,7 +7656,10 @@
     "type": "js",
     "modulePath": "doubao/read.js",
     "sourceFile": "doubao/read.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7402,7 +7686,10 @@
     "type": "js",
     "modulePath": "doubao/send.js",
     "sourceFile": "doubao/send.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao",
@@ -7422,7 +7709,10 @@
     "type": "js",
     "modulePath": "doubao/status.js",
     "sourceFile": "doubao/status.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "doubao-app",
@@ -8992,7 +9282,7 @@
   {
     "site": "facebook",
     "name": "notifications",
-    "description": "Get recent Facebook notifications",
+    "description": "Get recent Facebook notifications (含 unread / time / url / notif_id / notif_type 列)",
     "access": "read",
     "domain": "www.facebook.com",
     "strategy": "cookie",
@@ -9003,18 +9293,22 @@
         "type": "int",
         "default": 15,
         "required": false,
-        "help": "Number of notifications"
+        "help": "Number of notifications (1-100)"
       }
     ],
     "columns": [
       "index",
+      "unread",
       "text",
-      "time"
+      "time",
+      "url",
+      "notif_id",
+      "notif_type"
     ],
     "type": "js",
     "modulePath": "facebook/notifications.js",
     "sourceFile": "facebook/notifications.js",
-    "navigateBefore": "https://www.facebook.com"
+    "navigateBefore": false
   },
   {
     "site": "facebook",
@@ -9196,7 +9490,10 @@
     "type": "js",
     "modulePath": "gemini/ask.js",
     "sourceFile": "gemini/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "gemini",
@@ -9241,7 +9538,10 @@
     "type": "js",
     "modulePath": "gemini/deep-research.js",
     "sourceFile": "gemini/deep-research.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "gemini",
@@ -9284,7 +9584,10 @@
     "type": "js",
     "modulePath": "gemini/deep-research-result.js",
     "sourceFile": "gemini/deep-research-result.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "gemini",
@@ -9346,7 +9649,10 @@
     "type": "js",
     "modulePath": "gemini/image.js",
     "sourceFile": "gemini/image.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "gemini",
@@ -9364,7 +9670,10 @@
     "type": "js",
     "modulePath": "gemini/new.js",
     "sourceFile": "gemini/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "gitee",
@@ -9967,7 +10276,185 @@
     "type": "js",
     "modulePath": "grok/ask.js",
     "sourceFile": "grok/ask.js",
-    "navigateBefore": "https://grok.com"
+    "navigateBefore": "https://grok.com",
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "grok",
+    "name": "detail",
+    "description": "Open a Grok conversation by ID and read its messages",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Session ID (UUID) or full https://grok.com/c/<id> URL"
+      },
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "grok/detail.js",
+    "sourceFile": "grok/detail.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "grok",
+    "name": "history",
+    "description": "List recent Grok conversations from the sidebar (requires login)",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max conversations to show (default 20, max 100)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "grok/history.js",
+    "sourceFile": "grok/history.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "grok",
+    "name": "new",
+    "description": "Start a new conversation in Grok",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "grok/new.js",
+    "sourceFile": "grok/new.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "grok",
+    "name": "read",
+    "description": "Read messages in the current Grok conversation",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "grok/read.js",
+    "sourceFile": "grok/read.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "grok",
+    "name": "send",
+    "description": "Fire-and-forget: send a prompt to Grok without waiting for the reply",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send to Grok"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Prompt"
+    ],
+    "type": "js",
+    "modulePath": "grok/send.js",
+    "sourceFile": "grok/send.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "grok",
+    "name": "status",
+    "description": "Check Grok page availability, login state, current session and model",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Login",
+      "Model",
+      "SessionId",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "grok/status.js",
+    "sourceFile": "grok/status.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "hackernews",
@@ -10657,10 +11144,10 @@
   {
     "site": "hupu",
     "name": "hot",
-    "description": "虎扑热门帖子",
+    "description": "虎扑首页热门帖子（含 lights / replies / forum / is_hot 列）",
     "access": "read",
     "domain": "bbs.hupu.com",
-    "strategy": "cookie",
+    "strategy": "public",
     "browser": true,
     "args": [
       {
@@ -10668,19 +11155,22 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of hot posts"
+        "help": "Number of threads (1-100)"
       }
     ],
     "columns": [
       "rank",
       "tid",
       "title",
+      "lights",
+      "replies",
+      "forum",
+      "is_hot",
       "url"
     ],
     "type": "js",
     "modulePath": "hupu/hot.js",
-    "sourceFile": "hupu/hot.js",
-    "navigateBefore": "https://bbs.hupu.com"
+    "sourceFile": "hupu/hot.js"
   },
   {
     "site": "hupu",
@@ -18050,7 +18540,46 @@
     "type": "js",
     "modulePath": "qwen/ask.js",
     "sourceFile": "qwen/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "qwen",
+    "name": "detail",
+    "description": "Open a Qianwen conversation by ID and read its messages",
+    "access": "read",
+    "domain": "www.qianwen.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Session ID (32-char hex) or full https://www.qianwen.com/chat/<id> URL"
+      },
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "qwen/detail.js",
+    "sourceFile": "qwen/detail.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "qwen",
@@ -18078,7 +18607,10 @@
     "type": "js",
     "modulePath": "qwen/history.js",
     "sourceFile": "qwen/history.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "qwen",
@@ -18133,7 +18665,10 @@
     "type": "js",
     "modulePath": "qwen/image.js",
     "sourceFile": "qwen/image.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "qwen",
@@ -18150,7 +18685,10 @@
     "type": "js",
     "modulePath": "qwen/new.js",
     "sourceFile": "qwen/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "qwen",
@@ -18176,7 +18714,10 @@
     "type": "js",
     "modulePath": "qwen/read.js",
     "sourceFile": "qwen/read.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "qwen",
@@ -18223,7 +18764,10 @@
     "type": "js",
     "modulePath": "qwen/send.js",
     "sourceFile": "qwen/send.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "qwen",
@@ -18244,7 +18788,10 @@
     "type": "js",
     "modulePath": "qwen/status.js",
     "sourceFile": "qwen/status.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "reddit",
@@ -20605,7 +21152,7 @@
   {
     "site": "tiktok",
     "name": "comment",
-    "description": "Comment on a TikTok video",
+    "description": "Post a comment on a TikTok video",
     "access": "write",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20616,20 +21163,20 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "TikTok video URL"
+        "help": "TikTok video URL (https://www.tiktok.com/@user/video/<id>)"
       },
       {
         "name": "text",
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Comment text"
+        "help": "Comment text (≤150 chars)"
       }
     ],
     "columns": [
-      "status",
       "url",
-      "text"
+      "text",
+      "result"
     ],
     "type": "js",
     "modulePath": "tiktok/comment.js",
@@ -20679,7 +21226,7 @@
   {
     "site": "tiktok",
     "name": "explore",
-    "description": "Get trending TikTok videos from explore page",
+    "description": "Get trending TikTok videos from the recommend feed via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20690,14 +21237,22 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of videos"
+        "help": "Number of videos to return (max 120)"
       }
     ],
     "columns": [
-      "rank",
+      "index",
+      "id",
       "author",
-      "views",
-      "url"
+      "url",
+      "cover",
+      "title",
+      "desc",
+      "plays",
+      "likes",
+      "comments",
+      "shares",
+      "createTime"
     ],
     "type": "js",
     "modulePath": "tiktok/explore.js",
@@ -20707,7 +21262,7 @@
   {
     "site": "tiktok",
     "name": "follow",
-    "description": "Follow a TikTok user",
+    "description": "Follow a TikTok user by username",
     "access": "write",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20722,8 +21277,9 @@
       }
     ],
     "columns": [
-      "status",
-      "username"
+      "username",
+      "url",
+      "result"
     ],
     "type": "js",
     "modulePath": "tiktok/follow.js",
@@ -20733,7 +21289,7 @@
   {
     "site": "tiktok",
     "name": "following",
-    "description": "List accounts you follow on TikTok",
+    "description": "List accounts the logged-in user follows on TikTok via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20744,13 +21300,18 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of accounts"
+        "help": "Number of accounts (max 200)"
       }
     ],
     "columns": [
       "index",
       "username",
-      "name"
+      "name",
+      "secUid",
+      "verified",
+      "followers",
+      "following",
+      "url"
     ],
     "type": "js",
     "modulePath": "tiktok/following.js",
@@ -20760,7 +21321,7 @@
   {
     "site": "tiktok",
     "name": "friends",
-    "description": "Get TikTok friend suggestions",
+    "description": "Get TikTok friend / who-to-follow suggestions via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20771,13 +21332,18 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of suggestions"
+        "help": "Number of suggestions (max 100)"
       }
     ],
     "columns": [
       "index",
       "username",
-      "name"
+      "name",
+      "secUid",
+      "verified",
+      "followers",
+      "following",
+      "url"
     ],
     "type": "js",
     "modulePath": "tiktok/friends.js",
@@ -20814,7 +21380,7 @@
   {
     "site": "tiktok",
     "name": "live",
-    "description": "Browse live streams on TikTok",
+    "description": "Browse TikTok live streams via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20825,13 +21391,17 @@
         "type": "int",
         "default": 10,
         "required": false,
-        "help": "Number of streams"
+        "help": "Number of streams (max 60)"
       }
     ],
     "columns": [
       "index",
       "streamer",
+      "name",
+      "title",
       "viewers",
+      "likes",
+      "secUid",
       "url"
     ],
     "type": "js",
@@ -20842,7 +21412,7 @@
   {
     "site": "tiktok",
     "name": "notifications",
-    "description": "Get TikTok notifications (likes, comments, mentions, followers)",
+    "description": "Read TikTok inbox notifications (likes, comments, mentions, followers) via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20853,7 +21423,7 @@
         "type": "int",
         "default": 15,
         "required": false,
-        "help": "Number of notifications"
+        "help": "Number of notifications (max 100)"
       },
       {
         "name": "type",
@@ -20872,7 +21442,10 @@
     ],
     "columns": [
       "index",
-      "text"
+      "id",
+      "from",
+      "text",
+      "createTime"
     ],
     "type": "js",
     "modulePath": "tiktok/notifications.js",
@@ -20979,7 +21552,7 @@
   {
     "site": "tiktok",
     "name": "unfollow",
-    "description": "Unfollow a TikTok user",
+    "description": "Unfollow a TikTok user by username",
     "access": "write",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20994,8 +21567,9 @@
       }
     ],
     "columns": [
-      "status",
-      "username"
+      "username",
+      "url",
+      "result"
     ],
     "type": "js",
     "modulePath": "tiktok/unfollow.js",
@@ -21058,7 +21632,7 @@
   {
     "site": "tiktok",
     "name": "user",
-    "description": "Get recent videos from a TikTok user",
+    "description": "Get recent videos from a TikTok user via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -21074,15 +21648,25 @@
       {
         "name": "limit",
         "type": "int",
-        "default": 10,
+        "default": 20,
         "required": false,
-        "help": "Number of videos"
+        "help": "Number of videos to return (max 120)"
       }
     ],
     "columns": [
       "index",
-      "views",
-      "url"
+      "id",
+      "source",
+      "author",
+      "url",
+      "cover",
+      "title",
+      "desc",
+      "plays",
+      "likes",
+      "comments",
+      "shares",
+      "createTime"
     ],
     "type": "js",
     "modulePath": "tiktok/user.js",
@@ -24145,6 +24729,7 @@
     ],
     "columns": [
       "title",
+      "content",
       "content_length",
       "image_count"
     ],
@@ -26388,7 +26973,71 @@
     "type": "js",
     "modulePath": "yuanbao/ask.js",
     "sourceFile": "yuanbao/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "yuanbao",
+    "name": "detail",
+    "description": "Open a Yuanbao conversation by ID and read its messages",
+    "access": "read",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full https://yuanbao.tencent.com/chat/<agentId>/<convId> URL or \"<agentId>/<convId>\" pair (a UUID alone is not enough — Yuanbao requires the agent slug)"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/detail.js",
+    "sourceFile": "yuanbao/detail.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "yuanbao",
+    "name": "history",
+    "description": "List recent Yuanbao conversations from the sidebar (requires login)",
+    "access": "read",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max conversations to list (sidebar virtual scroll caps actual count)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "AgentId",
+      "SessionId",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/history.js",
+    "sourceFile": "yuanbao/history.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "yuanbao",
@@ -26406,7 +27055,93 @@
     "type": "js",
     "modulePath": "yuanbao/new.js",
     "sourceFile": "yuanbao/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "yuanbao",
+    "name": "read",
+    "description": "Read messages in the current Yuanbao conversation",
+    "access": "read",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/read.js",
+    "sourceFile": "yuanbao/read.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "yuanbao",
+    "name": "send",
+    "description": "Fire-and-forget: send a prompt to Yuanbao without waiting for the reply",
+    "access": "write",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send to Yuanbao"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Prompt"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/send.js",
+    "sourceFile": "yuanbao/send.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "yuanbao",
+    "name": "status",
+    "description": "Check Yuanbao page availability, login state, current session and model",
+    "access": "read",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Login",
+      "Model",
+      "ModelId",
+      "AgentId",
+      "SessionId",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/status.js",
+    "sourceFile": "yuanbao/status.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "zhihu",

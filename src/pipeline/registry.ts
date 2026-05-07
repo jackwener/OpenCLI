@@ -35,6 +35,18 @@ export function getStep(name: string): StepHandler | undefined {
 }
 
 /**
+ * List all currently registered step names. Used by `validate.ts` to allowlist
+ * step names without maintaining a parallel hand-coded list.
+ *
+ * Note: this depends on registerStep() side effects below already having run.
+ * Importing this module triggers all core registrations at the bottom of the
+ * file, so the returned array reflects every core + plugin step at call time.
+ */
+export function getRegisteredStepNames(): string[] {
+  return [..._stepRegistry.keys()];
+}
+
+/**
  * Register a new custom step handler for the YAML pipeline.
  */
 export function registerStep(name: string, handler: StepHandler): void {

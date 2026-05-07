@@ -129,6 +129,7 @@ function compactCommand(cmd: CliCommand, opts: { includeColumns?: boolean } = {}
     ...(cmd.aliases?.length ? { aliases: cmd.aliases } : {}),
     args: cmd.args.map(compactArg),
     example: formatCommandExample(cmd),
+    ...(cmd.browserSession ? { browserSession: cmd.browserSession } : {}),
     ...(opts.includeColumns && cmd.columns?.length ? { columns: cmd.columns } : {}),
     ...(cmd.deprecated ? { deprecated: cmd.deprecated } : {}),
     ...(cmd.replacedBy ? { replacedBy: cmd.replacedBy } : {}),

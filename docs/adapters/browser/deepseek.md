@@ -99,8 +99,9 @@ opencli deepseek send 749e6bbd-6a45-4440-beaa-ae5238bf06d8 "continue from the la
 ## Caveats
 
 - This adapter drives the DeepSeek web UI in the browser, not an API
+- DeepSeek commands default to site-level browser tab reuse, so consecutive `deepseek ask` / `deepseek read` / `deepseek detail` invocations continue in the same DeepSeek page. Pass `--reuse none` for a one-shot tab.
 - Default mode is Instant with DeepThink and Search disabled; each flag (`--model`, `--think`, `--search`) is synced on every invocation so omitting a flag resets it
 - Vision mode does not support `--search`; use `--model instant` or `--model expert` for web search
-- `send` requires an explicit conversation ID because each browser command runs in its own tab/workspace; use `history` to find a conversation URL or ID first
+- `send` requires an explicit conversation ID; use `history` to find a conversation URL or ID first
 - Long responses (code, essays) may need a higher `--timeout`
 - File upload prefers the browser file-input path, falls back to base64 injection when needed, and rejects files over 100 MB

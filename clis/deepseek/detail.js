@@ -15,6 +15,7 @@ export const detailCommand = cli({
     domain: DEEPSEEK_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    browserSession: { reuse: 'site' },
     navigateBefore: false,
     args: [
         { name: 'id', required: true, positional: true, help: 'Conversation ID (UUID) or full /a/chat/s/<id> URL' },

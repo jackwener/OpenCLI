@@ -38,4 +38,8 @@ export interface ManifestEntry {
   sourceFile?: string;
   /** Pre-navigation control — see CliCommand.navigateBefore */
   navigateBefore?: boolean | string;
+  /** Browser session lifecycle defaults — see CliCommand.browserSession */
+  browserSession?: {
+    reuse?: 'none' | 'site';
+  };
 }

@@ -6,11 +6,34 @@
 
 | Command | Description |
 |---------|-------------|
+| `opencli chatgpt ask <prompt>` | Send a prompt and wait for the visible response |
+| `opencli chatgpt send <prompt>` | Send a prompt without waiting |
+| `opencli chatgpt read` | Read the current conversation |
+| `opencli chatgpt history` | List visible conversation history links from the sidebar |
+| `opencli chatgpt detail <id-or-url>` | Open a conversation by `/c/<id>` and read it |
+| `opencli chatgpt new` | Start a new conversation |
+| `opencli chatgpt status` | Check page and login state |
 | `opencli chatgpt image <prompt>` | Generate images in ChatGPT web and optionally save them locally |
 
 ## Usage Examples
 
 ```bash
+# Ask and wait for the answer
+opencli chatgpt ask "Summarize the tradeoffs of browser session reuse"
+
+# Continue the same ChatGPT tab but do not wait for the answer
+opencli chatgpt send "Now turn that into a checklist"
+
+# Read the current conversation
+opencli chatgpt read --markdown true
+
+# List recent visible conversations and read one by id or URL
+opencli chatgpt history --limit 10
+opencli chatgpt detail "https://chatgpt.com/c/<conversation-id>"
+
+# Start a fresh chat
+opencli chatgpt new
+
 # Generate an image and save it to the default directory
 opencli chatgpt image "a cyberpunk city at night"
 
@@ -25,14 +48,21 @@ opencli chatgpt image "a tiny watercolor fox" --sd true
 
 | Option | Description |
 |--------|-------------|
-| `prompt` | Image prompt to send (required positional argument) |
+| `prompt` | Prompt to send (required for `ask`, `send`, and `image`) |
+| `--timeout` | Max seconds for `ask` to wait for a response (default: `120`) |
+| `--new` | Start a new conversation before `ask` / `send` |
+| `--markdown` | Convert assistant message HTML to Markdown for `read` / `detail` |
+| `--limit` | Max visible history conversations to return (default: `20`) |
 | `--op` | Output directory for downloaded images (default: `~/Pictures/chatgpt`) |
 | `--sd` | Skip download and only print the ChatGPT conversation link |
 
 ## Behavior
 
-- The command opens a fresh `chatgpt.com/new` page before sending the prompt.
-- Output is plain `status / file / link`, not a markdown table.
+- ChatGPT web commands use site-level browser tab reuse by default, so consecutive `ask` / `send` / `read` / `detail` commands continue in the same ChatGPT tab. Use `--reuse none` for one-shot isolated tabs.
+- `ask` waits for the first stable assistant response after sending. `send` submits only and returns immediately.
+- `history` reads visible `/c/<id>` links from the ChatGPT sidebar; it does not use private backend APIs.
+- `image` opens a fresh `chatgpt.com/new` page before sending the image prompt.
+- `image` output is plain `status / file / link`, not a markdown table.
 - When `--sd` is enabled, the command does not download files and only prints the ChatGPT link.
 - Downloaded files are named with a timestamp to avoid overwriting prior runs.
 

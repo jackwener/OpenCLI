@@ -14,6 +14,7 @@ export const askCommand = cli({
     domain: CLAUDE_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    browserSession: { reuse: 'site' },
     navigateBefore: false,
     args: [
         { name: 'prompt', positional: true, required: true, help: 'Prompt to send' },

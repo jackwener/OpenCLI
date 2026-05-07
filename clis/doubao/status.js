@@ -8,6 +8,7 @@ export const statusCommand = cli({
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    browserSession: { reuse: 'site' },
     navigateBefore: false,
     args: [],
     columns: ['Status', 'Login', 'Url', 'Title'],

@@ -1,13 +1,16 @@
 /** Validate CLI definitions from the registry (JS-first). */
 import { getRegistry, fullName, type CliCommand, type InternalCliCommand } from './registry.js';
+import { getRegisteredStepNames } from './pipeline/registry.js';
 
-/** All recognized pipeline step names */
-const KNOWN_STEP_NAMES = new Set([
-  'navigate', 'click', 'type', 'wait', 'press', 'snapshot',
-  'fetch', 'evaluate',
-  'select', 'map', 'filter', 'sort', 'limit',
-  'intercept', 'tap', 'download',
-]);
+/**
+ * Pipeline step names — derived from the live pipeline registry on each
+ * validate call so a new step registered in src/pipeline/registry.ts (or by
+ * a plugin at runtime) is automatically allowlisted here (no parallel
+ * hand-maintained list, no stale-snapshot drift).
+ */
+function getKnownStepNames(): Set<string> {
+  return new Set(getRegisteredStepNames());
+}
 
 export interface CommandValidationResult {
   /** Display label: "site/name" or source path if available */
@@ -92,13 +95,14 @@ function validateCommand(cmd: CliCommand): CommandValidationResult {
 
   // Pipeline validation: check step names for typos
   if (Array.isArray(cmd.pipeline)) {
+    const knownStepNames = getKnownStepNames();
     for (let i = 0; i < cmd.pipeline.length; i++) {
       const step = cmd.pipeline[i];
       if (step && typeof step === 'object') {
         for (const key of Object.keys(step)) {
-          if (!KNOWN_STEP_NAMES.has(key)) {
+          if (!knownStepNames.has(key)) {
             warnings.push(
-              `Pipeline step ${i}: unknown step name "${key}" (did you mean one of: ${[...KNOWN_STEP_NAMES].join(', ')}?)`
+              `Pipeline step ${i}: unknown step name "${key}" (did you mean one of: ${[...knownStepNames].join(', ')}?)`
             );
           }
         }

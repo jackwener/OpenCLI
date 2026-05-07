@@ -55,6 +55,7 @@ export const newCommand = cli({
     domain: YUANBAO_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    browserSession: { reuse: 'site' },
     navigateBefore: false,
     args: [],
     columns: ['Status', 'Action'],

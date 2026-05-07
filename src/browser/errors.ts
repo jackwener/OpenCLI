@@ -105,7 +105,7 @@ export function formatBrowserConnectError(kind: ConnectFailureKind, detail?: str
     case 'daemon-not-running':
       return new BrowserConnectError(
         'Cannot connect to opencli daemon.' + (detail ? `\n\n${detail}` : ''),
-        `The daemon should auto-start. If it keeps failing, make sure port ${DEFAULT_DAEMON_PORT} is available.`,
+        `Run \`opencli doctor\` to diagnose, or \`opencli daemon restart\` to force a fresh daemon. Default port is ${DEFAULT_DAEMON_PORT}.`,
         kind,
       );
     case 'extension-not-connected':

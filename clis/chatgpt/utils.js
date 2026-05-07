@@ -1,7 +1,10 @@
 /**
- * ChatGPT web browser automation helpers for image generation.
+ * ChatGPT web browser automation helpers.
  * Cross-platform: works on Linux/macOS/Windows via OpenCLI's CDP browser automation.
  */
+
+import { htmlToMarkdown } from '@jackwener/opencli/utils';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 
 export const CHATGPT_DOMAIN = 'chatgpt.com';
 export const CHATGPT_URL = 'https://chatgpt.com';
@@ -11,8 +14,14 @@ const COMPOSER_SELECTORS = [
     '[aria-label="Chat with ChatGPT"]',
     '[placeholder="Ask anything"]',
     '#prompt-textarea',
+    '[data-testid="prompt-textarea"]',
+    '[contenteditable="true"][role="textbox"]',
 ];
-const SEND_BTN_SELECTOR = 'button[aria-label="Send prompt"]';
+const SEND_BUTTON_LABELS = [
+    'Send prompt',
+    'Send message',
+    'Send',
+];
 
 function isSameChatGPTConversation(currentUrl, expectedUrl) {
     if (!currentUrl || !expectedUrl) return false;
@@ -56,6 +65,116 @@ function buildComposerLocatorScript() {
       findComposer.toString = () => 'findComposer';
       return { findComposer, markerAttr };
     `;
+}
+
+export function normalizeBooleanFlag(value, fallback = false) {
+    if (typeof value === 'boolean') return value;
+    if (value == null || value === '') return fallback;
+    const normalized = String(value).trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
+}
+
+export function requireNonEmptyPrompt(prompt, commandName) {
+    const text = String(prompt ?? '').trim();
+    if (!text) {
+        throw new ArgumentError(
+            `${commandName} prompt cannot be empty`,
+            `Example: opencli ${commandName} "hello"`,
+        );
+    }
+    return text;
+}
+
+export function requirePositiveInt(value, flagLabel, hint) {
+    if (!Number.isInteger(value) || value < 1) {
+        throw new ArgumentError(`${flagLabel} must be a positive integer`, hint);
+    }
+    return value;
+}
+
+export function parseChatGPTConversationId(value) {
+    const raw = String(value ?? '').trim();
+    const match = raw.match(/(?:^|\/c\/)([A-Za-z0-9_-]{8,})(?:[/?#]|$)/);
+    if (match) return match[1];
+    if (/^[A-Za-z0-9_-]{8,}$/.test(raw)) return raw;
+    throw new ArgumentError(
+        'chatgpt detail requires a conversation id or /c/<id> URL',
+        'Example: opencli chatgpt detail 123e4567-e89b-12d3-a456-426614174000',
+    );
+}
+
+export async function currentChatGPTUrl(page) {
+    const url = await page.evaluate('window.location.href').catch(() => '');
+    return typeof url === 'string' ? url : '';
+}
+
+export async function isOnChatGPT(page) {
+    const url = await currentChatGPTUrl(page);
+    if (!url) return false;
+    try {
+        const host = new URL(url).hostname;
+        return host === CHATGPT_DOMAIN || host.endsWith(`.${CHATGPT_DOMAIN}`);
+    } catch {
+        return false;
+    }
+}
+
+export async function ensureOnChatGPT(page) {
+    if (await isOnChatGPT(page)) return false;
+    await page.goto(CHATGPT_URL, { settleMs: 2000 });
+    await page.wait(2);
+    return true;
+}
+
+export async function startNewChat(page) {
+    await page.goto(`${CHATGPT_URL}/new`, { settleMs: 2000 });
+    await page.wait(2);
+}
+
+export async function getPageState(page) {
+    return await page.evaluate(`(() => {
+        const isVisible = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        };
+        const composerSelectors = ${JSON.stringify(COMPOSER_SELECTORS)};
+        const hasComposer = composerSelectors.some((selector) =>
+            Array.from(document.querySelectorAll(selector)).some((node) => isVisible(node))
+        );
+        const text = (document.body?.innerText || '').replace(/\\s+/g, ' ').trim();
+        const loginLink = Array.from(document.querySelectorAll('a, button')).find((node) => {
+            const label = ((node.innerText || node.textContent || '') + ' ' + (node.getAttribute('aria-label') || '')).trim().toLowerCase();
+            return isVisible(node) && /^(log in|login|sign up|sign in)$/.test(label);
+        });
+        const userMenu = document.querySelector('[data-testid="profile-button"], [aria-label*="Profile"], [aria-label*="Account"], button[id*="headlessui-menu-button"]');
+        const hasLoginGate = !!loginLink || /log in to chatgpt|sign up to chatgpt|welcome to chatgpt/i.test(text);
+        return {
+            url: window.location.href,
+            title: document.title,
+            hasComposer,
+            isLoggedIn: hasComposer || !!userMenu || !hasLoginGate,
+            hasLoginGate,
+        };
+    })()`);
+}
+
+export async function ensureChatGPTLogin(page, message = 'ChatGPT requires a logged-in browser session.') {
+    const state = await getPageState(page);
+    if (!state.isLoggedIn || state.hasLoginGate) {
+        throw new AuthRequiredError(CHATGPT_DOMAIN, message);
+    }
+    return state;
+}
+
+export async function ensureChatGPTComposer(page, message = 'ChatGPT composer is not available on the current page.') {
+    const state = await ensureChatGPTLogin(page, message);
+    if (!state.hasComposer) {
+        throw new CommandExecutionError(message);
+    }
+    return state;
 }
 
 /**
@@ -116,7 +235,8 @@ export async function sendChatGPTMessage(page, text) {
     const sent = await page.evaluate(`
         (() => {
             const btns = Array.from(document.querySelectorAll('button'));
-            const sendBtn = btns.find(b => b.getAttribute('aria-label') === 'Send prompt');
+            const labels = ${JSON.stringify(SEND_BUTTON_LABELS)};
+            const sendBtn = btns.find(b => labels.includes(b.getAttribute('aria-label') || '') && !b.disabled);
             return { sendBtnFound: !!sendBtn };
         })()
     `);
@@ -127,11 +247,179 @@ export async function sendChatGPTMessage(page, text) {
     
     await page.evaluate(`
         (() => {
-            const sendBtn = Array.from(document.querySelectorAll('button')).find(b => b.getAttribute('aria-label') === 'Send prompt');
+            const labels = ${JSON.stringify(SEND_BUTTON_LABELS)};
+            const sendBtn = Array.from(document.querySelectorAll('button')).find(b => labels.includes(b.getAttribute('aria-label') || '') && !b.disabled);
             if (sendBtn) sendBtn.click();
         })()
     `);
     return true;
+}
+
+export async function getVisibleMessages(page) {
+    const result = await page.evaluate(`(() => {
+        const isVisible = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        };
+        const normalize = (value) => String(value || '').replace(/\\u00a0/g, ' ').replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim();
+        const roleOf = (node) => {
+            const attr = node.getAttribute('data-message-author-role') || node.getAttribute('data-author') || '';
+            if (/assistant/i.test(attr)) return 'Assistant';
+            if (/user/i.test(attr)) return 'User';
+            const testid = node.getAttribute('data-testid') || '';
+            if (/assistant/i.test(testid)) return 'Assistant';
+            if (/user/i.test(testid)) return 'User';
+            const label = node.getAttribute('aria-label') || '';
+            if (/assistant|chatgpt/i.test(label)) return 'Assistant';
+            if (/you|user/i.test(label)) return 'User';
+            return '';
+        };
+
+        let nodes = Array.from(document.querySelectorAll('[data-message-author-role], article[data-testid*="conversation-turn"]'));
+        nodes = nodes.filter((node) => node instanceof HTMLElement && isVisible(node));
+
+        const rows = [];
+        const seen = new Set();
+        for (const node of nodes) {
+            let role = roleOf(node);
+            const roleNode = node.querySelector('[data-message-author-role], [data-author]');
+            if (!role && roleNode) role = roleOf(roleNode);
+            if (!role) continue;
+
+            const contentNode = node.querySelector('[data-message-author-role] .markdown')
+                || node.querySelector('.markdown')
+                || node.querySelector('[data-message-author-role]')
+                || node;
+            const html = contentNode instanceof HTMLElement ? (contentNode.innerHTML || '') : '';
+            const text = normalize(contentNode instanceof HTMLElement ? (contentNode.innerText || contentNode.textContent || '') : '');
+            if (!text) continue;
+            const key = role + '\\n' + text;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            rows.push({ role, text, html });
+        }
+        return rows;
+    })()`);
+    if (!Array.isArray(result)) return [];
+    return result.map((item, index) => ({
+        Index: index + 1,
+        Role: item?.role === 'Assistant' ? 'Assistant' : 'User',
+        Text: String(item?.text || '').trim(),
+        Html: String(item?.html || ''),
+    })).filter((item) => item.Text);
+}
+
+export function messageHtmlToMarkdown(html) {
+    try {
+        return htmlToMarkdown(html).trim();
+    } catch {
+        return String(html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+}
+
+export async function getBubbleCount(page) {
+    const messages = await getVisibleMessages(page);
+    return messages.length;
+}
+
+export async function waitForChatGPTResponse(page, baselineCount, prompt, timeoutSeconds) {
+    const startTime = Date.now();
+    let lastText = '';
+    let stableCount = 0;
+
+    while (Date.now() - startTime < timeoutSeconds * 1000) {
+        await page.wait(3);
+        if (await isGenerating(page)) {
+            stableCount = 0;
+            continue;
+        }
+
+        const messages = await getVisibleMessages(page);
+        const newMessages = messages.slice(Math.max(0, baselineCount));
+        const assistant = [...newMessages].reverse().find((m) => m.Role === 'Assistant')
+            || [...messages].reverse().find((m) => m.Role === 'Assistant');
+        const candidate = String(assistant?.Text || '').trim();
+        if (!candidate || candidate === String(prompt || '').trim()) continue;
+
+        if (candidate === lastText) {
+            stableCount += 1;
+            if (stableCount >= 2) return candidate;
+        } else {
+            lastText = candidate;
+            stableCount = 0;
+        }
+    }
+
+    throw new TimeoutError(
+        'chatgpt ask',
+        timeoutSeconds,
+        'No ChatGPT response appeared before timeout. Re-run with a higher --timeout if it is still generating.',
+    );
+}
+
+export async function getConversationList(page) {
+    await ensureOnChatGPT(page);
+    await page.wait(2);
+
+    const openSidebar = await page.evaluate(`(() => {
+        const button = Array.from(document.querySelectorAll('button'))
+            .find((node) => /open sidebar/i.test(node.getAttribute('aria-label') || ''));
+        if (button instanceof HTMLElement) {
+            button.click();
+            return true;
+        }
+        return false;
+    })()`);
+    if (openSidebar) await page.wait(1);
+
+    let items = await extractConversationLinks(page);
+    if (!items.length) {
+        await page.goto(CHATGPT_URL, { settleMs: 2000 });
+        await page.wait(2);
+        items = await extractConversationLinks(page);
+    }
+
+    return items;
+}
+
+async function extractConversationLinks(page) {
+    const items = await page.evaluate(`(() => {
+        const isVisible = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        };
+        const links = Array.from(document.querySelectorAll('a[href*="/c/"]'))
+            .filter((link) => link instanceof HTMLAnchorElement && isVisible(link));
+        const seen = new Set();
+        const rows = [];
+        for (const link of links) {
+            const href = link.getAttribute('href') || '';
+            const match = href.match(/\\/c\\/([^/?#]+)/);
+            if (!match || seen.has(match[1])) continue;
+            seen.add(match[1]);
+            const title = (link.innerText || link.textContent || '').replace(/\\s+/g, ' ').trim() || '(untitled)';
+            rows.push({
+                Id: match[1],
+                Title: title,
+                Url: href.startsWith('http') ? href : ('${CHATGPT_URL}' + href),
+            });
+        }
+        return rows;
+    })()`);
+    return Array.isArray(items)
+        ? items.map((item, index) => ({
+            Index: index + 1,
+            Id: String(item?.Id || ''),
+            Title: String(item?.Title || '(untitled)').trim() || '(untitled)',
+            Url: String(item?.Url || ''),
+        })).filter((item) => item.Id)
+        : [];
 }
 
 /**
@@ -244,7 +532,9 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
 
 export const __test__ = {
     COMPOSER_SELECTORS,
+    SEND_BUTTON_LABELS,
     isSameChatGPTConversation,
+    parseChatGPTConversationId,
 };
 
 /**

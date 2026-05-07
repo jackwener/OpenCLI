@@ -378,7 +378,9 @@ async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scop
 async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_BROWSER_WORKSPACE, contextId?: string): Promise<import('./types.js').IPage> {
   const { BrowserBridge } = await import('./browser/index.js');
   const bridge = new BrowserBridge();
-  const envTimeout = process.env.OPENCLI_BROWSER_TIMEOUT;
+  // Idle timeout: how long the browser workspace lease stays alive between commands
+  // (controls when the automation tab is released). Not the per-command runtime timeout.
+  const envTimeout = process.env.OPENCLI_BROWSER_IDLE_TIMEOUT;
   const idleTimeout = envTimeout ? parseInt(envTimeout, 10) : undefined;
   const page = await bridge.connect({
     timeout: 30,

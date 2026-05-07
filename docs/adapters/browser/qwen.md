@@ -11,6 +11,7 @@ Drive **Qianwen / Qwen** chat from the terminal. All commands run through your e
 | `opencli qwen status` | Page availability, login state, current model and session | read |
 | `opencli qwen history` | List recent conversations (requires login) | read |
 | `opencli qwen read` | Read messages in the current conversation | read |
+| `opencli qwen detail <id>` | Open a conversation by ID and read its messages | read |
 | `opencli qwen ask <prompt>` | Send a prompt and wait for the assistant reply | write |
 | `opencli qwen send <prompt>` | Fire-and-forget: send a prompt without waiting | write |
 | `opencli qwen new` | Start a fresh conversation | write |
@@ -27,6 +28,10 @@ opencli qwen history --limit 10
 
 # Read the active conversation as markdown
 opencli qwen read --markdown true
+
+# Read a specific historical conversation by ID (or full URL)
+opencli qwen detail abcd1234ef567890abcd1234ef567890
+opencli qwen detail https://www.qianwen.com/chat/abcd1234ef567890abcd1234ef567890 --markdown true
 
 # Ask a question and wait for the reply
 opencli qwen ask "用一段话解释 transformer attention"
@@ -79,6 +84,13 @@ opencli qwen image "a tiny robot" --sd true
 |--------|-------------|
 | `--markdown` | Emit assistant replies as markdown (default: `false`) |
 
+### `detail`
+
+| Option | Description |
+|--------|-------------|
+| `id` | Session ID (32-char hex) or full `https://www.qianwen.com/chat/<id>` URL (required positional) |
+| `--markdown` | Emit assistant replies as markdown (default: `false`) |
+
 ### `history`
 
 | Option | Description |
@@ -92,6 +104,7 @@ opencli qwen image "a tiny robot" --sd true
 | `status` | `Status, Login, Model, SessionId, Url` |
 | `history` | `Index, Title, Updated, Url` |
 | `read` | `Role, Text` |
+| `detail` | `Role, Text` |
 | `ask` | `Role, Text` |
 | `send` | `Status, Prompt` |
 | `new` | `Status` |
@@ -106,6 +119,7 @@ opencli qwen image "a tiny robot" --sd true
 ## Notes
 
 - `read` works without login (guest mode), but `history` and most `write` flows require an authenticated session
+- Qwen commands default to site-level browser tab reuse, so consecutive `qwen ask` / `qwen read` / `qwen image` invocations continue in the same Qwen page. Pass `--reuse none` for a one-shot tab.
 - `ask` waits for the streaming reply to finish; `send` returns immediately after submission
 - DeepThink (`--think`) and DeepResearch (`--research`) toggle the corresponding composer chips before submitting
 - Generated image files are timestamped to avoid overwriting prior runs

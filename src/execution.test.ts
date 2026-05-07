@@ -165,6 +165,205 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
+  it('reuses a site-scoped browser workspace and keeps the tab lease open', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+    const sessionOpts: Array<{ workspace?: string; idleTimeout?: number }> = [];
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
+      sessionOpts.push(opts ?? {});
+      return fn(mockPage);
+    });
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-reuse-site', access: 'read',
+      description: 'test site-scoped browser reuse',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      browserSession: { reuse: 'site' },
+      func: async () => [{ ok: true }],
+    });
+
+    await executeCommand(cmd, {});
+    await executeCommand(cmd, {});
+
+    expect(sessionOpts).toHaveLength(2);
+    expect(sessionOpts[0]).toMatchObject({ workspace: 'site:test-execution', idleTimeout: 600 });
+    expect(sessionOpts[1]).toMatchObject({ workspace: 'site:test-execution', idleTimeout: 600 });
+    expect(closeWindow).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it('keeps default browser commands on one-shot workspaces', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+    const sessionOpts: Array<{ workspace?: string; idleTimeout?: number }> = [];
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
+      sessionOpts.push(opts ?? {});
+      return fn(mockPage);
+    });
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-reuse-default', access: 'read',
+      description: 'test default one-shot browser workspace',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      func: async () => [{ ok: true }],
+    });
+
+    await executeCommand(cmd, {});
+    await executeCommand(cmd, {});
+
+    expect(sessionOpts).toHaveLength(2);
+    expect(sessionOpts[0]?.workspace).toMatch(/^site:test-execution:/);
+    expect(sessionOpts[1]?.workspace).toMatch(/^site:test-execution:/);
+    expect(sessionOpts[0]?.workspace).not.toBe(sessionOpts[1]?.workspace);
+    expect(sessionOpts[0]?.idleTimeout).toBeUndefined();
+    expect(sessionOpts[1]?.idleTimeout).toBeUndefined();
+    expect(closeWindow).toHaveBeenCalledTimes(2);
+    vi.restoreAllMocks();
+  });
+
+  it('lets user --reuse none override adapter reuse metadata', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+    const sessionOpts: Array<{ workspace?: string; idleTimeout?: number }> = [];
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
+      sessionOpts.push(opts ?? {});
+      return fn(mockPage);
+    });
+
+    const prev = process.env.OPENCLI_BROWSER_REUSE;
+    process.env.OPENCLI_BROWSER_REUSE = 'none';
+    try {
+      const cmd = cli({
+        site: 'test-execution',
+        name: 'browser-reuse-override-none', access: 'read',
+        description: 'test user reuse override',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        browserSession: { reuse: 'site' },
+        func: async () => [{ ok: true }],
+      });
+
+      await executeCommand(cmd, {});
+
+      expect(sessionOpts).toHaveLength(1);
+      expect(sessionOpts[0]?.workspace).toMatch(/^site:test-execution:/);
+      expect(sessionOpts[0]?.idleTimeout).toBeUndefined();
+      expect(closeWindow).toHaveBeenCalledTimes(1);
+    } finally {
+      if (prev === undefined) delete process.env.OPENCLI_BROWSER_REUSE;
+      else process.env.OPENCLI_BROWSER_REUSE = prev;
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('skips repeated domain pre-navigation for site-reused browser sessions', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const goto = vi.fn().mockResolvedValue(undefined);
+    const mockPage = {
+      closeWindow,
+      goto,
+      getCurrentUrl: vi.fn().mockResolvedValue('https://grok.com/chat/abc'),
+    } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-reuse-skip-prenav', access: 'read',
+      description: 'test reused same-domain tabs do not reset conversation state',
+      browser: true,
+      strategy: Strategy.COOKIE,
+      domain: 'grok.com',
+      browserSession: { reuse: 'site' },
+      func: async () => [{ ok: true }],
+    });
+
+    await executeCommand(cmd, {});
+
+    expect(goto).not.toHaveBeenCalled();
+    expect(closeWindow).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it('keeps explicit path pre-navigation for site-reused browser sessions', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const goto = vi.fn().mockResolvedValue(undefined);
+    const mockPage = {
+      closeWindow,
+      goto,
+      getCurrentUrl: vi.fn().mockResolvedValue('https://example.com/other'),
+    } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-reuse-path-prenav', access: 'read',
+      description: 'test explicit path pre-navigation still runs',
+      browser: true,
+      strategy: Strategy.COOKIE,
+      domain: 'example.com',
+      navigateBefore: 'https://example.com/dashboard',
+      browserSession: { reuse: 'site' },
+      func: async () => [{ ok: true }],
+    });
+
+    await executeCommand(cmd, {});
+
+    expect(goto).toHaveBeenCalledWith('https://example.com/dashboard');
+    expect(closeWindow).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it('respects navigateBefore=false so adapter range validation fails before browser navigation', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const goto = vi.fn().mockResolvedValue(undefined);
+    const mockPage = {
+      closeWindow,
+      goto,
+      getCurrentUrl: vi.fn().mockResolvedValue('about:blank'),
+    } as any;
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-invalid-limit-no-prenav', access: 'read',
+      description: 'test adapter range validation can fail before pre-nav',
+      browser: true,
+      strategy: Strategy.COOKIE,
+      domain: 'www.facebook.com',
+      navigateBefore: false,
+      args: [
+        { name: 'limit', type: 'int', required: false, default: 15, help: 'Limit' },
+      ],
+      func: async (_page, args) => {
+        const limit = Number(args.limit);
+        if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+          throw new ArgumentError('--limit must be a positive integer in [1, 100]');
+        }
+        return [{ ok: true }];
+      },
+    });
+
+    await expect(executeCommand(cmd, { limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
+    expect(goto).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
   it('rejects invalid --timeout values instead of falling back to the browser default', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;

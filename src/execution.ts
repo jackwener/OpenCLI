@@ -14,6 +14,7 @@ import {
   type BrowserCliCommand,
   type CliCommand,
   type InternalCliCommand,
+  type BrowserSessionReuse,
   type Arg,
   type CommandArgs,
   getRegistry,
@@ -21,6 +22,7 @@ import {
 } from './registry.js';
 import type { IPage } from './types.js';
 import { pathToFileURL } from 'node:url';
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
@@ -39,6 +41,7 @@ const _loadedModules = new Map<string, Promise<void>>();
 /** Track mtime of loaded user adapter files for hot-reload in daemon mode. */
 const _moduleMtimes = new Map<string, number>();
 const _userClisDir = `${os.homedir()}/.opencli/clis/`;
+const INTERACTIVE_BROWSER_IDLE_TIMEOUT_SECONDS = 600;
 
 type TraceMode = 'off' | 'on' | 'retain-on-failure';
 
@@ -162,6 +165,35 @@ function resolvePreNav(cmd: CliCommand): string | null {
   return null;
 }
 
+function urlMatchesDomain(url: string | null | undefined, domain: string | undefined): boolean {
+  if (!url || !domain) return false;
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname === domain || hostname.endsWith(`.${domain}`);
+  } catch {
+    return false;
+  }
+}
+
+function isDomainRootPreNav(preNavUrl: string, domain: string | undefined): boolean {
+  if (!domain) return false;
+  try {
+    const parsed = new URL(preNavUrl);
+    const hostnameMatches = parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`);
+    const rootPath = parsed.pathname === '' || parsed.pathname === '/';
+    return hostnameMatches && rootPath && parsed.search === '' && parsed.hash === '';
+  } catch {
+    return false;
+  }
+}
+
+async function shouldRunPreNav(cmd: CliCommand, page: IPage, reuse: BrowserSessionReuse, preNavUrl: string): Promise<boolean> {
+  if (reuse !== 'site' || !cmd.domain) return true;
+  if (!isDomainRootPreNav(preNavUrl, cmd.domain)) return true;
+  const currentUrl = await page.getCurrentUrl?.().catch(() => null);
+  return !urlMatchesDomain(currentUrl, cmd.domain);
+}
+
 export async function executeCommand(
   cmd: CliCommand,
   rawKwargs: CommandArgs,
@@ -217,13 +249,16 @@ export async function executeCommand(
       const BrowserFactory = getBrowserFactory(cmd.site);
       const contextId = resolveProfileContextId(opts.profile);
       const internal = cmd as InternalCliCommand;
+      const browserReuse = resolveBrowserSessionReuse(cmd);
+      const workspace = resolveBrowserWorkspace(cmd, browserReuse);
+      const idleTimeout = browserReuse === 'site' ? INTERACTIVE_BROWSER_IDLE_TIMEOUT_SECONDS : undefined;
       result = await browserSession(BrowserFactory, async (page) => {
         const observation = traceMode === 'off'
           ? null
           : new ObservationSession({
             scope: {
               contextId,
-              workspace: `site:${cmd.site}`,
+              workspace,
               target: page.getActivePage?.(),
               site: cmd.site,
               command: fullName(cmd),
@@ -240,7 +275,7 @@ export async function executeCommand(
           await page.startNetworkCapture?.().catch(() => false);
         }
         const preNavUrl = resolvePreNav(cmd);
-        if (preNavUrl) {
+        if (preNavUrl && await shouldRunPreNav(cmd, page, browserReuse, preNavUrl)) {
           observation?.record({
             stream: 'action',
             name: 'pre_navigate',
@@ -287,7 +322,7 @@ export async function executeCommand(
         }
         // --live / OPENCLI_LIVE=1 keeps the current automation tab lease after
         // the command finishes, so agents (or humans) can inspect the page state.
-        const keepOpen = process.env.OPENCLI_LIVE === '1' || process.env.OPENCLI_LIVE === 'true';
+        const keepOpen = browserReuse !== 'none' || process.env.OPENCLI_LIVE === '1' || process.env.OPENCLI_LIVE === 'true';
         try {
           const browserTimeout = userTimeoutSec !== null
             ? userTimeoutSec + RUNTIME_TIMEOUT_PADDING_SECONDS
@@ -334,7 +369,7 @@ export async function executeCommand(
           if (!keepOpen) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { workspace: `site:${cmd.site}:${crypto.randomUUID()}`, cdpEndpoint, contextId });
+      }, { workspace, cdpEndpoint, contextId, idleTimeout });
     } else {
       // Non-browser commands: enforce a timeout only when the command exposes
       // a `--timeout` arg (and the resolved value is positive). Without that
@@ -451,6 +486,22 @@ export function prepareCommandArgs(
  * the runtime kills the Promise.
  */
 const RUNTIME_TIMEOUT_PADDING_SECONDS = 30;
+
+function readEnvBrowserSessionReuse(): BrowserSessionReuse | null {
+  const raw = process.env.OPENCLI_BROWSER_REUSE;
+  if (raw === undefined || raw === '') return null;
+  if (raw === 'none' || raw === 'site') return raw;
+  throw new ArgumentError(`--reuse must be one of: none, site. Received: "${raw}"`);
+}
+
+function resolveBrowserSessionReuse(cmd: CliCommand): BrowserSessionReuse {
+  return readEnvBrowserSessionReuse() ?? cmd.browserSession?.reuse ?? 'none';
+}
+
+function resolveBrowserWorkspace(cmd: CliCommand, reuse: BrowserSessionReuse): string {
+  if (reuse === 'site') return `site:${cmd.site}`;
+  return `site:${cmd.site}:${crypto.randomUUID()}`;
+}
 
 /**
  * Resolve the user-controllable `--timeout` arg, in seconds.
