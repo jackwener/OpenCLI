@@ -19,7 +19,7 @@ import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
-import { classifyAdapter, formatRootAdapterHelpText, installStructuredHelp, rootHelpData, type RootAdapterGroups } from './help.js';
+import { classifyAdapter, formatRootAdapterHelpText, installCommanderNamespaceStructuredHelp, installStructuredHelp, rootHelpData, type RootAdapterGroups } from './help.js';
 import { EXIT_CODES, getErrorMessage, BrowserConnectError } from './errors.js';
 import { TargetError, type TargetErrorCode } from './browser/target-errors.js';
 import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesResolvedJs, selectResolvedJs, isAutocompleteResolvedJs, type ResolveOptions, type TargetMatchLevel } from './browser/target-resolver.js';
@@ -628,6 +628,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .command('browser')
     .option('--workspace <name>', 'Browser workspace to use (default: browser:default; bound tabs use bound:<name>)')
     .description('Browser control — navigate, click, type, extract, wait (no LLM needed)');
+  const originalBrowserDescription = browser.description();
 
   /**
    * Resolve a `<target>` (numeric ref or CSS selector) via the unified resolver.
@@ -2781,6 +2782,7 @@ cli({
   }
   const adapterGroups: RootAdapterGroups = { external: externalNames, apps, sites };
   const adapterNameSet = new Set<string>([...externalNames, ...siteNames]);
+  installCommanderNamespaceStructuredHelp(browser, { globalCommand: program, description: originalBrowserDescription });
   program.configureHelp({
     visibleCommands: (command) => command.commands.filter(child => command !== program || !adapterNameSet.has(child.name())),
   });

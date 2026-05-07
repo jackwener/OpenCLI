@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+* **help / browser** — `opencli browser --help -f yaml|json` now emits a structured, agent-ready index of all browser leaf commands (including nested `tab`, `get`, and `dialog` commands), their positionals, command options, namespace options, and root global options. Individual browser commands also support structured help, backed by a shared Commander option/argument spec extractor.
+
 ### Bug Fixes
 
 * **help / build** — every positional arg must now declare a non-empty `help` string. The build-manifest step fails closed when a positional has empty / whitespace-only / missing `help`, so `opencli <site> <cmd> --help` always shows callers what each parameter is for. Pre-existing offenders (`twitter followers/following/list-add/list-remove/list-tweets/search/thread`, `reddit search/subreddit/user/user-comments/user-posts`, `douyin stats/update`, `bilibili subtitle`, `jike search`) now have explicit help text — most notably `twitter followers [user]` and `following [user]` now document that omitting the user fetches the currently logged-in account.

@@ -363,6 +363,135 @@ describe('createProgram root help descriptions', () => {
       for (const [key, value] of snapshot) registry.set(key, value);
     }
   });
+
+  it('renders browser namespace structured help from Commander metadata', () => {
+    const argv = process.argv;
+    try {
+      const program = createProgram('', '');
+      const browser = program.commands.find(cmd => cmd.name() === 'browser');
+      expect(browser).toBeTruthy();
+
+      process.argv = ['node', 'opencli', 'browser', '--help', '-f', 'yaml'];
+      const data = yaml.load(browser!.helpInformation()) as any;
+
+      expect(data.namespace).toBe('browser');
+      expect(data.command).toBe('opencli browser');
+      expect(data.description).toBe('Browser control — navigate, click, type, extract, wait (no LLM needed)');
+      expect(data.command_count).toBeGreaterThan(20);
+      expect(data.namespace_options).toMatchObject([
+        {
+          name: 'workspace',
+          flags: '--workspace <name>',
+          takes_value: 'required',
+        },
+      ]);
+      expect(data.global_options).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          name: 'version',
+          flags: '-V, --version',
+        }),
+        expect.objectContaining({
+          name: 'profile',
+          flags: '--profile <name>',
+          takes_value: 'required',
+        }),
+      ]));
+
+      const click = data.commands.find((cmd: any) => cmd.name === 'click');
+      expect(click).toMatchObject({
+        command: 'opencli browser click',
+        usage: 'opencli browser click <target> [options]',
+        positionals: [{ name: 'target', required: true }],
+      });
+      expect(click.command_options.map((option: any) => option.name)).toEqual(['nth', 'tab']);
+
+      const tabList = data.commands.find((cmd: any) => cmd.name === 'tab list');
+      expect(tabList).toMatchObject({
+        command: 'opencli browser tab list',
+        usage: 'opencli browser tab list [options]',
+        command_options: [],
+      });
+
+      const getText = data.commands.find((cmd: any) => cmd.name === 'get text');
+      expect(getText).toMatchObject({
+        command: 'opencli browser get text',
+        positionals: [{ name: 'target', required: true }],
+      });
+      expect(data.structured_help).toMatchObject({
+        formats: ['yaml', 'json'],
+        usage: 'opencli browser --help -f yaml',
+      });
+    } finally {
+      process.argv = argv;
+    }
+  });
+
+  it('renders nested browser parent structured help for a subtree', () => {
+    const argv = process.argv;
+    try {
+      const program = createProgram('', '');
+      const browser = program.commands.find(cmd => cmd.name() === 'browser')!;
+      const tab = browser.commands.find(cmd => cmd.name() === 'tab');
+      expect(tab).toBeTruthy();
+
+      process.argv = ['node', 'opencli', 'browser', 'tab', '--help', '-f', 'yaml'];
+      const data = yaml.load(tab!.helpInformation()) as any;
+
+      expect(data).toMatchObject({
+        namespace: 'browser',
+        group: 'tab',
+        command: 'opencli browser tab',
+        usage: 'opencli browser tab <command> [args] [options]',
+        command_count: 4,
+      });
+      expect(data.commands.map((cmd: any) => cmd.name)).toEqual([
+        'tab close',
+        'tab list',
+        'tab new',
+        'tab select',
+      ]);
+      expect(data.commands.find((cmd: any) => cmd.name === 'tab close')).toMatchObject({
+        command: 'opencli browser tab close',
+        usage: 'opencli browser tab close [targetId] [options]',
+        positionals: [{ name: 'targetId', help: 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"' }],
+      });
+      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['workspace']);
+      expect(data.structured_help).toMatchObject({
+        usage: 'opencli browser tab --help -f yaml',
+      });
+    } finally {
+      process.argv = argv;
+    }
+  });
+
+  it('renders browser command structured help without needing the full namespace dump', () => {
+    const argv = process.argv;
+    try {
+      const program = createProgram('', '');
+      const browser = program.commands.find(cmd => cmd.name() === 'browser')!;
+      const click = browser.commands.find(cmd => cmd.name() === 'click');
+      expect(click).toBeTruthy();
+
+      process.argv = ['node', 'opencli', 'browser', 'click', '--help', '-f', 'yaml'];
+      const data = yaml.load(click!.helpInformation()) as any;
+
+      expect(data).toMatchObject({
+        namespace: 'browser',
+        name: 'click',
+        command: 'opencli browser click',
+        usage: 'opencli browser click <target> [options]',
+        positionals: [{ name: 'target', required: true }],
+        structured_help: {
+          usage: 'opencli browser click --help -f yaml',
+        },
+      });
+      expect(data.command_options.map((option: any) => option.name)).toEqual(['nth', 'tab']);
+      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['workspace']);
+      expect(data.global_options.map((option: any) => option.name)).toContain('profile');
+    } finally {
+      process.argv = argv;
+    }
+  });
 });
 
 describe('resolveBrowserVerifyInvocation', () => {
