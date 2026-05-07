@@ -101,6 +101,7 @@ export function throwTikTokPageContextError(error, { authMessage, emptyPattern, 
 // `page.evaluate` script and call any helper inside.
 export const BROWSER_HELPERS = `
 function asNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
@@ -219,7 +220,7 @@ function normalizeVideoItem(item, indexHint) {
   const video = item.video || item.videoInfo || {};
   const cover = video.cover || video.originCover || video.dynamicCover || video.coverUrl || item.cover || item.cover_url || '';
   const desc = cleanText(item.desc || item.title || item.description, 500);
-  const createTime = asNumber(item.createTime || item.create_time || item.create_time_sec || item.post_time);
+  const createTime = asNumber(item.createTime ?? item.create_time ?? item.create_time_sec ?? item.post_time);
   const username = author.uniqueId;
   return {
     index: indexHint,
@@ -271,8 +272,8 @@ function normalizeLiveItem(item, indexHint) {
     streamer: username,
     name: cleanText(owner.nickname || owner.nickName || owner.name, 80) || username,
     title: cleanText(room.title || room.subtitle || item.title, 200),
-    viewers: asNumber(room.user_count || room.viewerCount || room.viewer_count || item.viewer_count),
-    likes: asNumber(room.like_count || room.likeCount || item.like_count),
+    viewers: asNumber(room.user_count ?? room.viewerCount ?? room.viewer_count ?? item.viewer_count),
+    likes: asNumber(room.like_count ?? room.likeCount ?? item.like_count),
     secUid: String(owner.secUid || owner.sec_uid || ''),
     url: username
       ? ${JSON.stringify(TIKTOK_HOST)} + '/@' + encodeURIComponent(username) + '/live'

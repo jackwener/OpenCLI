@@ -119,12 +119,18 @@ describe('tiktok/utils', () => {
         for (const name of ['asNumber', 'cleanText', 'getCookie', 'fetchJson', 'findUniversalData', 'walkObjects']) {
             expect(BROWSER_HELPERS).toContain('function ' + name + '(');
         }
+        const asNumber = new Function(`${BROWSER_HELPERS}; return asNumber;`)();
+        expect(asNumber(null)).toBeNull();
+        expect(asNumber('')).toBeNull();
+        expect(asNumber(0)).toBe(0);
     });
 
     it('Item normalizers produce well-formed JS function declarations', () => {
         expect(VIDEO_ITEM_NORMALIZER).toContain('function normalizeVideoItem(');
         expect(USER_ITEM_NORMALIZER).toContain('function normalizeUserRow(');
         expect(LIVE_ITEM_NORMALIZER).toContain('function normalizeLiveItem(');
+        expect(LIVE_ITEM_NORMALIZER).toContain('room.user_count ?? room.viewerCount');
+        expect(LIVE_ITEM_NORMALIZER).toContain('room.like_count ?? room.likeCount');
         expect(NOTIFICATION_NORMALIZER).toContain('function normalizeNotification(');
     });
 });
