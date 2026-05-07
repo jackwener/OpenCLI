@@ -6,10 +6,7 @@
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
-    AuthRequiredError,
-    CommandExecutionError,
     EmptyResultError,
-    getErrorMessage,
 } from '@jackwener/opencli/errors';
 import {
     BROWSER_HELPERS,
@@ -20,6 +17,7 @@ import {
     TIKTOK_AID,
     requireLimit,
     requireNotificationType,
+    throwTikTokPageContextError,
 } from './utils.js';
 
 const DEFAULT_LIMIT = 15;
@@ -122,14 +120,12 @@ async function listNotifications(page, args) {
     try {
         rows = await page.evaluate(buildNotificationsScript(limit, typeKey));
     } catch (error) {
-        const message = getErrorMessage(error);
-        if (/AUTH_REQUIRED/.test(message)) {
-            throw new AuthRequiredError('tiktok.com', 'TikTok requires login to read notifications');
-        }
-        if (/No notifications returned/.test(message)) {
-            throw new EmptyResultError('tiktok notifications', message);
-        }
-        throw new CommandExecutionError(`Failed to load TikTok notifications: ${message}`);
+        throwTikTokPageContextError(error, {
+            authMessage: 'TikTok requires login to read notifications',
+            emptyPattern: /No notifications returned/,
+            emptyTarget: 'tiktok notifications',
+            failureMessage: 'Failed to load TikTok notifications',
+        });
     }
     if (!Array.isArray(rows) || rows.length === 0) {
         throw new EmptyResultError('tiktok notifications', 'TikTok returned no notifications');

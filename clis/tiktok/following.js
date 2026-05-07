@@ -7,10 +7,7 @@
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
-    AuthRequiredError,
-    CommandExecutionError,
     EmptyResultError,
-    getErrorMessage,
 } from '@jackwener/opencli/errors';
 import {
     BROWSER_HELPERS,
@@ -19,6 +16,7 @@ import {
     TIKTOK_AID,
     USER_ITEM_NORMALIZER,
     requireLimit,
+    throwTikTokPageContextError,
 } from './utils.js';
 
 const DEFAULT_LIMIT = 20;
@@ -130,14 +128,12 @@ async function listFollowing(page, args) {
     try {
         rows = await page.evaluate(buildFollowingScript(limit));
     } catch (error) {
-        const message = getErrorMessage(error);
-        if (/AUTH_REQUIRED/.test(message)) {
-            throw new AuthRequiredError('tiktok.com', 'TikTok requires login to read your following list');
-        }
-        if (/No following entries/.test(message)) {
-            throw new EmptyResultError('tiktok following', message);
-        }
-        throw new CommandExecutionError(`Failed to load TikTok following list: ${message}`);
+        throwTikTokPageContextError(error, {
+            authMessage: 'TikTok requires login to read your following list',
+            emptyPattern: /No following entries/,
+            emptyTarget: 'tiktok following',
+            failureMessage: 'Failed to load TikTok following list',
+        });
     }
     if (!Array.isArray(rows) || rows.length === 0) {
         throw new EmptyResultError('tiktok following', 'TikTok returned no following entries');

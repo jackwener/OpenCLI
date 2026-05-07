@@ -7,7 +7,13 @@
 //   identical across adapters without depending on a shared script being injected
 //   beforehand.
 
-import { ArgumentError } from '@jackwener/opencli/errors';
+import {
+    ArgumentError,
+    AuthRequiredError,
+    CommandExecutionError,
+    EmptyResultError,
+    getErrorMessage,
+} from '@jackwener/opencli/errors';
 
 export const TIKTOK_AID = '1988';
 export const TIKTOK_HOST = 'https://www.tiktok.com';
@@ -66,6 +72,28 @@ export function requireNotificationType(value) {
         );
     }
     return key;
+}
+
+export function looksTikTokAuthFailure(message) {
+    return /\bAUTH_REQUIRED\b|\b(auth|captcha|login|log in|permission|unauthori[sz]ed|forbidden)\b|HTTP\s+(401|403)\b/i.test(String(message || ''));
+}
+
+export function looksTikTokUpstreamFailure(message) {
+    return /\b(API failed|HTTP\s+\d+|invalid JSON|Failed to fetch|network|fetch)\b/i.test(String(message || ''));
+}
+
+export function throwTikTokPageContextError(error, { authMessage, emptyPattern, emptyTarget, failureMessage }) {
+    const message = getErrorMessage(error);
+    if (looksTikTokAuthFailure(message)) {
+        throw new AuthRequiredError('tiktok.com', authMessage);
+    }
+    if (looksTikTokUpstreamFailure(message)) {
+        throw new CommandExecutionError(`${failureMessage}: ${message}`);
+    }
+    if (emptyPattern.test(message)) {
+        throw new EmptyResultError(emptyTarget, message);
+    }
+    throw new CommandExecutionError(`${failureMessage}: ${message}`);
 }
 
 // Browser-side helper bundle. Embedded into IIFEs as a string template.

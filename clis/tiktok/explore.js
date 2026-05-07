@@ -8,10 +8,7 @@
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
-    ArgumentError,
-    CommandExecutionError,
     EmptyResultError,
-    getErrorMessage,
 } from '@jackwener/opencli/errors';
 import {
     BROWSER_HELPERS,
@@ -19,6 +16,7 @@ import {
     SERVER_PAGE_MAX,
     TIKTOK_AID,
     requireLimit,
+    throwTikTokPageContextError,
     VIDEO_ITEM_NORMALIZER,
 } from './utils.js';
 
@@ -110,11 +108,12 @@ async function listExploreVideos(page, args) {
     try {
         rows = await page.evaluate(buildExploreScript(limit));
     } catch (error) {
-        const message = getErrorMessage(error);
-        if (/No videos found/.test(message)) {
-            throw new EmptyResultError('tiktok explore', message);
-        }
-        throw new CommandExecutionError(`Failed to load TikTok explore feed: ${message}`);
+        throwTikTokPageContextError(error, {
+            authMessage: 'TikTok requires browser access to load the explore feed',
+            emptyPattern: /No videos found/,
+            emptyTarget: 'tiktok explore',
+            failureMessage: 'Failed to load TikTok explore feed',
+        });
     }
     if (!Array.isArray(rows) || rows.length === 0) {
         throw new EmptyResultError('tiktok explore', 'TikTok returned an empty recommend feed');

@@ -147,16 +147,19 @@ describe('tiktok/explore (page-context refactor)', () => {
         expect(page.goto).not.toHaveBeenCalled();
     });
 
-    it('navigates to /explore and returns rows from evaluate, re-indexed', async () => {
+    it('navigates to /explore and returns the full video row shape from evaluate', async () => {
         const page = makePage([sampleVideoRow, { ...sampleVideoRow, id: '7350000000000000001', index: 99 }]);
         const rows = await exploreCommand.func(page, { limit: 5 });
         expect(page.goto).toHaveBeenCalledWith('https://www.tiktok.com/explore', { waitUntil: 'load', settleMs: 5000 });
-        expect(rows).toHaveLength(2);
+        expect(rows).toEqual([sampleVideoRow, { ...sampleVideoRow, id: '7350000000000000001', index: 99 }]);
     });
 
     it('maps empty / unrecognised evaluate failures to typed errors', async () => {
         await expect(exploreCommand.func(makePage([]), { limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
         await expect(exploreCommand.func(makeFailingPage(new Error('No videos found on /explore')), { limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+        await expect(exploreCommand.func(makeFailingPage(new Error('No videos found on /explore (recommend API failed: HTTP 500)')), { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(exploreCommand.func(makeFailingPage(new Error('No videos found on /explore (recommend API failed: HTTP 403)')), { limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+        await expect(exploreCommand.func(makeFailingPage(new Error('No videos found on /explore (recommend API failed: invalid JSON)')), { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
         await expect(exploreCommand.func(makeFailingPage(new Error('boom')), { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
@@ -186,9 +189,12 @@ describe('tiktok/friends (page-context refactor)', () => {
 
     it('navigates to /friends and surfaces empty as EmptyResultError', async () => {
         const page = makePage([sampleUserRow]);
-        await friendsCommand.func(page, { limit: 5 });
+        await expect(friendsCommand.func(page, { limit: 5 })).resolves.toEqual([sampleUserRow]);
         expect(page.goto).toHaveBeenCalledWith('https://www.tiktok.com/friends', { waitUntil: 'load', settleMs: 5000 });
         await expect(friendsCommand.func(makePage([]), { limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+        await expect(friendsCommand.func(makeFailingPage(new Error('No friend suggestions returned by TikTok (recommend-user API failed: HTTP 500)')), { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(friendsCommand.func(makeFailingPage(new Error('No friend suggestions returned by TikTok (recommend-user API failed: HTTP 401)')), { limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+        await expect(friendsCommand.func(makeFailingPage(new Error('No friend suggestions returned by TikTok (recommend-user API failed: invalid JSON)')), { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('build script targets recommend-user endpoint via state-then-API', () => {
@@ -218,6 +224,15 @@ describe('tiktok/following (page-context refactor)', () => {
     it('maps AUTH_REQUIRED sentinel to AuthRequiredError', async () => {
         const page = makeFailingPage(new Error('AUTH_REQUIRED: cannot resolve viewer secUid (login required)'));
         await expect(followingCommand.func(page, { limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+        await expect(followingCommand.func(makeFailingPage(new Error('No following entries returned (user-list API failed: HTTP 500)')), { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(followingCommand.func(makeFailingPage(new Error('No following entries returned (user-list API failed: HTTP 403)')), { limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+        await expect(followingCommand.func(makeFailingPage(new Error('No following entries returned (user-list API failed: invalid JSON)')), { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('navigates to /following and returns the full user row shape', async () => {
+        const page = makePage([sampleUserRow]);
+        await expect(followingCommand.func(page, { limit: 5 })).resolves.toEqual([sampleUserRow]);
+        expect(page.goto).toHaveBeenCalledWith('https://www.tiktok.com/following', { waitUntil: 'load', settleMs: 5000 });
     });
 
     it('build script resolves viewer secUid then pages user-list scene=21', () => {
@@ -252,8 +267,11 @@ describe('tiktok/notifications (page-context refactor)', () => {
             { limit: 5, type: 'likes' },
         )).rejects.toBeInstanceOf(AuthRequiredError);
         await expect(notificationsCommand.func(makePage([]), { limit: 5, type: 'all' })).rejects.toBeInstanceOf(EmptyResultError);
+        await expect(notificationsCommand.func(makeFailingPage(new Error('No notifications returned for all (notice API failed: HTTP 500)')), { limit: 5, type: 'all' })).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(notificationsCommand.func(makeFailingPage(new Error('No notifications returned for all (notice API failed: HTTP 401)')), { limit: 5, type: 'all' })).rejects.toBeInstanceOf(AuthRequiredError);
+        await expect(notificationsCommand.func(makeFailingPage(new Error('No notifications returned for all (notice API failed: invalid JSON)')), { limit: 5, type: 'all' })).rejects.toBeInstanceOf(CommandExecutionError);
         const page = makePage([sampleNotificationRow]);
-        await notificationsCommand.func(page, { limit: 5, type: 'comments' });
+        await expect(notificationsCommand.func(page, { limit: 5, type: 'comments' })).resolves.toEqual([sampleNotificationRow]);
     });
 
     it('embeds the requested notice_type code from NOTIFICATION_TYPES into the script', () => {
@@ -283,9 +301,12 @@ describe('tiktok/live (page-context refactor)', () => {
 
     it('navigates to /live and surfaces empty as EmptyResultError', async () => {
         const page = makePage([sampleLiveRow]);
-        await liveCommand.func(page, { limit: 5 });
+        await expect(liveCommand.func(page, { limit: 5 })).resolves.toEqual([sampleLiveRow]);
         expect(page.goto).toHaveBeenCalledWith('https://www.tiktok.com/live', { waitUntil: 'load', settleMs: 5000 });
         await expect(liveCommand.func(makePage([]), { limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+        await expect(liveCommand.func(makeFailingPage(new Error('No live streams returned (live-discover API failed: HTTP 500)')), { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(liveCommand.func(makeFailingPage(new Error('No live streams returned (live-discover API failed: HTTP 403)')), { limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+        await expect(liveCommand.func(makeFailingPage(new Error('No live streams returned (live-discover API failed: invalid JSON)')), { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('build script targets live-discover endpoint via state-then-API', () => {

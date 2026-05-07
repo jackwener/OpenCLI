@@ -6,9 +6,7 @@
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
-    CommandExecutionError,
     EmptyResultError,
-    getErrorMessage,
 } from '@jackwener/opencli/errors';
 import {
     BROWSER_HELPERS,
@@ -16,6 +14,7 @@ import {
     SERVER_PAGE_MAX,
     TIKTOK_AID,
     requireLimit,
+    throwTikTokPageContextError,
 } from './utils.js';
 
 const DEFAULT_LIMIT = 10;
@@ -109,11 +108,12 @@ async function listLive(page, args) {
     try {
         rows = await page.evaluate(buildLiveScript(limit));
     } catch (error) {
-        const message = getErrorMessage(error);
-        if (/No live streams returned/.test(message)) {
-            throw new EmptyResultError('tiktok live', message);
-        }
-        throw new CommandExecutionError(`Failed to load TikTok live streams: ${message}`);
+        throwTikTokPageContextError(error, {
+            authMessage: 'TikTok requires browser access to load live streams',
+            emptyPattern: /No live streams returned/,
+            emptyTarget: 'tiktok live',
+            failureMessage: 'Failed to load TikTok live streams',
+        });
     }
     if (!Array.isArray(rows) || rows.length === 0) {
         throw new EmptyResultError('tiktok live', 'TikTok returned no live streams');

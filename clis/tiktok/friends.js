@@ -7,9 +7,7 @@
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
-    CommandExecutionError,
     EmptyResultError,
-    getErrorMessage,
 } from '@jackwener/opencli/errors';
 import {
     BROWSER_HELPERS,
@@ -18,6 +16,7 @@ import {
     TIKTOK_AID,
     USER_ITEM_NORMALIZER,
     requireLimit,
+    throwTikTokPageContextError,
 } from './utils.js';
 
 const DEFAULT_LIMIT = 20;
@@ -111,11 +110,12 @@ async function listFriends(page, args) {
     try {
         rows = await page.evaluate(buildFriendsScript(limit));
     } catch (error) {
-        const message = getErrorMessage(error);
-        if (/No friend suggestions/.test(message)) {
-            throw new EmptyResultError('tiktok friends', message);
-        }
-        throw new CommandExecutionError(`Failed to load TikTok friend suggestions: ${message}`);
+        throwTikTokPageContextError(error, {
+            authMessage: 'TikTok requires browser access to load friend suggestions',
+            emptyPattern: /No friend suggestions/,
+            emptyTarget: 'tiktok friends',
+            failureMessage: 'Failed to load TikTok friend suggestions',
+        });
     }
     if (!Array.isArray(rows) || rows.length === 0) {
         throw new EmptyResultError('tiktok friends', 'TikTok returned no friend suggestions');
