@@ -18150,6 +18150,42 @@
   },
   {
     "site": "qwen",
+    "name": "detail",
+    "description": "Open a Qianwen conversation by ID and read its messages",
+    "access": "read",
+    "domain": "www.qianwen.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Session ID (32-char hex) or full https://www.qianwen.com/chat/<id> URL"
+      },
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "qwen/detail.js",
+    "sourceFile": "qwen/detail.js",
+    "navigateBefore": false,
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "qwen",
     "name": "history",
     "description": "List recent Qianwen conversations (requires login)",
     "access": "read",
