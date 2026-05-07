@@ -53,10 +53,11 @@ opencli facebook profile zuck -f json
 `--limit` accepts a positive integer in `[1, 100]`. Out-of-range or
 non-numeric input raises `ArgumentError` upfront — no silent clamp.
 
-If Facebook redirects to `/login` or `/checkpoint` (session expired)
-the command raises `AuthRequiredError`. An empty notification list
-after a successful auth check raises `EmptyResultError` instead of a
-silent `[]`.
+If Facebook redirects to a login/checkpoint path (for example
+`/login.php`, `/login/identify/`, or `/checkpoint/`; session expired)
+the command raises `AuthRequiredError`. An empty notification list after
+a successful auth check raises `EmptyResultError` instead of a silent
+`[]`.
 
 ## Prerequisites
 

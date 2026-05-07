@@ -30,8 +30,8 @@
 //       index, unread (bool), text (full, no truncation),
 //       time (string|null), url (string), notif_id (string|null),
 //       notif_type (string|null)
-//   - Auth detection: if the IIFE runs while window.location is
-//     `/login` / `/checkpoint`, throw `AUTH_REQUIRED:` sentinel which
+//   - Auth detection: if the IIFE runs while window.location is on a
+//     login / checkpoint path, throw `AUTH_REQUIRED:` sentinel which
 //     the Node side maps to `AuthRequiredError`.
 //   - Empty list (after settle + auth check passes) → `EmptyResultError`,
 //     never silent `[]`.
@@ -150,6 +150,10 @@ export function parseNotifQuery(rawHref, fbHost) {
     return out;
 }
 
+export function isFacebookAuthRedirectPath(pathname) {
+    return /^\/(?:login|checkpoint)(?:\.php)?(?:\/|$)/i.test(String(pathname || ''));
+}
+
 // Pure extractor: walks `[role="listitem"]` containers in `doc` and
 // returns at most `limit` notification rows. Header listitems (those
 // without an `<a href>` child — e.g. the "新通知" / "Earlier" section
@@ -217,6 +221,7 @@ export function extractNotificationRowsFromDoc(doc, limit, helpers) {
             );
             text = fallback || null;
         }
+        if (!text) continue;
 
         const { notif_id, notif_type } = helpers.parseQuery(href, helpers.fbHost);
         out.push({
@@ -238,7 +243,8 @@ export function buildNotificationsScript(limit) {
   const FB_HOST = ${JSON.stringify(FB_HOST)};
   const MARK_AS_READ_PREFIXES = ${JSON.stringify(MARK_AS_READ_PREFIXES)};
   const UNREAD_BADGE_LABELS = ${JSON.stringify(UNREAD_BADGE_LABELS)};
-  if (/(^|\\/)(login(?:\\.php)?|checkpoint)(\\/|$)/i.test(window.location.pathname || '')) {
+  ${isFacebookAuthRedirectPath.toString()}
+  if (isFacebookAuthRedirectPath(window.location.pathname || '')) {
     throw new Error('AUTH_REQUIRED: facebook.com redirected to login');
   }
   ${stripMarkAsReadPrefix.toString()}

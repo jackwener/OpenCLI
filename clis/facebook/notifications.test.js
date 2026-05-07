@@ -41,6 +41,7 @@ import {
     stripMarkAsReadPrefix,
     stripAnchorChrome,
     parseNotifQuery,
+    isFacebookAuthRedirectPath,
     extractNotificationRowsFromDoc,
     buildNotificationsScript,
     notificationsCommand,
@@ -198,6 +199,23 @@ describe('parseNotifQuery', () => {
     });
 });
 
+describe('isFacebookAuthRedirectPath', () => {
+    it('matches Facebook login/checkpoint paths including .php redirects', () => {
+        expect(isFacebookAuthRedirectPath('/login')).toBe(true);
+        expect(isFacebookAuthRedirectPath('/login/')).toBe(true);
+        expect(isFacebookAuthRedirectPath('/login.php')).toBe(true);
+        expect(isFacebookAuthRedirectPath('/login/identify/')).toBe(true);
+        expect(isFacebookAuthRedirectPath('/checkpoint')).toBe(true);
+        expect(isFacebookAuthRedirectPath('/checkpoint.php')).toBe(true);
+    });
+
+    it('does not match unrelated login-looking paths', () => {
+        expect(isFacebookAuthRedirectPath('/loginhelp')).toBe(false);
+        expect(isFacebookAuthRedirectPath('/help/login')).toBe(false);
+        expect(isFacebookAuthRedirectPath('/notifications')).toBe(false);
+    });
+});
+
 describe('extractNotificationRowsFromDoc — JSDOM against frozen fixture', () => {
     it('extracts 4 data rows (1 header skipped) with full schema and stable order', () => {
         const doc = loadFixtureDoc();
@@ -295,6 +313,37 @@ describe('extractNotificationRowsFromDoc — JSDOM against frozen fixture', () =
         expect(rows[0].text).toBe('Already read notification');
     });
 
+    it('resolves relative hrefs to full URLs for the url column', () => {
+        const html = `<!doctype html><html><body><div role="main">
+            <div role="listitem">
+              <a href="/groups/discover/?notif_id=42&notif_t=group_recommendation">
+                <span>UnreadRelative URL body</span>
+                <abbr aria-label="1 hr"><span>1 hr</span></abbr>
+              </a>
+            </div>
+        </body></html>`;
+        const doc = new JSDOM(html, { url: 'https://www.facebook.com/notifications' }).window.document;
+        const rows = extractNotificationRowsFromDoc(doc, 5, fixtureHelpers);
+        expect(rows).toHaveLength(1);
+        expect(rows[0].url).toBe('https://www.facebook.com/groups/discover/?notif_id=42&notif_t=group_recommendation');
+        expect(rows[0].notif_id).toBe('42');
+        expect(rows[0].notif_type).toBe('group_recommendation');
+    });
+
+    it('skips anchor rows with no recoverable body text — no text:null success rows', () => {
+        const html = `<!doctype html><html><body><div role="main">
+            <div role="listitem">
+              <a href="https://www.facebook.com/x?notif_id=1&notif_t=blank">
+                <span><div>未读</div></span>
+                <abbr aria-label="3 hr"><span>3 hr</span></abbr>
+              </a>
+            </div>
+        </body></html>`;
+        const doc = new JSDOM(html).window.document;
+        const rows = extractNotificationRowsFromDoc(doc, 5, fixtureHelpers);
+        expect(rows).toEqual([]);
+    });
+
     it('returns [] for a doc with no listitems — Node side maps to EmptyResultError', () => {
         const doc = new JSDOM('<!doctype html><html><body></body></html>').window.document;
         const rows = extractNotificationRowsFromDoc(doc, 5, fixtureHelpers);
@@ -308,6 +357,7 @@ describe('buildNotificationsScript — IIFE invariants', () => {
         expect(script).toContain('function stripMarkAsReadPrefix');
         expect(script).toContain('function stripAnchorChrome');
         expect(script).toContain('function parseNotifQuery');
+        expect(script).toContain('function isFacebookAuthRedirectPath');
         expect(script).toContain('function extractNotificationRowsFromDoc');
     });
 
@@ -327,7 +377,7 @@ describe('buildNotificationsScript — IIFE invariants', () => {
     it('contains an auth-redirect guard before the DOM walk', () => {
         const script = buildNotificationsScript(15);
         expect(script).toMatch(/AUTH_REQUIRED.*facebook/i);
-        expect(script).toContain('/(^|\\/)(login(?:\\.php)?|checkpoint)(\\/|$)/i');
+        expect(script).toContain('isFacebookAuthRedirectPath(window.location.pathname');
     });
 
     it('does NOT contain the legacy silent-truncation slice/substring — anti-pattern regression guard', () => {
