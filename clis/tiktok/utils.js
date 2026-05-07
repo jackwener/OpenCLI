@@ -190,6 +190,12 @@ export const RETRYABLE_HINTS = {
 // itself failed to render — they still surface as CommandExecutionError.
 export function throwButtonWalkerError(error, { authMessage, failureMessage, retryableHint }) {
     const message = getErrorMessage(error);
+    if (/\bRATE_LIMITED\b|\b(captcha|too many requests|rate limit|try again later|slow down)\b/i.test(message)) {
+        throw new CommandExecutionError(
+            `${failureMessage}: ${message}`,
+            retryableHint,
+        );
+    }
     if (looksTikTokAuthFailure(message)) {
         throw new AuthRequiredError('tiktok.com', authMessage);
     }

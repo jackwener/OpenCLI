@@ -44,6 +44,14 @@ function makeFailingPage(error) {
     };
 }
 
+function makeGotoFailingPage(error) {
+    return {
+        goto: vi.fn().mockRejectedValue(error),
+        wait: vi.fn().mockResolvedValue(undefined),
+        evaluate: vi.fn(),
+    };
+}
+
 const VIDEO_URL = 'https://www.tiktok.com/@creator/video/7350000000000000000';
 
 const sampleCommentRow = { url: VIDEO_URL, text: 'great clip', result: 'posted' };
@@ -109,11 +117,26 @@ describe('tiktok/utils (P0.5 button-walker additions)', () => {
             failureMessage: 'op failed',
             retryableHint: RETRYABLE_HINTS.relationFailure,
         })).toThrow(AuthRequiredError);
-        expect(() => throwButtonWalkerError(new Error('captcha verification needed'), {
-            authMessage: 'login pls',
-            failureMessage: 'op failed',
-            retryableHint: RETRYABLE_HINTS.relationFailure,
-        })).toThrow(AuthRequiredError);
+    });
+
+    it('throwButtonWalkerError keeps captcha / rate-limit as retryable CommandExecutionError, not AuthRequiredError', () => {
+        for (const message of [
+            'RATE_LIMITED: TikTok rate limit / captcha detected',
+            'captcha verification needed',
+            'Too many requests, try again later',
+        ]) {
+            try {
+                throwButtonWalkerError(new Error(message), {
+                    authMessage: 'login pls',
+                    failureMessage: 'op failed',
+                    retryableHint: RETRYABLE_HINTS.relationFailure,
+                });
+                throw new Error('should have thrown');
+            } catch (err) {
+                expect(err).toBeInstanceOf(CommandExecutionError);
+                expect(err.hint).toMatch(/retryable=true/);
+            }
+        }
     });
 
     it('throwButtonWalkerError maps everything else to CommandExecutionError with retryable hint', () => {
@@ -131,7 +154,7 @@ describe('tiktok/utils (P0.5 button-walker additions)', () => {
         }
         try {
             throwButtonWalkerError(new Error('STATE_VERIFY_FAIL: did not flip'), {
-                authMessage: 'a',
+                authMessage: 'login pls',
                 failureMessage: 'op failed',
                 retryableHint: RETRYABLE_HINTS.relationFailure,
             });
@@ -184,6 +207,17 @@ describe('tiktok/comment (Route 1 button-walker refactor)', () => {
             expect(err.hint).toMatch(/retryable=false/);
             expect(err.hint).toMatch(/server-fan-out/);
         }
+    });
+
+    it('maps navigation failures and empty evaluate rows to CommandExecutionError', async () => {
+        await expect(commentCommand.func(
+            makeGotoFailingPage(new Error('net::ERR_ABORTED')),
+            { url: VIDEO_URL, text: 'hi' },
+        )).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(commentCommand.func(
+            makePage([]),
+            { url: VIDEO_URL, text: 'hi' },
+        )).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('build script embeds text via JSON.stringify and calls login + rate-limit guards', () => {
@@ -240,6 +274,17 @@ describe('tiktok/follow (Route 1 button-walker refactor)', () => {
         }
     });
 
+    it('maps navigation failures and empty evaluate rows to retryable CommandExecutionError', async () => {
+        await expect(followCommand.func(
+            makeGotoFailingPage(new Error('Execution context was destroyed')),
+            { username: 'creator' },
+        )).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(followCommand.func(
+            makePage([]),
+            { username: 'creator' },
+        )).rejects.toMatchObject({ hint: expect.stringMatching(/retryable=true/) });
+    });
+
     it('build script embeds username via JSON.stringify and pins all relation labels', () => {
         const script = followTest.buildFollowScript('creator');
         expect(script).toContain('const username = "creator";');
@@ -250,6 +295,8 @@ describe('tiktok/follow (Route 1 button-walker refactor)', () => {
         expect(script).toContain("'Friends', '互关'");
         expect(script).toContain("'already-following'");
         expect(script).toContain("'already-friends'");
+        expect(script).toContain("result: 'followed'");
+        expect(script).not.toContain('becameFriends ?');
         expect(script).toContain('STATE_VERIFY_FAIL');
         expect(script).toContain('BUTTON_NOT_FOUND');
     });
@@ -294,6 +341,17 @@ describe('tiktok/unfollow (Route 1 button-walker refactor)', () => {
             expect(err.hint).toMatch(/retryable=true/);
             expect(err.hint).toMatch(/idempotent/);
         }
+    });
+
+    it('maps navigation failures and empty evaluate rows to retryable CommandExecutionError', async () => {
+        await expect(unfollowCommand.func(
+            makeGotoFailingPage(new Error('Execution context was destroyed')),
+            { username: 'creator' },
+        )).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(unfollowCommand.func(
+            makePage([]),
+            { username: 'creator' },
+        )).rejects.toMatchObject({ hint: expect.stringMatching(/retryable=true/) });
     });
 
     it('build script handles confirm-dialog flow + flips back to Follow', () => {

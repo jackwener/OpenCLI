@@ -90,22 +90,23 @@ function buildUnfollowScript(username) {
 
 async function unfollowUser(page, args) {
     const username = normalizeUsername(args.username);
-    await page.goto(`${TIKTOK_HOST}/@${encodeURIComponent(username)}`, {
-        waitUntil: 'load',
-        settleMs: 5000,
+    const throwFailure = (error) => throwButtonWalkerError(error, {
+        authMessage: 'TikTok requires login to unfollow users',
+        failureMessage: `Failed to unfollow @${username}`,
+        retryableHint: RETRYABLE_HINTS.relationFailure,
     });
     let rows;
     try {
+        await page.goto(`${TIKTOK_HOST}/@${encodeURIComponent(username)}`, {
+            waitUntil: 'load',
+            settleMs: 5000,
+        });
         rows = await page.evaluate(buildUnfollowScript(username));
     } catch (error) {
-        throwButtonWalkerError(error, {
-            authMessage: 'TikTok requires login to unfollow users',
-            failureMessage: `Failed to unfollow @${username}`,
-            retryableHint: RETRYABLE_HINTS.relationFailure,
-        });
+        throwFailure(error);
     }
     if (!Array.isArray(rows) || rows.length === 0) {
-        throw new Error(`Unfollow returned no row for @${username}`);
+        throwFailure(new Error(`STATE_VERIFY_FAIL: unfollow returned no row for @${username}`));
     }
     return rows;
 }

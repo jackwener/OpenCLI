@@ -106,19 +106,20 @@ function buildCommentScript(commentText) {
 async function postComment(page, args) {
     const { url } = parseTikTokVideoUrl(args.url);
     const text = requireCommentText(args.text);
-    await page.goto(url, { waitUntil: 'load', settleMs: 6000 });
+    const throwFailure = (error) => throwButtonWalkerError(error, {
+        authMessage: 'TikTok requires login to post comments',
+        failureMessage: `Failed to post comment on ${url}`,
+        retryableHint: RETRYABLE_HINTS.commentFailure,
+    });
     let rows;
     try {
+        await page.goto(url, { waitUntil: 'load', settleMs: 6000 });
         rows = await page.evaluate(buildCommentScript(text));
     } catch (error) {
-        throwButtonWalkerError(error, {
-            authMessage: 'TikTok requires login to post comments',
-            failureMessage: `Failed to post comment on ${url}`,
-            retryableHint: RETRYABLE_HINTS.commentFailure,
-        });
+        throwFailure(error);
     }
     if (!Array.isArray(rows) || rows.length === 0) {
-        throw new Error(`Comment returned no row for ${url}`);
+        throwFailure(new Error(`STATE_VERIFY_FAIL: comment returned no row for ${url}`));
     }
     return rows;
 }

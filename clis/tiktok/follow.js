@@ -68,11 +68,10 @@ function buildFollowScript(username) {
   // mid-flight even when the button text appears to flip.
   ensureNoRateLimitOrThrow();
 
-  const becameFriends = buttonExists(FRIENDS_LABELS);
   return [{
     username,
     url: ${JSON.stringify(TIKTOK_HOST)} + '/@' + encodeURIComponent(username),
-    result: becameFriends ? 'already-friends' : 'followed',
+    result: 'followed',
   }];
 })()
 `;
@@ -80,24 +79,25 @@ function buildFollowScript(username) {
 
 async function followUser(page, args) {
     const username = normalizeUsername(args.username);
-    await page.goto(`${TIKTOK_HOST}/@${encodeURIComponent(username)}`, {
-        waitUntil: 'load',
-        settleMs: 5000,
+    const throwFailure = (error) => throwButtonWalkerError(error, {
+        authMessage: 'TikTok requires login to follow users',
+        failureMessage: `Failed to follow @${username}`,
+        retryableHint: RETRYABLE_HINTS.relationFailure,
     });
     let rows;
     try {
+        await page.goto(`${TIKTOK_HOST}/@${encodeURIComponent(username)}`, {
+            waitUntil: 'load',
+            settleMs: 5000,
+        });
         rows = await page.evaluate(buildFollowScript(username));
     } catch (error) {
-        throwButtonWalkerError(error, {
-            authMessage: 'TikTok requires login to follow users',
-            failureMessage: `Failed to follow @${username}`,
-            retryableHint: RETRYABLE_HINTS.relationFailure,
-        });
+        throwFailure(error);
     }
     if (!Array.isArray(rows) || rows.length === 0) {
         // Defensive: build script always returns a row on success path.
         // If we land here, treat as state-verify failure.
-        throw new Error(`Follow returned no row for @${username}`);
+        throwFailure(new Error(`STATE_VERIFY_FAIL: follow returned no row for @${username}`));
     }
     return rows;
 }
