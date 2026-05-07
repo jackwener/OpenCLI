@@ -1,12 +1,8 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 const GROK_URL = 'https://grok.com/';
 const RESPONSE_SELECTOR = 'div.message-bubble, [data-testid="message-bubble"]';
-const BLOCKED_PREFIX = '[BLOCKED]';
-const NO_RESPONSE_PREFIX = '[NO RESPONSE]';
 const SESSION_HINT = 'Likely login/auth/challenge/session issue in the existing grok.com browser session.';
-function blocked(message) {
-    return [{ response: `${BLOCKED_PREFIX} ${message} ${SESSION_HINT}` }];
-}
 function normalizeBubbleText(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
@@ -80,7 +76,10 @@ async function runDefaultAsk(page, prompt, timeoutMs, newChat) {
     } catch (e) { return { ok: false, msg: e.toString() }; }
   })()`);
     if (!sendResult || !sendResult.ok) {
-        return [{ response: '[SEND FAILED] ' + JSON.stringify(sendResult) }];
+        throw new CommandExecutionError(
+            `Grok composer rejected the prompt: ${JSON.stringify(sendResult)}`,
+            SESSION_HINT,
+        );
     }
     const startTime = Date.now();
     let lastText = '';
@@ -107,9 +106,12 @@ async function runDefaultAsk(page, prompt, timeoutMs, newChat) {
         }
         lastText = response || '';
     }
+    // Timeout reached. If we caught streaming text in flight, keep it as a
+    // best-effort partial result; if the assistant never produced anything
+    // visible, surface the timeout rather than a sentinel row.
     if (lastText)
         return [{ response: lastText }];
-    return [{ response: NO_RESPONSE_PREFIX }];
+    throw new TimeoutError('grok ask response', Math.round(timeoutMs / 1000));
 }
 async function getBubbleTexts(page) {
     const result = await page.evaluate(`(() => {
@@ -238,7 +240,8 @@ async function runExplicitWebAsk(page, prompt, timeoutMs, newChat) {
     const sendResult = await sendPromptViaExplicitWeb(page, prompt);
     if (!sendResult?.ok) {
         const details = sendResult?.detail ? ` ${sendResult.detail}` : '';
-        return blocked(`${sendResult?.reason || 'Unable to send the prompt to Grok.'}${details}`);
+        const reason = sendResult?.reason || 'Unable to send the prompt to Grok.';
+        throw new CommandExecutionError(`${reason}${details}`, SESSION_HINT);
     }
     const startTime = Date.now();
     let lastText = '';
@@ -254,9 +257,11 @@ async function runExplicitWebAsk(page, prompt, timeoutMs, newChat) {
             return [{ response: candidate }];
         }
     }
+    // Timeout — keep partial text if we saw streaming, otherwise surface
+    // the timeout instead of a sentinel row.
     if (lastText)
         return [{ response: lastText }];
-    return [{ response: `${NO_RESPONSE_PREFIX} No new assistant message bubble appeared within ${Math.round(timeoutMs / 1000)}s.` }];
+    throw new TimeoutError('grok ask response (--web)', Math.round(timeoutMs / 1000));
 }
 export const askCommand = cli({
     site: 'grok',

@@ -10573,6 +10573,65 @@
   },
   {
     "site": "grok",
+    "name": "image",
+    "description": "Generate images on grok.com and return image URLs",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Image generation prompt"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 240,
+        "required": false,
+        "help": "Max seconds to wait for the image (default: 240)"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending (default: false)"
+      },
+      {
+        "name": "count",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Minimum images to wait for before returning (default: 1)"
+      },
+      {
+        "name": "out",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Directory to save downloaded images (uses browser session to bypass auth)"
+      }
+    ],
+    "columns": [
+      "url",
+      "width",
+      "height",
+      "path"
+    ],
+    "type": "js",
+    "modulePath": "grok/image.js",
+    "sourceFile": "grok/image.js",
+    "navigateBefore": "https://grok.com",
+    "browserSession": {
+      "reuse": "site"
+    }
+  },
+  {
+    "site": "grok",
     "name": "new",
     "description": "Start a new conversation in Grok",
     "access": "write",

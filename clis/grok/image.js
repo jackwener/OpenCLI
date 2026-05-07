@@ -2,44 +2,33 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import type { IPage } from '@jackwener/opencli/types';
+import { ArgumentError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 
 const GROK_URL = 'https://grok.com/';
-const NO_IMAGE_PREFIX = '[NO IMAGE]';
-const BLOCKED_PREFIX = '[BLOCKED]';
 const SESSION_HINT = 'Likely login/auth/challenge/session issue in the existing grok.com browser session.';
 
-type SendResult = {
-  ok?: boolean;
-  msg?: string;
-  reason?: string;
-  detail?: string;
-};
-
-type BubbleImage = {
-  src: string;
-  w: number;
-  h: number;
-};
-
-type BubbleImageSet = BubbleImage[];
-
-type FetchResult = {
-  ok: boolean;
-  base64?: string;
-  contentType?: string;
-  error?: string;
-};
-
-function normalizeBooleanFlag(value: unknown): boolean {
+function normalizeBooleanFlag(value) {
   if (typeof value === 'boolean') return value;
   const normalized = String(value ?? '').trim().toLowerCase();
   return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
 }
 
-function dedupeBySrc(images: BubbleImage[]): BubbleImage[] {
-  const seen = new Set<string>();
-  const out: BubbleImage[] = [];
+/**
+ * Validate a positive-integer arg without silently flooring/clamping.
+ * Throws ArgumentError on `0`, negatives, non-integers, or non-numeric input.
+ */
+function normalizePositiveInteger(value, defaultValue, label) {
+  const raw = value ?? defaultValue;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new ArgumentError(`${label} must be a positive integer`);
+  }
+  return n;
+}
+
+function dedupeBySrc(images) {
+  const seen = new Set();
+  const out = [];
   for (const img of images) {
     if (!img.src || seen.has(img.src)) continue;
     seen.add(img.src);
@@ -48,11 +37,11 @@ function dedupeBySrc(images: BubbleImage[]): BubbleImage[] {
   return out;
 }
 
-function imagesSignature(images: BubbleImage[]): string {
+function imagesSignature(images) {
   return images.map(i => i.src).sort().join('|');
 }
 
-function extFromContentType(ct?: string): string {
+function extFromContentType(ct) {
   if (!ct) return 'jpg';
   if (ct.includes('png')) return 'png';
   if (ct.includes('webp')) return 'webp';
@@ -60,14 +49,14 @@ function extFromContentType(ct?: string): string {
   return 'jpg';
 }
 
-function buildFilename(src: string, ct?: string): string {
+function buildFilename(src, ct) {
   const ext = extFromContentType(ct);
   const hash = crypto.createHash('sha1').update(src).digest('hex').slice(0, 12);
   return `grok-${Date.now()}-${hash}.${ext}`;
 }
 
 /** Check whether the tab is already on grok.com (any path). */
-async function isOnGrok(page: IPage): Promise<boolean> {
+async function isOnGrok(page) {
   const url = await page.evaluate('window.location.href').catch(() => '');
   if (typeof url !== 'string' || !url) return false;
   try {
@@ -78,7 +67,7 @@ async function isOnGrok(page: IPage): Promise<boolean> {
   }
 }
 
-async function tryStartFreshChat(page: IPage): Promise<void> {
+async function tryStartFreshChat(page) {
   await page.evaluate(`(() => {
     const isVisible = (node) => {
       if (!(node instanceof HTMLElement)) return false;
@@ -102,7 +91,7 @@ async function tryStartFreshChat(page: IPage): Promise<void> {
   })()`);
 }
 
-async function sendPrompt(page: IPage, prompt: string): Promise<SendResult> {
+async function sendPrompt(page, prompt) {
   const promptJson = JSON.stringify(prompt);
   return page.evaluate(`(async () => {
     try {
@@ -180,11 +169,11 @@ async function sendPrompt(page: IPage, prompt: string): Promise<SendResult> {
       box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
       return { ok: true, msg: 'enter' };
     } catch (e) { return { ok: false, msg: e && e.toString ? e.toString() : String(e) }; }
-  })()`) as Promise<SendResult>;
+  })()`);
 }
 
 /** Read <img> elements from all message bubbles so callers can filter by baseline. */
-async function getBubbleImageSets(page: IPage): Promise<BubbleImageSet[]> {
+async function getBubbleImageSets(page) {
   const result = await page.evaluate(`(() => {
     const bubbles = document.querySelectorAll('div.message-bubble, [data-testid="message-bubble"]');
     return Array.from(bubbles).map(bubble => Array.from(bubble.querySelectorAll('img'))
@@ -196,16 +185,13 @@ async function getBubbleImageSets(page: IPage): Promise<BubbleImageSet[]> {
       .filter(i => i.src && /^https?:/.test(i.src))
       // Ignore tiny UI/avatar images that may live in the bubble chrome.
       .filter(i => (i.w === 0 || i.w >= 128) && (i.h === 0 || i.h >= 128)));
-  })()`) as BubbleImageSet[] | undefined;
+  })()`);
 
   const raw = Array.isArray(result) ? result : [];
   return raw.map(dedupeBySrc);
 }
 
-function pickLatestImageCandidate(
-  bubbleImageSets: BubbleImageSet[],
-  baselineCount: number,
-): BubbleImage[] {
+function pickLatestImageCandidate(bubbleImageSets, baselineCount) {
   const freshSets = bubbleImageSets.slice(Math.max(0, baselineCount));
   for (let i = freshSets.length - 1; i >= 0; i -= 1) {
     if (freshSets[i].length) return freshSets[i];
@@ -216,7 +202,7 @@ function pickLatestImageCandidate(
 // Download through the browser's fetch so grok.com cookies and referer are
 // attached automatically — assets.grok.com is gated by Cloudflare and will
 // refuse direct curl/node downloads.
-async function fetchImageAsBase64(page: IPage, url: string): Promise<FetchResult> {
+async function fetchImageAsBase64(page, url) {
   const urlJson = JSON.stringify(url);
   return page.evaluate(`(async () => {
     try {
@@ -229,21 +215,24 @@ async function fetchImageAsBase64(page: IPage, url: string): Promise<FetchResult
       for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
       return { ok: true, base64: btoa(binary), contentType: blob.type || 'image/jpeg' };
     } catch (e) { return { ok: false, error: e && e.message || String(e) }; }
-  })()`) as Promise<FetchResult>;
+  })()`);
 }
 
-async function saveImages(
-  page: IPage,
-  images: BubbleImage[],
-  outDir: string,
-): Promise<Array<BubbleImage & { path: string }>> {
+async function saveImages(page, images, outDir) {
   fs.mkdirSync(outDir, { recursive: true });
-  const results: Array<BubbleImage & { path: string }> = [];
+  const results = [];
   for (const img of images) {
     const fetched = await fetchImageAsBase64(page, img.src);
     if (!fetched || !fetched.ok) {
-      results.push({ ...img, path: `[DOWNLOAD FAILED] ${fetched?.error || 'unknown'}` });
-      continue;
+      // Fail loudly on per-image download failure rather than emit a sentinel
+      // row with path = '[DOWNLOAD FAILED] ...' that downstream tools cannot
+      // distinguish from a real path. assets.grok.com is Cloudflare-gated, so
+      // a single 401/403 typically means the whole batch is unrecoverable.
+      const reason = fetched?.error ? `: ${fetched.error}` : '';
+      throw new CommandExecutionError(
+        `Failed to download grok image ${img.src}${reason}`,
+        'assets.grok.com download requires the live grok.com browser session — verify the tab is logged in and try again.',
+      );
     }
     const filepath = path.join(outDir, buildFilename(img.src, fetched.contentType));
     fs.writeFileSync(filepath, Buffer.from(fetched.base64 || '', 'base64'));
@@ -252,7 +241,7 @@ async function saveImages(
   return results;
 }
 
-function toRow(img: BubbleImage, savedPath = '') {
+function toRow(img, savedPath = '') {
   return { url: img.src, width: img.w, height: img.h, path: savedPath };
 }
 
@@ -273,11 +262,11 @@ export const imageCommand = cli({
     { name: 'out', type: 'string', default: '', help: 'Directory to save downloaded images (uses browser session to bypass auth)' },
   ],
   columns: ['url', 'width', 'height', 'path'],
-  func: async (page: IPage, kwargs: Record<string, any>) => {
-    const prompt = kwargs.prompt as string;
-    const timeoutMs = ((kwargs.timeout as number) || 240) * 1000;
+  func: async (page, kwargs) => {
+    const prompt = kwargs.prompt;
+    const timeoutMs = (kwargs.timeout || 240) * 1000;
     const newChat = normalizeBooleanFlag(kwargs.new);
-    const minCount = Math.max(1, Number(kwargs.count || 1));
+    const minCount = normalizePositiveInteger(kwargs.count, 1, 'count');
     const outDir = (kwargs.out || '').toString().trim();
 
     if (newChat) {
@@ -293,18 +282,16 @@ export const imageCommand = cli({
     const baselineBubbleCount = (await getBubbleImageSets(page)).length;
     const sendResult = await sendPrompt(page, prompt);
     if (!sendResult || !sendResult.ok) {
-      return [{
-        url: `${BLOCKED_PREFIX} send failed: ${JSON.stringify(sendResult)}. ${SESSION_HINT}`,
-        width: 0,
-        height: 0,
-        path: '',
-      }];
+      throw new CommandExecutionError(
+        `Grok composer rejected the prompt: ${JSON.stringify(sendResult)}`,
+        SESSION_HINT,
+      );
     }
 
     const startTime = Date.now();
     let lastSignature = '';
     let stableCount = 0;
-    let lastImages: BubbleImage[] = [];
+    let lastImages = [];
 
     while (Date.now() - startTime < timeoutMs) {
       await page.wait(3);
@@ -331,6 +318,8 @@ export const imageCommand = cli({
       }
     }
 
+    // Timeout — keep best-effort partial results if any image bubble showed
+    // up, otherwise surface the timeout instead of a sentinel row.
     if (lastImages.length) {
       if (outDir) {
         const saved = await saveImages(page, lastImages, outDir);
@@ -338,17 +327,13 @@ export const imageCommand = cli({
       }
       return lastImages.map(i => toRow(i));
     }
-    return [{
-      url: `${NO_IMAGE_PREFIX} No image appeared within ${Math.round(timeoutMs / 1000)}s.`,
-      width: 0,
-      height: 0,
-      path: '',
-    }];
+    throw new TimeoutError('grok image generation', Math.round(timeoutMs / 1000));
   },
 });
 
 export const __test__ = {
   normalizeBooleanFlag,
+  normalizePositiveInteger,
   isOnGrok,
   dedupeBySrc,
   imagesSignature,
