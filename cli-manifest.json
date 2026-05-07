@@ -2443,7 +2443,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Bilibili 视频 BV ID（如 BV1xx411c7mD），或视频 URL / b23.tv 短链"
       },
       {
         "name": "lang",
@@ -8491,7 +8491,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "抖音作品 ID（aweme_id，可从作品 URL 末尾获取）"
       }
     ],
     "columns": [
@@ -8517,7 +8517,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "抖音作品 ID（aweme_id，可从作品 URL 末尾获取）"
       },
       {
         "name": "reschedule",
@@ -13173,7 +13173,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "即刻搜索关键词"
       },
       {
         "name": "limit",
@@ -19350,7 +19350,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Reddit search query"
       },
       {
         "name": "subreddit",
@@ -19408,7 +19408,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Subreddit name (no `r/` prefix; e.g. `python`)"
       },
       {
         "name": "sort",
@@ -19553,7 +19553,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Reddit username (no `u/` prefix needed)"
       }
     ],
     "columns": [
@@ -19579,7 +19579,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Reddit username (no `u/` prefix needed)"
       },
       {
         "name": "limit",
@@ -19614,7 +19614,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Reddit username (no `u/` prefix needed)"
       },
       {
         "name": "limit",
@@ -22375,7 +22375,7 @@
         "type": "string",
         "required": false,
         "positional": true,
-        "help": ""
+        "help": "Twitter/X handle (with or without @). Omit to fetch followers of the currently logged-in account."
       },
       {
         "name": "limit",
@@ -22409,7 +22409,7 @@
         "type": "string",
         "required": false,
         "positional": true,
-        "help": ""
+        "help": "Twitter/X handle (with or without @). Omit to fetch the accounts the currently logged-in user follows."
       },
       {
         "name": "limit",
@@ -22537,14 +22537,14 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Numeric ID of the list you own (e.g. from `opencli twitter lists`)"
       },
       {
         "name": "username",
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Twitter/X handle to add (with or without @)"
       }
     ],
     "columns": [
@@ -22573,14 +22573,14 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Numeric ID of the list you own (e.g. from `opencli twitter lists`)"
       },
       {
         "name": "username",
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Twitter/X handle to remove (with or without @)"
       }
     ],
     "columns": [
@@ -22609,7 +22609,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Numeric ID of a Twitter/X list (e.g. from `opencli twitter lists`)"
       },
       {
         "name": "limit",
@@ -22929,7 +22929,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Twitter/X search query (operators like `from:` and `since:` are supported)"
       },
       {
         "name": "filter",
@@ -22980,7 +22980,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Tweet numeric ID (e.g. 1234567890) or full status URL"
       },
       {
         "name": "limit",

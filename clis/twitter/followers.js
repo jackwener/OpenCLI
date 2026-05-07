@@ -84,7 +84,13 @@ cli({
     strategy: Strategy.UI,
     browser: true,
     args: [
-        { name: 'user', positional: true, type: 'string', required: false },
+        {
+            name: 'user',
+            positional: true,
+            type: 'string',
+            required: false,
+            help: 'Twitter/X handle (with or without @). Omit to fetch followers of the currently logged-in account.',
+        },
         { name: 'limit', type: 'int', default: 50 },
     ],
     // `followers` (count) is NOT exposed: the SPA followers-list view does not

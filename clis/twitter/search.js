@@ -100,7 +100,7 @@ cli({
     strategy: Strategy.INTERCEPT, // Use intercept strategy
     browser: true,
     args: [
-        { name: 'query', type: 'string', required: true, positional: true },
+        { name: 'query', type: 'string', required: true, positional: true, help: 'Twitter/X search query (operators like `from:` and `since:` are supported)' },
         { name: 'filter', type: 'string', default: 'top', choices: ['top', 'live'] },
         { name: 'limit', type: 'int', default: 15 },
     ],

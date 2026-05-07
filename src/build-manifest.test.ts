@@ -6,6 +6,7 @@ import { cli, getRegistry, Strategy } from './registry.js';
 import {
   ManifestImportError,
   diffRemovedEntries,
+  findManifestMetadataIssues,
   loadManifestEntries,
   normalizeManifestPath,
   parseBuildManifestArgs,
@@ -260,6 +261,116 @@ describe('manifest helper rules', () => {
     expect(diffRemovedEntries(prev, next)).toEqual(['a/2', 'b/3']);
     expect(diffRemovedEntries(prev, prev)).toEqual([]);
     expect(diffRemovedEntries([], next)).toEqual([]);
+  });
+
+  it('findManifestMetadataIssues flags positionals with empty/missing help', () => {
+    // The build-time hard gate. A positional with `help: ''` or no `help` at
+    // all renders `Arguments:\n  <name>` with a blank trailing column —
+    // unrecoverable for both humans and agents reading help. Failing closed
+    // here is the only way to keep help text trustworthy as adapters land.
+    //
+    // Semantic quality (e.g. what does an *optional* positional mean when
+    // omitted?) is intentionally NOT enforced — that belongs to the planned
+    // Arg metadata v2 advisory pass.
+    const entries: ManifestEntry[] = [
+      // Positional with usable help — clean.
+      {
+        site: 'demo',
+        name: 'ok',
+        access: 'read',
+        description: '',
+        strategy: 'public',
+        browser: false,
+        args: [
+          { name: 'q', positional: true, required: true, help: 'Search query' },
+        ],
+        type: 'js',
+        sourceFile: 'demo/ok.js',
+      },
+      // Positional with empty help string — must flag.
+      {
+        site: 'demo',
+        name: 'empty-help',
+        access: 'read',
+        description: '',
+        strategy: 'public',
+        browser: false,
+        args: [
+          { name: 'user', positional: true, required: false, help: '' },
+        ],
+        type: 'js',
+        sourceFile: 'demo/empty.js',
+      },
+      // Positional with whitespace-only help — must flag.
+      {
+        site: 'demo',
+        name: 'whitespace-help',
+        access: 'read',
+        description: '',
+        strategy: 'public',
+        browser: false,
+        args: [
+          { name: 'id', positional: true, required: true, help: '   ' },
+        ],
+        type: 'js',
+      },
+      // Positional with no help field at all — must flag.
+      {
+        site: 'demo',
+        name: 'missing-help',
+        access: 'read',
+        description: '',
+        strategy: 'public',
+        browser: false,
+        args: [
+          { name: 'name', positional: true, required: true },
+        ],
+        type: 'js',
+      },
+      // NON-positional flag with empty help — must NOT flag (gate is
+      // intentionally scoped to positionals; named flags carry the flag
+      // name itself in the help line).
+      {
+        site: 'demo',
+        name: 'flag-only',
+        access: 'read',
+        description: '',
+        strategy: 'public',
+        browser: false,
+        args: [
+          { name: 'limit', required: false, help: '' },
+        ],
+        type: 'js',
+      },
+    ];
+
+    const issues = findManifestMetadataIssues(entries);
+    expect(issues).toHaveLength(3);
+    expect(issues.map(i => `${i.site}/${i.command}/${i.arg}`).sort()).toEqual([
+      'demo/empty-help/user',
+      'demo/missing-help/name',
+      'demo/whitespace-help/id',
+    ]);
+    // sourceFile flows through when present so the build error points at the
+    // exact file to fix.
+    const emptyHelp = issues.find(i => i.command === 'empty-help');
+    expect(emptyHelp?.sourceFile).toBe('demo/empty.js');
+  });
+
+  it('findManifestMetadataIssues returns [] for fully-documented entries', () => {
+    expect(findManifestMetadataIssues([])).toEqual([]);
+    expect(findManifestMetadataIssues([
+      {
+        site: 'demo',
+        name: 'no-args',
+        access: 'read',
+        description: '',
+        strategy: 'public',
+        browser: false,
+        args: [],
+        type: 'js',
+      },
+    ])).toEqual([]);
   });
 
   it('parseBuildManifestArgs reads --allow-removals[=N]', () => {

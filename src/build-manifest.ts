@@ -251,6 +251,52 @@ export function serializeManifest(manifest: ManifestEntry[]): string {
 }
 
 /**
+ * Metadata audit: every positional arg must carry a non-empty `help` string.
+ *
+ * Why this is a hard gate (not advisory):
+ *   - `opencli twitter followers --help` rendered `Arguments:\n  user  ` with
+ *     an empty trailing column. Agents and humans both saw a blank field —
+ *     impossible to recover the parameter's purpose without reading source.
+ *   - This is metadata completeness, not stylistic taste; failing closed is
+ *     the only way to keep the help surface trustworthy as adapters land.
+ *
+ * Note: semantic quality (e.g. "what does the optional positional mean when
+ * omitted?") is intentionally NOT enforced here. That belongs to a follow-up
+ * advisory audit — see PR plan `Arg metadata v2` for the structured
+ * `when_omitted / when_present / value_format` schema.
+ */
+export interface ManifestMetadataIssue {
+  site: string;
+  command: string;
+  arg: string;
+  sourceFile?: string;
+  reason: string;
+}
+
+export function findManifestMetadataIssues(
+  entries: readonly ManifestEntry[],
+): ManifestMetadataIssue[] {
+  const issues: ManifestMetadataIssue[] = [];
+  for (const entry of entries) {
+    if (!Array.isArray(entry.args)) continue;
+    for (const arg of entry.args) {
+      if (!arg.positional) continue;
+      const help = typeof arg.help === 'string' ? arg.help.trim() : '';
+      if (help === '') {
+        issues.push({
+          site: entry.site,
+          command: entry.name,
+          arg: arg.name,
+          sourceFile: entry.sourceFile,
+          reason: 'positional arg missing non-empty `help` text',
+        });
+      }
+    }
+  }
+  return issues;
+}
+
+/**
  * Diff helper: returns site/name keys that exist in `prev` but not in
  * `next`. Used as a safety net to detect accidental mass-deletions caused
  * by silently failing adapter imports.
@@ -326,6 +372,25 @@ async function main(): Promise<void> {
     process.stderr.write(
       `\nManifest NOT written. Likely cause: stale dist/ or a broken adapter import.\n`
       + `Always run via tsx (\`npm run build-manifest\`), not against compiled dist/.\n`,
+    );
+    process.exit(1);
+  }
+
+  const metadataIssues = findManifestMetadataIssues(entries);
+  if (metadataIssues.length > 0) {
+    process.stderr.write(
+      `❌ ${metadataIssues.length} positional arg(s) missing \`help\` text:\n`,
+    );
+    for (const issue of metadataIssues) {
+      const where = issue.sourceFile ? ` (${issue.sourceFile})` : '';
+      process.stderr.write(
+        `  - ${issue.site}/${issue.command} positional "${issue.arg}"${where}\n`,
+      );
+    }
+    process.stderr.write(
+      `\nEvery positional arg must declare a non-empty \`help\` string so\n`
+      + `\`opencli <site> <cmd> --help\` shows callers what the parameter is for.\n`
+      + `Add \`help: '...'\` to each arg above and re-run the build.\n`,
     );
     process.exit(1);
   }

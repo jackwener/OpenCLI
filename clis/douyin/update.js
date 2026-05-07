@@ -10,7 +10,7 @@ cli({
     domain: 'creator.douyin.com',
     strategy: Strategy.COOKIE,
     args: [
-        { name: 'aweme_id', required: true, positional: true },
+        { name: 'aweme_id', required: true, positional: true, help: '抖音作品 ID（aweme_id，可从作品 URL 末尾获取）' },
         { name: 'reschedule', default: '', help: '新的发布时间（ISO8601 或 Unix 秒）' },
         { name: 'caption', default: '', help: '新的正文内容' },
     ],

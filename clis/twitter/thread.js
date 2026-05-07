@@ -101,7 +101,7 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'tweet-id', positional: true, type: 'string', required: true },
+        { name: 'tweet-id', positional: true, type: 'string', required: true, help: 'Tweet numeric ID (e.g. 1234567890) or full status URL' },
         { name: 'limit', type: 'int', default: 50 },
     ],
     columns: ['id', 'author', 'text', 'likes', 'retweets', 'url', 'has_media', 'media_urls'],

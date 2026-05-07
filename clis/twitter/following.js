@@ -140,7 +140,13 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'user', positional: true, type: 'string', required: false },
+        {
+            name: 'user',
+            positional: true,
+            type: 'string',
+            required: false,
+            help: 'Twitter/X handle (with or without @). Omit to fetch the accounts the currently logged-in user follows.',
+        },
         { name: 'limit', type: 'int', default: 50 },
     ],
     columns: ['screen_name', 'name', 'bio', 'followers'],
