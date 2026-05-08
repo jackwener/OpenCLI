@@ -27,4 +27,12 @@ describe('browserFetch', () => {
         const result = await browserFetch(page, 'GET', 'https://creator.douyin.com/api/test');
         expect(result).toEqual({ some_field: 'value' });
     });
+    it('throws on empty response body (null from evaluate)', async () => {
+        const page = makePage(null);
+        await expect(browserFetch(page, 'GET', 'https://creator.douyin.com/api/test')).rejects.toThrow('Empty response from Douyin API');
+    });
+    it('throws on undefined response body', async () => {
+        const page = makePage(undefined);
+        await expect(browserFetch(page, 'GET', 'https://creator.douyin.com/api/test')).rejects.toThrow('Empty response from Douyin API');
+    });
 });
