@@ -62,6 +62,10 @@ later optimization, not the root cause fix.
 - OpenCLI already has the right low-level plumbing: `IPage.cdp`,
   `nativeClick`, `nativeType`, `nativeKeyPress`, `setFileInput`, and extension
   CDP passthrough including `Accessibility.getFullAXTree`.
+- Extension CDP passthrough already allows `Input.dispatchMouseEvent`,
+  `Accessibility.getFullAXTree`, and `DOM.getBoxModel`. It does not currently
+  allow `DOM.describeNode`; AX subtree/iframe work must add that allowlist entry
+  before depending on it.
 - OpenCLI exposes fewer general browser primitives than agent-browser:
   `hover`, `focus`, `check`, `uncheck`, `dblclick`, `drag`, `upload`, and
   `wait download` are not a consistent first-class CLI surface.
@@ -115,7 +119,8 @@ Do not copy blindly:
 - Add command surface only when it maps to a distinct browser task and reduces
   real agent calls.
 - Keep adapter compatibility explicit. Any change to default click/type/fill
-  behavior must include tests and an escape plan.
+  behavior must run full adapter tests. Escape hatches are emergency plan B, not
+  a reason to merge known regressions.
 
 ## Architecture
 
@@ -144,6 +149,10 @@ The Browser Bridge and direct CDP implementation can both use:
 
 This is the P0 fix for Mercury dropdowns: CDP mouse primary for `click`, with
 DOM `el.click()` only as fallback.
+
+This does not change `browser select`. Native `<select>` remains a separate
+operation that sets selected options and dispatches `change`, matching both
+OpenCLI's current behavior and agent-browser's `select_option` behavior.
 
 ### AX Observation And Refs
 
@@ -176,9 +185,13 @@ Resolution order:
 The first rollout should be additive:
 
 - keep current `browser state` output stable,
-- add an internal AX ref map used by actions when available,
-- later expose `browser snapshot --source ax` or promote AX as default after
-  fixture coverage.
+- Phase 0: add an internal or opt-in AX prototype; do not change the default
+  `browser state` text output,
+- Phase 1 decision point: either promote AX to default observation or keep it
+  opt-in,
+- decision criteria: fixture pass rate, stale-ref recovery rate, manual SaaS
+  results, adapter compatibility, and snapshot token size versus the current DOM
+  snapshot.
 
 ### Frame Routing
 
@@ -203,11 +216,17 @@ prevents known silent failures:
 1. resolve target/ref,
 2. scroll into view when CDP supports it,
 3. measure a non-zero bounding box,
-4. reject obvious hidden/disabled/not-editable cases for relevant actions,
-5. dispatch native input.
+4. dispatch native input.
 
-Later add stability and receives-events checks only if the fixture matrix shows
-real failures. Each added wait/check has compatibility and latency cost.
+Boundary by phase:
+
+- MVP: scroll into view plus non-zero bounding box only.
+- Phase 1: add visible/enabled/not-editable checks if the target action needs
+  them and compatibility remains clean.
+- Phase 2: add stability and receives-events checks only if fixtures or manual
+  SaaS cases show real failures.
+
+Each added wait/check has compatibility and latency cost.
 
 Typed statuses:
 
@@ -268,10 +287,10 @@ general AI `act` command.
 
 | Area | Risk | Policy |
 |---|---|---|
-| `browser click` | Native CDP input triggers pointer/mouse handlers that DOM `el.click()` skipped. This is intended, but can expose sites that depended on synthetic click. | Make CDP primary with JS fallback. Keep an internal env escape hatch for one release if adapter regressions appear. |
+| `browser click` | Native CDP input triggers pointer/mouse handlers that DOM `el.click()` skipped. This is intended, but can expose sites that depended on synthetic click. | Make CDP primary with JS fallback. Run full adapter tests; all new failures are blockers unless proven unrelated. Keep an internal env escape hatch for one release only as emergency rollback support. |
 | `browser type` | CDP input can differ from DOM mutation for rich editors. | Keep existing output shape and verification. Prefer native type where already available. |
 | `browser fill` | Fill must remain exact replacement, not append typing. | Preserve exact-set semantics; native input only after clearing/focus preparation. |
-| `browser select` | Native select behavior is already established. | Do not overload for custom dropdowns. |
+| `browser select` | Native select behavior is already established. | Do not overload for custom dropdowns. CDP-primary click does not affect `browser select`; it keeps the JS option setter/change-event path. |
 | Ref format | Agents and docs depend on compact refs. | Add metadata internally first; avoid breaking text output. |
 | Extension support | Older extensions may lack a CDP command. | Detect unsupported backend and return typed diagnostic or fallback. |
 | Adapter code | 770+ commands may rely on current page helpers. | Run targeted browser/unit tests plus full adapter tests before changing defaults. |
@@ -289,6 +308,12 @@ Scope:
 - AX snapshot/ref-map prototype with role/name/nth re-resolution,
 - native type/fill normalization where existing behavior is already close.
 
+Out of scope for Phase 0:
+
+- iframe/frame-aware action routing,
+- full actionability,
+- `browser choose`.
+
 Exit:
 
 - Mercury-like custom select can be completed with
@@ -296,11 +321,13 @@ Exit:
 - No silent "clicked true but no UI event chain" failure remains for fixture
   dropdowns.
 - Existing adapter tests do not regress.
+- Quantitative gates from `docs/design/mercury-fix-mvp.md` pass.
 
 ### Phase 1: Ref And Observation Upgrade
 
 Scope:
 
+- decide AX default versus opt-in based on Phase 0 metrics,
 - AX-backed `browser state` or `browser snapshot` option,
 - ref cache that stores backend node id, role/name/nth, frame context,
 - iframe-aware action routing,
@@ -346,9 +373,20 @@ Track both reliability and call count.
 Mercury-like custom select:
 
 - current OpenCLI baseline: often fails because click is DOM `el.click()`;
-- Phase 0 target: reliable 4-step snapshot/action loop;
+- Phase 0 target: reliable 4-step snapshot/action loop, with fixture pass rate
+  at least `N-1/N` after recording baseline;
 - Phase 3 target, only if warranted: deterministic 1-step `choose` after
   target discovery.
+
+Stale-ref recovery:
+
+- Phase 0 AX prototype target: at least 9/10 repeated React re-render fixture
+  runs recover through role/name/nth.
+
+Compatibility:
+
+- Any PR changing default click/type/fill behavior must run full adapter tests.
+  New failures are merge blockers unless proven unrelated to the PR.
 
 Fixture matrix:
 
@@ -378,6 +416,16 @@ Manual SaaS matrix:
 
 Manual matrix is not a CI gate at first. It is the calibration set for deciding
 whether OpenCLI is approaching agent-browser reliability.
+
+Execution process:
+
+- Phase 0 completion: @opencli-质量官 runs Mercury, Brex, and Linear when access
+  is available.
+- Pass means the relevant category/field can be selected and the form state can
+  be saved or committed.
+- Failures do not block the already-shipped MVP unless they expose a regression,
+  but they become Phase 1 backlog with exact command sequence and failure
+  reason.
 
 ## Test Strategy
 
