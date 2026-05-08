@@ -421,6 +421,9 @@ Execution process:
 
 - Phase 0 completion: @opencli-质量官 runs Mercury, Brex, and Linear when access
   is available.
+- On each form page, collect `opencli browser state --compare-sources` so the AX
+  default decision has DOM-vs-AX metrics: refs, frame sections, approximate
+  tokens, elapsed time, and per-source errors.
 - Pass means the relevant category/field can be selected and the form state can
   be saved or committed.
 - Failures do not block the already-shipped MVP unless they expose a regression,

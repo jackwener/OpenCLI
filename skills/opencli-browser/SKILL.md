@@ -130,6 +130,8 @@ Error envelope always includes `error.code` and `error.message`. Target errors (
 | command | purpose |
 |---------|---------|
 | `browser state` | Snapshot: text tree with `[N]` refs, scroll hints, hidden-interactive hints, `compounds (N):` sidecar for date/select/file refs. |
+| `browser state --source ax` | Opt-in accessibility-tree snapshot. Use when custom controls, portals, or same-origin iframes are hard to identify in normal `state`. AX refs can recover stale React re-renders by role/name/nth. |
+| `browser state --compare-sources` | Metrics-only DOM vs AX comparison for deciding whether AX should become default. It prints counts and sizes, not page text, so it is safer to share for validation. |
 | `browser find --css <sel> [--limit N] [--text-max N]` | Run a CSS query and return one entry per match with `{nth, ref, tag, role, text, attrs, visible, compound?}`. Allocates refs for matches the prior snapshot didn't tag. Cheap alternative to `state` when you already know the selector. |
 | `browser frames` | List cross-origin iframe targets. Pass the index to `--frame` on `eval`. |
 | `browser screenshot [path]` | Viewport PNG. No path → base64 to stdout. Prefer `state` when you just need structure. |
@@ -321,6 +323,38 @@ opencli browser find --css "select[name=country]"
 opencli browser select 12 "Uruguay"
 opencli browser get value 12                   # { value: "uy", match_level: "exact" }
 ```
+
+### Pick from a custom React dropdown
+
+Use this for Radix, shadcn, Material UI, Mercury-style category fields, and
+other controls that are not native `<select>`.
+
+```bash
+opencli browser state                          # find category trigger ref
+# If the trigger/option is not clear, use AX:
+opencli browser state --source ax              # look for combobox/button/listbox/option names
+opencli browser click 7                        # click category trigger
+opencli browser state --source ax              # fresh refs after the portal/listbox opens
+opencli browser click 12                       # click option
+opencli browser get text 7                     # verify visible selected label
+```
+
+Do not use `browser select` on these widgets. `browser select` is only for
+native `<select>` elements. Custom dropdowns should be driven with
+`state -> click trigger -> state -> click option -> verify`.
+
+### Compare DOM vs AX observation
+
+When deciding whether AX refs are better for a page, collect metrics without
+sharing page contents:
+
+```bash
+opencli browser state --compare-sources
+```
+
+Report `sources.dom.refs`, `sources.ax.refs`, `frame_sections`,
+`approx_tokens`, `elapsed_ms`, and any per-source `error`. Use this before
+arguing that AX should become the default on a site.
 
 ### Scrape a list via network instead of DOM
 

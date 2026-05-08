@@ -183,6 +183,16 @@ Keep this additive. Do not replace `browser state` default in the same PR.
 Frame-aware routing is not part of the MVP. It moves to Phase 1 because the
 Mercury exit criteria do not require iframe support.
 
+Status after implementation:
+
+- PR 1 shipped CDP-primary click and component fixtures.
+- PR 2 shipped opt-in `browser state --source ax`, backend-node ref clicks, and
+  stale role/name/nth recovery.
+- Phase 1 same-origin iframe refs shipped for AX snapshots; cross-origin
+  session routing remains deferred.
+- Phase 1 metrics shipped as `browser state --compare-sources` so AX default
+  promotion can be decided from measured DOM-vs-AX data.
+
 ## Phase 1 Follow-Up
 
 - carry same-origin `frameId` and cross-origin session id when available,
@@ -230,6 +240,9 @@ Manual SaaS check:
   credentials/access are available.
 - Pass means the workflow can select the relevant category/field and save or
   commit the form state.
+- For each site, also run `opencli browser state --compare-sources` on the form
+  page and record `sources.dom.refs`, `sources.ax.refs`, `frame_sections`,
+  `approx_tokens`, `elapsed_ms`, and any per-source `error`.
 - Failure does not block MVP retroactively, but each failure must be recorded as
   a Phase 1 backlog item with observed command sequence and failure reason.
 
