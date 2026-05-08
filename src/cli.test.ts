@@ -866,6 +866,48 @@ describe('browser tab targeting commands', () => {
     expect(browserState.page?.snapshot).toHaveBeenCalledWith({ viewportExpand: 2000, source: 'ax' });
   });
 
+  it('prints DOM vs AX snapshot metrics without changing default state output', async () => {
+    browserState.page = {
+      ...browserState.page,
+      snapshot: vi.fn(async (opts?: { source?: string }) => {
+        if (opts?.source === 'ax') {
+          return 'source: ax\n---\n[1]button "Save"\nframe "https://app.example/embed":\n  [2]button "Frame Save"\n---\ninteractive: 2';
+        }
+        return 'URL: https://app.example\n[1] button "Save"';
+      }),
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'state', '--compare-sources']);
+
+    expect(browserState.page?.snapshot).toHaveBeenCalledWith({ viewportExpand: 2000, source: 'dom' });
+    expect(browserState.page?.snapshot).toHaveBeenCalledWith({ viewportExpand: 2000, source: 'ax' });
+    const out = lastJsonLog();
+    expect(out.url).toBe('https://one.example');
+    expect(out.sources.dom).toMatchObject({ ok: true, refs: 1, frame_sections: 0 });
+    expect(out.sources.ax).toMatchObject({ ok: true, refs: 2, frame_sections: 1, interactive: 2 });
+  });
+
+  it('keeps compare-sources usable when one observation backend fails', async () => {
+    browserState.page = {
+      ...browserState.page,
+      snapshot: vi.fn(async (opts?: { source?: string }) => {
+        if (opts?.source === 'ax') throw new Error('AX unavailable');
+        return '[1] button "Save"';
+      }),
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'state', '--compare-sources']);
+
+    const out = lastJsonLog();
+    expect(out.sources.dom).toMatchObject({ ok: true, refs: 1 });
+    expect(out.sources.ax).toMatchObject({
+      ok: false,
+      error: { message: 'AX unavailable' },
+    });
+  });
+
   it('rejects unknown browser state sources before touching the page', async () => {
     const program = createProgram('', '');
 

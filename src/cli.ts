@@ -36,7 +36,7 @@ import { log } from './logger.js';
 import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
-import type { ScreenshotOptions } from './types.js';
+import type { IPage, ScreenshotOptions } from './types.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
@@ -439,6 +439,45 @@ function getPageWorkspace(page: import('./types.js').IPage): string {
 function getPageScope(page: import('./types.js').IPage): string {
   const contextId = (page as unknown as { contextId?: unknown }).contextId;
   return getBrowserScope(getPageWorkspace(page), typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined);
+}
+
+type SnapshotSource = 'dom' | 'ax';
+
+function snapshotMetricText(snapshot: unknown): string {
+  return typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot, null, 2);
+}
+
+function snapshotMetrics(snapshot: unknown, elapsedMs: number): Record<string, unknown> {
+  const text = snapshotMetricText(snapshot);
+  const interactiveMatch = text.match(/^interactive:\s*(\d+)\s*$/m);
+  return {
+    ok: true,
+    chars: text.length,
+    bytes: Buffer.byteLength(text, 'utf8'),
+    lines: text ? text.split(/\r?\n/).length : 0,
+    approx_tokens: Math.ceil(text.length / 4),
+    refs: (text.match(/(^|\n)\s*\[\d+\]/g) ?? []).length,
+    frame_sections: (text.match(/(^|\n)frame /g) ?? []).length,
+    ...(interactiveMatch ? { interactive: Number(interactiveMatch[1]) } : {}),
+    elapsed_ms: elapsedMs,
+  };
+}
+
+async function snapshotSourceMetrics(page: IPage, source: SnapshotSource): Promise<Record<string, unknown>> {
+  const started = Date.now();
+  try {
+    const snapshot = await page.snapshot({ viewportExpand: 2000, source });
+    return snapshotMetrics(snapshot, Date.now() - started);
+  } catch (err) {
+    return {
+      ok: false,
+      elapsed_ms: Date.now() - started,
+      error: {
+        ...(err instanceof Error && 'code' in err ? { code: String((err as { code?: unknown }).code) } : {}),
+        message: err instanceof Error ? err.message : String(err),
+      },
+    };
+  }
 }
 
 function resolveBrowserTabTarget(targetId?: string, opts?: { tab?: string } | Command): string | undefined {
@@ -975,8 +1014,20 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   // ── Inspect ──
 
   addBrowserTabOption(browser.command('state').description('Page state: URL, title, interactive elements with [N] indices')
-    .option('--source <source>', 'Snapshot backend: dom (default) or ax prototype', 'dom'))
+    .option('--source <source>', 'Snapshot backend: dom (default) or ax prototype', 'dom')
+    .option('--compare-sources', 'Print DOM vs AX snapshot metrics for observation promotion decisions', false))
     .action(browserAction(async (page, opts) => {
+      if (opts.compareSources === true) {
+        const [dom, ax] = await Promise.all([
+          snapshotSourceMetrics(page, 'dom'),
+          snapshotSourceMetrics(page, 'ax'),
+        ]);
+        console.log(JSON.stringify({
+          url: await page.getCurrentUrl?.() ?? '',
+          sources: { dom, ax },
+        }, null, 2));
+        return;
+      }
       const source = String(opts.source ?? 'dom').toLowerCase();
       if (source !== 'dom' && source !== 'ax') {
         console.log(JSON.stringify({
