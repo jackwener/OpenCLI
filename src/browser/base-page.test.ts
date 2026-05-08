@@ -282,6 +282,90 @@ describe('BasePage native input routing', () => {
     expect(page.scripts.join('\n')).not.toContain('el.click()');
   });
 
+  it('clicks AX snapshot refs through backend node coordinates without DOM resolver', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    page.cdp = vi.fn()
+      .mockResolvedValueOnce({
+        nodes: [
+          { nodeId: '1', role: { value: 'RootWebArea' }, name: { value: 'Demo' }, childIds: ['2'] },
+          { nodeId: '2', role: { value: 'button' }, name: { value: 'Submit' }, backendDOMNodeId: 10 },
+        ],
+      })
+      .mockResolvedValueOnce({
+        model: { content: [10, 20, 50, 20, 50, 40, 10, 40] },
+      });
+
+    await expect(page.snapshot({ source: 'ax' })).resolves.toContain('[1]button "Submit"');
+    await expect(page.click('1')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).toHaveBeenNthCalledWith(1, 'Accessibility.getFullAXTree', {});
+    expect(page.cdp).toHaveBeenNthCalledWith(2, 'DOM.getBoxModel', { backendNodeId: 10 });
+    expect(page.nativeClick).toHaveBeenCalledWith(30, 30);
+    expect(page.scripts).toHaveLength(0);
+  });
+
+  it('recovers stale AX refs by role/name/nth before clicking', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    let axCalls = 0;
+    page.cdp = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'Accessibility.getFullAXTree') {
+        axCalls++;
+        return {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, name: { value: 'Demo' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Submit' }, backendDOMNodeId: axCalls === 1 ? 10 : 42 },
+          ],
+        };
+      }
+      if (method === 'DOM.getBoxModel') {
+        if (params?.backendNodeId === 10) throw new Error('No node with given id found');
+        return { model: { content: [100, 200, 140, 200, 140, 220, 100, 220] } };
+      }
+      return {};
+    });
+
+    await page.snapshot({ source: 'ax' });
+    await expect(page.click('1')).resolves.toEqual({ matches_n: 1, match_level: 'reidentified' });
+
+    expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 10 });
+    expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 42 });
+    expect(page.nativeClick).toHaveBeenCalledWith(120, 210);
+  });
+
+  it('recovers AX refs across 10 repeated React-style rerenders', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    let currentBackendId = 100;
+    const staleBackendIds = new Set<number>();
+    page.cdp = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'Accessibility.getFullAXTree') {
+        return {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, name: { value: 'Demo' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Submit' }, backendDOMNodeId: currentBackendId },
+          ],
+        };
+      }
+      if (method === 'DOM.getBoxModel') {
+        const id = params?.backendNodeId as number;
+        if (staleBackendIds.has(id)) throw new Error('No node with given id found');
+        return { model: { content: [id, id, id + 20, id, id + 20, id + 10, id, id + 10] } };
+      }
+      return {};
+    });
+
+    await page.snapshot({ source: 'ax' });
+    for (let i = 0; i < 10; i++) {
+      staleBackendIds.add(currentBackendId);
+      currentBackendId += 1;
+      await expect(page.click('1')).resolves.toEqual({ matches_n: 1, match_level: 'reidentified' });
+    }
+
+    expect(page.nativeClick).toHaveBeenCalledTimes(10);
+  });
+
   it('falls back to JS el.click() when nativeClick is unavailable', async () => {
     const page = new ActionPage();
     page.results = [

@@ -974,9 +974,21 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Inspect ──
 
-  addBrowserTabOption(browser.command('state').description('Page state: URL, title, interactive elements with [N] indices'))
-    .action(browserAction(async (page) => {
-      const snapshot = await page.snapshot({ viewportExpand: 2000 });
+  addBrowserTabOption(browser.command('state').description('Page state: URL, title, interactive elements with [N] indices')
+    .option('--source <source>', 'Snapshot backend: dom (default) or ax prototype', 'dom'))
+    .action(browserAction(async (page, opts) => {
+      const source = String(opts.source ?? 'dom').toLowerCase();
+      if (source !== 'dom' && source !== 'ax') {
+        console.log(JSON.stringify({
+          error: {
+            code: 'invalid_source',
+            message: `--source must be "dom" or "ax", got "${opts.source}"`,
+          },
+        }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const snapshot = await page.snapshot({ viewportExpand: 2000, source: source as 'dom' | 'ax' });
       const url = await page.getCurrentUrl?.() ?? '';
       console.log(`URL: ${url}\n`);
       console.log(typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot, null, 2));

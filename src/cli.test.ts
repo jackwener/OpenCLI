@@ -858,6 +858,25 @@ describe('browser tab targeting commands', () => {
     expect(browserState.page?.snapshot).toHaveBeenCalled();
   });
 
+  it('passes the opt-in AX source to browser state', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'state', '--source', 'ax']);
+
+    expect(browserState.page?.snapshot).toHaveBeenCalledWith({ viewportExpand: 2000, source: 'ax' });
+  });
+
+  it('rejects unknown browser state sources before touching the page', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'state', '--source', 'magic']);
+
+    expect(browserState.page?.snapshot).not.toHaveBeenCalled();
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('invalid_source');
+    expect(process.exitCode).toBeDefined();
+  });
+
   it('blocks history navigation on bound workspaces unless explicitly allowed', async () => {
     browserState.page = {
       ...browserState.page,

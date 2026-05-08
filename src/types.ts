@@ -22,6 +22,8 @@ export interface SnapshotOptions {
   raw?: boolean;
   viewportExpand?: number;
   maxTextLength?: number;
+  /** Observation backend. `dom` is the stable default; `ax` is an opt-in prototype. */
+  source?: 'dom' | 'ax';
 }
 
 export interface WaitOptions {

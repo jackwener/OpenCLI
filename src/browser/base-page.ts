@@ -11,6 +11,7 @@
 
 import type { BrowserCookie, FetchJsonOptions, IPage, ScreenshotOptions, SnapshotOptions, WaitOptions } from '../types.js';
 import { generateSnapshotJs, getFormStateJs } from './dom-snapshot.js';
+import { buildAxSnapshot, findAxRefReplacement, type BrowserRef } from './ax-snapshot.js';
 import {
   pressKeyJs,
   waitForTextJs,
@@ -109,6 +110,7 @@ export abstract class BasePage implements IPage {
   /** Cached previous snapshot hashes for incremental diff marking */
   private _prevSnapshotHashes: string | null = null;
   private _cdpTargetMarkerSeq = 0;
+  private _axRefs = new Map<string, BrowserRef>();
 
   // ── Transport-specific methods (must be implemented by subclasses) ──
 
@@ -235,6 +237,9 @@ export abstract class BasePage implements IPage {
   // ── Shared DOM helper implementations ──
 
   async click(ref: string, opts: ResolveOptions = {}): Promise<ResolveSuccess> {
+    const axClick = await this.tryClickAxRef(ref);
+    if (axClick) return axClick;
+
     // Phase 1: Resolve target with fingerprint verification
     const resolved = await runResolve(this, ref, opts);
     const nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
@@ -280,6 +285,60 @@ export abstract class BasePage implements IPage {
     } catch {
       return false;
     }
+  }
+
+  protected async tryClickAxRef(ref: string): Promise<ResolveSuccess | null> {
+    if (!/^\d+$/.test(ref)) return null;
+    const entry = this._axRefs.get(ref);
+    if (!entry) return null;
+    const nativeClick = (this as IPage).nativeClick;
+    if (typeof nativeClick !== 'function') return null;
+
+    const resolved = await this.resolveAxRefPoint(entry);
+    if (!resolved) return null;
+    try {
+      await nativeClick.call(this, resolved.x, resolved.y);
+      return { matches_n: 1, match_level: resolved.matchLevel };
+    } catch {
+      return null;
+    }
+  }
+
+  private async resolveAxRefPoint(entry: BrowserRef): Promise<{ x: number; y: number; matchLevel: TargetMatchLevel } | null> {
+    const cdp = (this as IPage).cdp;
+    if (typeof cdp !== 'function') return null;
+
+    if (entry.backendNodeId != null) {
+      const point = await this.axBoxCenter(entry.backendNodeId).catch(() => null);
+      if (point) return { ...point, matchLevel: 'exact' };
+    }
+
+    const axTree = await cdp.call(this, 'Accessibility.getFullAXTree', {}).catch(() => null);
+    const recovered = findAxRefReplacement(axTree, entry);
+    if (!recovered?.backendNodeId) return null;
+    this._axRefs.set(entry.ref, recovered);
+    const point = await this.axBoxCenter(recovered.backendNodeId).catch(() => null);
+    return point ? { ...point, matchLevel: 'reidentified' } : null;
+  }
+
+  private async axBoxCenter(backendNodeId: number): Promise<{ x: number; y: number } | null> {
+    const cdp = (this as IPage).cdp;
+    if (typeof cdp !== 'function') return null;
+    const result = await cdp.call(this, 'DOM.getBoxModel', { backendNodeId }) as
+      | { model?: { content?: unknown[]; border?: unknown[] } }
+      | null;
+    const quad = Array.isArray(result?.model?.content) && result.model.content.length >= 8
+      ? result.model.content
+      : Array.isArray(result?.model?.border) && result.model.border.length >= 8
+        ? result.model.border
+        : null;
+    if (!quad) return null;
+    const nums = quad.slice(0, 8).map((value) => typeof value === 'number' ? value : Number(value));
+    if (nums.some((value) => !Number.isFinite(value))) return null;
+    return {
+      x: Math.round((nums[0] + nums[2] + nums[4] + nums[6]) / 4),
+      y: Math.round((nums[1] + nums[3] + nums[5] + nums[7]) / 4),
+    };
   }
 
   /** Uses native CDP text insertion when the concrete page exposes it. */
@@ -527,6 +586,25 @@ export abstract class BasePage implements IPage {
   }
 
   async snapshot(opts: SnapshotOptions = {}): Promise<unknown> {
+    if (opts.source === 'ax') {
+      const cdp = (this as IPage).cdp;
+      if (typeof cdp !== 'function') {
+        throw new CliError(
+          'BROWSER_AX_UNAVAILABLE',
+          'AX snapshot requires CDP support from the active browser backend.',
+          'Use the default DOM state, or update/reload the Browser Bridge extension.',
+        );
+      }
+      const axTree = await cdp.call(this, 'Accessibility.getFullAXTree', {});
+      const built = buildAxSnapshot(axTree, {
+        maxDepth: opts.maxDepth,
+        interactiveOnly: opts.interactive,
+      });
+      this._axRefs = built.refs;
+      return built.text;
+    }
+
+    this._axRefs.clear();
     const snapshotJs = generateSnapshotJs({
       viewportExpand: opts.viewportExpand ?? 2000,
       maxDepth: Math.max(1, Math.min(Number(opts.maxDepth) || 50, 200)),
