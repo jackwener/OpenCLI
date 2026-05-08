@@ -264,6 +264,30 @@ describe('background tab isolation', () => {
     ]);
   });
 
+  it('allows Accessibility.enable through the guarded CDP passthrough', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async () => ({}));
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId('site:twitter', 1);
+
+    const result = await mod.__test__.handleCommand({
+      id: 'ax-enable',
+      action: 'cdp',
+      workspace: 'site:twitter',
+      cdpMethod: 'Accessibility.enable',
+      cdpParams: {},
+    });
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.debugger.sendCommand).toHaveBeenCalledWith(
+      { tabId: 1 },
+      'Accessibility.enable',
+      {},
+    );
+  });
+
   it('routes exec frameIndex through the same cross-origin frame ordering as handleFrames', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);

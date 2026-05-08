@@ -1333,6 +1333,7 @@ async function handleScreenshot(cmd: Command, workspace: string): Promise<Result
 /** CDP methods permitted via the 'cdp' passthrough action. */
 const CDP_ALLOWLIST = new Set([
   // Agent DOM context
+  'Accessibility.enable',
   'Accessibility.getFullAXTree',
   'DOM.enable',
   'DOM.getDocument',

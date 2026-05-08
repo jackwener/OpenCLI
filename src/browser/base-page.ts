@@ -318,6 +318,7 @@ export abstract class BasePage implements IPage {
       if (point) return { ...point, matchLevel: 'exact' };
     }
 
+    await cdp.call(this, 'Accessibility.enable', {});
     const axTree = await cdp.call(this, 'Accessibility.getFullAXTree', axTreeParams(entry.frame)).catch(() => null);
     const recovered = findAxRefReplacement(axTree, entry);
     if (!recovered?.backendNodeId) return null;
@@ -642,6 +643,7 @@ export abstract class BasePage implements IPage {
   private async collectAxSnapshotTrees(
     cdp: (method: string, params?: Record<string, unknown>) => Promise<unknown>,
   ): Promise<AxSnapshotTree[]> {
+    await cdp.call(this, 'Accessibility.enable', {});
     const rootTree = await cdp.call(this, 'Accessibility.getFullAXTree', {});
     const trees: AxSnapshotTree[] = [{ tree: rootTree }];
 

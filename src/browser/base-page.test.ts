@@ -308,6 +308,8 @@ describe('BasePage native input routing', () => {
     await expect(page.snapshot({ source: 'ax' })).resolves.toContain('[1]button "Submit"');
     await expect(page.click('1')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
 
+    expect(page.cdp).toHaveBeenNthCalledWith(1, 'Accessibility.enable', {});
+    expect(page.cdp).toHaveBeenNthCalledWith(2, 'Accessibility.getFullAXTree', {});
     expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', {});
     expect(page.cdp).toHaveBeenCalledWith('Page.getFrameTree', {});
     expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 10 });
@@ -405,6 +407,7 @@ describe('BasePage native input routing', () => {
     await page.snapshot({ source: 'ax' });
     await expect(page.click('2')).resolves.toEqual({ matches_n: 1, match_level: 'reidentified' });
 
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.enable', {});
     expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'same-frame' });
     expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 20 });
     expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 42 });
