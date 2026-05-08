@@ -377,6 +377,11 @@ export class Page extends BasePage {
 
   async nativeClick(x: number, y: number): Promise<void> {
     await this.cdp('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x,
+      y,
+    });
+    await this.cdp('Input.dispatchMouseEvent', {
       type: 'mousePressed',
       x, y,
       button: 'left',

@@ -27,6 +27,7 @@ class ActionPage extends BasePage {
   nativeType?: (text: string) => Promise<void>;
   insertText?: (text: string) => Promise<void>;
   nativeKeyPress?: (key: string, modifiers?: string[]) => Promise<void>;
+  nativeClick?: (x: number, y: number) => Promise<void>;
   cdp?: (method: string, params?: Record<string, unknown>) => Promise<unknown>;
 
   async goto(): Promise<void> {}
@@ -249,20 +250,86 @@ describe('BasePage native input routing', () => {
     expect((err as TargetError).code).toBe('not_editable');
   });
 
-  it('uses CDP DOM scrollIntoViewIfNeeded before JS click when available', async () => {
+  it('uses CDP DOM scrollIntoViewIfNeeded before measuring rect for click', async () => {
     const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
     page.cdp = vi.fn()
       .mockResolvedValueOnce({})
       .mockResolvedValueOnce({ root: { nodeId: 1 } })
       .mockResolvedValueOnce({ nodeId: 9 })
       .mockResolvedValueOnce({});
-    page.results = [resolveOk, { status: 'clicked', x: 1, y: 2 }];
+    page.results = [resolveOk, { x: 50, y: 100, w: 200, h: 32, visible: true }];
     page.withArgsResults = [{ ok: true }, undefined];
 
     await page.click('#save');
 
     expect(page.cdp).toHaveBeenCalledWith('DOM.scrollIntoViewIfNeeded', { nodeId: 9 });
+    // After CDP scroll, boundingRectResolvedJs runs with skipScroll=true.
     expect(page.scripts.at(-1)).toContain('if (false) el.scrollIntoView');
+  });
+
+  it('clicks via CDP Input.dispatchMouseEvent when rect is visible', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    page.results = [resolveOk, { x: 50, y: 100, w: 200, h: 32, visible: true }];
+
+    await page.click('#category');
+
+    expect(page.nativeClick).toHaveBeenCalledWith(50, 100);
+    expect(page.nativeClick).toHaveBeenCalledTimes(1);
+    expect(page.scripts).toHaveLength(2);
+    expect(page.scripts[1]).toContain('getBoundingClientRect');
+    expect(page.scripts.join('\n')).not.toContain('el.click()');
+  });
+
+  it('falls back to JS el.click() when nativeClick is unavailable', async () => {
+    const page = new ActionPage();
+    page.results = [
+      resolveOk,
+      { x: 50, y: 100, w: 200, h: 32, visible: true },
+      { status: 'clicked', x: 50, y: 100 },
+    ];
+
+    await page.click('#save');
+
+    expect(page.scripts).toHaveLength(3);
+    expect(page.scripts[1]).toContain('getBoundingClientRect');
+    expect(page.scripts[2]).toContain('el.click()');
+  });
+
+  it('falls back to JS el.click() when rect is zero-area', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    page.results = [
+      resolveOk,
+      { x: 0, y: 0, w: 0, h: 0, visible: false },
+      { status: 'clicked', x: 0, y: 0 },
+    ];
+
+    await page.click('#hidden');
+
+    expect(page.nativeClick).not.toHaveBeenCalled();
+    expect(page.scripts).toHaveLength(3);
+    expect(page.scripts[2]).toContain('el.click()');
+  });
+
+  it('retries CDP click when JS path throws but yields coordinates', async () => {
+    const page = new ActionPage();
+    const nativeClick = vi.fn()
+      .mockRejectedValueOnce(new Error('cdp transient'))
+      .mockResolvedValueOnce(undefined);
+    page.nativeClick = nativeClick;
+    page.results = [
+      resolveOk,
+      { x: 10, y: 20, w: 100, h: 30, visible: true },
+      { status: 'js_failed', x: 10, y: 20, error: 'click intercepted' },
+    ];
+
+    await page.click('#flaky');
+
+    expect(nativeClick).toHaveBeenCalledTimes(2);
+    expect(nativeClick).toHaveBeenNthCalledWith(1, 10, 20);
+    expect(nativeClick).toHaveBeenNthCalledWith(2, 10, 20);
   });
 
   it('presses key chords through native CDP key events when available', async () => {

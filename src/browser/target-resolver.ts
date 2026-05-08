@@ -295,8 +295,37 @@ export function resolveTargetJs(ref: string, opts: ResolveOptions = {}): string 
 }
 
 /**
+ * Generate JS that scrolls + measures `__resolved` without clicking.
+ *
+ * Generic click prefers CDP `Input.dispatchMouseEvent`, which fires the full
+ * pointer/mouse chain that Radix/MUI/shadcn dropdowns rely on. Keep measurement
+ * separate so the CDP-primary path does not call DOM `el.click()` first.
+ */
+export function boundingRectResolvedJs(opts: { skipScroll?: boolean } = {}): string {
+  const shouldScroll = opts.skipScroll ? 'false' : 'true';
+  return `
+    (() => {
+      const el = window.__resolved;
+      if (!el) throw new Error('No resolved element');
+      if (${shouldScroll}) el.scrollIntoView({ behavior: 'instant', block: 'center' });
+      const rect = el.getBoundingClientRect();
+      const w = Math.round(rect.width);
+      const h = Math.round(rect.height);
+      const x = Math.round(rect.left + rect.width / 2);
+      const y = Math.round(rect.top + rect.height / 2);
+      const visible = w > 0 && h > 0;
+      return { x, y, w, h, visible };
+    })()
+  `;
+}
+
+/**
  * Generate JS for click that uses the unified resolver.
  * Assumes resolveTargetJs has been called and __resolved is set.
+ *
+ * This is the JS fallback path. BasePage.click uses boundingRectResolvedJs for
+ * the CDP-primary path and only reaches this when native click is unavailable
+ * or the target has no usable rect.
  */
 export function clickResolvedJs(opts: { skipScroll?: boolean } = {}): string {
   const shouldScroll = opts.skipScroll ? 'false' : 'true';

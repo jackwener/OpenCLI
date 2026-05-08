@@ -89,6 +89,7 @@ describe('CDPBridge cookies', () => {
       ['Input.insertText', { text: 'hello' }],
       ['Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', modifiers: 2 }],
       ['Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', modifiers: 2 }],
+      ['Input.dispatchMouseEvent', { type: 'mouseMoved', x: 10, y: 20 }],
       ['Input.dispatchMouseEvent', { type: 'mousePressed', x: 10, y: 20, button: 'left', clickCount: 1 }],
       ['Input.dispatchMouseEvent', { type: 'mouseReleased', x: 10, y: 20, button: 'left', clickCount: 1 }],
       ['Page.handleJavaScriptDialog', { accept: true, promptText: 'ok' }],

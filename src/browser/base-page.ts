@@ -23,6 +23,7 @@ import {
 } from './dom-helpers.js';
 import {
   resolveTargetJs,
+  boundingRectResolvedJs,
   clickResolvedJs,
   typeResolvedJs,
   prepareNativeTypeResolvedJs,
@@ -238,7 +239,19 @@ export abstract class BasePage implements IPage {
     const resolved = await runResolve(this, ref, opts);
     const nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
 
-    // Phase 2: Execute click on resolved element
+    // Phase 2: measure first so native click can run before DOM el.click().
+    // Custom dropdowns often listen to pointer/mouse down/up; DOM el.click()
+    // only fires click and can silently report success without opening/selecting.
+    const rect = await this.evaluate(boundingRectResolvedJs({ skipScroll: nativeScrolled })) as
+      | { x: number; y: number; w: number; h: number; visible: boolean }
+      | null;
+
+    if (rect?.visible === true) {
+      const success = await this.tryNativeClick(rect.x, rect.y);
+      if (success) return resolved;
+    }
+
+    // JS fallback for older backends or zero-rect targets.
     const result = await this.evaluate(clickResolvedJs({ skipScroll: nativeScrolled })) as
       | string
       | { status: string; x?: number; y?: number; w?: number; h?: number; error?: string }
