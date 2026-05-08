@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAxSnapshot, findAxRefReplacement } from './ax-snapshot.js';
+import { buildAxSnapshot, buildAxSnapshotFromTrees, findAxRefReplacement } from './ax-snapshot.js';
 
 describe('AX snapshot prototype', () => {
   it('builds compact refs from Accessibility.getFullAXTree output', () => {
@@ -56,5 +56,44 @@ describe('AX snapshot prototype', () => {
     });
 
     expect(replacement).toMatchObject({ ref: '2', backendNodeId: 42, role: 'button', name: 'Save', nth: 1 });
+  });
+
+  it('combines frame AX trees while keeping ref metadata frame-scoped', () => {
+    const result = buildAxSnapshotFromTrees([
+      {
+        tree: {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Save' }, backendDOMNodeId: 10 },
+          ],
+        },
+      },
+      {
+        frame: { frameId: 'frame-1', url: 'https://app.example/embed' },
+        tree: {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Save' }, backendDOMNodeId: 20 },
+          ],
+        },
+      },
+    ]);
+
+    expect(result.text).toContain('[1]button "Save"');
+    expect(result.text).toContain('frame "https://app.example/embed":');
+    expect(result.text).toContain('  [2]button "Save"');
+    expect(result.refs.get('1')).toEqual({
+      ref: '1',
+      backendNodeId: 10,
+      role: 'button',
+      name: 'Save',
+    });
+    expect(result.refs.get('2')).toEqual({
+      ref: '2',
+      backendNodeId: 20,
+      role: 'button',
+      name: 'Save',
+      frame: { frameId: 'frame-1', url: 'https://app.example/embed' },
+    });
   });
 });

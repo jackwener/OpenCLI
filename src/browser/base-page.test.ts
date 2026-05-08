@@ -285,24 +285,130 @@ describe('BasePage native input routing', () => {
   it('clicks AX snapshot refs through backend node coordinates without DOM resolver', async () => {
     const page = new ActionPage();
     page.nativeClick = vi.fn().mockResolvedValue(undefined);
-    page.cdp = vi.fn()
-      .mockResolvedValueOnce({
-        nodes: [
-          { nodeId: '1', role: { value: 'RootWebArea' }, name: { value: 'Demo' }, childIds: ['2'] },
-          { nodeId: '2', role: { value: 'button' }, name: { value: 'Submit' }, backendDOMNodeId: 10 },
-        ],
-      })
-      .mockResolvedValueOnce({
-        model: { content: [10, 20, 50, 20, 50, 40, 10, 40] },
-      });
+    page.cdp = vi.fn(async (method: string) => {
+      if (method === 'Accessibility.getFullAXTree') {
+        return {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, name: { value: 'Demo' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Submit' }, backendDOMNodeId: 10 },
+          ],
+        };
+      }
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: { frame: { id: 'root', url: 'https://app.example/' } },
+        };
+      }
+      if (method === 'DOM.getBoxModel') {
+        return { model: { content: [10, 20, 50, 20, 50, 40, 10, 40] } };
+      }
+      return {};
+    });
 
     await expect(page.snapshot({ source: 'ax' })).resolves.toContain('[1]button "Submit"');
     await expect(page.click('1')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
 
-    expect(page.cdp).toHaveBeenNthCalledWith(1, 'Accessibility.getFullAXTree', {});
-    expect(page.cdp).toHaveBeenNthCalledWith(2, 'DOM.getBoxModel', { backendNodeId: 10 });
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', {});
+    expect(page.cdp).toHaveBeenCalledWith('Page.getFrameTree', {});
+    expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 10 });
     expect(page.nativeClick).toHaveBeenCalledWith(30, 30);
     expect(page.scripts).toHaveLength(0);
+  });
+
+  it('adds same-origin iframe AX refs and clicks them by frame-scoped backend node', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    page.cdp = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'Accessibility.getFullAXTree' && params?.frameId === 'same-frame') {
+        return {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, name: { value: 'Embedded' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Frame Save' }, backendDOMNodeId: 20 },
+          ],
+        };
+      }
+      if (method === 'Accessibility.getFullAXTree') {
+        return {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, name: { value: 'Demo' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Main Save' }, backendDOMNodeId: 10 },
+          ],
+        };
+      }
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: {
+            frame: { id: 'root', url: 'https://app.example/' },
+            childFrames: [
+              { frame: { id: 'same-frame', url: 'https://app.example/embed' } },
+              { frame: { id: 'cross-frame', url: 'https://other.example/embed' } },
+            ],
+          },
+        };
+      }
+      if (method === 'DOM.getBoxModel') {
+        return { model: { content: [100, 200, 140, 200, 140, 220, 100, 220] } };
+      }
+      return {};
+    });
+
+    const snapshot = await page.snapshot({ source: 'ax' }) as string;
+    expect(snapshot).toContain('[1]button "Main Save"');
+    expect(snapshot).toContain('frame "https://app.example/embed":');
+    expect(snapshot).toContain('[2]button "Frame Save"');
+
+    await expect(page.click('2')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'same-frame' });
+    expect(page.cdp).not.toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'cross-frame' });
+    expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 20 });
+    expect(page.nativeClick).toHaveBeenCalledWith(120, 210);
+  });
+
+  it('recovers stale iframe AX refs inside the original frame', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    let iframeAxCalls = 0;
+    page.cdp = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: {
+            frame: { id: 'root', url: 'https://app.example/' },
+            childFrames: [{ frame: { id: 'same-frame', url: 'https://app.example/embed' } }],
+          },
+        };
+      }
+      if (method === 'Accessibility.getFullAXTree' && params?.frameId === 'same-frame') {
+        iframeAxCalls++;
+        return {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Frame Save' }, backendDOMNodeId: iframeAxCalls === 1 ? 20 : 42 },
+          ],
+        };
+      }
+      if (method === 'Accessibility.getFullAXTree') {
+        return {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Main Save' }, backendDOMNodeId: 10 },
+          ],
+        };
+      }
+      if (method === 'DOM.getBoxModel') {
+        if (params?.backendNodeId === 20) throw new Error('No node with given id found');
+        return { model: { content: [200, 300, 240, 300, 240, 320, 200, 320] } };
+      }
+      return {};
+    });
+
+    await page.snapshot({ source: 'ax' });
+    await expect(page.click('2')).resolves.toEqual({ matches_n: 1, match_level: 'reidentified' });
+
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'same-frame' });
+    expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 20 });
+    expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 42 });
+    expect(page.nativeClick).toHaveBeenCalledWith(220, 310);
   });
 
   it('recovers stale AX refs by role/name/nth before clicking', async () => {

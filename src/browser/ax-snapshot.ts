@@ -15,6 +15,11 @@ export interface BrowserRef {
   frame?: { frameId?: string; sessionId?: string; url?: string };
 }
 
+export interface AxSnapshotTree {
+  tree: unknown;
+  frame?: BrowserRef['frame'];
+}
+
 export interface AxSnapshotBuildResult {
   text: string;
   refs: Map<string, BrowserRef>;
@@ -87,6 +92,41 @@ export function buildAxSnapshot(
   axTree: unknown,
   opts: { maxDepth?: number; interactiveOnly?: boolean } = {},
 ): AxSnapshotBuildResult {
+  return buildAxSnapshotFromTrees([{ tree: axTree }], opts);
+}
+
+export function buildAxSnapshotFromTrees(
+  trees: AxSnapshotTree[],
+  opts: { maxDepth?: number; interactiveOnly?: boolean } = {},
+): AxSnapshotBuildResult {
+  const lines: string[] = ['source: ax', '---'];
+  const refs = new Map<string, BrowserRef>();
+  let nextRef = 1;
+
+  for (const [index, entry] of trees.entries()) {
+    if (index > 0) {
+      const label = entry.frame?.url ? JSON.stringify(entry.frame.url) : JSON.stringify(entry.frame?.frameId ?? `frame:${index}`);
+      lines.push(`frame ${label}:`);
+    }
+    nextRef = renderAxTree(entry.tree, lines, refs, nextRef, {
+      ...opts,
+      frame: entry.frame,
+      baseDepth: index > 0 ? 1 : 0,
+    });
+  }
+
+  lines.push('---');
+  lines.push(`interactive: ${refs.size}`);
+  return { text: lines.join('\n'), refs };
+}
+
+function renderAxTree(
+  axTree: unknown,
+  lines: string[],
+  refs: Map<string, BrowserRef>,
+  nextRef: number,
+  opts: { maxDepth?: number; interactiveOnly?: boolean; frame?: BrowserRef['frame']; baseDepth: number },
+): number {
   const rawNodes = Array.isArray((axTree as { nodes?: unknown[] } | null)?.nodes)
     ? ((axTree as { nodes: unknown[] }).nodes as AxNode[])
     : [];
@@ -105,11 +145,8 @@ export function buildAxSnapshot(
   });
   const root = roots[0] ?? nodes[0];
   const maxDepth = Math.max(1, Math.min(Number(opts.maxDepth) || 50, 200));
-  const lines: string[] = ['source: ax', '---'];
-  const refs = new Map<string, BrowserRef>();
   const roleNameCounts = countRoleNames(nodes);
   const roleNameSeen = new Map<string, number>();
-  let nextRef = 1;
 
   function render(node: AxNode | undefined, depth: number): boolean {
     if (!node || depth > maxDepth) return false;
@@ -155,6 +192,7 @@ export function buildAxSnapshot(
           role,
           name,
           ...(roleNameCounts.get(key)! > 1 ? { nth: seen } : {}),
+          ...(opts.frame ? { frame: opts.frame } : {}),
         });
       }
       if (name) parts.push(JSON.stringify(name));
@@ -169,10 +207,8 @@ export function buildAxSnapshot(
     return true;
   }
 
-  render(root, 0);
-  lines.push('---');
-  lines.push(`interactive: ${refs.size}`);
-  return { text: lines.join('\n'), refs };
+  render(root, opts.baseDepth);
+  return nextRef;
 }
 
 export function findAxRefReplacement(axTree: unknown, ref: BrowserRef): BrowserRef | null {

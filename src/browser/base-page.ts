@@ -11,7 +11,7 @@
 
 import type { BrowserCookie, FetchJsonOptions, IPage, ScreenshotOptions, SnapshotOptions, WaitOptions } from '../types.js';
 import { generateSnapshotJs, getFormStateJs } from './dom-snapshot.js';
-import { buildAxSnapshot, findAxRefReplacement, type BrowserRef } from './ax-snapshot.js';
+import { buildAxSnapshotFromTrees, findAxRefReplacement, type AxSnapshotTree, type BrowserRef } from './ax-snapshot.js';
 import {
   pressKeyJs,
   waitForTextJs,
@@ -55,6 +55,11 @@ export interface FillTextResult extends ResolveSuccess {
   actual: string;
   length: number;
   mode?: 'input' | 'textarea' | 'contenteditable';
+}
+
+interface CdpFrameTreeNode {
+  frame?: { id?: string; url?: string; unreachableUrl?: string; name?: string };
+  childFrames?: CdpFrameTreeNode[];
 }
 
 /**
@@ -313,7 +318,7 @@ export abstract class BasePage implements IPage {
       if (point) return { ...point, matchLevel: 'exact' };
     }
 
-    const axTree = await cdp.call(this, 'Accessibility.getFullAXTree', {}).catch(() => null);
+    const axTree = await cdp.call(this, 'Accessibility.getFullAXTree', axTreeParams(entry.frame)).catch(() => null);
     const recovered = findAxRefReplacement(axTree, entry);
     if (!recovered?.backendNodeId) return null;
     this._axRefs.set(entry.ref, recovered);
@@ -595,8 +600,8 @@ export abstract class BasePage implements IPage {
           'Use the default DOM state, or update/reload the Browser Bridge extension.',
         );
       }
-      const axTree = await cdp.call(this, 'Accessibility.getFullAXTree', {});
-      const built = buildAxSnapshot(axTree, {
+      const axTrees = await this.collectAxSnapshotTrees(cdp);
+      const built = buildAxSnapshotFromTrees(axTrees, {
         maxDepth: opts.maxDepth,
         interactiveOnly: opts.interactive,
       });
@@ -632,6 +637,22 @@ export abstract class BasePage implements IPage {
       }
       return this._basicSnapshot(opts);
     }
+  }
+
+  private async collectAxSnapshotTrees(
+    cdp: (method: string, params?: Record<string, unknown>) => Promise<unknown>,
+  ): Promise<AxSnapshotTree[]> {
+    const rootTree = await cdp.call(this, 'Accessibility.getFullAXTree', {});
+    const trees: AxSnapshotTree[] = [{ tree: rootTree }];
+
+    const frameTreeResult = await cdp.call(this, 'Page.getFrameTree', {}).catch(() => null);
+    const frames = collectSameOriginFrameRefs(frameTreeResult);
+    for (const frame of frames) {
+      const tree = await cdp.call(this, 'Accessibility.getFullAXTree', { frameId: frame.frameId }).catch(() => null);
+      if (tree) trees.push({ tree, frame });
+    }
+
+    return trees;
   }
 
   async getCurrentUrl(): Promise<string | null> {
@@ -701,5 +722,40 @@ export abstract class BasePage implements IPage {
     if (opts.raw) return raw;
     if (typeof raw === 'string') return formatSnapshot(raw, opts);
     return raw;
+  }
+}
+
+function axTreeParams(frame: BrowserRef['frame'] | undefined): Record<string, unknown> {
+  return frame?.frameId ? { frameId: frame.frameId } : {};
+}
+
+function collectSameOriginFrameRefs(frameTreeResult: unknown): Array<NonNullable<BrowserRef['frame']>> {
+  const root = (frameTreeResult as { frameTree?: CdpFrameTreeNode } | null)?.frameTree;
+  const rootUrl = root?.frame?.url || root?.frame?.unreachableUrl || '';
+  const rootOrigin = urlOrigin(rootUrl);
+  if (!root || !rootOrigin) return [];
+
+  const frames: Array<NonNullable<BrowserRef['frame']>> = [];
+  function collect(node: CdpFrameTreeNode | undefined): void {
+    for (const child of node?.childFrames ?? []) {
+      const frame = child.frame;
+      const frameId = frame?.id;
+      const frameUrl = frame?.url || frame?.unreachableUrl || '';
+      const origin = urlOrigin(frameUrl);
+      if (frameId && origin === rootOrigin) {
+        frames.push({ frameId, url: frameUrl });
+        collect(child);
+      }
+    }
+  }
+  collect(root);
+  return frames;
+}
+
+function urlOrigin(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
   }
 }
