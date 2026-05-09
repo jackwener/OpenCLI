@@ -104,7 +104,10 @@ function buildInboxScript(limit) {
     for (const card of cards) {
       const rowText = clean(card.innerText || card.textContent);
       if (!rowText || rowText.length < 2) continue;
-      const threadUrl = pickHref(card, /\/messaging\/thread\//i);
+      let threadUrl = pickHref(card, /\/messaging\/thread\//i);
+      if (!threadUrl && /active conversation/i.test(rowText) && /\/messaging\/thread\//i.test(location.href)) {
+        threadUrl = location.href;
+      }
       const profileUrl = pickHref(card, /\/in\//i);
       const key = threadUrl || rowText.slice(0, 180);
       if (seen.has(key)) continue;

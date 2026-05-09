@@ -48,6 +48,27 @@ describe('linkedin inbox command', () => {
     });
   });
 
+  it('uses current thread URL for the active conversation row when LinkedIn omits a row link', async () => {
+    const command = getRegistry().get('linkedin/inbox');
+    const page = makeFakePage({
+      url: 'https://www.linkedin.com/messaging/thread/current/',
+      rows: [
+        {
+          name: 'Vishnu Singh, PESC',
+          threadUrl: 'https://www.linkedin.com/messaging/thread/current/',
+          timestamp: 'May 8',
+          preview: 'You: thanks for connecting Vishnu',
+          unread: false,
+          unreadCount: 0,
+          rowText: 'Vishnu Singh, PESC May 8 You: thanks for connecting Vishnu . Active conversation',
+        },
+      ],
+    });
+
+    const rows = await command.func(page, { limit: 10, json: false });
+    expect(rows[0].thread_url).toBe('https://www.linkedin.com/messaging/thread/current/');
+  });
+
   it('can return one compact JSON row for downstream reconciliation', async () => {
     const command = getRegistry().get('linkedin/inbox');
     const page = makeFakePage({ rows: [{ name: 'Lempila Alphonsa', threadUrl: 'https://www.linkedin.com/messaging/thread/xyz/', unread: true, unreadCount: 1 }] });
