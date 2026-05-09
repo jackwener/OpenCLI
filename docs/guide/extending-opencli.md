@@ -1,6 +1,6 @@
 # Extending OpenCLI
 
-OpenCLI has five extension paths. Pick the path based on where you want the source code to live and how you want commands to be shared.
+OpenCLI has six extension paths. Pick the path based on where you want the source code to live and how you want commands to be shared.
 
 | Goal | Use | Source location | Command surface |
 |------|-----|-----------------|-----------------|
@@ -8,6 +8,7 @@ OpenCLI has five extension paths. Pick the path based on where you want the sour
 | Quickly draft a private adapter on this machine | User adapter | `~/.opencli/clis/<site>/<command>.js` | `opencli <site> <command>` |
 | Edit an official adapter locally | Adapter override | `~/.opencli/clis/<site>/` | `opencli <site> <command>` |
 | Publish or install third-party commands | Plugin | Git repo, installed into `~/.opencli/plugins/` | `opencli <plugin> <command>` |
+| Scope commands to a single project | Project-local adapter / plugin | `./.opencli/clis/<site>/` or `./.opencli/plugins/<plugin>/` | `opencli <site> <command>` |
 | Wrap an existing local binary | External CLI | `~/.opencli/external-clis.yaml` | `opencli <tool> ...` |
 
 ## Personal commands in your own Git repo
@@ -132,3 +133,37 @@ opencli my-tool --help
 ```
 
 External CLIs pass stdio and exit codes through to the underlying binary.
+
+## Project-local adapters and plugins
+
+When a project ships its own opencli commands, place them under `./.opencli/` next to the source tree so they can be checked into version control alongside the rest of the project.
+
+```text
+my-project/
+  .opencli/
+    clis/<site>/<command>.js         # adapters local to this project (commit)
+    plugins/<plugin>/<file>.js       # plugins local to this project (commit)
+    package.json                     # generated; ESM marker for runtime resolution
+    node_modules/@jackwener/opencli  # generated; symlink to the installed package
+```
+
+The `package.json` and `node_modules/@jackwener/opencli` symlink under `./.opencli/` are created automatically by opencli at startup (`ensureProjectCliCompatShims`) so that adapters can `import { cli } from '@jackwener/opencli/registry'` without a per-project `npm install`. Add the generated paths to `.gitignore`:
+
+```gitignore
+.opencli/package.json
+.opencli/node_modules/
+```
+
+Project-local commands are discovered when `opencli` runs from a directory that contains `./.opencli/`. Full discovery order, last write wins on `site/command` collision:
+
+```text
+built-in
+  -> ~/.opencli/clis
+  -> ./.opencli/clis
+  -> ~/.opencli/plugins
+  -> ./.opencli/plugins
+```
+
+So a project adapter overrides a user adapter, which overrides a built-in adapter with the same name; a project plugin can in turn override any of those.
+
+Use this layout to keep a small, repo-scoped set of commands available to AI agents working inside that project, without polluting the global `~/.opencli/` namespace.
