@@ -86,12 +86,32 @@ cli({
             console.error(`Warning: --lang "${captionData.requestedLang}" not found. Using "${captionData.language}" instead. Available: ${captionData.available.join(', ')}`);
         }
         // Step 2: Fetch caption XML and parse segments
+        // Ensure caption URL requests srv3 XML format — YouTube may return empty
+        // responses when no explicit format is specified.
+        let captionUrl = captionData.captionUrl;
+        if (!/[&?]fmt=/.test(captionUrl)) {
+            captionUrl += (captionUrl.includes('?') ? '&' : '?') + 'fmt=srv3';
+        }
         const segments = await page.evaluate(`
       (async () => {
-        const resp = await fetch(${JSON.stringify(captionData.captionUrl)});
-        const xml = await resp.text();
+        async function fetchCaptionXml(url) {
+          const resp = await fetch(url);
+          if (!resp.ok) return '';
+          return await resp.text() || '';
+        }
 
-        if (!xml?.length) {
+        const primaryUrl = ${JSON.stringify(captionUrl)};
+        let xml = await fetchCaptionXml(primaryUrl);
+
+        // If srv3 format returned empty, retry with original URL (no fmt override)
+        if (!xml.length) {
+          const fallbackUrl = primaryUrl.replace(/[&?]fmt=srv3$/, '');
+          if (fallbackUrl !== primaryUrl) {
+            xml = await fetchCaptionXml(fallbackUrl);
+          }
+        }
+
+        if (!xml.length) {
           return { error: 'Caption URL returned empty response' };
         }
 

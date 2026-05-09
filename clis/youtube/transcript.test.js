@@ -14,4 +14,12 @@ describe('youtube transcript source contract', () => {
         expect(transcriptSource).not.toContain('/youtubei/v1/player');
         expect(transcriptSource).not.toContain("clientName: 'ANDROID'");
     });
+
+    it('normalizes caption URL to request srv3 XML format', () => {
+        expect(transcriptSource).toContain('fmt=srv3');
+    });
+
+    it('checks HTTP status before reading caption response body', () => {
+        expect(transcriptSource).toContain('resp.ok');
+    });
 });
