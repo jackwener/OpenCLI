@@ -222,7 +222,7 @@ cli({
     { name: 'send', type: 'bool', default: false, help: 'Actually click Send. Default is dry-run verification only.' },
     { name: 'screenshot', type: 'bool', default: false, help: 'Capture a screenshot during verification' },
   ],
-  columns: ['status', 'recipient', 'reason', 'thread_url', 'message_chars'],
+  columns: ['status', 'recipient', 'reason', 'thread_url', 'message_chars', 'expected', 'actual', 'url', 'screenshot', 'authRequired', 'bodyText', 'composerFound', 'composerText', 'headerNames', 'latestMessageHash', 'latestMessageText', 'searchFailure', 'title'],
   func: async (page, args) => {
     if (!page) throw new CommandExecutionError('Browser session required for linkedin safe-send');
 
