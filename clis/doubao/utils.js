@@ -849,11 +849,16 @@ function getConversationDetailScript() {
     (() => {
       const clean = (v) => (v || '')
         .replace(/\\u00a0/g, ' ')
-        .split('\\n')
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .join('\\n')
+        .replace(/\\n{3,}/g, '\\n\\n')
         .trim();
+
+      const isVisible = (el) => {
+        if (!(el instanceof HTMLElement)) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
 
       const messageList = document.querySelector('[data-testid="message-list"], [class*="message-list"], [aria-label="doc_editor"]');
       if (!messageList) return { messages: [], meeting: null };
@@ -869,10 +874,37 @@ function getConversationDetailScript() {
         };
       }
 
-      const itemRoots = Array.from(messageList.querySelectorAll('[data-testid="union_message"], [class^="item-"], [class*=" item-"]'));
+      const itemSelectors = [
+        '[data-testid="union_message"]',
+        '[data-testid="message-block-container"]',
+        '[data-message-id]',
+        '[class^="item-"]',
+        '[class*=" item-"]',
+        '[class*="bg-g-send-msg-bubble"]',
+        '[class*="bg-g-receive-msg-bubble"]',
+      ];
+      const allRoots = [];
+      const rootSeen = new Set();
+      for (const selector of itemSelectors) {
+        messageList.querySelectorAll(selector).forEach((el) => {
+          if (!rootSeen.has(el)) {
+            rootSeen.add(el);
+            allRoots.push(el);
+          }
+        });
+      }
+      const itemRoots = allRoots
+        .filter((root) => isVisible(root) && !root.closest('script, style, noscript'))
+        .filter((root, index, items) => !items.some((other, otherIndex) => otherIndex !== index && other.contains(root)));
+
+      const findTextEl = (root, selector) => {
+        if (root.matches(selector)) return root;
+        return root.querySelector(selector);
+      };
+
       const messages = itemRoots.map((root) => {
-        const sendTextEl = root.querySelector('[data-testid="send_message"] [data-testid="message_text_content"], [data-testid="send_message"], [class*="bg-g-send-msg-bubble"]');
-        const receiveTextEl = root.querySelector('[data-testid="receive_message"] [data-testid="message_text_content"], [data-testid="receive_message"], .flow-markdown-body, [class*="bg-g-receive-msg-bubble"]');
+        const sendTextEl = findTextEl(root, '[data-testid="send_message"] [data-testid="message_text_content"], [data-testid="send_message"], [class*="bg-g-send-msg-bubble"]');
+        const receiveTextEl = findTextEl(root, '[data-testid="receive_message"] [data-testid="message_text_content"], [data-testid="receive_message"], .flow-markdown-body, [class*="bg-g-receive-msg-bubble"]');
         const hasMeetingCard = !!root.querySelector('[data-testid="meeting-minutes-card"]');
         const isSend = !!sendTextEl;
         const isReceive = !isSend && !!receiveTextEl;
@@ -885,7 +917,16 @@ function getConversationDetailScript() {
         };
       }).filter(m => m.text);
 
-      return { messages, meeting };
+      const deduped = [];
+      const dedupedSeen = new Set();
+      for (const message of messages) {
+        const key = message.role + '::' + message.text;
+        if (dedupedSeen.has(key)) continue;
+        dedupedSeen.add(key);
+        deduped.push(message);
+      }
+
+      return { messages: deduped, meeting };
     })()
   `;
 }
