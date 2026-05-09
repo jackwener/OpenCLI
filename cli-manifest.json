@@ -14112,6 +14112,72 @@
   },
   {
     "site": "linkedin",
+    "name": "safe-send",
+    "description": "Fail-closed LinkedIn message sender that verifies exact thread, recipient, and latest message before filling/sending",
+    "access": "write",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "thread-url",
+        "type": "str",
+        "required": true,
+        "help": "Exact LinkedIn messaging thread URL to open and verify"
+      },
+      {
+        "name": "expected-name",
+        "type": "str",
+        "required": true,
+        "help": "Expected visible recipient name in the active thread header"
+      },
+      {
+        "name": "message",
+        "type": "str",
+        "required": true,
+        "help": "Message body to send or dry-run"
+      },
+      {
+        "name": "expected-last-text",
+        "type": "str",
+        "required": false,
+        "help": "Substring expected in the currently visible latest conversation context"
+      },
+      {
+        "name": "expected-last-hash",
+        "type": "str",
+        "required": false,
+        "help": "SHA-256 hash of expected latest visible message text"
+      },
+      {
+        "name": "send",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually click Send. Default is dry-run verification only."
+      },
+      {
+        "name": "screenshot",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Capture a screenshot during verification"
+      }
+    ],
+    "columns": [
+      "status",
+      "recipient",
+      "reason",
+      "thread_url",
+      "message_chars"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/safe-send.js",
+    "sourceFile": "linkedin/safe-send.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
     "name": "search",
     "description": "Search LinkedIn jobs",
     "access": "read",
@@ -14197,6 +14263,48 @@
     "modulePath": "linkedin/search.js",
     "sourceFile": "linkedin/search.js",
     "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "thread-snapshot",
+    "description": "Load a LinkedIn messaging thread, scroll for available history, and return a full context snapshot",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "thread-url",
+        "type": "str",
+        "required": true,
+        "help": "Exact LinkedIn messaging thread URL to open and snapshot"
+      },
+      {
+        "name": "max-scrolls",
+        "type": "number",
+        "default": 30,
+        "required": false,
+        "help": "Maximum upward scroll attempts to load older messages"
+      },
+      {
+        "name": "json",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Return only JSON snapshot string in the snapshot_json field"
+      }
+    ],
+    "columns": [
+      "thread_url",
+      "recipient",
+      "message_count",
+      "latest_text",
+      "snapshot_json"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/thread-snapshot.js",
+    "sourceFile": "linkedin/thread-snapshot.js",
+    "navigateBefore": true
   },
   {
     "site": "linkedin",
