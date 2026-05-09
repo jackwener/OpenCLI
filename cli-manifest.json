@@ -14112,6 +14112,50 @@
   },
   {
     "site": "linkedin",
+    "name": "inbox",
+    "description": "Read visible LinkedIn messaging inbox rows with thread URLs, previews, and unread hints",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "number",
+        "default": 40,
+        "required": false,
+        "help": "Maximum visible inbox rows to return"
+      },
+      {
+        "name": "json",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Return compact JSON in inbox_json"
+      }
+    ],
+    "columns": [
+      "index",
+      "name",
+      "unread",
+      "unread_count",
+      "unreadCount",
+      "timestamp",
+      "preview",
+      "thread_url",
+      "threadUrl",
+      "profile_url",
+      "profileUrl",
+      "rowText",
+      "inbox_json"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/inbox.js",
+    "sourceFile": "linkedin/inbox.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
     "name": "safe-send",
     "description": "Fail-closed LinkedIn message sender that verifies exact thread, recipient, and latest message before filling/sending",
     "access": "write",
