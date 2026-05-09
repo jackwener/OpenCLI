@@ -181,6 +181,8 @@ OpenCLI 不只是网站 CLI，还可以：
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `OPENCLI_DAEMON_PORT` | `19825` | daemon-extension 通信端口 |
+| `OPENCLI_DAEMON_HOST` | `127.0.0.1` | CLI 连接 daemon 时使用的主机。例如在容器内调用宿主上的 daemon 时,设为 `host.docker.internal` |
+| `OPENCLI_DAEMON_BIND` | `127.0.0.1` | daemon 监听的网卡地址。默认仅 loopback;设为 `0.0.0.0` 可接受外部连接。daemon 不带鉴权,绑非 loopback 时务必用防火墙限制访问 |
 | `OPENCLI_WINDOW_FOCUSED` | `false` | 设为 `1` 时 automation 窗口在前台打开（适合调试）。`--focus` 标志会设置此变量 |
 | `OPENCLI_LIVE` | `false` | 设为 `1` 时 adapter 命令执行完后保留 automation 窗口不关闭（适合检查页面）。`--live` 标志会设置此变量 |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | 浏览器连接超时（秒） |

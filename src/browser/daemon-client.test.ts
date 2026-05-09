@@ -49,6 +49,31 @@ describe('daemon-client', () => {
     await expect(fetchDaemonStatus()).resolves.toBeNull();
   });
 
+  it('targets 127.0.0.1 by default', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),
+    } as Response);
+
+    await fetchDaemonStatus();
+
+    expect(fetchMock.mock.calls[0][0]).toMatch(/^http:\/\/127\.0\.0\.1:/);
+  });
+
+  it('targets OPENCLI_DAEMON_HOST when set', async () => {
+    vi.stubEnv('OPENCLI_DAEMON_HOST', 'host.docker.internal');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),
+    } as Response);
+
+    await fetchDaemonStatus();
+
+    expect(fetchMock.mock.calls[0][0]).toMatch(/^http:\/\/host\.docker\.internal:/);
+  });
+
   it('requestDaemonShutdown POSTs to the shared shutdown endpoint', async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValue({ ok: true } as Response);

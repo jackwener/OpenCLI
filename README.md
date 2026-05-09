@@ -197,6 +197,8 @@ OpenCLI is not only for websites. It can also:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENCLI_DAEMON_PORT` | `19825` | HTTP port for the daemon-extension bridge |
+| `OPENCLI_DAEMON_HOST` | `127.0.0.1` | Host the CLI uses to reach the daemon. Set to e.g. `host.docker.internal` to call a daemon running on the host from inside a container. |
+| `OPENCLI_DAEMON_BIND` | `127.0.0.1` | Interface the daemon binds to. Default is loopback; set to `0.0.0.0` to accept connections from other hosts. The daemon has no built-in authentication, so restrict access with a firewall when binding off-loopback. |
 | `OPENCLI_PROFILE` | — | Browser Bridge profile alias/contextId to use when multiple Chrome profiles are connected |
 | `OPENCLI_WINDOW_FOCUSED` | `false` | Set to `1` to open the automation container in the foreground (useful for debugging). The `--focus` flag sets this. |
 | `OPENCLI_LIVE` | `false` | Set to `1` to keep the automation lease open after an adapter command finishes (useful for inspection). The `--live` flag sets this. |
