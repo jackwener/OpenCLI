@@ -259,9 +259,9 @@ cli({
 
     if (!safety.ok) {
       const observed = [
-        `Expected ${safety.expected}; actual ${safety.actual || 'unknown'} at ${safety.url || 'unknown URL'}`,
-        `Observed headers: ${(beforeProbe.headerNames || []).join(' | ') || 'none'}`,
-        `Title: ${beforeProbe.title || 'unknown'}`,
+        `Expected ${safety.expected}; actual ${safety.actual || 'not_visible'} at ${safety.url || 'url_not_available'}`,
+        `Observed headers: ${(beforeProbe.headerNames || []).join(' | ') || 'no_visible_headers'}`,
+        `Title: ${beforeProbe.title || 'title_not_available'}`,
         `Body: ${normalizeWhitespace(beforeProbe.bodyText || '').slice(0, 500)}`,
       ].join('\n');
       throw new CommandExecutionError(
