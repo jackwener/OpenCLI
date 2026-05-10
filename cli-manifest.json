@@ -22175,7 +22175,10 @@
     "type": "js",
     "modulePath": "twitter/article.js",
     "sourceFile": "twitter/article.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -22273,7 +22276,10 @@
     "type": "js",
     "modulePath": "twitter/bookmark-folder.js",
     "sourceFile": "twitter/bookmark-folder.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -22293,7 +22299,10 @@
     "type": "js",
     "modulePath": "twitter/bookmark-folders.js",
     "sourceFile": "twitter/bookmark-folders.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -22332,7 +22341,10 @@
     "type": "js",
     "modulePath": "twitter/bookmarks.js",
     "sourceFile": "twitter/bookmarks.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -22406,7 +22418,10 @@
     "type": "js",
     "modulePath": "twitter/download.js",
     "sourceFile": "twitter/download.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -22466,7 +22481,10 @@
     "type": "js",
     "modulePath": "twitter/followers.js",
     "sourceFile": "twitter/followers.js",
-    "navigateBefore": true
+    "navigateBefore": true,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -22501,7 +22519,10 @@
     "type": "js",
     "modulePath": "twitter/following.js",
     "sourceFile": "twitter/following.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -22601,7 +22622,10 @@
     "type": "js",
     "modulePath": "twitter/likes.js",
     "sourceFile": "twitter/likes.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -22719,7 +22743,10 @@
     "type": "js",
     "modulePath": "twitter/list-tweets.js",
     "sourceFile": "twitter/list-tweets.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -22748,7 +22775,10 @@
     "type": "js",
     "modulePath": "twitter/lists.js",
     "sourceFile": "twitter/lists.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -22777,7 +22807,10 @@
     "type": "js",
     "modulePath": "twitter/notifications.js",
     "sourceFile": "twitter/notifications.js",
-    "navigateBefore": true
+    "navigateBefore": true,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -22845,7 +22878,10 @@
     "type": "js",
     "modulePath": "twitter/profile.js",
     "sourceFile": "twitter/profile.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -23113,7 +23149,10 @@
     "type": "js",
     "modulePath": "twitter/search.js",
     "sourceFile": "twitter/search.js",
-    "navigateBefore": true
+    "navigateBefore": true,
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -23159,7 +23198,10 @@
     "type": "js",
     "modulePath": "twitter/thread.js",
     "sourceFile": "twitter/thread.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -23212,7 +23254,10 @@
     "type": "js",
     "modulePath": "twitter/timeline.js",
     "sourceFile": "twitter/timeline.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -23239,7 +23284,10 @@
     "type": "js",
     "modulePath": "twitter/trending.js",
     "sourceFile": "twitter/trending.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",
@@ -23289,7 +23337,10 @@
     "type": "js",
     "modulePath": "twitter/tweets.js",
     "sourceFile": "twitter/tweets.js",
-    "navigateBefore": "https://x.com"
+    "navigateBefore": "https://x.com",
+    "browserSession": {
+      "reuse": "site"
+    }
   },
   {
     "site": "twitter",

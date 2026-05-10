@@ -141,6 +141,7 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    browserSession: { reuse: 'site' },
     args: [
         {
             name: 'type',
