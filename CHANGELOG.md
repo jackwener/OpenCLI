@@ -9,6 +9,7 @@
 * **browser state** — AX snapshots now include same-origin iframe refs, and `browser state --compare-sources` prints DOM-vs-AX observation metrics for the Phase 1 default-source decision without dumping page contents.
 * **browser locators** — `browser find`, `browser click`, and `browser get text|value|attributes` now accept semantic locator flags (`--role`, `--name`, `--label`, `--text`, `--testid`) so agents can act on common controls without a separate state-ref lookup.
 * **browser actions** — add `browser hover`, `browser focus`, and `browser dblclick` primitives backed by the same target resolver and CDP input path as `browser click`.
+* **browser actions** — add `browser check` and `browser uncheck` primitives that ensure checkbox / radio / aria-checked controls reach the requested state instead of blindly toggling.
 
 ### Bug Fixes
 
