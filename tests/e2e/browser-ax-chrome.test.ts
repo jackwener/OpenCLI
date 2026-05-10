@@ -377,7 +377,7 @@ describe('Browser Bridge AX real Chrome smoke', () => {
       workspace,
       page: nav.page,
       cdpMethod: 'Accessibility.enable',
-      cdpParams: { frameId: crossFrame!.id, sessionId: 'target' },
+      cdpParams: { frameId: crossFrame!.id, sessionId: 'target', targetUrl: crossFrame!.url },
     });
     expect(crossEnable.ok, crossEnable.error).toBe(true);
 
@@ -386,7 +386,7 @@ describe('Browser Bridge AX real Chrome smoke', () => {
       workspace,
       page: nav.page,
       cdpMethod: 'Accessibility.getFullAXTree',
-      cdpParams: { frameId: crossFrame!.id, sessionId: 'target' },
+      cdpParams: { frameId: crossFrame!.id, sessionId: 'target', targetUrl: crossFrame!.url },
     });
     expect(crossAx.ok, crossAx.error).toBe(true);
     expect(axText(crossAx.data)).toContain('Cross Frame Button');
