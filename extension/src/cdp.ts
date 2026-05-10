@@ -9,6 +9,15 @@
 const attached = new Set<number>();
 
 const tabFrameContexts = new Map<number, Map<string, number>>();
+const frameSessions = new Map<string, string>();
+const sessionFrameKeys = new Map<string, string>();
+const pendingSessionCommands = new Map<string, Map<number, {
+  resolve: (value: unknown) => void;
+  reject: (err: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}>>();
+let sessionCommandId = 0;
+let frameSessionRoutingRegistered = false;
 
 // Large cap so agents stop hitting silent JSON.parse failures on real API bodies.
 // See src/browser/cdp.ts CDP_RESPONSE_BODY_CAPTURE_LIMIT for the matching constant
@@ -410,6 +419,100 @@ export async function waitForDownload(pattern: string = '', timeoutMs: number = 
   });
 }
 
+function frameSessionKey(tabId: number, frameId: string): string {
+  return `${tabId}:${frameId}`;
+}
+
+function registerFrameSessionRouting(): void {
+  if (frameSessionRoutingRegistered) return;
+  frameSessionRoutingRegistered = true;
+  chrome.debugger.onEvent.addListener((_source, method, params: any) => {
+    if (method === 'Target.receivedMessageFromTarget') {
+      const sessionId = String(params?.sessionId || '');
+      const raw = typeof params?.message === 'string' ? params.message : '';
+      if (!sessionId || !raw) return;
+      let message: any;
+      try { message = JSON.parse(raw); } catch { return; }
+      if (typeof message.id !== 'number') return;
+      const sessionPending = pendingSessionCommands.get(sessionId);
+      const pending = sessionPending?.get(message.id);
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      sessionPending!.delete(message.id);
+      if (sessionPending!.size === 0) pendingSessionCommands.delete(sessionId);
+      if (message.error) {
+        pending.reject(new Error(message.error.message || JSON.stringify(message.error)));
+      } else {
+        pending.resolve(message.result);
+      }
+    }
+
+    if (method === 'Target.detachedFromTarget') {
+      const sessionId = String(params?.sessionId || '');
+      const key = sessionFrameKeys.get(sessionId);
+      if (key) frameSessions.delete(key);
+      sessionFrameKeys.delete(sessionId);
+      const sessionPending = pendingSessionCommands.get(sessionId);
+      if (sessionPending) {
+        for (const pending of sessionPending.values()) {
+          clearTimeout(pending.timer);
+          pending.reject(new Error(`Frame target session ${sessionId} detached`));
+        }
+        pendingSessionCommands.delete(sessionId);
+      }
+    }
+  });
+}
+
+async function ensureFrameSession(tabId: number, frameId: string, aggressiveRetry: boolean = false): Promise<string> {
+  registerFrameSessionRouting();
+  await ensureAttached(tabId, aggressiveRetry);
+  const key = frameSessionKey(tabId, frameId);
+  const existing = frameSessions.get(key);
+  if (existing) return existing;
+
+  const result = await chrome.debugger.sendCommand({ tabId }, 'Target.attachToTarget', {
+    targetId: frameId,
+    flatten: false,
+  }) as { sessionId?: string };
+  const sessionId = result.sessionId;
+  if (!sessionId) {
+    throw new Error(`Frame ${frameId} did not return a CDP session id`);
+  }
+  frameSessions.set(key, sessionId);
+  sessionFrameKeys.set(sessionId, key);
+  return sessionId;
+}
+
+export async function sendCommandInFrameTarget(
+  tabId: number,
+  frameId: string,
+  method: string,
+  params: Record<string, unknown> = {},
+  aggressiveRetry: boolean = false,
+  timeoutMs: number = 30_000,
+): Promise<unknown> {
+  const sessionId = await ensureFrameSession(tabId, frameId, aggressiveRetry);
+  const id = ++sessionCommandId;
+  const sessionPending = pendingSessionCommands.get(sessionId) ?? new Map();
+  pendingSessionCommands.set(sessionId, sessionPending);
+
+  const command = new Promise<unknown>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      sessionPending.delete(id);
+      if (sessionPending.size === 0) pendingSessionCommands.delete(sessionId);
+      reject(new Error(`Frame CDP command '${method}' timed out after ${timeoutMs / 1000}s`));
+    }, timeoutMs);
+    sessionPending.set(id, { resolve, reject, timer });
+  });
+
+  await chrome.debugger.sendCommand({ tabId }, 'Target.sendMessageToTarget', {
+    sessionId,
+    message: JSON.stringify({ id, method, params }),
+  });
+  return command;
+}
+
 export async function insertText(
   tabId: number,
   text: string,
@@ -419,6 +522,7 @@ export async function insertText(
 }
 
 export function registerFrameTracking(): void {
+  registerFrameSessionRouting();
   chrome.debugger.onEvent.addListener((source, method, params: any) => {
     const tabId = source.tabId;
     if (!tabId) return;
@@ -472,7 +576,24 @@ export async function evaluateInFrame(
   const contextId = contexts?.get(frameId);
 
   if (contextId === undefined) {
-    throw new Error(`No execution context found for frame ${frameId}. The frame may not be loaded yet.`);
+    await sendCommandInFrameTarget(tabId, frameId, 'Runtime.enable', {}, aggressiveRetry).catch(() => undefined);
+    const result = await sendCommandInFrameTarget(tabId, frameId, 'Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise: true,
+    }, aggressiveRetry) as {
+      result?: { type: string; value?: unknown; description?: string; subtype?: string };
+      exceptionDetails?: { exception?: { description?: string }; text?: string };
+    };
+
+    if (result.exceptionDetails) {
+      const errMsg = result.exceptionDetails.exception?.description
+        || result.exceptionDetails.text
+        || 'Eval error';
+      throw new Error(errMsg);
+    }
+
+    return result.result?.value;
   }
 
   const result = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
@@ -568,7 +689,24 @@ export function hasActiveNetworkCapture(tabId: number): boolean {
   return networkCaptures.has(tabId);
 }
 
+function clearFrameSessionsForTab(tabId: number, reason: string): void {
+  for (const [key, sessionId] of [...frameSessions.entries()]) {
+    if (!key.startsWith(`${tabId}:`)) continue;
+    frameSessions.delete(key);
+    sessionFrameKeys.delete(sessionId);
+    const sessionPending = pendingSessionCommands.get(sessionId);
+    if (sessionPending) {
+      for (const pending of sessionPending.values()) {
+        clearTimeout(pending.timer);
+        pending.reject(new Error(reason));
+      }
+      pendingSessionCommands.delete(sessionId);
+    }
+  }
+}
+
 export async function detach(tabId: number): Promise<void> {
+  clearFrameSessionsForTab(tabId, `Tab ${tabId} detached`);
   if (!attached.has(tabId)) return;
   attached.delete(tabId);
   networkCaptures.delete(tabId);
@@ -581,12 +719,14 @@ export function registerListeners(): void {
     attached.delete(tabId);
     networkCaptures.delete(tabId);
     tabFrameContexts.delete(tabId);
+    clearFrameSessionsForTab(tabId, `Tab ${tabId} removed`);
   });
   chrome.debugger.onDetach.addListener((source) => {
     if (source.tabId) {
       attached.delete(source.tabId);
       networkCaptures.delete(source.tabId);
       tabFrameContexts.delete(source.tabId);
+      clearFrameSessionsForTab(source.tabId, `Tab ${source.tabId} detached`);
     }
   });
   // Invalidate attached cache when tab URL changes to non-debuggable

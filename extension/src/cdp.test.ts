@@ -70,17 +70,19 @@ describe('cdp attach recovery', () => {
     const mod = await import('./cdp');
     mod.registerFrameTracking();
 
-    expect(debuggerEventListeners).toHaveLength(1);
-    debuggerEventListeners[0](
-      { tabId: 1 },
-      'Runtime.executionContextCreated',
-      { context: { id: 11, auxData: { frameId: 'frame-1', isDefault: false } } },
-    );
-    debuggerEventListeners[0](
-      { tabId: 1 },
-      'Runtime.executionContextCreated',
-      { context: { id: 22, auxData: { frameId: 'frame-1', isDefault: true } } },
-    );
+    expect(debuggerEventListeners.length).toBeGreaterThanOrEqual(1);
+    for (const listener of debuggerEventListeners) {
+      listener(
+        { tabId: 1 },
+        'Runtime.executionContextCreated',
+        { context: { id: 11, auxData: { frameId: 'frame-1', isDefault: false } } },
+      );
+      listener(
+        { tabId: 1 },
+        'Runtime.executionContextCreated',
+        { context: { id: 22, auxData: { frameId: 'frame-1', isDefault: true } } },
+      );
+    }
 
     await mod.evaluateInFrame(1, 'document.title', 'frame-1');
 
@@ -88,6 +90,57 @@ describe('cdp attach recovery', () => {
       { tabId: 1 },
       'Runtime.evaluate',
       expect.objectContaining({ contextId: 22 }),
+    );
+  });
+
+  it('falls back to a frame target session when no same-target execution context exists', async () => {
+    const { chrome, debuggerApi, debuggerEventListeners } = createChromeMock();
+    debuggerApi.sendCommand = vi.fn(async (_target: unknown, method: string, params?: any) => {
+      if (method === 'Runtime.evaluate') return { result: { value: 'root-ok' } };
+      if (method === 'Target.attachToTarget') return { sessionId: 'session-1' };
+      if (method === 'Target.sendMessageToTarget') {
+        const message = JSON.parse(String(params.message));
+        queueMicrotask(() => {
+          for (const listener of debuggerEventListeners) {
+            listener(
+              { tabId: 1 },
+              'Target.receivedMessageFromTarget',
+              {
+                sessionId: params.sessionId,
+                message: JSON.stringify({
+                  id: message.id,
+                  result: message.method === 'Runtime.evaluate'
+                    ? { result: { value: 'frame-ok' } }
+                    : {},
+                }),
+              },
+            );
+          }
+        });
+        return {};
+      }
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    mod.registerFrameTracking();
+
+    const result = await mod.evaluateInFrame(1, 'document.title', 'oopif-frame');
+
+    expect(result).toBe('frame-ok');
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith(
+      { tabId: 1 },
+      'Target.attachToTarget',
+      { targetId: 'oopif-frame', flatten: false },
+    );
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith(
+      { tabId: 1 },
+      'Target.sendMessageToTarget',
+      expect.objectContaining({
+        sessionId: 'session-1',
+        message: expect.stringContaining('"Runtime.evaluate"'),
+      }),
     );
   });
 

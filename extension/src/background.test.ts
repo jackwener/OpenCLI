@@ -288,6 +288,47 @@ describe('background tab isolation', () => {
     );
   });
 
+  it('routes frame-target CDP passthrough calls through Target session messaging', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async (_target: unknown, method: string, params?: Record<string, unknown>) => {
+      if (method === 'Runtime.evaluate') return { result: { value: 1 } };
+      if (method === 'Target.attachToTarget') return { sessionId: 'session-1' };
+      if (method === 'Target.sendMessageToTarget') return {};
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const sendCommandInFrameTarget = vi.fn(async () => ({ nodes: [] }));
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      ensureAttached: vi.fn(async () => {}),
+      sendCommandInFrameTarget,
+    }));
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId('site:twitter', 1);
+
+    const result = await mod.__test__.handleCommand({
+      id: 'frame-ax',
+      action: 'cdp',
+      workspace: 'site:twitter',
+      cdpMethod: 'Accessibility.getFullAXTree',
+      cdpParams: { frameId: 'cross-frame', sessionId: 'target' },
+    });
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, data: { nodes: [] } }));
+    expect(sendCommandInFrameTarget).toHaveBeenCalledWith(
+      1,
+      'cross-frame',
+      'Accessibility.getFullAXTree',
+      {},
+      false,
+    );
+  });
+
   it('routes wait-download commands to the download observer', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);

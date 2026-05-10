@@ -1372,15 +1372,27 @@ async function handleCdp(cmd: Command, workspace: string): Promise<Result> {
   try {
     const aggressive = workspace.startsWith('browser:') || workspace.startsWith('operate:');
     await executor.ensureAttached(tabId, aggressive);
-    const data = await chrome.debugger.sendCommand(
-      { tabId },
-      cmd.cdpMethod,
-      cmd.cdpParams ?? {},
-    );
+    const params = cmd.cdpParams ?? {};
+    const routeFrameId = typeof params.frameId === 'string' && params.sessionId === 'target'
+      ? params.frameId
+      : undefined;
+    const data = routeFrameId
+      ? await executor.sendCommandInFrameTarget(tabId, routeFrameId, cmd.cdpMethod, stripOpenCliFrameRoutingParams(params, true), aggressive)
+      : await chrome.debugger.sendCommand(
+        { tabId },
+        cmd.cdpMethod,
+        stripOpenCliFrameRoutingParams(params, false),
+      );
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+function stripOpenCliFrameRoutingParams(params: Record<string, unknown>, stripFrameId: boolean): Record<string, unknown> {
+  const { sessionId, frameId, ...rest } = params;
+  if (!stripFrameId && frameId !== undefined) return { ...rest, frameId };
+  return rest;
 }
 
 async function handleCloseWindow(cmd: Command, workspace: string): Promise<Result> {

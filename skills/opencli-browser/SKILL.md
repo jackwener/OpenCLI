@@ -130,7 +130,7 @@ Error envelope always includes `error.code` and `error.message`. Target errors (
 | command | purpose |
 |---------|---------|
 | `browser state` | Snapshot: text tree with `[N]` refs, scroll hints, hidden-interactive hints, `compounds (N):` sidecar for date/select/file refs. |
-| `browser state --source ax` | Opt-in accessibility-tree snapshot. Use when custom controls, portals, or same-origin iframes are hard to identify in normal `state`. AX refs can recover stale React re-renders by role/name/nth. |
+| `browser state --source ax` | Opt-in accessibility-tree snapshot. Use when custom controls, portals, or iframe contents are hard to identify in normal `state`. AX refs can recover stale React re-renders by role/name/nth and can route same-origin plus attachable cross-origin iframe refs. |
 | `browser state --compare-sources` | Metrics-only DOM vs AX comparison for deciding whether AX should become default. It prints counts and sizes, not page text, so it is safer to share for validation. |
 | `browser find --css <sel> [--limit N] [--text-max N]` | Run a CSS query and return one entry per match with `{nth, ref, tag, role, text, attrs, visible, compound?}`. Allocates refs for matches the prior snapshot didn't tag. Cheap alternative to `state` when you already know the selector. |
 | `browser find --role button --name Save` | Semantic locator query. Also supports `--label`, `--text`, and `--testid`. Use before raw CSS when a control has accessible labels. |

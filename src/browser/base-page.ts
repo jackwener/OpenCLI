@@ -382,7 +382,7 @@ export abstract class BasePage implements IPage {
     if (typeof cdp !== 'function') return null;
 
     if (entry.backendNodeId != null) {
-      const point = await this.axBoxCenter(entry.backendNodeId).catch(() => null);
+      const point = await this.axBoxCenter(entry.backendNodeId, entry.frame).catch(() => null);
       if (point) return { ...point, matchLevel: 'exact' };
     }
 
@@ -391,14 +391,17 @@ export abstract class BasePage implements IPage {
     const recovered = findAxRefReplacement(axTree, entry);
     if (!recovered?.backendNodeId) return null;
     this._axRefs.set(entry.ref, recovered);
-    const point = await this.axBoxCenter(recovered.backendNodeId).catch(() => null);
+    const point = await this.axBoxCenter(recovered.backendNodeId, recovered.frame).catch(() => null);
     return point ? { ...point, matchLevel: 'reidentified' } : null;
   }
 
-  private async axBoxCenter(backendNodeId: number): Promise<{ x: number; y: number } | null> {
+  private async axBoxCenter(backendNodeId: number, frame?: BrowserRef['frame']): Promise<{ x: number; y: number } | null> {
     const cdp = (this as IPage).cdp;
     if (typeof cdp !== 'function') return null;
-    const result = await cdp.call(this, 'DOM.getBoxModel', { backendNodeId }) as
+    const result = await cdp.call(this, 'DOM.getBoxModel', {
+      backendNodeId,
+      ...(frame?.sessionId ? { frameId: frame.frameId, sessionId: frame.sessionId } : {}),
+    }) as
       | { model?: { content?: unknown[]; border?: unknown[] } }
       | null;
     const quad = Array.isArray(result?.model?.content) && result.model.content.length >= 8
@@ -1091,9 +1094,9 @@ export abstract class BasePage implements IPage {
     const trees: AxSnapshotTree[] = [{ tree: rootTree }];
 
     const frameTreeResult = await cdp.call(this, 'Page.getFrameTree', {}).catch(() => null);
-    const frames = collectSameOriginFrameRefs(frameTreeResult);
+    const frames = collectAxFrameRefs(frameTreeResult);
     for (const frame of frames) {
-      const tree = await cdp.call(this, 'Accessibility.getFullAXTree', { frameId: frame.frameId }).catch(() => null);
+      const tree = await cdp.call(this, 'Accessibility.getFullAXTree', axTreeParams(frame)).catch(() => null);
       if (tree) trees.push({ tree, frame });
     }
 
@@ -1171,10 +1174,12 @@ export abstract class BasePage implements IPage {
 }
 
 function axTreeParams(frame: BrowserRef['frame'] | undefined): Record<string, unknown> {
-  return frame?.frameId ? { frameId: frame.frameId } : {};
+  return frame?.frameId
+    ? { frameId: frame.frameId, ...(frame.sessionId ? { sessionId: frame.sessionId } : {}) }
+    : {};
 }
 
-function collectSameOriginFrameRefs(frameTreeResult: unknown): Array<NonNullable<BrowserRef['frame']>> {
+function collectAxFrameRefs(frameTreeResult: unknown): Array<NonNullable<BrowserRef['frame']>> {
   const root = (frameTreeResult as { frameTree?: CdpFrameTreeNode } | null)?.frameTree;
   const rootUrl = root?.frame?.url || root?.frame?.unreachableUrl || '';
   const rootOrigin = urlOrigin(rootUrl);
@@ -1187,9 +1192,12 @@ function collectSameOriginFrameRefs(frameTreeResult: unknown): Array<NonNullable
       const frameId = frame?.id;
       const frameUrl = frame?.url || frame?.unreachableUrl || '';
       const origin = urlOrigin(frameUrl);
-      if (frameId && origin === rootOrigin) {
+      if (!frameId) continue;
+      if (origin === rootOrigin) {
         frames.push({ frameId, url: frameUrl });
         collect(child);
+      } else {
+        frames.push({ frameId, url: frameUrl, sessionId: 'target' });
       }
     }
   }

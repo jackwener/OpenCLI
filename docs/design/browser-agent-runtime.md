@@ -333,6 +333,15 @@ Scope:
 - iframe-aware action routing,
 - annotated screenshot with the same ref ids and sidecar metadata.
 
+Status after implementation:
+
+- same-origin iframe AX refs route through `Accessibility.getFullAXTree`
+  `frameId` params,
+- cross-origin iframe AX refs route through Browser Bridge frame target sessions
+  when Chrome exposes an attachable OOPIF target,
+- unsupported frames degrade by omission or typed action failure rather than
+  requiring global manual frame switching.
+
 Exit:
 
 - Agent can act on iframe refs without manual frame selection in common cases.

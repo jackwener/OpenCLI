@@ -330,6 +330,14 @@ describe('BasePage native input routing', () => {
           ],
         };
       }
+      if (method === 'Accessibility.getFullAXTree' && params?.frameId === 'cross-frame') {
+        return {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, name: { value: 'Cross' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Cross Save' }, backendDOMNodeId: 30 },
+          ],
+        };
+      }
       if (method === 'Accessibility.getFullAXTree') {
         return {
           nodes: [
@@ -359,13 +367,53 @@ describe('BasePage native input routing', () => {
     expect(snapshot).toContain('[1]button "Main Save"');
     expect(snapshot).toContain('frame "https://app.example/embed":');
     expect(snapshot).toContain('[2]button "Frame Save"');
+    expect(snapshot).toContain('frame "https://other.example/embed":');
+    expect(snapshot).toContain('[3]button "Cross Save"');
 
     await expect(page.click('2')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
 
     expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'same-frame' });
-    expect(page.cdp).not.toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'cross-frame' });
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'cross-frame', sessionId: 'target' });
     expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 20 });
     expect(page.nativeClick).toHaveBeenCalledWith(120, 210);
+  });
+
+  it('clicks cross-origin AX refs through a frame-target CDP route', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    page.cdp = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: {
+            frame: { id: 'root', url: 'https://app.example/' },
+            childFrames: [{ frame: { id: 'cross-frame', url: 'https://other.example/embed' } }],
+          },
+        };
+      }
+      if (method === 'Accessibility.getFullAXTree' && params?.sessionId === 'target') {
+        return {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Cross Save' }, backendDOMNodeId: 99 },
+          ],
+        };
+      }
+      if (method === 'Accessibility.getFullAXTree') {
+        return { nodes: [{ nodeId: '1', role: { value: 'RootWebArea' } }] };
+      }
+      if (method === 'DOM.getBoxModel') {
+        return { model: { content: [300, 400, 340, 400, 340, 420, 300, 420] } };
+      }
+      return {};
+    });
+
+    const snapshot = await page.snapshot({ source: 'ax' }) as string;
+    expect(snapshot).toContain('[1]button "Cross Save"');
+    await expect(page.click('1')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'cross-frame', sessionId: 'target' });
+    expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 99, frameId: 'cross-frame', sessionId: 'target' });
+    expect(page.nativeClick).toHaveBeenCalledWith(320, 410);
   });
 
   it('recovers stale iframe AX refs inside the original frame', async () => {

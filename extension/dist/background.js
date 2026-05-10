@@ -7,6 +7,11 @@ const WS_RECONNECT_MAX_DELAY = 5e3;
 
 const attached = /* @__PURE__ */ new Set();
 const tabFrameContexts = /* @__PURE__ */ new Map();
+const frameSessions = /* @__PURE__ */ new Map();
+const sessionFrameKeys = /* @__PURE__ */ new Map();
+const pendingSessionCommands = /* @__PURE__ */ new Map();
+let sessionCommandId = 0;
+let frameSessionRoutingRegistered = false;
 const CDP_RESPONSE_BODY_CAPTURE_LIMIT = 8 * 1024 * 1024;
 const CDP_REQUEST_BODY_CAPTURE_LIMIT = 1 * 1024 * 1024;
 const networkCaptures = /* @__PURE__ */ new Map();
@@ -276,11 +281,95 @@ async function waitForDownload(pattern = "", timeoutMs = 3e4) {
     });
   });
 }
+function frameSessionKey(tabId, frameId) {
+  return `${tabId}:${frameId}`;
+}
+function registerFrameSessionRouting() {
+  if (frameSessionRoutingRegistered) return;
+  frameSessionRoutingRegistered = true;
+  chrome.debugger.onEvent.addListener((_source, method, params) => {
+    if (method === "Target.receivedMessageFromTarget") {
+      const sessionId = String(params?.sessionId || "");
+      const raw = typeof params?.message === "string" ? params.message : "";
+      if (!sessionId || !raw) return;
+      let message;
+      try {
+        message = JSON.parse(raw);
+      } catch {
+        return;
+      }
+      if (typeof message.id !== "number") return;
+      const sessionPending = pendingSessionCommands.get(sessionId);
+      const pending = sessionPending?.get(message.id);
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      sessionPending.delete(message.id);
+      if (sessionPending.size === 0) pendingSessionCommands.delete(sessionId);
+      if (message.error) {
+        pending.reject(new Error(message.error.message || JSON.stringify(message.error)));
+      } else {
+        pending.resolve(message.result);
+      }
+    }
+    if (method === "Target.detachedFromTarget") {
+      const sessionId = String(params?.sessionId || "");
+      const key = sessionFrameKeys.get(sessionId);
+      if (key) frameSessions.delete(key);
+      sessionFrameKeys.delete(sessionId);
+      const sessionPending = pendingSessionCommands.get(sessionId);
+      if (sessionPending) {
+        for (const pending of sessionPending.values()) {
+          clearTimeout(pending.timer);
+          pending.reject(new Error(`Frame target session ${sessionId} detached`));
+        }
+        pendingSessionCommands.delete(sessionId);
+      }
+    }
+  });
+}
+async function ensureFrameSession(tabId, frameId, aggressiveRetry = false) {
+  registerFrameSessionRouting();
+  await ensureAttached(tabId, aggressiveRetry);
+  const key = frameSessionKey(tabId, frameId);
+  const existing = frameSessions.get(key);
+  if (existing) return existing;
+  const result = await chrome.debugger.sendCommand({ tabId }, "Target.attachToTarget", {
+    targetId: frameId,
+    flatten: false
+  });
+  const sessionId = result.sessionId;
+  if (!sessionId) {
+    throw new Error(`Frame ${frameId} did not return a CDP session id`);
+  }
+  frameSessions.set(key, sessionId);
+  sessionFrameKeys.set(sessionId, key);
+  return sessionId;
+}
+async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, aggressiveRetry = false, timeoutMs = 3e4) {
+  const sessionId = await ensureFrameSession(tabId, frameId, aggressiveRetry);
+  const id = ++sessionCommandId;
+  const sessionPending = pendingSessionCommands.get(sessionId) ?? /* @__PURE__ */ new Map();
+  pendingSessionCommands.set(sessionId, sessionPending);
+  const command = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      sessionPending.delete(id);
+      if (sessionPending.size === 0) pendingSessionCommands.delete(sessionId);
+      reject(new Error(`Frame CDP command '${method}' timed out after ${timeoutMs / 1e3}s`));
+    }, timeoutMs);
+    sessionPending.set(id, { resolve, reject, timer });
+  });
+  await chrome.debugger.sendCommand({ tabId }, "Target.sendMessageToTarget", {
+    sessionId,
+    message: JSON.stringify({ id, method, params })
+  });
+  return command;
+}
 async function insertText(tabId, text) {
   await ensureAttached(tabId);
   await chrome.debugger.sendCommand({ tabId }, "Input.insertText", { text });
 }
 function registerFrameTracking() {
+  registerFrameSessionRouting();
   chrome.debugger.onEvent.addListener((source, method, params) => {
     const tabId = source.tabId;
     if (!tabId) return;
@@ -324,7 +413,17 @@ async function evaluateInFrame(tabId, expression, frameId, aggressiveRetry = fal
   const contexts = tabFrameContexts.get(tabId);
   const contextId = contexts?.get(frameId);
   if (contextId === void 0) {
-    throw new Error(`No execution context found for frame ${frameId}. The frame may not be loaded yet.`);
+    await sendCommandInFrameTarget(tabId, frameId, "Runtime.enable", {}, aggressiveRetry).catch(() => void 0);
+    const result2 = await sendCommandInFrameTarget(tabId, frameId, "Runtime.evaluate", {
+      expression,
+      returnByValue: true,
+      awaitPromise: true
+    }, aggressiveRetry);
+    if (result2.exceptionDetails) {
+      const errMsg = result2.exceptionDetails.exception?.description || result2.exceptionDetails.text || "Eval error";
+      throw new Error(errMsg);
+    }
+    return result2.result?.value;
   }
   const result = await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
     expression,
@@ -394,7 +493,23 @@ async function readNetworkCapture(tabId) {
 function hasActiveNetworkCapture(tabId) {
   return networkCaptures.has(tabId);
 }
+function clearFrameSessionsForTab(tabId, reason) {
+  for (const [key, sessionId] of [...frameSessions.entries()]) {
+    if (!key.startsWith(`${tabId}:`)) continue;
+    frameSessions.delete(key);
+    sessionFrameKeys.delete(sessionId);
+    const sessionPending = pendingSessionCommands.get(sessionId);
+    if (sessionPending) {
+      for (const pending of sessionPending.values()) {
+        clearTimeout(pending.timer);
+        pending.reject(new Error(reason));
+      }
+      pendingSessionCommands.delete(sessionId);
+    }
+  }
+}
 async function detach(tabId) {
+  clearFrameSessionsForTab(tabId, `Tab ${tabId} detached`);
   if (!attached.has(tabId)) return;
   attached.delete(tabId);
   networkCaptures.delete(tabId);
@@ -409,12 +524,14 @@ function registerListeners() {
     attached.delete(tabId);
     networkCaptures.delete(tabId);
     tabFrameContexts.delete(tabId);
+    clearFrameSessionsForTab(tabId, `Tab ${tabId} removed`);
   });
   chrome.debugger.onDetach.addListener((source) => {
     if (source.tabId) {
       attached.delete(source.tabId);
       networkCaptures.delete(source.tabId);
       tabFrameContexts.delete(source.tabId);
+      clearFrameSessionsForTab(source.tabId, `Tab ${source.tabId} detached`);
     }
   });
   chrome.tabs.onUpdated.addListener(async (tabId, info) => {
@@ -1641,15 +1758,22 @@ async function handleCdp(cmd, workspace) {
   try {
     const aggressive = workspace.startsWith("browser:") || workspace.startsWith("operate:");
     await ensureAttached(tabId, aggressive);
-    const data = await chrome.debugger.sendCommand(
+    const params = cmd.cdpParams ?? {};
+    const routeFrameId = typeof params.frameId === "string" && params.sessionId === "target" ? params.frameId : void 0;
+    const data = routeFrameId ? await sendCommandInFrameTarget(tabId, routeFrameId, cmd.cdpMethod, stripOpenCliFrameRoutingParams(params, true), aggressive) : await chrome.debugger.sendCommand(
       { tabId },
       cmd.cdpMethod,
-      cmd.cdpParams ?? {}
+      stripOpenCliFrameRoutingParams(params, false)
     );
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+function stripOpenCliFrameRoutingParams(params, stripFrameId) {
+  const { sessionId, frameId, ...rest } = params;
+  if (!stripFrameId && frameId !== void 0) return { ...rest, frameId };
+  return rest;
 }
 async function handleCloseWindow(cmd, workspace) {
   await releaseWorkspaceLease(workspace, "explicit close");
