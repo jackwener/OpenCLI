@@ -133,6 +133,7 @@ Error envelope always includes `error.code` and `error.message`. Target errors (
 | `browser state --source ax` | Opt-in accessibility-tree snapshot. Use when custom controls, portals, or same-origin iframes are hard to identify in normal `state`. AX refs can recover stale React re-renders by role/name/nth. |
 | `browser state --compare-sources` | Metrics-only DOM vs AX comparison for deciding whether AX should become default. It prints counts and sizes, not page text, so it is safer to share for validation. |
 | `browser find --css <sel> [--limit N] [--text-max N]` | Run a CSS query and return one entry per match with `{nth, ref, tag, role, text, attrs, visible, compound?}`. Allocates refs for matches the prior snapshot didn't tag. Cheap alternative to `state` when you already know the selector. |
+| `browser find --role button --name Save` | Semantic locator query. Also supports `--label`, `--text`, and `--testid`. Use before raw CSS when a control has accessible labels. |
 | `browser frames` | List cross-origin iframe targets. Pass the index to `--frame` on `eval`. |
 | `browser screenshot [path]` | Viewport PNG. No path → base64 to stdout. Prefer `state` when you just need structure. |
 
@@ -145,6 +146,7 @@ Error envelope always includes `error.code` and `error.message`. Target errors (
 | `browser get text <target> [--nth N]` | `{value, matches_n, match_level}` |
 | `browser get value <target> [--nth N]` | `{value, matches_n, match_level}` |
 | `browser get attributes <target> [--nth N]` | `{value: {attr: val, ...}, matches_n, match_level}` |
+| `browser get text --role option --name Travel` | Semantic locator read without a prior `state` call. Same flags as `browser find`. |
 | `browser get html [--selector <css>] [--as html\|json] [--depth N] [--children-max N] [--text-max N] [--max N]` | Raw HTML, or structured tree. JSON tree nodes have `{tag, attrs, text, children[], compound?}`. Truncation reported via `truncated: {depth?, children_dropped?, text_truncated?}`. |
 
 ### Interact
@@ -152,6 +154,7 @@ Error envelope always includes `error.code` and `error.message`. Target errors (
 | command | notes |
 |---------|-------|
 | `browser click <target> [--nth N]` | Returns `{clicked, target, matches_n, match_level}`. |
+| `browser click --role button --name Submit` | Semantic click. Write actions require a unique match; ambiguous locators return candidates instead of clicking the first match. |
 | `browser type <target> <text> [--nth N]` | Clicks first, then types. Returns `{typed, text, target, matches_n, match_level, autocomplete}`. `autocomplete: true` means a combobox/datalist popup appeared after typing — you almost always need `keys Enter` or a follow-up `click` on the suggestion to commit the value. |
 | `browser fill <target> <text> [--nth N]` | Exact replacement for input, textarea, and contenteditable targets. Returns `{filled, verified, text, actual, matches_n, match_level}`. Use this when you need raw text set and verified, not keyboard/autocomplete behavior. Pipeline form supports `{ fill: { ref, text, submit: true } }`. |
 | `browser select <target> <option> [--nth N]` | Matches option by label first, then value. Use `compound` from `find`/`state` to see exactly what labels are available. |

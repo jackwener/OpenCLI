@@ -23,7 +23,7 @@ import { classifyAdapter, formatRootAdapterHelpText, installCommanderNamespaceSt
 import { EXIT_CODES, getErrorMessage, BrowserConnectError } from './errors.js';
 import { TargetError, type TargetErrorCode } from './browser/target-errors.js';
 import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesResolvedJs, selectResolvedJs, isAutocompleteResolvedJs, type ResolveOptions, type TargetMatchLevel } from './browser/target-resolver.js';
-import { buildFindJs, isFindError, type FindResult, type FindError } from './browser/find.js';
+import { buildFindJs, buildSemanticFindJs, isFindError, type FindResult, type FindError, type SemanticFindOptions } from './browser/find.js';
 import { inferShape } from './browser/shape.js';
 import { assignKeys } from './browser/network-key.js';
 import { DEFAULT_TTL_MS, findEntry, loadNetworkCache, saveNetworkCache, type CachedNetworkEntry } from './browser/network-cache.js';
@@ -1214,20 +1214,107 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   // `browser find --css <sel>` lets agents jump straight from a semantic
   // selector to a JSON list of matching elements, without having to parse
   // the free-text state snapshot to recover indices.
+  const addSemanticLocatorOptions = (cmd: Command): Command => cmd
+    .option('--role <role>', 'Semantic role (button, link, textbox, option, etc.)')
+    .option('--name <text>', 'Accessible name contains text (aria-label, label, title, placeholder, or visible text)')
+    .option('--label <text>', 'Associated label contains text')
+    .option('--text <text>', 'Visible text contains text')
+    .option('--testid <id>', 'data-testid / data-test / test-id contains id');
+
+  const semanticLocatorFromOptions = (opts: Record<string, unknown>): SemanticFindOptions | null => {
+    const locator: SemanticFindOptions = {};
+    for (const key of ['role', 'name', 'label', 'text', 'testid'] as const) {
+      const value = opts[key];
+      if (typeof value === 'string' && value.trim()) locator[key] = value.trim();
+    }
+    return Object.keys(locator).length > 0 ? locator : null;
+  };
+
+  const semanticTargetFromOptions = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    opts: Record<string, unknown>,
+    mode: 'read' | 'write',
+  ): Promise<string | { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } } | null> => {
+    const locator = semanticLocatorFromOptions(opts);
+    if (!locator) return null;
+    const result = await page.evaluate(buildSemanticFindJs({ ...locator, limit: mode === 'write' ? 6 : 1 })) as FindResult | FindError;
+    if (isFindError(result)) return result;
+    if (mode === 'write' && result.matches_n !== 1) {
+      return {
+        error: {
+          code: 'semantic_ambiguous',
+          message: `Semantic locator matched ${result.matches_n} elements; write actions require a unique target.`,
+          hint: 'Add --name/--label/--text/--testid or use browser find with a narrower locator.',
+          matches_n: result.matches_n,
+          entries: result.entries,
+        },
+      };
+    }
+    const first = result.entries[0];
+    if (!first) {
+      return {
+        error: {
+          code: 'semantic_not_found',
+          message: 'Semantic locator matched 0 elements',
+          hint: 'Try browser state, --source ax, or relax the semantic locator.',
+        },
+      };
+    }
+    return String(first.ref);
+  };
+
+  const resolveExplicitOrSemanticTarget = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    target: unknown,
+    opts: Record<string, unknown>,
+    mode: 'read' | 'write',
+  ): Promise<string | { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } }> => {
+    const explicit = typeof target === 'string' && target.trim() ? target.trim() : '';
+    const hasSemantic = !!semanticLocatorFromOptions(opts);
+    if (explicit && hasSemantic) {
+      return {
+        error: {
+          code: 'usage_error',
+          message: 'Pass either <target> or semantic locator flags, not both.',
+        },
+      };
+    }
+    if (explicit) return explicit;
+    const semantic = await semanticTargetFromOptions(page, opts, mode);
+    if (semantic) return semantic;
+    return {
+      error: {
+        code: 'usage_error',
+        message: 'Missing target. Pass a numeric ref/CSS selector, or semantic flags like --role button --name Submit.',
+      },
+    };
+  };
+
   addBrowserTabOption(
-    browser.command('find')
+    addSemanticLocatorOptions(browser.command('find'))
       .option('--css <selector>', 'CSS selector (required)')
       .option('--limit <n>', 'Max entries returned', '50')
       .option('--text-max <n>', 'Max chars of trimmed text per entry', '120')
-      .description('Find DOM elements by CSS selector — returns JSON {matches_n, entries[]}'),
+      .description('Find DOM elements by CSS or semantic locator — returns JSON {matches_n, entries[]}'),
   )
     .action(browserAction(async (page, opts) => {
-      if (!opts.css || typeof opts.css !== 'string') {
+      const locator = semanticLocatorFromOptions(opts);
+      if ((!opts.css || typeof opts.css !== 'string') && !locator) {
         console.log(JSON.stringify({
           error: {
             code: 'usage_error',
-            message: '--css <selector> is required',
-            hint: 'Example: opencli browser find --css ".btn.primary"',
+            message: '--css <selector> or a semantic locator flag is required',
+            hint: 'Examples: opencli browser find --css ".btn.primary"; opencli browser find --role button --name Save',
+          },
+        }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      if (opts.css && locator) {
+        console.log(JSON.stringify({
+          error: {
+            code: 'usage_error',
+            message: 'Pass either --css or semantic locator flags, not both.',
           },
         }, null, 2));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
@@ -1245,10 +1332,18 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const result = await page.evaluate(buildFindJs(opts.css, {
-        limit: limit as number | null ?? undefined,
-        textMax: textMax as number | null ?? undefined,
-      })) as FindResult | FindError;
+      const result = await page.evaluate(
+        locator
+          ? buildSemanticFindJs({
+              ...locator,
+              limit: limit as number | null ?? undefined,
+              textMax: textMax as number | null ?? undefined,
+            })
+          : buildFindJs(opts.css, {
+              limit: limit as number | null ?? undefined,
+              textMax: textMax as number | null ?? undefined,
+            }),
+      ) as FindResult | FindError;
       if (isFindError(result)) {
         console.log(JSON.stringify(result, null, 2));
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
@@ -1281,18 +1376,24 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   // match count is exposed via `matches_n`; `--nth <n>` picks a specific one.
   const runGetCommand = async (
     page: Awaited<ReturnType<typeof getBrowserPage>>,
-    target: string,
-    opts: { nth?: string },
+    target: string | undefined,
+    opts: Record<string, unknown> & { nth?: string },
     evalJs: string,
     field: 'text' | 'value' | 'attributes',
   ): Promise<void> => {
+    const resolvedTarget = await resolveExplicitOrSemanticTarget(page, target, opts, 'read');
+    if (typeof resolvedTarget !== 'string') {
+      console.log(JSON.stringify(resolvedTarget, null, 2));
+      process.exitCode = EXIT_CODES.USAGE_ERROR;
+      return;
+    }
     const nth = parseNthFlag(opts.nth);
     if (nth && typeof nth === 'object' && 'error' in nth) {
       console.log(JSON.stringify({ error: { code: 'usage_error', message: nth.error } }, null, 2));
       process.exitCode = EXIT_CODES.USAGE_ERROR;
       return;
     }
-    const { matches_n, match_level } = await resolveRef(page, String(target), {
+    const { matches_n, match_level } = await resolveRef(page, resolvedTarget, {
       firstOnMulti: nth === null,
       ...(typeof nth === 'number' ? { nth } : {}),
     });
@@ -1310,22 +1411,22 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   };
 
   addBrowserTabOption(
-    get.command('text')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+    addSemanticLocatorOptions(get.command('text'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'Pick the nth match (0-based) when <target> is a multi-match CSS selector')
       .description('Element text content — JSON envelope {value, matches_n}'),
   )
     .action(browserAction(async (page, target, opts) =>
-      runGetCommand(page, String(target), opts ?? {}, getTextResolvedJs(), 'text')));
+      runGetCommand(page, target, opts ?? {}, getTextResolvedJs(), 'text')));
 
   addBrowserTabOption(
-    get.command('value')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+    addSemanticLocatorOptions(get.command('value'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'Pick the nth match (0-based) when <target> is a multi-match CSS selector')
       .description('Input/textarea value — JSON envelope {value, matches_n}'),
   )
     .action(browserAction(async (page, target, opts) =>
-      runGetCommand(page, String(target), opts ?? {}, getValueResolvedJs(), 'value')));
+      runGetCommand(page, target, opts ?? {}, getValueResolvedJs(), 'value')));
 
   addBrowserTabOption(
     get.command('html')
@@ -1450,13 +1551,13 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }));
 
   addBrowserTabOption(
-    get.command('attributes')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+    addSemanticLocatorOptions(get.command('attributes'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'Pick the nth match (0-based) when <target> is a multi-match CSS selector')
       .description('Element attributes — JSON envelope {value, matches_n}'),
   )
     .action(browserAction(async (page, target, opts) =>
-      runGetCommand(page, String(target), opts ?? {}, getAttributesResolvedJs(), 'attributes')));
+      runGetCommand(page, target, opts ?? {}, getAttributesResolvedJs(), 'attributes')));
 
   // ── Interact ──
   //
@@ -1481,20 +1582,26 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   }
 
   addBrowserTabOption(
-    browser.command('click')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+    addSemanticLocatorOptions(browser.command('click'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Click element — JSON envelope {clicked, target, matches_n}'),
   )
     .action(browserAction(async (page, target, opts) => {
+      const resolvedTarget = await resolveExplicitOrSemanticTarget(page, target, opts ?? {}, 'write');
+      if (typeof resolvedTarget !== 'string') {
+        console.log(JSON.stringify(resolvedTarget, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
       const parsed = nthToResolveOpts(opts?.nth);
       if ('error' in parsed) {
         console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const { matches_n, match_level } = await page.click(String(target), parsed.opts);
-      console.log(JSON.stringify({ clicked: true, target: String(target), matches_n, match_level }, null, 2));
+      const { matches_n, match_level } = await page.click(resolvedTarget, parsed.opts);
+      console.log(JSON.stringify({ clicked: true, target: resolvedTarget, matches_n, match_level }, null, 2));
     }));
 
   addBrowserTabOption(

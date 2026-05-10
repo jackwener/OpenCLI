@@ -400,10 +400,10 @@ describe('createProgram root help descriptions', () => {
       const click = data.commands.find((cmd: any) => cmd.name === 'click');
       expect(click).toMatchObject({
         command: 'opencli browser click',
-        usage: 'opencli browser click <target> [options]',
-        positionals: [{ name: 'target', required: true }],
+        usage: 'opencli browser click [target] [options]',
+        positionals: [{ name: 'target' }],
       });
-      expect(click.command_options.map((option: any) => option.name)).toEqual(['nth', 'tab']);
+      expect(click.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab']);
 
       const tabList = data.commands.find((cmd: any) => cmd.name === 'tab list');
       expect(tabList).toMatchObject({
@@ -415,7 +415,7 @@ describe('createProgram root help descriptions', () => {
       const getText = data.commands.find((cmd: any) => cmd.name === 'get text');
       expect(getText).toMatchObject({
         command: 'opencli browser get text',
-        positionals: [{ name: 'target', required: true }],
+        positionals: [{ name: 'target' }],
       });
       expect(data.structured_help).toMatchObject({
         formats: ['yaml', 'json'],
@@ -479,13 +479,13 @@ describe('createProgram root help descriptions', () => {
         namespace: 'browser',
         name: 'click',
         command: 'opencli browser click',
-        usage: 'opencli browser click <target> [options]',
-        positionals: [{ name: 'target', required: true }],
+        usage: 'opencli browser click [target] [options]',
+        positionals: [{ name: 'target' }],
         structured_help: {
           usage: 'opencli browser click --help -f yaml',
         },
       });
-      expect(data.command_options.map((option: any) => option.name)).toEqual(['nth', 'tab']);
+      expect(data.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab']);
       expect(data.namespace_options.map((option: any) => option.name)).toEqual(['workspace']);
       expect(data.global_options.map((option: any) => option.name)).toContain('profile');
     } finally {
@@ -2136,6 +2136,28 @@ describe('browser find command', () => {
     expect(process.exitCode).toBeUndefined();
   });
 
+  it('finds elements by semantic role/name without requiring CSS', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 9, tag: 'button', role: 'button', text: 'Save', attrs: {}, visible: true },
+      ],
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'find', '--role', 'button', '--name', 'Save']);
+
+    const js = (browserState.page!.evaluate as any).mock.calls[0][0] as string;
+    expect(js).toContain('CRITERIA');
+    expect(js).toContain('function accessibleName');
+    expect(lastJsonLog()).toEqual({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 9, tag: 'button', role: 'button', text: 'Save', attrs: {}, visible: true },
+      ],
+    });
+  });
+
   it('forwards --limit / --text-max into the generated JS', async () => {
     (browserState.page!.evaluate as any).mockResolvedValueOnce({ matches_n: 0, entries: [] });
     const program = createProgram('', '');
@@ -2208,6 +2230,25 @@ describe('browser get text/value/attributes commands', () => {
     await program.parseAsync(['node', 'opencli', 'browser', 'get', 'text', '7']);
 
     expect(lastJsonLog()).toEqual({ value: 'Hello world', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('resolves a semantic locator to a ref before get text', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 12, tag: 'button', role: 'button', text: 'Save', attrs: {}, visible: true },
+      ],
+    });
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' });
+    evalMock.mockResolvedValueOnce('Save');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'get', 'text', '--role', 'button', '--name', 'Save']);
+
+    expect(evalMock.mock.calls[0][0]).toContain('function accessibleName');
+    expect(evalMock.mock.calls[1][0]).toContain('const ref = "12"');
+    expect(lastJsonLog()).toEqual({ value: 'Save', matches_n: 1, match_level: 'exact' });
   });
 
   it('reports matches_n on multi-match CSS (read path: first match wins)', async () => {
@@ -2302,6 +2343,41 @@ describe('browser click/type commands', () => {
 
     expect(browserState.page!.click).toHaveBeenCalledWith('#save', {});
     expect(lastJsonLog()).toEqual({ clicked: true, target: '#save', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('clicks a unique semantic locator without a prior state call', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 23, tag: 'button', role: 'button', text: 'Submit', attrs: {}, visible: true },
+      ],
+    });
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'exact' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'click', '--role', 'button', '--name', 'Submit']);
+
+    expect(browserState.page!.click).toHaveBeenCalledWith('23', {});
+    expect(lastJsonLog()).toEqual({ clicked: true, target: '23', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('rejects ambiguous semantic locators before write actions', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 2,
+      entries: [
+        { nth: 0, ref: 1, tag: 'button', role: 'button', text: 'Save', attrs: {}, visible: true },
+        { nth: 1, ref: 2, tag: 'button', role: 'button', text: 'Save draft', attrs: {}, visible: true },
+      ],
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'click', '--role', 'button', '--name', 'Save']);
+
+    const err = lastJsonLog().error;
+    expect(err.code).toBe('semantic_ambiguous');
+    expect(err.matches_n).toBe(2);
+    expect(browserState.page!.click).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
   });
 
   it('surfaces match_level=stable when resolver falls back to fingerprint match', async () => {

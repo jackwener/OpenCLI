@@ -345,8 +345,14 @@ Scope:
 
 - `hover`, `focus`, `check`, `uncheck`, `dblclick`, `drag`, `upload`,
   `wait download`,
-- semantic locator options for role/name, label, placeholder, text, testid,
+- semantic locator options for role/name, label, text, testid,
 - structured ambiguity errors for write locators.
+
+Implementation note: the first semantic-locator slice covers `browser find`,
+`browser click`, and `browser get text|value|attributes` with `--role`,
+`--name`, `--label`, `--text`, and `--testid`. Placeholder is folded into
+accessible-name matching for `--name`; a dedicated `--placeholder` flag can be
+added only if real usage shows the distinction matters.
 
 Exit:
 
