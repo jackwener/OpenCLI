@@ -580,6 +580,76 @@ describe('BasePage native input routing', () => {
     expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 20, y: 30, button: 'left', clickCount: 2 });
   });
 
+  it('checks a checkbox only when its current state differs', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    page.results = [
+      resolveOk,
+      { ok: true, checked: false, disabled: false, kind: 'checkbox' },
+      resolveOk,
+      { x: 20, y: 30, w: 40, h: 20, visible: true },
+      { ok: true, checked: true, disabled: false, kind: 'checkbox' },
+    ];
+
+    await expect(page.setChecked('#agree', true)).resolves.toEqual({
+      checked: true,
+      changed: true,
+      matches_n: 1,
+      match_level: 'exact',
+      kind: 'checkbox',
+    });
+
+    expect(page.nativeClick).toHaveBeenCalledWith(20, 30);
+  });
+
+  it('does not click a checkbox that already has the requested state', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    page.results = [resolveOk, { ok: true, checked: false, disabled: false, kind: 'checkbox' }];
+
+    await expect(page.setChecked('#agree', false)).resolves.toEqual({
+      checked: false,
+      changed: false,
+      matches_n: 1,
+      match_level: 'exact',
+      kind: 'checkbox',
+    });
+
+    expect(page.nativeClick).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-checkable targets with a structured error', async () => {
+    const page = new ActionPage();
+    page.results = [resolveOk, { ok: false, reason: 'not_checkable', tag: 'button' }];
+
+    const err = await page.setChecked('button', true).catch((error: unknown) => error);
+
+    expect(err).toBeInstanceOf(TargetError);
+    expect((err as TargetError).code).toBe('not_checkable');
+  });
+
+  it('rejects attempts to uncheck a radio button directly', async () => {
+    const page = new ActionPage();
+    page.results = [resolveOk, { ok: true, checked: true, disabled: false, kind: 'radio' }];
+
+    const err = await page.setChecked('#radio', false).catch((error: unknown) => error);
+
+    expect(err).toBeInstanceOf(TargetError);
+    expect((err as TargetError).code).toBe('not_checkable');
+    expect((err as TargetError).hint).toContain('Select another radio');
+  });
+
+  it('treats ARIA radio controls like radio buttons', async () => {
+    const page = new ActionPage();
+    page.results = [resolveOk, { ok: true, checked: true, disabled: false, kind: 'menuitemradio' }];
+
+    const err = await page.setChecked('[role="menuitemradio"]', false).catch((error: unknown) => error);
+
+    expect(err).toBeInstanceOf(TargetError);
+    expect((err as TargetError).code).toBe('not_checkable');
+    expect((err as TargetError).hint).toContain('Select another radio');
+  });
+
   it('presses key chords through native CDP key events when available', async () => {
     const page = new ActionPage();
     page.nativeKeyPress = vi.fn().mockResolvedValue(undefined);

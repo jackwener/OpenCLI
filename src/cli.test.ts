@@ -2345,6 +2345,7 @@ describe('browser click/type commands', () => {
     dblClick: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
     hover: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
     focus: vi.fn().mockResolvedValue({ focused: true, matches_n: 1, match_level: 'exact' }),
+    setChecked: vi.fn().mockResolvedValue({ checked: true, changed: true, matches_n: 1, match_level: 'exact', kind: 'checkbox' }),
     typeText: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
     fillText: vi.fn().mockResolvedValue({
       filled: true,
@@ -2493,6 +2494,38 @@ describe('browser click/type commands', () => {
 
     expect(browserState.page!.dblClick).toHaveBeenCalledWith('#row', {});
     expect(lastJsonLog()).toEqual({ dblclicked: true, target: '#row', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('check: ensures target is checked through page.setChecked', async () => {
+    (browserState.page!.setChecked as any).mockResolvedValueOnce({
+      checked: true,
+      changed: true,
+      matches_n: 2,
+      match_level: 'exact',
+      kind: 'checkbox',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'check', '.todo', '--nth', '1']);
+
+    expect(browserState.page!.setChecked).toHaveBeenCalledWith('.todo', true, { nth: 1 });
+    expect(lastJsonLog()).toEqual({ checked: true, changed: true, target: '.todo', matches_n: 2, match_level: 'exact', kind: 'checkbox' });
+  });
+
+  it('uncheck: ensures target is unchecked through page.setChecked', async () => {
+    (browserState.page!.setChecked as any).mockResolvedValueOnce({
+      checked: false,
+      changed: false,
+      matches_n: 1,
+      match_level: 'stable',
+      kind: 'checkbox',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'uncheck', '#subscribe']);
+
+    expect(browserState.page!.setChecked).toHaveBeenCalledWith('#subscribe', false, {});
+    expect(lastJsonLog()).toEqual({ checked: false, changed: false, target: '#subscribe', matches_n: 1, match_level: 'stable', kind: 'checkbox' });
   });
 
   it('type: clicks, waits, then typeText — emits {typed, text, target, matches_n, match_level, autocomplete}', async () => {

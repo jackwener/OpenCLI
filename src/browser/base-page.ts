@@ -57,6 +57,12 @@ export interface FillTextResult extends ResolveSuccess {
   mode?: 'input' | 'textarea' | 'contenteditable';
 }
 
+export interface SetCheckedResult extends ResolveSuccess {
+  checked: boolean;
+  changed: boolean;
+  kind?: string;
+}
+
 interface CdpFrameTreeNode {
   frame?: { id?: string; url?: string; unreachableUrl?: string; name?: string };
   childFrames?: CdpFrameTreeNode[];
@@ -581,6 +587,103 @@ export abstract class BasePage implements IPage {
       })()
     `);
     return resolved;
+  }
+
+  private async readCheckableState(): Promise<{
+    ok?: boolean;
+    checked?: boolean;
+    disabled?: boolean;
+    kind?: string;
+    reason?: string;
+    tag?: string;
+    role?: string;
+  } | null> {
+    return await this.evaluate(`
+      (() => {
+        const el = window.__resolved;
+        if (!el || el.nodeType !== 1) return { ok: false, reason: 'not_checkable' };
+        const tag = el.tagName.toLowerCase();
+        const role = (el.getAttribute('role') || '').toLowerCase();
+        const type = (el.getAttribute('type') || '').toLowerCase();
+        if (tag === 'input' && (type === 'checkbox' || type === 'radio')) {
+          return {
+            ok: true,
+            checked: !!el.checked,
+            disabled: !!el.disabled,
+            kind: type,
+          };
+        }
+        if (role === 'checkbox' || role === 'switch' || role === 'menuitemcheckbox' || role === 'radio' || role === 'menuitemradio') {
+          const aria = (el.getAttribute('aria-checked') || '').toLowerCase();
+          return {
+            ok: true,
+            checked: aria === 'true' || aria === 'mixed',
+            disabled: el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled'),
+            kind: role,
+          };
+        }
+        return { ok: false, reason: 'not_checkable', tag, role };
+      })()
+    `) as {
+      ok?: boolean;
+      checked?: boolean;
+      disabled?: boolean;
+      kind?: string;
+      reason?: string;
+      tag?: string;
+      role?: string;
+    } | null;
+  }
+
+  async setChecked(ref: string, checked: boolean, opts: ResolveOptions = {}): Promise<SetCheckedResult> {
+    const resolved = await runResolve(this, ref, opts);
+    const before = await this.readCheckableState();
+    if (before?.ok !== true) {
+      throw new TargetError({
+        code: 'not_checkable',
+        message: `Target "${ref}" is not a checkbox, radio, switch, or aria-checked control.`,
+        hint: 'Use `opencli browser state` or `browser find` to pick an input[type=checkbox], input[type=radio], or role=checkbox/switch target.',
+      });
+    }
+    if (before.disabled) {
+      throw new TargetError({
+        code: 'not_checkable',
+        message: `Target "${ref}" is disabled and cannot be ${checked ? 'checked' : 'unchecked'}.`,
+        hint: 'Pick an enabled control, or inspect the form state before retrying.',
+      });
+    }
+    if ((before.kind === 'radio' || before.kind === 'menuitemradio') && !checked) {
+      throw new TargetError({
+        code: 'not_checkable',
+        message: `Target "${ref}" is a radio button and cannot be unchecked directly.`,
+        hint: 'Select another radio option in the same group instead.',
+      });
+    }
+    if (before.checked === checked) {
+      return {
+        ...resolved,
+        checked,
+        changed: false,
+        ...(before.kind ? { kind: before.kind } : {}),
+      };
+    }
+
+    const clicked = await this.click(ref, opts);
+    const after = await this.readCheckableState();
+    if (after?.ok !== true || after.checked !== checked) {
+      throw new TargetError({
+        code: 'not_checkable',
+        message: `Target "${ref}" did not become ${checked ? 'checked' : 'unchecked'} after click.`,
+        hint: 'The control may be custom, disabled by app logic, or require a different target such as its visible label.',
+      });
+    }
+    return {
+      matches_n: clicked.matches_n,
+      match_level: clicked.match_level,
+      checked,
+      changed: true,
+      ...(after.kind ? { kind: after.kind } : {}),
+    };
   }
 
   async fillText(ref: string, text: string, opts: ResolveOptions = {}): Promise<FillTextResult> {

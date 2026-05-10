@@ -1703,6 +1703,50 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       console.log(JSON.stringify({ dblclicked: true, target: String(target), matches_n, match_level }, null, 2));
     }));
 
+  const runCheckCommand = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    target: unknown,
+    opts: Record<string, unknown>,
+    checked: boolean,
+  ): Promise<void> => {
+    if (typeof page.setChecked !== 'function') throw new Error(`browser ${checked ? 'check' : 'uncheck'} is not supported by this browser backend`);
+    const parsed = nthToResolveOpts(opts?.nth);
+    if ('error' in parsed) {
+      console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+      process.exitCode = EXIT_CODES.USAGE_ERROR;
+      return;
+    }
+    const result = await page.setChecked(String(target), checked, parsed.opts);
+    console.log(JSON.stringify({
+      checked: result.checked,
+      changed: result.changed,
+      target: String(target),
+      matches_n: result.matches_n,
+      match_level: result.match_level,
+      ...(result.kind ? { kind: result.kind } : {}),
+    }, null, 2));
+  };
+
+  addBrowserTabOption(
+    browser.command('check')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector of a checkbox/radio/aria-checked control')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Ensure a checkbox/radio/aria-checked control is checked — JSON envelope {checked, changed, target, matches_n}'),
+  )
+    .action(browserAction(async (page, target, opts) => {
+      await runCheckCommand(page, target, opts ?? {}, true);
+    }));
+
+  addBrowserTabOption(
+    browser.command('uncheck')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector of a checkbox/aria-checked control')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Ensure a checkbox/aria-checked control is unchecked — JSON envelope {checked, changed, target, matches_n}'),
+  )
+    .action(browserAction(async (page, target, opts) => {
+      await runCheckCommand(page, target, opts ?? {}, false);
+    }));
+
   addBrowserTabOption(
     browser.command('fill')
       .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
