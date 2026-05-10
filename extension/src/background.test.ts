@@ -955,7 +955,7 @@ describe('background tab isolation', () => {
     expect(chrome.windows.create).toHaveBeenCalledWith(expect.objectContaining({ focused: true }));
   });
 
-  it('reuses the existing automation tab group when adding another owned lease tab', async () => {
+  it('reuses the existing adapter tab group when adding another owned lease tab', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
