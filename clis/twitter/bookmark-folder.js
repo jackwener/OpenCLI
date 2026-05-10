@@ -122,7 +122,7 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     args: [
         { name: 'folder-id', positional: true, type: 'string', required: true, help: 'Folder id from `opencli twitter bookmark-folders`.' },
         { name: 'limit', type: 'int', default: 20, help: 'Maximum number of bookmarks to return (default 20).' },

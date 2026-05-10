@@ -50,6 +50,28 @@ describe('Page.getCurrentUrl', () => {
 
     expect(sendCommandMock).toHaveBeenCalledTimes(1);
   });
+
+  it('passes adapter site session lifecycle through daemon commands', async () => {
+    sendCommandFullMock.mockResolvedValueOnce({ page: 'page-1', data: { url: 'https://chatgpt.com/' } });
+    sendCommandMock.mockResolvedValueOnce(null);
+
+    const page = new Page('site:chatgpt', undefined, undefined, undefined, 'adapter', 'persistent');
+
+    await page.goto('https://chatgpt.com/', { waitUntil: 'none' });
+    await page.evaluate('document.title');
+
+    expect(sendCommandFullMock).toHaveBeenCalledWith('navigate', expect.objectContaining({
+      session: 'site:chatgpt',
+      surface: 'adapter',
+      siteSession: 'persistent',
+    }));
+    expect(sendCommandMock).toHaveBeenCalledWith('exec', expect.objectContaining({
+      session: 'site:chatgpt',
+      surface: 'adapter',
+      siteSession: 'persistent',
+      page: 'page-1',
+    }));
+  });
 });
 
 describe('Page.evaluate', () => {

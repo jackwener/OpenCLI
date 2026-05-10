@@ -17,7 +17,7 @@ cli({
     domain: YUANBAO_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Max conversations to list (sidebar virtual scroll caps actual count)' },

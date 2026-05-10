@@ -8,7 +8,7 @@ export const meetingSummaryCommand = cli({
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'id', required: true, positional: true, help: 'Conversation ID (numeric or full URL)' },

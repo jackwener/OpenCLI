@@ -134,7 +134,7 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
         pipeline: entry.pipeline,
         source: entry.sourceFile ? path.resolve(clisDir, entry.sourceFile) : modulePath,
         navigateBefore: entry.navigateBefore,
-        browserSession: entry.browserSession,
+        siteSession: entry.siteSession,
         _lazy: true,
         _modulePath: modulePath,
       };

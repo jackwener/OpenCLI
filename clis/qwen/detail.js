@@ -18,7 +18,7 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     navigateBefore: false,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     args: [
         { name: 'id', positional: true, required: true, help: 'Session ID (32-char hex) or full https://www.qianwen.com/chat/<id> URL' },
         { name: 'markdown', type: 'boolean', default: false, help: 'Emit assistant replies as markdown' },

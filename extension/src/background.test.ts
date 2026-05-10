@@ -1176,6 +1176,52 @@ describe('background tab isolation', () => {
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
 
+  it('keeps persistent adapter site sessions alive across adapter idle timeout', async () => {
+    const { chrome, tabs } = createChromeMock();
+    tabs[0].url = 'https://chatgpt.com/';
+    tabs[0].title = 'ChatGPT';
+    tabs[0].active = true;
+
+    vi.useFakeTimers();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+
+    const first = await mod.__test__.handleCommand({
+      id: 'persistent-nav-1',
+      action: 'navigate',
+      session: 'chatgpt',
+      surface: 'adapter',
+      siteSession: 'persistent',
+      url: 'https://chatgpt.com/',
+    });
+    expect(first.ok).toBe(true);
+    const page = first.page;
+
+    const session = mod.__test__.getSession(adapterKey('chatgpt'));
+    expect(session).toEqual(expect.objectContaining({
+      lifecycle: 'persistent',
+      surface: 'adapter',
+      session: 'chatgpt',
+    }));
+    expect(mod.__test__.getIdleTimeout(adapterKey('chatgpt'))).toBe(-1);
+
+    await vi.advanceTimersByTimeAsync(60001);
+    expect(mod.__test__.getSession(adapterKey('chatgpt'))).not.toBeNull();
+
+    const second = await mod.__test__.handleCommand({
+      id: 'persistent-nav-2',
+      action: 'navigate',
+      session: 'chatgpt',
+      surface: 'adapter',
+      siteSession: 'persistent',
+      url: 'https://chatgpt.com/',
+    });
+    expect(second.ok).toBe(true);
+    expect(second.page).toBe(page);
+    expect(mod.__test__.getSession(adapterKey('chatgpt'))).not.toBeNull();
+  });
+
   it('uses 10-minute timeout for browser:* sessions', async () => {
     const { chrome } = createChromeMock();
     vi.useFakeTimers();

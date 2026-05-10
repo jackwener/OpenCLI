@@ -64,6 +64,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
   if (cmd.browser) {
     subCmd
       .option('--window <mode>', 'Browser window mode: foreground or background')
+      .option('--site-session <mode>', 'Adapter site session lifecycle: ephemeral or persistent')
       .option('--keep-tab <bool>', 'Keep the browser tab lease after the command finishes');
   }
 
@@ -118,6 +119,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
         ...(typeof globals.profile === 'string' && globals.profile.trim() ? { profile: globals.profile.trim() } : {}),
         ...(typeof optionsRecord.trace === 'string' && optionsRecord.trace !== 'off' ? { trace: optionsRecord.trace } : {}),
         ...(cmd.browser && typeof optionsRecord.window === 'string' ? { windowMode: optionsRecord.window } : {}),
+        ...(cmd.browser && typeof optionsRecord.siteSession === 'string' ? { siteSession: optionsRecord.siteSession } : {}),
         ...(cmd.browser && typeof optionsRecord.keepTab === 'string' ? { keepTab: optionsRecord.keepTab } : {}),
       });
       if (result === null || result === undefined) {

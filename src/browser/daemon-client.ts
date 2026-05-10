@@ -28,6 +28,8 @@ export interface DaemonCommand {
   code?: string;
   session?: string;
   surface?: 'browser' | 'adapter';
+  /** Adapter site session lifecycle. Persistent site sessions do not idle-expire. */
+  siteSession?: 'ephemeral' | 'persistent';
   url?: string;
   op?: string;
   index?: number;

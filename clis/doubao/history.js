@@ -8,7 +8,7 @@ export const historyCommand = cli({
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'limit', required: false, help: 'Max number of conversations to show', default: '50' },

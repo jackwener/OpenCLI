@@ -4,7 +4,8 @@
 
 ### ⚠ BREAKING CHANGES
 
-* **browser session model** — replace the browser-facing `--workspace` model with explicit `--session <name>` on `opencli browser *`. Browser commands now require a session name, `browser bind`/`unbind` use `--session`, and bind no longer accepts `--domain`, `--path-prefix`, or `--allow-navigate-bound`. Browser primitives keep their session tab by design; the browser namespace no longer exposes `--keep-tab`. Adapter `--keep-tab` and `browserSession.reuse: 'site'` are unchanged.
+* **browser session model** — replace the browser-facing `--workspace` model with explicit `--session <name>` on `opencli browser *`. Browser commands now require a session name, `browser bind`/`unbind` use `--session`, and bind no longer accepts `--domain`, `--path-prefix`, or `--allow-navigate-bound`. Browser primitives keep their session tab by design; the browser namespace no longer exposes `--keep-tab`.
+* **adapter site sessions** — replace adapter metadata `browserSession: { reuse: 'site' }` with `siteSession: 'persistent'`, and replace the user override `--reuse <none|site>` / `OPENCLI_BROWSER_REUSE` with `--site-session <ephemeral|persistent>`. Persistent site sessions keep a stable site tab open without idle expiry.
 
 ### Internal
 

@@ -61,7 +61,7 @@ opencli claude ask "hello" -f json
 ## Caveats
 
 - This adapter drives the Claude web UI in the browser, not an API
-- Claude commands default to site-level browser tab reuse, so consecutive `claude ask` / `claude read` / `claude detail` invocations continue in the same Claude page. Pass `--reuse none` for a one-shot tab.
+- Claude commands default to persistent site sessions, so consecutive `claude ask` / `claude read` / `claude detail` invocations continue in the same Claude page. Pass `--site-session ephemeral` for a one-shot tab.
 - `--model opus` requires a paid Claude plan; on a free-tier account the adapter surfaces a usage error rather than silently falling back
 - The default Sonnet 4.6 model uses Adaptive thinking by default; `--think` is the explicit switch but Claude may still invoke thinking for complex prompts even when not requested
 - Adaptive-thinking and file-thumbnail widgets render duplicated label paragraphs (`Thought process` / `View uploaded image`) at the top of the response; these are stripped automatically so the row value is the actual answer

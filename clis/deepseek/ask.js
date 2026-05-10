@@ -14,7 +14,7 @@ export const askCommand = cli({
     domain: DEEPSEEK_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'prompt', positional: true, required: true, help: 'Prompt to send' },

@@ -8,7 +8,7 @@ export const sendCommand = cli({
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [{ name: 'text', required: true, positional: true, help: 'Message to send' }],
     columns: ['Status', 'SubmittedBy', 'InjectedText'],

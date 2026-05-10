@@ -51,7 +51,7 @@ export function serializeCommand(cmd: CliCommand) {
     domain: cmd.domain ?? null,
     example: formatCommandExample(cmd),
     defaultFormat: cmd.defaultFormat ?? null,
-    browserSession: cmd.browserSession ?? null,
+    siteSession: cmd.siteSession ?? null,
   };
 }
 

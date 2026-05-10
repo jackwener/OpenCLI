@@ -168,7 +168,7 @@ describe('executeCommand — non-browser timeout', () => {
   it('reuses a persistent site browser session and keeps the tab lease open', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
-    const sessionOpts: Array<{ session?: string; idleTimeout?: number; windowMode?: string }> = [];
+    const sessionOpts: Array<{ session?: string; idleTimeout?: number; windowMode?: string; siteSession?: string }> = [];
 
     vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
     vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
@@ -178,20 +178,22 @@ describe('executeCommand — non-browser timeout', () => {
 
     const cmd = cli({
       site: 'test-execution',
-      name: 'browser-reuse-site', access: 'read',
-      description: 'test site-scoped browser reuse',
+      name: 'site-session-persistent', access: 'read',
+      description: 'test persistent site session',
       browser: true,
       strategy: Strategy.PUBLIC,
-      browserSession: { reuse: 'site' },
+      siteSession: 'persistent',
       func: async () => [{ ok: true }],
     });
 
     await executeCommand(cmd, {});
-    await executeCommand(cmd, {});
+    await executeCommand(cmd, {}, false, { keepTab: 'false' });
 
     expect(sessionOpts).toHaveLength(2);
-    expect(sessionOpts[0]).toMatchObject({ session: 'site:test-execution', idleTimeout: 600, windowMode: 'background' });
-    expect(sessionOpts[1]).toMatchObject({ session: 'site:test-execution', idleTimeout: 600, windowMode: 'background' });
+    expect(sessionOpts[0]).toMatchObject({ session: 'site:test-execution', windowMode: 'background', siteSession: 'persistent' });
+    expect(sessionOpts[1]).toMatchObject({ session: 'site:test-execution', windowMode: 'background', siteSession: 'persistent' });
+    expect(sessionOpts[0]?.idleTimeout).toBeUndefined();
+    expect(sessionOpts[1]?.idleTimeout).toBeUndefined();
     expect(closeWindow).not.toHaveBeenCalled();
     vi.restoreAllMocks();
   });
@@ -209,7 +211,7 @@ describe('executeCommand — non-browser timeout', () => {
 
     const cmd = cli({
       site: 'test-execution',
-      name: 'browser-reuse-default', access: 'read',
+      name: 'site-session-default', access: 'read',
       description: 'test default one-shot browser session',
       browser: true,
       strategy: Strategy.PUBLIC,
@@ -231,7 +233,7 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
-  it('lets user --reuse none override adapter reuse metadata', async () => {
+  it('lets user --site-session ephemeral override adapter persistent metadata', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
     const sessionOpts: Array<{ session?: string; idleTimeout?: number }> = [];
@@ -242,33 +244,29 @@ describe('executeCommand — non-browser timeout', () => {
       return fn(mockPage);
     });
 
-    const prev = process.env.OPENCLI_BROWSER_REUSE;
-    process.env.OPENCLI_BROWSER_REUSE = 'none';
     try {
       const cmd = cli({
         site: 'test-execution',
-        name: 'browser-reuse-override-none', access: 'read',
-        description: 'test user reuse override',
+        name: 'site-session-override-ephemeral', access: 'read',
+        description: 'test user site-session override',
         browser: true,
         strategy: Strategy.PUBLIC,
-        browserSession: { reuse: 'site' },
+        siteSession: 'persistent',
         func: async () => [{ ok: true }],
       });
 
-      await executeCommand(cmd, {});
+      await executeCommand(cmd, {}, false, { siteSession: 'ephemeral' });
 
       expect(sessionOpts).toHaveLength(1);
       expect(sessionOpts[0]?.session).toMatch(/^site:test-execution:/);
       expect(sessionOpts[0]?.idleTimeout).toBeUndefined();
       expect(closeWindow).toHaveBeenCalledTimes(1);
     } finally {
-      if (prev === undefined) delete process.env.OPENCLI_BROWSER_REUSE;
-      else process.env.OPENCLI_BROWSER_REUSE = prev;
       vi.restoreAllMocks();
     }
   });
 
-  it('skips repeated domain pre-navigation for site-reused browser sessions', async () => {
+  it('skips repeated domain pre-navigation for persistent site sessions', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const goto = vi.fn().mockResolvedValue(undefined);
     const mockPage = {
@@ -282,12 +280,12 @@ describe('executeCommand — non-browser timeout', () => {
 
     const cmd = cli({
       site: 'test-execution',
-      name: 'browser-reuse-skip-prenav', access: 'read',
+      name: 'site-session-skip-prenav', access: 'read',
       description: 'test reused same-domain tabs do not reset conversation state',
       browser: true,
       strategy: Strategy.COOKIE,
       domain: 'grok.com',
-      browserSession: { reuse: 'site' },
+      siteSession: 'persistent',
       func: async () => [{ ok: true }],
     });
 
@@ -298,7 +296,7 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
-  it('keeps explicit path pre-navigation for site-reused browser sessions', async () => {
+  it('keeps explicit path pre-navigation for persistent site sessions', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const goto = vi.fn().mockResolvedValue(undefined);
     const mockPage = {
@@ -312,13 +310,13 @@ describe('executeCommand — non-browser timeout', () => {
 
     const cmd = cli({
       site: 'test-execution',
-      name: 'browser-reuse-path-prenav', access: 'read',
+      name: 'site-session-path-prenav', access: 'read',
       description: 'test explicit path pre-navigation still runs',
       browser: true,
       strategy: Strategy.COOKIE,
       domain: 'example.com',
       navigateBefore: 'https://example.com/dashboard',
-      browserSession: { reuse: 'site' },
+      siteSession: 'persistent',
       func: async () => [{ ok: true }],
     });
 

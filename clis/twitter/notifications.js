@@ -8,7 +8,7 @@ cli({
     domain: 'x.com',
     strategy: Strategy.INTERCEPT,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Maximum number of notifications to return (default 20).' },
     ],

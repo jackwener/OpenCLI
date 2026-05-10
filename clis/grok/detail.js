@@ -17,7 +17,7 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     navigateBefore: false,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     args: [
         { name: 'id', positional: true, required: true, help: 'Session ID (UUID) or full https://grok.com/c/<id> URL' },
         { name: 'markdown', type: 'boolean', default: false, help: 'Emit assistant replies as markdown' },

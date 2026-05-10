@@ -29,7 +29,7 @@ export const askCommand = cli({
     domain: 'grok.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     args: [
         { name: 'prompt', positional: true, type: 'string', required: true, help: 'Prompt to send to Grok' },
         { name: 'timeout', type: 'int', default: 120, help: 'Max seconds to wait for response (default: 120)' },

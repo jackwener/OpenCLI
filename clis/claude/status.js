@@ -9,7 +9,7 @@ export const statusCommand = cli({
     domain: CLAUDE_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [],
     columns: ['Status', 'Login', 'Url'],

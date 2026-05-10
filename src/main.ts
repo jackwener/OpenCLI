@@ -30,26 +30,6 @@ const __dirname = path.dirname(__filename);
 const BUILTIN_CLIS = path.join(findPackageRoot(__filename), 'clis');
 const USER_CLIS = path.join(os.homedir(), '.opencli', 'clis');
 
-// ── Browser reuse flag ───────────────────────────────────────────────────
-// `--reuse` is a runtime-level browser session override rather than an adapter
-// arg. Strip it before Commander runs and expose it through an explicit env
-// name. Window/keep-tab are registered on browser-backed commands directly.
-{
-  const reuseIdx = process.argv.findIndex(arg => arg === '--reuse' || arg.startsWith('--reuse='));
-  if (reuseIdx !== -1) {
-    const arg = process.argv[reuseIdx];
-    const value = arg.startsWith('--reuse=')
-      ? arg.slice('--reuse='.length)
-      : process.argv[reuseIdx + 1];
-    if (value !== 'none' && value !== 'site') {
-      process.stderr.write(`--reuse must be one of: none, site. Received: "${value ?? ''}"\n`);
-      process.exit(EXIT_CODES.USAGE_ERROR);
-    }
-    process.env.OPENCLI_BROWSER_REUSE = value;
-    process.argv.splice(reuseIdx, arg.startsWith('--reuse=') ? 1 : 2);
-  }
-}
-
 // ── Ultra-fast path: lightweight commands bypass full discovery ──────────
 // These are high-frequency or trivial paths that must not pay the startup tax.
 const argv = process.argv.slice(2);

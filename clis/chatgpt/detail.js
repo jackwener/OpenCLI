@@ -19,7 +19,7 @@ export const detailCommand = cli({
     domain: CHATGPT_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'id', positional: true, required: true, help: 'Conversation ID or full /c/<id> URL' },

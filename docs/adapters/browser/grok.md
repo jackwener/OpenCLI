@@ -99,7 +99,7 @@ opencli grok image "a cyberpunk mechanical owl, neon purple and blue" --new true
 ## Notes
 
 - `read` works in the current tab even without an explicit ID; pair it with `status` to discover the active session ID first.
-- Grok commands default to site-level browser tab reuse, so consecutive `grok ask` / `grok read` / `grok detail` invocations continue in the same Grok page. Pass `--reuse none` for a one-shot tab.
+- Grok commands default to persistent site sessions, so consecutive `grok ask` / `grok read` / `grok detail` invocations continue in the same Grok page. Pass `--site-session ephemeral` for a one-shot tab.
 - `ask` waits for the streaming reply to stabilize; `send` returns immediately after submission.
 - `history` reads the visible sidebar — if Grok lazy-loads older conversations, scroll the sidebar in your browser before re-running, or use `detail <id>` directly.
 - `status` returns `Model` / `SessionId` as `null` when they cannot be detected (e.g. page still loading) rather than a string sentinel — branch on `null` in agent code.

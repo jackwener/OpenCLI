@@ -775,6 +775,7 @@ class CommandFailure extends Error {
 }
 const sessionTimeoutOverrides = /* @__PURE__ */ new Map();
 const sessionWindowModeOverrides = /* @__PURE__ */ new Map();
+const sessionLifecycleOverrides = /* @__PURE__ */ new Map();
 const LEASE_KEY_SEPARATOR = "\0";
 function getLeaseKey(session, surface) {
   return `${surface}${LEASE_KEY_SEPARATOR}${encodeURIComponent(session)}`;
@@ -809,12 +810,15 @@ function getSessionFromKey(key) {
 function getIdleTimeout(key) {
   const session = automationSessions.get(key);
   if (session?.kind === "bound") return IDLE_TIMEOUT_NONE;
+  if (getSurfaceFromKey(key) === "adapter" && (session?.lifecycle === "persistent" || sessionLifecycleOverrides.get(key) === "persistent")) return IDLE_TIMEOUT_NONE;
   const override = sessionTimeoutOverrides.get(key);
   if (override !== void 0) return override;
   return getSurfaceFromKey(key) === "browser" ? IDLE_TIMEOUT_INTERACTIVE : IDLE_TIMEOUT_DEFAULT;
 }
 function getLeaseLifecycle(key, kind) {
   if (kind === "bound") return "pinned";
+  const override = sessionLifecycleOverrides.get(key);
+  if (override) return override;
   return getSurfaceFromKey(key) === "browser" ? "persistent" : "ephemeral";
 }
 function getOwnedWindowRole(key) {
@@ -960,6 +964,7 @@ async function removeLeaseSession(leaseKey) {
   automationSessions.delete(leaseKey);
   sessionTimeoutOverrides.delete(leaseKey);
   sessionWindowModeOverrides.delete(leaseKey);
+  sessionLifecycleOverrides.delete(leaseKey);
   scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
   await persistRuntimeState();
 }
@@ -1173,6 +1178,7 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
       automationSessions.delete(leaseKey);
       sessionTimeoutOverrides.delete(leaseKey);
       sessionWindowModeOverrides.delete(leaseKey);
+      sessionLifecycleOverrides.delete(leaseKey);
       scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
     }
   }
@@ -1185,6 +1191,8 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
       if (session.idleTimer) clearTimeout(session.idleTimer);
       automationSessions.delete(leaseKey);
       sessionTimeoutOverrides.delete(leaseKey);
+      sessionWindowModeOverrides.delete(leaseKey);
+      sessionLifecycleOverrides.delete(leaseKey);
       scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
       console.log(`[opencli] Session ${session.session} detached from tab ${tabId} (tab closed)`);
     }
@@ -1260,6 +1268,9 @@ async function handleCommand(cmd) {
   const leaseKey = getLeaseKey(session, surface);
   if (cmd.windowMode === "foreground" || cmd.windowMode === "background") {
     sessionWindowModeOverrides.set(leaseKey, cmd.windowMode);
+  }
+  if (surface === "adapter" && (cmd.siteSession === "persistent" || cmd.siteSession === "ephemeral")) {
+    sessionLifecycleOverrides.set(leaseKey, cmd.siteSession);
   }
   if (cmd.idleTimeout != null && cmd.idleTimeout > 0) {
     sessionTimeoutOverrides.set(leaseKey, cmd.idleTimeout * 1e3);
@@ -1859,6 +1870,8 @@ async function releaseLease(leaseKey, reason = "released") {
   const session = automationSessions.get(leaseKey);
   if (!session) {
     sessionTimeoutOverrides.delete(leaseKey);
+    sessionWindowModeOverrides.delete(leaseKey);
+    sessionLifecycleOverrides.delete(leaseKey);
     scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
     await persistRuntimeState();
     return;
@@ -1898,6 +1911,7 @@ async function releaseLease(leaseKey, reason = "released") {
   automationSessions.delete(leaseKey);
   sessionTimeoutOverrides.delete(leaseKey);
   sessionWindowModeOverrides.delete(leaseKey);
+  sessionLifecycleOverrides.delete(leaseKey);
   await persistRuntimeState();
 }
 async function reconcileTargetLeaseRegistry() {
@@ -1922,6 +1936,9 @@ async function reconcileTargetLeaseRegistry() {
     try {
       const tab = await chrome.tabs.get(tabId);
       if (!isDebuggableUrl(tab.url)) continue;
+      if (stored.lifecycle === "ephemeral" || stored.lifecycle === "persistent" || stored.lifecycle === "pinned") {
+        sessionLifecycleOverrides.set(leaseKey, stored.lifecycle);
+      }
       const session = makeSession(leaseKey, {
         session: typeof stored.session === "string" ? stored.session : getSessionFromKey(leaseKey),
         surface: stored.surface === "adapter" ? "adapter" : getSurfaceFromKey(leaseKey),

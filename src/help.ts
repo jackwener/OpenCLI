@@ -62,6 +62,12 @@ const BROWSER_COMMON_OPTIONS = [
     choices: ['foreground', 'background'],
   },
   {
+    flags: '--site-session <mode>',
+    name: 'site-session',
+    help: 'Adapter site session lifecycle: ephemeral or persistent',
+    choices: ['ephemeral', 'persistent'],
+  },
+  {
     flags: '--keep-tab <bool>',
     name: 'keep-tab',
     help: 'Keep the browser tab lease after the command finishes',
@@ -413,7 +419,7 @@ function compactCommand(cmd: CliCommand): Record<string, unknown> {
     command_options: commandOptions(cmd).map(compactArg),
     ...(cmd.browser ? { browser_common_options: BROWSER_COMMON_OPTIONS.map(compactCommonOption) } : {}),
     example: formatCommandExample(cmd),
-    ...(cmd.browserSession ? { browserSession: cmd.browserSession } : {}),
+    ...(cmd.siteSession ? { siteSession: cmd.siteSession } : {}),
     ...(cmd.defaultFormat ? { defaultFormat: cmd.defaultFormat } : {}),
     ...(cmd.columns?.length ? { columns: cmd.columns } : {}),
   };

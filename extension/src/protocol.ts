@@ -35,6 +35,8 @@ export interface Command {
   session?: string;
   /** Runtime surface selecting owned container policy. */
   surface?: 'browser' | 'adapter';
+  /** Adapter site session lifecycle. Persistent site sessions do not idle-expire. */
+  siteSession?: 'ephemeral' | 'persistent';
   /** URL to navigate to (navigate action) */
   url?: string;
   /** Sub-operation for tabs: list, new, close, select */

@@ -44,7 +44,7 @@ export const deepResearchResultCommand = cli({
     domain: GEMINI_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     defaultFormat: 'plain',
     args: [

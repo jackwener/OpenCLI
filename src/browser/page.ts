@@ -38,6 +38,7 @@ export class Page extends BasePage {
     public readonly contextId?: string,
     private readonly windowMode?: 'foreground' | 'background',
     private readonly surface: 'browser' | 'adapter' = 'browser',
+    private readonly siteSession?: 'ephemeral' | 'persistent',
   ) {
     super();
     this._idleTimeout = idleTimeout;
@@ -49,13 +50,14 @@ export class Page extends BasePage {
   private _networkCaptureWarned = false;
 
   /** Helper: spread session into command params */
-  private _sessionOpts(): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background' } {
+  private _sessionOpts(): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background'; siteSession?: 'ephemeral' | 'persistent' } {
     return {
       session: this.session,
       surface: this.surface,
       ...(this.contextId && { contextId: this.contextId }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
       ...(this.windowMode && { windowMode: this.windowMode }),
+      ...(this.siteSession && { siteSession: this.siteSession }),
     };
   }
 
@@ -68,6 +70,7 @@ export class Page extends BasePage {
       ...(this._page !== undefined && { page: this._page }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
       ...(this.windowMode && { windowMode: this.windowMode }),
+      ...(this.siteSession && { siteSession: this.siteSession }),
     };
   }
 

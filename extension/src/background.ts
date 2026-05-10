@@ -237,6 +237,7 @@ class CommandFailure extends Error {
 /** Per-session custom timeout overrides set via command.idleTimeout */
 const sessionTimeoutOverrides = new Map<string, number>();
 const sessionWindowModeOverrides = new Map<string, WindowMode>();
+const sessionLifecycleOverrides = new Map<string, LeaseLifecycle>();
 const LEASE_KEY_SEPARATOR = '\u0000';
 
 function getLeaseKey(session: string, surface: BrowserSurface): string {
@@ -277,6 +278,9 @@ function getSessionFromKey(key: string): string {
 function getIdleTimeout(key: string): number {
   const session = automationSessions.get(key);
   if (session?.kind === 'bound') return IDLE_TIMEOUT_NONE;
+  const adapterPersistent = getSurfaceFromKey(key) === 'adapter'
+    && (session?.lifecycle === 'persistent' || sessionLifecycleOverrides.get(key) === 'persistent');
+  if (adapterPersistent) return IDLE_TIMEOUT_NONE;
   const override = sessionTimeoutOverrides.get(key);
   if (override !== undefined) return override;
   return getSurfaceFromKey(key) === 'browser' ? IDLE_TIMEOUT_INTERACTIVE : IDLE_TIMEOUT_DEFAULT;
@@ -284,6 +288,8 @@ function getIdleTimeout(key: string): number {
 
 function getLeaseLifecycle(key: string, kind: LeaseKind): LeaseLifecycle {
   if (kind === 'bound') return 'pinned';
+  const override = sessionLifecycleOverrides.get(key);
+  if (override) return override;
   return getSurfaceFromKey(key) === 'browser' ? 'persistent' : 'ephemeral';
 }
 
@@ -452,6 +458,7 @@ async function removeLeaseSession(leaseKey: string): Promise<void> {
   automationSessions.delete(leaseKey);
   sessionTimeoutOverrides.delete(leaseKey);
   sessionWindowModeOverrides.delete(leaseKey);
+  sessionLifecycleOverrides.delete(leaseKey);
   scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
   await persistRuntimeState();
 }
@@ -718,6 +725,7 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
       automationSessions.delete(leaseKey);
       sessionTimeoutOverrides.delete(leaseKey);
       sessionWindowModeOverrides.delete(leaseKey);
+      sessionLifecycleOverrides.delete(leaseKey);
       scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
     }
   }
@@ -732,6 +740,8 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
       if (session.idleTimer) clearTimeout(session.idleTimer);
       automationSessions.delete(leaseKey);
       sessionTimeoutOverrides.delete(leaseKey);
+      sessionWindowModeOverrides.delete(leaseKey);
+      sessionLifecycleOverrides.delete(leaseKey);
       scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
       console.log(`[opencli] Session ${session.session} detached from tab ${tabId} (tab closed)`);
     }
@@ -831,6 +841,9 @@ async function handleCommand(cmd: Command): Promise<Result> {
   const leaseKey = getLeaseKey(session, surface);
   if (cmd.windowMode === 'foreground' || cmd.windowMode === 'background') {
     sessionWindowModeOverrides.set(leaseKey, cmd.windowMode);
+  }
+  if (surface === 'adapter' && (cmd.siteSession === 'persistent' || cmd.siteSession === 'ephemeral')) {
+    sessionLifecycleOverrides.set(leaseKey, cmd.siteSession);
   }
   // Apply custom idle timeout if specified in the command
   if (cmd.idleTimeout != null && cmd.idleTimeout > 0) {
@@ -1542,6 +1555,8 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
   const session = automationSessions.get(leaseKey);
   if (!session) {
     sessionTimeoutOverrides.delete(leaseKey);
+    sessionWindowModeOverrides.delete(leaseKey);
+    sessionLifecycleOverrides.delete(leaseKey);
     scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
     await persistRuntimeState();
     return;
@@ -1585,6 +1600,7 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
   automationSessions.delete(leaseKey);
   sessionTimeoutOverrides.delete(leaseKey);
   sessionWindowModeOverrides.delete(leaseKey);
+  sessionLifecycleOverrides.delete(leaseKey);
 
   await persistRuntimeState();
 }
@@ -1612,6 +1628,9 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
     try {
       const tab = await chrome.tabs.get(tabId);
       if (!isDebuggableUrl(tab.url)) continue;
+      if (stored.lifecycle === 'ephemeral' || stored.lifecycle === 'persistent' || stored.lifecycle === 'pinned') {
+        sessionLifecycleOverrides.set(leaseKey, stored.lifecycle);
+      }
       const session = makeSession(leaseKey, {
         session: typeof stored.session === 'string' ? stored.session : getSessionFromKey(leaseKey),
         surface: stored.surface === 'adapter' ? 'adapter' : getSurfaceFromKey(leaseKey),

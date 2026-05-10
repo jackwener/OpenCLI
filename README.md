@@ -200,7 +200,6 @@ OpenCLI is not only for websites. It can also:
 | `OPENCLI_PROFILE` | — | Browser Bridge profile alias/contextId to use when multiple Chrome profiles are connected |
 | `OPENCLI_WINDOW` | command default | Set to `foreground` or `background` to override Browser Bridge window placement. Browser-backed commands also accept `--window <foreground\|background>`. |
 | `OPENCLI_KEEP_TAB` | command default | Set to `true` or `false` to keep or release the browser tab lease after a browser-backed adapter command. Browser-backed adapter commands also accept `--keep-tab <true\|false>`. |
-| `OPENCLI_BROWSER_REUSE` | adapter default | Set to `none` or `site` to override adapter browser tab reuse. The `--reuse <none\|site>` flag sets this. |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | Seconds to wait for browser connection |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Seconds to wait for a single browser command |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol endpoint for remote browser or Electron apps |
@@ -208,7 +207,7 @@ OpenCLI is not only for websites. It can also:
 | `OPENCLI_VERBOSE` | `false` | Enable verbose logging (`-v` flag also works) |
 | `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |
 
-`opencli browser *` requires an explicit `--session <name>`, uses a foreground browser window by default, and keeps that session's tab lease until `browser --session <name> close` or idle cleanup. Browser-backed adapters use a background adapter window and release one-shot tab leases by default. Some interactive adapters default to `--reuse site`, which keeps the site tab lease for continuity; pass `--reuse none` for a one-shot tab.
+`opencli browser *` requires an explicit `--session <name>`, uses a foreground browser window by default, and keeps that session's tab lease until `browser --session <name> close` or idle cleanup. Browser-backed adapters use a background adapter window and release one-shot tab leases by default. Interactive adapters can declare `siteSession: 'persistent'` to keep a stable site tab for continuity; pass `--site-session ephemeral` for a one-shot tab.
 
 ## Update
 

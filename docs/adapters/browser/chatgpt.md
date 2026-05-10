@@ -58,7 +58,7 @@ opencli chatgpt image "a tiny watercolor fox" --sd true
 
 ## Behavior
 
-- ChatGPT web commands use site-level browser tab reuse by default, so consecutive `ask` / `send` / `read` / `detail` commands continue in the same ChatGPT tab. Use `--reuse none` for one-shot isolated tabs.
+- ChatGPT web commands use persistent site sessions by default, so consecutive `ask` / `send` / `read` / `detail` commands continue in the same ChatGPT tab. Use `--site-session ephemeral` for one-shot isolated tabs.
 - `ask` waits for the first stable assistant response after sending. `send` submits only and returns immediately.
 - `history` reads visible `/c/<id>` links from the ChatGPT sidebar; it does not use private backend APIs.
 - `image` opens a fresh `chatgpt.com/new` page before sending the image prompt.

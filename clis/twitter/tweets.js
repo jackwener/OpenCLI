@@ -149,7 +149,7 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     args: [
         { name: 'username', type: 'string', positional: true, required: true, help: 'Twitter screen name (with or without @)' },
         { name: 'limit', type: 'int', default: 20, help: 'Max tweets to return' },

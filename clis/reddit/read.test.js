@@ -3,9 +3,9 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import './read.js';
 describe('reddit read adapter', () => {
     const command = getRegistry().get('reddit/read');
-    it('opts into the Reddit site browser session lease', () => {
+    it('opts into the Reddit persistent site session', () => {
         expect(command?.browser).toBe(true);
-        expect(command?.browserSession).toEqual({ reuse: 'site' });
+        expect(command?.siteSession).toBe('persistent');
     });
     it('returns threaded rows from the browser-evaluated payload', async () => {
         const page = {
