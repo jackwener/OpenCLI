@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## [1.7.15](https://github.com/jackwener/opencli/compare/v1.7.14...v1.7.15) (2026-05-10)
+
+Extension bumped to 1.0.9 (Accessibility.enable allowlist + downloads permission + cross-origin frame target attach for AX). Major Browser Agent Runtime release: full Phase 0/1/2 alignment with `vercel-labs/agent-browser` model — CDP-primary input, AX snapshot/refs with stale recovery, semantic locators across all primitives, full form toolbelt (hover/focus/dblclick/check/uncheck/upload/drag/wait-download), annotated screenshots, and same-origin iframe AX routing. Cross-origin OOPIF AX is best-effort (Chrome extension API limitation).
 
 ### Features
 
