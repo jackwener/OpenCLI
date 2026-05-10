@@ -755,6 +755,7 @@ const IDLE_TIMEOUT_INTERACTIVE = 6e5;
 const IDLE_TIMEOUT_NONE = -1;
 const REGISTRY_KEY = "opencli_target_lease_registry_v2";
 const LEASE_IDLE_ALARM_PREFIX = "opencli:lease-idle:";
+const DISABLE_TAB_GROUP_KEY = "opencli_disable_automation_tab_group";
 const CONTAINER_TAB_GROUP_TITLE = {
   interactive: "OpenCLI Browser",
   automation: "OpenCLI Adapter"
@@ -810,7 +811,8 @@ function getSessionFromKey(key) {
 function getIdleTimeout(key) {
   const session = automationSessions.get(key);
   if (session?.kind === "bound") return IDLE_TIMEOUT_NONE;
-  if (getSurfaceFromKey(key) === "adapter" && (session?.lifecycle === "persistent" || sessionLifecycleOverrides.get(key) === "persistent")) return IDLE_TIMEOUT_NONE;
+  const adapterPersistent = getSurfaceFromKey(key) === "adapter" && (session?.lifecycle === "persistent" || sessionLifecycleOverrides.get(key) === "persistent");
+  if (adapterPersistent) return IDLE_TIMEOUT_NONE;
   const override = sessionTimeoutOverrides.get(key);
   if (override !== void 0) return override;
   return getSurfaceFromKey(key) === "browser" ? IDLE_TIMEOUT_INTERACTIVE : IDLE_TIMEOUT_DEFAULT;
@@ -1002,9 +1004,20 @@ async function getOwnedContainerGroupId(role, windowId) {
   container.groupId = existing.id;
   return existing.id;
 }
+async function isAutomationTabGroupDisabled() {
+  try {
+    const local = chrome.storage?.local;
+    if (!local) return false;
+    const raw = await local.get(DISABLE_TAB_GROUP_KEY);
+    return raw[DISABLE_TAB_GROUP_KEY] === true;
+  } catch {
+    return false;
+  }
+}
 async function ensureOwnedContainerTabGroup(role, windowId, tabIds) {
   const ids = [...new Set(tabIds.filter((id) => id !== void 0))];
   if (ids.length === 0) return;
+  if (await isAutomationTabGroupDisabled()) return;
   try {
     const existingGroupId = await getOwnedContainerGroupId(role, windowId);
     if (existingGroupId !== null) {

@@ -200,6 +200,12 @@ const IDLE_TIMEOUT_INTERACTIVE = 600_000; // 10min — human-paced browser:* / o
 const IDLE_TIMEOUT_NONE = -1;             // borrowed bound tabs stay bound until unbound/closed
 const REGISTRY_KEY = 'opencli_target_lease_registry_v2';
 const LEASE_IDLE_ALARM_PREFIX = 'opencli:lease-idle:';
+// Storage flag (chrome.storage.local) — when set to `true`, the extension stops
+// placing owned tabs into a named tab group. Useful on Chrome 119+ where the
+// "Saved Tab Groups" feature persists every named group's metadata across
+// sessions, causing OpenCLI entries to accumulate in the user's sidebar for
+// automation-heavy workflows.
+const DISABLE_TAB_GROUP_KEY = 'opencli_disable_automation_tab_group';
 const CONTAINER_TAB_GROUP_TITLE: Record<OwnedWindowRole, string> = {
   interactive: 'OpenCLI Browser',
   automation: 'OpenCLI Adapter',
@@ -501,9 +507,21 @@ async function getOwnedContainerGroupId(role: OwnedWindowRole, windowId: number)
   return existing.id;
 }
 
+async function isAutomationTabGroupDisabled(): Promise<boolean> {
+  try {
+    const local = chrome.storage?.local;
+    if (!local) return false;
+    const raw = await local.get(DISABLE_TAB_GROUP_KEY) as Record<string, unknown>;
+    return raw[DISABLE_TAB_GROUP_KEY] === true;
+  } catch {
+    return false;
+  }
+}
+
 async function ensureOwnedContainerTabGroup(role: OwnedWindowRole, windowId: number, tabIds: Array<number | undefined>): Promise<void> {
   const ids = [...new Set(tabIds.filter((id): id is number => id !== undefined))];
   if (ids.length === 0) return;
+  if (await isAutomationTabGroupDisabled()) return;
 
   try {
     const existingGroupId = await getOwnedContainerGroupId(role, windowId);

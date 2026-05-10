@@ -901,6 +901,23 @@ describe('background tab isolation', () => {
     expect(chrome.tabs.group).toHaveBeenCalledWith({ tabIds: [1], createProperties: { windowId: 1 } });
   });
 
+  it('skips tab grouping when opencli_disable_automation_tab_group is set in storage', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    // Pre-set the opt-out flag before background.ts loads.
+    await chrome.storage.local.set({ opencli_disable_automation_tab_group: true });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    // The tab is still created and resolvable — only the visual grouping is suppressed.
+    expect(tabId).toBe(1);
+    expect(tabs[0].groupId).toBe(-1);
+    expect(groups).toHaveLength(0);
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+  });
+
   it('uses separate owned windows for browser and adapter sessions', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     let nextWindowId = 20;
