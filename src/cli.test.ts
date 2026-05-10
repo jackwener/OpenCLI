@@ -2346,6 +2346,15 @@ describe('browser click/type commands', () => {
     hover: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
     focus: vi.fn().mockResolvedValue({ focused: true, matches_n: 1, match_level: 'exact' }),
     setChecked: vi.fn().mockResolvedValue({ checked: true, changed: true, matches_n: 1, match_level: 'exact', kind: 'checkbox' }),
+    uploadFiles: vi.fn().mockResolvedValue({
+      uploaded: true,
+      files: 1,
+      file_names: ['receipt.pdf'],
+      target: '#file',
+      matches_n: 1,
+      match_level: 'exact',
+      multiple: false,
+    }),
     typeText: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
     fillText: vi.fn().mockResolvedValue({
       filled: true,
@@ -2526,6 +2535,45 @@ describe('browser click/type commands', () => {
 
     expect(browserState.page!.setChecked).toHaveBeenCalledWith('#subscribe', false, {});
     expect(lastJsonLog()).toEqual({ checked: false, changed: false, target: '#subscribe', matches_n: 1, match_level: 'stable', kind: 'checkbox' });
+  });
+
+  it('upload: validates local files and delegates to page.uploadFiles', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-upload-'));
+    const file = path.join(dir, 'receipt.pdf');
+    fs.writeFileSync(file, 'pdf');
+    (browserState.page!.uploadFiles as any).mockResolvedValueOnce({
+      uploaded: true,
+      files: 1,
+      file_names: ['receipt.pdf'],
+      target: '#file',
+      matches_n: 1,
+      match_level: 'exact',
+      multiple: false,
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'upload', '#file', file]);
+
+    expect(browserState.page!.uploadFiles).toHaveBeenCalledWith('#file', [file], {});
+    expect(lastJsonLog()).toEqual({
+      uploaded: true,
+      files: 1,
+      file_names: ['receipt.pdf'],
+      target: '#file',
+      matches_n: 1,
+      match_level: 'exact',
+      multiple: false,
+    });
+  });
+
+  it('upload: rejects missing files before touching the page', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'upload', '#file', '/tmp/opencli-missing-file']);
+
+    expect(lastJsonLog().error.code).toBe('file_not_found');
+    expect(browserState.page!.uploadFiles).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
   });
 
   it('type: clicks, waits, then typeText — emits {typed, text, target, matches_n, match_level, autocomplete}', async () => {

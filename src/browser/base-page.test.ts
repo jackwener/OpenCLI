@@ -28,6 +28,7 @@ class ActionPage extends BasePage {
   insertText?: (text: string) => Promise<void>;
   nativeKeyPress?: (key: string, modifiers?: string[]) => Promise<void>;
   nativeClick?: (x: number, y: number) => Promise<void>;
+  setFileInput?: (files: string[], selector?: string) => Promise<void>;
   cdp?: (method: string, params?: Record<string, unknown>) => Promise<unknown>;
 
   async goto(): Promise<void> {}
@@ -259,7 +260,7 @@ describe('BasePage native input routing', () => {
       .mockResolvedValueOnce({ nodeId: 9 })
       .mockResolvedValueOnce({});
     page.results = [resolveOk, { x: 50, y: 100, w: 200, h: 32, visible: true }];
-    page.withArgsResults = [{ ok: true }, undefined];
+    page.withArgsResults = [{ ok: true, multiple: false, accept: 'application/pdf' }, undefined];
 
     await page.click('#save');
 
@@ -648,6 +649,57 @@ describe('BasePage native input routing', () => {
     expect(err).toBeInstanceOf(TargetError);
     expect((err as TargetError).code).toBe('not_checkable');
     expect((err as TargetError).hint).toContain('Select another radio');
+  });
+
+  it('uploads files through setFileInput using a temporary marker selector', async () => {
+    const page = new ActionPage();
+    page.setFileInput = vi.fn().mockResolvedValue(undefined);
+    page.results = [
+      resolveOk,
+      ['receipt.pdf'],
+    ];
+    page.withArgsResults = [{ ok: true, multiple: false, accept: 'application/pdf' }, undefined];
+
+    await expect(page.uploadFiles('#file', ['/tmp/receipt.pdf'])).resolves.toEqual({
+      uploaded: true,
+      files: 1,
+      file_names: ['receipt.pdf'],
+      target: '#file',
+      matches_n: 1,
+      match_level: 'exact',
+      multiple: false,
+      accept: 'application/pdf',
+    });
+
+    expect(page.setFileInput).toHaveBeenCalledWith(['/tmp/receipt.pdf'], expect.stringMatching(/data-opencli-upload-target/));
+    expect(page.withArgs.at(0)).toMatchObject({ markerAttr: 'data-opencli-upload-target' });
+    expect(page.withArgs.at(-1)).toMatchObject({ markerAttr: 'data-opencli-upload-target' });
+  });
+
+  it('rejects non-file-input upload targets with a structured error', async () => {
+    const page = new ActionPage();
+    page.setFileInput = vi.fn().mockResolvedValue(undefined);
+    page.results = [resolveOk];
+    page.withArgsResults = [{ ok: false, tag: 'button', type: '' }];
+
+    const err = await page.uploadFiles('button', ['/tmp/receipt.pdf']).catch((error: unknown) => error);
+
+    expect(err).toBeInstanceOf(TargetError);
+    expect((err as TargetError).code).toBe('not_file_input');
+    expect(page.setFileInput).not.toHaveBeenCalled();
+  });
+
+  it('rejects multiple files for a single-file input before mutating files', async () => {
+    const page = new ActionPage();
+    page.setFileInput = vi.fn().mockResolvedValue(undefined);
+    page.results = [resolveOk];
+    page.withArgsResults = [{ ok: true, multiple: false, accept: '' }, undefined];
+
+    const err = await page.uploadFiles('#file', ['/tmp/a.pdf', '/tmp/b.pdf']).catch((error: unknown) => error);
+
+    expect(err).toBeInstanceOf(TargetError);
+    expect((err as TargetError).code).toBe('not_file_input');
+    expect(page.setFileInput).not.toHaveBeenCalled();
   });
 
   it('presses key chords through native CDP key events when available', async () => {

@@ -1595,6 +1595,36 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     return { opts: {} };
   }
 
+  function resolveUploadFilePaths(rawFiles: unknown): { files: string[] } | { error: { code: string; message: string; hint?: string } } {
+    const inputs = Array.isArray(rawFiles) ? rawFiles : [];
+    if (inputs.length === 0) {
+      return {
+        error: {
+          code: 'usage_error',
+          message: 'At least one file path is required.',
+          hint: 'Example: opencli browser upload "input[type=file]" ./receipt.pdf',
+        },
+      };
+    }
+    const files: string[] = [];
+    for (const input of inputs) {
+      const raw = String(input);
+      const expanded = raw === '~' || raw.startsWith(`~${path.sep}`)
+        ? path.join(os.homedir(), raw.slice(2))
+        : raw;
+      const resolved = path.resolve(expanded);
+      if (!fs.existsSync(resolved)) {
+        return { error: { code: 'file_not_found', message: `File not found: ${resolved}` } };
+      }
+      const stat = fs.statSync(resolved);
+      if (!stat.isFile()) {
+        return { error: { code: 'not_a_file', message: `Not a regular file: ${resolved}` } };
+      }
+      files.push(resolved);
+    }
+    return { files };
+  }
+
   addBrowserTabOption(
     addSemanticLocatorOptions(browser.command('click'))
       .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
@@ -1745,6 +1775,31 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   )
     .action(browserAction(async (page, target, opts) => {
       await runCheckCommand(page, target, opts ?? {}, false);
+    }));
+
+  addBrowserTabOption(
+    browser.command('upload')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector of an input[type=file]')
+      .argument('<files...>', 'Local file path(s) to attach')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Attach local files to a file input — JSON envelope {uploaded, files, file_names, target, matches_n}'),
+  )
+    .action(browserAction(async (page, target, files, opts) => {
+      if (typeof page.uploadFiles !== 'function') throw new Error('browser upload is not supported by this browser backend');
+      const parsed = nthToResolveOpts(opts?.nth);
+      if ('error' in parsed) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const resolvedFiles = resolveUploadFilePaths(files);
+      if ('error' in resolvedFiles) {
+        console.log(JSON.stringify({ error: resolvedFiles.error }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const result = await page.uploadFiles(String(target), resolvedFiles.files, parsed.opts);
+      console.log(JSON.stringify(result, null, 2));
     }));
 
   addBrowserTabOption(

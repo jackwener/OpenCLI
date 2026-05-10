@@ -63,6 +63,15 @@ export interface SetCheckedResult extends ResolveSuccess {
   kind?: string;
 }
 
+export interface UploadFilesResult extends ResolveSuccess {
+  uploaded: boolean;
+  files: number;
+  file_names: string[];
+  target: string;
+  multiple?: boolean;
+  accept?: string;
+}
+
 interface CdpFrameTreeNode {
   frame?: { id?: string; url?: string; unreachableUrl?: string; name?: string };
   childFrames?: CdpFrameTreeNode[];
@@ -684,6 +693,113 @@ export abstract class BasePage implements IPage {
       changed: true,
       ...(after.kind ? { kind: after.kind } : {}),
     };
+  }
+
+  private async setFileInputBySelector(files: string[], selector: string): Promise<void> {
+    const setFileInput = (this as IPage).setFileInput;
+    if (typeof setFileInput === 'function') {
+      await setFileInput.call(this, files, selector);
+      return;
+    }
+
+    const cdp = (this as IPage).cdp;
+    if (typeof cdp !== 'function') {
+      throw new Error('File upload requires setFileInput or CDP support from the active browser backend.');
+    }
+    await cdp.call(this, 'DOM.enable', {}).catch(() => undefined);
+    const doc = await cdp.call(this, 'DOM.getDocument', {}) as { root?: { nodeId?: unknown } } | null;
+    const rootNodeId = doc?.root?.nodeId;
+    if (typeof rootNodeId !== 'number') throw new Error('DOM.getDocument returned no root node.');
+    const query = await cdp.call(this, 'DOM.querySelector', { nodeId: rootNodeId, selector }) as { nodeId?: unknown } | null;
+    const nodeId = query?.nodeId;
+    if (typeof nodeId !== 'number' || nodeId <= 0) throw new Error(`No element found matching selector: ${selector}`);
+    await cdp.call(this, 'DOM.setFileInputFiles', { files, nodeId });
+  }
+
+  async uploadFiles(ref: string, files: string[], opts: ResolveOptions = {}): Promise<UploadFilesResult> {
+    if (!Array.isArray(files) || files.length === 0) {
+      throw new TargetError({
+        code: 'not_file_input',
+        message: 'No files were provided for upload.',
+        hint: 'Pass one or more local file paths after the target.',
+      });
+    }
+    const resolved = await runResolve(this, ref, opts);
+    const markerAttr = 'data-opencli-upload-target';
+    const markerValue = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    const selector = `[${markerAttr}="${markerValue}"]`;
+    let marked = false;
+    let info: { ok?: boolean; multiple?: boolean; accept?: string; reason?: string; tag?: string; type?: string } | null = null;
+
+    try {
+      info = await this.evaluateWithArgs(`
+        (() => {
+          const el = window.__resolved;
+          if (!el || el.nodeType !== 1) return { ok: false, reason: 'not_file_input' };
+          const tag = el.tagName.toLowerCase();
+          const type = (el.getAttribute('type') || '').toLowerCase();
+          if (tag !== 'input' || type !== 'file') return { ok: false, reason: 'not_file_input', tag, type };
+          el.setAttribute(markerAttr, markerValue);
+          return {
+            ok: true,
+            multiple: !!el.multiple,
+            accept: el.getAttribute('accept') || '',
+          };
+        })()
+      `, { markerAttr, markerValue }) as { ok?: boolean; multiple?: boolean; accept?: string; reason?: string; tag?: string; type?: string } | null;
+      marked = info?.ok === true;
+      if (!marked) {
+        throw new TargetError({
+          code: 'not_file_input',
+          message: `Target "${ref}" is not an input[type=file].`,
+          hint: 'Use `opencli browser find --css "input[type=file]"` or inspect `compound` output from browser state/find.',
+        });
+      }
+      if (files.length > 1 && !info?.multiple) {
+        throw new TargetError({
+          code: 'not_file_input',
+          message: `Target "${ref}" does not allow multiple files, but ${files.length} files were provided.`,
+          hint: 'Pass one file, or choose a file input with the multiple attribute.',
+        });
+      }
+
+      await this.setFileInputBySelector(files, selector);
+      const verification = await this.evaluate(`
+        (() => {
+          const el = window.__resolved;
+          const names = [];
+          try {
+            if (el && el.files) {
+              for (let i = 0; i < el.files.length; i++) names.push(el.files[i].name || '');
+            }
+          } catch (_) {}
+          return names;
+        })()
+      `) as unknown;
+      const fileNames = Array.isArray(verification)
+        ? verification.map((value) => String(value))
+        : [];
+
+      return {
+        ...resolved,
+        uploaded: true,
+        files: fileNames.length || files.length,
+        file_names: fileNames,
+        target: ref,
+        multiple: !!info?.multiple,
+        ...(info?.accept ? { accept: info.accept } : {}),
+      };
+    } finally {
+      if (marked) {
+        await this.evaluateWithArgs(`
+          (() => {
+            for (const el of document.querySelectorAll(selector)) {
+              el.removeAttribute(markerAttr);
+            }
+          })()
+        `, { selector, markerAttr }).catch(() => undefined);
+      }
+    }
   }
 
   async fillText(ref: string, text: string, opts: ResolveOptions = {}): Promise<FillTextResult> {
