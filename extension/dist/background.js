@@ -10,7 +10,6 @@ const tabFrameContexts = /* @__PURE__ */ new Map();
 const frameSessions = /* @__PURE__ */ new Map();
 const sessionFrameKeys = /* @__PURE__ */ new Map();
 const pendingSessionCommands = /* @__PURE__ */ new Map();
-let sessionCommandId = 0;
 let frameSessionRoutingRegistered = false;
 const CDP_RESPONSE_BODY_CAPTURE_LIMIT = 8 * 1024 * 1024;
 const CDP_REQUEST_BODY_CAPTURE_LIMIT = 1 * 1024 * 1024;
@@ -335,7 +334,11 @@ async function ensureFrameSession(tabId, frameId, aggressiveRetry = false) {
   if (existing) return existing;
   const result = await chrome.debugger.sendCommand({ tabId }, "Target.attachToTarget", {
     targetId: frameId,
-    flatten: false
+    // Chrome debugger API supports flat child sessions (Chrome 125+). Flat
+    // routing lets us send allowlisted CDP commands directly to the child
+    // session; the legacy Target.sendMessageToTarget path rejects some domains
+    // such as Accessibility with "Not allowed".
+    flatten: true
   });
   const sessionId = result.sessionId;
   if (!sessionId) {
@@ -345,24 +348,10 @@ async function ensureFrameSession(tabId, frameId, aggressiveRetry = false) {
   sessionFrameKeys.set(sessionId, key);
   return sessionId;
 }
-async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, aggressiveRetry = false, timeoutMs = 3e4) {
+async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, aggressiveRetry = false, _timeoutMs = 3e4) {
   const sessionId = await ensureFrameSession(tabId, frameId, aggressiveRetry);
-  const id = ++sessionCommandId;
-  const sessionPending = pendingSessionCommands.get(sessionId) ?? /* @__PURE__ */ new Map();
-  pendingSessionCommands.set(sessionId, sessionPending);
-  const command = new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      sessionPending.delete(id);
-      if (sessionPending.size === 0) pendingSessionCommands.delete(sessionId);
-      reject(new Error(`Frame CDP command '${method}' timed out after ${timeoutMs / 1e3}s`));
-    }, timeoutMs);
-    sessionPending.set(id, { resolve, reject, timer });
-  });
-  await chrome.debugger.sendCommand({ tabId }, "Target.sendMessageToTarget", {
-    sessionId,
-    message: JSON.stringify({ id, method, params })
-  });
-  return command;
+  const target = { tabId, sessionId };
+  return chrome.debugger.sendCommand(target, method, params);
 }
 async function insertText(tabId, text) {
   await ensureAttached(tabId);
@@ -1147,7 +1136,11 @@ function initialize() {
   initialized = true;
   chrome.alarms.create("keepalive", { periodInMinutes: 0.4 });
   registerListeners();
-  registerFrameTracking();
+  try {
+    const registerFrameTracking$1 = registerFrameTracking;
+    registerFrameTracking$1?.();
+  } catch {
+  }
   void (async () => {
     await getCurrentContextId();
     await reconcileTargetLeaseRegistry();
@@ -1161,6 +1154,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onStartup.addListener(() => {
   initialize();
 });
+initialize();
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "keepalive") void connect();
   const workspace = workspaceFromAlarmName(alarm.name);

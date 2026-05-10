@@ -95,30 +95,13 @@ describe('cdp attach recovery', () => {
 
   it('falls back to a frame target session when no same-target execution context exists', async () => {
     const { chrome, debuggerApi, debuggerEventListeners } = createChromeMock();
-    debuggerApi.sendCommand = vi.fn(async (_target: unknown, method: string, params?: any) => {
-      if (method === 'Runtime.evaluate') return { result: { value: 'root-ok' } };
+    debuggerApi.sendCommand = vi.fn(async (target: any, method: string, _params?: any) => {
       if (method === 'Target.attachToTarget') return { sessionId: 'session-1' };
-      if (method === 'Target.sendMessageToTarget') {
-        const message = JSON.parse(String(params.message));
-        queueMicrotask(() => {
-          for (const listener of debuggerEventListeners) {
-            listener(
-              { tabId: 1 },
-              'Target.receivedMessageFromTarget',
-              {
-                sessionId: params.sessionId,
-                message: JSON.stringify({
-                  id: message.id,
-                  result: message.method === 'Runtime.evaluate'
-                    ? { result: { value: 'frame-ok' } }
-                    : {},
-                }),
-              },
-            );
-          }
-        });
-        return {};
+      if (target?.sessionId === 'session-1' && method === 'Runtime.enable') return {};
+      if (target?.sessionId === 'session-1' && method === 'Runtime.evaluate') {
+        return { result: { value: 'frame-ok' } };
       }
+      if (method === 'Runtime.evaluate') return { result: { value: 'root-ok' } };
       return {};
     });
     vi.stubGlobal('chrome', chrome);
@@ -132,15 +115,12 @@ describe('cdp attach recovery', () => {
     expect(debuggerApi.sendCommand).toHaveBeenCalledWith(
       { tabId: 1 },
       'Target.attachToTarget',
-      { targetId: 'oopif-frame', flatten: false },
+      { targetId: 'oopif-frame', flatten: true },
     );
     expect(debuggerApi.sendCommand).toHaveBeenCalledWith(
-      { tabId: 1 },
-      'Target.sendMessageToTarget',
-      expect.objectContaining({
-        sessionId: 'session-1',
-        message: expect.stringContaining('"Runtime.evaluate"'),
-      }),
+      { tabId: 1, sessionId: 'session-1' },
+      'Runtime.evaluate',
+      expect.any(Object),
     );
   });
 

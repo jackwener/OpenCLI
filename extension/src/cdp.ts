@@ -473,7 +473,11 @@ async function ensureFrameSession(tabId: number, frameId: string, aggressiveRetr
 
   const result = await chrome.debugger.sendCommand({ tabId }, 'Target.attachToTarget', {
     targetId: frameId,
-    flatten: false,
+    // Chrome debugger API supports flat child sessions (Chrome 125+). Flat
+    // routing lets us send allowlisted CDP commands directly to the child
+    // session; the legacy Target.sendMessageToTarget path rejects some domains
+    // such as Accessibility with "Not allowed".
+    flatten: true,
   }) as { sessionId?: string };
   const sessionId = result.sessionId;
   if (!sessionId) {
@@ -490,27 +494,11 @@ export async function sendCommandInFrameTarget(
   method: string,
   params: Record<string, unknown> = {},
   aggressiveRetry: boolean = false,
-  timeoutMs: number = 30_000,
+  _timeoutMs: number = 30_000,
 ): Promise<unknown> {
   const sessionId = await ensureFrameSession(tabId, frameId, aggressiveRetry);
-  const id = ++sessionCommandId;
-  const sessionPending = pendingSessionCommands.get(sessionId) ?? new Map();
-  pendingSessionCommands.set(sessionId, sessionPending);
-
-  const command = new Promise<unknown>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      sessionPending.delete(id);
-      if (sessionPending.size === 0) pendingSessionCommands.delete(sessionId);
-      reject(new Error(`Frame CDP command '${method}' timed out after ${timeoutMs / 1000}s`));
-    }, timeoutMs);
-    sessionPending.set(id, { resolve, reject, timer });
-  });
-
-  await chrome.debugger.sendCommand({ tabId }, 'Target.sendMessageToTarget', {
-    sessionId,
-    message: JSON.stringify({ id, method, params }),
-  });
-  return command;
+  const target = { tabId, sessionId } as chrome.debugger.Debuggee & { sessionId: string };
+  return chrome.debugger.sendCommand(target, method, params);
 }
 
 export async function insertText(
