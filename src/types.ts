@@ -33,6 +33,20 @@ export interface WaitOptions {
   timeout?: number;
 }
 
+export interface BrowserDownloadWaitResult {
+  downloaded: boolean;
+  id?: number;
+  filename?: string;
+  url?: string;
+  finalUrl?: string;
+  mime?: string;
+  totalBytes?: number;
+  state?: string;
+  danger?: string;
+  error?: string;
+  elapsedMs: number;
+}
+
 export interface ScreenshotOptions {
   format?: 'png' | 'jpeg';
   quality?: number;
@@ -101,6 +115,7 @@ export interface IPage {
   scrollTo(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<any>;
   getFormState(): Promise<any>;
   wait(options: number | WaitOptions): Promise<void>;
+  waitForDownload?(pattern?: string, timeoutMs?: number): Promise<BrowserDownloadWaitResult>;
   tabs(): Promise<any>;
   closeTab?(target?: number | string): Promise<void>;
   newTab?(url?: string): Promise<string | undefined>;

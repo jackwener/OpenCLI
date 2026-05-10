@@ -272,7 +272,7 @@ opencli browser check <target>
 opencli browser uncheck <target>
 opencli browser upload <target> <file...>
 opencli browser drag <source> <target>
-opencli browser wait download [path]
+opencli browser wait download [pattern]
 ```
 
 Keep `browser select` native `<select>` only. It should clearly return
@@ -343,8 +343,8 @@ Exit:
 
 Scope:
 
-- `hover`, `focus`, `dblclick`, `check`, `uncheck`, `upload`, `drag` (implemented first),
-  `wait download`,
+- `hover`, `focus`, `dblclick`, `check`, `uncheck`, `upload`, `drag`, and
+  `wait download` (implemented),
 - semantic locator options for role/name, label, text, testid,
 - structured ambiguity errors for write locators.
 

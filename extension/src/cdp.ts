@@ -40,6 +40,20 @@ type NetworkCaptureState = {
   requestToIndex: Map<string, number>;
 };
 
+export type DownloadWaitResult = {
+  downloaded: boolean;
+  id?: number;
+  filename?: string;
+  url?: string;
+  finalUrl?: string;
+  mime?: string;
+  totalBytes?: number;
+  state?: string;
+  danger?: string;
+  error?: string;
+  elapsedMs: number;
+};
+
 const networkCaptures = new Map<number, NetworkCaptureState>();
 /** Check if a URL can be attached via CDP — only allow http(s) and blank pages. */
 function isDebuggableUrl(url?: string): boolean {
@@ -289,6 +303,110 @@ export async function setFileInputFiles(
   await chrome.debugger.sendCommand({ tabId }, 'DOM.setFileInputFiles', {
     files,
     nodeId: result.nodeId,
+  });
+}
+
+function matchesDownloadPattern(item: chrome.downloads.DownloadItem, pattern: string): boolean {
+  if (!pattern) return true;
+  const haystack = [
+    item.filename,
+    item.url,
+    item.finalUrl,
+    item.mime,
+  ].filter(Boolean).join('\n').toLowerCase();
+  return haystack.includes(pattern.toLowerCase());
+}
+
+function downloadResult(item: chrome.downloads.DownloadItem, startedAt: number): DownloadWaitResult {
+  return {
+    downloaded: item.state === 'complete',
+    id: item.id,
+    filename: item.filename,
+    url: item.url,
+    finalUrl: item.finalUrl,
+    mime: item.mime,
+    totalBytes: item.totalBytes,
+    state: item.state,
+    danger: item.danger,
+    error: item.error,
+    elapsedMs: Date.now() - startedAt,
+  };
+}
+
+export async function waitForDownload(pattern: string = '', timeoutMs: number = 30000): Promise<DownloadWaitResult> {
+  const startedAt = Date.now();
+  const timeout = Math.max(1, timeoutMs);
+
+  return await new Promise<DownloadWaitResult>((resolve) => {
+    let done = false;
+    const inProgressIds = new Set<number>();
+    const finish = (result: DownloadWaitResult) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      chrome.downloads.onCreated.removeListener(onCreated);
+      chrome.downloads.onChanged.removeListener(onChanged);
+      resolve(result);
+    };
+
+    const inspectById = async (id: number) => {
+      const items = await chrome.downloads.search({ id });
+      const item = items[0];
+      if (!item || !matchesDownloadPattern(item, pattern)) return;
+      inProgressIds.add(id);
+      if (item.state === 'complete' || item.state === 'interrupted') finish(downloadResult(item, startedAt));
+    };
+
+    const onCreated = (item: chrome.downloads.DownloadItem) => {
+      if (!matchesDownloadPattern(item, pattern)) return;
+      inProgressIds.add(item.id);
+      if (item.state === 'complete' || item.state === 'interrupted') finish(downloadResult(item, startedAt));
+    };
+    const onChanged = (delta: chrome.downloads.DownloadDelta) => {
+      if (!delta.id) return;
+      if (!inProgressIds.has(delta.id) && !delta.filename && !delta.url) return;
+      if (delta.filename?.current || delta.url?.current) {
+        void inspectById(delta.id);
+        return;
+      }
+      if (delta.state?.current === 'complete' || delta.state?.current === 'interrupted') {
+        void inspectById(delta.id);
+      }
+    };
+    const timer = setTimeout(() => {
+      finish({
+        downloaded: false,
+        state: 'interrupted',
+        error: `No download matched "${pattern || '*'}" within ${timeout}ms`,
+        elapsedMs: Date.now() - startedAt,
+      });
+    }, timeout);
+
+    chrome.downloads.onCreated.addListener(onCreated);
+    chrome.downloads.onChanged.addListener(onChanged);
+
+    void chrome.downloads.search({
+      limit: 50,
+      orderBy: ['-startTime'],
+      startedAfter: new Date(startedAt - Math.max(timeout, 1000)).toISOString(),
+    }).then((recent) => {
+      if (done) return;
+      const completed = recent.find((item) => item.state === 'complete' && matchesDownloadPattern(item, pattern));
+      if (completed) {
+        finish(downloadResult(completed, startedAt));
+        return;
+      }
+      for (const item of recent) {
+        if (item.state === 'in_progress' && matchesDownloadPattern(item, pattern)) inProgressIds.add(item.id);
+      }
+    }).catch((err) => {
+      finish({
+        downloaded: false,
+        state: 'interrupted',
+        error: err instanceof Error ? err.message : String(err),
+        elapsedMs: Date.now() - startedAt,
+      });
+    });
   });
 }
 

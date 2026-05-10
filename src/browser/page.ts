@@ -9,7 +9,7 @@
  * page-scoped operations target the correct page without guessing.
  */
 
-import type { BrowserCookie, ScreenshotOptions } from '../types.js';
+import type { BrowserCookie, BrowserDownloadWaitResult, ScreenshotOptions } from '../types.js';
 import { sendCommand, sendCommandFull } from './daemon-client.js';
 import { wrapForEval } from './utils.js';
 import { saveBase64ToFile } from '../utils.js';
@@ -252,6 +252,16 @@ export class Page extends BasePage {
       return [];
     }
   }
+
+  async waitForDownload(pattern: string = '', timeoutMs: number = 30_000): Promise<BrowserDownloadWaitResult> {
+    const result = await sendCommand('wait-download', {
+      pattern,
+      timeoutMs,
+      ...this._cmdOpts(),
+    });
+    return result as BrowserDownloadWaitResult;
+  }
+
   /**
    * Set local file paths on a file input element via CDP DOM.setFileInputFiles.
    * Chrome reads the files directly from the local filesystem, avoiding the

@@ -22,7 +22,7 @@ function generateId(): string {
 
 export interface DaemonCommand {
   id: string;
-  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'sessions' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'cdp' | 'frames';
+  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'sessions' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames';
   /** Target page identity (targetId). Cross-layer contract with the extension. */
   page?: string;
   code?: string;
@@ -49,6 +49,8 @@ export interface DaemonCommand {
   text?: string;
   /** URL substring filter pattern for network capture */
   pattern?: string;
+  /** Download wait timeout in milliseconds */
+  timeoutMs?: number;
   cdpMethod?: string;
   cdpParams?: Record<string, unknown>;
   /** When true, the owned automation container is created in the foreground */

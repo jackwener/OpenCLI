@@ -18,6 +18,7 @@ export type Action =
   | 'bind'
   | 'network-capture-start'
   | 'network-capture-read'
+  | 'wait-download'
   | 'cdp'
   | 'frames';
 
@@ -62,6 +63,8 @@ export interface Command {
   text?: string;
   /** URL substring filter pattern for network capture actions */
   pattern?: string;
+  /** Download wait timeout in milliseconds */
+  timeoutMs?: number;
   /** CDP method name for 'cdp' action (e.g. 'Accessibility.getFullAXTree') */
   cdpMethod?: string;
   /** CDP method params for 'cdp' action */

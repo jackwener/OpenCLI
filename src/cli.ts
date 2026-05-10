@@ -36,7 +36,7 @@ import { log } from './logger.js';
 import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
-import type { IPage, ScreenshotOptions } from './types.js';
+import type { BrowserDownloadWaitResult, IPage, ScreenshotOptions } from './types.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
@@ -2077,10 +2077,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   // ── Wait commands ──
 
   addBrowserTabOption(browser.command('wait'))
-    .argument('<type>', 'selector, text, time, or xhr')
-    .argument('[value]', 'CSS selector, text string, seconds, or XHR URL regex')
+    .argument('<type>', 'selector, text, time, xhr, or download')
+    .argument('[value]', 'CSS selector, text string, seconds, XHR URL regex, or download filename/URL pattern')
     .option('--timeout <ms>', 'Timeout in milliseconds', '10000')
-    .description('Wait for selector, text, time, or matching XHR (e.g. wait selector ".loaded", wait text "Success", wait time 3, wait xhr "/api/search")')
+    .description('Wait for selector, text, time, matching XHR, or browser download (e.g. wait selector ".loaded", wait text "Success", wait time 3, wait xhr "/api/search", wait download receipt.pdf)')
     .action(browserAction(async (page, type, value, opts) => {
       const timeout = parseInt(opts.timeout, 10);
       if (type === 'time') {
@@ -2134,8 +2134,35 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         console.log(JSON.stringify({
           matched: { url: matched.url, status: matched.status, contentType: matched.ct },
         }, null, 2));
+      } else if (type === 'download') {
+        if (typeof page.waitForDownload !== 'function') {
+          console.log(JSON.stringify({
+            error: {
+              code: 'download_wait_unavailable',
+              message: 'The active browser backend does not support download lifecycle waits.',
+              hint: 'Use the Browser Bridge extension version 1.0.8 or newer, then retry the command.',
+            },
+          }, null, 2));
+          process.exitCode = EXIT_CODES.GENERIC_ERROR;
+          return;
+        }
+        const result = await page.waitForDownload(String(value ?? ''), timeout) as BrowserDownloadWaitResult;
+        if (!result.downloaded) {
+          const code = result.state === 'interrupted' && result.id !== undefined ? 'download_failed' : 'download_not_seen';
+          console.log(JSON.stringify({
+            error: {
+              code,
+              message: result.error ?? `No download matched "${value ?? '*'}" within ${timeout}ms`,
+              hint: 'Check the pattern against the expected filename or URL; use a longer --timeout if the download starts slowly.',
+            },
+            download: result,
+          }, null, 2));
+          process.exitCode = EXIT_CODES.GENERIC_ERROR;
+          return;
+        }
+        console.log(JSON.stringify(result, null, 2));
       } else {
-        console.error(`Unknown wait type "${type}". Use: selector, text, time, or xhr`);
+        console.error(`Unknown wait type "${type}". Use: selector, text, time, xhr, or download`);
         process.exitCode = EXIT_CODES.USAGE_ERROR;
       }
     }));

@@ -749,6 +749,8 @@ async function handleCommand(cmd: Command): Promise<Result> {
         return await handleNetworkCaptureStart(cmd, workspace);
       case 'network-capture-read':
         return await handleNetworkCaptureRead(cmd, workspace);
+      case 'wait-download':
+        return await handleWaitDownload(cmd);
       case 'frames':
         return await handleFrames(cmd, workspace);
       default:
@@ -1431,6 +1433,15 @@ async function handleNetworkCaptureRead(cmd: Command, workspace: string): Promis
   try {
     const data = await executor.readNetworkCapture(tabId);
     return pageScopedResult(cmd.id, tabId, data);
+  } catch (err) {
+    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+async function handleWaitDownload(cmd: Command): Promise<Result> {
+  try {
+    const data = await executor.waitForDownload(cmd.pattern ?? '', cmd.timeoutMs ?? 30000);
+    return { id: cmd.id, ok: true, data };
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }

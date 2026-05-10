@@ -173,10 +173,17 @@ Error envelope always includes `error.code` and `error.message`. Target errors (
 ```bash
 browser wait selector "<css>" [--timeout ms]    # wait until the selector matches
 browser wait text "<substring>" [--timeout ms]  # wait until the text appears
+browser wait download [pattern] [--timeout ms]  # wait for a Chrome download whose filename/URL/mime contains pattern
 browser wait time <seconds>                     # hard sleep, last resort
 ```
 
 Default timeout `10000` ms. SPA routes, login redirects, and lazy-loaded lists need `wait` before `state`/`get`.
+
+`browser wait download` requires Browser Bridge extension 1.0.8+ because it uses
+Chrome's downloads lifecycle API. Pass a narrow filename or URL substring such
+as `receipt.pdf` when possible; an empty pattern waits for the next/recent
+download in the timeout window. The command reports `{downloaded, filename, url,
+state, elapsedMs}` on success and a JSON error envelope on timeout/failure.
 
 ### Extract
 

@@ -288,6 +288,45 @@ describe('background tab isolation', () => {
     );
   });
 
+  it('routes wait-download commands to the download observer', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    const waitForDownload = vi.fn(async () => ({
+      downloaded: true,
+      filename: '/tmp/receipt.pdf',
+      state: 'complete',
+      elapsedMs: 12,
+    }));
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      waitForDownload,
+    }));
+
+    const mod = await import('./background');
+    const result = await mod.__test__.handleCommand({
+      id: 'download',
+      action: 'wait-download',
+      pattern: 'receipt',
+      timeoutMs: 1234,
+      workspace: 'site:mercury',
+    });
+
+    expect(result).toEqual({
+      id: 'download',
+      ok: true,
+      data: {
+        downloaded: true,
+        filename: '/tmp/receipt.pdf',
+        state: 'complete',
+        elapsedMs: 12,
+      },
+    });
+    expect(waitForDownload).toHaveBeenCalledWith('receipt', 1234);
+  });
+
   it('routes exec frameIndex through the same cross-origin frame ordering as handleFrames', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);

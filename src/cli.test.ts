@@ -811,6 +811,13 @@ describe('browser tab targeting commands', () => {
       ]),
       evaluateInFrame: vi.fn().mockResolvedValue('inside frame'),
       readNetworkCapture: vi.fn().mockResolvedValue([]),
+      waitForDownload: vi.fn().mockResolvedValue({
+        downloaded: true,
+        filename: '/tmp/receipt.pdf',
+        url: 'https://app.example/receipt.pdf',
+        state: 'complete',
+        elapsedMs: 10,
+      }),
     } as unknown as IPage;
   });
 
@@ -1351,6 +1358,61 @@ describe('browser tab targeting commands', () => {
     expect(browserState.page?.readNetworkCapture).toHaveBeenCalledTimes(2);
     expect(bufferReads).toBe(2);
     expect(out.matched.url).toBe('https://target.example/api/target');
+  });
+
+  it('browser wait download delegates to the Browser Bridge download observer', async () => {
+    browserState.page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      waitForDownload: vi.fn().mockResolvedValue({
+        downloaded: true,
+        filename: '/tmp/receipt.pdf',
+        url: 'https://app.example/receipt.pdf',
+        state: 'complete',
+        elapsedMs: 10,
+      }),
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      getCurrentUrl: vi.fn().mockResolvedValue('https://target.example'),
+      tabs: vi.fn().mockResolvedValue([{ index: 0, page: 'tab-1', url: 'https://target.example', title: 'Target', active: true }]),
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'wait', 'download', 'receipt', '--timeout', '900']);
+
+    expect(browserState.page?.waitForDownload).toHaveBeenCalledWith('receipt', 900);
+    expect(lastJsonLog()).toEqual({
+      downloaded: true,
+      filename: '/tmp/receipt.pdf',
+      url: 'https://app.example/receipt.pdf',
+      state: 'complete',
+      elapsedMs: 10,
+    });
+  });
+
+  it('browser wait download reports an error envelope when no matching download completes', async () => {
+    browserState.page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      waitForDownload: vi.fn().mockResolvedValue({
+        downloaded: false,
+        state: 'interrupted',
+        error: 'No download matched "receipt" within 900ms',
+        elapsedMs: 900,
+      }),
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      getCurrentUrl: vi.fn().mockResolvedValue('https://target.example'),
+      tabs: vi.fn().mockResolvedValue([{ index: 0, page: 'tab-1', url: 'https://target.example', title: 'Target', active: true }]),
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'wait', 'download', 'receipt', '--timeout', '900']);
+
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('download_not_seen');
+    expect(out.download.elapsedMs).toBe(900);
+    expect(process.exitCode).toBeDefined();
   });
 });
 

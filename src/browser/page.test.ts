@@ -133,6 +133,38 @@ describe('Page network capture compatibility', () => {
   });
 });
 
+describe('Page download waits', () => {
+  beforeEach(() => {
+    sendCommandMock.mockReset();
+    sendCommandFullMock.mockReset();
+    warnMock.mockReset();
+  });
+
+  it('sends wait-download through the daemon with workspace and timeout', async () => {
+    sendCommandMock.mockResolvedValueOnce({
+      downloaded: true,
+      filename: '/tmp/receipt.pdf',
+      state: 'complete',
+      elapsedMs: 5,
+    });
+
+    const page = new Page('site:mercury');
+    const result = await page.waitForDownload('receipt', 1234);
+
+    expect(result).toEqual({
+      downloaded: true,
+      filename: '/tmp/receipt.pdf',
+      state: 'complete',
+      elapsedMs: 5,
+    });
+    expect(sendCommandMock).toHaveBeenCalledWith('wait-download', expect.objectContaining({
+      workspace: 'site:mercury',
+      pattern: 'receipt',
+      timeoutMs: 1234,
+    }));
+  });
+});
+
 describe('Page CDP helpers', () => {
   beforeEach(() => {
     sendCommandMock.mockReset();
