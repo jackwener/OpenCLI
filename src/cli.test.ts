@@ -2251,6 +2251,27 @@ describe('browser get text/value/attributes commands', () => {
     expect(lastJsonLog()).toEqual({ value: 'Save', matches_n: 1, match_level: 'exact' });
   });
 
+  it('reports total_matches when semantic get reads the first of multiple matches', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({
+      matches_n: 3,
+      entries: [
+        { nth: 0, ref: 12, tag: 'button', role: 'button', text: 'Save', attrs: {}, visible: true },
+        { nth: 1, ref: 13, tag: 'button', role: 'button', text: 'Save draft', attrs: {}, visible: true },
+        { nth: 2, ref: 14, tag: 'button', role: 'button', text: 'Save copy', attrs: {}, visible: true },
+      ],
+    });
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' });
+    evalMock.mockResolvedValueOnce('Save');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'get', 'text', '--role', 'button', '--name', 'Save']);
+
+    expect(evalMock.mock.calls[0][0]).toContain('const LIMIT = 6');
+    expect(evalMock.mock.calls[1][0]).toContain('const ref = "12"');
+    expect(lastJsonLog()).toEqual({ value: 'Save', matches_n: 1, match_level: 'exact', total_matches: 3 });
+  });
+
   it('reports matches_n on multi-match CSS (read path: first match wins)', async () => {
     const evalMock = browserState.page!.evaluate as any;
     evalMock.mockResolvedValueOnce({ ok: true, matches_n: 3, match_level: 'exact' });

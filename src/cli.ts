@@ -1234,10 +1234,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     page: Awaited<ReturnType<typeof getBrowserPage>>,
     opts: Record<string, unknown>,
     mode: 'read' | 'write',
-  ): Promise<string | { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } } | null> => {
+  ): Promise<string | { target: string; total_matches?: number } | { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } } | null> => {
     const locator = semanticLocatorFromOptions(opts);
     if (!locator) return null;
-    const result = await page.evaluate(buildSemanticFindJs({ ...locator, limit: mode === 'write' ? 6 : 1 })) as FindResult | FindError;
+    const result = await page.evaluate(buildSemanticFindJs({ ...locator, limit: 6 })) as FindResult | FindError;
     if (isFindError(result)) return result;
     if (mode === 'write' && result.matches_n !== 1) {
       return {
@@ -1260,7 +1260,14 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         },
       };
     }
-    return String(first.ref);
+    const target = String(first.ref);
+    if (mode === 'read') {
+      return {
+        target,
+        ...(result.matches_n > 1 ? { total_matches: result.matches_n } : {}),
+      };
+    }
+    return target;
   };
 
   const resolveExplicitOrSemanticTarget = async (
@@ -1268,7 +1275,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     target: unknown,
     opts: Record<string, unknown>,
     mode: 'read' | 'write',
-  ): Promise<string | { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } }> => {
+  ): Promise<string | { target: string; total_matches?: number } | { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } }> => {
     const explicit = typeof target === 'string' && target.trim() ? target.trim() : '';
     const hasSemantic = !!semanticLocatorFromOptions(opts);
     if (explicit && hasSemantic) {
@@ -1382,18 +1389,20 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     field: 'text' | 'value' | 'attributes',
   ): Promise<void> => {
     const resolvedTarget = await resolveExplicitOrSemanticTarget(page, target, opts, 'read');
-    if (typeof resolvedTarget !== 'string') {
+    if (typeof resolvedTarget !== 'string' && 'error' in resolvedTarget) {
       console.log(JSON.stringify(resolvedTarget, null, 2));
       process.exitCode = EXIT_CODES.USAGE_ERROR;
       return;
     }
+    const targetRef = typeof resolvedTarget === 'string' ? resolvedTarget : resolvedTarget.target;
+    const totalMatches = typeof resolvedTarget === 'string' ? undefined : resolvedTarget.total_matches;
     const nth = parseNthFlag(opts.nth);
     if (nth && typeof nth === 'object' && 'error' in nth) {
       console.log(JSON.stringify({ error: { code: 'usage_error', message: nth.error } }, null, 2));
       process.exitCode = EXIT_CODES.USAGE_ERROR;
       return;
     }
-    const { matches_n, match_level } = await resolveRef(page, resolvedTarget, {
+    const { matches_n, match_level } = await resolveRef(page, targetRef, {
       firstOnMulti: nth === null,
       ...(typeof nth === 'number' ? { nth } : {}),
     });
@@ -1407,7 +1416,12 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     } else {
       value = raw ?? null;
     }
-    console.log(JSON.stringify({ value, matches_n, match_level }, null, 2));
+    console.log(JSON.stringify({
+      value,
+      matches_n,
+      match_level,
+      ...(totalMatches && totalMatches > 1 ? { total_matches: totalMatches } : {}),
+    }, null, 2));
   };
 
   addBrowserTabOption(
