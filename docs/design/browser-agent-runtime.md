@@ -348,11 +348,13 @@ Scope:
 - semantic locator options for role/name, label, text, testid,
 - structured ambiguity errors for write locators.
 
-Implementation note: the first semantic-locator slice covers `browser find`,
-`browser click`, and `browser get text|value|attributes` with `--role`,
-`--name`, `--label`, `--text`, and `--testid`. Placeholder is folded into
-accessible-name matching for `--name`; a dedicated `--placeholder` flag can be
-added only if real usage shows the distinction matters.
+Implementation note: semantic locators cover `browser find`, `browser click`,
+`browser get text|value|attributes`, and Phase 2 action primitives
+(`hover`, `focus`, `dblclick`, `check`, `uncheck`, `upload`). `drag` uses
+prefixed endpoint locators (`--from-role` / `--to-role`, etc.) so source and
+target cannot be confused. Placeholder is folded into accessible-name matching
+for `--name`; a dedicated `--placeholder` flag can be added only if real usage
+shows the distinction matters.
 
 Exit:
 

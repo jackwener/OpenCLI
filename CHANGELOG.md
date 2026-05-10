@@ -8,6 +8,7 @@
 * **browser state** — add opt-in AX snapshot refs via `browser state --source ax`, including backend-node click resolution and role/name stale-ref recovery for the Phase 0 browser-agent runtime prototype.
 * **browser state** — AX snapshots now include same-origin iframe refs, and `browser state --compare-sources` prints DOM-vs-AX observation metrics for the Phase 1 default-source decision without dumping page contents.
 * **browser locators** — `browser find`, `browser click`, and `browser get text|value|attributes` now accept semantic locator flags (`--role`, `--name`, `--label`, `--text`, `--testid`) so agents can act on common controls without a separate state-ref lookup.
+* **browser locators** — semantic locator flags now work across the Phase 2 action primitives (`hover`, `focus`, `dblclick`, `check`, `uncheck`, `upload`) plus prefixed `--from-*` / `--to-*` locators for `drag`.
 * **browser actions** — add `browser hover`, `browser focus`, and `browser dblclick` primitives backed by the same target resolver and CDP input path as `browser click`.
 * **browser actions** — add `browser check` and `browser uncheck` primitives that ensure checkbox / radio / aria-checked controls reach the requested state instead of blindly toggling.
 * **browser upload** — add `browser upload <target> <file...>` to attach local files to `input[type=file]` targets through CDP `DOM.setFileInputFiles`, with local path validation and file-input verification.

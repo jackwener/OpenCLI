@@ -1221,6 +1221,13 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .option('--text <text>', 'Visible text contains text')
     .option('--testid <id>', 'data-testid / data-test / test-id contains id');
 
+  const addPrefixedSemanticLocatorOptions = (cmd: Command, prefix: string): Command => cmd
+    .option(`--${prefix}-role <role>`, `${prefix} semantic role`)
+    .option(`--${prefix}-name <text>`, `${prefix} accessible name contains text`)
+    .option(`--${prefix}-label <text>`, `${prefix} associated label contains text`)
+    .option(`--${prefix}-text <text>`, `${prefix} visible text contains text`)
+    .option(`--${prefix}-testid <id>`, `${prefix} data-testid / data-test / test-id contains id`);
+
   const semanticLocatorFromOptions = (opts: Record<string, unknown>): SemanticFindOptions | null => {
     const locator: SemanticFindOptions = {};
     for (const key of ['role', 'name', 'label', 'text', 'testid'] as const) {
@@ -1230,13 +1237,27 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     return Object.keys(locator).length > 0 ? locator : null;
   };
 
-  const semanticTargetFromOptions = async (
+  const prefixedSemanticLocatorFromOptions = (opts: Record<string, unknown>, prefix: string): SemanticFindOptions | null => {
+    const locator: SemanticFindOptions = {};
+    const map = {
+      role: `${prefix}Role`,
+      name: `${prefix}Name`,
+      label: `${prefix}Label`,
+      text: `${prefix}Text`,
+      testid: `${prefix}Testid`,
+    } as const;
+    for (const key of ['role', 'name', 'label', 'text', 'testid'] as const) {
+      const value = opts[map[key]];
+      if (typeof value === 'string' && value.trim()) locator[key] = value.trim();
+    }
+    return Object.keys(locator).length > 0 ? locator : null;
+  };
+
+  const semanticTargetFromLocator = async (
     page: Awaited<ReturnType<typeof getBrowserPage>>,
-    opts: Record<string, unknown>,
+    locator: SemanticFindOptions,
     mode: 'read' | 'write',
-  ): Promise<string | { target: string; total_matches?: number } | { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } } | null> => {
-    const locator = semanticLocatorFromOptions(opts);
-    if (!locator) return null;
+  ): Promise<string | { target: string; total_matches?: number } | { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } }> => {
     const result = await page.evaluate(buildSemanticFindJs({ ...locator, limit: 6 })) as FindResult | FindError;
     if (isFindError(result)) return result;
     if (mode === 'write' && result.matches_n !== 1) {
@@ -1270,6 +1291,16 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     return target;
   };
 
+  const semanticTargetFromOptions = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    opts: Record<string, unknown>,
+    mode: 'read' | 'write',
+  ): Promise<string | { target: string; total_matches?: number } | { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } } | null> => {
+    const locator = semanticLocatorFromOptions(opts);
+    if (!locator) return null;
+    return semanticTargetFromLocator(page, locator, mode);
+  };
+
   const resolveExplicitOrSemanticTarget = async (
     page: Awaited<ReturnType<typeof getBrowserPage>>,
     target: unknown,
@@ -1295,6 +1326,58 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         message: 'Missing target. Pass a numeric ref/CSS selector, or semantic flags like --role button --name Submit.',
       },
     };
+  };
+
+  const printTargetResolutionError = (
+    resolved: { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } },
+  ): void => {
+    console.log(JSON.stringify(resolved, null, 2));
+    process.exitCode = EXIT_CODES.USAGE_ERROR;
+  };
+
+  const resolveWriteTargetOrPrint = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    target: unknown,
+    opts: Record<string, unknown>,
+  ): Promise<string | null> => {
+    const resolvedTarget = await resolveExplicitOrSemanticTarget(page, target, opts, 'write');
+    if (typeof resolvedTarget === 'string') return resolvedTarget;
+    if ('error' in resolvedTarget) printTargetResolutionError(resolvedTarget);
+    return null;
+  };
+
+  const resolvePrefixedWriteTargetOrPrint = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    target: unknown,
+    opts: Record<string, unknown>,
+    prefix: string,
+    label: string,
+  ): Promise<string | null> => {
+    const explicit = typeof target === 'string' && target.trim() ? target.trim() : '';
+    const locator = prefixedSemanticLocatorFromOptions(opts, prefix);
+    if (explicit && locator) {
+      printTargetResolutionError({
+        error: {
+          code: 'usage_error',
+          message: `Pass either <${label}> or --${prefix}-* semantic locator flags, not both.`,
+        },
+      });
+      return null;
+    }
+    if (explicit) return explicit;
+    if (locator) {
+      const resolved = await semanticTargetFromLocator(page, locator, 'write');
+      if (typeof resolved === 'string') return resolved;
+      if ('error' in resolved) printTargetResolutionError(resolved);
+      return null;
+    }
+    printTargetResolutionError({
+      error: {
+        code: 'usage_error',
+        message: `Missing ${label}. Pass a numeric ref/CSS selector, or --${prefix}-role/--${prefix}-name semantic flags.`,
+      },
+    });
+    return null;
   };
 
   addBrowserTabOption(
@@ -1689,57 +1772,63 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }));
 
   addBrowserTabOption(
-    browser.command('hover')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+    addSemanticLocatorOptions(browser.command('hover'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Move the mouse over an element — JSON envelope {hovered, target, matches_n}'),
   )
     .action(browserAction(async (page, target, opts) => {
       if (typeof page.hover !== 'function') throw new Error('browser hover is not supported by this browser backend');
+      const resolvedTarget = await resolveWriteTargetOrPrint(page, target, opts ?? {});
+      if (!resolvedTarget) return;
       const parsed = nthToResolveOpts(opts?.nth);
       if ('error' in parsed) {
         console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const { matches_n, match_level } = await page.hover(String(target), parsed.opts);
-      console.log(JSON.stringify({ hovered: true, target: String(target), matches_n, match_level }, null, 2));
+      const { matches_n, match_level } = await page.hover(resolvedTarget, parsed.opts);
+      console.log(JSON.stringify({ hovered: true, target: resolvedTarget, matches_n, match_level }, null, 2));
     }));
 
   addBrowserTabOption(
-    browser.command('focus')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+    addSemanticLocatorOptions(browser.command('focus'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Focus an element — JSON envelope {focused, target, matches_n}'),
   )
     .action(browserAction(async (page, target, opts) => {
       if (typeof page.focus !== 'function') throw new Error('browser focus is not supported by this browser backend');
+      const resolvedTarget = await resolveWriteTargetOrPrint(page, target, opts ?? {});
+      if (!resolvedTarget) return;
       const parsed = nthToResolveOpts(opts?.nth);
       if ('error' in parsed) {
         console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const { focused, matches_n, match_level } = await page.focus(String(target), parsed.opts);
-      console.log(JSON.stringify({ focused, target: String(target), matches_n, match_level }, null, 2));
+      const { focused, matches_n, match_level } = await page.focus(resolvedTarget, parsed.opts);
+      console.log(JSON.stringify({ focused, target: resolvedTarget, matches_n, match_level }, null, 2));
     }));
 
   addBrowserTabOption(
-    browser.command('dblclick')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+    addSemanticLocatorOptions(browser.command('dblclick'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Double-click element — JSON envelope {dblclicked, target, matches_n}'),
   )
     .action(browserAction(async (page, target, opts) => {
       if (typeof page.dblClick !== 'function') throw new Error('browser dblclick is not supported by this browser backend');
+      const resolvedTarget = await resolveWriteTargetOrPrint(page, target, opts ?? {});
+      if (!resolvedTarget) return;
       const parsed = nthToResolveOpts(opts?.nth);
       if ('error' in parsed) {
         console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const { matches_n, match_level } = await page.dblClick(String(target), parsed.opts);
-      console.log(JSON.stringify({ dblclicked: true, target: String(target), matches_n, match_level }, null, 2));
+      const { matches_n, match_level } = await page.dblClick(resolvedTarget, parsed.opts);
+      console.log(JSON.stringify({ dblclicked: true, target: resolvedTarget, matches_n, match_level }, null, 2));
     }));
 
   const runCheckCommand = async (
@@ -1749,17 +1838,19 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     checked: boolean,
   ): Promise<void> => {
     if (typeof page.setChecked !== 'function') throw new Error(`browser ${checked ? 'check' : 'uncheck'} is not supported by this browser backend`);
+    const resolvedTarget = await resolveWriteTargetOrPrint(page, target, opts);
+    if (!resolvedTarget) return;
     const parsed = nthToResolveOpts(opts?.nth);
     if ('error' in parsed) {
       console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
       process.exitCode = EXIT_CODES.USAGE_ERROR;
       return;
     }
-    const result = await page.setChecked(String(target), checked, parsed.opts);
+    const result = await page.setChecked(resolvedTarget, checked, parsed.opts);
     console.log(JSON.stringify({
       checked: result.checked,
       changed: result.changed,
-      target: String(target),
+      target: resolvedTarget,
       matches_n: result.matches_n,
       match_level: result.match_level,
       ...(result.kind ? { kind: result.kind } : {}),
@@ -1767,8 +1858,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   };
 
   addBrowserTabOption(
-    browser.command('check')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector of a checkbox/radio/aria-checked control')
+    addSemanticLocatorOptions(browser.command('check'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Ensure a checkbox/radio/aria-checked control is checked — JSON envelope {checked, changed, target, matches_n}'),
   )
@@ -1777,8 +1868,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }));
 
   addBrowserTabOption(
-    browser.command('uncheck')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector of a checkbox/aria-checked control')
+    addSemanticLocatorOptions(browser.command('uncheck'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Ensure a checkbox/aria-checked control is unchecked — JSON envelope {checked, changed, target, matches_n}'),
   )
@@ -1787,40 +1878,54 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }));
 
   addBrowserTabOption(
-    browser.command('upload')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector of an input[type=file]')
-      .argument('<files...>', 'Local file path(s) to attach')
+    addSemanticLocatorOptions(browser.command('upload'))
+      .argument('[targetOrFile]', 'Numeric ref/CSS target, or first file when using --role/--name/etc.')
+      .argument('[files...]', 'Local file path(s) to attach')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Attach local files to a file input — JSON envelope {uploaded, files, file_names, target, matches_n}'),
   )
-    .action(browserAction(async (page, target, files, opts) => {
+    .action(browserAction(async (page, targetOrFile, files, opts) => {
       if (typeof page.uploadFiles !== 'function') throw new Error('browser upload is not supported by this browser backend');
+      const hasSemantic = !!semanticLocatorFromOptions(opts ?? {});
+      const target = hasSemantic ? undefined : targetOrFile;
+      const resolvedTarget = await resolveWriteTargetOrPrint(page, target, opts ?? {});
+      if (!resolvedTarget) return;
       const parsed = nthToResolveOpts(opts?.nth);
       if ('error' in parsed) {
         console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const resolvedFiles = resolveUploadFilePaths(files);
+      const rawFiles = hasSemantic
+        ? [targetOrFile, ...(Array.isArray(files) ? files : [])].filter((value) => value !== undefined)
+        : files;
+      const resolvedFiles = resolveUploadFilePaths(rawFiles);
       if ('error' in resolvedFiles) {
         console.log(JSON.stringify({ error: resolvedFiles.error }, null, 2));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const result = await page.uploadFiles(String(target), resolvedFiles.files, parsed.opts);
+      const result = await page.uploadFiles(resolvedTarget, resolvedFiles.files, parsed.opts);
       console.log(JSON.stringify(result, null, 2));
     }));
 
   addBrowserTabOption(
-    browser.command('drag')
-      .argument('<source>', 'Numeric ref (from browser state / find) or CSS selector to drag from')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector to drop onto')
+    addPrefixedSemanticLocatorOptions(
+      addPrefixedSemanticLocatorOptions(browser.command('drag'), 'from'),
+      'to',
+    )
+      .argument('[source]', 'Numeric ref/CSS selector to drag from, or omit with --from-role/--from-name/etc.')
+      .argument('[target]', 'Numeric ref/CSS selector to drop onto, or omit with --to-role/--to-name/etc.')
       .option('--from-nth <n>', 'When <source> is a multi-match CSS selector, pick the nth match (0-based)')
       .option('--to-nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Drag one element to another — JSON envelope {dragged, source, target, source_matches_n, target_matches_n}'),
   )
     .action(browserAction(async (page, source, target, opts) => {
       if (typeof page.drag !== 'function') throw new Error('browser drag is not supported by this browser backend');
+      const resolvedSource = await resolvePrefixedWriteTargetOrPrint(page, source, opts ?? {}, 'from', 'source');
+      if (!resolvedSource) return;
+      const resolvedTarget = await resolvePrefixedWriteTargetOrPrint(page, target, opts ?? {}, 'to', 'target');
+      if (!resolvedTarget) return;
       const from = parseResolveFlag(opts?.fromNth, '--from-nth');
       if ('error' in from) {
         console.log(JSON.stringify({ error: { code: 'usage_error', message: from.error } }, null, 2));
@@ -1833,7 +1938,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const result = await page.drag(String(source), String(target), { from: from.opts, to: to.opts });
+      const result = await page.drag(resolvedSource, resolvedTarget, { from: from.opts, to: to.opts });
       console.log(JSON.stringify(result, null, 2));
     }));
 

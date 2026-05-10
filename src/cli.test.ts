@@ -2423,6 +2423,108 @@ describe('browser click/type commands', () => {
     expect(process.exitCode).toBeDefined();
   });
 
+  it('hover: resolves a semantic locator before moving the mouse', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 31, tag: 'button', role: 'button', text: 'Settings', attrs: {}, visible: true },
+      ],
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'hover', '--role', 'button', '--name', 'Settings']);
+
+    expect(browserState.page!.hover).toHaveBeenCalledWith('31', {});
+    expect(lastJsonLog()).toEqual({ hovered: true, target: '31', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('check: resolves a semantic locator before setting checked state', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 32, tag: 'input', role: 'checkbox', text: 'Accept', attrs: {}, visible: true },
+      ],
+    });
+    (browserState.page!.setChecked as any).mockResolvedValueOnce({ checked: true, changed: false, matches_n: 1, match_level: 'exact', kind: 'checkbox' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'check', '--role', 'checkbox', '--name', 'Accept']);
+
+    expect(browserState.page!.setChecked).toHaveBeenCalledWith('32', true, {});
+    expect(lastJsonLog()).toEqual({ checked: true, changed: false, target: '32', matches_n: 1, match_level: 'exact', kind: 'checkbox' });
+  });
+
+  it('upload: treats the first positional as a file when using semantic locator flags', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-upload-semantic-'));
+    const file = path.join(dir, 'receipt.pdf');
+    fs.writeFileSync(file, 'pdf');
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 33, tag: 'input', role: 'button', text: 'Upload receipt', attrs: {}, visible: true },
+      ],
+    });
+    (browserState.page!.uploadFiles as any).mockResolvedValueOnce({
+      uploaded: true,
+      files: 1,
+      file_names: ['receipt.pdf'],
+      target: '33',
+      matches_n: 1,
+      match_level: 'exact',
+      multiple: false,
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'upload', '--role', 'button', '--name', 'Upload receipt', file]);
+
+    expect(browserState.page!.uploadFiles).toHaveBeenCalledWith('33', [file], {});
+    expect(lastJsonLog()).toMatchObject({ uploaded: true, target: '33', files: 1 });
+  });
+
+  it('drag: resolves source and target from prefixed semantic locators', async () => {
+    (browserState.page!.evaluate as any)
+      .mockResolvedValueOnce({
+        matches_n: 1,
+        entries: [
+          { nth: 0, ref: 40, tag: 'div', role: 'button', text: 'Card A', attrs: {}, visible: true },
+        ],
+      })
+      .mockResolvedValueOnce({
+        matches_n: 1,
+        entries: [
+          { nth: 0, ref: 41, tag: 'div', role: 'region', text: 'Done', attrs: {}, visible: true },
+        ],
+      });
+    (browserState.page!.drag as any).mockResolvedValueOnce({
+      dragged: true,
+      source: '40',
+      target: '41',
+      source_matches_n: 1,
+      target_matches_n: 1,
+      source_match_level: 'exact',
+      target_match_level: 'exact',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync([
+      'node',
+      'opencli',
+      'browser',
+      'drag',
+      '--from-role',
+      'button',
+      '--from-name',
+      'Card A',
+      '--to-role',
+      'region',
+      '--to-name',
+      'Done',
+    ]);
+
+    expect(browserState.page!.drag).toHaveBeenCalledWith('40', '41', { from: {}, to: {} });
+    expect(lastJsonLog()).toMatchObject({ dragged: true, source: '40', target: '41' });
+  });
+
   it('surfaces match_level=stable when resolver falls back to fingerprint match', async () => {
     (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'stable' });
     const program = createProgram('', '');
