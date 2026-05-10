@@ -19219,6 +19219,39 @@
   },
   {
     "site": "reddit",
+    "name": "reply",
+    "description": "Reply to a Reddit comment",
+    "access": "write",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "comment-id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comment ID (e.g. okf3s7u) or fullname (t1_xxx)"
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Reply text"
+      }
+    ],
+    "columns": [
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "reddit/reply.js",
+    "sourceFile": "reddit/reply.js",
+    "navigateBefore": "https://reddit.com"
+  },
+  {
+    "site": "reddit",
     "name": "save",
     "description": "Save or unsave a Reddit post",
     "access": "write",
