@@ -35,4 +35,9 @@ describe('browserFetch', () => {
         const page = makePage(undefined);
         await expect(browserFetch(page, 'GET', 'https://creator.douyin.com/api/test')).rejects.toThrow('Empty response from Douyin API');
     });
+    it('wraps browser-side fetch or JSON parse failures', async () => {
+        const page = makePage(null);
+        page.evaluate.mockRejectedValueOnce(new SyntaxError('Unexpected token < in JSON'));
+        await expect(browserFetch(page, 'GET', 'https://creator.douyin.com/api/test')).rejects.toThrow('Douyin API request failed: Unexpected token < in JSON');
+    });
 });

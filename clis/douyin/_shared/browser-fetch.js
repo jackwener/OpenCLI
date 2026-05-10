@@ -20,7 +20,14 @@ export async function browserFetch(page, method, url, options = {}) {
       return JSON.parse(text);
     })()
   `;
-    const result = await page.evaluate(js);
+    let result;
+    try {
+        result = await page.evaluate(js);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new CommandExecutionError(`Douyin API request failed: ${message}`);
+    }
     if (result === null || result === undefined) {
         throw new CommandExecutionError('Empty response from Douyin API');
     }
