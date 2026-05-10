@@ -168,7 +168,7 @@ describe('executeCommand — non-browser timeout', () => {
   it('reuses a site-scoped browser workspace and keeps the tab lease open', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
-    const sessionOpts: Array<{ workspace?: string; idleTimeout?: number }> = [];
+    const sessionOpts: Array<{ workspace?: string; idleTimeout?: number; windowMode?: string }> = [];
 
     vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
     vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
@@ -190,8 +190,8 @@ describe('executeCommand — non-browser timeout', () => {
     await executeCommand(cmd, {});
 
     expect(sessionOpts).toHaveLength(2);
-    expect(sessionOpts[0]).toMatchObject({ workspace: 'site:test-execution', idleTimeout: 600 });
-    expect(sessionOpts[1]).toMatchObject({ workspace: 'site:test-execution', idleTimeout: 600 });
+    expect(sessionOpts[0]).toMatchObject({ workspace: 'site:test-execution', idleTimeout: 600, windowMode: 'background' });
+    expect(sessionOpts[1]).toMatchObject({ workspace: 'site:test-execution', idleTimeout: 600, windowMode: 'background' });
     expect(closeWindow).not.toHaveBeenCalled();
     vi.restoreAllMocks();
   });
@@ -199,7 +199,7 @@ describe('executeCommand — non-browser timeout', () => {
   it('keeps default browser commands on one-shot workspaces', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
-    const sessionOpts: Array<{ workspace?: string; idleTimeout?: number }> = [];
+    const sessionOpts: Array<{ workspace?: string; idleTimeout?: number; windowMode?: string }> = [];
 
     vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
     vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
@@ -225,6 +225,8 @@ describe('executeCommand — non-browser timeout', () => {
     expect(sessionOpts[0]?.workspace).not.toBe(sessionOpts[1]?.workspace);
     expect(sessionOpts[0]?.idleTimeout).toBeUndefined();
     expect(sessionOpts[1]?.idleTimeout).toBeUndefined();
+    expect(sessionOpts[0]?.windowMode).toBe('background');
+    expect(sessionOpts[1]?.windowMode).toBe('background');
     expect(closeWindow).toHaveBeenCalledTimes(2);
     vi.restoreAllMocks();
   });
@@ -440,20 +442,20 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
-  it('skips closeWindow when OPENCLI_LIVE=1 (success path)', async () => {
+  it('skips closeWindow when OPENCLI_KEEP_TAB=true (success path)', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
 
     vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
     vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
 
-    const prev = process.env.OPENCLI_LIVE;
-    process.env.OPENCLI_LIVE = '1';
+    const prev = process.env.OPENCLI_KEEP_TAB;
+    process.env.OPENCLI_KEEP_TAB = 'true';
     try {
       const cmd = cli({
         site: 'test-execution',
-        name: 'browser-live-success', access: 'read',
-        description: 'test closeWindow skipped with --live on success',
+        name: 'browser-keep-tab-success', access: 'read',
+        description: 'test closeWindow skipped with --keep-tab on success',
         browser: true,
         strategy: Strategy.PUBLIC,
         func: async () => [{ ok: true }],
@@ -462,26 +464,26 @@ describe('executeCommand — non-browser timeout', () => {
       await executeCommand(cmd, {});
       expect(closeWindow).not.toHaveBeenCalled();
     } finally {
-      if (prev === undefined) delete process.env.OPENCLI_LIVE;
-      else process.env.OPENCLI_LIVE = prev;
+      if (prev === undefined) delete process.env.OPENCLI_KEEP_TAB;
+      else process.env.OPENCLI_KEEP_TAB = prev;
       vi.restoreAllMocks();
     }
   });
 
-  it('skips closeWindow when OPENCLI_LIVE=1 (failure path)', async () => {
+  it('skips closeWindow when OPENCLI_KEEP_TAB=true (failure path)', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
 
     vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
     vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
 
-    const prev = process.env.OPENCLI_LIVE;
-    process.env.OPENCLI_LIVE = '1';
+    const prev = process.env.OPENCLI_KEEP_TAB;
+    process.env.OPENCLI_KEEP_TAB = 'true';
     try {
       const cmd = cli({
         site: 'test-execution',
-        name: 'browser-live-failure', access: 'read',
-        description: 'test closeWindow skipped with --live on failure',
+        name: 'browser-keep-tab-failure', access: 'read',
+        description: 'test closeWindow skipped with --keep-tab on failure',
         browser: true,
         strategy: Strategy.PUBLIC,
         func: async () => { throw new Error('adapter failure'); },
@@ -490,10 +492,40 @@ describe('executeCommand — non-browser timeout', () => {
       await expect(executeCommand(cmd, {})).rejects.toThrow('adapter failure');
       expect(closeWindow).not.toHaveBeenCalled();
     } finally {
-      if (prev === undefined) delete process.env.OPENCLI_LIVE;
-      else process.env.OPENCLI_LIVE = prev;
+      if (prev === undefined) delete process.env.OPENCLI_KEEP_TAB;
+      else process.env.OPENCLI_KEEP_TAB = prev;
       vi.restoreAllMocks();
     }
+  });
+
+  it('lets browser common options override adapter window and keep-tab defaults', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+    const sessionOpts: Array<{ windowMode?: string }> = [];
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
+      sessionOpts.push(opts ?? {});
+      return fn(mockPage);
+    });
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-window-options', access: 'read',
+      description: 'test browser common options',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      func: async () => [{ ok: true }],
+    });
+
+    await executeCommand(cmd, {}, false, {
+      windowMode: 'foreground',
+      keepTab: 'true',
+    });
+
+    expect(sessionOpts[0]).toMatchObject({ windowMode: 'foreground' });
+    expect(closeWindow).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
   });
 
   it('does not re-run custom validation when args are already prepared', async () => {

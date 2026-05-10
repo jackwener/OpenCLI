@@ -37,6 +37,7 @@ import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './
 import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
 import type { BrowserDownloadWaitResult, IPage, ScreenshotOptions } from './types.js';
+import type { BrowserWindowMode } from './runtime.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
@@ -375,7 +376,12 @@ async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scop
 }
 
 /** Create a browser page for browser commands. Uses a dedicated browser workspace for session persistence. */
-async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_BROWSER_WORKSPACE, contextId?: string): Promise<import('./types.js').IPage> {
+async function getBrowserPage(
+  targetPage?: string,
+  workspace: string = DEFAULT_BROWSER_WORKSPACE,
+  contextId?: string,
+  opts: { windowMode?: BrowserWindowMode } = {},
+): Promise<import('./types.js').IPage> {
   const { BrowserBridge } = await import('./browser/index.js');
   const bridge = new BrowserBridge();
   // Idle timeout: how long the browser workspace lease stays alive between commands
@@ -387,6 +393,7 @@ async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_B
     workspace,
     ...(contextId && { contextId }),
     ...(idleTimeout && idleTimeout > 0 && { idleTimeout }),
+    windowMode: opts.windowMode ?? getBrowserWindowMode(undefined, 'foreground'),
   });
   const targetScope = getBrowserScope(workspace, contextId);
   const resolvedTargetPage = targetPage
@@ -399,6 +406,33 @@ async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_B
     page.setActivePage(resolvedTargetPage);
   }
   return page;
+}
+
+function getBrowserWindowMode(command: Command | undefined, defaultMode: BrowserWindowMode): BrowserWindowMode {
+  const optionRaw = getCommandOption(command, 'window');
+  if (optionRaw !== undefined && optionRaw !== '') {
+    if (optionRaw === 'foreground' || optionRaw === 'background') return optionRaw;
+    throw new Error(`--window must be one of: foreground, background. Received: "${String(optionRaw)}"`);
+  }
+  const envRaw = process.env.OPENCLI_WINDOW;
+  if (envRaw !== undefined && envRaw !== '') {
+    if (envRaw === 'foreground' || envRaw === 'background') return envRaw;
+    throw new Error(`OPENCLI_WINDOW must be one of: foreground, background. Received: "${envRaw}"`);
+  }
+  return defaultMode;
+}
+
+function parseBrowserBoolean(name: string, raw: unknown): boolean | undefined {
+  if (raw === undefined || raw === '') return undefined;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  throw new Error(`${name} must be one of: true, false. Received: "${String(raw)}"`);
+}
+
+function getBrowserKeepTab(command: Command | undefined, defaultValue: boolean): boolean {
+  return parseBrowserBoolean('--keep-tab', getCommandOption(command, 'keepTab'))
+    ?? parseBrowserBoolean('OPENCLI_KEEP_TAB', process.env.OPENCLI_KEEP_TAB)
+    ?? defaultValue;
 }
 
 function addBrowserTabOption(command: Command): Command {
@@ -666,6 +700,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   const browser = program
     .command('browser')
     .option('--workspace <name>', 'Browser workspace to use (default: browser:default; bound tabs use bound:<name>)')
+    .option('--window <mode>', 'Browser window mode: foreground or background')
+    .option('--keep-tab <bool>', 'Keep the browser tab lease after the command finishes')
     .description('Browser control — navigate, click, type, extract, wait (no LLM needed)');
   const originalBrowserDescription = browser.description();
 
@@ -740,12 +776,17 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   /** Wrap browser actions with error handling and optional --json output */
   function browserAction(fn: (page: Awaited<ReturnType<typeof getBrowserPage>>, ...args: any[]) => Promise<unknown>) {
     return async (...args: any[]) => {
+      let page: Awaited<ReturnType<typeof getBrowserPage>> | null = null;
+      let shouldReleasePage = false;
       try {
         const command = args.at(-1) instanceof Command ? args.at(-1) as Command : undefined;
         const targetPage = getBrowserTargetId(command);
         const workspace = getBrowserWorkspace(command);
         const contextId = getBrowserContextId(command);
-        const page = await getBrowserPage(targetPage, workspace, contextId);
+        const windowMode = getBrowserWindowMode(command, 'foreground');
+        const keepTab = getBrowserKeepTab(command, true);
+        shouldReleasePage = !keepTab && !workspace.startsWith('bound:');
+        page = await getBrowserPage(targetPage, workspace, contextId, { windowMode });
         await fn(page, ...args);
       } catch (err) {
         if (err instanceof BrowserConnectError) {
@@ -782,6 +823,12 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           }
         }
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
+      } finally {
+        if (shouldReleasePage && page?.closeWindow) {
+          await page.closeWindow().catch((err) => {
+            if (process.env.OPENCLI_VERBOSE) log.warn(`[browser] Failed to release tab lease: ${getErrorMessage(err)}`);
+          });
+        }
       }
     };
   }

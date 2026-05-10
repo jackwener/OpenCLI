@@ -322,8 +322,8 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
           ? `tab ${session.preferredTabId}`
           : `window ${session.windowId ?? 'unknown'}`;
         const mode = session.ownership ?? (session.owned === false ? 'borrowed' : 'owned');
-        const surface = session.surface ? `, surface=${session.surface}` : '';
-        lines.push(styleText('dim', `  • ${session.workspace ?? 'default'} → ${target}, mode=${mode}${surface}, tabs=${session.tabCount ?? 0}, idle=${idle}`));
+        const windowRole = session.windowRole ? `, window=${session.windowRole}` : '';
+        lines.push(styleText('dim', `  • ${session.workspace ?? 'default'} → ${target}, mode=${mode}${windowRole}, tabs=${session.tabCount ?? 0}, idle=${idle}`));
       }
       }
     }

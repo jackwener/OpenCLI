@@ -53,8 +53,8 @@ export interface DaemonCommand {
   timeoutMs?: number;
   cdpMethod?: string;
   cdpParams?: Record<string, unknown>;
-  /** When true, the owned automation container is created in the foreground */
-  windowFocused?: boolean;
+  /** Window foreground/background policy for owned Browser Bridge containers. */
+  windowMode?: 'foreground' | 'background';
   /** Custom idle timeout in seconds for this workspace session. Overrides the default. */
   idleTimeout?: number;
   /** Explicitly allow navigation inside a borrowed bound tab. */
@@ -181,10 +181,13 @@ async function sendCommandRaw(
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const id = generateId();
-    const wf = process.env.OPENCLI_WINDOW_FOCUSED;
-    const windowFocused = (wf === '1' || wf === 'true') ? true : undefined;
+    const rawWindowMode = process.env.OPENCLI_WINDOW;
+    const envWindowMode = rawWindowMode === 'foreground' || rawWindowMode === 'background'
+      ? rawWindowMode
+      : undefined;
     const contextId = params.contextId ?? resolveProfileContextId();
-    const command: DaemonCommand = { id, action, ...params, ...(contextId && { contextId }), ...(windowFocused && { windowFocused }) };
+    const windowMode = params.windowMode ?? envWindowMode;
+    const command: DaemonCommand = { id, action, ...params, ...(contextId && { contextId }), ...(windowMode && { windowMode }) };
     try {
       const res = await requestDaemon('/command', {
         method: 'POST',

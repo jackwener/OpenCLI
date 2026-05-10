@@ -36,6 +36,7 @@ export class Page extends BasePage {
     private readonly workspace: string = 'default',
     idleTimeout?: number,
     public readonly contextId?: string,
+    private readonly windowMode?: 'foreground' | 'background',
   ) {
     super();
     this._idleTimeout = idleTimeout;
@@ -52,6 +53,7 @@ export class Page extends BasePage {
       workspace: this.workspace,
       ...(this.contextId && { contextId: this.contextId }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
+      ...(this.windowMode && { windowMode: this.windowMode }),
     };
   }
 
@@ -62,6 +64,7 @@ export class Page extends BasePage {
       ...(this.contextId && { contextId: this.contextId }),
       ...(this._page !== undefined && { page: this._page }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
+      ...(this.windowMode && { windowMode: this.windowMode }),
     };
   }
 

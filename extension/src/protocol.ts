@@ -69,8 +69,8 @@ export interface Command {
   cdpMethod?: string;
   /** CDP method params for 'cdp' action */
   cdpParams?: Record<string, unknown>;
-  /** When true, the owned automation container is created in the foreground (focused) */
-  windowFocused?: boolean;
+  /** Window foreground/background policy for owned Browser Bridge containers. */
+  windowMode?: 'foreground' | 'background';
   /** Custom idle timeout in seconds for this workspace session. Overrides the default. */
   idleTimeout?: number;
   /** Explicitly allow navigation inside a borrowed bound tab. */

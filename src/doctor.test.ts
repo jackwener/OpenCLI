@@ -138,14 +138,14 @@ describe('doctor report rendering', () => {
           windowId: 2,
           preferredTabId: 42,
           ownership: 'borrowed',
-          surface: 'borrowed-user-tab',
+          windowRole: 'borrowed-user',
           tabCount: 1,
           idleMsRemaining: null,
         },
       ],
     }));
 
-    expect(text).toContain('bound:default → tab 42, mode=borrowed, surface=borrowed-user-tab, tabs=1, idle=none');
+    expect(text).toContain('bound:default → tab 42, mode=borrowed, window=borrowed-user, tabs=1, idle=none');
   });
 
   it('renders connected profiles and groups sessions by profile', () => {
@@ -164,7 +164,7 @@ describe('doctor report rendering', () => {
           windowId: 2,
           preferredTabId: 42,
           ownership: 'borrowed',
-          surface: 'borrowed-user-tab',
+          windowRole: 'borrowed-user',
           tabCount: 1,
           idleMsRemaining: null,
         },
@@ -174,7 +174,7 @@ describe('doctor report rendering', () => {
           windowId: 1,
           preferredTabId: 10,
           ownership: 'owned',
-          surface: 'dedicated-container',
+          windowRole: 'automation',
           tabCount: 1,
           idleMsRemaining: 1000,
         },

@@ -378,13 +378,23 @@ describe('createProgram root help descriptions', () => {
       expect(data.command).toBe('opencli browser');
       expect(data.description).toBe('Browser control — navigate, click, type, extract, wait (no LLM needed)');
       expect(data.command_count).toBeGreaterThan(20);
-      expect(data.namespace_options).toMatchObject([
-        {
+      expect(data.namespace_options).toEqual(expect.arrayContaining([
+        expect.objectContaining({
           name: 'workspace',
           flags: '--workspace <name>',
           takes_value: 'required',
-        },
-      ]);
+        }),
+        expect.objectContaining({
+          name: 'window',
+          flags: '--window <mode>',
+          takes_value: 'required',
+        }),
+        expect.objectContaining({
+          name: 'keepTab',
+          flags: '--keep-tab <bool>',
+          takes_value: 'required',
+        }),
+      ]));
       expect(data.global_options).toEqual(expect.arrayContaining([
         expect.objectContaining({
           name: 'version',
@@ -455,7 +465,7 @@ describe('createProgram root help descriptions', () => {
         usage: 'opencli browser tab close [targetId] [options]',
         positionals: [{ name: 'targetId', help: 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"' }],
       });
-      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['workspace']);
+      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['workspace', 'window', 'keepTab']);
       expect(data.structured_help).toMatchObject({
         usage: 'opencli browser tab --help -f yaml',
       });
@@ -486,7 +496,7 @@ describe('createProgram root help descriptions', () => {
         },
       });
       expect(data.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab']);
-      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['workspace']);
+      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['workspace', 'window', 'keepTab']);
       expect(data.global_options.map((option: any) => option.name)).toContain('profile');
     } finally {
       process.argv = argv;
@@ -780,6 +790,8 @@ describe('browser tab targeting commands', () => {
     stderrSpy.mockClear();
     mockBrowserConnect.mockClear();
     mockBrowserClose.mockReset().mockResolvedValue(undefined);
+    delete process.env.OPENCLI_WINDOW;
+    delete process.env.OPENCLI_KEEP_TAB;
     mockBindTab.mockReset().mockResolvedValue({
       workspace: 'bound:default',
       page: 'tab-2',
@@ -811,6 +823,7 @@ describe('browser tab targeting commands', () => {
       ]),
       evaluateInFrame: vi.fn().mockResolvedValue('inside frame'),
       readNetworkCapture: vi.fn().mockResolvedValue([]),
+      closeWindow: vi.fn().mockResolvedValue(undefined),
       waitForDownload: vi.fn().mockResolvedValue({
         downloaded: true,
         filename: '/tmp/receipt.pdf',
@@ -861,8 +874,35 @@ describe('browser tab targeting commands', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--workspace', 'bound:default', 'state']);
 
-    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, workspace: 'bound:default' });
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, workspace: 'bound:default', windowMode: 'foreground' });
     expect(browserState.page?.snapshot).toHaveBeenCalled();
+  });
+
+  it('passes browser --window through Commander options without relying on env pre-processing', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--window', 'background', 'state']);
+
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, workspace: 'browser:default', windowMode: 'background' });
+    expect(browserState.page?.snapshot).toHaveBeenCalled();
+  });
+
+  it('releases non-bound browser tab leases when --keep-tab=false', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--keep-tab', 'false', 'state']);
+
+    expect(browserState.page?.snapshot).toHaveBeenCalled();
+    expect(browserState.page?.closeWindow).toHaveBeenCalled();
+  });
+
+  it('does not auto-release explicit bound workspaces when --keep-tab=false', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--workspace', 'bound:default', '--keep-tab', 'false', 'state']);
+
+    expect(browserState.page?.snapshot).toHaveBeenCalled();
+    expect(browserState.page?.closeWindow).not.toHaveBeenCalled();
   });
 
   it('passes the opt-in AX source to browser state', async () => {

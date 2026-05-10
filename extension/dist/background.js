@@ -750,17 +750,21 @@ function scheduleReconnect() {
   }, delay);
 }
 const automationSessions = /* @__PURE__ */ new Map();
-let ownedContainerWindowId = null;
-let ownedContainerGroupId = null;
 const IDLE_TIMEOUT_DEFAULT = 3e4;
 const IDLE_TIMEOUT_INTERACTIVE = 6e5;
 const IDLE_TIMEOUT_NONE = -1;
-const REGISTRY_KEY = "opencli_target_lease_registry_v1";
+const REGISTRY_KEY = "opencli_target_lease_registry_v2";
 const LEASE_IDLE_ALARM_PREFIX = "opencli:lease-idle:";
-const AUTOMATION_TAB_GROUP_TITLE = "OpenCLI";
+const CONTAINER_TAB_GROUP_TITLE = {
+  interactive: "OpenCLI Browser",
+  automation: "OpenCLI Automation"
+};
 const AUTOMATION_TAB_GROUP_COLOR = "orange";
 let leaseMutationQueue = Promise.resolve();
-let ownedContainerWindowPromise = null;
+const ownedContainers = {
+  interactive: { windowId: null, groupId: null, promise: null },
+  automation: { windowId: null, groupId: null, promise: null }
+};
 class CommandFailure extends Error {
   constructor(code, message, hint) {
     super(message);
@@ -770,6 +774,7 @@ class CommandFailure extends Error {
   }
 }
 const workspaceTimeoutOverrides = /* @__PURE__ */ new Map();
+const workspaceWindowModeOverrides = /* @__PURE__ */ new Map();
 function getIdleTimeout(workspace) {
   if (workspace.startsWith("bound:")) return IDLE_TIMEOUT_NONE;
   const override = workspaceTimeoutOverrides.get(workspace);
@@ -779,7 +784,6 @@ function getIdleTimeout(workspace) {
   }
   return IDLE_TIMEOUT_DEFAULT;
 }
-let windowFocused = false;
 function getWorkspaceKey(workspace) {
   return workspace?.trim() || "default";
 }
@@ -787,6 +791,15 @@ function getLeaseLifecycle(workspace) {
   if (workspace.startsWith("bound:")) return "pinned";
   if (workspace.startsWith("browser:") || workspace.startsWith("operate:")) return "persistent";
   return "ephemeral";
+}
+function getOwnedWindowRole(workspace) {
+  return workspace.startsWith("browser:") || workspace.startsWith("operate:") ? "interactive" : "automation";
+}
+function getWindowRole(workspace, ownership) {
+  return ownership === "borrowed" ? "borrowed-user" : getOwnedWindowRole(workspace);
+}
+function getWindowMode(workspace) {
+  return workspaceWindowModeOverrides.get(workspace) ?? (getOwnedWindowRole(workspace) === "interactive" ? "foreground" : "background");
 }
 function makeAlarmName(workspace) {
   return `${LEASE_IDLE_ALARM_PREFIX}${encodeURIComponent(workspace)}`;
@@ -811,15 +824,23 @@ function makeSession(workspace, session) {
     contextId: currentContextId,
     ownership,
     lifecycle: getLeaseLifecycle(workspace),
-    surface: ownership === "owned" ? "dedicated-container" : "borrowed-user-tab"
+    windowRole: getWindowRole(workspace, ownership)
   };
 }
 function emptyRegistry() {
   return {
-    version: 1,
+    version: 2,
     contextId: currentContextId,
-    ownedContainerWindowId,
-    ownedContainerGroupId,
+    ownedContainers: {
+      interactive: {
+        windowId: ownedContainers.interactive.windowId,
+        groupId: ownedContainers.interactive.groupId
+      },
+      automation: {
+        windowId: ownedContainers.automation.windowId,
+        groupId: ownedContainers.automation.groupId
+      }
+    },
     leases: {}
   };
 }
@@ -829,12 +850,21 @@ async function readRegistry() {
     if (!local) return emptyRegistry();
     const raw = await local.get(REGISTRY_KEY);
     const stored = raw[REGISTRY_KEY];
-    if (!stored || stored.version !== 1 || typeof stored.leases !== "object") return emptyRegistry();
+    if (!stored || stored.version !== 2 || typeof stored.leases !== "object") return emptyRegistry();
+    const storedContainers = stored.ownedContainers && typeof stored.ownedContainers === "object" ? stored.ownedContainers : emptyRegistry().ownedContainers;
     return {
-      version: 1,
+      version: 2,
       contextId: currentContextId,
-      ownedContainerWindowId: typeof stored.ownedContainerWindowId === "number" ? stored.ownedContainerWindowId : null,
-      ownedContainerGroupId: typeof stored.ownedContainerGroupId === "number" ? stored.ownedContainerGroupId : null,
+      ownedContainers: {
+        interactive: {
+          windowId: typeof storedContainers.interactive?.windowId === "number" ? storedContainers.interactive.windowId : null,
+          groupId: typeof storedContainers.interactive?.groupId === "number" ? storedContainers.interactive.groupId : null
+        },
+        automation: {
+          windowId: typeof storedContainers.automation?.windowId === "number" ? storedContainers.automation.windowId : null,
+          groupId: typeof storedContainers.automation?.groupId === "number" ? storedContainers.automation.groupId : null
+        }
+      },
       leases: stored.leases
     };
   } catch {
@@ -857,16 +887,24 @@ async function persistRuntimeState() {
       contextId: session.contextId,
       ownership: session.ownership,
       lifecycle: session.lifecycle,
-      surface: session.surface,
+      windowRole: session.windowRole,
       idleDeadlineAt: session.idleDeadlineAt,
       updatedAt: Date.now()
     };
   }
   await writeRegistry({
-    version: 1,
+    version: 2,
     contextId: currentContextId,
-    ownedContainerWindowId,
-    ownedContainerGroupId,
+    ownedContainers: {
+      interactive: {
+        windowId: ownedContainers.interactive.windowId,
+        groupId: ownedContainers.interactive.groupId
+      },
+      automation: {
+        windowId: ownedContainers.automation.windowId,
+        groupId: ownedContainers.automation.groupId
+      }
+    },
     leases
   });
 }
@@ -893,6 +931,7 @@ async function removeWorkspaceSession(workspace) {
   if (existing?.idleTimer) clearTimeout(existing.idleTimer);
   automationSessions.delete(workspace);
   workspaceTimeoutOverrides.delete(workspace);
+  workspaceWindowModeOverrides.delete(workspace);
   scheduleIdleAlarm(workspace, IDLE_TIMEOUT_NONE);
   await persistRuntimeState();
 }
@@ -914,26 +953,27 @@ function resetWindowIdleTimer(workspace) {
     await releaseWorkspaceLease(workspace, "idle timeout");
   }, timeout);
 }
-async function getOwnedContainerGroupId(windowId) {
-  if (ownedContainerGroupId !== null) {
+async function getOwnedContainerGroupId(role, windowId) {
+  const container = ownedContainers[role];
+  if (container.groupId !== null) {
     try {
-      const group = await chrome.tabGroups.get(ownedContainerGroupId);
-      if (group.windowId === windowId) return ownedContainerGroupId;
+      const group = await chrome.tabGroups.get(container.groupId);
+      if (group.windowId === windowId) return container.groupId;
     } catch {
     }
-    ownedContainerGroupId = null;
+    container.groupId = null;
   }
-  const groups = await chrome.tabGroups.query({ windowId, title: AUTOMATION_TAB_GROUP_TITLE });
+  const groups = await chrome.tabGroups.query({ windowId, title: CONTAINER_TAB_GROUP_TITLE[role] });
   const existing = groups[0];
   if (!existing) return null;
-  ownedContainerGroupId = existing.id;
+  container.groupId = existing.id;
   return existing.id;
 }
-async function ensureOwnedContainerTabGroup(windowId, tabIds) {
+async function ensureOwnedContainerTabGroup(role, windowId, tabIds) {
   const ids = [...new Set(tabIds.filter((id) => id !== void 0))];
   if (ids.length === 0) return;
   try {
-    const existingGroupId = await getOwnedContainerGroupId(windowId);
+    const existingGroupId = await getOwnedContainerGroupId(role, windowId);
     if (existingGroupId !== null) {
       const tabs = await chrome.tabs.query({ windowId });
       const alreadyGrouped = new Set(
@@ -943,48 +983,56 @@ async function ensureOwnedContainerTabGroup(windowId, tabIds) {
       if (missing.length > 0) await chrome.tabs.group({ groupId: existingGroupId, tabIds: missing });
       return;
     }
-    ownedContainerGroupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
-    await chrome.tabGroups.update(ownedContainerGroupId, {
+    const groupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
+    ownedContainers[role].groupId = groupId;
+    await chrome.tabGroups.update(groupId, {
       color: AUTOMATION_TAB_GROUP_COLOR,
-      title: AUTOMATION_TAB_GROUP_TITLE,
+      title: CONTAINER_TAB_GROUP_TITLE[role],
       collapsed: false
     });
   } catch (err) {
-    console.warn(`[opencli] Failed to mark automation tab group: ${err instanceof Error ? err.message : String(err)}`);
+    console.warn(`[opencli] Failed to mark ${role} tab group: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
-async function ensureOwnedContainerWindow(initialUrl) {
-  if (ownedContainerWindowPromise) return ownedContainerWindowPromise;
-  ownedContainerWindowPromise = ensureOwnedContainerWindowUnlocked(initialUrl).finally(() => {
-    ownedContainerWindowPromise = null;
+async function ensureOwnedContainerWindow(role, initialUrl, mode = "background") {
+  const container = ownedContainers[role];
+  if (container.promise) return container.promise;
+  container.promise = ensureOwnedContainerWindowUnlocked(role, initialUrl, mode).finally(() => {
+    container.promise = null;
   });
-  return ownedContainerWindowPromise;
+  return container.promise;
 }
-async function ensureOwnedContainerWindowUnlocked(initialUrl) {
-  if (ownedContainerWindowId !== null) {
+async function ensureOwnedContainerWindowUnlocked(role, initialUrl, mode = "background") {
+  const container = ownedContainers[role];
+  if (container.windowId !== null) {
     try {
-      await chrome.windows.get(ownedContainerWindowId);
-      const initialTabId2 = await findReusableOwnedContainerTab(ownedContainerWindowId);
-      await ensureOwnedContainerTabGroup(ownedContainerWindowId, [initialTabId2]);
+      await chrome.windows.get(container.windowId);
+      if (mode === "foreground") {
+        const updateWindow = chrome.windows.update;
+        if (typeof updateWindow === "function") await updateWindow(container.windowId, { focused: true }).catch(() => {
+        });
+      }
+      const initialTabId2 = await findReusableOwnedContainerTab(container.windowId);
+      await ensureOwnedContainerTabGroup(role, container.windowId, [initialTabId2]);
       return {
-        windowId: ownedContainerWindowId,
+        windowId: container.windowId,
         initialTabId: initialTabId2
       };
     } catch {
-      ownedContainerWindowId = null;
-      ownedContainerGroupId = null;
+      container.windowId = null;
+      container.groupId = null;
     }
   }
   const startUrl = initialUrl && isSafeNavigationUrl(initialUrl) ? initialUrl : BLANK_PAGE;
   const win = await chrome.windows.create({
     url: startUrl,
-    focused: windowFocused,
+    focused: mode === "foreground",
     width: 1280,
     height: 900,
     type: "normal"
   });
-  ownedContainerWindowId = win.id;
-  console.log(`[opencli] Created owned automation container window ${ownedContainerWindowId} (start=${startUrl})`);
+  container.windowId = win.id;
+  console.log(`[opencli] Created owned ${role} window ${container.windowId} (start=${startUrl})`);
   const tabs = await chrome.tabs.query({ windowId: win.id });
   const initialTabId = tabs[0]?.id;
   if (initialTabId) {
@@ -1005,9 +1053,9 @@ async function ensureOwnedContainerWindowUnlocked(initialUrl) {
       }
     });
   }
-  await ensureOwnedContainerTabGroup(ownedContainerWindowId, [initialTabId]);
+  await ensureOwnedContainerTabGroup(role, container.windowId, [initialTabId]);
   await persistRuntimeState();
-  return { windowId: ownedContainerWindowId, initialTabId };
+  return { windowId: container.windowId, initialTabId };
 }
 async function findReusableOwnedContainerTab(windowId) {
   try {
@@ -1032,7 +1080,8 @@ async function createOwnedTabLease(workspace, initialUrl) {
 }
 async function createOwnedTabLeaseUnlocked(workspace, initialUrl) {
   const targetUrl = initialUrl && isSafeNavigationUrl(initialUrl) ? initialUrl : BLANK_PAGE;
-  const { windowId, initialTabId } = await ensureOwnedContainerWindow(targetUrl);
+  const role = getOwnedWindowRole(workspace);
+  const { windowId, initialTabId } = await ensureOwnedContainerWindow(role, targetUrl, getWindowMode(workspace));
   let tab;
   if (initialTabIsAvailable(initialTabId)) {
     tab = await chrome.tabs.get(initialTabId);
@@ -1045,7 +1094,7 @@ async function createOwnedTabLeaseUnlocked(workspace, initialUrl) {
     tab = await chrome.tabs.create({ windowId, url: targetUrl, active: true });
   }
   if (!tab.id) throw new Error("Failed to create tab lease in automation container");
-  await ensureOwnedContainerTabGroup(windowId, [tab.id]);
+  await ensureOwnedContainerTabGroup(role, windowId, [tab.id]);
   setWorkspaceSession(workspace, {
     windowId,
     owned: true,
@@ -1083,12 +1132,15 @@ async function getAutomationWindow(workspace, initialUrl) {
       await removeWorkspaceSession(workspace);
     }
   }
-  return (await ensureOwnedContainerWindow(initialUrl)).windowId;
+  const role = getOwnedWindowRole(workspace);
+  return (await ensureOwnedContainerWindow(role, initialUrl, getWindowMode(workspace))).windowId;
 }
 chrome.windows.onRemoved.addListener(async (windowId) => {
-  if (ownedContainerWindowId === windowId) {
-    ownedContainerWindowId = null;
-    ownedContainerGroupId = null;
+  for (const container of Object.values(ownedContainers)) {
+    if (container.windowId === windowId) {
+      container.windowId = null;
+      container.groupId = null;
+    }
   }
   for (const [workspace, session] of automationSessions.entries()) {
     if (session.windowId === windowId) {
@@ -1096,6 +1148,7 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
       if (session.idleTimer) clearTimeout(session.idleTimer);
       automationSessions.delete(workspace);
       workspaceTimeoutOverrides.delete(workspace);
+      workspaceWindowModeOverrides.delete(workspace);
       scheduleIdleAlarm(workspace, IDLE_TIMEOUT_NONE);
     }
   }
@@ -1179,7 +1232,9 @@ async function fetchDaemonVersion() {
 }
 async function handleCommand(cmd) {
   const workspace = getWorkspaceKey(cmd.workspace);
-  windowFocused = cmd.windowFocused === true;
+  if (!workspace.startsWith("bound:") && (cmd.windowMode === "foreground" || cmd.windowMode === "background")) {
+    workspaceWindowModeOverrides.set(workspace, cmd.windowMode);
+  }
   if (cmd.idleTimeout != null && cmd.idleTimeout > 0) {
     workspaceTimeoutOverrides.set(workspace, cmd.idleTimeout * 1e3);
   }
@@ -1599,7 +1654,7 @@ async function handleTabs(cmd, workspace) {
       const windowId = await getAutomationWindow(workspace);
       const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
       if (!tab.id) return { id: cmd.id, ok: false, error: "Failed to create tab" };
-      await ensureOwnedContainerTabGroup(windowId, [tab.id]);
+      await ensureOwnedContainerTabGroup(getOwnedWindowRole(workspace), windowId, [tab.id]);
       setWorkspaceSession(workspace, {
         windowId: tab.windowId,
         owned: true,
@@ -1837,7 +1892,7 @@ async function releaseWorkspaceLease(workspace, reason = "released") {
       } else {
         try {
           const tab = await chrome.tabs.update(tabId, { url: BLANK_PAGE, active: true });
-          await ensureOwnedContainerTabGroup(session.windowId, [tab.id ?? tabId]);
+          await ensureOwnedContainerTabGroup(getOwnedWindowRole(workspace), session.windowId, [tab.id ?? tabId]);
           console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (${workspace}, ${reason})`);
         } catch {
           await chrome.tabs.remove(tabId).catch(() => {
@@ -1854,18 +1909,22 @@ async function releaseWorkspaceLease(workspace, reason = "released") {
   }
   automationSessions.delete(workspace);
   workspaceTimeoutOverrides.delete(workspace);
+  workspaceWindowModeOverrides.delete(workspace);
   await persistRuntimeState();
 }
 async function reconcileTargetLeaseRegistry() {
   const registry = await readRegistry();
-  ownedContainerWindowId = registry.ownedContainerWindowId;
-  ownedContainerGroupId = registry.ownedContainerGroupId ?? null;
-  if (ownedContainerWindowId !== null) {
-    try {
-      await chrome.windows.get(ownedContainerWindowId);
-    } catch {
-      ownedContainerWindowId = null;
-      ownedContainerGroupId = null;
+  for (const role of Object.keys(ownedContainers)) {
+    ownedContainers[role].windowId = registry.ownedContainers[role]?.windowId ?? null;
+    ownedContainers[role].groupId = registry.ownedContainers[role]?.groupId ?? null;
+    const windowId = ownedContainers[role].windowId;
+    if (windowId !== null) {
+      try {
+        await chrome.windows.get(windowId);
+      } catch {
+        ownedContainers[role].windowId = null;
+        ownedContainers[role].groupId = null;
+      }
     }
   }
   automationSessions.clear();
@@ -1886,8 +1945,11 @@ async function reconcileTargetLeaseRegistry() {
         idleTimer: null,
         idleDeadlineAt: stored.idleDeadlineAt
       });
-      if (session.owned && ownedContainerWindowId === null) ownedContainerWindowId = tab.windowId;
-      if (session.owned) await ensureOwnedContainerTabGroup(tab.windowId, [tabId]);
+      if (session.owned) {
+        const role = getOwnedWindowRole(workspace);
+        if (ownedContainers[role].windowId === null) ownedContainers[role].windowId = tab.windowId;
+        await ensureOwnedContainerTabGroup(role, tab.windowId, [tabId]);
+      }
       const remaining = stored.idleDeadlineAt > 0 ? stored.idleDeadlineAt - Date.now() : timeout;
       if (timeout > 0) {
         if (remaining <= 0) {
@@ -1911,7 +1973,7 @@ async function handleSessions(cmd) {
     contextId: session.contextId,
     ownership: session.ownership,
     lifecycle: session.lifecycle,
-    surface: session.surface,
+    windowRole: session.windowRole,
     tabCount: session.preferredTabId !== null ? await chrome.tabs.get(session.preferredTabId).then((tab) => isDebuggableUrl(tab.url) ? 1 : 0).catch(() => 0) : (await chrome.tabs.query({ windowId: session.windowId })).filter((tab) => isDebuggableUrl(tab.url)).length,
     idleMsRemaining: session.idleDeadlineAt <= 0 ? null : Math.max(0, session.idleDeadlineAt - now)
   })));

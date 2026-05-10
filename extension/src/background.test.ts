@@ -725,10 +725,10 @@ describe('background tab isolation', () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
     await chrome.storage.local.set({
-      opencli_target_lease_registry_v1: {
-        version: 1,
+      opencli_target_lease_registry_v2: {
+        version: 2,
         contextId: 'user-default',
-        ownedContainerWindowId: 1,
+        ownedContainers: { interactive: { windowId: null }, automation: { windowId: 1 } },
         leases: {},
       },
     });
@@ -752,10 +752,10 @@ describe('background tab isolation', () => {
     const deadline = Date.now() + 30_000;
     vi.stubGlobal('chrome', chrome);
     await chrome.storage.local.set({
-      opencli_target_lease_registry_v1: {
-        version: 1,
+      opencli_target_lease_registry_v2: {
+        version: 2,
         contextId: 'user-default',
-        ownedContainerWindowId: 1,
+        ownedContainers: { interactive: { windowId: null }, automation: { windowId: 1 } },
         leases: {
           'site:restored': {
             windowId: 1,
@@ -764,7 +764,7 @@ describe('background tab isolation', () => {
             contextId: 'user-default',
             ownership: 'owned',
             lifecycle: 'ephemeral',
-            surface: 'dedicated-container',
+            windowRole: 'automation',
             idleDeadlineAt: deadline,
             updatedAt: Date.now(),
           },
@@ -775,7 +775,7 @@ describe('background tab isolation', () => {
             contextId: 'user-default',
             ownership: 'borrowed',
             lifecycle: 'pinned',
-            surface: 'borrowed-user-tab',
+            windowRole: 'borrowed-user',
             idleDeadlineAt: 0,
             updatedAt: Date.now(),
           },
@@ -790,14 +790,14 @@ describe('background tab isolation', () => {
       owned: true,
       ownership: 'owned',
       lifecycle: 'ephemeral',
-      surface: 'dedicated-container',
+      windowRole: 'automation',
       preferredTabId: 1,
     }));
     expect(mod.__test__.getSession('bound:restored')).toEqual(expect.objectContaining({
       owned: false,
       ownership: 'borrowed',
       lifecycle: 'pinned',
-      surface: 'borrowed-user-tab',
+      windowRole: 'borrowed-user',
       preferredTabId: 2,
       idleTimer: null,
       idleDeadlineAt: 0,
@@ -867,7 +867,7 @@ describe('background tab isolation', () => {
     expect(chrome.windows.create).toHaveBeenCalledTimes(1);
   });
 
-  it('marks a newly created owned automation window with an OpenCLI tab group', async () => {
+  it('marks a newly created owned automation window with an OpenCLI Automation tab group', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
@@ -880,12 +880,79 @@ describe('background tab isolation', () => {
       expect.objectContaining({
         id: 100,
         windowId: 1,
-        title: 'OpenCLI',
+        title: 'OpenCLI Automation',
         color: 'orange',
         collapsed: false,
       }),
     ]);
     expect(chrome.tabs.group).toHaveBeenCalledWith({ tabIds: [1], createProperties: { windowId: 1 } });
+  });
+
+  it('uses separate owned windows for browser and adapter workspaces', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    let nextWindowId = 20;
+    let nextTabId = 200;
+    chrome.windows.create = vi.fn(async ({ url, focused, width, height, type }: any) => {
+      const windowId = nextWindowId++;
+      const tab: MockTab = {
+        id: nextTabId++,
+        windowId,
+        url,
+        title: url ?? 'blank',
+        active: true,
+        status: 'complete',
+        groupId: -1,
+      };
+      tabs.push(tab);
+      return { id: windowId, url, focused, width, height, type };
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const browserTabId = await mod.__test__.resolveTabId(undefined, 'browser:default');
+    const adapterTabId = await mod.__test__.resolveTabId(undefined, 'site:twitter');
+
+    expect(tabs.find((tab) => tab.id === browserTabId)?.windowId).toBe(20);
+    expect(tabs.find((tab) => tab.id === adapterTabId)?.windowId).toBe(21);
+    expect(chrome.windows.create).toHaveBeenNthCalledWith(1, expect.objectContaining({ focused: true }));
+    expect(chrome.windows.create).toHaveBeenNthCalledWith(2, expect.objectContaining({ focused: false }));
+    expect(groups).toEqual(expect.arrayContaining([
+      expect.objectContaining({ windowId: 20, title: 'OpenCLI Browser' }),
+      expect.objectContaining({ windowId: 21, title: 'OpenCLI Automation' }),
+    ]));
+  });
+
+  it('lets adapters explicitly request a foreground automation window', async () => {
+    const { chrome, tabs } = createChromeMock();
+    let nextWindowId = 30;
+    let nextTabId = 300;
+    chrome.windows.create = vi.fn(async ({ url, focused, width, height, type }: any) => {
+      const windowId = nextWindowId++;
+      tabs.push({
+        id: nextTabId++,
+        windowId,
+        url,
+        title: url ?? 'blank',
+        active: true,
+        status: 'complete',
+        groupId: -1,
+      });
+      return { id: windowId, url, focused, width, height, type };
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const result = await mod.__test__.handleCommand({
+      id: 'new-foreground',
+      action: 'tabs',
+      op: 'new',
+      workspace: 'site:twitter',
+      url: 'https://x.com',
+      windowMode: 'foreground',
+    });
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.windows.create).toHaveBeenCalledWith(expect.objectContaining({ focused: true }));
   });
 
   it('reuses the existing automation tab group when adding another owned lease tab', async () => {
@@ -902,12 +969,12 @@ describe('background tab isolation', () => {
     expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 100, tabIds: [10] });
   });
 
-  it('discovers and reuses an existing OpenCLI group after service worker restart', async () => {
+  it('discovers and reuses an existing OpenCLI Automation group after service worker restart', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     groups.push({
       id: 99,
       windowId: 1,
-      title: 'OpenCLI',
+      title: 'OpenCLI Automation',
       color: 'orange',
       collapsed: true,
     });
@@ -934,11 +1001,10 @@ describe('background tab isolation', () => {
     });
     vi.stubGlobal('chrome', chrome);
     await chrome.storage.local.set({
-      opencli_target_lease_registry_v1: {
-        version: 1,
+      opencli_target_lease_registry_v2: {
+        version: 2,
         contextId: 'user-default',
-        ownedContainerWindowId: 1,
-        ownedContainerGroupId: 99,
+        ownedContainers: { interactive: { windowId: null }, automation: { windowId: 1, groupId: 99 } },
         leases: {
           'site:restored-group': {
             windowId: 1,
@@ -947,7 +1013,7 @@ describe('background tab isolation', () => {
             contextId: 'user-default',
             ownership: 'owned',
             lifecycle: 'ephemeral',
-            surface: 'dedicated-container',
+            windowRole: 'automation',
             idleDeadlineAt: Date.now() + 30_000,
             updatedAt: Date.now(),
           },
@@ -976,17 +1042,16 @@ describe('background tab isolation', () => {
     groups.push({
       id: 99,
       windowId: 1,
-      title: 'OpenCLI',
+      title: 'OpenCLI Automation',
       color: 'orange',
       collapsed: true,
     });
     vi.stubGlobal('chrome', chrome);
     await chrome.storage.local.set({
-      opencli_target_lease_registry_v1: {
-        version: 1,
+      opencli_target_lease_registry_v2: {
+        version: 2,
         contextId: 'user-default',
-        ownedContainerWindowId: 1,
-        ownedContainerGroupId: 404,
+        ownedContainers: { interactive: { windowId: null }, automation: { windowId: 1, groupId: 404 } },
         leases: {
           'site:restored-group': {
             windowId: 1,
@@ -995,7 +1060,7 @@ describe('background tab isolation', () => {
             contextId: 'user-default',
             ownership: 'owned',
             lifecycle: 'ephemeral',
-            surface: 'dedicated-container',
+            windowRole: 'automation',
             idleDeadlineAt: Date.now() + 30_000,
             updatedAt: Date.now(),
           },

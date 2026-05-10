@@ -198,8 +198,8 @@ OpenCLI is not only for websites. It can also:
 |----------|---------|-------------|
 | `OPENCLI_DAEMON_PORT` | `19825` | HTTP port for the daemon-extension bridge |
 | `OPENCLI_PROFILE` | — | Browser Bridge profile alias/contextId to use when multiple Chrome profiles are connected |
-| `OPENCLI_WINDOW_FOCUSED` | `false` | Set to `1` to open the automation container in the foreground (useful for debugging). The `--focus` flag sets this. |
-| `OPENCLI_LIVE` | `false` | Set to `1` to keep the automation lease open after an adapter command finishes (useful for inspection). The `--live` flag sets this. |
+| `OPENCLI_WINDOW` | command default | Set to `foreground` or `background` to override Browser Bridge window placement. Browser-backed commands also accept `--window <foreground\|background>`. |
+| `OPENCLI_KEEP_TAB` | command default | Set to `true` or `false` to keep or release the browser tab lease after a browser-backed command. Browser-backed commands also accept `--keep-tab <true\|false>`. |
 | `OPENCLI_BROWSER_REUSE` | adapter default | Set to `none` or `site` to override adapter browser tab reuse. The `--reuse <none\|site>` flag sets this. |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | Seconds to wait for browser connection |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Seconds to wait for a single browser command |
@@ -208,7 +208,7 @@ OpenCLI is not only for websites. It can also:
 | `OPENCLI_VERBOSE` | `false` | Enable verbose logging (`-v` flag also works) |
 | `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |
 
-`--focus` works for both `opencli browser *` and browser-backed adapter commands. `--live` is mainly for adapter commands: browser subcommands already keep the automation lease open until you run `opencli browser close` or the idle timeout expires. Some interactive adapters default to `--reuse site` so repeated commands continue in the same site tab; pass `--reuse none` for a one-shot tab.
+`opencli browser *` uses a foreground browser window and keeps its tab lease by default. Browser-backed adapters use a background automation window and release one-shot tab leases by default. Some interactive adapters default to `--reuse site`, which also keeps the site tab lease; pass `--reuse none` for a one-shot tab.
 
 ## Update
 

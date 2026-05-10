@@ -54,6 +54,21 @@ const COMMON_OPTIONS = [
   },
 ] as const;
 
+const BROWSER_COMMON_OPTIONS = [
+  {
+    flags: '--window <mode>',
+    name: 'window',
+    help: 'Browser window mode: foreground or background',
+    choices: ['foreground', 'background'],
+  },
+  {
+    flags: '--keep-tab <bool>',
+    name: 'keep-tab',
+    help: 'Keep the browser tab lease after the command finishes',
+    choices: ['true', 'false'],
+  },
+] as const;
+
 function normalizeStructuredHelpFormat(value: string | undefined): StructuredHelpFormat | undefined {
   const normalized = value?.toLowerCase();
   if (normalized === 'yaml' || normalized === 'yml') return 'yaml';
@@ -168,7 +183,7 @@ function compactArg(arg: Arg): Record<string, unknown> {
   };
 }
 
-function compactCommonOption(option: typeof COMMON_OPTIONS[number]): Record<string, unknown> {
+function compactCommonOption(option: typeof COMMON_OPTIONS[number] | typeof BROWSER_COMMON_OPTIONS[number]): Record<string, unknown> {
   return {
     name: option.name,
     flags: option.flags,
@@ -396,6 +411,7 @@ function compactCommand(cmd: CliCommand): Record<string, unknown> {
     ...(cmd.aliases?.length ? { aliases: cmd.aliases } : {}),
     positionals: positionals(cmd).map(compactArg),
     command_options: commandOptions(cmd).map(compactArg),
+    ...(cmd.browser ? { browser_common_options: BROWSER_COMMON_OPTIONS.map(compactCommonOption) } : {}),
     example: formatCommandExample(cmd),
     ...(cmd.browserSession ? { browserSession: cmd.browserSession } : {}),
     ...(cmd.defaultFormat ? { defaultFormat: cmd.defaultFormat } : {}),
@@ -445,6 +461,7 @@ export function siteHelpData(site: string, commands: readonly CliCommand[]): Rec
     command_count: unique.length,
     commands: unique.map(cmd => compactCommand(cmd)),
     common_options: COMMON_OPTIONS.map(compactCommonOption),
+    ...(unique.some(cmd => cmd.browser) ? { browser_common_options: BROWSER_COMMON_OPTIONS.map(compactCommonOption) } : {}),
     next: [
       `opencli ${site} <command> --help -f yaml`,
       `opencli ${site} <command> -f yaml`,
@@ -457,6 +474,7 @@ export function commandHelpData(cmd: CliCommand): Record<string, unknown> {
     site: cmd.site,
     ...compactCommand(cmd),
     common_options: COMMON_OPTIONS.map(compactCommonOption),
+    ...(cmd.browser ? { browser_common_options: BROWSER_COMMON_OPTIONS.map(compactCommonOption) } : {}),
     output_formats: ['table', 'plain', 'yaml', 'json', 'md', 'csv'],
   };
 }
@@ -485,6 +503,15 @@ export function formatCommonOptionsHelpText(): string {
   return ['Common options:', ...formatRows(rows)].join('\n');
 }
 
+export function formatBrowserCommonOptionsHelpText(): string {
+  const rows = BROWSER_COMMON_OPTIONS.map(option => {
+    const details: string[] = [option.help];
+    if ('choices' in option) details.push(`choices: ${option.choices.join(', ')}`);
+    return [option.flags, details.join('  ')] as [string, string];
+  });
+  return ['Browser common options:', ...formatRows(rows)].join('\n');
+}
+
 export function formatSiteHelpText(site: string, commands: readonly CliCommand[]): string {
   const unique = [...new Map(commands.map(cmd => [fullName(cmd), cmd])).values()]
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -497,6 +524,7 @@ export function formatSiteHelpText(site: string, commands: readonly CliCommand[]
     ...formatRows(unique.map(cmd => [formatCommandListTerm(cmd), formatSiteCommandDescription(cmd)])),
     '',
     formatCommonOptionsHelpText(),
+    ...(unique.some(cmd => cmd.browser) ? ['', formatBrowserCommonOptionsHelpText()] : []),
     '',
     `Agent tip: use 'opencli ${site} --help -f yaml' to get all command args/options in one structured response.`,
     '',
@@ -529,6 +557,7 @@ export function formatCommandHelpText(cmd: CliCommand): string {
   }
 
   lines.push(formatCommonOptionsHelpText(), '');
+  if (cmd.browser) lines.push(formatBrowserCommonOptionsHelpText(), '');
 
   const meta: string[] = [];
   meta.push(`Access: ${cmd.access}`);

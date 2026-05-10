@@ -73,7 +73,7 @@ export interface BrowserSessionInfo {
   owned?: boolean;
   ownership?: 'owned' | 'borrowed';
   lifecycle?: 'ephemeral' | 'persistent' | 'pinned';
-  surface?: 'dedicated-container' | 'borrowed-user-tab';
+  windowRole?: 'interactive' | 'automation' | 'borrowed-user';
   contextId?: string;
   tabCount?: number;
   idleMsRemaining?: number | null;
