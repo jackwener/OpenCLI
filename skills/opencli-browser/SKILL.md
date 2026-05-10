@@ -130,7 +130,7 @@ Error envelope always includes `error.code` and `error.message`. Target errors (
 | command | purpose |
 |---------|---------|
 | `browser state` | Snapshot: text tree with `[N]` refs, scroll hints, hidden-interactive hints, `compounds (N):` sidecar for date/select/file refs. |
-| `browser state --source ax` | Opt-in accessibility-tree snapshot. Use when custom controls, portals, or iframe contents are hard to identify in normal `state`. AX refs can recover stale React re-renders by role/name/nth and can route same-origin plus attachable cross-origin iframe refs. |
+| `browser state --source ax` | Opt-in accessibility-tree snapshot. Use when custom controls, portals, or iframe contents are hard to identify in normal `state`. AX refs can recover stale React re-renders by role/name/nth and can route same-origin iframe refs. Cross-origin iframe refs are best-effort because Chrome may not expose attachable OOPIF targets to extensions. |
 | `browser state --compare-sources` | Metrics-only DOM vs AX comparison for deciding whether AX should become default. It prints counts and sizes, not page text, so it is safer to share for validation. |
 | `browser find --css <sel> [--limit N] [--text-max N]` | Run a CSS query and return one entry per match with `{nth, ref, tag, role, text, attrs, visible, compound?}`. Allocates refs for matches the prior snapshot didn't tag. Cheap alternative to `state` when you already know the selector. |
 | `browser find --role button --name Save` | Semantic locator query. Also supports `--label`, `--text`, and `--testid`. Use before raw CSS when a control has accessible labels. |
@@ -399,6 +399,11 @@ opencli browser frames
 # -> [{"index": 0, "url": "https://checkout.stripe.com/...", ...}]
 opencli browser eval "(() => document.querySelector('input[name=cardnumber]')?.value)()" --frame 0
 ```
+
+`browser state --source ax` may omit cross-origin iframe contents or fail to
+route actions into them when Chrome does not expose an attachable OOPIF target
+to the extension. In that case use `browser frames` + `browser eval --frame`, a
+normal DOM `state`, or navigate/bind directly to the iframe URL when possible.
 
 ---
 

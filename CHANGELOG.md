@@ -14,7 +14,7 @@
 * **browser upload** — add `browser upload <target> <file...>` to attach local files to `input[type=file]` targets through CDP `DOM.setFileInputFiles`, with local path validation and file-input verification.
 * **browser actions** — add `browser drag <source> <target>` for CDP mouse drag sequences between two resolved element centers.
 * **browser wait / extension 1.0.8** — add `browser wait download [pattern]` backed by Chrome's downloads lifecycle API, so agents can wait for file downloads by filename/URL pattern and receive completed/failed download metadata.
-* **browser state / extension 1.0.9** — AX snapshots can now include cross-origin iframe refs by routing CDP calls through frame target sessions, allowing `browser click <ref>` to act on accessible OOPIF controls without manual `--frame` selection.
+* **browser state / extension 1.0.9** — AX snapshots can now route same-origin iframe refs through `frameId`. Cross-origin OOPIF AX routing is best-effort because real Chrome extension smoke tests show `chrome.debugger` may not expose attachable iframe targets to extensions.
 
 ### Bug Fixes
 

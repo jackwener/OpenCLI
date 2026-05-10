@@ -337,8 +337,10 @@ Status after implementation:
 
 - same-origin iframe AX refs route through `Accessibility.getFullAXTree`
   `frameId` params,
-- cross-origin iframe AX refs route through Browser Bridge frame target sessions
-  when Chrome exposes an attachable OOPIF target,
+- cross-origin iframe AX routing is best-effort. Real Chrome extension smoke
+  verified that `chrome.debugger` may not expose attachable OOPIF iframe
+  targets to extensions even after `Target.setDiscoverTargets`,
+  `Target.getTargets`, and `Target.setAutoAttach`,
 - unsupported frames degrade by omission or typed action failure rather than
   requiring global manual frame switching.
 
