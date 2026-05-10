@@ -7,10 +7,9 @@ const WS_RECONNECT_MAX_DELAY = 5e3;
 
 const attached = /* @__PURE__ */ new Set();
 const tabFrameContexts = /* @__PURE__ */ new Map();
-const frameSessions = /* @__PURE__ */ new Map();
-const sessionFrameKeys = /* @__PURE__ */ new Map();
-const pendingSessionCommands = /* @__PURE__ */ new Map();
-let frameSessionRoutingRegistered = false;
+const frameTargets = /* @__PURE__ */ new Map();
+const frameTargetKeys = /* @__PURE__ */ new Map();
+let frameTargetCleanupRegistered = false;
 const CDP_RESPONSE_BODY_CAPTURE_LIMIT = 8 * 1024 * 1024;
 const CDP_REQUEST_BODY_CAPTURE_LIMIT = 1 * 1024 * 1024;
 const networkCaptures = /* @__PURE__ */ new Map();
@@ -280,77 +279,53 @@ async function waitForDownload(pattern = "", timeoutMs = 3e4) {
     });
   });
 }
-function frameSessionKey(tabId, frameId) {
+function frameTargetKey(tabId, frameId) {
   return `${tabId}:${frameId}`;
 }
-function registerFrameSessionRouting() {
-  if (frameSessionRoutingRegistered) return;
-  frameSessionRoutingRegistered = true;
+function registerFrameTargetCleanup() {
+  if (frameTargetCleanupRegistered) return;
+  frameTargetCleanupRegistered = true;
   chrome.debugger.onEvent.addListener((_source, method, params) => {
-    if (method === "Target.receivedMessageFromTarget") {
-      const sessionId = String(params?.sessionId || "");
-      const raw = typeof params?.message === "string" ? params.message : "";
-      if (!sessionId || !raw) return;
-      let message;
-      try {
-        message = JSON.parse(raw);
-      } catch {
-        return;
-      }
-      if (typeof message.id !== "number") return;
-      const sessionPending = pendingSessionCommands.get(sessionId);
-      const pending = sessionPending?.get(message.id);
-      if (!pending) return;
-      clearTimeout(pending.timer);
-      sessionPending.delete(message.id);
-      if (sessionPending.size === 0) pendingSessionCommands.delete(sessionId);
-      if (message.error) {
-        pending.reject(new Error(message.error.message || JSON.stringify(message.error)));
-      } else {
-        pending.resolve(message.result);
-      }
-    }
     if (method === "Target.detachedFromTarget") {
-      const sessionId = String(params?.sessionId || "");
-      const key = sessionFrameKeys.get(sessionId);
-      if (key) frameSessions.delete(key);
-      sessionFrameKeys.delete(sessionId);
-      const sessionPending = pendingSessionCommands.get(sessionId);
-      if (sessionPending) {
-        for (const pending of sessionPending.values()) {
-          clearTimeout(pending.timer);
-          pending.reject(new Error(`Frame target session ${sessionId} detached`));
-        }
-        pendingSessionCommands.delete(sessionId);
-      }
+      const targetId = String(params?.targetId || "");
+      clearFrameTarget(targetId);
     }
   });
 }
-async function ensureFrameSession(tabId, frameId, aggressiveRetry = false) {
-  registerFrameSessionRouting();
+function clearFrameTarget(targetId) {
+  if (!targetId) return;
+  const key = frameTargetKeys.get(targetId);
+  if (key) frameTargets.delete(key);
+  frameTargetKeys.delete(targetId);
+}
+async function ensureFrameTarget(tabId, frameId, aggressiveRetry = false) {
+  registerFrameTargetCleanup();
   await ensureAttached(tabId, aggressiveRetry);
-  const key = frameSessionKey(tabId, frameId);
-  const existing = frameSessions.get(key);
+  const key = frameTargetKey(tabId, frameId);
+  const existing = frameTargets.get(key);
   if (existing) return existing;
-  const result = await chrome.debugger.sendCommand({ tabId }, "Target.attachToTarget", {
-    targetId: frameId,
-    // Chrome debugger API supports flat child sessions (Chrome 125+). Flat
-    // routing lets us send allowlisted CDP commands directly to the child
-    // session; the legacy Target.sendMessageToTarget path rejects some domains
-    // such as Accessibility with "Not allowed".
-    flatten: true
-  });
-  const sessionId = result.sessionId;
-  if (!sessionId) {
-    throw new Error(`Frame ${frameId} did not return a CDP session id`);
+  const targetId = await resolveFrameTargetId(frameId);
+  try {
+    await chrome.debugger.attach({ targetId }, "1.3");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!message.includes("Another debugger is already attached")) throw err;
   }
-  frameSessions.set(key, sessionId);
-  sessionFrameKeys.set(sessionId, key);
-  return sessionId;
+  frameTargets.set(key, targetId);
+  frameTargetKeys.set(targetId, key);
+  return targetId;
+}
+async function resolveFrameTargetId(frameId) {
+  const targets = await chrome.debugger.getTargets();
+  const frameTarget = targets.find((target) => {
+    const candidate = target;
+    return candidate.type === "iframe" && (candidate.id === frameId || candidate.targetId === frameId);
+  });
+  return frameTarget?.id ?? frameId;
 }
 async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, aggressiveRetry = false, _timeoutMs = 3e4) {
-  const sessionId = await ensureFrameSession(tabId, frameId, aggressiveRetry);
-  const target = { tabId, sessionId };
+  const targetId = await ensureFrameTarget(tabId, frameId, aggressiveRetry);
+  const target = { targetId };
   return chrome.debugger.sendCommand(target, method, params);
 }
 async function insertText(tabId, text) {
@@ -358,7 +333,7 @@ async function insertText(tabId, text) {
   await chrome.debugger.sendCommand({ tabId }, "Input.insertText", { text });
 }
 function registerFrameTracking() {
-  registerFrameSessionRouting();
+  registerFrameTargetCleanup();
   chrome.debugger.onEvent.addListener((source, method, params) => {
     const tabId = source.tabId;
     if (!tabId) return;
@@ -482,23 +457,17 @@ async function readNetworkCapture(tabId) {
 function hasActiveNetworkCapture(tabId) {
   return networkCaptures.has(tabId);
 }
-function clearFrameSessionsForTab(tabId, reason) {
-  for (const [key, sessionId] of [...frameSessions.entries()]) {
+function clearFrameTargetsForTab(tabId) {
+  for (const [key, targetId] of [...frameTargets.entries()]) {
     if (!key.startsWith(`${tabId}:`)) continue;
-    frameSessions.delete(key);
-    sessionFrameKeys.delete(sessionId);
-    const sessionPending = pendingSessionCommands.get(sessionId);
-    if (sessionPending) {
-      for (const pending of sessionPending.values()) {
-        clearTimeout(pending.timer);
-        pending.reject(new Error(reason));
-      }
-      pendingSessionCommands.delete(sessionId);
-    }
+    frameTargets.delete(key);
+    frameTargetKeys.delete(targetId);
+    chrome.debugger.detach({ targetId }).catch(() => {
+    });
   }
 }
 async function detach(tabId) {
-  clearFrameSessionsForTab(tabId, `Tab ${tabId} detached`);
+  clearFrameTargetsForTab(tabId);
   if (!attached.has(tabId)) return;
   attached.delete(tabId);
   networkCaptures.delete(tabId);
@@ -513,15 +482,17 @@ function registerListeners() {
     attached.delete(tabId);
     networkCaptures.delete(tabId);
     tabFrameContexts.delete(tabId);
-    clearFrameSessionsForTab(tabId, `Tab ${tabId} removed`);
+    clearFrameTargetsForTab(tabId);
   });
   chrome.debugger.onDetach.addListener((source) => {
     if (source.tabId) {
       attached.delete(source.tabId);
       networkCaptures.delete(source.tabId);
       tabFrameContexts.delete(source.tabId);
-      clearFrameSessionsForTab(source.tabId, `Tab ${source.tabId} detached`);
+      clearFrameTargetsForTab(source.tabId);
+      return;
     }
+    if (source.targetId) clearFrameTarget(source.targetId);
   });
   chrome.tabs.onUpdated.addListener(async (tabId, info) => {
     if (info.url && !isDebuggableUrl$1(info.url)) {

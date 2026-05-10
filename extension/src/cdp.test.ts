@@ -16,6 +16,7 @@ function createChromeMock() {
   const debuggerApi = {
     attach: vi.fn(async () => {}),
     detach: vi.fn(async () => {}),
+    getTargets: vi.fn(async () => []),
     sendCommand: vi.fn(async (_target: unknown, method: string) => {
       if (method === 'Runtime.evaluate') return { result: { value: 'ok' } };
       return {};
@@ -93,12 +94,11 @@ describe('cdp attach recovery', () => {
     );
   });
 
-  it('falls back to a frame target session when no same-target execution context exists', async () => {
+  it('falls back to a frame target when no same-target execution context exists', async () => {
     const { chrome, debuggerApi, debuggerEventListeners } = createChromeMock();
     debuggerApi.sendCommand = vi.fn(async (target: any, method: string, _params?: any) => {
-      if (method === 'Target.attachToTarget') return { sessionId: 'session-1' };
-      if (target?.sessionId === 'session-1' && method === 'Runtime.enable') return {};
-      if (target?.sessionId === 'session-1' && method === 'Runtime.evaluate') {
+      if (target?.targetId === 'oopif-frame' && method === 'Runtime.enable') return {};
+      if (target?.targetId === 'oopif-frame' && method === 'Runtime.evaluate') {
         return { result: { value: 'frame-ok' } };
       }
       if (method === 'Runtime.evaluate') return { result: { value: 'root-ok' } };
@@ -112,13 +112,9 @@ describe('cdp attach recovery', () => {
     const result = await mod.evaluateInFrame(1, 'document.title', 'oopif-frame');
 
     expect(result).toBe('frame-ok');
+    expect(debuggerApi.attach).toHaveBeenCalledWith({ targetId: 'oopif-frame' }, '1.3');
     expect(debuggerApi.sendCommand).toHaveBeenCalledWith(
-      { tabId: 1 },
-      'Target.attachToTarget',
-      { targetId: 'oopif-frame', flatten: true },
-    );
-    expect(debuggerApi.sendCommand).toHaveBeenCalledWith(
-      { tabId: 1, sessionId: 'session-1' },
+      { targetId: 'oopif-frame' },
       'Runtime.evaluate',
       expect.any(Object),
     );
