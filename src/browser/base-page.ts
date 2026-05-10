@@ -386,7 +386,7 @@ export abstract class BasePage implements IPage {
       if (point) return { ...point, matchLevel: 'exact' };
     }
 
-    await cdp.call(this, 'Accessibility.enable', {});
+    await cdp.call(this, 'Accessibility.enable', axEnableParams(entry.frame));
     const axTree = await cdp.call(this, 'Accessibility.getFullAXTree', axTreeParams(entry.frame)).catch(() => null);
     const recovered = findAxRefReplacement(axTree, entry);
     if (!recovered?.backendNodeId) return null;
@@ -1096,6 +1096,9 @@ export abstract class BasePage implements IPage {
     const frameTreeResult = await cdp.call(this, 'Page.getFrameTree', {}).catch(() => null);
     const frames = collectAxFrameRefs(frameTreeResult);
     for (const frame of frames) {
+      if (frame.sessionId) {
+        await cdp.call(this, 'Accessibility.enable', axEnableParams(frame)).catch(() => null);
+      }
       const tree = await cdp.call(this, 'Accessibility.getFullAXTree', axTreeParams(frame)).catch(() => null);
       if (tree) trees.push({ tree, frame });
     }
@@ -1176,6 +1179,12 @@ export abstract class BasePage implements IPage {
 function axTreeParams(frame: BrowserRef['frame'] | undefined): Record<string, unknown> {
   return frame?.frameId
     ? { frameId: frame.frameId, ...(frame.sessionId ? { sessionId: frame.sessionId } : {}) }
+    : {};
+}
+
+function axEnableParams(frame: BrowserRef['frame'] | undefined): Record<string, unknown> {
+  return frame?.frameId && frame.sessionId
+    ? { frameId: frame.frameId, sessionId: frame.sessionId }
     : {};
 }
 

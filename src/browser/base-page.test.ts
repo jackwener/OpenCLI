@@ -373,6 +373,7 @@ describe('BasePage native input routing', () => {
     await expect(page.click('2')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
 
     expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'same-frame' });
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.enable', { frameId: 'cross-frame', sessionId: 'target' });
     expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'cross-frame', sessionId: 'target' });
     expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 20 });
     expect(page.nativeClick).toHaveBeenCalledWith(120, 210);
@@ -411,8 +412,52 @@ describe('BasePage native input routing', () => {
     expect(snapshot).toContain('[1]button "Cross Save"');
     await expect(page.click('1')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
 
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.enable', { frameId: 'cross-frame', sessionId: 'target' });
     expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'cross-frame', sessionId: 'target' });
     expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 99, frameId: 'cross-frame', sessionId: 'target' });
+    expect(page.nativeClick).toHaveBeenCalledWith(320, 410);
+  });
+
+  it('enables Accessibility in cross-origin frame target sessions before stale AX recovery', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    let crossAxCalls = 0;
+    page.cdp = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: {
+            frame: { id: 'root', url: 'https://app.example/' },
+            childFrames: [{ frame: { id: 'cross-frame', url: 'https://other.example/embed' } }],
+          },
+        };
+      }
+      if (method === 'Accessibility.getFullAXTree' && params?.sessionId === 'target') {
+        crossAxCalls++;
+        const backendDOMNodeId = crossAxCalls === 1 ? 99 : 100;
+        return {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Cross Save' }, backendDOMNodeId },
+          ],
+        };
+      }
+      if (method === 'Accessibility.getFullAXTree') {
+        return { nodes: [{ nodeId: '1', role: { value: 'RootWebArea' } }] };
+      }
+      if (method === 'DOM.getBoxModel') {
+        if (params?.backendNodeId === 99) throw new Error('No node with given id found');
+        return { model: { content: [300, 400, 340, 400, 340, 420, 300, 420] } };
+      }
+      return {};
+    });
+
+    await page.snapshot({ source: 'ax' });
+    await expect(page.click('1')).resolves.toEqual({ matches_n: 1, match_level: 'reidentified' });
+
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.enable', { frameId: 'cross-frame', sessionId: 'target' });
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'cross-frame', sessionId: 'target' });
+    expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 99, frameId: 'cross-frame', sessionId: 'target' });
+    expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 100, frameId: 'cross-frame', sessionId: 'target' });
     expect(page.nativeClick).toHaveBeenCalledWith(320, 410);
   });
 
