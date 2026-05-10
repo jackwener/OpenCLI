@@ -80,10 +80,14 @@ jobs:
 
       - name: Run E2E tests (Linux, via xvfb)
         if: runner.os == 'Linux'
+        env:
+          OPENCLI_AX_E2E: '0'
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             npx vitest run tests/e2e/ --reporter=verbose
 
       - name: Run E2E tests (macOS / Windows)
         if: runner.os != 'Linux'
+        env:
+          OPENCLI_AX_E2E: '0'
         run: npx vitest run tests/e2e/ --reporter=verbose
