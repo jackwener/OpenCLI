@@ -16,8 +16,9 @@ export const readCommand = cli({
     columns: ['Index', 'Role', 'Text'],
 
     func: async (page) => {
+        // ensureOnClaude now waits for the composer selector; the previous post-nav
+        // 3 s settle is covered by that event-based wait.
         await ensureOnClaude(page);
-        await page.wait(3);
         await ensureClaudeLogin(page, 'Claude read requires a logged-in Claude session.');
         const messages = await getVisibleMessages(page);
         if (messages.length > 0) return messages;

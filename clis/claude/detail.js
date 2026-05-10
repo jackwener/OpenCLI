@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { EmptyResultError } from '@jackwener/opencli/errors';
-import { CLAUDE_DOMAIN, getVisibleMessages, ensureClaudeLogin, requireConversationId } from './utils.js';
+import { CLAUDE_DOMAIN, MESSAGE_SELECTOR, getVisibleMessages, ensureClaudeLogin, requireConversationId } from './utils.js';
 
 export const detailCommand = cli({
     site: 'claude',
@@ -21,7 +21,14 @@ export const detailCommand = cli({
         const id = requireConversationId(kwargs.id);
 
         await page.goto(`https://claude.ai/chat/${id}`);
-        await page.wait(4);
+        // Wait for the first assistant message bubble to render instead of a
+        // fixed 4 s sleep. Swallow the timeout so empty conversations and
+        // login redirects fall through to ensureClaudeLogin / EmptyResultError.
+        try {
+            await page.wait({ selector: MESSAGE_SELECTOR, timeout: 10 });
+        } catch {
+            // Empty conversation, missing access, or login redirect — handled below.
+        }
         await ensureClaudeLogin(page, 'Claude detail requires a logged-in Claude session.');
 
         const messages = await getVisibleMessages(page);
