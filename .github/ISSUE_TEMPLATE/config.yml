@@ -1,8 +1,0 @@
-blank_issues_enabled: true
-contact_links:
-  - name: 📖 Documentation
-    url: https://github.com/jackwener/opencli#readme
-    about: Check the README and docs before opening an issue.
-  - name: 🧪 Testing Guide
-    url: https://github.com/jackwener/opencli/blob/main/TESTING.md
-    about: How to run and write tests for OpenCLI.
