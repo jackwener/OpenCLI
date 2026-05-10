@@ -358,12 +358,12 @@ Scope:
 - structured ambiguity errors for write locators.
 
 Implementation note: semantic locators cover `browser find`, `browser click`,
-`browser get text|value|attributes`, and Phase 2 action primitives
-(`hover`, `focus`, `dblclick`, `check`, `uncheck`, `upload`). `drag` uses
-prefixed endpoint locators (`--from-role` / `--to-role`, etc.) so source and
-target cannot be confused. Placeholder is folded into accessible-name matching
-for `--name`; a dedicated `--placeholder` flag can be added only if real usage
-shows the distinction matters.
+`browser get text|value|attributes`, input actions (`type`, `fill`, `select`),
+and Phase 2 action primitives (`hover`, `focus`, `dblclick`, `check`,
+`uncheck`, `upload`). `drag` uses prefixed endpoint locators (`--from-role` /
+`--to-role`, etc.) so source and target cannot be confused. Placeholder is
+folded into accessible-name matching for `--name`; a dedicated `--placeholder`
+flag can be added only if real usage shows the distinction matters.
 
 Exit:
 

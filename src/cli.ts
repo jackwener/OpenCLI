@@ -1346,6 +1346,41 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     return null;
   };
 
+  const resolveWriteTargetAndValueOrPrint = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    targetOrValue: unknown,
+    value: unknown,
+    opts: Record<string, unknown>,
+    valueLabel: string,
+  ): Promise<{ target: string; value: string } | null> => {
+    const hasSemantic = !!semanticLocatorFromOptions(opts);
+    if (hasSemantic && value !== undefined) {
+      printTargetResolutionError({
+        error: {
+          code: 'usage_error',
+          message: `When using semantic locator flags, pass only <${valueLabel}> as the positional argument.`,
+        },
+      });
+      return null;
+    }
+    const resolvedValue = hasSemantic ? targetOrValue : value;
+    if (resolvedValue === undefined) {
+      printTargetResolutionError({
+        error: {
+          code: 'usage_error',
+          message: `Missing ${valueLabel}.`,
+          hint: hasSemantic
+            ? `With semantic locator flags, pass the ${valueLabel} as the only positional argument.`
+            : `Pass both a target and ${valueLabel}.`,
+        },
+      });
+      return null;
+    }
+    const resolvedTarget = await resolveWriteTargetOrPrint(page, hasSemantic ? undefined : targetOrValue, opts);
+    if (!resolvedTarget) return null;
+    return { target: resolvedTarget, value: String(resolvedValue) };
+  };
+
   const resolvePrefixedWriteTargetOrPrint = async (
     page: Awaited<ReturnType<typeof getBrowserPage>>,
     target: unknown,
@@ -1741,13 +1776,15 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }));
 
   addBrowserTabOption(
-    browser.command('type')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
-      .argument('<text>', 'Text to type')
+    addSemanticLocatorOptions(browser.command('type'))
+      .argument('[targetOrText]', 'Numeric ref/CSS target, or text when using --role/--name/etc.')
+      .argument('[text]', 'Text to type')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Click element, then type text — JSON envelope {typed, text, target, matches_n, autocomplete}'),
   )
-    .action(browserAction(async (page, target, text, opts) => {
+    .action(browserAction(async (page, targetOrText, text, opts) => {
+      const resolved = await resolveWriteTargetAndValueOrPrint(page, targetOrText, text, opts ?? {}, 'text');
+      if (!resolved) return;
       const parsed = nthToResolveOpts(opts?.nth);
       if ('error' in parsed) {
         console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
@@ -1755,16 +1792,16 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         return;
       }
       // Click first (focuses the field), wait briefly, then type.
-      await page.click(String(target), parsed.opts);
+      await page.click(resolved.target, parsed.opts);
       await page.wait(0.3);
-      const { matches_n, match_level } = await page.typeText(String(target), String(text), parsed.opts);
+      const { matches_n, match_level } = await page.typeText(resolved.target, resolved.value, parsed.opts);
       // __resolved is already set by the resolver call inside page.typeText
       const isAutocomplete = await page.evaluate(isAutocompleteResolvedJs()) as boolean;
       if (isAutocomplete) await page.wait(0.4);
       console.log(JSON.stringify({
         typed: true,
-        text: String(text),
-        target: String(target),
+        text: resolved.value,
+        target: resolved.target,
         matches_n,
         match_level,
         autocomplete: !!isAutocomplete,
@@ -1943,26 +1980,28 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }));
 
   addBrowserTabOption(
-    browser.command('fill')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
-      .argument('<text>', 'Text to set exactly')
+    addSemanticLocatorOptions(browser.command('fill'))
+      .argument('[targetOrText]', 'Numeric ref/CSS target, or text when using --role/--name/etc.')
+      .argument('[text]', 'Text to set exactly')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Set input/textarea/contenteditable text exactly and verify the value — JSON envelope {filled, verified, text, actual}'),
   )
-    .action(browserAction(async (page, target, text, opts) => {
+    .action(browserAction(async (page, targetOrText, text, opts) => {
+      const resolved = await resolveWriteTargetAndValueOrPrint(page, targetOrText, text, opts ?? {}, 'text');
+      if (!resolved) return;
       const parsed = nthToResolveOpts(opts?.nth);
       if ('error' in parsed) {
         console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const result = await page.fillText(String(target), String(text), parsed.opts);
+      const result = await page.fillText(resolved.target, resolved.value, parsed.opts);
       if (!result.verified) process.exitCode = EXIT_CODES.GENERIC_ERROR;
       console.log(JSON.stringify({
         filled: result.filled,
         verified: result.verified,
-        target: String(target),
-        text: String(text),
+        target: resolved.target,
+        text: resolved.value,
         actual: result.actual,
         length: result.length,
         matches_n: result.matches_n,
@@ -1972,21 +2011,23 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }));
 
   addBrowserTabOption(
-    browser.command('select')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector of a <select> element')
-      .argument('<option>', 'Option text (or value) to select')
+    addSemanticLocatorOptions(browser.command('select'))
+      .argument('[targetOrOption]', 'Numeric ref/CSS target, or option text when using --role/--name/etc.')
+      .argument('[option]', 'Option text (or value) to select')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Select dropdown option — JSON envelope {selected, target, matches_n}'),
   )
-    .action(browserAction(async (page, target, option, opts) => {
+    .action(browserAction(async (page, targetOrOption, option, opts) => {
+      const resolved = await resolveWriteTargetAndValueOrPrint(page, targetOrOption, option, opts ?? {}, 'option');
+      if (!resolved) return;
       const parsed = nthToResolveOpts(opts?.nth);
       if ('error' in parsed) {
         console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const { matches_n, match_level } = await resolveRef(page, String(target), parsed.opts);
-      const result = await page.evaluate(selectResolvedJs(String(option))) as
+      const { matches_n, match_level } = await resolveRef(page, resolved.target, parsed.opts);
+      const result = await page.evaluate(selectResolvedJs(resolved.value)) as
         | { error?: string; selected?: string; available?: string[] }
         | null;
       if (result?.error) {
@@ -2005,8 +2046,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         return;
       }
       console.log(JSON.stringify({
-        selected: result?.selected ?? String(option),
-        target: String(target),
+        selected: result?.selected ?? resolved.value,
+        target: resolved.target,
         matches_n,
         match_level,
       }, null, 2));

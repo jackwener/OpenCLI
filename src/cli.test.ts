@@ -2543,6 +2543,50 @@ describe('browser click/type commands', () => {
     expect(lastJsonLog()).toMatchObject({ uploaded: true, target: '33', files: 1 });
   });
 
+  it('type: treats the first positional as text when using semantic locator flags', async () => {
+    (browserState.page!.evaluate as any)
+      .mockResolvedValueOnce({
+        matches_n: 1,
+        entries: [
+          { nth: 0, ref: 34, tag: 'input', role: 'textbox', text: '', attrs: {}, visible: true },
+        ],
+      })
+      .mockResolvedValueOnce(false);
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'exact' });
+    (browserState.page!.typeText as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'exact' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'type', '--label', 'Email', 'me@example.com']);
+
+    expect(browserState.page!.click).toHaveBeenCalledWith('34', {});
+    expect(browserState.page!.typeText).toHaveBeenCalledWith('34', 'me@example.com', {});
+    expect(lastJsonLog()).toMatchObject({ typed: true, target: '34', text: 'me@example.com' });
+  });
+
+  it('fill: treats the first positional as text when using semantic locator flags', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 35, tag: 'input', role: 'textbox', text: '', attrs: {}, visible: true },
+      ],
+    });
+    (browserState.page!.fillText as any).mockResolvedValueOnce({
+      filled: true,
+      verified: true,
+      expected: 'me@example.com',
+      actual: 'me@example.com',
+      length: 14,
+      matches_n: 1,
+      match_level: 'exact',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'fill', '--label', 'Email', 'me@example.com']);
+
+    expect(browserState.page!.fillText).toHaveBeenCalledWith('35', 'me@example.com', {});
+    expect(lastJsonLog()).toMatchObject({ filled: true, verified: true, target: '35', text: 'me@example.com' });
+  });
+
   it('drag: resolves source and target from prefixed semantic locators', async () => {
     (browserState.page!.evaluate as any)
       .mockResolvedValueOnce({
@@ -2947,6 +2991,24 @@ describe('browser select command', () => {
     expect(err.code).toBe('option_not_found');
     expect(err.available).toEqual(['US', 'CA']);
     expect(process.exitCode).toBeDefined();
+  });
+
+  it('select: treats the first positional as option when using semantic locator flags', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock
+      .mockResolvedValueOnce({
+        matches_n: 1,
+        entries: [
+          { nth: 0, ref: 36, tag: 'select', role: 'combobox', text: 'Country', attrs: {}, visible: true },
+        ],
+      })
+      .mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' })
+      .mockResolvedValueOnce({ selected: 'Uruguay' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'select', '--label', 'Country', 'Uruguay']);
+
+    expect(lastJsonLog()).toEqual({ selected: 'Uruguay', target: '36', matches_n: 1, match_level: 'exact' });
   });
 
   it('surfaces selector_ambiguous from the resolver before calling selectResolvedJs', async () => {
