@@ -447,6 +447,7 @@ async function ensureFrameTarget(
   const existing = frameTargets.get(key);
   if (existing) return existing;
 
+  await chrome.debugger.sendCommand({ tabId }, 'Target.setDiscoverTargets', { discover: true }).catch(() => {});
   const targetId = await resolveFrameTargetId(frameId, targetUrl);
   try {
     await chrome.debugger.attach({ targetId } as chrome.debugger.Debuggee, '1.3');
@@ -470,7 +471,12 @@ async function resolveFrameTargetId(frameId: string, targetUrl?: string): Promis
         || (!!targetUrl && candidate.url === targetUrl)
       );
   });
-  return frameTarget?.id ?? frameId;
+  if (frameTarget?.id) return frameTarget.id;
+  const candidates = targets
+    .filter((target) => target.type === 'iframe')
+    .map((target) => `${target.id} ${target.url || ''}`)
+    .join('; ');
+  throw new Error(`No iframe target found for frame ${frameId}${targetUrl ? ` (${targetUrl})` : ''}. Candidates: ${candidates || 'none'}`);
 }
 
 export async function sendCommandInFrameTarget(

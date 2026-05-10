@@ -16,7 +16,7 @@ function createChromeMock() {
   const debuggerApi = {
     attach: vi.fn(async () => {}),
     detach: vi.fn(async () => {}),
-    getTargets: vi.fn(async () => []),
+    getTargets: vi.fn(async (): Promise<Array<{ id: string; type: string; url: string }>> => []),
     sendCommand: vi.fn(async (_target: unknown, method: string) => {
       if (method === 'Runtime.evaluate') return { result: { value: 'ok' } };
       return {};
@@ -96,7 +96,9 @@ describe('cdp attach recovery', () => {
 
   it('falls back to a frame target when no same-target execution context exists', async () => {
     const { chrome, debuggerApi, debuggerEventListeners } = createChromeMock();
+    debuggerApi.getTargets = vi.fn(async () => [{ id: 'oopif-frame', type: 'iframe', url: 'https://frame.test' }]);
     debuggerApi.sendCommand = vi.fn(async (target: any, method: string, _params?: any) => {
+      if (method === 'Target.setDiscoverTargets') return {};
       if (target?.targetId === 'oopif-frame' && method === 'Runtime.enable') return {};
       if (target?.targetId === 'oopif-frame' && method === 'Runtime.evaluate') {
         return { result: { value: 'frame-ok' } };

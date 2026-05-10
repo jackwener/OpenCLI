@@ -304,6 +304,8 @@ async function ensureFrameTarget(tabId, frameId, aggressiveRetry = false, target
   const key = frameTargetKey(tabId, frameId);
   const existing = frameTargets.get(key);
   if (existing) return existing;
+  await chrome.debugger.sendCommand({ tabId }, "Target.setDiscoverTargets", { discover: true }).catch(() => {
+  });
   const targetId = await resolveFrameTargetId(frameId, targetUrl);
   try {
     await chrome.debugger.attach({ targetId }, "1.3");
@@ -321,7 +323,9 @@ async function resolveFrameTargetId(frameId, targetUrl) {
     const candidate = target;
     return candidate.type === "iframe" && (candidate.id === frameId || candidate.targetId === frameId || !!targetUrl && candidate.url === targetUrl);
   });
-  return frameTarget?.id ?? frameId;
+  if (frameTarget?.id) return frameTarget.id;
+  const candidates = targets.filter((target) => target.type === "iframe").map((target) => `${target.id} ${target.url || ""}`).join("; ");
+  throw new Error(`No iframe target found for frame ${frameId}${targetUrl ? ` (${targetUrl})` : ""}. Candidates: ${candidates || "none"}`);
 }
 async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, aggressiveRetry = false, _timeoutMs = 3e4, targetUrl) {
   const targetId = await ensureFrameTarget(tabId, frameId, aggressiveRetry, targetUrl);
