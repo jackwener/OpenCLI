@@ -2,12 +2,14 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'search',
+    access: 'read',
     description: 'Search Reddit Posts',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
-        { name: 'query', type: 'string', required: true, positional: true },
+        { name: 'query', type: 'string', required: true, positional: true, help: 'Reddit search query' },
         {
             name: 'subreddit',
             type: 'string',

@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const statusCommand = cli({
     site: 'notion',
     name: 'status',
+    access: 'read',
     description: 'Check active CDP connection to Notion Desktop',
     domain: 'localhost',
     strategy: Strategy.UI,

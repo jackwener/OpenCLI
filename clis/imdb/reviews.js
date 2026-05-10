@@ -7,6 +7,7 @@ import { forceEnglishUrl, getCurrentImdbId, isChallengePage, normalizeImdbId, wa
 cli({
     site: 'imdb',
     name: 'reviews',
+    access: 'read',
     description: 'Get user reviews for a movie or TV show',
     domain: 'www.imdb.com',
     strategy: Strategy.PUBLIC,

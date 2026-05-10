@@ -53,8 +53,8 @@ Adapters declare one of:
 
 1. **PUBLIC** — direct fetch, no credentials
 2. **COOKIE** — reuse Chrome session cookies (`browser: true` + `credentials: 'include'`)
-3. **HEADER** — inject a custom header (bearer / csrf / signed token)
-4. **INTERCEPT** — let the page make the request; capture the response
+3. **INTERCEPT** — let the page make the request; capture the response
+4. **UI** — drive the authenticated browser UI when no stable API is available
 
 Pick per the `coverage-matrix.md` and `api-discovery.md` references inside the skill.
 

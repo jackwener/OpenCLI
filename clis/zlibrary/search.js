@@ -5,6 +5,7 @@ import { ZLIBRARY_DOMAIN, buildSearchUrl, extractSearchResults } from './utils.j
 cli({
   site: 'zlibrary',
   name: 'search',
+    access: 'read',
   description: 'Search Z-Library for books by title, author, ISBN, or keyword',
   domain: ZLIBRARY_DOMAIN,
   strategy: Strategy.COOKIE,

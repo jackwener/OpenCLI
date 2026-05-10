@@ -55,6 +55,7 @@ export function stripXhsAuthorDateSuffix(value) {
 cli({
     site: 'xiaohongshu',
     name: 'search',
+    access: 'read',
     description: '搜索小红书笔记',
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,

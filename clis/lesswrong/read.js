@@ -4,6 +4,7 @@ import { DOMAIN, SITE, gqlEscape, gqlRequest, parsePostId, stripHtml, } from './
 cli({
     site: SITE,
     name: 'read',
+    access: 'read',
     description: 'Read full post by URL or ID',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,

@@ -37,7 +37,8 @@ opencli web read \
 
 | Option | Purpose |
 |--------|---------|
-| `--frames same-origin` | Default. Merge accessible same-origin iframe bodies into the extracted HTML before Markdown conversion. |
+| `--frames same-origin` | Default. Merge relevant accessible same-origin iframe bodies into the extracted HTML before Markdown conversion. |
+| `--frames all-same-origin` | Exhaustive mode. Merge every accessible same-origin iframe when completeness matters more than Markdown noise. |
 | `--frames none` | Disable iframe merging when the embedded content is noisy. |
 | `--wait-for <selector>` | Wait until a CSS selector appears in the main document or a same-origin iframe before extraction. |
 | `--wait-until networkidle` | Start network capture before navigation and wait until captured requests are quiet. |

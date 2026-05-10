@@ -22,20 +22,25 @@ function generateId(): string {
 
 export interface DaemonCommand {
   id: string;
-  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'sessions' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'cdp' | 'frames';
+  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'sessions' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames';
   /** Target page identity (targetId). Cross-layer contract with the extension. */
   page?: string;
   code?: string;
-  workspace?: string;
+  session?: string;
+  surface?: 'browser' | 'adapter';
+  /** Adapter site session lifecycle. Persistent site sessions do not idle-expire. */
+  siteSession?: 'ephemeral' | 'persistent';
   url?: string;
   op?: string;
   index?: number;
   domain?: string;
-  matchDomain?: string;
-  matchPathPrefix?: string;
   format?: 'png' | 'jpeg';
   quality?: number;
   fullPage?: boolean;
+  /** Override viewport width in CSS pixels for screenshot (0 / undefined = use current) */
+  width?: number;
+  /** Override viewport height in CSS pixels for screenshot (0 / undefined = use current; ignored when fullPage) */
+  height?: number;
 
   /** Local file paths for set-file-input action */
   files?: string[];
@@ -45,14 +50,14 @@ export interface DaemonCommand {
   text?: string;
   /** URL substring filter pattern for network capture */
   pattern?: string;
+  /** Download wait timeout in milliseconds */
+  timeoutMs?: number;
   cdpMethod?: string;
   cdpParams?: Record<string, unknown>;
-  /** When true, the owned automation container is created in the foreground */
-  windowFocused?: boolean;
-  /** Custom idle timeout in seconds for this workspace session. Overrides the default. */
+  /** Window foreground/background policy for owned Browser Bridge containers. */
+  windowMode?: 'foreground' | 'background';
+  /** Custom idle timeout in seconds for this session. Overrides the default. */
   idleTimeout?: number;
-  /** Explicitly allow navigation inside a borrowed bound tab. */
-  allowBoundNavigation?: boolean;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */
   frameIndex?: number;
   /** Browser profile/context to route the command to. */
@@ -175,10 +180,13 @@ async function sendCommandRaw(
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const id = generateId();
-    const wf = process.env.OPENCLI_WINDOW_FOCUSED;
-    const windowFocused = (wf === '1' || wf === 'true') ? true : undefined;
+    const rawWindowMode = process.env.OPENCLI_WINDOW;
+    const envWindowMode = rawWindowMode === 'foreground' || rawWindowMode === 'background'
+      ? rawWindowMode
+      : undefined;
     const contextId = params.contextId ?? resolveProfileContextId();
-    const command: DaemonCommand = { id, action, ...params, ...(contextId && { contextId }), ...(windowFocused && { windowFocused }) };
+    const windowMode = params.windowMode ?? envWindowMode;
+    const command: DaemonCommand = { id, action, ...params, ...(contextId && { contextId }), ...(windowMode && { windowMode }) };
     try {
       const res = await requestDaemon('/command', {
         method: 'POST',
@@ -245,6 +253,6 @@ export async function listSessions(opts?: { contextId?: string }): Promise<Brows
   return Array.isArray(result) ? result : [];
 }
 
-export async function bindTab(workspace: string, opts: { matchDomain?: string; matchPathPrefix?: string; contextId?: string } = {}): Promise<unknown> {
-  return sendCommand('bind', { workspace, ...opts });
+export async function bindTab(session: string, opts: { contextId?: string } = {}): Promise<unknown> {
+  return sendCommand('bind', { session, surface: 'browser', ...opts });
 }

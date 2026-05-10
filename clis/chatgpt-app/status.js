@@ -4,6 +4,7 @@ import { CommandExecutionError, ConfigError } from '@jackwener/opencli/errors';
 export const statusCommand = cli({
     site: 'chatgpt-app',
     name: 'status',
+    access: 'read',
     description: 'Check if ChatGPT Desktop App is running natively on macOS',
     domain: 'localhost',
     strategy: Strategy.PUBLIC,

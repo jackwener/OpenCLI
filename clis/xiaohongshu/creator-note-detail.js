@@ -322,6 +322,7 @@ export async function fetchCreatorNoteDetailRows(page, noteId) {
 cli({
     site: 'xiaohongshu',
     name: 'creator-note-detail',
+    access: 'read',
     description: '小红书单篇笔记详情页数据 (笔记信息 + 核心/互动数据 + 观看来源 + 观众画像 + 趋势数据)',
     domain: 'creator.xiaohongshu.com',
     strategy: Strategy.COOKIE,

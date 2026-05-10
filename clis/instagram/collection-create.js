@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'instagram',
     name: 'collection-create',
+    access: 'write',
     description: 'Create a new Instagram saved-posts collection (folder)',
     domain: 'www.instagram.com',
     args: [

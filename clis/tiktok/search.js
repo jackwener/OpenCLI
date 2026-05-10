@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'tiktok',
     name: 'search',
+    access: 'read',
     description: 'Search TikTok videos',
     domain: 'www.tiktok.com',
     args: [

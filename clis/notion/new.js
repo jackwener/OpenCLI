@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const newCommand = cli({
     site: 'notion',
     name: 'new',
+    access: 'write',
     description: 'Create a new page in Notion',
     domain: 'localhost',
     strategy: Strategy.UI,

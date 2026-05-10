@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'pixiv',
     name: 'ranking',
+    access: 'read',
     description: 'Pixiv illustration rankings (daily/weekly/monthly)',
     domain: 'www.pixiv.net',
     strategy: Strategy.COOKIE,
@@ -26,7 +27,7 @@ cli({
         { name: 'page', type: 'int', default: 1, help: 'Page number' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
     ],
-    columns: ['rank', 'title', 'author', 'illust_id', 'pages', 'bookmarks'],
+    columns: ['rank', 'title', 'author', 'user_id', 'illust_id', 'pages', 'bookmarks', 'url'],
     pipeline: [
         { navigate: 'https://www.pixiv.net' },
         { evaluate: `(async () => {

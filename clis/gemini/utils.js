@@ -78,10 +78,6 @@ export function resolveGeminiLabels(value, fallback) {
     const label = String(value ?? '').trim();
     return label ? [label] : fallback;
 }
-export function parseGeminiPositiveInt(value, fallback) {
-    const parsed = Number.parseInt(String(value ?? ''), 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
 export function parseGeminiTitleMatchMode(value, fallback = 'contains') {
     const raw = String(value ?? fallback).trim().toLowerCase();
     if (raw === 'contains' || raw === 'exact')

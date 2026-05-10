@@ -9,6 +9,7 @@ import { downloadArticle } from '@jackwener/opencli/download/article-download';
 cli({
     site: 'zhihu',
     name: 'download',
+    access: 'read',
     description: '导出知乎文章为 Markdown 格式',
     domain: 'zhuanlan.zhihu.com',
     strategy: Strategy.COOKIE,

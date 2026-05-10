@@ -13,6 +13,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'band',
     name: 'bands',
+    access: 'read',
     description: 'List all Bands you belong to',
     domain: 'www.band.us',
     strategy: Strategy.COOKIE,

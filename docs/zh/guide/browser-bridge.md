@@ -25,22 +25,22 @@ opencli doctor            # 检查扩展 + 守护进程连接
 
 ## 多 Tab 定位
 
-浏览器命令默认运行在共享的 `browser:default` workspace 中；如果需要操作指定 tab，可以显式传目标 target。
+浏览器命令必须显式传 `--session <name>`。同一个多步骤流程使用同一个 session；并行任务使用不同 session 隔离。
 
 ```bash
-opencli browser open https://www.baidu.com/
-opencli browser tab list
-opencli browser tab new https://www.baidu.com/
-opencli browser eval --tab <targetId> 'document.title'
-opencli browser tab select <targetId>
-opencli browser get title
-opencli browser tab close <targetId>
+opencli browser --session baidu open https://www.baidu.com/
+opencli browser --session baidu tab list
+opencli browser --session baidu tab new https://www.baidu.com/
+opencli browser --session baidu eval --tab <targetId> 'document.title'
+opencli browser --session baidu tab select <targetId>
+opencli browser --session baidu get title
+opencli browser --session baidu tab close <targetId>
 ```
 
 规则如下：
 
-- `opencli browser open <url>` 和 `opencli browser tab new [url]` 都会返回 `targetId`。
-- `opencli browser tab list` 会打印当前已存在 tab 的 `targetId`。
+- `opencli browser --session <name> open <url>` 和 `opencli browser --session <name> tab new [url]` 都会返回 `targetId`。
+- `opencli browser --session <name> tab list` 会打印当前已存在 tab 的 `targetId`。
 - `--tab <targetId>` 会把单条 browser 命令路由到对应 tab。
 - `tab new` 只会新建 tab，不会改变默认浏览器目标。
 - `tab select <targetId>` 会把该 tab 设为后续未显式指定 target 的 `opencli browser ...` 命令默认目标。

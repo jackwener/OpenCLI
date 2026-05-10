@@ -4,10 +4,12 @@ import { CLAUDE_DOMAIN, ensureOnClaude, getPageState } from './utils.js';
 export const statusCommand = cli({
     site: 'claude',
     name: 'status',
+    access: 'read',
     description: 'Check Claude page availability and login state',
     domain: CLAUDE_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [],
     columns: ['Status', 'Login', 'Url'],

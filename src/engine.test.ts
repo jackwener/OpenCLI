@@ -30,7 +30,7 @@ export const helper = true;
 import { cli, Strategy } from '${pathToFileURL(path.join(process.cwd(), 'src', 'registry.ts')).href}';
 cli({
   site: 'temp-site',
-  name: 'hello',
+  name: 'hello', access: 'read',
   description: 'hello command',
   strategy: Strategy.PUBLIC,
   browser: false,
@@ -63,7 +63,7 @@ cli({
 import { cli, Strategy } from '${pathToFileURL(path.join(process.cwd(), 'src', 'registry.ts')).href}';
 cli({
   site: 'fallback-site',
-  name: 'hello',
+  name: 'hello', access: 'read',
   description: 'hello command',
   strategy: Strategy.PUBLIC,
   browser: false,
@@ -95,7 +95,7 @@ import { htmlToMarkdown } from '@jackwener/opencli/utils';
 
 cli({
   site: 'legacy-site',
-  name: 'hello',
+  name: 'hello', access: 'read',
   description: 'hello command',
   strategy: Strategy.PUBLIC,
   browser: false,
@@ -215,7 +215,7 @@ describe('executeCommand', () => {
   it('accepts kebab-case option names after Commander camelCases them', async () => {
     const cmd = cli({
       site: 'test-engine',
-      name: 'kebab-arg-test',
+      name: 'kebab-arg-test', access: 'read',
       description: 'test command with kebab-case arg',
       browser: false,
       strategy: Strategy.PUBLIC,
@@ -232,7 +232,7 @@ describe('executeCommand', () => {
   it('executes a command with func', async () => {
     const cmd = cli({
       site: 'test-engine',
-      name: 'func-test',
+      name: 'func-test', access: 'read',
       description: 'test command with func',
       browser: false,
       strategy: Strategy.PUBLIC,
@@ -248,7 +248,7 @@ describe('executeCommand', () => {
   it('executes a command with pipeline', async () => {
     const cmd = cli({
       site: 'test-engine',
-      name: 'pipe-test',
+      name: 'pipe-test', access: 'read',
       description: 'test command with pipeline',
       browser: false,
       strategy: Strategy.PUBLIC,
@@ -265,7 +265,7 @@ describe('executeCommand', () => {
   it('throws for command with no func or pipeline', async () => {
     const cmd = cli({
       site: 'test-engine',
-      name: 'empty-test',
+      name: 'empty-test', access: 'read',
       description: 'empty command',
       browser: false,
     });
@@ -277,7 +277,7 @@ describe('executeCommand', () => {
     let receivedDebug = false;
     const cmd = cli({
       site: 'test-engine',
-      name: 'debug-test',
+      name: 'debug-test', access: 'read',
       description: 'debug test',
       browser: false,
       func: async (_kwargs, debug) => {
@@ -298,7 +298,7 @@ describe('executeCommand', () => {
 
     const cmd = cli({
       site: 'test-engine',
-      name: 'failing-test',
+      name: 'failing-test', access: 'read',
       description: 'failing command',
       browser: false,
       strategy: Strategy.PUBLIC,
@@ -322,7 +322,7 @@ describe('executeCommand', () => {
 
     const cmd = cli({
       site: 'chatwise',
-      name: 'status',
+      name: 'status', access: 'read',
       description: 'chatwise status',
       browser: true,
       strategy: Strategy.PUBLIC,

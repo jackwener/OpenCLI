@@ -92,6 +92,7 @@ function buildExtractResultsEvaluate(limit) {
 cli({
     site: 'xianyu',
     name: 'search',
+    access: 'read',
     description: '搜索闲鱼商品',
     domain: 'www.goofish.com',
     strategy: Strategy.COOKIE,

@@ -3,6 +3,7 @@ import { clickNewChatScript } from './utils.js';
 export const newCommand = cli({
     site: 'doubao-app',
     name: 'new',
+    access: 'read',
     description: 'Start a new chat in Doubao desktop app',
     domain: 'doubao-app',
     strategy: Strategy.UI,

@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'facebook',
     name: 'feed',
+    access: 'read',
     description: 'Get your Facebook news feed',
     domain: 'www.facebook.com',
     args: [

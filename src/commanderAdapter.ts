@@ -14,9 +14,19 @@ import { Command } from 'commander';
 import { log } from './logger.js';
 import yaml from 'js-yaml';
 import { type CliCommand, fullName, getRegistry } from './registry.js';
-import { formatRegistryHelpText } from './serialization.js';
 import { render as renderOutput } from './output.js';
 import { executeCommand, prepareCommandArgs } from './execution.js';
+import {
+  commandHelpData,
+  formatCommandHelpText,
+  formatCommandListTerm,
+  formatSiteCommandDescription,
+  formatSiteHelpText,
+  getRequestedHelpFormat,
+  installStructuredHelp,
+  renderStructuredHelp,
+  siteHelpData,
+} from './help.js';
 import {
   CliError,
   EXIT_CODES,
@@ -29,8 +39,7 @@ import {
 export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): void {
   if (siteCmd.commands.some((c: Command) => c.name() === cmd.name)) return;
 
-  const deprecatedSuffix = cmd.deprecated ? ' [deprecated]' : '';
-  const subCmd = siteCmd.command(cmd.name).description(`${cmd.description}${deprecatedSuffix}`);
+  const subCmd = siteCmd.command(cmd.name).description(formatSiteCommandDescription(cmd));
   if (cmd.aliases?.length) subCmd.aliases(cmd.aliases);
 
   // Register positional args first, then named options
@@ -52,8 +61,22 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
     .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', 'table')
     .option('--trace <mode>', 'Trace capture: off, on, retain-on-failure', 'off')
     .option('-v, --verbose', 'Debug output', false);
+  if (cmd.browser) {
+    subCmd
+      .option('--window <mode>', 'Browser window mode: foreground or background')
+      .option('--site-session <mode>', 'Adapter site session lifecycle: ephemeral or persistent')
+      .option('--keep-tab <bool>', 'Keep the browser tab lease after the command finishes');
+  }
 
-  subCmd.addHelpText('after', formatRegistryHelpText(cmd));
+  const originalHelpInformation = subCmd.helpInformation.bind(subCmd);
+  subCmd.helpInformation = ((contextOptions?: unknown) => {
+    const format = getRequestedHelpFormat();
+    if (format) return renderStructuredHelp(commandHelpData(cmd), format);
+    // Keep a fallback reference so future Commander upgrades still initialize
+    // internal help state before we render the cleaner grouped command help.
+    void originalHelpInformation(contextOptions as never);
+    return formatCommandHelpText(cmd);
+  }) as Command['helpInformation'];
 
   subCmd.action(async (...actionArgs: unknown[]) => {
     const actionOpts = actionArgs[positionalArgs.length] ?? {};
@@ -90,17 +113,14 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       let format = typeof optionsRecord.format === 'string' ? optionsRecord.format : 'table';
       const formatExplicit = subCmd.getOptionValueSource('format') === 'cli';
       if (verbose) process.env.OPENCLI_VERBOSE = '1';
-      if (cmd.deprecated) {
-        const message = typeof cmd.deprecated === 'string' ? cmd.deprecated : `${fullName(cmd)} is deprecated.`;
-        const replacement = cmd.replacedBy ? ` Use ${cmd.replacedBy} instead.` : '';
-        log.warn(`Deprecated: ${message}${replacement}`);
-      }
-
       const globals = typeof subCmd.optsWithGlobals === 'function' ? subCmd.optsWithGlobals() as Record<string, unknown> : {};
       const result = await executeCommand(cmd, kwargs, verbose, {
         prepared: true,
         ...(typeof globals.profile === 'string' && globals.profile.trim() ? { profile: globals.profile.trim() } : {}),
         ...(typeof optionsRecord.trace === 'string' && optionsRecord.trace !== 'off' ? { trace: optionsRecord.trace } : {}),
+        ...(cmd.browser && typeof optionsRecord.window === 'string' ? { windowMode: optionsRecord.window } : {}),
+        ...(cmd.browser && typeof optionsRecord.siteSession === 'string' ? { siteSession: optionsRecord.siteSession } : {}),
+        ...(cmd.browser && typeof optionsRecord.keepTab === 'string' ? { keepTab: optionsRecord.keepTab } : {}),
       });
       if (result === null || result === undefined) {
         return;
@@ -173,7 +193,7 @@ function renderError(err: unknown, cmdName: string, verbose: boolean, traceMode?
 export function registerAllCommands(
   program: Command,
   siteGroups: Map<string, Command>,
-): void {
+): string[] {
   const seen = new Set<CliCommand>();
   const commandsBySite = new Map<string, CliCommand[]>();
   for (const [, cmd] of getRegistry()) {
@@ -193,5 +213,17 @@ export function registerAllCommands(
     for (const cmd of commands) {
       registerCommandToProgram(siteCmd, cmd);
     }
+    const commandTerms = new Map(commands.map(cmd => [cmd.name, formatCommandListTerm(cmd)]));
+    siteCmd.configureHelp({
+      subcommandTerm: command => commandTerms.get(command.name()) ?? command.name(),
+    });
+    const originalSiteHelpInformation = siteCmd.helpInformation.bind(siteCmd);
+    siteCmd.helpInformation = ((contextOptions?: unknown) => {
+      const format = getRequestedHelpFormat();
+      if (format) return renderStructuredHelp(siteHelpData(site, commands), format);
+      void originalSiteHelpInformation(contextOptions as never);
+      return formatSiteHelpText(site, commands);
+    }) as Command['helpInformation'];
   }
+  return [...commandsBySite.keys()].sort((a, b) => a.localeCompare(b));
 }

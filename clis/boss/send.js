@@ -10,6 +10,7 @@ import { EmptyResultError, selectorError } from '@jackwener/opencli/errors';
 cli({
     site: 'boss',
     name: 'send',
+    access: 'write',
     description: 'BOSS直聘发送聊天消息',
     domain: 'www.zhipin.com',
     strategy: Strategy.COOKIE,

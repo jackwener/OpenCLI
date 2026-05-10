@@ -8,6 +8,7 @@ import { parseRssItems } from './utils.js';
 cli({
     site: 'google',
     name: 'news',
+    access: 'read',
     description: 'Get Google News headlines',
     strategy: Strategy.PUBLIC,
     browser: false,

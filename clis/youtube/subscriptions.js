@@ -8,6 +8,7 @@ import { extractSubscriptionChannel } from './utils.js';
 cli({
     site: 'youtube',
     name: 'subscriptions',
+    access: 'read',
     description: 'List subscribed YouTube channels',
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,

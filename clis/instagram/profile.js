@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'instagram',
     name: 'profile',
+    access: 'read',
     description: 'Get Instagram user profile info',
     domain: 'www.instagram.com',
     args: [

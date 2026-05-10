@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { apiGet, getSelfUid } from './utils.js';
 cli({
-    site: 'bilibili', name: 'me', description: 'My Bilibili profile info', domain: 'www.bilibili.com', strategy: Strategy.COOKIE,
+    site: 'bilibili', name: 'me', access: 'read', description: 'My Bilibili profile info', domain: 'www.bilibili.com', strategy: Strategy.COOKIE,
     args: [],
     columns: ['name', 'uid', 'level', 'coins', 'followers', 'following'],
     func: async (page) => {

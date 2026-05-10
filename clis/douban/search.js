@@ -3,6 +3,7 @@ import { searchDouban } from './utils.js';
 cli({
     site: 'douban',
     name: 'search',
+    access: 'read',
     description: '搜索豆瓣电影、图书或音乐',
     domain: 'search.douban.com',
     strategy: Strategy.COOKIE,

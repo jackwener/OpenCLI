@@ -4,6 +4,7 @@ import { extractStoryMediaLinks, renderStoryBody, validateBloombergLink, } from 
 cli({
     site: 'bloomberg',
     name: 'news',
+    access: 'read',
     description: 'Read a Bloomberg story/article page and return title, full content, and media links',
     domain: 'www.bloomberg.com',
     strategy: Strategy.COOKIE,

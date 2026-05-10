@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'bluesky',
     name: 'user',
+    access: 'read',
     description: 'Get recent posts from a Bluesky user',
     domain: 'public.api.bsky.app',
     strategy: Strategy.PUBLIC,
@@ -15,7 +16,7 @@ cli({
         },
         { name: 'limit', type: 'int', default: 20, help: 'Number of posts' },
     ],
-    columns: ['rank', 'text', 'likes', 'reposts', 'replies'],
+    columns: ['rank', 'uri', 'text', 'likes', 'reposts', 'replies'],
     pipeline: [
         { fetch: {
                 url: 'https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${{ args.handle }}&limit=${{ args.limit }}',
@@ -23,6 +24,7 @@ cli({
         { select: 'feed' },
         { map: {
                 rank: '${{ index + 1 }}',
+                uri: '${{ item.post.uri }}',
                 text: '${{ item.post.record.text }}',
                 likes: '${{ item.post.likeCount }}',
                 reposts: '${{ item.post.repostCount }}',

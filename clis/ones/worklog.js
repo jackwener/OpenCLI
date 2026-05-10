@@ -99,6 +99,7 @@ export function buildAddManhourGraphqlBody(input) {
 cli({
     site: 'ones',
     name: 'worklog',
+    access: 'write',
     description: 'ONES — log work hours on a task (defaults to today; use --date to backfill; endpoint falls back by deployment).',
     domain: 'ones.cn',
     strategy: Strategy.COOKIE,

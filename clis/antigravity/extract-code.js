@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const extractCodeCommand = cli({
     site: 'antigravity',
     name: 'extract-code',
+    access: 'read',
     description: 'Extract multi-line code blocks from the current Antigravity conversation',
     domain: 'localhost',
     strategy: Strategy.UI,

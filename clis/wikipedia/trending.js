@@ -4,6 +4,7 @@ import { DESC_MAX_LEN, wikiFetch } from './utils.js';
 cli({
     site: 'wikipedia',
     name: 'trending',
+    access: 'read',
     description: 'Most-read Wikipedia articles (yesterday)',
     strategy: Strategy.PUBLIC,
     browser: false,

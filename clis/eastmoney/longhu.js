@@ -17,6 +17,7 @@ function defaultTradeDate() {
 cli({
   site: 'eastmoney',
   name: 'longhu',
+    access: 'read',
   description: '龙虎榜明细（A股交易所公开披露榜单）',
   domain: 'datacenter-web.eastmoney.com',
   strategy: Strategy.PUBLIC,

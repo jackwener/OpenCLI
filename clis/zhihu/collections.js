@@ -39,6 +39,7 @@ function collectionKey(item) {
 cli({
   site: 'zhihu',
   name: 'collections',
+    access: 'read',
   description: '知乎收藏夹列表（需要登录）',
   domain: 'www.zhihu.com',
   strategy: Strategy.COOKIE,

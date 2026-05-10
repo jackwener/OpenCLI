@@ -28,6 +28,7 @@ function toSecucode(input) {
 cli({
   site: 'eastmoney',
   name: 'holders',
+    access: 'read',
   description: '十大流通股东（A股 F10 数据）',
   domain: 'datacenter-web.eastmoney.com',
   strategy: Strategy.PUBLIC,

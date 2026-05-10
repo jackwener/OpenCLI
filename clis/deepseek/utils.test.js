@@ -2,7 +2,46 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { selectModel, sendWithFile, parseThinkingResponse } from './utils.js';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import {
+  selectModel,
+  sendWithFile,
+  parseThinkingResponse,
+  parseDeepSeekConversationId,
+  pickResumeUrl,
+} from './utils.js';
+
+describe('deepseek parseDeepSeekConversationId', () => {
+  const id = '749e6bbd-6a45-4440-beaa-ae5238bf06d8';
+
+  it('returns a bare UUID unchanged', () => {
+    expect(parseDeepSeekConversationId(id)).toBe(id);
+  });
+
+  it('lowercases an upper-case UUID', () => {
+    expect(parseDeepSeekConversationId(id.toUpperCase())).toBe(id);
+  });
+
+  it('extracts the UUID from a full /a/chat/s/<id> URL', () => {
+    expect(parseDeepSeekConversationId(`https://chat.deepseek.com/a/chat/s/${id}`)).toBe(id);
+    expect(parseDeepSeekConversationId(`https://chat.deepseek.com/a/chat/s/${id}?from=share`)).toBe(id);
+    expect(parseDeepSeekConversationId(`/a/chat/s/${id}`)).toBe(id);
+  });
+
+  it('throws ArgumentError on empty input', () => {
+    expect(() => parseDeepSeekConversationId('')).toThrow(ArgumentError);
+    expect(() => parseDeepSeekConversationId(null)).toThrow(ArgumentError);
+    expect(() => parseDeepSeekConversationId(undefined)).toThrow(ArgumentError);
+    expect(() => parseDeepSeekConversationId('   ')).toThrow(ArgumentError);
+  });
+
+  it('throws ArgumentError on non-UUID input', () => {
+    expect(() => parseDeepSeekConversationId('not-an-id')).toThrow(ArgumentError);
+    expect(() => parseDeepSeekConversationId('123')).toThrow(ArgumentError);
+    // URL with the wrong path shape must not silently fall through to "use raw input".
+    expect(() => parseDeepSeekConversationId('https://chat.deepseek.com/somewhere/else')).toThrow(ArgumentError);
+  });
+});
 
 describe('deepseek parseThinkingResponse', () => {
   it('returns plain response when no thinking header is present', () => {
@@ -260,5 +299,72 @@ describe('deepseek sendWithFile Not allowed fallback', () => {
     expect(result).toEqual({ ok: false, reason: 'file preview did not appear' });
     expect(page.evaluate.mock.calls[1][0]).toContain('img[src], canvas, video');
     expect(page.evaluate.mock.calls[1][0]).not.toContain("aria-disabled') === 'false'");
+  });
+});
+
+describe('deepseek pickResumeUrl', () => {
+  function createPage() {
+    return {
+      wait: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn(),
+    };
+  }
+
+  it('returns the URL on the first attempt when the sidebar is already populated', async () => {
+    const page = createPage();
+    // First evaluate is the sidebar-expand no-op; subsequent ones look up the resume URL.
+    page.evaluate
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce('https://chat.deepseek.com/a/chat/s/recent-id');
+
+    const url = await pickResumeUrl(page);
+
+    expect(url).toBe('https://chat.deepseek.com/a/chat/s/recent-id');
+    // Sidebar expand + one resume lookup. No retry needed.
+    expect(page.evaluate).toHaveBeenCalledTimes(2);
+    expect(page.wait).toHaveBeenCalledTimes(1);
+  });
+
+  it('polls until the sidebar finishes loading and returns the late URL', async () => {
+    const page = createPage();
+    page.evaluate
+      .mockResolvedValueOnce(undefined)               // sidebar-expand
+      .mockResolvedValueOnce(null)                    // attempt 1: nothing
+      .mockResolvedValueOnce(null)                    // attempt 2: nothing
+      .mockResolvedValueOnce('https://chat.deepseek.com/a/chat/s/late-id'); // attempt 3: ready
+
+    const url = await pickResumeUrl(page);
+
+    expect(url).toBe('https://chat.deepseek.com/a/chat/s/late-id');
+    expect(page.evaluate).toHaveBeenCalledTimes(4);
+    expect(page.wait).toHaveBeenCalledTimes(3);
+  });
+
+  it('returns null after exhausting all retries instead of falling through silently', async () => {
+    const page = createPage();
+    // Sidebar expand + 5 polling attempts, each returning null.
+    page.evaluate.mockResolvedValue(null);
+
+    const url = await pickResumeUrl(page);
+
+    expect(url).toBeNull();
+    expect(page.evaluate).toHaveBeenCalledTimes(6);
+    expect(page.wait).toHaveBeenCalledTimes(5);
+  });
+
+  it('embeds the pinned-section text matcher inside the resume lookup', async () => {
+    const page = createPage();
+    page.evaluate.mockResolvedValue(null);
+
+    await pickResumeUrl(page);
+
+    const lookupSrc = page.evaluate.mock.calls
+      .map(([js]) => js)
+      .find((js) => js.includes('firstElementChild'));
+    expect(lookupSrc, 'expected a resume-lookup evaluate call').toBeDefined();
+    // Pinned detection must be text-based on the section header (CSS-module class names are randomized per build).
+    expect(lookupSrc).toContain('置');
+    expect(lookupSrc).toContain('Pinned');
+    expect(lookupSrc).toContain('firstElementChild');
   });
 });

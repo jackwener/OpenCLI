@@ -543,6 +543,7 @@ function detectJdPageState(expectedSku) {
 cli({
     site: 'jd',
     name: 'item',
+    access: 'read',
     description: '京东商品详情（价格、店铺、规格参数、主图、详情图）',
     domain: 'item.jd.com',
     strategy: Strategy.COOKIE,

@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'bilibili',
     name: 'hot',
+    access: 'read',
     description: 'B站热门视频',
     domain: 'www.bilibili.com',
     args: [

@@ -3,6 +3,7 @@ import { IMAGE_MODELS, VIDEO_MODELS, TOOL_MODELS } from './utils.js';
 cli({
     site: 'yollomi',
     name: 'models',
+    access: 'read',
     description: 'List available Yollomi AI models (image, video, tools)',
     strategy: Strategy.PUBLIC,
     browser: false,

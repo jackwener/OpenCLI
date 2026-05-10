@@ -6,6 +6,7 @@ const CHARTS_TIMEOUT_MS = 15_000;
 cli({
     site: 'apple-podcasts',
     name: 'top',
+    access: 'read',
     description: 'Top podcasts chart on Apple Podcasts',
     strategy: Strategy.PUBLIC,
     browser: false,

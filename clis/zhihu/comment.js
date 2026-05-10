@@ -5,6 +5,7 @@ import { buildResultRow, requireExecute, resolveCurrentUserIdentity, resolvePayl
 cli({
     site: 'zhihu',
     name: 'comment',
+    access: 'write',
     description: 'Create a top-level comment on a Zhihu answer or article',
     domain: 'zhihu.com',
     strategy: Strategy.COOKIE,

@@ -3,6 +3,7 @@ import { DOMAIN, SITE, gqlRequest } from './_helpers.js';
 cli({
     site: SITE,
     name: 'sequences',
+    access: 'read',
     description: 'List post collections',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,

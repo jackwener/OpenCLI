@@ -5,6 +5,7 @@ import { apiGet, resolveBvid } from './utils.js';
 cli({
   site: 'bilibili',
   name: 'video',
+    access: 'read',
   description: 'Get Bilibili video metadata (title, author, duration, stats, etc.)',
   strategy: Strategy.COOKIE,
   args: [

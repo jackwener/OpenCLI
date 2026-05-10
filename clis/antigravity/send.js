@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const sendCommand = cli({
     site: 'antigravity',
     name: 'send',
+    access: 'write',
     description: 'Send a message to Antigravity AI via the internal Lexical editor',
     domain: 'localhost',
     strategy: Strategy.UI,

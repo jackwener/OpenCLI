@@ -275,6 +275,7 @@ async function collectSearchRows(page, query, limit) {
 cli({
     site: '1688',
     name: 'search',
+    access: 'read',
     description: '1688 商品搜索（结果候选、卖家链接、价格/MOQ/销量文本）',
     domain: 'www.1688.com',
     strategy: Strategy.COOKIE,
@@ -293,7 +294,7 @@ cli({
             help: `结果数量上限（默认 ${SEARCH_LIMIT_DEFAULT}，最大 ${SEARCH_LIMIT_MAX}）`,
         },
     ],
-    columns: ['rank', 'title', 'price_text', 'moq_text', 'seller_name', 'location'],
+    columns: ['rank', 'offer_id', 'title', 'item_url', 'price_text', 'moq_text', 'seller_name', 'member_id', 'location'],
     func: async (page, kwargs) => {
         const query = String(kwargs.query ?? '');
         const limit = parseSearchLimit(kwargs.limit);

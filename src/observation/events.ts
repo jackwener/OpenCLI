@@ -2,7 +2,7 @@ export type ObservationStream = 'action' | 'network' | 'console' | 'screenshot' 
 
 export interface ObservationScope {
   contextId?: string;
-  workspace: string;
+  session: string;
   target?: string;
   site?: string;
   command?: string;

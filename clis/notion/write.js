@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const writeCommand = cli({
     site: 'notion',
     name: 'write',
+    access: 'write',
     description: 'Append text content to the currently open Notion page',
     domain: 'localhost',
     strategy: Strategy.UI,

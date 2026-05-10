@@ -205,8 +205,8 @@ function createFollowingPage(followingResponses, { ct0 = 'token', userLookup = {
     const page = {
         goto: vi.fn().mockResolvedValue(undefined),
         wait: vi.fn().mockResolvedValue(undefined),
+        getCookies: vi.fn(async () => (ct0 ? [{ name: 'ct0', value: ct0 }] : [])),
         evaluate: vi.fn(async (script) => {
-            if (script.includes('document.cookie')) return ct0;
             if (script.includes('operationName')) return null;
             if (script.includes('/UserByScreenName')) return userLookup;
             if (script.includes('/Following')) return followingResponses.shift() || followingPayload([], null);
@@ -228,6 +228,7 @@ describe('twitter following command', () => {
         const rows = await command.func(page, { user: '@elonmusk', limit: 3 });
 
         expect(rows.map((row) => row.screen_name)).toEqual(['alice', 'bob', 'carol']);
+        expect(page.getCookies).toHaveBeenCalledWith({ url: 'https://x.com' });
         const userLookupScript = page.evaluate.mock.calls.find(([script]) => script.includes('/UserByScreenName'))?.[0] || '';
         expect(decodeURIComponent(userLookupScript)).toContain('"screen_name":"elonmusk"');
         expect(decodeURIComponent(userLookupScript)).not.toContain('"screen_name":"@elonmusk"');

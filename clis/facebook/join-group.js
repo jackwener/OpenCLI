@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'facebook',
     name: 'join-group',
+    access: 'write',
     description: 'Join a Facebook group',
     domain: 'www.facebook.com',
     args: [

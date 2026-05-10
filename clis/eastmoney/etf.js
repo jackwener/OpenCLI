@@ -17,6 +17,7 @@ const SORTS = {
 cli({
   site: 'eastmoney',
   name: 'etf',
+    access: 'read',
   description: 'ETF 列表按成交额/涨跌幅排行',
   domain: 'push2.eastmoney.com',
   strategy: Strategy.PUBLIC,

@@ -185,6 +185,7 @@ async function submitTweet(page, text) {
 cli({
     site: 'twitter',
     name: 'post',
+    access: 'write',
     description: 'Post a new tweet/thread',
     domain: 'x.com',
     strategy: Strategy.UI,

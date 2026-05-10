@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const searchCommand = cli({
     site: 'discord-app',
     name: 'search',
+    access: 'read',
     description: 'Search messages in the current Discord server/channel (Cmd+F)',
     domain: 'localhost',
     strategy: Strategy.UI,

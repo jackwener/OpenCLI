@@ -3,6 +3,7 @@ import { clampInt, normalizeNumericId } from '../_shared/common.js';
 cli({
     site: 'taobao',
     name: 'reviews',
+    access: 'read',
     description: '淘宝商品评价',
     domain: 'item.taobao.com',
     strategy: Strategy.COOKIE,

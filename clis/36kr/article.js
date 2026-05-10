@@ -13,6 +13,7 @@ function parseArticleId(input) {
 cli({
     site: '36kr',
     name: 'article',
+    access: 'read',
     description: '获取36氪文章正文内容',
     domain: 'www.36kr.com',
     strategy: Strategy.INTERCEPT,

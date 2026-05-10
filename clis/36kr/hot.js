@@ -26,6 +26,7 @@ function buildHotListUrl(listType, date = new Date()) {
 cli({
     site: '36kr',
     name: 'hot',
+    access: 'read',
     description: '36氪热榜 — trending articles (renqi/zonghe/shoucang/catalog)',
     domain: 'www.36kr.com',
     strategy: Strategy.PUBLIC,

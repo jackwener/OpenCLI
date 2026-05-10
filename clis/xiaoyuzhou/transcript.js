@@ -7,6 +7,7 @@ import { loadXiaoyuzhouCredentials, requestXiaoyuzhouJson, fetchXiaoyuzhouTransc
 cli({
     site: 'xiaoyuzhou',
     name: 'transcript',
+    access: 'read',
     description: 'Download Xiaoyuzhou transcript as JSON and text (requires local credentials)',
     domain: 'www.xiaoyuzhoufm.com',
     strategy: Strategy.PUBLIC,

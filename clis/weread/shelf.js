@@ -33,6 +33,7 @@ function normalizeWebShelfRows(snapshot, limit) {
 cli({
     site: 'weread',
     name: 'shelf',
+    access: 'read',
     description: 'List books on your WeRead bookshelf',
     domain: 'weread.qq.com',
     strategy: Strategy.COOKIE,

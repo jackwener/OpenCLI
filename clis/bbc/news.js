@@ -5,6 +5,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'bbc',
     name: 'news',
+    access: 'read',
     description: 'BBC News headlines (RSS)',
     domain: 'www.bbc.com',
     strategy: Strategy.PUBLIC,

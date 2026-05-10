@@ -8,6 +8,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'jike',
     name: 'like',
+    access: 'write',
     description: '点赞即刻帖子',
     domain: 'web.okjike.com',
     strategy: Strategy.UI,

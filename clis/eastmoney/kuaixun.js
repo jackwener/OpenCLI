@@ -17,6 +17,7 @@ import { CliError } from '@jackwener/opencli/errors';
 cli({
   site: 'eastmoney',
   name: 'kuaixun',
+    access: 'read',
   description: '东方财富 7x24 财经快讯',
   domain: 'np-listapi.eastmoney.com',
   strategy: Strategy.PUBLIC,

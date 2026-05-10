@@ -4,7 +4,7 @@
  * This is the single entry point for executing any CLI command. It handles:
  * 1. Argument validation and coercion
  * 2. Browser session lifecycle (if needed)
- * 3. Domain pre-navigation for cookie/header strategies
+ * 3. Domain pre-navigation for cookie strategies
  * 4. Timeout enforcement
  * 5. Lazy-loading of TS modules from manifest
  * 6. Lifecycle hooks (onBeforeExecute / onAfterExecute)
@@ -14,6 +14,7 @@ import {
   type BrowserCliCommand,
   type CliCommand,
   type InternalCliCommand,
+  type SiteSessionMode,
   type Arg,
   type CommandArgs,
   getRegistry,
@@ -21,12 +22,13 @@ import {
 } from './registry.js';
 import type { IPage } from './types.js';
 import { pathToFileURL } from 'node:url';
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
 import { adapterLoadError, ArgumentError, CommandExecutionError, attachTraceReceipt, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
-import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
+import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
 import { resolveProfileContextId } from './browser/profile.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
@@ -162,17 +164,33 @@ function resolvePreNav(cmd: CliCommand): string | null {
   return null;
 }
 
-function ensureRequiredEnv(cmd: CliCommand): void {
-  const missing = (cmd.requiredEnv ?? []).find(({ name }) => {
-    const value = process.env[name];
-    return value === undefined || value === null || value === '';
-  });
-  if (!missing) return;
+function urlMatchesDomain(url: string | null | undefined, domain: string | undefined): boolean {
+  if (!url || !domain) return false;
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname === domain || hostname.endsWith(`.${domain}`);
+  } catch {
+    return false;
+  }
+}
 
-  throw new CommandExecutionError(
-    `Command ${fullName(cmd)} requires environment variable ${missing.name}.`,
-    missing.help ?? `Set ${missing.name} before running ${fullName(cmd)}.`,
-  );
+function isDomainRootPreNav(preNavUrl: string, domain: string | undefined): boolean {
+  if (!domain) return false;
+  try {
+    const parsed = new URL(preNavUrl);
+    const hostnameMatches = parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`);
+    const rootPath = parsed.pathname === '' || parsed.pathname === '/';
+    return hostnameMatches && rootPath && parsed.search === '' && parsed.hash === '';
+  } catch {
+    return false;
+  }
+}
+
+async function shouldRunPreNav(cmd: CliCommand, page: IPage, siteSession: SiteSessionMode, preNavUrl: string): Promise<boolean> {
+  if (siteSession !== 'persistent' || !cmd.domain) return true;
+  if (!isDomainRootPreNav(preNavUrl, cmd.domain)) return true;
+  const currentUrl = await page.getCurrentUrl?.().catch(() => null);
+  return !urlMatchesDomain(currentUrl, cmd.domain);
 }
 
 export async function executeCommand(
@@ -183,6 +201,9 @@ export async function executeCommand(
     prepared?: boolean;
     profile?: string;
     trace?: string;
+    keepTab?: string;
+    windowMode?: string;
+    siteSession?: string;
     onTraceExport?: (trace: ObservationExportResult) => void;
   } = {},
 ): Promise<unknown> {
@@ -194,6 +215,7 @@ export async function executeCommand(
     throw new ArgumentError(getErrorMessage(err));
   }
 
+  const userTimeoutSec = readUserTimeoutSeconds(cmd, kwargs);
   const traceMode = normalizeTraceMode(opts.trace);
 
   const hookCtx: HookContext = {
@@ -226,17 +248,20 @@ export async function executeCommand(
         }
       }
 
-      ensureRequiredEnv(cmd);
       const BrowserFactory = getBrowserFactory(cmd.site);
       const contextId = resolveProfileContextId(opts.profile);
       const internal = cmd as InternalCliCommand;
+      const siteSession = resolveSiteSession(cmd, opts.siteSession);
+      const session = resolveAdapterBrowserSession(cmd, siteSession);
+      const keepTab = resolveKeepTab(siteSession, opts.keepTab);
+      const windowMode = resolveBrowserWindowMode('background', opts.windowMode);
       result = await browserSession(BrowserFactory, async (page) => {
         const observation = traceMode === 'off'
           ? null
           : new ObservationSession({
             scope: {
               contextId,
-              workspace: `site:${cmd.site}`,
+              session,
               target: page.getActivePage?.(),
               site: cmd.site,
               command: fullName(cmd),
@@ -253,7 +278,7 @@ export async function executeCommand(
           await page.startNetworkCapture?.().catch(() => false);
         }
         const preNavUrl = resolvePreNav(cmd);
-        if (preNavUrl) {
+        if (preNavUrl && await shouldRunPreNav(cmd, page, siteSession, preNavUrl)) {
           observation?.record({
             stream: 'action',
             name: 'pre_navigate',
@@ -298,12 +323,12 @@ export async function executeCommand(
             throw wrapped;
           }
         }
-        // --live / OPENCLI_LIVE=1 keeps the automation window open after the
-        // command finishes, so agents (or humans) can inspect the page state.
-        const keepOpen = process.env.OPENCLI_LIVE === '1' || process.env.OPENCLI_LIVE === 'true';
         try {
+          const browserTimeout = userTimeoutSec !== null
+            ? userTimeoutSec + RUNTIME_TIMEOUT_PADDING_SECONDS
+            : DEFAULT_BROWSER_COMMAND_TIMEOUT;
           const result = await runWithTimeout(runCommand(cmd, page, kwargs, debug), {
-            timeout: cmd.timeoutSeconds ?? DEFAULT_BROWSER_COMMAND_TIMEOUT,
+            timeout: browserTimeout,
             label: fullName(cmd),
           });
           observation?.record({
@@ -315,9 +340,10 @@ export async function executeCommand(
             await collectObservationEvidence(observation, page).catch(() => {});
             exportTraceArtifact(observation, 'success', undefined, opts.onTraceExport);
           }
-          // Adapter commands are one-shot — close the automation window immediately
-          // instead of waiting for the 30s idle timeout.
-          if (!keepOpen) await page.closeWindow?.().catch(() => {});
+          // Adapter commands are one-shot — release the current tab lease immediately
+          // instead of waiting for the 30s idle timeout. The automation container
+          // window stays open for reuse.
+          if (!keepTab) await page.closeWindow?.().catch(() => {});
           return result;
         } catch (err) {
           if (observation) {
@@ -337,21 +363,24 @@ export async function executeCommand(
               exportTraceArtifact(observation, 'failure', err, opts.onTraceExport);
             }
           }
-          // Close the automation window on failure too — without this, the window
-          // lingers until the extension's idle timer fires (unreliable on Windows
-          // where MV3 service workers may be suspended before setTimeout triggers).
-          if (!keepOpen) await page.closeWindow?.().catch(() => {});
+          // Release the tab lease on failure too — without this, the lease lingers
+          // until the extension's idle timer fires (unreliable on Windows where
+          // MV3 service workers may be suspended before setTimeout triggers).
+          if (!keepTab) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { workspace: `site:${cmd.site}:${crypto.randomUUID()}`, cdpEndpoint, contextId });
+      }, { session, cdpEndpoint, contextId, windowMode, surface: 'adapter', siteSession });
     } else {
-      // Non-browser commands: apply timeout only when explicitly configured.
-      const timeout = cmd.timeoutSeconds;
-      if (timeout !== undefined && timeout > 0) {
+      // Non-browser commands: enforce a timeout only when the command exposes
+      // a `--timeout` arg (and the resolved value is positive). Without that
+      // arg there is no meaningful default — non-browser cmds are diverse
+      // enough that a hard cap would do more harm than good.
+      if (userTimeoutSec !== null) {
+        const ceiling = userTimeoutSec + RUNTIME_TIMEOUT_PADDING_SECONDS;
         result = await runWithTimeout(runCommand(cmd, null, kwargs, debug), {
-          timeout,
+          timeout: ceiling,
           label: fullName(cmd),
-          hint: `Increase the adapter's timeoutSeconds setting (currently ${timeout}s)`,
+          hint: `Pass a higher --timeout value (currently ${userTimeoutSec}s)`,
         });
       } else {
         result = await runCommand(cmd, null, kwargs, debug);
@@ -448,4 +477,79 @@ export function prepareCommandArgs(
   const kwargs = coerceAndValidateArgs(cmd.args, rawKwargs);
   cmd.validateArgs?.(kwargs);
   return kwargs;
+}
+
+/**
+ * Runtime ceiling padding (seconds) added on top of the user's `--timeout`.
+ * The adapter's polling loop typically uses the full user value; the padding
+ * gives us room for the adapter to return + closeWindow + trace export before
+ * the runtime kills the Promise.
+ */
+const RUNTIME_TIMEOUT_PADDING_SECONDS = 30;
+
+function normalizeSiteSession(raw: unknown): SiteSessionMode | null {
+  if (raw === undefined || raw === null || raw === '') return null;
+  if (raw === 'ephemeral' || raw === 'persistent') return raw;
+  throw new ArgumentError(`--site-session must be one of: ephemeral, persistent. Received: "${String(raw)}"`);
+}
+
+function resolveSiteSession(cmd: CliCommand, rawOption?: unknown): SiteSessionMode {
+  return normalizeSiteSession(rawOption) ?? cmd.siteSession ?? 'ephemeral';
+}
+
+function resolveAdapterBrowserSession(cmd: CliCommand, siteSession: SiteSessionMode): string {
+  if (siteSession === 'persistent') return `site:${cmd.site}`;
+  return `site:${cmd.site}:${crypto.randomUUID()}`;
+}
+
+function normalizeBooleanOption(name: string, raw: unknown): boolean | null {
+  if (raw === undefined || raw === '') return null;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  throw new ArgumentError(`${name} must be one of: true, false. Received: "${String(raw)}"`);
+}
+
+function resolveKeepTab(siteSession: SiteSessionMode, rawOption?: unknown): boolean {
+  if (siteSession === 'persistent') return true;
+  return normalizeBooleanOption('--keep-tab', rawOption)
+    ?? normalizeBooleanOption('OPENCLI_KEEP_TAB', process.env.OPENCLI_KEEP_TAB)
+    ?? false;
+}
+
+function normalizeWindowMode(name: string, raw: unknown): BrowserWindowMode | null {
+  if (raw === undefined || raw === '') return null;
+  if (raw === 'foreground' || raw === 'background') return raw;
+  throw new ArgumentError(`${name} must be one of: foreground, background. Received: "${String(raw)}"`);
+}
+
+function resolveBrowserWindowMode(defaultMode: BrowserWindowMode = 'background', rawOption?: unknown): BrowserWindowMode {
+  return normalizeWindowMode('--window', rawOption)
+    ?? normalizeWindowMode('OPENCLI_WINDOW', process.env.OPENCLI_WINDOW)
+    ?? defaultMode;
+}
+
+/**
+ * Resolve the user-controllable `--timeout` arg, in seconds.
+ *
+ * Convention: a command opts into runtime-enforced timeouts by declaring an
+ * arg named `timeout`. The arg's `default` flows through `prepareCommandArgs`
+ * into `kwargs.timeout`, so by the time runtime enforcement runs, the value
+ * is the merged user-supplied-or-default seconds.
+ *
+ * Returns the parsed positive integer (seconds), or null if the command does
+ * not expose a `timeout` arg. Declaring `timeout` opts into runtime timeout
+ * enforcement, so invalid values must fail upfront instead of silently
+ * disabling the runtime ceiling.
+ */
+function readUserTimeoutSeconds(cmd: CliCommand, kwargs: CommandArgs): number | null {
+  if (!cmd.args.some(a => a.name === 'timeout')) return null;
+  const raw = kwargs.timeout;
+  if (raw === undefined || raw === null || raw === '') {
+    throw new ArgumentError(`Argument "timeout" must be a positive integer. Received: "${String(raw)}"`);
+  }
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new ArgumentError(`Argument "timeout" must be a positive integer. Received: "${String(raw)}"`);
+  }
+  return parsed;
 }

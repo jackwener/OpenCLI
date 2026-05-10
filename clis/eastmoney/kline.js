@@ -25,6 +25,7 @@ const ADJUST_MAP = {
 cli({
   site: 'eastmoney',
   name: 'kline',
+    access: 'read',
   description: 'K线历史数据（分/日/周/月/前复权/后复权）',
   domain: 'push2his.eastmoney.com',
   strategy: Strategy.PUBLIC,

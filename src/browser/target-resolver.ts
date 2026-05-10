@@ -295,8 +295,37 @@ export function resolveTargetJs(ref: string, opts: ResolveOptions = {}): string 
 }
 
 /**
+ * Generate JS that scrolls + measures `__resolved` without clicking.
+ *
+ * Generic click prefers CDP `Input.dispatchMouseEvent`, which fires the full
+ * pointer/mouse chain that Radix/MUI/shadcn dropdowns rely on. Keep measurement
+ * separate so the CDP-primary path does not call DOM `el.click()` first.
+ */
+export function boundingRectResolvedJs(opts: { skipScroll?: boolean } = {}): string {
+  const shouldScroll = opts.skipScroll ? 'false' : 'true';
+  return `
+    (() => {
+      const el = window.__resolved;
+      if (!el) throw new Error('No resolved element');
+      if (${shouldScroll}) el.scrollIntoView({ behavior: 'instant', block: 'center' });
+      const rect = el.getBoundingClientRect();
+      const w = Math.round(rect.width);
+      const h = Math.round(rect.height);
+      const x = Math.round(rect.left + rect.width / 2);
+      const y = Math.round(rect.top + rect.height / 2);
+      const visible = w > 0 && h > 0;
+      return { x, y, w, h, visible };
+    })()
+  `;
+}
+
+/**
  * Generate JS for click that uses the unified resolver.
  * Assumes resolveTargetJs has been called and __resolved is set.
+ *
+ * This is the JS fallback path. BasePage.click uses boundingRectResolvedJs for
+ * the CDP-primary path and only reaches this when native click is unavailable
+ * or the target has no usable rect.
  */
 export function clickResolvedJs(opts: { skipScroll?: boolean } = {}): string {
   const shouldScroll = opts.skipScroll ? 'false' : 'true';
@@ -354,6 +383,11 @@ export function typeResolvedJs(text: string): string {
     })()
   `;
 }
+
+export type FillResolvedResult =
+  | { ok: true; actual: string; expected: string; length: number; mode: 'input' | 'textarea' | 'contenteditable' }
+  | { ok: false; actual: string; expected: string; length: number; mode: 'input' | 'textarea' | 'contenteditable' }
+  | { ok: false; reason: string; tag?: string; type?: string; role?: string };
 
 /**
  * Prepare the resolved element for native CDP Input.insertText.
@@ -431,6 +465,50 @@ export function prepareNativeTypeResolvedJs(opts: { skipScroll?: boolean; skipFo
       return selected
         ? { ok: true, mode: isTextarea ? 'textarea' : 'input' }
         : { ok: false, reason: 'selection_unavailable', mode: isTextarea ? 'textarea' : 'input' };
+    })()
+  `;
+}
+
+/**
+ * Verify the exact value/text currently held by the resolved editable target.
+ * Assumes resolveTargetJs and prepareNativeTypeResolvedJs have already set
+ * `window.__resolved` to the normalized editable host.
+ */
+export function verifyFilledResolvedJs(expected: string): string {
+  const safeText = JSON.stringify(expected);
+  return `
+    (() => {
+      const el = window.__resolved;
+      if (!el) return { ok: false, reason: 'no_resolved_element' };
+
+      const tag = el.tagName ? el.tagName.toLowerCase() : '';
+      const isInput = el instanceof HTMLInputElement;
+      const isTextarea = el instanceof HTMLTextAreaElement;
+      const mode = el.isContentEditable
+        ? 'contenteditable'
+        : isTextarea
+          ? 'textarea'
+          : isInput
+            ? 'input'
+            : '';
+
+      if (!mode) {
+        return {
+          ok: false,
+          reason: 'not_editable',
+          tag,
+          role: el.getAttribute ? (el.getAttribute('role') || '') : '',
+        };
+      }
+
+      const actual = mode === 'contenteditable' ? (el.innerText || '') : String(el.value || '');
+      return {
+        ok: actual === ${safeText},
+        actual,
+        expected: ${safeText},
+        length: actual.length,
+        mode,
+      };
     })()
   `;
 }

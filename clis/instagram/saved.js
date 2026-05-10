@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'instagram',
     name: 'saved',
+    access: 'read',
     description: 'Get your saved Instagram posts (optionally from a specific collection)',
     domain: 'www.instagram.com',
     args: [

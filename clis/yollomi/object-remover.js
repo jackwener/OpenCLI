@@ -9,6 +9,7 @@ import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.j
 cli({
     site: 'yollomi',
     name: 'object-remover',
+    access: 'write',
     description: 'Remove unwanted objects from images (3 credits)',
     domain: YOLLOMI_DOMAIN,
     strategy: Strategy.COOKIE,

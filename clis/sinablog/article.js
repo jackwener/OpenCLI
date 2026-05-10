@@ -3,6 +3,7 @@ import { loadSinaBlogArticle } from './utils.js';
 cli({
     site: 'sinablog',
     name: 'article',
+    access: 'read',
     description: '获取新浪博客单篇文章详情',
     domain: 'blog.sina.com.cn',
     strategy: Strategy.COOKIE,

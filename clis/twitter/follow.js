@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'twitter',
     name: 'follow',
+    access: 'write',
     description: 'Follow a Twitter user',
     domain: 'x.com',
     strategy: Strategy.UI,

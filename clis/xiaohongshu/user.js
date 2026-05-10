@@ -22,6 +22,7 @@ async function readUserSnapshot(page) {
 cli({
     site: 'xiaohongshu',
     name: 'user',
+    access: 'read',
     description: 'Get public notes from a Xiaohongshu user profile',
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,

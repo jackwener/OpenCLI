@@ -4,10 +4,12 @@ import { DEEPSEEK_DOMAIN, ensureOnDeepSeek, getPageState } from './utils.js';
 export const statusCommand = cli({
     site: 'deepseek',
     name: 'status',
+    access: 'read',
     description: 'Check DeepSeek page availability and login state',
     domain: DEEPSEEK_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [],
     columns: ['Status', 'Login', 'Url'],

@@ -2,37 +2,12 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './reply.js';
-function createPageMock(evaluateResults, overrides = {}) {
-    const evaluate = vi.fn();
-    for (const result of evaluateResults) {
-        evaluate.mockResolvedValueOnce(result);
-    }
-    return {
-        goto: vi.fn().mockResolvedValue(undefined),
-        evaluate,
-        snapshot: vi.fn().mockResolvedValue(undefined),
-        click: vi.fn().mockResolvedValue(undefined),
-        typeText: vi.fn().mockResolvedValue(undefined),
-        pressKey: vi.fn().mockResolvedValue(undefined),
-        scrollTo: vi.fn().mockResolvedValue(undefined),
-        getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
-        wait: vi.fn().mockResolvedValue(undefined),
-        tabs: vi.fn().mockResolvedValue([]),
-        selectTab: vi.fn().mockResolvedValue(undefined),
-        networkRequests: vi.fn().mockResolvedValue([]),
-        consoleMessages: vi.fn().mockResolvedValue([]),
-        scroll: vi.fn().mockResolvedValue(undefined),
-        autoScroll: vi.fn().mockResolvedValue(undefined),
-        installInterceptor: vi.fn().mockResolvedValue(undefined),
-        getInterceptedRequests: vi.fn().mockResolvedValue([]),
-        getCookies: vi.fn().mockResolvedValue([]),
-        screenshot: vi.fn().mockResolvedValue(''),
-        waitForCapture: vi.fn().mockResolvedValue(undefined),
-        ...overrides,
-    };
-}
+import { __test__ as utilsTest } from './utils.js';
+import { createPageMock } from '../test-utils.js';
+
 describe('twitter reply command', () => {
     it('uses the dedicated reply composer for text-only replies too', async () => {
         const cmd = getRegistry().get('twitter/reply');
@@ -111,7 +86,11 @@ describe('twitter reply command', () => {
         expect(fetchMock).toHaveBeenCalledWith('https://example.com/qr');
         expect(setFileInput).toHaveBeenCalledTimes(1);
         const uploadedPath = setFileInput.mock.calls[0][0][0];
-        expect(uploadedPath).toMatch(/opencli-twitter-reply-.*\/image\.png$/);
+        // Tmp dir is created by utils.downloadRemoteImage with the
+        // 'opencli-twitter-' prefix; final extension comes from Content-Type.
+        expect(uploadedPath).toMatch(/opencli-twitter-.*\/image\.png$/);
+        // Per-call tmp dir is removed in the adapter's finally block, so the
+        // downloaded file no longer exists once the command returns.
         expect(fs.existsSync(uploadedPath)).toBe(false);
         expect(result).toEqual([
             {
@@ -123,10 +102,6 @@ describe('twitter reply command', () => {
         ]);
         vi.unstubAllGlobals();
     });
-    it('rejects invalid image paths early', async () => {
-        await expect(() => __test__.resolveImagePath('/tmp/does-not-exist.png'))
-            .toThrow('Image file not found');
-    });
     it('rejects using --image and --image-url together', async () => {
         const cmd = getRegistry().get('twitter/reply');
         expect(cmd?.func).toBeTypeOf('function');
@@ -136,16 +111,31 @@ describe('twitter reply command', () => {
             text: 'nope',
             image: '/tmp/a.png',
             'image-url': 'https://example.com/a.png',
-        })).rejects.toThrow('Use either --image or --image-url, not both.');
+        })).rejects.toThrow(CommandExecutionError);
     });
-    it('extracts tweet ids from both user and i/status URLs', () => {
-        expect(__test__.extractTweetId('https://x.com/_kop6/status/2040254679301718161?s=20')).toBe('2040254679301718161');
-        expect(__test__.extractTweetId('https://x.com/i/status/2040318731105313143')).toBe('2040318731105313143');
+    it('rejects malformed tweet URLs before any browser interaction', () => {
+        // buildReplyComposerUrl runs parseTweetUrl synchronously; substring matches
+        // and off-domain hosts now throw ArgumentError instead of silently
+        // producing a wrong-host /compose/post URL.
+        expect(() => __test__.buildReplyComposerUrl('https://x.com/alice/home')).toThrow(ArgumentError);
+        expect(() => __test__.buildReplyComposerUrl('https://x.com.evil.com/alice/status/2040254679301718161')).toThrow(ArgumentError);
+        expect(() => __test__.buildReplyComposerUrl('not a url')).toThrow(ArgumentError);
+    });
+    it('builds the reply composer URL for both /<user>/status/<id> and /i/status/<id> shapes', () => {
+        expect(__test__.buildReplyComposerUrl('https://x.com/_kop6/status/2040254679301718161?s=20'))
+            .toBe('https://x.com/compose/post?in_reply_to=2040254679301718161');
         expect(__test__.buildReplyComposerUrl('https://x.com/i/status/2040318731105313143'))
             .toBe('https://x.com/compose/post?in_reply_to=2040318731105313143');
     });
+});
+
+describe('twitter image helpers (utils.js)', () => {
+    it('rejects invalid image paths early', () => {
+        expect(() => utilsTest.resolveImagePath('/tmp/does-not-exist.png'))
+            .toThrow(ArgumentError);
+    });
     it('prefers content-type when resolving remote image extensions', () => {
-        expect(__test__.resolveImageExtension('https://example.com/no-ext', 'image/webp')).toBe('.webp');
-        expect(__test__.resolveImageExtension('https://example.com/a.jpeg?x=1', null)).toBe('.jpeg');
+        expect(utilsTest.resolveImageExtension('https://example.com/no-ext', 'image/webp')).toBe('.webp');
+        expect(utilsTest.resolveImageExtension('https://example.com/a.jpeg?x=1', null)).toBe('.jpeg');
     });
 });

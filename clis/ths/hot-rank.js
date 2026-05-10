@@ -5,6 +5,7 @@ const THS_HOT_URL = 'https://eq.10jqka.com.cn/webpage/ths-hot-list/index.html?sh
 cli({
   site: 'ths',
   name: 'hot-rank',
+    access: 'read',
   description: '同花顺热股榜',
   domain: 'eq.10jqka.com.cn',
   strategy: Strategy.COOKIE,

@@ -5,6 +5,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'youtube',
     name: 'search',
+    access: 'read',
     description: 'Search YouTube videos',
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,

@@ -4,6 +4,7 @@ import { formatSummaryRow, wikiFetch } from './utils.js';
 cli({
     site: 'wikipedia',
     name: 'summary',
+    access: 'read',
     description: 'Get Wikipedia article summary',
     strategy: Strategy.PUBLIC,
     browser: false,

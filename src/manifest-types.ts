@@ -12,6 +12,8 @@ export interface ManifestEntry {
   name: string;
   aliases?: string[];
   description: string;
+  access: 'read' | 'write';
+  example?: string;
   domain?: string;
   strategy: string;
   browser: boolean;
@@ -27,9 +29,7 @@ export interface ManifestEntry {
   }>;
   columns?: string[];
   pipeline?: Record<string, unknown>[];
-  timeout?: number;
-  deprecated?: boolean | string;
-  replacedBy?: string;
+  defaultFormat?: 'table' | 'plain' | 'json' | 'yaml' | 'yml' | 'md' | 'markdown' | 'csv';
   type: 'js';
   /** Relative path from clis/ dir, e.g. 'bilibili/search.js' */
   modulePath?: string;
@@ -37,4 +37,6 @@ export interface ManifestEntry {
   sourceFile?: string;
   /** Pre-navigation control — see CliCommand.navigateBefore */
   navigateBefore?: boolean | string;
+  /** Site session lifecycle defaults — see CliCommand.siteSession */
+  siteSession?: 'ephemeral' | 'persistent';
 }

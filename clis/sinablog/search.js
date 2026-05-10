@@ -38,6 +38,7 @@ async function searchSinaBlog(keyword, limit) {
 cli({
     site: 'sinablog',
     name: 'search',
+    access: 'read',
     description: '搜索新浪博客文章（通过新浪搜索）',
     domain: 'blog.sina.com.cn',
     strategy: Strategy.PUBLIC,

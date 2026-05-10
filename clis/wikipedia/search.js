@@ -4,6 +4,7 @@ import { wikiFetch } from './utils.js';
 cli({
     site: 'wikipedia',
     name: 'search',
+    access: 'read',
     description: 'Search Wikipedia articles',
     strategy: Strategy.PUBLIC,
     browser: false,

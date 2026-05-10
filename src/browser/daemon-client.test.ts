@@ -183,6 +183,19 @@ describe('daemon-client', () => {
     expect(body.contextId).toBe('work');
   });
 
+  it('sendCommand uses explicit windowMode before OPENCLI_WINDOW env fallback', async () => {
+    vi.stubEnv('OPENCLI_WINDOW', 'foreground');
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+    } as Response);
+
+    await sendCommand('exec', { code: '1 + 1', windowMode: 'background' });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { windowMode?: string };
+    expect(body.windowMode).toBe('background');
+  });
+
   it('sendCommand retries with a new id when daemon reports a duplicate pending id', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_123);
     const fetchMock = vi.mocked(fetch);

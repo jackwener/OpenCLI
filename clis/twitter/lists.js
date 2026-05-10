@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { TWITTER_BEARER_TOKEN } from './utils.js';
 
-const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 const LISTS_QUERY_ID = '78UbkyXwXBD98IgUWXOy9g';
 const OPERATION_NAME = 'ListsManagementPageTimeline';
 
@@ -101,21 +101,20 @@ export function parseListsManagement(data, seen) {
 export const command = cli({
     site: 'twitter',
     name: 'lists',
+    access: 'read',
     description: 'Get Twitter/X lists for the logged-in user (owned + subscribed)',
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
-        { name: 'limit', type: 'int', default: 50 },
+        { name: 'limit', type: 'int', default: 50, help: 'Maximum number of lists to return (default 50).' },
     ],
     columns: ['id', 'name', 'members', 'followers', 'mode'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 50;
-        await page.goto('https://x.com');
-        await page.wait(3);
-        const ct0 = await page.evaluate(`() => {
-            return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('ct0='))?.split('=')[1] || null;
-        }`);
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
         const queryId = await page.evaluate(`async () => {
@@ -143,7 +142,7 @@ export const command = cli({
             return null;
         }`) || LISTS_QUERY_ID;
         const headers = JSON.stringify({
-            'Authorization': `Bearer ${decodeURIComponent(BEARER_TOKEN)}`,
+            'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
             'X-Twitter-Auth-Type': 'OAuth2Session',
             'X-Twitter-Active-User': 'yes',

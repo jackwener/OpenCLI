@@ -57,6 +57,7 @@ const DEFAULT_COVER_TOOLS_INFO = JSON.stringify({
 cli({
     site: 'douyin',
     name: 'publish',
+    access: 'write',
     description: '定时发布视频到抖音（必须设置 2h ~ 14天后的发布时间）',
     domain: 'creator.douyin.com',
     strategy: Strategy.COOKIE,

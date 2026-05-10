@@ -12,6 +12,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./utils.js', () => ({
     getChatGPTVisibleImageUrls: mocks.getChatGPTVisibleImageUrls,
+    normalizeBooleanFlag: (value, fallback = false) => {
+        if (typeof value === 'boolean') return value;
+        if (value == null || value === '') return fallback;
+        const normalized = String(value).trim().toLowerCase();
+        return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
+    },
     sendChatGPTMessage: mocks.sendChatGPTMessage,
     waitForChatGPTImages: mocks.waitForChatGPTImages,
     getChatGPTImageAssets: mocks.getChatGPTImageAssets,
@@ -63,6 +69,21 @@ describe('chatgpt image output paths', () => {
 });
 
 describe('chatgpt image failure contracts', () => {
+    it('fails fast when the image prompt cannot be sent', async () => {
+        mocks.sendChatGPTMessage.mockResolvedValue(false);
+
+        await expect(imageCommand.func(createPage(), {
+            prompt: 'cat',
+            op: '',
+            sd: false,
+            timeout: 240,
+        })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('Failed to send image prompt to ChatGPT'),
+        });
+        expect(mocks.waitForChatGPTImages).not.toHaveBeenCalled();
+    });
+
     it('fails fast when image generation detection finds no new images', async () => {
         mocks.waitForChatGPTImages.mockResolvedValue([]);
 
@@ -70,6 +91,7 @@ describe('chatgpt image failure contracts', () => {
             prompt: 'cat',
             op: '',
             sd: false,
+            timeout: 240,
         })).rejects.toMatchObject({
             code: 'EMPTY_RESULT',
             message: expect.stringContaining('chatgpt image returned no data'),
@@ -84,6 +106,7 @@ describe('chatgpt image failure contracts', () => {
             prompt: 'cat',
             op: '',
             sd: false,
+            timeout: 240,
         })).rejects.toMatchObject({
             code: 'COMMAND_EXEC',
             message: expect.stringContaining('Failed to export generated ChatGPT image assets'),

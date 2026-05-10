@@ -2,12 +2,14 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const watchCommand = cli({
     site: 'antigravity',
     name: 'watch',
+    access: 'read',
     description: 'Stream new chat messages from Antigravity in real-time',
     domain: 'localhost',
     strategy: Strategy.UI,
     browser: true,
-    args: [],
-    timeoutSeconds: 86400, // Run for up to 24 hours
+    args: [
+        { name: 'timeout', type: 'int', required: false, default: 86400, help: 'Max seconds to keep watching (default: 86400 — 24h)' },
+    ],
     columns: [], // We use direct stdout streaming
     func: async (page) => {
         console.log('Watching Antigravity chat... (Press Ctrl+C to stop)');

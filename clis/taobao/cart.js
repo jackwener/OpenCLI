@@ -4,6 +4,7 @@ import { clampInt } from '../_shared/common.js';
 cli({
     site: 'taobao',
     name: 'cart',
+    access: 'read',
     description: '查看淘宝购物车',
     domain: 'cart.taobao.com',
     strategy: Strategy.COOKIE,

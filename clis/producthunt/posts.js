@@ -6,6 +6,7 @@ import { fetchFeed, PRODUCTHUNT_CATEGORY_SLUGS } from './utils.js';
 cli({
     site: 'producthunt',
     name: 'posts',
+    access: 'read',
     description: 'Latest Product Hunt launches (optional category filter)',
     domain: 'www.producthunt.com',
     strategy: Strategy.PUBLIC,

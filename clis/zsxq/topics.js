@@ -3,6 +3,7 @@ import { getActiveGroupId, ensureZsxqAuth, ensureZsxqPage, fetchFirstJson, getTo
 cli({
     site: 'zsxq',
     name: 'topics',
+    access: 'read',
     description: '获取当前星球的话题列表',
     domain: 'wx.zsxq.com',
     strategy: Strategy.COOKIE,

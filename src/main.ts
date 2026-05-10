@@ -30,23 +30,6 @@ const __dirname = path.dirname(__filename);
 const BUILTIN_CLIS = path.join(findPackageRoot(__filename), 'clis');
 const USER_CLIS = path.join(os.homedir(), '.opencli', 'clis');
 
-// ── Session lifecycle flags ──────────────────────────────────────────────
-// `--live` / `--focus` are top-level-ish toggles that tweak the automation
-// window's lifecycle. We strip them from argv before Commander runs so they
-// can be placed anywhere and work on any subcommand (adapter or browser).
-{
-  const liveIdx = process.argv.indexOf('--live');
-  if (liveIdx !== -1) {
-    process.env.OPENCLI_LIVE = '1';
-    process.argv.splice(liveIdx, 1);
-  }
-  const focusIdx = process.argv.indexOf('--focus');
-  if (focusIdx !== -1) {
-    process.env.OPENCLI_WINDOW_FOCUSED = '1';
-    process.argv.splice(focusIdx, 1);
-  }
-}
-
 // ── Ultra-fast path: lightweight commands bypass full discovery ──────────
 // These are high-frequency or trivial paths that must not pay the startup tax.
 const argv = process.argv.slice(2);
@@ -125,13 +108,18 @@ installNodeNetwork();
 //    user-CLI discovery MUST run after built-in discovery to preserve the
 //    intended override order (user adapters override built-in ones).
 //  - discoverPlugins runs last: plugins may override both built-in and user CLIs.
-const [, ,] = await Promise.all([
-  ensureUserCliCompatShims(),
-  ensureUserAdapters(),
-  discoverClis(BUILTIN_CLIS),
-]);
-await discoverClis(USER_CLIS);
-await discoverPlugins();
+const skipUserDiscovery = argv[0] === 'convention-audit';
+if (skipUserDiscovery) {
+  await discoverClis(BUILTIN_CLIS);
+} else {
+  const [, ,] = await Promise.all([
+    ensureUserCliCompatShims(),
+    ensureUserAdapters(),
+    discoverClis(BUILTIN_CLIS),
+  ]);
+  await discoverClis(USER_CLIS);
+  await discoverPlugins();
+}
 
 // Register exit hook: notice appears after command output (same as npm/gh/yarn)
 registerUpdateNoticeOnExit();

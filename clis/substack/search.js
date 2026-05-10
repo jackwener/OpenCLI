@@ -59,6 +59,7 @@ async function searchPublications(keyword, limit) {
 cli({
     site: 'substack',
     name: 'search',
+    access: 'read',
     description: '搜索 Substack 文章和 Newsletter',
     domain: 'substack.com',
     strategy: Strategy.PUBLIC,

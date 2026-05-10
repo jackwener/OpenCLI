@@ -3,6 +3,7 @@ import { requirePage, navigateToChat, fetchFriendList } from './utils.js';
 cli({
     site: 'boss',
     name: 'chatlist',
+    access: 'read',
     description: 'BOSS直聘查看聊天列表（招聘端）',
     domain: 'www.zhipin.com',
     strategy: Strategy.COOKIE,

@@ -6,6 +6,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'v2ex',
     name: 'daily',
+    access: 'write',
     description: 'V2EX 每日签到并领取铜币',
     domain: 'www.v2ex.com',
     strategy: Strategy.COOKIE,

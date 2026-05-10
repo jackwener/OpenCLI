@@ -104,6 +104,7 @@ function mapCollectionItem(item, rank) {
 cli({
   site: 'zhihu',
   name: 'collection',
+    access: 'read',
   description: '知乎收藏夹内容列表（需要登录）',
   domain: 'www.zhihu.com',
   strategy: Strategy.COOKIE,

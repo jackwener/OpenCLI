@@ -9,6 +9,7 @@ import { loadXiaoyuzhouCredentials, requestXiaoyuzhouJson } from './auth.js';
 cli({
     site: 'xiaoyuzhou',
     name: 'download',
+    access: 'read',
     description: 'Download Xiaoyuzhou episode audio',
     domain: 'www.xiaoyuzhoufm.com',
     strategy: Strategy.LOCAL,

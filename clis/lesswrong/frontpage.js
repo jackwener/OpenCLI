@@ -3,6 +3,7 @@ import { DOMAIN, SITE, gqlRequest } from './_helpers.js';
 cli({
     site: SITE,
     name: 'frontpage',
+    access: 'read',
     description: 'Algorithmic frontpage',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,

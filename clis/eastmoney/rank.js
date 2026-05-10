@@ -33,6 +33,7 @@ const FIELDS =
 cli({
   site: 'eastmoney',
   name: 'rank',
+    access: 'read',
   description: '东财市场涨跌/成交排行（沪深/北证/创/科/港/美）',
   domain: 'push2.eastmoney.com',
   strategy: Strategy.PUBLIC,

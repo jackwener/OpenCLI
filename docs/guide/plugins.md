@@ -171,6 +171,8 @@ cli({
   site: 'my-plugin',
   name: 'my-command',
   description: 'My custom command',
+  access: 'read', // 'read' | 'write'
+  example: 'opencli my-plugin my-command -f yaml',
   strategy: Strategy.PUBLIC,
   browser: false,
   args: [

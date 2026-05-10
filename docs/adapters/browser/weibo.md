@@ -34,6 +34,9 @@ opencli weibo feed --limit 10
 # Following-only timeline (strict chronological following feed)
 opencli weibo feed --type following --limit 10
 
+# Read a post from feed/search using the emitted id
+opencli weibo post <id>
+
 # Verbose mode
 opencli weibo hot -v
 
@@ -46,6 +49,11 @@ opencli weibo publish "Hello from OpenCLI"
 # Publish text with images (executes immediately)
 opencli weibo publish "Hello with images" --images /path/a.jpg,/path/b.png
 ```
+
+## Listing Columns
+
+`feed` and `search` expose `id` for post rows. Pass that value directly to
+`opencli weibo post <id>`. `hot` rows are search topics, not post rows.
 
 ## Prerequisites
 

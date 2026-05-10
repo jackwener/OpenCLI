@@ -54,6 +54,8 @@ opencli browser verify example/detail --write-fixture --seed-args '["https://exa
 
 `--seed-args` 只在 fixture 没有 `args` 时生效。fixture 写出后，`opencli browser verify` 会从 `~/.opencli/sites/<site>/verify/<command>.json` 读取 args。
 
+`browser verify` 也会先检查 row shape：每行保持紧凑（顶层 key 不超过 12 个）、嵌套深度不超过 1，并且 `id` / `user_id` 这类 id-shaped 字段必须在顶层。
+
 ## 本地覆盖官方 adapter
 
 如果你想改一个已有官方 adapter，用 `adapter eject`。

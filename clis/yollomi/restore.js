@@ -9,6 +9,7 @@ import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.j
 cli({
     site: 'yollomi',
     name: 'restore',
+    access: 'write',
     description: 'Restore old or damaged photos with AI (4 credits)',
     domain: YOLLOMI_DOMAIN,
     strategy: Strategy.COOKIE,

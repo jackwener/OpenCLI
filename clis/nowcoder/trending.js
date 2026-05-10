@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'nowcoder',
     name: 'trending',
+    access: 'read',
     description: 'Trending posts',
     domain: 'www.nowcoder.com',
     strategy: Strategy.PUBLIC,

@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const readCommand = cli({
     site: 'antigravity',
     name: 'read',
+    access: 'read',
     description: 'Read the latest chat messages from Antigravity AI',
     domain: 'localhost',
     strategy: Strategy.UI,

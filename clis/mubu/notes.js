@@ -158,6 +158,7 @@ function yearsInRange(start, end) {
 cli({
   site: 'mubu',
   name: 'notes',
+    access: 'read',
   description: '读取幕布速记（默认今天）。支持 --date/--month/--year/--from/--to 指定时间范围，--list 为概览模式（日期+条数）。',
   domain: 'mubu.com',
   strategy: Strategy.COOKIE,

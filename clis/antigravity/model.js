@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const modelCommand = cli({
     site: 'antigravity',
     name: 'model',
+    access: 'read',
     description: 'Switch the active LLM model in Antigravity',
     domain: 'localhost',
     strategy: Strategy.UI,

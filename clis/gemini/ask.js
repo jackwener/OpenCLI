@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError } from '@jackwener/opencli/errors';
 import { GEMINI_DOMAIN, readGeminiSnapshot, sendGeminiMessage, startNewGeminiChat, waitForGeminiResponse, waitForGeminiSubmission } from './utils.js';
 function normalizeBooleanFlag(value) {
     if (typeof value === 'boolean')
@@ -10,22 +11,26 @@ const NO_RESPONSE_PREFIX = '[NO RESPONSE]';
 export const askCommand = cli({
     site: 'gemini',
     name: 'ask',
+    access: 'write',
     description: 'Send a prompt to Gemini and return only the assistant response',
     domain: GEMINI_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     navigateBefore: false,
     defaultFormat: 'plain',
-    timeoutSeconds: 180,
     args: [
         { name: 'prompt', required: true, positional: true, help: 'Prompt to send' },
-        { name: 'timeout', required: false, help: 'Max seconds to wait (default: 60)', default: '60' },
+        { name: 'timeout', type: 'int', required: false, help: 'Max seconds to wait (default: 60)', default: 60 },
         { name: 'new', required: false, help: 'Start a new chat first (true/false, default: false)', default: 'false' },
     ],
     columns: ['response'],
     func: async (page, kwargs) => {
         const prompt = kwargs.prompt;
-        const timeout = parseInt(kwargs.timeout, 10) || 60;
+        const timeout = kwargs.timeout;
+        if (!Number.isInteger(timeout) || timeout < 1) {
+            throw new ArgumentError('--timeout must be a positive integer (seconds)');
+        }
         const startFresh = normalizeBooleanFlag(kwargs.new);
         if (startFresh)
             await startNewGeminiChat(page);

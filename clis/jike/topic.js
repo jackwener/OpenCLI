@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'jike',
     name: 'topic',
+    access: 'read',
     description: '即刻话题/圈子帖子',
     domain: 'm.okjike.com',
     browser: true,

@@ -2,13 +2,123 @@
 
 ## Unreleased
 
+### ⚠ BREAKING CHANGES
+
+* **browser session model** — replace the browser-facing `--workspace` model with explicit `--session <name>` on `opencli browser *`. Browser commands now require a session name, `browser bind`/`unbind` use `--session`, and bind no longer accepts `--domain`, `--path-prefix`, or `--allow-navigate-bound`. Browser primitives keep their session tab by design; the browser namespace no longer exposes `--keep-tab`.
+* **adapter site sessions** — replace adapter metadata `browserSession: { reuse: 'site' }` with `siteSession: 'persistent'`, and replace the user override `--reuse <none|site>` / `OPENCLI_BROWSER_REUSE` with `--site-session <ephemeral|persistent>`. Persistent site sessions keep a stable site tab open without idle expiry.
+
+### Internal
+
+* **extension 1.0.11** — switch Browser Bridge lease routing from user-facing workspaces to explicit browser sessions.
+
+## [1.7.16](https://github.com/jackwener/opencli/compare/v1.7.15...v1.7.16) (2026-05-11)
+
+Extension bumped to 1.0.10 (rename adapter-owned tab group `OpenCLI Automation` → `OpenCLI Adapter`). Performance and stability sweep across browser-backed adapters; new external CLI integrations (tg-cli, discord-cli, wx-cli).
+
+### Features
+
+* **openreview** — add `author` command for ID-explicit publication lookup. ([#1365](https://github.com/jackwener/opencli/issues/1365))
+* **external** — register `tg-cli`, `discord-cli`, and `wx-cli` as external CLI integrations. ([#1458](https://github.com/jackwener/opencli/issues/1458))
+
+### Bug Fixes
+
+* **xiaohongshu** — fall back to base64 upload when CDP `DOM.setFileInputFiles` returns `Not allowed` on creator center. ([#1374](https://github.com/jackwener/opencli/issues/1374))
+* **chatgpt** — switch to locale-stable send button selector so non-English UIs don't break send. ([#1354](https://github.com/jackwener/opencli/issues/1354))
+
+### Performance
+
+* **adapters** — hoist cookie reads to `page.getCookies` across Tier 1 (25 files), eliminating per-call CDP round trips. ([#1450](https://github.com/jackwener/opencli/issues/1450))
+* **twitter** — drop redundant `goto + wait` in adapter steps; framework auto pre-navigates. ([#1451](https://github.com/jackwener/opencli/issues/1451))
+* **twitter** — enable `browserSession.reuse: 'site'` on 17 read-only adapters so repeated reads share one tab. ([#1454](https://github.com/jackwener/opencli/issues/1454))
+* **reddit** — opt 13 browser-backed adapters into shared site-tab lease. ([#1455](https://github.com/jackwener/opencli/issues/1455))
+* **claude** — replace fixed-sleep waits with selector-based readiness on streaming flows. ([#1452](https://github.com/jackwener/opencli/issues/1452))
+* **deepseek** — replace fixed-sleep waits with selector-based readiness on streaming flows. ([#1449](https://github.com/jackwener/opencli/issues/1449))
+* **chatgpt** — replace fixed-sleep waits with selector-based readiness (D3). ([#1456](https://github.com/jackwener/opencli/issues/1456))
+
+### Refactor
+
+* **browser** — split interactive and automation windows so `opencli browser *` and adapter-driven background commands no longer share one Chrome window; tab groups are isolated by role.
+
+### Internal
+
+* **extension 1.0.10** — rename the adapter-owned Chrome tab group from `OpenCLI Automation` to `OpenCLI Adapter`. ([#1457](https://github.com/jackwener/opencli/issues/1457))
+* **docs** — list `tg-cli`, `discord-cli`, `wx-cli` in External CLI README sections. ([#1459](https://github.com/jackwener/opencli/issues/1459))
+
+## [1.7.15](https://github.com/jackwener/opencli/compare/v1.7.14...v1.7.15) (2026-05-10)
+
+Extension bumped to 1.0.9 (Accessibility.enable allowlist + downloads permission + cross-origin frame target attach for AX). Major Browser Agent Runtime release: full Phase 0/1/2 alignment with `vercel-labs/agent-browser` model — CDP-primary input, AX snapshot/refs with stale recovery, semantic locators across all primitives, full form toolbelt (hover/focus/dblclick/check/uncheck/upload/drag/wait-download), annotated screenshots, and same-origin iframe AX routing. Cross-origin OOPIF AX is best-effort (Chrome extension API limitation).
+
+### ⚠ BREAKING CHANGES
+
+* **browser lifecycle** — replace `--focus` / `OPENCLI_WINDOW_FOCUSED` with `--window foreground|background` / `OPENCLI_WINDOW`, and replace `--live` / `OPENCLI_LIVE` with `--keep-tab true|false` / `OPENCLI_KEEP_TAB`. `opencli browser *` defaults to a foreground window and keeps its tab; browser-backed adapter commands default to a background automation window and release their tab unless the adapter uses site-level reuse.
+
+### Features
+
+* **help / browser** — `opencli browser --help -f yaml|json` now emits a structured, agent-ready index of all browser leaf commands (including nested `tab`, `get`, and `dialog` commands), their positionals, command options, namespace options, and root global options. Individual browser commands also support structured help, backed by a shared Commander option/argument spec extractor.
+* **help / built-in namespaces** — `opencli daemon|plugin|adapter|profile --help -f yaml|json` now emit the same structured payload as `browser`. One agent call returns every leaf's positionals, options, descriptions, and global options — no per-leaf `--help` follow-ups needed. Original namespace descriptions are preserved through `applyRootSubcommandSummaries()` via a snapshot at namespace declaration time.
+* **browser state** — add opt-in AX snapshot refs via `browser state --source ax`, including backend-node click resolution and role/name stale-ref recovery for the Phase 0 browser-agent runtime prototype.
+* **browser state** — AX snapshots now include same-origin iframe refs, and `browser state --compare-sources` prints DOM-vs-AX observation metrics for the Phase 1 default-source decision without dumping page contents.
+* **browser locators** — `browser find`, `browser click`, and `browser get text|value|attributes` now accept semantic locator flags (`--role`, `--name`, `--label`, `--text`, `--testid`) so agents can act on common controls without a separate state-ref lookup.
+* **browser locators** — semantic locator flags now work across input/action primitives (`type`, `fill`, `select`, `hover`, `focus`, `dblclick`, `check`, `uncheck`, `upload`) plus prefixed `--from-*` / `--to-*` locators for `drag`.
+* **browser actions** — add `browser hover`, `browser focus`, and `browser dblclick` primitives backed by the same target resolver and CDP input path as `browser click`.
+* **browser actions** — add `browser check` and `browser uncheck` primitives that ensure checkbox / radio / aria-checked controls reach the requested state instead of blindly toggling.
+* **browser upload** — add `browser upload <target> <file...>` to attach local files to `input[type=file]` targets through CDP `DOM.setFileInputFiles`, with local path validation and file-input verification.
+* **browser actions** — add `browser drag <source> <target>` for CDP mouse drag sequences between two resolved element centers.
+* **browser wait / extension 1.0.8** — add `browser wait download [pattern]` backed by Chrome's downloads lifecycle API, so agents can wait for file downloads by filename/URL pattern and receive completed/failed download metadata.
+* **browser state / extension 1.0.9** — AX snapshots can now route same-origin iframe refs through `frameId`. Cross-origin OOPIF AX routing is best-effort because real Chrome extension smoke tests show `chrome.debugger` may not expose attachable iframe targets to extensions.
+* **browser screenshot** — add `browser screenshot --annotate`, which refreshes DOM refs and overlays visible `[N]` labels on the screenshot so visual inspection maps back to `browser click <ref>` targets.
+
+### Bug Fixes
+
+* **browser click** — `browser click` now prefers CDP `Input.dispatchMouseEvent` over DOM `el.click()`, so custom dropdowns that depend on pointer/mouse events (Radix, shadcn, Material UI, Mercury-style category pickers) open and select reliably while retaining JS click as a fallback for older backends or zero-rect targets.
+* **browser state / extension 1.0.7** — `browser state --source ax` now enables the CDP Accessibility domain before reading the AX tree, fixing real-Chrome snapshots that previously returned only `RootWebArea` with zero refs.
+* **help / build** — every positional arg must now declare a non-empty `help` string. The build-manifest step fails closed when a positional has empty / whitespace-only / missing `help`, so `opencli <site> <cmd> --help` always shows callers what each parameter is for. Pre-existing offenders (`twitter followers/following/list-add/list-remove/list-tweets/search/thread`, `reddit search/subreddit/user/user-comments/user-posts`, `douyin stats/update`, `bilibili subtitle`, `jike search`) now have explicit help text — most notably `twitter followers [user]` and `following [user]` now document that omitting the user fetches the currently logged-in account.
+
+## [1.7.14](https://github.com/jackwener/opencli/compare/v1.7.13...v1.7.14) (2026-05-08)
+
+### Features
+
+* **help** — adapter help is now agent-friendly: per-command listings drop the `[options]` noise from globally-shared options (`--format`, `--trace`, `-v`, `-h`, etc.) and only mention them at the site level, so `opencli twitter` etc. read like a flat command index. ([#1401](https://github.com/jackwener/opencli/issues/1401))
+* **twitter** — write-action symmetry P0: add `unlike`, `retweet`, `unretweet`, and `quote` to round out the read/write coverage. ([#1400](https://github.com/jackwener/opencli/issues/1400))
+
+### Bug Fixes
+
+* **browser daemon** — `npm install -g @jackwener/opencli@latest` now correctly auto-restarts a stale ready-state daemon so users pick up the new version without a manual `opencli daemon restart`. ([#1399](https://github.com/jackwener/opencli/issues/1399))
+
+## [1.7.13](https://github.com/jackwener/opencli/compare/v1.7.12...v1.7.13) (2026-05-07)
+
+Extension bumped to 1.0.6 (screenshot `--width` / `--height` / `--full-page` flags, automation tab group color marker, automation container reuse fix).
+
+### ⚠ BREAKING CHANGES
+
+* **linux-do** — remove deprecated compatibility shims `linux-do hot`, `linux-do category`, `linux-do latest`. Use `linux-do feed --view top --period <period>`, `linux-do feed --category <id-or-name>`, and `linux-do feed --view latest` instead.
+* **grok ask** — drop the `--web` flag and the legacy `<textarea>` composer path. The default flow is now the only path and uses the current ProseMirror+TipTap composer (the path that used to require `--web true`). Existing scripts passing `--web` will get an "unknown option" error from commander; remove the flag.
+* **env** — rename `OPENCLI_BROWSER_TIMEOUT` to `OPENCLI_BROWSER_IDLE_TIMEOUT`. The variable controls workspace lease idle release time, not per-command runtime; the new name reflects that. Old name was undocumented and removed without a fallback.
+* **registry** — remove the unused `Strategy.HEADER`; adapter authors should use `Strategy.COOKIE` and set headers explicitly inside browser-side fetches.
+
 ### Features
 
 * **observation** — add trace artifact primitives, `browser console`, `browser network --since/--follow/--failed`, and adapter `--trace=retain-on-failure` for failure-retained browser evidence.
 * **autofix** — retire `OPENCLI_DIAGNOSTIC`; adapter repair now uses `--trace retain-on-failure`, trace `summary.md`, and error-envelope trace metadata.
 * **browser** — `bind` attaches `bound:*` workspaces to user-owned Chrome tabs without taking over window lifecycle; `sessions` reports `idleMsRemaining: null` for bound workspaces because they do not schedule idle close timers. ([#1169](https://github.com/jackwener/opencli/issues/1169), [#929](https://github.com/jackwener/opencli/issues/929))
 * **browser lifecycle** — owned browser workspaces now lease tabs inside a shared dedicated automation container instead of owning one Chrome window per workspace; lease state is persisted for MV3 service-worker reconciliation and idle cleanup is backed by alarms.
+* **browser session** — adapter commands can opt into site-level tab reuse with `browserSession.reuse = 'site'`; Grok and other browser-backed LLM adapters now keep a shared site tab by default, and users can override with `--reuse <none|site>`.
+* **chatgpt** — add browser-web baseline commands: `ask`, `send`, `read`, `history`, `detail`, `new`, and `status`.
+* **grok** — add browser-web baseline commands: `read`, `history`, `detail`, `new`, `send`, and `status` (existing `ask` and `image` unchanged).
+* **yuanbao** — add browser-web baseline commands: `send`, `status`, `read`, `history`, and `detail` (joining the existing `ask` and `new`).
+* **qwen** — add `detail` command for opening a specific historical conversation by id.
 * **web read** — make page extraction render-aware: same-origin iframe content is merged into the Markdown source, `--wait-for` can wait inside main/iframe documents, `--wait-until networkidle` waits for captured requests to settle, and `--diagnose` reports frames, empty containers, and API-like XHRs for shell/AJAX pages.
+
+### Bug Fixes
+
+* **pipeline / capabilityRouting** — the `fill` pipeline step (introduced in [#1222](https://github.com/jackwener/opencli/issues/1222)) now correctly triggers a browser session and gets transient retry coverage; previously a pipeline using only `fill` could crash on a missing page object. ([#1393](https://github.com/jackwener/opencli/issues/1393))
+* **xiaohongshu publish** — improve image publishing reliability via creator-center URL routing, tab priority handling, and DataTransfer fallback.
+* **youtube** — use watch-page HTML for transcript captions to recover when the public transcript API is unavailable.
+* **desktop adapters** — restore 11 desktop adapter commands that were lost from the manifest due to a factory-pattern regression.
+
+### Internal
+
+* **cleanup** — remove dead `src/analysis.ts` (179 lines, 0 importers), retire `OPENCLI_DIAGNOSTIC` test residue, derive validator step allowlist from the live pipeline registry to prevent future drift.
 
 ## [1.7.8](https://github.com/jackwener/opencli/compare/v1.7.7...v1.7.8) (2026-04-25)
 

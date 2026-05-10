@@ -19,6 +19,7 @@ const MIME_MAP = {
 cli({
     site: 'yollomi',
     name: 'upload',
+    access: 'write',
     description: 'Upload an image or video to Yollomi (returns URL for other commands)',
     domain: YOLLOMI_DOMAIN,
     strategy: Strategy.COOKIE,

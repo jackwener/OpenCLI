@@ -9,6 +9,7 @@ import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.j
 cli({
     site: 'yollomi',
     name: 'background',
+    access: 'write',
     description: 'Generate AI background for a product/object image (5 credits)',
     domain: YOLLOMI_DOMAIN,
     strategy: Strategy.COOKIE,

@@ -6,6 +6,7 @@ import { ArgumentError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import * as privatePublish from './_shared/private-publish.js';
 import './story.js';
+import { createPageMock } from '../test-utils.js';
 const tempDirs = [];
 function createTempFile(name, bytes = Buffer.from('story-media')) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-instagram-story-'));
@@ -13,40 +14,6 @@ function createTempFile(name, bytes = Buffer.from('story-media')) {
     const filePath = path.join(dir, name);
     fs.writeFileSync(filePath, bytes);
     return filePath;
-}
-function createPageMock(evaluateResults = [], overrides = {}) {
-    const evaluate = vi.fn();
-    for (const result of evaluateResults) {
-        evaluate.mockResolvedValueOnce(result);
-    }
-    return {
-        goto: vi.fn().mockResolvedValue(undefined),
-        evaluate,
-        getCookies: vi.fn().mockResolvedValue([]),
-        snapshot: vi.fn().mockResolvedValue(undefined),
-        click: vi.fn().mockResolvedValue(undefined),
-        typeText: vi.fn().mockResolvedValue(undefined),
-        pressKey: vi.fn().mockResolvedValue(undefined),
-        scrollTo: vi.fn().mockResolvedValue(undefined),
-        getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
-        wait: vi.fn().mockResolvedValue(undefined),
-        tabs: vi.fn().mockResolvedValue([]),
-        closeTab: vi.fn().mockResolvedValue(undefined),
-        newTab: vi.fn().mockResolvedValue(undefined),
-        selectTab: vi.fn().mockResolvedValue(undefined),
-        networkRequests: vi.fn().mockResolvedValue([]),
-        consoleMessages: vi.fn().mockResolvedValue([]),
-        scroll: vi.fn().mockResolvedValue(undefined),
-        autoScroll: vi.fn().mockResolvedValue(undefined),
-        installInterceptor: vi.fn().mockResolvedValue(undefined),
-        getInterceptedRequests: vi.fn().mockResolvedValue([]),
-        waitForCapture: vi.fn().mockResolvedValue(undefined),
-        screenshot: vi.fn().mockResolvedValue(''),
-        setFileInput: vi.fn().mockResolvedValue(undefined),
-        insertText: vi.fn().mockResolvedValue(undefined),
-        getCurrentUrl: vi.fn().mockResolvedValue(null),
-        ...overrides,
-    };
 }
 afterAll(() => {
     for (const dir of tempDirs) {

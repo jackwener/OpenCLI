@@ -7,6 +7,7 @@ import { extractJsonLd, forceEnglishUrl, isChallengePage } from './utils.js';
 cli({
     site: 'imdb',
     name: 'top',
+    access: 'read',
     description: 'IMDb Top 250 Movies',
     domain: 'www.imdb.com',
     strategy: Strategy.PUBLIC,

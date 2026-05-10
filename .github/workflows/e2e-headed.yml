@@ -59,12 +59,35 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build extension
+        run: npm run build --prefix extension
+
+      - name: Run AX Chrome smoke (Linux, via xvfb)
+        if: runner.os == 'Linux'
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+          OPENCLI_AX_E2E: '1'
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+            npx vitest run --project e2e tests/e2e/browser-ax-chrome.test.ts --reporter=verbose
+
+      - name: Run AX Chrome smoke (macOS / Windows)
+        if: runner.os != 'Linux'
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+          OPENCLI_AX_E2E: '1'
+        run: npx vitest run --project e2e tests/e2e/browser-ax-chrome.test.ts --reporter=verbose
+
       - name: Run E2E tests (Linux, via xvfb)
         if: runner.os == 'Linux'
+        env:
+          OPENCLI_AX_E2E: '0'
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             npx vitest run tests/e2e/ --reporter=verbose
 
       - name: Run E2E tests (macOS / Windows)
         if: runner.os != 'Linux'
+        env:
+          OPENCLI_AX_E2E: '0'
         run: npx vitest run tests/e2e/ --reporter=verbose

@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const statusCommand = cli({
     site: 'antigravity',
     name: 'status',
+    access: 'read',
     description: 'Check Antigravity CDP connection and get current page state',
     domain: 'localhost',
     strategy: Strategy.UI,

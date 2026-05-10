@@ -14,6 +14,7 @@ import { resolveBvid } from './utils.js';
 cli({
     site: 'bilibili',
     name: 'download',
+    access: 'read',
     description: '下载B站视频（需要 yt-dlp）',
     domain: 'www.bilibili.com',
     strategy: Strategy.COOKIE,

@@ -45,6 +45,8 @@ cli({
   site: 'mysite',
   name: 'search',
   description: 'Search MySite',
+  access: 'read', // 'read' | 'write'
+  example: 'opencli mysite search <query> -f yaml',
   domain: 'www.mysite.com',
   strategy: Strategy.COOKIE,
   args: [

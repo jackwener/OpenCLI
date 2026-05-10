@@ -1,16 +1,19 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { resolveTwitterQueryId } from './shared.js';
+import { TWITTER_BEARER_TOKEN } from './utils.js';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
 cli({
     site: 'twitter',
     name: 'profile',
-    description: 'Fetch a Twitter user profile (bio, stats, etc.)',
+    access: 'read',
+    description: 'Fetch a Twitter user profile — bio, stats, etc. (defaults to the logged-in user when no username is given)',
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
-        { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (without @). Defaults to logged-in user.' },
+        { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (with or without @). Defaults to the logged-in user when omitted.' },
     ],
     columns: ['screen_name', 'name', 'bio', 'location', 'url', 'followers', 'following', 'tweets', 'likes', 'verified', 'created_at'],
     func: async (page, kwargs) => {
@@ -30,14 +33,18 @@ cli({
         // Navigate directly to the user's profile page (gives us cookie context)
         await page.goto(`https://x.com/${username}`);
         await page.wait(3);
+        // Read CSRF token directly from the cookie store via CDP — zero page.evaluate round-trip
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
+        if (!ct0)
+            throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
         const queryId = await resolveTwitterQueryId(page, 'UserByScreenName', USER_BY_SCREEN_NAME_QUERY_ID);
         const result = await page.evaluate(`
       async () => {
         const screenName = "${username}";
-        const ct0 = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('ct0='))?.split('=')[1];
-        if (!ct0) return {error: 'No ct0 cookie — not logged into x.com'};
+        const ct0 = ${JSON.stringify(ct0)};
 
-        const bearer = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
+        const bearer = ${JSON.stringify(TWITTER_BEARER_TOKEN)};
         const headers = {
           'Authorization': 'Bearer ' + decodeURIComponent(bearer),
           'X-Csrf-Token': ct0,
@@ -94,8 +101,6 @@ cli({
       }
     `);
         if (result?.error) {
-            if (String(result.error).includes('No ct0 cookie'))
-                throw new AuthRequiredError('x.com', result.error);
             throw new CommandExecutionError(result.error + (result.hint ? ` (${result.hint})` : ''));
         }
         return result || [];

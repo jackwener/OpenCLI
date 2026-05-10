@@ -5,6 +5,7 @@ import { formatDate } from './utils.js';
 cli({
     site: 'xiaoyuzhou',
     name: 'podcast',
+    access: 'read',
     description: 'View a Xiaoyuzhou podcast profile',
     domain: 'www.xiaoyuzhoufm.com',
     strategy: Strategy.LOCAL,

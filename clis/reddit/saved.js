@@ -3,10 +3,12 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'saved',
+    access: 'read',
     description: 'Browse your saved Reddit posts',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
         { name: 'limit', type: 'int', default: 15 },
     ],

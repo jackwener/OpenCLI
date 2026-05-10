@@ -106,6 +106,7 @@ function buildFetchItemEvaluate(itemId) {
 cli({
     site: 'xianyu',
     name: 'item',
+    access: 'read',
     description: '查看闲鱼商品详情',
     domain: 'www.goofish.com',
     strategy: Strategy.COOKIE,

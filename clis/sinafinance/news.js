@@ -25,6 +25,7 @@ function stripHtml(html) {
 cli({
     site: 'sinafinance',
     name: 'news',
+    access: 'read',
     description: '新浪财经 7x24 小时实时快讯',
     domain: 'app.cj.sina.com.cn',
     strategy: Strategy.PUBLIC,

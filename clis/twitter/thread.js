@@ -1,8 +1,8 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { extractMedia } from './shared.js';
+import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 // ── Twitter GraphQL constants ──────────────────────────────────────────
-const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 const TWEET_DETAIL_QUERY_ID = 'nBS-WpgA6ZG0CyNHD517JQ';
 const FEATURES = {
     responsive_web_graphql_exclude_directive_enabled: true,
@@ -95,13 +95,16 @@ function parseTweetDetail(data, seen) {
 cli({
     site: 'twitter',
     name: 'thread',
+    access: 'read',
     description: 'Get a tweet thread (original + all replies)',
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
-        { name: 'tweet-id', positional: true, type: 'string', required: true },
+        { name: 'tweet-id', positional: true, type: 'string', required: true, help: 'Tweet numeric ID (e.g. 1234567890) or full status URL' },
         { name: 'limit', type: 'int', default: 50 },
+        { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the thread by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the conversation\'s structural ordering.' },
     ],
     columns: ['id', 'author', 'text', 'likes', 'retweets', 'url', 'has_media', 'media_urls'],
     func: async (page, kwargs) => {
@@ -109,18 +112,15 @@ cli({
         const urlMatch = tweetId.match(/\/status\/(\d+)/);
         if (urlMatch)
             tweetId = urlMatch[1];
-        // Navigate to x.com for cookie context
-        await page.goto('https://x.com');
-        await page.wait(3);
-        // Extract CSRF token — the only thing we need from the browser
-        const ct0 = await page.evaluate(`() => {
-      return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('ct0='))?.split('=')[1] || null;
-    }`);
+        // Cookie context auto-established by framework pre-nav (Strategy.COOKIE + domain).
+        // Read CSRF token directly from the cookie store via CDP — zero page.evaluate round-trip.
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
         // Build auth headers in TypeScript
         const headers = JSON.stringify({
-            'Authorization': `Bearer ${decodeURIComponent(BEARER_TOKEN)}`,
+            'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
             'X-Twitter-Auth-Type': 'OAuth2Session',
             'X-Twitter-Active-User': 'yes',
@@ -148,6 +148,7 @@ cli({
                 break;
             cursor = nextCursor;
         }
-        return allTweets.slice(0, kwargs.limit);
+        const trimmed = allTweets.slice(0, kwargs.limit);
+        return applyTopByEngagement(trimmed, kwargs['top-by-engagement']);
     },
 });

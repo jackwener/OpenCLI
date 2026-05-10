@@ -4,6 +4,7 @@ import { formatDate, mubuPost } from './utils.js';
 cli({
   site: 'mubu',
   name: 'docs',
+    access: 'read',
   description: '列出幕布文档（默认根目录，--starred 查看快速访问列表）',
   domain: 'mubu.com',
   strategy: Strategy.COOKIE,

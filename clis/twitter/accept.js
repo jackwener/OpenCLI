@@ -3,14 +3,15 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'twitter',
     name: 'accept',
+    access: 'write',
     description: 'Auto-accept DM requests containing specific keywords',
     domain: 'x.com',
     strategy: Strategy.UI,
     browser: true,
-    timeoutSeconds: 600, // 10 min — batch operation iterating many conversations
     args: [
         { name: 'query', type: 'string', required: true, positional: true, help: 'Keywords to match (comma-separated for OR, e.g. "群,微信")' },
         { name: 'max', type: 'int', required: false, default: 20, help: 'Maximum number of requests to accept (default: 20)' },
+        { name: 'timeout', type: 'int', required: false, default: 600, help: 'Max seconds for the overall command (default: 600 — batch op)' },
     ],
     columns: ['index', 'status', 'user', 'message'],
     func: async (page, kwargs) => {

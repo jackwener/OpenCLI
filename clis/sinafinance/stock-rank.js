@@ -5,6 +5,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'sinafinance',
     name: 'stock-rank',
+    access: 'read',
     description: '新浪财经热搜榜',
     domain: 'finance.sina.cn',
     strategy: Strategy.COOKIE,

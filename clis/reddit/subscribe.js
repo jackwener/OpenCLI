@@ -3,10 +3,12 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'subscribe',
+    access: 'write',
     description: 'Subscribe or unsubscribe to a subreddit',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
         { name: 'subreddit', type: 'string', required: true, positional: true, help: 'Subreddit name (e.g. python)' },
         { name: 'undo', type: 'boolean', default: false, help: 'Unsubscribe instead of subscribe' },

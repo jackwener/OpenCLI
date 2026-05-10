@@ -5,10 +5,12 @@ import { CLAUDE_DOMAIN, getConversationList, ensureClaudeLogin, requirePositiveI
 export const historyCommand = cli({
     site: 'claude',
     name: 'history',
+    access: 'read',
     description: 'List conversation history from Claude /recents',
     domain: CLAUDE_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Max conversations to show' },

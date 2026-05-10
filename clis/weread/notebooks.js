@@ -3,6 +3,7 @@ import { fetchPrivateApi } from './utils.js';
 cli({
     site: 'weread',
     name: 'notebooks',
+    access: 'read',
     description: 'List books that have highlights or notes',
     domain: 'weread.qq.com',
     strategy: Strategy.COOKIE,

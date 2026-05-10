@@ -6,6 +6,7 @@ import { requirePage, navigateToChat, findFriendByUid, clickCandidateInList, typ
 cli({
     site: 'boss',
     name: 'greet',
+    access: 'write',
     description: 'BOSS直聘向新候选人发送招呼（开始聊天）',
     domain: 'www.zhipin.com',
     strategy: Strategy.COOKIE,

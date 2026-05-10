@@ -3,6 +3,10 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import './read.js';
 describe('reddit read adapter', () => {
     const command = getRegistry().get('reddit/read');
+    it('opts into the Reddit persistent site session', () => {
+        expect(command?.browser).toBe(true);
+        expect(command?.siteSession).toBe('persistent');
+    });
     it('returns threaded rows from the browser-evaluated payload', async () => {
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),

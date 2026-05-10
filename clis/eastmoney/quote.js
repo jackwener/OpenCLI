@@ -44,6 +44,7 @@ function marketLabel(f13) {
 cli({
   site: 'eastmoney',
   name: 'quote',
+    access: 'read',
   description: '个股实时行情（A股 / 港股 / 美股）— 来自 push2.eastmoney.com',
   domain: 'push2.eastmoney.com',
   strategy: Strategy.PUBLIC,

@@ -6,6 +6,7 @@ import { cli, getRegistry, Strategy } from './registry.js';
 import {
   ManifestImportError,
   diffRemovedEntries,
+  findManifestMetadataIssues,
   loadManifestEntries,
   normalizeManifestPath,
   parseBuildManifestArgs,
@@ -38,12 +39,13 @@ describe('manifest helper rules', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-manifest-'));
     tempDirs.push(dir);
     const file = path.join(dir, `${site}.ts`);
-    fs.writeFileSync(file, `export const command = cli({ site: '${site}', name: 'dynamic' });`);
+    fs.writeFileSync(file, `export const command = cli({ site: '${site}', name: 'dynamic', access: 'read' });`);
 
     const entries = await loadManifestEntries(file, site, async () => ({
       command: cli({
         site,
         name: 'dynamic',
+        access: 'read',
         description: 'dynamic command',
         strategy: Strategy.PUBLIC,
         browser: false,
@@ -60,8 +62,7 @@ describe('manifest helper rules', () => {
         ],
         domain: 'localhost',
         navigateBefore: 'https://example.com/session',
-        deprecated: 'legacy command',
-        replacedBy: 'opencli demo new',
+        defaultFormat: 'plain',
       }),
     }));
 
@@ -69,6 +70,7 @@ describe('manifest helper rules', () => {
       {
         site,
         name: 'dynamic',
+        access: 'read',
         description: 'dynamic command',
         domain: 'localhost',
         strategy: 'public',
@@ -88,8 +90,7 @@ describe('manifest helper rules', () => {
         type: 'js',
         modulePath: `${site}/${site}.js`,
         navigateBefore: 'https://example.com/session',
-        deprecated: 'legacy command',
-        replacedBy: 'opencli demo new',
+        defaultFormat: 'plain',
       },
     ]);
     // Verify sourceFile is included and stable for manifest consumers.
@@ -105,15 +106,14 @@ describe('manifest helper rules', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-manifest-'));
     tempDirs.push(dir);
     const file = path.join(dir, `${site}.ts`);
-    fs.writeFileSync(file, `cli({ site: '${site}', name: 'legacy' });`);
+    fs.writeFileSync(file, `cli({ site: '${site}', name: 'legacy', access: 'read' });`);
 
     const entries = await loadManifestEntries(file, site, async () => {
       cli({
         site,
         name: 'legacy',
+        access: 'read',
         description: 'legacy command',
-        deprecated: 'legacy is deprecated',
-        replacedBy: 'opencli demo new',
       });
       return {};
     });
@@ -122,14 +122,13 @@ describe('manifest helper rules', () => {
       {
         site,
         name: 'legacy',
+        access: 'read',
         description: 'legacy command',
         strategy: 'cookie',
         browser: true,
         args: [],
         type: 'js',
         modulePath: `${site}/${site}.js`,
-        deprecated: 'legacy is deprecated',
-        replacedBy: 'opencli demo new',
       },
     ]);
     // Verify sourceFile is included
@@ -145,17 +144,19 @@ describe('manifest helper rules', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-manifest-'));
     tempDirs.push(dir);
     const file = path.join(dir, `${site}.ts`);
-    fs.writeFileSync(file, `export const screen = cli({ site: '${site}', name: 'screen' });`);
+    fs.writeFileSync(file, `export const screen = cli({ site: '${site}', name: 'screen', access: 'read' });`);
 
     const entries = await loadManifestEntries(file, site, async () => ({
       screen: cli({
         site,
         name: 'screen',
+        access: 'read',
         description: 'capture screen',
       }),
       status: cli({
         site,
         name: 'status',
+        access: 'read',
         description: 'show status',
       }),
     }));
@@ -174,7 +175,7 @@ describe('manifest helper rules', () => {
   it('serializes manifest json with a trailing newline', () => {
     const serialized = serializeManifest([{
       site: 'demo',
-      name: 'status',
+      name: 'status', access: 'read',
       description: '',
       strategy: 'public',
       browser: false,
@@ -193,7 +194,7 @@ describe('manifest helper rules', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-manifest-fail-'));
     tempDirs.push(dir);
     const file = path.join(dir, 'broken.ts');
-    fs.writeFileSync(file, `export const command = cli({ site: 'demo', name: 'broken' });`);
+    fs.writeFileSync(file, `export const command = cli({ site: 'demo', name: 'broken', access: 'read' });`);
 
     const importer = async () => { throw new Error('boom: stale dist'); };
 
@@ -228,13 +229,13 @@ describe('manifest helper rules', () => {
     const siteDir = path.join(root, 'demo');
     fs.mkdirSync(siteDir);
     fs.writeFileSync(path.join(siteDir, 'good.js'),
-      `export const cmd = cli({ site: 'demo', name: 'good' });`);
+      `export const cmd = cli({ site: 'demo', name: 'good', access: 'read' });`);
     fs.writeFileSync(path.join(siteDir, 'broken.js'),
-      `export const cmd = cli({ site: 'demo', name: 'broken' });`);
+      `export const cmd = cli({ site: 'demo', name: 'broken', access: 'read' });`);
 
     const importer = async (href: string): Promise<unknown> => {
       if (href.endsWith('broken.js')) throw new Error('stale dist drops broken');
-      return { cmd: cli({ site: 'demo', name: 'good', description: 'ok' }) };
+      return { cmd: cli({ site: 'demo', name: 'good', access: 'read', description: 'ok' }) };
     };
 
     const result = await scanClisDir(root, importer);
@@ -250,16 +251,126 @@ describe('manifest helper rules', () => {
 
   it('diffRemovedEntries returns site/name keys present only in prev', () => {
     const prev: ManifestEntry[] = [
-      { site: 'a', name: '1', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
-      { site: 'a', name: '2', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
-      { site: 'b', name: '3', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
+      { site: 'a', name: '1', access: 'read', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
+      { site: 'a', name: '2', access: 'read', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
+      { site: 'b', name: '3', access: 'read', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
     ];
     const next: ManifestEntry[] = [
-      { site: 'a', name: '1', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
+      { site: 'a', name: '1', access: 'read', description: '', strategy: 'public', browser: false, args: [], type: 'js' },
     ];
     expect(diffRemovedEntries(prev, next)).toEqual(['a/2', 'b/3']);
     expect(diffRemovedEntries(prev, prev)).toEqual([]);
     expect(diffRemovedEntries([], next)).toEqual([]);
+  });
+
+  it('findManifestMetadataIssues flags positionals with empty/missing help', () => {
+    // The build-time hard gate. A positional with `help: ''` or no `help` at
+    // all renders `Arguments:\n  <name>` with a blank trailing column —
+    // unrecoverable for both humans and agents reading help. Failing closed
+    // here is the only way to keep help text trustworthy as adapters land.
+    //
+    // Semantic quality (e.g. what does an *optional* positional mean when
+    // omitted?) is intentionally NOT enforced — that belongs to the planned
+    // Arg metadata v2 advisory pass.
+    const entries: ManifestEntry[] = [
+      // Positional with usable help — clean.
+      {
+        site: 'demo',
+        name: 'ok',
+        access: 'read',
+        description: '',
+        strategy: 'public',
+        browser: false,
+        args: [
+          { name: 'q', positional: true, required: true, help: 'Search query' },
+        ],
+        type: 'js',
+        sourceFile: 'demo/ok.js',
+      },
+      // Positional with empty help string — must flag.
+      {
+        site: 'demo',
+        name: 'empty-help',
+        access: 'read',
+        description: '',
+        strategy: 'public',
+        browser: false,
+        args: [
+          { name: 'user', positional: true, required: false, help: '' },
+        ],
+        type: 'js',
+        sourceFile: 'demo/empty.js',
+      },
+      // Positional with whitespace-only help — must flag.
+      {
+        site: 'demo',
+        name: 'whitespace-help',
+        access: 'read',
+        description: '',
+        strategy: 'public',
+        browser: false,
+        args: [
+          { name: 'id', positional: true, required: true, help: '   ' },
+        ],
+        type: 'js',
+      },
+      // Positional with no help field at all — must flag.
+      {
+        site: 'demo',
+        name: 'missing-help',
+        access: 'read',
+        description: '',
+        strategy: 'public',
+        browser: false,
+        args: [
+          { name: 'name', positional: true, required: true },
+        ],
+        type: 'js',
+      },
+      // NON-positional flag with empty help — must NOT flag (gate is
+      // intentionally scoped to positionals; named flags carry the flag
+      // name itself in the help line).
+      {
+        site: 'demo',
+        name: 'flag-only',
+        access: 'read',
+        description: '',
+        strategy: 'public',
+        browser: false,
+        args: [
+          { name: 'limit', required: false, help: '' },
+        ],
+        type: 'js',
+      },
+    ];
+
+    const issues = findManifestMetadataIssues(entries);
+    expect(issues).toHaveLength(3);
+    expect(issues.map(i => `${i.site}/${i.command}/${i.arg}`).sort()).toEqual([
+      'demo/empty-help/user',
+      'demo/missing-help/name',
+      'demo/whitespace-help/id',
+    ]);
+    // sourceFile flows through when present so the build error points at the
+    // exact file to fix.
+    const emptyHelp = issues.find(i => i.command === 'empty-help');
+    expect(emptyHelp?.sourceFile).toBe('demo/empty.js');
+  });
+
+  it('findManifestMetadataIssues returns [] for fully-documented entries', () => {
+    expect(findManifestMetadataIssues([])).toEqual([]);
+    expect(findManifestMetadataIssues([
+      {
+        site: 'demo',
+        name: 'no-args',
+        access: 'read',
+        description: '',
+        strategy: 'public',
+        browser: false,
+        args: [],
+        type: 'js',
+      },
+    ])).toEqual([]);
   });
 
   it('parseBuildManifestArgs reads --allow-removals[=N]', () => {

@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const sendCommand = cli({
     site: 'discord-app',
     name: 'send',
+    access: 'write',
     description: 'Send a message in the active Discord channel',
     domain: 'localhost',
     strategy: Strategy.UI,

@@ -3,6 +3,7 @@ import { loadDoubanMovieHot } from './utils.js';
 cli({
     site: 'douban',
     name: 'movie-hot',
+    access: 'read',
     description: '豆瓣电影热门榜单',
     domain: 'movie.douban.com',
     strategy: Strategy.COOKIE,

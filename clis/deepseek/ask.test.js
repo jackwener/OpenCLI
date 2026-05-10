@@ -11,6 +11,7 @@ const {
   mockWaitForResponse,
   mockParseBoolFlag,
   mockWithRetry,
+  mockPickResumeUrl,
 } = vi.hoisted(() => ({
   mockEnsureOnDeepSeek: vi.fn(),
   mockSelectModel: vi.fn(),
@@ -21,6 +22,7 @@ const {
   mockWaitForResponse: vi.fn(),
   mockParseBoolFlag: vi.fn((v) => v === true || v === 'true'),
   mockWithRetry: vi.fn(async (fn) => fn()),
+  mockPickResumeUrl: vi.fn(),
 }));
 
 vi.mock('./utils.js', () => ({
@@ -35,6 +37,7 @@ vi.mock('./utils.js', () => ({
   waitForResponse: mockWaitForResponse,
   parseBoolFlag: mockParseBoolFlag,
   withRetry: mockWithRetry,
+  pickResumeUrl: mockPickResumeUrl,
 }));
 
 import { askCommand } from './ask.js';
@@ -185,9 +188,8 @@ describe('deepseek ask conversation resume', () => {
 
   it('resumes the most recent conversation and skips model selection', async () => {
     mockEnsureOnDeepSeek.mockResolvedValue(true);
-    // first evaluate: sidebar resume click (returns undefined)
-    page.evaluate.mockResolvedValueOnce(undefined);
-    // second evaluate: URL check (now inside a conversation)
+    mockPickResumeUrl.mockResolvedValue('https://chat.deepseek.com/a/chat/s/abc-123');
+    // URL check after resume navigation: now inside a conversation.
     page.evaluate.mockResolvedValueOnce('https://chat.deepseek.com/a/chat/s/abc-123');
 
     const rows = await askCommand.func(page, {
@@ -200,6 +202,7 @@ describe('deepseek ask conversation resume', () => {
     });
 
     expect(rows).toEqual([{ response: 'follow-up reply' }]);
+    expect(page.goto).toHaveBeenCalledWith('https://chat.deepseek.com/a/chat/s/abc-123');
     expect(mockSelectModel).not.toHaveBeenCalled();
     expect(mockSendMessage).toHaveBeenCalled();
   });
@@ -243,25 +246,22 @@ describe('deepseek ask conversation resume', () => {
     expect(mockSelectModel).not.toHaveBeenCalled();
   });
 
-  it('still selects model when no conversation to resume', async () => {
+  it('fails fast when the workspace was recycled but no conversation surfaces in time', async () => {
     mockEnsureOnDeepSeek.mockResolvedValue(true);
-    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
-    // first evaluate: sidebar resume click (no link found)
-    page.evaluate.mockResolvedValueOnce(undefined);
-    // second evaluate: URL check (still on root page)
-    page.evaluate.mockResolvedValueOnce('https://chat.deepseek.com/');
+    mockPickResumeUrl.mockResolvedValue(null);
 
-    const rows = await askCommand.func(page, {
+    await expect(askCommand.func(page, {
       prompt: 'hello',
       timeout: 120,
       new: false,
       model: 'instant',
       think: false,
       search: false,
-    });
+    })).rejects.toBeInstanceOf(CommandExecutionError);
 
-    expect(rows).toEqual([{ response: 'follow-up reply' }]);
-    expect(mockSelectModel).toHaveBeenCalled();
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(mockSelectModel).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
   });
 
   it('skips search toggle in vision mode when search is not requested', async () => {

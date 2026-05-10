@@ -20,6 +20,7 @@ function normalizeVideoStatus(status, publicTime) {
 cli({
     site: 'douyin',
     name: 'videos',
+    access: 'read',
     description: '获取作品列表',
     domain: 'creator.douyin.com',
     strategy: Strategy.COOKIE,

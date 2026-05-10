@@ -5,6 +5,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'weibo',
     name: 'comments',
+    access: 'read',
     description: 'Get comments on a Weibo post',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,

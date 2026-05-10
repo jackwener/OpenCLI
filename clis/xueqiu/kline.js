@@ -4,6 +4,7 @@ import { fetchXueqiuJson } from './utils.js';
 cli({
     site: 'xueqiu',
     name: 'kline',
+    access: 'read',
     description: '获取雪球股票K线（历史行情）数据',
     domain: 'xueqiu.com',
     browser: true,

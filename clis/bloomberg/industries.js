@@ -3,6 +3,7 @@ import { fetchBloombergFeed } from './utils.js';
 cli({
     site: 'bloomberg',
     name: 'industries',
+    access: 'read',
     description: 'Bloomberg Industries top stories (RSS)',
     domain: 'feeds.bloomberg.com',
     strategy: Strategy.PUBLIC,

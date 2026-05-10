@@ -1,31 +1,37 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
 // ── CLI definition ────────────────────────────────────────────────────
+//
+// X (Twitter) removed the post-count caption from each trend cell on the
+// /explore/tabs/trending page in 2024-2025. The DOM now only carries:
+//   divs[0] = rank + category (e.g. "1 · Trending in United States")
+//   divs[1] = topic
+//   divs[2..] = caret menu button (no post-count text)
+// We previously surfaced a `tweets` column whose value was permanently
+// "N/A" on every row — that's silent-wrong data, drop it.
 cli({
     site: 'twitter',
     name: 'trending',
+    access: 'read',
     description: 'Twitter/X trending topics',
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Number of trends to show' },
     ],
-    columns: ['rank', 'topic', 'tweets', 'category'],
+    columns: ['rank', 'topic', 'category'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 20;
         // Navigate to trending page
         await page.goto('https://x.com/explore/tabs/trending');
         await page.wait(3);
-        // Verify login via CSRF cookie
-        const ct0 = await page.evaluate(`(() => {
-      return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('ct0='))?.split('=')[1] || null;
-    })()`);
+        // Verify login via CSRF cookie (read directly from cookie store via CDP)
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
-        // Scrape trends from DOM (consistent with what the user sees on the page)
-        // DOM children: [0] rank + category, [1] topic, optional post count,
-        // and a caret menu button identified by [data-testid="caret"].
         await page.wait(2);
         const trends = await page.evaluate(`(() => {
       const items = [];
@@ -41,14 +47,7 @@ cli({
         if (!topic) return;
         const catText = divs[0].textContent.trim();
         const category = catText.replace(/^\\d+\\s*/, '').replace(/^\\xB7\\s*/, '').trim();
-        // Find post count: skip rank, topic, and the caret menu button
-        let tweets = 'N/A';
-        for (let j = 2; j < divs.length; j++) {
-          if (divs[j].matches('[data-testid="caret"]') || divs[j].querySelector('[data-testid="caret"]')) continue;
-          const t = divs[j].textContent.trim();
-          if (t && /\\d/.test(t)) { tweets = t; break; }
-        }
-        items.push({ rank: items.length + 1, topic, tweets, category });
+        items.push({ rank: items.length + 1, topic, category });
       });
       return items;
     })()`);

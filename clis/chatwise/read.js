@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const readCommand = cli({
     site: 'chatwise',
     name: 'read',
+    access: 'read',
     description: 'Read the current ChatWise conversation history',
     domain: 'localhost',
     strategy: Strategy.UI,

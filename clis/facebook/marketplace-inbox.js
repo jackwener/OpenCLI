@@ -12,6 +12,7 @@ function normalizeLimit(value) {
 cli({
   site: 'facebook',
   name: 'marketplace-inbox',
+    access: 'read',
   description: 'List recent Facebook Marketplace buyer/seller conversations',
   domain: 'www.facebook.com',
   strategy: Strategy.COOKIE,

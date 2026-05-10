@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'zhihu',
     name: 'hot',
+    access: 'read',
     description: '知乎热榜',
     domain: 'www.zhihu.com',
     args: [

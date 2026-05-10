@@ -22,6 +22,7 @@ function getDimensions(ratio) {
 cli({
     site: 'yollomi',
     name: 'generate',
+    access: 'write',
     description: 'Generate images with AI (text-to-image or image-to-image)',
     domain: YOLLOMI_DOMAIN,
     strategy: Strategy.COOKIE,

@@ -3,6 +3,7 @@ import { fetchPrivateApi, formatDate } from './utils.js';
 cli({
     site: 'weread',
     name: 'notes',
+    access: 'read',
     description: 'List your notes (thoughts) on a book',
     domain: 'weread.qq.com',
     strategy: Strategy.COOKIE,

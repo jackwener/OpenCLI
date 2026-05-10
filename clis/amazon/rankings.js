@@ -142,6 +142,7 @@ export function createRankingCliOptions(definition) {
     return {
         site: 'amazon',
         name: definition.commandName,
+        access: definition.access ?? 'read',
         description: definition.description,
         domain: 'amazon.com',
         strategy: Strategy.COOKIE,
