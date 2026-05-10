@@ -344,6 +344,11 @@ Status after implementation:
 - unsupported frames degrade by omission or typed action failure rather than
   requiring global manual frame switching.
 
+Implementation note: Phase 1 also includes a DOM-ref visual slice via
+`browser screenshot --annotate`. It refreshes current DOM refs and overlays
+visible `[N]` labels on the captured image. AX-side visual labels and richer
+sidecar metadata remain follow-up work.
+
 Exit:
 
 - Agent can act on iframe refs without manual frame selection in common cases.

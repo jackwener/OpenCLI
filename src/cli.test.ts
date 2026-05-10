@@ -810,6 +810,8 @@ describe('browser tab targeting commands', () => {
         { index: 0, frameId: 'frame-1', url: 'https://x.example/embed', name: 'x-embed' },
       ]),
       evaluateInFrame: vi.fn().mockResolvedValue('inside frame'),
+      screenshot: vi.fn().mockResolvedValue('base64-shot'),
+      annotatedScreenshot: vi.fn().mockResolvedValue('annotated-base64-shot'),
       readNetworkCapture: vi.fn().mockResolvedValue([]),
       waitForDownload: vi.fn().mockResolvedValue({
         downloaded: true,
@@ -924,6 +926,22 @@ describe('browser tab targeting commands', () => {
     const out = lastJsonLog();
     expect(out.error.code).toBe('invalid_source');
     expect(process.exitCode).toBeDefined();
+  });
+
+  it('captures annotated screenshots through the visual ref overlay path', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'screenshot', '--annotate']);
+
+    expect(browserState.page?.annotatedScreenshot).toHaveBeenCalledWith({
+      fullPage: false,
+      annotate: true,
+      width: undefined,
+      height: undefined,
+      format: 'png',
+    });
+    expect(browserState.page?.screenshot).not.toHaveBeenCalled();
+    expect(consoleLogSpy).toHaveBeenLastCalledWith('annotated-base64-shot');
   });
 
   it('blocks history navigation on bound workspaces unless explicitly allowed', async () => {

@@ -51,6 +51,8 @@ export interface ScreenshotOptions {
   format?: 'png' | 'jpeg';
   quality?: number;
   fullPage?: boolean;
+  /** Overlay current browser-state refs on visible interactive elements. */
+  annotate?: boolean;
   /** Override viewport width in CSS pixels for the screenshot only (cleared after). */
   width?: number;
   /** Override viewport height in CSS pixels for the screenshot only (ignored when fullPage). */
@@ -128,6 +130,7 @@ export interface IPage {
   getInterceptedRequests(): Promise<any[]>;
   waitForCapture(timeout?: number): Promise<void>;
   screenshot(options?: ScreenshotOptions): Promise<string>;
+  annotatedScreenshot?(options?: ScreenshotOptions): Promise<string>;
   startNetworkCapture?(pattern?: string): Promise<boolean>;
   readNetworkCapture?(): Promise<unknown[]>;
   /**

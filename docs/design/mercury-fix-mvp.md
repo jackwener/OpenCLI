@@ -192,6 +192,8 @@ Status after implementation:
   session routing remains deferred.
 - Phase 1 metrics shipped as `browser state --compare-sources` so AX default
   promotion can be decided from measured DOM-vs-AX data.
+- Phase 1 visual refs shipped as `browser screenshot --annotate`, giving agents
+  a screenshot whose visible labels map back to normal DOM `[N]` refs.
 
 ## Phase 1 Follow-Up
 

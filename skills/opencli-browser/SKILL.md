@@ -136,6 +136,7 @@ Error envelope always includes `error.code` and `error.message`. Target errors (
 | `browser find --role button --name Save` | Semantic locator query. Also supports `--label`, `--text`, and `--testid`. Use before raw CSS when a control has accessible labels. |
 | `browser frames` | List cross-origin iframe targets. Pass the index to `--frame` on `eval`. |
 | `browser screenshot [path]` | Viewport PNG. No path → base64 to stdout. Prefer `state` when you just need structure. |
+| `browser screenshot --annotate [path]` | Visual ref map. Refreshes DOM refs and overlays visible `[N]` labels so the screenshot maps back to `browser click <ref>` targets. Use for icon-only controls, visual layouts, charts, or when text state is ambiguous. |
 
 ### Get (read-only)
 

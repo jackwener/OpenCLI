@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CliError } from '../errors.js';
 import { BasePage } from './base-page.js';
 import { TargetError } from './target-errors.js';
+import type { ScreenshotOptions } from '../types.js';
 
 class TestPage extends BasePage {
   result: unknown;
@@ -24,6 +25,7 @@ class ActionPage extends BasePage {
   withArgsResults: unknown[] = [];
   scripts: string[] = [];
   withArgs: Record<string, unknown>[] = [];
+  screenshotCalls: ScreenshotOptions[] = [];
   nativeType?: (text: string) => Promise<void>;
   insertText?: (text: string) => Promise<void>;
   nativeKeyPress?: (key: string, modifiers?: string[]) => Promise<void>;
@@ -42,7 +44,10 @@ class ActionPage extends BasePage {
     return this.withArgsResults.shift() ?? null;
   }
   async getCookies(): Promise<[]> { return []; }
-  async screenshot(): Promise<string> { return ''; }
+  async screenshot(options: ScreenshotOptions = {}): Promise<string> {
+    this.screenshotCalls.push(options);
+    return 'shot';
+  }
   async tabs(): Promise<unknown[]> { return []; }
   async selectTab(): Promise<void> {}
 }
@@ -110,6 +115,26 @@ describe('BasePage.fetchJson', () => {
       code: 'FETCH_ERROR',
       message: expect.stringContaining('The operation was aborted.'),
     });
+  });
+});
+
+describe('BasePage annotatedScreenshot', () => {
+  it('refreshes DOM refs, captures with a temporary visual overlay, and cleans up', async () => {
+    const page = new ActionPage();
+    page.results = [
+      'snapshot',
+      '["hash"]',
+      { annotated: 1, truncated: false },
+      true,
+    ];
+
+    await expect(page.annotatedScreenshot({ path: '/tmp/opencli.png', annotate: true })).resolves.toBe('shot');
+
+    expect(page.scripts[0]).toContain('const VIEWPORT_EXPAND = 0');
+    expect(page.scripts[2]).toContain('__opencli_visual_ref_overlay');
+    expect(page.scripts[2]).toContain('[data-opencli-ref]');
+    expect(page.scripts[3]).toContain('__opencli_visual_ref_overlay');
+    expect(page.screenshotCalls).toEqual([{ path: '/tmp/opencli.png', annotate: false }]);
   });
 });
 

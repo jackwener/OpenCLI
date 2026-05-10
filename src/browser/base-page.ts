@@ -37,6 +37,7 @@ import {
 import { TargetError, type TargetErrorCode } from './target-errors.js';
 import { CliError } from '../errors.js';
 import { formatSnapshot } from '../snapshotFormatter.js';
+import { installVisualRefOverlayJs, removeVisualRefOverlayJs } from './visual-refs.js';
 
 export interface ResolveSuccess {
   matches_n: number;
@@ -261,6 +262,17 @@ export abstract class BasePage implements IPage {
 
   abstract getCookies(opts?: { domain?: string; url?: string }): Promise<BrowserCookie[]>;
   abstract screenshot(options?: ScreenshotOptions): Promise<string>;
+
+  async annotatedScreenshot(options: ScreenshotOptions = {}): Promise<string> {
+    // Refresh DOM refs first so visual labels map to immediate `browser click <ref>` targets.
+    await this.snapshot({ source: 'dom', viewportExpand: 0 });
+    try {
+      await this.evaluate(installVisualRefOverlayJs());
+      return await this.screenshot({ ...options, annotate: false });
+    } finally {
+      await this.evaluate(removeVisualRefOverlayJs()).catch(() => {});
+    }
+  }
   abstract tabs(): Promise<unknown[]>;
   abstract selectTab(target: number | string): Promise<void>;
 

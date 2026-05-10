@@ -1053,20 +1053,25 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   addBrowserTabOption(browser.command('screenshot').argument('[path]', 'Save to file (base64 if omitted)'))
     .option('--full-page', 'Capture the full scrollable page, not just the viewport', false)
+    .option('--annotate', 'Overlay visible browser state ref labels on the screenshot', false)
     .option('--width <n>', 'Override viewport width in CSS pixels for this screenshot only', (v: string) => parseScreenshotDim(v, 'width'))
     .option('--height <n>', 'Override viewport height in CSS pixels for this screenshot only (ignored with --full-page)', (v: string) => parseScreenshotDim(v, 'height'))
     .description('Take screenshot')
     .action(browserAction(async (page, path, opts) => {
       const shotOpts: ScreenshotOptions = {
         fullPage: opts.fullPage === true,
+        annotate: opts.annotate === true,
         width: opts.width,
         height: opts.height,
       };
+      const capture = opts.annotate === true
+        ? (page.annotatedScreenshot ?? page.screenshot).bind(page)
+        : page.screenshot.bind(page);
       if (path) {
-        await page.screenshot({ ...shotOpts, path });
+        await capture({ ...shotOpts, path });
         console.log(`Screenshot saved to: ${path}`);
       } else {
-        console.log(await page.screenshot({ ...shotOpts, format: 'png' }));
+        console.log(await capture({ ...shotOpts, format: 'png' }));
       }
     }));
 
