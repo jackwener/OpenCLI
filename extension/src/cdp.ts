@@ -448,7 +448,7 @@ async function ensureFrameTarget(
   if (existing) return existing;
 
   await chrome.debugger.sendCommand({ tabId }, 'Target.setDiscoverTargets', { discover: true }).catch(() => {});
-  const targetId = await resolveFrameTargetId(frameId, targetUrl);
+  const targetId = await resolveFrameTargetId(tabId, frameId, targetUrl);
   try {
     await chrome.debugger.attach({ targetId } as chrome.debugger.Debuggee, '1.3');
   } catch (err) {
@@ -460,21 +460,24 @@ async function ensureFrameTarget(
   return targetId;
 }
 
-async function resolveFrameTargetId(frameId: string, targetUrl?: string): Promise<string> {
-  const targets = await chrome.debugger.getTargets();
-  const frameTarget = targets.find((target) => {
-    const candidate = target as chrome.debugger.TargetInfo & { targetId?: string };
+async function resolveFrameTargetId(tabId: number, frameId: string, targetUrl?: string): Promise<string> {
+  const result = await chrome.debugger.sendCommand({ tabId }, 'Target.getTargets').catch(() => null) as
+    | { targetInfos?: Array<{ targetId?: string; id?: string; type?: string; url?: string }> }
+    | null;
+  const targets = result?.targetInfos ?? [];
+  const frameTarget = targets.find((candidate) => {
+    const candidateId = candidate.targetId || candidate.id;
     return candidate.type === 'iframe'
       && (
-        candidate.id === frameId
-        || candidate.targetId === frameId
+        candidateId === frameId
         || (!!targetUrl && candidate.url === targetUrl)
       );
   });
-  if (frameTarget?.id) return frameTarget.id;
+  const targetId = frameTarget?.targetId || frameTarget?.id;
+  if (targetId) return targetId;
   const candidates = targets
     .filter((target) => target.type === 'iframe')
-    .map((target) => `${target.id} ${target.url || ''}`)
+    .map((target) => `${target.targetId || target.id || '?'} ${target.url || ''}`)
     .join('; ');
   throw new Error(`No iframe target found for frame ${frameId}${targetUrl ? ` (${targetUrl})` : ''}. Candidates: ${candidates || 'none'}`);
 }

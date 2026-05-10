@@ -306,7 +306,7 @@ async function ensureFrameTarget(tabId, frameId, aggressiveRetry = false, target
   if (existing) return existing;
   await chrome.debugger.sendCommand({ tabId }, "Target.setDiscoverTargets", { discover: true }).catch(() => {
   });
-  const targetId = await resolveFrameTargetId(frameId, targetUrl);
+  const targetId = await resolveFrameTargetId(tabId, frameId, targetUrl);
   try {
     await chrome.debugger.attach({ targetId }, "1.3");
   } catch (err) {
@@ -317,14 +317,16 @@ async function ensureFrameTarget(tabId, frameId, aggressiveRetry = false, target
   frameTargetKeys.set(targetId, key);
   return targetId;
 }
-async function resolveFrameTargetId(frameId, targetUrl) {
-  const targets = await chrome.debugger.getTargets();
-  const frameTarget = targets.find((target) => {
-    const candidate = target;
-    return candidate.type === "iframe" && (candidate.id === frameId || candidate.targetId === frameId || !!targetUrl && candidate.url === targetUrl);
+async function resolveFrameTargetId(tabId, frameId, targetUrl) {
+  const result = await chrome.debugger.sendCommand({ tabId }, "Target.getTargets").catch(() => null);
+  const targets = result?.targetInfos ?? [];
+  const frameTarget = targets.find((candidate) => {
+    const candidateId = candidate.targetId || candidate.id;
+    return candidate.type === "iframe" && (candidateId === frameId || !!targetUrl && candidate.url === targetUrl);
   });
-  if (frameTarget?.id) return frameTarget.id;
-  const candidates = targets.filter((target) => target.type === "iframe").map((target) => `${target.id} ${target.url || ""}`).join("; ");
+  const targetId = frameTarget?.targetId || frameTarget?.id;
+  if (targetId) return targetId;
+  const candidates = targets.filter((target) => target.type === "iframe").map((target) => `${target.targetId || target.id || "?"} ${target.url || ""}`).join("; ");
   throw new Error(`No iframe target found for frame ${frameId}${targetUrl ? ` (${targetUrl})` : ""}. Candidates: ${candidates || "none"}`);
 }
 async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, aggressiveRetry = false, _timeoutMs = 3e4, targetUrl) {
