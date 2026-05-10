@@ -26,13 +26,12 @@ export interface DaemonCommand {
   /** Target page identity (targetId). Cross-layer contract with the extension. */
   page?: string;
   code?: string;
-  workspace?: string;
+  session?: string;
+  surface?: 'browser' | 'adapter';
   url?: string;
   op?: string;
   index?: number;
   domain?: string;
-  matchDomain?: string;
-  matchPathPrefix?: string;
   format?: 'png' | 'jpeg';
   quality?: number;
   fullPage?: boolean;
@@ -55,10 +54,8 @@ export interface DaemonCommand {
   cdpParams?: Record<string, unknown>;
   /** Window foreground/background policy for owned Browser Bridge containers. */
   windowMode?: 'foreground' | 'background';
-  /** Custom idle timeout in seconds for this workspace session. Overrides the default. */
+  /** Custom idle timeout in seconds for this session. Overrides the default. */
   idleTimeout?: number;
-  /** Explicitly allow navigation inside a borrowed bound tab. */
-  allowBoundNavigation?: boolean;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */
   frameIndex?: number;
   /** Browser profile/context to route the command to. */
@@ -254,6 +251,6 @@ export async function listSessions(opts?: { contextId?: string }): Promise<Brows
   return Array.isArray(result) ? result : [];
 }
 
-export async function bindTab(workspace: string, opts: { matchDomain?: string; matchPathPrefix?: string; contextId?: string } = {}): Promise<unknown> {
-  return sendCommand('bind', { workspace, ...opts });
+export async function bindTab(session: string, opts: { contextId?: string } = {}): Promise<unknown> {
+  return sendCommand('bind', { session, surface: 'browser', ...opts });
 }

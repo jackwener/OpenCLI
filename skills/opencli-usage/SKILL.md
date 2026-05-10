@@ -12,7 +12,7 @@ OpenCLI turns any website, Electron desktop app, or external CLI into a uniform 
 
 - **Adapter commands** — `opencli <site> <command> [...]`. Built-in adapters live in `clis/`, user adapters in `~/.opencli/clis/`. Each is backed by a strategy (`PUBLIC | COOKIE | INTERCEPT | UI | LOCAL`) that tells you whether a Chrome session is needed.
 - **Browser driving** — `opencli browser *` subcommands (`open`, `state`, `click`, `type`, `select`, `find`, `extract`, `network`, …) for ad-hoc interaction and scraping when no adapter covers the task. See `opencli-browser`.
-- **Current-tab binding** — `opencli browser bind --domain <host>` attaches a `bound:*` workspace to the Chrome tab the user already opened/logged into. Follow-up commands use `opencli browser --workspace bound:default ...`. See `opencli-browser` before using it; bound workspaces have stricter navigation/tab-mutation safety rules.
+- **Current-tab binding** — `opencli browser bind --session <name>` attaches the Chrome tab the user already opened/logged into to that browser session. Follow-up commands use `opencli browser --session <name> ...`. See `opencli-browser` before using it; bound sessions still block tab mutation.
 - **External CLI passthrough** — `opencli gh`, `opencli docker`, `opencli vercel`, etc. Managed via `opencli external install <name>` (auto-install from `external-clis.yaml`) or `opencli external register <name>` (bring your own).
 
 ## Install

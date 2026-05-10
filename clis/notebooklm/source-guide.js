@@ -24,7 +24,7 @@ cli({
         await requireNotebooklmSession(page);
         const state = await getNotebooklmPageState(page);
         if (state.kind !== 'notebook') {
-            throw new EmptyResultError('opencli notebooklm source-guide', 'No NotebookLM notebook is open in the automation workspace. Run `opencli notebooklm open <notebook>` first.');
+            throw new EmptyResultError('opencli notebooklm source-guide', 'No NotebookLM notebook is open in the adapter session. Run `opencli notebooklm open <notebook>` first.');
         }
         const rpcRows = await listNotebooklmSourcesViaRpc(page).catch(() => []);
         const rows = rpcRows.length > 0 ? rpcRows : await listNotebooklmSourcesFromPage(page);

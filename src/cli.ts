@@ -40,8 +40,6 @@ import type { BrowserDownloadWaitResult, IPage, ScreenshotOptions } from './type
 import type { BrowserWindowMode } from './runtime.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
-const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
-const DEFAULT_BOUND_WORKSPACE = 'bound:default';
 const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"';
 const FOLLOW_POLL_MS = 1_000;
 
@@ -292,12 +290,12 @@ function getBrowserCacheDir(): string {
   return process.env.OPENCLI_CACHE_DIR || path.join(os.homedir(), '.opencli', 'cache');
 }
 
-function getBrowserTargetStatePath(scope: string = DEFAULT_BROWSER_WORKSPACE): string {
-  const safeWorkspace = scope.replace(/[^a-zA-Z0-9_-]+/g, '_');
-  return path.join(getBrowserCacheDir(), 'browser-state', `${safeWorkspace}.json`);
+function getBrowserTargetStatePath(scope: string): string {
+  const safeSession = scope.replace(/[^a-zA-Z0-9_-]+/g, '_');
+  return path.join(getBrowserCacheDir(), 'browser-state', `${safeSession}.json`);
 }
 
-function loadBrowserTargetState(scope: string = DEFAULT_BROWSER_WORKSPACE): BrowserTargetState | null {
+function loadBrowserTargetState(scope: string): BrowserTargetState | null {
   try {
     const raw = fs.readFileSync(getBrowserTargetStatePath(scope), 'utf-8');
     const parsed = JSON.parse(raw) as BrowserTargetState | null;
@@ -307,7 +305,7 @@ function loadBrowserTargetState(scope: string = DEFAULT_BROWSER_WORKSPACE): Brow
   }
 }
 
-function saveBrowserTargetState(defaultPage?: string, scope: string = DEFAULT_BROWSER_WORKSPACE): void {
+function saveBrowserTargetState(defaultPage: string | undefined, scope: string): void {
   const target = getBrowserTargetStatePath(scope);
   if (!defaultPage) {
     fs.rmSync(target, { force: true });
@@ -330,7 +328,7 @@ function hasBrowserTabTarget(tabs: unknown[], targetPage: string): boolean {
 async function resolveBrowserTargetInSession(
   page: import('./types.js').IPage,
   targetPage: string,
-  opts: { scope?: string; source: 'explicit' | 'saved' },
+  opts: { scope: string; source: 'explicit' | 'saved' },
 ): Promise<string | undefined> {
   const candidate = targetPage.trim();
   if (!candidate) return undefined;
@@ -345,7 +343,7 @@ async function resolveBrowserTargetInSession(
     }
     throw new Error(
       `Target tab ${candidate} could not be validated in the current browser session. ` +
-      'The Browser Bridge workspace may have restarted; re-run "opencli browser tab list" and choose a current target.',
+      'The Browser Bridge session may have restarted; re-run "opencli browser tab list" and choose a current target.',
       { cause: err },
     );
   }
@@ -361,41 +359,41 @@ async function resolveBrowserTargetInSession(
 
   throw new Error(
     `Target tab ${candidate} is not part of the current browser session. ` +
-    'The Browser Bridge workspace may have restarted; re-run "opencli browser tab list" and choose a current target.',
+    'The Browser Bridge session may have restarted; re-run "opencli browser tab list" and choose a current target.',
   );
 }
 
-function getBrowserScope(workspace: string, contextId?: string): string {
-  return contextId ? `${contextId}:${workspace}` : workspace;
+function getBrowserScope(session: string, contextId?: string): string {
+  return contextId ? `${contextId}:${session}` : session;
 }
 
-async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scope: string = DEFAULT_BROWSER_WORKSPACE): Promise<string | undefined> {
+async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scope: string): Promise<string | undefined> {
   const defaultPage = loadBrowserTargetState(scope)?.defaultPage?.trim();
   if (!defaultPage) return undefined;
   return resolveBrowserTargetInSession(page, defaultPage, { scope, source: 'saved' });
 }
 
-/** Create a browser page for browser commands. Uses a dedicated browser workspace for session persistence. */
+/** Create a browser page for browser commands. Uses a named browser session for continuity. */
 async function getBrowserPage(
+  session: string,
   targetPage?: string,
-  workspace: string = DEFAULT_BROWSER_WORKSPACE,
   contextId?: string,
   opts: { windowMode?: BrowserWindowMode } = {},
 ): Promise<import('./types.js').IPage> {
   const { BrowserBridge } = await import('./browser/index.js');
   const bridge = new BrowserBridge();
-  // Idle timeout: how long the browser workspace lease stays alive between commands
-  // (controls when the automation tab is released). Not the per-command runtime timeout.
+  // Internal GC timeout for browser sessions. Not the per-command runtime timeout.
   const envTimeout = process.env.OPENCLI_BROWSER_IDLE_TIMEOUT;
   const idleTimeout = envTimeout ? parseInt(envTimeout, 10) : undefined;
   const page = await bridge.connect({
     timeout: 30,
-    workspace,
+    session,
+    surface: 'browser',
     ...(contextId && { contextId }),
     ...(idleTimeout && idleTimeout > 0 && { idleTimeout }),
     windowMode: opts.windowMode ?? getBrowserWindowMode(undefined, 'foreground'),
   });
-  const targetScope = getBrowserScope(workspace, contextId);
+  const targetScope = getBrowserScope(session, contextId);
   const resolvedTargetPage = targetPage
     ? await resolveBrowserTargetInSession(page, targetPage, { scope: targetScope, source: 'explicit' })
     : await resolveStoredBrowserTarget(page, targetScope);
@@ -422,29 +420,6 @@ function getBrowserWindowMode(command: Command | undefined, defaultMode: Browser
   return defaultMode;
 }
 
-function parseBrowserBoolean(name: string, raw: unknown): boolean | undefined {
-  if (raw === undefined || raw === '') return undefined;
-  if (raw === 'true') return true;
-  if (raw === 'false') return false;
-  throw new Error(`${name} must be one of: true, false. Received: "${String(raw)}"`);
-}
-
-function getBrowserKeepTab(command: Command | undefined, defaultValue: boolean): boolean {
-  return parseBrowserBoolean('--keep-tab', getCommandOption(command, 'keepTab'))
-    ?? parseBrowserBoolean('OPENCLI_KEEP_TAB', process.env.OPENCLI_KEEP_TAB)
-    ?? defaultValue;
-}
-
-function hasExplicitBrowserWindowOption(command: Command | undefined): boolean {
-  const raw = getCommandOption(command, 'window');
-  return raw !== undefined && raw !== '';
-}
-
-function hasExplicitBrowserKeepTabOption(command: Command | undefined): boolean {
-  const raw = getCommandOption(command, 'keepTab');
-  return raw !== undefined && raw !== '';
-}
-
 function addBrowserTabOption(command: Command): Command {
   return command.option('--tab <targetId>', BROWSER_TAB_OPTION_DESCRIPTION);
 }
@@ -465,9 +440,10 @@ function getCommandOption(command: Command | undefined, option: string): unknown
   return undefined;
 }
 
-function getBrowserWorkspace(command?: Command): string {
-  const raw = getCommandOption(command, 'workspace');
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : DEFAULT_BROWSER_WORKSPACE;
+function getBrowserSession(command?: Command): string {
+  const raw = getCommandOption(command, 'session');
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  throw new Error('--session <name> is required for opencli browser commands');
 }
 
 function getBrowserContextId(command?: Command): string | undefined {
@@ -475,14 +451,15 @@ function getBrowserContextId(command?: Command): string | undefined {
   return resolveProfileContextId(typeof raw === 'string' && raw.trim() ? raw.trim() : undefined);
 }
 
-function getPageWorkspace(page: import('./types.js').IPage): string {
-  const workspace = (page as unknown as { workspace?: unknown }).workspace;
-  return typeof workspace === 'string' && workspace.trim() ? workspace.trim() : DEFAULT_BROWSER_WORKSPACE;
+function getPageSession(page: import('./types.js').IPage): string {
+  const session = (page as unknown as { session?: unknown }).session;
+  if (typeof session === 'string' && session.trim()) return session.trim();
+  throw new Error('Browser page is missing a session');
 }
 
 function getPageScope(page: import('./types.js').IPage): string {
   const contextId = (page as unknown as { contextId?: unknown }).contextId;
-  return getBrowserScope(getPageWorkspace(page), typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined);
+  return getBrowserScope(getPageSession(page), typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined);
 }
 
 type SnapshotSource = 'dom' | 'ax';
@@ -709,9 +686,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   const browser = program
     .command('browser')
-    .option('--workspace <name>', 'Browser workspace to use (default: browser:default; bound tabs use bound:<name>)')
+    .option('--session <name>', 'Browser session to use')
     .option('--window <mode>', 'Browser window mode: foreground or background')
-    .option('--keep-tab <bool>', 'Keep the browser tab lease after the command finishes')
     .description('Browser control — navigate, click, type, extract, wait (no LLM needed)');
   const originalBrowserDescription = browser.description();
 
@@ -787,19 +763,13 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   function browserAction(fn: (page: Awaited<ReturnType<typeof getBrowserPage>>, ...args: any[]) => Promise<unknown>) {
     return async (...args: any[]) => {
       let page: Awaited<ReturnType<typeof getBrowserPage>> | null = null;
-      let shouldReleasePage = false;
       try {
         const command = args.at(-1) instanceof Command ? args.at(-1) as Command : undefined;
         const targetPage = getBrowserTargetId(command);
-        const workspace = getBrowserWorkspace(command);
+        const session = getBrowserSession(command);
         const contextId = getBrowserContextId(command);
         const windowMode = getBrowserWindowMode(command, 'foreground');
-        const keepTab = getBrowserKeepTab(command, true);
-        shouldReleasePage = !keepTab && !workspace.startsWith('bound:');
-        if (workspace.startsWith('bound:') && (hasExplicitBrowserWindowOption(command) || hasExplicitBrowserKeepTabOption(command))) {
-          log.warn('--window/--keep-tab ignored for bound:* workspaces; bound tabs are user-owned.');
-        }
-        page = await getBrowserPage(targetPage, workspace, contextId, { windowMode });
+        page = await getBrowserPage(session, targetPage, contextId, { windowMode });
         await fn(page, ...args);
       } catch (err) {
         if (err instanceof BrowserConnectError) {
@@ -836,51 +806,24 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           }
         }
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
-      } finally {
-        if (shouldReleasePage && page?.closeWindow) {
-          await page.closeWindow().catch((err) => {
-            if (process.env.OPENCLI_VERBOSE) log.warn(`[browser] Failed to release tab lease: ${getErrorMessage(err)}`);
-          });
-        }
       }
     };
   }
 
   browser.command('bind')
-    .option('--domain <host>', 'Only bind a current/visible tab whose hostname matches this domain')
-    .option('--path-prefix <path>', 'Only bind a current/visible tab whose pathname starts with this prefix')
-    .option('--workspace <name>', 'Bound workspace name (must start with bound:)')
-    .description('Bind a bound:* workspace to the current Chrome tab/window')
+    .option('--session <name>', 'Browser session name to bind')
+    .description('Bind the current Chrome tab/window to a browser session')
     .action(async (optsOrCommand, maybeCommand?: Command) => {
       const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
-      const opts = command?.opts() ?? optsOrCommand ?? {};
-      const rawWorkspace = getCommandOption(command, 'workspace');
-      const workspace = typeof rawWorkspace === 'string' && rawWorkspace.trim()
-        ? rawWorkspace.trim()
-        : DEFAULT_BOUND_WORKSPACE;
-      if (!workspace.startsWith('bound:')) {
-        console.log(JSON.stringify({
-          error: {
-            code: 'invalid_bind_workspace',
-            message: `--workspace must start with "bound:", got "${workspace}"`,
-            hint: 'Use the default bound:default or pass --workspace bound:<name>.',
-          },
-        }, null, 2));
-        process.exitCode = EXIT_CODES.USAGE_ERROR;
-        return;
-      }
+      const session = getBrowserSession(command);
       try {
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
         const contextId = getBrowserContextId(command);
-        await bridge.connect({ timeout: 30, workspace, ...(contextId && { contextId }) });
-        const data = await bindTab(workspace, {
-          ...(contextId && { contextId }),
-          ...(typeof opts.domain === 'string' && opts.domain.trim() ? { matchDomain: opts.domain.trim() } : {}),
-          ...(typeof opts.pathPrefix === 'string' && opts.pathPrefix.trim() ? { matchPathPrefix: opts.pathPrefix.trim() } : {}),
-        });
-        saveBrowserTargetState(undefined, getBrowserScope(workspace, contextId));
-        console.log(JSON.stringify({ workspace, ...((data && typeof data === 'object') ? data as Record<string, unknown> : { data }) }, null, 2));
+        await bridge.connect({ timeout: 30, session, surface: 'browser', ...(contextId && { contextId }) });
+        const data = await bindTab(session, { ...(contextId && { contextId }) });
+        saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
+        console.log(JSON.stringify({ session, ...((data && typeof data === 'object') ? data as Record<string, unknown> : { data }) }, null, 2));
       } catch (err) {
         if (err instanceof BrowserCommandError && err.code) {
           console.log(JSON.stringify({
@@ -893,40 +836,24 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         }
         log.error(err instanceof Error ? err.message : String(err));
         if (err instanceof BrowserCommandError && err.hint) log.error(`Hint: ${err.hint}`);
-        process.exitCode = err instanceof BrowserCommandError && err.code === 'invalid_bind_workspace'
-          ? EXIT_CODES.USAGE_ERROR
-          : EXIT_CODES.GENERIC_ERROR;
+        process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
 
   browser.command('unbind')
-    .option('--workspace <name>', 'Bound workspace name to detach')
-    .description('Detach a bound:* workspace without closing the user tab/window')
+    .option('--session <name>', 'Browser session name to detach')
+    .description('Detach a bound browser session without closing the user tab/window')
     .action(async (optsOrCommand, maybeCommand?: Command) => {
       const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
-      const rawWorkspace = getCommandOption(command, 'workspace');
-      const workspace = typeof rawWorkspace === 'string' && rawWorkspace.trim()
-        ? rawWorkspace.trim()
-        : DEFAULT_BOUND_WORKSPACE;
-      if (!workspace.startsWith('bound:')) {
-        console.log(JSON.stringify({
-          error: {
-            code: 'invalid_bind_workspace',
-            message: `--workspace must start with "bound:", got "${workspace}"`,
-            hint: 'Use the default bound:default or pass --workspace bound:<name>.',
-          },
-        }, null, 2));
-        process.exitCode = EXIT_CODES.USAGE_ERROR;
-        return;
-      }
+      const session = getBrowserSession(command);
       try {
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
         const contextId = getBrowserContextId(command);
-        await bridge.connect({ timeout: 30, workspace, ...(contextId && { contextId }) });
-        await sendCommand('close-window', { workspace, ...(contextId && { contextId }) });
-        saveBrowserTargetState(undefined, getBrowserScope(workspace, contextId));
-        console.log(JSON.stringify({ unbound: true, workspace }, null, 2));
+        await bridge.connect({ timeout: 30, session, surface: 'browser', ...(contextId && { contextId }) });
+        await sendCommand('close-window', { session, surface: 'browser', ...(contextId && { contextId }) });
+        saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
+        console.log(JSON.stringify({ unbound: true, session }, null, 2));
       } catch (err) {
         if (err instanceof BrowserCommandError && err.code) {
           console.log(JSON.stringify({
@@ -945,10 +872,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   const browserTab = browser
     .command('tab')
-    .description('Tab management — list, create, and close tabs in the automation window');
+    .description('Tab management — list, create, and close tabs in the browser session');
 
   browserTab.command('list')
-    .description('List tabs in the automation window with target IDs')
+    .description('List tabs in the browser session with target IDs')
     .action(browserAction(async (page) => {
       const tabs = await page.tabs();
       console.log(JSON.stringify(tabs, null, 2));
@@ -1021,15 +948,11 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
    */
   const NETWORK_INTERCEPTOR_JS = `(function(){if(window.__opencli_net)return;window.__opencli_net=[];var M=200,B=1048576,F=window.fetch;function capture(url,method,status,text,ct){if(window.__opencli_net.length>=M)return;var full=text?text.length:0,trunc=full>B,stored=trunc?text.slice(0,B):text,body=null;if(stored){if(trunc){body=stored}else{try{body=JSON.parse(stored)}catch(e){body=stored}}}var e={url:url,method:method||'GET',status:status,size:full,ct:ct,body:body,timestamp:Date.now()};if(trunc){e.bodyTruncated=true;e.bodyFullSize=full}window.__opencli_net.push(e)}window.fetch=async function(){var r=await F.apply(this,arguments);try{var ct=r.headers.get('content-type')||'';if(ct.includes('json')||ct.includes('text')){var c=r.clone(),t=await c.text();capture(r.url||(arguments[0]&&arguments[0].url)||String(arguments[0]),(arguments[1]&&arguments[1].method)||'GET',r.status,t,ct)}}catch(e){}return r};var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(m,u){this._om=m;this._ou=u;return O.apply(this,arguments)};X.send=function(){var x=this;x.addEventListener('load',function(){try{var ct=x.getResponseHeader('content-type')||'';if(ct.includes('json')||ct.includes('text')){capture(x._ou,x._om||'GET',x.status,x.responseText||'',ct)}}catch(e){}});return S.apply(this,arguments)}})()`;
 
-  addBrowserTabOption(browser.command('open').argument('<url>').option('--allow-navigate-bound', 'Allow navigating a bound user tab', false).description('Open URL in automation window'))
+  addBrowserTabOption(browser.command('open').argument('<url>').description('Open URL in the browser session'))
     .action(browserAction(async (page, url, opts) => {
       // Start session-level capture before navigation (catches initial requests)
       const hasSessionCapture = await page.startNetworkCapture?.() ?? false;
-      if (opts.allowNavigateBound === true) {
-        await page.goto(url, { allowBoundNavigation: true });
-      } else {
-        await page.goto(url);
-      }
+      await page.goto(url);
       await page.wait(2);
       // Fallback: inject JS interceptor when session capture is unavailable
       if (!hasSessionCapture) {
@@ -1041,19 +964,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }, null, 2));
     }));
 
-  addBrowserTabOption(browser.command('back').option('--allow-navigate-bound', 'Allow history navigation in a bound user tab', false).description('Go back in browser history'))
+  addBrowserTabOption(browser.command('back').description('Go back in browser history'))
     .action(browserAction(async (page, opts) => {
-      if (getPageWorkspace(page).startsWith('bound:') && opts.allowNavigateBound !== true) {
-        console.log(JSON.stringify({
-          error: {
-            code: 'bound_navigation_blocked',
-            message: `Workspace "${getPageWorkspace(page)}" is bound to a user tab; history navigation is blocked by default.`,
-            hint: 'Pass --allow-navigate-bound only if you intentionally want to navigate the bound tab.',
-          },
-        }, null, 2));
-        process.exitCode = EXIT_CODES.GENERIC_ERROR;
-        return;
-      }
       await page.evaluate('history.back()');
       await page.wait(2);
       console.log('Navigated back');
@@ -1191,7 +1103,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
       const messages = filter(normalize(await page.consoleMessages(opts.level)));
       console.log(JSON.stringify({
-        workspace: getPageWorkspace(page),
+        session: getPageSession(page),
         captured_at: new Date().toISOString(),
         count: messages.length,
         messages: messages.map((message) => ({
@@ -2370,7 +2282,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   // Default output is JSON (agent-native). Each entry carries a stable `key`
   // (GraphQL operationName or `METHOD host+pathname`) so agents can fetch
   // full bodies with `--detail <key>` even after subsequent commands.
-  // Captures are persisted per workspace under ~/.opencli/cache/browser-network/.
+  // Captures are persisted per browser session under ~/.opencli/cache/browser-network/.
 
   addBrowserTabOption(browser.command('network'))
     .option('--detail <key>', 'Emit full body for the entry with this key')
@@ -2386,7 +2298,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .description('Capture network requests as shape previews; retrieve full bodies by key')
     .action(browserAction(async (page, opts) => {
       const ttlMs = parsePositiveIntOption(opts.ttl, 'ttl', DEFAULT_TTL_MS);
-      const workspace = getPageWorkspace(page);
+      const session = getPageSession(page);
       const hasDetail = typeof opts.detail === 'string' && opts.detail.length > 0;
       const hasFilter = typeof opts.filter === 'string';
       const sinceMs = parseDurationMs(opts.since, 'since');
@@ -2426,9 +2338,9 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
       // --detail short-circuits: read from cache only, no live capture needed.
       if (hasDetail) {
-        const res = loadNetworkCache(workspace, { ttlMs });
+        const res = loadNetworkCache(session, { ttlMs });
         if (res.status === 'missing') {
-          emitNetworkError('cache_missing', `No cached capture. Run "browser network" first (in workspace "${workspace}").`);
+          emitNetworkError('cache_missing', `No cached capture. Run "browser network" first (in session "${session}").`);
           return;
         }
         if (res.status === 'expired') {
@@ -2549,7 +2461,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       // via the output envelope rather than erroring out the whole command.
       let cacheWarning: string | null = null;
       try {
-        saveNetworkCache(workspace, cacheEntries);
+        saveNetworkCache(session, cacheEntries);
       } catch (err) {
         cacheWarning = `Could not persist capture cache: ${(err as Error).message}. --detail lookups may miss this capture.`;
       }
@@ -2566,7 +2478,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       const filterDropped = filterFields ? shaped.length - visible.length : 0;
 
       const envelope: Record<string, unknown> = {
-        workspace,
+        session,
         captured_at: new Date().toISOString(),
         count: visible.length,
         filtered_out: filteredOut,
@@ -2636,13 +2548,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           return;
         }
 
-        // Try to detect domain from the last browser session
         let domain = site;
-        try {
-          const page = await getBrowserPage();
-          const url = await page.getCurrentUrl?.();
-          if (url) { try { domain = new URL(url).hostname; } catch {} }
-        } catch { /* no active session */ }
 
         const template = `import { cli, Strategy } from '@jackwener/opencli/registry';
 
@@ -2838,10 +2744,10 @@ cli({
 
   // ── Session ──
 
-  browser.command('close').description('Release the current automation tab lease')
+  browser.command('close').description('Release the current browser session tab lease')
     .action(browserAction(async (page) => {
       await page.closeWindow?.();
-      console.log('Automation tab lease released');
+      console.log('Browser session tab lease released');
     }));
 
   // ── Built-in: doctor / completion ──────────────────────────────────────────

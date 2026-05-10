@@ -30,20 +30,21 @@ describe('Page.getCurrentUrl', () => {
   it('reads the real browser URL when no local navigation cache exists', async () => {
     sendCommandMock.mockResolvedValueOnce('https://notebooklm.google.com/notebook/nb-live');
 
-    const page = new Page('site:notebooklm');
+    const page = new Page('notebooklm', undefined, undefined, undefined, 'adapter');
     const url = await page.getCurrentUrl();
 
     expect(url).toBe('https://notebooklm.google.com/notebook/nb-live');
     expect(sendCommandMock).toHaveBeenCalledTimes(1);
     expect(sendCommandMock).toHaveBeenCalledWith('exec', expect.objectContaining({
-      workspace: 'site:notebooklm',
+      session: 'notebooklm',
+      surface: 'adapter',
     }));
   });
 
   it('caches the discovered browser URL for later reads', async () => {
     sendCommandMock.mockResolvedValueOnce('https://notebooklm.google.com/notebook/nb-live');
 
-    const page = new Page('site:notebooklm');
+    const page = new Page('notebooklm', undefined, undefined, undefined, 'adapter');
     expect(await page.getCurrentUrl()).toBe('https://notebooklm.google.com/notebook/nb-live');
     expect(await page.getCurrentUrl()).toBe('https://notebooklm.google.com/notebook/nb-live');
 
@@ -63,7 +64,7 @@ describe('Page.evaluate', () => {
       .mockRejectedValueOnce(new Error('{"code":-32000,"message":"Inspected target navigated or closed"}'))
       .mockResolvedValueOnce(42);
 
-    const page = new Page('site:notebooklm');
+    const page = new Page('notebooklm', undefined, undefined, undefined, 'adapter');
     const value = await page.evaluate('21 + 21');
 
     expect(value).toBe(42);
@@ -81,7 +82,7 @@ describe('Page network capture compatibility', () => {
   it('treats unknown network-capture-start as unsupported and memoizes it', async () => {
     sendCommandMock.mockRejectedValueOnce(new Error('Unknown action: network-capture-start'));
 
-    const page = new Page('site:notebooklm');
+    const page = new Page('notebooklm', undefined, undefined, undefined, 'adapter');
 
     await expect(page.startNetworkCapture()).resolves.toBe(false);
     await expect(page.startNetworkCapture()).resolves.toBe(false);
@@ -90,14 +91,15 @@ describe('Page network capture compatibility', () => {
     expect(warnMock).toHaveBeenCalledTimes(1);
     expect(warnMock).toHaveBeenCalledWith(expect.stringContaining('does not support network capture'));
     expect(sendCommandMock).toHaveBeenCalledWith('network-capture-start', expect.objectContaining({
-      workspace: 'site:notebooklm',
+      session: 'notebooklm',
+      surface: 'adapter',
     }));
   });
 
   it('returns an empty capture when network-capture-read is unsupported', async () => {
     sendCommandMock.mockRejectedValueOnce(new Error('Unknown action: network-capture-read'));
 
-    const page = new Page('site:notebooklm');
+    const page = new Page('notebooklm', undefined, undefined, undefined, 'adapter');
 
     await expect(page.readNetworkCapture()).resolves.toEqual([]);
     await expect(page.readNetworkCapture()).resolves.toEqual([]);
@@ -105,14 +107,15 @@ describe('Page network capture compatibility', () => {
     expect(sendCommandMock).toHaveBeenCalledTimes(1);
     expect(warnMock).toHaveBeenCalledTimes(1);
     expect(sendCommandMock).toHaveBeenCalledWith('network-capture-read', expect.objectContaining({
-      workspace: 'site:notebooklm',
+      session: 'notebooklm',
+      surface: 'adapter',
     }));
   });
 
   it('rethrows unrelated network capture failures', async () => {
     sendCommandMock.mockRejectedValueOnce(new Error('Extension disconnected'));
 
-    const page = new Page('site:notebooklm');
+    const page = new Page('notebooklm', undefined, undefined, undefined, 'adapter');
 
     await expect(page.startNetworkCapture()).rejects.toThrow('Extension disconnected');
     expect(sendCommandMock).toHaveBeenCalledTimes(1);
@@ -124,7 +127,7 @@ describe('Page network capture compatibility', () => {
       .mockRejectedValueOnce(new Error('Unknown action: network-capture-start'))
       .mockRejectedValueOnce(new Error('Unknown action: network-capture-read'));
 
-    const page = new Page('site:notebooklm');
+    const page = new Page('notebooklm', undefined, undefined, undefined, 'adapter');
 
     await expect(page.startNetworkCapture()).resolves.toBe(false);
     await expect(page.readNetworkCapture()).resolves.toEqual([]);
@@ -140,7 +143,7 @@ describe('Page download waits', () => {
     warnMock.mockReset();
   });
 
-  it('sends wait-download through the daemon with workspace and timeout', async () => {
+  it('sends wait-download through the daemon with session and timeout', async () => {
     sendCommandMock.mockResolvedValueOnce({
       downloaded: true,
       filename: '/tmp/receipt.pdf',
@@ -148,7 +151,7 @@ describe('Page download waits', () => {
       elapsedMs: 5,
     });
 
-    const page = new Page('site:mercury');
+    const page = new Page('mercury', undefined, undefined, undefined, 'adapter');
     const result = await page.waitForDownload('receipt', 1234);
 
     expect(result).toEqual({
@@ -158,7 +161,8 @@ describe('Page download waits', () => {
       elapsedMs: 5,
     });
     expect(sendCommandMock).toHaveBeenCalledWith('wait-download', expect.objectContaining({
-      workspace: 'site:mercury',
+      session: 'mercury',
+      surface: 'adapter',
       pattern: 'receipt',
       timeoutMs: 1234,
     }));
@@ -175,11 +179,12 @@ describe('Page CDP helpers', () => {
   it('handles JavaScript dialogs through the CDP passthrough', async () => {
     sendCommandMock.mockResolvedValueOnce({});
 
-    const page = new Page('browser:default');
+    const page = new Page('default');
     await page.handleJavaScriptDialog(true, 'confirm');
 
     expect(sendCommandMock).toHaveBeenCalledWith('cdp', expect.objectContaining({
-      workspace: 'browser:default',
+      session: 'default',
+      surface: 'browser',
       cdpMethod: 'Page.handleJavaScriptDialog',
       cdpParams: { accept: true, promptText: 'confirm' },
     }));
@@ -199,7 +204,7 @@ describe('Page active target tracking', () => {
       .mockResolvedValueOnce({ data: { selected: true }, page: 'page-2' });
     sendCommandMock.mockResolvedValue('ok');
 
-    const page = new Page('browser:default');
+    const page = new Page('default');
 
     await page.goto('https://first.example', { waitUntil: 'none' });
     expect(page.getActivePage()).toBe('page-1');
@@ -210,7 +215,8 @@ describe('Page active target tracking', () => {
     await page.evaluate('1 + 1');
 
     expect(sendCommandMock).toHaveBeenLastCalledWith('exec', expect.objectContaining({
-      workspace: 'browser:default',
+      session: 'default',
+      surface: 'browser',
       page: 'page-2',
     }));
   });
@@ -218,13 +224,14 @@ describe('Page active target tracking', () => {
   it('allows the caller to bind a specific active page identity explicitly', async () => {
     sendCommandMock.mockResolvedValue('bound');
 
-    const page = new Page('browser:default');
+    const page = new Page('default');
     page.setActivePage?.('page-explicit');
 
     await page.evaluate('1 + 1');
 
     expect(sendCommandMock).toHaveBeenCalledWith('exec', expect.objectContaining({
-      workspace: 'browser:default',
+      session: 'default',
+      surface: 'browser',
       page: 'page-explicit',
     }));
   });
@@ -238,7 +245,7 @@ describe('Page active target tracking', () => {
       });
     sendCommandMock.mockResolvedValue('ok');
 
-    const page = new Page('browser:default');
+    const page = new Page('default');
     await page.goto('https://first.example', { waitUntil: 'none' });
 
     const created = await page.newTab?.('https://second.example');
@@ -247,7 +254,8 @@ describe('Page active target tracking', () => {
     expect(page.getActivePage()).toBe('page-1');
     await page.evaluate('1 + 1');
     expect(sendCommandMock).toHaveBeenLastCalledWith('exec', expect.objectContaining({
-      workspace: 'browser:default',
+      session: 'default',
+      surface: 'browser',
       page: 'page-1',
     }));
   });
@@ -258,7 +266,7 @@ describe('Page active target tracking', () => {
       page: 'page-2',
     });
 
-    const page = new Page('browser:default');
+    const page = new Page('default');
     const created = await page.newTab?.('https://second.example');
 
     expect(created).toBe('page-2');
@@ -269,19 +277,21 @@ describe('Page active target tracking', () => {
     expect(sendCommandFullMock).toHaveBeenCalledWith('tabs', expect.objectContaining({
       op: 'new',
       url: 'https://second.example',
-      workspace: 'browser:default',
+      session: 'default',
+      surface: 'browser',
     }));
   });
 
   it('closes a tab by explicit page identity', async () => {
     sendCommandMock.mockResolvedValueOnce({ closed: 'page-2' });
 
-    const page = new Page('browser:default');
+    const page = new Page('default');
     await page.closeTab?.('page-2');
 
     expect(sendCommandMock).toHaveBeenCalledWith('tabs', expect.objectContaining({
       op: 'close',
-      workspace: 'browser:default',
+      session: 'default',
+      surface: 'browser',
       page: 'page-2',
     }));
   });
@@ -292,7 +302,7 @@ describe('Page active target tracking', () => {
       .mockResolvedValueOnce({ closed: 'page-2' })
       .mockResolvedValueOnce('ok');
 
-    const page = new Page('browser:default');
+    const page = new Page('default');
 
     await page.selectTab(1);
     expect(page.getActivePage()).toBe('page-2');
@@ -305,7 +315,8 @@ describe('Page active target tracking', () => {
     const evalCall = sendCommandMock.mock.calls.at(-1);
     expect(evalCall?.[0]).toBe('exec');
     expect(evalCall?.[1]).toEqual(expect.objectContaining({
-      workspace: 'browser:default',
+      session: 'default',
+      surface: 'browser',
     }));
     expect(evalCall?.[1]).not.toHaveProperty('page');
   });
@@ -321,12 +332,13 @@ describe('Page.screenshot', () => {
   it('forwards width / height / fullPage options to the bridge', async () => {
     sendCommandMock.mockResolvedValueOnce('BASE64');
 
-    const page = new Page('browser:default');
+    const page = new Page('default');
     const data = await page.screenshot({ fullPage: true, width: 1080 });
 
     expect(data).toBe('BASE64');
     expect(sendCommandMock).toHaveBeenCalledWith('screenshot', expect.objectContaining({
-      workspace: 'browser:default',
+      session: 'default',
+      surface: 'browser',
       fullPage: true,
       width: 1080,
     }));
@@ -335,7 +347,7 @@ describe('Page.screenshot', () => {
   it('omits viewport overrides when none are set', async () => {
     sendCommandMock.mockResolvedValueOnce('BASE64');
 
-    const page = new Page('browser:default');
+    const page = new Page('default');
     await page.screenshot();
 
     const call = sendCommandMock.mock.calls.at(-1);

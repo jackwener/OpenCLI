@@ -26,9 +26,9 @@ describe('network-cache', () => {
         fs.rmSync(baseDir, { recursive: true, force: true });
     });
 
-    it('sanitizes workspace names into safe filenames', () => {
-        const p = getCachePath('browser:default', baseDir);
-        expect(path.basename(p)).toBe('browser_default.json');
+    it('sanitizes session names into safe filenames', () => {
+        const p = getCachePath('twitter/agent 1', baseDir);
+        expect(path.basename(p)).toBe('twitter_agent_1.json');
     });
 
     it('round-trips entries through save + load', () => {
@@ -67,7 +67,7 @@ describe('network-cache', () => {
 
     it('findEntry returns matching entry or null', () => {
         const file: NetworkCacheFile = {
-            version: 1, workspace: 'ws', savedAt: new Date().toISOString(),
+            version: 1, session: 'ws', savedAt: new Date().toISOString(),
             entries: [makeEntry('A'), makeEntry('B')],
         };
         expect(findEntry(file, 'B')?.key).toBe('B');

@@ -22,35 +22,28 @@ Until `doctor` is green, nothing else will work. Typical failures: Chrome not ru
 
 ---
 
-## Lease lifecycle
+## Session lifecycle
 
-- `opencli browser *` commands keep an owned tab lease alive between calls. Owned leases share a dedicated automation container and are released with `opencli browser close` or when the idle timeout expires.
-- `opencli browser bind` binds a `bound:*` workspace to the Chrome tab you already have open. Use this for logged-in pages, SSO flows, or pages you manually positioned before handing control to the agent.
-- `--window foreground|background` (or `OPENCLI_WINDOW=foreground|background`) chooses whether OpenCLI uses a foreground browser window or a background automation window.
-- `--keep-tab true|false` (or `OPENCLI_KEEP_TAB=true|false`) chooses whether the tab lease is kept after the command. `opencli browser *` defaults to `true`; browser-backed adapter commands default to `false` unless the adapter opts into site reuse.
+- `opencli browser *` commands require `--session <name>`. Use the same session name for a multi-step flow; use a different name to isolate parallel browser work.
+- Owned browser sessions keep a tab lease alive between calls. Release it with `opencli browser --session <name> close` or let the idle timeout expire.
+- `opencli browser bind --session <name>` binds the Chrome tab you already have open to that session. Use this for logged-in pages, SSO flows, or pages you manually positioned before handing control to the agent.
+- `--window foreground|background` (or `OPENCLI_WINDOW=foreground|background`) chooses whether OpenCLI creates/focuses a foreground browser window or uses a background browser window for owned sessions.
 
 ### Bind Tab
 
 ```bash
-opencli browser bind --domain example.com
-opencli browser --workspace bound:default state
-opencli browser --workspace bound:default click "Search"
-opencli browser --workspace bound:default network
-opencli browser unbind
+opencli browser bind --session gmail
+opencli browser --session gmail state
+opencli browser --session gmail click "Search"
+opencli browser --session gmail network
+opencli browser unbind --session gmail
 ```
 
-Binding uses a separate `bound:*` workspace. It never owns the user window, never closes the user tab, and fails closed if the tab is closed or becomes non-debuggable. Re-run `bind` when you switch to a different real tab.
+Binding never owns the user window and never closes the user tab. It fails closed if the tab is closed or becomes non-debuggable. Re-run `bind --session <name>` when you switch to a different real tab.
 
-Use `--domain <host>` and `--path-prefix <path>` to avoid binding the wrong tab:
+Navigation is allowed on bound sessions because the session now represents explicit agent ownership of that tab. Tab mutation (`tab new`, `tab select`, `tab close`) is still blocked for bound sessions. Use an owned session when you want OpenCLI to manage tab lifecycle.
 
-```bash
-opencli browser bind --workspace bound:gmail --domain mail.google.com --path-prefix /mail
-opencli browser --workspace bound:gmail state
-```
-
-Navigation is blocked by default on bound workspaces because it can destroy the logged-in/positioned state you wanted to preserve. `browser open` and `browser back` require `--allow-navigate-bound`; tab mutation (`tab new`, `tab select`, `tab close`) is blocked for bound workspaces. Use a normal `browser:*` automation workspace when you want OpenCLI to own tab lifecycle.
-
-`opencli browser sessions` returns `idleMsRemaining: null` for bound workspaces. That means there is no OpenCLI idle-close timer; the binding lasts until `unbind`, tab close, window close, or daemon restart.
+`opencli browser sessions` returns `idleMsRemaining: null` for bound sessions. That means there is no OpenCLI idle-close timer; the binding lasts until `unbind`, tab close, window close, or daemon restart.
 
 ---
 
@@ -216,9 +209,9 @@ Default output keeps JSON/XML/plain-text and JS-like API responses, then drops o
 | `browser tab select [targetId]` | Make a tab the default. All subcommands accept `--tab <targetId>` to target one without changing the default. |
 | `browser tab close [targetId]` | Close by `page`. |
 | `browser back` | History back on the active tab. |
-| `browser close` | Release the current automation tab lease when done. |
-| `browser bind` | Bind `bound:default` (or `--workspace bound:<name>`) to the current Chrome tab. |
-| `browser unbind` | Detach a bound workspace without closing the user tab/window. |
+| `browser close` | Release the current owned browser session when done. |
+| `browser bind --session <name>` | Bind the current Chrome tab to a browser session. |
+| `browser unbind --session <name>` | Detach a bound session without closing the user tab/window. |
 
 ---
 
@@ -306,9 +299,9 @@ Rule of thumb: **one `state` per page transition, one `find` per follow-up query
 **Good — one shell, live session:**
 
 ```bash
-opencli browser open "https://news.ycombinator.com" \
-  && opencli browser state \
-  && opencli browser click 3
+opencli browser --session hn open "https://news.ycombinator.com" \
+  && opencli browser --session hn state \
+  && opencli browser --session hn click 3
 ```
 
 **Bad — each line is a fresh shell, refs from call 1 are already forgotten when call 2 runs.** (Only a problem if you rely on shell-scoped state; browser refs themselves persist in-page, but interleaving unrelated shells invites races.) Prefer `&&` when the steps are meant to be atomic.
@@ -322,24 +315,24 @@ opencli browser open "https://news.ycombinator.com" \
 ### Fill a login form
 
 ```bash
-opencli browser open "https://example.com/login"
-opencli browser state                          # find [N] for email, password, submit
-opencli browser type 4 "me@example.com"
-opencli browser type 5 "hunter2"
-opencli browser get value 4                    # verify (autocomplete can eat chars)
-opencli browser click 6                        # submit
-opencli browser wait selector "[data-testid=account-menu]" --timeout 15000
-opencli browser state                          # fresh refs on the logged-in page
+opencli browser --session login open "https://example.com/login"
+opencli browser --session login state                          # find [N] for email, password, submit
+opencli browser --session login type 4 "me@example.com"
+opencli browser --session login type 5 "hunter2"
+opencli browser --session login get value 4                    # verify (autocomplete can eat chars)
+opencli browser --session login click 6                        # submit
+opencli browser --session login wait selector "[data-testid=account-menu]" --timeout 15000
+opencli browser --session login state                          # fresh refs on the logged-in page
 ```
 
 ### Pick from a long dropdown
 
 ```bash
-opencli browser state                          # sidebar shows [12] <select name=country>
-opencli browser find --css "select[name=country]"
+opencli browser --session form state                          # sidebar shows [12] <select name=country>
+opencli browser --session form find --css "select[name=country]"
 # the compound.options_total is 137, but compound.current is "" — unselected.
-opencli browser select 12 "Uruguay"
-opencli browser get value 12                   # { value: "uy", match_level: "exact" }
+opencli browser --session form select 12 "Uruguay"
+opencli browser --session form get value 12                   # { value: "uy", match_level: "exact" }
 ```
 
 ### Pick from a custom React dropdown
@@ -348,13 +341,13 @@ Use this for Radix, shadcn, Material UI, Mercury-style category fields, and
 other controls that are not native `<select>`.
 
 ```bash
-opencli browser state                          # find category trigger ref
+opencli browser --session mercury state                          # find category trigger ref
 # If the trigger/option is not clear, use AX:
-opencli browser state --source ax              # look for combobox/button/listbox/option names
-opencli browser click 7                        # click category trigger
-opencli browser state --source ax              # fresh refs after the portal/listbox opens
-opencli browser click 12                       # click option
-opencli browser get text 7                     # verify visible selected label
+opencli browser --session mercury state --source ax              # look for combobox/button/listbox/option names
+opencli browser --session mercury click 7                        # click category trigger
+opencli browser --session mercury state --source ax              # fresh refs after the portal/listbox opens
+opencli browser --session mercury click 12                       # click option
+opencli browser --session mercury get text 7                     # verify visible selected label
 ```
 
 Do not use `browser select` on these widgets. `browser select` is only for
@@ -367,7 +360,7 @@ When deciding whether AX refs are better for a page, collect metrics without
 sharing page contents:
 
 ```bash
-opencli browser state --compare-sources
+opencli browser --session compare state --compare-sources
 ```
 
 Report `sources.dom.refs`, `sources.ax.refs`, `frame_sections`,
@@ -377,28 +370,28 @@ arguing that AX should become the default on a site.
 ### Scrape a list via network instead of DOM
 
 ```bash
-opencli browser open "https://news.ycombinator.com"
-opencli browser network --filter "title,score"
+opencli browser --session hn open "https://news.ycombinator.com"
+opencli browser --session hn network --filter "title,score"
 # -> find the /topstories entry, note its key
-opencli browser network --detail topstories-a1b2
+opencli browser --session hn network --detail topstories-a1b2
 ```
 
 ### Read a long article in chunks
 
 ```bash
-opencli browser open "https://blog.example.com/long-post"
-opencli browser extract --chunk-size 8000
+opencli browser --session article open "https://blog.example.com/long-post"
+opencli browser --session article extract --chunk-size 8000
 # -> content + next_start_char: 8000
-opencli browser extract --start 8000 --chunk-size 8000
+opencli browser --session article extract --start 8000 --chunk-size 8000
 # ...until next_start_char is null
 ```
 
 ### Cross-origin iframe
 
 ```bash
-opencli browser frames
+opencli browser --session checkout frames
 # -> [{"index": 0, "url": "https://checkout.stripe.com/...", ...}]
-opencli browser eval "(() => document.querySelector('input[name=cardnumber]')?.value)()" --frame 0
+opencli browser --session checkout eval "(() => document.querySelector('input[name=cardnumber]')?.value)()" --frame 0
 ```
 
 `browser state --source ax` may omit cross-origin iframe contents or fail to

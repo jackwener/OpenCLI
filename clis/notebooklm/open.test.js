@@ -38,7 +38,7 @@ describe('notebooklm open', () => {
             source: 'current-page',
         });
     });
-    it('opens a notebook by id in the automation workspace', async () => {
+    it('opens a notebook by id in the adapter session', async () => {
         const page = {
             goto: vi.fn(async () => { }),
             wait: vi.fn(async () => { }),

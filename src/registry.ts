@@ -33,8 +33,8 @@ export interface BrowserSessionOptions {
   /**
    * Control whether browser-backed adapter commands reuse a stable tab lease.
    *
-   * - `none`: one-shot workspace per command execution (default)
-   * - `site`: all commands for this site share `site:<site>` until idle expiry
+   * - `none`: one-shot adapter browser session per command execution (default)
+   * - `site`: all commands for this site share one adapter browser session until idle expiry
    */
   reuse?: BrowserSessionReuse;
 }

@@ -68,11 +68,13 @@ export interface FetchJsonOptions {
 }
 
 export interface BrowserSessionInfo {
-  workspace?: string;
+  session?: string;
   connected?: boolean;
   windowId?: number;
   preferredTabId?: number | null;
   owned?: boolean;
+  kind?: 'owned' | 'bound';
+  surface?: 'browser' | 'adapter';
   ownership?: 'owned' | 'borrowed';
   lifecycle?: 'ephemeral' | 'persistent' | 'pinned';
   windowRole?: 'interactive' | 'automation' | 'borrowed-user';
@@ -83,7 +85,7 @@ export interface BrowserSessionInfo {
 }
 
 export interface IPage {
-  goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number; allowBoundNavigation?: boolean }): Promise<void>;
+  goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number }): Promise<void>;
   evaluate(js: string): Promise<any>;
   /** Safely evaluate JS with pre-serialized arguments — prevents injection. */
   evaluateWithArgs?(js: string, args: Record<string, unknown>): Promise<any>;

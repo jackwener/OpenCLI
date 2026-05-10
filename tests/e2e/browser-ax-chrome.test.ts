@@ -15,7 +15,8 @@ const DAEMON_PORT = 19825;
 type Command = {
   id: string;
   action: string;
-  workspace?: string;
+  session?: string;
+  surface?: 'browser' | 'adapter';
   page?: string;
   url?: string;
   cdpMethod?: string;
@@ -333,14 +334,15 @@ describe('Browser Bridge AX real Chrome smoke', () => {
     expect(bridge).toBeTruthy();
     expect(site).toBeTruthy();
 
-    const workspace = `browser:ax-smoke-${Date.now()}`;
-    const nav = await bridge!.sendCommand({ action: 'navigate', workspace, url: site!.url });
+    const session = `ax-smoke-${Date.now()}`;
+    const browserSession = { session, surface: 'browser' as const };
+    const nav = await bridge!.sendCommand({ action: 'navigate', ...browserSession, url: site!.url });
     expect(nav.ok, nav.error).toBe(true);
     expect(nav.page).toBeTruthy();
 
     const rootEnable = await bridge!.sendCommand({
       action: 'cdp',
-      workspace,
+      ...browserSession,
       page: nav.page,
       cdpMethod: 'Accessibility.enable',
       cdpParams: {},
@@ -349,7 +351,7 @@ describe('Browser Bridge AX real Chrome smoke', () => {
 
     const rootAx = await bridge!.sendCommand({
       action: 'cdp',
-      workspace,
+      ...browserSession,
       page: nav.page,
       cdpMethod: 'Accessibility.getFullAXTree',
       cdpParams: {},
@@ -359,7 +361,7 @@ describe('Browser Bridge AX real Chrome smoke', () => {
 
     const frameTree = await bridge!.sendCommand({
       action: 'cdp',
-      workspace,
+      ...browserSession,
       page: nav.page,
       cdpMethod: 'Page.getFrameTree',
       cdpParams: {},
@@ -373,7 +375,7 @@ describe('Browser Bridge AX real Chrome smoke', () => {
 
     const sameAx = await bridge!.sendCommand({
       action: 'cdp',
-      workspace,
+      ...browserSession,
       page: nav.page,
       cdpMethod: 'Accessibility.getFullAXTree',
       cdpParams: { frameId: sameFrame!.id },
@@ -383,7 +385,7 @@ describe('Browser Bridge AX real Chrome smoke', () => {
 
     const crossEnable = await bridge!.sendCommand({
       action: 'cdp',
-      workspace,
+      ...browserSession,
       page: nav.page,
       cdpMethod: 'Accessibility.enable',
       cdpParams: { frameId: crossFrame!.id, sessionId: 'target', targetUrl: crossFrame!.url },
@@ -395,7 +397,7 @@ describe('Browser Bridge AX real Chrome smoke', () => {
 
     const crossAx = await bridge!.sendCommand({
       action: 'cdp',
-      workspace,
+      ...browserSession,
       page: nav.page,
       cdpMethod: 'Accessibility.getFullAXTree',
       cdpParams: { frameId: crossFrame!.id, sessionId: 'target', targetUrl: crossFrame!.url },

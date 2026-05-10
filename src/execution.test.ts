@@ -165,10 +165,10 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
-  it('reuses a site-scoped browser workspace and keeps the tab lease open', async () => {
+  it('reuses a persistent site browser session and keeps the tab lease open', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
-    const sessionOpts: Array<{ workspace?: string; idleTimeout?: number; windowMode?: string }> = [];
+    const sessionOpts: Array<{ session?: string; idleTimeout?: number; windowMode?: string }> = [];
 
     vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
     vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
@@ -190,16 +190,16 @@ describe('executeCommand — non-browser timeout', () => {
     await executeCommand(cmd, {});
 
     expect(sessionOpts).toHaveLength(2);
-    expect(sessionOpts[0]).toMatchObject({ workspace: 'site:test-execution', idleTimeout: 600, windowMode: 'background' });
-    expect(sessionOpts[1]).toMatchObject({ workspace: 'site:test-execution', idleTimeout: 600, windowMode: 'background' });
+    expect(sessionOpts[0]).toMatchObject({ session: 'site:test-execution', idleTimeout: 600, windowMode: 'background' });
+    expect(sessionOpts[1]).toMatchObject({ session: 'site:test-execution', idleTimeout: 600, windowMode: 'background' });
     expect(closeWindow).not.toHaveBeenCalled();
     vi.restoreAllMocks();
   });
 
-  it('keeps default browser commands on one-shot workspaces', async () => {
+  it('keeps default browser commands on one-shot adapter sessions', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
-    const sessionOpts: Array<{ workspace?: string; idleTimeout?: number; windowMode?: string }> = [];
+    const sessionOpts: Array<{ session?: string; idleTimeout?: number; windowMode?: string }> = [];
 
     vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
     vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
@@ -210,7 +210,7 @@ describe('executeCommand — non-browser timeout', () => {
     const cmd = cli({
       site: 'test-execution',
       name: 'browser-reuse-default', access: 'read',
-      description: 'test default one-shot browser workspace',
+      description: 'test default one-shot browser session',
       browser: true,
       strategy: Strategy.PUBLIC,
       func: async () => [{ ok: true }],
@@ -220,9 +220,9 @@ describe('executeCommand — non-browser timeout', () => {
     await executeCommand(cmd, {});
 
     expect(sessionOpts).toHaveLength(2);
-    expect(sessionOpts[0]?.workspace).toMatch(/^site:test-execution:/);
-    expect(sessionOpts[1]?.workspace).toMatch(/^site:test-execution:/);
-    expect(sessionOpts[0]?.workspace).not.toBe(sessionOpts[1]?.workspace);
+    expect(sessionOpts[0]?.session).toMatch(/^site:test-execution:/);
+    expect(sessionOpts[1]?.session).toMatch(/^site:test-execution:/);
+    expect(sessionOpts[0]?.session).not.toBe(sessionOpts[1]?.session);
     expect(sessionOpts[0]?.idleTimeout).toBeUndefined();
     expect(sessionOpts[1]?.idleTimeout).toBeUndefined();
     expect(sessionOpts[0]?.windowMode).toBe('background');
@@ -234,7 +234,7 @@ describe('executeCommand — non-browser timeout', () => {
   it('lets user --reuse none override adapter reuse metadata', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
-    const sessionOpts: Array<{ workspace?: string; idleTimeout?: number }> = [];
+    const sessionOpts: Array<{ session?: string; idleTimeout?: number }> = [];
 
     vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
     vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
@@ -258,7 +258,7 @@ describe('executeCommand — non-browser timeout', () => {
       await executeCommand(cmd, {});
 
       expect(sessionOpts).toHaveLength(1);
-      expect(sessionOpts[0]?.workspace).toMatch(/^site:test-execution:/);
+      expect(sessionOpts[0]?.session).toMatch(/^site:test-execution:/);
       expect(sessionOpts[0]?.idleTimeout).toBeUndefined();
       expect(closeWindow).toHaveBeenCalledTimes(1);
     } finally {

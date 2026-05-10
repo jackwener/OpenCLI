@@ -134,7 +134,7 @@ describe('doctor report rendering', () => {
       issues: [],
       sessions: [
         {
-          workspace: 'bound:default',
+          session: 'default',
           windowId: 2,
           preferredTabId: 42,
           ownership: 'borrowed',
@@ -145,7 +145,7 @@ describe('doctor report rendering', () => {
       ],
     }));
 
-    expect(text).toContain('bound:default → tab 42, mode=borrowed, window=borrowed-user, tabs=1, idle=none');
+    expect(text).toContain('default → tab 42, mode=borrowed, window=borrowed-user, tabs=1, idle=none');
   });
 
   it('renders connected profiles and groups sessions by profile', () => {
@@ -160,7 +160,7 @@ describe('doctor report rendering', () => {
       sessions: [
         {
           contextId: 'work',
-          workspace: 'bound:default',
+          session: 'default',
           windowId: 2,
           preferredTabId: 42,
           ownership: 'borrowed',
@@ -170,7 +170,7 @@ describe('doctor report rendering', () => {
         },
         {
           contextId: 'personal',
-          workspace: 'site:foo',
+          session: 'site:foo',
           windowId: 1,
           preferredTabId: 10,
           ownership: 'owned',
@@ -185,7 +185,7 @@ describe('doctor report rendering', () => {
     expect(text).toContain('work: connected v1.2.3');
     expect(text).toContain('[profile: work]');
     expect(text).toContain('[profile: personal]');
-    expect(text).toContain('bound:default → tab 42');
+    expect(text).toContain('default → tab 42');
     expect(text).toContain('site:foo → tab 10');
   });
 

@@ -207,6 +207,7 @@ async function startFakeDaemon(): Promise<FakeDaemon> {
 describe('browser tab CLI e2e', () => {
   const daemons: FakeDaemon[] = [];
   const cacheDirs: string[] = [];
+  const browserArgs = (session: string, ...args: string[]) => ['browser', '--session', session, ...args];
 
   afterEach(async () => {
     while (daemons.length > 0) {
@@ -221,8 +222,9 @@ describe('browser tab CLI e2e', () => {
     const daemon = await startFakeDaemon();
     daemons.push(daemon);
     const env = { OPENCLI_DAEMON_PORT: String(daemon.port) };
+    const session = 'tabs-basic';
 
-    const listed = await runCli(['browser', 'tab', 'list'], { env });
+    const listed = await runCli(browserArgs(session, 'tab', 'list'), { env });
     expect(listed.code).toBe(0);
     const listData = parseJsonOutput(listed.stdout);
     expect(listData).toEqual(expect.arrayContaining([
@@ -230,7 +232,7 @@ describe('browser tab CLI e2e', () => {
       expect.objectContaining({ page: 'tab-2', title: 'tab-two' }),
     ]));
 
-    const created = await runCli(['browser', 'tab', 'new', 'https://three.example/'], { env });
+    const created = await runCli(browserArgs(session, 'tab', 'new', 'https://three.example/'), { env });
     expect(created.code).toBe(0);
     const createdData = parseJsonOutput(created.stdout);
     expect(createdData).toEqual(expect.objectContaining({
@@ -238,12 +240,12 @@ describe('browser tab CLI e2e', () => {
       url: 'https://three.example/',
     }));
 
-    const closed = await runCli(['browser', 'tab', 'close', 'tab-3'], { env });
+    const closed = await runCli(browserArgs(session, 'tab', 'close', 'tab-3'), { env });
     expect(closed.code).toBe(0);
     const closedData = parseJsonOutput(closed.stdout);
     expect(closedData).toEqual({ closed: 'tab-3' });
 
-    const relisted = await runCli(['browser', 'tab', 'list'], { env });
+    const relisted = await runCli(browserArgs(session, 'tab', 'list'), { env });
     expect(relisted.code).toBe(0);
     const relistedData = parseJsonOutput(relisted.stdout);
     expect(relistedData).toHaveLength(2);
@@ -254,10 +256,11 @@ describe('browser tab CLI e2e', () => {
     const daemon = await startFakeDaemon();
     daemons.push(daemon);
     const env = { OPENCLI_DAEMON_PORT: String(daemon.port) };
+    const session = 'tabs-concurrent';
 
     const [left, right] = await Promise.all([
-      runCli(['browser', 'eval', '--tab', 'tab-1', 'window.__delay = "left"'], { env, timeout: 30_000 }),
-      runCli(['browser', 'eval', '--tab', 'tab-2', 'window.__delay = "right"'], { env, timeout: 30_000 }),
+      runCli(browserArgs(session, 'eval', '--tab', 'tab-1', 'window.__delay = "left"'), { env, timeout: 30_000 }),
+      runCli(browserArgs(session, 'eval', '--tab', 'tab-2', 'window.__delay = "right"'), { env, timeout: 30_000 }),
     ]);
 
     expect(left.code).toBe(0);
@@ -280,12 +283,13 @@ describe('browser tab CLI e2e', () => {
       OPENCLI_DAEMON_PORT: String(daemon.port),
       OPENCLI_CACHE_DIR: cacheDir,
     };
+    const session = 'tabs-default-new';
 
-    const created = await runCli(['browser', 'tab', 'new', 'https://three.example/'], { env });
+    const created = await runCli(browserArgs(session, 'tab', 'new', 'https://three.example/'), { env });
     expect(created.code).toBe(0);
     expect(parseJsonOutput(created.stdout)).toEqual(expect.objectContaining({ page: 'tab-3' }));
 
-    const untargeted = await runCli(['browser', 'eval', 'document.title'], { env });
+    const untargeted = await runCli(browserArgs(session, 'eval', 'document.title'), { env });
     expect(untargeted.code).toBe(0);
     expect(parseJsonOutput(untargeted.stdout)).toEqual(expect.objectContaining({ page: 'tab-1', title: 'tab-one' }));
   }, 30_000);
@@ -299,20 +303,21 @@ describe('browser tab CLI e2e', () => {
       OPENCLI_DAEMON_PORT: String(daemon.port),
       OPENCLI_CACHE_DIR: cacheDir,
     };
+    const session = 'tabs-selected-default';
 
-    const selected = await runCli(['browser', 'tab', 'select', 'tab-2'], { env });
+    const selected = await runCli(browserArgs(session, 'tab', 'select', 'tab-2'), { env });
     expect(selected.code).toBe(0);
     expect(parseJsonOutput(selected.stdout)).toEqual({ selected: 'tab-2' });
 
-    const untargeted = await runCli(['browser', 'eval', 'document.title'], { env });
+    const untargeted = await runCli(browserArgs(session, 'eval', 'document.title'), { env });
     expect(untargeted.code).toBe(0);
     expect(parseJsonOutput(untargeted.stdout)).toEqual(expect.objectContaining({ page: 'tab-2', title: 'tab-two' }));
 
-    const closed = await runCli(['browser', 'tab', 'close', 'tab-2'], { env });
+    const closed = await runCli(browserArgs(session, 'tab', 'close', 'tab-2'), { env });
     expect(closed.code).toBe(0);
     expect(parseJsonOutput(closed.stdout)).toEqual({ closed: 'tab-2' });
 
-    const fallback = await runCli(['browser', 'eval', 'document.title'], { env });
+    const fallback = await runCli(browserArgs(session, 'eval', 'document.title'), { env });
     expect(fallback.code).toBe(0);
     expect(parseJsonOutput(fallback.stdout)).toEqual(expect.objectContaining({ page: 'tab-1', title: 'tab-one' }));
   }, 30_000);

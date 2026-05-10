@@ -323,7 +323,7 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
           : `window ${session.windowId ?? 'unknown'}`;
         const mode = session.ownership ?? (session.owned === false ? 'borrowed' : 'owned');
         const windowRole = session.windowRole ? `, window=${session.windowRole}` : '';
-        lines.push(styleText('dim', `  • ${session.workspace ?? 'default'} → ${target}, mode=${mode}${windowRole}, tabs=${session.tabCount ?? 0}, idle=${idle}`));
+        lines.push(styleText('dim', `  • ${session.session ?? 'default'} → ${target}, mode=${mode}${windowRole}, tabs=${session.tabCount ?? 0}, idle=${idle}`));
       }
       }
     }

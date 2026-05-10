@@ -33,10 +33,11 @@ export class Page extends BasePage {
   private readonly _idleTimeout: number | undefined;
 
   constructor(
-    private readonly workspace: string = 'default',
+    private readonly session: string,
     idleTimeout?: number,
     public readonly contextId?: string,
     private readonly windowMode?: 'foreground' | 'background',
+    private readonly surface: 'browser' | 'adapter' = 'browser',
   ) {
     super();
     this._idleTimeout = idleTimeout;
@@ -47,20 +48,22 @@ export class Page extends BasePage {
   private _networkCaptureUnsupported = false;
   private _networkCaptureWarned = false;
 
-  /** Helper: spread workspace into command params */
-  private _wsOpt(): { workspace: string; idleTimeout?: number; contextId?: string } {
+  /** Helper: spread session into command params */
+  private _sessionOpts(): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background' } {
     return {
-      workspace: this.workspace,
+      session: this.session,
+      surface: this.surface,
       ...(this.contextId && { contextId: this.contextId }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
       ...(this.windowMode && { windowMode: this.windowMode }),
     };
   }
 
-  /** Helper: spread workspace + page identity into command params */
+  /** Helper: spread session + page identity into command params */
   private _cmdOpts(): Record<string, unknown> {
     return {
-      workspace: this.workspace,
+      session: this.session,
+      surface: this.surface,
       ...(this.contextId && { contextId: this.contextId }),
       ...(this._page !== undefined && { page: this._page }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
@@ -68,11 +71,10 @@ export class Page extends BasePage {
     };
   }
 
-  async goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number; allowBoundNavigation?: boolean }): Promise<void> {
+  async goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number }): Promise<void> {
     const result = await sendCommandFull('navigate', {
       url,
       ...this._cmdOpts(),
-      ...(options?.allowBoundNavigation === true && { allowBoundNavigation: true }),
     });
     // Remember the page identity (targetId) for subsequent calls
     if (result.page) {
@@ -149,14 +151,14 @@ export class Page extends BasePage {
   }
 
   async getCookies(opts: { domain?: string; url?: string } = {}): Promise<BrowserCookie[]> {
-    const result = await sendCommand('cookies', { ...this._wsOpt(), ...opts });
+    const result = await sendCommand('cookies', { ...this._sessionOpts(), ...opts });
     return Array.isArray(result) ? result : [];
   }
 
-  /** Release the current automation tab lease in the extension */
+  /** Release the current browser session lease in the extension */
   async closeWindow(): Promise<void> {
     try {
-      await sendCommand('close-window', { ...this._wsOpt() });
+      await sendCommand('close-window', { ...this._sessionOpts() });
     } catch {
       // Window may already be closed or daemon may be down
     } finally {
@@ -168,7 +170,7 @@ export class Page extends BasePage {
   }
 
   async tabs(): Promise<unknown[]> {
-    const result = await sendCommand('tabs', { op: 'list', ...this._wsOpt() });
+    const result = await sendCommand('tabs', { op: 'list', ...this._sessionOpts() });
     return Array.isArray(result) ? result : [];
   }
 
@@ -176,14 +178,14 @@ export class Page extends BasePage {
     const result = await sendCommandFull('tabs', {
       op: 'new',
       ...(url !== undefined && { url }),
-      ...this._wsOpt(),
+      ...this._sessionOpts(),
     });
     this._lastUrl = null;
     return result.page;
   }
 
   async closeTab(target?: number | string): Promise<void> {
-    const params: Record<string, unknown> = { op: 'close', ...this._wsOpt() };
+    const params: Record<string, unknown> = { op: 'close', ...this._sessionOpts() };
     if (typeof target === 'number') params.index = target;
     else if (typeof target === 'string') params.page = target;
     else if (this._page !== undefined) params.page = this._page;
@@ -201,7 +203,7 @@ export class Page extends BasePage {
     const result = await sendCommandFull('tabs', {
       op: 'select',
       ...(typeof target === 'number' ? { index: target } : { page: target }),
-      ...this._wsOpt(),
+      ...this._sessionOpts(),
     });
     if (result.page) this._page = result.page;
     this._lastUrl = null;

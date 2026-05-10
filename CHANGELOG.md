@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### ⚠ BREAKING CHANGES
+
+* **browser session model** — replace the browser-facing `--workspace` model with explicit `--session <name>` on `opencli browser *`. Browser commands now require a session name, `browser bind`/`unbind` use `--session`, and bind no longer accepts `--domain`, `--path-prefix`, or `--allow-navigate-bound`. Browser primitives keep their session tab by design; the browser namespace no longer exposes `--keep-tab`. Adapter `--keep-tab` and `browserSession.reuse: 'site'` are unchanged.
+
+### Internal
+
+* **extension 1.0.11** — switch Browser Bridge lease routing from user-facing workspaces to explicit browser sessions.
+
 ## [1.7.16](https://github.com/jackwener/opencli/compare/v1.7.15...v1.7.16) (2026-05-11)
 
 Extension bumped to 1.0.10 (rename adapter-owned tab group `OpenCLI Automation` → `OpenCLI Adapter`). Performance and stability sweep across browser-backed adapters; new external CLI integrations (tg-cli, discord-cli, wx-cli).

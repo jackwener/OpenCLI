@@ -252,7 +252,7 @@ export async function executeCommand(
       const contextId = resolveProfileContextId(opts.profile);
       const internal = cmd as InternalCliCommand;
       const browserReuse = resolveBrowserSessionReuse(cmd);
-      const workspace = resolveBrowserWorkspace(cmd, browserReuse);
+      const session = resolveAdapterBrowserSession(cmd, browserReuse);
       const idleTimeout = browserReuse === 'site' ? INTERACTIVE_BROWSER_IDLE_TIMEOUT_SECONDS : undefined;
       const keepTab = resolveKeepTab(browserReuse, opts.keepTab);
       const windowMode = resolveBrowserWindowMode('background', opts.windowMode);
@@ -262,7 +262,7 @@ export async function executeCommand(
           : new ObservationSession({
             scope: {
               contextId,
-              workspace,
+              session,
               target: page.getActivePage?.(),
               site: cmd.site,
               command: fullName(cmd),
@@ -370,7 +370,7 @@ export async function executeCommand(
           if (!keepTab) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { workspace, cdpEndpoint, contextId, idleTimeout, windowMode });
+      }, { session, cdpEndpoint, contextId, idleTimeout, windowMode, surface: 'adapter' });
     } else {
       // Non-browser commands: enforce a timeout only when the command exposes
       // a `--timeout` arg (and the resolved value is positive). Without that
@@ -499,7 +499,7 @@ function resolveBrowserSessionReuse(cmd: CliCommand): BrowserSessionReuse {
   return readEnvBrowserSessionReuse() ?? cmd.browserSession?.reuse ?? 'none';
 }
 
-function resolveBrowserWorkspace(cmd: CliCommand, reuse: BrowserSessionReuse): string {
+function resolveAdapterBrowserSession(cmd: CliCommand, reuse: BrowserSessionReuse): string {
   if (reuse === 'site') return `site:${cmd.site}`;
   return `site:${cmd.site}:${crypto.randomUUID()}`;
 }

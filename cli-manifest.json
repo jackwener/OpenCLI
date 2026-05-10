@@ -15536,7 +15536,7 @@
     "aliases": [
       "select"
     ],
-    "description": "Open one NotebookLM notebook in the automation workspace by id or URL",
+    "description": "Open one NotebookLM notebook in the adapter session by id or URL",
     "access": "read",
     "domain": "notebooklm.google.com",
     "strategy": "cookie",

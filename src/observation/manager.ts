@@ -26,7 +26,7 @@ export class ObservationManager {
 }
 
 function scopeMatches(actual: ObservationScope, expected: ObservationScope): boolean {
-  return actual.workspace === expected.workspace
+  return actual.session === expected.session
     && (expected.contextId === undefined || actual.contextId === expected.contextId)
     && (expected.target === undefined || actual.target === expected.target)
     && (expected.site === undefined || actual.site === expected.site)
