@@ -55,8 +55,8 @@ export function requireForumId(value, label = 'id') {
     return id;
 }
 
-/** OpenReview profile ids look like `~First_Last1` or `~First_Middle_LastN`. */
-const PROFILE_ID_PATTERN = /^~[A-Za-z]+(?:_[A-Za-z]+)*\d+$/;
+/** OpenReview profile ids are `~...N` slugs and may include dots, hyphens, and Unicode letters. */
+const PROFILE_ID_PATTERN = /^~(?=.*\p{L})[\p{L}\p{M}0-9._-]+\d+$/u;
 
 export function requireProfileId(value, label = 'profile') {
     const id = String(value ?? '').trim();

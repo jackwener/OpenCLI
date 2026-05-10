@@ -118,6 +118,11 @@ describe('openreview adapter', () => {
         expect(requireProfileId('~Yoshua_Bengio1')).toBe('~Yoshua_Bengio1');
         expect(requireProfileId('~Bo_Liu17')).toBe('~Bo_Liu17');
         expect(requireProfileId('~Geoffrey_Everest_Hinton1')).toBe('~Geoffrey_Everest_Hinton1');
+        expect(requireProfileId('~Anne-Christin_Hauschild1')).toBe('~Anne-Christin_Hauschild1');
+        expect(requireProfileId('~S.Aruna_Deepthi1')).toBe('~S.Aruna_Deepthi1');
+        expect(requireProfileId('~Andrzej_Czyżewski1')).toBe('~Andrzej_Czyżewski1');
+        expect(requireProfileId('~August_Bøgh_Rønberg1')).toBe('~August_Bøgh_Rønberg1');
+        expect(requireProfileId('~Wagner_Meira_Jr.1')).toBe('~Wagner_Meira_Jr.1');
         expect(() => requireProfileId('')).toThrow('required');
         expect(() => requireProfileId('   ')).toThrow('required');
         // Missing leading tilde.
@@ -128,6 +133,9 @@ describe('openreview adapter', () => {
         expect(() => requireProfileId('~Bo Liu1')).toThrow('not a valid profile id');
         // dblp-style PID must not silently fall through.
         expect(() => requireProfileId('56/953')).toThrow('not a valid profile id');
+        expect(() => requireProfileId('~Bo_Liu1?evil=1')).toThrow('not a valid profile id');
+        expect(() => requireProfileId('~Bo/Liu1')).toThrow('not a valid profile id');
+        expect(() => requireProfileId('~123')).toThrow('not a valid profile id');
     });
 
     it('formatDate handles ms-since-epoch and rejects invalid input', () => {
