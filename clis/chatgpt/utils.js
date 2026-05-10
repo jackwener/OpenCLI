@@ -12,15 +12,23 @@ export const CHATGPT_URL = 'https://chatgpt.com';
 // Selectors
 const COMPOSER_SELECTORS = [
     '[aria-label="Chat with ChatGPT"]',
+    '[aria-label="与 ChatGPT 聊天"]',
     '[placeholder="Ask anything"]',
+    '[placeholder="有问题，尽管问"]',
     '#prompt-textarea',
     '[data-testid="prompt-textarea"]',
     '[contenteditable="true"][role="textbox"]',
 ];
+const SEND_BUTTON_SELECTOR = 'button[data-testid="send-button"]:not([disabled])';
 const SEND_BUTTON_LABELS = [
     'Send prompt',
     'Send message',
     'Send',
+    '发送提示',
+];
+const CLOSE_SIDEBAR_LABELS = [
+    'Close sidebar',
+    '关闭边栏',
 ];
 
 function isSameChatGPTConversation(currentUrl, expectedUrl) {
@@ -185,7 +193,8 @@ export async function sendChatGPTMessage(page, text) {
     // Close sidebar if open (it can cover the chat composer)
     await page.evaluate(`
         (() => {
-            const closeBtn = Array.from(document.querySelectorAll('button')).find(b => b.getAttribute('aria-label') === 'Close sidebar');
+            const labels = ${JSON.stringify(CLOSE_SIDEBAR_LABELS)};
+            const closeBtn = Array.from(document.querySelectorAll('button')).find(b => labels.includes(b.getAttribute('aria-label') || ''));
             if (closeBtn) closeBtn.click();
         })()
     `);
@@ -234,9 +243,10 @@ export async function sendChatGPTMessage(page, text) {
     // Click send button
     const sent = await page.evaluate(`
         (() => {
+            const primary = document.querySelector(${JSON.stringify(SEND_BUTTON_SELECTOR)});
             const btns = Array.from(document.querySelectorAll('button'));
             const labels = ${JSON.stringify(SEND_BUTTON_LABELS)};
-            const sendBtn = btns.find(b => labels.includes(b.getAttribute('aria-label') || '') && !b.disabled);
+            const sendBtn = primary || btns.find(b => labels.includes(b.getAttribute('aria-label') || '') && !b.disabled);
             return { sendBtnFound: !!sendBtn };
         })()
     `);
@@ -247,8 +257,9 @@ export async function sendChatGPTMessage(page, text) {
     
     await page.evaluate(`
         (() => {
+            const primary = document.querySelector(${JSON.stringify(SEND_BUTTON_SELECTOR)});
             const labels = ${JSON.stringify(SEND_BUTTON_LABELS)};
-            const sendBtn = Array.from(document.querySelectorAll('button')).find(b => labels.includes(b.getAttribute('aria-label') || '') && !b.disabled);
+            const sendBtn = primary || Array.from(document.querySelectorAll('button')).find(b => labels.includes(b.getAttribute('aria-label') || '') && !b.disabled);
             if (sendBtn) sendBtn.click();
         })()
     `);
@@ -532,7 +543,9 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
 
 export const __test__ = {
     COMPOSER_SELECTORS,
+    SEND_BUTTON_SELECTOR,
     SEND_BUTTON_LABELS,
+    CLOSE_SIDEBAR_LABELS,
     isSameChatGPTConversation,
     parseChatGPTConversationId,
 };

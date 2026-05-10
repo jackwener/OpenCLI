@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { __test__, waitForChatGPTImages } from './utils.js';
+import { __test__, sendChatGPTMessage, waitForChatGPTImages } from './utils.js';
 
 function createPageMock({ location = '', generating = [], imageUrls = [] } = {}) {
     let generatingIndex = 0;
@@ -72,5 +72,40 @@ describe('chatgpt conversation id parsing', () => {
     it('rejects invalid detail ids', () => {
         expect(() => __test__.parseChatGPTConversationId('')).toThrow(/conversation id/);
         expect(() => __test__.parseChatGPTConversationId('https://chatgpt.com/')).toThrow(/conversation id/);
+    });
+});
+
+describe('chatgpt send selectors', () => {
+    it('keeps locale-independent send-button selector before aria-label fallbacks', async () => {
+        const page = {
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeType: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                if (script.includes('findComposer')) return Promise.resolve(true);
+                if (script.includes('sendBtnFound')) {
+                    expect(script).toContain('data-testid=\\\"send-button\\\"');
+                    return Promise.resolve({ sendBtnFound: true });
+                }
+                if (script.includes('if (sendBtn) sendBtn.click')) {
+                    expect(script).toContain('data-testid=\\\"send-button\\\"');
+                }
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        await expect(sendChatGPTMessage(page, 'hello')).resolves.toBe(true);
+    });
+
+    it('keeps zh-CN aria and placeholder fallbacks without replacing English selectors', () => {
+        expect(__test__.COMPOSER_SELECTORS).toEqual(expect.arrayContaining([
+            '[aria-label="Chat with ChatGPT"]',
+            '[aria-label="与 ChatGPT 聊天"]',
+            '[placeholder="Ask anything"]',
+            '[placeholder="有问题，尽管问"]',
+            '[data-testid="prompt-textarea"]',
+        ]));
+        expect(__test__.SEND_BUTTON_SELECTOR).toBe('button[data-testid="send-button"]:not([disabled])');
+        expect(__test__.SEND_BUTTON_LABELS).toEqual(expect.arrayContaining(['Send prompt', 'Send message', 'Send', '发送提示']));
+        expect(__test__.CLOSE_SIDEBAR_LABELS).toEqual(expect.arrayContaining(['Close sidebar', '关闭边栏']));
     });
 });
