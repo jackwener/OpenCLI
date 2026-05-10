@@ -97,6 +97,7 @@ describe('cdp attach recovery', () => {
     const { chrome, debuggerApi, debuggerEventListeners } = createChromeMock();
     debuggerApi.sendCommand = vi.fn(async (target: any, method: string, _params?: any) => {
       if (method === 'Target.setDiscoverTargets') return {};
+      if (method === 'Target.setAutoAttach') return {};
       if (method === 'Target.getTargets') return { targetInfos: [{ targetId: 'oopif-frame', type: 'iframe', url: 'https://frame.test' }] };
       if (target?.targetId === 'oopif-frame' && method === 'Runtime.enable') return {};
       if (target?.targetId === 'oopif-frame' && method === 'Runtime.evaluate') {

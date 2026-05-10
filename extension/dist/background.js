@@ -306,6 +306,13 @@ async function ensureFrameTarget(tabId, frameId, aggressiveRetry = false, target
   if (existing) return existing;
   await chrome.debugger.sendCommand({ tabId }, "Target.setDiscoverTargets", { discover: true }).catch(() => {
   });
+  await chrome.debugger.sendCommand({ tabId }, "Target.setAutoAttach", {
+    autoAttach: true,
+    waitForDebuggerOnStart: false,
+    flatten: true,
+    filter: [{ type: "iframe", exclude: false }]
+  }).catch(() => {
+  });
   const targetId = await resolveFrameTargetId(tabId, frameId, targetUrl);
   try {
     await chrome.debugger.attach({ targetId }, "1.3");
