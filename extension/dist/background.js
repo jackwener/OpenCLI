@@ -298,13 +298,13 @@ function clearFrameTarget(targetId) {
   if (key) frameTargets.delete(key);
   frameTargetKeys.delete(targetId);
 }
-async function ensureFrameTarget(tabId, frameId, aggressiveRetry = false) {
+async function ensureFrameTarget(tabId, frameId, aggressiveRetry = false, targetUrl) {
   registerFrameTargetCleanup();
   await ensureAttached(tabId, aggressiveRetry);
   const key = frameTargetKey(tabId, frameId);
   const existing = frameTargets.get(key);
   if (existing) return existing;
-  const targetId = await resolveFrameTargetId(frameId);
+  const targetId = await resolveFrameTargetId(frameId, targetUrl);
   try {
     await chrome.debugger.attach({ targetId }, "1.3");
   } catch (err) {
@@ -315,16 +315,16 @@ async function ensureFrameTarget(tabId, frameId, aggressiveRetry = false) {
   frameTargetKeys.set(targetId, key);
   return targetId;
 }
-async function resolveFrameTargetId(frameId) {
+async function resolveFrameTargetId(frameId, targetUrl) {
   const targets = await chrome.debugger.getTargets();
   const frameTarget = targets.find((target) => {
     const candidate = target;
-    return candidate.type === "iframe" && (candidate.id === frameId || candidate.targetId === frameId);
+    return candidate.type === "iframe" && (candidate.id === frameId || candidate.targetId === frameId || !!targetUrl && candidate.url === targetUrl);
   });
   return frameTarget?.id ?? frameId;
 }
-async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, aggressiveRetry = false, _timeoutMs = 3e4) {
-  const targetId = await ensureFrameTarget(tabId, frameId, aggressiveRetry);
+async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, aggressiveRetry = false, _timeoutMs = 3e4, targetUrl) {
+  const targetId = await ensureFrameTarget(tabId, frameId, aggressiveRetry, targetUrl);
   const target = { targetId };
   return chrome.debugger.sendCommand(target, method, params);
 }
@@ -1725,7 +1725,8 @@ async function handleCdp(cmd, workspace) {
     await ensureAttached(tabId, aggressive);
     const params = cmd.cdpParams ?? {};
     const routeFrameId = typeof params.frameId === "string" && params.sessionId === "target" ? params.frameId : void 0;
-    const data = routeFrameId ? await sendCommandInFrameTarget(tabId, routeFrameId, cmd.cdpMethod, stripOpenCliFrameRoutingParams(params, true), aggressive) : await chrome.debugger.sendCommand(
+    const routeTargetUrl = typeof params.targetUrl === "string" ? params.targetUrl : void 0;
+    const data = routeFrameId ? await sendCommandInFrameTarget(tabId, routeFrameId, cmd.cdpMethod, stripOpenCliFrameRoutingParams(params, true), aggressive, 3e4, routeTargetUrl) : await chrome.debugger.sendCommand(
       { tabId },
       cmd.cdpMethod,
       stripOpenCliFrameRoutingParams(params, false)
@@ -1736,7 +1737,7 @@ async function handleCdp(cmd, workspace) {
   }
 }
 function stripOpenCliFrameRoutingParams(params, stripFrameId) {
-  const { sessionId, frameId, ...rest } = params;
+  const { sessionId, frameId, targetUrl, ...rest } = params;
   if (!stripFrameId && frameId !== void 0) return { ...rest, frameId };
   return rest;
 }

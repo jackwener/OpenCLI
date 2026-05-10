@@ -435,14 +435,19 @@ function clearFrameTarget(targetId: string): void {
   frameTargetKeys.delete(targetId);
 }
 
-async function ensureFrameTarget(tabId: number, frameId: string, aggressiveRetry: boolean = false): Promise<string> {
+async function ensureFrameTarget(
+  tabId: number,
+  frameId: string,
+  aggressiveRetry: boolean = false,
+  targetUrl?: string,
+): Promise<string> {
   registerFrameTargetCleanup();
   await ensureAttached(tabId, aggressiveRetry);
   const key = frameTargetKey(tabId, frameId);
   const existing = frameTargets.get(key);
   if (existing) return existing;
 
-  const targetId = await resolveFrameTargetId(frameId);
+  const targetId = await resolveFrameTargetId(frameId, targetUrl);
   try {
     await chrome.debugger.attach({ targetId } as chrome.debugger.Debuggee, '1.3');
   } catch (err) {
@@ -454,12 +459,16 @@ async function ensureFrameTarget(tabId: number, frameId: string, aggressiveRetry
   return targetId;
 }
 
-async function resolveFrameTargetId(frameId: string): Promise<string> {
+async function resolveFrameTargetId(frameId: string, targetUrl?: string): Promise<string> {
   const targets = await chrome.debugger.getTargets();
   const frameTarget = targets.find((target) => {
     const candidate = target as chrome.debugger.TargetInfo & { targetId?: string };
     return candidate.type === 'iframe'
-      && (candidate.id === frameId || candidate.targetId === frameId);
+      && (
+        candidate.id === frameId
+        || candidate.targetId === frameId
+        || (!!targetUrl && candidate.url === targetUrl)
+      );
   });
   return frameTarget?.id ?? frameId;
 }
@@ -471,8 +480,9 @@ export async function sendCommandInFrameTarget(
   params: Record<string, unknown> = {},
   aggressiveRetry: boolean = false,
   _timeoutMs: number = 30_000,
+  targetUrl?: string,
 ): Promise<unknown> {
-  const targetId = await ensureFrameTarget(tabId, frameId, aggressiveRetry);
+  const targetId = await ensureFrameTarget(tabId, frameId, aggressiveRetry, targetUrl);
   const target = { targetId } as chrome.debugger.Debuggee;
   return chrome.debugger.sendCommand(target, method, params);
 }

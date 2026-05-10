@@ -1386,8 +1386,9 @@ async function handleCdp(cmd: Command, workspace: string): Promise<Result> {
     const routeFrameId = typeof params.frameId === 'string' && params.sessionId === 'target'
       ? params.frameId
       : undefined;
+    const routeTargetUrl = typeof params.targetUrl === 'string' ? params.targetUrl : undefined;
     const data = routeFrameId
-      ? await executor.sendCommandInFrameTarget(tabId, routeFrameId, cmd.cdpMethod, stripOpenCliFrameRoutingParams(params, true), aggressive)
+      ? await executor.sendCommandInFrameTarget(tabId, routeFrameId, cmd.cdpMethod, stripOpenCliFrameRoutingParams(params, true), aggressive, 30_000, routeTargetUrl)
       : await chrome.debugger.sendCommand(
         { tabId },
         cmd.cdpMethod,
@@ -1400,7 +1401,7 @@ async function handleCdp(cmd: Command, workspace: string): Promise<Result> {
 }
 
 function stripOpenCliFrameRoutingParams(params: Record<string, unknown>, stripFrameId: boolean): Record<string, unknown> {
-  const { sessionId, frameId, ...rest } = params;
+  const { sessionId, frameId, targetUrl, ...rest } = params;
   if (!stripFrameId && frameId !== undefined) return { ...rest, frameId };
   return rest;
 }

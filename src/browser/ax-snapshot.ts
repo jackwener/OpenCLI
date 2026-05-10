@@ -12,7 +12,7 @@ export interface BrowserRef {
   role: string;
   name: string;
   nth?: number;
-  frame?: { frameId?: string; sessionId?: string; url?: string };
+  frame?: { frameId?: string; sessionId?: string; url?: string; targetUrl?: string };
 }
 
 export interface AxSnapshotTree {

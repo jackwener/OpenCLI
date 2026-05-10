@@ -288,7 +288,7 @@ describe('background tab isolation', () => {
     );
   });
 
-  it('routes frame-target CDP passthrough calls through Target session messaging', async () => {
+  it('routes frame-target CDP passthrough calls through the iframe target', async () => {
     const { chrome } = createChromeMock();
     chrome.debugger.sendCommand = vi.fn(async (_target: unknown, method: string, params?: Record<string, unknown>) => {
       if (method === 'Runtime.evaluate') return { result: { value: 1 } };
@@ -316,7 +316,7 @@ describe('background tab isolation', () => {
       action: 'cdp',
       workspace: 'site:twitter',
       cdpMethod: 'Accessibility.getFullAXTree',
-      cdpParams: { frameId: 'cross-frame', sessionId: 'target' },
+      cdpParams: { frameId: 'cross-frame', sessionId: 'target', targetUrl: 'https://frame.test/' },
     });
 
     expect(result).toEqual(expect.objectContaining({ ok: true, data: { nodes: [] } }));
@@ -326,6 +326,8 @@ describe('background tab isolation', () => {
       'Accessibility.getFullAXTree',
       {},
       false,
+      30_000,
+      'https://frame.test/',
     );
   });
 

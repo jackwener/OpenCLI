@@ -400,7 +400,9 @@ export abstract class BasePage implements IPage {
     if (typeof cdp !== 'function') return null;
     const result = await cdp.call(this, 'DOM.getBoxModel', {
       backendNodeId,
-      ...(frame?.sessionId ? { frameId: frame.frameId, sessionId: frame.sessionId } : {}),
+      ...(frame?.sessionId
+        ? { frameId: frame.frameId, sessionId: frame.sessionId, ...(frame.targetUrl ? { targetUrl: frame.targetUrl } : {}) }
+        : {}),
     }) as
       | { model?: { content?: unknown[]; border?: unknown[] } }
       | null;
@@ -1178,13 +1180,17 @@ export abstract class BasePage implements IPage {
 
 function axTreeParams(frame: BrowserRef['frame'] | undefined): Record<string, unknown> {
   return frame?.frameId
-    ? { frameId: frame.frameId, ...(frame.sessionId ? { sessionId: frame.sessionId } : {}) }
+    ? {
+        frameId: frame.frameId,
+        ...(frame.sessionId ? { sessionId: frame.sessionId } : {}),
+        ...(frame.targetUrl ? { targetUrl: frame.targetUrl } : {}),
+      }
     : {};
 }
 
 function axEnableParams(frame: BrowserRef['frame'] | undefined): Record<string, unknown> {
   return frame?.frameId && frame.sessionId
-    ? { frameId: frame.frameId, sessionId: frame.sessionId }
+    ? { frameId: frame.frameId, sessionId: frame.sessionId, ...(frame.targetUrl ? { targetUrl: frame.targetUrl } : {}) }
     : {};
 }
 
@@ -1206,7 +1212,7 @@ function collectAxFrameRefs(frameTreeResult: unknown): Array<NonNullable<Browser
         frames.push({ frameId, url: frameUrl });
         collect(child);
       } else {
-        frames.push({ frameId, url: frameUrl, sessionId: 'target' });
+        frames.push({ frameId, url: frameUrl, targetUrl: frameUrl, sessionId: 'target' });
       }
     }
   }
