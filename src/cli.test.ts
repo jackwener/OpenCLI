@@ -903,6 +903,7 @@ describe('browser tab targeting commands', () => {
 
     expect(browserState.page?.snapshot).toHaveBeenCalled();
     expect(browserState.page?.closeWindow).not.toHaveBeenCalled();
+    expect(stderrSpy.mock.calls.flat().join('')).toContain('--window/--keep-tab ignored for bound:* workspaces');
   });
 
   it('passes the opt-in AX source to browser state', async () => {

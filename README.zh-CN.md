@@ -181,8 +181,8 @@ OpenCLI 不只是网站 CLI，还可以：
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `OPENCLI_DAEMON_PORT` | `19825` | daemon-extension 通信端口 |
-| `OPENCLI_WINDOW_FOCUSED` | `false` | 设为 `1` 时 automation 窗口在前台打开（适合调试）。`--focus` 标志会设置此变量 |
-| `OPENCLI_LIVE` | `false` | 设为 `1` 时 adapter 命令执行完后保留 automation 窗口不关闭（适合检查页面）。`--live` 标志会设置此变量 |
+| `OPENCLI_WINDOW` | 命令默认值 | 设为 `foreground` 或 `background` 来覆盖 Browser Bridge 窗口位置。浏览器型命令也支持 `--window <foreground\|background>` |
+| `OPENCLI_KEEP_TAB` | 命令默认值 | 设为 `true` 或 `false` 来控制浏览器型命令结束后是否保留 tab lease。浏览器型命令也支持 `--keep-tab <true\|false>` |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | 浏览器连接超时（秒） |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | 单个浏览器命令超时（秒） |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol 端点，用于远程浏览器或 Electron 应用 |
@@ -190,7 +190,7 @@ OpenCLI 不只是网站 CLI，还可以：
 | `OPENCLI_VERBOSE` | `false` | 启用详细日志（`-v` 也可以） |
 | `DEBUG_SNAPSHOT` | — | 设为 `1` 输出 DOM 快照调试信息 |
 
-`--focus` 同时适用于 `opencli browser *` 和浏览器型 adapter 命令。`--live` 主要是给 adapter 命令用的：`browser` 子命令本来就会一直保留 automation window，直到你手动执行 `opencli browser close` 或等空闲超时。
+`opencli browser *` 默认使用前台窗口并保留 tab lease，直到你手动执行 `opencli browser close` 或等空闲超时。浏览器型 adapter 默认使用后台 automation 窗口并在命令结束后释放 tab lease；如果需要调试最终页面，可以传 `--window foreground --keep-tab true`。
 
 ## 更新
 

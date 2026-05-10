@@ -435,6 +435,16 @@ function getBrowserKeepTab(command: Command | undefined, defaultValue: boolean):
     ?? defaultValue;
 }
 
+function hasExplicitBrowserWindowOption(command: Command | undefined): boolean {
+  const raw = getCommandOption(command, 'window');
+  return raw !== undefined && raw !== '';
+}
+
+function hasExplicitBrowserKeepTabOption(command: Command | undefined): boolean {
+  const raw = getCommandOption(command, 'keepTab');
+  return raw !== undefined && raw !== '';
+}
+
 function addBrowserTabOption(command: Command): Command {
   return command.option('--tab <targetId>', BROWSER_TAB_OPTION_DESCRIPTION);
 }
@@ -786,6 +796,9 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         const windowMode = getBrowserWindowMode(command, 'foreground');
         const keepTab = getBrowserKeepTab(command, true);
         shouldReleasePage = !keepTab && !workspace.startsWith('bound:');
+        if (workspace.startsWith('bound:') && (hasExplicitBrowserWindowOption(command) || hasExplicitBrowserKeepTabOption(command))) {
+          log.warn('--window/--keep-tab ignored for bound:* workspaces; bound tabs are user-owned.');
+        }
         page = await getBrowserPage(targetPage, workspace, contextId, { windowMode });
         await fn(page, ...args);
       } catch (err) {
