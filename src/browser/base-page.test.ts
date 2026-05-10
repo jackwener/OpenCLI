@@ -702,6 +702,36 @@ describe('BasePage native input routing', () => {
     expect(page.setFileInput).not.toHaveBeenCalled();
   });
 
+  it('drags between two resolved element centers via native CDP mouse events', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn().mockResolvedValue({});
+    page.results = [
+      resolveOk,
+      { x: 10, y: 20, w: 30, h: 20, visible: true },
+      { ok: true, matches_n: 2, match_level: 'stable' },
+      {
+        source: { x: 10, y: 20, w: 30, h: 20, visible: true },
+        target: { x: 110, y: 120, w: 40, h: 30, visible: true },
+      },
+    ];
+
+    await expect(page.drag('#card', '.lane', { to: { nth: 1 } })).resolves.toEqual({
+      dragged: true,
+      source: '#card',
+      target: '.lane',
+      source_matches_n: 1,
+      target_matches_n: 2,
+      source_match_level: 'exact',
+      target_match_level: 'stable',
+    });
+
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 10, y: 20 });
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mousePressed', x: 10, y: 20, button: 'left', clickCount: 1 });
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 60, y: 70, button: 'left', buttons: 1 });
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 110, y: 120, button: 'left', buttons: 1 });
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 110, y: 120, button: 'left', clickCount: 1 });
+  });
+
   it('presses key chords through native CDP key events when available', async () => {
     const page = new ActionPage();
     page.nativeKeyPress = vi.fn().mockResolvedValue(undefined);

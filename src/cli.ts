@@ -1625,6 +1625,15 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     return { files };
   }
 
+  function parseResolveFlag(raw: unknown, flag: string): { error: string } | { opts: ResolveOptions } {
+    const parsed = parseNthFlag(raw);
+    if (parsed && typeof parsed === 'object' && 'error' in parsed) {
+      return { error: parsed.error.replace('--nth', flag) };
+    }
+    if (typeof parsed === 'number') return { opts: { nth: parsed } };
+    return { opts: {} };
+  }
+
   addBrowserTabOption(
     addSemanticLocatorOptions(browser.command('click'))
       .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
@@ -1799,6 +1808,32 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         return;
       }
       const result = await page.uploadFiles(String(target), resolvedFiles.files, parsed.opts);
+      console.log(JSON.stringify(result, null, 2));
+    }));
+
+  addBrowserTabOption(
+    browser.command('drag')
+      .argument('<source>', 'Numeric ref (from browser state / find) or CSS selector to drag from')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector to drop onto')
+      .option('--from-nth <n>', 'When <source> is a multi-match CSS selector, pick the nth match (0-based)')
+      .option('--to-nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Drag one element to another — JSON envelope {dragged, source, target, source_matches_n, target_matches_n}'),
+  )
+    .action(browserAction(async (page, source, target, opts) => {
+      if (typeof page.drag !== 'function') throw new Error('browser drag is not supported by this browser backend');
+      const from = parseResolveFlag(opts?.fromNth, '--from-nth');
+      if ('error' in from) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: from.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const to = parseResolveFlag(opts?.toNth, '--to-nth');
+      if ('error' in to) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: to.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const result = await page.drag(String(source), String(target), { from: from.opts, to: to.opts });
       console.log(JSON.stringify(result, null, 2));
     }));
 

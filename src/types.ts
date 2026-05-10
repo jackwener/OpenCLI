@@ -85,6 +85,7 @@ export interface IPage {
   focus?(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ focused: boolean; matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
   setChecked?(ref: string, checked: boolean, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ checked: boolean; changed: boolean; matches_n: number; match_level: 'exact' | 'stable' | 'reidentified'; kind?: string }>;
   uploadFiles?(ref: string, files: string[], opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ uploaded: boolean; files: number; file_names: string[]; target: string; matches_n: number; match_level: 'exact' | 'stable' | 'reidentified'; multiple?: boolean; accept?: string }>;
+  drag?(source: string, target: string, opts?: { from?: { nth?: number; firstOnMulti?: boolean }; to?: { nth?: number; firstOnMulti?: boolean } }): Promise<{ dragged: boolean; source: string; target: string; source_matches_n: number; target_matches_n: number; source_match_level: 'exact' | 'stable' | 'reidentified'; target_match_level: 'exact' | 'stable' | 'reidentified' }>;
   typeText(ref: string, text: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
   fillText(ref: string, text: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{
     filled: boolean;

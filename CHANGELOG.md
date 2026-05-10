@@ -11,6 +11,7 @@
 * **browser actions** — add `browser hover`, `browser focus`, and `browser dblclick` primitives backed by the same target resolver and CDP input path as `browser click`.
 * **browser actions** — add `browser check` and `browser uncheck` primitives that ensure checkbox / radio / aria-checked controls reach the requested state instead of blindly toggling.
 * **browser upload** — add `browser upload <target> <file...>` to attach local files to `input[type=file]` targets through CDP `DOM.setFileInputFiles`, with local path validation and file-input verification.
+* **browser actions** — add `browser drag <source> <target>` for CDP mouse drag sequences between two resolved element centers.
 
 ### Bug Fixes
 

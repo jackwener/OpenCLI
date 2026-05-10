@@ -72,6 +72,16 @@ export interface UploadFilesResult extends ResolveSuccess {
   accept?: string;
 }
 
+export interface DragResult {
+  dragged: boolean;
+  source: string;
+  target: string;
+  source_matches_n: number;
+  target_matches_n: number;
+  source_match_level: TargetMatchLevel;
+  target_match_level: TargetMatchLevel;
+}
+
 interface CdpFrameTreeNode {
   frame?: { id?: string; url?: string; unreachableUrl?: string; name?: string };
   childFrames?: CdpFrameTreeNode[];
@@ -327,6 +337,23 @@ export abstract class BasePage implements IPage {
       await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
       await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 2 });
       await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 2 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  protected async tryNativeDrag(from: { x: number; y: number }, to: { x: number; y: number }): Promise<boolean> {
+    const cdp = (this as IPage).cdp;
+    if (typeof cdp !== 'function') return false;
+    const midX = Math.round((from.x + to.x) / 2);
+    const midY = Math.round((from.y + to.y) / 2);
+    try {
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', clickCount: 1 });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: midX, y: midY, button: 'left', buttons: 1 });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: to.x, y: to.y, button: 'left', buttons: 1 });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', clickCount: 1 });
       return true;
     } catch {
       return false;
@@ -799,6 +826,89 @@ export abstract class BasePage implements IPage {
           })()
         `, { selector, markerAttr }).catch(() => undefined);
       }
+    }
+  }
+
+  async drag(
+    source: string,
+    target: string,
+    opts: { from?: ResolveOptions; to?: ResolveOptions } = {},
+  ): Promise<DragResult> {
+    const sourceResolved = await runResolve(this, source, opts.from ?? {});
+    const sourceScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
+    const sourceRect = await this.evaluate(`
+      (() => {
+        const el = window.__resolved;
+        if (!el) throw new Error('No resolved drag source');
+        window.__opencli_drag_source = el;
+        if (${sourceScrolled ? 'false' : 'true'}) el.scrollIntoView({ behavior: 'instant', block: 'center' });
+        const rect = el.getBoundingClientRect();
+        const w = Math.round(rect.width);
+        const h = Math.round(rect.height);
+        const x = Math.round(rect.left + rect.width / 2);
+        const y = Math.round(rect.top + rect.height / 2);
+        const visible = w > 0 && h > 0 && x >= 0 && y >= 0 && x <= window.innerWidth && y <= window.innerHeight;
+        return { x, y, w, h, visible };
+      })()
+    `) as
+      | { x: number; y: number; w: number; h: number; visible: boolean }
+      | null;
+    if (sourceRect?.visible !== true) {
+      throw new Error(`Drag source "${source}" has no visible bounding box.`);
+    }
+
+    try {
+      const targetResolved = await runResolve(this, target, opts.to ?? {});
+      const targetScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
+      const endpoints = await this.evaluate(`
+        (() => {
+          const sourceEl = window.__opencli_drag_source;
+          const targetEl = window.__resolved;
+          if (!sourceEl) throw new Error('No resolved drag source');
+          if (!targetEl) throw new Error('No resolved drag target');
+          if (${targetScrolled ? 'false' : 'true'}) targetEl.scrollIntoView({ behavior: 'instant', block: 'center' });
+          const measure = (el) => {
+            const rect = el.getBoundingClientRect();
+            const w = Math.round(rect.width);
+            const h = Math.round(rect.height);
+            const x = Math.round(rect.left + rect.width / 2);
+            const y = Math.round(rect.top + rect.height / 2);
+            const visible = w > 0 && h > 0 && x >= 0 && y >= 0 && x <= window.innerWidth && y <= window.innerHeight;
+            return { x, y, w, h, visible };
+          };
+          return { source: measure(sourceEl), target: measure(targetEl) };
+        })()
+      `) as
+        | {
+          source?: { x: number; y: number; w: number; h: number; visible: boolean };
+          target?: { x: number; y: number; w: number; h: number; visible: boolean };
+        }
+        | null;
+
+      if (endpoints?.source?.visible !== true) {
+        throw new Error(`Drag source "${source}" is not visible at drag time.`);
+      }
+      if (endpoints?.target?.visible !== true) {
+        throw new Error(`Drag target "${target}" has no visible bounding box.`);
+      }
+
+      const dragged = await this.tryNativeDrag(
+        { x: endpoints.source.x, y: endpoints.source.y },
+        { x: endpoints.target.x, y: endpoints.target.y },
+      );
+      if (!dragged) throw new Error('Native drag requires CDP Input.dispatchMouseEvent support.');
+
+      return {
+        dragged: true,
+        source,
+        target,
+        source_matches_n: sourceResolved.matches_n,
+        target_matches_n: targetResolved.matches_n,
+        source_match_level: sourceResolved.match_level,
+        target_match_level: targetResolved.match_level,
+      };
+    } finally {
+      await this.evaluate('delete window.__opencli_drag_source').catch(() => {});
     }
   }
 

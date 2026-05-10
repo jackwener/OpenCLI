@@ -2355,6 +2355,15 @@ describe('browser click/type commands', () => {
       match_level: 'exact',
       multiple: false,
     }),
+    drag: vi.fn().mockResolvedValue({
+      dragged: true,
+      source: '#card',
+      target: '#lane',
+      source_matches_n: 1,
+      target_matches_n: 1,
+      source_match_level: 'exact',
+      target_match_level: 'exact',
+    }),
     typeText: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
     fillText: vi.fn().mockResolvedValue({
       filled: true,
@@ -2573,6 +2582,42 @@ describe('browser click/type commands', () => {
 
     expect(lastJsonLog().error.code).toBe('file_not_found');
     expect(browserState.page!.uploadFiles).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('drag: delegates to page.drag and forwards source/target nth options', async () => {
+    (browserState.page!.drag as any).mockResolvedValueOnce({
+      dragged: true,
+      source: '.card',
+      target: '.lane',
+      source_matches_n: 3,
+      target_matches_n: 2,
+      source_match_level: 'exact',
+      target_match_level: 'stable',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'drag', '.card', '.lane', '--from-nth', '2', '--to-nth', '1']);
+
+    expect(browserState.page!.drag).toHaveBeenCalledWith('.card', '.lane', { from: { nth: 2 }, to: { nth: 1 } });
+    expect(lastJsonLog()).toEqual({
+      dragged: true,
+      source: '.card',
+      target: '.lane',
+      source_matches_n: 3,
+      target_matches_n: 2,
+      source_match_level: 'exact',
+      target_match_level: 'stable',
+    });
+  });
+
+  it('drag: rejects malformed --from-nth before touching the page', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'drag', '.card', '.lane', '--from-nth', 'abc']);
+
+    expect(lastJsonLog().error.code).toBe('usage_error');
+    expect(browserState.page!.drag).not.toHaveBeenCalled();
     expect(process.exitCode).toBeDefined();
   });
 
