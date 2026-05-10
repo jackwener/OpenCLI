@@ -2342,6 +2342,9 @@ describe('browser click/type commands', () => {
   const { lastJsonLog } = installSelectorFirstTestHarness('click-type', () => ({
     evaluate: vi.fn().mockResolvedValue(false),
     click: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
+    dblClick: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
+    hover: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
+    focus: vi.fn().mockResolvedValue({ focused: true, matches_n: 1, match_level: 'exact' }),
     typeText: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
     fillText: vi.fn().mockResolvedValue({
       filled: true,
@@ -2460,6 +2463,36 @@ describe('browser click/type commands', () => {
     expect(lastJsonLog().error.code).toBe('usage_error');
     expect(browserState.page!.click).not.toHaveBeenCalled();
     expect(process.exitCode).toBeDefined();
+  });
+
+  it('hover: delegates to page.hover and emits a structured envelope', async () => {
+    (browserState.page!.hover as any).mockResolvedValueOnce({ matches_n: 2, match_level: 'exact' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'hover', '.menu', '--nth', '1']);
+
+    expect(browserState.page!.hover).toHaveBeenCalledWith('.menu', { nth: 1 });
+    expect(lastJsonLog()).toEqual({ hovered: true, target: '.menu', matches_n: 2, match_level: 'exact' });
+  });
+
+  it('focus: delegates to page.focus and reports whether the element took focus', async () => {
+    (browserState.page!.focus as any).mockResolvedValueOnce({ focused: true, matches_n: 1, match_level: 'stable' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'focus', '7']);
+
+    expect(browserState.page!.focus).toHaveBeenCalledWith('7', {});
+    expect(lastJsonLog()).toEqual({ focused: true, target: '7', matches_n: 1, match_level: 'stable' });
+  });
+
+  it('dblclick: delegates to page.dblClick and emits a structured envelope', async () => {
+    (browserState.page!.dblClick as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'exact' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'dblclick', '#row']);
+
+    expect(browserState.page!.dblClick).toHaveBeenCalledWith('#row', {});
+    expect(lastJsonLog()).toEqual({ dblclicked: true, target: '#row', matches_n: 1, match_level: 'exact' });
   });
 
   it('type: clicks, waits, then typeText — emits {typed, text, target, matches_n, match_level, autocomplete}', async () => {

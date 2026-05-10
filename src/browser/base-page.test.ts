@@ -525,6 +525,61 @@ describe('BasePage native input routing', () => {
     expect(nativeClick).toHaveBeenNthCalledWith(2, 10, 20);
   });
 
+  it('hovers via native CDP mouseMoved when coordinates are available', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn().mockResolvedValue({});
+    page.results = [resolveOk, { x: 70, y: 80, w: 100, h: 20, visible: true }];
+
+    await expect(page.hover('#menu')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 70, y: 80 });
+    expect(page.scripts.at(-1)).toContain('getBoundingClientRect');
+  });
+
+  it('focuses through CDP DOM.focus when available', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn(async (method: string) => {
+      if (method === 'DOM.getDocument') return { root: { nodeId: 1 } };
+      if (method === 'DOM.querySelector') return { nodeId: 9 };
+      return {};
+    });
+    page.results = [resolveOk, true];
+    page.withArgsResults = [{ ok: true }, undefined];
+
+    await expect(page.focus('#email')).resolves.toEqual({ focused: true, matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).toHaveBeenCalledWith('DOM.focus', { nodeId: 9 });
+  });
+
+  it('verifies CDP focus and falls back to DOM focus when focus did not stick', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn(async (method: string) => {
+      if (method === 'DOM.getDocument') return { root: { nodeId: 1 } };
+      if (method === 'DOM.querySelector') return { nodeId: 9 };
+      return {};
+    });
+    page.results = [resolveOk, false, true];
+    page.withArgsResults = [{ ok: true }, undefined];
+
+    await expect(page.focus('#email')).resolves.toEqual({ focused: true, matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).toHaveBeenCalledWith('DOM.focus', { nodeId: 9 });
+    expect(page.scripts.at(-2)).toContain('document.activeElement === el');
+    expect(page.scripts.at(-1)).toContain('el.focus');
+  });
+
+  it('double-clicks via native CDP mouse events', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn().mockResolvedValue({});
+    page.results = [resolveOk, { x: 20, y: 30, w: 100, h: 20, visible: true }];
+
+    await expect(page.dblClick('#row')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 20, y: 30 });
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mousePressed', x: 20, y: 30, button: 'left', clickCount: 2 });
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 20, y: 30, button: 'left', clickCount: 2 });
+  });
+
   it('presses key chords through native CDP key events when available', async () => {
     const page = new ActionPage();
     page.nativeKeyPress = vi.fn().mockResolvedValue(undefined);

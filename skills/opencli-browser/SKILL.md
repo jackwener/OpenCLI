@@ -155,6 +155,9 @@ Error envelope always includes `error.code` and `error.message`. Target errors (
 |---------|-------|
 | `browser click <target> [--nth N]` | Returns `{clicked, target, matches_n, match_level}`. |
 | `browser click --role button --name Submit` | Semantic click. Write actions require a unique match; ambiguous locators return candidates instead of clicking the first match. |
+| `browser hover <target> [--nth N]` | Moves the mouse over an element. Use for hover menus/tooltips before taking `state` or clicking submenu items. Returns `{hovered, target, matches_n, match_level}`. |
+| `browser focus <target> [--nth N]` | Focuses an element without typing. Useful before `keys` or when a page reacts to focus/blur. Returns `{focused, target, matches_n, match_level}`. |
+| `browser dblclick <target> [--nth N]` | Double-clicks an element via native mouse events when available. Returns `{dblclicked, target, matches_n, match_level}`. |
 | `browser type <target> <text> [--nth N]` | Clicks first, then types. Returns `{typed, text, target, matches_n, match_level, autocomplete}`. `autocomplete: true` means a combobox/datalist popup appeared after typing — you almost always need `keys Enter` or a follow-up `click` on the suggestion to commit the value. |
 | `browser fill <target> <text> [--nth N]` | Exact replacement for input, textarea, and contenteditable targets. Returns `{filled, verified, text, actual, matches_n, match_level}`. Use this when you need raw text set and verified, not keyboard/autocomplete behavior. Pipeline form supports `{ fill: { ref, text, submit: true } }`. |
 | `browser select <target> <option> [--nth N]` | Matches option by label first, then value. Use `compound` from `find`/`state` to see exactly what labels are available. |

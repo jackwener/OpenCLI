@@ -1650,6 +1650,60 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }));
 
   addBrowserTabOption(
+    browser.command('hover')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Move the mouse over an element — JSON envelope {hovered, target, matches_n}'),
+  )
+    .action(browserAction(async (page, target, opts) => {
+      if (typeof page.hover !== 'function') throw new Error('browser hover is not supported by this browser backend');
+      const parsed = nthToResolveOpts(opts?.nth);
+      if ('error' in parsed) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const { matches_n, match_level } = await page.hover(String(target), parsed.opts);
+      console.log(JSON.stringify({ hovered: true, target: String(target), matches_n, match_level }, null, 2));
+    }));
+
+  addBrowserTabOption(
+    browser.command('focus')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Focus an element — JSON envelope {focused, target, matches_n}'),
+  )
+    .action(browserAction(async (page, target, opts) => {
+      if (typeof page.focus !== 'function') throw new Error('browser focus is not supported by this browser backend');
+      const parsed = nthToResolveOpts(opts?.nth);
+      if ('error' in parsed) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const { focused, matches_n, match_level } = await page.focus(String(target), parsed.opts);
+      console.log(JSON.stringify({ focused, target: String(target), matches_n, match_level }, null, 2));
+    }));
+
+  addBrowserTabOption(
+    browser.command('dblclick')
+      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Double-click element — JSON envelope {dblclicked, target, matches_n}'),
+  )
+    .action(browserAction(async (page, target, opts) => {
+      if (typeof page.dblClick !== 'function') throw new Error('browser dblclick is not supported by this browser backend');
+      const parsed = nthToResolveOpts(opts?.nth);
+      if ('error' in parsed) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const { matches_n, match_level } = await page.dblClick(String(target), parsed.opts);
+      console.log(JSON.stringify({ dblclicked: true, target: String(target), matches_n, match_level }, null, 2));
+    }));
+
+  addBrowserTabOption(
     browser.command('fill')
       .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
       .argument('<text>', 'Text to set exactly')

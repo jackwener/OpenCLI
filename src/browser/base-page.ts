@@ -292,6 +292,32 @@ export abstract class BasePage implements IPage {
     }
   }
 
+  protected async tryNativeMouseMove(x: number, y: number): Promise<boolean> {
+    const cdp = (this as IPage).cdp;
+    if (typeof cdp !== 'function') return false;
+    try {
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  protected async tryNativeDoubleClick(x: number, y: number): Promise<boolean> {
+    const cdp = (this as IPage).cdp;
+    if (typeof cdp !== 'function') return false;
+    try {
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 2 });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 2 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   protected async tryClickAxRef(ref: string): Promise<ResolveSuccess | null> {
     if (!/^\d+$/.test(ref)) return null;
     const entry = this._axRefs.get(ref);
@@ -376,6 +402,19 @@ export abstract class BasePage implements IPage {
     try {
       await nativeKeyPress.call(this, key, modifiers);
       return true;
+    } catch {
+      return false;
+    }
+  }
+
+  protected async isResolvedFocused(): Promise<boolean> {
+    try {
+      return await this.evaluate(`
+        (() => {
+          const el = window.__resolved;
+          return !!el && (document.activeElement === el || (typeof el.matches === 'function' && el.matches(':focus')));
+        })()
+      `) as boolean;
     } catch {
       return false;
     }
@@ -466,6 +505,81 @@ export abstract class BasePage implements IPage {
     if (!typed) {
       await this.evaluate(typeResolvedJs(text));
     }
+    return resolved;
+  }
+
+  async hover(ref: string, opts: ResolveOptions = {}): Promise<ResolveSuccess> {
+    const resolved = await runResolve(this, ref, opts);
+    const nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
+    const rect = await this.evaluate(boundingRectResolvedJs({ skipScroll: nativeScrolled })) as
+      | { x: number; y: number; w: number; h: number; visible: boolean }
+      | null;
+    if (rect?.visible === true && await this.tryNativeMouseMove(rect.x, rect.y)) return resolved;
+
+    await this.evaluate(`
+      (() => {
+        const el = window.__resolved;
+        if (!el) throw new Error('No resolved element');
+        if (${nativeScrolled ? 'false' : 'true'}) el.scrollIntoView({ behavior: 'instant', block: 'center' });
+        const rect = el.getBoundingClientRect();
+        const init = {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          clientX: Math.round(rect.left + rect.width / 2),
+          clientY: Math.round(rect.top + rect.height / 2),
+        };
+        try { el.dispatchEvent(new PointerEvent('pointerover', init)); } catch (_) {}
+        try { el.dispatchEvent(new PointerEvent('pointermove', init)); } catch (_) {}
+        el.dispatchEvent(new MouseEvent('mouseover', init));
+        el.dispatchEvent(new MouseEvent('mousemove', init));
+      })()
+    `);
+    return resolved;
+  }
+
+  async focus(ref: string, opts: ResolveOptions = {}): Promise<ResolveSuccess & { focused: boolean }> {
+    const resolved = await runResolve(this, ref, opts);
+    let focused = await this.tryCdpOnResolvedElement('DOM.focus') && await this.isResolvedFocused();
+    if (!focused) {
+      focused = await this.evaluate(`
+        (() => {
+          const el = window.__resolved;
+          if (!el || typeof el.focus !== 'function') return false;
+          try { el.focus({ preventScroll: true }); } catch (_) { try { el.focus(); } catch (_) {} }
+          return document.activeElement === el || (typeof el.matches === 'function' && el.matches(':focus'));
+        })()
+      `) as boolean;
+    }
+    return { ...resolved, focused: !!focused };
+  }
+
+  async dblClick(ref: string, opts: ResolveOptions = {}): Promise<ResolveSuccess> {
+    const resolved = await runResolve(this, ref, opts);
+    const nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
+    const rect = await this.evaluate(boundingRectResolvedJs({ skipScroll: nativeScrolled })) as
+      | { x: number; y: number; w: number; h: number; visible: boolean }
+      | null;
+    if (rect?.visible === true && await this.tryNativeDoubleClick(rect.x, rect.y)) return resolved;
+
+    await this.evaluate(`
+      (() => {
+        const el = window.__resolved;
+        if (!el) throw new Error('No resolved element');
+        if (${nativeScrolled ? 'false' : 'true'}) el.scrollIntoView({ behavior: 'instant', block: 'center' });
+        const rect = el.getBoundingClientRect();
+        const init = {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          clientX: Math.round(rect.left + rect.width / 2),
+          clientY: Math.round(rect.top + rect.height / 2),
+          button: 0,
+          detail: 2,
+        };
+        el.dispatchEvent(new MouseEvent('dblclick', init));
+      })()
+    `);
     return resolved;
   }
 

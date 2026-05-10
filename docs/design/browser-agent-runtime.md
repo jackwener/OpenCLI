@@ -343,7 +343,8 @@ Exit:
 
 Scope:
 
-- `hover`, `focus`, `check`, `uncheck`, `dblclick`, `drag`, `upload`,
+- `hover`, `focus`, `dblclick` (implemented first),
+- `check`, `uncheck`, `drag`, `upload`,
   `wait download`,
 - semantic locator options for role/name, label, text, testid,
 - structured ambiguity errors for write locators.
