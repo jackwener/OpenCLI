@@ -20074,7 +20074,11 @@
       "author",
       "upvotes",
       "comments",
-      "url"
+      "url",
+      "post_hint",
+      "url_overridden_by_dest",
+      "preview_image_url",
+      "gallery_urls"
     ],
     "type": "js",
     "modulePath": "reddit/frontpage.js",
@@ -20145,7 +20149,11 @@
       "comments",
       "postId",
       "author",
-      "url"
+      "url",
+      "post_hint",
+      "url_overridden_by_dest",
+      "preview_image_url",
+      "gallery_urls"
     ],
     "type": "js",
     "modulePath": "reddit/hot.js",
@@ -20179,7 +20187,11 @@
       "author",
       "url",
       "created_utc",
-      "selftext"
+      "selftext",
+      "post_hint",
+      "url_overridden_by_dest",
+      "preview_image_url",
+      "gallery_urls"
     ],
     "type": "js",
     "modulePath": "reddit/popular.js",
@@ -20412,7 +20424,11 @@
       "comments",
       "url",
       "created_utc",
-      "selftext"
+      "selftext",
+      "post_hint",
+      "url_overridden_by_dest",
+      "preview_image_url",
+      "gallery_urls"
     ],
     "type": "js",
     "modulePath": "reddit/search.js",
@@ -20466,7 +20482,11 @@
       "comments",
       "url",
       "created_utc",
-      "selftext"
+      "selftext",
+      "post_hint",
+      "url_overridden_by_dest",
+      "preview_image_url",
+      "gallery_urls"
     ],
     "type": "js",
     "modulePath": "reddit/subreddit.js",
