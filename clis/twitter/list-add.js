@@ -223,10 +223,21 @@ cli({
                 for (const se of scrollCandidates) {
                     if (se.scrollHeight > se.clientHeight + 10) { scrollEl = se; break; }
                 }
+                // Twitter renders emoji as <img> with the codepoint replaced by an image
+                // (so .innerText loses the emoji and leaves a stray leading space).
+                // Fall back to a normalized comparison: strip leading emoji + whitespace
+                // before equality.
+                const normalize = (s) => String(s || '')
+                    .replace(/^[\\s\\u{1F300}-\\u{1FAFF}\\u{2600}-\\u{27BF}\\u{200D}\\u{FE0F}\\u{1F1E6}-\\u{1F1FF}]+/gu, '')
+                    .trim();
+                const targetNormalized = normalize(targetName);
                 let lastScrollTop = -1;
                 for (let i = 0; i < 12; i++) {
                     const cells = Array.from(dialog.querySelectorAll('[data-testid="cellInnerDiv"]'));
-                    row = cells.find(c => (c.innerText || '').split('\\n')[0].trim() === targetName);
+                    row = cells.find(c => {
+                        const firstLine = (c.innerText || '').split('\\n')[0].trim();
+                        return firstLine === targetName || normalize(firstLine) === targetNormalized;
+                    });
                     if (row) break;
                     // Incremental scroll within the container
                     const prev = scrollEl.scrollTop;
