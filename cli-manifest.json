@@ -4243,6 +4243,12 @@
         "help": "Image prompt to send to ChatGPT"
       },
       {
+        "name": "image",
+        "type": "str",
+        "required": false,
+        "help": "Local image path to attach before prompting; comma-separated paths are supported"
+      },
+      {
         "name": "op",
         "type": "str",
         "required": false,

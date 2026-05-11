@@ -20,6 +20,9 @@ const COMPOSER_SELECTORS = [
     '[contenteditable="true"][role="textbox"]',
 ];
 const SEND_BUTTON_SELECTOR = 'button[data-testid="send-button"]:not([disabled])';
+const SEND_BUTTON_FALLBACK_SELECTORS = [
+    '#composer-submit-button:not([disabled])',
+];
 const SEND_BUTTON_LABELS = [
     'Send prompt',
     'Send message',
@@ -203,6 +206,40 @@ export async function ensureChatGPTComposer(page, message = 'ChatGPT composer is
     return state;
 }
 
+export async function clearChatGPTDraft(page) {
+    await page.evaluate(`
+        (() => {
+            const removeLabels = [/^remove file/i, /^移除文件/];
+            for (let pass = 0; pass < 10; pass += 1) {
+                const button = Array.from(document.querySelectorAll('button')).find((node) => {
+                    const label = node.getAttribute('aria-label') || '';
+                    return removeLabels.some((pattern) => pattern.test(label));
+                });
+                if (!button) break;
+                button.click();
+            }
+
+            const selectors = ${JSON.stringify(COMPOSER_SELECTORS)};
+            for (const selector of selectors) {
+                for (const node of document.querySelectorAll(selector)) {
+                    if (!(node instanceof HTMLElement)) continue;
+                    if (node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement) {
+                        node.value = '';
+                    } else if (node.isContentEditable) {
+                        node.textContent = '';
+                        node.innerHTML = '<p><br></p>';
+                    } else {
+                        node.textContent = '';
+                    }
+                    node.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward', data: null }));
+                    node.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
+        })()
+    `);
+    await page.wait(0.5);
+}
+
 /**
  * Send a message to the ChatGPT composer and submit it.
  * Returns true if the message was sent successfully.
@@ -227,7 +264,16 @@ export async function sendChatGPTMessage(page, text) {
             const composer = findComposer();
             if (!composer) return false;
             composer.focus();
-            composer.textContent = '';
+            if (composer instanceof HTMLTextAreaElement || composer instanceof HTMLInputElement) {
+                composer.value = '';
+            } else if (composer.isContentEditable) {
+                composer.textContent = '';
+                composer.innerHTML = '<p><br></p>';
+            } else {
+                composer.textContent = '';
+            }
+            composer.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward', data: null }));
+            composer.dispatchEvent(new Event('change', { bubbles: true }));
             return true;
         })()
     `);
@@ -255,27 +301,35 @@ export async function sendChatGPTMessage(page, text) {
         `);
     }
     
-    // Wait for send button to appear (it only shows when there's text)
-    await page.wait(1.5);
+    let sent = null;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+        await page.wait(0.5);
+        sent = await page.evaluate(`
+            (() => {
+                const isUsable = (button) => button
+                    && !button.disabled
+                    && button.getAttribute('aria-disabled') !== 'true';
+                const primary = document.querySelector(${JSON.stringify(SEND_BUTTON_SELECTOR)})
+                    || ${JSON.stringify(SEND_BUTTON_FALLBACK_SELECTORS)}.map(selector => document.querySelector(selector)).find(Boolean);
+                const btns = Array.from(document.querySelectorAll('button'));
+                const labels = ${JSON.stringify(SEND_BUTTON_LABELS)};
+                const sendBtn = isUsable(primary)
+                    ? primary
+                    : btns.find(b => labels.includes(b.getAttribute('aria-label') || '') && isUsable(b));
+                return { sendBtnFound: !!sendBtn };
+            })()
+        `);
+        if (sent?.sendBtnFound) break;
+    }
 
-    // Click send button
-    const sent = await page.evaluate(`
-        (() => {
-            const primary = document.querySelector(${JSON.stringify(SEND_BUTTON_SELECTOR)});
-            const btns = Array.from(document.querySelectorAll('button'));
-            const labels = ${JSON.stringify(SEND_BUTTON_LABELS)};
-            const sendBtn = primary || btns.find(b => labels.includes(b.getAttribute('aria-label') || '') && !b.disabled);
-            return { sendBtnFound: !!sendBtn };
-        })()
-    `);
-    
-    if (!sent || !sent.sendBtnFound) {
+    if (!sent?.sendBtnFound) {
         return false;
     }
     
     await page.evaluate(`
         (() => {
-            const primary = document.querySelector(${JSON.stringify(SEND_BUTTON_SELECTOR)});
+            const primary = document.querySelector(${JSON.stringify(SEND_BUTTON_SELECTOR)})
+                || ${JSON.stringify(SEND_BUTTON_FALLBACK_SELECTORS)}.map(selector => document.querySelector(selector)).find(Boolean);
             const labels = ${JSON.stringify(SEND_BUTTON_LABELS)};
             const sendBtn = primary || Array.from(document.querySelectorAll('button')).find(b => labels.includes(b.getAttribute('aria-label') || '') && !b.disabled);
             if (sendBtn) sendBtn.click();
@@ -462,6 +516,142 @@ async function extractConversationLinks(page) {
         : [];
 }
 
+function imageMimeFromPath(filePath) {
+    const lower = String(filePath || '').toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.heic')) return 'image/heic';
+    if (lower.endsWith('.heif')) return 'image/heif';
+    return 'image/jpeg';
+}
+
+export async function prepareChatGPTImagePaths(imagePaths) {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const absPaths = imagePaths.map(filePath => path.default.resolve(filePath));
+    const allowedExts = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif']);
+
+    for (const absPath of absPaths) {
+        if (!fs.default.existsSync(absPath)) {
+            return { ok: false, reason: `Image not found: ${absPath}` };
+        }
+        const stat = fs.default.statSync(absPath);
+        if (!stat.isFile()) {
+            return { ok: false, reason: `Not a file: ${absPath}` };
+        }
+        if (stat.size > 25 * 1024 * 1024) {
+            return { ok: false, reason: `Image too large (${(stat.size / 1024 / 1024).toFixed(1)} MB). Max: 25 MB` };
+        }
+        const ext = path.default.extname(absPath).toLowerCase();
+        if (!allowedExts.has(ext)) {
+            return { ok: false, reason: `Unsupported image type: ${absPath}` };
+        }
+    }
+
+    return { ok: true, paths: absPaths };
+}
+
+async function waitForChatGPTUploadPreview(page, fileNames) {
+    const namesJson = JSON.stringify(fileNames);
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+        await page.wait(1);
+        const ready = await page.evaluate(`
+            (() => {
+                const names = ${namesJson};
+                const text = document.body ? (document.body.innerText || '') : '';
+                const matchedNames = names.filter(name => text.includes(name)).length;
+                if (matchedNames >= names.length) return true;
+
+                const composer = document.querySelector('[aria-label="Chat with ChatGPT"], [placeholder="Ask anything"], #prompt-textarea');
+                let root = composer;
+                for (let i = 0; i < 6 && root && root.parentElement; i += 1) root = root.parentElement;
+                const scope = root || document.body;
+                if (!scope) return false;
+
+                const previewNodes = scope.querySelectorAll('img[src], canvas, video, [style*="background-image"], [data-testid*="attachment"], [data-testid*="upload"], [class*="attachment"], [class*="upload"]');
+                return previewNodes.length >= names.length;
+            })()
+        `);
+        if (ready) return true;
+    }
+    return false;
+}
+
+export async function uploadChatGPTImages(page, imagePaths) {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const prepared = await prepareChatGPTImagePaths(imagePaths);
+    if (!prepared.ok) return prepared;
+    const absPaths = prepared.paths;
+
+    const fileNames = absPaths.map(filePath => path.default.basename(filePath));
+
+    let uploaded = false;
+    if (page.setFileInput) {
+        try {
+            await page.setFileInput(absPaths, 'input[type="file"]');
+            uploaded = true;
+        } catch (err) {
+            const msg = String(err?.message || err);
+            if (!msg.includes('Unknown action') && !msg.includes('not supported') && !msg.includes('Not allowed') && !msg.includes('No element found')) {
+                throw err;
+            }
+        }
+    }
+
+    if (!uploaded) {
+        const files = absPaths.map(absPath => ({
+            name: path.default.basename(absPath),
+            mime: imageMimeFromPath(absPath),
+            base64: fs.default.readFileSync(absPath).toString('base64'),
+        }));
+        const fallbackResult = await page.evaluate(`
+            (() => {
+                const files = ${JSON.stringify(files)};
+                const input = document.querySelector('input[type="file"]');
+                if (!(input instanceof HTMLInputElement)) {
+                    return { ok: false, reason: 'file input not found' };
+                }
+
+                const dt = new DataTransfer();
+                for (const item of files) {
+                    const binary = atob(item.base64);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+                    dt.items.add(new File([bytes], item.name, { type: item.mime }));
+                }
+                input.files = dt.files;
+
+                const propsKey = Object.keys(input).find(key => key.startsWith('__reactProps$'));
+                if (propsKey && input[propsKey] && typeof input[propsKey].onChange === 'function') {
+                    const nativeEvent = new Event('change', { bubbles: true });
+                    input[propsKey].onChange({
+                        target: input,
+                        currentTarget: input,
+                        nativeEvent,
+                        preventDefault() {},
+                        stopPropagation() {},
+                        isDefaultPrevented() { return false; },
+                        isPropagationStopped() { return false; },
+                        persist() {},
+                    });
+                } else {
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                return { ok: true };
+            })()
+        `);
+        if (fallbackResult && !fallbackResult.ok) return fallbackResult;
+    }
+
+    const ready = await waitForChatGPTUploadPreview(page, fileNames);
+    if (!ready) return { ok: false, reason: 'image upload preview did not appear' };
+
+    return { ok: true, files: absPaths };
+}
+
 /**
  * Check if ChatGPT is still generating a response.
  */
@@ -573,10 +763,12 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
 export const __test__ = {
     COMPOSER_SELECTORS,
     SEND_BUTTON_SELECTOR,
+    SEND_BUTTON_FALLBACK_SELECTORS,
     SEND_BUTTON_LABELS,
     CLOSE_SIDEBAR_LABELS,
     isSameChatGPTConversation,
     parseChatGPTConversationId,
+    imageMimeFromPath,
 };
 
 /**
