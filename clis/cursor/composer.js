@@ -1,8 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { SelectorError } from '@jackwener/opencli/errors';
+import { selectorError } from '@jackwener/opencli/errors';
 export const composerCommand = cli({
     site: 'cursor',
     name: 'composer',
+    access: 'write',
     description: 'Send a prompt directly into Cursor Composer (Cmd+I shortcut)',
     domain: 'localhost',
     strategy: Strategy.UI,
@@ -27,7 +28,7 @@ export const composerCommand = cli({
         return true;
       })(${JSON.stringify(textToInsert)})`);
         if (!typed) {
-            throw new SelectorError('Cursor Composer input element', 'Could not find Cursor Composer input element after pressing Cmd+I.');
+            throw selectorError('Cursor Composer input element', 'Could not find Cursor Composer input element after pressing Cmd+I.');
         }
         await page.wait(0.5);
         await page.pressKey('Enter');

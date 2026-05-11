@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const readCommand = cli({
     site: 'discord-app',
     name: 'read',
+    access: 'read',
     description: 'Read recent messages from the active Discord channel',
     domain: 'localhost',
     strategy: Strategy.UI,

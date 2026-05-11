@@ -171,6 +171,7 @@ export function buildDetectWechatAccessIssueJs() {
 cli({
     site: 'weixin',
     name: 'download',
+    access: 'read',
     description: '下载微信公众号文章为 Markdown 格式',
     domain: 'mp.weixin.qq.com',
     strategy: Strategy.COOKIE,

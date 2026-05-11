@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { type InternalCliCommand, Strategy, registerCommand } from './registry.js';
 import { getErrorMessage } from './errors.js';
 import { log } from './logger.js';
-import type { ManifestEntry } from './build-manifest.js';
+import type { ManifestEntry } from './manifest-types.js';
 import { findPackageRoot, getCliManifestPath } from './package-paths.js';
 
 /** User runtime directory: ~/.opencli */
@@ -123,17 +123,18 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
         name: entry.name,
         aliases: entry.aliases,
         description: entry.description ?? '',
+        access: entry.access,
+        example: entry.example,
         domain: entry.domain,
         strategy: parseStrategy(entry.strategy),
         browser: entry.browser,
         args: entry.args ?? [],
         columns: entry.columns,
+        defaultFormat: entry.defaultFormat,
         pipeline: entry.pipeline,
-        timeoutSeconds: entry.timeout,
         source: entry.sourceFile ? path.resolve(clisDir, entry.sourceFile) : modulePath,
-        deprecated: entry.deprecated,
-        replacedBy: entry.replacedBy,
         navigateBefore: entry.navigateBefore,
+        siteSession: entry.siteSession,
         _lazy: true,
         _modulePath: modulePath,
       };
@@ -163,7 +164,6 @@ async function discoverClisFromFs(dir: string): Promise<void> {
       await Promise.all(files.map(async (file) => {
         const filePath = path.join(siteDir, file);
         if (file.endsWith('.yaml') || file.endsWith('.yml')) {
-          log.warn(`Ignoring YAML adapter ${filePath} — YAML format is no longer supported. Convert to JavaScript using cli() from '@jackwener/opencli/registry'.`);
           return;
         }
         if (file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts')) {
@@ -206,7 +206,6 @@ async function discoverPluginDir(dir: string, site: string): Promise<void> {
   await Promise.all(files.map(async (file) => {
     const filePath = path.join(dir, file);
     if (file.endsWith('.yaml') || file.endsWith('.yml')) {
-      log.warn(`Ignoring YAML plugin ${filePath} — YAML format is no longer supported. Convert to JavaScript using cli() from '@jackwener/opencli/registry'.`);
       return;
     }
     if (file.endsWith('.js') && !file.endsWith('.d.js')) {

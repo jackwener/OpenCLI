@@ -44,6 +44,7 @@ function marketLabel(f13) {
 cli({
   site: 'eastmoney',
   name: 'quote',
+    access: 'read',
   description: '个股实时行情（A股 / 港股 / 美股）— 来自 push2.eastmoney.com',
   domain: 'push2.eastmoney.com',
   strategy: Strategy.PUBLIC,
@@ -57,7 +58,7 @@ cli({
     'turnoverRate', 'amplitude', 'peDynamic', 'priceBook',
     'marketCap', 'floatMarketCap',
   ],
-  func: async (_page, args) => {
+  func: async (args) => {
     const raw = splitSymbols(args.symbols);
     if (raw.length === 0) {
       throw new CliError('INVALID_ARGUMENT', 'At least one symbol is required');

@@ -3,6 +3,7 @@ import { apiGet } from './utils.js';
 cli({
     site: 'bilibili',
     name: 'dynamic',
+    access: 'read',
     description: 'Get Bilibili user dynamic feed',
     domain: 'www.bilibili.com',
     strategy: Strategy.COOKIE,

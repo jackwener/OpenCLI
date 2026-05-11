@@ -3,13 +3,14 @@ import { DOMAIN, SITE, gqlRequest } from './_helpers.js';
 cli({
     site: SITE,
     name: 'tags',
+    access: 'read',
     description: 'List popular tags',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,
     browser: false,
     args: [{ name: 'limit', type: 'int', default: 20, help: 'Number of results' }],
     columns: ['rank', 'name', 'posts'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const limit = Number(kwargs.limit ?? 20);
         const query = `query Tags {
       tags(input: {terms: {view: "coreTags", limit: ${limit}}}) {

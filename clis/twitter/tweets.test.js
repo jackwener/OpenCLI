@@ -3,9 +3,9 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './tweets.js';
 
 describe('twitter tweets helpers', () => {
-    it('registers is_retweet in the default columns', () => {
+    it('registers id and is_retweet in the default columns', () => {
         const cmd = getRegistry().get('twitter/tweets');
-        expect(cmd?.columns).toEqual(['author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls']);
+        expect(cmd?.columns).toEqual(['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls']);
     });
 
     it('falls back when queryId contains unsafe characters', () => {

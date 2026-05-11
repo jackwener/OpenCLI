@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const exportCommand = cli({
     site: 'notion',
     name: 'export',
+    access: 'read',
     description: 'Export the current Notion page as Markdown',
     domain: 'localhost',
     strategy: Strategy.UI,

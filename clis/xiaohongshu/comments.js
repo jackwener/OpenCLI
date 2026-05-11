@@ -17,6 +17,7 @@ function parseCommentLimit(raw, fallback = 20) {
 cli({
     site: 'xiaohongshu',
     name: 'comments',
+    access: 'read',
     description: '获取小红书笔记评论（支持楼中楼子回复）',
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,

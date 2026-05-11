@@ -4,10 +4,12 @@ import { DEEPSEEK_DOMAIN, getConversationList } from './utils.js';
 export const historyCommand = cli({
     site: 'deepseek',
     name: 'history',
+    access: 'read',
     description: 'List conversation history from DeepSeek sidebar',
     domain: DEEPSEEK_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Max conversations to show' },

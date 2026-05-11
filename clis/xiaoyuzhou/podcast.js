@@ -5,13 +5,14 @@ import { formatDate } from './utils.js';
 cli({
     site: 'xiaoyuzhou',
     name: 'podcast',
+    access: 'read',
     description: 'View a Xiaoyuzhou podcast profile',
     domain: 'www.xiaoyuzhoufm.com',
     strategy: Strategy.LOCAL,
     browser: false,
     args: [{ name: 'id', positional: true, required: true, help: 'Podcast ID (from xiaoyuzhoufm.com URL)' }],
     columns: ['title', 'author', 'description', 'subscribers', 'episodes', 'updated'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const credentials = loadXiaoyuzhouCredentials();
         const response = await requestXiaoyuzhouJson('/v1/podcast/get', {
             query: { pid: args.id },

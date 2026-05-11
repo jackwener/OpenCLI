@@ -10,6 +10,7 @@ import { formatStamp } from './task-helpers.js';
 cli({
     site: 'ones',
     name: 'task',
+    access: 'read',
     description: 'ONES — work item detail (GET team/:team/task/:id/info); id is URL segment after …/task/',
     domain: 'ones.cn',
     strategy: Strategy.COOKIE,

@@ -24,6 +24,7 @@ async function buildTree(page, pwdId, stoken, pdirFid, depth, maxDepth) {
 cli({
     site: 'quark',
     name: 'share-tree',
+    access: 'read',
     description: 'Get directory tree from Quark Drive share link as nested JSON',
     domain: 'pan.quark.cn',
     strategy: Strategy.COOKIE,

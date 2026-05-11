@@ -7,6 +7,7 @@ import { CommandExecutionError } from '@jackwener/opencli/errors';
 cli({
     site: 'youtube',
     name: 'video',
+    access: 'read',
     description: 'Get YouTube video metadata (title, views, description, etc.)',
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,

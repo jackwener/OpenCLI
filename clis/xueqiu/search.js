@@ -3,6 +3,7 @@ import { fetchXueqiuJson } from './utils.js';
 cli({
     site: 'xueqiu',
     name: 'search',
+    access: 'read',
     description: '搜索雪球股票（代码或名称）',
     domain: 'xueqiu.com',
     browser: true,

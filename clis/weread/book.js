@@ -180,6 +180,7 @@ async function loadReaderFallbackResult(page, readerUrl) {
 cli({
     site: 'weread',
     name: 'book',
+    access: 'read',
     description: 'View book details on WeRead',
     domain: 'weread.qq.com',
     strategy: Strategy.COOKIE,

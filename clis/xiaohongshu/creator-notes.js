@@ -196,6 +196,7 @@ export async function fetchCreatorNotes(page, limit) {
 cli({
     site: 'xiaohongshu',
     name: 'creator-notes',
+    access: 'read',
     description: '小红书创作者笔记列表 + 每篇数据 (标题/日期/观看/点赞/收藏/评论)',
     domain: 'creator.xiaohongshu.com',
     strategy: Strategy.COOKIE,

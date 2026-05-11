@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'hot',
+    access: 'read',
     description: 'Reddit 热门帖子',
     domain: 'www.reddit.com',
     args: [
@@ -12,7 +13,7 @@ cli({
         },
         { name: 'limit', type: 'int', default: 20, help: 'Number of posts' },
     ],
-    columns: ['rank', 'title', 'subreddit', 'score', 'comments'],
+    columns: ['rank', 'title', 'subreddit', 'score', 'comments', 'postId', 'author', 'url'],
     pipeline: [
         { navigate: 'https://www.reddit.com' },
         { evaluate: `(async () => {
@@ -29,6 +30,7 @@ cli({
     score: c.data.score,
     comments: c.data.num_comments,
     author: c.data.author,
+    postId: c.data.id,
     url: 'https://www.reddit.com' + c.data.permalink,
   }));
 })()
@@ -39,6 +41,9 @@ cli({
                 subreddit: '${{ item.subreddit }}',
                 score: '${{ item.score }}',
                 comments: '${{ item.comments }}',
+                postId: '${{ item.postId }}',
+                author: '${{ item.author }}',
+                url: '${{ item.url }}',
             } },
         { limit: '${{ args.limit }}' },
     ],

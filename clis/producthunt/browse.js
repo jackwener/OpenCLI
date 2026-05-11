@@ -10,6 +10,7 @@ import { PRODUCTHUNT_CATEGORY_SLUGS } from './utils.js';
 cli({
     site: 'producthunt',
     name: 'browse',
+    access: 'read',
     description: 'Best products in a Product Hunt category',
     domain: 'www.producthunt.com',
     strategy: Strategy.INTERCEPT,

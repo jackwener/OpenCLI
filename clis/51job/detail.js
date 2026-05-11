@@ -13,6 +13,7 @@ import { JOBS_ORIGIN, requirePage, navigateTo } from './utils.js';
 cli({
     site: '51job',
     name: 'detail',
+    access: 'read',
     description: '51job 职位详情（按 jobId）',
     domain: 'jobs.51job.com',
     strategy: Strategy.COOKIE,

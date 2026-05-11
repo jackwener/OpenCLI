@@ -12,6 +12,7 @@ function strip(html) {
 cli({
     site: 'xueqiu',
     name: 'feed',
+    access: 'read',
     description: '获取雪球首页时间线（关注用户的动态）',
     domain: 'xueqiu.com',
     browser: true,

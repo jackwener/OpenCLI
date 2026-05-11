@@ -7,6 +7,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'barchart',
     name: 'greeks',
+    access: 'read',
     description: 'Barchart options greeks overview (IV, delta, gamma, theta, vega)',
     domain: 'www.barchart.com',
     strategy: Strategy.COOKIE,

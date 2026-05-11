@@ -28,6 +28,7 @@ function toSecucode(input) {
 cli({
   site: 'eastmoney',
   name: 'holders',
+    access: 'read',
   description: '十大流通股东（A股 F10 数据）',
   domain: 'datacenter-web.eastmoney.com',
   strategy: Strategy.PUBLIC,
@@ -37,7 +38,7 @@ cli({
     { name: 'limit',  type: 'int',    default: 10,      help: '返回股东数（默认十大流通股东）' },
   ],
   columns: ['rank', 'reportDate', 'name', 'holdNum', 'floatRatio', 'change'],
-  func: async (_page, args) => {
+  func: async (args) => {
     /** @type {string} */
     let secucode;
     try { secucode = toSecucode(args.symbol); }

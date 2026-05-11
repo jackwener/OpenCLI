@@ -355,26 +355,24 @@ export const LINUX_DO_FEED_ARGS = [
         choices: ['all', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'],
     },
 ];
-export async function executeLinuxDoFeed(page, kwargs) {
+async function runLinuxDoFeed(page, kwargs) {
     const limit = (kwargs.limit || 20);
     await ensureLinuxDoHome(page);
     const request = await resolveFeedRequest(page, kwargs);
     const data = await fetchLinuxDoJson(page, request.url, { skipNavigate: true });
     return topicListRichFromJson(data, limit);
 }
-export function buildLinuxDoCompatFooter(replacement) {
-    return `Deprecated compatibility command. Prefer: ${replacement}`;
-}
 cli({
     site: 'linux-do',
     name: 'feed',
+    access: 'read',
     description: 'linux.do 话题列表（需登录；支持全站、标签、分类）',
     domain: 'linux.do',
     strategy: Strategy.COOKIE,
     browser: true,
     columns: ['title', 'replies', 'created', 'likes', 'views', 'url'],
     args: LINUX_DO_FEED_ARGS,
-    func: executeLinuxDoFeed,
+    func: runLinuxDoFeed,
 });
 export const __test__ = {
     resetMetadataCaches() {

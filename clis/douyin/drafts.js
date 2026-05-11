@@ -3,6 +3,7 @@ import { browserFetch } from './_shared/browser-fetch.js';
 cli({
     site: 'douyin',
     name: 'drafts',
+    access: 'read',
     description: '获取草稿列表',
     domain: 'creator.douyin.com',
     strategy: Strategy.COOKIE,

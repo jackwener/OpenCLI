@@ -1,4 +1,4 @@
-import { AuthRequiredError, SelectorError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, selectorError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { normalizeNumericId } from './utils.js';
 function buildChatUrl(itemId, peerUserId) {
@@ -12,8 +12,9 @@ function buildExtractChatStateEvaluate() {
       const requiresAuth = /请先登录|登录后/.test(bodyText);
 
       const textarea = document.querySelector('textarea');
+      const normalizeBtn = (s) => (s || '').replace(/\\s+/g, '').trim();
       const sendButton = Array.from(document.querySelectorAll('button'))
-        .find((btn) => clean(btn.textContent || '') === '发送');
+        .find((btn) => normalizeBtn(btn.textContent || '') === '发送');
       const topbar = document.querySelector('[class*="message-topbar"]');
       const itemCard = Array.from(document.querySelectorAll('a[href*="/item?id="]'))
         .find((el) => el.closest('main'));
@@ -51,7 +52,7 @@ function buildExtractChatStateEvaluate() {
 }
 function buildSendMessageEvaluate(text) {
     return `
-    (() => {
+    (async () => {
       const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
       const textarea = document.querySelector('textarea');
       if (!textarea || textarea.disabled) {
@@ -63,13 +64,22 @@ function buildSendMessageEvaluate(text) {
         return { ok: false, reason: 'textarea-setter-not-found' };
       }
 
+      // Click textarea first to activate chat and trigger send button to appear
+      textarea.click();
       textarea.focus();
       setter.call(textarea, ${JSON.stringify(text)});
       textarea.dispatchEvent(new Event('input', { bubbles: true }));
       textarea.dispatchEvent(new Event('change', { bubbles: true }));
 
-      const sendButton = Array.from(document.querySelectorAll('button'))
-        .find((btn) => clean(btn.textContent || '') === '发送');
+      // Poll up to 3s for send button (may appear after textarea interaction)
+      const normalizeBtn = (s) => (s || '').replace(/\\s+/g, '').trim();
+      let sendButton = null;
+      for (let i = 0; i < 30; i++) {
+        sendButton = Array.from(document.querySelectorAll('button'))
+          .find((btn) => normalizeBtn(btn.textContent || '') === '发送');
+        if (sendButton) break;
+        await new Promise(r => setTimeout(r, 100));
+      }
       if (!sendButton) {
         return { ok: false, reason: 'send-button-not-found' };
       }
@@ -82,6 +92,7 @@ function buildSendMessageEvaluate(text) {
 cli({
     site: 'xianyu',
     name: 'chat',
+    access: 'write',
     description: '打开闲鱼聊一聊会话，并可选发送消息',
     domain: 'www.goofish.com',
     strategy: Strategy.COOKIE,
@@ -105,7 +116,7 @@ cli({
             throw new AuthRequiredError('www.goofish.com', 'Xianyu chat requires a logged-in browser session');
         }
         if (!state?.can_input) {
-            throw new SelectorError('闲鱼聊天输入框', '未找到可用的聊天输入框，请确认该会话页已正确加载');
+            throw selectorError('闲鱼聊天输入框', '未找到可用的聊天输入框，请确认该会话页已正确加载');
         }
         if (!text) {
             return [{
@@ -123,7 +134,7 @@ cli({
         }
         const sent = await page.evaluate(buildSendMessageEvaluate(text));
         if (!sent?.ok) {
-            throw new SelectorError('闲鱼发送按钮', `消息发送失败：${sent?.reason || 'unknown-reason'}`);
+            throw selectorError('闲鱼发送按钮', `消息发送失败：${sent?.reason || 'unknown-reason'}`);
         }
         await page.wait(1);
         return [{
@@ -143,4 +154,6 @@ cli({
 export const __test__ = {
     normalizeNumericId,
     buildChatUrl,
+    buildExtractChatStateEvaluate,
+    buildSendMessageEvaluate,
 };

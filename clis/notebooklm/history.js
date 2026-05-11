@@ -5,6 +5,7 @@ import { getNotebooklmPageState, listNotebooklmHistoryViaRpc, requireNotebooklmS
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'history',
+    access: 'read',
     description: 'List NotebookLM conversation history threads in the current notebook',
     domain: NOTEBOOKLM_DOMAIN,
     strategy: Strategy.COOKIE,
@@ -16,7 +17,7 @@ cli({
         await requireNotebooklmSession(page);
         const state = await getNotebooklmPageState(page);
         if (state.kind !== 'notebook') {
-            throw new EmptyResultError('opencli notebooklm history', 'No NotebookLM notebook is open in the automation workspace. Run `opencli notebooklm open <notebook>` first.');
+            throw new EmptyResultError('opencli notebooklm history', 'No NotebookLM notebook is open in the adapter session. Run `opencli notebooklm open <notebook>` first.');
         }
         const rows = await listNotebooklmHistoryViaRpc(page);
         return rows;

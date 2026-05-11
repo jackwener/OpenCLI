@@ -3,35 +3,8 @@ import { AuthRequiredError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './discussion.js';
 import './discussion.js';
+import { createPageMock } from '../test-utils.js';
 
-function createPageMock(evaluateResults) {
-  const evaluate = vi.fn();
-  for (const result of evaluateResults) {
-    evaluate.mockResolvedValueOnce(result);
-  }
-  return {
-    goto: vi.fn().mockResolvedValue(undefined),
-    wait: vi.fn().mockResolvedValue(undefined),
-    evaluate,
-    snapshot: vi.fn().mockResolvedValue(undefined),
-    click: vi.fn().mockResolvedValue(undefined),
-    typeText: vi.fn().mockResolvedValue(undefined),
-    pressKey: vi.fn().mockResolvedValue(undefined),
-    scrollTo: vi.fn().mockResolvedValue(undefined),
-    getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
-    tabs: vi.fn().mockResolvedValue([]),
-    selectTab: vi.fn().mockResolvedValue(undefined),
-    networkRequests: vi.fn().mockResolvedValue([]),
-    consoleMessages: vi.fn().mockResolvedValue([]),
-    scroll: vi.fn().mockResolvedValue(undefined),
-    autoScroll: vi.fn().mockResolvedValue(undefined),
-    installInterceptor: vi.fn().mockResolvedValue(undefined),
-    getInterceptedRequests: vi.fn().mockResolvedValue([]),
-    getCookies: vi.fn().mockResolvedValue([]),
-    screenshot: vi.fn().mockResolvedValue(''),
-    waitForCapture: vi.fn().mockResolvedValue(undefined),
-  };
-}
 
 describe('amazon discussion normalization', () => {
   it('normalizes review summary and sample reviews', () => {

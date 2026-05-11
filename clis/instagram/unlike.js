@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'instagram',
     name: 'unlike',
+    access: 'write',
     description: 'Unlike an Instagram post',
     domain: 'www.instagram.com',
     args: [

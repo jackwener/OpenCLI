@@ -502,26 +502,20 @@ export async function loadDoubanMovieHot(page, limit) {
         let url = titleEl?.getAttribute('href') || '';
         if (!title || !url) continue;
         if (!url.startsWith('http')) url = 'https://movie.douban.com' + url;
+        const id = url.match(/subject\\/(\\d+)/)?.[1] || '';
 
         const info = normalize(el.querySelector('.pl2 p')?.textContent);
-        const infoParts = info.split('/').map((part) => part.trim()).filter(Boolean);
-        const releaseIndex = (() => {
-          for (let i = infoParts.length - 1; i >= 0; i -= 1) {
-            if (/\\d{4}-\\d{2}-\\d{2}|\\d{4}\\/\\d{2}\\/\\d{2}/.test(infoParts[i])) return i;
-          }
-          return -1;
-        })();
-        const directorPart = releaseIndex >= 1 ? infoParts[releaseIndex - 1] : '';
-        const regionPart = releaseIndex >= 2 ? infoParts[releaseIndex - 2] : '';
         const yearMatch = info.match(/\\b(19|20)\\d{2}\\b/);
+        const votesText = normalize(el.querySelector('.star .pl')?.textContent);
+        const votes = parseInt(votesText.replace(/[^0-9]/g, ''), 10) || 0;
+
         results.push({
           rank: results.length + 1,
+          id,
           title,
           rating: parseFloat(normalize(el.querySelector('.rating_nums')?.textContent)) || 0,
-          quote: normalize(el.querySelector('.inq')?.textContent),
-          director: directorPart.replace(/^导演:\\s*/, ''),
+          votes,
           year: yearMatch?.[0] || '',
-          region: regionPart,
           url,
           cover: el.querySelector('img')?.getAttribute('src') || '',
         });
@@ -530,7 +524,11 @@ export async function loadDoubanMovieHot(page, limit) {
       return results;
     })()
   `);
-    return Array.isArray(data) ? data : [];
+    const results = Array.isArray(data) ? data : [];
+    if (!results.length) {
+        throw new EmptyResultError('douban movie-hot', 'No movie chart rows were parsed from movie.douban.com/chart.');
+    }
+    return results;
 }
 export function inferDoubanSearchResultType(searchType, item = {}) {
     const fallbackType = String(searchType || '').trim() || 'movie';

@@ -79,7 +79,7 @@ describe('gemini ask orchestration', () => {
         mocks.sendGeminiMessage.mockResolvedValueOnce('button');
         mocks.waitForGeminiSubmission.mockResolvedValueOnce(submission);
         mocks.waitForGeminiResponse.mockResolvedValueOnce('OK');
-        const result = await askCommand.func(page, { prompt: '请只回复：OK', timeout: '20', new: 'false' });
+        const result = await askCommand.func(page, { prompt: '请只回复：OK', timeout: 20, new: 'false' });
         expect(mocks.readGeminiSnapshot).toHaveBeenCalledWith(page);
         expect(mocks.waitForGeminiSubmission).toHaveBeenCalledWith(page, baseline, 20);
         expect(mocks.waitForGeminiResponse).toHaveBeenCalledWith(page, submission, '请只回复：OK', 18);
@@ -94,7 +94,7 @@ describe('gemini ask orchestration', () => {
         mocks.sendGeminiMessage.mockResolvedValueOnce('button');
         mocks.waitForGeminiSubmission.mockResolvedValueOnce(submission);
         mocks.waitForGeminiResponse.mockResolvedValueOnce('');
-        await askCommand.func(page, { prompt: '请只回复：OK', timeout: '20', new: 'false' });
+        await askCommand.func(page, { prompt: '请只回复：OK', timeout: 20, new: 'false' });
         expect(mocks.waitForGeminiResponse).toHaveBeenCalledWith(page, submission, '请只回复：OK', 0);
     });
 });

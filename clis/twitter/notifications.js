@@ -3,12 +3,14 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'twitter',
     name: 'notifications',
-    description: 'Get Twitter/X notifications',
+    access: 'read',
+    description: 'Get your Twitter/X notifications (the logged-in user\'s likes/replies/follows feed, newest first)',
     domain: 'x.com',
     strategy: Strategy.INTERCEPT,
     browser: true,
+    siteSession: 'persistent',
     args: [
-        { name: 'limit', type: 'int', default: 20 },
+        { name: 'limit', type: 'int', default: 20, help: 'Maximum number of notifications to return (default 20).' },
     ],
     columns: ['id', 'action', 'author', 'text', 'url'],
     func: async (page, kwargs) => {

@@ -12,6 +12,7 @@ function normalizeCollectionName(value) {
 cli({
     site: 'zhihu',
     name: 'favorite',
+    access: 'write',
     description: 'Favorite a Zhihu answer or article into a specific collection',
     domain: 'zhihu.com',
     strategy: Strategy.COOKIE,

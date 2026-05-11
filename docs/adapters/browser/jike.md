@@ -39,6 +39,11 @@ opencli jike like <post-id>
 opencli jike feed -f json
 ```
 
+## Listing Columns
+
+`feed`, `search`, and `user` expose `id` for each post row. Pass that value
+directly to `opencli jike post <id>` for the detail view.
+
 ## Prerequisites
 
 - Chrome running and **logged into** web.okjike.com

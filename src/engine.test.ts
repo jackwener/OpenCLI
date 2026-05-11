@@ -30,7 +30,7 @@ export const helper = true;
 import { cli, Strategy } from '${pathToFileURL(path.join(process.cwd(), 'src', 'registry.ts')).href}';
 cli({
   site: 'temp-site',
-  name: 'hello',
+  name: 'hello', access: 'read',
   description: 'hello command',
   strategy: Strategy.PUBLIC,
   browser: false,
@@ -63,7 +63,7 @@ cli({
 import { cli, Strategy } from '${pathToFileURL(path.join(process.cwd(), 'src', 'registry.ts')).href}';
 cli({
   site: 'fallback-site',
-  name: 'hello',
+  name: 'hello', access: 'read',
   description: 'hello command',
   strategy: Strategy.PUBLIC,
   browser: false,
@@ -95,7 +95,7 @@ import { htmlToMarkdown } from '@jackwener/opencli/utils';
 
 cli({
   site: 'legacy-site',
-  name: 'hello',
+  name: 'hello', access: 'read',
   description: 'hello command',
   strategy: Strategy.PUBLIC,
   browser: false,
@@ -148,6 +148,7 @@ describe('discoverPlugins', () => {
   const symlinkTargetDir = path.join(os.tmpdir(), '__test-plugin-symlink-target__');
   const symlinkPluginDir = path.join(PLUGINS_DIR, '__test-plugin-symlink__');
   const brokenSymlinkDir = path.join(PLUGINS_DIR, '__test-plugin-broken__');
+  const dirSymlinkType: fs.symlink.Type = process.platform === 'win32' ? 'junction' : 'dir';
 
   afterEach(async () => {
     try { await fs.promises.rm(testPluginDir, { recursive: true }); } catch {}
@@ -188,7 +189,7 @@ description: Test plugin greeting via symlink
 strategy: public
 browser: false
 `);
-    await fs.promises.symlink(symlinkTargetDir, symlinkPluginDir, 'dir');
+    await fs.promises.symlink(symlinkTargetDir, symlinkPluginDir, dirSymlinkType);
 
     await discoverPlugins();
 
@@ -198,7 +199,7 @@ browser: false
 
   it('skips broken plugin symlinks without throwing', async () => {
     await fs.promises.mkdir(PLUGINS_DIR, { recursive: true });
-    await fs.promises.symlink(path.join(os.tmpdir(), '__missing-plugin-target__'), brokenSymlinkDir, 'dir');
+    await fs.promises.symlink(path.join(os.tmpdir(), '__missing-plugin-target__'), brokenSymlinkDir, dirSymlinkType);
 
     await expect(discoverPlugins()).resolves.not.toThrow();
     expect(getRegistry().get('__test-plugin-broken__/hello')).toBeUndefined();
@@ -214,14 +215,14 @@ describe('executeCommand', () => {
   it('accepts kebab-case option names after Commander camelCases them', async () => {
     const cmd = cli({
       site: 'test-engine',
-      name: 'kebab-arg-test',
+      name: 'kebab-arg-test', access: 'read',
       description: 'test command with kebab-case arg',
       browser: false,
       strategy: Strategy.PUBLIC,
       args: [
         { name: 'note-id', required: true, help: 'Note ID' },
       ],
-      func: async (_page, kwargs) => [{ noteId: kwargs['note-id'] }],
+      func: async (kwargs) => [{ noteId: kwargs['note-id'] }],
     });
 
     const result = await executeCommand(cmd, { 'note-id': 'abc123' });
@@ -231,11 +232,11 @@ describe('executeCommand', () => {
   it('executes a command with func', async () => {
     const cmd = cli({
       site: 'test-engine',
-      name: 'func-test',
+      name: 'func-test', access: 'read',
       description: 'test command with func',
       browser: false,
       strategy: Strategy.PUBLIC,
-      func: async (_page, kwargs) => {
+      func: async (kwargs) => {
         return [{ title: kwargs.query ?? 'default' }];
       },
     });
@@ -247,7 +248,7 @@ describe('executeCommand', () => {
   it('executes a command with pipeline', async () => {
     const cmd = cli({
       site: 'test-engine',
-      name: 'pipe-test',
+      name: 'pipe-test', access: 'read',
       description: 'test command with pipeline',
       browser: false,
       strategy: Strategy.PUBLIC,
@@ -264,7 +265,7 @@ describe('executeCommand', () => {
   it('throws for command with no func or pipeline', async () => {
     const cmd = cli({
       site: 'test-engine',
-      name: 'empty-test',
+      name: 'empty-test', access: 'read',
       description: 'empty command',
       browser: false,
     });
@@ -276,10 +277,10 @@ describe('executeCommand', () => {
     let receivedDebug = false;
     const cmd = cli({
       site: 'test-engine',
-      name: 'debug-test',
+      name: 'debug-test', access: 'read',
       description: 'debug test',
       browser: false,
-      func: async (_page, _kwargs, debug) => {
+      func: async (_kwargs, debug) => {
         receivedDebug = debug ?? false;
         return [];
       },
@@ -297,7 +298,7 @@ describe('executeCommand', () => {
 
     const cmd = cli({
       site: 'test-engine',
-      name: 'failing-test',
+      name: 'failing-test', access: 'read',
       description: 'failing command',
       browser: false,
       strategy: Strategy.PUBLIC,
@@ -321,7 +322,7 @@ describe('executeCommand', () => {
 
     const cmd = cli({
       site: 'chatwise',
-      name: 'status',
+      name: 'status', access: 'read',
       description: 'chatwise status',
       browser: true,
       strategy: Strategy.PUBLIC,

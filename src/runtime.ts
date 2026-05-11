@@ -26,7 +26,9 @@ function parseEnvTimeout(envVar: string, fallback: number): number {
 
 export const DEFAULT_BROWSER_CONNECT_TIMEOUT = parseEnvTimeout('OPENCLI_BROWSER_CONNECT_TIMEOUT', 30);
 export const DEFAULT_BROWSER_COMMAND_TIMEOUT = parseEnvTimeout('OPENCLI_BROWSER_COMMAND_TIMEOUT', 60);
-export const DEFAULT_BROWSER_EXPLORE_TIMEOUT = parseEnvTimeout('OPENCLI_BROWSER_EXPLORE_TIMEOUT', 120);
+
+export type BrowserWindowMode = 'foreground' | 'background';
+export type BrowserSurface = 'browser' | 'adapter';
 
 /**
  * Timeout with seconds unit. Used for high-level command timeouts.
@@ -64,21 +66,26 @@ export function withTimeoutMs<T>(
 
 /** Interface for browser factory (BrowserBridge or test mocks) */
 export interface IBrowserFactory {
-  connect(opts?: { timeout?: number; workspace?: string; cdpEndpoint?: string }): Promise<IPage>;
+  connect(opts?: { timeout?: number; session?: string; cdpEndpoint?: string; contextId?: string; idleTimeout?: number; windowMode?: BrowserWindowMode; surface?: BrowserSurface; siteSession?: 'ephemeral' | 'persistent' }): Promise<IPage>;
   close(): Promise<void>;
 }
 
 export async function browserSession<T>(
   BrowserFactory: new () => IBrowserFactory,
   fn: (page: IPage) => Promise<T>,
-  opts: { workspace?: string; cdpEndpoint?: string } = {},
+  opts: { session?: string; cdpEndpoint?: string; contextId?: string; idleTimeout?: number; windowMode?: BrowserWindowMode; surface?: BrowserSurface; siteSession?: 'ephemeral' | 'persistent' } = {},
 ): Promise<T> {
   const browser = new BrowserFactory();
   try {
     const page = await browser.connect({
       timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT,
-      workspace: opts.workspace,
+      session: opts.session,
       cdpEndpoint: opts.cdpEndpoint,
+      contextId: opts.contextId,
+      idleTimeout: opts.idleTimeout,
+      windowMode: opts.windowMode,
+      surface: opts.surface,
+      siteSession: opts.siteSession,
     });
     return await fn(page);
   } finally {

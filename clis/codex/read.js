@@ -1,14 +1,19 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { conversationSelectionArgs, openCodexConversation } from './sidebar.js';
 export const readCommand = cli({
     site: 'codex',
     name: 'read',
-    description: 'Read the contents of the current Codex conversation thread',
+    access: 'read',
+    description: 'Read the contents of the current or selected Codex conversation thread',
     domain: 'localhost',
     strategy: Strategy.UI,
     browser: true,
-    args: [],
-    columns: ['Content'],
-    func: async (page) => {
+    args: [
+        ...conversationSelectionArgs,
+    ],
+    columns: ['Project', 'Conversation', 'Content'],
+    func: async (page, kwargs) => {
+        const selected = await openCodexConversation(page, kwargs);
         const historyText = await page.evaluate(`
       (function() {
         const turns = Array.from(document.querySelectorAll('[data-content-search-turn-key]'));
@@ -27,6 +32,8 @@ export const readCommand = cli({
     `);
         return [
             {
+                Project: selected?.project || '',
+                Conversation: selected?.conversation || '',
                 Content: historyText,
             },
         ];

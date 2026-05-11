@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'tiktok',
     name: 'unlike',
+    access: 'write',
     description: 'Unlike a TikTok video',
     domain: 'www.tiktok.com',
     args: [

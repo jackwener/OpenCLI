@@ -3,10 +3,12 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'upvote',
+    access: 'write',
     description: 'Upvote or downvote a Reddit post',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
         { name: 'post-id', type: 'string', required: true, positional: true, help: 'Post ID (e.g. 1abc123) or fullname (t3_xxx)' },
         { name: 'direction', type: 'string', default: 'up', help: 'Vote direction: up, down, none' },

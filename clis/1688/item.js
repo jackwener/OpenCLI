@@ -156,6 +156,7 @@ async function readItemPayload(page, itemUrl) {
 cli({
     site: '1688',
     name: 'item',
+    access: 'read',
     description: '1688 商品详情（公开商品字段、价格阶梯、卖家基础信息）',
     domain: 'www.1688.com',
     strategy: Strategy.COOKIE,

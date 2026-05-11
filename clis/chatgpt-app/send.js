@@ -4,6 +4,7 @@ import { activateChatGPT, selectModel, MODEL_CHOICES, sendPrompt } from './ax.js
 export const sendCommand = cli({
     site: 'chatgpt-app',
     name: 'send',
+    access: 'write',
     description: 'Send a message to the active ChatGPT Desktop App window',
     domain: 'localhost',
     strategy: Strategy.PUBLIC,
@@ -13,7 +14,7 @@ export const sendCommand = cli({
         { name: 'model', required: false, help: 'Model/mode to use: auto, instant, thinking, 5.2-instant, 5.2-thinking', choices: MODEL_CHOICES },
     ],
     columns: ['Status'],
-    func: async (page, kwargs) => {
+    func: async (kwargs) => {
         const text = kwargs.text;
         const model = kwargs.model;
         try {

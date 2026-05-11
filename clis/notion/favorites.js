@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const favoritesCommand = cli({
     site: 'notion',
     name: 'favorites',
+    access: 'read',
     description: 'List pages from the Notion Favorites section in the sidebar',
     domain: 'localhost',
     strategy: Strategy.UI,

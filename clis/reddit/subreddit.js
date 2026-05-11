@@ -2,12 +2,14 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'subreddit',
+    access: 'read',
     description: 'Get posts from a specific Subreddit',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
-        { name: 'name', type: 'string', required: true, positional: true },
+        { name: 'name', type: 'string', required: true, positional: true, help: 'Subreddit name (no `r/` prefix; e.g. `python`)' },
         {
             name: 'sort',
             type: 'string',
@@ -41,11 +43,15 @@ cli({
 })()
 ` },
         { map: {
+                id: '${{ item.data.id }}',
                 title: '${{ item.data.title }}',
+                subreddit: '${{ item.data.subreddit_name_prefixed }}',
                 author: '${{ item.data.author }}',
                 upvotes: '${{ item.data.score }}',
                 comments: '${{ item.data.num_comments }}',
                 url: 'https://www.reddit.com${{ item.data.permalink }}',
+                created_utc: '${{ item.data.created_utc }}',
+                selftext: '${{ item.data.selftext }}',
             } },
         { limit: '${{ args.limit }}' },
     ],

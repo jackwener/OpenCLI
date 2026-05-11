@@ -12,6 +12,7 @@ function stripHtml(html) {
 cli({
     site: 'zhihu',
     name: 'question',
+    access: 'read',
     description: '知乎问题详情和回答',
     domain: 'www.zhihu.com',
     strategy: Strategy.COOKIE,

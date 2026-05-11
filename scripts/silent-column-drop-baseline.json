@@ -1,0 +1,962 @@
+[
+  {
+    "command": "1688/assets",
+    "file": "clis/1688/assets.js",
+    "missing": [
+      "detail_images",
+      "item_url",
+      "main_images",
+      "other_images",
+      "raw_assets",
+      "sku_images",
+      "source",
+      "videos"
+    ]
+  },
+  {
+    "command": "1688/assets",
+    "file": "clis/1688/assets.js",
+    "missing": [
+      "gallery",
+      "href",
+      "offerId",
+      "offerTitle",
+      "scannedAssets"
+    ]
+  },
+  {
+    "command": "1688/download",
+    "file": "clis/1688/download.js",
+    "missing": [
+      "filename",
+      "url"
+    ]
+  },
+  {
+    "command": "1688/item",
+    "file": "clis/1688/item.js",
+    "missing": [
+      "bodyText",
+      "gallery",
+      "href",
+      "offerId",
+      "offerTitle",
+      "seller",
+      "services",
+      "shipping",
+      "trade"
+    ]
+  },
+  {
+    "command": "1688/item",
+    "file": "clis/1688/item.js",
+    "missing": [
+      "currency",
+      "customization_text",
+      "delivery_days_text",
+      "item_url",
+      "main_images",
+      "member_id",
+      "moq_value",
+      "price_tiers",
+      "private_label_text",
+      "sales_text",
+      "seller_url",
+      "service_badges",
+      "shop_id",
+      "shop_name",
+      "stock_quantity",
+      "visible_attributes"
+    ]
+  },
+  {
+    "command": "1688/search",
+    "file": "clis/1688/search.js",
+    "missing": [
+      "badges",
+      "currency",
+      "fetched_at",
+      "moq_value",
+      "price_max",
+      "price_min",
+      "return_rate_text",
+      "sales_text",
+      "seller_url",
+      "shop_id",
+      "source_url",
+      "strategy"
+    ]
+  },
+  {
+    "command": "1688/search",
+    "file": "clis/1688/search.js",
+    "missing": [
+      "bodyText",
+      "candidates",
+      "href",
+      "next_url"
+    ]
+  },
+  {
+    "command": "1688/search",
+    "file": "clis/1688/search.js",
+    "missing": [
+      "container_text",
+      "desc_rows",
+      "hover_items",
+      "hover_price_text",
+      "sales_text",
+      "seller_url",
+      "tag_items"
+    ]
+  },
+  {
+    "command": "1688/store",
+    "file": "clis/1688/store.js",
+    "missing": [
+      "business_model_text",
+      "company_name",
+      "company_url",
+      "factory_badges",
+      "member_id",
+      "mobile_text",
+      "phone_text",
+      "response_rate_text",
+      "service_badges",
+      "shop_id",
+      "staff_size_text",
+      "store_url",
+      "top_categories"
+    ]
+  },
+  {
+    "command": "51job/company",
+    "file": "clis/51job/company.js",
+    "missing": [
+      "cInfoParts",
+      "links",
+      "sidebarText"
+    ]
+  },
+  {
+    "command": "51job/detail",
+    "file": "clis/51job/detail.js",
+    "missing": [
+      "companyTag",
+      "finalUrl",
+      "meta"
+    ]
+  },
+  {
+    "command": "amazon/discussion",
+    "file": "clis/amazon/discussion.js",
+    "missing": [
+      "average_rating_text",
+      "discussion_url",
+      "product_url",
+      "qa_urls",
+      "review_samples",
+      "total_review_count_text"
+    ]
+  },
+  {
+    "command": "amazon/offer",
+    "file": "clis/amazon/offer.js",
+    "missing": [
+      "buybox_text",
+      "href",
+      "merchant_info",
+      "offer_link",
+      "qa_url",
+      "review_url",
+      "ships_from_text",
+      "title"
+    ]
+  },
+  {
+    "command": "amazon/offer",
+    "file": "clis/amazon/offer.js",
+    "missing": [
+      "currency",
+      "merchant_info_text",
+      "offer_listing_url",
+      "price_value",
+      "product_url",
+      "qa_url",
+      "review_url"
+    ]
+  },
+  {
+    "command": "amazon/product",
+    "file": "clis/amazon/product.js",
+    "missing": [
+      "brand_text",
+      "breadcrumbs",
+      "bullet_points",
+      "currency",
+      "price_value",
+      "product_url",
+      "qa_url",
+      "rating_text",
+      "review_count_text",
+      "review_url"
+    ]
+  },
+  {
+    "command": "amazon/product",
+    "file": "clis/amazon/product.js",
+    "missing": [
+      "breadcrumbs",
+      "bullets",
+      "byline",
+      "href",
+      "product_title",
+      "qa_url",
+      "rating_text",
+      "review_count_text",
+      "review_url"
+    ]
+  },
+  {
+    "command": "amazon/search",
+    "file": "clis/amazon/search.js",
+    "missing": [
+      "badge_texts",
+      "href",
+      "rating_text",
+      "review_count_text",
+      "sponsored"
+    ]
+  },
+  {
+    "command": "amazon/search",
+    "file": "clis/amazon/search.js",
+    "missing": [
+      "badges",
+      "currency",
+      "is_sponsored",
+      "price_value",
+      "product_url",
+      "rating_text",
+      "review_count_text"
+    ]
+  },
+  {
+    "command": "band/post",
+    "file": "clis/band/post.js",
+    "missing": [
+      "comments",
+      "photos"
+    ]
+  },
+  {
+    "command": "band/post",
+    "file": "clis/band/post.js",
+    "missing": [
+      "depth"
+    ]
+  },
+  {
+    "command": "band/post",
+    "file": "clis/band/post.js",
+    "missing": [
+      "filename",
+      "url"
+    ]
+  },
+  {
+    "command": "bilibili/download",
+    "file": "clis/bilibili/download.js",
+    "missing": [
+      "author"
+    ]
+  },
+  {
+    "command": "bilibili/feed",
+    "file": "clis/bilibili/feed.js",
+    "missing": [
+      "comments",
+      "itemType"
+    ]
+  },
+  {
+    "command": "binance/depth",
+    "file": "clis/binance/depth.js",
+    "missing": [
+      "select"
+    ]
+  },
+  {
+    "command": "binance/gainers",
+    "file": "clis/binance/gainers.js",
+    "missing": [
+      "sort_change"
+    ]
+  },
+  {
+    "command": "binance/losers",
+    "file": "clis/binance/losers.js",
+    "missing": [
+      "sort_change"
+    ]
+  },
+  {
+    "command": "binance/ticker",
+    "file": "clis/binance/ticker.js",
+    "missing": [
+      "sort_volume"
+    ]
+  },
+  {
+    "command": "binance/top",
+    "file": "clis/binance/top.js",
+    "missing": [
+      "sort_volume"
+    ]
+  },
+  {
+    "command": "bloomberg/news",
+    "file": "clis/bloomberg/news.js",
+    "missing": [
+      "errorCode",
+      "message",
+      "preview"
+    ]
+  },
+  {
+    "command": "bloomberg/news",
+    "file": "clis/bloomberg/news.js",
+    "missing": [
+      "errorCode",
+      "preview"
+    ]
+  },
+  {
+    "command": "boss/resume",
+    "file": "clis/boss/resume.js",
+    "missing": [
+      "activeTime",
+      "jobChatting",
+      "workHistory"
+    ]
+  },
+  {
+    "command": "coupang/search",
+    "file": "clis/coupang/search.js",
+    "missing": [
+      "badge",
+      "category",
+      "deliveryPromise",
+      "deliveryType",
+      "discountRate",
+      "originalPrice",
+      "productId",
+      "reviewCount",
+      "seller",
+      "unitPrice"
+    ]
+  },
+  {
+    "command": "coupang/search",
+    "file": "clis/coupang/search.js",
+    "missing": [
+      "originalPrice",
+      "unitPrice"
+    ]
+  },
+  {
+    "command": "douban/download",
+    "file": "clis/douban/download.js",
+    "missing": [
+      "detail_url",
+      "image_url",
+      "photo_id"
+    ]
+  },
+  {
+    "command": "douban/marks",
+    "file": "clis/douban/marks.js",
+    "missing": [
+      "movieId"
+    ]
+  },
+  {
+    "command": "douban/photos",
+    "file": "clis/douban/photos.js",
+    "missing": [
+      "page",
+      "subject_title",
+      "thumb_url",
+      "type"
+    ]
+  },
+  {
+    "command": "douban/reviews",
+    "file": "clis/douban/reviews.js",
+    "missing": [
+      "createdAt",
+      "movieId",
+      "reviewId"
+    ]
+  },
+  {
+    "command": "hupu/mentions",
+    "file": "clis/hupu/mentions.js",
+    "missing": [
+      "has_next_page",
+      "msg_type",
+      "next_page_str",
+      "topic_id"
+    ]
+  },
+  {
+    "command": "indeed/job",
+    "file": "clis/indeed/job.js",
+    "missing": [
+      "challenge",
+      "jobType",
+      "notFound",
+      "ready"
+    ]
+  },
+  {
+    "command": "indeed/search",
+    "file": "clis/indeed/search.js",
+    "missing": [
+      "jk"
+    ]
+  },
+  {
+    "command": "instagram/note",
+    "file": "clis/instagram/note.js",
+    "missing": [
+      "stage",
+      "text"
+    ]
+  },
+  {
+    "command": "instagram/post",
+    "file": "clis/instagram/post.js",
+    "missing": [
+      "failed",
+      "settled"
+    ]
+  },
+  {
+    "command": "instagram/post",
+    "file": "clis/instagram/post.js",
+    "missing": [
+      "state"
+    ]
+  },
+  {
+    "command": "instagram/reel",
+    "file": "clis/instagram/reel.js",
+    "missing": [
+      "failed",
+      "settled"
+    ]
+  },
+  {
+    "command": "instagram/reel",
+    "file": "clis/instagram/reel.js",
+    "missing": [
+      "state"
+    ]
+  },
+  {
+    "command": "jd/item",
+    "file": "clis/jd/item.js",
+    "missing": [
+      "hasProductMarker",
+      "hasSecurityChallenge",
+      "href",
+      "isLoginPage",
+      "isProductPage",
+      "looksBlocked",
+      "onExpectedItemUrl"
+    ]
+  },
+  {
+    "command": "jianyu/search",
+    "file": "clis/jianyu/search.js",
+    "missing": [
+      "contextText",
+      "date"
+    ]
+  },
+  {
+    "command": "jianyu/search",
+    "file": "clis/jianyu/search.js",
+    "missing": [
+      "detail_reason"
+    ]
+  },
+  {
+    "command": "jianyu/search",
+    "file": "clis/jianyu/search.js",
+    "missing": [
+      "detail_reason",
+      "notice_id",
+      "source_id"
+    ]
+  },
+  {
+    "command": "jike/notifications",
+    "file": "clis/jike/notifications.js",
+    "missing": [
+      "actionType",
+      "fromUser"
+    ]
+  },
+  {
+    "command": "jike/topic",
+    "file": "clis/jike/topic.js",
+    "missing": [
+      "id"
+    ]
+  },
+  {
+    "command": "ke/chengjiao",
+    "file": "clis/ke/chengjiao.js",
+    "missing": [
+      "url"
+    ]
+  },
+  {
+    "command": "ke/xiaoqu",
+    "file": "clis/ke/xiaoqu.js",
+    "missing": [
+      "url"
+    ]
+  },
+  {
+    "command": "linkedin/timeline",
+    "file": "clis/linkedin/timeline.js",
+    "missing": [
+      "authorUrl",
+      "postedAt"
+    ]
+  },
+  {
+    "command": "linkedin/timeline",
+    "file": "clis/linkedin/timeline.js",
+    "missing": [
+      "id"
+    ]
+  },
+  {
+    "command": "linkedin/timeline",
+    "file": "clis/linkedin/timeline.js",
+    "missing": [
+      "postedAt"
+    ]
+  },
+  {
+    "command": "linux-do/tags",
+    "file": "clis/linux-do/tags.js",
+    "missing": [
+      "id"
+    ]
+  },
+  {
+    "command": "paperreview/review",
+    "file": "clis/paperreview/review.js",
+    "missing": [
+      "message",
+      "token"
+    ]
+  },
+  {
+    "command": "powerchina/search",
+    "file": "clis/powerchina/search.js",
+    "missing": [
+      "contextText",
+      "date"
+    ]
+  },
+  {
+    "command": "producthunt/hot",
+    "file": "clis/producthunt/hot.js",
+    "missing": [
+      "voteCandidates"
+    ]
+  },
+  {
+    "command": "reddit/popular",
+    "file": "clis/reddit/popular.js",
+    "missing": [
+      "author"
+    ]
+  },
+  {
+    "command": "tieba/search",
+    "file": "clis/tieba/search.js",
+    "missing": [
+      "snippet"
+    ]
+  },
+  {
+    "command": "twitter/accept",
+    "file": "clis/twitter/accept.js",
+    "missing": [
+      "href",
+      "idx",
+      "text"
+    ]
+  },
+  {
+    "command": "twitter/bookmarks",
+    "file": "clis/twitter/bookmarks.js",
+    "missing": [
+      "name"
+    ]
+  },
+  {
+    "command": "twitter/download",
+    "file": "clis/twitter/download.js",
+    "missing": [
+      "poster",
+      "url"
+    ]
+  },
+  {
+    "command": "twitter/download",
+    "file": "clis/twitter/download.js",
+    "missing": [
+      "url"
+    ]
+  },
+  {
+    "command": "twitter/list-add",
+    "file": "clis/twitter/list-add.js",
+    "missing": [
+      "method",
+      "ts",
+      "url",
+      "via"
+    ]
+  },
+  {
+    "command": "twitter/list-remove",
+    "file": "clis/twitter/list-remove.js",
+    "missing": [
+      "method",
+      "ts",
+      "url"
+    ]
+  },
+  {
+    "command": "twitter/list-tweets",
+    "file": "clis/twitter/list-tweets.js",
+    "missing": [
+      "name"
+    ]
+  },
+  {
+    "command": "twitter/reply-dm",
+    "file": "clis/twitter/reply-dm.js",
+    "missing": [
+      "convId",
+      "href",
+      "idx",
+      "preview"
+    ]
+  },
+  {
+    "command": "twitter/thread",
+    "file": "clis/twitter/thread.js",
+    "missing": [
+      "created_at",
+      "in_reply_to"
+    ]
+  },
+  {
+    "command": "twitter/tweets",
+    "file": "clis/twitter/tweets.js",
+    "missing": [
+      "name"
+    ]
+  },
+  {
+    "command": "uiverse/code",
+    "file": "clis/uiverse/code.js",
+    "missing": [
+      "code",
+      "isTailwind",
+      "postId",
+      "type",
+      "url"
+    ]
+  },
+  {
+    "command": "uiverse/preview",
+    "file": "clis/uiverse/preview.js",
+    "missing": [
+      "matchedClassName",
+      "matchedTag",
+      "postId",
+      "selectorSource",
+      "url",
+      "x",
+      "y"
+    ]
+  },
+  {
+    "command": "v2ex/daily",
+    "file": "clis/v2ex/daily.js",
+    "missing": [
+      "claimed"
+    ]
+  },
+  {
+    "command": "v2ex/daily",
+    "file": "clis/v2ex/daily.js",
+    "missing": [
+      "claimed",
+      "once"
+    ]
+  },
+  {
+    "command": "web/read",
+    "file": "clis/web/read.js",
+    "missing": [
+      "accessible",
+      "index",
+      "sameOrigin",
+      "src",
+      "textLength"
+    ]
+  },
+  {
+    "command": "web/read",
+    "file": "clis/web/read.js",
+    "missing": [
+      "bodyTruncated",
+      "contentType",
+      "method",
+      "url"
+    ]
+  },
+  {
+    "command": "weibo/me",
+    "file": "clis/weibo/me.js",
+    "missing": [
+      "avatar",
+      "description",
+      "profile_url"
+    ]
+  },
+  {
+    "command": "weibo/user",
+    "file": "clis/weibo/user.js",
+    "missing": [
+      "avatar",
+      "birthday",
+      "created_at",
+      "gender",
+      "ip_location",
+      "verified_reason"
+    ]
+  },
+  {
+    "command": "weread/book",
+    "file": "clis/weread/book.js",
+    "missing": [
+      "metadataReady"
+    ]
+  },
+  {
+    "command": "weread/book",
+    "file": "clis/weread/book.js",
+    "missing": [
+      "url"
+    ]
+  },
+  {
+    "command": "xianyu/chat",
+    "file": "clis/xianyu/chat.js",
+    "missing": [
+      "can_input",
+      "can_send",
+      "item_url",
+      "peer_masked_id",
+      "requiresAuth",
+      "title",
+      "visible_messages"
+    ]
+  },
+  {
+    "command": "xianyu/item",
+    "file": "clis/xianyu/item.js",
+    "missing": [
+      "browse_count",
+      "category",
+      "collect_count",
+      "description",
+      "image_count",
+      "image_urls",
+      "item_url",
+      "original_price",
+      "reply_interval",
+      "reply_ratio_24h",
+      "seller_id",
+      "seller_score",
+      "seller_url",
+      "status"
+    ]
+  },
+  {
+    "command": "xianyu/search",
+    "file": "clis/xianyu/search.js",
+    "missing": [
+      "extra",
+      "original_price"
+    ]
+  },
+  {
+    "command": "xiaohongshu/creator-note-detail",
+    "file": "clis/xiaohongshu/creator-note-detail.js",
+    "missing": [
+      "label"
+    ]
+  },
+  {
+    "command": "xiaohongshu/creator-notes-summary",
+    "file": "clis/xiaohongshu/creator-notes-summary.js",
+    "missing": [
+      "published_at",
+      "top_interest_pct",
+      "top_source_pct"
+    ]
+  },
+  {
+    "command": "xiaohongshu/creator-notes",
+    "file": "clis/xiaohongshu/creator-notes-summary.js",
+    "missing": [
+      "avg_view_time",
+      "published_at",
+      "rise_fans",
+      "shares",
+      "top_interest",
+      "top_interest_pct",
+      "top_source",
+      "top_source_pct"
+    ]
+  },
+  {
+    "command": "xiaohongshu/download",
+    "file": "clis/xiaohongshu/download.js",
+    "missing": [
+      "url"
+    ]
+  },
+  {
+    "command": "xiaohongshu/search",
+    "file": "clis/xiaohongshu/search.js",
+    "missing": [
+      "author_url"
+    ]
+  },
+  {
+    "command": "xueqiu/comments",
+    "file": "clis/xueqiu/comments.js",
+    "missing": [
+      "id"
+    ]
+  },
+  {
+    "command": "xueqiu/earnings-date",
+    "file": "clis/xueqiu/earnings-date.js",
+    "missing": [
+      "_future",
+      "_ts"
+    ]
+  },
+  {
+    "command": "xueqiu/hot-stock",
+    "file": "clis/xueqiu/hot-stock.js",
+    "missing": [
+      "url"
+    ]
+  },
+  {
+    "command": "xueqiu/kline",
+    "file": "clis/xueqiu/kline.js",
+    "missing": [
+      "percent",
+      "symbol"
+    ]
+  },
+  {
+    "command": "xueqiu/watchlist",
+    "file": "clis/xueqiu/watchlist.js",
+    "missing": [
+      "change",
+      "url",
+      "volume"
+    ]
+  },
+  {
+    "command": "yahoo-finance/quote",
+    "file": "clis/yahoo-finance/quote.js",
+    "missing": [
+      "currency",
+      "exchange"
+    ]
+  },
+  {
+    "command": "yollomi/upload",
+    "file": "clis/yollomi/upload.js",
+    "missing": [
+      "data"
+    ]
+  },
+  {
+    "command": "youtube/playlist",
+    "file": "clis/youtube/playlist.js",
+    "missing": [
+      "channelName",
+      "stats",
+      "videos"
+    ]
+  },
+  {
+    "command": "youtube/watch-later",
+    "file": "clis/youtube/watch-later.js",
+    "missing": [
+      "stats",
+      "videos"
+    ]
+  },
+  {
+    "command": "zhihu/hot",
+    "file": "clis/zhihu/hot.js",
+    "missing": [
+      "answer_count",
+      "follower_count",
+      "url"
+    ]
+  },
+  {
+    "command": "zhihu/hot",
+    "file": "clis/zhihu/hot.js",
+    "missing": [
+      "url"
+    ]
+  },
+  {
+    "command": "zhihu/search",
+    "file": "clis/zhihu/search.js",
+    "missing": [
+      "excerpt"
+    ]
+  },
+  {
+    "command": "zsxq/groups",
+    "file": "clis/zsxq/groups.js",
+    "missing": [
+      "valid_until"
+    ]
+  }
+]

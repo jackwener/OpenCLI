@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'instagram',
     name: 'explore',
+    access: 'read',
     description: 'Instagram explore/discover trending posts',
     domain: 'www.instagram.com',
     args: [

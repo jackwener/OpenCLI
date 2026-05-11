@@ -17,6 +17,7 @@ function defaultTradeDate() {
 cli({
   site: 'eastmoney',
   name: 'longhu',
+    access: 'read',
   description: '龙虎榜明细（A股交易所公开披露榜单）',
   domain: 'datacenter-web.eastmoney.com',
   strategy: Strategy.PUBLIC,
@@ -26,7 +27,7 @@ cli({
     { name: 'limit', type: 'int',    default: 20,  help: '返回数量 (max 100)' },
   ],
   columns: ['tradeDate', 'code', 'name', 'closePrice', 'changeRate', 'boardAmt', 'buyAmt', 'sellAmt', 'netAmt', 'turnover', 'dealRatio', 'market', 'reason'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const sinceDate = String(args.date || '').trim() || defaultTradeDate();
     const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));
 

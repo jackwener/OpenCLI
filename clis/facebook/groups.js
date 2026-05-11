@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'facebook',
     name: 'groups',
+    access: 'read',
     description: 'List your Facebook groups',
     domain: 'www.facebook.com',
     args: [

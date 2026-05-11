@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'jimeng',
     name: 'workspaces',
+    access: 'read',
     description: '即梦AI 查看所有工作区（会话窗口）',
     domain: 'jimeng.jianying.com',
     strategy: Strategy.COOKIE,

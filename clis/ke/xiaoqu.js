@@ -4,6 +4,7 @@ import { cityUrl, gotoKe } from './utils.js';
 cli({
     site: 'ke',
     name: 'xiaoqu',
+    access: 'read',
     description: '贝壳找房小区列表',
     domain: 'ke.com',
     strategy: Strategy.COOKIE,

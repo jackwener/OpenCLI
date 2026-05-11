@@ -25,6 +25,7 @@ function stripHtml(html) {
 cli({
     site: 'sinafinance',
     name: 'news',
+    access: 'read',
     description: '新浪财经 7x24 小时实时快讯',
     domain: 'app.cj.sina.com.cn',
     strategy: Strategy.PUBLIC,
@@ -34,7 +35,7 @@ cli({
         { name: 'type', type: 'int', default: 0, help: 'News type: 0=全部 1=A股 2=宏观 3=公司 4=数据 5=市场 6=国际 7=观点 8=央行 9=其它' },
     ],
     columns: ['id', 'time', 'content', 'views'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const limit = Math.max(1, Math.min(Number(args.limit), 50));
         const apiTag = TYPE_MAP[args.type] ?? 0;
         const params = new URLSearchParams({

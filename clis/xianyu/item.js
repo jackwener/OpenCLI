@@ -1,4 +1,4 @@
-import { AuthRequiredError, EmptyResultError, SelectorError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, EmptyResultError, selectorError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { normalizeNumericId } from './utils.js';
 function buildItemUrl(itemId) {
@@ -106,6 +106,7 @@ function buildFetchItemEvaluate(itemId) {
 cli({
     site: 'xianyu',
     name: 'item',
+    access: 'read',
     description: '查看闲鱼商品详情',
     domain: 'www.goofish.com',
     strategy: Strategy.COOKIE,
@@ -127,7 +128,7 @@ cli({
             throw new EmptyResultError('xianyu item', 'Xianyu item detail is blocked by verification or risk control');
         }
         if (result?.error === 'mtop-not-ready') {
-            throw new SelectorError('window.lib.mtop', '闲鱼页面未完成初始化，无法调用商品详情接口');
+            throw selectorError('window.lib.mtop', '闲鱼页面未完成初始化，无法调用商品详情接口');
         }
         if (!result || typeof result !== 'object') {
             throw new EmptyResultError('xianyu item', '闲鱼商品详情接口未返回有效数据');

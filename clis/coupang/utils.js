@@ -1,3 +1,36 @@
+import { ArgumentError } from '@jackwener/opencli/errors';
+
+/**
+ * Parse a positive integer arg (--limit / --page / --review-page).
+ *
+ * Throws ArgumentError on out-of-range / non-integer values rather than
+ * silently clamping. We prefer typed-fail-fast over silent clamping for the
+ * same reason as feedback_typed_fail_fast_for_adapters: callers cannot tell
+ * that their value was rewritten and end up confused why "limit=999" returned
+ * 50 rows.
+ */
+export function parseLimitArg(raw, fallback, max) {
+    if (raw === undefined || raw === null || raw === '') {
+        return fallback;
+    }
+    const num = Number(raw);
+    if (!Number.isInteger(num) || num < 1 || num > max) {
+        throw new ArgumentError(`--limit must be an integer between 1 and ${max} (got ${raw})`);
+    }
+    return num;
+}
+
+export function parsePageArg(raw, fallback) {
+    if (raw === undefined || raw === null || raw === '') {
+        return fallback;
+    }
+    const num = Number(raw);
+    if (!Number.isInteger(num) || num < 1) {
+        throw new ArgumentError(`--page must be a positive integer (got ${raw})`);
+    }
+    return num;
+}
+
 function itemKey(item) {
     return item.url || item.product_id || `${item.title}:${item.price ?? ''}`;
 }
@@ -61,7 +94,28 @@ export function normalizeProductId(raw) {
     if (!text)
         return '';
     const match = text.match(/\/vp\/products\/(\d+)/) || text.match(/\b(\d{6,})\b/);
-    return match?.[1] ?? text;
+    return match?.[1] ?? '';
+}
+export function requireProductIdArg(raw, label = '--product-id') {
+    const text = asString(raw);
+    if (label === '--url') {
+        try {
+            const url = new URL(text.startsWith('http') ? text : `https://www.coupang.com${text}`);
+            const match = url.pathname.match(/^\/vp\/products\/(\d{6,})(?:\/|$)/);
+            const isCoupangHost = url.hostname === 'coupang.com' || url.hostname.endsWith('.coupang.com');
+            if (isCoupangHost && match) {
+                return match[1];
+            }
+        }
+        catch {
+            // Fall through to the typed validation error below.
+        }
+        throw new ArgumentError(`${label} must be a Coupang product URL containing /vp/products/<id>`);
+    }
+    if (!/^\d{6,}$/.test(text)) {
+        throw new ArgumentError(`${label} must be a numeric Coupang product ID`);
+    }
+    return text;
 }
 export function canonicalizeProductUrl(rawUrl, productId) {
     const raw = asString(rawUrl);

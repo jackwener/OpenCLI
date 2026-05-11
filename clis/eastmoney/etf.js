@@ -17,6 +17,7 @@ const SORTS = {
 cli({
   site: 'eastmoney',
   name: 'etf',
+    access: 'read',
   description: 'ETF 列表按成交额/涨跌幅排行',
   domain: 'push2.eastmoney.com',
   strategy: Strategy.PUBLIC,
@@ -26,7 +27,7 @@ cli({
     { name: 'limit', type: 'int',   default: 20,         help: '返回数量 (max 100)' },
   ],
   columns: ['rank', 'code', 'name', 'price', 'changePercent', 'change', 'turnover', 'volume', 'turnoverRate'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const sortKey = String(args.sort ?? 'turnover').toLowerCase();
     const sort = SORTS[sortKey];
     if (!sort) throw new CliError('INVALID_ARGUMENT', `Unknown sort "${sortKey}". Valid: ${Object.keys(SORTS).join(', ')}`);

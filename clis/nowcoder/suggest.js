@@ -3,6 +3,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'nowcoder',
     name: 'suggest',
+    access: 'read',
     description: 'Search suggestions',
     domain: 'www.nowcoder.com',
     args: [

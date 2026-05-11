@@ -5,6 +5,7 @@ import { mubuPost, nodesToMarkdown, nodesToText } from './utils.js';
 cli({
   site: 'mubu',
   name: 'doc',
+    access: 'read',
   description: '读取幕布文档内容（默认输出 Markdown，可用 --output text 输出纯文本）',
   domain: 'mubu.com',
   strategy: Strategy.COOKIE,

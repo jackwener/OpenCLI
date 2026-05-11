@@ -4,6 +4,7 @@ import { DOMAIN, SITE, gqlEscape, gqlRequest, parsePostId, stripHtml, } from './
 cli({
     site: SITE,
     name: 'read',
+    access: 'read',
     description: 'Read full post by URL or ID',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,
@@ -18,7 +19,7 @@ cli({
         },
     ],
     columns: ['title', 'author', 'karma', 'comments', 'tags', 'content', 'url'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const postId = parsePostId(String(kwargs['url-or-id']));
         const query = `query PostsSingle {
       post(input: {selector: {documentId: "${gqlEscape(postId)}"}}) {

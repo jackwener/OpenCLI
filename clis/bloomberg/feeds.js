@@ -3,6 +3,7 @@ import { BLOOMBERG_FEEDS } from './utils.js';
 cli({
     site: 'bloomberg',
     name: 'feeds',
+    access: 'read',
     description: 'List the Bloomberg RSS feed aliases used by the adapter',
     domain: 'feeds.bloomberg.com',
     strategy: Strategy.PUBLIC,

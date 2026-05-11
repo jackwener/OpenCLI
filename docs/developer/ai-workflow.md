@@ -11,10 +11,11 @@ From a new site URL to a passing `opencli browser verify` — one skill, one set
 #    skills/opencli-adapter-author/SKILL.md
 
 # 2. Reconnaissance
-opencli browser open https://example.com
-opencli browser wait time 3
-opencli browser network        # inspect XHR / fetch calls
-opencli browser state          # extract __INITIAL_STATE__ / __NEXT_DATA__
+opencli browser analyze https://example.com
+# Fallback primitives when analyze says deeper inspection is needed:
+# opencli browser open https://example.com
+# opencli browser network      # inspect XHR / fetch calls
+# opencli browser state        # extract __INITIAL_STATE__ / __NEXT_DATA__
 
 # 3. Scaffold + verify
 opencli browser init <site>/<name>
@@ -30,6 +31,7 @@ See [skills/opencli-adapter-author/SKILL.md](https://github.com/jackwener/opencl
 | Command | Purpose |
 |---------|---------|
 | `opencli doctor` | Sanity check: bridge, Chrome, signals |
+| `opencli browser analyze <url>` | One-shot site recon: anti-bot, pattern, nearest adapter, next step |
 | `opencli browser open <url>` | Open a tab in the Chrome session |
 | `opencli browser network` | List recent XHR / fetch calls |
 | `opencli browser state` | Page state: URL, title, interactive elements |
@@ -51,8 +53,8 @@ Adapters declare one of:
 
 1. **PUBLIC** — direct fetch, no credentials
 2. **COOKIE** — reuse Chrome session cookies (`browser: true` + `credentials: 'include'`)
-3. **HEADER** — inject a custom header (bearer / csrf / signed token)
-4. **INTERCEPT** — let the page make the request; capture the response
+3. **INTERCEPT** — let the page make the request; capture the response
+4. **UI** — drive the authenticated browser UI when no stable API is available
 
 Pick per the `coverage-matrix.md` and `api-discovery.md` references inside the skill.
 

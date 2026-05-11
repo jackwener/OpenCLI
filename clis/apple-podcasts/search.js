@@ -4,6 +4,7 @@ import { itunesFetch } from './utils.js';
 cli({
     site: 'apple-podcasts',
     name: 'search',
+    access: 'read',
     description: 'Search Apple Podcasts',
     strategy: Strategy.PUBLIC,
     browser: false,
@@ -12,7 +13,7 @@ cli({
         { name: 'limit', type: 'int', default: 10, help: 'Max results' },
     ],
     columns: ['id', 'title', 'author', 'episodes', 'genre', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const term = encodeURIComponent(args.query);
         const limit = Math.max(1, Math.min(Number(args.limit), 25));
         const data = await itunesFetch(`/search?term=${term}&media=podcast&limit=${limit}`);

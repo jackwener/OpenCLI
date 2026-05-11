@@ -1397,14 +1397,15 @@ async function resolveLatestPostUrl(page, existingPostPaths) {
 cli({
     site: 'instagram',
     name: 'post',
+    access: 'write',
     description: 'Post an Instagram feed image or mixed-media carousel',
     domain: 'www.instagram.com',
     strategy: Strategy.UI,
     browser: true,
-    timeoutSeconds: 300,
     args: [
         { name: 'media', required: false, valueRequired: true, help: `Comma-separated media paths (images/videos, up to ${MAX_MEDIA_ITEMS})` },
         { name: 'content', positional: true, required: false, help: 'Caption text' },
+        { name: 'timeout', type: 'int', required: false, default: 300, help: 'Max seconds for the overall command (default: 300)' },
     ],
     columns: ['status', 'detail', 'url'],
     validateArgs: validateInstagramPostArgs,

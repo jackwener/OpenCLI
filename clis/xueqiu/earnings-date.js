@@ -4,6 +4,7 @@ import { fetchXueqiuJson } from './utils.js';
 cli({
     site: 'xueqiu',
     name: 'earnings-date',
+    access: 'read',
     description: '获取股票预计财报发布日期（公司大事）',
     domain: 'xueqiu.com',
     browser: true,

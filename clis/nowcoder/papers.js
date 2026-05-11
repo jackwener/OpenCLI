@@ -3,6 +3,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'nowcoder',
     name: 'papers',
+    access: 'read',
     description: 'Interview question bank by company and job',
     domain: 'www.nowcoder.com',
     args: [

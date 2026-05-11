@@ -4,6 +4,7 @@ import { getNotebooklmPageState } from './utils.js';
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'status',
+    access: 'read',
     description: 'Check NotebookLM page availability and login state in the current Chrome session',
     domain: NOTEBOOKLM_DOMAIN,
     strategy: Strategy.COOKIE,

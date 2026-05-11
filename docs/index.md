@@ -19,13 +19,13 @@ features:
     details: Drive Electron apps (Cursor, Codex, ChatGPT, Notion, etc.) directly from the terminal via CDP.
   - icon: 🌐
     title: Browser Automation
-    details: "AI agents get direct browser control: click, type, extract, screenshot — any interaction, fully scriptable."
+    details: "AI agents get direct browser control: click, type/fill, extract, screenshot — any interaction, fully scriptable."
   - icon: 🔐
     title: Account Safe
     details: Reuses Chrome's logged-in state. Your credentials never leave the browser — no tokens, no exposed passwords.
   - icon: 🤖
     title: AI Agent Ready
-    details: "explore discovers APIs, synthesize generates adapters, cascade finds auth strategies. Built for AI-first workflows."
+    details: "Browser primitives plus adapter-authoring skills give AI agents a repeatable loop for recon, extraction, verification, and adapter writing."
   - icon: 💰
     title: Zero LLM Cost
     details: No tokens consumed at runtime. Run 10,000 times and pay nothing.

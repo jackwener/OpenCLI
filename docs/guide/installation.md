@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- **Node.js**: >= 21.0.0
+- **Node.js**: >= 21.0.0, or **Bun** >= 1.0
 - **Chrome** running and logged into the target site (for browser commands)
 
 ## Install via npm (Recommended)
@@ -29,6 +29,16 @@ npm install -g @jackwener/opencli@latest
 
 # If you use the packaged OpenCLI skills, refresh them too
 npx skills add jackwener/opencli
+```
+
+Or refresh only the skills you actually use:
+
+```bash
+npx skills add jackwener/opencli --skill opencli-adapter-author
+npx skills add jackwener/opencli --skill opencli-autofix
+npx skills add jackwener/opencli --skill opencli-browser
+npx skills add jackwener/opencli --skill opencli-usage
+npx skills add jackwener/opencli --skill smart-search
 ```
 
 ## Verify Installation

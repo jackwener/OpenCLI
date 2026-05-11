@@ -171,13 +171,15 @@ cli({
   site: 'my-plugin',
   name: 'my-command',
   description: 'My custom command',
+  access: 'read', // 'read' | 'write'
+  example: 'opencli my-plugin my-command -f yaml',
   strategy: Strategy.PUBLIC,
   browser: false,
   args: [
     { name: 'limit', type: 'int', default: 10, help: 'Number of items' },
   ],
   columns: ['title', 'score'],
-  func: async (_page, kwargs) => {
+  func: async (kwargs) => {
     const res = await fetch('https://api.example.com/data');
     const data = await res.json();
     return data.items.slice(0, kwargs.limit).map((item: any, i: number) => ({

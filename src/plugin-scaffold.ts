@@ -118,7 +118,7 @@ cli({
     { name: 'name', positional: true, required: true, help: 'Name to greet' },
   ],
   columns: ['greeting'],
-  func: async (_page, kwargs) => [{ greeting: \`Hello, \${String(kwargs.name ?? 'World')}!\` }],
+  func: async (kwargs) => [{ greeting: \`Hello, \${String(kwargs.name ?? 'World')}!\` }],
 });
 `;
   writeFile(targetDir, 'greet.ts', tsContent);

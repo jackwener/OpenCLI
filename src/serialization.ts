@@ -43,13 +43,15 @@ export function serializeCommand(cmd: CliCommand) {
     name: cmd.name,
     aliases: cmd.aliases ?? [],
     description: cmd.description,
+    access: cmd.access,
     strategy: strategyLabel(cmd),
     browser: !!cmd.browser,
     args: cmd.args.map(serializeArg),
     columns: cmd.columns ?? [],
     domain: cmd.domain ?? null,
-    deprecated: cmd.deprecated ?? null,
-    replacedBy: cmd.replacedBy ?? null,
+    example: formatCommandExample(cmd),
+    defaultFormat: cmd.defaultFormat ?? null,
+    siteSession: cmd.siteSession ?? null,
   };
 }
 
@@ -70,6 +72,28 @@ function summarizeChoices(choices: string[]): string {
   return `${choices.slice(0, 4).join(', ')}, ... (+${choices.length - 4} more)`;
 }
 
+function formatValuePlaceholder(name: string): string {
+  return `<${name}>`;
+}
+
+/** Agent-facing canonical invocation. Adapter authors may override with `example`. */
+export function formatCommandExample(cmd: CliCommand): string {
+  if (cmd.example?.trim()) return cmd.example.trim();
+  const parts = ['opencli', cmd.site, cmd.name];
+  for (const arg of cmd.args) {
+    if (arg.positional && arg.required) {
+      parts.push(formatValuePlaceholder(arg.name));
+    }
+  }
+  for (const arg of cmd.args) {
+    if (arg.positional || !arg.required) continue;
+    parts.push(`--${arg.name}`);
+    if (arg.type !== 'bool' && arg.type !== 'boolean') parts.push(formatValuePlaceholder(arg.name));
+  }
+  parts.push('-f', 'yaml');
+  return parts.join(' ');
+}
+
 /** Generate the --help appendix showing registry metadata not exposed by Commander. */
 export function formatRegistryHelpText(cmd: CliCommand): string {
   const lines: string[] = [];
@@ -80,13 +104,13 @@ export function formatRegistryHelpText(cmd: CliCommand): string {
     lines.push(`  ${prefix}: ${summarizeChoices(a.choices!)}${def}`);
   }
   const meta: string[] = [];
-  meta.push(`Strategy: ${strategyLabel(cmd)}`);
+  meta.push(`Access: ${cmd.access}`);
   meta.push(`Browser: ${cmd.browser ? 'yes' : 'no'}`);
   if (cmd.domain) meta.push(`Domain: ${cmd.domain}`);
-  if (cmd.deprecated) meta.push(`Deprecated: ${typeof cmd.deprecated === 'string' ? cmd.deprecated : 'yes'}`);
-  if (cmd.replacedBy) meta.push(`Use instead: ${cmd.replacedBy}`);
+  if (cmd.defaultFormat) meta.push(`Default format: ${cmd.defaultFormat}`);
   if (cmd.aliases?.length) meta.push(`Aliases: ${cmd.aliases.join(', ')}`);
   lines.push(meta.join(' | '));
+  lines.push(`Example: ${formatCommandExample(cmd)}`);
   if (cmd.columns?.length) lines.push(`Output columns: ${cmd.columns.join(', ')}`);
   return '\n' + lines.join('\n') + '\n';
 }

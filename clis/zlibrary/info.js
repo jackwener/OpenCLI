@@ -5,6 +5,7 @@ import { ZLIBRARY_DOMAIN, extractBookTitle, extractFormats, normalizeZlibraryBoo
 cli({
   site: 'zlibrary',
   name: 'info',
+    access: 'read',
   description: 'Get book details and available download formats from a Z-Library book page',
   domain: ZLIBRARY_DOMAIN,
   strategy: Strategy.COOKIE,

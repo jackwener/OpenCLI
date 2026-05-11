@@ -460,6 +460,7 @@ async function extractVisiblePosts(page) {
 cli({
     site: 'linkedin',
     name: 'timeline',
+    access: 'read',
     description: 'Read LinkedIn home timeline posts',
     domain: 'www.linkedin.com',
     strategy: Strategy.COOKIE,

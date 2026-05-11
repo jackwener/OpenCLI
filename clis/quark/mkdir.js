@@ -4,6 +4,7 @@ import { DRIVE_API, apiPost, findFolder } from './utils.js';
 cli({
     site: 'quark',
     name: 'mkdir',
+    access: 'write',
     description: 'Create a folder in your Quark Drive',
     domain: 'pan.quark.cn',
     strategy: Strategy.COOKIE,

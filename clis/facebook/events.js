@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'facebook',
     name: 'events',
+    access: 'read',
     description: 'Browse Facebook event categories',
     domain: 'www.facebook.com',
     args: [

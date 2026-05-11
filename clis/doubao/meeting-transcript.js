@@ -3,10 +3,12 @@ import { DOUBAO_DOMAIN, openMeetingPanel, getMeetingTranscript, parseDoubaoConve
 export const meetingTranscriptCommand = cli({
     site: 'doubao',
     name: 'meeting-transcript',
+    access: 'read',
     description: 'Get or download the meeting transcript from a Doubao conversation',
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'id', required: true, positional: true, help: 'Conversation ID (numeric or full URL)' },

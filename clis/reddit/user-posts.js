@@ -2,12 +2,14 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'user-posts',
+    access: 'read',
     description: `View a Reddit user's submitted posts`,
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
-        { name: 'username', type: 'string', required: true, positional: true },
+        { name: 'username', type: 'string', required: true, positional: true, help: 'Reddit username (no `u/` prefix needed)' },
         { name: 'limit', type: 'int', default: 15 },
     ],
     columns: ['title', 'subreddit', 'score', 'comments', 'url'],

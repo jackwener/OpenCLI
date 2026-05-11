@@ -10,6 +10,7 @@ const TIMELINE_ENDPOINTS = {
 cli({
     site: 'weibo',
     name: 'feed',
+    access: 'read',
     description: 'Fetch Weibo timeline (for-you or following)',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,
@@ -22,7 +23,7 @@ cli({
         },
         { name: 'limit', type: 'int', default: 15, help: 'Number of posts (max 50)' },
     ],
-    columns: ['author', 'text', 'reposts', 'comments', 'likes', 'time', 'url'],
+    columns: ['id', 'author', 'text', 'reposts', 'comments', 'likes', 'time', 'url'],
     func: async (page, kwargs) => {
         const count = Math.min(kwargs.limit || 15, 50);
         const timelineType = kwargs.type === 'following' ? 'following' : 'for-you';
@@ -46,6 +47,7 @@ cli({
         return (data.statuses || []).slice(0, count).map(s => {
           const u = s.user || {};
           const item = {
+            id: s.mblogid || s.idstr || String(s.id || ''),
             author: u.screen_name || '',
             text: (s.text_raw || strip(s.text || '')).substring(0, 200),
             reposts: s.reposts_count || 0,

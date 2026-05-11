@@ -6,6 +6,7 @@ import { CliError } from '@jackwener/opencli/errors';
 cli({
     site: 'weibo',
     name: 'search',
+    access: 'read',
     description: '搜索微博',
     domain: 'weibo.com',
     browser: true,
@@ -14,7 +15,7 @@ cli({
         { name: 'keyword', required: true, positional: true, help: 'Search keyword' },
         { name: 'limit', type: 'int', default: 10, help: 'Number of results (max 50)' },
     ],
-    columns: ['rank', 'title', 'author', 'time', 'url'],
+    columns: ['rank', 'id', 'title', 'author', 'time', 'url'],
     func: async (page, kwargs) => {
         const limit = Math.max(1, Math.min(Number(kwargs.limit) || 10, 50));
         const keyword = encodeURIComponent(String(kwargs.keyword ?? '').trim());
@@ -47,15 +48,20 @@ cli({
             card.querySelector('.from a[href*="/detail/"]') ||
             card.querySelector('.from a[href*="/status/"]') ||
             timeEl;
+          const url = absoluteUrl(urlEl && urlEl.getAttribute('href'));
+          const idMatch =
+            url.match(/^https?:\\/\\/(?:www\\.)?weibo\\.com\\/\\d+\\/([A-Za-z0-9]+)(?:[?#/]|$)/) ||
+            url.match(/^https?:\\/\\/(?:www\\.)?weibo\\.com\\/(?:detail|status)\\/([A-Za-z0-9]+)(?:[?#/]|$)/);
 
           const title = clean(contentEl && contentEl.textContent);
           if (!title) continue;
 
           rows.push({
+            id: idMatch ? idMatch[1] : '',
             title,
             author: clean(authorEl && authorEl.textContent),
             time: clean(timeEl && timeEl.textContent),
-            url: absoluteUrl(urlEl && urlEl.getAttribute('href')),
+            url,
           });
         }
 

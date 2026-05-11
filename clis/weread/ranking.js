@@ -3,6 +3,7 @@ import { fetchWebApi } from './utils.js';
 cli({
     site: 'weread',
     name: 'ranking',
+    access: 'read',
     description: 'WeRead book rankings by category',
     domain: 'weread.qq.com',
     strategy: Strategy.PUBLIC,
@@ -12,7 +13,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Max results' },
     ],
     columns: ['rank', 'title', 'author', 'category', 'readingCount', 'bookId'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const cat = encodeURIComponent(args.category ?? 'all');
         const data = await fetchWebApi(`/bookListInCategory/${cat}`, { rank: '1' });
         const books = data?.books ?? [];

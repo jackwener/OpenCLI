@@ -59,6 +59,7 @@ async function searchPublications(keyword, limit) {
 cli({
     site: 'substack',
     name: 'search',
+    access: 'read',
     description: '搜索 Substack 文章和 Newsletter',
     domain: 'substack.com',
     strategy: Strategy.PUBLIC,
@@ -69,7 +70,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: '返回结果数量' },
     ],
     columns: ['rank', 'title', 'author', 'date', 'description', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const limit = Math.max(1, Math.min(Number(args.limit) || 20, 50));
         return args.type === 'publications'
             ? searchPublications(args.keyword, limit)

@@ -297,6 +297,7 @@ export async function collectCommentRows(options) {
 cli({
     site: 'xueqiu',
     name: 'comments',
+    access: 'read',
     description: '获取单只股票的讨论动态',
     domain: 'xueqiu.com',
     strategy: Strategy.COOKIE,

@@ -5,6 +5,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'bbc',
     name: 'news',
+    access: 'read',
     description: 'BBC News headlines (RSS)',
     domain: 'www.bbc.com',
     strategy: Strategy.PUBLIC,
@@ -12,7 +13,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Number of headlines (max 50)' },
     ],
     columns: ['rank', 'title', 'description', 'url'],
-    func: async (page, kwargs) => {
+    func: async (kwargs) => {
         const count = Math.min(kwargs.limit || 20, 50);
         const resp = await fetch('https://feeds.bbci.co.uk/news/rss.xml');
         if (!resp.ok)

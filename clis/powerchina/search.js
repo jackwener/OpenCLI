@@ -159,6 +159,7 @@ async function searchRowsFromApi(query, limit) {
 cli({
   site: 'powerchina',
   name: 'search',
+    access: 'read',
   description: '搜索中国电建阳光采购公告',
   domain: 'bid.powerchina.cn',
   strategy: Strategy.COOKIE,

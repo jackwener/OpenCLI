@@ -7,18 +7,8 @@ import {
 } from './utils.js';
 import './search.js';
 import './info.js';
+import { createPageMock } from '../test-utils.js';
 
-function createPageMock(evaluateResults = []) {
-  const evaluate = vi.fn();
-  for (const result of evaluateResults) {
-    evaluate.mockResolvedValueOnce(result);
-  }
-  return {
-    goto: vi.fn().mockResolvedValue(undefined),
-    wait: vi.fn().mockResolvedValue(undefined),
-    evaluate,
-  };
-}
 
 describe('zlibrary commands', () => {
   it('registers search and info commands', () => {

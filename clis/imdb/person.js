@@ -7,6 +7,7 @@ import { forceEnglishUrl, getCurrentImdbId, isChallengePage, normalizeImdbId, wa
 cli({
     site: 'imdb',
     name: 'person',
+    access: 'read',
     description: 'Get actor or director info',
     domain: 'www.imdb.com',
     strategy: Strategy.PUBLIC,

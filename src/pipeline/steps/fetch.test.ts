@@ -27,27 +27,23 @@ describe('stepFetch', () => {
     expect(jsonMock).not.toHaveBeenCalled();
   });
 
-  // W1 + W3: browser single fetch returns error status from evaluate, outer code throws CliError
+  // W1 + W3: browser single fetch delegates to page.fetchJson, which owns browser-context fetch errors
   it('throws CliError with FETCH_ERROR code on non-ok responses inside the browser session', async () => {
-    const jsonMock = vi.fn().mockResolvedValue({ error: 'auth required' });
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: 'Unauthorized',
-      json: jsonMock,
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    // Simulate real CDP behavior: evaluate returns a value, errors are thrown outside
     const page = {
-      evaluate: vi.fn(async (js: string) => Function(`return (${js})`)()()),
+      fetchJson: vi.fn().mockRejectedValue(new CliError(
+        'FETCH_ERROR',
+        'HTTP 401 Unauthorized from https://api.example.com/items',
+      )),
     } as unknown as IPage;
 
     const err = await stepFetch(page, { url: 'https://api.example.com/items' }, null, {}).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(CliError);
     expect((err as CliError).code).toBe('FETCH_ERROR');
     expect((err as CliError).message).toBe('HTTP 401 Unauthorized from https://api.example.com/items');
-    expect(jsonMock).not.toHaveBeenCalled();
+    expect(page.fetchJson).toHaveBeenCalledWith('https://api.example.com/items', {
+      method: 'GET',
+      headers: {},
+    });
   });
 
   it('returns per-item HTTP errors for batch fetches without a browser session', async () => {

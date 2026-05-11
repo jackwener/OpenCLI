@@ -10,7 +10,7 @@ allowed-tools: Bash(opencli:*), Read, Edit, Write, Grep
 
 全程用现有工具：`opencli browser *` / `opencli doctor` / `opencli browser init` / `opencli browser verify`。没有新命令。
 
-调试浏览器型 adapter 时，优先直接带上 `--live --focus`。这样命令跑完后 automation lease 还在，而且容器在前台，方便你核对最终页面状态，而不是猜是抓数错了还是页面走偏了。
+调试浏览器型 adapter 时，优先直接带上 `--trace on --keep-tab true --window foreground`。`--trace on` 每轮都落 trace artifact，`summary.md` 是失败/成功复盘入口；`--keep-tab true --window foreground` 让 tab lease 保留且浏览器窗口在前台，方便核对最终页面状态。
 
 ---
 
@@ -82,7 +82,7 @@ START
   │
   ▼
 ┌──────────────────────────┐
-│ opencli browser verify    │── 失败 ──→ autofix skill，回对应步骤
+│ opencli browser verify    │── 失败 ──→ autofix skill，用 --trace retain-on-failure 回对应步骤
 └──────────────────────────┘
   │ 成功
   ▼
@@ -123,7 +123,7 @@ DONE
 [ ] 5. 直接 fetch 候选 endpoint 验证：
        [ ] 返回 200
        [ ] 响应含目标数据（不是 HTML / 广告）
-[ ] 6. 定鉴权策略：裸 fetch 通 → PUBLIC；要 cookie → COOKIE；要 header → HEADER；拿不到签名 → INTERCEPT
+[ ] 6. 定鉴权策略：裸 fetch 通 → PUBLIC；要 cookie / token / csrf → COOKIE；拿不到签名 → INTERCEPT；只能点 UI → UI
 [ ] 7. 字段解码：
        [ ] 自解释 → 直接用 key
        [ ] 已知代号 → field-conventions.md 查表
@@ -163,7 +163,7 @@ DONE
 | | 200 但 `data: []` 空 | 参数传错 / 接口换版，回 §1 看 network 里真实请求头 |
 | Step 7 字段解码 | 排序键对比推不出 | field-decode-playbook.md §3 结构差分 |
 | | 还推不出 | 先输出 raw，adapter 跑起来再迭代 |
-| Step 10 verify 失败 | `fltt` 漏了 / 字段映射错 | autofix skill |
+| Step 10 verify 失败 | `fltt` 漏了 / 字段映射错 | autofix skill；复现命令加 `--trace retain-on-failure` |
 | | 某列永远是 `null` | 字段路径错了，回 Step 7 |
 | Step 10 verify fixture mismatch | `[pattern]` row[i] 报错 | 先肉眼比对网页值；值对 → 是 fixture pattern 太严，放宽；值不对 → 字段映射错 |
 | | `[column] missing column "X"` | 实际 response 没这列（站点改版 or args 影响）；重新 `--update-fixture` 或修 adapter |
@@ -187,6 +187,8 @@ DONE
 | `references/site-memory.md` | 总览：in-repo 种子 + 本地 `~/.opencli/sites/` 的两层结构 |
 | `references/site-memory/<site>.md` | Step 2 读站点公共知识（eastmoney / xueqiu / bilibili / tonghuashun 已铺） |
 | `references/success-rate-pitfalls.md` | Step 7 / 11 踩坑前翻：10 种"verify 能过但数据是错的"静默失败 |
+| `references/jsdom-fixture-pattern.md` | 当 adapter 走 `page.evaluate` 内 DOM 抽取、且 mocked-evaluate 单测漏 silent bug 时——把 HTML 冻进 `clis/<site>/__fixtures__/` 用 JSDOM 跑（含 fixture 创建 mandatory `awk 'NF>0'` 收紧 + reverse-validate 纪律） |
+| `references/typed-errors.md` | 写 `func` 主体之前必读：5 类 typed error 落点表（ArgumentError / EmptyResultError / CommandExecutionError / AuthRequiredError / TimeoutError）+ 三大 silent anti-pattern（silent-clamp / sentinel-row / generic CliError）的反例修法 |
 
 ---
 
@@ -194,10 +196,13 @@ DONE
 
 - adapter 只引 `@jackwener/opencli/registry` + `@jackwener/opencli/errors`，不用第三方
 - `columns` 数组和 `func` 返回对象 keys 完全对齐（含顺序）
-- 已知失败抛 `CliError('CODE', 'msg')` 或 `AuthRequiredError(domain)`，不要 silent `return []`
+- **中间解析对象 key 不能跟 `columns` 任一项重叠**（否则 silent-column-drop audit 误判，PR #1329 R1 真踩过；改成专属命名 + push row 时 destructure aliasing）
+- **`browser:` field 决定 func 签名**：`browser:false → (args)`，`browser:true → (page, args)`。搞反时 `args` 实际是 debug flag，所有外部参数 silent fallback 到 default（PR #1329 upstream 之前 8 个 non-browser adapter 全踩过这个）
+- 已知失败按 [`references/typed-errors.md`](./references/typed-errors.md) 5-classification 抛对应 typed error；**不要** silent `return []`，**不要** silent `return [{sentinel}]`，**不要** `Math.max/min` silent clamp 外部参数
 - 写私人 adapter 用 `~/.opencli/clis/<site>/<name>.js`（免 build）；要提 PR 才 copy 到 `clis/<site>/<name>.js`
 - 站点记忆每轮回写：没记忆 → 用 skill → 产生记忆 → 下次变 5 分钟
 - **调试过程中的原始 dump / 抓包 / HTML 样本只能落在 `~/.opencli/sites/<site>/fixtures/` 或 `/tmp/`。严禁在 repo 根目录、`clis/<site>/` 或当前工作目录留 `.dbg-*.html / raw-*.json / sample.*` 这类临时文件**（PR diff 会带上去，别人 review 时很烦）。
+- **JSDOM unit-test fixture（`clis/<site>/__fixtures__/<command>.html`）是上面那条的例外**——它是有意 commit 进 repo 的 review artifact，不是临时 dump。但因此 quality bar 要更高：必须按 `references/jsdom-fixture-pattern.md` 的 5 步做完（含 mandatory `awk 'NF>0'` 空白行收紧），并 reverse-validate 一道证明 regression guard 真能挂。
 
 ---
 

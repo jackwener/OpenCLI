@@ -4,6 +4,7 @@ import { ArgumentError } from '@jackwener/opencli/errors';
 cli({
     site: 'douyin',
     name: 'hashtag',
+    access: 'read',
     description: '话题搜索 / AI推荐 / 热点词',
     domain: 'creator.douyin.com',
     strategy: Strategy.COOKIE,

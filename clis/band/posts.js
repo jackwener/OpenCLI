@@ -10,6 +10,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'band',
     name: 'posts',
+    access: 'read',
     description: 'List posts from a Band',
     domain: 'www.band.us',
     strategy: Strategy.COOKIE,

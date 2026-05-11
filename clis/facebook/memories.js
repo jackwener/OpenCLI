@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'facebook',
     name: 'memories',
+    access: 'read',
     description: 'Get your Facebook memories (On This Day)',
     domain: 'www.facebook.com',
     args: [

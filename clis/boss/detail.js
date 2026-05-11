@@ -6,6 +6,7 @@ import { requirePage, navigateTo, bossFetch, verbose } from './utils.js';
 cli({
     site: 'boss',
     name: 'detail',
+    access: 'read',
     description: 'BOSS直聘查看职位详情',
     domain: 'www.zhipin.com',
     strategy: Strategy.COOKIE,

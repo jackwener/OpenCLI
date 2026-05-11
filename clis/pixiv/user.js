@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'pixiv',
     name: 'user',
+    access: 'read',
     description: 'View Pixiv artist profile',
     domain: 'www.pixiv.net',
     strategy: Strategy.COOKIE,
@@ -18,6 +19,7 @@ cli({
         'manga',
         'novels',
         'comment',
+        'url',
     ],
     pipeline: [
         { navigate: 'https://www.pixiv.net' },

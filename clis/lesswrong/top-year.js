@@ -3,13 +3,14 @@ import { DOMAIN, SITE, daysAgo, gqlRequest } from './_helpers.js';
 cli({
     site: SITE,
     name: 'top-year',
+    access: 'read',
     description: 'Top this year',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,
     browser: false,
     args: [{ name: 'limit', type: 'int', default: 10, help: 'Number of results' }],
     columns: ['rank', 'title', 'author', 'karma', 'comments', 'url'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const limit = Number(kwargs.limit ?? 10);
         const query = `query PostsList {
       posts(input: {terms: {view: "top", after: "${daysAgo(365)}", limit: ${limit}}}) {

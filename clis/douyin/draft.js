@@ -290,6 +290,7 @@ async function waitForDraftResult(page, creationId) {
 cli({
     site: 'douyin',
     name: 'draft',
+    access: 'write',
     description: '上传视频并保存为草稿',
     domain: 'creator.douyin.com',
     strategy: Strategy.COOKIE,

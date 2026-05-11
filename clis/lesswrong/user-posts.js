@@ -3,6 +3,7 @@ import { DOMAIN, SITE, gqlEscape, gqlRequest, resolveUserId } from './_helpers.j
 cli({
     site: SITE,
     name: 'user-posts',
+    access: 'read',
     description: "List a user's posts",
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,
@@ -18,7 +19,7 @@ cli({
         { name: 'limit', type: 'int', default: 10, help: 'Number of results' },
     ],
     columns: ['rank', 'title', 'karma', 'comments', 'date', 'url'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const username = String(kwargs.username);
         const limit = Number(kwargs.limit ?? 10);
         const user = await resolveUserId(username);

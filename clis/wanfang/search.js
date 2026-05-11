@@ -4,6 +4,7 @@ import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
 cli({
     site: 'wanfang',
     name: 'search',
+    access: 'read',
     description: '万方数据论文搜索',
     domain: 's.wanfangdata.com.cn',
     strategy: Strategy.PUBLIC,
@@ -13,7 +14,6 @@ cli({
         { name: 'limit', type: 'int', default: 10, help: '返回结果数量 (max 20)' },
     ],
     columns: ['rank', 'title', 'authors', 'source', 'year', 'type', 'cited', 'url'],
-    navigateBefore: false,
     func: async (page, kwargs) => {
         const limit = clampInt(kwargs.limit, 10, 1, 20);
         const query = requireNonEmptyQuery(kwargs.query);

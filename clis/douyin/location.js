@@ -3,6 +3,7 @@ import { browserFetch } from './_shared/browser-fetch.js';
 cli({
     site: 'douyin',
     name: 'location',
+    access: 'read',
     description: '地理位置 POI 搜索',
     domain: 'creator.douyin.com',
     strategy: Strategy.COOKIE,

@@ -21,7 +21,7 @@
 - 凡 URL 含 `/wbi/` 的接口都要 `w_rid + wts` 签名
 - 签名算法依赖每日轮换的 `img_key / sub_key`，从 `api.bilibili.com/x/web-interface/nav` 的 `wbi_img` 字段拿
 - **不要自己重新实现**：`clis/bilibili/utils.js` 里的 `apiGet(page, path, { signed: true, params })` 已经封装好
-- 普通 cookie 接口用 `fetchJson(page, url)`（也在 utils.js）
+- 普通 cookie JSON 接口优先用 `page.fetchJson(url)`；站点级签名逻辑仍复用 `utils.js`
 
 ## 已知 endpoint
 

@@ -5,6 +5,7 @@ const TDX_HOT_URL = 'https://pul.tdx.com.cn/site/app/gzhbd/tdx-topsearch/page-ma
 cli({
   site: 'tdx',
   name: 'hot-rank',
+    access: 'read',
   description: '通达信热搜榜',
   domain: 'pul.tdx.com.cn',
   strategy: Strategy.COOKIE,

@@ -4,6 +4,7 @@ import { DESC_MAX_LEN, wikiFetch } from './utils.js';
 cli({
     site: 'wikipedia',
     name: 'trending',
+    access: 'read',
     description: 'Most-read Wikipedia articles (yesterday)',
     strategy: Strategy.PUBLIC,
     browser: false,
@@ -12,7 +13,7 @@ cli({
         { name: 'lang', default: 'en', help: 'Language code (e.g. en, zh, ja)' },
     ],
     columns: ['rank', 'title', 'description', 'views'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const lang = args.lang || 'en';
         const limit = Math.max(1, Math.min(Number(args.limit), 50));
         // Use yesterday's UTC date — Wikipedia API expects UTC and yesterday

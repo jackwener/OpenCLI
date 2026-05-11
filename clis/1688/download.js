@@ -42,6 +42,7 @@ function toDownloadItems(offerId, assets) {
 cli({
     site: '1688',
     name: 'download',
+    access: 'read',
     description: '批量下载 1688 商品页可提取的图片和视频素材',
     domain: 'www.1688.com',
     strategy: Strategy.COOKIE,

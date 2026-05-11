@@ -128,6 +128,7 @@ async function fetchTopicPayload(page, id) {
 cli({
     site: 'linux-do',
     name: 'topic-content',
+    access: 'read',
     description: 'Get the main topic body as Markdown',
     domain: LINUX_DO_DOMAIN,
     strategy: Strategy.COOKIE,

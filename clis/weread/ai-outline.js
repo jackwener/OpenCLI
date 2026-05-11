@@ -74,6 +74,7 @@ async function postWebApi(path, body) {
 cli({
     site: 'weread',
     name: 'ai-outline',
+    access: 'read',
     description: 'Get AI-generated outline for a book',
     domain: 'weread.qq.com',
     strategy: Strategy.COOKIE,

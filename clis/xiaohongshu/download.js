@@ -14,6 +14,7 @@ import { buildNoteUrl, parseNoteId } from './note-helpers.js';
 cli({
     site: 'xiaohongshu',
     name: 'download',
+    access: 'read',
     description: '下载小红书笔记中的图片和视频',
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,

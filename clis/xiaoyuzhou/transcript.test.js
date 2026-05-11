@@ -67,7 +67,7 @@ describe('xiaoyuzhou transcript', () => {
         mockFetchTranscriptBody.mockResolvedValue(JSON.stringify({
             segments: [{ text: 'hello' }, { text: 'world' }],
         }));
-        const result = await cmd.func(null, {
+        const result = await cmd.func({
             id: 'ep123',
             output: '/tmp/xiaoyuzhou-transcripts',
             json: true,
@@ -112,7 +112,7 @@ describe('xiaoyuzhou transcript', () => {
             },
         });
         mockFetchTranscriptBody.mockResolvedValue(JSON.stringify({ text: 'hello' }));
-        await cmd.func(null, {
+        await cmd.func({
             id: 'ep456',
             output: '/tmp/xiaoyuzhou-transcripts',
             json: false,
@@ -137,7 +137,7 @@ describe('xiaoyuzhou transcript', () => {
             credentials: { access_token: 'access-1', refresh_token: 'refresh-1' },
             data: {},
         });
-        await expect(cmd.func(null, {
+        await expect(cmd.func({
             id: 'ep123',
             output: '/tmp/xiaoyuzhou-transcripts',
             json: true,
@@ -168,7 +168,7 @@ describe('xiaoyuzhou transcript', () => {
         mockFetchTranscriptBody.mockResolvedValue(JSON.stringify({
             segments: [{ startAt: 0, endAt: 1 }],
         }));
-        await expect(cmd.func(null, {
+        await expect(cmd.func({
             id: 'ep123',
             output: '/tmp/xiaoyuzhou-transcripts',
             json: true,
@@ -181,7 +181,7 @@ describe('xiaoyuzhou transcript', () => {
     });
 
     it('rejects disabling both json and text outputs', async () => {
-        await expect(cmd.func(null, {
+        await expect(cmd.func({
             id: 'ep123',
             output: '/tmp/xiaoyuzhou-transcripts',
             json: false,

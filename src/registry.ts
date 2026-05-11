@@ -8,7 +8,6 @@ export enum Strategy {
   PUBLIC = 'public',
   LOCAL = 'local',
   COOKIE = 'cookie',
-  HEADER = 'header',
   INTERCEPT = 'intercept',
   UI = 'ui',
 }
@@ -24,35 +23,29 @@ export interface Arg {
   choices?: string[];
 }
 
-export interface RequiredEnv {
-  name: string;
-  help?: string;
-}
-
 export type CommandArgs = Record<string, any>;
+export type BrowserCommandFunc = (page: IPage, kwargs: CommandArgs, debug?: boolean) => Promise<unknown>;
+export type NonBrowserCommandFunc = (kwargs: CommandArgs, debug?: boolean) => Promise<unknown>;
+export type CommandAccess = 'read' | 'write';
+export type SiteSessionMode = 'ephemeral' | 'persistent';
 
-export interface CliCommand {
+interface BaseCliCommand {
   site: string;
   name: string;
   aliases?: string[];
   description: string;
+  access: CommandAccess;
+  /** Canonical invocation shown in agent-facing help. Generated when omitted. */
+  example?: string;
   domain?: string;
   strategy?: Strategy;
-  browser?: boolean;
   args: Arg[];
   columns?: string[];
-  func?: (page: IPage, kwargs: CommandArgs, debug?: boolean) => Promise<unknown>;
   pipeline?: Record<string, unknown>[];
-  timeoutSeconds?: number;
   /** Origin of this command: 'yaml', 'ts', or plugin name. */
   source?: string;
   footerExtra?: (kwargs: CommandArgs) => string | undefined;
-  requiredEnv?: RequiredEnv[];
   validateArgs?: (kwargs: CommandArgs) => void;
-  /** Deprecation note shown in help / execution warnings. */
-  deprecated?: boolean | string;
-  /** Preferred replacement command, if any. */
-  replacedBy?: string;
   /**
    * Control pre-navigation and browser-session requirement.
    *
@@ -69,21 +62,55 @@ export interface CliCommand {
    * Adapter authors can set this explicitly to override the strategy-based default.
    */
   navigateBefore?: boolean | string;
+  /** Site session lifecycle for adapter commands. */
+  siteSession?: SiteSessionMode;
   /** Override the default CLI output format when the user does not pass -f/--format. */
   defaultFormat?: 'table' | 'plain' | 'json' | 'yaml' | 'yml' | 'md' | 'markdown' | 'csv';
 }
 
+export interface BrowserCliCommand extends BaseCliCommand {
+  /** Browser commands receive an IPage. Omitted means true after normalization. */
+  browser?: true;
+  func?: BrowserCommandFunc;
+}
+
+export interface NonBrowserCliCommand extends BaseCliCommand {
+  /** Non-browser commands do not receive a page argument. */
+  browser: false;
+  func?: NonBrowserCommandFunc;
+}
+
+export type CliCommand = BrowserCliCommand | NonBrowserCliCommand;
+type RawCliCommand = BaseCliCommand & {
+  browser?: boolean;
+  func?: BrowserCommandFunc | NonBrowserCommandFunc;
+};
+
 /** Internal extension for lazy-loaded TS modules (not exposed in public API) */
-export interface InternalCliCommand extends CliCommand {
+export type InternalCliCommand = CliCommand & {
   _lazy?: boolean;
   _modulePath?: string;
-}
-export interface CliOptions extends Partial<Omit<CliCommand, 'args' | 'description'>> {
+};
+
+type RequiredCliOptions = {
   site: string;
   name: string;
+  access: CommandAccess;
   description?: string;
   args?: Arg[];
-}
+};
+
+type BrowserStrategy = Exclude<Strategy, Strategy.PUBLIC | Strategy.LOCAL>;
+type BrowserCliOptions = Partial<Omit<BrowserCliCommand, 'args' | 'description' | 'browser' | 'strategy'>> & RequiredCliOptions & (
+  | { browser: true; strategy?: Strategy }
+  | { browser?: true; strategy?: BrowserStrategy }
+);
+type NonBrowserCliOptions = Partial<Omit<NonBrowserCliCommand, 'args' | 'description'>> & RequiredCliOptions & (
+  | { browser: false }
+  | { strategy: Strategy.PUBLIC | Strategy.LOCAL; browser?: false }
+);
+
+export type CliOptions = BrowserCliOptions | NonBrowserCliOptions;
 
 // Use globalThis to ensure a single shared registry across all module instances.
 // This is critical for TS plugins loaded via npm link / peerDependency — without
@@ -93,11 +120,13 @@ const _registry: Map<string, CliCommand> =
   globalThis.__opencli_registry__ ??= new Map<string, CliCommand>();
 
 export function cli(opts: CliOptions): CliCommand {
-  const cmd: CliCommand = {
+  const cmd: RawCliCommand = {
     site: opts.site,
     name: opts.name,
     aliases: opts.aliases,
     description: opts.description ?? '',
+    access: opts.access,
+    example: opts.example,
     domain: opts.domain,
     strategy: opts.strategy,
     browser: opts.browser,
@@ -105,12 +134,9 @@ export function cli(opts: CliOptions): CliCommand {
     columns: opts.columns,
     func: opts.func,
     pipeline: opts.pipeline,
-    timeoutSeconds: opts.timeoutSeconds,
     footerExtra: opts.footerExtra,
-    requiredEnv: opts.requiredEnv,
-    deprecated: opts.deprecated,
-    replacedBy: opts.replacedBy,
     navigateBefore: opts.navigateBefore,
+    siteSession: opts.siteSession,
     defaultFormat: opts.defaultFormat,
   };
 
@@ -122,7 +148,7 @@ export function getRegistry(): Map<string, CliCommand> {
   return _registry;
 }
 
-export function fullName(cmd: CliCommand): string {
+export function fullName(cmd: Pick<BaseCliCommand, 'site' | 'name'>): string {
   return `${cmd.site}/${cmd.name}`;
 }
 
@@ -143,13 +169,16 @@ export function strategyLabel(cmd: CliCommand): string {
  *   1. Explicit field on the command (`browser: false`, `navigateBefore: false`)
  *   2. Derived from strategy + domain (the defaults below)
  */
-function normalizeCommand(cmd: CliCommand): CliCommand {
+function normalizeCommand(cmd: RawCliCommand): CliCommand {
+  assertCommandAccess(cmd);
+  assertSiteSession(cmd);
+
   const strategy = cmd.strategy ?? (cmd.browser === false ? Strategy.PUBLIC : Strategy.COOKIE);
   const browser = cmd.browser ?? (strategy !== Strategy.PUBLIC && strategy !== Strategy.LOCAL);
 
   let navigateBefore = cmd.navigateBefore;
   if (navigateBefore === undefined) {
-    if ((strategy === Strategy.COOKIE || strategy === Strategy.HEADER) && cmd.domain) {
+    if (strategy === Strategy.COOKIE && cmd.domain) {
       navigateBefore = `https://${cmd.domain}`;
     } else if (strategy !== Strategy.PUBLIC && strategy !== Strategy.LOCAL) {
       // Non-PUBLIC without domain: needs authenticated browser context
@@ -159,10 +188,26 @@ function normalizeCommand(cmd: CliCommand): CliCommand {
     }
   }
 
-  return { ...cmd, strategy, browser, navigateBefore };
+  return browser
+    ? { ...cmd, strategy, browser: true, navigateBefore } as BrowserCliCommand
+    : { ...cmd, strategy, browser: false, navigateBefore } as NonBrowserCliCommand;
 }
 
-export function registerCommand(cmd: CliCommand): void {
+function assertCommandAccess(cmd: Pick<RawCliCommand, 'site' | 'name'> & { access?: unknown }): asserts cmd is RawCliCommand {
+  if (cmd.access === 'read' || cmd.access === 'write') return;
+  const key = `${cmd.site}/${cmd.name}`;
+  throw new Error(`Command ${key} must declare access: 'read' | 'write'`);
+}
+
+function assertSiteSession(cmd: Pick<RawCliCommand, 'site' | 'name'> & { siteSession?: unknown }): void {
+  if (cmd.siteSession === undefined) return;
+  const key = `${cmd.site}/${cmd.name}`;
+  if (cmd.siteSession !== 'ephemeral' && cmd.siteSession !== 'persistent') {
+    throw new Error(`Command ${key} siteSession must be one of: ephemeral, persistent`);
+  }
+}
+
+export function registerCommand(cmd: RawCliCommand): void {
   const normalized = normalizeCommand(cmd);
   const canonicalKey = fullName(normalized);
   const existing = _registry.get(canonicalKey);

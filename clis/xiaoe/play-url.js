@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'xiaoe',
     name: 'play-url',
+    access: 'read',
     description: '小鹅通视频/音频/直播回放 M3U8 播放地址',
     domain: 'h5.xet.citv.cn',
     strategy: Strategy.COOKIE,

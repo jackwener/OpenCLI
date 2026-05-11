@@ -1,20 +1,27 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { SelectorError } from '@jackwener/opencli/errors';
+import { ArgumentError, selectorError } from '@jackwener/opencli/errors';
+import { conversationSelectionArgs, openCodexConversation } from './sidebar.js';
 export const askCommand = cli({
     site: 'codex',
     name: 'ask',
-    description: 'Send a prompt and wait for the AI response (send + wait + read)',
+    access: 'write',
+    description: 'Send a prompt to the current or selected Codex conversation and wait for the AI response',
     domain: 'localhost',
     strategy: Strategy.UI,
     browser: true,
     args: [
         { name: 'text', required: true, positional: true, help: 'Prompt to send' },
-        { name: 'timeout', required: false, help: 'Max seconds to wait for response (default: 60)', default: '60' },
+        { name: 'timeout', type: 'int', required: false, help: 'Max seconds to wait for response (default: 60)', default: 60 },
+        ...conversationSelectionArgs,
     ],
-    columns: ['Role', 'Text'],
+    columns: ['Role', 'Project', 'Conversation', 'Text'],
     func: async (page, kwargs) => {
         const text = kwargs.text;
-        const timeout = parseInt(kwargs.timeout, 10) || 60;
+        const timeout = kwargs.timeout;
+        if (!Number.isInteger(timeout) || timeout < 1) {
+            throw new ArgumentError('--timeout must be a positive integer (seconds)');
+        }
+        const selected = await openCodexConversation(page, kwargs);
         // Snapshot the current content length before sending
         const beforeLen = await page.evaluate(`
       (function() {
@@ -34,7 +41,7 @@ export const askCommand = cli({
       })(${JSON.stringify(text)})
     `);
         if (!injected)
-            throw new SelectorError('Codex input element');
+            throw selectorError('Codex input element');
         await page.wait(0.5);
         await page.pressKey('Enter');
         // Poll for new content
@@ -59,13 +66,13 @@ export const askCommand = cli({
         }
         if (!response) {
             return [
-                { Role: 'User', Text: text },
-                { Role: 'System', Text: `No response within ${timeout}s. The agent may still be working.` },
+                { Role: 'User', Project: selected?.project || '', Conversation: selected?.conversation || '', Text: text },
+                { Role: 'System', Project: selected?.project || '', Conversation: selected?.conversation || '', Text: `No response within ${timeout}s. The agent may still be working.` },
             ];
         }
         return [
-            { Role: 'User', Text: text },
-            { Role: 'Assistant', Text: response },
+            { Role: 'User', Project: selected?.project || '', Conversation: selected?.conversation || '', Text: text },
+            { Role: 'Assistant', Project: selected?.project || '', Conversation: selected?.conversation || '', Text: response },
         ];
     },
 });

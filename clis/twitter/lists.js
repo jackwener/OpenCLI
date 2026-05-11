@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { TWITTER_BEARER_TOKEN } from './utils.js';
 
-const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 const LISTS_QUERY_ID = '78UbkyXwXBD98IgUWXOy9g';
 const OPERATION_NAME = 'ListsManagementPageTimeline';
 
@@ -62,6 +62,19 @@ export function extractListEntry(entry, seen) {
     };
 }
 
+// X 的 ListsManagementPageTimeline 把 /<user>/lists 整个页面的所有 section
+// 都塞在同一个 TimelineAddEntries instruction 里，靠 entry.entryId 前缀区分：
+//   - `owned-subscribed-list-module-*`  → 用户的 owned + subscribed list（要保留）
+//   - `list-to-follow-module-*`         → "Discover new Lists" 算法推荐（要剔除）
+//   - `cursor-*`                         → 分页游标（无 list 数据）
+// 旧版 parser 忽略 entryId 一律下钻，导致推荐 list 被当成自建/订阅泄漏出来。
+const OWNED_SUBSCRIBED_ENTRY_PREFIX = 'owned-subscribed-list-module-';
+
+export function isOwnedSubscribedEntry(entry) {
+    return typeof entry?.entryId === 'string'
+        && entry.entryId.startsWith(OWNED_SUBSCRIBED_ENTRY_PREFIX);
+}
+
 export function parseListsManagement(data, seen) {
     const lists = [];
     const instructions = data?.data?.viewer?.list_management_timeline?.timeline?.instructions
@@ -70,6 +83,7 @@ export function parseListsManagement(data, seen) {
         || [];
     for (const inst of instructions) {
         for (const entry of inst.entries || []) {
+            if (!isOwnedSubscribedEntry(entry)) continue;
             const direct = extractListEntry(entry, seen);
             if (direct) {
                 lists.push(direct);
@@ -87,21 +101,20 @@ export function parseListsManagement(data, seen) {
 export const command = cli({
     site: 'twitter',
     name: 'lists',
+    access: 'read',
     description: 'Get Twitter/X lists for the logged-in user (owned + subscribed)',
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
-        { name: 'limit', type: 'int', default: 50 },
+        { name: 'limit', type: 'int', default: 50, help: 'Maximum number of lists to return (default 50).' },
     ],
     columns: ['id', 'name', 'members', 'followers', 'mode'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 50;
-        await page.goto('https://x.com');
-        await page.wait(3);
-        const ct0 = await page.evaluate(`() => {
-            return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('ct0='))?.split('=')[1] || null;
-        }`);
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
         const queryId = await page.evaluate(`async () => {
@@ -129,7 +142,7 @@ export const command = cli({
             return null;
         }`) || LISTS_QUERY_ID;
         const headers = JSON.stringify({
-            'Authorization': `Bearer ${decodeURIComponent(BEARER_TOKEN)}`,
+            'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
             'X-Twitter-Auth-Type': 'OAuth2Session',
             'X-Twitter-Active-User': 'yes',

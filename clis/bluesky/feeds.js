@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'bluesky',
     name: 'feeds',
+    access: 'read',
     description: 'Popular Bluesky feed generators',
     domain: 'public.api.bsky.app',
     strategy: Strategy.PUBLIC,

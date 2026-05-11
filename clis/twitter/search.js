@@ -1,6 +1,104 @@
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { extractMedia } from './shared.js';
+import { applyTopByEngagement } from './utils.js';
+
+// ── Public-search operator surface ─────────────────────────────────────
+//
+// X's web search supports a small set of inline operators (from:, filter:,
+// -filter:, etc.) plus a tab-selector URL param `f=`. We expose the most
+// useful subset as flags so callers don't have to memorise the operator
+// strings, while still letting power users append raw operators in <query>.
+
+/** Operands accepted by `--has`. Map 1:1 to Twitter's `filter:<x>` operator. */
+const HAS_CHOICES = Object.freeze(['media', 'images', 'videos', 'links', 'replies']);
+
+/**
+ * Operands accepted by `--exclude`. Note that `retweets` is exposed as the
+ * friendlier name but X's actual operator stays as `-filter:nativeretweets`
+ * (the historical "native" prefix is preserved by their backend).
+ */
+const EXCLUDE_CHOICES = Object.freeze(['replies', 'retweets', 'media', 'links']);
+
+/**
+ * Operands accepted by `--product`. `photos`/`videos` are the human-friendly
+ * forms used by the X UI tabs; the URL param uses the singular forms (image,
+ * video). `people` is intentionally NOT supported here because that tab
+ * returns User objects, not tweets, and would need a different output schema.
+ */
+const PRODUCT_CHOICES = Object.freeze(['top', 'live', 'photos', 'videos']);
+
+const PRODUCT_TO_F_PARAM = Object.freeze({
+    top: 'top',
+    live: 'live',
+    photos: 'image',
+    videos: 'video',
+});
+
+const FROM_USER_PATTERN = /^[A-Za-z0-9_]{1,15}$/;
+
+const EXCLUDE_TO_OPERATOR = Object.freeze({
+    replies: '-filter:replies',
+    // `retweets` is a CLI-friendly alias for X's actual `-filter:nativeretweets`.
+    retweets: '-filter:nativeretweets',
+    media: '-filter:media',
+    links: '-filter:links',
+});
+
+/**
+ * Compose the final search query string by appending operator clauses for
+ * --from / --has / --exclude. Pure synchronous — exported via __test__ for
+ * unit coverage.
+ *
+ * Behaviour notes:
+ * - Trims leading `@` from --from so callers can pass `@alice` or `alice`.
+ * - Order is `<query> from:X filter:Y -filter:Z` (matches what X's own search
+ *   bar emits when you click the suggestions UI).
+ * - Empty <query> with non-empty filters is allowed — the resulting string
+ *   is just the operator clauses joined; X handles that fine.
+ *
+ * @param {string} rawQuery
+ * @param {{ from?: string, has?: string, exclude?: string }} kwargs
+ * @returns {string}
+ */
+function buildSearchQuery(rawQuery, kwargs) {
+    const parts = [String(rawQuery ?? '').trim()];
+    if (kwargs.from) {
+        const fromUser = String(kwargs.from).trim().replace(/^@+/, '');
+        if (fromUser && !FROM_USER_PATTERN.test(fromUser)) {
+            throw new ArgumentError(
+                `Invalid --from username: ${JSON.stringify(kwargs.from)}`,
+                'Use a Twitter/X handle with 1-15 letters, numbers, or underscores; omit @ or pass @handle.',
+            );
+        }
+        if (fromUser) parts.push(`from:${fromUser}`);
+    }
+    if (kwargs.has) {
+        parts.push(`filter:${kwargs.has}`);
+    }
+    if (kwargs.exclude) {
+        const op = EXCLUDE_TO_OPERATOR[kwargs.exclude];
+        if (op) parts.push(op);
+    }
+    return parts.filter(Boolean).join(' ');
+}
+
+/**
+ * Resolve which X search tab (`f=` URL param) to land on. `--product` wins
+ * over the legacy `--filter` so adding `--product` doesn't break callers that
+ * were already setting `--filter top|live`.
+ *
+ * @param {{ product?: string, filter?: string }} kwargs
+ * @returns {string} URL `f=` value: top|live|image|video
+ */
+function resolveSearchFParam(kwargs) {
+    if (kwargs.product) {
+        const mapped = PRODUCT_TO_F_PARAM[kwargs.product];
+        if (mapped) return mapped;
+    }
+    return kwargs.filter === 'live' ? 'live' : 'top';
+}
+
 /**
  * Trigger Twitter search SPA navigation with fallback strategies.
  *
@@ -9,9 +107,13 @@ import { extractMedia } from './shared.js';
  *   intermittently (e.g. due to Twitter A/B tests or timing races — see #690).
  *
  * Both strategies preserve the JS context so the fetch interceptor stays alive.
+ *
+ * @param {object} page
+ * @param {string} query  — final composed query (already merged with operators)
+ * @param {string} fParam — Twitter URL `f=` value (top|live|image|video)
  */
-async function navigateToSearch(page, query, filter) {
-    const searchUrl = JSON.stringify(`/search?q=${encodeURIComponent(query)}&f=${filter}`);
+async function navigateToSearch(page, query, fParam) {
+    const searchUrl = JSON.stringify(`/search?q=${encodeURIComponent(query)}&f=${fParam}`);
     let lastPath = '';
     // Strategy 1 (primary): pushState + popstate with retry
     for (let attempt = 1; attempt <= 2; attempt++) {
@@ -74,39 +176,79 @@ async function navigateToSearch(page, query, filter) {
         }
         lastPath = String(await page.evaluate('() => window.location.pathname') || '');
         if (lastPath.startsWith('/search')) {
-            if (filter === 'live') {
-                await page.evaluate(`(() => {
-          const tabs = document.querySelectorAll('[role="tab"]');
-          for (const tab of tabs) {
-            if (tab.textContent.includes('Latest') || tab.textContent.includes('最新')) {
-              tab.click();
-              return;
-            }
-          }
-        })()`);
-                await page.wait(2);
+            // The fallback path doesn't carry the f= URL param, so click the
+            // matching tab to align with the requested product. Only `live`
+            // currently surfaces a distinct tab label — `image`/`video` tabs
+            // also need an explicit click, so try them all.
+            const tabClicked = await clickProductTabIfNeeded(page, fParam);
+            if (!tabClicked) {
+                throw new CommandExecutionError(`SPA fallback reached /search but could not select the requested product tab: ${fParam}`);
             }
             return;
         }
     }
     throw new CommandExecutionError(`SPA navigation to /search failed. Final path: ${lastPath || '(empty)'}. Twitter may have changed its routing.`);
 }
+
+/**
+ * After the search-input fallback lands on /search, the f= param is missing
+ * from the URL. Click the matching tab in the result page header so the
+ * SearchTimeline call uses the right filter. No-op for fParam=top (default).
+ */
+async function clickProductTabIfNeeded(page, fParam) {
+    if (fParam === 'top') return true;
+    const tabLabels = JSON.stringify({
+        live: ['Latest', '最新'],
+        image: ['Photos', 'Images', '照片', '图片'],
+        video: ['Videos', '视频'],
+    }[fParam] || []);
+    if (tabLabels === '[]') return true;
+    const clicked = await page.evaluate(`(() => {
+      const labels = ${tabLabels};
+      const tabs = document.querySelectorAll('[role="tab"]');
+      for (const tab of tabs) {
+        const txt = (tab.textContent || '').trim();
+        if (labels.some(l => txt.includes(l))) {
+          tab.click();
+          return true;
+        }
+      }
+      return false;
+    })()`);
+    if (!clicked) return false;
+    await page.wait(2);
+    return true;
+}
+
 cli({
     site: 'twitter',
     name: 'search',
-    description: 'Search Twitter/X for tweets',
+    access: 'read',
+    description: 'Search Twitter/X for tweets, with optional --from / --has / --exclude / --product filters mapped to X\'s search operators',
     domain: 'x.com',
     strategy: Strategy.INTERCEPT, // Use intercept strategy
     browser: true,
+    siteSession: 'persistent',
     args: [
-        { name: 'query', type: 'string', required: true, positional: true },
-        { name: 'filter', type: 'string', default: 'top', choices: ['top', 'live'] },
-        { name: 'limit', type: 'int', default: 15 },
+        { name: 'query', type: 'string', required: true, positional: true, help: 'Search query. Raw X operators (e.g. "exact phrase", #tag, OR, lang:en, since:YYYY-MM-DD, from:, since:) are passed through unchanged.' },
+        { name: 'filter', type: 'string', default: 'top', choices: ['top', 'live'], help: 'Legacy alias for --product. Kept for backwards compatibility; if --product is set it wins.' },
+        { name: 'product', type: 'string', choices: PRODUCT_CHOICES, help: 'Which X search tab to read: top (default), live (Latest), photos, videos. Maps to the f= URL param.' },
+        { name: 'from', type: 'string', help: 'Restrict to tweets authored by <user>. Leading @ is stripped. Equivalent to appending `from:<user>` to the query.' },
+        { name: 'has', type: 'string', choices: HAS_CHOICES, help: 'Restrict to tweets that have media|images|videos|links|replies. Maps to X\'s `filter:<has>` operator.' },
+        { name: 'exclude', type: 'string', choices: EXCLUDE_CHOICES, help: 'Exclude tweets matching <type>: replies|retweets|media|links. Maps to X\'s `-filter:<x>` operator (retweets → -filter:nativeretweets).' },
+        { name: 'limit', type: 'int', default: 15, help: 'Maximum number of tweets to return (default 15). Result count after server-side filtering.' },
+        { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the results by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps X\'s native ordering.' },
     ],
     columns: ['id', 'author', 'bio', 'text', 'created_at', 'likes', 'views', 'url', 'has_media', 'media_urls'],
     func: async (page, kwargs) => {
-        const query = kwargs.query;
-        const filter = kwargs.filter === 'live' ? 'live' : 'top';
+        const finalQuery = buildSearchQuery(kwargs.query, kwargs);
+        if (!finalQuery) {
+            throw new ArgumentError('twitter search query is empty', 'Provide a non-empty <query>, or use at least one of --from / --has / --exclude.');
+        }
+        if (!Number.isInteger(Number(kwargs.limit)) || Number(kwargs.limit) <= 0) {
+            throw new ArgumentError('twitter search --limit must be a positive integer', 'Example: opencli twitter search opencli --limit 15');
+        }
+        const fParam = resolveSearchFParam(kwargs);
         // 1. Navigate to x.com/explore (has a search input at the top)
         await page.goto('https://x.com/explore');
         await page.wait(3);
@@ -119,10 +261,10 @@ cli({
         //    a full page reload, so the interceptor stays alive.
         //    Note: the previous approach (nativeSetter + Enter keydown on the
         //    search input) does not reliably trigger Twitter's form submission.
-        await navigateToSearch(page, query, filter);
+        await navigateToSearch(page, finalQuery, fParam);
         // 4. Scroll to trigger additional pagination
         await page.autoScroll({ times: 3, delayMs: 2000 });
-        // 6. Retrieve captured data
+        // 5. Retrieve captured data
         const requests = await page.getInterceptedRequests();
         if (!requests || requests.length === 0)
             return [];
@@ -168,6 +310,18 @@ cli({
                 // ignore parsing errors for individual payloads
             }
         }
-        return results.slice(0, kwargs.limit);
+        const trimmed = results.slice(0, kwargs.limit);
+        return applyTopByEngagement(trimmed, kwargs['top-by-engagement']);
     }
 });
+
+export const __test__ = {
+    buildSearchQuery,
+    resolveSearchFParam,
+    HAS_CHOICES,
+    EXCLUDE_CHOICES,
+    PRODUCT_CHOICES,
+    EXCLUDE_TO_OPERATOR,
+    PRODUCT_TO_F_PARAM,
+    FROM_USER_PATTERN,
+};

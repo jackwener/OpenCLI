@@ -2,12 +2,14 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'search',
+    access: 'read',
     description: 'Search Reddit Posts',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
-        { name: 'query', type: 'string', required: true, positional: true },
+        { name: 'query', type: 'string', required: true, positional: true, help: 'Reddit search query' },
         {
             name: 'subreddit',
             type: 'string',
@@ -43,22 +45,28 @@ cli({
   const res = await fetch(basePath + '?' + params, { credentials: 'include' });
   const d = await res.json();
   return (d?.data?.children || []).map(c => ({
+    id: c.data.id,
     title: c.data.title,
     subreddit: c.data.subreddit_name_prefixed,
     author: c.data.author,
     score: c.data.score,
     comments: c.data.num_comments,
     url: 'https://www.reddit.com' + c.data.permalink,
+    created_utc: c.data.created_utc,
+    selftext: c.data.selftext || '',
   }));
 })()
 ` },
         { map: {
+                id: '${{ item.id }}',
                 title: '${{ item.title }}',
                 subreddit: '${{ item.subreddit }}',
                 author: '${{ item.author }}',
                 score: '${{ item.score }}',
                 comments: '${{ item.comments }}',
                 url: '${{ item.url }}',
+                created_utc: '${{ item.created_utc }}',
+                selftext: '${{ item.selftext }}',
             } },
         { limit: '${{ args.limit }}' },
     ],

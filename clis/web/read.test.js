@@ -165,6 +165,18 @@ describe('web/read stdout behavior', () => {
         expect(page.evaluate.mock.calls[0]?.[0]).toContain('const frameMode = "none"');
     });
 
+    it('passes --frames all-same-origin into the extractor', async () => {
+        await read.func(page, {
+            url: 'https://example.com/article',
+            output: '/tmp/out',
+            'download-images': false,
+            frames: 'all-same-origin',
+            stdout: false,
+        });
+
+        expect(page.evaluate.mock.calls[0]?.[0]).toContain('const frameMode = "all-same-origin"');
+    });
+
     it('fails fast when --wait-until networkidle is requested but capture is unavailable', async () => {
         page.startNetworkCapture.mockResolvedValue(false);
 
@@ -217,7 +229,7 @@ describe('web/read render-aware helpers', () => {
         `, { url: 'https://example.com/main.html', runScripts: 'outside-only' });
         const frame = dom.window.document.querySelector('iframe');
         frame.contentDocument.open();
-        frame.contentDocument.write('<body><table id="gridHd"><tr><th>Name</th></tr></table><ul id="gridDatas"><li>Station A 42</li></ul></body>');
+        frame.contentDocument.write('<body><table id="gridHd"><tr><th>Name</th></tr></table><ul id="gridDatas"></ul><p>Station A 42</p></body>');
         frame.contentDocument.close();
 
         const result = dom.window.eval(__test__.buildRenderAwareExtractorJs({ frames: 'same-origin' }));
@@ -226,6 +238,94 @@ describe('web/read render-aware helpers', () => {
         expect(result.contentHtml).toContain('data-opencli-iframe-source="https://example.com/frame.html"');
         expect(result.contentHtml).toContain('来自 iframe: https://example.com/frame.html');
         expect(result.contentHtml).toContain('Station A 42');
+        expect(result.diagnostics.emptyContainers).toEqual(expect.arrayContaining([
+            expect.objectContaining({ scope: 'iframe', id: 'gridDatas', url: 'https://example.com/frame.html' }),
+        ]));
+        expect(result.diagnostics.emptyContainers.every(item => item.scope === 'iframe')).toBe(true);
+    });
+
+    it('merges readable same-origin iframes outside the selected content element', () => {
+        const dom = new JSDOM(`
+          <main>
+            <h1>Main Article</h1>
+            <p>${'Main content '.repeat(30)}</p>
+          </main>
+          <aside>
+            <iframe id="outside" src="/outside.html"></iframe>
+          </aside>
+        `, { url: 'https://example.com/main.html', runScripts: 'outside-only' });
+        const frame = dom.window.document.querySelector('iframe');
+        frame.contentDocument.open();
+        frame.contentDocument.write(`<body><h1>Outside Frame</h1><p>${'Frame data '.repeat(12)}</p></body>`);
+        frame.contentDocument.close();
+
+        const result = dom.window.eval(__test__.buildRenderAwareExtractorJs({ frames: 'same-origin' }));
+
+        expect(result.diagnostics.includedFrameCount).toBe(1);
+        expect(result.contentHtml).toContain('data-opencli-iframe-source="https://example.com/outside.html"');
+        expect(result.contentHtml).toContain('Outside Frame');
+        expect(result.contentHtml).toContain('Frame data');
+    });
+
+    it('keeps short data-like iframes outside the selected content element', () => {
+        const dom = new JSDOM(`
+          <main>
+            <h1>Main Article</h1>
+            <p>${'Main content '.repeat(30)}</p>
+          </main>
+          <iframe id="data-frame" src="/data.html"></iframe>
+        `, { url: 'https://example.com/main.html', runScripts: 'outside-only' });
+        const frame = dom.window.document.querySelector('iframe');
+        frame.contentDocument.open();
+        frame.contentDocument.write('<body><table id="gridHd"><tr><th>水位</th></tr><tr><td>42</td></tr></table><ul id="gridDatas"></ul></body>');
+        frame.contentDocument.close();
+
+        const result = dom.window.eval(__test__.buildRenderAwareExtractorJs({ frames: 'same-origin' }));
+
+        expect(result.diagnostics.includedFrameCount).toBe(1);
+        expect(result.contentHtml).toContain('42');
+        expect(result.diagnostics.emptyContainers).toEqual(expect.arrayContaining([
+            expect.objectContaining({ scope: 'iframe', id: 'gridDatas', url: 'https://example.com/data.html' }),
+        ]));
+        expect(result.diagnostics.emptyContainers.every(item => item.scope === 'iframe')).toBe(true);
+    });
+
+    it('skips short non-structural iframes outside the selected content element', () => {
+        const dom = new JSDOM(`
+          <main>
+            <h1>Main Article</h1>
+            <p>${'Main content '.repeat(30)}</p>
+          </main>
+          <iframe id="tiny-frame" src="/tiny.html"></iframe>
+        `, { url: 'https://example.com/main.html', runScripts: 'outside-only' });
+        const frame = dom.window.document.querySelector('iframe');
+        frame.contentDocument.open();
+        frame.contentDocument.write('<body><p>tiny note</p></body>');
+        frame.contentDocument.close();
+
+        const result = dom.window.eval(__test__.buildRenderAwareExtractorJs({ frames: 'same-origin' }));
+
+        expect(result.diagnostics.includedFrameCount).toBe(0);
+        expect(result.contentHtml).not.toContain('tiny note');
+    });
+
+    it('includes short non-structural iframes in all-same-origin mode', () => {
+        const dom = new JSDOM(`
+          <main>
+            <h1>Main Article</h1>
+            <p>${'Main content '.repeat(30)}</p>
+          </main>
+          <iframe id="status-frame" src="/status.html"></iframe>
+        `, { url: 'https://example.com/main.html', runScripts: 'outside-only' });
+        const frame = dom.window.document.querySelector('iframe');
+        frame.contentDocument.open();
+        frame.contentDocument.write('<body><div>Online: 42°C</div></body>');
+        frame.contentDocument.close();
+
+        const result = dom.window.eval(__test__.buildRenderAwareExtractorJs({ frames: 'all-same-origin' }));
+
+        expect(result.diagnostics.includedFrameCount).toBe(1);
+        expect(result.contentHtml).toContain('Online: 42°C');
     });
 
     it('marks API-like network entries as interesting and ignores static assets', () => {

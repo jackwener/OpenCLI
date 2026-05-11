@@ -19,6 +19,7 @@ const SORTS = {
 cli({
   site: 'eastmoney',
   name: 'convertible',
+    access: 'read',
   description: '可转债行情列表（默认按成交额排序）',
   domain: 'push2.eastmoney.com',
   strategy: Strategy.PUBLIC,
@@ -28,7 +29,7 @@ cli({
     { name: 'limit', type: 'int',    default: 20,         help: '返回数量 (max 100)' },
   ],
   columns: ['rank', 'bondCode', 'bondName', 'bondPrice', 'bondChangePct', 'stockCode', 'stockName', 'stockPrice', 'stockChangePct', 'convPrice', 'convValue', 'convPremiumPct', 'remainingYears', 'ytm', 'listDate'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const sortKey = String(args.sort ?? 'turnover').toLowerCase();
     const sort = SORTS[sortKey];
     if (!sort) throw new CliError('INVALID_ARGUMENT', `Unknown sort "${sortKey}". Valid: ${Object.keys(SORTS).join(', ')}`);

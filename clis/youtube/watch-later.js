@@ -9,6 +9,7 @@ import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/erro
 cli({
     site: 'youtube',
     name: 'watch-later',
+    access: 'read',
     description: 'Get your YouTube Watch Later queue',
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,

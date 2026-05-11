@@ -25,10 +25,12 @@ function createMockPage(getCookies: IPage['getCookies']): IPage {
   return {
     goto: vi.fn(),
     evaluate: vi.fn().mockResolvedValue(null),
+    fetchJson: vi.fn().mockResolvedValue(null),
     getCookies,
     snapshot: vi.fn().mockResolvedValue(''),
     click: vi.fn(),
     typeText: vi.fn(),
+    fillText: vi.fn(),
     pressKey: vi.fn(),
     scrollTo: vi.fn(),
     getFormState: vi.fn().mockResolvedValue({}),

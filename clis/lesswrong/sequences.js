@@ -3,13 +3,14 @@ import { DOMAIN, SITE, gqlRequest } from './_helpers.js';
 cli({
     site: SITE,
     name: 'sequences',
+    access: 'read',
     description: 'List post collections',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,
     browser: false,
     args: [{ name: 'limit', type: 'int', default: 10, help: 'Number of results' }],
     columns: ['rank', 'title', 'author'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const limit = Number(kwargs.limit ?? 10);
         const query = `query Sequences {
       sequences(input: {terms: {view: "communitySequences", limit: ${limit}}}) {

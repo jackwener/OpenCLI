@@ -34,6 +34,7 @@ const FIELDS = 'f2,f3,f4,f12,f13,f14,f15,f16,f17,f18';
 cli({
   site: 'eastmoney',
   name: 'index-board',
+    access: 'read',
   description: '主要市场指数行情（A股 / 港股 / 美股）',
   domain: 'push2.eastmoney.com',
   strategy: Strategy.PUBLIC,
@@ -47,7 +48,7 @@ cli({
     },
   ],
   columns: ['code', 'name', 'price', 'changePercent', 'change', 'open', 'high', 'low', 'prevClose'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const group = String(args.group ?? 'main').toLowerCase();
     /** @type {[string,string][]} */
     let entries;

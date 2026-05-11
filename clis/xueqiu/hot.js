@@ -12,6 +12,7 @@ function strip(html) {
 cli({
     site: 'xueqiu',
     name: 'hot',
+    access: 'read',
     description: '获取雪球热门动态',
     domain: 'xueqiu.com',
     browser: true,

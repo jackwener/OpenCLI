@@ -3,6 +3,7 @@ import { IMAGE_MODELS, VIDEO_MODELS, TOOL_MODELS } from './utils.js';
 cli({
     site: 'yollomi',
     name: 'models',
+    access: 'read',
     description: 'List available Yollomi AI models (image, video, tools)',
     strategy: Strategy.PUBLIC,
     browser: false,
@@ -10,7 +11,7 @@ cli({
         { name: 'type', default: 'all', choices: ['all', 'image', 'video', 'tool'], help: 'Filter by model type' },
     ],
     columns: ['type', 'model', 'credits', 'description'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const filter = kwargs.type;
         const rows = [];
         if (filter === 'all' || filter === 'image') {

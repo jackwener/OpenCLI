@@ -205,6 +205,27 @@ describe('BrowserBridge state', () => {
 
     await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Stale daemon could not be replaced');
   });
+
+  it('attempts stale daemon replacement even when extension is connected', async () => {
+    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
+      state: 'ready',
+      status: {
+        ok: true,
+        pid: 1,
+        uptime: 0,
+        daemonVersion: '0.0.1',
+        extensionConnected: true,
+        pending: 0,
+        memoryMB: 0,
+        port: 0,
+      },
+    });
+    vi.spyOn(daemonClient, 'requestDaemonShutdown').mockResolvedValue(false);
+
+    const bridge = new BrowserBridge();
+
+    await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Stale daemon could not be replaced');
+  });
 });
 
 describe('stealth anti-detection', () => {

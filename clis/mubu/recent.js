@@ -4,6 +4,7 @@ import { formatDate, mubuPost } from './utils.js';
 cli({
   site: 'mubu',
   name: 'recent',
+    access: 'read',
   description: '最近编辑的幕布文档',
   domain: 'mubu.com',
   strategy: Strategy.COOKIE,

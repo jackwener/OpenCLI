@@ -2,8 +2,8 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { resolveTwitterQueryId } from './shared.js';
 import { parseListsManagement } from './lists.js';
+import { TWITTER_BEARER_TOKEN } from './utils.js';
 
-const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
 const LISTS_MANAGEMENT_QUERY_ID = '78UbkyXwXBD98IgUWXOy9g';
 
@@ -74,13 +74,14 @@ export function interpretRemoveResponse(status, json) {
 cli({
     site: 'twitter',
     name: 'list-remove',
+    access: 'write',
     description: 'Remove a user from a Twitter/X list you own (toggles via UI; no-op if not currently a member)',
     domain: 'x.com',
     strategy: Strategy.UI,
     browser: true,
     args: [
-        { name: 'listId', positional: true, type: 'string', required: true },
-        { name: 'username', positional: true, type: 'string', required: true },
+        { name: 'listId', positional: true, type: 'string', required: true, help: 'Numeric ID of the list you own (e.g. from `opencli twitter lists`)' },
+        { name: 'username', positional: true, type: 'string', required: true, help: 'Twitter/X handle to remove (with or without @)' },
     ],
     columns: ['listId', 'username', 'userId', 'status', 'message'],
     func: async (page, kwargs) => {
@@ -91,16 +92,17 @@ cli({
         }
         if (!username) throw new CommandExecutionError('Username is required');
 
+        // Strategy.UI does not get a domain URL pre-nav from the framework.
+        // This page context is load-bearing for pre-target GraphQL calls below.
         await page.goto('https://x.com');
         await page.wait(3);
-        const ct0 = await page.evaluate(`() => {
-            return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('ct0='))?.split('=')[1] || null;
-        }`);
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0) throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
 
         const userByScreenNameQueryId = await resolveTwitterQueryId(page, 'UserByScreenName', USER_BY_SCREEN_NAME_QUERY_ID);
         const headers = JSON.stringify({
-            'Authorization': `Bearer ${decodeURIComponent(BEARER_TOKEN)}`,
+            'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
             'X-Twitter-Auth-Type': 'OAuth2Session',
             'X-Twitter-Active-User': 'yes',

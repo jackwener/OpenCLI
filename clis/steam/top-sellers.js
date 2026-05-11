@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'steam',
     name: 'top-sellers',
+    access: 'read',
     description: 'Steam top selling games',
     domain: 'store.steampowered.com',
     strategy: Strategy.PUBLIC,

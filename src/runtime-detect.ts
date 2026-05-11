@@ -7,6 +7,7 @@
  */
 
 export type Runtime = 'bun' | 'node';
+export const MIN_SUPPORTED_NODE_MAJOR = 21;
 
 /** Shape of `globalThis` when running under Bun. */
 interface BunGlobal {
@@ -35,4 +36,23 @@ export function getRuntimeVersion(): string {
  */
 export function getRuntimeLabel(): string {
   return `${detectRuntime()} ${getRuntimeVersion()}`;
+}
+
+/**
+ * Parse a Node.js version string like "v22.13.0" and return its major version.
+ * Returns null for non-Node or malformed inputs.
+ */
+export function parseNodeMajor(version: string): number | null {
+  const match = /^v?(\d+)\./.exec(String(version).trim());
+  if (!match) return null;
+  const major = Number(match[1]);
+  return Number.isInteger(major) ? major : null;
+}
+
+/**
+ * Whether the given Node.js version satisfies the current minimum support policy.
+ */
+export function isSupportedNodeVersion(version: string = process.version): boolean {
+  const major = parseNodeMajor(version);
+  return major !== null && major >= MIN_SUPPORTED_NODE_MAJOR;
 }

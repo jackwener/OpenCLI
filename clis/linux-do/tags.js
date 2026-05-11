@@ -3,6 +3,7 @@ import { fetchLinuxDoJson } from './feed.js';
 cli({
     site: 'linux-do',
     name: 'tags',
+    access: 'read',
     description: 'linux.do 标签列表',
     domain: 'linux.do',
     strategy: Strategy.COOKIE,
@@ -10,7 +11,7 @@ cli({
     args: [
         { name: 'limit', type: 'int', default: 30, help: 'Number of tags' },
     ],
-    columns: ['rank', 'name', 'count', 'url'],
+    columns: ['rank', 'name', 'slug', 'count', 'url'],
     func: async (page, kwargs) => {
         const data = await fetchLinuxDoJson(page, '/tags.json');
         const tags = (data?.tags || []);

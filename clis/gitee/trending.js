@@ -277,6 +277,7 @@ function mergeCapturedProject(project, captured) {
 cli({
     site: 'gitee',
     name: 'trending',
+    access: 'read',
     description: 'Recommended open-source projects on Gitee Explore',
     domain: 'gitee.com',
     strategy: Strategy.PUBLIC,
