@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+* **twitter** — read commands (`search`, `list-tweets`, `thread`, `timeline`) now expose a `card` field with the tweet's link preview (title, description, image, domain, landing URL) when present. `null` when the tweet has no card.
+
 ### ⚠ BREAKING CHANGES
 
 * **browser session model** — replace the browser-facing `--workspace` model with explicit `--session <name>` on `opencli browser *`. Browser commands now require a session name, `browser bind`/`unbind` use `--session`, and bind no longer accepts `--domain`, `--path-prefix`, or `--allow-navigate-bound`. Browser primitives keep their session tab by design; the browser namespace no longer exposes `--keep-tab`.
