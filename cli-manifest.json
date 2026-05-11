@@ -19075,7 +19075,11 @@
       "author",
       "upvotes",
       "comments",
-      "url"
+      "url",
+      "post_hint",
+      "url_overridden_by_dest",
+      "preview_image_url",
+      "gallery_urls"
     ],
     "type": "js",
     "modulePath": "reddit/frontpage.js",
@@ -19115,7 +19119,11 @@
       "comments",
       "postId",
       "author",
-      "url"
+      "url",
+      "post_hint",
+      "url_overridden_by_dest",
+      "preview_image_url",
+      "gallery_urls"
     ],
     "type": "js",
     "modulePath": "reddit/hot.js",
@@ -19145,7 +19153,11 @@
       "subreddit",
       "score",
       "comments",
-      "url"
+      "url",
+      "post_hint",
+      "url_overridden_by_dest",
+      "preview_image_url",
+      "gallery_urls"
     ],
     "type": "js",
     "modulePath": "reddit/popular.js",
@@ -19209,7 +19221,11 @@
       "type",
       "author",
       "score",
-      "text"
+      "text",
+      "post_hint",
+      "url_overridden_by_dest",
+      "preview_image_url",
+      "gallery_urls"
     ],
     "type": "js",
     "modulePath": "reddit/read.js",
@@ -19332,7 +19348,11 @@
       "author",
       "score",
       "comments",
-      "url"
+      "url",
+      "post_hint",
+      "url_overridden_by_dest",
+      "preview_image_url",
+      "gallery_urls"
     ],
     "type": "js",
     "modulePath": "reddit/search.js",
@@ -19383,7 +19403,11 @@
       "author",
       "upvotes",
       "comments",
-      "url"
+      "url",
+      "post_hint",
+      "url_overridden_by_dest",
+      "preview_image_url",
+      "gallery_urls"
     ],
     "type": "js",
     "modulePath": "reddit/subreddit.js",
