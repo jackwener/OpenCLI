@@ -6,7 +6,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { formatCookieHeader } from '@jackwener/opencli/download';
 import { downloadMedia } from '@jackwener/opencli/download/media-download';
-import { CliError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { buildDownloadExtractJs } from '../xiaohongshu/download.js';
 import { buildNoteUrl, parseNoteId } from '../xiaohongshu/note-helpers.js';
 
@@ -21,7 +21,7 @@ cli({
     strategy: Strategy.COOKIE,
     navigateBefore: false,
     args: [
-        { name: 'note-id', positional: true, required: true, help: 'Full rednote note URL with xsec_token, or xhslink short link' },
+        { name: 'note-id', positional: true, required: true, help: 'Full rednote note URL with xsec_token' },
         { name: 'output', default: './rednote-downloads', help: 'Output directory' },
     ],
     columns: ['index', 'type', 'status', 'size'],
@@ -30,7 +30,6 @@ cli({
         const output = kwargs.output;
         const noteId = parseNoteId(rawInput);
         await page.goto(buildNoteUrl(rawInput, {
-            allowShortLink: true,
             commandName: 'rednote download',
             cookieRoot: 'rednote.com',
             signedUrlHint: REDNOTE_SIGNED_URL_HINT,
@@ -38,14 +37,14 @@ cli({
         await page.wait({ time: 1 + Math.random() * 2 });
         const data = await page.evaluate(buildDownloadExtractJs(noteId));
         if (data?.securityBlock) {
-            throw new CliError('SECURITY_BLOCK', 'Rednote security block: the note detail page was blocked by risk control.', /^https?:\/\//.test(rawInput)
+            throw new CommandExecutionError('Rednote security block: the note detail page was blocked by risk control.', /^https?:\/\//.test(rawInput)
                 ? 'The page may be temporarily restricted. Try again later or from a different session.'
                 : 'Try using a full URL from search results (with xsec_token) instead of a bare note ID.');
         }
         if (!data || !data.media || data.media.length === 0) {
-            return [{ index: 0, type: '-', status: 'failed', size: 'No media found' }];
+            throw new EmptyResultError('rednote/download', 'No downloadable media found on this rednote note.');
         }
-        const cookies = formatCookieHeader(await page.getCookies({ domain: 'rednote.com' }));
+        const cookies = formatCookieHeader(await page.getCookies({ url: 'https://www.rednote.com' }));
         const resolvedNoteId = typeof data.noteId === 'string' && data.noteId.trim()
             ? data.noteId.trim()
             : noteId;

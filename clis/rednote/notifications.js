@@ -10,7 +10,28 @@
  * `feed` hits on rednote.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+
+const NOTIFICATION_TYPES = new Set(['mentions', 'likes', 'connections']);
+
+function parseNotificationType(raw) {
+    const type = String(raw ?? 'mentions');
+    if (!NOTIFICATION_TYPES.has(type)) {
+        throw new ArgumentError(`--type must be one of mentions, likes, or connections, got ${JSON.stringify(raw)}`);
+    }
+    return type;
+}
+
+function parseLimit(raw) {
+    const parsed = Number(raw ?? 20);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+        throw new ArgumentError(`--limit must be a positive integer, got ${JSON.stringify(raw)}`);
+    }
+    if (parsed < 1) {
+        throw new ArgumentError(`--limit must be a positive integer, got ${parsed}`);
+    }
+    return parsed;
+}
 
 const READ_NOTIFICATIONS_JS = `
   (async (type) => {
@@ -99,17 +120,17 @@ export const command = cli({
     ],
     columns: ['rank', 'user', 'action', 'content', 'note', 'time'],
     func: async (page, kwargs) => {
-        const type = String(kwargs.type ?? 'mentions');
-        const limit = Math.max(1, Number(kwargs.limit ?? 20));
+        const type = parseNotificationType(kwargs.type);
+        const limit = parseLimit(kwargs.limit);
         await page.goto('https://www.rednote.com/notification');
         await page.wait({ time: 2 });
         const script = READ_NOTIFICATIONS_JS.replace(JSON.stringify('PLACEHOLDER_TYPE'), JSON.stringify(type));
         const data = await page.evaluate(script);
         if (!data || typeof data !== 'object') {
-            throw new CliError('UNEXPECTED_PAYLOAD', 'rednote notifications: unexpected evaluate response');
+            throw new CommandExecutionError('rednote notifications: unexpected evaluate response');
         }
         if (data.error) {
-            throw new CliError('STORE_READ_FAILED', `rednote notifications: ${data.error}${data.detail ? ' (' + data.detail + ')' : ''}`, 'The rednote SPA may still be hydrating; reload www.rednote.com/notification and retry.');
+            throw new CommandExecutionError(`rednote notifications: ${data.error}${data.detail ? ' (' + data.detail + ')' : ''}`, 'The rednote SPA may still be hydrating; reload www.rednote.com/notification and retry.');
         }
         return (data.items || [])
             .slice(0, limit)

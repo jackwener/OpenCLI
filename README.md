@@ -250,6 +250,7 @@ To load the source Browser Bridge extension:
 | Site | Commands |
 |------|----------|
 | **xiaohongshu** | `search` `note` `comments` `feed` `user` `download` `publish` `notifications` `creator-notes` `creator-notes-summary` `creator-note-detail` `creator-profile` `creator-stats` |
+| **rednote** | `search` `note` `comments` `user` `download` `feed` `notifications` |
 | **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `me` `subtitle` `video` `user-videos` |
 | **tieba** | `hot` `posts` `search` `read` |
 | **hupu** | `hot` `search` `detail` `mentions` `reply` `like` `unlike` |
@@ -328,6 +329,7 @@ OpenCLI supports downloading images, videos, and articles from supported platfor
 | Platform | Content Types | Notes |
 |----------|---------------|-------|
 | **xiaohongshu** | Images, Videos | Downloads all media from a note |
+| **rednote** | Images, Videos | Downloads all media from a signed rednote note URL |
 | **bilibili** | Videos | Requires `yt-dlp` installed |
 | **twitter** | Images, Videos | From user media tab or single tweet |
 | **douban** | Images | Poster / still image lists |
@@ -342,6 +344,7 @@ For video downloads, install `yt-dlp` first: `brew install yt-dlp`
 ```bash
 opencli xiaohongshu download "https://www.xiaohongshu.com/search_result/<id>?xsec_token=..." --output ./xhs
 opencli xiaohongshu download "https://xhslink.com/..." --output ./xhs
+opencli rednote download "https://www.rednote.com/search_result/<id>?xsec_token=..." --output ./rednote
 opencli bilibili download BV1xxx --output ./bilibili
 opencli twitter download elonmusk --limit 20 --output ./twitter
 opencli 1688 download 841141931191 --output ./1688-downloads

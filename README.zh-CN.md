@@ -249,6 +249,7 @@ npm link
 | **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` `serve` | 桌面端 |
 | **chatgpt-app** | `status` `new` `send` `read` `ask` `model` | 桌面端 |
 | **xiaohongshu** | `search` `note` `comments` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | 浏览器 |
+| **rednote** | `search` `note` `comments` `user` `download` `feed` `notifications` | 浏览器 |
 | **xiaoe** | `courses` `detail` `catalog` `play-url` `content` | 浏览器 |
 | **quark** | `ls` `mkdir` `mv` `rename` `rm` `save` `share-tree` | 浏览器 |
 | **uiverse** | `code` `preview` | 浏览器 |
@@ -401,6 +402,7 @@ brew install yt-dlp
 # 下载小红书笔记中的图片/视频
 opencli xiaohongshu download "https://www.xiaohongshu.com/search_result/<id>?xsec_token=..." --output ./xhs
 opencli xiaohongshu download "https://xhslink.com/..." --output ./xhs
+opencli rednote download "https://www.rednote.com/search_result/<id>?xsec_token=..." --output ./rednote
 
 # 下载B站视频（需要 yt-dlp）
 opencli bilibili download BV1xxx --output ./bilibili

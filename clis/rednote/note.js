@@ -4,7 +4,7 @@
  * web host and cookie root differ.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { NOTE_EXTRACT_JS } from '../xiaohongshu/note.js';
 import { buildNoteUrl, parseNoteId } from '../xiaohongshu/note-helpers.js';
 
@@ -37,7 +37,7 @@ cli({
             throw new EmptyResultError('rednote/note', 'Unexpected evaluate response');
         }
         if (data.securityBlock) {
-            throw new CliError('SECURITY_BLOCK', 'Rednote security block: the note detail page was blocked by risk control.', /^https?:\/\//.test(raw)
+            throw new CommandExecutionError('Rednote security block: the note detail page was blocked by risk control.', /^https?:\/\//.test(raw)
                 ? 'The page may be temporarily restricted. Try again later or from a different session.'
                 : 'Try using a full URL from search results (with xsec_token) instead of a bare note ID.');
         }

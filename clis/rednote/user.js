@@ -1,9 +1,20 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
 import { USER_SNAPSHOT_JS } from '../xiaohongshu/user.js';
 import { extractXhsUserNotes, normalizeXhsUserId } from '../xiaohongshu/user-helpers.js';
 
 const WEB_HOST = 'www.rednote.com';
+
+function parseLimit(raw) {
+    const parsed = Number(raw ?? 15);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+        throw new ArgumentError(`--limit must be a positive integer, got ${JSON.stringify(raw)}`);
+    }
+    if (parsed < 1) {
+        throw new ArgumentError(`--limit must be a positive integer, got ${parsed}`);
+    }
+    return parsed;
+}
 
 export const command = cli({
     site: 'rednote',
@@ -21,7 +32,7 @@ export const command = cli({
     columns: ['id', 'title', 'type', 'likes', 'url'],
     func: async (page, kwargs) => {
         const userId = normalizeXhsUserId(String(kwargs.id));
-        const limit = Math.max(1, Number(kwargs.limit ?? 15));
+        const limit = parseLimit(kwargs.limit);
         await page.goto(`https://${WEB_HOST}/user/profile/${userId}`);
         let snapshot = await page.evaluate(USER_SNAPSHOT_JS);
         let results = extractXhsUserNotes(snapshot ?? {}, userId, WEB_HOST);

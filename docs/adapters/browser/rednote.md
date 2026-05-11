@@ -36,10 +36,9 @@ opencli rednote user 5b21f6564eacab3b38f05c39 --limit 10
 
 # Download
 opencli rednote download "https://www.rednote.com/search_result/<id>?xsec_token=..."
-opencli rednote download "https://xhslink.com/..."
 ```
 
-> Note: `note` and `comments` require a full signed note URL with `xsec_token`. `download` accepts either a signed note URL or an `xhslink` short link. Bare note IDs are no longer reliable on rednote.
+> Note: `note`, `comments`, and `download` require a full signed rednote.com note URL with `xsec_token`. Bare note IDs and xhslink.com short links are not accepted because they cannot prove the rednote host/cookie identity before navigation.
 
 ## Prerequisites
 

@@ -19648,7 +19648,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Full rednote note URL with xsec_token, or xhslink short link"
+        "help": "Full rednote note URL with xsec_token"
       },
       {
         "name": "output",

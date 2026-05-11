@@ -3,11 +3,22 @@
  * Reuses the DOM-extraction IIFE from `../xiaohongshu/comments.js`.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
-import { buildCommentsExtractJs, parseCommentLimit } from '../xiaohongshu/comments.js';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { buildCommentsExtractJs } from '../xiaohongshu/comments.js';
 import { buildNoteUrl, parseNoteId } from '../xiaohongshu/note-helpers.js';
 
 const REDNOTE_SIGNED_URL_HINT = 'Pass a full rednote.com note URL with xsec_token from search results or user/profile context.';
+
+function parseCommentLimit(raw) {
+    const parsed = Number(raw ?? 20);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+        throw new ArgumentError(`--limit must be an integer between 1 and 50, got ${JSON.stringify(raw)}`);
+    }
+    if (parsed < 1 || parsed > 50) {
+        throw new ArgumentError(`--limit must be between 1 and 50, got ${parsed}`);
+    }
+    return parsed;
+}
 
 cli({
     site: 'rednote',
@@ -39,7 +50,7 @@ cli({
             throw new EmptyResultError('rednote/comments', 'Unexpected evaluate response');
         }
         if (data.securityBlock) {
-            throw new CliError('SECURITY_BLOCK', 'Rednote security block: the note detail page was blocked by risk control.', /^https?:\/\//.test(raw)
+            throw new CommandExecutionError('Rednote security block: the note detail page was blocked by risk control.', /^https?:\/\//.test(raw)
                 ? 'The page may be temporarily restricted. Try again later or from a different session.'
                 : 'Try using a full URL from search results (with xsec_token) instead of a bare note ID.');
         }

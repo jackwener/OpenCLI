@@ -8,7 +8,18 @@
  * `/explore` load so a func-mode read avoids needing a network tap.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+
+function parseLimit(raw) {
+    const parsed = Number(raw ?? 20);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+        throw new ArgumentError(`--limit must be a positive integer, got ${JSON.stringify(raw)}`);
+    }
+    if (parsed < 1) {
+        throw new ArgumentError(`--limit must be a positive integer, got ${parsed}`);
+    }
+    return parsed;
+}
 
 const FEEDS_READ_JS = `
   (() => {
@@ -57,17 +68,17 @@ export const command = cli({
     ],
     columns: ['id', 'title', 'author', 'likes', 'type', 'url'],
     func: async (page, kwargs) => {
-        const limit = Math.max(1, Number(kwargs.limit ?? 20));
+        const limit = parseLimit(kwargs.limit);
         await page.goto('https://www.rednote.com/explore');
         // Pinia store hydrates synchronously from SSR; give the page a beat to
         // finish bootstrapping before reading the array.
         await page.wait({ time: 2 });
         const data = await page.evaluate(FEEDS_READ_JS);
         if (!data || typeof data !== 'object') {
-            throw new CliError('UNEXPECTED_PAYLOAD', 'rednote feed: unexpected evaluate response');
+            throw new CommandExecutionError('rednote feed: unexpected evaluate response');
         }
         if (data.error) {
-            throw new CliError('STORE_READ_FAILED', `rednote feed: ${data.error}`, 'The rednote SPA may still be hydrating; reload www.rednote.com/explore and retry.');
+            throw new CommandExecutionError(`rednote feed: ${data.error}`, 'The rednote SPA may still be hydrating; reload www.rednote.com/explore and retry.');
         }
         const rows = (data.items || [])
             .filter((row) => row.id)
