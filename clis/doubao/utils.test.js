@@ -145,6 +145,31 @@ describe('doubao send strategy', () => {
     });
 });
 describe('doubao receive strategy', () => {
+    it('supports current Doubao sidebar conversation anchors', () => {
+        const listScript = __test__.getConversationListScript();
+        expect(listScript).toContain('#flow_chat_sidebar');
+        expect(listScript).toContain('a[id^="conversation_"]');
+        expect(listScript).toContain('a[href^="/chat/"]');
+        expect(listScript).toContain('idAttr.match');
+        expect(listScript).toContain('seen.has(id)');
+    });
+
+    it('supports current Doubao detail message containers', () => {
+        const detailScript = __test__.getConversationDetailScript();
+        expect(detailScript).toContain('[class*="message-list"]');
+        expect(detailScript).toContain('[aria-label="doc_editor"]');
+        expect(detailScript).toContain('[class^="item-"]');
+        expect(detailScript).toContain('[class*="bg-g-send-msg-bubble"]');
+        expect(detailScript).toContain('[class*="bg-g-receive-msg-bubble"]');
+        expect(detailScript).toContain('[data-message-id]');
+        expect(detailScript).toContain('.flow-markdown-body');
+        expect(detailScript).toContain('root.matches(selector)');
+        expect(detailScript).toContain("replace(/\\n{3,}/g, '\\n\\n')");
+        expect(detailScript).toContain('!items.some((other, otherIndex)');
+        expect(detailScript).toContain('dedupedSeen.has(key)');
+        expect(detailScript).not.toContain('.filter(Boolean)');
+    });
+
     it('keeps both the new skin selectors and the older structural fallbacks in the turns script', () => {
         const turnsScript = __test__.getTurnsScript();
         expect(turnsScript).toContain('[class*="message-list-S2Fv2S"]');
