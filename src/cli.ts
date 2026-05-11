@@ -2755,13 +2755,11 @@ cli({
   program
     .command('doctor')
     .description('Diagnose opencli browser bridge connectivity')
-    .option('--no-live', 'Skip live browser connectivity test')
-    .option('--sessions', 'Show active automation sessions', false)
     .option('-v, --verbose', 'Debug output')
     .action(async (opts) => {
       applyVerbose(opts);
       const { runBrowserDoctor, renderBrowserDoctorReport } = await import('./doctor.js');
-      const report = await runBrowserDoctor({ live: opts.live, sessions: opts.sessions, cliVersion: PKG_VERSION });
+      const report = await runBrowserDoctor({ cliVersion: PKG_VERSION });
       console.log(renderBrowserDoctorReport(report));
     });
 

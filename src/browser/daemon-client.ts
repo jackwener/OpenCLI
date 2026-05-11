@@ -5,7 +5,6 @@
  */
 
 import { DEFAULT_DAEMON_PORT } from '../constants.js';
-import type { BrowserSessionInfo } from '../types.js';
 import { sleep } from '../utils.js';
 import { classifyBrowserError } from './errors.js';
 import { resolveProfileContextId } from './profile.js';
@@ -22,7 +21,7 @@ function generateId(): string {
 
 export interface DaemonCommand {
   id: string;
-  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'sessions' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames';
+  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames';
   /** Target page identity (targetId). Cross-layer contract with the extension. */
   page?: string;
   code?: string;
@@ -246,11 +245,6 @@ export async function sendCommandFull(
 ): Promise<{ data: unknown; page?: string }> {
   const result = await sendCommandRaw(action, params);
   return { data: result.data, page: result.page };
-}
-
-export async function listSessions(opts?: { contextId?: string }): Promise<BrowserSessionInfo[]> {
-  const result = await sendCommand('sessions', { ...(opts?.contextId && { contextId: opts.contextId }) });
-  return Array.isArray(result) ? result : [];
 }
 
 export async function bindTab(session: string, opts: { contextId?: string } = {}): Promise<unknown> {

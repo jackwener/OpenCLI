@@ -6,9 +6,11 @@
 
 * **browser session model** — replace the browser-facing `--workspace` model with explicit `--session <name>` on `opencli browser *`. Browser commands now require a session name, `browser bind`/`unbind` use `--session`, and bind no longer accepts `--domain`, `--path-prefix`, or `--allow-navigate-bound`. Browser primitives keep their session tab by design; the browser namespace no longer exposes `--keep-tab`.
 * **adapter site sessions** — replace adapter metadata `browserSession: { reuse: 'site' }` with `siteSession: 'persistent'`, and replace the user override `--reuse <none|site>` / `OPENCLI_BROWSER_REUSE` with `--site-session <ephemeral|persistent>`. Persistent site sessions keep a stable site tab open without idle expiry.
+* **doctor** — remove `--no-live` and `--sessions` flags from `opencli doctor`. Doctor always runs the live browser connectivity probe (that's its core job); session enumeration was never part of health diagnosis. The underlying `'sessions'` daemon protocol action and the `BrowserSessionInfo` public type are removed as dead code.
 
 ### Internal
 
+* **extension 1.0.12** — drop `handleSessions` action handler (no remaining consumers after doctor cleanup).
 * **extension 1.0.11** — switch Browser Bridge lease routing from user-facing workspaces to explicit browser sessions.
 
 ## [1.7.16](https://github.com/jackwener/opencli/compare/v1.7.15...v1.7.16) (2026-05-11)

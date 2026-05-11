@@ -7,11 +7,10 @@
 import { styleText } from 'node:util';
 import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { BrowserBridge } from './browser/index.js';
-import { getDaemonHealth, listSessions } from './browser/daemon-client.js';
+import { getDaemonHealth } from './browser/daemon-client.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
-import type { BrowserSessionInfo } from './types.js';
 import type { BrowserProfileStatus } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
@@ -49,8 +48,6 @@ function satisfiesRange(version: string, range: string): boolean {
 
 export type DoctorOptions = {
   yes?: boolean;
-  live?: boolean;
-  sessions?: boolean;
   cliVersion?: string;
 };
 
@@ -72,7 +69,6 @@ export type DoctorReport = {
   extensionVersion?: string;
   latestExtensionVersion?: string;
   connectivity?: ConnectivityResult;
-  sessions?: BrowserSessionInfo[];
   profiles?: BrowserProfileStatus[];
   adapterShadows?: AdapterShadow[];
   issues: string[];
@@ -100,45 +96,18 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
 }
 
 export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
-  // Live connectivity check doubles as auto-start (bridge.connect spawns daemon).
-  let connectivity: ConnectivityResult | undefined;
-  if (opts.live) {
-    connectivity = await checkConnectivity();
-  } else {
-    // No live probe — daemon may have idle-exited. Do a minimal auto-start
-    // so we don't misreport a lazy-lifecycle stop as a real failure.
-    const initialHealth = await getDaemonHealth();
-    if (initialHealth.state === 'stopped') {
-      try {
-        const bridge = new BrowserBridge();
-        await bridge.connect({ timeout: 5 });
-        await bridge.close();
-      } catch {
-        // Auto-start failed; we'll report it below.
-      }
-    }
-  }
+  // Live connectivity check is the core of doctor — it doubles as auto-start
+  // (bridge.connect spawns daemon) and validates end-to-end browser bridge health.
+  const connectivity = await checkConnectivity();
 
-  // Single status read *after* all side-effects (live check / auto-start) settle.
+  // Single status read *after* connectivity side-effects settle.
   const health = await getDaemonHealth();
   const daemonRunning = health.state !== 'stopped';
   const extensionConnected = health.state === 'ready';
-  const daemonFlaky = !!(connectivity?.ok && !daemonRunning);
-  const extensionFlaky = !!(connectivity?.ok && daemonRunning && !extensionConnected);
+  const daemonFlaky = connectivity.ok && !daemonRunning;
+  const extensionFlaky = connectivity.ok && daemonRunning && !extensionConnected;
   const daemonStale = isDaemonStale(health.status, opts.cliVersion);
   const profiles = health.status?.profiles;
-  let sessions: BrowserSessionInfo[] | undefined;
-  if (opts.sessions) {
-    if (profiles && profiles.length > 0) {
-      const grouped = await Promise.all(profiles.map(async (profile) => {
-        const rows = await listSessions({ contextId: profile.contextId }).catch(() => [] as BrowserSessionInfo[]);
-        return rows.map((row) => ({ ...row, contextId: row.contextId ?? profile.contextId }));
-      }));
-      sessions = grouped.flat();
-    } else if (health.state === 'ready') {
-      sessions = await listSessions();
-    }
-  }
   const extensionVersion = health.status?.extensionVersion;
   const adapterShadows = findShadowedUserAdapters();
 
@@ -188,7 +157,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
       '  Reload or reinstall the extension from: https://github.com/jackwener/opencli/releases',
     );
   }
-  if (connectivity && !connectivity.ok) {
+  if (!connectivity.ok) {
     issues.push(`Browser connectivity test failed: ${connectivity.error ?? 'unknown'}`);
   }
   const extensionCompatRange = health.status?.extensionCompatRange;
@@ -235,7 +204,6 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     extensionVersion,
     latestExtensionVersion,
     connectivity,
-    sessions,
     profiles,
     adapterShadows,
     issues,
@@ -296,37 +264,6 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
       ? `connected in ${(report.connectivity.durationMs / 1000).toFixed(1)}s`
       : `failed (${report.connectivity.error ?? 'unknown'})`;
     lines.push(`${connIcon} Connectivity: ${detail}`);
-  } else {
-    lines.push(`${styleText('dim', '[SKIP]')} Connectivity: skipped (--no-live)`);
-  }
-
-  if (report.sessions) {
-    lines.push('', styleText('bold', 'Sessions:'));
-    if (report.sessions.length === 0) {
-      lines.push(styleText('dim', '  • no active automation sessions'));
-    } else {
-      const byContext = new Map<string, BrowserSessionInfo[]>();
-      for (const session of report.sessions) {
-        const contextId = typeof session.contextId === 'string' && session.contextId ? session.contextId : 'default';
-        const rows = byContext.get(contextId) ?? [];
-        rows.push(session);
-        byContext.set(contextId, rows);
-      }
-      for (const [contextId, rows] of byContext) {
-        if (byContext.size > 1) lines.push(styleText('dim', `  [profile: ${contextId}]`));
-        for (const session of rows) {
-        const idle = session.idleMsRemaining == null
-          ? 'none'
-          : `${Math.ceil(session.idleMsRemaining / 1000)}s`;
-        const target = session.preferredTabId != null
-          ? `tab ${session.preferredTabId}`
-          : `window ${session.windowId ?? 'unknown'}`;
-        const mode = session.ownership ?? (session.owned === false ? 'borrowed' : 'owned');
-        const windowRole = session.windowRole ? `, window=${session.windowRole}` : '';
-        lines.push(styleText('dim', `  • ${session.session ?? 'default'} → ${target}, mode=${mode}${windowRole}, tabs=${session.tabCount ?? 0}, idle=${idle}`));
-      }
-      }
-    }
   }
 
   if (report.issues.length) {
