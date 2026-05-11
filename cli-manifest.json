@@ -19590,6 +19590,253 @@
     "siteSession": "persistent"
   },
   {
+    "site": "rednote",
+    "name": "comments",
+    "description": "Read comments from a rednote note (supports nested replies)",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "note-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full rednote note URL with xsec_token"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of top-level comments (max 50)"
+      },
+      {
+        "name": "with-replies",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Include nested replies (楼中楼)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "author",
+      "text",
+      "likes",
+      "time",
+      "is_reply",
+      "reply_to"
+    ],
+    "type": "js",
+    "modulePath": "rednote/comments.js",
+    "sourceFile": "rednote/comments.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "download",
+    "description": "Download images and videos from a rednote note",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "note-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full rednote note URL with xsec_token, or xhslink short link"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "./rednote-downloads",
+        "required": false,
+        "help": "Output directory"
+      }
+    ],
+    "columns": [
+      "index",
+      "type",
+      "status",
+      "size"
+    ],
+    "type": "js",
+    "modulePath": "rednote/download.js",
+    "sourceFile": "rednote/download.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "feed",
+    "description": "Rednote home feed (reads hydrated Pinia store)",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of items to return"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "author",
+      "likes",
+      "type",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rednote/feed.js",
+    "sourceFile": "rednote/feed.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "note",
+    "description": "Read note body and engagement counts from a rednote note",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "note-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full rednote note URL with xsec_token"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "rednote/note.js",
+    "sourceFile": "rednote/note.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "notifications",
+    "description": "Rednote notifications (mentions/likes/connections)",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "type",
+        "type": "str",
+        "default": "mentions",
+        "required": false,
+        "help": "Notification type: mentions, likes, or connections"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of notifications to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "user",
+      "action",
+      "content",
+      "note",
+      "time"
+    ],
+    "type": "js",
+    "modulePath": "rednote/notifications.js",
+    "sourceFile": "rednote/notifications.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "search",
+    "description": "Search rednote notes",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "author",
+      "likes",
+      "published_at",
+      "url",
+      "author_url"
+    ],
+    "type": "js",
+    "modulePath": "rednote/search.js",
+    "sourceFile": "rednote/search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "user",
+    "description": "Get public notes from a rednote user profile",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "User id or profile URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "Number of notes to return"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "type",
+      "likes",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rednote/user.js",
+    "sourceFile": "rednote/user.js",
+    "navigateBefore": false
+  },
+  {
     "site": "rest-countries",
     "name": "country",
     "description": "Look up countries by name (common / official, substring match)",

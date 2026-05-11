@@ -9,25 +9,12 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
-cli({
-    site: 'xiaohongshu',
-    name: 'note',
-    access: 'read',
-    description: '获取小红书笔记正文和互动数据',
-    domain: 'www.xiaohongshu.com',
-    strategy: Strategy.COOKIE,
-    navigateBefore: false,
-    args: [
-        { name: 'note-id', required: true, positional: true, help: 'Full Xiaohongshu note URL with xsec_token' },
-    ],
-    columns: ['field', 'value'],
-    func: async (page, kwargs) => {
-        const raw = String(kwargs['note-id']);
-        const noteId = parseNoteId(raw);
-        const url = buildNoteUrl(raw, { commandName: 'xiaohongshu note' });
-        await page.goto(url);
-        await page.wait({ time: 2 + Math.random() * 3 });
-        const data = await page.evaluate(`
+/**
+ * Host-agnostic IIFE that scrapes note title / author / counts / tags from a
+ * rendered note detail page. Exported so the rednote adapter can reuse the
+ * exact same selector set without copying it.
+ */
+export const NOTE_EXTRACT_JS = `
       (() => {
         const bodyText = document.body?.innerText || ''
         const loginWall = /登录后查看|请登录/.test(bodyText)
@@ -58,7 +45,26 @@ cli({
 
         return { pageUrl: location.href, securityBlock, loginWall, notFound, title, desc, author, likes, collects, comments, tags }
       })()
-    `);
+    `;
+export const command = cli({
+    site: 'xiaohongshu',
+    name: 'note',
+    access: 'read',
+    description: '获取小红书笔记正文和互动数据',
+    domain: 'www.xiaohongshu.com',
+    strategy: Strategy.COOKIE,
+    navigateBefore: false,
+    args: [
+        { name: 'note-id', required: true, positional: true, help: 'Full Xiaohongshu note URL with xsec_token' },
+    ],
+    columns: ['field', 'value'],
+    func: async (page, kwargs) => {
+        const raw = String(kwargs['note-id']);
+        const noteId = parseNoteId(raw);
+        const url = buildNoteUrl(raw, { commandName: 'xiaohongshu note' });
+        await page.goto(url);
+        await page.wait({ time: 2 + Math.random() * 3 });
+        const data = await page.evaluate(NOTE_EXTRACT_JS);
         if (!data || typeof data !== 'object') {
             throw new EmptyResultError('xiaohongshu/note', 'Unexpected evaluate response');
         }

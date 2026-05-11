@@ -52,37 +52,19 @@ export function stripXhsAuthorDateSuffix(value) {
     const stripped = text.replace(/\s*(?:\d{1,2}天前|\d+小时前|\d+分钟前|\d+秒前|刚刚|昨天|前天|\d+周前|\d+个月前|\d{1,2}-\d{1,2}|\d{4}-\d{1,2}-\d{1,2})$/u, '').trim();
     return stripped || text;
 }
-cli({
-    site: 'xiaohongshu',
-    name: 'search',
-    access: 'read',
-    description: '搜索小红书笔记',
-    domain: 'www.xiaohongshu.com',
-    strategy: Strategy.COOKIE,
-    navigateBefore: false,
-    args: [
-        { name: 'query', required: true, positional: true, help: 'Search keyword' },
-        { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
-    ],
-    columns: ['rank', 'title', 'author', 'likes', 'published_at', 'url'],
-    func: async (page, kwargs) => {
-        const keyword = encodeURIComponent(kwargs.query);
-        await page.goto(`https://www.xiaohongshu.com/search_result?keyword=${keyword}&source=web_search_result_notes`);
-        // Wait for search results to render (or login wall to appear).
-        // Uses MutationObserver to resolve as soon as content appears,
-        // instead of a fixed delay + blind retry.
-        const waitResult = await page.evaluate(WAIT_FOR_CONTENT_JS);
-        if (waitResult === 'login_wall') {
-            throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
-        }
-        // Scroll a couple of times to load more results
-        await page.autoScroll({ times: 2 });
-        const payload = await page.evaluate(`
+/**
+ * Build the search-result extraction IIFE. The web host is baked into the
+ * `normalizeUrl` fallback so relative `/explore/...` hrefs resolve to a full
+ * URL on the calling site. Exported so the rednote adapter can call it with
+ * `www.rednote.com` without duplicating the selector logic.
+ */
+export function buildSearchExtractJs(webHost) {
+    return `
       (() => {
         const normalizeUrl = (href) => {
           if (!href) return '';
           if (href.startsWith('http://') || href.startsWith('https://')) return href;
-          if (href.startsWith('/')) return 'https://www.xiaohongshu.com' + href;
+          if (href.startsWith('/')) return 'https://${webHost}' + href;
           return '';
         };
 
@@ -131,7 +113,34 @@ cli({
 
         return results;
       })()
-    `);
+    `;
+}
+export const command = cli({
+    site: 'xiaohongshu',
+    name: 'search',
+    access: 'read',
+    description: '搜索小红书笔记',
+    domain: 'www.xiaohongshu.com',
+    strategy: Strategy.COOKIE,
+    navigateBefore: false,
+    args: [
+        { name: 'query', required: true, positional: true, help: 'Search keyword' },
+        { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
+    ],
+    columns: ['rank', 'title', 'author', 'likes', 'published_at', 'url'],
+    func: async (page, kwargs) => {
+        const keyword = encodeURIComponent(kwargs.query);
+        await page.goto(`https://www.xiaohongshu.com/search_result?keyword=${keyword}&source=web_search_result_notes`);
+        // Wait for search results to render (or login wall to appear).
+        // Uses MutationObserver to resolve as soon as content appears,
+        // instead of a fixed delay + blind retry.
+        const waitResult = await page.evaluate(WAIT_FOR_CONTENT_JS);
+        if (waitResult === 'login_wall') {
+            throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
+        }
+        // Scroll a couple of times to load more results
+        await page.autoScroll({ times: 2 });
+        const payload = await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com'));
         const data = Array.isArray(payload) ? payload : [];
         return data
             .filter((item) => item.title)
