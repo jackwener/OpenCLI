@@ -1,6 +1,6 @@
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { extractMedia } from './shared.js';
+import { extractMedia, extractCard } from './shared.js';
 import { applyTopByEngagement } from './utils.js';
 
 // ── Public-search operator surface ─────────────────────────────────────
@@ -239,7 +239,7 @@ cli({
         { name: 'limit', type: 'int', default: 15, help: 'Maximum number of tweets to return (default 15). Result count after server-side filtering.' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the results by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps X\'s native ordering.' },
     ],
-    columns: ['id', 'author', 'text', 'created_at', 'likes', 'views', 'url', 'has_media', 'media_urls'],
+    columns: ['id', 'author', 'text', 'created_at', 'likes', 'views', 'url', 'has_media', 'media_urls', 'card'],
     func: async (page, kwargs) => {
         const finalQuery = buildSearchQuery(kwargs.query, kwargs);
         if (!finalQuery) {
@@ -301,6 +301,7 @@ cli({
                         views: tweet.views?.count || '0',
                         url: `https://x.com/i/status/${tweet.rest_id}`,
                         ...extractMedia(tweet.legacy),
+                        card: extractCard(tweet),
                     });
                 }
             }
