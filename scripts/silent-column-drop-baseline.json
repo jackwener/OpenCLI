@@ -586,7 +586,29 @@
     "command": "reddit/popular",
     "file": "clis/reddit/popular.js",
     "missing": [
-      "author"
+      "author",
+      "created_utc",
+      "id",
+      "selftext"
+    ]
+  },
+  {
+    "command": "reddit/search",
+    "file": "clis/reddit/search.js",
+    "missing": [
+      "created_utc",
+      "id",
+      "selftext"
+    ]
+  },
+  {
+    "command": "reddit/subreddit",
+    "file": "clis/reddit/subreddit.js",
+    "missing": [
+      "created_utc",
+      "id",
+      "selftext",
+      "subreddit"
     ]
   },
   {
