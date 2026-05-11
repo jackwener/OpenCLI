@@ -108,6 +108,26 @@ describe('chatgpt send selectors', () => {
         await expect(sendChatGPTMessage(page, 'hello')).resolves.toBe(true);
     });
 
+    it('uses the composer submit fallback consistently for readiness and click', async () => {
+        const page = {
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeType: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                if (script.includes('findComposer')) return Promise.resolve(true);
+                if (script.includes('sendBtnFound')) {
+                    expect(script).toContain('#composer-submit-button:not([disabled])');
+                    return Promise.resolve({ sendBtnFound: true });
+                }
+                if (script.includes('if (sendBtn) sendBtn.click')) {
+                    expect(script).toContain('#composer-submit-button:not([disabled])');
+                }
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        await expect(sendChatGPTMessage(page, 'hello')).resolves.toBe(true);
+    });
+
     it('keeps zh-CN aria and placeholder fallbacks without replacing English selectors', () => {
         expect(__test__.COMPOSER_SELECTORS).toEqual(expect.arrayContaining([
             '[aria-label="Chat with ChatGPT"]',
@@ -117,6 +137,7 @@ describe('chatgpt send selectors', () => {
             '[data-testid="prompt-textarea"]',
         ]));
         expect(__test__.SEND_BUTTON_SELECTOR).toBe('button[data-testid="send-button"]:not([disabled])');
+        expect(__test__.SEND_BUTTON_FALLBACK_SELECTORS).toContain('#composer-submit-button:not([disabled])');
         expect(__test__.SEND_BUTTON_LABELS).toEqual(expect.arrayContaining(['Send prompt', 'Send message', 'Send', '发送提示']));
         expect(__test__.CLOSE_SIDEBAR_LABELS).toEqual(expect.arrayContaining(['Close sidebar', '关闭边栏']));
     });

@@ -20,6 +20,9 @@ const COMPOSER_SELECTORS = [
     '[contenteditable="true"][role="textbox"]',
 ];
 const SEND_BUTTON_SELECTOR = 'button[data-testid="send-button"]:not([disabled])';
+const SEND_BUTTON_FALLBACK_SELECTORS = [
+    '#composer-submit-button:not([disabled])',
+];
 const SEND_BUTTON_LABELS = [
     'Send prompt',
     'Send message',
@@ -307,7 +310,7 @@ export async function sendChatGPTMessage(page, text) {
                     && !button.disabled
                     && button.getAttribute('aria-disabled') !== 'true';
                 const primary = document.querySelector(${JSON.stringify(SEND_BUTTON_SELECTOR)})
-                    || document.querySelector('#composer-submit-button:not([disabled])');
+                    || ${JSON.stringify(SEND_BUTTON_FALLBACK_SELECTORS)}.map(selector => document.querySelector(selector)).find(Boolean);
                 const btns = Array.from(document.querySelectorAll('button'));
                 const labels = ${JSON.stringify(SEND_BUTTON_LABELS)};
                 const sendBtn = isUsable(primary)
@@ -325,7 +328,8 @@ export async function sendChatGPTMessage(page, text) {
     
     await page.evaluate(`
         (() => {
-            const primary = document.querySelector(${JSON.stringify(SEND_BUTTON_SELECTOR)});
+            const primary = document.querySelector(${JSON.stringify(SEND_BUTTON_SELECTOR)})
+                || ${JSON.stringify(SEND_BUTTON_FALLBACK_SELECTORS)}.map(selector => document.querySelector(selector)).find(Boolean);
             const labels = ${JSON.stringify(SEND_BUTTON_LABELS)};
             const sendBtn = primary || Array.from(document.querySelectorAll('button')).find(b => labels.includes(b.getAttribute('aria-label') || '') && !b.disabled);
             if (sendBtn) sendBtn.click();
@@ -759,6 +763,7 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
 export const __test__ = {
     COMPOSER_SELECTORS,
     SEND_BUTTON_SELECTOR,
+    SEND_BUTTON_FALLBACK_SELECTORS,
     SEND_BUTTON_LABELS,
     CLOSE_SIDEBAR_LABELS,
     isSameChatGPTConversation,
