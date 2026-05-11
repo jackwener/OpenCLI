@@ -10,6 +10,7 @@ OpenCLI supports downloading images, videos, and articles from supported platfor
 | **bilibili** | Videos | Requires `yt-dlp` installed |
 | **twitter** | Images, Videos | Downloads from user media tab or single tweet |
 | **douban** | Images | Downloads poster / still image lists from movie subjects |
+| **xiaoyuzhou** | Audio, Transcript | Downloads episode audio and transcript JSON/text with local credentials |
 | **zhihu** | Articles (Markdown) | Exports articles with optional image download |
 | **weixin** | Articles (Markdown) | Exports WeChat Official Account articles |
 
@@ -28,7 +29,8 @@ brew install yt-dlp
 
 ```bash
 # Download images/videos from Xiaohongshu note
-opencli xiaohongshu download --note-id abc123 --output ./xhs
+opencli xiaohongshu download "https://www.xiaohongshu.com/search_result/<id>?xsec_token=..." --output ./xhs
+opencli xiaohongshu download "https://xhslink.com/..." --output ./xhs
 
 # Download Bilibili video (requires yt-dlp)
 opencli bilibili download --bvid BV1xxx --output ./bilibili
@@ -43,6 +45,12 @@ opencli twitter download --tweet-url "https://x.com/user/status/123" --output ./
 # Download Douban posters / stills
 opencli douban download 30382501 --output ./douban
 
+# Download Xiaoyuzhou episode audio
+opencli xiaoyuzhou download 69b3b675772ac2295bfc01d0 --output ./xiaoyuzhou
+
+# Download Xiaoyuzhou transcript JSON + text
+opencli xiaoyuzhou transcript 69dd0c98e2c8be31551f6a33 --output ./xiaoyuzhou-transcripts
+
 # Export Zhihu article to Markdown
 opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --output ./zhihu
 
@@ -52,6 +60,8 @@ opencli zhihu download "https://zhuanlan.zhihu.com/p/xxx" --download-images
 # Export WeChat article to Markdown
 opencli weixin download --url "https://mp.weixin.qq.com/s/xxx" --output ./weixin
 ```
+
+`opencli xiaoyuzhou download` and `transcript` require local Xiaoyuzhou credentials in `~/.opencli/xiaoyuzhou.json`.
 
 ## Pipeline Step
 

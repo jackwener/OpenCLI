@@ -6,22 +6,12 @@
  */
 
 import * as fs from 'node:fs';
-
-const BUILTIN_COMMANDS = [
-  'list',
-  'validate',
-  'verify',
-  'explore',
-  'probe',
-  'synthesize',
-  'generate',
-  'cascade',
-  'doctor',
-  'plugin',
-  'install',
-  'register',
-  'completion',
-];
+import {
+  BUILTIN_COMMANDS,
+  bashCompletionScript,
+  zshCompletionScript,
+  fishCompletionScript,
+} from './completion-shared.js';
 
 interface ManifestCompletionEntry {
   site: string;
@@ -83,48 +73,7 @@ export function getCompletionsFromManifest(words: string[], cursor: number, mani
   return [];
 }
 
-// ── Shell script generators (pure strings, no registry dependency) ───────
-
-export function bashCompletionScript(): string {
-  return `# Bash completion for opencli
-# Add to ~/.bashrc:  eval "$(opencli completion bash)"
-_opencli_completions() {
-  local cur words cword
-  _get_comp_words_by_ref -n : cur words cword
-
-  local completions
-  completions=$(opencli --get-completions --cursor "$cword" "\${words[@]:1}" 2>/dev/null)
-
-  COMPREPLY=( $(compgen -W "$completions" -- "$cur") )
-  __ltrim_colon_completions "$cur"
-}
-complete -F _opencli_completions opencli
-`;
-}
-
-export function zshCompletionScript(): string {
-  return `# Zsh completion for opencli
-# Add to ~/.zshrc:  eval "$(opencli completion zsh)"
-_opencli() {
-  local -a completions
-  local cword=$((CURRENT - 1))
-  completions=(\${(f)"$(opencli --get-completions --cursor "$cword" "\${words[@]:1}" 2>/dev/null)"})
-  compadd -a completions
-}
-compdef _opencli opencli
-`;
-}
-
-export function fishCompletionScript(): string {
-  return `# Fish completion for opencli
-# Add to ~/.config/fish/config.fish:  opencli completion fish | source
-complete -c opencli -f -a '(
-  set -l tokens (commandline -cop)
-  set -l cursor (count (commandline -cop))
-  opencli --get-completions --cursor $cursor $tokens[2..] 2>/dev/null
-)'
-`;
-}
+// ── Shell script generators (re-exported from shared, no registry dependency) ───────
 
 const SHELL_SCRIPTS: Record<string, () => string> = {
   bash: bashCompletionScript,

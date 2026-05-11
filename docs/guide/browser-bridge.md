@@ -8,7 +8,7 @@ OpenCLI connects to your browser through a lightweight **Browser Bridge** Chrome
 
 ### Method 1: Download Pre-built Release (Recommended)
 
-1. Go to the GitHub [Releases page](https://github.com/jackwener/opencli/releases) and download the latest `opencli-extension.zip`.
+1. Go to the GitHub [Releases page](https://github.com/jackwener/opencli/releases) and download the latest `opencli-extension-v{version}.zip`.
 2. Unzip the file and open `chrome://extensions`, enable **Developer mode** (top-right toggle).
 3. Click **Load unpacked** and select the unzipped folder.
 
@@ -24,6 +24,29 @@ That's it! The daemon auto-starts when you run any browser command. No tokens, n
 ```bash
 opencli doctor            # Check extension + daemon connectivity
 ```
+
+## Tab Targeting
+
+Browser commands require an explicit `--session <name>`. Use the same session name for a multi-step flow, and use different names to isolate parallel work.
+
+```bash
+opencli browser --session baidu open https://www.baidu.com/
+opencli browser --session baidu tab list
+opencli browser --session baidu tab new https://www.baidu.com/
+opencli browser --session baidu eval --tab <targetId> 'document.title'
+opencli browser --session baidu tab select <targetId>
+opencli browser --session baidu get title
+opencli browser --session baidu tab close <targetId>
+```
+
+Key rules:
+
+- `opencli browser --session <name> open <url>` and `opencli browser --session <name> tab new [url]` return a `targetId`.
+- `opencli browser --session <name> tab list` prints the `targetId` values of tabs that already exist.
+- `--tab <targetId>` routes a single browser command to that specific tab.
+- `tab new` creates a new tab but does not change the default browser target.
+- `tab select <targetId>` makes that tab the default target for later untargeted `opencli browser ...` commands.
+- `tab close <targetId>` removes the tab; if it was the current default target, the stored default is cleared.
 
 ## How It Works
 
@@ -45,3 +68,7 @@ opencli daemon stop      # Graceful shutdown
 ```
 
 The daemon is persistent — it stays alive until you explicitly stop it (`opencli daemon stop`) or uninstall the package.
+
+## Running OpenCLI from a remote machine
+
+If you need to run `opencli` on a remote server (CI runner, agent host) but keep the browser session on your local machine, see [Remote Orchestration](/guide/remote-orchestration). It walks through the SSH reverse-tunnel pattern so the daemon never leaves localhost.

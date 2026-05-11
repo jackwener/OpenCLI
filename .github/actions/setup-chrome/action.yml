@@ -9,11 +9,11 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Install real Chrome (stable)
-      uses: browser-actions/setup-chrome@v1
+    - name: Install real Chrome for Testing
+      uses: browser-actions/setup-chrome@v2
       id: setup-chrome
       with:
-        chrome-version: stable
+        chrome-version: latest
 
     - name: Verify Chrome installation
       shell: bash

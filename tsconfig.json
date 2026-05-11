@@ -13,8 +13,7 @@
     "incremental": true
   },
   "include": [
-    "src/**/*.ts",
-    "clis/**/*.ts"
+    "src/**/*.ts"
   ],
   "exclude": ["node_modules", "dist", "extension"]
 }

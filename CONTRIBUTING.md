@@ -18,7 +18,6 @@ npm run build
 # 4. Run a few checks
 npx tsc --noEmit
 npm test
-npm run test:adapter
 
 # 5. Link globally (optional, for testing `opencli` command)
 npm link
@@ -30,7 +29,7 @@ All adapters use TypeScript. Use the pipeline API for data-fetching commands, an
 
 ### Pipeline Adapter (Recommended for data-fetching commands)
 
-Create a file like `clis/<site>/<command>.ts`:
+Create a file like `clis/<site>/<command>.js`:
 
 ```typescript
 import { cli, Strategy } from '@jackwener/opencli/registry';
@@ -60,11 +59,11 @@ cli({
 });
 ```
 
-See [`hackernews/top.ts`](clis/hackernews/top.ts) for a real example.
+See [`hackernews/top.js`](clis/hackernews/top.js) for a real example.
 
 ### func() Adapter (For complex browser interactions)
 
-Create a file like `clis/<site>/<command>.ts`:
+Create a file like `clis/<site>/<command>.js`:
 
 ```typescript
 import { cli, Strategy } from '@jackwener/opencli/registry';
@@ -103,7 +102,7 @@ cli({
 });
 ```
 
-Use `opencli explore <url>` to discover APIs and see [opencli-explorer skill](./skills/opencli-explorer/SKILL.md) if you need the full adapter workflow.
+Install the [`opencli-adapter-author` skill](./skills/opencli-adapter-author/SKILL.md) if you need the full adapter workflow — recon → API discovery → field decoding → `opencli browser verify`.
 
 ### Validate Your Adapter
 
@@ -152,8 +151,8 @@ args: [
 See [TESTING.md](./TESTING.md) for the full guide and exact test locations.
 
 ```bash
-npm test                      # Core unit tests (non-adapter)
-npm run test:adapter         # Focused adapter tests: zhihu/twitter/reddit/bilibili
+npm test                      # Default local gate: unit + extension + adapter tests
+npm run test:adapter          # Adapter-only project (useful while iterating on adapters)
 npx vitest run tests/e2e/     # E2E tests
 npx vitest run                # All tests
 ```
@@ -186,8 +185,8 @@ Common scopes: site name (`twitter`, `reddit`) or module name (`browser`, `pipel
 3. Run the checks that apply:
    ```bash
    npx tsc --noEmit           # Type check
-   npm test                   # Core unit tests
-   npm run test:adapter       # Focused adapter tests (if you touched adapter logic)
+   npm test                   # Default local gate: unit + extension + adapter
+   npm run test:adapter       # Adapter-only project (optional while iterating on adapters)
    opencli validate           # Adapter validation
    ```
 4. Commit using conventional commit format

@@ -62,11 +62,3 @@ steps:
         --remote-debugging-port=9222 &
 ```
 :::
-
-Set the browser executable path:
-::: v-pre
-```yaml
-env:
-  OPENCLI_BROWSER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-```
-:::

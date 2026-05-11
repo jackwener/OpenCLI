@@ -14,7 +14,7 @@ export const saveReliability: AutoResearchConfig = {
     'src/cli.ts',
     'src/discovery.ts',
     'src/registry.ts',
-    'skills/opencli-browser/SKILL.md',
+    'skills/opencli-adapter-author/SKILL.md',
     'autoresearch/save-tasks.json',
     'autoresearch/save-adapters/*.ts',
   ],

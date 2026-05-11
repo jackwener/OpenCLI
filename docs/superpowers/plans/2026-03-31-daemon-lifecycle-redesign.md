@@ -35,7 +35,7 @@
 In `src/constants.ts`, add after the `DEFAULT_DAEMON_PORT` line:
 
 ```typescript
-/** Default idle timeout before daemon auto-exits (ms). Override via OPENCLI_DAEMON_TIMEOUT env var. */
+/** Default idle timeout before daemon auto-exits (ms). */
 export const DEFAULT_DAEMON_IDLE_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours
 ```
 
@@ -174,7 +174,7 @@ Replace the `IDLE_TIMEOUT` constant (line 27):
 import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_IDLE_TIMEOUT } from './constants.js';
 
 const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
-const IDLE_TIMEOUT = Number(process.env.OPENCLI_DAEMON_TIMEOUT ?? DEFAULT_DAEMON_IDLE_TIMEOUT);
+const IDLE_TIMEOUT = DEFAULT_DAEMON_IDLE_TIMEOUT;
 ```
 
 Replace the idle timer state and `resetIdleTimer` function (lines 37, 49-57) with the `IdleManager` class:

@@ -8,6 +8,17 @@
 
 const attached = new Set<number>();
 
+const tabFrameContexts = new Map<number, Map<string, number>>();
+const frameTargets = new Map<string, string>();
+const frameTargetKeys = new Map<string, string>();
+let frameTargetCleanupRegistered = false;
+
+// Large cap so agents stop hitting silent JSON.parse failures on real API bodies.
+// See src/browser/cdp.ts CDP_RESPONSE_BODY_CAPTURE_LIMIT for the matching constant
+// on the direct-CDP path. Keep in sync.
+const CDP_RESPONSE_BODY_CAPTURE_LIMIT = 8 * 1024 * 1024;
+const CDP_REQUEST_BODY_CAPTURE_LIMIT = 1 * 1024 * 1024;
+
 type NetworkCaptureEntry = {
   kind: 'cdp';
   url: string;
@@ -15,10 +26,14 @@ type NetworkCaptureEntry = {
   requestHeaders?: Record<string, string>;
   requestBodyKind?: string;
   requestBodyPreview?: string;
+  requestBodyFullSize?: number;
+  requestBodyTruncated?: boolean;
   responseStatus?: number;
   responseContentType?: string;
   responseHeaders?: Record<string, string>;
   responsePreview?: string;
+  responseBodyFullSize?: number;
+  responseBodyTruncated?: boolean;
   timestamp: number;
 };
 
@@ -26,6 +41,20 @@ type NetworkCaptureState = {
   patterns: string[];
   entries: NetworkCaptureEntry[];
   requestToIndex: Map<string, number>;
+};
+
+export type DownloadWaitResult = {
+  downloaded: boolean;
+  id?: number;
+  filename?: string;
+  url?: string;
+  finalUrl?: string;
+  mime?: string;
+  totalBytes?: number;
+  state?: string;
+  danger?: string;
+  error?: string;
+  elapsedMs: number;
 };
 
 const networkCaptures = new Map<number, NetworkCaptureState>();
@@ -178,29 +207,46 @@ export const evaluateAsync = evaluate;
  */
 export async function screenshot(
   tabId: number,
-  options: { format?: 'png' | 'jpeg'; quality?: number; fullPage?: boolean } = {},
+  options: { format?: 'png' | 'jpeg'; quality?: number; fullPage?: boolean; width?: number; height?: number } = {},
 ): Promise<string> {
   await ensureAttached(tabId);
 
   const format = options.format ?? 'png';
+  const fullPage = options.fullPage === true;
+  const overrideWidth = options.width && options.width > 0 ? Math.ceil(options.width) : undefined;
+  // height is ignored under fullPage so the existing measure-from-content path stays unchanged for users who pass --height alongside --full-page.
+  const overrideHeight = !fullPage && options.height && options.height > 0 ? Math.ceil(options.height) : undefined;
+  const needsOverride = fullPage || overrideWidth !== undefined || overrideHeight !== undefined;
 
-  // For full-page screenshots, get the full page dimensions first
-  if (options.fullPage) {
-    // Get full page metrics
-    const metrics = await chrome.debugger.sendCommand({ tabId }, 'Page.getLayoutMetrics') as {
-      contentSize?: { width: number; height: number };
-      cssContentSize?: { width: number; height: number };
-    };
-    const size = metrics.cssContentSize || metrics.contentSize;
-    if (size) {
-      // Set device metrics to full page size
+  if (needsOverride) {
+    // When width is set, apply it first so layout reflows before we read content size.
+    if (overrideWidth !== undefined && fullPage) {
       await chrome.debugger.sendCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
         mobile: false,
-        width: Math.ceil(size.width),
-        height: Math.ceil(size.height),
+        width: overrideWidth,
+        height: 0,
         deviceScaleFactor: 1,
       });
     }
+    let finalWidth = overrideWidth ?? 0;
+    let finalHeight = overrideHeight ?? 0;
+    if (fullPage) {
+      const metrics = await chrome.debugger.sendCommand({ tabId }, 'Page.getLayoutMetrics') as {
+        contentSize?: { width: number; height: number };
+        cssContentSize?: { width: number; height: number };
+      };
+      const size = metrics.cssContentSize || metrics.contentSize;
+      if (size) {
+        if (finalWidth === 0) finalWidth = Math.ceil(size.width);
+        finalHeight = Math.ceil(size.height);
+      }
+    }
+    await chrome.debugger.sendCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
+      mobile: false,
+      width: finalWidth,
+      height: finalHeight,
+      deviceScaleFactor: 1,
+    });
   }
 
   try {
@@ -215,8 +261,7 @@ export async function screenshot(
 
     return result.data;
   } finally {
-    // Reset device metrics if we changed them for full-page
-    if (options.fullPage) {
+    if (needsOverride) {
       await chrome.debugger.sendCommand({ tabId }, 'Emulation.clearDeviceMetricsOverride').catch(() => {});
     }
   }
@@ -264,12 +309,300 @@ export async function setFileInputFiles(
   });
 }
 
+function matchesDownloadPattern(item: chrome.downloads.DownloadItem, pattern: string): boolean {
+  if (!pattern) return true;
+  const haystack = [
+    item.filename,
+    item.url,
+    item.finalUrl,
+    item.mime,
+  ].filter(Boolean).join('\n').toLowerCase();
+  return haystack.includes(pattern.toLowerCase());
+}
+
+function downloadResult(item: chrome.downloads.DownloadItem, startedAt: number): DownloadWaitResult {
+  return {
+    downloaded: item.state === 'complete',
+    id: item.id,
+    filename: item.filename,
+    url: item.url,
+    finalUrl: item.finalUrl,
+    mime: item.mime,
+    totalBytes: item.totalBytes,
+    state: item.state,
+    danger: item.danger,
+    error: item.error,
+    elapsedMs: Date.now() - startedAt,
+  };
+}
+
+export async function waitForDownload(pattern: string = '', timeoutMs: number = 30000): Promise<DownloadWaitResult> {
+  const startedAt = Date.now();
+  const timeout = Math.max(1, timeoutMs);
+
+  return await new Promise<DownloadWaitResult>((resolve) => {
+    let done = false;
+    const inProgressIds = new Set<number>();
+    const finish = (result: DownloadWaitResult) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      chrome.downloads.onCreated.removeListener(onCreated);
+      chrome.downloads.onChanged.removeListener(onChanged);
+      resolve(result);
+    };
+
+    const inspectById = async (id: number) => {
+      const items = await chrome.downloads.search({ id });
+      const item = items[0];
+      if (!item || !matchesDownloadPattern(item, pattern)) return;
+      inProgressIds.add(id);
+      if (item.state === 'complete' || item.state === 'interrupted') finish(downloadResult(item, startedAt));
+    };
+
+    const onCreated = (item: chrome.downloads.DownloadItem) => {
+      if (!matchesDownloadPattern(item, pattern)) return;
+      inProgressIds.add(item.id);
+      if (item.state === 'complete' || item.state === 'interrupted') finish(downloadResult(item, startedAt));
+    };
+    const onChanged = (delta: chrome.downloads.DownloadDelta) => {
+      if (!delta.id) return;
+      if (!inProgressIds.has(delta.id) && !delta.filename && !delta.url) return;
+      if (delta.filename?.current || delta.url?.current) {
+        void inspectById(delta.id);
+        return;
+      }
+      if (delta.state?.current === 'complete' || delta.state?.current === 'interrupted') {
+        void inspectById(delta.id);
+      }
+    };
+    const timer = setTimeout(() => {
+      finish({
+        downloaded: false,
+        state: 'interrupted',
+        error: `No download matched "${pattern || '*'}" within ${timeout}ms`,
+        elapsedMs: Date.now() - startedAt,
+      });
+    }, timeout);
+
+    chrome.downloads.onCreated.addListener(onCreated);
+    chrome.downloads.onChanged.addListener(onChanged);
+
+    void chrome.downloads.search({
+      limit: 50,
+      orderBy: ['-startTime'],
+      startedAfter: new Date(startedAt - Math.max(timeout, 1000)).toISOString(),
+    }).then((recent) => {
+      if (done) return;
+      const completed = recent.find((item) => item.state === 'complete' && matchesDownloadPattern(item, pattern));
+      if (completed) {
+        finish(downloadResult(completed, startedAt));
+        return;
+      }
+      for (const item of recent) {
+        if (item.state === 'in_progress' && matchesDownloadPattern(item, pattern)) inProgressIds.add(item.id);
+      }
+    }).catch((err) => {
+      finish({
+        downloaded: false,
+        state: 'interrupted',
+        error: err instanceof Error ? err.message : String(err),
+        elapsedMs: Date.now() - startedAt,
+      });
+    });
+  });
+}
+
+function frameTargetKey(tabId: number, frameId: string): string {
+  return `${tabId}:${frameId}`;
+}
+
+function registerFrameTargetCleanup(): void {
+  if (frameTargetCleanupRegistered) return;
+  frameTargetCleanupRegistered = true;
+  chrome.debugger.onEvent.addListener((_source, method, params: any) => {
+    if (method === 'Target.detachedFromTarget') {
+      const targetId = String(params?.targetId || '');
+      clearFrameTarget(targetId);
+    }
+  });
+}
+
+function clearFrameTarget(targetId: string): void {
+  if (!targetId) return;
+  const key = frameTargetKeys.get(targetId);
+  if (key) frameTargets.delete(key);
+  frameTargetKeys.delete(targetId);
+}
+
+async function ensureFrameTarget(
+  tabId: number,
+  frameId: string,
+  aggressiveRetry: boolean = false,
+  targetUrl?: string,
+): Promise<string> {
+  registerFrameTargetCleanup();
+  await ensureAttached(tabId, aggressiveRetry);
+  const key = frameTargetKey(tabId, frameId);
+  const existing = frameTargets.get(key);
+  if (existing) return existing;
+
+  await chrome.debugger.sendCommand({ tabId }, 'Target.setDiscoverTargets', { discover: true }).catch(() => {});
+  await chrome.debugger.sendCommand({ tabId }, 'Target.setAutoAttach', {
+    autoAttach: true,
+    waitForDebuggerOnStart: false,
+    flatten: true,
+    filter: [{ type: 'iframe', exclude: false }],
+  }).catch(() => {});
+  const targetId = await resolveFrameTargetId(tabId, frameId, targetUrl);
+  try {
+    await chrome.debugger.attach({ targetId } as chrome.debugger.Debuggee, '1.3');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!message.includes('Another debugger is already attached')) throw err;
+  }
+  frameTargets.set(key, targetId);
+  frameTargetKeys.set(targetId, key);
+  return targetId;
+}
+
+async function resolveFrameTargetId(tabId: number, frameId: string, targetUrl?: string): Promise<string> {
+  const result = await chrome.debugger.sendCommand({ tabId }, 'Target.getTargets').catch(() => null) as
+    | { targetInfos?: Array<{ targetId?: string; id?: string; type?: string; url?: string }> }
+    | null;
+  const targets = result?.targetInfos ?? [];
+  const frameTarget = targets.find((candidate) => {
+    const candidateId = candidate.targetId || candidate.id;
+    return candidate.type === 'iframe'
+      && (
+        candidateId === frameId
+        || (!!targetUrl && candidate.url === targetUrl)
+      );
+  });
+  const targetId = frameTarget?.targetId || frameTarget?.id;
+  if (targetId) return targetId;
+  const candidates = targets
+    .filter((target) => target.type === 'iframe')
+    .map((target) => `${target.targetId || target.id || '?'} ${target.url || ''}`)
+    .join('; ');
+  throw new Error(`No iframe target found for frame ${frameId}${targetUrl ? ` (${targetUrl})` : ''}. Candidates: ${candidates || 'none'}`);
+}
+
+export async function sendCommandInFrameTarget(
+  tabId: number,
+  frameId: string,
+  method: string,
+  params: Record<string, unknown> = {},
+  aggressiveRetry: boolean = false,
+  _timeoutMs: number = 30_000,
+  targetUrl?: string,
+): Promise<unknown> {
+  const targetId = await ensureFrameTarget(tabId, frameId, aggressiveRetry, targetUrl);
+  const target = { targetId } as chrome.debugger.Debuggee;
+  return chrome.debugger.sendCommand(target, method, params);
+}
+
 export async function insertText(
   tabId: number,
   text: string,
 ): Promise<void> {
   await ensureAttached(tabId);
   await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text });
+}
+
+export function registerFrameTracking(): void {
+  registerFrameTargetCleanup();
+  chrome.debugger.onEvent.addListener((source, method, params: any) => {
+    const tabId = source.tabId;
+    if (!tabId) return;
+
+    if (method === 'Runtime.executionContextCreated') {
+      const context = params.context;
+      if (!context?.auxData?.frameId || context.auxData.isDefault !== true) return;
+      const frameId = context.auxData.frameId as string;
+      if (!tabFrameContexts.has(tabId)) {
+        tabFrameContexts.set(tabId, new Map());
+      }
+      tabFrameContexts.get(tabId)!.set(frameId, context.id);
+    }
+
+    if (method === 'Runtime.executionContextDestroyed') {
+      const ctxId = params.executionContextId;
+      const contexts = tabFrameContexts.get(tabId);
+      if (contexts) {
+        for (const [fid, cid] of contexts) {
+          if (cid === ctxId) { contexts.delete(fid); break; }
+        }
+      }
+    }
+
+    if (method === 'Runtime.executionContextsCleared') {
+      tabFrameContexts.delete(tabId);
+    }
+  });
+
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    tabFrameContexts.delete(tabId);
+  });
+}
+
+export async function getFrameTree(tabId: number): Promise<any> {
+  await ensureAttached(tabId);
+  return chrome.debugger.sendCommand({ tabId }, 'Page.getFrameTree');
+}
+
+export async function evaluateInFrame(
+  tabId: number,
+  expression: string,
+  frameId: string,
+  aggressiveRetry: boolean = false,
+): Promise<unknown> {
+  await ensureAttached(tabId, aggressiveRetry);
+
+  await chrome.debugger.sendCommand({ tabId }, 'Runtime.enable').catch(() => {});
+
+  const contexts = tabFrameContexts.get(tabId);
+  const contextId = contexts?.get(frameId);
+
+  if (contextId === undefined) {
+    await sendCommandInFrameTarget(tabId, frameId, 'Runtime.enable', {}, aggressiveRetry).catch(() => undefined);
+    const result = await sendCommandInFrameTarget(tabId, frameId, 'Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise: true,
+    }, aggressiveRetry) as {
+      result?: { type: string; value?: unknown; description?: string; subtype?: string };
+      exceptionDetails?: { exception?: { description?: string }; text?: string };
+    };
+
+    if (result.exceptionDetails) {
+      const errMsg = result.exceptionDetails.exception?.description
+        || result.exceptionDetails.text
+        || 'Eval error';
+      throw new Error(errMsg);
+    }
+
+    return result.result?.value;
+  }
+
+  const result = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+    expression,
+    contextId,
+    returnByValue: true,
+    awaitPromise: true,
+  }) as {
+    result?: { type: string; value?: unknown; description?: string; subtype?: string };
+    exceptionDetails?: { exception?: { description?: string }; text?: string };
+  };
+
+  if (result.exceptionDetails) {
+    const errMsg = result.exceptionDetails.exception?.description
+      || result.exceptionDetails.text
+      || 'Eval error';
+    throw new Error(errMsg);
+  }
+
+  return result.result?.value;
 }
 
 function normalizeCapturePatterns(pattern?: string): string[] {
@@ -341,10 +674,25 @@ export async function readNetworkCapture(tabId: number): Promise<NetworkCaptureE
   return entries;
 }
 
+export function hasActiveNetworkCapture(tabId: number): boolean {
+  return networkCaptures.has(tabId);
+}
+
+function clearFrameTargetsForTab(tabId: number): void {
+  for (const [key, targetId] of [...frameTargets.entries()]) {
+    if (!key.startsWith(`${tabId}:`)) continue;
+    frameTargets.delete(key);
+    frameTargetKeys.delete(targetId);
+    chrome.debugger.detach({ targetId } as chrome.debugger.Debuggee).catch(() => {});
+  }
+}
+
 export async function detach(tabId: number): Promise<void> {
+  clearFrameTargetsForTab(tabId);
   if (!attached.has(tabId)) return;
   attached.delete(tabId);
   networkCaptures.delete(tabId);
+  tabFrameContexts.delete(tabId);
   try { await chrome.debugger.detach({ tabId }); } catch { /* ignore */ }
 }
 
@@ -352,12 +700,18 @@ export function registerListeners(): void {
   chrome.tabs.onRemoved.addListener((tabId) => {
     attached.delete(tabId);
     networkCaptures.delete(tabId);
+    tabFrameContexts.delete(tabId);
+    clearFrameTargetsForTab(tabId);
   });
   chrome.debugger.onDetach.addListener((source) => {
     if (source.tabId) {
       attached.delete(source.tabId);
       networkCaptures.delete(source.tabId);
+      tabFrameContexts.delete(source.tabId);
+      clearFrameTargetsForTab(source.tabId);
+      return;
     }
+    if (source.targetId) clearFrameTarget(source.targetId);
   });
   // Invalidate attached cache when tab URL changes to non-debuggable
   chrome.tabs.onUpdated.addListener(async (tabId, info) => {
@@ -370,10 +724,11 @@ export function registerListeners(): void {
     if (!tabId) return;
     const state = networkCaptures.get(tabId);
     if (!state) return;
+    const eventParams = params as Record<string, any> | undefined;
 
     if (method === 'Network.requestWillBeSent') {
-      const requestId = String(params?.requestId || '');
-      const request = params?.request as {
+      const requestId = String(eventParams?.requestId || '');
+      const request = eventParams?.request as {
         url?: string;
         method?: string;
         headers?: Record<string, unknown>;
@@ -387,12 +742,24 @@ export function registerListeners(): void {
       });
       if (!entry) return;
       entry.requestBodyKind = request?.hasPostData ? 'string' : 'empty';
-      entry.requestBodyPreview = String(request?.postData || '').slice(0, 4000);
+      {
+        const raw = String(request?.postData || '');
+        const fullSize = raw.length;
+        const truncated = fullSize > CDP_REQUEST_BODY_CAPTURE_LIMIT;
+        entry.requestBodyPreview = truncated ? raw.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT) : raw;
+        entry.requestBodyFullSize = fullSize;
+        entry.requestBodyTruncated = truncated;
+      }
       try {
         const postData = await chrome.debugger.sendCommand({ tabId }, 'Network.getRequestPostData', { requestId }) as { postData?: string };
         if (postData?.postData) {
+          const raw = postData.postData;
+          const fullSize = raw.length;
+          const truncated = fullSize > CDP_REQUEST_BODY_CAPTURE_LIMIT;
           entry.requestBodyKind = 'string';
-          entry.requestBodyPreview = postData.postData.slice(0, 4000);
+          entry.requestBodyPreview = truncated ? raw.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT) : raw;
+          entry.requestBodyFullSize = fullSize;
+          entry.requestBodyTruncated = truncated;
         }
       } catch {
         // Optional; some requests do not expose postData.
@@ -401,8 +768,8 @@ export function registerListeners(): void {
     }
 
     if (method === 'Network.responseReceived') {
-      const requestId = String(params?.requestId || '');
-      const response = params?.response as {
+      const requestId = String(eventParams?.requestId || '');
+      const response = eventParams?.response as {
         url?: string;
         mimeType?: string;
         status?: number;
@@ -419,7 +786,7 @@ export function registerListeners(): void {
     }
 
     if (method === 'Network.loadingFinished') {
-      const requestId = String(params?.requestId || '');
+      const requestId = String(eventParams?.requestId || '');
       const stateEntryIndex = state.requestToIndex.get(requestId);
       if (stateEntryIndex === undefined) return;
       const entry = state.entries[stateEntryIndex];
@@ -430,9 +797,12 @@ export function registerListeners(): void {
           base64Encoded?: boolean;
         };
         if (typeof body?.body === 'string') {
-          entry.responsePreview = body.base64Encoded
-            ? `base64:${body.body.slice(0, 4000)}`
-            : body.body.slice(0, 4000);
+          const fullSize = body.body.length;
+          const truncated = fullSize > CDP_RESPONSE_BODY_CAPTURE_LIMIT;
+          const stored = truncated ? body.body.slice(0, CDP_RESPONSE_BODY_CAPTURE_LIMIT) : body.body;
+          entry.responsePreview = body.base64Encoded ? `base64:${stored}` : stored;
+          entry.responseBodyFullSize = fullSize;
+          entry.responseBodyTruncated = truncated;
         }
       } catch {
         // Optional; bodies are unavailable for some requests (e.g. uploads).

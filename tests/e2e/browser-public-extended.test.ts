@@ -132,6 +132,59 @@ describe('browser extended public-data commands E2E', () => {
     }
   }, 60_000);
 
+  // ── academic / policy search ──
+  it('baidu-scholar search returns papers', async () => {
+    const data = await tryBrowserCommand(['baidu-scholar', 'search', '大语言模型', '--limit', '3', '-f', 'json']);
+    expectDataOrSkip(data, 'baidu-scholar search');
+    if (data) {
+      expect(data[0]).toHaveProperty('title');
+      expect(data[0]).toHaveProperty('url');
+    }
+  }, 60_000);
+
+  it('google-scholar search returns papers', async () => {
+    const data = await tryBrowserCommand(['google-scholar', 'search', 'transformer', '--limit', '3', '-f', 'json']);
+    expectDataOrSkip(data, 'google-scholar search');
+    if (data) {
+      expect(data[0]).toHaveProperty('title');
+      expect(data[0]).toHaveProperty('url');
+    }
+  }, 60_000);
+
+  it('wanfang search returns papers', async () => {
+    const data = await tryBrowserCommand(['wanfang', 'search', '知识图谱', '--limit', '3', '-f', 'json']);
+    expectDataOrSkip(data, 'wanfang search');
+    if (data) {
+      expect(data[0]).toHaveProperty('title');
+    }
+  }, 60_000);
+
+  it('gov-law search returns regulations', async () => {
+    const data = await tryBrowserCommand(['gov-law', 'search', '人工智能', '--limit', '3', '-f', 'json']);
+    expectDataOrSkip(data, 'gov-law search');
+    if (data) {
+      expect(data[0]).toHaveProperty('title');
+    }
+  }, 60_000);
+
+  it('gov-law recent returns latest regulations', async () => {
+    const data = await tryBrowserCommand(['gov-law', 'recent', '--limit', '3', '-f', 'json']);
+    expectDataOrSkip(data, 'gov-law recent');
+  }, 60_000);
+
+  it('gov-policy search returns policy documents', async () => {
+    const data = await tryBrowserCommand(['gov-policy', 'search', '科技创新', '--limit', '3', '-f', 'json']);
+    expectDataOrSkip(data, 'gov-policy search');
+    if (data) {
+      expect(data[0]).toHaveProperty('title');
+    }
+  }, 60_000);
+
+  it('gov-policy recent returns latest policy documents', async () => {
+    const data = await tryBrowserCommand(['gov-policy', 'recent', '--limit', '3', '-f', 'json']);
+    expectDataOrSkip(data, 'gov-policy recent');
+  }, 60_000);
+
   // ── yahoo-finance ──
   it('yahoo-finance quote returns stock data', async () => {
     const data = await tryBrowserCommand(['yahoo-finance', 'quote', 'AAPL', '-f', 'json']);

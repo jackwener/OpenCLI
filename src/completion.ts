@@ -8,27 +8,17 @@
 
 import { getRegistry } from './registry.js';
 import { CliError } from './errors.js';
+import {
+  BUILTIN_COMMANDS,
+  bashCompletionScript,
+  zshCompletionScript,
+  fishCompletionScript,
+} from './completion-shared.js';
+
+// Re-export shell scripts so existing callers (cli.ts) don't break
+export { bashCompletionScript, zshCompletionScript, fishCompletionScript };
 
 // ── Dynamic completion logic ───────────────────────────────────────────────
-
-/**
- * Built-in (non-dynamic) top-level commands.
- */
-const BUILTIN_COMMANDS = [
-  'list',
-  'validate',
-  'verify',
-  'explore',
-  'probe',        // alias for explore
-  'synthesize',
-  'generate',
-  'cascade',
-  'doctor',
-  'plugin',
-  'install',
-  'register',
-  'completion',
-];
 
 /**
  * Return completion candidates given the current command-line words and cursor index.
@@ -71,47 +61,6 @@ export function getCompletions(words: string[], cursor: number): string[] {
 }
 
 // ── Shell script generators ────────────────────────────────────────────────
-
-export function bashCompletionScript(): string {
-  return `# Bash completion for opencli
-# Add to ~/.bashrc:  eval "$(opencli completion bash)"
-_opencli_completions() {
-  local cur words cword
-  _get_comp_words_by_ref -n : cur words cword
-
-  local completions
-  completions=$(opencli --get-completions --cursor "$cword" "\${words[@]:1}" 2>/dev/null)
-
-  COMPREPLY=( $(compgen -W "$completions" -- "$cur") )
-  __ltrim_colon_completions "$cur"
-}
-complete -F _opencli_completions opencli
-`;
-}
-
-export function zshCompletionScript(): string {
-  return `# Zsh completion for opencli
-# Add to ~/.zshrc:  eval "$(opencli completion zsh)"
-_opencli() {
-  local -a completions
-  local cword=$((CURRENT - 1))
-  completions=(\${(f)"$(opencli --get-completions --cursor "$cword" "\${words[@]:1}" 2>/dev/null)"})
-  compadd -a completions
-}
-compdef _opencli opencli
-`;
-}
-
-export function fishCompletionScript(): string {
-  return `# Fish completion for opencli
-# Add to ~/.config/fish/config.fish:  opencli completion fish | source
-complete -c opencli -f -a '(
-  set -l tokens (commandline -cop)
-  set -l cursor (count (commandline -cop))
-  opencli --get-completions --cursor $cursor $tokens[2..] 2>/dev/null
-)'
-`;
-}
 
 /**
  * Print the completion script for the requested shell.

@@ -38,8 +38,11 @@ opencli xiaohongshu search 旅行 -f json
 # Other commands
 opencli xiaohongshu feed
 opencli xiaohongshu notifications
-opencli xiaohongshu download <note-id or url>
+opencli xiaohongshu download "https://www.xiaohongshu.com/search_result/<id>?xsec_token=..."
+opencli xiaohongshu download "https://xhslink.com/..."
 ```
+
+> Note: `note` and `comments` now require a full signed note URL with `xsec_token`. `download` accepts either a signed note URL or an `xhslink` short link. Bare note IDs are no longer reliable on xiaohongshu.
 
 ## Prerequisites
 

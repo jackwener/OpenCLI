@@ -26,10 +26,41 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      # Build before the manifest drift gate: adapter modules import
+      # @jackwener/opencli/* through package exports, which resolve to dist/.
+      # A fresh release checkout has no dist/ until the full build runs.
+      - name: Build package and verify cli-manifest.json is up-to-date
+        run: |
+          npm run build
+          if ! git diff --exit-code -- cli-manifest.json; then
+            echo "::error::cli-manifest.json drift detected at release time. Run 'npm run build' locally and commit the result before tagging."
+            exit 1
+          fi
+
+      - name: Install extension dependencies
+        run: npm ci
+        working-directory: extension
+
+      - name: Build extension
+        run: npm run build
+        working-directory: extension
+
+      - name: Package extension
+        run: npm run package:release -- --out ../extension-package
+        working-directory: extension
+
+      - name: Create extension ZIP
+        run: |
+          EXT_VERSION=$(jq -r .version extension/package.json)
+          cd extension-package
+          zip -r ../opencli-extension-v${EXT_VERSION}.zip .
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2.6.1
+        uses: softprops/action-gh-release@v3.0.0
         with:
           generate_release_notes: true
+          files: |
+            opencli-extension-v*.zip
 
       - name: Publish to npm
         run: npm publish --provenance --access public

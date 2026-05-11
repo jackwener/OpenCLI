@@ -69,7 +69,7 @@ describe('createPluginScaffold', () => {
     expect(tsSample).toContain(`import { cli, Strategy } from '@jackwener/opencli/registry';`);
     expect(tsSample).toContain(`strategy: Strategy.PUBLIC`);
     expect(tsSample).toContain(`help: 'Name to greet'`);
-    expect(tsSample).toContain(`func: async (_page, kwargs)`);
+    expect(tsSample).toContain(`func: async (kwargs)`);
     expect(tsSample).not.toContain('async run(');
   });
 

@@ -2,16 +2,16 @@
  * Browser session manager — auto-spawns daemon and provides IPage.
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import * as path from 'node:path';
-import * as fs from 'node:fs';
+import type { ChildProcess } from 'node:child_process';
 import type { IPage } from '../types.js';
 import type { IBrowserFactory } from '../runtime.js';
 import { Page } from './page.js';
-import { getDaemonHealth } from './daemon-client.js';
+import { getDaemonHealth, requestDaemonShutdown } from './daemon-client.js';
 import { DEFAULT_DAEMON_PORT } from '../constants.js';
 import { BrowserConnectError } from '../errors.js';
+import { PKG_VERSION } from '../version.js';
+import { resolveProfileContextId } from './profile.js';
+import { resolveDaemonLaunchSpec, spawnDaemonProcess, waitForDaemonStop } from './daemon-lifecycle.js';
 
 const DAEMON_SPAWN_TIMEOUT = 10000; // 10s to wait for daemon + extension
 
@@ -29,7 +29,7 @@ export class BrowserBridge implements IBrowserFactory {
     return this._state;
   }
 
-  async connect(opts: { timeout?: number; workspace?: string } = {}): Promise<IPage> {
+  async connect(opts: { timeout?: number; session?: string; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background'; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent' } = {}): Promise<IPage> {
     if (this._state === 'connected' && this._page) return this._page;
     if (this._state === 'connecting') throw new Error('Already connecting');
     if (this._state === 'closing') throw new Error('Session is closing');
@@ -38,8 +38,10 @@ export class BrowserBridge implements IBrowserFactory {
     this._state = 'connecting';
 
     try {
-      await this._ensureDaemon(opts.timeout);
-      this._page = new Page(opts.workspace);
+      const contextId = opts.contextId ?? resolveProfileContextId();
+      await this._ensureDaemon(opts.timeout, contextId);
+      if (!opts.session?.trim()) throw new Error('Browser session is required');
+      this._page = new Page(opts.session.trim(), opts.idleTimeout, contextId, opts.windowMode, opts.surface, opts.siteSession);
       this._state = 'connected';
       return this._page;
     } catch (err) {
@@ -57,83 +59,152 @@ export class BrowserBridge implements IBrowserFactory {
     this._state = 'closed';
   }
 
-  private async _ensureDaemon(timeoutSeconds?: number): Promise<void> {
+  private async _ensureDaemon(timeoutSeconds?: number, contextId?: string): Promise<void> {
     const effectiveSeconds = (timeoutSeconds && timeoutSeconds > 0) ? timeoutSeconds : Math.ceil(DAEMON_SPAWN_TIMEOUT / 1000);
     const timeoutMs = effectiveSeconds * 1000;
 
-    const health = await getDaemonHealth();
+    const health = await getDaemonHealth({ contextId });
+
+    // Detect stale daemon before any fast path. A stale daemon can still have
+    // the extension connected, so this cannot live only in the no-extension branch.
+    const daemonVersion = health.status?.daemonVersion;
+    const isStale = !!health.status && (!daemonVersion || daemonVersion !== PKG_VERSION);
+    let staleDaemonReplaced = false;
+
+    if (isStale) {
+      // Stale daemon — restart it so all browser commands run against the
+      // currently installed package code, not the old daemon binary.
+      const reason = daemonVersion
+        ? `v${daemonVersion} ≠ v${PKG_VERSION}`
+        : `pre-version daemon, CLI is v${PKG_VERSION}`;
+      if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
+        process.stderr.write(`⚠️  Stale daemon detected (${reason}). Restarting...\n`);
+      }
+      const shutdownAccepted = await requestDaemonShutdown();
+      const portReleased = shutdownAccepted && await waitForDaemonStop(3000);
+
+      if (!portReleased) {
+        // Stale daemon replacement failed — don't blindly spawn on an occupied port
+        throw new BrowserConnectError(
+          'Stale daemon could not be replaced',
+          `A stale daemon (${reason}) is running but did not shut down.\n` +
+          '  Run manually: opencli daemon stop && opencli doctor',
+          'daemon-not-running',
+        );
+      }
+      // Port released — fall through to spawn a fresh daemon
+      staleDaemonReplaced = true;
+    }
 
     // Fast path: everything ready
-    if (health.state === 'ready') return;
+    if (!staleDaemonReplaced && health.state === 'ready') return;
 
-    // Daemon running but no extension — wait for extension with progress
-    if (health.state === 'no-extension') {
+    if (!staleDaemonReplaced && health.state === 'profile-required') {
+      throw new BrowserConnectError(
+        'Multiple Browser Bridge profiles are connected',
+        'Select one with --profile <name>, OPENCLI_PROFILE=<name>, or opencli profile use <name>.\n' +
+        'Run opencli profile list to see connected profiles.',
+        'profile-required',
+      );
+    }
+
+    if (!staleDaemonReplaced && health.state === 'profile-disconnected') {
+      const label = contextId ?? health.status.contextId ?? 'unknown';
+      throw new BrowserConnectError(
+        `Browser profile "${label}" is not connected`,
+        'Open the matching Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
+        'profile-disconnected',
+      );
+    }
+
+    // Daemon running but no extension
+    if (!staleDaemonReplaced && health.state === 'no-extension') {
+      // Same version — wait for extension to connect
       if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
         process.stderr.write('⏳ Waiting for Chrome/Chromium extension to connect...\n');
         process.stderr.write('   Make sure Chrome or Chromium is open and the OpenCLI extension is enabled.\n');
       }
-      if (await this._pollUntilReady(timeoutMs)) return;
+      if (await this._pollUntilReady(timeoutMs, contextId)) return;
+      const finalHealth = await getDaemonHealth({ contextId });
+      if (finalHealth.state === 'profile-required') {
+        throw new BrowserConnectError(
+          'Multiple Browser Bridge profiles are connected',
+          'Select one with --profile <name>, OPENCLI_PROFILE=<name>, or opencli profile use <name>.\n' +
+          'Run opencli profile list to see connected profiles.',
+          'profile-required',
+        );
+      }
+      if (finalHealth.state === 'profile-disconnected') {
+        const label = contextId ?? finalHealth.status.contextId ?? 'unknown';
+        throw new BrowserConnectError(
+          `Browser profile "${label}" is not connected`,
+          'Open the matching Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
+          'profile-disconnected',
+        );
+      }
       throw new BrowserConnectError(
         'Browser Bridge extension not connected',
-        'Install the Browser Bridge:\n' +
+        'Make sure Chrome/Chromium is open and the extension is enabled.\n' +
+        'If the extension is installed, try: opencli daemon stop && opencli doctor\n' +
+        'If not installed:\n' +
         '  1. Download: https://github.com/jackwener/opencli/releases\n' +
-        '  2. In Chrome or Chromium, open chrome://extensions → Developer Mode → Load unpacked\n' +
-        '  Then run: opencli doctor',
+        '  2. Open chrome://extensions → Developer Mode → Load unpacked',
         'extension-not-connected',
       );
     }
 
     // No daemon — spawn one
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    const parentDir = path.resolve(__dirname, '..');
-    const daemonTs = path.join(parentDir, 'daemon.ts');
-    const daemonJs = path.join(parentDir, 'daemon.js');
-    const isTs = fs.existsSync(daemonTs);
-    const daemonPath = isTs ? daemonTs : daemonJs;
-
     if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
       process.stderr.write('⏳ Starting daemon...\n');
     }
 
-    const spawnArgs = isTs
-      ? [process.execPath, '--import', 'tsx/esm', daemonPath]
-      : [process.execPath, daemonPath];
-
-    this._daemonProc = spawn(spawnArgs[0], spawnArgs.slice(1), {
-      detached: true,
-      stdio: 'ignore',
-      env: { ...process.env },
-    });
-    this._daemonProc.unref();
+    this._daemonProc = spawnDaemonProcess();
 
     // Wait for daemon + extension
-    if (await this._pollUntilReady(timeoutMs)) return;
+    if (await this._pollUntilReady(timeoutMs, contextId)) return;
 
-    const finalHealth = await getDaemonHealth();
+    const finalHealth = await getDaemonHealth({ contextId });
+    if (finalHealth.state === 'profile-required') {
+      throw new BrowserConnectError(
+        'Multiple Browser Bridge profiles are connected',
+        'Select one with --profile <name>, OPENCLI_PROFILE=<name>, or opencli profile use <name>.\n' +
+        'Run opencli profile list to see connected profiles.',
+        'profile-required',
+      );
+    }
+    if (finalHealth.state === 'profile-disconnected') {
+      const label = contextId ?? finalHealth.status.contextId ?? 'unknown';
+      throw new BrowserConnectError(
+        `Browser profile "${label}" is not connected`,
+        'Open the matching Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
+        'profile-disconnected',
+      );
+    }
     if (finalHealth.state === 'no-extension') {
       throw new BrowserConnectError(
         'Browser Bridge extension not connected',
-        'Install the Browser Bridge:\n' +
+        'Make sure Chrome/Chromium is open and the extension is enabled.\n' +
+        'If the extension is installed, try: opencli daemon stop && opencli doctor\n' +
+        'If not installed:\n' +
         '  1. Download: https://github.com/jackwener/opencli/releases\n' +
-        '  2. In Chrome or Chromium, open chrome://extensions → Developer Mode → Load unpacked\n' +
-        '  Then run: opencli doctor',
+        '  2. Open chrome://extensions → Developer Mode → Load unpacked',
         'extension-not-connected',
       );
     }
 
     throw new BrowserConnectError(
       'Failed to start opencli daemon',
-      `Try running manually:\n  node ${daemonPath}\nMake sure port ${DEFAULT_DAEMON_PORT} is available.`,
+      `Try running manually:\n  node ${resolveDaemonLaunchSpec().scriptPath}\nMake sure port ${DEFAULT_DAEMON_PORT} is available.`,
       'daemon-not-running',
     );
   }
 
   /** Poll getDaemonHealth() until state is 'ready' or deadline is reached. */
-  private async _pollUntilReady(timeoutMs: number): Promise<boolean> {
+  private async _pollUntilReady(timeoutMs: number, contextId?: string): Promise<boolean> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       await new Promise(resolve => setTimeout(resolve, 200));
-      const h = await getDaemonHealth();
+      const h = await getDaemonHealth({ contextId });
       if (h.state === 'ready') return true;
     }
     return false;

@@ -15,24 +15,28 @@ export type Action =
   | 'sessions'
   | 'set-file-input'
   | 'insert-text'
-  | 'bind-current'
+  | 'bind'
   | 'network-capture-start'
   | 'network-capture-read'
-  | 'cdp';
+  | 'wait-download'
+  | 'cdp'
+  | 'frames';
 
 export interface Command {
   /** Unique request ID */
   id: string;
   /** Action type */
   action: Action;
-  /** Target page identity (targetId). Cross-layer contract — preferred over tabId. */
+  /** Target page identity (targetId). Cross-layer contract with the daemon. */
   page?: string;
-  /** @deprecated Legacy tab ID — use `page` (targetId) instead. Kept for backward compat. */
-  tabId?: number;
   /** JS code to evaluate in page context (exec action) */
   code?: string;
-  /** Logical workspace for automation session reuse */
-  workspace?: string;
+  /** Browser session name for tab/page continuity. */
+  session?: string;
+  /** Runtime surface selecting owned container policy. */
+  surface?: 'browser' | 'adapter';
+  /** Adapter site session lifecycle. Persistent site sessions do not idle-expire. */
+  siteSession?: 'ephemeral' | 'persistent';
   /** URL to navigate to (navigate action) */
   url?: string;
   /** Sub-operation for tabs: list, new, close, select */
@@ -41,16 +45,16 @@ export interface Command {
   index?: number;
   /** Cookie domain filter */
   domain?: string;
-  /** Optional hostname/domain to require for current-tab binding */
-  matchDomain?: string;
-  /** Optional pathname prefix to require for current-tab binding */
-  matchPathPrefix?: string;
   /** Screenshot format: png (default) or jpeg */
   format?: 'png' | 'jpeg';
   /** JPEG quality (0-100), only for jpeg format */
   quality?: number;
   /** Whether to capture full page (not just viewport) */
   fullPage?: boolean;
+  /** Override viewport width in CSS pixels for screenshot (0 / undefined = use current) */
+  width?: number;
+  /** Override viewport height in CSS pixels for screenshot (0 / undefined = use current; ignored when fullPage) */
+  height?: number;
   /** Local file paths for set-file-input action */
   files?: string[];
   /** CSS selector for file input element (set-file-input action) */
@@ -59,12 +63,20 @@ export interface Command {
   text?: string;
   /** URL substring filter pattern for network capture actions */
   pattern?: string;
+  /** Download wait timeout in milliseconds */
+  timeoutMs?: number;
   /** CDP method name for 'cdp' action (e.g. 'Accessibility.getFullAXTree') */
   cdpMethod?: string;
   /** CDP method params for 'cdp' action */
   cdpParams?: Record<string, unknown>;
-  /** When true, automation windows are created in the foreground (focused) */
-  windowFocused?: boolean;
+  /** Window foreground/background policy for owned Browser Bridge containers. */
+  windowMode?: 'foreground' | 'background';
+  /** Custom idle timeout in seconds for this session. Overrides the default. */
+  idleTimeout?: number;
+  /** Frame index for cross-frame operations (0-based, from 'frames' action) */
+  frameIndex?: number;
+  /** Browser profile/context selected by the CLI. Used by the daemon for routing. */
+  contextId?: string;
 }
 
 export interface Result {
@@ -76,6 +88,10 @@ export interface Result {
   data?: unknown;
   /** Error message on failure */
   error?: string;
+  /** Stable machine-readable error code on failure */
+  errorCode?: string;
+  /** Optional recovery hint for agent-facing CLI output */
+  errorHint?: string;
   /** Page identity (targetId) — present only on page-scoped command responses */
   page?: string;
 }

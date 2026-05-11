@@ -24,6 +24,9 @@ describe('resolvePath', () => {
   it('resolves data path', () => {
     expect(resolvePath('data.items', { data: { items: [1, 2, 3] } })).toEqual([1, 2, 3]);
   });
+  it('resolves root path', () => {
+    expect(resolvePath('root.items', { root: { items: [1, 2, 3] } })).toEqual([1, 2, 3]);
+  });
   it('returns null for missing path', () => {
     expect(resolvePath('args.missing', { args: {} })).toBeUndefined();
   });

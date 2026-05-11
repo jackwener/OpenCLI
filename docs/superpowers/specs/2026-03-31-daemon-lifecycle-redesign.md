@@ -54,12 +54,11 @@ If either signal is active, the daemon stays alive. This means:
 - Recent CLI activity keeps the daemon alive even if Extension temporarily
   disconnects (Chrome restarting, Extension updating)
 
-**Timeout value:** 4 hours by default, configurable via `OPENCLI_DAEMON_TIMEOUT`
-environment variable. Value in milliseconds. Set to `0` to disable timeout entirely.
+**Timeout value:** 4 hours by default.
 
 ```typescript
 const DEFAULT_IDLE_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours
-const IDLE_TIMEOUT = Number(process.env.OPENCLI_DAEMON_TIMEOUT ?? DEFAULT_IDLE_TIMEOUT);
+const IDLE_TIMEOUT = DEFAULT_IDLE_TIMEOUT;
 ```
 
 **Timer implementation:**

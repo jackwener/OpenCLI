@@ -9,7 +9,7 @@
  * page-scoped operations target the correct page without guessing.
  */
 
-import type { BrowserCookie, ScreenshotOptions } from '../types.js';
+import type { BrowserCookie, BrowserDownloadWaitResult, ScreenshotOptions } from '../types.js';
 import { sendCommand, sendCommandFull } from './daemon-client.js';
 import { wrapForEval } from './utils.js';
 import { saveBase64ToFile } from '../utils.js';
@@ -17,28 +17,60 @@ import { generateStealthJs } from './stealth.js';
 import { waitForDomStableJs } from './dom-helpers.js';
 import { BasePage } from './base-page.js';
 import { classifyBrowserError } from './errors.js';
+import { log } from '../logger.js';
+
+function isUnsupportedNetworkCaptureError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  const normalized = message.toLowerCase();
+  return (normalized.includes('unknown action') && normalized.includes('network-capture'))
+    || (normalized.includes('network capture') && normalized.includes('not supported'));
+}
 
 /**
  * Page — implements IPage by talking to the daemon via HTTP.
  */
 export class Page extends BasePage {
-  constructor(private readonly workspace: string = 'default') {
+  private readonly _idleTimeout: number | undefined;
+
+  constructor(
+    private readonly session: string,
+    idleTimeout?: number,
+    public readonly contextId?: string,
+    private readonly windowMode?: 'foreground' | 'background',
+    private readonly surface: 'browser' | 'adapter' = 'browser',
+    private readonly siteSession?: 'ephemeral' | 'persistent',
+  ) {
     super();
+    this._idleTimeout = idleTimeout;
   }
 
   /** Active page identity (targetId), set after navigate and used in all subsequent commands */
   private _page: string | undefined;
+  private _networkCaptureUnsupported = false;
+  private _networkCaptureWarned = false;
 
-  /** Helper: spread workspace into command params */
-  private _wsOpt(): { workspace: string } {
-    return { workspace: this.workspace };
+  /** Helper: spread session into command params */
+  private _sessionOpts(): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background'; siteSession?: 'ephemeral' | 'persistent' } {
+    return {
+      session: this.session,
+      surface: this.surface,
+      ...(this.contextId && { contextId: this.contextId }),
+      ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
+      ...(this.windowMode && { windowMode: this.windowMode }),
+      ...(this.siteSession && { siteSession: this.siteSession }),
+    };
   }
 
-  /** Helper: spread workspace + page identity into command params */
+  /** Helper: spread session + page identity into command params */
   private _cmdOpts(): Record<string, unknown> {
     return {
-      workspace: this.workspace,
+      session: this.session,
+      surface: this.surface,
+      ...(this.contextId && { contextId: this.contextId }),
       ...(this._page !== undefined && { page: this._page }),
+      ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
+      ...(this.windowMode && { windowMode: this.windowMode }),
+      ...(this.siteSession && { siteSession: this.siteSession }),
     };
   }
 
@@ -94,9 +126,19 @@ export class Page extends BasePage {
     return this._page;
   }
 
-  /** @deprecated Use getActivePage() instead */
-  getActiveTabId(): number | undefined {
-    return undefined;
+  /** Bind this Page instance to a specific page identity (targetId). */
+  setActivePage(page?: string): void {
+    this._page = page;
+    this._lastUrl = null;
+  }
+  private _markUnsupportedNetworkCapture(): void {
+    this._networkCaptureUnsupported = true;
+    if (this._networkCaptureWarned) return;
+    this._networkCaptureWarned = true;
+    log.warn(
+      'Browser Bridge extension does not support network capture; continuing without it. ' +
+      'Explore output may miss API endpoints until you reload or reinstall the extension.',
+    );
   }
 
   async evaluate(js: string): Promise<unknown> {
@@ -112,30 +154,62 @@ export class Page extends BasePage {
   }
 
   async getCookies(opts: { domain?: string; url?: string } = {}): Promise<BrowserCookie[]> {
-    const result = await sendCommand('cookies', { ...this._wsOpt(), ...opts });
+    const result = await sendCommand('cookies', { ...this._sessionOpts(), ...opts });
     return Array.isArray(result) ? result : [];
   }
 
-  /** Close the automation window in the extension */
+  /** Release the current browser session lease in the extension */
   async closeWindow(): Promise<void> {
     try {
-      await sendCommand('close-window', { ...this._wsOpt() });
+      await sendCommand('close-window', { ...this._sessionOpts() });
     } catch {
       // Window may already be closed or daemon may be down
     } finally {
       this._page = undefined;
       this._lastUrl = null;
+      this._networkCaptureUnsupported = false;
+      this._networkCaptureWarned = false;
     }
   }
 
   async tabs(): Promise<unknown[]> {
-    const result = await sendCommand('tabs', { op: 'list', ...this._wsOpt() });
+    const result = await sendCommand('tabs', { op: 'list', ...this._sessionOpts() });
     return Array.isArray(result) ? result : [];
   }
 
-  async selectTab(index: number): Promise<void> {
-    const result = await sendCommandFull('tabs', { op: 'select', index, ...this._wsOpt() });
+  async newTab(url?: string): Promise<string | undefined> {
+    const result = await sendCommandFull('tabs', {
+      op: 'new',
+      ...(url !== undefined && { url }),
+      ...this._sessionOpts(),
+    });
+    this._lastUrl = null;
+    return result.page;
+  }
+
+  async closeTab(target?: number | string): Promise<void> {
+    const params: Record<string, unknown> = { op: 'close', ...this._sessionOpts() };
+    if (typeof target === 'number') params.index = target;
+    else if (typeof target === 'string') params.page = target;
+    else if (this._page !== undefined) params.page = this._page;
+
+    const result = await sendCommand('tabs', params) as { closed?: string } | null;
+    const closedPage = typeof result?.closed === 'string' ? result.closed : undefined;
+
+    if ((closedPage && closedPage === this._page) || (!closedPage && (target === undefined || target === this._page))) {
+      this._page = undefined;
+      this._lastUrl = null;
+    }
+  }
+
+  async selectTab(target: number | string): Promise<void> {
+    const result = await sendCommandFull('tabs', {
+      op: 'select',
+      ...(typeof target === 'number' ? { index: target } : { page: target }),
+      ...this._sessionOpts(),
+    });
     if (result.page) this._page = result.page;
+    this._lastUrl = null;
   }
 
   /**
@@ -147,6 +221,8 @@ export class Page extends BasePage {
       format: options.format,
       quality: options.quality,
       fullPage: options.fullPage,
+      width: options.width,
+      height: options.height,
     }) as string;
 
     if (options.path) {
@@ -156,19 +232,44 @@ export class Page extends BasePage {
     return base64;
   }
 
-  async startNetworkCapture(pattern: string = ''): Promise<void> {
-    await sendCommand('network-capture-start', {
-      pattern,
-      ...this._cmdOpts(),
-    });
+  async startNetworkCapture(pattern: string = ''): Promise<boolean> {
+    if (this._networkCaptureUnsupported) return false;
+    try {
+      await sendCommand('network-capture-start', {
+        pattern,
+        ...this._cmdOpts(),
+      });
+      return true;
+    } catch (err) {
+      if (!isUnsupportedNetworkCaptureError(err)) throw err;
+      this._markUnsupportedNetworkCapture();
+      return false;
+    }
   }
 
   async readNetworkCapture(): Promise<unknown[]> {
-    const result = await sendCommand('network-capture-read', {
+    if (this._networkCaptureUnsupported) return [];
+    try {
+      const result = await sendCommand('network-capture-read', {
+        ...this._cmdOpts(),
+      });
+      return Array.isArray(result) ? result : [];
+    } catch (err) {
+      if (!isUnsupportedNetworkCaptureError(err)) throw err;
+      this._markUnsupportedNetworkCapture();
+      return [];
+    }
+  }
+
+  async waitForDownload(pattern: string = '', timeoutMs: number = 30_000): Promise<BrowserDownloadWaitResult> {
+    const result = await sendCommand('wait-download', {
+      pattern,
+      timeoutMs,
       ...this._cmdOpts(),
     });
-    return Array.isArray(result) ? result : [];
+    return result as BrowserDownloadWaitResult;
   }
+
   /**
    * Set local file paths on a file input element via CDP DOM.setFileInputFiles.
    * Chrome reads the files directly from the local filesystem, avoiding the
@@ -195,11 +296,28 @@ export class Page extends BasePage {
     }
   }
 
+  async frames(): Promise<Array<{ index: number; frameId: string; url: string; name: string }>> {
+    const result = await sendCommand('frames', { ...this._cmdOpts() });
+    return Array.isArray(result) ? result : [];
+  }
+
+  async evaluateInFrame(js: string, frameIndex: number): Promise<unknown> {
+    const code = wrapForEval(js);
+    return sendCommand('exec', { code, frameIndex, ...this._cmdOpts() });
+  }
+
   async cdp(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
     return sendCommand('cdp', {
       cdpMethod: method,
       cdpParams: params,
       ...this._cmdOpts(),
+    });
+  }
+
+  async handleJavaScriptDialog(accept: boolean, promptText?: string): Promise<void> {
+    await this.cdp('Page.handleJavaScriptDialog', {
+      accept,
+      ...(promptText !== undefined && { promptText }),
     });
   }
 
@@ -277,6 +395,11 @@ export class Page extends BasePage {
 
   async nativeClick(x: number, y: number): Promise<void> {
     await this.cdp('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x,
+      y,
+    });
+    await this.cdp('Input.dispatchMouseEvent', {
       type: 'mousePressed',
       x, y,
       button: 'left',
@@ -299,7 +422,7 @@ export class Page extends BasePage {
     let modifierFlags = 0;
     for (const mod of modifiers) {
       if (mod === 'Alt') modifierFlags |= 1;
-      if (mod === 'Ctrl') modifierFlags |= 2;
+      if (mod === 'Ctrl' || mod === 'Control') modifierFlags |= 2;
       if (mod === 'Meta') modifierFlags |= 4;
       if (mod === 'Shift') modifierFlags |= 8;
     }

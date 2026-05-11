@@ -12,6 +12,7 @@
 import type { IPage } from '../../types.js';
 import { render } from '../template.js';
 import { generateTapInterceptorJs } from '../../interceptor.js';
+import { CliError } from '../../errors.js';
 
 interface TapParams {
   store?: string;
@@ -38,7 +39,7 @@ export async function stepTap(
   const framework = cfg.framework ?? null;
   const actionArgs: unknown[] = cfg.args ?? [];
 
-  if (!storeName || !actionName) throw new Error('tap: store and action are required');
+  if (!storeName || !actionName) throw new CliError('TAP_MISSING_PARAMS', 'tap: store and action are required');
 
   // Build select chain for the captured response
   const selectChain = selectPath

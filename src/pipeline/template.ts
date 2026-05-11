@@ -7,6 +7,7 @@ import vm from 'node:vm';
 export interface RenderContext {
   args?: Record<string, unknown>;
   data?: unknown;
+  root?: unknown;
   item?: unknown;
   index?: number;
 }
@@ -34,6 +35,7 @@ export function evalExpr(expr: string, ctx: RenderContext): unknown {
   const args = ctx.args ?? {};
   const item = ctx.item ?? {};
   const data = ctx.data;
+  const root = ctx.root;
   const index = ctx.index ?? 0;
 
   // ── Pipe filters: expr | filter1(arg) | filter2 ──
@@ -55,12 +57,12 @@ export function evalExpr(expr: string, ctx: RenderContext): unknown {
   if (/^\d+(\.\d+)?$/.test(expr)) return Number(expr);
 
   // Try resolving as a simple dotted path (item.foo.bar, args.limit, index)
-  const resolved = resolvePath(expr, { args, item, data, index });
+  const resolved = resolvePath(expr, { args, item, data, root, index });
   if (resolved !== null && resolved !== undefined) return resolved;
 
   // Fallback: evaluate as JS in a sandboxed VM.
   // Handles ||, ??, arithmetic, ternary, method calls, etc. natively.
-  return evalJsExpr(expr, { args, item, data, index });
+  return evalJsExpr(expr, { args, item, data, root, index });
 }
 
 /**
@@ -151,6 +153,7 @@ export function resolvePath(pathStr: string, ctx: RenderContext): unknown {
   const args = ctx.args ?? {};
   const item = ctx.item ?? {};
   const data = ctx.data;
+  const root = ctx.root;
   const index = ctx.index ?? 0;
   const parts = pathStr.split('.');
   const rootName = parts[0];
@@ -159,6 +162,7 @@ export function resolvePath(pathStr: string, ctx: RenderContext): unknown {
   if (rootName === 'args') { obj = args; rest = parts.slice(1); }
   else if (rootName === 'item') { obj = item; rest = parts.slice(1); }
   else if (rootName === 'data') { obj = data; rest = parts.slice(1); }
+  else if (rootName === 'root') { obj = root; rest = parts.slice(1); }
   else if (rootName === 'index') return index;
   else { obj = item; rest = parts; }
   for (const part of rest) {
@@ -182,12 +186,32 @@ const FORBIDDEN_EXPR_PATTERNS = /\b(constructor|__proto__|prototype|globalThis|p
 /**
  * Deep-copy plain data to sever prototype chains, preventing sandbox escape
  * via `args.constructor.constructor('return process')()` etc.
+ *
+ * Uses a WeakMap cache keyed by object reference: when the same object
+ * (e.g. `args` or `data`) is passed repeatedly across loop iterations,
+ * the expensive JSON round-trip is performed only once. The WeakMap
+ * lets entries be GC'd when the source object is no longer referenced.
  */
+/**
+ * Cache serialized JSON strings (not parsed objects) by source reference.
+ * Caching the parsed object would be unsafe: the VM sandbox could mutate it,
+ * and the polluted version would leak to subsequent calls. By caching the
+ * string and returning a fresh JSON.parse() each time, every evaluation gets
+ * its own clean deep-copy while still avoiding redundant JSON.stringify()
+ * for the same unchanged source object across loop iterations.
+ */
+const _sanitizeCache = new WeakMap<object, string>();
+
 function sanitizeContext(obj: unknown): unknown {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj !== 'object' && typeof obj !== 'function') return obj;
+  const objRef = obj as object;
+  const cached = _sanitizeCache.get(objRef);
+  if (cached !== undefined) return JSON.parse(cached);
   try {
-    return JSON.parse(JSON.stringify(obj));
+    const jsonStr = JSON.stringify(obj);
+    _sanitizeCache.set(objRef, jsonStr);
+    return JSON.parse(jsonStr);
   } catch {
     return {};
   }
@@ -212,6 +236,55 @@ function getOrCompileScript(expr: string): vm.Script {
   return script;
 }
 
+/**
+ * Reusable VM sandbox context.
+ *
+ * vm.createContext() is expensive (~0.3ms per call) because it creates a new
+ * V8 context with its own global object. In pipeline loops (map/filter over
+ * hundreds of items), this adds up to significant overhead.
+ *
+ * Instead, we create the context once and mutate the sandbox properties
+ * before each evaluation. This is safe because:
+ *   1. Sandbox properties are sanitized (deep-copied) before assignment
+ *   2. Scripts run with a 50ms timeout
+ *   3. codeGeneration is disabled (no eval/Function inside the sandbox)
+ */
+let _reusableSandbox: Record<string, unknown> | null = null;
+let _reusableContext: vm.Context | null = null;
+
+function getReusableContext(): { sandbox: Record<string, unknown>; context: vm.Context } {
+  if (_reusableSandbox && _reusableContext) {
+    return { sandbox: _reusableSandbox, context: _reusableContext };
+  }
+  _reusableSandbox = {
+    args: {},
+    item: {},
+    data: null,
+    root: null,
+    index: 0,
+    encodeURIComponent,
+    decodeURIComponent,
+    JSON,
+    Math,
+    Number,
+    String,
+    Boolean,
+    Array,
+    Date,
+  };
+  _reusableContext = vm.createContext(_reusableSandbox, {
+    codeGeneration: { strings: false, wasm: false },
+  });
+  return { sandbox: _reusableSandbox, context: _reusableContext };
+}
+
+/** Properties that are part of the sandbox's initial shape and safe to keep. */
+const SANDBOX_WHITELIST = new Set([
+  'args', 'item', 'data', 'root', 'index',
+  'encodeURIComponent', 'decodeURIComponent',
+  'JSON', 'Math', 'Number', 'String', 'Boolean', 'Array', 'Date',
+]);
+
 function evalJsExpr(expr: string, ctx: RenderContext): unknown {
   // Guard against absurdly long expressions that could indicate injection.
   if (expr.length > 2000) return undefined;
@@ -219,37 +292,25 @@ function evalJsExpr(expr: string, ctx: RenderContext): unknown {
   // Block obvious sandbox escape attempts.
   if (FORBIDDEN_EXPR_PATTERNS.test(expr)) return undefined;
 
-  const args = sanitizeContext(ctx.args ?? {});
-  const item = sanitizeContext(ctx.item ?? {});
-  const data = sanitizeContext(ctx.data);
-  const index = ctx.index ?? 0;
-
   try {
     const script = getOrCompileScript(expr);
-    const sandbox = vm.createContext(
-      {
-        args,
-        item,
-        data,
-        index,
-        encodeURIComponent,
-        decodeURIComponent,
-        JSON,
-        Math,
-        Number,
-        String,
-        Boolean,
-        Array,
-        Date,
-      },
-      {
-        codeGeneration: {
-          strings: false,
-          wasm: false,
-        },
-      },
-    );
-    return script.runInContext(sandbox, { timeout: 50 });
+    const { sandbox, context } = getReusableContext();
+
+    // Clean non-whitelisted properties that a previous script may have added.
+    // Without this, `${{ x = 42 }}` would leak `x` into subsequent evaluations.
+    for (const key of Object.keys(sandbox)) {
+      if (!SANDBOX_WHITELIST.has(key)) {
+        delete sandbox[key];
+      }
+    }
+
+    // Update mutable sandbox properties — sanitizeContext severs prototype chains.
+    sandbox.args = sanitizeContext(ctx.args ?? {});
+    sandbox.item = sanitizeContext(ctx.item ?? {});
+    sandbox.data = sanitizeContext(ctx.data);
+    sandbox.root = sanitizeContext(ctx.root);
+    sandbox.index = ctx.index ?? 0;
+    return script.runInContext(context, { timeout: 50 });
   } catch {
     return undefined;
   }

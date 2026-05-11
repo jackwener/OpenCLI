@@ -30,12 +30,15 @@ tests/
 ├── smoke/
 │   └── api-health.test.ts         # 外部 API、adapter 定义、命令注册健康检查
 src/
-└── **/*.test.ts                   # 单元测试（当前 32 个文件）
+├── **/*.test.ts                   # 单元测试（unit project）
+clis/
+└── **/*.test.{ts,js}              # adapter 测试（adapter project）
 ```
 
 | 层 | 位置 | 当前文件数 | 运行方式 | 用途 |
 |---|---|---:|---|---|
-| 单元测试 | `src/**/*.test.ts` | 32 | `npx vitest run src/` | 内部模块、pipeline、adapter 工具函数 |
+| 单元测试 | `src/**/*.test.ts` | 32 | `npm test` | 内部模块、pipeline、runtime |
+| Adapter 测试 | `clis/**/*.test.{ts,js}` | - | `npm test` / `npm run test:adapter` | adapter 命令与数据归一化 |
 | E2E 测试 | `tests/e2e/*.test.ts` | 5 | `npx vitest run tests/e2e/` | 真实 CLI 命令执行 |
 | 烟雾测试 | `tests/smoke/*.test.ts` | 1 | `npx vitest run tests/smoke/` | 外部 API 与注册完整性 |
 
@@ -43,7 +46,7 @@ src/
 
 ## 当前覆盖范围
 
-### 单元测试（32 个文件）
+### 单元测试与 Adapter 测试
 
 | 领域 | 文件 |
 |---|---|
@@ -100,8 +103,11 @@ npm run build         # 编译（E2E / smoke 测试需要 dist/src/main.js）
 ### 运行命令
 
 ```bash
-# 全部单元测试
-npx vitest run src/
+# 默认本地测试口径（unit + extension + adapter）
+npm test
+
+# 只跑 adapter project
+npm run test:adapter
 
 # 全部 E2E 测试（会真实调用外部 API / 浏览器）
 npx vitest run tests/e2e/
@@ -110,7 +116,7 @@ npx vitest run tests/e2e/
 npx vitest run tests/smoke/
 
 # 单个测试文件
-npx vitest run clis/apple-podcasts/commands.test.ts
+npm test -- --run clis/apple-podcasts/commands.test.ts
 npx vitest run tests/e2e/management.test.ts
 
 # 全部测试
@@ -192,7 +198,8 @@ it('producthunt me fails gracefully without login', async () => {
 | Job | 触发条件 | 内容 |
 |---|---|---|
 | `build` | push/PR 到 `main`,`dev` | `tsc --noEmit` + `npm run build` |
-| `unit-test` | push/PR 到 `main`,`dev` | Node `20` 与 `22` 双版本运行 `src/` 单元测试，按 `2` shard 并行 |
+| `unit-test` | push/PR 到 `main`,`dev` | Node `22` 运行 `unit + extension`，按 `2` shard 并行 |
+| `adapter-test` | push/PR 到 `main`,`dev` | Node `22` 单独运行 `adapter` project |
 | `smoke-test` | `schedule` 或 `workflow_dispatch` | 安装真实 Chrome，`xvfb-run` 执行 `tests/smoke/` |
 
 ### `e2e-headed.yml`
@@ -201,19 +208,18 @@ it('producthunt me fails gracefully without login', async () => {
 |---|---|---|
 | `e2e-headed` | push/PR 到 `main`,`dev`，或手动触发 | 安装真实 Chrome，`xvfb-run` 执行 `tests/e2e/` |
 
-E2E 与 smoke 都使用 `./.github/actions/setup-chrome` 准备真实 Chrome，并通过 `OPENCLI_BROWSER_EXECUTABLE_PATH` 注入浏览器路径。
+E2E 与 smoke 都使用 `./.github/actions/setup-chrome` 准备真实 Chrome。
 
 ### Sharding
 
-单元测试使用 vitest 内置 shard，并在 Node `20` / `22` 两个版本上运行：
+CI 里的 `unit-test` job 使用 vitest shard，只切 `unit + extension`，避免和独立的 `adapter-test` job 重复：
 
 ```yaml
 strategy:
   matrix:
-    node-version: ['20', '22']
     shard: [1, 2]
 steps:
-  - run: npx vitest run src/ --reporter=verbose --shard=${{ matrix.shard }}/2
+  - run: npx vitest run --project unit --project extension --reporter=verbose --shard=${{ matrix.shard }}/2
 ```
 
 ---
@@ -227,12 +233,7 @@ opencli 通过 Browser Bridge 扩展连接浏览器：
 | 扩展已安装 / 已连接 | Extension 模式 | 本地用户，连接已登录的 Chrome |
 | 无扩展 token | CLI 自行拉起浏览器 | CI、无登录态或纯自动化场景 |
 
-CI 中使用 `OPENCLI_BROWSER_EXECUTABLE_PATH` 指定真实 Chrome 路径：
-
-```yaml
-env:
-  OPENCLI_BROWSER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-```
+CI 通过 `./.github/actions/setup-chrome` 准备真实 Chrome，再直接执行测试。
 
 ---
 

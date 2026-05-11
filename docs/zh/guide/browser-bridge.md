@@ -8,7 +8,7 @@ OpenCLI 通过轻量级 **Browser Bridge** Chrome 扩展 + 微守护进程连接
 
 ### 方法 1：下载预构建版本（推荐）
 
-1. 前往 GitHub [Releases 页面](https://github.com/jackwener/opencli/releases) 下载最新的 `opencli-extension.zip`。
+1. 前往 GitHub [Releases 页面](https://github.com/jackwener/opencli/releases) 下载最新的 `opencli-extension-v{version}.zip`。
 2. 解压后打开 `chrome://extensions`，启用**开发者模式**。
 3. 点击**加载已解压的扩展程序**，选择解压后的文件夹。
 
@@ -22,6 +22,29 @@ OpenCLI 通过轻量级 **Browser Bridge** Chrome 扩展 + 微守护进程连接
 ```bash
 opencli doctor            # 检查扩展 + 守护进程连接
 ```
+
+## 多 Tab 定位
+
+浏览器命令必须显式传 `--session <name>`。同一个多步骤流程使用同一个 session；并行任务使用不同 session 隔离。
+
+```bash
+opencli browser --session baidu open https://www.baidu.com/
+opencli browser --session baidu tab list
+opencli browser --session baidu tab new https://www.baidu.com/
+opencli browser --session baidu eval --tab <targetId> 'document.title'
+opencli browser --session baidu tab select <targetId>
+opencli browser --session baidu get title
+opencli browser --session baidu tab close <targetId>
+```
+
+规则如下：
+
+- `opencli browser --session <name> open <url>` 和 `opencli browser --session <name> tab new [url]` 都会返回 `targetId`。
+- `opencli browser --session <name> tab list` 会打印当前已存在 tab 的 `targetId`。
+- `--tab <targetId>` 会把单条 browser 命令路由到对应 tab。
+- `tab new` 只会新建 tab，不会改变默认浏览器目标。
+- `tab select <targetId>` 会把该 tab 设为后续未显式指定 target 的 `opencli browser ...` 命令默认目标。
+- `tab close <targetId>` 会关闭该 tab；如果它正好是当前默认目标，会一并清掉这条默认绑定。
 
 ## Daemon 生命周期
 

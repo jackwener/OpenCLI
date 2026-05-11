@@ -17,8 +17,7 @@ npm run build
 
 # 4. Run a few checks
 npx tsc --noEmit
-npm test
-npm run test:adapter
+npm run build
 
 # 5. Link globally (optional, for testing `opencli` command)
 npm link
@@ -46,6 +45,8 @@ cli({
   site: 'mysite',
   name: 'search',
   description: 'Search MySite',
+  access: 'read', // 'read' | 'write'
+  example: 'opencli mysite search <query> -f yaml',
   domain: 'www.mysite.com',
   strategy: Strategy.COOKIE,
   args: [
@@ -99,11 +100,12 @@ chore: bump vitest to v4
 
 1. Create a feature branch: `git checkout -b feat/mysite-trending`
 2. Make your changes and add tests when relevant
-3. Run the checks:
+3. Run the smallest check set that matches your change:
    ```bash
    npx tsc --noEmit           # Type check
-   npm test                   # Core unit tests
-   npm run test:adapter       # Focused adapter tests (if adapter logic changed)
+   npm run build              # Ensure dist stays healthy
+   npx vitest run src/<target>.test.ts
+   npm test                   # Broader local gate when shared runtime changes justify it
    ```
 4. Commit using conventional commit format
 5. Push and open a PR

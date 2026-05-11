@@ -38,6 +38,32 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Guard: committed cli-manifest.json must match the one build regenerates.
+      # Prevents silent drift where unrelated adapter entries vanish or change
+      # across PRs (agent hits unexpected manifest diff → surgical-merge churn).
+      - name: Check cli-manifest.json is up-to-date
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          if ! git diff --exit-code -- cli-manifest.json; then
+            echo "::error::cli-manifest.json is out of sync with the source. Run 'npm run build' and commit the result."
+            exit 1
+          fi
+
+      # Guard: adapter rows must not silently emit keys omitted from `columns`.
+      # Existing findings are tracked in scripts/silent-column-drop-baseline.json;
+      # this gate rejects newly introduced drops while allowing incremental cleanup.
+      - name: Check silent column drops
+        if: runner.os == 'Linux'
+        run: npm run check:silent-column-drop
+
+      # Guard: adapters should fail with typed errors instead of silently
+      # returning empty arrays, clamping user input, or inventing sentinel data.
+      # Existing findings are tracked in scripts/typed-error-lint-baseline.json.
+      - name: Check typed-error lint baseline
+        if: runner.os == 'Linux'
+        run: npm run check:typed-error-lint
+
   # ── Unit tests (vitest shard) ──
   # PR: ubuntu + Node 22 only (fast feedback, 2 jobs).
   # Push to main/dev: full matrix for cross-platform/cross-version coverage (12 jobs).
@@ -47,7 +73,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ${{ (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && fromJSON('["ubuntu-latest","macos-latest","windows-latest"]') || fromJSON('["ubuntu-latest"]') }}
-        node-version: ${{ (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && fromJSON('["20","22"]') || fromJSON('["22"]') }}
+        node-version: ${{ (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && fromJSON('["22"]') || fromJSON('["22"]') }}
         shard: [1, 2]
     steps:
       - uses: actions/checkout@v6
@@ -61,7 +87,7 @@ jobs:
         run: npm ci
 
       - name: Run unit tests (Node ${{ matrix.node-version }}, shard ${{ matrix.shard }}/2)
-        run: npm test -- --reporter=verbose --shard=${{ matrix.shard }}/2
+        run: npx vitest run --project unit --project extension --reporter=verbose --shard=${{ matrix.shard }}/2
 
   # ── Bun compatibility check ──
   bun-test:
@@ -136,12 +162,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             npx vitest run tests/smoke/ --reporter=verbose
-        env:
-          OPENCLI_BROWSER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
       - name: Run smoke tests (macOS / Windows)
         if: runner.os != 'Linux'
         run: npx vitest run tests/smoke/ --reporter=verbose
-        env:
-          OPENCLI_BROWSER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
     timeout-minutes: 15

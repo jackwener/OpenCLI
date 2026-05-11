@@ -9,7 +9,8 @@
  *   1. Origin check — reject HTTP/WS from non chrome-extension:// origins
  *   2. Custom header — require X-OpenCLI header (browsers can't send it
  *      without CORS preflight, which we deny)
- *   3. No CORS headers — responses never include Access-Control-Allow-Origin
+ *   3. No CORS headers on command endpoints — only /ping is readable from the
+ *      Browser Bridge extension origin so the extension can probe daemon reachability
  *   4. Body size limit — 1 MB max to prevent OOM
  *   5. WebSocket verifyClient — reject upgrade before connection is established
  *
@@ -23,14 +24,26 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { EXIT_CODES } from './errors.js';
+import { log } from './logger.js';
+import { PKG_VERSION } from './version.js';
+import { DEFAULT_CONTEXT_ID } from './browser/profile.js';
+import { recordExtensionVersion } from './update-check.js';
 
 const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 
 // ─── State ───────────────────────────────────────────────────────────
 
-let extensionWs: WebSocket | null = null;
-let extensionVersion: string | null = null;
+type ExtensionProfileConnection = {
+  contextId: string;
+  ws: WebSocket;
+  extensionVersion: string | null;
+  extensionCompatRange: string | null;
+  lastSeenAt: number;
+};
+
+const extensionProfiles = new Map<string, ExtensionProfileConnection>();
 const pending = new Map<string, {
+  contextId: string;
   resolve: (data: unknown) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -40,9 +53,98 @@ interface LogEntry { level: string; msg: string; ts: number; }
 const LOG_BUFFER_SIZE = 200;
 const logBuffer: LogEntry[] = [];
 
+class DaemonCommandFailure extends Error {
+  constructor(
+    message: string,
+    readonly errorCode?: string,
+    readonly errorHint?: string,
+    readonly status: number = 400,
+  ) {
+    super(message);
+    this.name = 'DaemonCommandFailure';
+  }
+}
+
 function pushLog(entry: LogEntry): void {
   logBuffer.push(entry);
   if (logBuffer.length > LOG_BUFFER_SIZE) logBuffer.shift();
+}
+
+function activeProfiles(): ExtensionProfileConnection[] {
+  return [...extensionProfiles.values()].filter((entry) => entry.ws.readyState === WebSocket.OPEN);
+}
+
+function resolveExtensionConnection(contextId?: string): {
+  connection?: ExtensionProfileConnection;
+  errorCode?: 'extension_not_connected' | 'profile_required' | 'profile_disconnected';
+  error?: string;
+  errorHint?: string;
+} {
+  const requestedContextId = typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined;
+  if (requestedContextId) {
+    const connection = extensionProfiles.get(requestedContextId);
+    if (connection?.ws.readyState === WebSocket.OPEN) return { connection };
+    return {
+      errorCode: 'profile_disconnected',
+      error: `Browser profile "${requestedContextId}" is not connected.`,
+      errorHint: 'Open that Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
+    };
+  }
+
+  const connected = activeProfiles();
+  if (connected.length === 1) return { connection: connected[0] };
+  if (connected.length > 1) {
+    return {
+      errorCode: 'profile_required',
+      error: 'Multiple Browser Bridge profiles are connected; choose one with --profile.',
+      errorHint: 'Run opencli profile list, then use opencli --profile <name> ... or opencli profile use <name>.',
+    };
+  }
+  return {
+    errorCode: 'extension_not_connected',
+    error: 'Extension not connected. Please install the opencli Browser Bridge extension.',
+  };
+}
+
+function registerExtensionConnection(ws: WebSocket, rawContextId: unknown): ExtensionProfileConnection {
+  const contextId = typeof rawContextId === 'string' && rawContextId.trim()
+    ? rawContextId.trim()
+    : DEFAULT_CONTEXT_ID;
+  const previous = extensionProfiles.get(contextId);
+  if (previous && previous.ws !== ws) {
+    previous.ws.close();
+  }
+  const existing = [...extensionProfiles.entries()].find(([, entry]) => entry.ws === ws);
+  if (existing && existing[0] !== contextId) extensionProfiles.delete(existing[0]);
+
+  const current = extensionProfiles.get(contextId);
+  const connection: ExtensionProfileConnection = {
+    contextId,
+    ws,
+    extensionVersion: current?.ws === ws ? current.extensionVersion : null,
+    extensionCompatRange: current?.ws === ws ? current.extensionCompatRange : null,
+    lastSeenAt: Date.now(),
+  };
+  extensionProfiles.set(contextId, connection);
+  return connection;
+}
+
+function unregisterExtensionConnection(ws: WebSocket): void {
+  for (const [contextId, connection] of extensionProfiles.entries()) {
+    if (connection.ws !== ws) continue;
+    extensionProfiles.delete(contextId);
+    for (const [id, p] of pending) {
+      if (p.contextId !== contextId) continue;
+      clearTimeout(p.timer);
+      p.reject(new DaemonCommandFailure(
+        `Browser profile "${contextId}" disconnected`,
+        'profile_disconnected',
+        'Open that Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
+        503,
+      ));
+      pending.delete(id);
+    }
+  }
 }
 
 // ─── HTTP Server ─────────────────────────────────────────────────────
@@ -64,9 +166,23 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-function jsonResponse(res: ServerResponse, status: number, data: unknown): void {
-  res.writeHead(status, { 'Content-Type': 'application/json' });
+function jsonResponse(
+  res: ServerResponse,
+  status: number,
+  data: unknown,
+  extraHeaders?: Record<string, string>,
+): void {
+  res.writeHead(status, { 'Content-Type': 'application/json', ...extraHeaders });
   res.end(JSON.stringify(data));
+}
+
+export function getResponseCorsHeaders(pathname: string, origin?: string): Record<string, string> | undefined {
+  if (pathname !== '/ping') return undefined;
+  if (!origin || !origin.startsWith('chrome-extension://')) return undefined;
+  return {
+    'Access-Control-Allow-Origin': origin,
+    Vary: 'Origin',
+  };
 }
 
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -101,7 +217,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   // Timing side-channels can reveal daemon presence to local processes, which
   // is an accepted risk given the daemon is loopback-only and short-lived.
   if (req.method === 'GET' && pathname === '/ping') {
-    jsonResponse(res, 200, { ok: true });
+    jsonResponse(res, 200, { ok: true }, getResponseCorsHeaders(pathname, origin));
     return;
   }
 
@@ -117,12 +233,29 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (req.method === 'GET' && pathname === '/status') {
     const uptime = process.uptime();
     const mem = process.memoryUsage();
+    const params = new URL(url, `http://localhost:${PORT}`).searchParams;
+    const requestedContextId = params.get('contextId')?.trim() || undefined;
+    const route = resolveExtensionConnection(requestedContextId);
+    const profiles = activeProfiles().map((profile) => ({
+      contextId: profile.contextId,
+      extensionConnected: true,
+      extensionVersion: profile.extensionVersion ?? undefined,
+      extensionCompatRange: profile.extensionCompatRange ?? undefined,
+      pending: [...pending.values()].filter((entry) => entry.contextId === profile.contextId).length,
+      lastSeenAt: profile.lastSeenAt,
+    }));
     jsonResponse(res, 200, {
       ok: true,
       pid: process.pid,
       uptime,
-      extensionConnected: extensionWs?.readyState === WebSocket.OPEN,
-      extensionVersion,
+      daemonVersion: PKG_VERSION,
+      extensionConnected: !!route.connection,
+      extensionVersion: route.connection?.extensionVersion ?? undefined,
+      extensionCompatRange: route.connection?.extensionCompatRange ?? undefined,
+      contextId: route.connection?.contextId ?? requestedContextId,
+      profileRequired: route.errorCode === 'profile_required',
+      profileDisconnected: route.errorCode === 'profile_disconnected',
+      profiles,
       pending: pending.size,
       memoryMB: Math.round(mem.rss / 1024 / 1024 * 10) / 10,
       port: PORT,
@@ -160,28 +293,46 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
 
-      if (!extensionWs || extensionWs.readyState !== WebSocket.OPEN) {
-        jsonResponse(res, 503, { id: body.id, ok: false, error: 'Extension not connected. Please install the opencli Browser Bridge extension.' });
+      const route = resolveExtensionConnection(typeof body.contextId === 'string' ? body.contextId : undefined);
+      if (!route.connection) {
+        jsonResponse(res, route.errorCode === 'profile_required' ? 409 : 503, {
+          id: body.id,
+          ok: false,
+          errorCode: route.errorCode,
+          error: route.error,
+          ...(route.errorHint ? { errorHint: route.errorHint } : {}),
+        });
         return;
       }
 
       const timeoutMs = typeof body.timeout === 'number' && body.timeout > 0
         ? body.timeout * 1000
         : 120000;
+      if (pending.has(body.id)) {
+        jsonResponse(res, 409, {
+          id: body.id,
+          ok: false,
+          error: 'Duplicate command id already pending; retry',
+        });
+        return;
+      }
       const result = await new Promise<unknown>((resolve, reject) => {
         const timer = setTimeout(() => {
           pending.delete(body.id);
           reject(new Error(`Command timeout (${timeoutMs / 1000}s)`));
         }, timeoutMs);
-        pending.set(body.id, { resolve, reject, timer });
-        extensionWs!.send(JSON.stringify(body));
+        pending.set(body.id, { contextId: route.connection!.contextId, resolve, reject, timer });
+        route.connection!.ws.send(JSON.stringify(body));
       });
 
       jsonResponse(res, 200, result);
     } catch (err) {
-      jsonResponse(res, err instanceof Error && err.message.includes('timeout') ? 408 : 400, {
+      const commandFailure = err instanceof DaemonCommandFailure ? err : null;
+      jsonResponse(res, commandFailure?.status ?? (err instanceof Error && err.message.includes('timeout') ? 408 : 400), {
         ok: false,
         error: err instanceof Error ? err.message : 'Invalid request',
+        ...(commandFailure?.errorCode ? { errorCode: commandFailure.errorCode } : {}),
+        ...(commandFailure?.errorHint ? { errorHint: commandFailure.errorHint } : {}),
       });
     }
     return;
@@ -207,9 +358,7 @@ const wss = new WebSocketServer({
 });
 
 wss.on('connection', (ws: WebSocket) => {
-  console.error('[daemon] Extension connected');
-  extensionWs = ws;
-  extensionVersion = null; // cleared until hello message arrives
+  log.info('[daemon] Extension connected');
 
   // ── Heartbeat: ping every 15s, close if 2 pongs missed ──
   let missedPongs = 0;
@@ -219,7 +368,7 @@ wss.on('connection', (ws: WebSocket) => {
       return;
     }
     if (missedPongs >= 2) {
-      console.error('[daemon] Extension heartbeat lost, closing connection');
+      log.warn('[daemon] Extension heartbeat lost, closing connection');
       clearInterval(heartbeatInterval);
       ws.terminate();
       return;
@@ -238,14 +387,20 @@ wss.on('connection', (ws: WebSocket) => {
 
       // Handle hello message from extension (version handshake)
       if (msg.type === 'hello') {
-        extensionVersion = typeof msg.version === 'string' ? msg.version : null;
+        const connection = registerExtensionConnection(ws, msg.contextId);
+        connection.extensionVersion = typeof msg.version === 'string' ? msg.version : null;
+        connection.extensionCompatRange = typeof msg.compatRange === 'string' ? msg.compatRange : null;
+        connection.lastSeenAt = Date.now();
+        if (connection.extensionVersion) recordExtensionVersion(connection.extensionVersion);
+        log.info(`[daemon] Extension profile connected: ${connection.contextId}`);
         return;
       }
 
       // Handle log messages from extension
       if (msg.type === 'log') {
-        const prefix = msg.level === 'error' ? '❌' : msg.level === 'warn' ? '⚠️' : '📋';
-        console.error(`${prefix} [ext] ${msg.msg}`);
+        if (msg.level === 'error') log.error(`[ext] ${msg.msg}`);
+        else if (msg.level === 'warn') log.warn(`[ext] ${msg.msg}`);
+        else log.info(`[ext] ${msg.msg}`);
         pushLog({ level: msg.level, msg: msg.msg, ts: msg.ts ?? Date.now() });
         return;
       }
@@ -263,47 +418,29 @@ wss.on('connection', (ws: WebSocket) => {
   });
 
   ws.on('close', () => {
-    console.error('[daemon] Extension disconnected');
+    log.info('[daemon] Extension disconnected');
     clearInterval(heartbeatInterval);
-    if (extensionWs === ws) {
-      extensionWs = null;
-      extensionVersion = null;
-      // Reject all pending requests since the extension is gone
-      for (const [id, p] of pending) {
-        clearTimeout(p.timer);
-        p.reject(new Error('Extension disconnected'));
-      }
-      pending.clear();
-    }
+    unregisterExtensionConnection(ws);
   });
 
   ws.on('error', () => {
     clearInterval(heartbeatInterval);
-    if (extensionWs === ws) {
-      extensionWs = null;
-      extensionVersion = null;
-      // Reject pending requests in case 'close' does not follow this 'error'
-      for (const [, p] of pending) {
-        clearTimeout(p.timer);
-        p.reject(new Error('Extension disconnected'));
-      }
-      pending.clear();
-    }
+    unregisterExtensionConnection(ws);
   });
 });
 
 // ─── Start ───────────────────────────────────────────────────────────
 
 httpServer.listen(PORT, '127.0.0.1', () => {
-  console.error(`[daemon] Listening on http://127.0.0.1:${PORT}`);
+  log.info(`[daemon] Listening on http://127.0.0.1:${PORT}`);
 });
 
 httpServer.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`[daemon] Port ${PORT} already in use — another daemon is likely running. Exiting.`);
+    log.error(`[daemon] Port ${PORT} already in use — another daemon is likely running. Exiting.`);
     process.exit(EXIT_CODES.SERVICE_UNAVAIL);
   }
-  console.error('[daemon] Server error:', err.message);
+  log.error(`[daemon] Server error: ${err.message}`);
   process.exit(EXIT_CODES.GENERIC_ERROR);
 });
 
@@ -315,7 +452,7 @@ function shutdown(): void {
     p.reject(new Error('Daemon shutting down'));
   }
   pending.clear();
-  if (extensionWs) extensionWs.close();
+  for (const profile of extensionProfiles.values()) profile.ws.close();
   httpServer.close();
   process.exit(EXIT_CODES.SUCCESS);
 }

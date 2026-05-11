@@ -3,7 +3,7 @@ name: Build Chrome Extension
 on:
   push:
     branches: [ "main" ]
-    tags: [ "v*.*.*" ]
+    tags: [ "ext-v*" ]
     paths:
       - 'extension/**'
       - '.github/workflows/build-extension.yml'
@@ -26,7 +26,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
           cache-dependency-path: extension/package-lock.json
 
@@ -44,23 +44,22 @@ jobs:
 
       - name: Create Extension ZIP
         run: |
+          EXT_VERSION=$(node -p "require('./extension/package.json').version")
           cd extension-package
-          zip -r ../opencli-extension.zip .
+          zip -r ../opencli-extension-v${EXT_VERSION}.zip .
 
       - name: Upload Artifacts (Action Run)
         uses: actions/upload-artifact@v7
         with:
           name: opencli-extension-build
-          path: |
-            opencli-extension.zip
+          path: opencli-extension-v*.zip
           retention-days: 7
 
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2.6.1
+        uses: softprops/action-gh-release@v3.0.0
         with:
-          files: |
-            opencli-extension.zip
+          files: opencli-extension-v*.zip
           draft: false
           prerelease: false
         env:

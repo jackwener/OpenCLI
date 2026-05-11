@@ -1,146 +1,610 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
+import yaml from 'js-yaml';
+import { cli, getRegistry, Strategy } from './registry.js';
+import { BrowserCommandError } from './browser/daemon-client.js';
 import type { IPage } from './types.js';
+import { TargetError } from './browser/target-errors.js';
+import { PKG_VERSION } from './version.js';
 
 const {
-  mockExploreUrl,
-  mockRenderExploreSummary,
-  mockGenerateVerifiedFromUrl,
-  mockRenderGenerateVerifiedSummary,
-  mockRecordSession,
-  mockRenderRecordSummary,
-  mockCascadeProbe,
-  mockRenderCascadeResult,
-  mockGetBrowserFactory,
-  mockBrowserSession,
+  mockBrowserConnect,
+  mockBrowserClose,
+  mockBindTab,
+  mockSendCommand,
+  mockExecFileSync,
+  browserState,
 } = vi.hoisted(() => ({
-  mockExploreUrl: vi.fn(),
-  mockRenderExploreSummary: vi.fn(),
-  mockGenerateVerifiedFromUrl: vi.fn(),
-  mockRenderGenerateVerifiedSummary: vi.fn(),
-  mockRecordSession: vi.fn(),
-  mockRenderRecordSummary: vi.fn(),
-  mockCascadeProbe: vi.fn(),
-  mockRenderCascadeResult: vi.fn(),
-  mockGetBrowserFactory: vi.fn(() => ({ name: 'BrowserFactory' })),
-  mockBrowserSession: vi.fn(),
+  mockBrowserConnect: vi.fn(),
+  mockBrowserClose: vi.fn(),
+  mockBindTab: vi.fn(),
+  mockSendCommand: vi.fn(),
+  mockExecFileSync: vi.fn(),
+  browserState: { page: null as IPage | null },
 }));
 
-vi.mock('./explore.js', () => ({
-  exploreUrl: mockExploreUrl,
-  renderExploreSummary: mockRenderExploreSummary,
-}));
+vi.mock('./browser/index.js', () => {
+  mockBrowserConnect.mockImplementation(async () => browserState.page as IPage);
+  return {
+    BrowserBridge: class {
+      connect = mockBrowserConnect;
+      close = mockBrowserClose;
+    },
+  };
+});
 
-vi.mock('./generate-verified.js', () => ({
-  generateVerifiedFromUrl: mockGenerateVerifiedFromUrl,
-  renderGenerateVerifiedSummary: mockRenderGenerateVerifiedSummary,
-}));
+vi.mock('./browser/daemon-client.js', async () => {
+  const actual = await vi.importActual<typeof import('./browser/daemon-client.js')>('./browser/daemon-client.js');
+  return {
+    ...actual,
+    bindTab: mockBindTab,
+    sendCommand: mockSendCommand,
+  };
+});
 
-vi.mock('./record.js', () => ({
-  recordSession: mockRecordSession,
-  renderRecordSummary: mockRenderRecordSummary,
-}));
+vi.mock('node:child_process', async () => {
+  const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+  return {
+    ...actual,
+    execFileSync: mockExecFileSync,
+  };
+});
 
-vi.mock('./cascade.js', () => ({
-  cascadeProbe: mockCascadeProbe,
-  renderCascadeResult: mockRenderCascadeResult,
-}));
+import { createProgram, findPackageRoot, normalizeVerifyRows, renderVerifyPreview, resolveBrowserVerifyInvocation, selectFreshByTimestamp } from './cli.js';
 
-vi.mock('./runtime.js', () => ({
-  getBrowserFactory: mockGetBrowserFactory,
-  browserSession: mockBrowserSession,
-}));
+describe('createProgram root help descriptions', () => {
+  function descriptionFor(program: ReturnType<typeof createProgram>, name: string): string | undefined {
+    return program.commands.find(cmd => cmd.name() === name)?.description();
+  }
 
-import { createProgram, findPackageRoot, resolveBrowserVerifyInvocation } from './cli.js';
-
-describe('built-in browser commands verbose wiring', () => {
-  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-  beforeEach(() => {
-    delete process.env.OPENCLI_VERBOSE;
-    process.exitCode = undefined;
-
-    mockExploreUrl.mockReset().mockResolvedValue({ ok: true });
-    mockRenderExploreSummary.mockReset().mockReturnValue('explore-summary');
-    mockGenerateVerifiedFromUrl.mockReset().mockResolvedValue({ status: 'success' });
-    mockRenderGenerateVerifiedSummary.mockReset().mockReturnValue('generate-summary');
-    mockRecordSession.mockReset().mockResolvedValue({ candidateCount: 1 });
-    mockRenderRecordSummary.mockReset().mockReturnValue('record-summary');
-    mockCascadeProbe.mockReset().mockResolvedValue({ ok: true });
-    mockRenderCascadeResult.mockReset().mockReturnValue('cascade-summary');
-    mockGetBrowserFactory.mockClear();
-    mockBrowserSession.mockReset().mockImplementation(async (_factory, fn) => {
-      const page = {
-        goto: vi.fn(),
-        wait: vi.fn(),
-      } as unknown as IPage;
-      return fn(page);
-    });
-  });
-
-  it('enables OPENCLI_VERBOSE for explore via the real CLI command', async () => {
+  it('summarizes built-in command groups with their subcommands', () => {
     const program = createProgram('', '');
 
-    await program.parseAsync(['node', 'opencli', 'explore', 'https://example.com', '-v']);
-
-    expect(process.env.OPENCLI_VERBOSE).toBe('1');
-    expect(mockExploreUrl).toHaveBeenCalledWith(
-      'https://example.com',
-      expect.objectContaining({ workspace: 'explore:example.com' }),
-    );
+    expect(descriptionFor(program, 'browser')).toContain('open');
+    expect(descriptionFor(program, 'browser')).toContain('type');
+    expect(descriptionFor(program, 'browser')).toContain('verify');
+    expect(descriptionFor(program, 'browser')).not.toContain('Browser control');
+    expect(descriptionFor(program, 'plugin')).toBe('create, install, list, uninstall, update');
+    expect(descriptionFor(program, 'adapter')).toBe('eject, reset, status');
+    expect(descriptionFor(program, 'profile')).toBe('list, rename, use');
+    expect(descriptionFor(program, 'daemon')).toBe('restart, status, stop');
+    expect(descriptionFor(program, 'external')).toBe('install, list, register');
   });
 
-  it('enables OPENCLI_VERBOSE for generate via the real CLI command', async () => {
+  it('keeps leaf command descriptions unchanged', () => {
     const program = createProgram('', '');
 
-    await program.parseAsync(['node', 'opencli', 'generate', 'https://example.com', '-v']);
-
-    expect(process.env.OPENCLI_VERBOSE).toBe('1');
-    expect(mockGenerateVerifiedFromUrl).toHaveBeenCalledWith(
-      expect.objectContaining({ url: 'https://example.com', workspace: 'generate:example.com', noRegister: false }),
-    );
+    expect(descriptionFor(program, 'list')).toBe('List all available CLI commands');
+    expect(descriptionFor(program, 'doctor')).toBe('Diagnose opencli browser bridge connectivity');
   });
 
-  it('passes --no-register through the real CLI command', async () => {
-    const program = createProgram('', '');
+  it('keeps site adapters out of root commands and lists sites in the root help tail', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'hot',
+        access: 'read',
+        description: 'Bilibili hot videos',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+      });
+      cli({
+        site: 'youtube',
+        name: 'search',
+        access: 'read',
+        description: 'Search YouTube',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+      });
 
-    await program.parseAsync(['node', 'opencli', 'generate', 'https://example.com', '--no-register']);
+      const program = createProgram('', '');
+      const help = program.helpInformation();
 
-    expect(mockGenerateVerifiedFromUrl).toHaveBeenCalledWith(
-      expect.objectContaining({ url: 'https://example.com', workspace: 'generate:example.com', noRegister: true }),
-    );
+      expect(help).toContain('Site adapters (2):');
+      expect(help).toContain('bilibili, youtube');
+      expect(help).toContain("opencli <site> --help -f yaml");
+      expect(help).not.toMatch(/\n  bilibili\s+hot/);
+      expect(help).not.toMatch(/\n  youtube\s+search/);
+    } finally {
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
   });
 
-  it('enables OPENCLI_VERBOSE for record via the real CLI command', async () => {
-    const program = createProgram('', '');
+  it('groups adapters into App / Site buckets by domain field', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'hot',
+        access: 'read',
+        description: 'Bilibili hot videos',
+        domain: 'www.bilibili.com',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+      });
+      cli({
+        site: 'chatwise',
+        name: 'ask',
+        access: 'write',
+        description: 'Ask Chatwise desktop app',
+        domain: 'localhost',
+        strategy: Strategy.UI,
+        browser: true,
+      });
 
-    await program.parseAsync(['node', 'opencli', 'record', 'https://example.com', '-v']);
+      const program = createProgram('', '');
+      const help = program.helpInformation();
 
-    expect(process.env.OPENCLI_VERBOSE).toBe('1');
-    expect(mockRecordSession).toHaveBeenCalledWith(
-      expect.objectContaining({ url: 'https://example.com' }),
-    );
+      // Two separate sections, each with own count
+      expect(help).toContain('App adapters (1):');
+      expect(help).toMatch(/App adapters \(1\):\n {2}chatwise/);
+      expect(help).toContain('Site adapters (1):');
+      expect(help).toMatch(/Site adapters \(1\):\n {2}bilibili/);
+
+      // App adapters appear before Site adapters (External CLIs are absent here)
+      expect(help.indexOf('App adapters')).toBeLessThan(help.indexOf('Site adapters'));
+    } finally {
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
   });
 
-  it('enables OPENCLI_VERBOSE for cascade via the real CLI command', async () => {
-    const program = createProgram('', '');
+  it('exposes external_clis / app_adapters / site_adapters in structured help', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    const argv = process.argv;
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'hot',
+        access: 'read',
+        description: 'Bilibili hot videos',
+        domain: 'www.bilibili.com',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+      });
+      cli({
+        site: 'chatwise',
+        name: 'ask',
+        access: 'write',
+        description: 'Ask Chatwise desktop app',
+        domain: 'localhost',
+        strategy: Strategy.UI,
+        browser: true,
+      });
 
-    await program.parseAsync(['node', 'opencli', 'cascade', 'https://example.com', '-v']);
+      const program = createProgram('', '');
+      process.argv = ['node', 'opencli', '--help', '-f', 'yaml'];
+      const data = yaml.load(program.helpInformation()) as any;
 
-    expect(process.env.OPENCLI_VERBOSE).toBe('1');
-    expect(mockBrowserSession).toHaveBeenCalled();
-    expect(mockCascadeProbe).toHaveBeenCalledWith(expect.any(Object), 'https://example.com');
+      expect(data.app_adapters.count).toBe(1);
+      expect(data.app_adapters.apps).toEqual(['chatwise']);
+      expect(data.site_adapters.count).toBe(1);
+      expect(data.site_adapters.sites).toEqual(['bilibili']);
+      expect(data.external_clis.count).toBeGreaterThanOrEqual(0);
+      expect(Array.isArray(data.external_clis.clis)).toBe(true);
+      // Adapters must NOT leak into the core commands list
+      const commandNames = data.commands.map((cmd: any) => cmd.name);
+      expect(commandNames).not.toContain('bilibili');
+      expect(commandNames).not.toContain('chatwise');
+    } finally {
+      process.argv = argv;
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
   });
 
-  it('leaves OPENCLI_VERBOSE unset when verbose is omitted', async () => {
-    const program = createProgram('', '');
+  it('renders root structured help with built-ins and site adapter names', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    const argv = process.argv;
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'hot',
+        access: 'read',
+        description: 'Bilibili hot videos',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+      });
 
-    await program.parseAsync(['node', 'opencli', 'explore', 'https://example.com']);
+      const program = createProgram('', '');
+      process.argv = ['node', 'opencli', '--help', '-f', 'yaml'];
+      const data = yaml.load(program.helpInformation()) as any;
 
-    expect(process.env.OPENCLI_VERBOSE).toBeUndefined();
+      expect(data.site_adapters.count).toBe(1);
+      expect(data.site_adapters.sites).toEqual(['bilibili']);
+      expect(data.commands.map((cmd: any) => cmd.name)).toContain('list');
+      expect(data.commands.map((cmd: any) => cmd.name)).not.toContain('bilibili');
+    } finally {
+      process.argv = argv;
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
   });
 
-  consoleLogSpy.mockClear();
+  it('renders per-site structured help with all commands, access, args, and examples', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    const argv = process.argv;
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'hot',
+        access: 'read',
+        description: 'Bilibili hot videos',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+        args: [{ name: 'limit', type: 'int', default: 20, help: 'Number of videos' }],
+        columns: ['title', 'url'],
+      });
+
+      const program = createProgram('', '');
+      const site = program.commands.find(cmd => cmd.name() === 'bilibili');
+      expect(site).toBeTruthy();
+      process.argv = ['node', 'opencli', 'bilibili', '--help', '-f', 'yaml'];
+      const data = yaml.load(site!.helpInformation()) as any;
+
+      expect(data.site).toBe('bilibili');
+      expect(data.commands).toMatchObject([
+        {
+          name: 'hot',
+          access: 'read',
+          description: 'Bilibili hot videos',
+          browser: false,
+          example: 'opencli bilibili hot -f yaml',
+          command_options: [{ name: 'limit', type: 'int', default: 20 }],
+          columns: ['title', 'url'],
+        },
+      ]);
+      expect(data.commands[0]).not.toHaveProperty('args');
+    } finally {
+      process.argv = argv;
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
+  });
+
+  it('renders per-site text help without per-command common option noise', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'hot',
+        access: 'read',
+        description: 'Bilibili hot videos',
+        strategy: Strategy.PUBLIC,
+        browser: false,
+        args: [{ name: 'limit', type: 'int', default: 20, help: 'Number of videos' }],
+      });
+      cli({
+        site: 'bilibili',
+        name: 'video',
+        access: 'read',
+        description: 'Read one video',
+        domain: 'www.bilibili.com',
+        strategy: Strategy.PUBLIC,
+        browser: true,
+        args: [{ name: 'bvid', positional: true, required: true, help: 'Video id' }],
+      });
+
+      const program = createProgram('', '');
+      const site = program.commands.find(cmd => cmd.name() === 'bilibili');
+      expect(site).toBeTruthy();
+      const help = site!.helpInformation();
+
+      expect(help).toContain('hot [options]  [read] Bilibili hot videos');
+      expect(help).toContain('video <bvid>   [read] Read one video');
+      expect(help).toContain('hot [options]');
+      expect(help).not.toContain('video <bvid> [options]');
+      expect(help).not.toContain('\nOptions:');
+      expect(help).toContain('Common options:');
+      expect(help).toContain('-f, --format <fmt>');
+      expect(help).toContain('--trace <mode>');
+      expect(help).toContain('get all command args/options in one structured response');
+    } finally {
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
+  });
+
+  it('separates command args from common options in structured help', () => {
+    const registry = getRegistry();
+    const snapshot = new Map(registry);
+    const argv = process.argv;
+    registry.clear();
+    try {
+      cli({
+        site: 'bilibili',
+        name: 'video',
+        access: 'read',
+        description: 'Read one video',
+        strategy: Strategy.PUBLIC,
+        domain: 'www.bilibili.com',
+        browser: true,
+        args: [
+          { name: 'bvid', positional: true, required: true, help: 'Video id' },
+          { name: 'with-comments', type: 'boolean', default: false, help: 'Include comments' },
+        ],
+        columns: ['title', 'url'],
+      });
+
+      const program = createProgram('', '');
+      const site = program.commands.find(cmd => cmd.name() === 'bilibili');
+      const command = site!.commands.find(cmd => cmd.name() === 'video');
+      expect(command).toBeTruthy();
+      process.argv = ['node', 'opencli', 'bilibili', 'video', '--help', '-f', 'yaml'];
+      const data = yaml.load(command!.helpInformation()) as any;
+
+      expect(data.usage).toBe('opencli bilibili video <bvid> [options]');
+      expect(data.browser).toBe(true);
+      expect(data.domain).toBe('www.bilibili.com');
+      expect(data.positionals).toMatchObject([{ name: 'bvid', positional: true, required: true }]);
+      expect(data.command_options).toMatchObject([{ name: 'with-comments', default: false }]);
+      expect(data.common_options.map((option: any) => option.name)).toEqual(['format', 'trace', 'verbose', 'help']);
+      expect(data.columns).toEqual(['title', 'url']);
+      expect(data).not.toHaveProperty('args');
+    } finally {
+      process.argv = argv;
+      registry.clear();
+      for (const [key, value] of snapshot) registry.set(key, value);
+    }
+  });
+
+  it('renders browser namespace structured help from Commander metadata', () => {
+    const argv = process.argv;
+    try {
+      const program = createProgram('', '');
+      const browser = program.commands.find(cmd => cmd.name() === 'browser');
+      expect(browser).toBeTruthy();
+
+      process.argv = ['node', 'opencli', 'browser', '--session', 'test', '--help', '-f', 'yaml'];
+      const data = yaml.load(browser!.helpInformation()) as any;
+
+      expect(data.namespace).toBe('browser');
+      expect(data.command).toBe('opencli browser');
+      expect(data.description).toBe('Browser control — navigate, click, type, extract, wait (no LLM needed)');
+      expect(data.command_count).toBeGreaterThan(20);
+      expect(data.namespace_options).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          name: 'session',
+          flags: '--session <name>',
+          takes_value: 'required',
+        }),
+        expect.objectContaining({
+          name: 'window',
+          flags: '--window <mode>',
+          takes_value: 'required',
+        }),
+      ]));
+      expect(data.global_options).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          name: 'version',
+          flags: '-V, --version',
+        }),
+        expect.objectContaining({
+          name: 'profile',
+          flags: '--profile <name>',
+          takes_value: 'required',
+        }),
+      ]));
+
+      const click = data.commands.find((cmd: any) => cmd.name === 'click');
+      expect(click).toMatchObject({
+        command: 'opencli browser click',
+        usage: 'opencli browser click [target] [options]',
+        positionals: [{ name: 'target' }],
+      });
+      expect(click.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab']);
+
+      const tabList = data.commands.find((cmd: any) => cmd.name === 'tab list');
+      expect(tabList).toMatchObject({
+        command: 'opencli browser tab list',
+        usage: 'opencli browser tab list [options]',
+        command_options: [],
+      });
+
+      const getText = data.commands.find((cmd: any) => cmd.name === 'get text');
+      expect(getText).toMatchObject({
+        command: 'opencli browser get text',
+        positionals: [{ name: 'target' }],
+      });
+      expect(data.structured_help).toMatchObject({
+        formats: ['yaml', 'json'],
+        usage: 'opencli browser --help -f yaml',
+      });
+    } finally {
+      process.argv = argv;
+    }
+  });
+
+  it('renders nested browser parent structured help for a subtree', () => {
+    const argv = process.argv;
+    try {
+      const program = createProgram('', '');
+      const browser = program.commands.find(cmd => cmd.name() === 'browser')!;
+      const tab = browser.commands.find(cmd => cmd.name() === 'tab');
+      expect(tab).toBeTruthy();
+
+      process.argv = ['node', 'opencli', 'browser', '--session', 'test', 'tab', '--help', '-f', 'yaml'];
+      const data = yaml.load(tab!.helpInformation()) as any;
+
+      expect(data).toMatchObject({
+        namespace: 'browser',
+        group: 'tab',
+        command: 'opencli browser tab',
+        usage: 'opencli browser tab <command> [args] [options]',
+        command_count: 4,
+      });
+      expect(data.commands.map((cmd: any) => cmd.name)).toEqual([
+        'tab close',
+        'tab list',
+        'tab new',
+        'tab select',
+      ]);
+      expect(data.commands.find((cmd: any) => cmd.name === 'tab close')).toMatchObject({
+        command: 'opencli browser tab close',
+        usage: 'opencli browser tab close [targetId] [options]',
+        positionals: [{ name: 'targetId', help: 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"' }],
+      });
+      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['session', 'window']);
+      expect(data.structured_help).toMatchObject({
+        usage: 'opencli browser tab --help -f yaml',
+      });
+    } finally {
+      process.argv = argv;
+    }
+  });
+
+  it('renders browser command structured help without needing the full namespace dump', () => {
+    const argv = process.argv;
+    try {
+      const program = createProgram('', '');
+      const browser = program.commands.find(cmd => cmd.name() === 'browser')!;
+      const click = browser.commands.find(cmd => cmd.name() === 'click');
+      expect(click).toBeTruthy();
+
+      process.argv = ['node', 'opencli', 'browser', '--session', 'test', 'click', '--help', '-f', 'yaml'];
+      const data = yaml.load(click!.helpInformation()) as any;
+
+      expect(data).toMatchObject({
+        namespace: 'browser',
+        name: 'click',
+        command: 'opencli browser click',
+        usage: 'opencli browser click [target] [options]',
+        positionals: [{ name: 'target' }],
+        structured_help: {
+          usage: 'opencli browser click --help -f yaml',
+        },
+      });
+      expect(data.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab']);
+      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['session', 'window']);
+      expect(data.global_options.map((option: any) => option.name)).toContain('profile');
+    } finally {
+      process.argv = argv;
+    }
+  });
+
+  it('renders daemon namespace structured help with leaves and global options', () => {
+    const argv = process.argv;
+    try {
+      const program = createProgram('', '');
+      const daemon = program.commands.find(cmd => cmd.name() === 'daemon')!;
+      expect(daemon).toBeTruthy();
+
+      process.argv = ['node', 'opencli', 'daemon', '--help', '-f', 'yaml'];
+      const data = yaml.load(daemon.helpInformation()) as any;
+
+      expect(data).toMatchObject({
+        namespace: 'daemon',
+        command: 'opencli daemon',
+        usage: 'opencli daemon <command> [args] [options]',
+        description: 'Manage the opencli daemon',
+        command_count: 3,
+        namespace_options: [],
+        structured_help: { usage: 'opencli daemon --help -f yaml' },
+      });
+      expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['restart', 'status', 'stop']);
+      expect(data.global_options.map((option: any) => option.name)).toEqual(expect.arrayContaining(['version', 'profile']));
+    } finally {
+      process.argv = argv;
+    }
+  });
+
+  it('renders plugin namespace structured help with positional + option leaves', () => {
+    const argv = process.argv;
+    try {
+      const program = createProgram('', '');
+      const plugin = program.commands.find(cmd => cmd.name() === 'plugin')!;
+      expect(plugin).toBeTruthy();
+
+      process.argv = ['node', 'opencli', 'plugin', '--help', '-f', 'yaml'];
+      const data = yaml.load(plugin.helpInformation()) as any;
+
+      expect(data).toMatchObject({
+        namespace: 'plugin',
+        command: 'opencli plugin',
+        description: 'Manage opencli plugins',
+        namespace_options: [],
+      });
+      expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['create', 'install', 'list', 'uninstall', 'update']);
+      const update = data.commands.find((cmd: any) => cmd.name === 'update');
+      expect(update).toMatchObject({
+        usage: 'opencli plugin update [name] [options]',
+        positionals: [{ name: 'name' }],
+      });
+      expect(update.command_options.map((option: any) => option.name)).toEqual(['all']);
+    } finally {
+      process.argv = argv;
+    }
+  });
+
+  it('renders adapter namespace structured help preserving original description after applyRootSubcommandSummaries', () => {
+    const argv = process.argv;
+    try {
+      const program = createProgram('', '');
+      const adapter = program.commands.find(cmd => cmd.name() === 'adapter')!;
+      expect(adapter).toBeTruthy();
+
+      process.argv = ['node', 'opencli', 'adapter', '--help', '-f', 'yaml'];
+      const data = yaml.load(adapter.helpInformation()) as any;
+
+      // applyRootSubcommandSummaries() rewrites .description() to a child-name listing;
+      // structured help must surface the original product description via the snapshot.
+      expect(data.description).toBe('Manage CLI adapters');
+      expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['eject', 'reset', 'status']);
+      const reset = data.commands.find((cmd: any) => cmd.name === 'reset');
+      expect(reset).toMatchObject({
+        usage: 'opencli adapter reset [site] [options]',
+        positionals: [{ name: 'site' }],
+      });
+      expect(reset.command_options.map((option: any) => option.name)).toEqual(['all']);
+    } finally {
+      process.argv = argv;
+    }
+  });
+
+  it('renders profile namespace structured help including required positionals', () => {
+    const argv = process.argv;
+    try {
+      const program = createProgram('', '');
+      const profile = program.commands.find(cmd => cmd.name() === 'profile')!;
+      expect(profile).toBeTruthy();
+
+      process.argv = ['node', 'opencli', 'profile', '--help', '-f', 'yaml'];
+      const data = yaml.load(profile.helpInformation()) as any;
+
+      expect(data).toMatchObject({
+        namespace: 'profile',
+        description: 'Manage Browser Bridge Chrome profiles',
+        command_count: 3,
+      });
+      expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['list', 'rename', 'use']);
+      const rename = data.commands.find((cmd: any) => cmd.name === 'rename');
+      expect(rename).toMatchObject({
+        usage: 'opencli profile rename <contextId> <alias> [options]',
+        positionals: [
+          { name: 'contextId', required: true },
+          { name: 'alias', required: true },
+        ],
+      });
+    } finally {
+      process.argv = argv;
+    }
+  });
 });
 
 describe('resolveBrowserVerifyInvocation', () => {
@@ -215,6 +679,2499 @@ describe('resolveBrowserVerifyInvocation', () => {
   });
 });
 
+describe('selectFreshByTimestamp', () => {
+  it('uses timestamp watermarks so rolled buffers still emit new messages', () => {
+    const first = selectFreshByTimestamp([
+      { timestamp: 1, text: 'a' },
+      { timestamp: 2, text: 'b' },
+    ], 0);
+    expect(first.fresh.map((item) => item.text)).toEqual(['a', 'b']);
+    expect(first.lastSeenTs).toBe(2);
+
+    const rolled = selectFreshByTimestamp([
+      { timestamp: 2, text: 'b' },
+      { timestamp: 3, text: 'c' },
+    ], first.lastSeenTs);
+    expect(rolled.fresh.map((item) => item.text)).toEqual(['c']);
+    expect(rolled.lastSeenTs).toBe(3);
+  });
+});
+
+describe('browser verify', () => {
+  beforeEach(() => {
+    process.exitCode = undefined;
+    mockExecFileSync.mockReset().mockReturnValue('[]');
+  });
+
+  it('passes --trace through to the adapter subprocess', async () => {
+    const originalHome = process.env.HOME;
+    const originalUserProfile = process.env.USERPROFILE;
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-verify-trace-'));
+    process.env.HOME = fakeHome;
+    process.env.USERPROFILE = fakeHome;
+
+    try {
+      const adapterDir = path.join(fakeHome, '.opencli', 'clis', 'hn');
+      fs.mkdirSync(adapterDir, { recursive: true });
+      fs.writeFileSync(path.join(adapterDir, 'top.js'), 'export default {};\n', 'utf-8');
+
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'verify', 'hn/top', '--no-fixture', '--trace', 'retain-on-failure']);
+
+      expect(mockExecFileSync).toHaveBeenCalledTimes(1);
+      const [, execArgs] = mockExecFileSync.mock.calls[0] as [string, string[]];
+      expect(execArgs.slice(-6)).toEqual(['hn', 'top', '--trace', 'retain-on-failure', '--format', 'json']);
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = originalUserProfile;
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  it('uses --seed-args when no fixture args exist', async () => {
+    const originalHome = process.env.HOME;
+    const originalUserProfile = process.env.USERPROFILE;
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-verify-seed-'));
+    process.env.HOME = fakeHome;
+    process.env.USERPROFILE = fakeHome;
+
+    try {
+      const adapterDir = path.join(fakeHome, '.opencli', 'clis', 'hn');
+      fs.mkdirSync(adapterDir, { recursive: true });
+      fs.writeFileSync(path.join(adapterDir, 'top.js'), 'export default {};\n', 'utf-8');
+
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'verify', 'hn/top', '--no-fixture', '--seed-args', 'opencli-verify']);
+
+      expect(mockExecFileSync).toHaveBeenCalledTimes(1);
+      const [, execArgs] = mockExecFileSync.mock.calls[0] as [string, string[]];
+      expect(execArgs.slice(-5)).toEqual(['hn', 'top', 'opencli-verify', '--format', 'json']);
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = originalUserProfile;
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  it('writes --seed-args into a starter fixture', async () => {
+    const originalHome = process.env.HOME;
+    const originalUserProfile = process.env.USERPROFILE;
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-verify-write-seed-'));
+    process.env.HOME = fakeHome;
+    process.env.USERPROFILE = fakeHome;
+    mockExecFileSync.mockReturnValue(JSON.stringify([{ title: 'ok' }]));
+
+    try {
+      const adapterDir = path.join(fakeHome, '.opencli', 'clis', 'hn');
+      fs.mkdirSync(adapterDir, { recursive: true });
+      fs.writeFileSync(path.join(adapterDir, 'top.js'), 'export default {};\n', 'utf-8');
+
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'verify', 'hn/top', '--write-fixture', '--seed-args', 'opencli-verify']);
+
+      const fixtureFile = path.join(fakeHome, '.opencli', 'sites', 'hn', 'verify', 'top.json');
+      const fixture = JSON.parse(fs.readFileSync(fixtureFile, 'utf-8'));
+      expect(fixture.args).toEqual(['opencli-verify']);
+      expect(fixture.expect.columns).toEqual(['title']);
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = originalUserProfile;
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  it('fails before fixture handling when output row shape is not agent-native', async () => {
+    const originalHome = process.env.HOME;
+    const originalUserProfile = process.env.USERPROFILE;
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-verify-shape-'));
+    process.env.HOME = fakeHome;
+    process.env.USERPROFILE = fakeHome;
+    mockExecFileSync.mockReturnValue(JSON.stringify([{ title: 'ok', author: { user_id: 'u1' } }]));
+    const consoleLogSpy = vi.mocked(console.log);
+    consoleLogSpy.mockClear();
+
+    try {
+      const adapterDir = path.join(fakeHome, '.opencli', 'clis', 'hn');
+      fs.mkdirSync(adapterDir, { recursive: true });
+      fs.writeFileSync(path.join(adapterDir, 'top.js'), 'export default {};\n', 'utf-8');
+
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'verify', 'hn/top', '--no-fixture']);
+
+      expect(process.exitCode).toBe(1);
+      const output = consoleLogSpy.mock.calls.map((args) => args.join(' ')).join('\n');
+      expect(output).toContain('Adapter output violates row shape conventions');
+      expect(output).toContain('author.user_id');
+    } finally {
+      consoleLogSpy.mockClear();
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = originalUserProfile;
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('profile list', () => {
+  const stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    stdoutSpy.mockClear();
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  it('reports stale daemon instead of no profiles when status lacks profile support', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        pid: 123,
+        uptime: 1,
+        daemonVersion: '1.7.6',
+        extensionConnected: true,
+        extensionVersion: '1.0.3',
+        pending: 0,
+        memoryMB: 20,
+        port: 19825,
+      }),
+    } as Response);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'profile', 'list']);
+
+    const output = stdoutSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('stale');
+    expect(output).toContain('opencli daemon restart');
+    expect(output).not.toContain('No Browser Bridge profiles connected');
+  });
+
+  it('keeps the empty profile message for current daemon status with no profiles', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        pid: 123,
+        uptime: 1,
+        daemonVersion: PKG_VERSION,
+        extensionConnected: false,
+        profiles: [],
+        pending: 0,
+        memoryMB: 20,
+        port: 19825,
+      }),
+    } as Response);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'profile', 'list']);
+
+    const output = stdoutSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('No Browser Bridge profiles connected');
+    expect(output).not.toContain('opencli daemon restart');
+  });
+});
+
+describe('browser tab targeting commands', () => {
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+  function getBrowserStateFile(cacheDir: string, session: string = 'test'): string {
+    return path.join(cacheDir, 'browser-state', `${session}.json`);
+  }
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    process.env.OPENCLI_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tab-state-'));
+    consoleLogSpy.mockClear();
+    stderrSpy.mockClear();
+    mockBrowserConnect.mockClear();
+    mockBrowserClose.mockReset().mockResolvedValue(undefined);
+    delete process.env.OPENCLI_WINDOW;
+    mockBindTab.mockReset().mockResolvedValue({
+      session: 'test',
+      page: 'tab-2',
+      url: 'https://user.example/inbox',
+      title: 'Inbox',
+    });
+    mockSendCommand.mockReset().mockResolvedValue({ closed: true });
+
+    browserState.page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      getCurrentUrl: vi.fn().mockResolvedValue('https://one.example'),
+      startNetworkCapture: vi.fn().mockResolvedValue(true),
+      getCookies: vi.fn().mockResolvedValue([]),
+      evaluate: vi.fn().mockResolvedValue({ ok: true }),
+      snapshot: vi.fn().mockResolvedValue('snapshot'),
+      tabs: vi.fn().mockResolvedValue([
+        { index: 0, page: 'tab-1', url: 'https://one.example', title: 'one', active: true },
+        { index: 1, page: 'tab-2', url: 'https://two.example', title: 'two', active: false },
+      ]),
+      selectTab: vi.fn().mockResolvedValue(undefined),
+      newTab: vi.fn().mockResolvedValue('tab-3'),
+      closeTab: vi.fn().mockResolvedValue(undefined),
+      handleJavaScriptDialog: vi.fn().mockResolvedValue(undefined),
+      frames: vi.fn().mockResolvedValue([
+        { index: 0, frameId: 'frame-1', url: 'https://x.example/embed', name: 'x-embed' },
+      ]),
+      evaluateInFrame: vi.fn().mockResolvedValue('inside frame'),
+      screenshot: vi.fn().mockResolvedValue('base64-shot'),
+      annotatedScreenshot: vi.fn().mockResolvedValue('annotated-base64-shot'),
+      readNetworkCapture: vi.fn().mockResolvedValue([]),
+      closeWindow: vi.fn().mockResolvedValue(undefined),
+      waitForDownload: vi.fn().mockResolvedValue({
+        downloaded: true,
+        filename: '/tmp/receipt.pdf',
+        url: 'https://app.example/receipt.pdf',
+        state: 'complete',
+        elapsedMs: 10,
+      }),
+      session: 'test',
+    } as unknown as IPage;
+  });
+
+  function lastJsonLog(): any {
+    const calls = consoleLogSpy.mock.calls;
+    if (calls.length === 0) throw new Error('Expected at least one console.log call');
+    const last = calls[calls.length - 1][0];
+    if (typeof last !== 'string') throw new Error(`Expected string arg to console.log, got ${typeof last}`);
+    return JSON.parse(last);
+  }
+
+  it('binds the current Chrome tab into a browser session', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'bind']);
+
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, session: 'test', surface: 'browser' });
+    expect(mockBindTab).toHaveBeenCalledWith('test', {});
+    const out = lastJsonLog();
+    expect(out.session).toBe('test');
+    expect(out.url).toBe('https://user.example/inbox');
+  });
+
+  it('requires an explicit session for browser commands', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', 'state']);
+
+    expect(mockBrowserConnect).not.toHaveBeenCalled();
+    expect(stderrSpy.mock.calls.flat().join('')).toContain('--session <name> is required');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('runs browser commands against an explicit session', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'state']);
+
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, session: 'test', surface: 'browser', windowMode: 'foreground' });
+    expect(browserState.page?.snapshot).toHaveBeenCalled();
+  });
+
+  it('passes browser --window through Commander options without relying on env pre-processing', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', '--window', 'background', 'state']);
+
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, session: 'test', surface: 'browser', windowMode: 'background' });
+    expect(browserState.page?.snapshot).toHaveBeenCalled();
+  });
+
+  it('passes the opt-in AX source to browser state', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'state', '--source', 'ax']);
+
+    expect(browserState.page?.snapshot).toHaveBeenCalledWith({ viewportExpand: 2000, source: 'ax' });
+  });
+
+  it('prints DOM vs AX snapshot metrics without changing default state output', async () => {
+    browserState.page = {
+      ...browserState.page,
+      snapshot: vi.fn(async (opts?: { source?: string }) => {
+        if (opts?.source === 'ax') {
+          return 'source: ax\n---\n[1]button "Save"\nframe "https://app.example/embed":\n  [2]button "Frame Save"\n---\ninteractive: 2';
+        }
+        return 'URL: https://app.example\n[1] button "Save"';
+      }),
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'state', '--compare-sources']);
+
+    expect(browserState.page?.snapshot).toHaveBeenCalledWith({ viewportExpand: 2000, source: 'dom' });
+    expect(browserState.page?.snapshot).toHaveBeenCalledWith({ viewportExpand: 2000, source: 'ax' });
+    const out = lastJsonLog();
+    expect(out.url).toBe('https://one.example');
+    expect(out.sources.dom).toMatchObject({ ok: true, refs: 1, frame_sections: 0 });
+    expect(out.sources.ax).toMatchObject({ ok: true, refs: 2, frame_sections: 1, interactive: 2 });
+  });
+
+  it('keeps compare-sources usable when one observation backend fails', async () => {
+    browserState.page = {
+      ...browserState.page,
+      snapshot: vi.fn(async (opts?: { source?: string }) => {
+        if (opts?.source === 'ax') throw new Error('AX unavailable');
+        return '[1] button "Save"';
+      }),
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'state', '--compare-sources']);
+
+    const out = lastJsonLog();
+    expect(out.sources.dom).toMatchObject({ ok: true, refs: 1 });
+    expect(out.sources.ax).toMatchObject({
+      ok: false,
+      error: { message: 'AX unavailable' },
+    });
+  });
+
+  it('rejects unknown browser state sources before touching the page', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'state', '--source', 'magic']);
+
+    expect(browserState.page?.snapshot).not.toHaveBeenCalled();
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('invalid_source');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('captures annotated screenshots through the visual ref overlay path', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'screenshot', '--annotate']);
+
+    expect(browserState.page?.annotatedScreenshot).toHaveBeenCalledWith({
+      fullPage: false,
+      annotate: true,
+      width: undefined,
+      height: undefined,
+      format: 'png',
+    });
+    expect(browserState.page?.screenshot).not.toHaveBeenCalled();
+    expect(consoleLogSpy).toHaveBeenLastCalledWith('annotated-base64-shot');
+  });
+
+  it('allows history navigation in a bound session', async () => {
+    browserState.page = {
+      ...browserState.page,
+      evaluate: vi.fn(),
+      wait: vi.fn(),
+      session: 'test',
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'back']);
+
+    expect(browserState.page?.evaluate).toHaveBeenCalledWith('history.back()');
+  });
+
+  it('unbinds a session through the daemon close-window command', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'unbind']);
+
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, session: 'test', surface: 'browser' });
+    expect(mockSendCommand).toHaveBeenCalledWith('close-window', { session: 'test', surface: 'browser' });
+    const out = lastJsonLog();
+    expect(out).toEqual({ unbound: true, session: 'test' });
+  });
+
+  it('does not print false success when unbind fails', async () => {
+    mockSendCommand.mockRejectedValueOnce(new BrowserCommandError(
+      'Session "test" is not attached to a tab.',
+      'bound_session_missing',
+      'Run bind again, then retry the browser command.',
+    ));
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'unbind']);
+
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('bound_session_missing');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('accepts JavaScript dialogs through the browser dialog command', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'dialog', 'accept', '--text', 'ok']);
+
+    expect(browserState.page?.handleJavaScriptDialog).toHaveBeenCalledWith(true, 'ok');
+    const out = lastJsonLog();
+    expect(out).toEqual({ handled: true, action: 'accept', text: 'ok' });
+  });
+
+  it('emits a structured error when a browser action is blocked by a JavaScript dialog', async () => {
+    browserState.page = {
+      ...browserState.page,
+      evaluate: vi.fn().mockRejectedValue(new Error('JavaScript dialog showing')),
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'eval', 'document.title']);
+
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('javascript_dialog_open');
+    expect(out.error.hint).toContain('browser dialog accept');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('binds browser commands to an explicit target tab via --tab', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'eval', '--tab', 'tab-2', 'document.title']);
+
+    expect(browserState.page?.setActivePage).toHaveBeenCalledWith('tab-2');
+    expect(browserState.page?.evaluate).toHaveBeenCalledWith('document.title');
+  });
+
+  it('rejects an explicit --tab target that is no longer in the current session', async () => {
+    browserState.page = {
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn(),
+      tabs: vi.fn().mockResolvedValue([]),
+      evaluate: vi.fn(),
+    } as unknown as IPage;
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'eval', '--tab', 'tab-stale', 'document.title']);
+
+    expect(process.exitCode).toBeDefined();
+    expect(browserState.page?.setActivePage).not.toHaveBeenCalled();
+    expect(browserState.page?.evaluate).not.toHaveBeenCalled();
+    expect(stderrSpy.mock.calls.flat().join('\n')).toContain('Target tab tab-stale is not part of the current browser session');
+  });
+
+  it('lists tabs with target IDs via browser tab list', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'tab', 'list']);
+
+    expect(browserState.page?.tabs).toHaveBeenCalledTimes(1);
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"page": "tab-1"');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"page": "tab-2"');
+  });
+
+  it('creates a new tab and prints its target ID', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'tab', 'new', 'https://three.example']);
+
+    expect(browserState.page?.newTab).toHaveBeenCalledWith('https://three.example');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"page": "tab-3"');
+  });
+
+  it('prints the resolved target ID when browser open creates or navigates a tab', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'open', 'https://example.com']);
+
+    expect(browserState.page?.goto).toHaveBeenCalledWith('https://example.com');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"url": "https://one.example"');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"page": "tab-1"');
+  });
+
+  it('lists cross-origin frames via browser frames', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'frames']);
+
+    expect(browserState.page?.frames).toHaveBeenCalledTimes(1);
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"frameId": "frame-1"');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"url": "https://x.example/embed"');
+  });
+
+  it('routes browser eval --frame through frame-targeted evaluation', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'eval', '--frame', '0', 'document.title']);
+
+    expect(browserState.page?.evaluateInFrame).toHaveBeenCalledWith('document.title', 0);
+    expect(browserState.page?.evaluate).not.toHaveBeenCalled();
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('inside frame');
+  });
+
+  it('does not promote a newly created tab to the persisted default target', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'tab', 'new', 'https://three.example']);
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'eval', 'document.title']);
+
+    expect(browserState.page?.newTab).toHaveBeenCalledWith('https://three.example');
+    expect(browserState.page?.setActivePage).not.toHaveBeenCalled();
+    expect(browserState.page?.evaluate).toHaveBeenCalledWith('document.title');
+  });
+
+  it('persists an explicitly selected tab as the default target for later untargeted commands', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'tab', 'select', 'tab-2']);
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'eval', 'document.title']);
+
+    expect(browserState.page?.selectTab).toHaveBeenCalledWith('tab-2');
+    expect(browserState.page?.setActivePage).toHaveBeenCalledWith('tab-2');
+    expect(browserState.page?.evaluate).toHaveBeenCalledWith('document.title');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"selected": "tab-2"');
+  });
+
+  it('clears a saved default target when it is no longer present in the current session', async () => {
+    const cacheDir = String(process.env.OPENCLI_CACHE_DIR);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'tab', 'select', 'tab-2']);
+    expect(fs.existsSync(getBrowserStateFile(cacheDir))).toBe(true);
+
+    browserState.page = {
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn(),
+      tabs: vi.fn().mockResolvedValue([]),
+      evaluate: vi.fn().mockResolvedValue({ ok: true }),
+      readNetworkCapture: vi.fn().mockResolvedValue([]),
+    } as unknown as IPage;
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'eval', 'document.title']);
+
+    expect(browserState.page?.setActivePage).not.toHaveBeenCalled();
+    expect(browserState.page?.evaluate).toHaveBeenCalledWith('document.title');
+    expect(fs.existsSync(getBrowserStateFile(cacheDir))).toBe(false);
+  });
+
+  it('clears the persisted default target when that tab is closed', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'tab', 'select', 'tab-2']);
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'tab', 'close', 'tab-2']);
+    vi.mocked(browserState.page?.setActivePage as any).mockClear();
+    vi.mocked(browserState.page?.evaluate as any).mockClear();
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'eval', 'document.title']);
+
+    expect(browserState.page?.closeTab).toHaveBeenCalledWith('tab-2');
+    expect(browserState.page?.setActivePage).not.toHaveBeenCalled();
+    expect(browserState.page?.evaluate).toHaveBeenCalledWith('document.title');
+  });
+
+  it('closes a tab by target ID', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'tab', 'close', 'tab-2']);
+
+    expect(browserState.page?.closeTab).toHaveBeenCalledWith('tab-2');
+    expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"closed": "tab-2"');
+  });
+
+  it('rejects closing a stale tab target ID that is no longer in the current session', async () => {
+    browserState.page = {
+      session: 'test',
+      tabs: vi.fn().mockResolvedValue([]),
+      closeTab: vi.fn(),
+    } as unknown as IPage;
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'tab', 'close', 'tab-stale']);
+
+    expect(process.exitCode).toBeDefined();
+    expect(browserState.page?.closeTab).not.toHaveBeenCalled();
+    expect(stderrSpy.mock.calls.flat().join('\n')).toContain('Target tab tab-stale is not part of the current browser session');
+  });
+
+  it('browser analyze merges HttpOnly cookie names from page.getCookies and drains stale capture before verdict', async () => {
+    browserState.page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      getCurrentUrl: vi.fn().mockResolvedValue('https://target.example'),
+      startNetworkCapture: vi.fn().mockResolvedValue(true),
+      getCookies: vi.fn().mockResolvedValue([{ name: 'cf_clearance', value: 'x', domain: '.target.example' }]),
+      evaluate: vi.fn().mockResolvedValue({
+        cookieNames: [],
+        initialState: {
+          __INITIAL_STATE__: false,
+          __NUXT__: false,
+          __NEXT_DATA__: false,
+          __APOLLO_STATE__: false,
+        },
+        title: 'Target',
+        finalUrl: 'https://target.example/',
+      }),
+      tabs: vi.fn().mockResolvedValue([{ index: 0, page: 'tab-1', url: 'https://target.example', title: 'Target', active: true }]),
+      readNetworkCapture: vi.fn()
+        .mockResolvedValueOnce([
+          {
+            url: 'https://stale.example/api/old',
+            method: 'GET',
+            responseStatus: 200,
+            responseContentType: 'application/json',
+            responsePreview: '{"stale":true}',
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            url: 'https://target.example/waf',
+            method: 'GET',
+            responseStatus: 403,
+            responseContentType: 'text/html',
+            responsePreview: 'Cloudflare Ray ID',
+          },
+        ]),
+    } as unknown as IPage;
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'analyze', 'https://target.example/']);
+
+    const out = lastJsonLog();
+    expect(browserState.page?.readNetworkCapture).toHaveBeenCalledTimes(2);
+    expect(out.anti_bot.vendor).toBe('cloudflare');
+    expect(out.anti_bot.evidence).toContain('cookie:cf_clearance');
+  });
+
+  it('browser analyze falls back to interceptor buffer when network capture is unsupported', async () => {
+    let bufferReads = 0;
+    browserState.page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      getCurrentUrl: vi.fn().mockResolvedValue('https://target.example'),
+      startNetworkCapture: vi.fn().mockResolvedValue(false),
+      getCookies: vi.fn().mockResolvedValue([{ name: 'cf_clearance', value: 'x', domain: '.target.example' }]),
+      evaluate: vi.fn().mockImplementation(async (arg: string) => {
+        if (typeof arg === 'string' && arg.includes('document.cookie')) {
+          return {
+            cookieNames: [],
+            initialState: {
+              __INITIAL_STATE__: false,
+              __NUXT__: false,
+              __NEXT_DATA__: false,
+              __APOLLO_STATE__: false,
+            },
+            title: 'Target',
+            finalUrl: 'https://target.example/',
+          };
+        }
+        if (typeof arg === 'string' && arg.includes('window.__opencli_net = []')) {
+          bufferReads += 1;
+          if (bufferReads === 1) {
+            return JSON.stringify([
+              {
+                url: 'https://stale.example/api/old',
+                method: 'GET',
+                status: 200,
+                size: 12,
+                ct: 'application/json',
+                body: { stale: true },
+              },
+            ]);
+          }
+          return JSON.stringify([
+            {
+              url: 'https://target.example/waf',
+              method: 'GET',
+              status: 403,
+              size: 17,
+              ct: 'text/html',
+              body: 'Cloudflare Ray ID',
+            },
+          ]);
+        }
+        return undefined;
+      }),
+      tabs: vi.fn().mockResolvedValue([{ index: 0, page: 'tab-1', url: 'https://target.example', title: 'Target', active: true }]),
+      readNetworkCapture: vi.fn().mockResolvedValue([]),
+    } as unknown as IPage;
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'analyze', 'https://target.example/']);
+
+    const out = lastJsonLog();
+    expect(browserState.page?.readNetworkCapture).toHaveBeenCalledTimes(2);
+    expect(bufferReads).toBe(2);
+    expect(out.anti_bot.vendor).toBe('cloudflare');
+    expect(out.anti_bot.evidence).toContain('cookie:cf_clearance');
+    expect(out.anti_bot.evidence).toContain('body:https://target.example/waf');
+  });
+
+  it('browser wait xhr starts capture, injects interceptor on fallback, and ignores stale ring entries', async () => {
+    browserState.page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      getCurrentUrl: vi.fn().mockResolvedValue('https://target.example'),
+      startNetworkCapture: vi.fn().mockResolvedValue(false),
+      evaluate: vi.fn().mockResolvedValue(undefined),
+      tabs: vi.fn().mockResolvedValue([{ index: 0, page: 'tab-1', url: 'https://target.example', title: 'Target', active: true }]),
+      readNetworkCapture: vi.fn()
+        .mockResolvedValueOnce([
+          {
+            url: 'https://stale.example/api/old',
+            method: 'GET',
+            responseStatus: 200,
+            responseContentType: 'application/json',
+            responsePreview: '{"stale":true}',
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            url: 'https://target.example/api/target',
+            method: 'GET',
+            responseStatus: 200,
+            responseContentType: 'application/json',
+            responsePreview: '{"ok":true}',
+          },
+        ]),
+    } as unknown as IPage;
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'wait', 'xhr', '/api/target', '--timeout', '900']);
+
+    const out = lastJsonLog();
+    expect(browserState.page?.startNetworkCapture).toHaveBeenCalledTimes(1);
+    expect(browserState.page?.evaluate).toHaveBeenCalledWith(expect.stringContaining('window.__opencli_net'));
+    expect(browserState.page?.readNetworkCapture).toHaveBeenCalledTimes(2);
+    expect(out.matched.url).toBe('https://target.example/api/target');
+  });
+
+  it('browser wait xhr reads interceptor buffer when network capture is unsupported', async () => {
+    let bufferReads = 0;
+    browserState.page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      getCurrentUrl: vi.fn().mockResolvedValue('https://target.example'),
+      startNetworkCapture: vi.fn().mockResolvedValue(false),
+      evaluate: vi.fn().mockImplementation(async (arg: string) => {
+        if (typeof arg === 'string' && arg.includes('window.__opencli_net = []')) {
+          bufferReads += 1;
+          if (bufferReads === 1) {
+            return JSON.stringify([
+              {
+                url: 'https://stale.example/api/old',
+                method: 'GET',
+                status: 200,
+                size: 12,
+                ct: 'application/json',
+                body: { stale: true },
+              },
+            ]);
+          }
+          return JSON.stringify([
+            {
+              url: 'https://target.example/api/target',
+              method: 'GET',
+              status: 200,
+              size: 11,
+              ct: 'application/json',
+              body: { ok: true },
+            },
+          ]);
+        }
+        return undefined;
+      }),
+      tabs: vi.fn().mockResolvedValue([{ index: 0, page: 'tab-1', url: 'https://target.example', title: 'Target', active: true }]),
+      readNetworkCapture: vi.fn().mockResolvedValue([]),
+    } as unknown as IPage;
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'wait', 'xhr', '/api/target', '--timeout', '900']);
+
+    const out = lastJsonLog();
+    expect(browserState.page?.startNetworkCapture).toHaveBeenCalledTimes(1);
+    expect(browserState.page?.readNetworkCapture).toHaveBeenCalledTimes(2);
+    expect(bufferReads).toBe(2);
+    expect(out.matched.url).toBe('https://target.example/api/target');
+  });
+
+  it('browser wait download delegates to the Browser Bridge download observer', async () => {
+    browserState.page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      waitForDownload: vi.fn().mockResolvedValue({
+        downloaded: true,
+        filename: '/tmp/receipt.pdf',
+        url: 'https://app.example/receipt.pdf',
+        state: 'complete',
+        elapsedMs: 10,
+      }),
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      getCurrentUrl: vi.fn().mockResolvedValue('https://target.example'),
+      tabs: vi.fn().mockResolvedValue([{ index: 0, page: 'tab-1', url: 'https://target.example', title: 'Target', active: true }]),
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'wait', 'download', 'receipt', '--timeout', '900']);
+
+    expect(browserState.page?.waitForDownload).toHaveBeenCalledWith('receipt', 900);
+    expect(lastJsonLog()).toEqual({
+      downloaded: true,
+      filename: '/tmp/receipt.pdf',
+      url: 'https://app.example/receipt.pdf',
+      state: 'complete',
+      elapsedMs: 10,
+    });
+  });
+
+  it('browser wait download reports an error envelope when no matching download completes', async () => {
+    browserState.page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      waitForDownload: vi.fn().mockResolvedValue({
+        downloaded: false,
+        state: 'interrupted',
+        error: 'No download matched "receipt" within 900ms',
+        elapsedMs: 900,
+      }),
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      getCurrentUrl: vi.fn().mockResolvedValue('https://target.example'),
+      tabs: vi.fn().mockResolvedValue([{ index: 0, page: 'tab-1', url: 'https://target.example', title: 'Target', active: true }]),
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'wait', 'download', 'receipt', '--timeout', '900']);
+
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('download_not_seen');
+    expect(out.download.elapsedMs).toBe(900);
+    expect(process.exitCode).toBeDefined();
+  });
+});
+
+describe('browser network command', () => {
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  function getNetworkCachePath(cacheDir: string): string {
+    return path.join(cacheDir, 'browser-network', 'test.json');
+  }
+
+  function getCustomNetworkCachePath(cacheDir: string): string {
+    return path.join(cacheDir, 'browser-network', 'custom.json');
+  }
+
+  function lastJsonLog(): any {
+    const calls = consoleLogSpy.mock.calls;
+    if (calls.length === 0) throw new Error('Expected at least one console.log call');
+    const last = calls[calls.length - 1][0];
+    if (typeof last !== 'string') throw new Error(`Expected string arg to console.log, got ${typeof last}`);
+    return JSON.parse(last);
+  }
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    process.env.OPENCLI_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-net-'));
+    consoleLogSpy.mockClear();
+    mockBrowserConnect.mockClear();
+    mockBrowserClose.mockReset().mockResolvedValue(undefined);
+
+    browserState.page = {
+      session: 'test',
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      tabs: vi.fn().mockResolvedValue([{ page: 'tab-1', active: true }]),
+      evaluate: vi.fn().mockResolvedValue(''),
+      readNetworkCapture: vi.fn().mockResolvedValue([
+        {
+          url: 'https://x.com/i/api/graphql/qid/UserTweets?v=1',
+          method: 'GET',
+          responseStatus: 200,
+          responseContentType: 'application/json',
+          responsePreview: JSON.stringify({ data: { user: { rest_id: '42' } } }),
+          timestamp: Date.now(),
+        },
+        {
+          url: 'https://cdn.example.com/app.js',
+          method: 'GET',
+          responseStatus: 200,
+          responseContentType: 'application/javascript',
+          responsePreview: '// js',
+        },
+      ]),
+    } as unknown as IPage;
+  });
+
+  it('emits JSON with shape previews and persists the capture to disk', async () => {
+    const cacheDir = String(process.env.OPENCLI_CACHE_DIR);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(1);
+    expect(out.filtered_out).toBe(1);
+    expect(out.entries[0].key).toBe('UserTweets');
+    expect(out.entries[0].shape['$.data.user.rest_id']).toBe('string');
+    expect(out.entries[0]).not.toHaveProperty('body');
+    expect(fs.existsSync(getNetworkCachePath(cacheDir))).toBe(true);
+  });
+
+  it('uses the selected browser session for network cache scope', async () => {
+    const cacheDir = String(process.env.OPENCLI_CACHE_DIR);
+    browserState.page = {
+      ...browserState.page,
+      session: 'custom',
+    } as unknown as IPage;
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'custom', 'network']);
+
+    const out = lastJsonLog();
+    expect(out.session).toBe('custom');
+    expect(fs.existsSync(getCustomNetworkCachePath(cacheDir))).toBe(true);
+    expect(fs.existsSync(getNetworkCachePath(cacheDir))).toBe(false);
+  });
+
+  it('--all includes static resources that the default filter drops', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--all']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(2);
+    expect(out.entries.map((e: any) => e.key)).toContain('UserTweets');
+    expect(out.entries.map((e: any) => e.key)).toContain('GET cdn.example.com/app.js');
+  });
+
+  it('--failed and --since filter captured entries by status and time window', async () => {
+    const now = Date.now();
+    browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+      {
+        url: 'https://api.example.com/new-fail',
+        method: 'GET',
+        responseStatus: 500,
+        responseContentType: 'application/json',
+        responsePreview: JSON.stringify({ error: true }),
+        timestamp: now,
+      },
+      {
+        url: 'https://api.example.com/old-fail',
+        method: 'GET',
+        responseStatus: 500,
+        responseContentType: 'application/json',
+        responsePreview: JSON.stringify({ error: true }),
+        timestamp: now - 180_000,
+      },
+      {
+        url: 'https://api.example.com/new-ok',
+        method: 'GET',
+        responseStatus: 200,
+        responseContentType: 'application/json',
+        responsePreview: JSON.stringify({ ok: true }),
+        timestamp: now,
+      },
+    ]);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--since', '120s', '--failed']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(1);
+    expect(out.entries[0].url).toBe('https://api.example.com/new-fail');
+    expect(out.entries[0].timestamp).toMatch(/T/);
+  });
+
+  it('default output keeps text/javascript API responses while dropping static JS files', async () => {
+    browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+      {
+        url: 'https://hw.mail.163.com/js6/s?sid=abc&func=mbox:listMessages',
+        method: 'POST',
+        responseStatus: 200,
+        responseContentType: 'text/javascript',
+        responsePreview: JSON.stringify({ messages: [{ id: 'm1', subject: 'hello' }] }),
+      },
+      {
+        url: 'https://cdn.example.com/app.js',
+        method: 'GET',
+        responseStatus: 200,
+        responseContentType: 'application/javascript',
+        responsePreview: '// js',
+      },
+    ]);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(1);
+    expect(out.filtered_out).toBe(1);
+    expect(out.entries[0].key).toBe('POST hw.mail.163.com/js6/s');
+    expect(out.entries[0].ct).toBe('text/javascript');
+    expect(out.entries[0].shape['$.messages']).toBe('array(1)');
+  });
+
+  it('--raw emits full bodies inline for every entry', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--raw']);
+
+    const out = lastJsonLog();
+    expect(out.entries[0].body).toEqual({ data: { user: { rest_id: '42' } } });
+    expect(out.entries[0].timestamp).toMatch(/T/);
+  });
+
+  it('--detail <key> returns the full body for the requested entry', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+    consoleLogSpy.mockClear();
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--detail', 'UserTweets']);
+
+    const out = lastJsonLog();
+    expect(out.key).toBe('UserTweets');
+    expect(out.body).toEqual({ data: { user: { rest_id: '42' } } });
+    expect(out.shape['$.data.user.rest_id']).toBe('string');
+    expect(out.timestamp).toMatch(/T/);
+  });
+
+  it('--detail reports key_not_found with the list of available keys', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+    consoleLogSpy.mockClear();
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--detail', 'NopeOp']);
+
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('key_not_found');
+    expect(out.error.available_keys).toContain('UserTweets');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('--detail reports cache_missing when no capture has been persisted yet', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--detail', 'UserTweets']);
+
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('cache_missing');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('emits capture_failed when readNetworkCapture throws', async () => {
+    (browserState.page!.readNetworkCapture as any) = vi.fn().mockRejectedValue(new Error('CDP disconnected'));
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('capture_failed');
+    expect(out.error.message).toContain('CDP disconnected');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('surfaces cache_warning in the envelope when persistence fails', async () => {
+    const cacheDir = String(process.env.OPENCLI_CACHE_DIR);
+    // Pre-create the target path as a file where a directory is expected,
+    // forcing the mkdir inside saveNetworkCache to throw.
+    const clashDir = path.join(cacheDir, 'browser-network');
+    fs.writeFileSync(clashDir, 'not-a-directory');
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+
+    const out = lastJsonLog();
+    expect(out.cache_warning).toMatch(/Could not persist capture cache/);
+    expect(out.count).toBe(1);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  describe('--filter', () => {
+    function apiResponse(url: string, body: unknown): Record<string, unknown> {
+      return {
+        url,
+        method: 'GET',
+        responseStatus: 200,
+        responseContentType: 'application/json',
+        responsePreview: JSON.stringify(body),
+      };
+    }
+
+    beforeEach(() => {
+      browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+        apiResponse(
+          'https://x.com/i/api/graphql/qid/UserTweets?v=1',
+          { data: { items: [{ author: 'a', text: 't', likes: 1 }] } },
+        ),
+        apiResponse(
+          'https://x.com/i/api/graphql/qid/UserProfile?v=1',
+          { data: { user: { id: 'u1', followers: 10 } } },
+        ),
+        apiResponse(
+          'https://x.com/i/api/graphql/qid/Settings?v=1',
+          { config: { theme: 'dark' } },
+        ),
+      ]);
+    });
+
+    it('narrows entries to those whose shape has ALL named fields', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--filter', 'author,text,likes']);
+
+      const out = lastJsonLog();
+      expect(out.count).toBe(1);
+      expect(out.filter).toEqual(['author', 'text', 'likes']);
+      expect(out.filter_dropped).toBe(2);
+      expect(out.entries[0].key).toBe('UserTweets');
+    });
+
+    it('matches container segments too, not just leaf names (any-segment rule)', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--filter', 'data,items']);
+
+      const out = lastJsonLog();
+      expect(out.count).toBe(1);
+      expect(out.entries[0].key).toBe('UserTweets');
+    });
+
+    it('drops entries that are missing any required field (AND semantics)', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--filter', 'author,followers']);
+
+      const out = lastJsonLog();
+      expect(out.count).toBe(0);
+      expect(out.entries).toEqual([]);
+      expect(out.filter).toEqual(['author', 'followers']);
+      expect(out.filter_dropped).toBe(3);
+    });
+
+    it('returns empty entries (not an error) when nothing matches', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--filter', 'nonexistent_field']);
+
+      const out = lastJsonLog();
+      expect(out.count).toBe(0);
+      expect(out.entries).toEqual([]);
+      expect(out).not.toHaveProperty('error');
+      expect(process.exitCode).toBeUndefined();
+    });
+
+    it('is case-sensitive so agents do not conflate `Id` with `id`', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--filter', 'Data']);
+
+      const out = lastJsonLog();
+      expect(out.count).toBe(0);
+    });
+
+    it('persists the full (unfiltered) capture so --detail lookups still find filtered-out keys', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--filter', 'author,text,likes']);
+      consoleLogSpy.mockClear();
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--detail', 'UserProfile']);
+
+      const out = lastJsonLog();
+      expect(out.key).toBe('UserProfile');
+      expect(out.body).toEqual({ data: { user: { id: 'u1', followers: 10 } } });
+    });
+
+    it('composes with --raw: entries keep full bodies, filter still narrows', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--filter', 'author', '--raw']);
+
+      const out = lastJsonLog();
+      expect(out.count).toBe(1);
+      expect(out.entries[0].body).toEqual({ data: { items: [{ author: 'a', text: 't', likes: 1 }] } });
+    });
+
+    it('reports invalid_filter for empty value', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--filter', '']);
+
+      const out = lastJsonLog();
+      expect(out.error.code).toBe('invalid_filter');
+      expect(process.exitCode).toBeDefined();
+    });
+
+    it('reports invalid_filter for commas-only value', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--filter', ',,,']);
+
+      const out = lastJsonLog();
+      expect(out.error.code).toBe('invalid_filter');
+      expect(process.exitCode).toBeDefined();
+    });
+
+    it('rejects --filter combined with --detail as invalid_args', async () => {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--filter', 'author', '--detail', 'UserTweets']);
+
+      const out = lastJsonLog();
+      expect(out.error.code).toBe('invalid_args');
+      expect(out.error.message).toContain('--filter');
+      expect(out.error.message).toContain('--detail');
+      expect(process.exitCode).toBeDefined();
+    });
+  });
+
+  describe('body truncation signals', () => {
+    it('flags body_truncated in list view when the capture layer capped the body', async () => {
+      browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+        {
+          url: 'https://api.example.com/huge',
+          method: 'GET',
+          responseStatus: 200,
+          responseContentType: 'application/json',
+          responsePreview: '{"data":"x"}',
+          responseBodyFullSize: 99_999_999,
+          responseBodyTruncated: true,
+        },
+      ]);
+      const program = createProgram('', '');
+
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+
+      const out = lastJsonLog();
+      expect(out.body_truncated_count).toBe(1);
+      expect(out.entries[0].body_truncated).toBe(true);
+      expect(out.entries[0].size).toBe(99_999_999);
+    });
+
+    it('--detail surfaces body_truncated + body_full_size when capture had to cap the body', async () => {
+      browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+        {
+          url: 'https://api.example.com/huge',
+          method: 'GET',
+          responseStatus: 200,
+          responseContentType: 'application/json',
+          responsePreview: 'truncated-prefix-not-valid-json',
+          responseBodyFullSize: 50_000_000,
+          responseBodyTruncated: true,
+        },
+      ]);
+      const program = createProgram('', '');
+
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+      consoleLogSpy.mockClear();
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--detail', 'GET api.example.com/huge']);
+
+      const out = lastJsonLog();
+      expect(out.body_truncated).toBe(true);
+      expect(out.body_full_size).toBe(50_000_000);
+      expect(out.body_truncation_reason).toBe('capture-limit');
+    });
+
+    it('--max-body caps the emitted body and marks body_truncation_reason = max-body', async () => {
+      const longString = 'x'.repeat(5000);
+      browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+        {
+          url: 'https://api.example.com/plain',
+          method: 'GET',
+          responseStatus: 200,
+          responseContentType: 'text/plain',
+          responsePreview: longString,
+        },
+      ]);
+      const program = createProgram('', '');
+
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+      consoleLogSpy.mockClear();
+      await program.parseAsync([
+        'node', 'opencli', 'browser', '--session', 'test', 'network',
+        '--detail', 'GET api.example.com/plain',
+        '--max-body', '100',
+      ]);
+
+      const out = lastJsonLog();
+      expect(typeof out.body).toBe('string');
+      expect(out.body).toHaveLength(100);
+      expect(out.body_truncated).toBe(true);
+      expect(out.body_truncation_reason).toBe('max-body');
+      expect(out.body_full_size).toBe(5000);
+    });
+
+    it('--max-body leaves parsed JSON bodies untouched (no mid-object cut)', async () => {
+      browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+        {
+          url: 'https://api.example.com/json',
+          method: 'GET',
+          responseStatus: 200,
+          responseContentType: 'application/json',
+          responsePreview: JSON.stringify({ data: { user: { rest_id: 'u1' } } }),
+        },
+      ]);
+      const program = createProgram('', '');
+
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+      consoleLogSpy.mockClear();
+      await program.parseAsync([
+        'node', 'opencli', 'browser', '--session', 'test', 'network',
+        '--detail', 'GET api.example.com/json',
+        '--max-body', '10',
+      ]);
+
+      const out = lastJsonLog();
+      // JSON body already parsed at capture time — --max-body only applies to
+      // string bodies (which is where the agent-visible hazard lives).
+      expect(out.body).toEqual({ data: { user: { rest_id: 'u1' } } });
+      expect(out).not.toHaveProperty('body_truncated');
+    });
+
+    it('rejects non-numeric --max-body with invalid_max_body', async () => {
+      browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+        {
+          url: 'https://api.example.com/x',
+          method: 'GET',
+          responseStatus: 200,
+          responseContentType: 'application/json',
+          responsePreview: '{"a":1}',
+        },
+      ]);
+      const program = createProgram('', '');
+
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+      consoleLogSpy.mockClear();
+      await program.parseAsync([
+        'node', 'opencli', 'browser', '--session', 'test', 'network',
+        '--detail', 'GET api.example.com/x',
+        '--max-body', 'abc',
+      ]);
+
+      expect(lastJsonLog().error.code).toBe('invalid_max_body');
+      expect(process.exitCode).toBeDefined();
+    });
+
+    it('--raw emits snake_case body_truncated / body_full_size, matching non-raw + detail', async () => {
+      browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+        {
+          url: 'https://api.example.com/huge',
+          method: 'GET',
+          responseStatus: 200,
+          responseContentType: 'application/json',
+          responsePreview: 'truncated-prefix',
+          responseBodyFullSize: 20_000_000,
+          responseBodyTruncated: true,
+        },
+      ]);
+      const program = createProgram('', '');
+
+      await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--raw']);
+
+      const out = lastJsonLog();
+      expect(out.entries).toHaveLength(1);
+      const entry = out.entries[0];
+      expect(entry.body_truncated).toBe(true);
+      expect(entry.body_full_size).toBe(20_000_000);
+      // Internal camelCase must not leak into the agent-facing envelope.
+      expect(entry).not.toHaveProperty('bodyTruncated');
+      expect(entry).not.toHaveProperty('bodyFullSize');
+    });
+  });
+});
+
+describe('browser console command', () => {
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    consoleLogSpy.mockClear();
+    mockBrowserConnect.mockClear();
+    mockBrowserClose.mockReset().mockResolvedValue(undefined);
+    const now = Date.now();
+    browserState.page = {
+      session: 'test',
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      tabs: vi.fn().mockResolvedValue([{ page: 'tab-1', active: true }]),
+      consoleMessages: vi.fn().mockResolvedValue([
+        { type: 'error', text: 'boom', timestamp: now },
+        { type: 'log', text: 'ok', timestamp: now },
+        { type: 'warning', text: 'old warning', timestamp: now - 180_000 },
+      ]),
+    } as unknown as IPage;
+  });
+
+  function lastJsonLog(): any {
+    const calls = consoleLogSpy.mock.calls;
+    if (calls.length === 0) throw new Error('Expected at least one console.log call');
+    const last = calls[calls.length - 1][0];
+    if (typeof last !== 'string') throw new Error(`Expected string arg to console.log, got ${typeof last}`);
+    return JSON.parse(last);
+  }
+
+  it('filters console messages by level and time window', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'console', '--level', 'error', '--since', '120s']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(1);
+    expect(out.messages[0]).toMatchObject({ type: 'error', text: 'boom' });
+  });
+});
+
+describe('browser get html command', () => {
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  function lastLogArg(): unknown {
+    const calls = consoleLogSpy.mock.calls;
+    if (calls.length === 0) throw new Error('expected console.log call');
+    return calls[calls.length - 1][0];
+  }
+  function lastJsonLog(): any {
+    const arg = lastLogArg();
+    if (typeof arg !== 'string') throw new Error(`expected string arg, got ${typeof arg}`);
+    return JSON.parse(arg);
+  }
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    process.env.OPENCLI_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-html-'));
+    consoleLogSpy.mockClear();
+    mockBrowserConnect.mockClear();
+    mockBrowserClose.mockReset().mockResolvedValue(undefined);
+
+    browserState.page = {
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      tabs: vi.fn().mockResolvedValue([{ page: 'tab-1', active: true }]),
+      evaluate: vi.fn(),
+    } as unknown as IPage;
+  });
+
+  it('returns full outerHTML by default with no truncation', async () => {
+    const big = '<div>' + 'x'.repeat(100_000) + '</div>';
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({ kind: 'ok', html: big });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'html']);
+
+    expect(lastLogArg()).toBe(big);
+  });
+
+  it('caps output with --max and prepends a visible truncation marker', async () => {
+    const big = '<div>' + 'x'.repeat(500) + '</div>';
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({ kind: 'ok', html: big });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'html', '--max', '100']);
+
+    const out = String(lastLogArg());
+    expect(out.startsWith('<!-- opencli: truncated 100 of')).toBe(true);
+    expect(out.length).toBeGreaterThan(100);
+    expect(out.length).toBeLessThan(big.length);
+  });
+
+  it('rejects negative --max with invalid_max error', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'html', '--max', '-1']);
+
+    expect(lastJsonLog().error.code).toBe('invalid_max');
+    expect(process.exitCode).toBeDefined();
+    expect(browserState.page!.evaluate).not.toHaveBeenCalled();
+  });
+
+  it('rejects fractional --max with invalid_max error', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'html', '--max', '1.5']);
+
+    expect(lastJsonLog().error.code).toBe('invalid_max');
+    expect(process.exitCode).toBeDefined();
+    expect(browserState.page!.evaluate).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-numeric --max (e.g. "10abc") with invalid_max error', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'html', '--max', '10abc']);
+
+    expect(lastJsonLog().error.code).toBe('invalid_max');
+    expect(process.exitCode).toBeDefined();
+    expect(browserState.page!.evaluate).not.toHaveBeenCalled();
+  });
+
+  it('--as json returns structured tree envelope', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      selector: '.hero',
+      matched: 1,
+      tree: { tag: 'div', attrs: { class: 'hero' }, text: 'Hi', children: [] },
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'html', '--selector', '.hero', '--as', 'json']);
+
+    const out = lastJsonLog();
+    expect(out.matched).toBe(1);
+    expect(out.tree.tag).toBe('div');
+    expect(out.tree.attrs.class).toBe('hero');
+  });
+
+  it('--as json emits selector_not_found when matched is 0', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({ selector: '.missing', matched: 0, tree: null });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'html', '--selector', '.missing', '--as', 'json']);
+
+    expect(lastJsonLog().error.code).toBe('selector_not_found');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('raw mode emits selector_not_found when the selector matches nothing', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({ kind: 'ok', html: null });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'html', '--selector', '.missing']);
+
+    expect(lastJsonLog().error.code).toBe('selector_not_found');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('raw mode emits invalid_selector when the page rejects the selector syntax', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      kind: 'invalid_selector',
+      reason: "'##$@@' is not a valid selector",
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'html', '--selector', '##$@@']);
+
+    const err = lastJsonLog().error;
+    expect(err.code).toBe('invalid_selector');
+    expect(err.message).toContain('##$@@');
+    expect(err.message).toContain('not a valid selector');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('--as json emits invalid_selector when the page rejects the selector syntax', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      selector: '##$@@',
+      invalidSelector: true,
+      reason: "'##$@@' is not a valid selector",
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'html', '--selector', '##$@@', '--as', 'json']);
+
+    const err = lastJsonLog().error;
+    expect(err.code).toBe('invalid_selector');
+    expect(err.message).toContain('##$@@');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('rejects unknown --as format with invalid_format error', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'html', '--as', 'yaml']);
+
+    expect(lastJsonLog().error.code).toBe('invalid_format');
+    expect(process.exitCode).toBeDefined();
+  });
+});
+
+// Shared helper for the selector-first describe blocks below.
+// Each block spies console.log, mocks the IPage surface it touches, and
+// parses the last stringified call to inspect the JSON envelope — the
+// canonical agent-facing contract for the selector-first commands.
+function installSelectorFirstTestHarness(label: string, pageOverrides: () => Partial<IPage>) {
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  function lastLogArg(): unknown {
+    const calls = consoleLogSpy.mock.calls;
+    if (calls.length === 0) throw new Error('expected console.log call');
+    return calls[calls.length - 1][0];
+  }
+  function lastJsonLog(): any {
+    const arg = lastLogArg();
+    if (typeof arg !== 'string') throw new Error(`expected string arg, got ${typeof arg}`);
+    return JSON.parse(arg);
+  }
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    process.env.OPENCLI_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), `opencli-${label}-`));
+    consoleLogSpy.mockClear();
+    mockBrowserConnect.mockClear();
+    mockBrowserClose.mockReset().mockResolvedValue(undefined);
+
+    browserState.page = {
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      tabs: vi.fn().mockResolvedValue([{ page: 'tab-1', active: true }]),
+      session: 'test',
+      ...pageOverrides(),
+    } as unknown as IPage;
+  });
+
+  return { lastJsonLog };
+}
+
+describe('browser find command', () => {
+  const { lastJsonLog } = installSelectorFirstTestHarness('find', () => ({
+    evaluate: vi.fn(),
+  }));
+
+  it('returns a {matches_n, entries} envelope for a matching selector', async () => {
+    // `find` always returns numeric refs (existing on snapshot-tagged elements,
+    // allocated on the spot for fresh matches) — see reviewer contract in
+    // #opencli-browser msg 52c51eb6.
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 2,
+      entries: [
+        { nth: 0, ref: 5, tag: 'button', role: '', text: 'OK', attrs: { class: 'btn' }, visible: true },
+        { nth: 1, ref: 17, tag: 'button', role: '', text: 'Cancel', attrs: { class: 'btn' }, visible: true },
+      ],
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'find', '--css', '.btn']);
+
+    const out = lastJsonLog();
+    expect(out.matches_n).toBe(2);
+    expect(out.entries).toHaveLength(2);
+    expect(out.entries[0].ref).toBe(5);
+    expect(out.entries[1].ref).toBe(17);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('finds elements by semantic role/name without requiring CSS', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 9, tag: 'button', role: 'button', text: 'Save', attrs: {}, visible: true },
+      ],
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'find', '--role', 'button', '--name', 'Save']);
+
+    const js = (browserState.page!.evaluate as any).mock.calls[0][0] as string;
+    expect(js).toContain('CRITERIA');
+    expect(js).toContain('function accessibleName');
+    expect(lastJsonLog()).toEqual({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 9, tag: 'button', role: 'button', text: 'Save', attrs: {}, visible: true },
+      ],
+    });
+  });
+
+  it('forwards --limit / --text-max into the generated JS', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({ matches_n: 0, entries: [] });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'find', '--css', '.btn', '--limit', '3', '--text-max', '20']);
+
+    const js = (browserState.page!.evaluate as any).mock.calls[0][0] as string;
+    expect(js).toContain('LIMIT = 3');
+    expect(js).toContain('TEXT_MAX = 20');
+  });
+
+  it('emits invalid_selector envelope when the page rejects selector syntax', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      error: { code: 'invalid_selector', message: 'Invalid CSS selector: ">>>"', hint: 'Check the selector syntax.' },
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'find', '--css', '>>>']);
+
+    expect(lastJsonLog().error.code).toBe('invalid_selector');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('emits selector_not_found envelope when the selector matches nothing', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      error: { code: 'selector_not_found', message: 'CSS selector ".missing" matched 0 elements', hint: 'Use browser state to inspect the page.' },
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'find', '--css', '.missing']);
+
+    expect(lastJsonLog().error.code).toBe('selector_not_found');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('rejects missing --css with usage_error (no evaluate call)', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'find']);
+
+    expect(lastJsonLog().error.code).toBe('usage_error');
+    expect(browserState.page!.evaluate).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('rejects malformed --limit with usage_error (no evaluate call)', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'find', '--css', '.btn', '--limit', 'abc']);
+
+    expect(lastJsonLog().error.code).toBe('usage_error');
+    expect(browserState.page!.evaluate).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+});
+
+describe('browser get text/value/attributes commands', () => {
+  const { lastJsonLog } = installSelectorFirstTestHarness('get-sel', () => ({
+    evaluate: vi.fn(),
+  }));
+
+  it('emits {value, matches_n, match_level} envelope for a numeric ref', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    // 1st call: resolveTargetJs -> { ok: true, matches_n: 1, match_level: 'exact' }
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' });
+    // 2nd call: getTextResolvedJs -> the element's text
+    evalMock.mockResolvedValueOnce('Hello world');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'text', '7']);
+
+    expect(lastJsonLog()).toEqual({ value: 'Hello world', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('resolves a semantic locator to a ref before get text', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 12, tag: 'button', role: 'button', text: 'Save', attrs: {}, visible: true },
+      ],
+    });
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' });
+    evalMock.mockResolvedValueOnce('Save');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'text', '--role', 'button', '--name', 'Save']);
+
+    expect(evalMock.mock.calls[0][0]).toContain('function accessibleName');
+    expect(evalMock.mock.calls[1][0]).toContain('const ref = "12"');
+    expect(lastJsonLog()).toEqual({ value: 'Save', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('reports total_matches when semantic get reads the first of multiple matches', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({
+      matches_n: 3,
+      entries: [
+        { nth: 0, ref: 12, tag: 'button', role: 'button', text: 'Save', attrs: {}, visible: true },
+        { nth: 1, ref: 13, tag: 'button', role: 'button', text: 'Save draft', attrs: {}, visible: true },
+        { nth: 2, ref: 14, tag: 'button', role: 'button', text: 'Save copy', attrs: {}, visible: true },
+      ],
+    });
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' });
+    evalMock.mockResolvedValueOnce('Save');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'text', '--role', 'button', '--name', 'Save']);
+
+    expect(evalMock.mock.calls[0][0]).toContain('const LIMIT = 6');
+    expect(evalMock.mock.calls[1][0]).toContain('const ref = "12"');
+    expect(lastJsonLog()).toEqual({ value: 'Save', matches_n: 1, match_level: 'exact', total_matches: 3 });
+  });
+
+  it('reports matches_n on multi-match CSS (read path: first match wins)', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 3, match_level: 'exact' });
+    evalMock.mockResolvedValueOnce('first');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'text', '.btn']);
+
+    expect(lastJsonLog()).toEqual({ value: 'first', matches_n: 3, match_level: 'exact' });
+  });
+
+  it('parses the attributes payload back into a real object', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' });
+    // getAttributesResolvedJs returns a JSON-encoded string — the CLI must parse it
+    evalMock.mockResolvedValueOnce(JSON.stringify({ id: 'nav', class: 'hero' }));
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'attributes', '#nav']);
+
+    const out = lastJsonLog();
+    expect(out.matches_n).toBe(1);
+    expect(out.match_level).toBe('exact');
+    expect(out.value).toEqual({ id: 'nav', class: 'hero' });
+  });
+
+  it('propagates selector_not_found from the resolver as an error envelope', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      ok: false,
+      code: 'selector_not_found',
+      message: 'CSS selector ".missing" matched 0 elements',
+      hint: 'Try a less specific selector.',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'text', '.missing']);
+
+    expect(lastJsonLog().error.code).toBe('selector_not_found');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('forwards --nth into the resolver opts and reports matches_n', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 4, match_level: 'exact' });
+    evalMock.mockResolvedValueOnce('second');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'value', '.btn', '--nth', '1']);
+
+    const resolveJs = evalMock.mock.calls[0][0] as string;
+    // resolveTargetJs embeds nth as a raw number literal; look for the binding
+    expect(resolveJs).toContain('const nth = 1');
+    expect(lastJsonLog()).toEqual({ value: 'second', matches_n: 4, match_level: 'exact' });
+  });
+
+  it('rejects malformed --nth with usage_error before touching the page', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'get', 'text', '.btn', '--nth', 'abc']);
+
+    expect(lastJsonLog().error.code).toBe('usage_error');
+    expect(browserState.page!.evaluate).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+});
+
+describe('browser click/type commands', () => {
+  const { lastJsonLog } = installSelectorFirstTestHarness('click-type', () => ({
+    evaluate: vi.fn().mockResolvedValue(false),
+    click: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
+    dblClick: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
+    hover: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
+    focus: vi.fn().mockResolvedValue({ focused: true, matches_n: 1, match_level: 'exact' }),
+    setChecked: vi.fn().mockResolvedValue({ checked: true, changed: true, matches_n: 1, match_level: 'exact', kind: 'checkbox' }),
+    uploadFiles: vi.fn().mockResolvedValue({
+      uploaded: true,
+      files: 1,
+      file_names: ['receipt.pdf'],
+      target: '#file',
+      matches_n: 1,
+      match_level: 'exact',
+      multiple: false,
+    }),
+    drag: vi.fn().mockResolvedValue({
+      dragged: true,
+      source: '#card',
+      target: '#lane',
+      source_matches_n: 1,
+      target_matches_n: 1,
+      source_match_level: 'exact',
+      target_match_level: 'exact',
+    }),
+    typeText: vi.fn().mockResolvedValue({ matches_n: 1, match_level: 'exact' }),
+    fillText: vi.fn().mockResolvedValue({
+      filled: true,
+      verified: true,
+      expected: '',
+      actual: '',
+      length: 0,
+      matches_n: 1,
+      match_level: 'exact',
+      mode: 'input',
+    }),
+    wait: vi.fn().mockResolvedValue(undefined),
+  }));
+
+  it('emits {clicked, target, matches_n, match_level} on success', async () => {
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'exact' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'click', '#save']);
+
+    expect(browserState.page!.click).toHaveBeenCalledWith('#save', {});
+    expect(lastJsonLog()).toEqual({ clicked: true, target: '#save', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('clicks a unique semantic locator without a prior state call', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 23, tag: 'button', role: 'button', text: 'Submit', attrs: {}, visible: true },
+      ],
+    });
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'exact' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'click', '--role', 'button', '--name', 'Submit']);
+
+    expect(browserState.page!.click).toHaveBeenCalledWith('23', {});
+    expect(lastJsonLog()).toEqual({ clicked: true, target: '23', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('rejects ambiguous semantic locators before write actions', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 2,
+      entries: [
+        { nth: 0, ref: 1, tag: 'button', role: 'button', text: 'Save', attrs: {}, visible: true },
+        { nth: 1, ref: 2, tag: 'button', role: 'button', text: 'Save draft', attrs: {}, visible: true },
+      ],
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'click', '--role', 'button', '--name', 'Save']);
+
+    const err = lastJsonLog().error;
+    expect(err.code).toBe('semantic_ambiguous');
+    expect(err.matches_n).toBe(2);
+    expect(browserState.page!.click).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('hover: resolves a semantic locator before moving the mouse', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 31, tag: 'button', role: 'button', text: 'Settings', attrs: {}, visible: true },
+      ],
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'hover', '--role', 'button', '--name', 'Settings']);
+
+    expect(browserState.page!.hover).toHaveBeenCalledWith('31', {});
+    expect(lastJsonLog()).toEqual({ hovered: true, target: '31', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('check: resolves a semantic locator before setting checked state', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 32, tag: 'input', role: 'checkbox', text: 'Accept', attrs: {}, visible: true },
+      ],
+    });
+    (browserState.page!.setChecked as any).mockResolvedValueOnce({ checked: true, changed: false, matches_n: 1, match_level: 'exact', kind: 'checkbox' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'check', '--role', 'checkbox', '--name', 'Accept']);
+
+    expect(browserState.page!.setChecked).toHaveBeenCalledWith('32', true, {});
+    expect(lastJsonLog()).toEqual({ checked: true, changed: false, target: '32', matches_n: 1, match_level: 'exact', kind: 'checkbox' });
+  });
+
+  it('upload: treats the first positional as a file when using semantic locator flags', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-upload-semantic-'));
+    const file = path.join(dir, 'receipt.pdf');
+    fs.writeFileSync(file, 'pdf');
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 33, tag: 'input', role: 'button', text: 'Upload receipt', attrs: {}, visible: true },
+      ],
+    });
+    (browserState.page!.uploadFiles as any).mockResolvedValueOnce({
+      uploaded: true,
+      files: 1,
+      file_names: ['receipt.pdf'],
+      target: '33',
+      matches_n: 1,
+      match_level: 'exact',
+      multiple: false,
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'upload', '--role', 'button', '--name', 'Upload receipt', file]);
+
+    expect(browserState.page!.uploadFiles).toHaveBeenCalledWith('33', [file], {});
+    expect(lastJsonLog()).toMatchObject({ uploaded: true, target: '33', files: 1 });
+  });
+
+  it('type: treats the first positional as text when using semantic locator flags', async () => {
+    (browserState.page!.evaluate as any)
+      .mockResolvedValueOnce({
+        matches_n: 1,
+        entries: [
+          { nth: 0, ref: 34, tag: 'input', role: 'textbox', text: '', attrs: {}, visible: true },
+        ],
+      })
+      .mockResolvedValueOnce(false);
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'exact' });
+    (browserState.page!.typeText as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'exact' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'type', '--label', 'Email', 'me@example.com']);
+
+    expect(browserState.page!.click).toHaveBeenCalledWith('34', {});
+    expect(browserState.page!.typeText).toHaveBeenCalledWith('34', 'me@example.com', {});
+    expect(lastJsonLog()).toMatchObject({ typed: true, target: '34', text: 'me@example.com' });
+  });
+
+  it('fill: treats the first positional as text when using semantic locator flags', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 35, tag: 'input', role: 'textbox', text: '', attrs: {}, visible: true },
+      ],
+    });
+    (browserState.page!.fillText as any).mockResolvedValueOnce({
+      filled: true,
+      verified: true,
+      expected: 'me@example.com',
+      actual: 'me@example.com',
+      length: 14,
+      matches_n: 1,
+      match_level: 'exact',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'fill', '--label', 'Email', 'me@example.com']);
+
+    expect(browserState.page!.fillText).toHaveBeenCalledWith('35', 'me@example.com', {});
+    expect(lastJsonLog()).toMatchObject({ filled: true, verified: true, target: '35', text: 'me@example.com' });
+  });
+
+  it('drag: resolves source and target from prefixed semantic locators', async () => {
+    (browserState.page!.evaluate as any)
+      .mockResolvedValueOnce({
+        matches_n: 1,
+        entries: [
+          { nth: 0, ref: 40, tag: 'div', role: 'button', text: 'Card A', attrs: {}, visible: true },
+        ],
+      })
+      .mockResolvedValueOnce({
+        matches_n: 1,
+        entries: [
+          { nth: 0, ref: 41, tag: 'div', role: 'region', text: 'Done', attrs: {}, visible: true },
+        ],
+      });
+    (browserState.page!.drag as any).mockResolvedValueOnce({
+      dragged: true,
+      source: '40',
+      target: '41',
+      source_matches_n: 1,
+      target_matches_n: 1,
+      source_match_level: 'exact',
+      target_match_level: 'exact',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync([
+      'node',
+      'opencli',
+      'browser',
+      '--session',
+      'test',
+      'drag',
+      '--from-role',
+      'button',
+      '--from-name',
+      'Card A',
+      '--to-role',
+      'region',
+      '--to-name',
+      'Done',
+    ]);
+
+    expect(browserState.page!.drag).toHaveBeenCalledWith('40', '41', { from: {}, to: {} });
+    expect(lastJsonLog()).toMatchObject({ dragged: true, source: '40', target: '41' });
+  });
+
+  it('surfaces match_level=stable when resolver falls back to fingerprint match', async () => {
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'stable' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'click', '7']);
+
+    expect(lastJsonLog()).toEqual({ clicked: true, target: '7', matches_n: 1, match_level: 'stable' });
+  });
+
+  it('forwards --nth as ResolveOptions.nth to page.click', async () => {
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 3, match_level: 'exact' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'click', '.btn', '--nth', '2']);
+
+    expect(browserState.page!.click).toHaveBeenCalledWith('.btn', { nth: 2 });
+    expect(lastJsonLog()).toEqual({ clicked: true, target: '.btn', matches_n: 3, match_level: 'exact' });
+  });
+
+  it('surfaces selector_ambiguous from page.click as an error envelope', async () => {
+    (browserState.page!.click as any).mockRejectedValueOnce(new TargetError({
+      code: 'selector_ambiguous',
+      message: 'CSS selector ".btn" matched 3 elements; clicks require a unique target.',
+      hint: 'Pass --nth <n> to pick one (0-based).',
+      matches_n: 3,
+    }));
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'click', '.btn']);
+
+    const err = lastJsonLog().error;
+    expect(err.code).toBe('selector_ambiguous');
+    expect(err.matches_n).toBe(3);
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('surfaces selector_nth_out_of_range from page.click as an error envelope', async () => {
+    (browserState.page!.click as any).mockRejectedValueOnce(new TargetError({
+      code: 'selector_nth_out_of_range',
+      message: '--nth 99 is out of range for CSS selector ".btn" (matches_n=3).',
+      hint: 'Pick an index in [0, 2].',
+      matches_n: 3,
+    }));
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'click', '.btn', '--nth', '99']);
+
+    expect(lastJsonLog().error.code).toBe('selector_nth_out_of_range');
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('rejects malformed --nth on click with usage_error before touching the page', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'click', '.btn', '--nth', 'abc']);
+
+    expect(lastJsonLog().error.code).toBe('usage_error');
+    expect(browserState.page!.click).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('hover: delegates to page.hover and emits a structured envelope', async () => {
+    (browserState.page!.hover as any).mockResolvedValueOnce({ matches_n: 2, match_level: 'exact' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'hover', '.menu', '--nth', '1']);
+
+    expect(browserState.page!.hover).toHaveBeenCalledWith('.menu', { nth: 1 });
+    expect(lastJsonLog()).toEqual({ hovered: true, target: '.menu', matches_n: 2, match_level: 'exact' });
+  });
+
+  it('focus: delegates to page.focus and reports whether the element took focus', async () => {
+    (browserState.page!.focus as any).mockResolvedValueOnce({ focused: true, matches_n: 1, match_level: 'stable' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'focus', '7']);
+
+    expect(browserState.page!.focus).toHaveBeenCalledWith('7', {});
+    expect(lastJsonLog()).toEqual({ focused: true, target: '7', matches_n: 1, match_level: 'stable' });
+  });
+
+  it('dblclick: delegates to page.dblClick and emits a structured envelope', async () => {
+    (browserState.page!.dblClick as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'exact' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'dblclick', '#row']);
+
+    expect(browserState.page!.dblClick).toHaveBeenCalledWith('#row', {});
+    expect(lastJsonLog()).toEqual({ dblclicked: true, target: '#row', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('check: ensures target is checked through page.setChecked', async () => {
+    (browserState.page!.setChecked as any).mockResolvedValueOnce({
+      checked: true,
+      changed: true,
+      matches_n: 2,
+      match_level: 'exact',
+      kind: 'checkbox',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'check', '.todo', '--nth', '1']);
+
+    expect(browserState.page!.setChecked).toHaveBeenCalledWith('.todo', true, { nth: 1 });
+    expect(lastJsonLog()).toEqual({ checked: true, changed: true, target: '.todo', matches_n: 2, match_level: 'exact', kind: 'checkbox' });
+  });
+
+  it('uncheck: ensures target is unchecked through page.setChecked', async () => {
+    (browserState.page!.setChecked as any).mockResolvedValueOnce({
+      checked: false,
+      changed: false,
+      matches_n: 1,
+      match_level: 'stable',
+      kind: 'checkbox',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'uncheck', '#subscribe']);
+
+    expect(browserState.page!.setChecked).toHaveBeenCalledWith('#subscribe', false, {});
+    expect(lastJsonLog()).toEqual({ checked: false, changed: false, target: '#subscribe', matches_n: 1, match_level: 'stable', kind: 'checkbox' });
+  });
+
+  it('upload: validates local files and delegates to page.uploadFiles', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-upload-'));
+    const file = path.join(dir, 'receipt.pdf');
+    fs.writeFileSync(file, 'pdf');
+    (browserState.page!.uploadFiles as any).mockResolvedValueOnce({
+      uploaded: true,
+      files: 1,
+      file_names: ['receipt.pdf'],
+      target: '#file',
+      matches_n: 1,
+      match_level: 'exact',
+      multiple: false,
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'upload', '#file', file]);
+
+    expect(browserState.page!.uploadFiles).toHaveBeenCalledWith('#file', [file], {});
+    expect(lastJsonLog()).toEqual({
+      uploaded: true,
+      files: 1,
+      file_names: ['receipt.pdf'],
+      target: '#file',
+      matches_n: 1,
+      match_level: 'exact',
+      multiple: false,
+    });
+  });
+
+  it('upload: rejects missing files before touching the page', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'upload', '#file', '/tmp/opencli-missing-file']);
+
+    expect(lastJsonLog().error.code).toBe('file_not_found');
+    expect(browserState.page!.uploadFiles).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('drag: delegates to page.drag and forwards source/target nth options', async () => {
+    (browserState.page!.drag as any).mockResolvedValueOnce({
+      dragged: true,
+      source: '.card',
+      target: '.lane',
+      source_matches_n: 3,
+      target_matches_n: 2,
+      source_match_level: 'exact',
+      target_match_level: 'stable',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'drag', '.card', '.lane', '--from-nth', '2', '--to-nth', '1']);
+
+    expect(browserState.page!.drag).toHaveBeenCalledWith('.card', '.lane', { from: { nth: 2 }, to: { nth: 1 } });
+    expect(lastJsonLog()).toEqual({
+      dragged: true,
+      source: '.card',
+      target: '.lane',
+      source_matches_n: 3,
+      target_matches_n: 2,
+      source_match_level: 'exact',
+      target_match_level: 'stable',
+    });
+  });
+
+  it('drag: rejects malformed --from-nth before touching the page', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'drag', '.card', '.lane', '--from-nth', 'abc']);
+
+    expect(lastJsonLog().error.code).toBe('usage_error');
+    expect(browserState.page!.drag).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('type: clicks, waits, then typeText — emits {typed, text, target, matches_n, match_level, autocomplete}', async () => {
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'exact' });
+    (browserState.page!.typeText as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'exact' });
+    (browserState.page!.evaluate as any).mockResolvedValueOnce(false); // isAutocomplete
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'type', '#q', 'hello']);
+
+    expect(browserState.page!.click).toHaveBeenCalledWith('#q', {});
+    expect(browserState.page!.wait).toHaveBeenCalledWith(0.3);
+    expect(browserState.page!.typeText).toHaveBeenCalledWith('#q', 'hello', {});
+    expect(lastJsonLog()).toEqual({
+      typed: true, text: 'hello', target: '#q', matches_n: 1, match_level: 'exact', autocomplete: false,
+    });
+  });
+
+  it('type: waits an extra 0.4s when the input reports autocomplete=true', async () => {
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'exact' });
+    (browserState.page!.typeText as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'exact' });
+    (browserState.page!.evaluate as any).mockResolvedValueOnce(true);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'type', '#q', 'hi']);
+
+    const waitCalls = (browserState.page!.wait as any).mock.calls;
+    expect(waitCalls).toContainEqual([0.3]);
+    expect(waitCalls).toContainEqual([0.4]);
+    expect(lastJsonLog().autocomplete).toBe(true);
+    expect(lastJsonLog().match_level).toBe('exact');
+  });
+
+  it('type: surfaces match_level=reidentified when ref had to be reidentified by fingerprint', async () => {
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'reidentified' });
+    (browserState.page!.typeText as any).mockResolvedValueOnce({ matches_n: 1, match_level: 'reidentified' });
+    (browserState.page!.evaluate as any).mockResolvedValueOnce(false);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'type', '9', 'hi']);
+
+    // The typeText call is the authoritative match_level source for the `type` envelope.
+    expect(lastJsonLog().match_level).toBe('reidentified');
+  });
+
+  it('type: forwards --nth to both click and typeText', async () => {
+    (browserState.page!.click as any).mockResolvedValueOnce({ matches_n: 5, match_level: 'exact' });
+    (browserState.page!.typeText as any).mockResolvedValueOnce({ matches_n: 5, match_level: 'exact' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'type', '.field', 'x', '--nth', '3']);
+
+    expect(browserState.page!.click).toHaveBeenCalledWith('.field', { nth: 3 });
+    expect(browserState.page!.typeText).toHaveBeenCalledWith('.field', 'x', { nth: 3 });
+  });
+
+  it('fill: delegates exact raw text to page.fillText and emits verification details', async () => {
+    (browserState.page!.fillText as any).mockResolvedValueOnce({
+      filled: true,
+      verified: true,
+      expected: 'line1\\n/ / raw',
+      actual: 'line1\\n/ / raw',
+      length: 14,
+      matches_n: 1,
+      match_level: 'exact',
+      mode: 'textarea',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'fill', '#msg', 'line1\\n/ / raw']);
+
+    expect(browserState.page!.fillText).toHaveBeenCalledWith('#msg', 'line1\\n/ / raw', {});
+    expect(lastJsonLog()).toEqual({
+      filled: true,
+      verified: true,
+      target: '#msg',
+      text: 'line1\\n/ / raw',
+      actual: 'line1\\n/ / raw',
+      length: 14,
+      matches_n: 1,
+      match_level: 'exact',
+      mode: 'textarea',
+    });
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('fill: sets a non-zero exit code when verification fails', async () => {
+    (browserState.page!.fillText as any).mockResolvedValueOnce({
+      filled: true,
+      verified: false,
+      expected: 'expected',
+      actual: 'actual',
+      length: 6,
+      matches_n: 1,
+      match_level: 'exact',
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'fill', '#msg', 'expected']);
+
+    expect(lastJsonLog()).toEqual({
+      filled: true,
+      verified: false,
+      target: '#msg',
+      text: 'expected',
+      actual: 'actual',
+      length: 6,
+      matches_n: 1,
+      match_level: 'exact',
+    });
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('fill: forwards --nth to page.fillText', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'fill', '.field', 'x', '--nth', '2']);
+
+    expect(browserState.page!.fillText).toHaveBeenCalledWith('.field', 'x', { nth: 2 });
+  });
+});
+
+describe('browser select command', () => {
+  const { lastJsonLog } = installSelectorFirstTestHarness('select', () => ({
+    evaluate: vi.fn(),
+  }));
+
+  it('emits {selected, target, matches_n, match_level} on success', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' });
+    evalMock.mockResolvedValueOnce({ selected: 'US' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'select', '#country', 'US']);
+
+    expect(lastJsonLog()).toEqual({ selected: 'US', target: '#country', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('maps "Not a <select>" to a not_a_select error envelope', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' });
+    evalMock.mockResolvedValueOnce({ error: 'Not a <select>' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'select', '#not-select', 'US']);
+
+    const err = lastJsonLog().error;
+    expect(err.code).toBe('not_a_select');
+    expect(err.matches_n).toBe(1);
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('maps missing-option failures to an option_not_found envelope with available list', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock.mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' });
+    evalMock.mockResolvedValueOnce({ error: 'Option "XX" not found', available: ['US', 'CA'] });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'select', '#country', 'XX']);
+
+    const err = lastJsonLog().error;
+    expect(err.code).toBe('option_not_found');
+    expect(err.available).toEqual(['US', 'CA']);
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('select: treats the first positional as option when using semantic locator flags', async () => {
+    const evalMock = browserState.page!.evaluate as any;
+    evalMock
+      .mockResolvedValueOnce({
+        matches_n: 1,
+        entries: [
+          { nth: 0, ref: 36, tag: 'select', role: 'combobox', text: 'Country', attrs: {}, visible: true },
+        ],
+      })
+      .mockResolvedValueOnce({ ok: true, matches_n: 1, match_level: 'exact' })
+      .mockResolvedValueOnce({ selected: 'Uruguay' });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'select', '--label', 'Country', 'Uruguay']);
+
+    expect(lastJsonLog()).toEqual({ selected: 'Uruguay', target: '36', matches_n: 1, match_level: 'exact' });
+  });
+
+  it('surfaces selector_ambiguous from the resolver before calling selectResolvedJs', async () => {
+    (browserState.page!.evaluate as any).mockResolvedValueOnce({
+      ok: false,
+      code: 'selector_ambiguous',
+      message: 'CSS selector ".dropdown" matched 2 elements.',
+      hint: 'Pass --nth <n>.',
+      matches_n: 2,
+    });
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'select', '.dropdown', 'US']);
+
+    expect(lastJsonLog().error.code).toBe('selector_ambiguous');
+    // The select payload JS must not fire when resolution fails
+    expect((browserState.page!.evaluate as any).mock.calls).toHaveLength(1);
+    expect(process.exitCode).toBeDefined();
+  });
+});
+
 describe('findPackageRoot', () => {
   it('walks up from dist/src to the package root', () => {
     const packageRoot = path.join('repo-root');
@@ -234,5 +3191,62 @@ describe('findPackageRoot', () => {
     ]);
 
     expect(findPackageRoot(cliFile, (candidate) => exists.has(candidate))).toBe(packageRoot);
+  });
+});
+
+describe('normalizeVerifyRows', () => {
+  it('returns an empty array for null / primitives', () => {
+    expect(normalizeVerifyRows(null)).toEqual([]);
+    expect(normalizeVerifyRows(undefined)).toEqual([]);
+    expect(normalizeVerifyRows('hello')).toEqual([]);
+  });
+
+  it('passes through array-of-objects', () => {
+    const rows = [{ a: 1 }, { a: 2 }];
+    expect(normalizeVerifyRows(rows)).toEqual(rows);
+  });
+
+  it('wraps array-of-primitives as { value } rows', () => {
+    expect(normalizeVerifyRows([1, 'two', null])).toEqual([
+      { value: 1 }, { value: 'two' }, { value: null },
+    ]);
+  });
+
+  it('unwraps common envelope shapes', () => {
+    expect(normalizeVerifyRows({ rows: [{ a: 1 }] })).toEqual([{ a: 1 }]);
+    expect(normalizeVerifyRows({ items: [{ b: 2 }] })).toEqual([{ b: 2 }]);
+    expect(normalizeVerifyRows({ data: [{ c: 3 }] })).toEqual([{ c: 3 }]);
+    expect(normalizeVerifyRows({ results: [{ d: 4 }] })).toEqual([{ d: 4 }]);
+  });
+
+  it('wraps a single object as a one-row array', () => {
+    expect(normalizeVerifyRows({ ok: true })).toEqual([{ ok: true }]);
+  });
+});
+
+describe('renderVerifyPreview', () => {
+  it('emits a placeholder for empty rows', () => {
+    expect(renderVerifyPreview([])).toContain('no rows');
+  });
+
+  it('prints column headers followed by row cells', () => {
+    const out = renderVerifyPreview([{ a: 'x', b: 1 }, { a: 'y', b: 2 }]);
+    const lines = out.split('\n');
+    expect(lines[0]).toContain('a');
+    expect(lines[0]).toContain('b');
+    expect(lines.some((l) => l.includes('x') && l.includes('1'))).toBe(true);
+    expect(lines.some((l) => l.includes('y') && l.includes('2'))).toBe(true);
+  });
+
+  it('truncates long cells and reports hidden rows / columns', () => {
+    const rows = Array.from({ length: 15 }, (_, i) => ({
+      a: i, b: 'x'.repeat(100), c: i, d: i, e: i, f: i, g: i, h: i,
+    }));
+    const out = renderVerifyPreview(rows, { maxRows: 5, maxCols: 3, cellMax: 10 });
+    expect(out).toContain('and 10 more row');
+    expect(out).toContain('more column');
+    // cell gets truncated
+    expect(out).toContain('xxxxxxxxxx');
+    expect(out).not.toContain('xxxxxxxxxxx'); // never 11 consecutive
   });
 });

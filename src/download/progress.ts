@@ -2,7 +2,7 @@
  * Download progress display: terminal progress bars, status updates.
  */
 
-import chalk from 'chalk';
+import { styleText } from 'node:util';
 
 export interface ProgressBar {
   update(current: number, total: number, label?: string): void;
@@ -42,7 +42,7 @@ export function formatDuration(ms: number): string {
  * Create a simple progress bar for terminal display.
  */
 export function createProgressBar(filename: string, index: number, total: number): ProgressBar {
-  const prefix = chalk.dim(`[${index + 1}/${total}]`);
+  const prefix = styleText('dim', `[${index + 1}/${total}]`);
   const truncatedName = filename.length > 40 ? filename.slice(0, 37) + '...' : filename;
 
   return {
@@ -54,12 +54,12 @@ export function createProgressBar(filename: string, index: number, total: number
       process.stderr.write(`\r${prefix} ${truncatedName} ${bar} ${percent}% ${size}${extra}`);
     },
     complete(success: boolean, message?: string) {
-      const icon = success ? chalk.green('✓') : chalk.red('✗');
-      const msg = message ? ` ${chalk.dim(message)}` : '';
+      const icon = success ? styleText('green', '✓') : styleText('red', '✗');
+      const msg = message ? ` ${styleText('dim', message)}` : '';
       process.stderr.write(`\r${prefix} ${icon} ${truncatedName}${msg}\n`);
     },
     fail(error: string) {
-      process.stderr.write(`\r${prefix} ${chalk.red('✗')} ${truncatedName} ${chalk.red(error)}\n`);
+      process.stderr.write(`\r${prefix} ${styleText('red', '✗')} ${truncatedName} ${styleText('red', error)}\n`);
     },
   };
 }
@@ -70,7 +70,7 @@ export function createProgressBar(filename: string, index: number, total: number
 function createBar(percent: number, width: number = 20): string {
   const filled = Math.round((percent / 100) * width);
   const empty = width - filled;
-  return chalk.cyan('█'.repeat(filled)) + chalk.dim('░'.repeat(empty));
+  return styleText('cyan', '█'.repeat(filled)) + styleText('dim', '░'.repeat(empty));
 }
 
 /**
@@ -110,13 +110,13 @@ export class DownloadProgressTracker {
     const parts: string[] = [];
 
     if (this.completed > 0) {
-      parts.push(chalk.green(`${this.completed} downloaded`));
+      parts.push(styleText('green', `${this.completed} downloaded`));
     }
     if (this.skipped > 0) {
-      parts.push(chalk.yellow(`${this.skipped} skipped`));
+      parts.push(styleText('yellow', `${this.skipped} skipped`));
     }
     if (this.failed > 0) {
-      parts.push(chalk.red(`${this.failed} failed`));
+      parts.push(styleText('red', `${this.failed} failed`));
     }
 
     return `${parts.join(', ')} in ${elapsed}`;
@@ -124,7 +124,7 @@ export class DownloadProgressTracker {
 
   finish(): void {
     if (this.verbose) {
-      process.stderr.write(`\n${chalk.bold('Download complete:')} ${this.getSummary()}\n`);
+      process.stderr.write(`\n${styleText('bold', 'Download complete:')} ${this.getSummary()}\n`);
     }
   }
 }

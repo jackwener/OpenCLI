@@ -31,8 +31,12 @@ opencli douban search --type music "周杰伦"
 # 电影 Top 250
 opencli douban top250 --limit 10
 
-# 条目详情
+# 电影详情
 opencli douban subject 1292052
+
+# 图书详情
+opencli douban subject 2567698 --type book
+opencli douban subject 2567698 --type book -f json
 
 # 获取海报直链（默认 type=Rb）
 opencli douban photos 30382501 --limit 20
@@ -60,3 +64,5 @@ opencli douban top250 -f json
 
 - Chrome logged into `douban.com`
 - Browser Bridge extension installed
+
+图书搜索和图书详情在稳定批量使用时默认需要已登录的豆瓣浏览器会话。

@@ -1,0 +1,1514 @@
+[
+  {
+    "rule": "silent-clamp",
+    "command": "36kr/hot",
+    "file": "clis/36kr/hot.js",
+    "line": 45,
+    "text": "const count = Math.min(Number(args.limit) || 20, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "36kr/news",
+    "file": "clis/36kr/news.js",
+    "line": 17,
+    "text": "const count = Math.min(kwargs.limit || 20, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "36kr/search",
+    "file": "clis/36kr/search.js",
+    "line": 22,
+    "text": "const count = Math.min(Number(args.limit) || 20, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "51job/company",
+    "file": "clis/51job/company.js",
+    "line": 39,
+    "text": "const limit = Math.max(1, Math.min(Number(kwargs.limit) || 20, 50));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "51job/hot",
+    "file": "clis/51job/hot.js",
+    "line": 34,
+    "text": "const limit = Math.max(1, Math.min(Number(kwargs.limit) || 20, 50));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "51job/hot",
+    "file": "clis/51job/hot.js",
+    "line": 46,
+    "text": "pageNum, pageSize: Math.min(limit, 50),",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "51job/search",
+    "file": "clis/51job/search.js",
+    "line": 46,
+    "text": "const limit = Math.max(1, Math.min(Number(kwargs.limit) || 20, 50));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "51job/search",
+    "file": "clis/51job/search.js",
+    "line": 67,
+    "text": "pageNum, pageSize: Math.min(limit, 50),",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "apple-podcasts/episodes",
+    "file": "clis/apple-podcasts/episodes.js",
+    "line": 17,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit), 200));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "apple-podcasts/search",
+    "file": "clis/apple-podcasts/search.js",
+    "line": 18,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit), 25));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "apple-podcasts/top",
+    "file": "clis/apple-podcasts/top.js",
+    "line": 19,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit), 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "bbc/news",
+    "file": "clis/bbc/news.js",
+    "line": 17,
+    "text": "const count = Math.min(kwargs.limit || 20, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "bilibili/comments",
+    "file": "clis/bilibili/comments.js",
+    "line": 21,
+    "text": "const limit = Math.min(Number(kwargs.limit) || 20, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "bilibili/favorite",
+    "file": "clis/bilibili/favorite.js",
+    "line": 35,
+    "text": "params: { media_id: fid, pn: pageNum, ps: Math.min(Number(limit), 40) },",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "bilibili/following",
+    "file": "clis/bilibili/following.js",
+    "line": 25,
+    "text": "const ps = Math.min(kwargs.limit ?? 50, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "bilibili/history",
+    "file": "clis/bilibili/history.js",
+    "line": 17,
+    "text": "params: { ps: Math.min(Number(limit), 30), type: 'archive' },",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "bilibili/user-videos",
+    "file": "clis/bilibili/user-videos.js",
+    "line": 24,
+    "text": "ps: Math.min(Number(limit), 50),",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "douyin/user-videos",
+    "file": "clis/douyin/user-videos.js",
+    "line": 16,
+    "text": "return Math.min(DEFAULT_COMMENT_LIMIT, Math.max(1, Math.round(numeric)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "douyin/user-videos",
+    "file": "clis/douyin/user-videos.js",
+    "line": 10,
+    "text": "return Math.min(MAX_USER_VIDEOS_LIMIT, Math.max(1, Math.round(numeric)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "eastmoney/announcement",
+    "file": "clis/eastmoney/announcement.js",
+    "line": 24,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "eastmoney/convertible",
+    "file": "clis/eastmoney/convertible.js",
+    "line": 36,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "eastmoney/etf",
+    "file": "clis/eastmoney/etf.js",
+    "line": 34,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "eastmoney/holders",
+    "file": "clis/eastmoney/holders.js",
+    "line": 46,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 10, 50));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "eastmoney/kline",
+    "file": "clis/eastmoney/kline.js",
+    "line": 52,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 30, 1000));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "eastmoney/kuaixun",
+    "file": "clis/eastmoney/kuaixun.js",
+    "line": 32,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "eastmoney/longhu",
+    "file": "clis/eastmoney/longhu.js",
+    "line": 32,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "eastmoney/money-flow",
+    "file": "clis/eastmoney/money-flow.js",
+    "line": 39,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "eastmoney/northbound",
+    "file": "clis/eastmoney/northbound.js",
+    "line": 28,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 10, 240));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "eastmoney/rank",
+    "file": "clis/eastmoney/rank.js",
+    "line": 50,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "eastmoney/sectors",
+    "file": "clis/eastmoney/sectors.js",
+    "line": 44,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "facebook/marketplace-inbox",
+    "file": "clis/facebook/marketplace-inbox.js",
+    "line": 9,
+    "text": "return Math.min(limit, 100);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "facebook/marketplace-listings",
+    "file": "clis/facebook/marketplace-listings.js",
+    "line": 9,
+    "text": "return Math.min(limit, 100);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "gitee/search",
+    "file": "clis/gitee/search.js",
+    "line": 11,
+    "text": "return Math.max(1, Math.min(parsed, MAX_LIMIT));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "gitee/trending",
+    "file": "clis/gitee/trending.js",
+    "line": 71,
+    "text": "return Math.max(1, Math.min(parsed, MAX_LIMIT));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "google/news",
+    "file": "clis/google/news.js",
+    "line": 23,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit), 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "google/search",
+    "file": "clis/google/search.js",
+    "line": 27,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit), 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "google/trends",
+    "file": "clis/google/trends.js",
+    "line": 21,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit), 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "hackernews/ask",
+    "file": "clis/hackernews/ask.js",
+    "line": 16,
+    "text": "{ limit: '${{ Math.min((args.limit ? args.limit : 20) + 10, 50) }}' },",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "hackernews/best",
+    "file": "clis/hackernews/best.js",
+    "line": 16,
+    "text": "{ limit: '${{ Math.min((args.limit ? args.limit : 20) + 10, 50) }}' },",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "hackernews/jobs",
+    "file": "clis/hackernews/jobs.js",
+    "line": 16,
+    "text": "{ limit: '${{ Math.min((args.limit ? args.limit : 20) + 10, 50) }}' },",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "hackernews/new",
+    "file": "clis/hackernews/new.js",
+    "line": 16,
+    "text": "{ limit: '${{ Math.min((args.limit ? args.limit : 20) + 10, 50) }}' },",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "hackernews/show",
+    "file": "clis/hackernews/show.js",
+    "line": 16,
+    "text": "{ limit: '${{ Math.min((args.limit ? args.limit : 20) + 10, 50) }}' },",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "hackernews/top",
+    "file": "clis/hackernews/top.js",
+    "line": 16,
+    "text": "{ limit: '${{ Math.min((args.limit ? args.limit : 20) + 10, 50) }}' },",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "hupu/mentions",
+    "file": "clis/hupu/mentions.js",
+    "line": 34,
+    "text": "const limit = Math.max(1, Math.min(Number(kwargs.limit) || 20, 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "imdb/person",
+    "file": "clis/imdb/person.js",
+    "line": 23,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 10, 30));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "imdb/reviews",
+    "file": "clis/imdb/reviews.js",
+    "line": 22,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 10, 25));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "imdb/search",
+    "file": "clis/imdb/search.js",
+    "line": 26,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 50));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "imdb/top",
+    "file": "clis/imdb/top.js",
+    "line": 31,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 250));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "imdb/trending",
+    "file": "clis/imdb/trending.js",
+    "line": 31,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "jianyu/search",
+    "file": "clis/jianyu/search.js",
+    "line": 542,
+    "text": "const limit = Math.max(1, Math.min(Number(kwargs.limit) || 20, 50));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "jianyu/search",
+    "file": "clis/jianyu/search.js",
+    "line": 426,
+    "text": "pageSize: Math.max(20, Math.min(${Math.max(20, limit)}, 50)),",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "linkedin/search",
+    "file": "clis/linkedin/search.js",
+    "line": 249,
+    "text": "const count = Math.min(MAX_BATCH, input.limit - allJobs.length);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "linkedin/timeline",
+    "file": "clis/linkedin/timeline.js",
+    "line": 473,
+    "text": "const limit = Math.max(1, Math.min(kwargs.limit ?? 20, 100));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "ones/my-tasks",
+    "file": "clis/ones/my-tasks.js",
+    "line": 84,
+    "text": "const cap = Math.min(500, limit * 2);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "powerchina/search",
+    "file": "clis/powerchina/search.js",
+    "line": 174,
+    "text": "const limit = Math.max(1, Math.min(Number(kwargs.limit) || 20, 50));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "powerchina/search",
+    "file": "clis/powerchina/search.js",
+    "line": 125,
+    "text": "const pageSize = Math.max(20, Math.min(100, Math.max(limit * 3, limit)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "producthunt/browse",
+    "file": "clis/producthunt/browse.js",
+    "line": 29,
+    "text": "const count = Math.min(Number(args.limit) || 20, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "producthunt/hot",
+    "file": "clis/producthunt/hot.js",
+    "line": 21,
+    "text": "const count = Math.min(Number(args.limit) || 20, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "producthunt/posts",
+    "file": "clis/producthunt/posts.js",
+    "line": 24,
+    "text": "const count = Math.min(Number(args.limit) || 20, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "producthunt/today",
+    "file": "clis/producthunt/today.js",
+    "line": 21,
+    "text": "const count = Math.min(Number(args.limit) || 20, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "reddit/read",
+    "file": "clis/reddit/read.js",
+    "line": 157,
+    "text": "for (var i = 0; i < Math.min(t1TopLevel.length, limit); i++) {",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "sinablog/search",
+    "file": "clis/sinablog/search.js",
+    "line": 51,
+    "text": "func: async (args) => searchSinaBlog(args.keyword, Math.max(1, Math.min(Number(args.limit) || 20, 50))),",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "sinafinance/news",
+    "file": "clis/sinafinance/news.js",
+    "line": 39,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit), 50));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "spotify/auth",
+    "file": "clis/spotify/spotify.js",
+    "line": 277,
+    "text": "const limit = Math.min(50, Math.max(1, Math.round(kwargs.limit)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "spotify/next",
+    "file": "clis/spotify/spotify.js",
+    "line": 277,
+    "text": "const limit = Math.min(50, Math.max(1, Math.round(kwargs.limit)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "spotify/pause",
+    "file": "clis/spotify/spotify.js",
+    "line": 277,
+    "text": "const limit = Math.min(50, Math.max(1, Math.round(kwargs.limit)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "spotify/play",
+    "file": "clis/spotify/spotify.js",
+    "line": 277,
+    "text": "const limit = Math.min(50, Math.max(1, Math.round(kwargs.limit)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "spotify/prev",
+    "file": "clis/spotify/spotify.js",
+    "line": 277,
+    "text": "const limit = Math.min(50, Math.max(1, Math.round(kwargs.limit)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "spotify/queue",
+    "file": "clis/spotify/spotify.js",
+    "line": 277,
+    "text": "const limit = Math.min(50, Math.max(1, Math.round(kwargs.limit)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "spotify/repeat",
+    "file": "clis/spotify/spotify.js",
+    "line": 277,
+    "text": "const limit = Math.min(50, Math.max(1, Math.round(kwargs.limit)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "spotify/search",
+    "file": "clis/spotify/spotify.js",
+    "line": 277,
+    "text": "const limit = Math.min(50, Math.max(1, Math.round(kwargs.limit)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "spotify/shuffle",
+    "file": "clis/spotify/spotify.js",
+    "line": 277,
+    "text": "const limit = Math.min(50, Math.max(1, Math.round(kwargs.limit)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "spotify/status",
+    "file": "clis/spotify/spotify.js",
+    "line": 277,
+    "text": "const limit = Math.min(50, Math.max(1, Math.round(kwargs.limit)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "spotify/volume",
+    "file": "clis/spotify/spotify.js",
+    "line": 277,
+    "text": "const limit = Math.min(50, Math.max(1, Math.round(kwargs.limit)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "stackoverflow/read",
+    "file": "clis/stackoverflow/read.js",
+    "line": 125,
+    "text": "const pageSize = Math.min(SE_MAX_PAGE_SIZE, answers.length * commentsLimit);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "substack/search",
+    "file": "clis/substack/search.js",
+    "line": 74,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 50));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "tieba/posts",
+    "file": "clis/tieba/posts.js",
+    "line": 22,
+    "text": "rn_need: String(Math.min(Math.max(limit + 10, 10), 30)),",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "twitter/bookmark-folder",
+    "file": "clis/twitter/bookmark-folder.js",
+    "line": 161,
+    "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "twitter/bookmarks",
+    "file": "clis/twitter/bookmarks.js",
+    "line": 156,
+    "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "twitter/following",
+    "file": "clis/twitter/following.js",
+    "line": 215,
+    "text": "const fetchCount = Math.min(50, limit - allUsers.length + 10);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "twitter/likes",
+    "file": "clis/twitter/likes.js",
+    "line": 195,
+    "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "twitter/list-tweets",
+    "file": "clis/twitter/list-tweets.js",
+    "line": 168,
+    "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "twitter/timeline",
+    "file": "clis/twitter/timeline.js",
+    "line": 182,
+    "text": "const fetchCount = Math.min(40, limit - allTweets.length + 5); // over-fetch slightly for promoted filtering",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "twitter/tweets",
+    "file": "clis/twitter/tweets.js",
+    "line": 194,
+    "text": "const fetchCount = Math.min(100, limit - all.length + 10);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "twitter/tweets",
+    "file": "clis/twitter/tweets.js",
+    "line": 159,
+    "text": "const limit = Math.max(1, Math.min(200, kwargs.limit || 20));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "weibo/comments",
+    "file": "clis/weibo/comments.js",
+    "line": 18,
+    "text": "const count = Math.min(kwargs.limit || 20, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "weibo/feed",
+    "file": "clis/weibo/feed.js",
+    "line": 28,
+    "text": "const count = Math.min(kwargs.limit || 15, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "weibo/hot",
+    "file": "clis/weibo/hot.js",
+    "line": 17,
+    "text": "const count = Math.min(kwargs.limit || 30, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "weibo/search",
+    "file": "clis/weibo/search.js",
+    "line": 20,
+    "text": "const limit = Math.max(1, Math.min(Number(kwargs.limit) || 10, 50));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "wikipedia/search",
+    "file": "clis/wikipedia/search.js",
+    "line": 18,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit), 50));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "wikipedia/trending",
+    "file": "clis/wikipedia/trending.js",
+    "line": 18,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit), 50));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "xianyu/search",
+    "file": "clis/xianyu/search.js",
+    "line": 8,
+    "text": "return Math.min(MAX_LIMIT, Math.max(1, Math.floor(n)));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "xueqiu/comments",
+    "file": "clis/xueqiu/comments.js",
+    "line": 325,
+    "text": "const pageSize = Math.min(limit, 20);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "youtube/channel",
+    "file": "clis/youtube/channel.js",
+    "line": 35,
+    "text": "const limit = Math.min(kwargs.limit || 10, 30);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "youtube/comments",
+    "file": "clis/youtube/comments.js",
+    "line": 21,
+    "text": "const limit = Math.min(kwargs.limit || 20, 100);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "youtube/feed",
+    "file": "clis/youtube/feed.js",
+    "line": 20,
+    "text": "const limit = Math.min(kwargs.limit || 20, 100);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "youtube/history",
+    "file": "clis/youtube/history.js",
+    "line": 22,
+    "text": "await page.autoScroll({ times: Math.min(Math.max(Math.ceil(limit / 20), 1), 8), delayMs: 1200 });",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "youtube/history",
+    "file": "clis/youtube/history.js",
+    "line": 19,
+    "text": "const limit = Math.min(kwargs.limit || 30, 200);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "youtube/playlist",
+    "file": "clis/youtube/playlist.js",
+    "line": 37,
+    "text": "const limit = Math.min(kwargs.limit || 50, 200);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "youtube/search",
+    "file": "clis/youtube/search.js",
+    "line": 21,
+    "text": "const limit = Math.min(kwargs.limit || 20, 50);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "youtube/subscriptions",
+    "file": "clis/youtube/subscriptions.js",
+    "line": 20,
+    "text": "const limit = Math.min(kwargs.limit || 50, 1000);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "youtube/watch-later",
+    "file": "clis/youtube/watch-later.js",
+    "line": 21,
+    "text": "const limit = Math.min(kwargs.limit || 50, 200);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "zhihu/collection",
+    "file": "clis/zhihu/collection.js",
+    "line": 141,
+    "text": "const currentFetchLimit = Math.min(pageLimit, requestedLimit - collected.length);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "zhihu/collection",
+    "file": "clis/zhihu/collection.js",
+    "line": 130,
+    "text": "const pageLimit = Math.min(requestedLimit, 20); // 知乎 API 限制每页最大 20",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "zhihu/collections",
+    "file": "clis/zhihu/collections.js",
+    "line": 73,
+    "text": "const currentFetchLimit = Math.min(pageLimit, requestedLimit - collected.length);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "zhihu/collections",
+    "file": "clis/zhihu/collections.js",
+    "line": 69,
+    "text": "const pageLimit = Math.min(requestedLimit, 20);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
+    "command": "zlibrary/search",
+    "file": "clis/zlibrary/search.js",
+    "line": 30,
+    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 10, 25));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-empty-fallback",
+    "command": "douyin/user-videos",
+    "file": "clis/douyin/user-videos.js",
+    "line": 31,
+    "text": "return [];",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-empty-fallback",
+    "command": "jike/post",
+    "file": "clis/jike/post.js",
+    "line": 50,
+    "text": "return [];",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-empty-fallback",
+    "command": "jike/topic",
+    "file": "clis/jike/topic.js",
+    "line": 38,
+    "text": "return [];",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-empty-fallback",
+    "command": "jike/user",
+    "file": "clis/jike/user.js",
+    "line": 37,
+    "text": "return [];",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-empty-fallback",
+    "command": "weread/search",
+    "file": "clis/weread/search.js",
+    "line": 97,
+    "text": "return [];",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "36kr/article",
+    "file": "clis/36kr/article.js",
+    "line": 57,
+    "text": "{ field: 'author', value: data.author || '-' },",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "36kr/article",
+    "file": "clis/36kr/article.js",
+    "line": 60,
+    "text": "{ field: 'body', value: data.body || '-' },",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "36kr/article",
+    "file": "clis/36kr/article.js",
+    "line": 58,
+    "text": "{ field: 'date', value: data.date || '-' },",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "51job/hot",
+    "file": "clis/51job/hot.js",
+    "line": 50,
+    "text": "throw new CliError('API_ERROR', `51job hot failed: ${data.message ?? 'unknown'}`);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "51job/search",
+    "file": "clis/51job/search.js",
+    "line": 72,
+    "text": "throw new CliError('API_ERROR', `51job search failed: ${data.message ?? 'unknown'}`);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "apple-podcasts/search",
+    "file": "clis/apple-podcasts/search.js",
+    "line": 26,
+    "text": "episodes: p.trackCount ?? '-',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "apple-podcasts/search",
+    "file": "clis/apple-podcasts/search.js",
+    "line": 27,
+    "text": "genre: p.primaryGenreName ?? '-',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "bilibili/download",
+    "file": "clis/bilibili/download.js",
+    "line": 47,
+    "text": "const author = document.querySelector('.up-name, .username')?.textContent?.trim() || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "boss/stats",
+    "file": "clis/boss/stats.js",
+    "line": 39,
+    "text": "const jobName = f.jobName || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "doubao-app/send",
+    "file": "clis/doubao-app/send.js",
+    "line": 19,
+    "text": "throw new Error('Could not find chat input: ' + (injected?.error || 'unknown'));",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "douyin/draft",
+    "file": "clis/douyin/draft.js",
+    "line": 288,
+    "text": "throw new CommandExecutionError('未检测到抖音草稿恢复提示', `当前页面: ${lastState.href || 'unknown'}`);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "douyin/draft",
+    "file": "clis/douyin/draft.js",
+    "line": 210,
+    "text": "throw new CommandExecutionError('等待抖音封面处理完成超时', lastPanelText || 'unknown');",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "douyin/draft",
+    "file": "clis/douyin/draft.js",
+    "line": 57,
+    "text": "throw new CommandExecutionError('等待抖音草稿编辑页超时', `当前页面: ${lastState.href || 'unknown'}`);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "douyin/draft",
+    "file": "clis/douyin/draft.js",
+    "line": 262,
+    "text": "throw new CommandExecutionError(`点击草稿按钮失败: ${result?.reason || 'unknown'}`);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "gitee/search",
+    "file": "clis/gitee/search.js",
+    "line": 127,
+    "text": "description: normalizeText(getFirstText(fields.description)) || '-',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "gitee/search",
+    "file": "clis/gitee/search.js",
+    "line": 126,
+    "text": "language: normalizeText(getFirstText(fields.langs)) || '-',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "gitee/trending",
+    "file": "clis/gitee/trending.js",
+    "line": 259,
+    "text": "description: description || '-',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "gitee/trending",
+    "file": "clis/gitee/trending.js",
+    "line": 272,
+    "text": "description: project.description !== '-' ? project.description : (mergedDescription || '-'),",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "instagram/note",
+    "file": "clis/instagram/note.js",
+    "line": 219,
+    "text": "throw new CommandExecutionError(`Instagram note publish failed at ${String(result?.stage || 'unknown')}: ${String(result?.text || 'unknown error')}`);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "jimeng/history",
+    "file": "clis/jimeng/history.js",
+    "line": 31,
+    "text": "model: params.model_config?.model_name || 'unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "jimeng/history",
+    "file": "clis/jimeng/history.js",
+    "line": 30,
+    "text": "prompt: params.prompt || item.common_attr?.title || 'N/A',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "lesswrong/comments",
+    "file": "clis/lesswrong/comments.js",
+    "line": 59,
+    "text": "author: user?.displayName ?? 'Unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "lesswrong/curated",
+    "file": "clis/lesswrong/curated.js",
+    "line": 25,
+    "text": "author: item.user?.displayName ?? 'Unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "lesswrong/frontpage",
+    "file": "clis/lesswrong/frontpage.js",
+    "line": 25,
+    "text": "author: item.user?.displayName ?? 'Unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "lesswrong/new",
+    "file": "clis/lesswrong/new.js",
+    "line": 25,
+    "text": "author: item.user?.displayName ?? 'Unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "lesswrong/read",
+    "file": "clis/lesswrong/read.js",
+    "line": 37,
+    "text": "author: post.user?.displayName ?? 'Unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "lesswrong/sequences",
+    "file": "clis/lesswrong/sequences.js",
+    "line": 25,
+    "text": "author: item.user?.displayName ?? 'Unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "lesswrong/shortform",
+    "file": "clis/lesswrong/shortform.js",
+    "line": 25,
+    "text": "author: item.user?.displayName ?? 'Unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "lesswrong/tag",
+    "file": "clis/lesswrong/tag.js",
+    "line": 40,
+    "text": "author: item.user?.displayName ?? 'Unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "lesswrong/top-month",
+    "file": "clis/lesswrong/top-month.js",
+    "line": 25,
+    "text": "author: item.user?.displayName ?? 'Unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "lesswrong/top-week",
+    "file": "clis/lesswrong/top-week.js",
+    "line": 25,
+    "text": "author: item.user?.displayName ?? 'Unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "lesswrong/top-year",
+    "file": "clis/lesswrong/top-year.js",
+    "line": 25,
+    "text": "author: item.user?.displayName ?? 'Unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "lesswrong/top",
+    "file": "clis/lesswrong/top.js",
+    "line": 25,
+    "text": "author: item.user?.displayName ?? 'Unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "linux-do/topic-content",
+    "file": "clis/linux-do/topic-content.js",
+    "line": 121,
+    "text": "throw new CommandExecutionError(result.error || `linux.do request failed: HTTP ${result.status ?? 'unknown'}`);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "powerchina/search",
+    "file": "clis/powerchina/search.js",
+    "line": 149,
+    "text": "throw new Error(`[taxonomy=relay_unavailable] site=powerchina command=search api code=${data.code ?? 'unknown'} msg=${cleanText(data.msg)}`);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "reddit/saved",
+    "file": "clis/reddit/saved.js",
+    "line": 33,
+    "text": "title: c.data.title || c.data.body?.slice(0, 100) || '-',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "reddit/upvoted",
+    "file": "clis/reddit/upvoted.js",
+    "line": 33,
+    "text": "title: c.data.title || '-',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/accept",
+    "file": "clis/twitter/accept.js",
+    "line": 75,
+    "text": "const user = lines[0] || 'Unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/accept",
+    "file": "clis/twitter/accept.js",
+    "line": 182,
+    "text": "user: res.user || 'Unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/article",
+    "file": "clis/twitter/article.js",
+    "line": 105,
+    "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/bookmarks",
+    "file": "clis/twitter/bookmarks.js",
+    "line": 53,
+    "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/following",
+    "file": "clis/twitter/following.js",
+    "line": 94,
+    "text": "name: core.name || legacy.name || 'unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/following",
+    "file": "clis/twitter/following.js",
+    "line": 93,
+    "text": "screen_name: core.screen_name || legacy.screen_name || 'unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/likes",
+    "file": "clis/twitter/likes.js",
+    "line": 90,
+    "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/list-tweets",
+    "file": "clis/twitter/list-tweets.js",
+    "line": 60,
+    "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/notifications",
+    "file": "clis/twitter/notifications.js",
+    "line": 82,
+    "text": "author = fromUser?.core?.screen_name || fromUser?.legacy?.screen_name || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/notifications",
+    "file": "clis/twitter/notifications.js",
+    "line": 104,
+    "text": "author = tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/notifications",
+    "file": "clis/twitter/notifications.js",
+    "line": 97,
+    "text": "author = tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown';",
+    "occurrence": 1
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/reply-dm",
+    "file": "clis/twitter/reply-dm.js",
+    "line": 84,
+    "text": "const user = lines[0] || 'Unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/search",
+    "file": "clis/twitter/search.js",
+    "line": 296,
+    "text": "author: tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/thread",
+    "file": "clis/twitter/thread.js",
+    "line": 48,
+    "text": "const screenName = u?.legacy?.screen_name || u?.core?.screen_name || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/timeline",
+    "file": "clis/twitter/timeline.js",
+    "line": 75,
+    "text": "const screenName = u?.legacy?.screen_name || u?.core?.screen_name || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "twitter/tweets",
+    "file": "clis/twitter/tweets.js",
+    "line": 92,
+    "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "v2ex/daily",
+    "file": "clis/v2ex/daily.js",
+    "line": 93,
+    "text": "return [{ status: '🎉 签到成功', message: `当前余额: ${verifyResult.balance || '未知'}` }];",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "v2ex/me",
+    "file": "clis/v2ex/me.js",
+    "line": 38,
+    "text": "username = navLinks[1] || 'Unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "web/read",
+    "file": "clis/web/read.js",
+    "line": 378,
+    "text": "lines.push(`  [frame ${frame.index}] ${frame.sameOrigin ? 'same-origin' : 'cross-origin'} ${frame.accessible ? 'accessible' : 'blocked'} text=${frame.textLength || 0} ${frame.src || '-'}`);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "web/read",
+    "file": "clis/web/read.js",
+    "line": 390,
+    "text": "lines.push(`  ${entry.method} ${entry.status || '-'} ${entry.contentType || '-'} ${entry.url}`);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "web/read",
+    "file": "clis/web/read.js",
+    "line": 384,
+    "text": "lines.push(`  ${item.scope}: ${selector} (${item.url || '-'})`);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "web/read",
+    "file": "clis/web/read.js",
+    "line": 375,
+    "text": "lines.push(`url: ${diag.url || '-'}`);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "weibo/comments",
+    "file": "clis/weibo/comments.js",
+    "line": 32,
+    "text": "if (!data.ok) return {error: 'API error: ' + (data.msg || 'unknown')};",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "weibo/feed",
+    "file": "clis/weibo/feed.js",
+    "line": 45,
+    "text": "if (!data.ok) return { error: 'API error: ' + (data.msg || 'unknown') };",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "wikipedia/trending",
+    "file": "clis/wikipedia/trending.js",
+    "line": 32,
+    "text": "description: (a.description ?? '-').slice(0, DESC_MAX_LEN),",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "wikipedia/trending",
+    "file": "clis/wikipedia/trending.js",
+    "line": 31,
+    "text": "title: a.title ?? '-',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "xiaohongshu/download",
+    "file": "clis/xiaohongshu/download.js",
+    "line": 65,
+    "text": "result.author = authorEl?.textContent?.trim() || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "xiaohongshu/publish",
+    "file": "clis/xiaohongshu/publish.js",
+    "line": 529,
+    "text": "throw new Error(`Image injection failed: ${upload.error ?? 'unknown'}. ` +",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "xiaoyuzhou/download",
+    "file": "clis/xiaoyuzhou/download.js",
+    "line": 48,
+    "text": "podcast: ep.podcast?.title || '-',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "xiaoyuzhou/transcript",
+    "file": "clis/xiaoyuzhou/transcript.js",
+    "line": 70,
+    "text": "podcast: episode.podcast?.title || '-',",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "yollomi/edit",
+    "file": "clis/yollomi/edit.js",
+    "line": 54,
+    "text": "return [{ status: 'download-failed', file: '-', size: '-', credits: credits ?? '-', url }];",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "yollomi/edit",
+    "file": "clis/yollomi/edit.js",
+    "line": 45,
+    "text": "return [{ status: 'edited', file: '-', size: '-', credits: credits ?? '-', url }];",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "yollomi/edit",
+    "file": "clis/yollomi/edit.js",
+    "line": 51,
+    "text": "return [{ status: 'saved', file: path.relative('.', fp), size: fmtBytes(size), credits: credits ?? '-', url }];",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "yollomi/video",
+    "file": "clis/yollomi/video.js",
+    "line": 54,
+    "text": "return [{ status: 'download-failed', file: '-', size: '-', credits: credits ?? '-', url: videoUrl }];",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "yollomi/video",
+    "file": "clis/yollomi/video.js",
+    "line": 44,
+    "text": "return [{ status: 'generated', file: '-', size: '-', credits: credits ?? '-', url: videoUrl }];",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "yollomi/video",
+    "file": "clis/yollomi/video.js",
+    "line": 51,
+    "text": "return [{ status: 'saved', file: path.relative('.', fp), size: fmtBytes(size), credits: credits ?? '-', url: videoUrl }];",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "zhihu/collection",
+    "file": "clis/zhihu/collection.js",
+    "line": 64,
+    "text": "const type = content.type || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "zhihu/collection",
+    "file": "clis/zhihu/collection.js",
+    "line": 59,
+    "text": "return `${content.type || 'unknown'}:${content.id || content.url || JSON.stringify(content).slice(0, 80)}`;",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "zhihu/download",
+    "file": "clis/zhihu/download.js",
+    "line": 44,
+    "text": "result.author = authorEl?.textContent?.trim() || 'unknown';",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-sentinel",
+    "command": "zsxq/dynamics",
+    "file": "clis/zsxq/dynamics.js",
+    "line": 31,
+    "text": "title: `[${d.action || 'unknown'}]`,",
+    "occurrence": 0
+  }
+]

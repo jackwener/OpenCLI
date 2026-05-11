@@ -199,24 +199,6 @@ opencli linux-do user-posts neo --limit 10
 
 Output columns: `index`, `topic_user`, `topic`, `reply`, `time`, `url`
 
-## Compatibility
-
-The legacy commands below are still available as compatibility wrappers while `feed` becomes the canonical entrypoint:
-
-```bash
-opencli linux-do latest
-opencli linux-do hot --period weekly
-opencli linux-do category develop 4
-```
-
-Preferred modern forms:
-
-```bash
-opencli linux-do feed --view latest
-opencli linux-do feed --view top --period weekly
-opencli linux-do feed --category 4
-```
-
 ## Prerequisites
 
 - Chrome running and **logged into** linux.do

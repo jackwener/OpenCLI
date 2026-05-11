@@ -22,7 +22,16 @@
  * Additional tools:
  *   - scrollToRefJs(ref) — scroll to a data-opencli-ref element
  *   - getFormStateJs()  — extract all form fields as structured JSON
+ *
+ * Compound sidecar:
+ *   After the tree, a `compounds:` section lists rich JSON for every
+ *   date/select/file ref — format, full option list (up to cap) with
+ *   `options_total` reflecting the true count, file `accept` + `multiple`.
+ *   This is what the snapshot's inline attr dump cannot express and what
+ *   agents kept blowing turns on.
  */
+
+import { COMPOUND_INFO_JS } from './compound.js';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -196,6 +205,8 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
 (() => {
   'use strict';
 
+  ${COMPOUND_INFO_JS}
+
   // ── Config ─────────────────────────────────────────────────────────
   const VIEWPORT_EXPAND = ${viewportExpand};
   const MAX_DEPTH = ${maxDepth};
@@ -262,6 +273,38 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   ]);
 
   const PROPAGATING_TAGS = new Set(['a', 'button']);
+
+  // Roles whose element wraps its own interactive descendants (icon spans
+  // inside a role=button, chevron inside role=link). When we see one of these,
+  // we propagate its bbox to children so we can suppress duplicate refs on
+  // undistinctive descendants that are ≥99% contained.
+  const PROPAGATING_ROLES = new Set(['button', 'link', 'menuitem', 'tab', 'option']);
+
+  function isBboxPropagator(el, tag) {
+    if (PROPAGATING_TAGS.has(tag)) return true;
+    const role = el.getAttribute('role');
+    return !!(role && PROPAGATING_ROLES.has(role));
+  }
+
+  // True when an interactive element still deserves its own [N] ref even
+  // though it's visually subsumed by a propagating ancestor. Anything with
+  // an aria-label, aria-labelledby, id, test id, name, or its own form
+  // semantics is treated as distinctive — everything else (naked spans /
+  // divs / svgs that merely inherit click from the parent button) gets
+  // folded into the parent so the snapshot doesn't ship [1]<button>[2]<svg>.
+  function isDistinctivelyInteractive(el) {
+    if (el.hasAttribute('aria-label')) return true;
+    if (el.hasAttribute('aria-labelledby')) return true;
+    if (el.id) return true;
+    if (el.getAttribute('data-testid') || el.getAttribute('data-test')) return true;
+    if (el.hasAttribute('name')) return true;
+    const tag = el.tagName.toLowerCase();
+    // Real form controls always stand on their own, even when nested in a label/button
+    if (tag === 'input' || tag === 'select' || tag === 'textarea') return true;
+    // Anchors with their own href are distinct targets
+    if (tag === 'a' && el.hasAttribute('href')) return true;
+    return false;
+  }
 
   const AD_PATTERNS = [
     'googleadservices.com', 'doubleclick.net', 'googlesyndication.com',
@@ -616,7 +659,10 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   const lines = [];
   const hiddenInteractives = [];
   const currentHashes = [];
+  const refIdentity = {};
+  const compoundInfos = {};
   let iframeCount = 0;
+  let crossOriginIndex = 0;
 
   function walk(el, depth, parentPropagatingRect) {
     if (depth > MAX_DEPTH) return false;
@@ -666,7 +712,9 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
       if (!(tag === 'input' && el.type === 'file')) return false;
     }
 
-    const interactive = isInteractive(el);
+    // \`interactive\` gets demoted below if bbox containment folds this node
+    // into a propagating ancestor — using \`let\` so the dedup pass can mutate it.
+    let interactive = isInteractive(el);
 
     // Viewport threshold pruning
     if (hasArea && !isInExpandedViewport(rect)) {
@@ -687,7 +735,7 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
     const scrollInfo = getScrollInfo(el);
     const isScrollable = scrollInfo !== null;
 
-    // BBox dedup
+    // BBox dedup — tier 1 (non-interactive descendants, 0.95 threshold)
     let excludedByParent = false;
     if (BBOX_DEDUP && parentPropagatingRect && !interactive) {
       if (hasArea && isContainedBy(rect, parentPropagatingRect, 0.95)) {
@@ -699,8 +747,19 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
       }
     }
 
+    // BBox dedup — tier 2 (interactive descendants, 0.99 threshold, browser-use style).
+    // This kills the "[1]<button> [2]<svg> [3]<span>" noise on icon-buttons by
+    // folding the icon / chevron into the button's ref. The 0.99 threshold + the
+    // isDistinctivelyInteractive gate together ensure we only drop nodes that
+    // add no new actionable surface — a nested <input> or <a href> stays.
+    if (BBOX_DEDUP && parentPropagatingRect && interactive && hasArea) {
+      if (isContainedBy(rect, parentPropagatingRect, 0.99) && !isDistinctivelyInteractive(el)) {
+        interactive = false;
+      }
+    }
+
     let propagateRect = parentPropagatingRect;
-    if (BBOX_DEDUP && PROPAGATING_TAGS.has(tag) && hasArea) propagateRect = rect;
+    if (BBOX_DEDUP && hasArea && isBboxPropagator(el, tag)) propagateRect = rect;
 
     // Process children
     const origLen = lines.length;
@@ -750,11 +809,24 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
     // Scroll marker
     if (isScrollable && !interactive) line += '|scroll|';
 
-    // Interactive index + data-ref
+    // Interactive index + data-ref + fingerprint
     if (interactive) {
       interactiveIndex++;
       if (ANNOTATE_REFS) el.setAttribute('data-opencli-ref', '' + interactiveIndex);
       line += isScrollable ? '|scroll[' + interactiveIndex + ']|' : '[' + interactiveIndex + ']';
+      // Store fingerprint for stale-ref detection
+      refIdentity['' + interactiveIndex] = {
+        tag: tag,
+        role: el.getAttribute('role') || '',
+        text: (el.textContent || '').trim().slice(0, 30),
+        ariaLabel: el.getAttribute('aria-label') || '',
+        id: el.id || '',
+        testId: el.getAttribute('data-testid') || el.getAttribute('data-test') || '',
+      };
+      // Compound contract for date/select/file — captured per-ref so the
+      // sidecar maps one-to-one with the [N] tokens in the tree.
+      const compound = compoundInfoOf(el);
+      if (compound) compoundInfos['' + interactiveIndex] = compound;
     }
 
     // Tag + attributes
@@ -788,7 +860,9 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
       const doc = el.contentDocument;
       if (!doc || !doc.body) {
         const attrs = serializeAttrs(el);
-        lines.push(indent + '|iframe|<iframe' + (attrs ? ' ' + attrs : '') + ' /> (cross-origin)');
+        const frameLabel = '[F' + crossOriginIndex + ']';
+        lines.push(indent + '|iframe|' + frameLabel + '<iframe' + (attrs ? ' ' + attrs : '') + ' /> (cross-origin, use: opencli browser frames + browser eval --frame <index>)');
+        crossOriginIndex++;
         return false;
       }
       iframeCount++;
@@ -801,7 +875,9 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
       return has;
     } catch {
       const attrs = serializeAttrs(el);
-      lines.push(indent + '|iframe|<iframe' + (attrs ? ' ' + attrs : '') + ' /> (blocked)');
+      const frameLabel = '[F' + crossOriginIndex + ']';
+      lines.push(indent + '|iframe|' + frameLabel + '<iframe' + (attrs ? ' ' + attrs : '') + ' /> (blocked, use: opencli browser frames + browser eval --frame <index>)');
+      crossOriginIndex++;
       return false;
     }
   }
@@ -832,12 +908,27 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
     if (hiddenInteractives.length > 10) lines.push('  …' + (hiddenInteractives.length - 10) + ' more');
   }
 
+  // Compound sidecar — rich JSON for date/select/file refs. Keys align with [N] tokens in the tree.
+  const compoundRefs = Object.keys(compoundInfos);
+  if (compoundRefs.length > 0) {
+    lines.push('---');
+    lines.push('compounds (' + compoundRefs.length + '):');
+    compoundRefs.sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+    for (const ref of compoundRefs) {
+      try {
+        lines.push('  [' + ref + '] ' + JSON.stringify(compoundInfos[ref]));
+      } catch {}
+    }
+  }
+
   // Footer
   lines.push('---');
   lines.push('interactive: ' + interactiveIndex + ' | iframes: ' + iframeCount);
 
   // Store hashes on window for next diff snapshot
   try { window.__opencli_prev_hashes = JSON.stringify(currentHashes); } catch {}
+  // Store ref identity map for stale-ref detection by target resolver
+  try { window.__opencli_ref_identity = refIdentity; } catch {}
 
   return lines.join('\\n');
 })()
