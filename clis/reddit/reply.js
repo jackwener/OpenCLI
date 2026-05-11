@@ -1,5 +1,74 @@
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+
+const REDDIT_COMMENT_ID_RE = /^[a-z0-9]+$/i;
+
+function normalizeBareCommentId(value) {
+    const commentId = String(value || '').trim();
+    if (!REDDIT_COMMENT_ID_RE.test(commentId)) {
+        throw new ArgumentError(
+            'Comment ID must be a Reddit comment id, t1_ fullname, or reddit.com comment URL.',
+            'Use a bare comment id like okf3s7u, a fullname like t1_okf3s7u, or a full Reddit comment URL.',
+        );
+    }
+    return commentId.toLowerCase();
+}
+
+export function normalizeRedditCommentFullname(value) {
+    const raw = String(value || '').trim();
+    if (!raw) {
+        throw new ArgumentError(
+            'Comment ID is required.',
+            'Use a bare comment id like okf3s7u, a fullname like t1_okf3s7u, or a full Reddit comment URL.',
+        );
+    }
+
+    const fullname = raw.match(/^t1_([a-z0-9]+)$/i);
+    if (fullname) return `t1_${normalizeBareCommentId(fullname[1])}`;
+
+    if (/^https?:\/\//i.test(raw)) {
+        let parsed;
+        try {
+            parsed = new URL(raw);
+        } catch {
+            throw new ArgumentError(`Invalid Reddit comment URL: ${raw}`);
+        }
+        const host = parsed.hostname.toLowerCase();
+        if (parsed.protocol !== 'https:' || (host !== 'reddit.com' && !host.endsWith('.reddit.com'))) {
+            throw new ArgumentError(
+                'Comment URL must be an https reddit.com URL.',
+                'Use a URL like https://www.reddit.com/r/sub/comments/post/title/okf3s7u/',
+            );
+        }
+        const parts = parsed.pathname.split('/').filter(Boolean);
+        const commentsIndex = parts.indexOf('comments');
+        if (commentsIndex < 0 || parts.length <= commentsIndex + 3) {
+            throw new ArgumentError(
+                'Comment URL must include the target comment id.',
+                'Use a URL like https://www.reddit.com/r/sub/comments/post/title/okf3s7u/',
+            );
+        }
+        return `t1_${normalizeBareCommentId(parts[commentsIndex + 3])}`;
+    }
+
+    if (raw.includes('/') || raw.startsWith('t3_')) {
+        throw new ArgumentError(
+            'Comment ID must be a Reddit comment id, t1_ fullname, or reddit.com comment URL.',
+            'Use a bare comment id like okf3s7u, a fullname like t1_okf3s7u, or a full Reddit comment URL.',
+        );
+    }
+
+    return `t1_${normalizeBareCommentId(raw)}`;
+}
+
+export function requireReplyText(value) {
+    const text = String(value || '');
+    if (!text.trim()) {
+        throw new ArgumentError('Reply text is required.', 'Pass non-empty text to post as the Reddit reply.');
+    }
+    return text;
+}
+
 cli({
     site: 'reddit',
     name: 'reply',
@@ -14,6 +83,8 @@ cli({
     ],
     columns: ['status', 'message'],
     func: async (page, kwargs) => {
+        const fullname = normalizeRedditCommentFullname(kwargs['comment-id']);
+        const text = requireReplyText(kwargs.text);
         await page.goto('https://www.reddit.com');
         // Inside page.evaluate we can't throw typed errors (they don't survive
         // the worker boundary), so we surface a structured `kind` discriminator
@@ -26,12 +97,8 @@ cli({
         // 任一项重叠".
         const result = await page.evaluate(`(async () => {
       try {
-        let commentId = ${JSON.stringify(kwargs['comment-id'])};
-        const urlMatch = commentId.match(/\\/comment\\/([a-z0-9]+)/);
-        if (urlMatch) commentId = urlMatch[1];
-        const fullname = commentId.startsWith('t1_') ? commentId : 't1_' + commentId;
-
-        const text = ${JSON.stringify(kwargs.text)};
+        const fullname = ${JSON.stringify(fullname)};
+        const text = ${JSON.stringify(text)};
 
         // Probe identity + modhash. /api/me.json returns data.name only when
         // logged in — empty modhash alone is not a strong enough auth signal
@@ -71,7 +138,15 @@ cli({
         if (errors && errors.length > 0) {
           return { kind: 'reddit-error', detail: errors.map(e => e.join(': ')).join('; ') };
         }
-        return { kind: 'ok', detail: 'Reply posted on ' + fullname };
+        const things = data?.json?.data?.things;
+        const created = Array.isArray(things)
+          ? things.find((thing) => thing?.kind === 't1' || String(thing?.data?.name || '').startsWith('t1_'))
+          : null;
+        const createdName = created?.data?.name || (created?.data?.id ? 't1_' + created.data.id : '');
+        if (!createdName) {
+          return { kind: 'postcondition', detail: 'Reddit comment response did not include a created reply id' };
+        }
+        return { kind: 'ok', detail: 'Reply posted on ' + fullname + ' as ' + createdName };
       } catch (e) {
         return { kind: 'exception', detail: String(e && e.message || e) };
       }
@@ -85,6 +160,9 @@ cli({
         }
         if (result?.kind === 'reddit-error') {
             throw new CommandExecutionError(`Reddit rejected reply: ${result.detail}`);
+        }
+        if (result?.kind === 'postcondition') {
+            throw new CommandExecutionError(result.detail);
         }
         if (result?.kind === 'exception') {
             throw new CommandExecutionError(`Reply failed: ${result.detail}`);

@@ -18,6 +18,7 @@
 | `opencli reddit upvote` | |
 | `opencli reddit save` | |
 | `opencli reddit comment` | |
+| `opencli reddit reply` | |
 | `opencli reddit subscribe` | |
 | `opencli reddit saved` | |
 | `opencli reddit upvoted` | |
@@ -36,6 +37,9 @@ opencli reddit read 1abc123 --depth 2
 
 # Comment on a post
 opencli reddit comment 1abc123 "Great post"
+
+# Reply to a comment
+opencli reddit reply okf3s7u "Thanks for the context"
 
 # JSON output
 opencli reddit hot -f json
