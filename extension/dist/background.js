@@ -810,7 +810,8 @@ function getSessionFromKey(key) {
 function getIdleTimeout(key) {
   const session = automationSessions.get(key);
   if (session?.kind === "bound") return IDLE_TIMEOUT_NONE;
-  if (getSurfaceFromKey(key) === "adapter" && (session?.lifecycle === "persistent" || sessionLifecycleOverrides.get(key) === "persistent")) return IDLE_TIMEOUT_NONE;
+  const adapterPersistent = getSurfaceFromKey(key) === "adapter" && (session?.lifecycle === "persistent" || sessionLifecycleOverrides.get(key) === "persistent");
+  if (adapterPersistent) return IDLE_TIMEOUT_NONE;
   const override = sessionTimeoutOverrides.get(key);
   if (override !== void 0) return override;
   return getSurfaceFromKey(key) === "browser" ? IDLE_TIMEOUT_INTERACTIVE : IDLE_TIMEOUT_DEFAULT;
@@ -1292,8 +1293,6 @@ async function handleCommand(cmd) {
         return await handleCloseWindow(cmd, leaseKey);
       case "cdp":
         return await handleCdp(cmd, leaseKey);
-      case "sessions":
-        return await handleSessions(cmd);
       case "set-file-input":
         return await handleSetFileInput(cmd, leaseKey);
       case "insert-text":
@@ -1970,24 +1969,6 @@ async function reconcileTargetLeaseRegistry() {
     }
   }
   await persistRuntimeState();
-}
-async function handleSessions(cmd) {
-  const now = Date.now();
-  const data = await Promise.all([...automationSessions.entries()].map(async ([leaseKey, session]) => ({
-    session: session.session,
-    windowId: session.windowId,
-    owned: session.owned,
-    kind: session.kind,
-    surface: session.surface,
-    preferredTabId: session.preferredTabId,
-    contextId: session.contextId,
-    ownership: session.ownership,
-    lifecycle: session.lifecycle,
-    windowRole: session.windowRole,
-    tabCount: session.preferredTabId !== null ? await chrome.tabs.get(session.preferredTabId).then((tab) => isDebuggableUrl(tab.url) ? 1 : 0).catch(() => 0) : (await chrome.tabs.query({ windowId: session.windowId })).filter((tab) => isDebuggableUrl(tab.url)).length,
-    idleMsRemaining: session.idleDeadlineAt <= 0 ? null : Math.max(0, session.idleDeadlineAt - now)
-  })));
-  return { id: cmd.id, ok: true, data };
 }
 async function handleBind(cmd, leaseKey) {
   const existing = automationSessions.get(leaseKey);

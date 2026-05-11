@@ -568,22 +568,6 @@ describe('background tab isolation', () => {
     expect(mod.__test__.isTargetUrl('https://example.com/app/', 'https://example.com/app')).toBe(false);
   });
 
-  it('reports sessions per session', async () => {
-    const { chrome } = createChromeMock();
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
-    mod.__test__.setAutomationWindowId(adapterKey('zhihu'), 2);
-
-    const result = await mod.__test__.handleSessions({ id: '3', action: 'sessions' });
-    expect(result.ok).toBe(true);
-    expect(result.data).toEqual(expect.arrayContaining([
-      expect.objectContaining({ session: 'twitter', surface: 'adapter', windowId: 1 }),
-      expect.objectContaining({ session: 'zhihu', surface: 'adapter', windowId: 2 }),
-    ]));
-  });
-
   it('returns the persisted profile contextId from popup status', async () => {
     const { chrome } = createChromeMock();
     await chrome.storage.local.set({ opencli_context_id_v1: 'abc123xy' });
@@ -1292,11 +1276,12 @@ describe('background tab isolation', () => {
     // Default for browser:* is 10 min
     expect(mod.__test__.getIdleTimeout(browserKey('default'))).toBe(600_000);
 
-    // Send a command with custom idleTimeout (in seconds)
+    // Send a benign command with custom idleTimeout (in seconds)
     await mod.__test__.handleCommand({
       id: 'custom-1',
-      action: 'sessions',
+      action: 'cookies',
       session: browserKey('default'),
+      domain: 'example.com',
       idleTimeout: 120,
     });
 
