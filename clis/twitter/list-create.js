@@ -3,42 +3,19 @@ import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/err
 import { resolveTwitterQueryId } from './shared.js';
 
 const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
-const CREATE_LIST_QUERY_ID = 'hQAsnViq2BrMLbPuQ9umDA';
+const CREATE_LIST_QUERY_ID = 'UQRa0jJ9doxGEIQRea1Y0w';
 const NAME_MAX = 25;
 const DESCRIPTION_MAX = 100;
 
+// Minimal feature set as observed in the real CreateList web request payload.
+// Twitter rejects requests with extra/unknown features (DecodeException).
 const FEATURES = {
-    rweb_video_screen_enabled: false,
     profile_label_improvements_pcf_label_in_post_enabled: true,
-    rweb_tipjar_consumption_enabled: true,
+    responsive_web_profile_redirect_enabled: false,
+    rweb_tipjar_consumption_enabled: false,
     verified_phone_label_enabled: false,
-    creator_subscriptions_tweet_preview_api_enabled: true,
-    responsive_web_graphql_timeline_navigation_enabled: true,
     responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
-    premium_content_api_read_enabled: false,
-    communities_web_enable_tweet_community_results_fetch: true,
-    c9s_tweet_anatomy_moderator_badge_enabled: true,
-    responsive_web_grok_analyze_button_fetch_trends_enabled: false,
-    responsive_web_grok_analyze_post_followups_enabled: true,
-    responsive_web_jetfuel_frame: false,
-    responsive_web_grok_share_attachment_enabled: true,
-    articles_preview_enabled: true,
-    responsive_web_edit_tweet_api_enabled: true,
-    graphql_is_translatable_rweb_tweet_is_translatable_enabled: true,
-    view_counts_everywhere_api_enabled: true,
-    longform_notetweets_consumption_enabled: true,
-    responsive_web_twitter_article_tweet_consumption_enabled: true,
-    tweet_awards_web_tipping_enabled: false,
-    responsive_web_grok_show_grok_translated_post: false,
-    responsive_web_grok_analysis_button_from_backend: false,
-    creator_subscriptions_quote_tweet_preview_enabled: false,
-    freedom_of_speech_not_reach_fetch_enabled: true,
-    standardized_nudges_misinfo: true,
-    tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled: true,
-    longform_notetweets_rich_text_read_enabled: true,
-    longform_notetweets_inline_media_enabled: true,
-    responsive_web_grok_image_annotation_enabled: true,
-    responsive_web_enhance_cards_enabled: false,
+    responsive_web_graphql_timeline_navigation_enabled: true,
 };
 
 cli({
@@ -79,7 +56,10 @@ cli({
         }`);
         if (!ct0) throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
 
-        const queryId = await resolveTwitterQueryId(page, 'CreateList', CREATE_LIST_QUERY_ID);
+        // Hardcode queryId: it must match the FEATURES schema below.
+        // Letting resolveTwitterQueryId() drift would pull a newer queryId
+        // whose schema would reject our simplified features payload.
+        const queryId = CREATE_LIST_QUERY_ID;
 
         const headers = JSON.stringify({
             'Authorization': `Bearer ${decodeURIComponent(BEARER_TOKEN)}`,
@@ -112,12 +92,18 @@ cli({
             const snippet = (result.text || '').slice(0, 300);
             throw new CommandExecutionError(`HTTP ${result.status} from CreateList: ${snippet}`);
         }
-        const errors = result.json?.errors;
-        if (Array.isArray(errors) && errors.length > 0) {
-            throw new CommandExecutionError(`CreateList failed: ${errors[0].message || JSON.stringify(errors[0])}`);
-        }
+        // Note: Twitter sometimes returns a non-fatal `errors` array (e.g. a
+        // strato DecodeException from a side-effect serializer) WHILE STILL
+        // creating the list. So check for a valid list payload FIRST and
+        // only treat errors as fatal if no list came back.
         const list = result.json?.data?.list;
-        if (!list || !(list.id_str || list.id)) {
+        if (list && (list.id_str || list.id)) {
+            // success path — list was created, ignore any side-effect errors
+        } else {
+            const errors = result.json?.errors;
+            if (Array.isArray(errors) && errors.length > 0) {
+                throw new CommandExecutionError(`CreateList failed: ${errors[0].message || JSON.stringify(errors[0])}`);
+            }
             throw new CommandExecutionError(`CreateList returned no list payload. Body: ${(result.text || '').slice(0, 300)}`);
         }
         const id = String(list.id_str || list.id);
