@@ -32,6 +32,7 @@ describe('twitter list-tweets parser', () => {
             url: 'https://x.com/bob/status/99',
             has_media: false,
             media_urls: [],
+            card: null,
         });
     });
 

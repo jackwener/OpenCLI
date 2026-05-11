@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { extractMedia } from './shared.js';
+import { extractMedia, extractCard } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 
 const LIST_TWEETS_QUERY_ID = 'RlZzktZY_9wJynoepm8ZsA';
@@ -73,6 +73,7 @@ export function extractTimelineTweet(result, seen) {
         created_at: legacy.created_at || '',
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
         ...extractMedia(legacy),
+        card: extractCard(tw),
     };
 }
 
@@ -120,7 +121,7 @@ cli({
         { name: 'limit', type: 'int', default: 50 },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the list timeline by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the list\'s native (recency) ordering.' },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'replies', 'created_at', 'url', 'has_media', 'media_urls'],
+    columns: ['id', 'author', 'text', 'likes', 'retweets', 'replies', 'created_at', 'url', 'has_media', 'media_urls', 'card'],
     func: async (page, kwargs) => {
         const listId = String(kwargs.listId || '').trim();
         if (!listId || !/^\d+$/.test(listId)) {

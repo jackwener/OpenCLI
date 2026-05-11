@@ -288,6 +288,63 @@ export function extractMedia(legacy) {
     }
     return { has_media: urls.length > 0, media_urls: urls };
 }
+
+/**
+ * Extract the link-preview card from a tweet's GraphQL response.
+ *
+ * Reads `tweet.card.legacy.{name, binding_values}` plus the expanded URL from
+ * `tweet.legacy.entities.urls[0].expanded_url` (which is already t.co-resolved).
+ * `binding_values` is an array of `{ key, value: { type, string_value, image_value: { url } } }`.
+ *
+ * Returns `null` when:
+ *   - the tweet has no card, OR
+ *   - the card is structurally empty (no landing URL AND no title/description),
+ *     which would be useless to downstream renderers.
+ *
+ * Otherwise returns a partial card object — missing fields are simply omitted
+ * (no `undefined` values in the output) so JSON consumers see a clean shape.
+ */
+export function extractCard(tweet) {
+    const cardLegacy = tweet?.card?.legacy;
+    if (!cardLegacy) return null;
+    const bindings = Array.isArray(cardLegacy.binding_values) ? cardLegacy.binding_values : [];
+    const byKey = new Map();
+    for (const b of bindings) {
+        if (b && typeof b.key === 'string') byKey.set(b.key, b.value);
+    }
+    const str = (key) => {
+        const v = byKey.get(key);
+        return typeof v?.string_value === 'string' && v.string_value.length > 0 ? v.string_value : undefined;
+    };
+    const img = (key) => {
+        const v = byKey.get(key);
+        const u = v?.image_value?.url;
+        return typeof u === 'string' && u.length > 0 ? u : undefined;
+    };
+    const title = str('title');
+    const description = str('description');
+    const domainBinding = str('domain');
+    const cardUrlBinding = str('card_url');
+    const image_url = img('thumbnail_image_large') || img('photo_image_full_size_large') || img('summary_photo_image_large');
+    const expandedUrl = tweet?.legacy?.entities?.urls?.[0]?.expanded_url;
+    const url = (typeof expandedUrl === 'string' && expandedUrl.length > 0)
+        ? expandedUrl
+        : cardUrlBinding;
+    let domain = domainBinding;
+    if (!domain && url) {
+        try { domain = new URL(url).hostname; }
+        catch { /* malformed url — domain stays undefined */ }
+    }
+    if (!url && !title && !description) return null;
+    const out = { name: cardLegacy.name };
+    if (title) out.title = title;
+    if (description) out.description = description;
+    if (image_url) out.image_url = image_url;
+    if (url) out.url = url;
+    if (domain) out.domain = domain;
+    return out;
+}
+
 export const __test__ = {
     sanitizeQueryId,
     sanitizeTwitterOperationMetadata,
@@ -295,6 +352,7 @@ export const __test__ = {
     normalizeTwitterGraphqlPayload,
     normalizeTwitterScreenName,
     extractMedia,
+    extractCard,
     parseTweetUrl,
     buildTwitterArticleScopeSource,
 };

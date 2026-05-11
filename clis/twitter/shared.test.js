@@ -3,7 +3,23 @@ import { JSDOM } from 'jsdom';
 import { __test__ } from './shared.js';
 import { ArgumentError } from '@jackwener/opencli/errors';
 
-const { extractMedia, parseTweetUrl, buildTwitterArticleScopeSource, unwrapBrowserResult, normalizeTwitterGraphqlPayload, normalizeTwitterScreenName, sanitizeTwitterOperationMetadata } = __test__;
+const { extractMedia, extractCard, parseTweetUrl, buildTwitterArticleScopeSource, unwrapBrowserResult, normalizeTwitterGraphqlPayload, normalizeTwitterScreenName, sanitizeTwitterOperationMetadata } = __test__;
+
+function makeCardTweet({ name, bindings, expandedUrl }) {
+    const tweet = {
+        card: { legacy: { name, binding_values: bindings } },
+    };
+    if (expandedUrl !== undefined) {
+        tweet.legacy = { entities: { urls: [{ expanded_url: expandedUrl }] } };
+    }
+    return tweet;
+}
+function strBinding(key, string_value) {
+    return { key, value: { type: 'STRING', string_value } };
+}
+function imgBinding(key, url) {
+    return { key, value: { type: 'IMAGE', image_value: { url } } };
+}
 
 describe('twitter browser result helpers', () => {
     it('unwraps Browser Bridge exec envelopes', () => {
@@ -325,6 +341,139 @@ describe('twitter extractMedia', () => {
         expect(result).toEqual({
             has_media: true,
             media_urls: ['https://pbs.twimg.com/media/c.jpg'],
+        });
+    });
+});
+
+describe('twitter extractCard', () => {
+    it('returns null when tweet has no card', () => {
+        expect(extractCard({})).toBeNull();
+        expect(extractCard(undefined)).toBeNull();
+        expect(extractCard({ legacy: { full_text: 'hi' } })).toBeNull();
+    });
+
+    it('extracts full summary_large_image card with all bindings present', () => {
+        const tweet = makeCardTweet({
+            name: 'summary_large_image',
+            bindings: [
+                strBinding('title', 'jackwener/OpenCLI'),
+                strBinding('description', 'Make Any Website & Tool Your CLI'),
+                strBinding('domain', 'github.com'),
+                strBinding('card_url', 'https://t.co/abc'),
+                imgBinding('thumbnail_image_large', 'https://pbs.twimg.com/card_img/thumb_large.jpg'),
+                imgBinding('photo_image_full_size_large', 'https://pbs.twimg.com/card_img/photo_large.jpg'),
+                imgBinding('summary_photo_image_large', 'https://pbs.twimg.com/card_img/summary_large.jpg'),
+            ],
+            expandedUrl: 'https://github.com/jackwener/OpenCLI',
+        });
+        expect(extractCard(tweet)).toEqual({
+            name: 'summary_large_image',
+            title: 'jackwener/OpenCLI',
+            description: 'Make Any Website & Tool Your CLI',
+            image_url: 'https://pbs.twimg.com/card_img/thumb_large.jpg',
+            url: 'https://github.com/jackwener/OpenCLI',
+            domain: 'github.com',
+        });
+    });
+
+    it('picks summary_photo_image_large when higher-priority image keys are missing', () => {
+        const tweet = makeCardTweet({
+            name: 'summary',
+            bindings: [
+                strBinding('title', 'Some article'),
+                strBinding('description', 'Body text'),
+                strBinding('domain', 'example.com'),
+                imgBinding('summary_photo_image_large', 'https://pbs.twimg.com/card_img/fallback.jpg'),
+            ],
+            expandedUrl: 'https://example.com/article',
+        });
+        const card = extractCard(tweet);
+        expect(card.image_url).toBe('https://pbs.twimg.com/card_img/fallback.jpg');
+        expect(card.name).toBe('summary');
+    });
+
+    it('derives domain from expanded_url when domain binding is missing', () => {
+        const tweet = makeCardTweet({
+            name: 'promo_image_convo',
+            bindings: [
+                strBinding('title', 'YouTube video'),
+                imgBinding('photo_image_full_size_large', 'https://pbs.twimg.com/card_img/yt.jpg'),
+            ],
+            expandedUrl: 'https://www.youtube.com/watch?v=abc',
+        });
+        const card = extractCard(tweet);
+        expect(card.url).toBe('https://www.youtube.com/watch?v=abc');
+        expect(card.domain).toBe('www.youtube.com');
+        expect(card.image_url).toBe('https://pbs.twimg.com/card_img/yt.jpg');
+    });
+
+    it('falls back to card_url binding when there is no expanded_url', () => {
+        const tweet = makeCardTweet({
+            name: 'summary_large_image',
+            bindings: [
+                strBinding('title', 'arXiv paper'),
+                strBinding('card_url', 'https://arxiv.org/abs/2305.12345'),
+            ],
+            expandedUrl: undefined,
+        });
+        const card = extractCard(tweet);
+        expect(card.url).toBe('https://arxiv.org/abs/2305.12345');
+        expect(card.domain).toBe('arxiv.org');
+    });
+
+    it('omits missing fields rather than emitting undefined values', () => {
+        const tweet = makeCardTweet({
+            name: 'summary',
+            bindings: [
+                strBinding('title', 'Just a title'),
+                strBinding('description', 'Just a description'),
+            ],
+            expandedUrl: 'https://example.com/x',
+        });
+        const card = extractCard(tweet);
+        expect('image_url' in card).toBe(false);
+        expect(card).toEqual({
+            name: 'summary',
+            title: 'Just a title',
+            description: 'Just a description',
+            url: 'https://example.com/x',
+            domain: 'example.com',
+        });
+    });
+
+    it('returns null for a structurally empty card (no url, no title, no description)', () => {
+        const tweet = makeCardTweet({
+            name: 'summary',
+            bindings: [
+                imgBinding('thumbnail_image_large', 'https://pbs.twimg.com/card_img/x.jpg'),
+            ],
+            expandedUrl: undefined,
+        });
+        expect(extractCard(tweet)).toBeNull();
+    });
+
+    it('does not throw on a malformed expanded_url; domain is simply omitted', () => {
+        const tweet = makeCardTweet({
+            name: 'summary',
+            bindings: [strBinding('title', 'broken url card')],
+            expandedUrl: 'not a url',
+        });
+        const card = extractCard(tweet);
+        expect(card.url).toBe('not a url');
+        expect('domain' in card).toBe(false);
+    });
+
+    it('tolerates missing binding_values array', () => {
+        const tweet = {
+            card: { legacy: { name: 'summary' } },
+            legacy: { entities: { urls: [{ expanded_url: 'https://example.com/' }] } },
+        };
+        const card = extractCard(tweet);
+        // No title/description means the URL alone keeps the card alive
+        expect(card).toEqual({
+            name: 'summary',
+            url: 'https://example.com/',
+            domain: 'example.com',
         });
     });
 });
