@@ -67,23 +67,6 @@ export interface FetchJsonOptions {
   timeoutMs?: number;
 }
 
-export interface BrowserSessionInfo {
-  session?: string;
-  connected?: boolean;
-  windowId?: number;
-  preferredTabId?: number | null;
-  owned?: boolean;
-  kind?: 'owned' | 'bound';
-  surface?: 'browser' | 'adapter';
-  ownership?: 'owned' | 'borrowed';
-  lifecycle?: 'ephemeral' | 'persistent' | 'pinned';
-  windowRole?: 'interactive' | 'automation' | 'borrowed-user';
-  contextId?: string;
-  tabCount?: number;
-  idleMsRemaining?: number | null;
-  [key: string]: unknown;
-}
-
 export interface IPage {
   goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number }): Promise<void>;
   evaluate(js: string): Promise<any>;

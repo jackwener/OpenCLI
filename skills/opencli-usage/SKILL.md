@@ -28,7 +28,7 @@ cd OpenCLI && npm install
 npx tsx src/main.ts <command>               # same surface, no global install
 ```
 
-`opencli doctor` prints a structured `DoctorReport` — daemon status, extension connection, version checks. Scope is narrow: it diagnoses the **browser bridge** (daemon + extension + Chrome wiring). `PUBLIC` / `LOCAL` adapters, `opencli list`, `validate`, `verify`, plugin commands, and external-CLI passthrough don't need it to be green — only `COOKIE` / `INTERCEPT` / `UI` adapters and the `opencli browser *` subcommands do. Flags: `--no-live` (skip live browser test), `--sessions` (list active automation sessions), `-v` (verbose).
+`opencli doctor` prints a structured `DoctorReport` — daemon status, extension connection, version checks, and a live browser connectivity probe. Scope is narrow: it diagnoses the **browser bridge** (daemon + extension + Chrome wiring). `PUBLIC` / `LOCAL` adapters, `opencli list`, `validate`, `verify`, plugin commands, and external-CLI passthrough don't need it to be green — only `COOKIE` / `INTERCEPT` / `UI` adapters and the `opencli browser *` subcommands do. Flag: `-v` (verbose).
 
 ## Prerequisites by command type
 
