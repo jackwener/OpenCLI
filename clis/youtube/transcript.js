@@ -88,28 +88,33 @@ cli({
         // Step 2: Fetch caption XML and parse segments
         // Ensure caption URL requests srv3 XML format — YouTube may return empty
         // responses when no explicit format is specified.
-        let captionUrl = captionData.captionUrl;
-        if (!/[&?]fmt=/.test(captionUrl)) {
-            captionUrl += (captionUrl.includes('?') ? '&' : '?') + 'fmt=srv3';
+        const originalCaptionUrl = captionData.captionUrl;
+        let captionUrl = originalCaptionUrl;
+        if (!/[&?]fmt=/.test(originalCaptionUrl)) {
+            captionUrl = originalCaptionUrl + (originalCaptionUrl.includes('?') ? '&' : '?') + 'fmt=srv3';
         }
         const segments = await page.evaluate(`
       (async () => {
         async function fetchCaptionXml(url) {
           const resp = await fetch(url);
-          if (!resp.ok) return '';
-          return await resp.text() || '';
+          if (!resp.ok) return { error: 'Caption URL returned HTTP ' + resp.status };
+          return { xml: await resp.text() || '' };
         }
 
         const primaryUrl = ${JSON.stringify(captionUrl)};
-        let xml = await fetchCaptionXml(primaryUrl);
+        const originalUrl = ${JSON.stringify(originalCaptionUrl)};
+        let result = await fetchCaptionXml(primaryUrl);
+        if (result.error) return result;
 
-        // If srv3 format returned empty, retry with original URL (no fmt override)
-        if (!xml.length) {
-          const fallbackUrl = primaryUrl.replace(/[&?]fmt=srv3$/, '');
-          if (fallbackUrl !== primaryUrl) {
-            xml = await fetchCaptionXml(fallbackUrl);
+        // If srv3 format returned an empty successful body, retry with the
+        // original URL. Do not hide HTTP/non-OK failures behind fallback.
+        if (!result.xml.length && originalUrl !== primaryUrl) {
+          result = await fetchCaptionXml(originalUrl);
+          if (result.error) {
+            return result;
           }
         }
+        const xml = result.xml;
 
         if (!xml.length) {
           return { error: 'Caption URL returned empty response' };
