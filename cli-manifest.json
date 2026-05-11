@@ -5844,6 +5844,122 @@
   },
   {
     "site": "ctrip",
+    "name": "flight",
+    "description": "搜索携程一程机票（按出发/到达 IATA 三字码 + 日期）",
+    "access": "read",
+    "domain": "flights.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "from",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Departure IATA code (e.g. BJS / PEK)"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Arrival IATA code (e.g. SHA / PVG)"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Departure date (YYYY-MM-DD)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of flights (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "airline",
+      "flightNo",
+      "aircraft",
+      "departureTime",
+      "departureAirport",
+      "arrivalTime",
+      "arrivalAirport",
+      "terminal",
+      "price",
+      "currency",
+      "cabin",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/flight.js",
+    "sourceFile": "ctrip/flight.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
+    "name": "hotel-search",
+    "description": "搜索携程酒店列表（按城市 + 入住/离店日期）",
+    "access": "read",
+    "domain": "hotels.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Numeric Ctrip city ID (use `ctrip search` or `ctrip hotel-suggest` to discover)"
+      },
+      {
+        "name": "checkin",
+        "type": "str",
+        "required": true,
+        "help": "Check-in date (YYYY-MM-DD)"
+      },
+      {
+        "name": "checkout",
+        "type": "str",
+        "required": true,
+        "help": "Check-out date (YYYY-MM-DD)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of hotels (1-30); SSR first page returns ~13 entries"
+      }
+    ],
+    "columns": [
+      "rank",
+      "hotelId",
+      "name",
+      "enName",
+      "star",
+      "score",
+      "scoreLabel",
+      "reviewCount",
+      "cityName",
+      "district",
+      "address",
+      "lat",
+      "lon",
+      "price",
+      "currency",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/hotel-search.js",
+    "sourceFile": "ctrip/hotel-search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
     "name": "hotel-suggest",
     "description": "搜索携程酒店上下文联想：城市、商圈、单酒店匹配",
     "access": "read",
