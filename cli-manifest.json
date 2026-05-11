@@ -19421,6 +19421,35 @@
   },
   {
     "site": "reddit",
+    "name": "subscribed",
+    "description": "List subreddits you are subscribed to",
+    "access": "read",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max subreddits to return (auto-paginates; hard cap 1000)"
+      }
+    ],
+    "columns": [
+      "subreddit",
+      "title",
+      "subscribers",
+      "description",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "reddit/subscribed.js",
+    "sourceFile": "reddit/subscribed.js",
+    "navigateBefore": "https://reddit.com"
+  },
+  {
+    "site": "reddit",
     "name": "upvote",
     "description": "Upvote or downvote a Reddit post",
     "access": "write",
@@ -22664,6 +22693,7 @@
     "columns": [
       "id",
       "author",
+      "bio",
       "text",
       "likes",
       "retweets",
@@ -23062,6 +23092,7 @@
     "columns": [
       "id",
       "author",
+      "bio",
       "text",
       "created_at",
       "likes",
@@ -23163,6 +23194,7 @@
     "columns": [
       "id",
       "author",
+      "bio",
       "text",
       "likes",
       "retweets",

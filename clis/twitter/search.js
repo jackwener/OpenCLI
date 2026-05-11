@@ -239,7 +239,7 @@ cli({
         { name: 'limit', type: 'int', default: 15, help: 'Maximum number of tweets to return (default 15). Result count after server-side filtering.' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the results by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps X\'s native ordering.' },
     ],
-    columns: ['id', 'author', 'text', 'created_at', 'likes', 'views', 'url', 'has_media', 'media_urls', 'card'],
+    columns: ['id', 'author', 'bio', 'text', 'created_at', 'likes', 'views', 'url', 'has_media', 'media_urls', 'card'],
     func: async (page, kwargs) => {
         const finalQuery = buildSearchQuery(kwargs.query, kwargs);
         if (!finalQuery) {
@@ -292,9 +292,11 @@ cli({
                     seen.add(tweet.rest_id);
                     // Twitter moved screen_name from legacy to core
                     const tweetUser = tweet.core?.user_results?.result;
+                    const bio = tweetUser?.legacy?.description || '';
                     results.push({
                         id: tweet.rest_id,
                         author: tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown',
+                        bio,
                         text: tweet.note_tweet?.note_tweet_results?.result?.text || tweet.legacy?.full_text || '',
                         created_at: tweet.legacy?.created_at || '',
                         likes: tweet.legacy?.favorite_count || 0,

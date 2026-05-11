@@ -60,11 +60,13 @@ export function extractTimelineTweet(result, seen) {
     const user = tw.core?.user_results?.result;
     const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';
     const displayName = user?.legacy?.name || user?.core?.name || '';
+    const bio = user?.legacy?.description || '';
     const noteText = tw.note_tweet?.note_tweet_results?.result?.text;
     return {
         id: tw.rest_id,
         author: screenName,
         name: displayName,
+        bio,
         text: noteText || legacy.full_text || '',
         likes: legacy.favorite_count || 0,
         retweets: legacy.retweet_count || 0,
@@ -120,7 +122,7 @@ cli({
         { name: 'limit', type: 'int', default: 50 },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the list timeline by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the list\'s native (recency) ordering.' },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'replies', 'created_at', 'url', 'card'],
+    columns: ['id', 'author', 'bio', 'text', 'likes', 'retweets', 'replies', 'created_at', 'url', 'card'],
     func: async (page, kwargs) => {
         const listId = String(kwargs.listId || '').trim();
         if (!listId || !/^\d+$/.test(listId)) {

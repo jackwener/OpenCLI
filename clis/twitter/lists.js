@@ -62,6 +62,19 @@ export function extractListEntry(entry, seen) {
     };
 }
 
+// X 的 ListsManagementPageTimeline 把 /<user>/lists 整个页面的所有 section
+// 都塞在同一个 TimelineAddEntries instruction 里，靠 entry.entryId 前缀区分：
+//   - `owned-subscribed-list-module-*`  → 用户的 owned + subscribed list（要保留）
+//   - `list-to-follow-module-*`         → "Discover new Lists" 算法推荐（要剔除）
+//   - `cursor-*`                         → 分页游标（无 list 数据）
+// 旧版 parser 忽略 entryId 一律下钻，导致推荐 list 被当成自建/订阅泄漏出来。
+const OWNED_SUBSCRIBED_ENTRY_PREFIX = 'owned-subscribed-list-module-';
+
+export function isOwnedSubscribedEntry(entry) {
+    return typeof entry?.entryId === 'string'
+        && entry.entryId.startsWith(OWNED_SUBSCRIBED_ENTRY_PREFIX);
+}
+
 export function parseListsManagement(data, seen) {
     const lists = [];
     const instructions = data?.data?.viewer?.list_management_timeline?.timeline?.instructions
@@ -70,6 +83,7 @@ export function parseListsManagement(data, seen) {
         || [];
     for (const inst of instructions) {
         for (const entry of inst.entries || []) {
+            if (!isOwnedSubscribedEntry(entry)) continue;
             const direct = extractListEntry(entry, seen);
             if (direct) {
                 lists.push(direct);
