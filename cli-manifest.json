@@ -19201,6 +19201,39 @@
   },
   {
     "site": "reddit",
+    "name": "home",
+    "description": "Reddit personalized home feed (Best, requires login)",
+    "access": "read",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of posts (1–100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "subreddit",
+      "score",
+      "comments",
+      "postId",
+      "author",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "reddit/home.js",
+    "sourceFile": "reddit/home.js",
+    "navigateBefore": "https://reddit.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "reddit",
     "name": "hot",
     "description": "Reddit 热门帖子",
     "access": "read",
@@ -19542,6 +19575,33 @@
   },
   {
     "site": "reddit",
+    "name": "subreddit-info",
+    "description": "Show metadata for a Reddit subreddit (subscribers, description, created date, NSFW)",
+    "access": "read",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Subreddit name (no `r/` prefix needed)"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "reddit/subreddit-info.js",
+    "sourceFile": "reddit/subreddit-info.js",
+    "navigateBefore": "https://reddit.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "reddit",
     "name": "subscribe",
     "description": "Subscribe or unsubscribe to a subreddit",
     "access": "write",
@@ -19735,6 +19795,25 @@
     "type": "js",
     "modulePath": "reddit/user-posts.js",
     "sourceFile": "reddit/user-posts.js",
+    "navigateBefore": "https://reddit.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "reddit",
+    "name": "whoami",
+    "description": "Show the currently logged-in Reddit user",
+    "access": "read",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "reddit/whoami.js",
+    "sourceFile": "reddit/whoami.js",
     "navigateBefore": "https://reddit.com",
     "siteSession": "persistent"
   },
