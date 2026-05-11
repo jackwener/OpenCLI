@@ -522,6 +522,32 @@ function imageMimeFromPath(filePath) {
     return 'image/jpeg';
 }
 
+export async function prepareChatGPTImagePaths(imagePaths) {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const absPaths = imagePaths.map(filePath => path.default.resolve(filePath));
+    const allowedExts = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif']);
+
+    for (const absPath of absPaths) {
+        if (!fs.default.existsSync(absPath)) {
+            return { ok: false, reason: `Image not found: ${absPath}` };
+        }
+        const stat = fs.default.statSync(absPath);
+        if (!stat.isFile()) {
+            return { ok: false, reason: `Not a file: ${absPath}` };
+        }
+        if (stat.size > 25 * 1024 * 1024) {
+            return { ok: false, reason: `Image too large (${(stat.size / 1024 / 1024).toFixed(1)} MB). Max: 25 MB` };
+        }
+        const ext = path.default.extname(absPath).toLowerCase();
+        if (!allowedExts.has(ext)) {
+            return { ok: false, reason: `Unsupported image type: ${absPath}` };
+        }
+    }
+
+    return { ok: true, paths: absPaths };
+}
+
 async function waitForChatGPTUploadPreview(page, fileNames) {
     const namesJson = JSON.stringify(fileNames);
     for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -551,25 +577,9 @@ async function waitForChatGPTUploadPreview(page, fileNames) {
 export async function uploadChatGPTImages(page, imagePaths) {
     const fs = await import('node:fs');
     const path = await import('node:path');
-    const absPaths = imagePaths.map(filePath => path.default.resolve(filePath));
-    const allowedExts = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif']);
-
-    for (const absPath of absPaths) {
-        if (!fs.default.existsSync(absPath)) {
-            return { ok: false, reason: `Image not found: ${absPath}` };
-        }
-        const stat = fs.default.statSync(absPath);
-        if (!stat.isFile()) {
-            return { ok: false, reason: `Not a file: ${absPath}` };
-        }
-        if (stat.size > 25 * 1024 * 1024) {
-            return { ok: false, reason: `Image too large (${(stat.size / 1024 / 1024).toFixed(1)} MB). Max: 25 MB` };
-        }
-        const ext = path.default.extname(absPath).toLowerCase();
-        if (!allowedExts.has(ext)) {
-            return { ok: false, reason: `Unsupported image type: ${absPath}` };
-        }
-    }
+    const prepared = await prepareChatGPTImagePaths(imagePaths);
+    if (!prepared.ok) return prepared;
+    const absPaths = prepared.paths;
 
     const fileNames = absPaths.map(filePath => path.default.basename(filePath));
 

@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { saveBase64ToFile } from '@jackwener/opencli/utils';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { clearChatGPTDraft, getChatGPTVisibleImageUrls, normalizeBooleanFlag, sendChatGPTMessage, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
+import { clearChatGPTDraft, getChatGPTVisibleImageUrls, normalizeBooleanFlag, prepareChatGPTImagePaths, sendChatGPTMessage, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
 
 const CHATGPT_DOMAIN = 'chatgpt.com';
 
@@ -87,19 +87,26 @@ export const imageCommand = cli({
         if (!Number.isInteger(timeout) || timeout < 1) {
             throw new ArgumentError('--timeout must be a positive integer (seconds)');
         }
+        const preparedImages = imagePaths.length ? await prepareChatGPTImagePaths(imagePaths) : { ok: true, paths: [] };
+        if (!preparedImages.ok) {
+            throw new ArgumentError(preparedImages.reason);
+        }
 
         // Navigate to chatgpt.com/new with full reload to clear React sidebar state
         await page.goto(`https://${CHATGPT_DOMAIN}/new`, { settleMs: 2000 });
         await clearChatGPTDraft(page);
 
-        const beforeUrls = await getChatGPTVisibleImageUrls(page);
-
         if (imagePaths.length) {
-            const upload = await uploadChatGPTImages(page, imagePaths);
-            if (!upload?.ok) {
-                throw new CommandExecutionError(upload?.reason || 'Failed to upload image to ChatGPT');
+            let upload;
+            try {
+                upload = await uploadChatGPTImages(page, preparedImages.paths);
+            } catch (err) {
+                throw new CommandExecutionError(`Failed to upload image to ChatGPT: ${err instanceof Error ? err.message : String(err)}`);
             }
+            if (!upload?.ok) throw new CommandExecutionError(upload?.reason || 'Failed to upload image to ChatGPT');
         }
+
+        const beforeUrls = await getChatGPTVisibleImageUrls(page);
 
         // Send an explicit generation/editing prompt so ChatGPT returns image assets.
         const sent = await sendChatGPTMessage(page, buildPrompt(prompt, imagePaths.length));

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { __test__, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTImages } from './utils.js';
+import { __test__, prepareChatGPTImagePaths, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTImages } from './utils.js';
 
 const tempDirs = [];
 
@@ -123,6 +123,19 @@ describe('chatgpt send selectors', () => {
 });
 
 describe('chatgpt image upload helper', () => {
+    it('validates local images without a browser page', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
+        tempDirs.push(dir);
+        const filePath = path.join(dir, 'cat.png');
+        fs.writeFileSync(filePath, 'fake-png');
+
+        await expect(prepareChatGPTImagePaths([filePath])).resolves.toEqual({ ok: true, paths: [filePath] });
+        await expect(prepareChatGPTImagePaths([path.join(dir, 'missing.png')])).resolves.toMatchObject({
+            ok: false,
+            reason: expect.stringContaining('Image not found'),
+        });
+    });
+
     it('prefers Browser Bridge file input upload and waits for a preview', async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
         tempDirs.push(dir);
