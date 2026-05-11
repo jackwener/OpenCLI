@@ -94,4 +94,3 @@ opencli chess snapshot 167564728910
 ## See Also
 
 - [Lichess adapter](./lichess.md) — Similar adapter for the Lichess open-source platform
-- [chess-ai-coach-skills](https://github.com/wldandan/chess-ai-coach-skills) — AI agent skills for chess analysis with Stockfish
