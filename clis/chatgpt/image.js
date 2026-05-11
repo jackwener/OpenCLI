@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { saveBase64ToFile } from '@jackwener/opencli/utils';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { getChatGPTVisibleImageUrls, normalizeBooleanFlag, sendChatGPTMessage, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
+import { clearChatGPTDraft, getChatGPTVisibleImageUrls, normalizeBooleanFlag, sendChatGPTMessage, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
 
 const CHATGPT_DOMAIN = 'chatgpt.com';
 
@@ -90,6 +90,7 @@ export const imageCommand = cli({
 
         // Navigate to chatgpt.com/new with full reload to clear React sidebar state
         await page.goto(`https://${CHATGPT_DOMAIN}/new`, { settleMs: 2000 });
+        await clearChatGPTDraft(page);
 
         const beforeUrls = await getChatGPTVisibleImageUrls(page);
 

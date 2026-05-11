@@ -174,6 +174,30 @@ describe('chatgpt image upload helper', () => {
         expect(page.setFileInput).not.toHaveBeenCalled();
     });
 
+    it('passes a React-compatible change event in fallback upload', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
+        tempDirs.push(dir);
+        const filePath = path.join(dir, 'cat.png');
+        fs.writeFileSync(filePath, 'fake-png');
+
+        const page = {
+            setFileInput: vi.fn().mockRejectedValue(new Error('No element found')),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                return Promise.resolve({ ok: true });
+            }),
+        };
+
+        const result = await uploadChatGPTImages(page, [filePath]);
+
+        expect(result).toEqual({ ok: true, files: [filePath] });
+        const fallbackScript = page.evaluate.mock.calls
+            .map(([script]) => String(script))
+            .find(script => script.includes('new DataTransfer()'));
+        expect(fallbackScript).toContain('preventDefault()');
+        expect(fallbackScript).toContain('stopPropagation()');
+    });
+
     it('exposes image MIME inference for fallback upload', () => {
         expect(__test__.imageMimeFromPath('/tmp/a.png')).toBe('image/png');
         expect(__test__.imageMimeFromPath('/tmp/a.webp')).toBe('image/webp');

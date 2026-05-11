@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     getChatGPTVisibleImageUrls: vi.fn(),
+    clearChatGPTDraft: vi.fn(),
     sendChatGPTMessage: vi.fn(),
     uploadChatGPTImages: vi.fn(),
     waitForChatGPTImages: vi.fn(),
@@ -12,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./utils.js', () => ({
+    clearChatGPTDraft: mocks.clearChatGPTDraft,
     getChatGPTVisibleImageUrls: mocks.getChatGPTVisibleImageUrls,
     normalizeBooleanFlag: (value, fallback = false) => {
         if (typeof value === 'boolean') return value;
@@ -41,6 +43,7 @@ function createPage() {
 
 beforeEach(() => {
     vi.restoreAllMocks();
+    mocks.clearChatGPTDraft.mockReset().mockResolvedValue(undefined);
     mocks.getChatGPTVisibleImageUrls.mockReset().mockResolvedValue([]);
     mocks.sendChatGPTMessage.mockReset().mockResolvedValue(true);
     mocks.uploadChatGPTImages.mockReset().mockResolvedValue({ ok: true });
@@ -86,6 +89,7 @@ describe('chatgpt image upload flow', () => {
             timeout: 240,
         });
 
+        expect(mocks.clearChatGPTDraft).toHaveBeenCalled();
         expect(mocks.uploadChatGPTImages).toHaveBeenCalledWith(expect.anything(), ['/tmp/cat.png', '/tmp/dog.jpg']);
         expect(mocks.sendChatGPTMessage).toHaveBeenCalledWith(expect.anything(), 'Edit the attached images: make the background blue');
     });
