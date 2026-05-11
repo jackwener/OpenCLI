@@ -1,5 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
-import { __test__, sendChatGPTMessage, waitForChatGPTImages } from './utils.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { __test__, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTImages } from './utils.js';
+
+const tempDirs = [];
+
+afterEach(() => {
+    vi.restoreAllMocks();
+    while (tempDirs.length) {
+        fs.rmSync(tempDirs.pop(), { recursive: true, force: true });
+    }
+});
 
 function createPageMock({ location = '', generating = [], imageUrls = [] } = {}) {
     let generatingIndex = 0;
@@ -107,5 +119,64 @@ describe('chatgpt send selectors', () => {
         expect(__test__.SEND_BUTTON_SELECTOR).toBe('button[data-testid="send-button"]:not([disabled])');
         expect(__test__.SEND_BUTTON_LABELS).toEqual(expect.arrayContaining(['Send prompt', 'Send message', 'Send', '发送提示']));
         expect(__test__.CLOSE_SIDEBAR_LABELS).toEqual(expect.arrayContaining(['Close sidebar', '关闭边栏']));
+    });
+});
+
+describe('chatgpt image upload helper', () => {
+    it('prefers Browser Bridge file input upload and waits for a preview', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
+        tempDirs.push(dir);
+        const filePath = path.join(dir, 'cat.png');
+        fs.writeFileSync(filePath, 'fake-png');
+
+        const page = {
+            setFileInput: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue(true),
+        };
+
+        const result = await uploadChatGPTImages(page, [filePath]);
+
+        expect(result).toEqual({ ok: true, files: [filePath] });
+        expect(page.setFileInput).toHaveBeenCalledWith([filePath], 'input[type="file"]');
+    });
+
+    it('rejects missing files before touching the page', async () => {
+        const page = {
+            setFileInput: vi.fn(),
+            wait: vi.fn(),
+            evaluate: vi.fn(),
+        };
+
+        const result = await uploadChatGPTImages(page, ['/no/such/cat.png']);
+
+        expect(result.ok).toBe(false);
+        expect(result.reason).toContain('Image not found');
+        expect(page.setFileInput).not.toHaveBeenCalled();
+    });
+
+    it('rejects non-image extensions', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
+        tempDirs.push(dir);
+        const filePath = path.join(dir, 'report.pdf');
+        fs.writeFileSync(filePath, 'fake');
+
+        const page = {
+            setFileInput: vi.fn(),
+            wait: vi.fn(),
+            evaluate: vi.fn(),
+        };
+
+        const result = await uploadChatGPTImages(page, [filePath]);
+
+        expect(result.ok).toBe(false);
+        expect(result.reason).toContain('Unsupported image type');
+        expect(page.setFileInput).not.toHaveBeenCalled();
+    });
+
+    it('exposes image MIME inference for fallback upload', () => {
+        expect(__test__.imageMimeFromPath('/tmp/a.png')).toBe('image/png');
+        expect(__test__.imageMimeFromPath('/tmp/a.webp')).toBe('image/webp');
+        expect(__test__.imageMimeFromPath('/tmp/a.jpg')).toBe('image/jpeg');
     });
 });

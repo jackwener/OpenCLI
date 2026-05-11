@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
     getChatGPTVisibleImageUrls: vi.fn(),
     sendChatGPTMessage: vi.fn(),
+    uploadChatGPTImages: vi.fn(),
     waitForChatGPTImages: vi.fn(),
     getChatGPTImageAssets: vi.fn(),
     saveBase64ToFile: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock('./utils.js', () => ({
         return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
     },
     sendChatGPTMessage: mocks.sendChatGPTMessage,
+    uploadChatGPTImages: mocks.uploadChatGPTImages,
     waitForChatGPTImages: mocks.waitForChatGPTImages,
     getChatGPTImageAssets: mocks.getChatGPTImageAssets,
 }));
@@ -27,7 +29,7 @@ vi.mock('@jackwener/opencli/utils', () => ({
     saveBase64ToFile: mocks.saveBase64ToFile,
 }));
 
-const { imageCommand, nextAvailablePath, resolveOutputDir } = await import('./image.js');
+const { imageCommand, nextAvailablePath, parseImagePaths, resolveOutputDir } = await import('./image.js');
 
 function createPage() {
     return {
@@ -41,6 +43,7 @@ beforeEach(() => {
     vi.restoreAllMocks();
     mocks.getChatGPTVisibleImageUrls.mockReset().mockResolvedValue([]);
     mocks.sendChatGPTMessage.mockReset().mockResolvedValue(true);
+    mocks.uploadChatGPTImages.mockReset().mockResolvedValue({ ok: true });
     mocks.waitForChatGPTImages.mockReset().mockResolvedValue(['https://images.example/generated.png']);
     mocks.getChatGPTImageAssets.mockReset().mockResolvedValue([{
         url: 'https://images.example/generated.png',
@@ -65,6 +68,41 @@ describe('chatgpt image output paths', () => {
         ]);
 
         expect(nextAvailablePath(dir, 'chatgpt_123', '.png', (file) => taken.has(file))).toBe(path.join(dir, 'chatgpt_123_2.png'));
+    });
+
+    it('parses comma-separated image paths', () => {
+        expect(parseImagePaths('/tmp/a.png, /tmp/b.jpg')).toEqual(['/tmp/a.png', '/tmp/b.jpg']);
+        expect(parseImagePaths([' /tmp/a.png ', '/tmp/b.jpg,/tmp/c.webp'])).toEqual(['/tmp/a.png', '/tmp/b.jpg', '/tmp/c.webp']);
+    });
+});
+
+describe('chatgpt image upload flow', () => {
+    it('uploads local images before sending an edit prompt', async () => {
+        await imageCommand.func(createPage(), {
+            prompt: 'make the background blue',
+            image: '/tmp/cat.png,/tmp/dog.jpg',
+            op: '',
+            sd: true,
+            timeout: 240,
+        });
+
+        expect(mocks.uploadChatGPTImages).toHaveBeenCalledWith(expect.anything(), ['/tmp/cat.png', '/tmp/dog.jpg']);
+        expect(mocks.sendChatGPTMessage).toHaveBeenCalledWith(expect.anything(), 'Edit the attached images: make the background blue');
+    });
+
+    it('surfaces upload failures as command execution errors', async () => {
+        mocks.uploadChatGPTImages.mockResolvedValue({ ok: false, reason: 'image upload preview did not appear' });
+
+        await expect(imageCommand.func(createPage(), {
+            prompt: 'make the background blue',
+            image: '/tmp/cat.png',
+            op: '',
+            sd: false,
+            timeout: 240,
+        })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('image upload preview did not appear'),
+        });
     });
 });
 

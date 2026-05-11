@@ -462,6 +462,122 @@ async function extractConversationLinks(page) {
         : [];
 }
 
+function imageMimeFromPath(filePath) {
+    const lower = String(filePath || '').toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.heic')) return 'image/heic';
+    if (lower.endsWith('.heif')) return 'image/heif';
+    return 'image/jpeg';
+}
+
+async function waitForChatGPTUploadPreview(page, fileNames) {
+    const namesJson = JSON.stringify(fileNames);
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+        await page.wait(1);
+        const ready = await page.evaluate(`
+            (() => {
+                const names = ${namesJson};
+                const text = document.body ? (document.body.innerText || '') : '';
+                const matchedNames = names.filter(name => text.includes(name)).length;
+                if (matchedNames >= names.length) return true;
+
+                const composer = document.querySelector('[aria-label="Chat with ChatGPT"], [placeholder="Ask anything"], #prompt-textarea');
+                let root = composer;
+                for (let i = 0; i < 6 && root && root.parentElement; i += 1) root = root.parentElement;
+                const scope = root || document.body;
+                if (!scope) return false;
+
+                const previewNodes = scope.querySelectorAll('img[src], canvas, video, [style*="background-image"], [data-testid*="attachment"], [data-testid*="upload"], [class*="attachment"], [class*="upload"]');
+                return previewNodes.length >= names.length;
+            })()
+        `);
+        if (ready) return true;
+    }
+    return false;
+}
+
+export async function uploadChatGPTImages(page, imagePaths) {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const absPaths = imagePaths.map(filePath => path.default.resolve(filePath));
+    const allowedExts = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif']);
+
+    for (const absPath of absPaths) {
+        if (!fs.default.existsSync(absPath)) {
+            return { ok: false, reason: `Image not found: ${absPath}` };
+        }
+        const stat = fs.default.statSync(absPath);
+        if (!stat.isFile()) {
+            return { ok: false, reason: `Not a file: ${absPath}` };
+        }
+        if (stat.size > 25 * 1024 * 1024) {
+            return { ok: false, reason: `Image too large (${(stat.size / 1024 / 1024).toFixed(1)} MB). Max: 25 MB` };
+        }
+        const ext = path.default.extname(absPath).toLowerCase();
+        if (!allowedExts.has(ext)) {
+            return { ok: false, reason: `Unsupported image type: ${absPath}` };
+        }
+    }
+
+    const fileNames = absPaths.map(filePath => path.default.basename(filePath));
+
+    let uploaded = false;
+    if (page.setFileInput) {
+        try {
+            await page.setFileInput(absPaths, 'input[type="file"]');
+            uploaded = true;
+        } catch (err) {
+            const msg = String(err?.message || err);
+            if (!msg.includes('Unknown action') && !msg.includes('not supported') && !msg.includes('Not allowed') && !msg.includes('No element found')) {
+                throw err;
+            }
+        }
+    }
+
+    if (!uploaded) {
+        const files = absPaths.map(absPath => ({
+            name: path.default.basename(absPath),
+            mime: imageMimeFromPath(absPath),
+            base64: fs.default.readFileSync(absPath).toString('base64'),
+        }));
+        const fallbackResult = await page.evaluate(`
+            (() => {
+                const files = ${JSON.stringify(files)};
+                const input = document.querySelector('input[type="file"]');
+                if (!(input instanceof HTMLInputElement)) {
+                    return { ok: false, reason: 'file input not found' };
+                }
+
+                const dt = new DataTransfer();
+                for (const item of files) {
+                    const binary = atob(item.base64);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+                    dt.items.add(new File([bytes], item.name, { type: item.mime }));
+                }
+                input.files = dt.files;
+
+                const propsKey = Object.keys(input).find(key => key.startsWith('__reactProps$'));
+                if (propsKey && input[propsKey] && typeof input[propsKey].onChange === 'function') {
+                    input[propsKey].onChange({ target: { files: input.files }, currentTarget: input });
+                } else {
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                return { ok: true };
+            })()
+        `);
+        if (fallbackResult && !fallbackResult.ok) return fallbackResult;
+    }
+
+    const ready = await waitForChatGPTUploadPreview(page, fileNames);
+    if (!ready) return { ok: false, reason: 'image upload preview did not appear' };
+
+    return { ok: true, files: absPaths };
+}
+
 /**
  * Check if ChatGPT is still generating a response.
  */
@@ -577,6 +693,7 @@ export const __test__ = {
     CLOSE_SIDEBAR_LABELS,
     isSameChatGPTConversation,
     parseChatGPTConversationId,
+    imageMimeFromPath,
 };
 
 /**

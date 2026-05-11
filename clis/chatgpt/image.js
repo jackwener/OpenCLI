@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { saveBase64ToFile } from '@jackwener/opencli/utils';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { getChatGPTVisibleImageUrls, normalizeBooleanFlag, sendChatGPTMessage, waitForChatGPTImages, getChatGPTImageAssets } from './utils.js';
+import { getChatGPTVisibleImageUrls, normalizeBooleanFlag, sendChatGPTMessage, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
 
 const CHATGPT_DOMAIN = 'chatgpt.com';
 
@@ -36,6 +36,23 @@ export function nextAvailablePath(dir, baseName, ext, existsSync = fs.existsSync
     return candidate;
 }
 
+export function parseImagePaths(value) {
+    if (Array.isArray(value)) {
+        return value.flatMap(item => parseImagePaths(item));
+    }
+    return String(value ?? '')
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean);
+}
+
+function buildPrompt(prompt, imageCount) {
+    if (imageCount > 0) {
+        return `Edit the attached image${imageCount === 1 ? '' : 's'}: ${prompt}`;
+    }
+    return `Generate an image of: ${prompt}`;
+}
+
 async function currentChatGPTLink(page) {
     const url = await page.evaluate('window.location.href').catch(() => '');
     return typeof url === 'string' && url ? url : 'https://chatgpt.com';
@@ -54,6 +71,7 @@ export const imageCommand = cli({
     defaultFormat: 'plain',
     args: [
         { name: 'prompt', positional: true, required: true, help: 'Image prompt to send to ChatGPT' },
+        { name: 'image', help: 'Local image path to attach before prompting; comma-separated paths are supported' },
         { name: 'op', help: 'Output directory (default: ~/Pictures/chatgpt)' },
         { name: 'sd', type: 'boolean', default: false, help: 'Skip download shorthand; only show ChatGPT link' },
         { name: 'timeout', type: 'int', required: false, default: 240, help: 'Max seconds for the overall command (default: 240)' },
@@ -61,6 +79,7 @@ export const imageCommand = cli({
     columns: ['status', 'file', 'link'],
     func: async (page, kwargs) => {
         const prompt = kwargs.prompt;
+        const imagePaths = parseImagePaths(kwargs.image);
         const outputDir = resolveOutputDir(kwargs.op);
         const skipDownloadRaw = kwargs.sd;
         const skipDownload = skipDownloadRaw === '' || skipDownloadRaw === true || normalizeBooleanFlag(skipDownloadRaw);
@@ -74,8 +93,15 @@ export const imageCommand = cli({
 
         const beforeUrls = await getChatGPTVisibleImageUrls(page);
 
-        // Send the image generation prompt - must be explicit
-        const sent = await sendChatGPTMessage(page, `Generate an image of: ${prompt}`);
+        if (imagePaths.length) {
+            const upload = await uploadChatGPTImages(page, imagePaths);
+            if (!upload?.ok) {
+                throw new CommandExecutionError(upload?.reason || 'Failed to upload image to ChatGPT');
+            }
+        }
+
+        // Send an explicit generation/editing prompt so ChatGPT returns image assets.
+        const sent = await sendChatGPTMessage(page, buildPrompt(prompt, imagePaths.length));
         if (!sent) {
             throw new CommandExecutionError(
                 'Failed to send image prompt to ChatGPT',
