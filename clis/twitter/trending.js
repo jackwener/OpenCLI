@@ -17,6 +17,7 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Number of trends to show' },
     ],
@@ -26,10 +27,9 @@ cli({
         // Navigate to trending page
         await page.goto('https://x.com/explore/tabs/trending');
         await page.wait(3);
-        // Verify login via CSRF cookie
-        const ct0 = await page.evaluate(`(() => {
-      return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('ct0='))?.split('=')[1] || null;
-    })()`);
+        // Verify login via CSRF cookie (read directly from cookie store via CDP)
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
         await page.wait(2);

@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { EmptyResultError } from '@jackwener/opencli/errors';
 import {
     DEEPSEEK_DOMAIN,
+    MESSAGE_SELECTOR,
     ensureOnDeepSeek,
     getVisibleMessages,
     parseDeepSeekConversationId,
@@ -15,7 +16,7 @@ export const detailCommand = cli({
     domain: DEEPSEEK_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'id', required: true, positional: true, help: 'Conversation ID (UUID) or full /a/chat/s/<id> URL' },
@@ -25,7 +26,14 @@ export const detailCommand = cli({
         const id = parseDeepSeekConversationId(kwargs.id);
         await ensureOnDeepSeek(page);
         await page.goto(`https://chat.deepseek.com/a/chat/s/${id}`);
-        await page.wait(5);
+        // Wait for at least one rendered bubble instead of a fixed 5 s sleep.
+        // Empty / invalid conversations fall through to the EmptyResultError
+        // below.
+        try {
+            await page.wait({ selector: MESSAGE_SELECTOR, timeout: 10 });
+        } catch {
+            // No bubble mounted within 10 s; treated as empty by the check below.
+        }
         const messages = await getVisibleMessages(page);
         if (messages.length === 0) {
             throw new EmptyResultError(

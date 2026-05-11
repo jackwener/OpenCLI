@@ -139,6 +139,7 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
         {
             name: 'user',
@@ -157,12 +158,8 @@ cli({
         }
         let targetUser = normalizeScreenName(kwargs.user);
 
-        await page.goto('https://x.com');
-        await page.wait(3);
-
-        const ct0 = await page.evaluate(`() => {
-            return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('ct0='))?.split('=')[1] || null;
-        }`);
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
 

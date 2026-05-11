@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CliError } from '../errors.js';
 import { BasePage } from './base-page.js';
 import { TargetError } from './target-errors.js';
+import type { ScreenshotOptions } from '../types.js';
 
 class TestPage extends BasePage {
   result: unknown;
@@ -24,10 +25,12 @@ class ActionPage extends BasePage {
   withArgsResults: unknown[] = [];
   scripts: string[] = [];
   withArgs: Record<string, unknown>[] = [];
+  screenshotCalls: ScreenshotOptions[] = [];
   nativeType?: (text: string) => Promise<void>;
   insertText?: (text: string) => Promise<void>;
   nativeKeyPress?: (key: string, modifiers?: string[]) => Promise<void>;
   nativeClick?: (x: number, y: number) => Promise<void>;
+  setFileInput?: (files: string[], selector?: string) => Promise<void>;
   cdp?: (method: string, params?: Record<string, unknown>) => Promise<unknown>;
 
   async goto(): Promise<void> {}
@@ -41,7 +44,10 @@ class ActionPage extends BasePage {
     return this.withArgsResults.shift() ?? null;
   }
   async getCookies(): Promise<[]> { return []; }
-  async screenshot(): Promise<string> { return ''; }
+  async screenshot(options: ScreenshotOptions = {}): Promise<string> {
+    this.screenshotCalls.push(options);
+    return 'shot';
+  }
   async tabs(): Promise<unknown[]> { return []; }
   async selectTab(): Promise<void> {}
 }
@@ -109,6 +115,26 @@ describe('BasePage.fetchJson', () => {
       code: 'FETCH_ERROR',
       message: expect.stringContaining('The operation was aborted.'),
     });
+  });
+});
+
+describe('BasePage annotatedScreenshot', () => {
+  it('refreshes DOM refs, captures with a temporary visual overlay, and cleans up', async () => {
+    const page = new ActionPage();
+    page.results = [
+      'snapshot',
+      '["hash"]',
+      { annotated: 1, truncated: false },
+      true,
+    ];
+
+    await expect(page.annotatedScreenshot({ path: '/tmp/opencli.png', annotate: true })).resolves.toBe('shot');
+
+    expect(page.scripts[0]).toContain('const VIEWPORT_EXPAND = 0');
+    expect(page.scripts[2]).toContain('__opencli_visual_ref_overlay');
+    expect(page.scripts[2]).toContain('[data-opencli-ref]');
+    expect(page.scripts[3]).toContain('__opencli_visual_ref_overlay');
+    expect(page.screenshotCalls).toEqual([{ path: '/tmp/opencli.png', annotate: false }]);
   });
 });
 
@@ -259,7 +285,7 @@ describe('BasePage native input routing', () => {
       .mockResolvedValueOnce({ nodeId: 9 })
       .mockResolvedValueOnce({});
     page.results = [resolveOk, { x: 50, y: 100, w: 200, h: 32, visible: true }];
-    page.withArgsResults = [{ ok: true }, undefined];
+    page.withArgsResults = [{ ok: true, multiple: false, accept: 'application/pdf' }, undefined];
 
     await page.click('#save');
 
@@ -329,6 +355,14 @@ describe('BasePage native input routing', () => {
           ],
         };
       }
+      if (method === 'Accessibility.getFullAXTree' && params?.frameId === 'cross-frame') {
+        return {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, name: { value: 'Cross' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Cross Save' }, backendDOMNodeId: 30 },
+          ],
+        };
+      }
       if (method === 'Accessibility.getFullAXTree') {
         return {
           nodes: [
@@ -358,13 +392,98 @@ describe('BasePage native input routing', () => {
     expect(snapshot).toContain('[1]button "Main Save"');
     expect(snapshot).toContain('frame "https://app.example/embed":');
     expect(snapshot).toContain('[2]button "Frame Save"');
+    expect(snapshot).toContain('frame "https://other.example/embed":');
+    expect(snapshot).toContain('[3]button "Cross Save"');
 
     await expect(page.click('2')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
 
     expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'same-frame' });
-    expect(page.cdp).not.toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'cross-frame' });
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.enable', { frameId: 'cross-frame', sessionId: 'target', targetUrl: 'https://other.example/embed' });
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'cross-frame', sessionId: 'target', targetUrl: 'https://other.example/embed' });
     expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 20 });
     expect(page.nativeClick).toHaveBeenCalledWith(120, 210);
+  });
+
+  it('clicks cross-origin AX refs through a frame-target CDP route', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    page.cdp = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: {
+            frame: { id: 'root', url: 'https://app.example/' },
+            childFrames: [{ frame: { id: 'cross-frame', url: 'https://other.example/embed' } }],
+          },
+        };
+      }
+      if (method === 'Accessibility.getFullAXTree' && params?.sessionId === 'target') {
+        return {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Cross Save' }, backendDOMNodeId: 99 },
+          ],
+        };
+      }
+      if (method === 'Accessibility.getFullAXTree') {
+        return { nodes: [{ nodeId: '1', role: { value: 'RootWebArea' } }] };
+      }
+      if (method === 'DOM.getBoxModel') {
+        return { model: { content: [300, 400, 340, 400, 340, 420, 300, 420] } };
+      }
+      return {};
+    });
+
+    const snapshot = await page.snapshot({ source: 'ax' }) as string;
+    expect(snapshot).toContain('[1]button "Cross Save"');
+    await expect(page.click('1')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.enable', { frameId: 'cross-frame', sessionId: 'target', targetUrl: 'https://other.example/embed' });
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'cross-frame', sessionId: 'target', targetUrl: 'https://other.example/embed' });
+    expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 99, frameId: 'cross-frame', sessionId: 'target', targetUrl: 'https://other.example/embed' });
+    expect(page.nativeClick).toHaveBeenCalledWith(320, 410);
+  });
+
+  it('enables Accessibility in cross-origin frame target sessions before stale AX recovery', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    let crossAxCalls = 0;
+    page.cdp = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: {
+            frame: { id: 'root', url: 'https://app.example/' },
+            childFrames: [{ frame: { id: 'cross-frame', url: 'https://other.example/embed' } }],
+          },
+        };
+      }
+      if (method === 'Accessibility.getFullAXTree' && params?.sessionId === 'target') {
+        crossAxCalls++;
+        const backendDOMNodeId = crossAxCalls === 1 ? 99 : 100;
+        return {
+          nodes: [
+            { nodeId: '1', role: { value: 'RootWebArea' }, childIds: ['2'] },
+            { nodeId: '2', role: { value: 'button' }, name: { value: 'Cross Save' }, backendDOMNodeId },
+          ],
+        };
+      }
+      if (method === 'Accessibility.getFullAXTree') {
+        return { nodes: [{ nodeId: '1', role: { value: 'RootWebArea' } }] };
+      }
+      if (method === 'DOM.getBoxModel') {
+        if (params?.backendNodeId === 99) throw new Error('No node with given id found');
+        return { model: { content: [300, 400, 340, 400, 340, 420, 300, 420] } };
+      }
+      return {};
+    });
+
+    await page.snapshot({ source: 'ax' });
+    await expect(page.click('1')).resolves.toEqual({ matches_n: 1, match_level: 'reidentified' });
+
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.enable', { frameId: 'cross-frame', sessionId: 'target', targetUrl: 'https://other.example/embed' });
+    expect(page.cdp).toHaveBeenCalledWith('Accessibility.getFullAXTree', { frameId: 'cross-frame', sessionId: 'target', targetUrl: 'https://other.example/embed' });
+    expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 99, frameId: 'cross-frame', sessionId: 'target', targetUrl: 'https://other.example/embed' });
+    expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 100, frameId: 'cross-frame', sessionId: 'target', targetUrl: 'https://other.example/embed' });
+    expect(page.nativeClick).toHaveBeenCalledWith(320, 410);
   });
 
   it('recovers stale iframe AX refs inside the original frame', async () => {
@@ -523,6 +642,212 @@ describe('BasePage native input routing', () => {
     expect(nativeClick).toHaveBeenCalledTimes(2);
     expect(nativeClick).toHaveBeenNthCalledWith(1, 10, 20);
     expect(nativeClick).toHaveBeenNthCalledWith(2, 10, 20);
+  });
+
+  it('hovers via native CDP mouseMoved when coordinates are available', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn().mockResolvedValue({});
+    page.results = [resolveOk, { x: 70, y: 80, w: 100, h: 20, visible: true }];
+
+    await expect(page.hover('#menu')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 70, y: 80 });
+    expect(page.scripts.at(-1)).toContain('getBoundingClientRect');
+  });
+
+  it('focuses through CDP DOM.focus when available', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn(async (method: string) => {
+      if (method === 'DOM.getDocument') return { root: { nodeId: 1 } };
+      if (method === 'DOM.querySelector') return { nodeId: 9 };
+      return {};
+    });
+    page.results = [resolveOk, true];
+    page.withArgsResults = [{ ok: true }, undefined];
+
+    await expect(page.focus('#email')).resolves.toEqual({ focused: true, matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).toHaveBeenCalledWith('DOM.focus', { nodeId: 9 });
+  });
+
+  it('verifies CDP focus and falls back to DOM focus when focus did not stick', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn(async (method: string) => {
+      if (method === 'DOM.getDocument') return { root: { nodeId: 1 } };
+      if (method === 'DOM.querySelector') return { nodeId: 9 };
+      return {};
+    });
+    page.results = [resolveOk, false, true];
+    page.withArgsResults = [{ ok: true }, undefined];
+
+    await expect(page.focus('#email')).resolves.toEqual({ focused: true, matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).toHaveBeenCalledWith('DOM.focus', { nodeId: 9 });
+    expect(page.scripts.at(-2)).toContain('document.activeElement === el');
+    expect(page.scripts.at(-1)).toContain('el.focus');
+  });
+
+  it('double-clicks via native CDP mouse events', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn().mockResolvedValue({});
+    page.results = [resolveOk, { x: 20, y: 30, w: 100, h: 20, visible: true }];
+
+    await expect(page.dblClick('#row')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 20, y: 30 });
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mousePressed', x: 20, y: 30, button: 'left', clickCount: 2 });
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 20, y: 30, button: 'left', clickCount: 2 });
+  });
+
+  it('checks a checkbox only when its current state differs', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    page.results = [
+      resolveOk,
+      { ok: true, checked: false, disabled: false, kind: 'checkbox' },
+      resolveOk,
+      { x: 20, y: 30, w: 40, h: 20, visible: true },
+      { ok: true, checked: true, disabled: false, kind: 'checkbox' },
+    ];
+
+    await expect(page.setChecked('#agree', true)).resolves.toEqual({
+      checked: true,
+      changed: true,
+      matches_n: 1,
+      match_level: 'exact',
+      kind: 'checkbox',
+    });
+
+    expect(page.nativeClick).toHaveBeenCalledWith(20, 30);
+  });
+
+  it('does not click a checkbox that already has the requested state', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    page.results = [resolveOk, { ok: true, checked: false, disabled: false, kind: 'checkbox' }];
+
+    await expect(page.setChecked('#agree', false)).resolves.toEqual({
+      checked: false,
+      changed: false,
+      matches_n: 1,
+      match_level: 'exact',
+      kind: 'checkbox',
+    });
+
+    expect(page.nativeClick).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-checkable targets with a structured error', async () => {
+    const page = new ActionPage();
+    page.results = [resolveOk, { ok: false, reason: 'not_checkable', tag: 'button' }];
+
+    const err = await page.setChecked('button', true).catch((error: unknown) => error);
+
+    expect(err).toBeInstanceOf(TargetError);
+    expect((err as TargetError).code).toBe('not_checkable');
+  });
+
+  it('rejects attempts to uncheck a radio button directly', async () => {
+    const page = new ActionPage();
+    page.results = [resolveOk, { ok: true, checked: true, disabled: false, kind: 'radio' }];
+
+    const err = await page.setChecked('#radio', false).catch((error: unknown) => error);
+
+    expect(err).toBeInstanceOf(TargetError);
+    expect((err as TargetError).code).toBe('not_checkable');
+    expect((err as TargetError).hint).toContain('Select another radio');
+  });
+
+  it('treats ARIA radio controls like radio buttons', async () => {
+    const page = new ActionPage();
+    page.results = [resolveOk, { ok: true, checked: true, disabled: false, kind: 'menuitemradio' }];
+
+    const err = await page.setChecked('[role="menuitemradio"]', false).catch((error: unknown) => error);
+
+    expect(err).toBeInstanceOf(TargetError);
+    expect((err as TargetError).code).toBe('not_checkable');
+    expect((err as TargetError).hint).toContain('Select another radio');
+  });
+
+  it('uploads files through setFileInput using a temporary marker selector', async () => {
+    const page = new ActionPage();
+    page.setFileInput = vi.fn().mockResolvedValue(undefined);
+    page.results = [
+      resolveOk,
+      ['receipt.pdf'],
+    ];
+    page.withArgsResults = [{ ok: true, multiple: false, accept: 'application/pdf' }, undefined];
+
+    await expect(page.uploadFiles('#file', ['/tmp/receipt.pdf'])).resolves.toEqual({
+      uploaded: true,
+      files: 1,
+      file_names: ['receipt.pdf'],
+      target: '#file',
+      matches_n: 1,
+      match_level: 'exact',
+      multiple: false,
+      accept: 'application/pdf',
+    });
+
+    expect(page.setFileInput).toHaveBeenCalledWith(['/tmp/receipt.pdf'], expect.stringMatching(/data-opencli-upload-target/));
+    expect(page.withArgs.at(0)).toMatchObject({ markerAttr: 'data-opencli-upload-target' });
+    expect(page.withArgs.at(-1)).toMatchObject({ markerAttr: 'data-opencli-upload-target' });
+  });
+
+  it('rejects non-file-input upload targets with a structured error', async () => {
+    const page = new ActionPage();
+    page.setFileInput = vi.fn().mockResolvedValue(undefined);
+    page.results = [resolveOk];
+    page.withArgsResults = [{ ok: false, tag: 'button', type: '' }];
+
+    const err = await page.uploadFiles('button', ['/tmp/receipt.pdf']).catch((error: unknown) => error);
+
+    expect(err).toBeInstanceOf(TargetError);
+    expect((err as TargetError).code).toBe('not_file_input');
+    expect(page.setFileInput).not.toHaveBeenCalled();
+  });
+
+  it('rejects multiple files for a single-file input before mutating files', async () => {
+    const page = new ActionPage();
+    page.setFileInput = vi.fn().mockResolvedValue(undefined);
+    page.results = [resolveOk];
+    page.withArgsResults = [{ ok: true, multiple: false, accept: '' }, undefined];
+
+    const err = await page.uploadFiles('#file', ['/tmp/a.pdf', '/tmp/b.pdf']).catch((error: unknown) => error);
+
+    expect(err).toBeInstanceOf(TargetError);
+    expect((err as TargetError).code).toBe('not_file_input');
+    expect(page.setFileInput).not.toHaveBeenCalled();
+  });
+
+  it('drags between two resolved element centers via native CDP mouse events', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn().mockResolvedValue({});
+    page.results = [
+      resolveOk,
+      { x: 10, y: 20, w: 30, h: 20, visible: true },
+      { ok: true, matches_n: 2, match_level: 'stable' },
+      {
+        source: { x: 10, y: 20, w: 30, h: 20, visible: true },
+        target: { x: 110, y: 120, w: 40, h: 30, visible: true },
+      },
+    ];
+
+    await expect(page.drag('#card', '.lane', { to: { nth: 1 } })).resolves.toEqual({
+      dragged: true,
+      source: '#card',
+      target: '.lane',
+      source_matches_n: 1,
+      target_matches_n: 2,
+      source_match_level: 'exact',
+      target_match_level: 'stable',
+    });
+
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 10, y: 20 });
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mousePressed', x: 10, y: 20, button: 'left', clickCount: 1 });
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 60, y: 70, button: 'left', buttons: 1 });
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 110, y: 120, button: 'left', buttons: 1 });
+    expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 110, y: 120, button: 'left', clickCount: 1 });
   });
 
   it('presses key chords through native CDP key events when available', async () => {

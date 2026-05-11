@@ -22,6 +22,12 @@ import {
 } from './utils.js';
 import { extractSearchRows } from './search.js';
 import { extractShopFields } from './shop.js';
+import {
+    buildCitylistMap,
+    clearCityResolverCache,
+    extractCityIdFromPage,
+    resolveCityIdAsync,
+} from './cityResolver.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SHOP_FIXTURE = readFileSync(join(__dirname, '__fixtures__/shop.html'), 'utf8');
@@ -101,6 +107,154 @@ describe('dianping adapter — helpers', () => {
         )).toThrow(EmptyResultError);
         expect(() => detectAuthOrPageFailure({ text: '<html>unexpected shell</html>' }, 'search'))
             .toThrow(CommandExecutionError);
+    });
+});
+
+describe('dianping adapter — async city resolver', () => {
+    beforeEach(() => {
+        clearCityResolverCache();
+    });
+
+    it('returns null/numeric/static-map ids without ever touching the page', async () => {
+        const page = createPageMock({});
+
+        expect(await resolveCityIdAsync(page, undefined)).toBeNull();
+        expect(await resolveCityIdAsync(page, '')).toBeNull();
+        expect(await resolveCityIdAsync(page, '   ')).toBeNull();
+        expect(await resolveCityIdAsync(page, 47)).toBe(47);
+        expect(await resolveCityIdAsync(page, '47')).toBe(47);
+        expect(await resolveCityIdAsync(page, '北京')).toBe(2);
+        expect(await resolveCityIdAsync(page, 'shanghai')).toBe(1);
+
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(page.evaluate).not.toHaveBeenCalled();
+    });
+
+    it('falls back to /<pinyin> for an unknown lowercase slug, then caches', async () => {
+        const goto = vi.fn().mockResolvedValue(undefined);
+        const evaluate = vi.fn().mockResolvedValue(207);
+        const page = { goto, evaluate, wait: vi.fn() };
+
+        expect(await resolveCityIdAsync(page, 'shantou')).toBe(207);
+        expect(goto).toHaveBeenCalledTimes(1);
+        expect(goto).toHaveBeenCalledWith('https://www.dianping.com/shantou');
+
+        // Second call hits the in-process cache, no extra navigation.
+        expect(await resolveCityIdAsync(page, 'shantou')).toBe(207);
+        expect(goto).toHaveBeenCalledTimes(1);
+    });
+
+    it('resolves a Chinese name via /citylist + /<pinyin>, then caches both forms', async () => {
+        const goto = vi.fn().mockResolvedValue(undefined);
+        const evaluate = vi.fn()
+            .mockResolvedValueOnce({ '汕头': 'shantou', '佛山': 'foshan' })
+            .mockResolvedValueOnce(207);
+        const page = { goto, evaluate, wait: vi.fn() };
+
+        expect(await resolveCityIdAsync(page, '汕头')).toBe(207);
+        expect(goto).toHaveBeenNthCalledWith(1, 'https://www.dianping.com/citylist');
+        expect(goto).toHaveBeenNthCalledWith(2, 'https://www.dianping.com/shantou');
+
+        // Cached for the Chinese name AND the discovered pinyin.
+        expect(await resolveCityIdAsync(page, '汕头')).toBe(207);
+        expect(await resolveCityIdAsync(page, 'shantou')).toBe(207);
+        expect(goto).toHaveBeenCalledTimes(2);
+    });
+
+    it('rejects mixed/garbage input with ArgumentError before any navigation', async () => {
+        const page = createPageMock({});
+        await expect(resolveCityIdAsync(page, 'not-a-city!')).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('rejects a Chinese name that is not on /citylist with ArgumentError', async () => {
+        const goto = vi.fn().mockResolvedValue(undefined);
+        const evaluate = vi.fn().mockResolvedValueOnce({ '北京': 'beijing' });
+        const page = { goto, evaluate, wait: vi.fn() };
+
+        await expect(resolveCityIdAsync(page, '某虚构城')).rejects.toThrow(ArgumentError);
+        expect(goto).toHaveBeenCalledTimes(1);
+        expect(goto).toHaveBeenCalledWith('https://www.dianping.com/citylist');
+    });
+
+    it('throws CommandExecutionError when citylist renders without city anchors', async () => {
+        const goto = vi.fn().mockResolvedValue(undefined);
+        const evaluate = vi.fn().mockResolvedValueOnce({});
+        const page = { goto, evaluate, wait: vi.fn() };
+
+        await expect(resolveCityIdAsync(page, '汕头')).rejects.toThrow(CommandExecutionError);
+        expect(goto).toHaveBeenCalledTimes(1);
+        expect(goto).toHaveBeenCalledWith('https://www.dianping.com/citylist');
+    });
+
+    it('throws CommandExecutionError when the per-city page lacks a /search/keyword/{id}/ link', async () => {
+        const goto = vi.fn().mockResolvedValue(undefined);
+        const evaluate = vi.fn().mockResolvedValueOnce(null);
+        const page = { goto, evaluate, wait: vi.fn() };
+
+        await expect(resolveCityIdAsync(page, 'newcity')).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('buildCitylistMap keeps Chinese-labeled city slugs and drops non-city paths', () => {
+        const dom = new JSDOM(`
+            <html><body>
+                <a href="//www.dianping.com/shanghai">上海</a>
+                <a href="//www.dianping.com/shantou">汕头</a>
+                <a href="/beijing">北京</a>
+                <a href="//www.dianping.com/citylist">更多城市 ></a>
+                <a href="//www.dianping.com/promo">优惠</a>
+                <a href="//www.dianping.com/shanghai">上海</a>
+                <a href="https://www.dianping.com/member/123">可乐不加冰</a>
+                <a href="https://example.com/notacity">东京</a>
+            </body></html>
+        `);
+        globalThis.document = dom.window.document;
+
+        try {
+            const map = buildCitylistMap();
+            expect(map['上海']).toBe('shanghai');
+            expect(map['汕头']).toBe('shantou');
+            expect(map['北京']).toBe('beijing');
+            expect(map['更多城市 >']).toBeUndefined();
+            expect(map['优惠']).toBeUndefined();
+            expect(map['可乐不加冰']).toBeUndefined();
+            expect(map['东京']).toBeUndefined();
+        } finally {
+            delete globalThis.document;
+        }
+    });
+
+    it('extractCityIdFromPage pulls the cityId from the first /search/keyword/{id}/ link', () => {
+        const dom = new JSDOM(`
+            <html><body>
+                <script>window.bad = "/search/keyword/999/";</script>
+                <a href="https://example.com/search/keyword/888/0_x">wrong host</a>
+                <a href="https://www.dianping.com.evil.com/search/keyword/666/0_x">host suffix</a>
+                <a href="http://www.dianping.com/search/keyword/777/0_x">non-https</a>
+                <a href="/search/keyword/207/0_%E5%88%BA%E8%BA%AB">刺身</a>
+                <a href="/search/category/207/10">美食</a>
+            </body></html>
+        `, { url: 'https://www.dianping.com/shantou' });
+        globalThis.document = dom.window.document;
+        globalThis.location = dom.window.location;
+
+        try {
+            expect(extractCityIdFromPage()).toBe(207);
+        } finally {
+            delete globalThis.document;
+            delete globalThis.location;
+        }
+    });
+
+    it('extractCityIdFromPage returns null when no /search/keyword/{id}/ link exists', () => {
+        const dom = new JSDOM(`<html><body><main>blocked</main></body></html>`);
+        globalThis.document = dom.window.document;
+
+        try {
+            expect(extractCityIdFromPage()).toBeNull();
+        } finally {
+            delete globalThis.document;
+        }
     });
 });
 

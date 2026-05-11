@@ -61,6 +61,12 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
     .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', 'table')
     .option('--trace <mode>', 'Trace capture: off, on, retain-on-failure', 'off')
     .option('-v, --verbose', 'Debug output', false);
+  if (cmd.browser) {
+    subCmd
+      .option('--window <mode>', 'Browser window mode: foreground or background')
+      .option('--site-session <mode>', 'Adapter site session lifecycle: ephemeral or persistent')
+      .option('--keep-tab <bool>', 'Keep the browser tab lease after the command finishes');
+  }
 
   const originalHelpInformation = subCmd.helpInformation.bind(subCmd);
   subCmd.helpInformation = ((contextOptions?: unknown) => {
@@ -112,6 +118,9 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
         prepared: true,
         ...(typeof globals.profile === 'string' && globals.profile.trim() ? { profile: globals.profile.trim() } : {}),
         ...(typeof optionsRecord.trace === 'string' && optionsRecord.trace !== 'off' ? { trace: optionsRecord.trace } : {}),
+        ...(cmd.browser && typeof optionsRecord.window === 'string' ? { windowMode: optionsRecord.window } : {}),
+        ...(cmd.browser && typeof optionsRecord.siteSession === 'string' ? { siteSession: optionsRecord.siteSession } : {}),
+        ...(cmd.browser && typeof optionsRecord.keepTab === 'string' ? { keepTab: optionsRecord.keepTab } : {}),
       });
       if (result === null || result === undefined) {
         return;

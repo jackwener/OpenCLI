@@ -80,17 +80,21 @@ cli({
       },
     };
 
+    // Read csrftoken directly from the cookie store via CDP — zero page.evaluate round-trip
+    const cookies = await page.getCookies({ url: 'https://maimai.cn' });
+    const csrftokenFromCookie = cookies.find((c) => c.name === 'csrftoken')?.value || '';
+
     // Execute the search API call in browser context
-    const data = await page.evaluate(async (body) => {
-      // Get CSRF token from cookie or meta tag
-      let csrftoken = document.cookie.split('; ')
-        .find(row => row.startsWith('csrftoken='))
-        ?.split('=')[1] || '';
+    const data = await page.evaluate(`async () => {
+      // Prefer cookie-derived csrftoken (hoisted from CDP); fall back to meta tag
+      let csrftoken = ${JSON.stringify(csrftokenFromCookie)};
 
       if (!csrftoken) {
         const meta = document.querySelector('meta[name="csrf-token"]');
         if (meta) csrftoken = meta.getAttribute('content') || '';
       }
+
+      const body = ${JSON.stringify(requestBody)};
 
       const res = await fetch('https://maimai.cn/api/ent/discover/search?channel=www&data_version=3.0&version=1.0.0', {
         method: 'POST',
@@ -117,7 +121,7 @@ cli({
       }
 
       return result;
-    }, requestBody);
+    }`);
 
     // Extract talent list from response
     const talentList = data.data?.list || data.data?.talent_list || data.list || data.talent_list || [];

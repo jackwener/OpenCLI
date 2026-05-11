@@ -26,7 +26,14 @@ export async function isOnClaude(page) {
 export async function ensureOnClaude(page) {
     if (await isOnClaude(page)) return false;
     await page.goto(CLAUDE_URL);
-    await page.wait(3);
+    // Wait for the composer textarea instead of a fixed 3 s sleep. On the login
+    // page it never mounts; swallow the timeout so callers (read / detail /
+    // send) can still inspect page state and produce typed errors.
+    try {
+        await page.wait({ selector: COMPOSER_SELECTOR, timeout: 8 });
+    } catch {
+        // Login or error page — downstream ensureClaudeLogin / ensureClaudeComposer surfaces a typed error.
+    }
     return true;
 }
 
@@ -111,7 +118,13 @@ export async function getVisibleMessages(page) {
 export async function getConversationList(page) {
     if (!(await isOnClaude(page)) || !(await page.evaluate('window.location.href') || '').includes('/recents')) {
         await page.goto('https://claude.ai/recents');
-        await page.wait(3);
+        // Recents list mounts <a href="/chat/...">; an empty history is also
+        // valid (returns []), so swallow the timeout instead of raising.
+        try {
+            await page.wait({ selector: 'a[href*="/chat/"]', timeout: 8 });
+        } catch {
+            // Empty history or login page — downstream evaluate returns [].
+        }
     }
     const items = await page.evaluate(`(() => {
         var links = Array.from(document.querySelectorAll('a[href*="/chat/"]'));
@@ -147,7 +160,12 @@ export async function selectModel(page, modelName) {
     if (!opened?.ok) return opened;
     if (!opened.opened) return opened;
 
-    await page.wait(0.6);
+    // Wait for the dropdown menu items to mount instead of a fixed 0.6 s sleep.
+    try {
+        await page.wait({ selector: 'div[role="menuitemradio"]', timeout: 3 });
+    } catch {
+        // Dropdown didn't open — next evaluate finds no target and returns { ok: false }.
+    }
 
     return page.evaluate(`(() => {
         var items = Array.from(document.querySelectorAll('div[role="menuitemradio"]'));
@@ -175,7 +193,12 @@ export async function setAdaptiveThinking(page, enabled) {
     })()`);
     if (!opened?.ok) return { ok: false };
 
-    await page.wait(0.6);
+    // Wait for the dropdown menu items to mount instead of a fixed 0.6 s sleep.
+    try {
+        await page.wait({ selector: 'div[role="menuitem"]', timeout: 3 });
+    } catch {
+        // Dropdown didn't open — next evaluate finds no target and returns { ok: false }.
+    }
 
     return page.evaluate(`(() => {
         var items = Array.from(document.querySelectorAll('div[role="menuitem"]'));

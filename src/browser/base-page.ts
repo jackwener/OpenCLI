@@ -37,6 +37,7 @@ import {
 import { TargetError, type TargetErrorCode } from './target-errors.js';
 import { CliError } from '../errors.js';
 import { formatSnapshot } from '../snapshotFormatter.js';
+import { installVisualRefOverlayJs, removeVisualRefOverlayJs } from './visual-refs.js';
 
 export interface ResolveSuccess {
   matches_n: number;
@@ -55,6 +56,31 @@ export interface FillTextResult extends ResolveSuccess {
   actual: string;
   length: number;
   mode?: 'input' | 'textarea' | 'contenteditable';
+}
+
+export interface SetCheckedResult extends ResolveSuccess {
+  checked: boolean;
+  changed: boolean;
+  kind?: string;
+}
+
+export interface UploadFilesResult extends ResolveSuccess {
+  uploaded: boolean;
+  files: number;
+  file_names: string[];
+  target: string;
+  multiple?: boolean;
+  accept?: string;
+}
+
+export interface DragResult {
+  dragged: boolean;
+  source: string;
+  target: string;
+  source_matches_n: number;
+  target_matches_n: number;
+  source_match_level: TargetMatchLevel;
+  target_match_level: TargetMatchLevel;
 }
 
 interface CdpFrameTreeNode {
@@ -236,6 +262,17 @@ export abstract class BasePage implements IPage {
 
   abstract getCookies(opts?: { domain?: string; url?: string }): Promise<BrowserCookie[]>;
   abstract screenshot(options?: ScreenshotOptions): Promise<string>;
+
+  async annotatedScreenshot(options: ScreenshotOptions = {}): Promise<string> {
+    // Refresh DOM refs first so visual labels map to immediate `browser click <ref>` targets.
+    await this.snapshot({ source: 'dom', viewportExpand: 0 });
+    try {
+      await this.evaluate(installVisualRefOverlayJs());
+      return await this.screenshot({ ...options, annotate: false });
+    } finally {
+      await this.evaluate(removeVisualRefOverlayJs()).catch(() => {});
+    }
+  }
   abstract tabs(): Promise<unknown[]>;
   abstract selectTab(target: number | string): Promise<void>;
 
@@ -292,6 +329,49 @@ export abstract class BasePage implements IPage {
     }
   }
 
+  protected async tryNativeMouseMove(x: number, y: number): Promise<boolean> {
+    const cdp = (this as IPage).cdp;
+    if (typeof cdp !== 'function') return false;
+    try {
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  protected async tryNativeDoubleClick(x: number, y: number): Promise<boolean> {
+    const cdp = (this as IPage).cdp;
+    if (typeof cdp !== 'function') return false;
+    try {
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 2 });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 2 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  protected async tryNativeDrag(from: { x: number; y: number }, to: { x: number; y: number }): Promise<boolean> {
+    const cdp = (this as IPage).cdp;
+    if (typeof cdp !== 'function') return false;
+    const midX = Math.round((from.x + to.x) / 2);
+    const midY = Math.round((from.y + to.y) / 2);
+    try {
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', clickCount: 1 });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: midX, y: midY, button: 'left', buttons: 1 });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: to.x, y: to.y, button: 'left', buttons: 1 });
+      await cdp.call(this, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', clickCount: 1 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   protected async tryClickAxRef(ref: string): Promise<ResolveSuccess | null> {
     if (!/^\d+$/.test(ref)) return null;
     const entry = this._axRefs.get(ref);
@@ -314,23 +394,28 @@ export abstract class BasePage implements IPage {
     if (typeof cdp !== 'function') return null;
 
     if (entry.backendNodeId != null) {
-      const point = await this.axBoxCenter(entry.backendNodeId).catch(() => null);
+      const point = await this.axBoxCenter(entry.backendNodeId, entry.frame).catch(() => null);
       if (point) return { ...point, matchLevel: 'exact' };
     }
 
-    await cdp.call(this, 'Accessibility.enable', {});
+    await cdp.call(this, 'Accessibility.enable', axEnableParams(entry.frame));
     const axTree = await cdp.call(this, 'Accessibility.getFullAXTree', axTreeParams(entry.frame)).catch(() => null);
     const recovered = findAxRefReplacement(axTree, entry);
     if (!recovered?.backendNodeId) return null;
     this._axRefs.set(entry.ref, recovered);
-    const point = await this.axBoxCenter(recovered.backendNodeId).catch(() => null);
+    const point = await this.axBoxCenter(recovered.backendNodeId, recovered.frame).catch(() => null);
     return point ? { ...point, matchLevel: 'reidentified' } : null;
   }
 
-  private async axBoxCenter(backendNodeId: number): Promise<{ x: number; y: number } | null> {
+  private async axBoxCenter(backendNodeId: number, frame?: BrowserRef['frame']): Promise<{ x: number; y: number } | null> {
     const cdp = (this as IPage).cdp;
     if (typeof cdp !== 'function') return null;
-    const result = await cdp.call(this, 'DOM.getBoxModel', { backendNodeId }) as
+    const result = await cdp.call(this, 'DOM.getBoxModel', {
+      backendNodeId,
+      ...(frame?.sessionId
+        ? { frameId: frame.frameId, sessionId: frame.sessionId, ...(frame.targetUrl ? { targetUrl: frame.targetUrl } : {}) }
+        : {}),
+    }) as
       | { model?: { content?: unknown[]; border?: unknown[] } }
       | null;
     const quad = Array.isArray(result?.model?.content) && result.model.content.length >= 8
@@ -376,6 +461,19 @@ export abstract class BasePage implements IPage {
     try {
       await nativeKeyPress.call(this, key, modifiers);
       return true;
+    } catch {
+      return false;
+    }
+  }
+
+  protected async isResolvedFocused(): Promise<boolean> {
+    try {
+      return await this.evaluate(`
+        (() => {
+          const el = window.__resolved;
+          return !!el && (document.activeElement === el || (typeof el.matches === 'function' && el.matches(':focus')));
+        })()
+      `) as boolean;
     } catch {
       return false;
     }
@@ -467,6 +565,368 @@ export abstract class BasePage implements IPage {
       await this.evaluate(typeResolvedJs(text));
     }
     return resolved;
+  }
+
+  async hover(ref: string, opts: ResolveOptions = {}): Promise<ResolveSuccess> {
+    const resolved = await runResolve(this, ref, opts);
+    const nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
+    const rect = await this.evaluate(boundingRectResolvedJs({ skipScroll: nativeScrolled })) as
+      | { x: number; y: number; w: number; h: number; visible: boolean }
+      | null;
+    if (rect?.visible === true && await this.tryNativeMouseMove(rect.x, rect.y)) return resolved;
+
+    await this.evaluate(`
+      (() => {
+        const el = window.__resolved;
+        if (!el) throw new Error('No resolved element');
+        if (${nativeScrolled ? 'false' : 'true'}) el.scrollIntoView({ behavior: 'instant', block: 'center' });
+        const rect = el.getBoundingClientRect();
+        const init = {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          clientX: Math.round(rect.left + rect.width / 2),
+          clientY: Math.round(rect.top + rect.height / 2),
+        };
+        try { el.dispatchEvent(new PointerEvent('pointerover', init)); } catch (_) {}
+        try { el.dispatchEvent(new PointerEvent('pointermove', init)); } catch (_) {}
+        el.dispatchEvent(new MouseEvent('mouseover', init));
+        el.dispatchEvent(new MouseEvent('mousemove', init));
+      })()
+    `);
+    return resolved;
+  }
+
+  async focus(ref: string, opts: ResolveOptions = {}): Promise<ResolveSuccess & { focused: boolean }> {
+    const resolved = await runResolve(this, ref, opts);
+    let focused = await this.tryCdpOnResolvedElement('DOM.focus') && await this.isResolvedFocused();
+    if (!focused) {
+      focused = await this.evaluate(`
+        (() => {
+          const el = window.__resolved;
+          if (!el || typeof el.focus !== 'function') return false;
+          try { el.focus({ preventScroll: true }); } catch (_) { try { el.focus(); } catch (_) {} }
+          return document.activeElement === el || (typeof el.matches === 'function' && el.matches(':focus'));
+        })()
+      `) as boolean;
+    }
+    return { ...resolved, focused: !!focused };
+  }
+
+  async dblClick(ref: string, opts: ResolveOptions = {}): Promise<ResolveSuccess> {
+    const resolved = await runResolve(this, ref, opts);
+    const nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
+    const rect = await this.evaluate(boundingRectResolvedJs({ skipScroll: nativeScrolled })) as
+      | { x: number; y: number; w: number; h: number; visible: boolean }
+      | null;
+    if (rect?.visible === true && await this.tryNativeDoubleClick(rect.x, rect.y)) return resolved;
+
+    await this.evaluate(`
+      (() => {
+        const el = window.__resolved;
+        if (!el) throw new Error('No resolved element');
+        if (${nativeScrolled ? 'false' : 'true'}) el.scrollIntoView({ behavior: 'instant', block: 'center' });
+        const rect = el.getBoundingClientRect();
+        const init = {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          clientX: Math.round(rect.left + rect.width / 2),
+          clientY: Math.round(rect.top + rect.height / 2),
+          button: 0,
+          detail: 2,
+        };
+        el.dispatchEvent(new MouseEvent('dblclick', init));
+      })()
+    `);
+    return resolved;
+  }
+
+  private async readCheckableState(): Promise<{
+    ok?: boolean;
+    checked?: boolean;
+    disabled?: boolean;
+    kind?: string;
+    reason?: string;
+    tag?: string;
+    role?: string;
+  } | null> {
+    return await this.evaluate(`
+      (() => {
+        const el = window.__resolved;
+        if (!el || el.nodeType !== 1) return { ok: false, reason: 'not_checkable' };
+        const tag = el.tagName.toLowerCase();
+        const role = (el.getAttribute('role') || '').toLowerCase();
+        const type = (el.getAttribute('type') || '').toLowerCase();
+        if (tag === 'input' && (type === 'checkbox' || type === 'radio')) {
+          return {
+            ok: true,
+            checked: !!el.checked,
+            disabled: !!el.disabled,
+            kind: type,
+          };
+        }
+        if (role === 'checkbox' || role === 'switch' || role === 'menuitemcheckbox' || role === 'radio' || role === 'menuitemradio') {
+          const aria = (el.getAttribute('aria-checked') || '').toLowerCase();
+          return {
+            ok: true,
+            checked: aria === 'true' || aria === 'mixed',
+            disabled: el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled'),
+            kind: role,
+          };
+        }
+        return { ok: false, reason: 'not_checkable', tag, role };
+      })()
+    `) as {
+      ok?: boolean;
+      checked?: boolean;
+      disabled?: boolean;
+      kind?: string;
+      reason?: string;
+      tag?: string;
+      role?: string;
+    } | null;
+  }
+
+  async setChecked(ref: string, checked: boolean, opts: ResolveOptions = {}): Promise<SetCheckedResult> {
+    const resolved = await runResolve(this, ref, opts);
+    const before = await this.readCheckableState();
+    if (before?.ok !== true) {
+      throw new TargetError({
+        code: 'not_checkable',
+        message: `Target "${ref}" is not a checkbox, radio, switch, or aria-checked control.`,
+        hint: 'Use `opencli browser state` or `browser find` to pick an input[type=checkbox], input[type=radio], or role=checkbox/switch target.',
+      });
+    }
+    if (before.disabled) {
+      throw new TargetError({
+        code: 'not_checkable',
+        message: `Target "${ref}" is disabled and cannot be ${checked ? 'checked' : 'unchecked'}.`,
+        hint: 'Pick an enabled control, or inspect the form state before retrying.',
+      });
+    }
+    if ((before.kind === 'radio' || before.kind === 'menuitemradio') && !checked) {
+      throw new TargetError({
+        code: 'not_checkable',
+        message: `Target "${ref}" is a radio button and cannot be unchecked directly.`,
+        hint: 'Select another radio option in the same group instead.',
+      });
+    }
+    if (before.checked === checked) {
+      return {
+        ...resolved,
+        checked,
+        changed: false,
+        ...(before.kind ? { kind: before.kind } : {}),
+      };
+    }
+
+    const clicked = await this.click(ref, opts);
+    const after = await this.readCheckableState();
+    if (after?.ok !== true || after.checked !== checked) {
+      throw new TargetError({
+        code: 'not_checkable',
+        message: `Target "${ref}" did not become ${checked ? 'checked' : 'unchecked'} after click.`,
+        hint: 'The control may be custom, disabled by app logic, or require a different target such as its visible label.',
+      });
+    }
+    return {
+      matches_n: clicked.matches_n,
+      match_level: clicked.match_level,
+      checked,
+      changed: true,
+      ...(after.kind ? { kind: after.kind } : {}),
+    };
+  }
+
+  private async setFileInputBySelector(files: string[], selector: string): Promise<void> {
+    const setFileInput = (this as IPage).setFileInput;
+    if (typeof setFileInput === 'function') {
+      await setFileInput.call(this, files, selector);
+      return;
+    }
+
+    const cdp = (this as IPage).cdp;
+    if (typeof cdp !== 'function') {
+      throw new Error('File upload requires setFileInput or CDP support from the active browser backend.');
+    }
+    await cdp.call(this, 'DOM.enable', {}).catch(() => undefined);
+    const doc = await cdp.call(this, 'DOM.getDocument', {}) as { root?: { nodeId?: unknown } } | null;
+    const rootNodeId = doc?.root?.nodeId;
+    if (typeof rootNodeId !== 'number') throw new Error('DOM.getDocument returned no root node.');
+    const query = await cdp.call(this, 'DOM.querySelector', { nodeId: rootNodeId, selector }) as { nodeId?: unknown } | null;
+    const nodeId = query?.nodeId;
+    if (typeof nodeId !== 'number' || nodeId <= 0) throw new Error(`No element found matching selector: ${selector}`);
+    await cdp.call(this, 'DOM.setFileInputFiles', { files, nodeId });
+  }
+
+  async uploadFiles(ref: string, files: string[], opts: ResolveOptions = {}): Promise<UploadFilesResult> {
+    if (!Array.isArray(files) || files.length === 0) {
+      throw new TargetError({
+        code: 'not_file_input',
+        message: 'No files were provided for upload.',
+        hint: 'Pass one or more local file paths after the target.',
+      });
+    }
+    const resolved = await runResolve(this, ref, opts);
+    const markerAttr = 'data-opencli-upload-target';
+    const markerValue = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    const selector = `[${markerAttr}="${markerValue}"]`;
+    let marked = false;
+    let info: { ok?: boolean; multiple?: boolean; accept?: string; reason?: string; tag?: string; type?: string } | null = null;
+
+    try {
+      info = await this.evaluateWithArgs(`
+        (() => {
+          const el = window.__resolved;
+          if (!el || el.nodeType !== 1) return { ok: false, reason: 'not_file_input' };
+          const tag = el.tagName.toLowerCase();
+          const type = (el.getAttribute('type') || '').toLowerCase();
+          if (tag !== 'input' || type !== 'file') return { ok: false, reason: 'not_file_input', tag, type };
+          el.setAttribute(markerAttr, markerValue);
+          return {
+            ok: true,
+            multiple: !!el.multiple,
+            accept: el.getAttribute('accept') || '',
+          };
+        })()
+      `, { markerAttr, markerValue }) as { ok?: boolean; multiple?: boolean; accept?: string; reason?: string; tag?: string; type?: string } | null;
+      marked = info?.ok === true;
+      if (!marked) {
+        throw new TargetError({
+          code: 'not_file_input',
+          message: `Target "${ref}" is not an input[type=file].`,
+          hint: 'Use `opencli browser find --css "input[type=file]"` or inspect `compound` output from browser state/find.',
+        });
+      }
+      if (files.length > 1 && !info?.multiple) {
+        throw new TargetError({
+          code: 'not_file_input',
+          message: `Target "${ref}" does not allow multiple files, but ${files.length} files were provided.`,
+          hint: 'Pass one file, or choose a file input with the multiple attribute.',
+        });
+      }
+
+      await this.setFileInputBySelector(files, selector);
+      const verification = await this.evaluate(`
+        (() => {
+          const el = window.__resolved;
+          const names = [];
+          try {
+            if (el && el.files) {
+              for (let i = 0; i < el.files.length; i++) names.push(el.files[i].name || '');
+            }
+          } catch (_) {}
+          return names;
+        })()
+      `) as unknown;
+      const fileNames = Array.isArray(verification)
+        ? verification.map((value) => String(value))
+        : [];
+
+      return {
+        ...resolved,
+        uploaded: true,
+        files: fileNames.length || files.length,
+        file_names: fileNames,
+        target: ref,
+        multiple: !!info?.multiple,
+        ...(info?.accept ? { accept: info.accept } : {}),
+      };
+    } finally {
+      if (marked) {
+        await this.evaluateWithArgs(`
+          (() => {
+            for (const el of document.querySelectorAll(selector)) {
+              el.removeAttribute(markerAttr);
+            }
+          })()
+        `, { selector, markerAttr }).catch(() => undefined);
+      }
+    }
+  }
+
+  async drag(
+    source: string,
+    target: string,
+    opts: { from?: ResolveOptions; to?: ResolveOptions } = {},
+  ): Promise<DragResult> {
+    const sourceResolved = await runResolve(this, source, opts.from ?? {});
+    const sourceScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
+    const sourceRect = await this.evaluate(`
+      (() => {
+        const el = window.__resolved;
+        if (!el) throw new Error('No resolved drag source');
+        window.__opencli_drag_source = el;
+        if (${sourceScrolled ? 'false' : 'true'}) el.scrollIntoView({ behavior: 'instant', block: 'center' });
+        const rect = el.getBoundingClientRect();
+        const w = Math.round(rect.width);
+        const h = Math.round(rect.height);
+        const x = Math.round(rect.left + rect.width / 2);
+        const y = Math.round(rect.top + rect.height / 2);
+        const visible = w > 0 && h > 0 && x >= 0 && y >= 0 && x <= window.innerWidth && y <= window.innerHeight;
+        return { x, y, w, h, visible };
+      })()
+    `) as
+      | { x: number; y: number; w: number; h: number; visible: boolean }
+      | null;
+    if (sourceRect?.visible !== true) {
+      throw new Error(`Drag source "${source}" has no visible bounding box.`);
+    }
+
+    try {
+      const targetResolved = await runResolve(this, target, opts.to ?? {});
+      const targetScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
+      const endpoints = await this.evaluate(`
+        (() => {
+          const sourceEl = window.__opencli_drag_source;
+          const targetEl = window.__resolved;
+          if (!sourceEl) throw new Error('No resolved drag source');
+          if (!targetEl) throw new Error('No resolved drag target');
+          if (${targetScrolled ? 'false' : 'true'}) targetEl.scrollIntoView({ behavior: 'instant', block: 'center' });
+          const measure = (el) => {
+            const rect = el.getBoundingClientRect();
+            const w = Math.round(rect.width);
+            const h = Math.round(rect.height);
+            const x = Math.round(rect.left + rect.width / 2);
+            const y = Math.round(rect.top + rect.height / 2);
+            const visible = w > 0 && h > 0 && x >= 0 && y >= 0 && x <= window.innerWidth && y <= window.innerHeight;
+            return { x, y, w, h, visible };
+          };
+          return { source: measure(sourceEl), target: measure(targetEl) };
+        })()
+      `) as
+        | {
+          source?: { x: number; y: number; w: number; h: number; visible: boolean };
+          target?: { x: number; y: number; w: number; h: number; visible: boolean };
+        }
+        | null;
+
+      if (endpoints?.source?.visible !== true) {
+        throw new Error(`Drag source "${source}" is not visible at drag time.`);
+      }
+      if (endpoints?.target?.visible !== true) {
+        throw new Error(`Drag target "${target}" has no visible bounding box.`);
+      }
+
+      const dragged = await this.tryNativeDrag(
+        { x: endpoints.source.x, y: endpoints.source.y },
+        { x: endpoints.target.x, y: endpoints.target.y },
+      );
+      if (!dragged) throw new Error('Native drag requires CDP Input.dispatchMouseEvent support.');
+
+      return {
+        dragged: true,
+        source,
+        target,
+        source_matches_n: sourceResolved.matches_n,
+        target_matches_n: targetResolved.matches_n,
+        source_match_level: sourceResolved.match_level,
+        target_match_level: targetResolved.match_level,
+      };
+    } finally {
+      await this.evaluate('delete window.__opencli_drag_source').catch(() => {});
+    }
   }
 
   async fillText(ref: string, text: string, opts: ResolveOptions = {}): Promise<FillTextResult> {
@@ -648,9 +1108,12 @@ export abstract class BasePage implements IPage {
     const trees: AxSnapshotTree[] = [{ tree: rootTree }];
 
     const frameTreeResult = await cdp.call(this, 'Page.getFrameTree', {}).catch(() => null);
-    const frames = collectSameOriginFrameRefs(frameTreeResult);
+    const frames = collectAxFrameRefs(frameTreeResult);
     for (const frame of frames) {
-      const tree = await cdp.call(this, 'Accessibility.getFullAXTree', { frameId: frame.frameId }).catch(() => null);
+      if (frame.sessionId) {
+        await cdp.call(this, 'Accessibility.enable', axEnableParams(frame)).catch(() => null);
+      }
+      const tree = await cdp.call(this, 'Accessibility.getFullAXTree', axTreeParams(frame)).catch(() => null);
       if (tree) trees.push({ tree, frame });
     }
 
@@ -728,10 +1191,22 @@ export abstract class BasePage implements IPage {
 }
 
 function axTreeParams(frame: BrowserRef['frame'] | undefined): Record<string, unknown> {
-  return frame?.frameId ? { frameId: frame.frameId } : {};
+  return frame?.frameId
+    ? {
+        frameId: frame.frameId,
+        ...(frame.sessionId ? { sessionId: frame.sessionId } : {}),
+        ...(frame.targetUrl ? { targetUrl: frame.targetUrl } : {}),
+      }
+    : {};
 }
 
-function collectSameOriginFrameRefs(frameTreeResult: unknown): Array<NonNullable<BrowserRef['frame']>> {
+function axEnableParams(frame: BrowserRef['frame'] | undefined): Record<string, unknown> {
+  return frame?.frameId && frame.sessionId
+    ? { frameId: frame.frameId, sessionId: frame.sessionId, ...(frame.targetUrl ? { targetUrl: frame.targetUrl } : {}) }
+    : {};
+}
+
+function collectAxFrameRefs(frameTreeResult: unknown): Array<NonNullable<BrowserRef['frame']>> {
   const root = (frameTreeResult as { frameTree?: CdpFrameTreeNode } | null)?.frameTree;
   const rootUrl = root?.frame?.url || root?.frame?.unreachableUrl || '';
   const rootOrigin = urlOrigin(rootUrl);
@@ -744,9 +1219,12 @@ function collectSameOriginFrameRefs(frameTreeResult: unknown): Array<NonNullable
       const frameId = frame?.id;
       const frameUrl = frame?.url || frame?.unreachableUrl || '';
       const origin = urlOrigin(frameUrl);
-      if (frameId && origin === rootOrigin) {
+      if (!frameId) continue;
+      if (origin === rootOrigin) {
         frames.push({ frameId, url: frameUrl });
         collect(child);
+      } else {
+        frames.push({ frameId, url: frameUrl, targetUrl: frameUrl, sessionId: 'target' });
       }
     }
   }

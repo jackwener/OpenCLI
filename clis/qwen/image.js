@@ -99,7 +99,7 @@ cli({
     domain: QIANWEN_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     defaultFormat: 'plain',
     args: [

@@ -92,17 +92,15 @@ export const command = cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
         { name: 'limit', type: 'int', default: 50, help: 'Maximum number of lists to return (default 50).' },
     ],
     columns: ['id', 'name', 'members', 'followers', 'mode'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 50;
-        await page.goto('https://x.com');
-        await page.wait(3);
-        const ct0 = await page.evaluate(`() => {
-            return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('ct0='))?.split('=')[1] || null;
-        }`);
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
         const queryId = await page.evaluate(`async () => {

@@ -9,14 +9,15 @@ export const readCommand = cli({
     domain: DEEPSEEK_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [],
     columns: ['Role', 'Text'],
 
     func: async (page) => {
+        // ensureOnDeepSeek already waits for the composer to mount; the
+        // follow-up 5 s sleep was redundant.
         await ensureOnDeepSeek(page);
-        await page.wait(5);
         const messages = await getVisibleMessages(page);
         if (messages.length > 0) return messages;
         return [{ Role: 'system', Text: 'No visible messages found.' }];

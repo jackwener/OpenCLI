@@ -19,9 +19,9 @@ import {
     parsePrice,
     parseReviewCount,
     requireSearchLimit,
-    resolveCityId,
     wrapDianpingStep,
 } from './utils.js';
+import { resolveCityIdAsync } from './cityResolver.js';
 
 /**
  * Pure DOM extractor for the dianping search-results page.
@@ -98,7 +98,7 @@ cli({
     strategy: Strategy.COOKIE,
     args: [
         { name: 'keyword', required: true, positional: true, help: '搜索关键词，例如 "火锅"' },
-        { name: 'city', help: '城市名（北京/上海/beijing/...）或 cityId 数字。不传则使用 cookie 默认城市' },
+        { name: 'city', help: '城市名（北京/上海/汕头/beijing/shantou/...）或 cityId 数字。未在静态表中的城市会通过 dianping.com 在线解析。不传则使用 cookie 默认城市' },
         { name: 'limit', type: 'int', default: 15, help: '返回的店铺数量（最多 15，dianping 单页固定 15 条）' },
     ],
     columns: SEARCH_COLUMNS,
@@ -108,7 +108,10 @@ cli({
 
         const limit = requireSearchLimit(kwargs.limit);
 
-        const cityId = resolveCityId(kwargs.city);
+        const cityId = await wrapDianpingStep(
+            'city resolve',
+            () => resolveCityIdAsync(page, kwargs.city),
+        );
         const path = cityId
             ? `/search/keyword/${cityId}/0_${encodeURIComponent(keyword)}`
             : `/search/keyword/0/0_${encodeURIComponent(keyword)}`;

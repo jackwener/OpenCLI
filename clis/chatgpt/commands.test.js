@@ -10,7 +10,7 @@ import './status.js';
 import './image.js';
 
 describe('chatgpt browser command registration', () => {
-    it('registers the baseline web chat commands with site-level reuse', () => {
+    it('registers the baseline web chat commands with persistent site sessions', () => {
         const expectedAccess = {
             ask: 'write',
             send: 'write',
@@ -29,7 +29,7 @@ describe('chatgpt browser command registration', () => {
             expect(cmd.domain).toBe('chatgpt.com');
             expect(cmd.strategy).toBe('cookie');
             expect(cmd.browser).toBe(true);
-            expect(cmd.browserSession).toEqual({ reuse: 'site' });
+            expect(cmd.siteSession).toBe('persistent');
             expect(cmd.navigateBefore).toBe(false);
             expect(cmd.access).toBe(access);
         }

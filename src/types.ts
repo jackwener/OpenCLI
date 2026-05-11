@@ -33,10 +33,26 @@ export interface WaitOptions {
   timeout?: number;
 }
 
+export interface BrowserDownloadWaitResult {
+  downloaded: boolean;
+  id?: number;
+  filename?: string;
+  url?: string;
+  finalUrl?: string;
+  mime?: string;
+  totalBytes?: number;
+  state?: string;
+  danger?: string;
+  error?: string;
+  elapsedMs: number;
+}
+
 export interface ScreenshotOptions {
   format?: 'png' | 'jpeg';
   quality?: number;
   fullPage?: boolean;
+  /** Overlay current browser-state refs on visible interactive elements. */
+  annotate?: boolean;
   /** Override viewport width in CSS pixels for the screenshot only (cleared after). */
   width?: number;
   /** Override viewport height in CSS pixels for the screenshot only (ignored when fullPage). */
@@ -51,23 +67,8 @@ export interface FetchJsonOptions {
   timeoutMs?: number;
 }
 
-export interface BrowserSessionInfo {
-  workspace?: string;
-  connected?: boolean;
-  windowId?: number;
-  preferredTabId?: number | null;
-  owned?: boolean;
-  ownership?: 'owned' | 'borrowed';
-  lifecycle?: 'ephemeral' | 'persistent' | 'pinned';
-  surface?: 'dedicated-container' | 'borrowed-user-tab';
-  contextId?: string;
-  tabCount?: number;
-  idleMsRemaining?: number | null;
-  [key: string]: unknown;
-}
-
 export interface IPage {
-  goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number; allowBoundNavigation?: boolean }): Promise<void>;
+  goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number }): Promise<void>;
   evaluate(js: string): Promise<any>;
   /** Safely evaluate JS with pre-serialized arguments — prevents injection. */
   evaluateWithArgs?(js: string, args: Record<string, unknown>): Promise<any>;
@@ -80,6 +81,12 @@ export interface IPage {
   getCookies(opts?: { domain?: string; url?: string }): Promise<BrowserCookie[]>;
   snapshot(opts?: SnapshotOptions): Promise<any>;
   click(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
+  dblClick?(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
+  hover?(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
+  focus?(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ focused: boolean; matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
+  setChecked?(ref: string, checked: boolean, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ checked: boolean; changed: boolean; matches_n: number; match_level: 'exact' | 'stable' | 'reidentified'; kind?: string }>;
+  uploadFiles?(ref: string, files: string[], opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ uploaded: boolean; files: number; file_names: string[]; target: string; matches_n: number; match_level: 'exact' | 'stable' | 'reidentified'; multiple?: boolean; accept?: string }>;
+  drag?(source: string, target: string, opts?: { from?: { nth?: number; firstOnMulti?: boolean }; to?: { nth?: number; firstOnMulti?: boolean } }): Promise<{ dragged: boolean; source: string; target: string; source_matches_n: number; target_matches_n: number; source_match_level: 'exact' | 'stable' | 'reidentified'; target_match_level: 'exact' | 'stable' | 'reidentified' }>;
   typeText(ref: string, text: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
   fillText(ref: string, text: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{
     filled: boolean;
@@ -95,6 +102,7 @@ export interface IPage {
   scrollTo(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<any>;
   getFormState(): Promise<any>;
   wait(options: number | WaitOptions): Promise<void>;
+  waitForDownload?(pattern?: string, timeoutMs?: number): Promise<BrowserDownloadWaitResult>;
   tabs(): Promise<any>;
   closeTab?(target?: number | string): Promise<void>;
   newTab?(url?: string): Promise<string | undefined>;
@@ -107,6 +115,7 @@ export interface IPage {
   getInterceptedRequests(): Promise<any[]>;
   waitForCapture(timeout?: number): Promise<void>;
   screenshot(options?: ScreenshotOptions): Promise<string>;
+  annotatedScreenshot?(options?: ScreenshotOptions): Promise<string>;
   startNetworkCapture?(pattern?: string): Promise<boolean>;
   readNetworkCapture?(): Promise<unknown[]>;
   /**

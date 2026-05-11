@@ -70,6 +70,6 @@ opencli gemini image "A flat illustration of a robot" --op ~/tmp/gemini-images
 ## Caveats
 
 - This adapter drives the Gemini consumer web UI, not a public API.
-- Gemini commands default to site-level browser tab reuse, so consecutive `gemini ask` / `gemini image` / `gemini deep-research-result` invocations continue in the same Gemini page. Pass `--reuse none` for a one-shot tab.
+- Gemini commands default to persistent site sessions, so consecutive `gemini ask` / `gemini image` / `gemini deep-research-result` invocations continue in the same Gemini page. Pass `--site-session ephemeral` for a one-shot tab.
 - It depends on the current browser session and may fail if Gemini shows login, consent, challenge, quota, or other gating UI.
 - DOM or product changes on Gemini can break composer detection, new-chat handling, or image export behavior.

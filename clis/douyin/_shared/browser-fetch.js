@@ -15,10 +15,22 @@ export async function browserFetch(page, method, url, options = {}) {
         },
         ${options.body ? `body: JSON.stringify(${JSON.stringify(options.body)}),` : ''}
       });
-      return res.json();
+      const text = await res.text();
+      if (!text) return null;
+      return JSON.parse(text);
     })()
   `;
-    const result = await page.evaluate(js);
+    let result;
+    try {
+        result = await page.evaluate(js);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new CommandExecutionError(`Douyin API request failed: ${message}`);
+    }
+    if (result === null || result === undefined) {
+        throw new CommandExecutionError('Empty response from Douyin API');
+    }
     if (result && typeof result === 'object' && 'status_code' in result) {
         const code = result.status_code;
         if (code !== 0) {

@@ -1,7 +1,8 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import {
-    CLAUDE_DOMAIN, CLAUDE_URL, ensureOnClaude, selectModel, setAdaptiveThinking,
+    CLAUDE_DOMAIN, CLAUDE_URL, COMPOSER_SELECTOR, MESSAGE_SELECTOR,
+    ensureOnClaude, selectModel, setAdaptiveThinking,
     sendMessage, sendWithFile, getBubbleCount, waitForResponse, parseBoolFlag, withRetry,
     ensureClaudeComposer, requireNonEmptyPrompt, requirePositiveInt,
 } from './utils.js';
@@ -14,7 +15,7 @@ export const askCommand = cli({
     domain: CLAUDE_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'prompt', positional: true, required: true, help: 'Prompt to send' },
@@ -38,7 +39,11 @@ export const askCommand = cli({
 
         if (parseBoolFlag(kwargs.new)) {
             await page.goto(CLAUDE_URL);
-            await page.wait(3);
+            try {
+                await page.wait({ selector: COMPOSER_SELECTOR, timeout: 8 });
+            } catch {
+                // Composer didn't mount; ensureClaudeComposer below surfaces a typed error.
+            }
         } else {
             const navigated = await ensureOnClaude(page);
             if (navigated) {
@@ -48,11 +53,18 @@ export const askCommand = cli({
                     var link = document.querySelector('a[href*="/chat/"]');
                     if (link) link.click();
                 })()`);
-                await page.wait(2);
+                // Wait for the resumed conversation to render messages, or
+                // fall through if the link click had no effect (no recents).
+                try {
+                    await page.wait({ selector: MESSAGE_SELECTOR, timeout: 5 });
+                } catch {
+                    // No prior conversation; ensureClaudeComposer still requires composer below.
+                }
             }
         }
 
-        await page.wait(2);
+        // ensureClaudeComposer reads composer presence directly via getPageState,
+        // so the previous standalone 2 s settle is redundant.
         await withRetry(() => ensureClaudeComposer(page, 'Claude ask requires a visible composer on the current page.'));
 
         // Model selector is only available on the new-chat page, not inside
@@ -80,14 +92,16 @@ export const askCommand = cli({
                 }
                 throw new CommandExecutionError(`Could not switch to ${wantModel} model`);
             }
-            if (modelResult?.toggled) await page.wait(0.5);
+            // Post-toggle settle dropped — the next CDP eval (setAdaptiveThinking) gives
+            // React enough time to flush aria-checked updates between rountrips.
         }
 
         const thinkResult = await withRetry(() => setAdaptiveThinking(page, wantThink));
         if (!thinkResult?.ok && wantThink) {
             throw new CommandExecutionError('Could not enable Adaptive thinking');
         }
-        if (thinkResult?.toggled) await page.wait(0.5);
+        // Post-toggle settle dropped — the next CDP eval (sendMessage / sendWithFile)
+        // gives React enough time to flush aria-checked updates.
 
         if (kwargs.file) {
             const baseline = await withRetry(() => getBubbleCount(page));
@@ -100,7 +114,8 @@ export const askCommand = cli({
                 // SPA navigates after send; "Promise was collected" means send succeeded
                 if (!String(err?.message || err).includes('Promise was collected')) throw err;
             }
-            await page.wait(3);
+            // Pre-waitForResponse settle dropped — waitForResponse's first 3 s polling
+            // tick covers the same window without an unconditional sleep.
             const result = await waitForResponse(page, baseline, prompt, timeoutMs);
             if (!result) {
                 throw new EmptyResultError(

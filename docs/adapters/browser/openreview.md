@@ -2,7 +2,7 @@
 
 **Mode**: 🌐 Public · **Domain**: `openreview.net`
 
-OpenReview is the open peer-review platform used by ICLR, COLM, NeurIPS workshops, TMLR, and many other ML venues. The v2 API exposes everyone-readable submissions, reviews, and decisions without authentication, so all four commands run without a browser.
+OpenReview is the open peer-review platform used by ICLR, COLM, NeurIPS workshops, TMLR, and many other ML venues. The v2 API exposes everyone-readable submissions, reviews, and decisions without authentication, so all five commands run without a browser.
 
 ## Commands
 
@@ -10,6 +10,7 @@ OpenReview is the open peer-review platform used by ICLR, COLM, NeurIPS workshop
 |---------|-------------|
 | `opencli openreview search <query>` | Full-text search across all OpenReview papers |
 | `opencli openreview venue <venue>` | List papers at a venue (e.g. `"ICLR 2024 oral"` or full invitation id) |
+| `opencli openreview author <profile>` | List submissions by an author profile id (e.g. `"~Yoshua_Bengio1"`), newest first |
 | `opencli openreview paper <id>` | Show full metadata (incl. abstract) for a single paper |
 | `opencli openreview reviews <forum>` | Show paper + threaded reviews/decisions/comments |
 
@@ -24,6 +25,9 @@ opencli openreview venue "ICLR 2024 oral" --limit 20
 
 # Browse a venue by full invitation id (use this when display names overlap)
 opencli openreview venue "ICLR.cc/2025/Conference/-/Submission" --limit 50 --offset 0
+
+# Every submission by an author profile id (find it on the author's openreview.net profile URL)
+opencli openreview author "~Yoshua_Bengio1" --limit 20
 
 # Single-paper detail (full abstract)
 opencli openreview paper KS8mIvetg2
@@ -41,10 +45,11 @@ opencli openreview search "LLM" -f json
 |---------|---------|
 | `search` | `rank, id, title, authors, venue, pdate, url` |
 | `venue` | `rank, id, title, authors, keywords, primary_area, pdate, pdf, url` |
+| `author` | `rank, id, title, authors, venue, pdate, url` |
 | `paper` | `id, title, authors, keywords, venue, venueid, primary_area, abstract, pdate, pdf, url` |
 | `reviews` | `type, author, rating, confidence, text` |
 
-The `id` returned by `search`/`venue` round-trips into `paper`/`reviews` — it is the OpenReview note id (also the `forum` id for top-level submissions). `pdf` is normalized to an absolute `https://openreview.net/pdf/...` URL.
+The `id` returned by `search`/`venue`/`author` round-trips into `paper`/`reviews` — it is the OpenReview note id (also the `forum` id for top-level submissions). `pdf` is normalized to an absolute `https://openreview.net/pdf/...` URL.
 
 ## `reviews` Output
 

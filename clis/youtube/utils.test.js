@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { extractJsonAssignmentFromHtml, extractSubscriptionChannel, prepareYoutubeApiPage } from './utils.js';
+import { extractJsonAssignmentFromHtml, extractSubscriptionChannel, prepareYoutubeApiPage, readYoutubeSapisid } from './utils.js';
 describe('youtube utils', () => {
     it('extractJsonAssignmentFromHtml parses bootstrap objects with nested braces in strings', () => {
         const html = `
@@ -33,6 +33,22 @@ describe('youtube utils', () => {
         await expect(prepareYoutubeApiPage(page)).resolves.toBeUndefined();
         expect(page.goto).toHaveBeenCalledWith('https://www.youtube.com', { waitUntil: 'none' });
         expect(page.wait).toHaveBeenCalledWith(2);
+    });
+    it('readYoutubeSapisid reads URL-scoped cookies and prefers secure SAPISID', async () => {
+        const page = {
+            getCookies: vi.fn().mockResolvedValue([
+                { name: 'SAPISID', value: 'legacy' },
+                { name: '__Secure-3PAPISID', value: 'secure' },
+            ]),
+        };
+        await expect(readYoutubeSapisid(page)).resolves.toBe('secure');
+        expect(page.getCookies).toHaveBeenCalledWith({ url: 'https://www.youtube.com' });
+    });
+    it('readYoutubeSapisid falls back to legacy SAPISID', async () => {
+        const page = {
+            getCookies: vi.fn().mockResolvedValue([{ name: 'SAPISID', value: 'legacy' }]),
+        };
+        await expect(readYoutubeSapisid(page)).resolves.toBe('legacy');
     });
     it('extractSubscriptionChannel prefers explicit handle and subscriber count fields', () => {
         expect(extractSubscriptionChannel({

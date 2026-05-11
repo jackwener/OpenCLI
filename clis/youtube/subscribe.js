@@ -2,7 +2,7 @@
  * YouTube subscribe — subscribe to a channel via InnerTube subscription API.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { prepareYoutubeApiPage, SAPISID_HASH_FN, RESOLVE_CHANNEL_HANDLE_FN } from './utils.js';
+import { prepareYoutubeApiPage, readYoutubeSapisid, SAPISID_HASH_FN, RESOLVE_CHANNEL_HANDLE_FN } from './utils.js';
 import { CommandExecutionError, AuthRequiredError } from '@jackwener/opencli/errors';
 
 cli({
@@ -19,6 +19,10 @@ cli({
     func: async (page, kwargs) => {
         const channelInput = String(kwargs.channel);
         await prepareYoutubeApiPage(page);
+        // Read SAPISID directly from the cookie store via CDP — zero document.cookie round-trip
+        const sapisid = await readYoutubeSapisid(page);
+        if (!sapisid)
+            throw new AuthRequiredError('www.youtube.com', 'Not logged in (SAPISID cookie missing)');
         const result = await page.evaluate(`
       (async () => {
         ${SAPISID_HASH_FN}
@@ -28,7 +32,7 @@ cli({
         const context = cfg.INNERTUBE_CONTEXT;
         if (!apiKey || !context) return { error: 'config', message: 'YouTube config not found' };
 
-        const authHash = await getSapisidHash('https://www.youtube.com');
+        const authHash = await getSapisidHash(${JSON.stringify(sapisid)}, 'https://www.youtube.com');
         if (!authHash) return { error: 'auth', message: 'Not logged in (SAPISID cookie missing)' };
 
         ${RESOLVE_CHANNEL_HANDLE_FN}

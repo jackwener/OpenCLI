@@ -7,6 +7,7 @@ cli({
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
         { name: 'query', type: 'string', required: true, positional: true, help: 'Reddit search query' },
         {

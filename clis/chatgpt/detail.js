@@ -3,6 +3,7 @@ import { EmptyResultError } from '@jackwener/opencli/errors';
 import {
     CHATGPT_DOMAIN,
     CHATGPT_URL,
+    CONVERSATION_MESSAGE_SELECTOR,
     ensureChatGPTLogin,
     getVisibleMessages,
     messageHtmlToMarkdown,
@@ -18,7 +19,7 @@ export const detailCommand = cli({
     domain: CHATGPT_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'id', positional: true, required: true, help: 'Conversation ID or full /c/<id> URL' },
@@ -29,7 +30,11 @@ export const detailCommand = cli({
         const id = parseChatGPTConversationId(kwargs.id);
         const wantMarkdown = normalizeBooleanFlag(kwargs.markdown, false);
         await page.goto(`${CHATGPT_URL}/c/${id}`, { settleMs: 2000 });
-        await page.wait(4);
+        try {
+            await page.wait({ selector: CONVERSATION_MESSAGE_SELECTOR, timeout: 10 });
+        } catch {
+            // Empty conversation, missing access, or login redirect — handled by ensureChatGPTLogin / EmptyResultError below.
+        }
         await ensureChatGPTLogin(page, 'ChatGPT detail requires a logged-in ChatGPT session.');
         const messages = await getVisibleMessages(page);
         if (!messages.length) {

@@ -102,7 +102,7 @@ opencli yuanbao detail "naQivTmsDa/b1118732-15ca-42cc-bc9a-e40090ccfb8c"
 ## Caveats
 
 - This adapter drives the Yuanbao web UI, not a public API.
-- Yuanbao commands default to site-level browser tab reuse, so consecutive Yuanbao invocations continue in the same Yuanbao page. Pass `--reuse none` for a one-shot tab.
+- Yuanbao commands default to persistent site sessions, so consecutive Yuanbao invocations continue in the same Yuanbao page. Pass `--site-session ephemeral` for a one-shot tab.
 - Yuanbao chat URLs encode both an agent slug and a conversation UUID (`/chat/<agentId>/<convId>`). `detail` requires both — passing only a UUID is rejected with an actionable error to avoid silently opening a different agent's chat.
 - It depends on the current browser session and may fail if Yuanbao shows login, consent, challenge, or other gating UI.
 - DOM or product changes on Yuanbao can break composer detection, submit behavior, or transcript extraction.

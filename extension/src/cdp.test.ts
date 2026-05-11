@@ -70,17 +70,19 @@ describe('cdp attach recovery', () => {
     const mod = await import('./cdp');
     mod.registerFrameTracking();
 
-    expect(debuggerEventListeners).toHaveLength(1);
-    debuggerEventListeners[0](
-      { tabId: 1 },
-      'Runtime.executionContextCreated',
-      { context: { id: 11, auxData: { frameId: 'frame-1', isDefault: false } } },
-    );
-    debuggerEventListeners[0](
-      { tabId: 1 },
-      'Runtime.executionContextCreated',
-      { context: { id: 22, auxData: { frameId: 'frame-1', isDefault: true } } },
-    );
+    expect(debuggerEventListeners.length).toBeGreaterThanOrEqual(1);
+    for (const listener of debuggerEventListeners) {
+      listener(
+        { tabId: 1 },
+        'Runtime.executionContextCreated',
+        { context: { id: 11, auxData: { frameId: 'frame-1', isDefault: false } } },
+      );
+      listener(
+        { tabId: 1 },
+        'Runtime.executionContextCreated',
+        { context: { id: 22, auxData: { frameId: 'frame-1', isDefault: true } } },
+      );
+    }
 
     await mod.evaluateInFrame(1, 'document.title', 'frame-1');
 
@@ -88,6 +90,35 @@ describe('cdp attach recovery', () => {
       { tabId: 1 },
       'Runtime.evaluate',
       expect.objectContaining({ contextId: 22 }),
+    );
+  });
+
+  it('falls back to a frame target when no same-target execution context exists', async () => {
+    const { chrome, debuggerApi, debuggerEventListeners } = createChromeMock();
+    debuggerApi.sendCommand = vi.fn(async (target: any, method: string, _params?: any) => {
+      if (method === 'Target.setDiscoverTargets') return {};
+      if (method === 'Target.setAutoAttach') return {};
+      if (method === 'Target.getTargets') return { targetInfos: [{ targetId: 'oopif-frame', type: 'iframe', url: 'https://frame.test' }] };
+      if (target?.targetId === 'oopif-frame' && method === 'Runtime.enable') return {};
+      if (target?.targetId === 'oopif-frame' && method === 'Runtime.evaluate') {
+        return { result: { value: 'frame-ok' } };
+      }
+      if (method === 'Runtime.evaluate') return { result: { value: 'root-ok' } };
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    mod.registerFrameTracking();
+
+    const result = await mod.evaluateInFrame(1, 'document.title', 'oopif-frame');
+
+    expect(result).toBe('frame-ok');
+    expect(debuggerApi.attach).toHaveBeenCalledWith({ targetId: 'oopif-frame' }, '1.3');
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith(
+      { targetId: 'oopif-frame' },
+      'Runtime.evaluate',
+      expect.any(Object),
     );
   });
 
@@ -245,5 +276,120 @@ describe('cdp screenshot', () => {
       { tabId: 1 },
       'Emulation.clearDeviceMetricsOverride',
     );
+  });
+});
+
+function chromeMockForDownloads(initialItems: chrome.downloads.DownloadItem[] = []) {
+  const items = new Map(initialItems.map((item) => [item.id, item]));
+  const createdListeners: Array<(item: chrome.downloads.DownloadItem) => void> = [];
+  const changedListeners: Array<(delta: chrome.downloads.DownloadDelta) => void> = [];
+  const downloads = {
+    search: vi.fn(async (query: chrome.downloads.DownloadQuery) => {
+      if (typeof query.id === 'number') {
+        const item = items.get(query.id);
+        return item ? [item] : [];
+      }
+      return [...items.values()];
+    }),
+    onCreated: {
+      addListener: vi.fn((fn: (item: chrome.downloads.DownloadItem) => void) => { createdListeners.push(fn); }),
+      removeListener: vi.fn((fn: (item: chrome.downloads.DownloadItem) => void) => {
+        const idx = createdListeners.indexOf(fn);
+        if (idx >= 0) createdListeners.splice(idx, 1);
+      }),
+    },
+    onChanged: {
+      addListener: vi.fn((fn: (delta: chrome.downloads.DownloadDelta) => void) => { changedListeners.push(fn); }),
+      removeListener: vi.fn((fn: (delta: chrome.downloads.DownloadDelta) => void) => {
+        const idx = changedListeners.indexOf(fn);
+        if (idx >= 0) changedListeners.splice(idx, 1);
+      }),
+    },
+  };
+  return {
+    chrome: { downloads },
+    downloads,
+    setItem(item: chrome.downloads.DownloadItem) {
+      items.set(item.id, item);
+    },
+    emitCreated(item: chrome.downloads.DownloadItem) {
+      items.set(item.id, item);
+      for (const listener of [...createdListeners]) listener(item);
+    },
+    emitChanged(delta: chrome.downloads.DownloadDelta) {
+      for (const listener of [...changedListeners]) listener(delta);
+    },
+  };
+}
+
+describe('cdp download waits', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useRealTimers();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('returns a recent completed download matching filename or URL', async () => {
+    const { chrome, downloads } = chromeMockForDownloads([
+      {
+        id: 7,
+        filename: '/tmp/receipt.pdf',
+        url: 'https://app.example/download?id=receipt',
+        finalUrl: 'https://cdn.example/receipt.pdf',
+        mime: 'application/pdf',
+        state: 'complete',
+        totalBytes: 1234,
+        danger: 'safe',
+        startTime: new Date().toISOString(),
+      } as chrome.downloads.DownloadItem,
+    ]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    const result = await mod.waitForDownload('receipt', 1000);
+
+    expect(result).toMatchObject({
+      downloaded: true,
+      id: 7,
+      filename: '/tmp/receipt.pdf',
+      state: 'complete',
+    });
+    expect(downloads.onCreated.removeListener).toHaveBeenCalledTimes(1);
+    expect(downloads.onChanged.removeListener).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for a matching in-progress download to complete', async () => {
+    const mock = chromeMockForDownloads();
+    vi.stubGlobal('chrome', mock.chrome);
+
+    const mod = await import('./cdp');
+    const promise = mod.waitForDownload('invoice', 1000);
+    await Promise.resolve();
+
+    const started = {
+      id: 42,
+      filename: '/tmp/invoice.crdownload',
+      url: 'https://app.example/invoice',
+      finalUrl: 'https://app.example/invoice',
+      mime: 'application/pdf',
+      state: 'in_progress',
+      totalBytes: 0,
+      danger: 'safe',
+      startTime: new Date().toISOString(),
+    } as chrome.downloads.DownloadItem;
+    mock.emitCreated(started);
+    mock.setItem({ ...started, filename: '/tmp/invoice.pdf', state: 'complete', totalBytes: 4567 });
+    mock.emitChanged({ id: 42, state: { current: 'complete', previous: 'in_progress' } } as chrome.downloads.DownloadDelta);
+
+    await expect(promise).resolves.toMatchObject({
+      downloaded: true,
+      id: 42,
+      filename: '/tmp/invoice.pdf',
+      state: 'complete',
+    });
   });
 });

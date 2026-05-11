@@ -24,7 +24,7 @@ cli({
     domain: QIANWEN_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Max conversations to show (default 20, max 100)' },

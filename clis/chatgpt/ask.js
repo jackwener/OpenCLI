@@ -22,7 +22,7 @@ export const askCommand = cli({
     domain: CHATGPT_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'prompt', positional: true, required: true, help: 'Prompt to send' },
@@ -43,7 +43,8 @@ export const askCommand = cli({
         } else {
             await ensureOnChatGPT(page);
         }
-        await page.wait(2);
+        // startNewChat / ensureOnChatGPT now wait for the composer selector
+        // after navigating, so the previous standalone 2 s settle is redundant.
         await ensureChatGPTComposer(page, 'ChatGPT ask requires a logged-in ChatGPT session with a visible composer.');
 
         const baseline = await getBubbleCount(page);

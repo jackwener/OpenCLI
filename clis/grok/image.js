@@ -253,7 +253,7 @@ export const imageCommand = cli({
   domain: 'grok.com',
   strategy: Strategy.COOKIE,
   browser: true,
-  browserSession: { reuse: 'site' },
+  siteSession: 'persistent',
   args: [
     { name: 'prompt', positional: true, type: 'string', required: true, help: 'Image generation prompt' },
     { name: 'timeout', type: 'int', default: 240, help: 'Max seconds to wait for the image (default: 240)' },

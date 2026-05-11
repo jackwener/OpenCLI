@@ -2,11 +2,73 @@
 
 ## Unreleased
 
+### ⚠ BREAKING CHANGES
+
+* **browser session model** — replace the browser-facing `--workspace` model with explicit `--session <name>` on `opencli browser *`. Browser commands now require a session name, `browser bind`/`unbind` use `--session`, and bind no longer accepts `--domain`, `--path-prefix`, or `--allow-navigate-bound`. Browser primitives keep their session tab by design; the browser namespace no longer exposes `--keep-tab`.
+* **adapter site sessions** — replace adapter metadata `browserSession: { reuse: 'site' }` with `siteSession: 'persistent'`, and replace the user override `--reuse <none|site>` / `OPENCLI_BROWSER_REUSE` with `--site-session <ephemeral|persistent>`. Persistent site sessions keep a stable site tab open without idle expiry.
+* **doctor** — remove `--no-live` and `--sessions` flags from `opencli doctor`. Doctor always runs the live browser connectivity probe (that's its core job); session enumeration was never part of health diagnosis. The underlying `'sessions'` daemon protocol action and the `BrowserSessionInfo` public type are removed as dead code.
+
+### Internal
+
+* **extension 1.0.12** — drop `handleSessions` action handler (no remaining consumers after doctor cleanup).
+* **extension 1.0.11** — switch Browser Bridge lease routing from user-facing workspaces to explicit browser sessions.
+
+## [1.7.16](https://github.com/jackwener/opencli/compare/v1.7.15...v1.7.16) (2026-05-11)
+
+Extension bumped to 1.0.10 (rename adapter-owned tab group `OpenCLI Automation` → `OpenCLI Adapter`). Performance and stability sweep across browser-backed adapters; new external CLI integrations (tg-cli, discord-cli, wx-cli).
+
+### Features
+
+* **openreview** — add `author` command for ID-explicit publication lookup. ([#1365](https://github.com/jackwener/opencli/issues/1365))
+* **external** — register `tg-cli`, `discord-cli`, and `wx-cli` as external CLI integrations. ([#1458](https://github.com/jackwener/opencli/issues/1458))
+
+### Bug Fixes
+
+* **xiaohongshu** — fall back to base64 upload when CDP `DOM.setFileInputFiles` returns `Not allowed` on creator center. ([#1374](https://github.com/jackwener/opencli/issues/1374))
+* **chatgpt** — switch to locale-stable send button selector so non-English UIs don't break send. ([#1354](https://github.com/jackwener/opencli/issues/1354))
+
+### Performance
+
+* **adapters** — hoist cookie reads to `page.getCookies` across Tier 1 (25 files), eliminating per-call CDP round trips. ([#1450](https://github.com/jackwener/opencli/issues/1450))
+* **twitter** — drop redundant `goto + wait` in adapter steps; framework auto pre-navigates. ([#1451](https://github.com/jackwener/opencli/issues/1451))
+* **twitter** — enable `browserSession.reuse: 'site'` on 17 read-only adapters so repeated reads share one tab. ([#1454](https://github.com/jackwener/opencli/issues/1454))
+* **reddit** — opt 13 browser-backed adapters into shared site-tab lease. ([#1455](https://github.com/jackwener/opencli/issues/1455))
+* **claude** — replace fixed-sleep waits with selector-based readiness on streaming flows. ([#1452](https://github.com/jackwener/opencli/issues/1452))
+* **deepseek** — replace fixed-sleep waits with selector-based readiness on streaming flows. ([#1449](https://github.com/jackwener/opencli/issues/1449))
+* **chatgpt** — replace fixed-sleep waits with selector-based readiness (D3). ([#1456](https://github.com/jackwener/opencli/issues/1456))
+
+### Refactor
+
+* **browser** — split interactive and automation windows so `opencli browser *` and adapter-driven background commands no longer share one Chrome window; tab groups are isolated by role.
+
+### Internal
+
+* **extension 1.0.10** — rename the adapter-owned Chrome tab group from `OpenCLI Automation` to `OpenCLI Adapter`. ([#1457](https://github.com/jackwener/opencli/issues/1457))
+* **docs** — list `tg-cli`, `discord-cli`, `wx-cli` in External CLI README sections. ([#1459](https://github.com/jackwener/opencli/issues/1459))
+
+## [1.7.15](https://github.com/jackwener/opencli/compare/v1.7.14...v1.7.15) (2026-05-10)
+
+Extension bumped to 1.0.9 (Accessibility.enable allowlist + downloads permission + cross-origin frame target attach for AX). Major Browser Agent Runtime release: full Phase 0/1/2 alignment with `vercel-labs/agent-browser` model — CDP-primary input, AX snapshot/refs with stale recovery, semantic locators across all primitives, full form toolbelt (hover/focus/dblclick/check/uncheck/upload/drag/wait-download), annotated screenshots, and same-origin iframe AX routing. Cross-origin OOPIF AX is best-effort (Chrome extension API limitation).
+
+### ⚠ BREAKING CHANGES
+
+* **browser lifecycle** — replace `--focus` / `OPENCLI_WINDOW_FOCUSED` with `--window foreground|background` / `OPENCLI_WINDOW`, and replace `--live` / `OPENCLI_LIVE` with `--keep-tab true|false` / `OPENCLI_KEEP_TAB`. `opencli browser *` defaults to a foreground window and keeps its tab; browser-backed adapter commands default to a background automation window and release their tab unless the adapter uses site-level reuse.
+
 ### Features
 
 * **help / browser** — `opencli browser --help -f yaml|json` now emits a structured, agent-ready index of all browser leaf commands (including nested `tab`, `get`, and `dialog` commands), their positionals, command options, namespace options, and root global options. Individual browser commands also support structured help, backed by a shared Commander option/argument spec extractor.
+* **help / built-in namespaces** — `opencli daemon|plugin|adapter|profile --help -f yaml|json` now emit the same structured payload as `browser`. One agent call returns every leaf's positionals, options, descriptions, and global options — no per-leaf `--help` follow-ups needed. Original namespace descriptions are preserved through `applyRootSubcommandSummaries()` via a snapshot at namespace declaration time.
 * **browser state** — add opt-in AX snapshot refs via `browser state --source ax`, including backend-node click resolution and role/name stale-ref recovery for the Phase 0 browser-agent runtime prototype.
 * **browser state** — AX snapshots now include same-origin iframe refs, and `browser state --compare-sources` prints DOM-vs-AX observation metrics for the Phase 1 default-source decision without dumping page contents.
+* **browser locators** — `browser find`, `browser click`, and `browser get text|value|attributes` now accept semantic locator flags (`--role`, `--name`, `--label`, `--text`, `--testid`) so agents can act on common controls without a separate state-ref lookup.
+* **browser locators** — semantic locator flags now work across input/action primitives (`type`, `fill`, `select`, `hover`, `focus`, `dblclick`, `check`, `uncheck`, `upload`) plus prefixed `--from-*` / `--to-*` locators for `drag`.
+* **browser actions** — add `browser hover`, `browser focus`, and `browser dblclick` primitives backed by the same target resolver and CDP input path as `browser click`.
+* **browser actions** — add `browser check` and `browser uncheck` primitives that ensure checkbox / radio / aria-checked controls reach the requested state instead of blindly toggling.
+* **browser upload** — add `browser upload <target> <file...>` to attach local files to `input[type=file]` targets through CDP `DOM.setFileInputFiles`, with local path validation and file-input verification.
+* **browser actions** — add `browser drag <source> <target>` for CDP mouse drag sequences between two resolved element centers.
+* **browser wait / extension 1.0.8** — add `browser wait download [pattern]` backed by Chrome's downloads lifecycle API, so agents can wait for file downloads by filename/URL pattern and receive completed/failed download metadata.
+* **browser state / extension 1.0.9** — AX snapshots can now route same-origin iframe refs through `frameId`. Cross-origin OOPIF AX routing is best-effort because real Chrome extension smoke tests show `chrome.debugger` may not expose attachable iframe targets to extensions.
+* **browser screenshot** — add `browser screenshot --annotate`, which refreshes DOM refs and overlays visible `[N]` labels on the screenshot so visual inspection maps back to `browser click <ref>` targets.
 
 ### Bug Fixes
 

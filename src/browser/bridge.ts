@@ -29,7 +29,7 @@ export class BrowserBridge implements IBrowserFactory {
     return this._state;
   }
 
-  async connect(opts: { timeout?: number; workspace?: string; idleTimeout?: number; contextId?: string } = {}): Promise<IPage> {
+  async connect(opts: { timeout?: number; session?: string; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background'; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent' } = {}): Promise<IPage> {
     if (this._state === 'connected' && this._page) return this._page;
     if (this._state === 'connecting') throw new Error('Already connecting');
     if (this._state === 'closing') throw new Error('Session is closing');
@@ -40,7 +40,8 @@ export class BrowserBridge implements IBrowserFactory {
     try {
       const contextId = opts.contextId ?? resolveProfileContextId();
       await this._ensureDaemon(opts.timeout, contextId);
-      this._page = new Page(opts.workspace, opts.idleTimeout, contextId);
+      if (!opts.session?.trim()) throw new Error('Browser session is required');
+      this._page = new Page(opts.session.trim(), opts.idleTimeout, contextId, opts.windowMode, opts.surface, opts.siteSession);
       this._state = 'connected';
       return this._page;
     } catch (err) {

@@ -17,7 +17,7 @@ export const readCommand = cli({
     domain: CHATGPT_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'markdown', type: 'boolean', default: false, help: 'Emit assistant replies as markdown' },
@@ -25,8 +25,9 @@ export const readCommand = cli({
     columns: ['Index', 'Role', 'Text'],
     func: async (page, kwargs) => {
         const wantMarkdown = normalizeBooleanFlag(kwargs.markdown, false);
+        // ensureOnChatGPT now waits for the composer selector after navigating,
+        // so the previous standalone 2 s settle is redundant.
         await ensureOnChatGPT(page);
-        await page.wait(2);
         await ensureChatGPTLogin(page, 'ChatGPT read requires a logged-in ChatGPT session.');
         const messages = await getVisibleMessages(page);
         if (!messages.length) {

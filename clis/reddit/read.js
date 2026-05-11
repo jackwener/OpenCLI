@@ -15,6 +15,8 @@ cli({
     description: 'Read a Reddit post and its comments',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
+    browser: true,
+    siteSession: 'persistent',
     args: [
         { name: 'post-id', required: true, positional: true, help: 'Post ID (e.g. 1abc123) or full URL' },
         { name: 'sort', default: 'best', help: 'Comment sort: best, top, new, controversial, old, qa' },

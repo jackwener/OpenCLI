@@ -119,7 +119,7 @@ opencli qwen image "a tiny robot" --sd true
 ## Notes
 
 - `read` works without login (guest mode), but `history` and most `write` flows require an authenticated session
-- Qwen commands default to site-level browser tab reuse, so consecutive `qwen ask` / `qwen read` / `qwen image` invocations continue in the same Qwen page. Pass `--reuse none` for a one-shot tab.
+- Qwen commands default to persistent site sessions, so consecutive `qwen ask` / `qwen read` / `qwen image` invocations continue in the same Qwen page. Pass `--site-session ephemeral` for a one-shot tab.
 - `ask` waits for the streaming reply to finish; `send` returns immediately after submission
 - DeepThink (`--think`) and DeepResearch (`--research`) toggle the corresponding composer chips before submitting
 - Generated image files are timestamped to avoid overwriting prior runs

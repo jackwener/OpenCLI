@@ -10,7 +10,7 @@ allowed-tools: Bash(opencli:*), Read, Edit, Write, Grep
 
 全程用现有工具：`opencli browser *` / `opencli doctor` / `opencli browser init` / `opencli browser verify`。没有新命令。
 
-调试浏览器型 adapter 时，优先直接带上 `--trace on --live --focus`。`--trace on` 每轮都落 trace artifact，`summary.md` 是失败/成功复盘入口；`--live --focus` 让 automation lease 保留且容器在前台，方便核对最终页面状态。
+调试浏览器型 adapter 时，优先直接带上 `--trace on --keep-tab true --window foreground`。`--trace on` 每轮都落 trace artifact，`summary.md` 是失败/成功复盘入口；`--keep-tab true --window foreground` 让 tab lease 保留且浏览器窗口在前台，方便核对最终页面状态。
 
 ---
 

@@ -91,7 +91,7 @@ opencli browser network --filter author,text,likes
 opencli browser network --detail <key>
 ```
 
-capture 会持久化到 `~/.opencli/cache/browser-network/<workspace>.json`（默认 TTL 24h），所以 `--detail` 即使跨多条其他命令也还在。
+capture 会持久化到 `~/.opencli/cache/browser-network/<session>.json`（默认 TTL 24h），所以 `--detail` 即使跨多条其他命令也还在。
 
 ### 关键 request headers
 

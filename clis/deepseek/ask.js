@@ -3,7 +3,7 @@ import { CliError, CommandExecutionError, EXIT_CODES } from '@jackwener/opencli/
 import {
     DEEPSEEK_DOMAIN, DEEPSEEK_URL, ensureOnDeepSeek, selectModel, setFeature,
     sendMessage, sendWithFile, getBubbleCount, waitForResponse, parseBoolFlag, withRetry,
-    pickResumeUrl,
+    pickResumeUrl, TEXTAREA_SELECTOR,
 } from './utils.js';
 
 export const askCommand = cli({
@@ -14,7 +14,7 @@ export const askCommand = cli({
     domain: DEEPSEEK_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'prompt', positional: true, required: true, help: 'Prompt to send' },
@@ -35,7 +35,13 @@ export const askCommand = cli({
 
         if (parseBoolFlag(kwargs.new)) {
             await page.goto(DEEPSEEK_URL);
-            await page.wait(3);
+            // Wait for the composer to mount instead of a fixed 3 s sleep.
+            try {
+                await page.wait({ selector: TEXTAREA_SELECTOR, timeout: 8 });
+            } catch {
+                // Selector still missing → downstream selectModel/sendMessage
+                // will surface the failure with a typed error.
+            }
         } else {
             const navigated = await ensureOnDeepSeek(page);
             if (navigated) {
@@ -49,11 +55,14 @@ export const askCommand = cli({
                     );
                 }
                 await page.goto(resumeUrl);
-                await page.wait(2);
+                try {
+                    await page.wait({ selector: TEXTAREA_SELECTOR, timeout: 5 });
+                } catch {
+                    // Conversation page may still be loading; subsequent steps
+                    // will retry or report.
+                }
             }
         }
-
-        await page.wait(2);
 
         // Model selector is only available on the new-chat page, not inside
         // an existing conversation. Skip it when we resumed a prior thread.
@@ -76,7 +85,9 @@ export const askCommand = cli({
             if (!modelResult?.ok) {
                 throw new CommandExecutionError(`Could not switch to ${wantModel} model`);
             }
-            if (modelResult?.toggled) await page.wait(0.5);
+            // The 0.5 s settle previously here was redundant: each subsequent
+            // step (setFeature, sendMessage) issues a fresh CDP eval, giving
+            // React more than enough time to flush the toggle's state update.
         }
 
         const thinkResult = await withRetry(() => setFeature(page, 'DeepThink', wantThink));
@@ -102,7 +113,8 @@ export const askCommand = cli({
             }
         }
 
-        if (thinkResult?.toggled || searchResult?.toggled) await page.wait(0.5);
+        // No settle wait after toggles: the next CDP eval below already gives
+        // React time to flush the aria-checked state.
 
         if (kwargs.file) {
             const baseline = await withRetry(() => getBubbleCount(page));
@@ -115,7 +127,8 @@ export const askCommand = cli({
                 // SPA navigates after send; "Promise was collected" means send succeeded
                 if (!String(err?.message || err).includes('Promise was collected')) throw err;
             }
-            await page.wait(3);
+            // waitForResponse polls every 3 s for new bubbles, so the previous
+            // 3 s settle here was a redundant sleep on top of the first poll.
             const result = await waitForResponse(page, baseline, prompt, timeoutMs, wantThink);
             if (!result) {
                 return [{ response: `[NO RESPONSE] No reply within ${kwargs.timeout}s.` }];

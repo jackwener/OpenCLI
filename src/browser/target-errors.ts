@@ -16,6 +16,8 @@
  *   - selector_ambiguous:     >1 matches for a write op without --nth
  *   - selector_nth_out_of_range: --nth beyond matches_n
  *   - not_editable:           target exists but cannot accept text input
+ *   - not_checkable:          target exists but cannot be checked/unchecked
+ *   - not_file_input:         target exists but is not a usable file input
  */
 
 export type TargetErrorCode =
@@ -25,7 +27,9 @@ export type TargetErrorCode =
   | 'selector_not_found'
   | 'selector_ambiguous'
   | 'selector_nth_out_of_range'
-  | 'not_editable';
+  | 'not_editable'
+  | 'not_checkable'
+  | 'not_file_input';
 
 export interface TargetErrorInfo {
   code: TargetErrorCode;

@@ -142,6 +142,7 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
         { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (with or without @). Defaults to the logged-in user when omitted.' },
         { name: 'limit', type: 'int', default: 20, help: 'Maximum number of liked tweets to return (default 20).' },
@@ -151,11 +152,8 @@ cli({
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 20;
         let username = (kwargs.username || '').replace(/^@/, '');
-        await page.goto('https://x.com');
-        await page.wait(3);
-        const ct0 = await page.evaluate(`() => {
-      return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('ct0='))?.split('=')[1] || null;
-    }`);
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
         // If no username provided, detect the logged-in user

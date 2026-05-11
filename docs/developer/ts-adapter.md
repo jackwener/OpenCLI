@@ -89,21 +89,23 @@ for context, the full pattern table, and how to add an id to a listing.
 
 Browser-backed commands are one-shot by default: each execution gets a fresh
 tab lease and releases it when the command returns. For interactive sites where
-successive commands should continue in the same page, opt into site-level reuse:
+successive commands should continue in the same page, opt into a persistent site
+session:
 
 ```typescript
 cli({
   site: 'mysite',
   name: 'ask',
   strategy: Strategy.COOKIE,
-  browserSession: { reuse: 'site' },
+  siteSession: 'persistent',
   // ...
 });
 ```
 
-`reuse: 'site'` makes commands for the same site share `site:<site>` and use the
-interactive idle timeout. Users can override the adapter default with
-`--reuse none` or force reuse with `--reuse site`.
+`siteSession: 'persistent'` makes commands for the same site share a stable
+adapter site tab and keeps that tab open until it is explicitly closed. Users
+can override the adapter default with `--site-session ephemeral` or force
+persistence with `--site-session persistent`.
 
 ## The `page` Object
 

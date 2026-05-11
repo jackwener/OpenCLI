@@ -20,7 +20,7 @@ cli({
     domain: QIANWEN_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'prompt', required: true, positional: true, help: 'Prompt to send to Qianwen' },

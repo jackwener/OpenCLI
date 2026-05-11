@@ -35,6 +35,6 @@ opencli doubao ask "请写一个 Python 快速排序示例" --timeout 90
 ## Notes
 
 - The adapter targets the web chat page at `https://www.doubao.com/chat`
-- Doubao commands default to site-level browser tab reuse, so consecutive `doubao ask` / `doubao read` / `doubao detail` invocations continue in the same Doubao page. Pass `--reuse none` for a one-shot tab.
+- Doubao commands default to persistent site sessions, so consecutive `doubao ask` / `doubao read` / `doubao detail` invocations continue in the same Doubao page. Pass `--site-session ephemeral` for a one-shot tab.
 - `new` first tries the visible "New Chat / 新对话" button, then falls back to the new-thread route
 - `ask` uses DOM polling, so very long generations may need a larger `--timeout`

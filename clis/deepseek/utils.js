@@ -43,7 +43,14 @@ export async function isOnDeepSeek(page) {
 export async function ensureOnDeepSeek(page) {
     if (await isOnDeepSeek(page)) return false;
     await page.goto(DEEPSEEK_URL);
-    await page.wait(3);
+    // Wait for the composer textarea instead of a fixed 3 s sleep. On the login
+    // page it never mounts; swallow the timeout so callers (status / read /
+    // history) can still inspect page state.
+    try {
+        await page.wait({ selector: TEXTAREA_SELECTOR, timeout: 8 });
+    } catch {
+        // Login or error page — downstream will see hasTextarea=false / empty results.
+    }
     return true;
 }
 

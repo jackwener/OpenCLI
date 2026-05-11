@@ -14,7 +14,7 @@ import {
   type BrowserCliCommand,
   type CliCommand,
   type InternalCliCommand,
-  type BrowserSessionReuse,
+  type SiteSessionMode,
   type Arg,
   type CommandArgs,
   getRegistry,
@@ -28,7 +28,7 @@ import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
 import { adapterLoadError, ArgumentError, CommandExecutionError, attachTraceReceipt, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
-import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT } from './runtime.js';
+import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
 import { resolveProfileContextId } from './browser/profile.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
@@ -41,7 +41,6 @@ const _loadedModules = new Map<string, Promise<void>>();
 /** Track mtime of loaded user adapter files for hot-reload in daemon mode. */
 const _moduleMtimes = new Map<string, number>();
 const _userClisDir = `${os.homedir()}/.opencli/clis/`;
-const INTERACTIVE_BROWSER_IDLE_TIMEOUT_SECONDS = 600;
 
 type TraceMode = 'off' | 'on' | 'retain-on-failure';
 
@@ -187,8 +186,8 @@ function isDomainRootPreNav(preNavUrl: string, domain: string | undefined): bool
   }
 }
 
-async function shouldRunPreNav(cmd: CliCommand, page: IPage, reuse: BrowserSessionReuse, preNavUrl: string): Promise<boolean> {
-  if (reuse !== 'site' || !cmd.domain) return true;
+async function shouldRunPreNav(cmd: CliCommand, page: IPage, siteSession: SiteSessionMode, preNavUrl: string): Promise<boolean> {
+  if (siteSession !== 'persistent' || !cmd.domain) return true;
   if (!isDomainRootPreNav(preNavUrl, cmd.domain)) return true;
   const currentUrl = await page.getCurrentUrl?.().catch(() => null);
   return !urlMatchesDomain(currentUrl, cmd.domain);
@@ -202,6 +201,9 @@ export async function executeCommand(
     prepared?: boolean;
     profile?: string;
     trace?: string;
+    keepTab?: string;
+    windowMode?: string;
+    siteSession?: string;
     onTraceExport?: (trace: ObservationExportResult) => void;
   } = {},
 ): Promise<unknown> {
@@ -249,16 +251,17 @@ export async function executeCommand(
       const BrowserFactory = getBrowserFactory(cmd.site);
       const contextId = resolveProfileContextId(opts.profile);
       const internal = cmd as InternalCliCommand;
-      const browserReuse = resolveBrowserSessionReuse(cmd);
-      const workspace = resolveBrowserWorkspace(cmd, browserReuse);
-      const idleTimeout = browserReuse === 'site' ? INTERACTIVE_BROWSER_IDLE_TIMEOUT_SECONDS : undefined;
+      const siteSession = resolveSiteSession(cmd, opts.siteSession);
+      const session = resolveAdapterBrowserSession(cmd, siteSession);
+      const keepTab = resolveKeepTab(siteSession, opts.keepTab);
+      const windowMode = resolveBrowserWindowMode('background', opts.windowMode);
       result = await browserSession(BrowserFactory, async (page) => {
         const observation = traceMode === 'off'
           ? null
           : new ObservationSession({
             scope: {
               contextId,
-              workspace,
+              session,
               target: page.getActivePage?.(),
               site: cmd.site,
               command: fullName(cmd),
@@ -275,7 +278,7 @@ export async function executeCommand(
           await page.startNetworkCapture?.().catch(() => false);
         }
         const preNavUrl = resolvePreNav(cmd);
-        if (preNavUrl && await shouldRunPreNav(cmd, page, browserReuse, preNavUrl)) {
+        if (preNavUrl && await shouldRunPreNav(cmd, page, siteSession, preNavUrl)) {
           observation?.record({
             stream: 'action',
             name: 'pre_navigate',
@@ -320,9 +323,6 @@ export async function executeCommand(
             throw wrapped;
           }
         }
-        // --live / OPENCLI_LIVE=1 keeps the current automation tab lease after
-        // the command finishes, so agents (or humans) can inspect the page state.
-        const keepOpen = browserReuse !== 'none' || process.env.OPENCLI_LIVE === '1' || process.env.OPENCLI_LIVE === 'true';
         try {
           const browserTimeout = userTimeoutSec !== null
             ? userTimeoutSec + RUNTIME_TIMEOUT_PADDING_SECONDS
@@ -343,7 +343,7 @@ export async function executeCommand(
           // Adapter commands are one-shot — release the current tab lease immediately
           // instead of waiting for the 30s idle timeout. The automation container
           // window stays open for reuse.
-          if (!keepOpen) await page.closeWindow?.().catch(() => {});
+          if (!keepTab) await page.closeWindow?.().catch(() => {});
           return result;
         } catch (err) {
           if (observation) {
@@ -366,10 +366,10 @@ export async function executeCommand(
           // Release the tab lease on failure too — without this, the lease lingers
           // until the extension's idle timer fires (unreliable on Windows where
           // MV3 service workers may be suspended before setTimeout triggers).
-          if (!keepOpen) await page.closeWindow?.().catch(() => {});
+          if (!keepTab) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { workspace, cdpEndpoint, contextId, idleTimeout });
+      }, { session, cdpEndpoint, contextId, windowMode, surface: 'adapter', siteSession });
     } else {
       // Non-browser commands: enforce a timeout only when the command exposes
       // a `--timeout` arg (and the resolved value is positive). Without that
@@ -487,20 +487,45 @@ export function prepareCommandArgs(
  */
 const RUNTIME_TIMEOUT_PADDING_SECONDS = 30;
 
-function readEnvBrowserSessionReuse(): BrowserSessionReuse | null {
-  const raw = process.env.OPENCLI_BROWSER_REUSE;
-  if (raw === undefined || raw === '') return null;
-  if (raw === 'none' || raw === 'site') return raw;
-  throw new ArgumentError(`--reuse must be one of: none, site. Received: "${raw}"`);
+function normalizeSiteSession(raw: unknown): SiteSessionMode | null {
+  if (raw === undefined || raw === null || raw === '') return null;
+  if (raw === 'ephemeral' || raw === 'persistent') return raw;
+  throw new ArgumentError(`--site-session must be one of: ephemeral, persistent. Received: "${String(raw)}"`);
 }
 
-function resolveBrowserSessionReuse(cmd: CliCommand): BrowserSessionReuse {
-  return readEnvBrowserSessionReuse() ?? cmd.browserSession?.reuse ?? 'none';
+function resolveSiteSession(cmd: CliCommand, rawOption?: unknown): SiteSessionMode {
+  return normalizeSiteSession(rawOption) ?? cmd.siteSession ?? 'ephemeral';
 }
 
-function resolveBrowserWorkspace(cmd: CliCommand, reuse: BrowserSessionReuse): string {
-  if (reuse === 'site') return `site:${cmd.site}`;
+function resolveAdapterBrowserSession(cmd: CliCommand, siteSession: SiteSessionMode): string {
+  if (siteSession === 'persistent') return `site:${cmd.site}`;
   return `site:${cmd.site}:${crypto.randomUUID()}`;
+}
+
+function normalizeBooleanOption(name: string, raw: unknown): boolean | null {
+  if (raw === undefined || raw === '') return null;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  throw new ArgumentError(`${name} must be one of: true, false. Received: "${String(raw)}"`);
+}
+
+function resolveKeepTab(siteSession: SiteSessionMode, rawOption?: unknown): boolean {
+  if (siteSession === 'persistent') return true;
+  return normalizeBooleanOption('--keep-tab', rawOption)
+    ?? normalizeBooleanOption('OPENCLI_KEEP_TAB', process.env.OPENCLI_KEEP_TAB)
+    ?? false;
+}
+
+function normalizeWindowMode(name: string, raw: unknown): BrowserWindowMode | null {
+  if (raw === undefined || raw === '') return null;
+  if (raw === 'foreground' || raw === 'background') return raw;
+  throw new ArgumentError(`${name} must be one of: foreground, background. Received: "${String(raw)}"`);
+}
+
+function resolveBrowserWindowMode(defaultMode: BrowserWindowMode = 'background', rawOption?: unknown): BrowserWindowMode {
+  return normalizeWindowMode('--window', rawOption)
+    ?? normalizeWindowMode('OPENCLI_WINDOW', process.env.OPENCLI_WINDOW)
+    ?? defaultMode;
 }
 
 /**

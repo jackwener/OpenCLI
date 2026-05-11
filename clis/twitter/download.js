@@ -15,6 +15,7 @@ cli({
     description: 'Download Twitter/X media (images and videos). Provide either <username> to scan a profile\'s media tab, or --tweet-url to download a single tweet.',
     domain: 'x.com',
     strategy: Strategy.COOKIE,
+    siteSession: 'persistent',
     args: [
         { name: 'username', positional: true, help: 'Twitter username (with or without @) to scan their /media tab. Either <username> or --tweet-url is required.' },
         { name: 'tweet-url', help: 'Single tweet URL to download. Use this OR <username>, not both required at once.' },

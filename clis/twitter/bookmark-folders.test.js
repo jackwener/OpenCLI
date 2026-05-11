@@ -143,8 +143,10 @@ describe('twitter bookmark-folders command (registry)', () => {
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
-            evaluate: vi.fn().mockResolvedValue(null), // null cookie → AuthRequired
+            getCookies: vi.fn().mockResolvedValue([]), // no ct0 cookie → AuthRequired
+            evaluate: vi.fn().mockResolvedValue(null),
         };
         await expect(command.func(page, {})).rejects.toThrow(/Not logged into x.com/);
+        expect(page.getCookies).toHaveBeenCalledWith({ url: 'https://x.com' });
     });
 });

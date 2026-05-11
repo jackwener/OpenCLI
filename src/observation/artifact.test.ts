@@ -21,7 +21,7 @@ describe('observation artifact', () => {
       id: 'trace-1',
       scope: {
         contextId: 'work',
-        workspace: 'site:demo',
+        session: 'site:demo',
         site: 'demo',
         command: 'demo/run',
         adapterSourcePath: '/tmp/clis/demo/run.js',
@@ -77,7 +77,7 @@ describe('observation artifact', () => {
       expiresAt: expect.any(String),
       scope: {
         contextId: 'work',
-        workspace: 'site:demo',
+        session: 'site:demo',
         site: 'demo',
         command: 'demo/run',
         adapterSourcePath: '/tmp/clis/demo/run.js',
@@ -119,7 +119,7 @@ describe('observation artifact', () => {
 
     const session = new ObservationSession({
       id: 'new-trace',
-      scope: { contextId: 'work', workspace: 'site:demo' },
+      scope: { contextId: 'work', session: 'site:demo' },
       now: () => Date.parse('2026-05-03T00:00:00.000Z'),
     });
     session.record({ stream: 'action', name: 'command', phase: 'start' });

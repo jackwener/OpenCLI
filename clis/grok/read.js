@@ -15,7 +15,7 @@ cli({
     domain: GROK_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    browserSession: { reuse: 'site' },
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'markdown', type: 'boolean', default: false, help: 'Emit assistant replies as markdown' },

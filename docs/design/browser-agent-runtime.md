@@ -272,7 +272,7 @@ opencli browser check <target>
 opencli browser uncheck <target>
 opencli browser upload <target> <file...>
 opencli browser drag <source> <target>
-opencli browser wait download [path]
+opencli browser wait download [pattern]
 ```
 
 Keep `browser select` native `<select>` only. It should clearly return
@@ -333,6 +333,22 @@ Scope:
 - iframe-aware action routing,
 - annotated screenshot with the same ref ids and sidecar metadata.
 
+Status after implementation:
+
+- same-origin iframe AX refs route through `Accessibility.getFullAXTree`
+  `frameId` params,
+- cross-origin iframe AX routing is best-effort. Real Chrome extension smoke
+  verified that `chrome.debugger` may not expose attachable OOPIF iframe
+  targets to extensions even after `Target.setDiscoverTargets`,
+  `Target.getTargets`, and `Target.setAutoAttach`,
+- unsupported frames degrade by omission or typed action failure rather than
+  requiring global manual frame switching.
+
+Implementation note: Phase 1 also includes a DOM-ref visual slice via
+`browser screenshot --annotate`. It refreshes current DOM refs and overlays
+visible `[N]` labels on the captured image. AX-side visual labels and richer
+sidecar metadata remain follow-up work.
+
 Exit:
 
 - Agent can act on iframe refs without manual frame selection in common cases.
@@ -343,10 +359,18 @@ Exit:
 
 Scope:
 
-- `hover`, `focus`, `check`, `uncheck`, `dblclick`, `drag`, `upload`,
-  `wait download`,
-- semantic locator options for role/name, label, placeholder, text, testid,
+- `hover`, `focus`, `dblclick`, `check`, `uncheck`, `upload`, `drag`, and
+  `wait download` (implemented),
+- semantic locator options for role/name, label, text, testid,
 - structured ambiguity errors for write locators.
+
+Implementation note: semantic locators cover `browser find`, `browser click`,
+`browser get text|value|attributes`, input actions (`type`, `fill`, `select`),
+and Phase 2 action primitives (`hover`, `focus`, `dblclick`, `check`,
+`uncheck`, `upload`). `drag` uses prefixed endpoint locators (`--from-role` /
+`--to-role`, etc.) so source and target cannot be confused. Placeholder is
+folded into accessible-name matching for `--name`; a dedicated `--placeholder`
+flag can be added only if real usage shows the distinction matters.
 
 Exit:
 
