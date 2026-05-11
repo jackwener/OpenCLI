@@ -31,6 +31,7 @@ describe('reddit reply command', () => {
             'https://reddit.com.evil.com/r/opencli/comments/1abc23/title_slug/okf3s7u/',
             'http://www.reddit.com/r/opencli/comments/1abc23/title_slug/okf3s7u/',
             'https://www.reddit.com/r/opencli/comments/1abc23/title_slug/',
+            'https://www.reddit.com/r/opencli/comments/1abc23/title_slug/okf3s7u/evil',
         ]) {
             await expect(command.func(page, { 'comment-id': value, text: 'hello' })).rejects.toBeInstanceOf(ArgumentError);
         }

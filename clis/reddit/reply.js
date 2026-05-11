@@ -42,13 +42,20 @@ export function normalizeRedditCommentFullname(value) {
         }
         const parts = parsed.pathname.split('/').filter(Boolean);
         const commentsIndex = parts.indexOf('comments');
-        if (commentsIndex < 0 || parts.length <= commentsIndex + 3) {
+        const commentIndex = commentsIndex + 3;
+        if (commentsIndex < 0 || parts.length <= commentIndex) {
             throw new ArgumentError(
                 'Comment URL must include the target comment id.',
                 'Use a URL like https://www.reddit.com/r/sub/comments/post/title/okf3s7u/',
             );
         }
-        return `t1_${normalizeBareCommentId(parts[commentsIndex + 3])}`;
+        if (parts.length !== commentIndex + 1) {
+            throw new ArgumentError(
+                'Comment URL must end at the target comment id.',
+                'Remove extra path segments after the comment id.',
+            );
+        }
+        return `t1_${normalizeBareCommentId(parts[commentIndex])}`;
     }
 
     if (raw.includes('/') || raw.startsWith('t3_')) {
