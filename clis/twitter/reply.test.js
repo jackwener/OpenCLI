@@ -13,6 +13,8 @@ describe('twitter reply command', () => {
         const cmd = getRegistry().get('twitter/reply');
         expect(cmd?.func).toBeTypeOf('function');
         const page = createPageMock([
+            { ok: true },
+            { ok: true },
             { ok: true, message: 'Reply posted successfully.' },
         ]);
         const result = await cmd.func(page, {
@@ -38,6 +40,8 @@ describe('twitter reply command', () => {
         const setFileInput = vi.fn().mockResolvedValue(undefined);
         const page = createPageMock([
             { ok: true, previewCount: 1 },
+            { ok: true },
+            { ok: true },
             { ok: true, message: 'Reply posted successfully.' },
         ], {
             setFileInput,
@@ -74,6 +78,8 @@ describe('twitter reply command', () => {
         const setFileInput = vi.fn().mockResolvedValue(undefined);
         const page = createPageMock([
             { ok: true, previewCount: 1 },
+            { ok: true },
+            { ok: true },
             { ok: true, message: 'Reply posted successfully.' },
         ], {
             setFileInput,
@@ -101,6 +107,55 @@ describe('twitter reply command', () => {
             },
         ]);
         vi.unstubAllGlobals();
+    });
+    it('falls back to the target tweet page when the dedicated composer route does not expose a textarea', async () => {
+        const cmd = getRegistry().get('twitter/reply');
+        expect(cmd?.func).toBeTypeOf('function');
+        const wait = vi.fn()
+            .mockRejectedValueOnce(new Error('Selector not found: [data-testid="tweetTextarea_0"]'))
+            .mockResolvedValue(undefined);
+        const page = createPageMock([
+            { ok: true }, // click target tweet page Reply button
+            { ok: true }, // insert reply text
+            { ok: true }, // click composer Reply button
+            { ok: true, message: 'Reply posted successfully.' }, // submit completed
+        ], { wait });
+
+        const url = 'https://x.com/_kop6/status/2040254679301718161?s=20';
+        const result = await cmd.func(page, { url, text: 'fallback reply' });
+
+        expect(page.goto).toHaveBeenNthCalledWith(1, 'https://x.com/compose/post?in_reply_to=2040254679301718161', { waitUntil: 'load', settleMs: 2500 });
+        expect(page.goto).toHaveBeenNthCalledWith(2, url, { waitUntil: 'load', settleMs: 2500 });
+        expect(page.evaluate.mock.calls[0][0]).toContain('[data-testid="reply"]');
+        expect(wait).toHaveBeenLastCalledWith({ selector: '[data-testid="tweetTextarea_0"]', timeout: 15 });
+        expect(result).toEqual([{ status: 'success', message: 'Reply posted successfully.', text: 'fallback reply' }]);
+    });
+    it('treats an X success toast as success after a Promise was collected error', async () => {
+        const cmd = getRegistry().get('twitter/reply');
+        expect(cmd?.func).toBeTypeOf('function');
+        const evaluate = vi.fn()
+            .mockResolvedValueOnce({ ok: true }) // insert reply text
+            .mockResolvedValueOnce({ ok: true }) // click Reply
+            .mockRejectedValueOnce(new Error('{"code":-32000,"message":"Promise was collected"}'))
+            .mockResolvedValueOnce({
+                ok: true,
+                message: 'Reply posted successfully.',
+                url: 'https://x.com/me/status/123',
+            });
+        const page = createPageMock([], { evaluate });
+
+        const result = await cmd.func(page, {
+            url: 'https://x.com/_kop6/status/2040254679301718161?s=20',
+            text: 'toast recovery',
+        });
+
+        expect(page.wait).toHaveBeenCalledWith(2);
+        expect(result).toEqual([{
+            status: 'success',
+            message: 'Reply posted successfully.',
+            text: 'toast recovery',
+            url: 'https://x.com/me/status/123',
+        }]);
     });
     it('rejects using --image and --image-url together', async () => {
         const cmd = getRegistry().get('twitter/reply');

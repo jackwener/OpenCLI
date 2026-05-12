@@ -23372,7 +23372,8 @@
     "columns": [
       "status",
       "message",
-      "text"
+      "text",
+      "url"
     ],
     "type": "js",
     "modulePath": "twitter/reply.js",
