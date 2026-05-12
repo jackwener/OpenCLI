@@ -46,7 +46,18 @@ export function buildCommentsExtractJs(withReplies) {
         const clean = (el) => (el?.textContent || '').replace(/\\s+/g, ' ').trim()
         const parseLikes = (el) => {
           const raw = clean(el)
-          return /^\\d+$/.test(raw) ? Number(raw) : 0
+          if (!raw) return 0
+          if (/^\\d+$/.test(raw)) return Number(raw)
+          // Handle Xiaohongshu's shortform like-count text: "2.1w" / "1.5万" -> *10000;
+          // "1.2k" / "3千" -> *1000; trailing "+" tolerated. Falls back to 0 on unknown shapes.
+          const m = raw.match(/^([\\d.]+)\\s*([wk万千]?)\\+?$/i)
+          if (!m) return 0
+          const num = parseFloat(m[1])
+          if (!Number.isFinite(num)) return 0
+          const unit = m[2].toLowerCase()
+          if (unit === 'w' || unit === '万') return Math.round(num * 10000)
+          if (unit === 'k' || unit === '千') return Math.round(num * 1000)
+          return Math.round(num)
         }
         const expandReplyThreads = async (root) => {
           if (!withReplies || !root) return
