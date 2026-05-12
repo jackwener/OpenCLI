@@ -11,11 +11,19 @@ import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
  * Wait for search results or login wall using MutationObserver (max 5s).
  * Returns 'content' if note items appeared, 'login_wall' if login gate
  * detected, or 'timeout' if neither appeared within the deadline.
+ *
+ * Note-item detection tries the legacy `section.note-item` class first
+ * (still observed in many sessions, including rednote) and falls back to
+ * a `<section>` element containing a `/search_result/` or `/explore/`
+ * link. Issue #1506 reports the class being dropped on some xhs renders.
  */
 const WAIT_FOR_CONTENT_JS = `
   new Promise((resolve) => {
+    const findNoteCard = () => document.querySelector(
+      'section.note-item, section:has(a[href*="/search_result/"]), section:has(a[href*="/explore/"])'
+    );
     const detect = () => {
-      if (document.querySelector('section.note-item')) return 'content';
+      if (findNoteCard()) return 'content';
       if (/登录后查看搜索结果/.test(document.body?.innerText || '')) return 'login_wall';
       return null;
     };
@@ -94,9 +102,22 @@ export function buildScrollUntilJs(targetCount, maxScrolls = 15) {
           const style = getComputedStyle(el);
           return style.display !== 'none' && style.visibility !== 'hidden';
         };
+        // Note containers: legacy \`section.note-item\` first, fallback to
+        // any \`<section>\` that wraps a search-result/explore note link
+        // (#1506 reports the class being dropped on some xhs renders).
+        const collectNoteCards = () => {
+          const classMatches = document.querySelectorAll('section.note-item');
+          if (classMatches.length > 0) return classMatches;
+          const sections = new Set();
+          for (const a of document.querySelectorAll('a[href*="/search_result/"], a[href*="/explore/"]')) {
+            const section = a.closest('section');
+            if (section) sections.add(section);
+          }
+          return sections;
+        };
         const countItems = () => {
           let count = 0;
-          for (const el of document.querySelectorAll('section.note-item')) {
+          for (const el of collectNoteCards()) {
             if (isVisibleNote(el)) count++;
           }
           return count;
@@ -161,10 +182,24 @@ export function buildSearchExtractJs(webHost) {
         const results = [];
         const seen = new Set();
 
-        document.querySelectorAll('section.note-item').forEach(el => {
+        // Note containers: legacy \`section.note-item\` first, fallback to any
+        // \`<section>\` wrapping a search-result/explore link (#1506 reports the
+        // class being dropped on some xhs renders).
+        const collectNoteCards = () => {
+          const classMatches = document.querySelectorAll('section.note-item');
+          if (classMatches.length > 0) return classMatches;
+          const sections = new Set();
+          for (const a of document.querySelectorAll('a[href*="/search_result/"], a[href*="/explore/"]')) {
+            const section = a.closest('section');
+            if (section) sections.add(section);
+          }
+          return sections;
+        };
+
+        for (const el of collectNoteCards()) {
           // Skip "related searches" sections
-          if (el.classList.contains('query-note-item')) return;
-          if (!isVisibleNote(el)) return;
+          if (el.classList?.contains('query-note-item')) continue;
+          if (!isVisibleNote(el)) continue;
 
           const titleEl = el.querySelector('.title, .note-title, a.title, .footer .title span');
           const nameEl = el.querySelector('a.author .name, .author-name, .nick-name, .name');
@@ -184,20 +219,29 @@ export function buildSearchExtractJs(webHost) {
           const authorLinkEl = el.querySelector('a.author, a[href*="/user/profile/"]');
 
           const url = normalizeUrl(detailLinkEl?.getAttribute('href') || '');
-          if (!url) return;
+          if (!url) continue;
 
           const key = url;
-          if (seen.has(key)) return;
+          if (seen.has(key)) continue;
           seen.add(key);
 
+          // Fallback title: the new bare-section render keeps the note caption
+          // inside the search_result anchor's first span, not in a class-named
+          // .title element. Pull from there when the class-based pick is empty.
+          let title = cleanText(titleEl?.textContent || '');
+          if (!title) {
+            const captionSpan = detailLinkEl?.querySelector('span');
+            title = cleanText(captionSpan?.textContent || '');
+          }
+
           results.push({
-            title: cleanText(titleEl?.textContent || ''),
+            title,
             author,
             likes: cleanText(likesEl?.textContent || '0'),
             url,
             author_url: normalizeUrl(authorLinkEl?.getAttribute('href') || ''),
           });
-        });
+        }
 
         return results;
       })()
