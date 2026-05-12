@@ -5844,6 +5844,122 @@
   },
   {
     "site": "ctrip",
+    "name": "flight",
+    "description": "搜索携程一程机票（按出发/到达 IATA 三字码 + 日期）",
+    "access": "read",
+    "domain": "flights.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "from",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Departure IATA code (e.g. BJS / PEK)"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Arrival IATA code (e.g. SHA / PVG)"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Departure date (YYYY-MM-DD)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of flights (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "airline",
+      "flightNo",
+      "aircraft",
+      "departureTime",
+      "departureAirport",
+      "arrivalTime",
+      "arrivalAirport",
+      "terminal",
+      "price",
+      "currency",
+      "cabin",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/flight.js",
+    "sourceFile": "ctrip/flight.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
+    "name": "hotel-search",
+    "description": "搜索携程酒店列表（按城市 + 入住/离店日期）",
+    "access": "read",
+    "domain": "hotels.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Numeric Ctrip city ID (use `ctrip search` or `ctrip hotel-suggest` to discover)"
+      },
+      {
+        "name": "checkin",
+        "type": "str",
+        "required": true,
+        "help": "Check-in date (YYYY-MM-DD)"
+      },
+      {
+        "name": "checkout",
+        "type": "str",
+        "required": true,
+        "help": "Check-out date (YYYY-MM-DD)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of hotels (1-30); SSR first page returns ~13 entries"
+      }
+    ],
+    "columns": [
+      "rank",
+      "hotelId",
+      "name",
+      "enName",
+      "star",
+      "score",
+      "scoreLabel",
+      "reviewCount",
+      "cityName",
+      "district",
+      "address",
+      "lat",
+      "lon",
+      "price",
+      "currency",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/hotel-search.js",
+    "sourceFile": "ctrip/hotel-search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
     "name": "hotel-suggest",
     "description": "搜索携程酒店上下文联想：城市、商圈、单酒店匹配",
     "access": "read",
@@ -19089,6 +19205,39 @@
   },
   {
     "site": "reddit",
+    "name": "home",
+    "description": "Reddit personalized home feed (Best, requires login)",
+    "access": "read",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of posts (1–100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "subreddit",
+      "score",
+      "comments",
+      "postId",
+      "author",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "reddit/home.js",
+    "sourceFile": "reddit/home.js",
+    "navigateBefore": "https://reddit.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "reddit",
     "name": "hot",
     "description": "Reddit 热门帖子",
     "access": "read",
@@ -19232,6 +19381,39 @@
     "sourceFile": "reddit/read.js",
     "navigateBefore": "https://reddit.com",
     "siteSession": "persistent"
+  },
+  {
+    "site": "reddit",
+    "name": "reply",
+    "description": "Reply to a Reddit comment",
+    "access": "write",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "comment-id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comment ID (e.g. okf3s7u) or fullname (t1_xxx)"
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Reply text"
+      }
+    ],
+    "columns": [
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "reddit/reply.js",
+    "sourceFile": "reddit/reply.js",
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19412,6 +19594,33 @@
     "type": "js",
     "modulePath": "reddit/subreddit.js",
     "sourceFile": "reddit/subreddit.js",
+    "navigateBefore": "https://reddit.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "reddit",
+    "name": "subreddit-info",
+    "description": "Show metadata for a Reddit subreddit (subscribers, description, created date, NSFW)",
+    "access": "read",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Subreddit name (no `r/` prefix needed)"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "reddit/subreddit-info.js",
+    "sourceFile": "reddit/subreddit-info.js",
     "navigateBefore": "https://reddit.com",
     "siteSession": "persistent"
   },
@@ -19641,6 +19850,272 @@
     "sourceFile": "reddit/user-posts.js",
     "navigateBefore": "https://reddit.com",
     "siteSession": "persistent"
+  },
+  {
+    "site": "reddit",
+    "name": "whoami",
+    "description": "Show the currently logged-in Reddit user",
+    "access": "read",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "reddit/whoami.js",
+    "sourceFile": "reddit/whoami.js",
+    "navigateBefore": "https://reddit.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "rednote",
+    "name": "comments",
+    "description": "Read comments from a rednote note (supports nested replies)",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "note-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full rednote note URL with xsec_token"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of top-level comments (max 50)"
+      },
+      {
+        "name": "with-replies",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Include nested replies (楼中楼)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "author",
+      "text",
+      "likes",
+      "time",
+      "is_reply",
+      "reply_to"
+    ],
+    "type": "js",
+    "modulePath": "rednote/comments.js",
+    "sourceFile": "rednote/comments.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "download",
+    "description": "Download images and videos from a rednote note",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "note-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full rednote note URL with xsec_token"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "./rednote-downloads",
+        "required": false,
+        "help": "Output directory"
+      }
+    ],
+    "columns": [
+      "index",
+      "type",
+      "status",
+      "size"
+    ],
+    "type": "js",
+    "modulePath": "rednote/download.js",
+    "sourceFile": "rednote/download.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "feed",
+    "description": "Rednote home feed (reads hydrated Pinia store)",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of items to return"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "author",
+      "likes",
+      "type",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rednote/feed.js",
+    "sourceFile": "rednote/feed.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "note",
+    "description": "Read note body and engagement counts from a rednote note",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "note-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full rednote note URL with xsec_token"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "rednote/note.js",
+    "sourceFile": "rednote/note.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "notifications",
+    "description": "Rednote notifications (mentions/likes/connections)",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "type",
+        "type": "str",
+        "default": "mentions",
+        "required": false,
+        "help": "Notification type: mentions, likes, or connections"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of notifications to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "user",
+      "action",
+      "content",
+      "note",
+      "time"
+    ],
+    "type": "js",
+    "modulePath": "rednote/notifications.js",
+    "sourceFile": "rednote/notifications.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "search",
+    "description": "Search rednote notes",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "author",
+      "likes",
+      "published_at",
+      "url",
+      "author_url"
+    ],
+    "type": "js",
+    "modulePath": "rednote/search.js",
+    "sourceFile": "rednote/search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "user",
+    "description": "Get public notes from a rednote user profile",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "User id or profile URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "Number of notes to return"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "type",
+      "likes",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rednote/user.js",
+    "sourceFile": "rednote/user.js",
+    "navigateBefore": false
   },
   {
     "site": "rest-countries",

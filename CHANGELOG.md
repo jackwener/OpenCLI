@@ -4,13 +4,48 @@
 
 ### Features
 
+* **browser** — add `page.evaluate(fn, ...args)` for type-safe browser-context evaluation with JSON-serialized arguments. String evaluation remains supported, but new adapter code should use function form to avoid implicit `wrapForEval` auto-IIFE magic.
 * **twitter** — read commands (`search`, `list-tweets`, `thread`, `timeline`) now expose a `card` field with the tweet's link preview (title, description, image, domain, landing URL) when present. `null` when the tweet has no card.
 
 ### ⚠ BREAKING CHANGES
 
-* **browser session model** — replace the browser-facing `--workspace` model with explicit `--session <name>` on `opencli browser *`. Browser commands now require a session name, `browser bind`/`unbind` use `--session`, and bind no longer accepts `--domain`, `--path-prefix`, or `--allow-navigate-bound`. Browser primitives keep their session tab by design; the browser namespace no longer exposes `--keep-tab`.
-* **adapter site sessions** — replace adapter metadata `browserSession: { reuse: 'site' }` with `siteSession: 'persistent'`, and replace the user override `--reuse <none|site>` / `OPENCLI_BROWSER_REUSE` with `--site-session <ephemeral|persistent>`. Persistent site sessions keep a stable site tab open without idle expiry.
-* **doctor** — remove `--no-live` and `--sessions` flags from `opencli doctor`. Doctor always runs the live browser connectivity probe (that's its core job); session enumeration was never part of health diagnosis. The underlying `'sessions'` daemon protocol action and the `BrowserSessionInfo` public type are removed as dead code.
+* **browser** — replace the `--session <name>` flag with a `<session>` positional argument that immediately follows `browser`. `opencli browser work click 12` instead of `opencli browser --session work click 12`; `opencli browser work bind` instead of `opencli browser bind --session work`. Required-flag semantics are now encoded structurally as a positional, matching the Docker/git convention for required operation-target identifiers. The internal `--session` flag is preserved for the daemon protocol and for direct `program.parseAsync` callers but is no longer part of the user-facing surface.
+* **env** — remove `OPENCLI_KEEP_TAB`. The flag was a debugging shortcut, not a config dimension: `--keep-tab true|false` on the command line is the single source of truth, and adapter `siteSession: 'persistent'` already pins persistent site tabs as a hard constraint. Removing the env eliminates a globally-leaking process state that overrode every browser command in the shell.
+* **extension** — remove the internal `surface\\0session` command-session backdoor. Browser Bridge commands now route only through structured `session` + `surface` fields; lease-key strings remain an extension-internal registry detail.
+
+### Internal
+
+* **extension 1.0.13** — remove the internal command-session lease-key backdoor.
+
+## [1.7.18](https://github.com/jackwener/opencli/compare/v1.7.17...v1.7.18) (2026-05-12)
+
+Hotfix release for the 1.7.17 doctor regression: `opencli doctor` failed connectivity probe with `Browser session is required` because the doctor probe didn't pass a session to the new strict-session browser bridge. Also adds new adapters and adapter fixes that were ready immediately after 1.7.17.
+
+### Bug Fixes
+
+* **doctor** — pass an internal `__doctor__` browser session to the live connectivity probe so `opencli doctor` works again under the explicit-session browser model introduced in 1.7.17. ([#1485](https://github.com/jackwener/opencli/issues/1485))
+* **browser** — `--session <name>` is now declared as a `requiredOption` so Commander itself rejects calls missing the flag before runtime, and the help line is marked `(required)` instead of being hidden under `Options:`. ([#1485](https://github.com/jackwener/opencli/issues/1485))
+* **doubao/ask** — restore Assistant detection after the 2026-05 DOM refactor. ([#1484](https://github.com/jackwener/opencli/issues/1484))
+* **youtube** — request `srv3` format for caption URLs. ([#1422](https://github.com/jackwener/opencli/issues/1422))
+
+### Features
+
+* **rednote** — add `rednote.com` adapter mirroring xiaohongshu read commands. ([#1475](https://github.com/jackwener/opencli/issues/1475))
+* **reddit** — add `reply` command for replying to comments. ([#1428](https://github.com/jackwener/opencli/issues/1428))
+
+## [1.7.17](https://github.com/jackwener/opencli/compare/v1.7.16...v1.7.17) (2026-05-12)
+
+Extension bumped to 1.0.12 (workspace → session lease routing, drop `handleSessions` handler). Major simplification pass: browser/adapter session model rewrite, `--workspace` removed, doctor surface trimmed to its core job.
+
+### ⚠ BREAKING CHANGES
+
+* **browser session model** — replace the browser-facing `--workspace` model with explicit `--session <name>` on `opencli browser *`. Browser commands now require a session name, `browser bind`/`unbind` use `--session`, and bind no longer accepts `--domain`, `--path-prefix`, or `--allow-navigate-bound`. Browser primitives keep their session tab by design; the browser namespace no longer exposes `--keep-tab`. ([#1461](https://github.com/jackwener/opencli/issues/1461))
+* **adapter site sessions** — replace adapter metadata `browserSession: { reuse: 'site' }` with `siteSession: 'persistent'`, and replace the user override `--reuse <none|site>` / `OPENCLI_BROWSER_REUSE` with `--site-session <ephemeral|persistent>`. Persistent site sessions keep a stable site tab open without idle expiry. ([#1462](https://github.com/jackwener/opencli/issues/1462))
+* **doctor** — remove `--no-live` and `--sessions` flags from `opencli doctor`. Doctor always runs the live browser connectivity probe (that's its core job); session enumeration was never part of health diagnosis. The underlying `'sessions'` daemon protocol action and the `BrowserSessionInfo` public type are removed as dead code. ([#1470](https://github.com/jackwener/opencli/issues/1470))
+
+### Features
+
+* **chatgpt** — `ask` and `send` now accept local image paths and upload them through the composer before submitting the prompt. ([#1476](https://github.com/jackwener/opencli/issues/1476))
 
 ### Internal
 

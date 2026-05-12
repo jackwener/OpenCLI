@@ -250,7 +250,9 @@ opencli browser eval "window.__pinia.state.value.someStore.someMethod({...})"
 
 ```javascript
 // func 里
-await page.evaluate(installInterceptorCode, { domain: 'api.xxx.com', path: '/foo' });
+await page.evaluateWithArgs(installInterceptorCode, {
+  config: { domain: 'api.xxx.com', path: '/foo' },
+});
 await page.goto('https://xxx.com/trigger-page');
 // 等页面自己发那条请求
 const intercepted = await page.evaluate('window.__opencli_intercepted');

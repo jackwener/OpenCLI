@@ -172,4 +172,302 @@ export function mapSuggestRow(item, index) {
     };
 }
 
+/* --------- Helpers shared by hotel-search / flight (browser-context) ---------- */
+
+const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * Validate YYYY-MM-DD and return the canonical string. Rejects out-of-range
+ * month/day, malformed input, and silent NaN. Does NOT coerce or shift timezones.
+ */
+export function parseIsoDate(name, raw) {
+    if (raw === undefined || raw === null || raw === '') {
+        throw new ArgumentError(`--${name} is required (YYYY-MM-DD)`);
+    }
+    const value = String(raw).trim();
+    const m = ISO_DATE_RE.exec(value);
+    if (!m) {
+        throw new ArgumentError(`--${name} must be YYYY-MM-DD, got ${JSON.stringify(raw)}`);
+    }
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    const day = Number(m[3]);
+    if (month < 1 || month > 12 || day < 1 || day > 31) {
+        throw new ArgumentError(`--${name} has invalid month/day: ${value}`);
+    }
+    // Cross-check via UTC date math so 2026-02-30 doesn't pass.
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) {
+        throw new ArgumentError(`--${name} is not a real calendar date: ${value}`);
+    }
+    return value;
+}
+
+/**
+ * Validate a 3-letter IATA airport / metro code, return uppercase.
+ * Ctrip URL accepts both single-airport (PEK / PVG) and metro-group (BJS / SHA) codes.
+ */
+export function parseIataCode(name, raw) {
+    if (raw === undefined || raw === null || raw === '') {
+        throw new ArgumentError(`--${name} is required (3-letter IATA code, e.g. PEK, SHA)`);
+    }
+    const value = String(raw).trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(value)) {
+        throw new ArgumentError(`--${name} must be a 3-letter IATA code, got ${JSON.stringify(raw)}`);
+    }
+    return value;
+}
+
+/**
+ * Validate a numeric Ctrip city ID (returned by `ctrip search` / `ctrip hotel-suggest`).
+ */
+export function parseCityId(raw) {
+    if (raw === undefined || raw === null || raw === '') {
+        throw new ArgumentError('--city is required (numeric city ID from `ctrip search` or `ctrip hotel-suggest`)');
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+        throw new ArgumentError(`--city must be a positive integer city ID, got ${JSON.stringify(raw)}`);
+    }
+    return parsed;
+}
+
+/**
+ * Pick the best lat/lon from a Ctrip hotel `positionInfo.mapCoordinate` array.
+ *
+ * Each entry has a `coordinateType` (1=WGS84, 2=GCJ02, 3=BD09 / Baidu). We prefer
+ * WGS84 when present (most portable), then fall through. All coordinates are
+ * strings in the API, so we Number() and reject NaN.
+ */
+export function pickHotelMapCoords(mapCoordinate) {
+    if (!Array.isArray(mapCoordinate) || mapCoordinate.length === 0) {
+        return { lat: null, lon: null };
+    }
+    // Order: WGS84 (1) → GCJ02 (2) → BD09 (3) → whatever exists
+    const ranking = (entry) => {
+        const t = Number(entry?.coordinateType);
+        if (t === 1) return 0;
+        if (t === 2) return 1;
+        if (t === 3) return 2;
+        return 3;
+    };
+    const sorted = [...mapCoordinate].sort((a, b) => ranking(a) - ranking(b));
+    for (const entry of sorted) {
+        const lat = Number(entry?.latitude);
+        const lon = Number(entry?.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lon) && (lat !== 0 || lon !== 0)) {
+            return { lat, lon };
+        }
+    }
+    return { lat: null, lon: null };
+}
+
+/**
+ * Project a single Ctrip hotel row from `__NEXT_DATA__.props.pageProps.initListData.hotelList[*]`
+ * into stable adapter column shape.
+ *
+ * No silent fallbacks — every field is `string|number|null`, never `''` masquerading
+ * as "no data" (see typed-errors.md §"scalar sentinels are anti-pattern").
+ */
+export function mapHotelRow(entry, index) {
+    const hotelInfo = entry?.hotelInfo ?? {};
+    const rooms = Array.isArray(entry?.roomInfo) ? entry.roomInfo : [];
+    const summary = hotelInfo.summary ?? {};
+    const nameInfo = hotelInfo.nameInfo ?? {};
+    const hotelStar = hotelInfo.hotelStar ?? {};
+    const commentInfo = hotelInfo.commentInfo ?? {};
+    const positionInfo = hotelInfo.positionInfo ?? {};
+    const firstRoom = rooms[0] ?? {};
+    const priceInfo = firstRoom.priceInfo ?? {};
+
+    const hotelId = summary.hotelId ? String(summary.hotelId) : null;
+    const { lat, lon } = pickHotelMapCoords(positionInfo.mapCoordinate);
+
+    // commenterNumber arrives as "13,966条点评" — strip non-digits to int, else null.
+    let reviewCount = null;
+    if (commentInfo.commenterNumber) {
+        const digits = String(commentInfo.commenterNumber).replace(/[^\d]/g, '');
+        if (digits) reviewCount = Number(digits);
+    }
+    const score = commentInfo.commentScore ? Number(commentInfo.commentScore) : null;
+
+    const star = Number.isFinite(hotelStar.star) && hotelStar.star > 0 ? hotelStar.star : null;
+    const price = Number.isFinite(priceInfo.price) && priceInfo.price > 0 ? priceInfo.price : null;
+
+    return {
+        rank: index + 1,
+        hotelId,
+        name: nameInfo.name ? String(nameInfo.name).trim() : null,
+        enName: nameInfo.enName ? String(nameInfo.enName).trim() : null,
+        star,
+        score: Number.isFinite(score) && score > 0 ? score : null,
+        scoreLabel: commentInfo.commentDescription ? String(commentInfo.commentDescription).trim() : null,
+        reviewCount,
+        cityName: positionInfo.cityName ? String(positionInfo.cityName).trim() : null,
+        district: positionInfo.positionDesc ? String(positionInfo.positionDesc).trim() : null,
+        address: positionInfo.address ? String(positionInfo.address).trim() : null,
+        lat,
+        lon,
+        price,
+        currency: priceInfo.currency ? String(priceInfo.currency).trim() : null,
+        url: hotelId ? `https://hotels.ctrip.com/hotels/detail/?hotelid=${hotelId}` : null,
+    };
+}
+
+/**
+ * Build the browser-context IIFE that extracts flight rows from `.flight-list`.
+ *
+ * Flights are rendered as `.flight-list > span > div` cards. Each card's innerText
+ * has a stable ordering (verified 2026-05-12 on bjs→sha route):
+ *
+ *   [airline, flightNo, aircraft, lowPriceTag?, depTime, depAirport,
+ *    arrTime, arrAirport, terminal?, savings?, promo?, currency, price,
+ *    priceSuffix, cabin, cta]
+ *
+ * `lowPriceTag` (e.g. "当日低价") + `terminal` (e.g. "T2") + `savings` + `promo`
+ * are optional — we use position-of-first-time-match to anchor and parse around it.
+ *
+ * The host is baked in so `normalizeUrl` for booking links resolves on the calling site.
+ */
+export function buildFlightExtractJs() {
+    return `
+      (() => {
+        const cleanText = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+        const isTime = (s) => /^([01]?\\d|2[0-3]):[0-5]\\d$/.test(s);
+        const isCurrency = (s) => /^[¥$€£]$/.test(s);
+        const isPriceDigits = (s) => /^\\d+([.,]\\d+)?$/.test(s);
+        const isFlightNo = (s) => /^[A-Z0-9]{2}\\d{3,4}[A-Z]?$/.test(s);
+
+        const rows = [];
+        document.querySelectorAll('.flight-list > span > div').forEach((card) => {
+          // Collect ordered text chunks (text nodes only, skip whitespace-only).
+          const chunks = [];
+          const walk = (node) => {
+            for (const c of node.childNodes) {
+              if (c.nodeType === 3) {
+                const t = cleanText(c.textContent);
+                if (t) chunks.push(t);
+              } else if (c.nodeType === 1) {
+                walk(c);
+              }
+            }
+          };
+          walk(card);
+          if (chunks.length < 8) return;
+
+          // Anchor on first HH:MM — that's depTime; depAirport is immediately after.
+          const firstTimeIdx = chunks.findIndex(isTime);
+          if (firstTimeIdx < 1) return;
+          const airline = chunks[0];
+          const flightNo = chunks[1] || null;
+          if (!airline || !isFlightNo(flightNo)) return;
+          const aircraft = chunks[2] && !isTime(chunks[2]) ? chunks[2] : null;
+
+          const depTime = chunks[firstTimeIdx];
+          const depAirport = chunks[firstTimeIdx + 1] || null;
+          // Second HH:MM after depTime is arrTime
+          const arrTimeIdx = chunks.findIndex((c, i) => i > firstTimeIdx && isTime(c));
+          if (arrTimeIdx < 0) return;
+          const arrTime = chunks[arrTimeIdx];
+          const arrAirport = chunks[arrTimeIdx + 1] || null;
+          if (!depAirport || !arrAirport) return;
+          // Optional terminal chunk right after arrAirport (matches /^T\\d$/ or single letter)
+          let terminal = null;
+          if (arrTimeIdx + 2 < chunks.length && /^T\\d$/.test(chunks[arrTimeIdx + 2])) {
+            terminal = chunks[arrTimeIdx + 2];
+          }
+
+          // Price: scan for currency symbol then a digit-only chunk
+          let price = null;
+          let currency = null;
+          for (let i = 0; i < chunks.length - 1; i++) {
+            if (isCurrency(chunks[i]) && isPriceDigits(chunks[i + 1])) {
+              currency = chunks[i];
+              price = Number(chunks[i + 1].replace(',', ''));
+              break;
+            }
+          }
+          // Cabin: scan from end for first non-CTA Chinese chunk ending in "舱"
+          let cabin = null;
+          for (let i = chunks.length - 1; i >= 0; i--) {
+            if (/舱$/.test(chunks[i])) { cabin = chunks[i]; break; }
+          }
+
+          rows.push({
+            airline,
+            flightNo,
+            aircraft,
+            departureTime: depTime,
+            departureAirport: depAirport,
+            arrivalTime: arrTime,
+            arrivalAirport: arrAirport,
+            terminal,
+            price,
+            currency,
+            cabin,
+          });
+        });
+        return rows;
+      })()
+    `;
+}
+
+/**
+ * Build a scroll-until-enough IIFE for flights/hotels DOM-card pagination.
+ *
+ * Mirrors `clis/xiaohongshu/search.js#buildScrollUntilJs` (PR #1487) — counts a
+ * caller-supplied row selector, scrolls until count >= target / DOM plateau /
+ * maxScrolls. Returns final row count so the caller can decide whether to
+ * surface an EmptyResultError. (xiaohongshu's helper hardcodes
+ * `section.note-item`; this generic version takes a selector.)
+ */
+export function buildScrollUntilJs(rowSelector, targetCount, maxScrolls = 8) {
+    if (!Number.isInteger(targetCount) || targetCount < 1 || targetCount > 100) {
+        throw new ArgumentError(`targetCount must be an integer between 1 and 100, got ${JSON.stringify(targetCount)}`);
+    }
+    if (!Number.isInteger(maxScrolls) || maxScrolls < 1 || maxScrolls > 30) {
+        throw new ArgumentError(`maxScrolls must be an integer between 1 and 30, got ${JSON.stringify(maxScrolls)}`);
+    }
+    return `
+      (async () => {
+        const sel = ${JSON.stringify(rowSelector)};
+        const isVisible = (el) => {
+          const style = window.getComputedStyle(el);
+          if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        };
+        const countItems = () => Array.from(document.querySelectorAll(sel)).filter(isVisible).length;
+        let lastCount = countItems();
+        let plateauRounds = 0;
+        for (let i = 0; i < ${maxScrolls}; i++) {
+          if (countItems() >= ${targetCount}) break;
+          const lastHeight = document.body.scrollHeight;
+          window.scrollTo(0, lastHeight);
+          await new Promise((resolve) => {
+            let to;
+            const ob = new MutationObserver(() => {
+              if (document.body.scrollHeight > lastHeight) {
+                clearTimeout(to);
+                ob.disconnect();
+                setTimeout(resolve, 200);
+              }
+            });
+            ob.observe(document.body, { childList: true, subtree: true });
+            to = setTimeout(() => { ob.disconnect(); resolve(null); }, 2500);
+          });
+          const newCount = countItems();
+          if (newCount === lastCount) {
+            plateauRounds++;
+            if (plateauRounds >= 2) break;
+          } else {
+            plateauRounds = 0;
+            lastCount = newCount;
+          }
+        }
+        return countItems();
+      })()
+    `;
+}
+
 export const __test__ = { ENDPOINT, MIN_LIMIT, MAX_LIMIT };

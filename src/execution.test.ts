@@ -440,15 +440,13 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
-  it('skips closeWindow when OPENCLI_KEEP_TAB=true (success path)', async () => {
+  it('skips closeWindow when --keep-tab=true (success path)', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
 
     vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
     vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
 
-    const prev = process.env.OPENCLI_KEEP_TAB;
-    process.env.OPENCLI_KEEP_TAB = 'true';
     try {
       const cmd = cli({
         site: 'test-execution',
@@ -459,24 +457,20 @@ describe('executeCommand — non-browser timeout', () => {
         func: async () => [{ ok: true }],
       });
 
-      await executeCommand(cmd, {});
+      await executeCommand(cmd, {}, false, { keepTab: 'true' });
       expect(closeWindow).not.toHaveBeenCalled();
     } finally {
-      if (prev === undefined) delete process.env.OPENCLI_KEEP_TAB;
-      else process.env.OPENCLI_KEEP_TAB = prev;
       vi.restoreAllMocks();
     }
   });
 
-  it('skips closeWindow when OPENCLI_KEEP_TAB=true (failure path)', async () => {
+  it('skips closeWindow when --keep-tab=true (failure path)', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;
 
     vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
     vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
 
-    const prev = process.env.OPENCLI_KEEP_TAB;
-    process.env.OPENCLI_KEEP_TAB = 'true';
     try {
       const cmd = cli({
         site: 'test-execution',
@@ -487,11 +481,9 @@ describe('executeCommand — non-browser timeout', () => {
         func: async () => { throw new Error('adapter failure'); },
       });
 
-      await expect(executeCommand(cmd, {})).rejects.toThrow('adapter failure');
+      await expect(executeCommand(cmd, {}, false, { keepTab: 'true' })).rejects.toThrow('adapter failure');
       expect(closeWindow).not.toHaveBeenCalled();
     } finally {
-      if (prev === undefined) delete process.env.OPENCLI_KEEP_TAB;
-      else process.env.OPENCLI_KEEP_TAB = prev;
       vi.restoreAllMocks();
     }
   });

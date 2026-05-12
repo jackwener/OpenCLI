@@ -264,6 +264,19 @@ const data = await page.fetchJson(`${BASE}/api/list`, {
 
 它固定 `credentials: 'include'`，带 timeout，HTTP 非 2xx / 非 JSON 会抛统一 runtime error。adapter 里不用再手写 `page.evaluate(fetch(...))`；如果你需要额外包一层业务语义，按 [`typed-errors.md`](./typed-errors.md) 映射到 `CommandExecutionError` / `AuthRequiredError` / `EmptyResultError`。
 
+### 页面内 DOM 逻辑用 `page.evaluate(fn, ...args)`
+
+新 adapter 优先写函数形式，外部变量通过参数传入：
+
+```javascript
+const href = await page.evaluate((selector) => {
+  const link = document.querySelector(selector);
+  return link ? link.getAttribute('href') : null;
+}, 'a[data-testid="profile"]');
+```
+
+`fn` 在浏览器页面上下文执行，不能读取 Node 侧闭包变量；参数必须能被 `JSON.stringify` 序列化。字符串形式 `page.evaluate('document.title')` 仍可用于简单表达式和既有代码，但不要再写依赖隐式 auto-IIFE 的模板字符串函数。
+
 ### HTML 不走 browser fetch
 
 三个坑，踩一个就重写：
@@ -273,6 +286,48 @@ const data = await page.fetchJson(`${BASE}/api/list`, {
 - **非 UTF-8 编码解码麻烦**：GBK / Big5 / Shift-JIS 的站（Discuz / phpBB 老版 / 日站）在 `page.evaluate` 里用 `response.text()` 拿到的是乱码，`TextDecoder('gbk').decode(buf)` 的写法只在 Node 侧干净。
 
 **规则**：JSON 型浏览器接口用 `page.fetchJson()`；HTML 型 COOKIE adapter 一律 Node 侧 `fetch`，浏览器只当 cookie jar 用。
+
+### Selector 稳定性 — 不要 select 用户可见文本
+
+issue #1474 触发：同一个发送按钮在英文 Chrome 是 `aria-label="Submit"`，在中文 Chrome（`chrome://settings/languages` 设中文）变 `aria-label="提交"`，CSS 选择器 `button[aria-label="Submit"]` 在中文环境下直接 0 匹配，silent empty result。
+
+根因不是 i18n bug，是**选择器的 anchor 选错了**。把页面 DOM 属性按 "locale-stable vs locale-dependent" 分两类：
+
+| 类 | 例子 | locale 切换会变吗 | 用作 primary selector？ |
+|----|------|----------------|---------------------|
+| **locale-stable 标识** | `data-testid`、`data-*`、稳定 `id` / `class` | 通常不变（开发者内部 ID） | ✅ 首选，但要先确认不是 hash / A-B test |
+| **semantic / scope anchor** | `role`、结构关系、邻近稳定容器 | 不按 locale 翻译，但常常不唯一 | ⚠️ 只作 scope/filter；不要单独用 `button[role="button"]` |
+| **locale-dependent 文本** | `aria-label`、`title`、`placeholder`、`alt`、`textContent` | 变（被 i18n 框架翻译） | ❌ 仅当 stable 选择器全都不存在时的兜底 |
+
+ChatGPT 的 web 端就是反例驱动的：有些 controls 暴露稳定 `data-testid`，有些 surfaces 只暴露 `aria-label` / `placeholder`。这种站必须先用 stable selector，再用多语言 fallback list：
+
+```javascript
+// clis/chatgpt/utils.js（简化活例）
+const COMPOSER_SELECTORS = [
+  '#prompt-textarea',
+  '[data-testid="composer"] [contenteditable="true"]',
+  '[aria-label="Chat with ChatGPT"]',   // en
+  '[aria-label="与 ChatGPT 聊天"]',      // zh-CN
+  '[placeholder="Ask anything"]',
+  '[placeholder="有问题，尽管问"]',       // zh-CN
+];
+const SEND_BUTTON_SELECTORS = [
+  'button[data-testid="send-button"]:not([disabled])',
+  'button[aria-label="Send prompt"]:not([disabled])',
+  'button[aria-label="发送提示"]:not([disabled])',
+];
+```
+
+写 fallback list 的纪律：
+
+1. **stable selector 放最前**（`#prompt-textarea` / `[data-testid="send-button"]`），locale-dependent 的放后面当兜底
+2. **`role` 只能当 semantic / scope filter**：`dialog [role="textbox"]` 可以；裸 `button` / `[role="button"]` 不够，因为同页可能有多个按钮
+3. **每种 locale 至少列一条**（en + zh-CN 是底线；扩到 ja / ko / ar 看站点用户分布）
+4. **commit 前 grep `aria-label=` / `placeholder=` / `title=` 看是不是漏了 fallback locale**——见 success-rate-pitfalls.md §11
+5. **失败要 typed fail-fast**：找不到 control 应该 `CommandExecutionError` / send-failed，不要返回空 rows 或假成功
+6. **不要给 framework 加 `--i18n "zh:提交,ja:送信"` 这种 flag** —— 等于把 fallback list 从 adapter 挪到 CLI，多一层 indirection 还要维护翻译字典。这是 over-engineering，已经在评审时被否
+
+为什么不在 daemon 端固定 Chrome locale？因为 opencli **不启动 Chrome**——daemon 是连用户已经在跑的 Chrome（CDP via extension），用户可能就是中文 UI / 中文资料检索需求。强制 en-US 会破坏用户的正当工作流。
 
 ### Cookie 域的双查
 

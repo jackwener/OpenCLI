@@ -186,7 +186,7 @@ DONE
 | `references/adapter-template.md` | Step 9 文件结构 + 活例子 `convertible.js` |
 | `references/site-memory.md` | 总览：in-repo 种子 + 本地 `~/.opencli/sites/` 的两层结构 |
 | `references/site-memory/<site>.md` | Step 2 读站点公共知识（eastmoney / xueqiu / bilibili / tonghuashun 已铺） |
-| `references/success-rate-pitfalls.md` | Step 7 / 11 踩坑前翻：10 种"verify 能过但数据是错的"静默失败 |
+| `references/success-rate-pitfalls.md` | Step 7 / 11 踩坑前翻：11 种"verify 能过但数据是错的"静默失败（含 aria-label locale-dependence） |
 | `references/jsdom-fixture-pattern.md` | 当 adapter 走 `page.evaluate` 内 DOM 抽取、且 mocked-evaluate 单测漏 silent bug 时——把 HTML 冻进 `clis/<site>/__fixtures__/` 用 JSDOM 跑（含 fixture 创建 mandatory `awk 'NF>0'` 收紧 + reverse-validate 纪律） |
 | `references/typed-errors.md` | 写 `func` 主体之前必读：5 类 typed error 落点表（ArgumentError / EmptyResultError / CommandExecutionError / AuthRequiredError / TimeoutError）+ 三大 silent anti-pattern（silent-clamp / sentinel-row / generic CliError）的反例修法 |
 

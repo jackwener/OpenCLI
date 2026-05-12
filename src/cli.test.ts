@@ -378,18 +378,20 @@ describe('createProgram root help descriptions', () => {
       expect(data.command).toBe('opencli browser');
       expect(data.description).toBe('Browser control — navigate, click, type, extract, wait (no LLM needed)');
       expect(data.command_count).toBeGreaterThan(20);
+      // `--session` is now a hidden internal option; user-facing surface is the
+      // <session> positional declared via `.usage()`. Structured help drops
+      // hidden options, so namespace_options shouldn't expose it.
+      expect(data.namespace_options).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: 'session' }),
+      ]));
       expect(data.namespace_options).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          name: 'session',
-          flags: '--session <name>',
-          takes_value: 'required',
-        }),
         expect.objectContaining({
           name: 'window',
           flags: '--window <mode>',
           takes_value: 'required',
         }),
       ]));
+      expect(data.usage).toBe('opencli browser <session> <command> [options]');
       expect(data.global_options).toEqual(expect.arrayContaining([
         expect.objectContaining({
           name: 'version',
@@ -403,23 +405,26 @@ describe('createProgram root help descriptions', () => {
       ]));
 
       const click = data.commands.find((cmd: any) => cmd.name === 'click');
+      // Structured help command/usage paths include the <session> positional so
+      // agents construct the correct full invocation. `name` is the leaf
+      // identifier (placeholder positionals are stripped).
       expect(click).toMatchObject({
-        command: 'opencli browser click',
-        usage: 'opencli browser click [target] [options]',
+        command: 'opencli browser <session> click',
+        usage: 'opencli browser <session> click [target] [options]',
         positionals: [{ name: 'target' }],
       });
       expect(click.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab']);
 
       const tabList = data.commands.find((cmd: any) => cmd.name === 'tab list');
       expect(tabList).toMatchObject({
-        command: 'opencli browser tab list',
-        usage: 'opencli browser tab list [options]',
+        command: 'opencli browser <session> tab list',
+        usage: 'opencli browser <session> tab list [options]',
         command_options: [],
       });
 
       const getText = data.commands.find((cmd: any) => cmd.name === 'get text');
       expect(getText).toMatchObject({
-        command: 'opencli browser get text',
+        command: 'opencli browser <session> get text',
         positionals: [{ name: 'target' }],
       });
       expect(data.structured_help).toMatchObject({
@@ -445,8 +450,8 @@ describe('createProgram root help descriptions', () => {
       expect(data).toMatchObject({
         namespace: 'browser',
         group: 'tab',
-        command: 'opencli browser tab',
-        usage: 'opencli browser tab <command> [args] [options]',
+        command: 'opencli browser <session> tab',
+        usage: 'opencli browser <session> tab <command> [args] [options]',
         command_count: 4,
       });
       expect(data.commands.map((cmd: any) => cmd.name)).toEqual([
@@ -456,13 +461,15 @@ describe('createProgram root help descriptions', () => {
         'tab select',
       ]);
       expect(data.commands.find((cmd: any) => cmd.name === 'tab close')).toMatchObject({
-        command: 'opencli browser tab close',
-        usage: 'opencli browser tab close [targetId] [options]',
+        command: 'opencli browser <session> tab close',
+        usage: 'opencli browser <session> tab close [targetId] [options]',
         positionals: [{ name: 'targetId', help: 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"' }],
       });
-      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['session', 'window']);
+      // session is now a hidden internal option (consumed from the <session> positional).
+      // namespace_options should only list user-facing options.
+      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['window']);
       expect(data.structured_help).toMatchObject({
-        usage: 'opencli browser tab --help -f yaml',
+        usage: 'opencli browser <session> tab --help -f yaml',
       });
     } finally {
       process.argv = argv;
@@ -483,15 +490,16 @@ describe('createProgram root help descriptions', () => {
       expect(data).toMatchObject({
         namespace: 'browser',
         name: 'click',
-        command: 'opencli browser click',
-        usage: 'opencli browser click [target] [options]',
+        command: 'opencli browser <session> click',
+        usage: 'opencli browser <session> click [target] [options]',
         positionals: [{ name: 'target' }],
         structured_help: {
-          usage: 'opencli browser click --help -f yaml',
+          usage: 'opencli browser <session> click --help -f yaml',
         },
       });
       expect(data.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab']);
-      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['session', 'window']);
+      // session is hidden; only `window` surfaces as a namespace option.
+      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['window']);
       expect(data.global_options.map((option: any) => option.name)).toContain('profile');
     } finally {
       process.argv = argv;
@@ -962,11 +970,13 @@ describe('browser tab targeting commands', () => {
   it('requires an explicit session for browser commands', async () => {
     const program = createProgram('', '');
 
+    // --session is now a hidden internal flag; commander no longer guards it.
+    // The action body throws via getBrowserSession(), surfacing the
+    // <session> positional in the error message.
     await program.parseAsync(['node', 'opencli', 'browser', 'state']);
 
     expect(mockBrowserConnect).not.toHaveBeenCalled();
-    expect(stderrSpy.mock.calls.flat().join('')).toContain('--session <name> is required');
-    expect(process.exitCode).toBeDefined();
+    expect(stderrSpy.mock.calls.flat().join('')).toContain('<session> is a required positional argument');
   });
 
   it('runs browser commands against an explicit session', async () => {

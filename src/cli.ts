@@ -9,7 +9,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Command, InvalidArgumentError } from 'commander';
+import { Command, InvalidArgumentError, Option } from 'commander';
 import { styleText } from 'node:util';
 import { findPackageRoot, getBuiltEntryCandidates } from './package-paths.js';
 import { type CliCommand, fullName, getRegistry, strategyLabel } from './registry.js';
@@ -19,7 +19,7 @@ import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
-import { classifyAdapter, formatRootAdapterHelpText, installCommanderNamespaceStructuredHelp, installStructuredHelp, rootHelpData, type RootAdapterGroups } from './help.js';
+import { classifyAdapter, formatRootAdapterHelpText, installCommanderNamespaceStructuredHelp, installStructuredHelp, leadingPositionalFromUsage, rootHelpData, type RootAdapterGroups } from './help.js';
 import { EXIT_CODES, getErrorMessage, BrowserConnectError } from './errors.js';
 import { TargetError, type TargetErrorCode } from './browser/target-errors.js';
 import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesResolvedJs, selectResolvedJs, isAutocompleteResolvedJs, type ResolveOptions, type TargetMatchLevel } from './browser/target-resolver.js';
@@ -441,9 +441,12 @@ function getCommandOption(command: Command | undefined, option: string): unknown
 }
 
 function getBrowserSession(command?: Command): string {
+  // The CLI surface is `opencli browser <session> <subcommand>`. main.ts rewrites
+  // argv to insert `--session <name>` before commander parses it; this helper
+  // reads back the rewritten flag.
   const raw = getCommandOption(command, 'session');
   if (typeof raw === 'string' && raw.trim()) return raw.trim();
-  throw new Error('--session <name> is required for opencli browser commands');
+  throw new Error('<session> is a required positional argument: opencli browser <session> <command>');
 }
 
 function getBrowserContextId(command?: Command): string | undefined {
@@ -686,9 +689,23 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   const browser = program
     .command('browser')
-    .option('--session <name>', 'Browser session to use')
+    // --session is an internal hidden option used by the daemon protocol and direct
+    // program.parseAsync callers (tests). User-facing surface is the <session>
+    // positional; main.ts argv preprocessor rewrites positional -> --session.
+    .addOption(new Option('--session <name>', 'Internal — set automatically from the <session> positional').hideHelp())
     .option('--window <mode>', 'Browser window mode: foreground or background')
-    .description('Browser control — navigate, click, type, extract, wait (no LLM needed)');
+    .description('Browser control — navigate, click, type, extract, wait (no LLM needed)')
+    .usage('<session> <command> [options]')
+    .addHelpText('after', `
+<session> is a required positional: pass the name of the browser session every subcommand should operate on. Reuse the same name across calls to keep the tab/state alive; pick a different name to isolate parallel browser work.
+
+Examples:
+  $ opencli browser work open https://x.com
+  $ opencli browser work click 12
+  $ opencli browser work state
+  $ opencli browser work bind
+  $ opencli browser work unbind
+`);
   const originalBrowserDescription = browser.description();
 
   /**
@@ -811,8 +828,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   }
 
   browser.command('bind')
-    .option('--session <name>', 'Browser session name to bind')
-    .description('Bind the current Chrome tab/window to a browser session')
+    .description('Bind the current Chrome tab/window to the browser session named by <session>')
     .action(async (optsOrCommand, maybeCommand?: Command) => {
       const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
       const session = getBrowserSession(command);
@@ -841,8 +857,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     });
 
   browser.command('unbind')
-    .option('--session <name>', 'Browser session name to detach')
-    .description('Detach a bound browser session without closing the user tab/window')
+    .description('Detach the bound browser session named by <session> without closing the user tab/window')
     .action(async (optsOrCommand, maybeCommand?: Command) => {
       const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
       const session = getBrowserSession(command);
@@ -3312,6 +3327,28 @@ cli({
   program.configureHelp({
     visibleCommands: (command) => command.commands.filter(child => command !== program || !adapterNameSet.has(child.name())),
   });
+  // When an ancestor command declares a leading positional via `.usage(...)`
+  // (e.g. `browser` -> `<session> <command> [options]`), inject the positional
+  // between that ancestor's name and the next path segment so the help Usage
+  // line is accurate: `Usage: opencli browser <session> click [target] [options]`
+  // instead of `opencli browser click [target] [options]`. Commander does NOT
+  // inherit configureHelp into subcommands, so we walk the descendant tree and
+  // apply the override on each.
+  const ancestorAwareCommandUsage = (cmd: Command): string => {
+    const ancestors: string[] = [];
+    let ancestor: Command | null = cmd.parent;
+    while (ancestor) {
+      const positional = leadingPositionalFromUsage(ancestor);
+      ancestors.unshift(positional ? `${ancestor.name()} ${positional}` : ancestor.name());
+      ancestor = ancestor.parent;
+    }
+    return [...ancestors, cmd.name(), cmd.usage()].filter(Boolean).join(' ').trim();
+  };
+  function applyAncestorAwareUsage(cmd: Command): void {
+    cmd.configureHelp({ commandUsage: ancestorAwareCommandUsage });
+    for (const sub of cmd.commands) applyAncestorAwareUsage(sub);
+  }
+  applyAncestorAwareUsage(browser);
   installStructuredHelp(program, () => rootHelpData(program, adapterGroups), () => formatRootAdapterHelpText(adapterGroups));
 
   // ── Unknown command fallback ──────────────────────────────────────────────

@@ -2,13 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { CliError } from '../errors.js';
 import { BasePage } from './base-page.js';
 import { TargetError } from './target-errors.js';
-import type { ScreenshotOptions } from '../types.js';
+import type { BrowserEvaluateFunction, ScreenshotOptions } from '../types.js';
 
 class TestPage extends BasePage {
   result: unknown;
   args: Record<string, unknown> | undefined;
 
   async goto(): Promise<void> {}
+  async evaluate<T = unknown>(_js: string): Promise<T>;
+  async evaluate<Args extends unknown[], T>(_fn: BrowserEvaluateFunction<Args, T>, ..._args: Args): Promise<Awaited<T>>;
   async evaluate(): Promise<unknown> { return null; }
   override async evaluateWithArgs(_js: string, args: Record<string, unknown>): Promise<unknown> {
     this.args = args;
@@ -34,8 +36,10 @@ class ActionPage extends BasePage {
   cdp?: (method: string, params?: Record<string, unknown>) => Promise<unknown>;
 
   async goto(): Promise<void> {}
-  async evaluate(js: string): Promise<unknown> {
-    this.scripts.push(js);
+  async evaluate<T = unknown>(js: string): Promise<T>;
+  async evaluate<Args extends unknown[], T>(fn: BrowserEvaluateFunction<Args, T>, ...args: Args): Promise<Awaited<T>>;
+  async evaluate(input: string | BrowserEvaluateFunction<unknown[], unknown>): Promise<unknown> {
+    this.scripts.push(typeof input === 'string' ? input : input.toString());
     return this.results.shift() ?? null;
   }
   override async evaluateWithArgs(js: string, args: Record<string, unknown>): Promise<unknown> {

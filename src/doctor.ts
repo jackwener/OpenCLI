@@ -17,6 +17,7 @@ import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/
 import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
 
 const DOCTOR_LIVE_TIMEOUT_SECONDS = 8;
+const DOCTOR_SESSION = '__doctor__';
 
 /** Parse a semver string into [major, minor, patch]. Returns null on invalid input. */
 function parseSemver(v: string): [number, number, number] | null {
@@ -81,7 +82,11 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
   const start = Date.now();
   try {
     const bridge = new BrowserBridge();
-    const page = await bridge.connect({ timeout: opts?.timeout ?? DOCTOR_LIVE_TIMEOUT_SECONDS });
+    const page = await bridge.connect({
+      timeout: opts?.timeout ?? DOCTOR_LIVE_TIMEOUT_SECONDS,
+      session: DOCTOR_SESSION,
+      surface: 'browser',
+    });
     try {
       // Try a simple eval to verify end-to-end connectivity.
       await page.evaluate('1 + 1');

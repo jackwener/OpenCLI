@@ -92,6 +92,45 @@ describe('Page.evaluate', () => {
     expect(value).toBe(42);
     expect(sendCommandMock).toHaveBeenCalledTimes(2);
   });
+
+  it('serializes function-form evaluate calls with JSON args', async () => {
+    sendCommandMock.mockResolvedValueOnce('/opencli');
+
+    const page = new Page('twitter', undefined, undefined, undefined, 'adapter');
+    const href = await page.evaluate((selector: string) => {
+      const link = document.querySelector(selector);
+      return link ? link.getAttribute('href') : null;
+    }, 'a[data-testid="AppTabBar_Profile_Link"]');
+
+    expect(href).toBe('/opencli');
+    expect(sendCommandMock).toHaveBeenCalledWith('exec', expect.objectContaining({
+      session: 'twitter',
+      surface: 'adapter',
+      code: expect.stringContaining('(...["a[data-testid=\\"AppTabBar_Profile_Link\\"]"])'),
+    }));
+    const code = sendCommandMock.mock.calls[0]?.[1]?.code as string;
+    expect(code).toContain('document.querySelector(selector)');
+  });
+
+  it('rejects non-JSON-serializable evaluate args before sending to the daemon', async () => {
+    const page = new Page('default');
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+
+    await expect(page.evaluate((value: unknown) => value, circular)).rejects.toThrow('JSON-serializable');
+    expect(sendCommandMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps string evaluate behavior unchanged', async () => {
+    sendCommandMock.mockResolvedValueOnce(42);
+
+    const page = new Page('default');
+    await expect(page.evaluate('21 + 21')).resolves.toBe(42);
+
+    expect(sendCommandMock).toHaveBeenCalledWith('exec', expect.objectContaining({
+      code: '21 + 21',
+    }));
+  });
 });
 
 describe('Page network capture compatibility', () => {

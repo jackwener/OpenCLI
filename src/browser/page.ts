@@ -9,9 +9,9 @@
  * page-scoped operations target the correct page without guessing.
  */
 
-import type { BrowserCookie, BrowserDownloadWaitResult, ScreenshotOptions } from '../types.js';
+import type { BrowserCookie, BrowserDownloadWaitResult, BrowserEvaluateFunction, ScreenshotOptions } from '../types.js';
 import { sendCommand, sendCommandFull } from './daemon-client.js';
-import { wrapForEval } from './utils.js';
+import { buildEvaluateExpression } from './utils.js';
 import { saveBase64ToFile } from '../utils.js';
 import { generateStealthJs } from './stealth.js';
 import { waitForDomStableJs } from './dom-helpers.js';
@@ -166,8 +166,10 @@ export class Page extends BasePage {
     );
   }
 
-  async evaluate(js: string): Promise<unknown> {
-    const code = wrapForEval(js);
+  async evaluate<T = unknown>(js: string): Promise<T>;
+  async evaluate<Args extends unknown[], T>(fn: BrowserEvaluateFunction<Args, T>, ...args: Args): Promise<Awaited<T>>;
+  async evaluate(input: string | BrowserEvaluateFunction<unknown[], unknown>, ...args: unknown[]): Promise<unknown> {
+    const code = buildEvaluateExpression(input, args);
     try {
       return await sendCommand('exec', { code, ...this._cmdOpts() });
     } catch (err) {
@@ -327,7 +329,7 @@ export class Page extends BasePage {
   }
 
   async evaluateInFrame(js: string, frameIndex: number): Promise<unknown> {
-    const code = wrapForEval(js);
+    const code = buildEvaluateExpression(js);
     return sendCommand('exec', { code, frameIndex, ...this._cmdOpts() });
   }
 
