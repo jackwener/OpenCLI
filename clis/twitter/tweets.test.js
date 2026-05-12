@@ -60,6 +60,18 @@ describe('twitter tweets helpers', () => {
         expect(b.is_retweet).toBe(true);
     });
 
+    it('unwraps TweetWithVisibilityResults', () => {
+        const tweet = __test__.extractTweet({
+            __typename: 'TweetWithVisibilityResults',
+            tweet: {
+                rest_id: '42',
+                legacy: { full_text: 'visible post', favorite_count: 2, retweet_count: 0, reply_count: 0, created_at: 'now' },
+                core: { user_results: { result: { legacy: { screen_name: 'alice', name: 'Alice' } } } },
+            },
+        }, new Set());
+        expect(tweet).toMatchObject({ id: '42', author: 'alice', text: 'visible post' });
+    });
+
     it('parses chronological tweets and skips pinned instruction', () => {
         const chronEntry = {
             entryId: 'tweet-1',
@@ -121,5 +133,95 @@ describe('twitter tweets helpers', () => {
             views: 100,
             url: 'https://x.com/alice/status/1',
         });
+    });
+
+    it('recursively parses tweets nested in timeline modules', () => {
+        const payload = {
+            data: {
+                user: {
+                    result: {
+                        timeline_v2: {
+                            timeline: {
+                                instructions: [
+                                    {
+                                        type: 'TimelineAddEntries',
+                                        entries: [
+                                            {
+                                                entryId: 'profile-conversation-1',
+                                                content: {
+                                                    entryType: 'TimelineTimelineModule',
+                                                    items: [
+                                                        {
+                                                            item: {
+                                                                itemContent: {
+                                                                    tweet_results: {
+                                                                        result: {
+                                                                            rest_id: '2',
+                                                                            legacy: { full_text: 'nested post', favorite_count: 1, retweet_count: 0, reply_count: 0, created_at: 'now' },
+                                                                            core: { user_results: { result: { legacy: { screen_name: 'alice', name: 'Alice' } } } },
+                                                                        },
+                                                                    },
+                                                                },
+                                                            },
+                                                        },
+                                                    ],
+                                                },
+                                            },
+                                            {
+                                                entryId: 'cursor-bottom-2',
+                                                content: { entryType: 'TimelineTimelineCursor', cursorType: 'Bottom', value: 'next' },
+                                            },
+                                        ],
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        const result = __test__.parseUserTweets(payload, new Set());
+        expect(result.nextCursor).toBe('next');
+        expect(result.tweets).toHaveLength(1);
+        expect(result.tweets[0]).toMatchObject({ id: '2', text: 'nested post' });
+    });
+
+    it('uses populated timeline instructions when timeline_v2 is present but empty', () => {
+        const payload = {
+            data: {
+                user: {
+                    result: {
+                        timeline_v2: { timeline: { instructions: [] } },
+                        timeline: {
+                            timeline: {
+                                instructions: [
+                                    {
+                                        type: 'TimelineAddEntries',
+                                        entries: [
+                                            {
+                                                content: {
+                                                    itemContent: {
+                                                        tweet_results: {
+                                                            result: {
+                                                                rest_id: '3',
+                                                                legacy: { full_text: 'fallback timeline post', favorite_count: 0, retweet_count: 0, reply_count: 0, created_at: 'now' },
+                                                                core: { user_results: { result: { legacy: { screen_name: 'alice', name: 'Alice' } } } },
+                                                            },
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        const result = __test__.parseUserTweets(payload, new Set());
+        expect(result.tweets).toHaveLength(1);
+        expect(result.tweets[0]).toMatchObject({ id: '3', text: 'fallback timeline post' });
     });
 });

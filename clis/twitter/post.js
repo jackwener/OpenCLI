@@ -161,12 +161,25 @@ async function submitTweet(page, text) {
         const normalize = s => String(s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
         const expectedText = normalize(expected);
         const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
+        const statusUrl = (root = document) => {
+            const links = Array.from(root.querySelectorAll('a[href*="/status/"]'));
+            for (const link of links) {
+                const href = link.href || link.getAttribute('href') || '';
+                if (!href) continue;
+                try {
+                    const url = new URL(href, window.location.origin);
+                    const match = url.pathname.match(/^\\/(?:[^/]+|i)\\/status\\/(\\d+)/);
+                    if (match) return { url: url.href, id: match[1] };
+                } catch {}
+            }
+            return {};
+        };
         for (let i = 0; i < ${JSON.stringify(iterations)}; i++) {
             await new Promise(r => setTimeout(r, ${JSON.stringify(SUBMIT_POLL_MS)}));
             const toasts = Array.from(document.querySelectorAll('[role="alert"], [data-testid="toast"]'))
                 .filter((el) => visible(el));
             const successToast = toasts.find((el) => /sent|posted|your post was sent|your tweet was sent/i.test(el.textContent || ''));
-            if (successToast) return { ok: true, message: 'Tweet posted successfully.' };
+            if (successToast) return { ok: true, message: 'Tweet posted successfully.', ...statusUrl(successToast) };
             const alert = toasts.find((el) => /failed|error|try again|not sent|could not/i.test(el.textContent || ''));
             if (alert) return { ok: false, message: (alert.textContent || 'Tweet failed to post.').trim() };
 
@@ -175,7 +188,7 @@ async function submitTweet(page, text) {
             const hasMedia = !!document.querySelector('[data-testid="attachments"], [data-testid="tweetPhoto"]')
                 || document.querySelectorAll('img[src^="blob:"], video[src^="blob:"]').length > 0;
             if (!composerStillHasText && !hasMedia) {
-                return { ok: true, message: 'Tweet posted successfully.' };
+                return { ok: true, message: 'Tweet posted successfully.', ...statusUrl() };
             }
         }
         return { ok: false, message: 'Tweet submission did not complete before timeout.' };
@@ -194,7 +207,7 @@ cli({
         { name: 'text', type: 'string', required: true, positional: true, help: 'The text content of the tweet' },
         { name: 'images', type: 'string', required: false, help: 'Image paths, comma-separated, max 4 (jpg/png/gif/webp)' },
     ],
-    columns: ['status', 'message', 'text'],
+    columns: ['status', 'message', 'text', 'id', 'url'],
     func: async (page, kwargs) => {
         if (!page)
             throw new CommandExecutionError('Browser session required for twitter post');
@@ -231,6 +244,12 @@ cli({
 
         await page.wait(1);
         const result = await submitTweet(page, text);
-        return [{ status: result?.ok ? 'success' : 'failed', message: result?.message ?? 'Tweet failed to post.', text }];
+        return [{
+            status: result?.ok ? 'success' : 'failed',
+            message: result?.message ?? 'Tweet failed to post.',
+            text,
+            ...(result?.id ? { id: result.id } : {}),
+            ...(result?.url ? { url: result.url } : {}),
+        }];
     }
 });

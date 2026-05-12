@@ -1,15 +1,17 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { resolveTwitterQueryId, sanitizeQueryId, extractMedia } from './shared.js';
+import { resolveTwitterOperationMetadata, sanitizeQueryId, extractMedia, normalizeTwitterGraphqlPayload, unwrapBrowserResult } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 
-const USER_TWEETS_QUERY_ID = '6fWQaBPK51aGyC_VC7t9GQ';
+const USER_TWEETS_QUERY_ID = 'lrMzG9qPQHpqJdP3AbM-bQ';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
 
 const USER_TWEETS_FEATURES = {
-    rweb_video_screen_enabled: false,
+    rweb_video_screen_enabled: true,
+    rweb_cashtags_enabled: true,
     payments_enabled: false,
     profile_label_improvements_pcf_label_in_post_enabled: true,
+    responsive_web_profile_redirect_enabled: true,
     rweb_tipjar_consumption_enabled: true,
     verified_phone_label_enabled: false,
     creator_subscriptions_tweet_preview_api_enabled: true,
@@ -20,6 +22,7 @@ const USER_TWEETS_FEATURES = {
     c9s_tweet_anatomy_moderator_badge_enabled: true,
     responsive_web_grok_analyze_button_fetch_trends_enabled: false,
     responsive_web_grok_analyze_post_followups_enabled: true,
+    rweb_cashtags_composer_attachment_enabled: true,
     responsive_web_jetfuel_frame: true,
     responsive_web_grok_share_attachment_enabled: true,
     responsive_web_grok_annotations_enabled: true,
@@ -46,8 +49,21 @@ const USER_TWEETS_FEATURES = {
     responsive_web_enhance_cards_enabled: false,
 };
 
+const USER_TWEETS_FIELD_TOGGLES = {
+    withPayments: true,
+    withAuxiliaryUserLabels: true,
+    withArticleRichContentState: true,
+    withArticlePlainText: true,
+    withArticleSummaryText: true,
+    withArticleVoiceOver: true,
+    withGrokAnalyze: true,
+    withDisallowedReplyControls: true,
+};
+
 const USER_BY_SCREEN_NAME_FEATURES = {
     hidden_profile_subscriptions_enabled: true,
+    profile_label_improvements_pcf_label_in_post_enabled: true,
+    responsive_web_profile_redirect_enabled: true,
     rweb_tipjar_consumption_enabled: true,
     responsive_web_graphql_exclude_directive_enabled: true,
     verified_phone_label_enabled: false,
@@ -61,7 +77,59 @@ const USER_BY_SCREEN_NAME_FEATURES = {
     responsive_web_graphql_timeline_navigation_enabled: true,
 };
 
-function buildUserTweetsUrl(queryId, userId, count, cursor) {
+const USER_BY_SCREEN_NAME_FIELD_TOGGLES = {
+    withPayments: true,
+    withAuxiliaryUserLabels: true,
+};
+
+const USER_TWEETS_OPERATION = {
+    queryId: USER_TWEETS_QUERY_ID,
+    features: USER_TWEETS_FEATURES,
+    fieldToggles: USER_TWEETS_FIELD_TOGGLES,
+};
+
+const USER_BY_SCREEN_NAME_OPERATION = {
+    queryId: USER_BY_SCREEN_NAME_QUERY_ID,
+    features: USER_BY_SCREEN_NAME_FEATURES,
+    fieldToggles: USER_BY_SCREEN_NAME_FIELD_TOGGLES,
+};
+
+function normalizeUserTweetsOperation(operation) {
+    if (typeof operation === 'string') {
+        return { queryId: operation, features: USER_TWEETS_FEATURES, fieldToggles: USER_TWEETS_FIELD_TOGGLES };
+    }
+    return {
+        queryId: operation?.queryId || USER_TWEETS_QUERY_ID,
+        features: operation?.features || USER_TWEETS_FEATURES,
+        fieldToggles: operation?.fieldToggles || USER_TWEETS_FIELD_TOGGLES,
+    };
+}
+
+function normalizeUserByScreenNameOperation(operation) {
+    if (typeof operation === 'string') {
+        return { queryId: operation, features: USER_BY_SCREEN_NAME_FEATURES, fieldToggles: USER_BY_SCREEN_NAME_FIELD_TOGGLES };
+    }
+    return {
+        queryId: operation?.queryId || USER_BY_SCREEN_NAME_QUERY_ID,
+        features: operation?.features || USER_BY_SCREEN_NAME_FEATURES,
+        fieldToggles: operation?.fieldToggles || USER_BY_SCREEN_NAME_FIELD_TOGGLES,
+    };
+}
+
+function appendGraphqlParams(path, variables, operation) {
+    const fieldToggles = operation.fieldToggles || {};
+    const params = [
+        `variables=${encodeURIComponent(JSON.stringify(variables))}`,
+        `features=${encodeURIComponent(JSON.stringify(operation.features || {}))}`,
+    ];
+    if (Object.keys(fieldToggles).length > 0) {
+        params.push(`fieldToggles=${encodeURIComponent(JSON.stringify(fieldToggles))}`);
+    }
+    return `${path}?${params.join('&')}`;
+}
+
+function buildUserTweetsUrl(operation, userId, count, cursor) {
+    const normalized = normalizeUserTweetsOperation(operation);
     const vars = {
         userId,
         count,
@@ -70,21 +138,20 @@ function buildUserTweetsUrl(queryId, userId, count, cursor) {
         withVoice: true,
     };
     if (cursor) vars.cursor = cursor;
-    return `/i/api/graphql/${queryId}/UserTweets`
-        + `?variables=${encodeURIComponent(JSON.stringify(vars))}`
-        + `&features=${encodeURIComponent(JSON.stringify(USER_TWEETS_FEATURES))}`;
+    return appendGraphqlParams(`/i/api/graphql/${normalized.queryId}/UserTweets`, vars, normalized);
 }
 
-function buildUserByScreenNameUrl(queryId, screenName) {
+function buildUserByScreenNameUrl(operation, screenName) {
+    const normalized = normalizeUserByScreenNameOperation(operation);
     const vars = { screen_name: screenName, withSafetyModeUserFields: true };
-    return `/i/api/graphql/${queryId}/UserByScreenName`
-        + `?variables=${encodeURIComponent(JSON.stringify(vars))}`
-        + `&features=${encodeURIComponent(JSON.stringify(USER_BY_SCREEN_NAME_FEATURES))}`;
+    return appendGraphqlParams(`/i/api/graphql/${normalized.queryId}/UserByScreenName`, vars, normalized);
 }
 
 function extractTweet(result, seen) {
     if (!result) return null;
-    const tw = result.tweet || result;
+    const tw = result.__typename === 'TweetWithVisibilityResults' && result.tweet
+        ? result.tweet
+        : (result.tweet || result);
     const legacy = tw.legacy || {};
     if (!tw.rest_id || seen.has(tw.rest_id)) return null;
     seen.add(tw.rest_id);
@@ -112,32 +179,35 @@ function extractTweet(result, seen) {
 function parseUserTweets(data, seen) {
     const tweets = [];
     let nextCursor = null;
-    const instructions = data?.data?.user?.result?.timeline_v2?.timeline?.instructions
-        || data?.data?.user?.result?.timeline?.timeline?.instructions
-        || [];
-    for (const inst of instructions) {
-        if (inst.type === 'TimelinePinEntry') continue;
-        for (const entry of inst.entries || []) {
-            const content = entry.content;
-            if (content?.entryType === 'TimelineTimelineCursor' || content?.__typename === 'TimelineTimelineCursor') {
-                if (content.cursorType === 'Bottom' || content.cursorType === 'ShowMore') nextCursor = content.value;
-                continue;
-            }
-            if (entry.entryId?.startsWith('cursor-bottom-') || entry.entryId?.startsWith('cursor-showMore-')) {
-                nextCursor = content?.value || content?.itemContent?.value || nextCursor;
-                continue;
-            }
-            const direct = extractTweet(content?.itemContent?.tweet_results?.result, seen);
-            if (direct) {
-                tweets.push(direct);
-                continue;
-            }
-            for (const item of content?.items || []) {
-                const nested = extractTweet(item.item?.itemContent?.tweet_results?.result, seen);
-                if (nested) tweets.push(nested);
-            }
+    const result = data?.data?.user?.result || {};
+    const instructionSets = [
+        result.timeline_v2?.timeline?.instructions,
+        result.timeline?.timeline?.instructions,
+    ].filter(Array.isArray);
+    const instructions = instructionSets.flat();
+    const visit = (value) => {
+        if (!value || typeof value !== 'object') return;
+        if (value.type === 'TimelinePinEntry') return;
+        if (value.tweet_results?.result) {
+            const tweet = extractTweet(value.tweet_results.result, seen);
+            if (tweet) tweets.push(tweet);
         }
-    }
+        if (
+            (value.entryType === 'TimelineTimelineCursor' || value.__typename === 'TimelineTimelineCursor')
+            && (value.cursorType === 'Bottom' || value.cursorType === 'ShowMore')
+            && value.value
+        ) {
+            nextCursor = value.value;
+        }
+        if (Array.isArray(value)) {
+            for (const item of value) visit(item);
+            return;
+        }
+        for (const child of Object.values(value)) {
+            if (child && typeof child === 'object') visit(child);
+        }
+    };
+    visit(instructions);
     return { tweets, nextCursor };
 }
 
@@ -165,8 +235,8 @@ cli({
         const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0) throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
 
-        const userTweetsQueryId = await resolveTwitterQueryId(page, 'UserTweets', USER_TWEETS_QUERY_ID);
-        const userByScreenNameQueryId = await resolveTwitterQueryId(page, 'UserByScreenName', USER_BY_SCREEN_NAME_QUERY_ID);
+        const userTweetsOperation = await resolveTwitterOperationMetadata(page, 'UserTweets', USER_TWEETS_OPERATION);
+        const userByScreenNameOperation = await resolveTwitterOperationMetadata(page, 'UserByScreenName', USER_BY_SCREEN_NAME_OPERATION);
 
         const headers = JSON.stringify({
             'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
@@ -175,13 +245,13 @@ cli({
             'X-Twitter-Active-User': 'yes',
         });
 
-        const ubsUrl = buildUserByScreenNameUrl(userByScreenNameQueryId, username);
-        const userId = await page.evaluate(`async () => {
+        const ubsUrl = buildUserByScreenNameUrl(userByScreenNameOperation, username);
+        const userId = unwrapBrowserResult(await page.evaluate(`async () => {
       const resp = await fetch("${ubsUrl}", { headers: ${headers}, credentials: 'include' });
       if (!resp.ok) return null;
       const d = await resp.json();
       return d?.data?.user?.result?.rest_id || null;
-    }`);
+    }`));
         if (!userId) throw new CommandExecutionError(`Could not resolve @${username}`);
 
         const seen = new Set();
@@ -189,11 +259,11 @@ cli({
         let cursor = null;
         for (let i = 0; i < 5 && all.length < limit; i++) {
             const fetchCount = Math.min(100, limit - all.length + 10);
-            const url = buildUserTweetsUrl(userTweetsQueryId, userId, fetchCount, cursor);
-            const data = await page.evaluate(`async () => {
+            const url = buildUserTweetsUrl(userTweetsOperation, userId, fetchCount, cursor);
+            const data = normalizeTwitterGraphqlPayload(await page.evaluate(`async () => {
         const r = await fetch("${url}", { headers: ${headers}, credentials: 'include' });
         return r.ok ? await r.json() : { error: r.status };
-      }`);
+      }`));
             if (data?.error) {
                 if (all.length === 0) throw new CommandExecutionError(`HTTP ${data.error}: UserTweets fetch failed — queryId may have expired`);
                 break;

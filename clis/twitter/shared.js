@@ -81,9 +81,101 @@ export function buildTwitterArticleScopeSource(tweetId) {
 export function sanitizeQueryId(resolved, fallbackId) {
     return typeof resolved === 'string' && QUERY_ID_PATTERN.test(resolved) ? resolved : fallbackId;
 }
-export async function resolveTwitterQueryId(page, operationName, fallbackId) {
+
+function keysToFlags(keys) {
+    if (!Array.isArray(keys)) return {};
+    return Object.fromEntries(keys.filter((key) => typeof key === 'string' && key).map((key) => [key, true]));
+}
+
+function normalizeOperationFallback(fallback) {
+    if (typeof fallback === 'string') return { queryId: fallback, features: {}, fieldToggles: {} };
+    return {
+        queryId: fallback?.queryId || null,
+        features: fallback?.features || {},
+        fieldToggles: fallback?.fieldToggles || {},
+    };
+}
+
+export function unwrapBrowserResult(value) {
+    if (
+        value
+        && typeof value === 'object'
+        && typeof value.session === 'string'
+        && Object.prototype.hasOwnProperty.call(value, 'data')
+    ) {
+        return value.data;
+    }
+    return value;
+}
+
+export function normalizeTwitterGraphqlPayload(value) {
+    const unwrapped = unwrapBrowserResult(value);
+    if (unwrapped?.data && typeof unwrapped.data === 'object') return unwrapped;
+    if (
+        unwrapped
+        && typeof unwrapped === 'object'
+        && (
+            Object.prototype.hasOwnProperty.call(unwrapped, 'user')
+            || Object.prototype.hasOwnProperty.call(unwrapped, 'search_by_raw_query')
+        )
+    ) {
+        return { data: unwrapped };
+    }
+    return unwrapped;
+}
+
+export function sanitizeTwitterOperationMetadata(resolved, fallback) {
+    const value = unwrapBrowserResult(resolved);
+    const normalizedFallback = normalizeOperationFallback(fallback);
+    return {
+        queryId: sanitizeQueryId(value?.queryId, normalizedFallback.queryId),
+        features: value?.features && typeof value.features === 'object'
+            ? value.features
+            : normalizedFallback.features,
+        fieldToggles: value?.fieldToggles && typeof value.fieldToggles === 'object'
+            ? value.fieldToggles
+            : normalizedFallback.fieldToggles,
+    };
+}
+
+export async function resolveTwitterOperationMetadata(page, operationName, fallback) {
     const resolved = await page.evaluate(`async () => {
     const operationName = ${JSON.stringify(operationName)};
+    const keysToFlags = (keys) => Object.fromEntries((keys || []).map((key) => [key, true]));
+    const quotedKeys = (source) => source
+      ? Array.from(source.matchAll(/"([^"]+)"/g)).map((match) => match[1])
+      : [];
+    const parseOperation = (text) => {
+      const marker = 'operationName:"' + operationName + '"';
+      const index = text.indexOf(marker);
+      if (index < 0) return null;
+      const start = Math.max(0, text.lastIndexOf('e.exports=', index));
+      const endMarker = text.indexOf('}}}', index);
+      const snippet = text.slice(start, endMarker > index ? endMarker + 3 : index + 2500);
+      const queryId = snippet.match(/queryId:"([A-Za-z0-9_-]+)"/)?.[1] || null;
+      if (!queryId) return null;
+      return {
+        queryId,
+        features: keysToFlags(quotedKeys(snippet.match(/featureSwitches:\\[([^\\]]*)\\]/)?.[1])),
+        fieldToggles: keysToFlags(quotedKeys(snippet.match(/fieldToggles:\\[([^\\]]*)\\]/)?.[1])),
+      };
+    };
+    try {
+      const scripts = Array.from(document.scripts)
+        .map(s => s.src)
+        .filter(Boolean)
+        .concat(performance.getEntriesByType('resource')
+          .map(r => r.name)
+          .filter(r => r.includes('client-web') && r.endsWith('.js')));
+      const uniqueScripts = Array.from(new Set(scripts));
+      for (const scriptUrl of uniqueScripts.slice(-30)) {
+        try {
+          const text = await (await fetch(scriptUrl)).text();
+          const operation = parseOperation(text);
+          if (operation) return operation;
+        } catch {}
+      }
+    } catch {}
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
@@ -92,27 +184,25 @@ export async function resolveTwitterQueryId(page, operationName, fallbackId) {
       if (ghResp.ok) {
         const data = await ghResp.json();
         const entry = data?.[operationName];
-        if (entry && entry.queryId) return entry.queryId;
+        if (entry && entry.queryId) {
+          return {
+            queryId: entry.queryId,
+            features: keysToFlags(entry.featureSwitches),
+            fieldToggles: keysToFlags(entry.fieldToggles),
+          };
+        }
       }
     } catch {
       clearTimeout(timeout);
     }
-    try {
-      const scripts = performance.getEntriesByType('resource')
-        .filter(r => r.name.includes('client-web') && r.name.endsWith('.js'))
-        .map(r => r.name);
-      for (const scriptUrl of scripts.slice(0, 15)) {
-        try {
-          const text = await (await fetch(scriptUrl)).text();
-          const re = new RegExp('queryId:"([A-Za-z0-9_-]+)"[^}]{0,200}operationName:"' + operationName + '"');
-          const match = text.match(re);
-          if (match) return match[1];
-        } catch {}
-      }
-    } catch {}
     return null;
   }`);
-    return sanitizeQueryId(resolved, fallbackId);
+    return sanitizeTwitterOperationMetadata(resolved, fallback);
+}
+
+export async function resolveTwitterQueryId(page, operationName, fallbackId) {
+    const operation = await resolveTwitterOperationMetadata(page, operationName, fallbackId);
+    return operation.queryId;
 }
 /**
  * Extract media flags and URLs from a tweet's `legacy` object.
@@ -143,6 +233,9 @@ export function extractMedia(legacy) {
 }
 export const __test__ = {
     sanitizeQueryId,
+    sanitizeTwitterOperationMetadata,
+    unwrapBrowserResult,
+    normalizeTwitterGraphqlPayload,
     extractMedia,
     parseTweetUrl,
     buildTwitterArticleScopeSource,

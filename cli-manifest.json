@@ -23244,7 +23244,9 @@
     "columns": [
       "status",
       "message",
-      "text"
+      "text",
+      "id",
+      "url"
     ],
     "type": "js",
     "modulePath": "twitter/post.js",
@@ -23460,7 +23462,7 @@
     "description": "Search Twitter/X for tweets, with optional --from / --has / --exclude / --product filters mapped to X's search operators",
     "access": "read",
     "domain": "x.com",
-    "strategy": "intercept",
+    "strategy": "cookie",
     "browser": true,
     "args": [
       {
@@ -23553,7 +23555,7 @@
     "type": "js",
     "modulePath": "twitter/search.js",
     "sourceFile": "twitter/search.js",
-    "navigateBefore": true,
+    "navigateBefore": "https://x.com",
     "siteSession": "persistent"
   },
   {

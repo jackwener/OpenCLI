@@ -3,7 +3,40 @@ import { JSDOM } from 'jsdom';
 import { __test__ } from './shared.js';
 import { ArgumentError } from '@jackwener/opencli/errors';
 
-const { extractMedia, parseTweetUrl, buildTwitterArticleScopeSource } = __test__;
+const { extractMedia, parseTweetUrl, buildTwitterArticleScopeSource, unwrapBrowserResult, normalizeTwitterGraphqlPayload, sanitizeTwitterOperationMetadata } = __test__;
+
+describe('twitter browser result helpers', () => {
+    it('unwraps Browser Bridge exec envelopes', () => {
+        expect(unwrapBrowserResult({ session: 'site:twitter', data: '123' })).toBe('123');
+        expect(unwrapBrowserResult({ data: { user: true } })).toEqual({ data: { user: true } });
+    });
+
+    it('sanitizes operation metadata after unwrapping Browser Bridge envelopes', () => {
+        const result = sanitizeTwitterOperationMetadata({
+            session: 'site:twitter',
+            data: {
+                queryId: 'abc_123',
+                features: { feature: true },
+                fieldToggles: { field: true },
+            },
+        }, { queryId: 'fallback', features: {}, fieldToggles: {} });
+        expect(result).toEqual({
+            queryId: 'abc_123',
+            features: { feature: true },
+            fieldToggles: { field: true },
+        });
+    });
+
+    it('normalizes GraphQL payloads when the bridge strips the top-level data key', () => {
+        expect(normalizeTwitterGraphqlPayload({ user: { result: {} } })).toEqual({
+            data: { user: { result: {} } },
+        });
+        expect(normalizeTwitterGraphqlPayload({ search_by_raw_query: { search_timeline: {} } })).toEqual({
+            data: { search_by_raw_query: { search_timeline: {} } },
+        });
+        expect(normalizeTwitterGraphqlPayload({ data: { user: {} } })).toEqual({ data: { user: {} } });
+    });
+});
 
 describe('twitter parseTweetUrl', () => {
     it('accepts exact Twitter/X tweet URLs and preserves query parameters', () => {
