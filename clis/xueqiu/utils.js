@@ -1,4 +1,11 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+
+/** Format a Unix ms timestamp as the matching `YYYY-MM-DD` in Asia/Shanghai (xueqiu's canonical user timezone for all markets). */
+export function formatChinaDate(ts) {
+    if (ts == null) return null;
+    return new Date(ts).toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' });
+}
+
 /**
  * Fetch a xueqiu JSON API from inside the browser context (credentials included).
  * Page must already be navigated to xueqiu.com before calling this function.
