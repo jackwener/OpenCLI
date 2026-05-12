@@ -81,8 +81,10 @@ export function classifyBrowserError(err: unknown): RetryAdvice {
     return { kind: 'target-navigation', retryable: true, delayMs: 200 };
   }
 
-  // CDP protocol error with target context (e.g., -32000 "target closed")
-  if (msg.includes('-32000') && msg.toLowerCase().includes('target')) {
+  // CDP protocol error with target/context invalidation (e.g., -32000 "target closed" or
+  // -32000 "Cannot find default execution context" — both indicate the inspected target
+  // went away and a fresh attach should recover).
+  if (msg.includes('-32000') && /target|context/i.test(msg)) {
     return { kind: 'target-navigation', retryable: true, delayMs: 200 };
   }
 
