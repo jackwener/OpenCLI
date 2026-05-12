@@ -216,14 +216,18 @@ export class Page extends BasePage {
    * Capture a screenshot via CDP Page.captureScreenshot.
    */
   async screenshot(options: ScreenshotOptions = {}): Promise<string> {
-    const base64 = await sendCommand('screenshot', {
+    const raw = await sendCommand('screenshot', {
       ...this._cmdOpts(),
       format: options.format,
       quality: options.quality,
       fullPage: options.fullPage,
       width: options.width,
       height: options.height,
-    }) as string;
+    });
+
+    const base64 = typeof raw === 'object' && raw !== null && typeof (raw as Record<string, unknown>).data === 'string'
+      ? (raw as Record<string, unknown>).data as string
+      : raw as string;
 
     if (options.path) {
       await saveBase64ToFile(base64, options.path);
