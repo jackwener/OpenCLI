@@ -163,12 +163,15 @@ cli({
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
 
+        // opencli >=1.7.x wraps primitive page.evaluate returns as { session, data: <value> }.
+        const unwrap = (v) => (v && typeof v === 'object' && 'session' in v && 'data' in v ? v.data : v);
         if (!targetUser) {
-            const href = await page.evaluate(() => {
+            const hrefRaw = await page.evaluate(`() => {
                 const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
                 return link ? link.getAttribute('href') : null;
-            });
-            if (!href)
+            }`);
+            const href = unwrap(hrefRaw);
+            if (!href || typeof href !== 'string')
                 throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
             targetUser = normalizeScreenName(href.replace('/', ''));
         }

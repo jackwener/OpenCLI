@@ -129,7 +129,11 @@ cli({
         const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
-        const queryId = await page.evaluate(`async () => {
+        // opencli >=1.7.x wraps primitive page.evaluate returns as { session, data: <value> }.
+        // Without unwrap, the string queryId becomes "[object Object]" when interpolated into the URL,
+        // causing HTTP 400 "queryId may have expired".
+        const unwrap = (v) => (v && typeof v === 'object' && 'session' in v && 'data' in v ? v.data : v);
+        const queryIdRaw = await page.evaluate(`async () => {
             try {
                 const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json');
                 if (ghResp.ok) {
@@ -152,7 +156,8 @@ cli({
                 }
             } catch {}
             return null;
-        }`) || LIST_TWEETS_QUERY_ID;
+        }`);
+        const queryId = unwrap(queryIdRaw) || LIST_TWEETS_QUERY_ID;
         const headers = JSON.stringify({
             'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
