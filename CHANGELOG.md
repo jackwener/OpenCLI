@@ -10,6 +10,11 @@
 
 * **browser** — replace the `--session <name>` flag with a `<session>` positional argument that immediately follows `browser`. `opencli browser work click 12` instead of `opencli browser --session work click 12`; `opencli browser work bind` instead of `opencli browser bind --session work`. Required-flag semantics are now encoded structurally as a positional, matching the Docker/git convention for required operation-target identifiers. The internal `--session` flag is preserved for the daemon protocol and for direct `program.parseAsync` callers but is no longer part of the user-facing surface.
 * **env** — remove `OPENCLI_KEEP_TAB`. The flag was a debugging shortcut, not a config dimension: `--keep-tab true|false` on the command line is the single source of truth, and adapter `siteSession: 'persistent'` already pins persistent site tabs as a hard constraint. Removing the env eliminates a globally-leaking process state that overrode every browser command in the shell.
+* **extension** — remove the internal `surface\\0session` command-session backdoor. Browser Bridge commands now route only through structured `session` + `surface` fields; lease-key strings remain an extension-internal registry detail.
+
+### Internal
+
+* **extension 1.0.13** — remove the internal command-session lease-key backdoor.
 
 ## [1.7.18](https://github.com/jackwener/opencli/compare/v1.7.17...v1.7.18) (2026-05-12)
 

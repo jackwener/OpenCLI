@@ -249,15 +249,12 @@ function getSessionName(session?: string): string {
   if (!raw) throw new CommandFailure(
     'session_required',
     'Browser session is required.',
-    'Pass --session <name> with opencli browser commands.',
+    'Pass a browser session name, e.g. opencli browser <session> <command>.',
   );
-  return raw.includes(LEASE_KEY_SEPARATOR) ? getSessionFromKey(raw) : raw;
+  return raw;
 }
 
 function getCommandSurface(cmd: Pick<Command, 'surface' | 'session'>): BrowserSurface {
-  if (typeof cmd.session === 'string' && cmd.session.includes(LEASE_KEY_SEPARATOR)) {
-    return getSurfaceFromKey(cmd.session);
-  }
   return cmd.surface === 'adapter' ? 'adapter' : 'browser';
 }
 
@@ -1715,6 +1712,8 @@ export const __test__ = {
   resolveTabId,
   resetWindowIdleTimer,
   handleCommand,
+  getSessionName,
+  getCommandSurface,
   getIdleTimeout,
   getLeaseKey,
   sessionTimeoutOverrides,
