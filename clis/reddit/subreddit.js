@@ -64,7 +64,19 @@ cli({
     url += '&t=' + time;
   }
   const res = await fetch(url, { credentials: 'include' });
-  const j = await res.json();
+  // HTML-as-JSON sniffer: reddit serves a login wall / WAF page as text/html
+  // when cookies expire or rate limits kick in. Blind JSON.parse here yields
+  // a cryptic SyntaxError; surface a structured login-wall message instead.
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  const raw = await res.text();
+  const head = raw.replace(/^\\s+/, '');
+  if (ct.includes('text/html') || head.startsWith('<!DOCTYPE') || head.startsWith('<!doctype') || head.startsWith('<html') || head.startsWith('<HTML')) {
+    throw new Error('LOGIN_WALL: reddit returned HTML instead of JSON (status=' + res.status + ', url=' + url + ', body[0..100]=' + JSON.stringify(head.slice(0, 100)) + '). Likely a login wall, rate limit, or WAF challenge. Try re-logging in or wait a few minutes.');
+  }
+  let j;
+  try { j = JSON.parse(raw); } catch (err) {
+    throw new Error('JSON parse failed (status=' + res.status + ', body[0..50]=' + JSON.stringify(head.slice(0, 50)) + '): ' + (err && err.message ? err.message : String(err)));
+  }
   return (j?.data?.children || []).map(c => ({
     id: c.data.id,
     title: c.data.title,

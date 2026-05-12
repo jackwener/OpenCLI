@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { BROWSER_JSON_SNIFF_FN, throwIfLoginWall } from '@jackwener/opencli/utils';
 import { extractMedia, extractCard } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 // ── Twitter GraphQL constants ──────────────────────────────────────────
@@ -132,11 +133,13 @@ cli({
         let cursor = null;
         for (let i = 0; i < 5; i++) {
             const apiUrl = buildTweetDetailUrl(tweetId, cursor);
-            // Browser-side: just fetch + return JSON (3 lines)
-            const data = await page.evaluate(`async () => {
-        const r = await fetch("${apiUrl}", { headers: ${headers}, credentials: 'include' });
-        return r.ok ? await r.json() : { error: r.status };
-      }`);
+            // Browser-side: fetch + JSON parse with HTML-as-JSON sniffer so a
+            // login wall / WAF page surfaces as a structured LoginWallError
+            // instead of `SyntaxError: Unexpected token '<'`.
+            const data = throwIfLoginWall(await page.evaluate(`async () => {
+        ${BROWSER_JSON_SNIFF_FN}
+        return await fetchJsonOrLoginWall("${apiUrl}", { headers: ${headers}, credentials: 'include' });
+      }`), { url: apiUrl });
             if (data?.error) {
                 if (allTweets.length === 0)
                     throw new CommandExecutionError(`HTTP ${data.error}: Tweet not found or queryId expired`);
