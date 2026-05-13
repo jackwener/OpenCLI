@@ -47,7 +47,7 @@ export function createProgressBar(filename: string, index: number, total: number
 
   return {
     update(current: number, totalBytes: number, label?: string) {
-      const percent = totalBytes > 0 ? Math.round((current / totalBytes) * 100) : 0;
+      const percent = clampPercent(totalBytes > 0 ? Math.round((current / totalBytes) * 100) : 0);
       const bar = createBar(percent);
       const size = totalBytes > 0 ? formatBytes(totalBytes) : '';
       const extra = label ? ` ${label}` : '';
@@ -62,6 +62,11 @@ export function createProgressBar(filename: string, index: number, total: number
       process.stderr.write(`\r${prefix} ${styleText('red', '✗')} ${truncatedName} ${styleText('red', error)}\n`);
     },
   };
+}
+
+function clampPercent(percent: number): number {
+  if (!Number.isFinite(percent)) return 0;
+  return Math.max(0, Math.min(100, percent));
 }
 
 /**
