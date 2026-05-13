@@ -1480,9 +1480,7 @@ async function resolveTab(tabId, leaseKey, initialUrl) {
 }
 async function pageScopedResult(id, tabId, data) {
   const page = await resolveTargetId(tabId);
-  const lease = [...automationSessions.values()].find((session) => session.preferredTabId === tabId);
-  const scopedData = data && typeof data === "object" && !Array.isArray(data) ? { session: lease?.session, ...data } : { session: lease?.session, data };
-  return { id, ok: true, data: scopedData, page };
+  return { id, ok: true, data, page };
 }
 async function resolveTabId(tabId, leaseKey, initialUrl) {
   const resolved = await resolveTab(tabId, leaseKey, initialUrl);

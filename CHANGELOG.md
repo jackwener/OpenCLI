@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+* **browser** — `page.evaluate()` / `evaluateInFrame()` now return the user JavaScript value directly. Browser Bridge `exec` previously routed through a shared `pageScopedResult` helper that spread / wrapped the lease's `session` into the result `data`, contaminating arbitrary user returns: array / primitive returns came back as `{ session, data }` envelopes, and plain-object returns had an extra `session` key injected (overwriting any user `session` field). `google search` and `xiaohongshu search` were the visible repro — Chrome rendered results correctly but adapters extracted an empty array. Fixed in extension 1.0.14 by reverting `pageScopedResult` to its pre-1461 form (`{ id, ok, data, page }`); no client-side unwrap is needed.
+* **google/search** — wait for `#rso a h3` before extracting, falling back to the existing fixed wait. On Chrome 148 + Linux Wayland the DOM can settle before SERP anchors are populated, making extraction return empty even with the envelope bug fixed.
+* **xiaohongshu/search** — extract initially visible cards before scrolling, then merge post-scroll rows by URL. Xiaohongshu's virtualized masonry layout can evict the initial cards from the DOM after scroll, so the previous always-scroll-then-extract flow could lose the top results.
+
 ### Features
 
 * **browser** — add `page.evaluate(fn, ...args)` for type-safe browser-context evaluation with JSON-serialized arguments. String evaluation remains supported, but new adapter code should use function form to avoid implicit `wrapForEval` auto-IIFE magic.
@@ -14,6 +20,7 @@
 
 ### Internal
 
+* **extension 1.0.14** — `pageScopedResult` no longer injects `session` into `data`. The field had no consumers and contaminated `exec` results with arbitrary user-JS shapes; routing-relevant identity is already exposed via `Result.page`.
 * **extension 1.0.13** — remove the internal command-session lease-key backdoor.
 
 ## [1.7.18](https://github.com/jackwener/opencli/compare/v1.7.17...v1.7.18) (2026-05-12)

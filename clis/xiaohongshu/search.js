@@ -227,12 +227,32 @@ export const command = cli({
         if (waitResult === 'login_wall') {
             throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
         }
-        // Scroll until enough rows are rendered or the lazy-load plateaus.
-        // Replaces the previous fixed `autoScroll({ times: 2 })` which capped
-        // extraction at ~13 notes regardless of `--limit` (#1471).
-        await page.evaluate(buildScrollUntilJs(limit));
-        const payload = await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com'));
-        const data = Array.isArray(payload) ? payload : [];
+        // Extract before scrolling. Xiaohongshu uses a virtualized masonry
+        // layout, so scrolling to the bottom can evict the initially visible
+        // note cards from the DOM and make extraction return [] even though the
+        // browser rendered results correctly.
+        const initialPayload = await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com'));
+        let payload = Array.isArray(initialPayload) ? initialPayload : [];
+        if (payload.length < limit) {
+            // Scroll until enough rows are rendered or the lazy-load plateaus.
+            // Replaces the previous fixed `autoScroll({ times: 2 })` which capped
+            // extraction at ~13 notes regardless of `--limit` (#1471).
+            await page.evaluate(buildScrollUntilJs(limit));
+            const scrolledPayload = await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com'));
+            if (Array.isArray(scrolledPayload)) {
+                const seen = new Set(payload.map((item) => item.url).filter(Boolean));
+                for (const item of scrolledPayload) {
+                    if (item?.url && seen.has(item.url))
+                        continue;
+                    if (item?.url)
+                        seen.add(item.url);
+                    payload.push(item);
+                    if (payload.length >= limit)
+                        break;
+                }
+            }
+        }
+        const data = payload;
         return data
             .filter((item) => item.title)
             .slice(0, limit)

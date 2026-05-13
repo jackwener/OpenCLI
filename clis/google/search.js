@@ -29,7 +29,16 @@ cli({
         const lang = encodeURIComponent(args.lang);
         const url = `https://www.google.com/search?q=${keyword}&hl=${lang}&num=${limit}`;
         await page.goto(url);
-        await page.wait(2);
+        // Wait until at least one SERP title link is present. On Chrome 148 /
+        // Linux Wayland, DOM stability can be reached before #rso anchors are
+        // populated, making browser execution look visually correct while the
+        // adapter extracts an empty array.
+        try {
+            await page.wait({ selector: '#rso a h3', timeout: 5 });
+        }
+        catch {
+            await page.wait(2);
+        }
         const results = await page.evaluate(`
       (function() {
         var results = [];
@@ -63,7 +72,7 @@ cli({
 
           var href = link.href || '';
           // Skip non-http, Google internal links, and duplicates
-          if (!href.match(/^https?:\\/\\//)) continue;
+          if (!(href.startsWith('http://') || href.startsWith('https://'))) continue;
           if (href.indexOf('google.com/search') !== -1) continue;
           if (seenUrls[href]) continue;
           seenUrls[href] = true;

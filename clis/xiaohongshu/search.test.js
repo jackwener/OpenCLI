@@ -65,9 +65,7 @@ describe('xiaohongshu search', () => {
         const page = createPageMock([
             // First evaluate: MutationObserver wait (content appeared)
             'content',
-            // Second evaluate: scroll-until-enough (returns final note count)
-            1,
-            // Third evaluate: main DOM extraction (returns array directly)
+            // Second evaluate: initial DOM extraction (already enough results)
             [
                 {
                     title: '某鱼买FSD被坑了4万',
@@ -99,9 +97,7 @@ describe('xiaohongshu search', () => {
         const page = createPageMock([
             // First evaluate: MutationObserver wait (content appeared)
             'content',
-            // Second evaluate: scroll-until-enough (returns final note count)
-            3,
-            // Third evaluate: main DOM extraction (returns array directly)
+            // Second evaluate: initial DOM extraction (already enough valid rows)
             [
                 {
                     title: 'Result A',
@@ -137,17 +133,36 @@ describe('xiaohongshu search', () => {
         const page = createPageMock([
             // First evaluate: MutationObserver wait (content appeared)
             'content',
-            // Second evaluate: scroll-until-enough (no rows rendered)
-            0,
-            // Third evaluate: extraction (returns empty array)
+            // Second evaluate: initial extraction (no rows rendered)
             [],
         ]);
         const result = (await cmd.func(page, { query: '测试等待', limit: 5 }));
         expect(result).toHaveLength(0);
         // Only one navigation, no retry
         expect(page.goto).toHaveBeenCalledTimes(1);
-        // Three evaluate calls: wait + scroll-until + extraction
-        expect(page.evaluate).toHaveBeenCalledTimes(3);
+        // Four evaluate calls: wait, initial extraction, scroll-until, post-scroll extraction.
+        expect(page.evaluate).toHaveBeenCalledTimes(4);
+    });
+    it('scrolls only when the initial extraction has fewer rows than requested', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        expect(cmd?.func).toBeTypeOf('function');
+        const page = createPageMock([
+            'content',
+            [
+                { title: 'Result A', author: 'UserA', likes: '10', url: 'https://www.xiaohongshu.com/search_result/aaa', author_url: '' },
+            ],
+            3,
+            [
+                { title: 'Result A', author: 'UserA', likes: '10', url: 'https://www.xiaohongshu.com/search_result/aaa', author_url: '' },
+                { title: 'Result B', author: 'UserB', likes: '5', url: 'https://www.xiaohongshu.com/search_result/bbb', author_url: '' },
+            ],
+        ]);
+
+        const result = (await cmd.func(page, { query: '测试等待', limit: 2 }));
+
+        expect(result).toHaveLength(2);
+        expect(result.map((item) => item.title)).toEqual(['Result A', 'Result B']);
+        expect(page.evaluate).toHaveBeenCalledTimes(4);
     });
     it('separates fallback author text from appended relative date', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
@@ -165,8 +180,6 @@ describe('xiaohongshu search', () => {
         markVisible(dom.window.document.querySelector('section.note-item'));
         const page = createPageMock([]);
         page.evaluate.mockImplementationOnce(async () => 'content');
-        // scroll-until-enough returns the final visible row count
-        page.evaluate.mockImplementationOnce(async () => 1);
         page.evaluate.mockImplementationOnce(async (script) => Function('document', 'getComputedStyle', `return (${script})`)(dom.window.document, dom.window.getComputedStyle.bind(dom.window)));
 
         const result = await cmd.func(page, { query: '测试', limit: 1 });

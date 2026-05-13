@@ -1110,11 +1110,7 @@ async function resolveTab(tabId: number | undefined, leaseKey: string, initialUr
 /** Build a page-scoped success result with targetId resolved from tabId */
 async function pageScopedResult(id: string, tabId: number, data?: unknown): Promise<Result> {
   const page = await identity.resolveTargetId(tabId);
-  const lease = [...automationSessions.values()].find((session) => session.preferredTabId === tabId);
-  const scopedData = data && typeof data === 'object' && !Array.isArray(data)
-    ? { session: lease?.session, ...(data as Record<string, unknown>) }
-    : { session: lease?.session, data };
-  return { id, ok: true, data: scopedData, page };
+  return { id, ok: true, data, page };
 }
 
 /** Convenience wrapper returning just the tabId (used by most handlers) */
