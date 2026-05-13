@@ -14,12 +14,33 @@ export function parseCommentLimit(raw, fallback = 20) {
         return fallback;
     return Math.max(1, Math.min(Math.floor(n), 50));
 }
+
+export function parseXhsLikeCountText(value) {
+    const integerRe = /^(?:\d+|\d{1,3}(?:[,，]\d{3})+)\+?$/u;
+    const shortformRe = /^((?:\d+|\d{1,3}(?:[,，]\d{3})+)(?:\.\d+)?)([wWkK万千])\+?$/u;
+    const raw = String(value ?? '').replace(/\s+/g, '');
+    if (!raw)
+        return 0;
+    if (integerRe.test(raw))
+        return Number(raw.replace(/[,+，]/g, ''));
+    const short = raw.match(shortformRe);
+    if (!short)
+        return 0;
+    const numeric = Number(short[1].replace(/[,，]/g, ''));
+    if (!Number.isFinite(numeric))
+        return 0;
+    const unit = short[2].toLowerCase();
+    const multiplier = unit === 'w' || unit === '万' ? 10000 : 1000;
+    return Math.round(numeric * multiplier);
+}
+
 /**
  * Host-agnostic IIFE that scrolls a note's comment list and extracts
  * top-level comments (and optionally nested 楼中楼 replies). Exported so
  * the rednote adapter can reuse the exact same selector chain.
  */
 export function buildCommentsExtractJs(withReplies) {
+    const parseLikeCountText = parseXhsLikeCountText.toString();
     return `
       (async () => {
         const wait = (ms) => new Promise(r => setTimeout(r, ms))
@@ -44,20 +65,9 @@ export function buildCommentsExtractJs(withReplies) {
         }
 
         const clean = (el) => (el?.textContent || '').replace(/\\s+/g, ' ').trim()
+        const parseLikeCountText = ${parseLikeCountText}
         const parseLikes = (el) => {
-          const raw = clean(el)
-          if (!raw) return 0
-          if (/^\\d+$/.test(raw)) return Number(raw)
-          // Handle Xiaohongshu's shortform like-count text: "2.1w" / "1.5万" -> *10000;
-          // "1.2k" / "3千" -> *1000; trailing "+" tolerated. Falls back to 0 on unknown shapes.
-          const m = raw.match(/^([\\d.]+)\\s*([wk万千]?)\\+?$/i)
-          if (!m) return 0
-          const num = parseFloat(m[1])
-          if (!Number.isFinite(num)) return 0
-          const unit = m[2].toLowerCase()
-          if (unit === 'w' || unit === '万') return Math.round(num * 10000)
-          if (unit === 'k' || unit === '千') return Math.round(num * 1000)
-          return Math.round(num)
+          return parseLikeCountText(clean(el))
         }
         const expandReplyThreads = async (root) => {
           if (!withReplies || !root) return
