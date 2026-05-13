@@ -28529,7 +28529,18 @@
         "type": "int",
         "default": 5,
         "required": false,
-        "help": "Number of answers"
+        "help": "Number of answers (max 1000; use normal-sized requests)"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "default",
+        "required": false,
+        "help": "Answer order: default or created",
+        "choices": [
+          "default",
+          "created"
+        ]
       }
     ],
     "columns": [
@@ -28541,6 +28552,36 @@
     "type": "js",
     "modulePath": "zhihu/question.js",
     "sourceFile": "zhihu/question.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "recommend",
+    "description": "知乎首页推荐",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of items to return (max 1000; use normal-sized requests)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "type",
+      "title",
+      "author",
+      "votes",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/recommend.js",
+    "sourceFile": "zhihu/recommend.js",
     "navigateBefore": "https://www.zhihu.com"
   },
   {

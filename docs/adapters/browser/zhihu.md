@@ -7,6 +7,7 @@
 | Command | Description |
 |---------|-------------|
 | `opencli zhihu hot` | Read Zhihu hot topics |
+| `opencli zhihu recommend` | Read Zhihu home recommendations |
 | `opencli zhihu search` | Search Zhihu content |
 | `opencli zhihu question` | Read question answers by question ID |
 | `opencli zhihu collections` | List your Zhihu favorite collections |
@@ -42,6 +43,7 @@
 ```bash
 # Read flows
 opencli zhihu hot --limit 5
+opencli zhihu recommend --limit 20
 opencli zhihu question 123456 --limit 3
 opencli zhihu collections --limit 20
 opencli zhihu collection 83283292 --limit 20
