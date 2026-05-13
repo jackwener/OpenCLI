@@ -42,8 +42,13 @@ cli({
         await page.goto(sort === 'created'
             ? `https://www.zhihu.com/question/${questionId}/answers/updated`
             : `https://www.zhihu.com/question/${questionId}`);
-        const pageLimit = Math.min(answerLimit, 20);
-        let url = `https://www.zhihu.com/api/v4/questions/${questionId}/answers?limit=${pageLimit}&offset=0&sort_by=${sort}&include=data[*].content,voteup_count,comment_count,author`;
+        // Zhihu caps `limit` at 20 per request, so always ask for the API
+        // maximum. The pagination loop below trims to `answerLimit` via the
+        // `answers.length >= answerLimit` break, so a smaller --limit only
+        // costs one over-fetched page worth of bandwidth and never silently
+        // clamps the user-requested count.
+        const ZHIHU_PAGE_SIZE = 20;
+        let url = `https://www.zhihu.com/api/v4/questions/${questionId}/answers?limit=${ZHIHU_PAGE_SIZE}&offset=0&sort_by=${sort}&include=data[*].content,voteup_count,comment_count,author`;
         const answers = [];
         const seen = new Set();
         const visited = new Set();

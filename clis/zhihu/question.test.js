@@ -8,7 +8,10 @@ describe('zhihu question', () => {
         expect(cmd?.func).toBeTypeOf('function');
         const goto = vi.fn().mockResolvedValue(undefined);
         const evaluate = vi.fn().mockImplementation(async (js) => {
-            expect(js).toContain('questions/2021881398772981878/answers?limit=3');
+            // Per-request page size is the Zhihu API maximum (20). The
+            // user-requested `--limit 3` is enforced by the dedup loop's
+            // `answers.length >= answerLimit` break, not by the fetch URL.
+            expect(js).toContain('questions/2021881398772981878/answers?limit=20');
             expect(js).toContain("credentials: 'include'");
             return {
                 data: [

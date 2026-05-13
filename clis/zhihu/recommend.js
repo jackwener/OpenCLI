@@ -64,9 +64,24 @@ cli({
             }
             for (const item of data.data || []) {
                 const target = item.target || {};
-                const key = target.id == null ? String(item.id || '') : `${target.type || 'unknown'}:${target.id}`;
-                if (!key || seen.has(key)) continue;
-                seen.add(key);
+                // Dedup key uses semantic identity (type:targetId) and falls
+                // back to the feed cursor id when no target id exists. We avoid
+                // synthesizing a sentinel like 'unknown' for missing type
+                // because that would collapse distinct typed items into the
+                // same bucket. When no id is available at all we keep the row
+                // and skip dedup — surfacing potentially-duplicate items beats
+                // silently dropping them.
+                const targetId = target.id;
+                let key = null;
+                if (targetId != null) {
+                    key = `${target.type ?? ''}:${targetId}`;
+                } else if (item.id != null) {
+                    key = `__feed:${item.id}`;
+                }
+                if (key != null) {
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                }
                 items.push(item);
                 if (items.length >= itemLimit) break;
             }
