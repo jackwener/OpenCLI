@@ -66,9 +66,26 @@ export async function ensureRoomReady(page) {
   }
 }
 
+export function classifyDouyuLiveStatus({ hasVideo, videoPaused, videoEnded, videoReadyState, videoCurrentTime, bodyText }) {
+  const text = String(bodyText || '');
+  const readyState = Number(videoReadyState || 0);
+  const currentTime = Number(videoCurrentTime || 0);
+  const videoPlaying = Boolean(hasVideo && !videoPaused && !videoEnded && readyState >= 2);
+  const videoStreamReady = Boolean(hasVideo && !videoEnded && readyState >= 2 && currentTime > 0);
+  const offlineHint = /暂未开播|未开播|开播提醒|上次开播时间|主播正在赶来|主播不在|休息中|已下播|直播已结束|房间不存在/.test(text);
+  const liveHint = /正在直播|直播中/.test(text);
+
+  if (videoPlaying) return { live_status: 'live', live_status_reason: 'video-playing' };
+  if (videoStreamReady) return { live_status: 'live', live_status_reason: 'video-stream-ready' };
+  if (offlineHint) return { live_status: 'offline', live_status_reason: 'offline-text' };
+  if (hasVideo && liveHint) return { live_status: 'live', live_status_reason: 'live-text' };
+  return { live_status: 'unknown', live_status_reason: 'no-strong-signal' };
+}
+
 export async function extractRoomSummary(page) {
   return page.evaluate(`
     (() => {
+      const classifyDouyuLiveStatus = ${classifyDouyuLiveStatus.toString()};
       const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
       const titleText = clean(
         document.querySelector('[class*="firstRowContainer"]')?.innerText ||
@@ -90,24 +107,14 @@ export async function extractRoomSummary(page) {
         return rect.width > 100 && rect.height > 80;
       }) || videos[0] || null;
       const hasVideo = Boolean(video);
-      const videoPlaying = Boolean(video && !video.paused && !video.ended && video.readyState >= 2);
-      const videoStreamReady = Boolean(video && !video.ended && video.readyState >= 2 && video.currentTime > 0);
-      const offlineHint = /暂未开播|未开播|直播已结束|主播正在赶来|主播不在|休息中|已下播|房间不存在/.test(bodyText);
-      const liveHint = /直播中|发送弹幕|弹幕礼仪|贵族|粉丝牌|开播/.test(bodyText);
-      const liveStatus = videoPlaying || videoStreamReady || (hasVideo && liveHint && !offlineHint)
-        ? 'live'
-        : offlineHint
-          ? 'offline'
-          : 'unknown';
-      const liveStatusReason = videoPlaying
-        ? 'video-playing'
-        : videoStreamReady
-          ? 'video-stream-ready'
-        : hasVideo && liveHint && !offlineHint
-          ? 'video-present-live-text'
-          : offlineHint
-            ? 'offline-text'
-            : 'no-strong-signal';
+      const live = classifyDouyuLiveStatus({
+        hasVideo,
+        videoPaused: video?.paused,
+        videoEnded: video?.ended,
+        videoReadyState: video?.readyState,
+        videoCurrentTime: video?.currentTime,
+        bodyText,
+      });
 
       return {
         room: roomId,
@@ -115,8 +122,8 @@ export async function extractRoomSummary(page) {
         streamer: streamerFromDoc || subtitleText.replace(/\\s+\\d+.*/, ''),
         category,
         followers: followerMatch ? followerMatch[1] : '',
-        live_status: liveStatus,
-        live_status_reason: liveStatusReason,
+        live_status: live.live_status,
+        live_status_reason: live.live_status_reason,
         video_status: hasVideo
           ? \`video:\${video.paused ? 'paused' : 'playing'}:\${Math.floor(video.currentTime || 0)}s:ready\${video.readyState}\`
           : 'video:not-found',

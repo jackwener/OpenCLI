@@ -9,7 +9,7 @@ import './danmaku.js';
 import './daily-task.js';
 import './video-task.js';
 import { normalizeSearchLimit, normalizeSearchQuery, buildSearchUrl, extractSearchResultsFromHtml } from './search.js';
-import { normalizeRoom, requireText } from './utils.js';
+import { normalizeRoom, requireText, classifyDouyuLiveStatus } from './utils.js';
 
 describe('douyu adapter', () => {
   it('registers search as a read-only public command', () => {
@@ -39,6 +39,26 @@ describe('douyu adapter', () => {
   it('rejects missing rooms and overlong danmaku text', () => {
     expect(() => normalizeRoom('')).toThrow(ArgumentError);
     expect(() => requireText('x'.repeat(51), 'text', 50)).toThrow(ArgumentError);
+  });
+
+  it('does not treat offline room chrome as a live stream', () => {
+    expect(classifyDouyuLiveStatus({
+      hasVideo: true,
+      videoPaused: true,
+      videoEnded: false,
+      videoReadyState: 0,
+      videoCurrentTime: 0,
+      bodyText: '小众宝藏结晶直播间 6657 上次开播时间 3小时前 发送弹幕 粉丝牌',
+    })).toEqual({ live_status: 'offline', live_status_reason: 'offline-text' });
+
+    expect(classifyDouyuLiveStatus({
+      hasVideo: true,
+      videoPaused: false,
+      videoEnded: false,
+      videoReadyState: 2,
+      videoCurrentTime: 1,
+      bodyText: '',
+    })).toEqual({ live_status: 'live', live_status_reason: 'video-playing' });
   });
 
   it('normalizes search query and limit', () => {
