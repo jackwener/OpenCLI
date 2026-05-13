@@ -18,8 +18,12 @@ cli({
         const limit = clampInt(kwargs.limit, 10, 1, 20);
         const query = requireNonEmptyQuery(kwargs.query);
         await page.goto(`https://scholar.google.com/scholar?q=${encodeURIComponent(query)}&hl=zh-CN`);
-        await page.wait(3);
-        const data = await page.evaluate(`
+        try {
+            await page.wait({ selector: '.gs_r.gs_or.gs_scl', timeout: 5 });
+        } catch {
+            await page.wait(3);
+        }
+        const wrapper = await page.evaluate(`
       (() => {
         const normalize = v => (v || '').replace(/\\s+/g, ' ').trim();
         const results = [];
@@ -50,9 +54,10 @@ cli({
           });
           if (results.length >= ${limit}) break;
         }
-        return results;
+        return {items: results};
       })()
     `);
-        return Array.isArray(data) ? data : [];
+        const data = (wrapper && wrapper.items) || [];
+        return data;
     },
 });
