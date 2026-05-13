@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
 
 cli({
@@ -27,7 +28,8 @@ cli({
       (() => {
         const normalize = v => (v || '').replace(/\\s+/g, ' ').trim();
         const results = [];
-        for (const el of document.querySelectorAll('.gs_r.gs_or.gs_scl')) {
+        const resultCards = Array.from(document.querySelectorAll('.gs_r.gs_or.gs_scl'));
+        for (const el of resultCards) {
           const container = el.querySelector('.gs_ri') || el;
           const titleEl = container.querySelector('.gs_rt a, h3 a');
           const title = normalize(titleEl?.textContent);
@@ -54,10 +56,18 @@ cli({
           });
           if (results.length >= ${limit}) break;
         }
-        return {items: results};
+        return { items: results, resultCount: resultCards.length };
       })()
     `);
-        const data = (wrapper && wrapper.items) || [];
-        return data;
+        if (!wrapper || typeof wrapper !== 'object' || !Array.isArray(wrapper.items)) {
+            throw new CommandExecutionError('Google Scholar search returned an unexpected payload shape');
+        }
+        if (wrapper.items.length === 0) {
+            if (Number(wrapper.resultCount) > 0) {
+                throw new CommandExecutionError('Google Scholar result cards were present but no rows could be extracted');
+            }
+            throw new EmptyResultError('google-scholar/search', 'Try a different query or check whether Google Scholar returned a CAPTCHA.');
+        }
+        return wrapper.items;
     },
 });
