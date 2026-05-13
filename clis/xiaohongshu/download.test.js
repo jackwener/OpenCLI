@@ -10,7 +10,7 @@ vi.mock('@jackwener/opencli/download', () => ({
     formatCookieHeader: mockFormatCookieHeader,
 }));
 import { getRegistry } from '@jackwener/opencli/registry';
-import './download.js';
+import { buildDownloadExtractJs } from './download.js';
 function createPageMock(evaluateResult) {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -111,5 +111,57 @@ describe('xiaohongshu download', () => {
             hint: expect.stringContaining('Try again later'),
         });
         expect(mockDownloadMedia).not.toHaveBeenCalled();
+    });
+    it('prefers structured note image order over DOM discovery order', () => {
+        const noteId = '69bc166f000000001a02069a';
+        const previousWindow = globalThis.window;
+        const previousDocument = globalThis.document;
+        const previousLocation = globalThis.location;
+        globalThis.window = {
+            __INITIAL_STATE__: {
+                note: {
+                    noteDetailMap: {
+                        [noteId]: {
+                            note: {
+                                noteId,
+                                imageList: [
+                                    { urlDefault: 'https://sns-webpic-qc.xhscdn.com/cover.jpg?imageView2/2/w/1080' },
+                                    { urlPre: 'https://sns-webpic-qc.xhscdn.com/body.jpg?imageView2/2/w/1080' },
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        globalThis.location = {
+            href: `https://www.xiaohongshu.com/explore/${noteId}`,
+            pathname: `/explore/${noteId}`,
+        };
+        globalThis.document = {
+            body: { innerText: '' },
+            querySelector: vi.fn(() => null),
+            querySelectorAll: vi.fn((selector) => {
+                if (selector.includes('img')) {
+                    return [
+                        { src: 'https://sns-webpic-qc.xhscdn.com/body-first-in-dom.jpg', getAttribute: vi.fn(() => '') },
+                        { src: 'https://sns-webpic-qc.xhscdn.com/cover-second-in-dom.jpg', getAttribute: vi.fn(() => '') },
+                    ];
+                }
+                return [];
+            }),
+        };
+        try {
+            const result = eval(buildDownloadExtractJs(noteId));
+            expect(result.media).toEqual([
+                { type: 'image', url: 'https://sns-webpic-qc.xhscdn.com/cover.jpg' },
+                { type: 'image', url: 'https://sns-webpic-qc.xhscdn.com/body.jpg' },
+            ]);
+        }
+        finally {
+            globalThis.window = previousWindow;
+            globalThis.document = previousDocument;
+            globalThis.location = previousLocation;
+        }
     });
 });
