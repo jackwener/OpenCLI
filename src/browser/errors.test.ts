@@ -37,6 +37,15 @@ describe('classifyBrowserError', () => {
     expect(advice.delayMs).toBe(200);
   });
 
+  it('classifies CDP -32000 execution-context errors with 200ms delay', () => {
+    const advice = classifyBrowserError(
+      new Error('{"code":-32000,"message":"Cannot find default execution context"}'),
+    );
+    expect(advice.kind).toBe('target-navigation');
+    expect(advice.retryable).toBe(true);
+    expect(advice.delayMs).toBe(200);
+  });
+
   it('returns non-retryable for unrelated errors', () => {
     for (const msg of ['Permission denied', 'malformed exec payload', 'SyntaxError']) {
       const advice = classifyBrowserError(new Error(msg));

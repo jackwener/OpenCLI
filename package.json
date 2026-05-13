@@ -1,6 +1,6 @@
 {
   "name": "@jackwener/opencli",
-  "version": "1.7.16",
+  "version": "1.7.18",
   "publishConfig": {
     "access": "public"
   },
@@ -41,7 +41,8 @@
   "scripts": {
     "dev": "tsx src/main.ts",
     "dev:bun": "bun src/main.ts",
-    "build": "npm run clean-dist && tsc && npm run copy-yaml && npm run build-manifest",
+    "build": "npm run clean-dist && npm run copy-yaml && npm run build-manifest",
+    "prebuild-manifest": "tsc --build",
     "build-manifest": "tsx src/build-manifest.ts",
     "clean-dist": "node scripts/clean-dist.cjs",
     "copy-yaml": "node scripts/copy-yaml.cjs",

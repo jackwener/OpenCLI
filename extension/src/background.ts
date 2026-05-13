@@ -249,15 +249,12 @@ function getSessionName(session?: string): string {
   if (!raw) throw new CommandFailure(
     'session_required',
     'Browser session is required.',
-    'Pass --session <name> with opencli browser commands.',
+    'Pass a browser session name, e.g. opencli browser <session> <command>.',
   );
-  return raw.includes(LEASE_KEY_SEPARATOR) ? getSessionFromKey(raw) : raw;
+  return raw;
 }
 
 function getCommandSurface(cmd: Pick<Command, 'surface' | 'session'>): BrowserSurface {
-  if (typeof cmd.session === 'string' && cmd.session.includes(LEASE_KEY_SEPARATOR)) {
-    return getSurfaceFromKey(cmd.session);
-  }
   return cmd.surface === 'adapter' ? 'adapter' : 'browser';
 }
 
@@ -867,8 +864,6 @@ async function handleCommand(cmd: Command): Promise<Result> {
         return await handleCloseWindow(cmd, leaseKey);
       case 'cdp':
         return await handleCdp(cmd, leaseKey);
-      case 'sessions':
-        return await handleSessions(cmd);
       case 'set-file-input':
         return await handleSetFileInput(cmd, leaseKey);
       case 'insert-text':
@@ -1667,27 +1662,6 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
   await persistRuntimeState();
 }
 
-async function handleSessions(cmd: Command): Promise<Result> {
-  const now = Date.now();
-  const data = await Promise.all([...automationSessions.entries()].map(async ([leaseKey, session]) => ({
-    session: session.session,
-    windowId: session.windowId,
-    owned: session.owned,
-    kind: session.kind,
-    surface: session.surface,
-    preferredTabId: session.preferredTabId,
-    contextId: session.contextId,
-    ownership: session.ownership,
-    lifecycle: session.lifecycle,
-    windowRole: session.windowRole,
-    tabCount: session.preferredTabId !== null
-      ? (await chrome.tabs.get(session.preferredTabId).then((tab) => isDebuggableUrl(tab.url) ? 1 : 0).catch(() => 0))
-      : (await chrome.tabs.query({ windowId: session.windowId })).filter((tab) => isDebuggableUrl(tab.url)).length,
-    idleMsRemaining: session.idleDeadlineAt <= 0 ? null : Math.max(0, session.idleDeadlineAt - now),
-  })));
-  return { id: cmd.id, ok: true, data };
-}
-
 async function handleBind(cmd: Command, leaseKey: string): Promise<Result> {
   const existing = automationSessions.get(leaseKey);
   if (existing?.owned) {
@@ -1734,11 +1708,12 @@ export const __test__ = {
   handleNavigate,
   isTargetUrl,
   handleTabs,
-  handleSessions,
   handleBind,
   resolveTabId,
   resetWindowIdleTimer,
   handleCommand,
+  getSessionName,
+  getCommandSurface,
   getIdleTimeout,
   getLeaseKey,
   sessionTimeoutOverrides,

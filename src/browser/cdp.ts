@@ -11,9 +11,9 @@
 import { WebSocket, type RawData } from 'ws';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import type { BrowserCookie, IPage, ScreenshotOptions } from '../types.js';
+import type { BrowserCookie, BrowserEvaluateFunction, IPage, ScreenshotOptions } from '../types.js';
 import type { IBrowserFactory } from '../runtime.js';
-import { wrapForEval } from './utils.js';
+import { buildEvaluateExpression } from './utils.js';
 import { generateStealthJs } from './stealth.js';
 import { waitForDomStableJs } from './dom-helpers.js';
 import { isRecord, saveBase64ToFile } from '../utils.js';
@@ -221,8 +221,10 @@ class CDPPage extends BasePage {
     }
   }
 
-  async evaluate(js: string): Promise<unknown> {
-    const expression = wrapForEval(js);
+  async evaluate<T = unknown>(js: string): Promise<T>;
+  async evaluate<Args extends unknown[], T>(fn: BrowserEvaluateFunction<Args, T>, ...args: Args): Promise<Awaited<T>>;
+  async evaluate(input: string | BrowserEvaluateFunction<unknown[], unknown>, ...args: unknown[]): Promise<unknown> {
+    const expression = buildEvaluateExpression(input, args);
     const result = await this.bridge.send('Runtime.evaluate', {
       expression,
       returnByValue: true,

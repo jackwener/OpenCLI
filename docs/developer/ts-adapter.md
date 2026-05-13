@@ -28,14 +28,12 @@ cli({
     // Navigate and extract data
     await page.goto('https://www.mysite.com');
 
-    const data = await page.evaluate(`
-      (async () => {
-        const res = await fetch('/api/search?q=${encodeURIComponent(String(query))}', {
-          credentials: 'include'
-        });
-        return (await res.json()).results;
-      })()
-    `);
+    const data = await page.evaluate(async (q: string) => {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, {
+        credentials: 'include',
+      });
+      return (await res.json()).results;
+    }, String(query));
 
     if (!Array.isArray(data)) throw new CommandExecutionError('MySite returned an unexpected response');
     if (!data.length) throw new EmptyResultError('mysite search', 'Try a different keyword');
@@ -112,7 +110,8 @@ persistence with `--site-session persistent`.
 The `page` parameter provides browser interaction methods:
 
 - `page.goto(url)` — Navigate to a URL
-- `page.evaluate(script)` — Execute JavaScript in the page context
+- `page.evaluate(fn, ...args)` — Execute a serializable function in the page context. Pass Node-side values through JSON-serializable args; the function cannot close over local variables.
+- `page.evaluate(script)` — Execute a raw JavaScript string in the page context. Prefer function form for new adapter code.
 - `page.waitForSelector(selector)` — Wait for an element
 - `page.click(selector)` — Click an element
 - `page.type(selector, text)` — Type text into an input

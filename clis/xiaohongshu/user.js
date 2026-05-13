@@ -1,7 +1,10 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { extractXhsUserNotes, normalizeXhsUserId } from './user-helpers.js';
-async function readUserSnapshot(page) {
-    return await page.evaluate(`
+/**
+ * Host-agnostic IIFE that snapshots the user profile's Pinia store. Exported
+ * so the rednote adapter can reuse it without copying the safeClone block.
+ */
+export const USER_SNAPSHOT_JS = `
     (() => {
       const safeClone = (value) => {
         try {
@@ -17,9 +20,11 @@ async function readUserSnapshot(page) {
         pageData: safeClone(userStore.userPageData?._value || userStore.userPageData || {}),
       };
     })()
-  `);
+  `;
+async function readUserSnapshot(page) {
+    return await page.evaluate(USER_SNAPSHOT_JS);
 }
-cli({
+export const command = cli({
     site: 'xiaohongshu',
     name: 'user',
     access: 'read',

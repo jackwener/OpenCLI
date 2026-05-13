@@ -207,7 +207,7 @@ async function startFakeDaemon(): Promise<FakeDaemon> {
 describe('browser tab CLI e2e', () => {
   const daemons: FakeDaemon[] = [];
   const cacheDirs: string[] = [];
-  const browserArgs = (session: string, ...args: string[]) => ['browser', '--session', session, ...args];
+  const browserArgs = (session: string, ...args: string[]) => ['browser', session, ...args];
 
   afterEach(async () => {
     while (daemons.length > 0) {

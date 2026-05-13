@@ -67,26 +67,12 @@ export interface FetchJsonOptions {
   timeoutMs?: number;
 }
 
-export interface BrowserSessionInfo {
-  session?: string;
-  connected?: boolean;
-  windowId?: number;
-  preferredTabId?: number | null;
-  owned?: boolean;
-  kind?: 'owned' | 'bound';
-  surface?: 'browser' | 'adapter';
-  ownership?: 'owned' | 'borrowed';
-  lifecycle?: 'ephemeral' | 'persistent' | 'pinned';
-  windowRole?: 'interactive' | 'automation' | 'borrowed-user';
-  contextId?: string;
-  tabCount?: number;
-  idleMsRemaining?: number | null;
-  [key: string]: unknown;
-}
+export type BrowserEvaluateFunction<Args extends unknown[] = unknown[], Result = unknown> = (...args: Args) => Result | Promise<Result>;
 
 export interface IPage {
   goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number }): Promise<void>;
-  evaluate(js: string): Promise<any>;
+  evaluate<T = any>(js: string): Promise<T>;
+  evaluate<Args extends unknown[], T>(fn: BrowserEvaluateFunction<Args, T>, ...args: Args): Promise<Awaited<T>>;
   /** Safely evaluate JS with pre-serialized arguments — prevents injection. */
   evaluateWithArgs?(js: string, args: Record<string, unknown>): Promise<any>;
   /**

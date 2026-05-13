@@ -9,7 +9,7 @@
  * getCookies, screenshot, tabs, etc.
  */
 
-import type { BrowserCookie, FetchJsonOptions, IPage, ScreenshotOptions, SnapshotOptions, WaitOptions } from '../types.js';
+import type { BrowserCookie, BrowserEvaluateFunction, FetchJsonOptions, IPage, ScreenshotOptions, SnapshotOptions, WaitOptions } from '../types.js';
 import { generateSnapshotJs, getFormStateJs } from './dom-snapshot.js';
 import { buildAxSnapshotFromTrees, findAxRefReplacement, type AxSnapshotTree, type BrowserRef } from './ax-snapshot.js';
 import {
@@ -146,7 +146,8 @@ export abstract class BasePage implements IPage {
   // ── Transport-specific methods (must be implemented by subclasses) ──
 
   abstract goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number; allowBoundNavigation?: boolean }): Promise<void>;
-  abstract evaluate(js: string): Promise<unknown>;
+  abstract evaluate<T = unknown>(js: string): Promise<T>;
+  abstract evaluate<Args extends unknown[], T>(fn: BrowserEvaluateFunction<Args, T>, ...args: Args): Promise<Awaited<T>>;
 
   /**
    * Safely evaluate JS with pre-serialized arguments.

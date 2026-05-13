@@ -8,34 +8,19 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
-function parseCommentLimit(raw, fallback = 20) {
+export function parseCommentLimit(raw, fallback = 20) {
     const n = Number(raw);
     if (!Number.isFinite(n))
         return fallback;
     return Math.max(1, Math.min(Math.floor(n), 50));
 }
-cli({
-    site: 'xiaohongshu',
-    name: 'comments',
-    access: 'read',
-    description: '获取小红书笔记评论（支持楼中楼子回复）',
-    domain: 'www.xiaohongshu.com',
-    strategy: Strategy.COOKIE,
-    navigateBefore: false,
-    args: [
-        { name: 'note-id', required: true, positional: true, help: 'Full Xiaohongshu note URL with xsec_token' },
-        { name: 'limit', type: 'int', default: 20, help: 'Number of top-level comments (max 50)' },
-        { name: 'with-replies', type: 'boolean', default: false, help: 'Include nested replies (楼中楼)' },
-    ],
-    columns: ['rank', 'author', 'text', 'likes', 'time', 'is_reply', 'reply_to'],
-    func: async (page, kwargs) => {
-        const limit = parseCommentLimit(kwargs.limit);
-        const withReplies = Boolean(kwargs['with-replies']);
-        const raw = String(kwargs['note-id']);
-        const noteId = parseNoteId(raw);
-        await page.goto(buildNoteUrl(raw, { commandName: 'xiaohongshu comments' }));
-        await page.wait({ time: 2 + Math.random() * 3 });
-        const data = await page.evaluate(`
+/**
+ * Host-agnostic IIFE that scrolls a note's comment list and extracts
+ * top-level comments (and optionally nested 楼中楼 replies). Exported so
+ * the rednote adapter can reuse the exact same selector chain.
+ */
+export function buildCommentsExtractJs(withReplies) {
+    return `
       (async () => {
         const wait = (ms) => new Promise(r => setTimeout(r, ms))
         const withReplies = ${withReplies}
@@ -115,7 +100,30 @@ cli({
 
         return { pageUrl: location.href, securityBlock, loginWall, results }
       })()
-    `);
+    `;
+}
+export const command = cli({
+    site: 'xiaohongshu',
+    name: 'comments',
+    access: 'read',
+    description: '获取小红书笔记评论（支持楼中楼子回复）',
+    domain: 'www.xiaohongshu.com',
+    strategy: Strategy.COOKIE,
+    navigateBefore: false,
+    args: [
+        { name: 'note-id', required: true, positional: true, help: 'Full Xiaohongshu note URL with xsec_token' },
+        { name: 'limit', type: 'int', default: 20, help: 'Number of top-level comments (max 50)' },
+        { name: 'with-replies', type: 'boolean', default: false, help: 'Include nested replies (楼中楼)' },
+    ],
+    columns: ['rank', 'author', 'text', 'likes', 'time', 'is_reply', 'reply_to'],
+    func: async (page, kwargs) => {
+        const limit = parseCommentLimit(kwargs.limit);
+        const withReplies = Boolean(kwargs['with-replies']);
+        const raw = String(kwargs['note-id']);
+        const noteId = parseNoteId(raw);
+        await page.goto(buildNoteUrl(raw, { commandName: 'xiaohongshu comments' }));
+        await page.wait({ time: 2 + Math.random() * 3 });
+        const data = await page.evaluate(buildCommentsExtractJs(withReplies));
         if (!data || typeof data !== 'object') {
             throw new EmptyResultError('xiaohongshu/comments', 'Unexpected evaluate response');
         }
@@ -127,6 +135,8 @@ cli({
         if (data.loginWall) {
             throw new AuthRequiredError('www.xiaohongshu.com', 'Note comments require login');
         }
+        // noteId currently unused after parsing — kept for symmetry with the note command
+        void noteId;
         const all = data.results ?? [];
         // When limiting, count only top-level comments; their replies are included for free
         if (withReplies) {

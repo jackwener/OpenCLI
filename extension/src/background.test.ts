@@ -269,6 +269,69 @@ describe('background tab isolation', () => {
     ]);
   });
 
+  it('does not parse lease-key separators from command session fields', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+
+    expect(mod.__test__.getSessionName(adapterKey('twitter'))).toBe(adapterKey('twitter'));
+    expect(mod.__test__.getCommandSurface({ session: adapterKey('twitter') })).toBe('browser');
+    expect(mod.__test__.getCommandSurface({ session: browserKey('work'), surface: 'adapter' })).toBe('adapter');
+  });
+
+  it('routes structured command session and surface fields without encoded lease keys', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async () => ({}));
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    const result = await mod.__test__.handleCommand({
+      id: 'structured-cdp',
+      action: 'cdp',
+      session: 'twitter',
+      surface: 'adapter',
+      cdpMethod: 'Accessibility.enable',
+      cdpParams: {},
+    });
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.debugger.sendCommand).toHaveBeenCalledWith(
+      { tabId: 1 },
+      'Accessibility.enable',
+      {},
+    );
+  });
+
+  it('does not route encoded adapter lease keys through the command session backdoor', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async () => ({}));
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    const result = await mod.__test__.handleCommand({
+      id: 'encoded-session',
+      action: 'cdp',
+      session: adapterKey('twitter'),
+      cdpMethod: 'Accessibility.enable',
+      cdpParams: {},
+    });
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toEqual(expect.objectContaining({
+      surface: 'adapter',
+      session: 'twitter',
+    }));
+    expect(mod.__test__.getSession(browserKey(adapterKey('twitter')))).toEqual(expect.objectContaining({
+      surface: 'browser',
+      session: adapterKey('twitter'),
+    }));
+  });
+
   it('allows Accessibility.enable through the guarded CDP passthrough', async () => {
     const { chrome } = createChromeMock();
     chrome.debugger.sendCommand = vi.fn(async () => ({}));
@@ -566,22 +629,6 @@ describe('background tab isolation', () => {
     expect(mod.__test__.isTargetUrl('https://example.com/', 'https://example.com')).toBe(true);
     expect(mod.__test__.isTargetUrl('https://example.com/#feed', 'https://example.com/#settings')).toBe(false);
     expect(mod.__test__.isTargetUrl('https://example.com/app/', 'https://example.com/app')).toBe(false);
-  });
-
-  it('reports sessions per session', async () => {
-    const { chrome } = createChromeMock();
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
-    mod.__test__.setAutomationWindowId(adapterKey('zhihu'), 2);
-
-    const result = await mod.__test__.handleSessions({ id: '3', action: 'sessions' });
-    expect(result.ok).toBe(true);
-    expect(result.data).toEqual(expect.arrayContaining([
-      expect.objectContaining({ session: 'twitter', surface: 'adapter', windowId: 1 }),
-      expect.objectContaining({ session: 'zhihu', surface: 'adapter', windowId: 2 }),
-    ]));
   });
 
   it('returns the persisted profile contextId from popup status', async () => {
@@ -959,7 +1006,8 @@ describe('background tab isolation', () => {
       id: 'new-foreground',
       action: 'tabs',
       op: 'new',
-      session: adapterKey('twitter'),
+      session: 'twitter',
+      surface: 'adapter',
       url: 'https://x.com',
       windowMode: 'foreground',
     });
@@ -1275,7 +1323,8 @@ describe('background tab isolation', () => {
     const result = await mod.__test__.handleCommand({
       id: 'close-1',
       action: 'close-window',
-      session: browserKey('default'),
+      session: 'default',
+      surface: 'browser',
     });
 
     expect(result.ok).toBe(true);
@@ -1292,11 +1341,13 @@ describe('background tab isolation', () => {
     // Default for browser:* is 10 min
     expect(mod.__test__.getIdleTimeout(browserKey('default'))).toBe(600_000);
 
-    // Send a command with custom idleTimeout (in seconds)
+    // Send a benign command with custom idleTimeout (in seconds)
     await mod.__test__.handleCommand({
       id: 'custom-1',
-      action: 'sessions',
-      session: browserKey('default'),
+      action: 'cookies',
+      session: 'default',
+      surface: 'browser',
+      domain: 'example.com',
       idleTimeout: 120,
     });
 
@@ -1424,7 +1475,8 @@ describe('background tab isolation', () => {
     const result = await mod.__test__.handleCommand({
       id: 'bound-close',
       action: 'close-window',
-      session: browserKey('default'),
+      session: 'default',
+      surface: 'browser',
     });
 
     expect(result).toEqual(expect.objectContaining({ ok: true }));
@@ -1458,7 +1510,8 @@ describe('background tab isolation', () => {
     const result = await mod.__test__.handleCommand({
       id: 'bound-exec-gone',
       action: 'exec',
-      session: browserKey('default'),
+      session: 'default',
+      surface: 'browser',
       code: 'document.title',
     });
 
@@ -1480,7 +1533,8 @@ describe('background tab isolation', () => {
     const result = await mod.__test__.handleCommand({
       id: 'bound-exec-undebuggable',
       action: 'exec',
-      session: browserKey('default'),
+      session: 'default',
+      surface: 'browser',
       code: 'document.title',
     });
 
@@ -1507,13 +1561,15 @@ describe('background tab isolation', () => {
     const nav = await mod.__test__.handleCommand({
       id: 'bound-nav',
       action: 'navigate',
-      session: browserKey('default'),
+      session: 'default',
+      surface: 'browser',
       url: 'https://other.example',
     });
     const tabNew = await mod.__test__.handleCommand({
       id: 'bound-tab-new',
       action: 'tabs',
-      session: browserKey('default'),
+      session: 'default',
+      surface: 'browser',
       op: 'new',
       url: 'https://other.example',
     });

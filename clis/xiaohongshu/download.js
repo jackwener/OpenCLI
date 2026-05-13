@@ -11,27 +11,15 @@ import { formatCookieHeader } from '@jackwener/opencli/download';
 import { downloadMedia } from '@jackwener/opencli/download/media-download';
 import { CliError } from '@jackwener/opencli/errors';
 import { buildNoteUrl, parseNoteId } from './note-helpers.js';
-cli({
-    site: 'xiaohongshu',
-    name: 'download',
-    access: 'read',
-    description: '下载小红书笔记中的图片和视频',
-    domain: 'www.xiaohongshu.com',
-    strategy: Strategy.COOKIE,
-    navigateBefore: false,
-    args: [
-        { name: 'note-id', positional: true, required: true, help: 'Full Xiaohongshu note URL with xsec_token, or xhslink short link' },
-        { name: 'output', default: './xiaohongshu-downloads', help: 'Output directory' },
-    ],
-    columns: ['index', 'type', 'status', 'size'],
-    func: async (page, kwargs) => {
-        const rawInput = String(kwargs['note-id']);
-        const output = kwargs.output;
-        const noteId = parseNoteId(rawInput);
-        await page.goto(buildNoteUrl(rawInput, { allowShortLink: true, commandName: 'xiaohongshu download' }));
-        await page.wait({ time: 1 + Math.random() * 2 });
-        // Extract note info and media URLs
-        const data = await page.evaluate(`
+/**
+ * Build the media-extraction IIFE. The note id is interpolated as a default
+ * since the IIFE may also resolve it from `location.pathname`. The CDN
+ * substring allowlist includes `rednote` so the rednote adapter can reuse
+ * this script unchanged — image / video URLs on both sites are served from
+ * the same xhscdn family per #1136.
+ */
+export function buildDownloadExtractJs(noteId) {
+    return `
       (() => {
         const bodyText = document.body?.innerText || '';
         const result = {
@@ -79,7 +67,7 @@ cli({
         for (const selector of imageSelectors) {
           document.querySelectorAll(selector).forEach(img => {
             let src = img.src || img.getAttribute('data-src') || '';
-            if (src && (src.includes('xhscdn') || src.includes('xiaohongshu'))) {
+            if (src && (src.includes('xhscdn') || src.includes('xiaohongshu') || src.includes('rednote'))) {
               src = src.split('?')[0];
               src = src.replace(/\\/imageView\\d+\\/\\d+\\/w\\/\\d+/, '');
               imageUrls.add(src);
@@ -154,7 +142,28 @@ cli({
 
         return result;
       })()
-    `);
+    `;
+}
+export const command = cli({
+    site: 'xiaohongshu',
+    name: 'download',
+    access: 'read',
+    description: '下载小红书笔记中的图片和视频',
+    domain: 'www.xiaohongshu.com',
+    strategy: Strategy.COOKIE,
+    navigateBefore: false,
+    args: [
+        { name: 'note-id', positional: true, required: true, help: 'Full Xiaohongshu note URL with xsec_token, or xhslink short link' },
+        { name: 'output', default: './xiaohongshu-downloads', help: 'Output directory' },
+    ],
+    columns: ['index', 'type', 'status', 'size'],
+    func: async (page, kwargs) => {
+        const rawInput = String(kwargs['note-id']);
+        const output = kwargs.output;
+        const noteId = parseNoteId(rawInput);
+        await page.goto(buildNoteUrl(rawInput, { allowShortLink: true, commandName: 'xiaohongshu download' }));
+        await page.wait({ time: 1 + Math.random() * 2 });
+        const data = await page.evaluate(buildDownloadExtractJs(noteId));
         if (data?.securityBlock) {
             throw new CliError('SECURITY_BLOCK', 'Xiaohongshu security block: the note detail page was blocked by risk control.', /^https?:\/\//.test(rawInput)
                 ? 'The page may be temporarily restricted. Try again later or from a different session.'

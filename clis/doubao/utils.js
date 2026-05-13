@@ -163,6 +163,19 @@ function getTurnsScript() {
         ) {
           return 'Assistant';
         }
+        // 2026-05 Doubao DOM refactor: no more receive-message / bg-g-receive-msg-bubble
+        // markers on assistant turns. Wrappers are now [class*="inner-item-"] /
+        // [class*="top-item-"] and the only reliable assistant signal is the
+        // .flow-markdown-body content container WITHOUT any send-bubble marker.
+        if (
+          (root.matches('[class*="inner-item-"], [class*="top-item-"]')
+            || root.closest('[class*="inner-item-"], [class*="top-item-"]'))
+          && (root.matches('.flow-markdown-body') || root.querySelector('.flow-markdown-body'))
+          && !root.matches('[class*="bg-g-send-msg-bubble"]')
+          && !root.querySelector('[class*="bg-g-send-msg-bubble"]')
+        ) {
+          return 'Assistant';
+        }
         return '';
       };
 
@@ -223,6 +236,10 @@ function getTurnsScript() {
       if (!messageList) return [];
 
       const itemSelectors = [
+        // 2026-05 Doubao DOM refactor wrappers (prepended; outer ones win via
+        // ancestor-keep dedup below).
+        '[class*="inner-item-"]',
+        '[class*="top-item-"]',
         '[class*="item-kDun2N"]',
         '[data-testid="union_message"]',
         '[data-testid="message-block-container"]',

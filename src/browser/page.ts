@@ -9,9 +9,9 @@
  * page-scoped operations target the correct page without guessing.
  */
 
-import type { BrowserCookie, BrowserDownloadWaitResult, ScreenshotOptions } from '../types.js';
+import type { BrowserCookie, BrowserDownloadWaitResult, BrowserEvaluateFunction, ScreenshotOptions } from '../types.js';
 import { sendCommand, sendCommandFull } from './daemon-client.js';
-import { wrapForEval } from './utils.js';
+import { buildEvaluateExpression } from './utils.js';
 import { saveBase64ToFile } from '../utils.js';
 import { generateStealthJs } from './stealth.js';
 import { waitForDomStableJs } from './dom-helpers.js';
@@ -24,6 +24,16 @@ function isUnsupportedNetworkCaptureError(err: unknown): boolean {
   const normalized = message.toLowerCase();
   return (normalized.includes('unknown action') && normalized.includes('network-capture'))
     || (normalized.includes('network capture') && normalized.includes('not supported'));
+}
+
+// The extension throws "Page not found: <id> — stale page identity" when our cached
+// `_page` targetId no longer maps to a live tab — e.g. the user closed the automation
+// window, or a long-running script left the cache pointing at an evicted target.
+// Detect that signature so goto() can drop the stale id and let resolveTab fall back
+// to the session lease (or create a fresh tab).
+function isStalePageIdentityError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.includes('stale page identity') || message.includes('Page not found:');
 }
 
 /**
@@ -75,10 +85,25 @@ export class Page extends BasePage {
   }
 
   async goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number }): Promise<void> {
-    const result = await sendCommandFull('navigate', {
-      url,
-      ...this._cmdOpts(),
-    });
+    let result: { data: unknown; page?: string };
+    try {
+      result = await sendCommandFull('navigate', {
+        url,
+        ...this._cmdOpts(),
+      });
+    } catch (err) {
+      // If our cached targetId went stale (tab closed externally, identity evicted),
+      // drop the dead id and retry without it — the extension will resolve through the
+      // session lease or open a fresh automation tab. Without this, every subsequent
+      // adapter call in the same process keeps re-sending the same dead targetId and
+      // cascades into "Page not found:" failures across concurrent calls.
+      if (!isStalePageIdentityError(err) || this._page === undefined) throw err;
+      this._page = undefined;
+      result = await sendCommandFull('navigate', {
+        url,
+        ...this._cmdOpts(),
+      });
+    }
     // Remember the page identity (targetId) for subsequent calls
     if (result.page) {
       this._page = result.page;
@@ -141,8 +166,10 @@ export class Page extends BasePage {
     );
   }
 
-  async evaluate(js: string): Promise<unknown> {
-    const code = wrapForEval(js);
+  async evaluate<T = unknown>(js: string): Promise<T>;
+  async evaluate<Args extends unknown[], T>(fn: BrowserEvaluateFunction<Args, T>, ...args: Args): Promise<Awaited<T>>;
+  async evaluate(input: string | BrowserEvaluateFunction<unknown[], unknown>, ...args: unknown[]): Promise<unknown> {
+    const code = buildEvaluateExpression(input, args);
     try {
       return await sendCommand('exec', { code, ...this._cmdOpts() });
     } catch (err) {
@@ -302,7 +329,7 @@ export class Page extends BasePage {
   }
 
   async evaluateInFrame(js: string, frameIndex: number): Promise<unknown> {
-    const code = wrapForEval(js);
+    const code = buildEvaluateExpression(js);
     return sendCommand('exec', { code, frameIndex, ...this._cmdOpts() });
   }
 

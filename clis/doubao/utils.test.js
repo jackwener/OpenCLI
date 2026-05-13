@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
@@ -145,6 +146,28 @@ describe('doubao send strategy', () => {
     });
 });
 describe('doubao receive strategy', () => {
+    function runTurnsScript(html) {
+        const dom = new JSDOM(html, { url: 'https://www.doubao.com/chat', runScripts: 'outside-only' });
+        Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', {
+            configurable: true,
+            get() {
+                return this.textContent || '';
+            },
+        });
+        dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({
+            width: 100,
+            height: 24,
+            top: 0,
+            left: 0,
+            right: 100,
+            bottom: 24,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+        });
+        return dom.window.eval(__test__.getTurnsScript());
+    }
+
     it('keeps both the new skin selectors and the older structural fallbacks in the turns script', () => {
         const turnsScript = __test__.getTurnsScript();
         expect(turnsScript).toContain('[class*="message-list-S2Fv2S"]');
@@ -155,6 +178,44 @@ describe('doubao receive strategy', () => {
         expect(turnsScript).toContain('[data-foundation-type="receive-message-action-bar"]');
         expect(turnsScript).toContain('[data-testid="union_message"]');
         expect(turnsScript).toContain('[data-testid="message-block-container"]');
+    });
+
+    it('includes the 2026-05 doubao DOM-refactor inner-item / top-item wrappers and the flow-markdown-body assistant fallback', () => {
+        const turnsScript = __test__.getTurnsScript();
+        // New wrappers added to itemSelectors so message roots resolve under the
+        // refactored DOM where the legacy item-kDun2N / union_message / message-block-container
+        // / data-message-id selectors no longer match.
+        expect(turnsScript).toContain('[class*="inner-item-"]');
+        expect(turnsScript).toContain('[class*="top-item-"]');
+        // Assistant fallback: post-refactor doubao no longer emits receive-message /
+        // bg-g-receive-msg-bubble markup. Only signal is .flow-markdown-body content
+        // container without send-bubble.
+        expect(turnsScript).toContain('.flow-markdown-body');
+    });
+
+    it('extracts clean assistant turns from the 2026-05 wrapper DOM without using whole-page chrome', () => {
+        const turns = runTurnsScript(`
+          <main>
+            <aside>历史对话</aside>
+            <section class="message-list-S2Fv2S">
+              <div class="top-item-user">
+                <div class="inner-item-user">
+                  <div class="bg-g-send-msg-bubble">测试一下，只回复OK</div>
+                </div>
+              </div>
+              <div class="top-item-assistant">
+                <div class="inner-item-assistant">
+                  <div class="flow-markdown-body"><p>OK</p></div>
+                </div>
+              </div>
+            </section>
+          </main>
+        `);
+
+        expect(turns).toEqual([
+            { Role: 'User', Text: '测试一下，只回复OK' },
+            { Role: 'Assistant', Text: 'OK' },
+        ]);
     });
 
     it('extends transcript-noise cleanup for the current zh-CN chrome copy', () => {

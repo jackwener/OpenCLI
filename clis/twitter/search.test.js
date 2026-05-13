@@ -80,6 +80,7 @@ describe('twitter search command', () => {
                 url: 'https://x.com/i/status/1',
                 has_media: false,
                 media_urls: [],
+                card: null,
             },
         ]);
         expect(page.installInterceptor).toHaveBeenCalledWith('SearchTimeline');
@@ -211,6 +212,7 @@ describe('twitter search command', () => {
                 url: 'https://x.com/i/status/99',
                 has_media: false,
                 media_urls: [],
+                card: null,
             },
         ]);
         // 6 evaluate calls: 2x pushState + 2x pathname check + 1x fallback + 1x pathname check

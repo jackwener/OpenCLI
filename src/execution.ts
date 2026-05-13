@@ -511,9 +511,7 @@ function normalizeBooleanOption(name: string, raw: unknown): boolean | null {
 
 function resolveKeepTab(siteSession: SiteSessionMode, rawOption?: unknown): boolean {
   if (siteSession === 'persistent') return true;
-  return normalizeBooleanOption('--keep-tab', rawOption)
-    ?? normalizeBooleanOption('OPENCLI_KEEP_TAB', process.env.OPENCLI_KEEP_TAB)
-    ?? false;
+  return normalizeBooleanOption('--keep-tab', rawOption) ?? false;
 }
 
 function normalizeWindowMode(name: string, raw: unknown): BrowserWindowMode | null {
