@@ -21,4 +21,12 @@ describe('download progress display', () => {
     expect(() => progress.update(-10, 100)).not.toThrow();
     expect(write).toHaveBeenCalledWith(expect.stringContaining('0%'));
   });
+
+  it('renders zero percent when the total size is unknown', () => {
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const progress = createProgressBar('file.bin', 0, 1);
+
+    expect(() => progress.update(50, 0)).not.toThrow();
+    expect(write).toHaveBeenCalledWith(expect.stringContaining('0%'));
+  });
 });
