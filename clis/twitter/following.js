@@ -5,6 +5,7 @@ import { TWITTER_BEARER_TOKEN } from './utils.js';
 
 const FOLLOWING_QUERY_ID = 'zx6e-TLzRkeDO_a7p4b3JQ';  // Following fallback
 const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
+const MAX_PAGINATION_PAGES = 100;
 
 const FEATURES = {
     rweb_video_screen_enabled: false,
@@ -206,8 +207,8 @@ cli({
         const seen = new Set();
         let cursor = null;
 
-        const maxPages = Math.ceil(limit / 50) + 2;
-        for (let i = 0; i < maxPages && allUsers.length < limit; i++) {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && allUsers.length < limit; i++) {
             const fetchCount = Math.min(50, limit - allUsers.length + 10);
             const apiUrl = buildFollowingUrl(followingQueryId, userId, fetchCount, cursor);
             const data = await page.evaluate(async (url, headers) => {
