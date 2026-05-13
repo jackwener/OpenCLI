@@ -23705,7 +23705,7 @@
   {
     "site": "twitter",
     "name": "tweets",
-    "description": "Fetch a Twitter user's most recent tweets (chronological, excludes pinned)",
+    "description": "Fetch a Twitter user's most recent tweets (chronological, excludes pinned; defaults to the logged-in user when no username is given)",
     "access": "read",
     "domain": "x.com",
     "strategy": "cookie",
@@ -23714,9 +23714,9 @@
       {
         "name": "username",
         "type": "string",
-        "required": true,
+        "required": false,
         "positional": true,
-        "help": "Twitter screen name (with or without @)"
+        "help": "Twitter screen name (with or without @). Defaults to the logged-in user when omitted."
       },
       {
         "name": "limit",

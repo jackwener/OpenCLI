@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { resolveTwitterQueryId, sanitizeQueryId } from './shared.js';
+import { resolveTwitterQueryId, sanitizeQueryId, unwrapBrowserResult } from './shared.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 
 const FOLLOWING_QUERY_ID = 'zx6e-TLzRkeDO_a7p4b3JQ';  // Following fallback
@@ -164,13 +164,23 @@ cli({
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
 
         if (!targetUser) {
-            const href = await page.evaluate(() => {
-                const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
-                return link ? link.getAttribute('href') : null;
-            });
-            if (!href)
+            // Force a navigation to the home surface so the AppTabBar sidebar
+            // is rendered; the framework pre-nav lands on bare x.com which
+            // does not always expose AppTabBar_Profile_Link.
+            await page.goto('https://x.com/home');
+            await page.wait({ selector: '[data-testid="primaryColumn"]' });
+            // Bridge wraps primitive page.evaluate returns as { session, data:<value> };
+            // unwrap so the href string is usable downstream.
+            // NOTE: the function-literal form `() => ...` silently drops
+            // primitive return values through the bridge — only the template
+            // string form preserves the `data` field.
+            const href = unwrapBrowserResult(await page.evaluate(`() => {
+        const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
+        return link ? link.getAttribute('href') : null;
+      }`));
+            if (!href || typeof href !== 'string')
                 throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
-            targetUser = normalizeScreenName(href.replace('/', ''));
+            targetUser = normalizeScreenName(href.replace(/^\//, ''));
         }
         if (!targetUser) {
             throw new ArgumentError('twitter following user cannot be empty', 'Example: opencli twitter following @elonmusk --limit 200');

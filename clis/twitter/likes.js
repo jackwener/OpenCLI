@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { resolveTwitterQueryId, sanitizeQueryId, extractMedia } from './shared.js';
+import { resolveTwitterQueryId, sanitizeQueryId, extractMedia, unwrapBrowserResult } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const LIKES_QUERY_ID = 'RozQdCp4CilQzrcuU0NY5w';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
@@ -156,15 +156,22 @@ cli({
         const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
-        // If no username provided, detect the logged-in user
+        // If no username provided, detect the logged-in user.
+        // Bridge wraps primitive page.evaluate returns as { session, data:<value> };
+        // unwrap so the href string is usable downstream.
         if (!username) {
-            const href = await page.evaluate(`() => {
+            // Force a navigation to the home surface so the AppTabBar sidebar
+            // is rendered; the framework pre-nav lands on bare x.com which
+            // does not always expose AppTabBar_Profile_Link.
+            await page.goto('https://x.com/home');
+            await page.wait({ selector: '[data-testid="primaryColumn"]' });
+            const href = unwrapBrowserResult(await page.evaluate(`() => {
         const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
         return link ? link.getAttribute('href') : null;
-      }`);
-            if (!href)
+      }`));
+            if (!href || typeof href !== 'string')
                 throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
-            username = href.replace('/', '');
+            username = href.replace(/^\//, '').replace(/^@/, '');
         }
         const likesQueryId = await resolveTwitterQueryId(page, 'Likes', LIKES_QUERY_ID);
         const userByScreenNameQueryId = await resolveTwitterQueryId(page, 'UserByScreenName', USER_BY_SCREEN_NAME_QUERY_ID);

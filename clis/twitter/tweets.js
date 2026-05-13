@@ -215,21 +215,37 @@ cli({
     site: 'twitter',
     name: 'tweets',
     access: 'read',
-    description: "Fetch a Twitter user's most recent tweets (chronological, excludes pinned)",
+    description: "Fetch a Twitter user's most recent tweets (chronological, excludes pinned; defaults to the logged-in user when no username is given)",
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
     siteSession: 'persistent',
     args: [
-        { name: 'username', type: 'string', positional: true, required: true, help: 'Twitter screen name (with or without @)' },
+        { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (with or without @). Defaults to the logged-in user when omitted.' },
         { name: 'limit', type: 'int', default: 20, help: 'Max tweets to return' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the tweets by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the chronological ordering.' },
     ],
     columns: ['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls'],
     func: async (page, kwargs) => {
         const limit = Math.max(1, Math.min(200, kwargs.limit || 20));
-        const username = String(kwargs.username || '').replace(/^@/, '').trim();
-        if (!username) throw new CommandExecutionError('username is required');
+        let username = String(kwargs.username || '').replace(/^@/, '').trim();
+        // When no username is given, detect the logged-in user (own tweets).
+        // Mirrors the self-detection pattern used by twitter/profile and
+        // twitter/likes so agents can pull own-account data without having
+        // to know their own screen name up front.
+        if (!username) {
+            await page.goto('https://x.com/home');
+            await page.wait({ selector: '[data-testid="primaryColumn"]' });
+            // Bridge wraps primitive page.evaluate returns as { session, data:<value> }.
+            // unwrapBrowserResult drops that envelope so the href string is usable.
+            const href = unwrapBrowserResult(await page.evaluate(`() => {
+        const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
+        return link ? link.getAttribute('href') : null;
+      }`));
+            if (!href || typeof href !== 'string')
+                throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
+            username = href.replace(/^\//, '').replace(/^@/, '');
+        }
 
         const cookies = await page.getCookies({ url: 'https://x.com' });
         const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;

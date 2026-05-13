@@ -1,5 +1,6 @@
 import { ArgumentError, AuthRequiredError, selectorError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { unwrapBrowserResult } from './shared.js';
 
 /**
  * Extract follower rows from Twitter/X follower-list SPA cells.
@@ -107,11 +108,13 @@ cli({
         if (!targetUser) {
             await page.goto('https://x.com/home');
             await page.wait({ selector: '[data-testid="primaryColumn"]' });
-            const href = await page.evaluate(`() => {
+            // Bridge wraps primitive page.evaluate returns as { session, data:<value> };
+            // unwrap so the href string is usable downstream.
+            const href = unwrapBrowserResult(await page.evaluate(`() => {
                 const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
                 return link ? link.getAttribute('href') : null;
-            }`);
-            if (!href) {
+            }`));
+            if (!href || typeof href !== 'string') {
                 throw new AuthRequiredError('x.com', 'Could not find logged-in user profile link. Are you logged in?');
             }
             targetUser = normalizeScreenName(href);

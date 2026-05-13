@@ -1,11 +1,113 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { AuthRequiredError } from '@jackwener/opencli/errors';
 import { __test__ } from './tweets.js';
 
 describe('twitter tweets helpers', () => {
     it('registers id and is_retweet in the default columns', () => {
         const cmd = getRegistry().get('twitter/tweets');
         expect(cmd?.columns).toEqual(['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls']);
+    });
+
+    it('makes the username argument optional so it can default to the logged-in user', () => {
+        const cmd = getRegistry().get('twitter/tweets');
+        const usernameArg = cmd?.args?.find((arg) => arg.name === 'username');
+        expect(usernameArg).toBeDefined();
+        expect(usernameArg?.required).not.toBe(true);
+        expect(usernameArg?.help || '').toMatch(/default/i);
+        expect(cmd?.description || '').toMatch(/default/i);
+    });
+
+    it('detects the logged-in user via AppTabBar_Profile_Link when no username is given', async () => {
+        const cmd = getRegistry().get('twitter/tweets');
+        const evaluatedScripts = [];
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = typeof script === 'function' ? script.toString() : String(script);
+                evaluatedScripts.push(text);
+                if (text.includes('AppTabBar_Profile_Link')) return '/viewer';
+                if (text.includes('operationName')) return null; // operation metadata resolver
+                if (text.includes('/UserByScreenName')) return '42';
+                if (text.includes('/UserTweets')) {
+                    return {
+                        data: {
+                            user: {
+                                result: {
+                                    timeline_v2: {
+                                        timeline: {
+                                            instructions: [
+                                                {
+                                                    entries: [
+                                                        {
+                                                            entryId: 'tweet-1',
+                                                            content: {
+                                                                itemContent: {
+                                                                    tweet_results: {
+                                                                        result: {
+                                                                            rest_id: '1',
+                                                                            legacy: {
+                                                                                full_text: 'own post',
+                                                                                favorite_count: 0,
+                                                                                retweet_count: 0,
+                                                                                reply_count: 0,
+                                                                                created_at: 'now',
+                                                                            },
+                                                                            core: {
+                                                                                user_results: {
+                                                                                    result: {
+                                                                                        legacy: { screen_name: 'viewer', name: 'Viewer' },
+                                                                                    },
+                                                                                },
+                                                                            },
+                                                                        },
+                                                                    },
+                                                                },
+                                                            },
+                                                        },
+                                                    ],
+                                                },
+                                            ],
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    };
+                }
+                return null;
+            }),
+        };
+        const rows = await cmd.func(page, { limit: 1 });
+        // Navigated home to read the logged-in user
+        expect(page.goto).toHaveBeenCalledWith('https://x.com/home');
+        // AppTabBar_Profile_Link probe happened before any GraphQL fetch
+        const probeIdx = evaluatedScripts.findIndex((t) => t.includes('AppTabBar_Profile_Link'));
+        const graphqlIdx = evaluatedScripts.findIndex((t) => t.includes('/UserByScreenName'));
+        expect(probeIdx).toBeGreaterThanOrEqual(0);
+        expect(graphqlIdx).toBeGreaterThan(probeIdx);
+        // The detected handle ('viewer') was used for the UserByScreenName lookup
+        const lookup = evaluatedScripts.find((t) => t.includes('/UserByScreenName')) || '';
+        expect(decodeURIComponent(lookup)).toContain('"screen_name":"viewer"');
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ id: '1', author: 'viewer', url: 'https://x.com/viewer/status/1' });
+    });
+
+    it('throws AuthRequiredError when no username is given and the logged-in user cannot be detected', async () => {
+        const cmd = getRegistry().get('twitter/tweets');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn(async () => []),
+            evaluate: vi.fn(async (script) => {
+                const text = typeof script === 'function' ? script.toString() : String(script);
+                if (text.includes('AppTabBar_Profile_Link')) return null;
+                return null;
+            }),
+        };
+        await expect(cmd.func(page, {})).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
     it('falls back when queryId contains unsafe characters', () => {
