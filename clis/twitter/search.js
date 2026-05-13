@@ -41,6 +41,7 @@ const PRODUCT_TO_GRAPHQL_PRODUCT = Object.freeze({
     photos: 'Photos',
     videos: 'Videos',
 });
+const MAX_PAGINATION_PAGES = 100;
 
 const SEARCH_TIMELINE_OPERATION = {
     queryId: 'VhUd6vHVmLBcw0uX-6jMLA',
@@ -296,7 +297,8 @@ cli({
         const results = [];
         const seen = new Set();
         let cursor = null;
-        for (let i = 0; i < 5 && results.length < kwargs.limit; i++) {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && results.length < kwargs.limit; i++) {
             const fetchCount = Number(kwargs.limit) - results.length + 10;
             const [requestUrl, requestPayload] = buildSearchTimelineRequest(operation, finalQuery, product, fetchCount, cursor);
             const requestBody = JSON.stringify(requestPayload);

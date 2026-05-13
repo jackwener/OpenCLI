@@ -4,6 +4,7 @@ import { resolveTwitterQueryId, sanitizeQueryId, extractMedia } from './shared.j
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const LIKES_QUERY_ID = 'RozQdCp4CilQzrcuU0NY5w';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
+const MAX_PAGINATION_PAGES = 100;
 const FEATURES = {
     rweb_video_screen_enabled: false,
     profile_label_improvements_pcf_label_in_post_enabled: true,
@@ -189,7 +190,8 @@ cli({
         const allTweets = [];
         const seen = new Set();
         let cursor = null;
-        for (let i = 0; i < 5 && allTweets.length < limit; i++) {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
             const fetchCount = Math.min(100, limit - allTweets.length + 10);
             const apiUrl = buildLikesUrl(likesQueryId, userId, fetchCount, cursor);
             const data = await page.evaluate(`async () => {

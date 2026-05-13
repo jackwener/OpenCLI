@@ -5,6 +5,7 @@ import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 // ── Twitter GraphQL constants ──────────────────────────────────────────
 const HOME_TIMELINE_QUERY_ID = 'c-CzHF1LboFilMpsx4ZCrQ';
 const HOME_LATEST_TIMELINE_QUERY_ID = 'BKB7oi212Fi7kQtCBGE4zA';
+const MAX_PAGINATION_PAGES = 100;
 // Endpoint config: for-you uses GET HomeTimeline, following uses POST HomeLatestTimeline
 const TIMELINE_ENDPOINTS = {
     'for-you': { endpoint: 'HomeTimeline', method: 'GET', fallbackQueryId: HOME_TIMELINE_QUERY_ID },
@@ -176,7 +177,8 @@ cli({
         const allTweets = [];
         const seen = new Set();
         let cursor = null;
-        for (let i = 0; i < 5 && allTweets.length < limit; i++) {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
             const fetchCount = Math.min(40, limit - allTweets.length + 5); // over-fetch slightly for promoted filtering
             const variables = buildTimelineVariables(timelineType, fetchCount, cursor);
             const apiUrl = buildHomeTimelineUrl(queryId, endpoint, variables);

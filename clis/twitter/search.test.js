@@ -91,6 +91,63 @@ describe('twitter search command', () => {
         await command.func(page, { query: 'cats', product: 'videos', limit: 5 });
         expect(page.evaluate.mock.calls[1][0]).toContain('\\"product\\":\\"Videos\\"');
     });
+
+    it('paginates past the old five-page cap until the requested limit is reached', async () => {
+        const command = getRegistry().get('twitter/search');
+        let pageIndex = 0;
+        const page = {
+            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'csrf' }]),
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockImplementation(async () => {
+                if (pageIndex === 0) {
+                    pageIndex += 1;
+                    return null;
+                }
+                const id = String(pageIndex);
+                pageIndex += 1;
+                return {
+                    data: {
+                        search_by_raw_query: {
+                            search_timeline: {
+                                timeline: {
+                                    instructions: [
+                                        {
+                                            entries: [
+                                                {
+                                                    content: {
+                                                        itemContent: {
+                                                            tweet_results: {
+                                                                result: {
+                                                                    rest_id: id,
+                                                                    legacy: { full_text: `tweet ${id}`, created_at: 'now' },
+                                                                    core: { user_results: { result: { core: { screen_name: 'alice' } } } },
+                                                                },
+                                                            },
+                                                        },
+                                                    },
+                                                },
+                                                {
+                                                    content: {
+                                                        entryType: 'TimelineTimelineCursor',
+                                                        cursorType: 'Bottom',
+                                                        value: `cursor-${id}`,
+                                                    },
+                                                },
+                                            ],
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                };
+            }),
+        };
+        const result = await command.func(page, { query: 'opencli', limit: 7 });
+        expect(result).toHaveLength(7);
+        expect(result.map((row) => row.id)).toEqual(['1', '2', '3', '4', '5', '6', '7']);
+        expect(page.evaluate).toHaveBeenCalledTimes(8);
+    });
 });
 
 describe('twitter search filter helpers', () => {

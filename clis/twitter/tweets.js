@@ -5,6 +5,7 @@ import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 
 const USER_TWEETS_QUERY_ID = 'lrMzG9qPQHpqJdP3AbM-bQ';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
+const MAX_PAGINATION_PAGES = 100;
 
 const USER_TWEETS_FEATURES = {
     rweb_video_screen_enabled: true,
@@ -257,7 +258,8 @@ cli({
         const seen = new Set();
         const all = [];
         let cursor = null;
-        for (let i = 0; i < 5 && all.length < limit; i++) {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && all.length < limit; i++) {
             const fetchCount = Math.min(100, limit - all.length + 10);
             const url = buildUserTweetsUrl(userTweetsOperation, userId, fetchCount, cursor);
             const data = normalizeTwitterGraphqlPayload(await page.evaluate(`async () => {

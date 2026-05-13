@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const BOOKMARKS_QUERY_ID = 'Fy0QMy4q_aZCpkO0PnyLYw';
+const MAX_PAGINATION_PAGES = 100;
 const FEATURES = {
     rweb_video_screen_enabled: false,
     profile_label_improvements_pcf_label_in_post_enabled: true,
@@ -150,7 +151,8 @@ cli({
         const allTweets = [];
         const seen = new Set();
         let cursor = null;
-        for (let i = 0; i < 5 && allTweets.length < limit; i++) {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
             const fetchCount = Math.min(100, limit - allTweets.length + 10);
             const apiUrl = buildBookmarksUrl(fetchCount, cursor).replace(BOOKMARKS_QUERY_ID, queryId);
             const data = await page.evaluate(`async () => {
