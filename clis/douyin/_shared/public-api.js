@@ -22,8 +22,11 @@ export async function fetchDouyinComments(page, awemeId, count) {
         headers: { referer: 'https://www.douyin.com/' },
     });
     return (data.comments || []).slice(0, count).map((comment) => ({
+        cid: comment.cid || '',
         text: comment.text || '',
         digg_count: comment.digg_count ?? 0,
+        reply_comment_total: comment.reply_comment_total ?? 0,
+        create_time: comment.create_time ?? 0,
         nickname: comment.user?.nickname || '',
     }));
 }

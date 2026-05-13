@@ -23,6 +23,7 @@ const WAIT_FOR_CONTENT_JS = `
       'section.note-item, section:has(a[href*="/search_result/"]), section:has(a[href*="/explore/"])'
     );
     const detect = () => {
+      if (!document.body) return null;
       if (findNoteCard()) return 'content';
       if (/登录后查看搜索结果/.test(document.body?.innerText || '')) return 'login_wall';
       return null;
@@ -33,7 +34,9 @@ const WAIT_FOR_CONTENT_JS = `
       const result = detect();
       if (result) { observer.disconnect(); resolve(result); }
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    const target = document.body || document.documentElement;
+    if (!target) return resolve('timeout');
+    observer.observe(target, { childList: true, subtree: true });
     setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 5000);
   })
 `;

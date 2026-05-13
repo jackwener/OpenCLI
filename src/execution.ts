@@ -36,6 +36,7 @@ import { isElectronApp } from './electron-apps.js';
 import { probeCDP, resolveElectronEndpoint } from './launcher.js';
 import { ObservationSession, exportObservationSession, type ObservationExportResult, type ObservationExportStatus } from './observation/index.js';
 import { resolveAdapterSourcePath } from './adapter-source.js';
+import { resolveBrowserbaseSessionId, validateBrowserbaseSession } from './browserbase.js';
 
 const _loadedModules = new Map<string, Promise<void>>();
 /** Track mtime of loaded user adapter files for hot-reload in daemon mode. */
@@ -204,6 +205,7 @@ export async function executeCommand(
     keepTab?: string;
     windowMode?: string;
     siteSession?: string;
+    browserbaseSession?: string;
     onTraceExport?: (trace: ObservationExportResult) => void;
   } = {},
 ): Promise<unknown> {
@@ -230,8 +232,14 @@ export async function executeCommand(
     if (shouldUseBrowserSession(cmd)) {
       const electron = isElectronApp(cmd.site);
       let cdpEndpoint: string | undefined;
+      let useCDP = false;
 
-      if (electron) {
+      const browserbaseSessionId = resolveBrowserbaseSessionId(opts.browserbaseSession);
+      if (browserbaseSessionId) {
+        const browserbaseSession = await validateBrowserbaseSession(browserbaseSessionId);
+        cdpEndpoint = browserbaseSession.connectUrl;
+        useCDP = true;
+      } else if (electron) {
         // Electron apps: respect manual endpoint override, then try auto-detect
         const manualEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
         if (manualEndpoint) {
@@ -246,9 +254,12 @@ export async function executeCommand(
         } else {
           cdpEndpoint = await resolveElectronEndpoint(cmd.site);
         }
+      } else if (process.env.OPENCLI_CDP_ENDPOINT) {
+        cdpEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
+        useCDP = true;
       }
 
-      const BrowserFactory = getBrowserFactory(cmd.site);
+      const BrowserFactory = getBrowserFactory(cmd.site, { useCDP });
       const contextId = resolveProfileContextId(opts.profile);
       const internal = cmd as InternalCliCommand;
       const siteSession = resolveSiteSession(cmd, opts.siteSession);

@@ -558,6 +558,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .description('Make any website your CLI. Zero setup. AI-powered.')
     .version(PKG_VERSION)
     .option('--profile <name>', 'Chrome profile/context alias for Browser Bridge commands')
+    .option('--session <id>', 'Browserbase session ID for adapter browser commands')
     .enablePositionalOptions();
 
   // ── Built-in: list ────────────────────────────────────────────────────────

@@ -178,8 +178,8 @@ describe('xiaohongshu comments', () => {
         `);
 
         expect(data.results).toEqual([
-            { author: 'Alice', text: 'Great note', likes: 21000, time: 'today', is_reply: false, reply_to: '' },
-            { author: 'Bob', text: 'Malformed count', likes: 0, time: '', is_reply: false, reply_to: '' },
+            { comment_id: 'xhs-comment-1', author: 'Alice', text: 'Great note', likes: 21000, time: 'today', is_reply: false, reply_to: '' },
+            { comment_id: 'xhs-comment-2', author: 'Bob', text: 'Malformed count', likes: 0, time: '', is_reply: false, reply_to: '' },
         ]);
     });
     it('respects the limit for top-level comments', async () => {

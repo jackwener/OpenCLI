@@ -45,6 +45,7 @@ export function buildCommentsExtractJs(withReplies) {
       (async () => {
         const wait = (ms) => new Promise(r => setTimeout(r, ms))
         const withReplies = ${withReplies}
+        if (!document.body) await wait(500)
 
         // Check login state
         const bodyText = document.body?.innerText || ''
@@ -53,13 +54,18 @@ export function buildCommentsExtractJs(withReplies) {
           || /website-login\\/error|error_code=300017|error_code=300031/.test(location.href)
 
         // Scroll the note container to trigger comment loading
-        const scroller = document.querySelector('.note-scroller') || document.querySelector('.container')
+        const scroller = document.querySelector('.note-scroller')
+          || document.querySelector('.comments-el')
+          || document.querySelector('.comments-container')
+          || document.querySelector('.interaction-container')
+          || document.querySelector('.container')
+          || document.scrollingElement
         if (scroller) {
           for (let i = 0; i < 3; i++) {
-            const beforeCount = scroller.querySelectorAll('.parent-comment').length
+            const beforeCount = scroller.querySelectorAll('.parent-comment').length || scroller.querySelectorAll('.comment-item').length || 0
             scroller.scrollTo(0, scroller.scrollHeight)
             await wait(800 + Math.random() * 1200)
-            const afterCount = scroller.querySelectorAll('.parent-comment').length
+            const afterCount = scroller.querySelectorAll('.parent-comment').length || scroller.querySelectorAll('.comment-item').length || 0
             if (afterCount <= beforeCount) break
           }
         }
@@ -68,6 +74,20 @@ export function buildCommentsExtractJs(withReplies) {
         const parseLikeCountText = ${parseLikeCountText}
         const parseLikes = (el) => {
           return parseLikeCountText(clean(el))
+        }
+        const readIdFrom = (root, prefix) => {
+          const nodes = [root].concat(Array.from(root?.querySelectorAll?.('*') || []).slice(0, 80))
+          for (const node of nodes) {
+            const attrs = Array.from(node.attributes || [])
+            for (const attr of attrs) {
+              const value = String(attr.value || '')
+              const m = value.match(/[a-f0-9]{24}/i) || value.match(/(?:comment|id)[_-]?id["'=:\\s-]*([a-f0-9]{16,})/i)
+              if (m) return m[1] || m[0]
+            }
+          }
+          const html = root?.outerHTML || ''
+          const htmlMatch = html.match(/(?:commentId|comment_id|id)["'=:\\s-]*([a-f0-9]{16,})/i) || html.match(/[a-f0-9]{24}/i)
+          return htmlMatch ? (htmlMatch[1] || htmlMatch[0]) : prefix
         }
         const expandReplyThreads = async (root) => {
           if (!withReplies || !root) return
@@ -92,29 +112,41 @@ export function buildCommentsExtractJs(withReplies) {
         }
 
         const results = []
-        const parents = document.querySelectorAll('.parent-comment')
+        const parentNodes = document.querySelectorAll('.parent-comment')
+        const parents = parentNodes.length
+          ? Array.from(parentNodes)
+          : Array.from(document.querySelectorAll('.comment-item, [class*="comment-item"], [class*="CommentItem"]')).filter(el => {
+              const text = clean(el)
+              if (!text || text.length < 2) return false
+              const nested = el.closest('.reply-container, .sub-comment-list')
+              return !nested
+            })
         for (const p of parents) {
-          const item = p.querySelector('.comment-item')
+          const item = p.matches?.('.comment-item, [class*="comment-item"], [class*="CommentItem"]') ? p : p.querySelector('.comment-item, [class*="comment-item"], [class*="CommentItem"]')
           if (!item) continue
 
-          const author = clean(item.querySelector('.author-wrapper .name, .user-name'))
-          const text = clean(item.querySelector('.content, .note-text'))
-          const likes = parseLikes(item.querySelector('.count'))
-          const time = clean(item.querySelector('.date, .time'))
+          const author = clean(item.querySelector('.author-wrapper .name, .user-name, .name, [class*="author"] [class*="name"]'))
+          const text = clean(item.querySelector('.content, .note-text, .comment-content, [class*="content"], [class*="Text"]'))
+          const likes = parseLikes(item.querySelector('.count, .like-count, [class*="like"] [class*="count"]'))
+          const time = clean(item.querySelector('.date, .time, [class*="date"], [class*="time"]'))
 
           if (!text) continue
-          results.push({ author, text, likes, time, is_reply: false, reply_to: '' })
+          let commentId = readIdFrom(p, '')
+          if (!commentId) commentId = 'xhs-comment-' + (results.length + 1)
+          results.push({ comment_id: commentId, author, text, likes, time, is_reply: false, reply_to: '' })
 
           // Extract nested replies (楼中楼)
           if (withReplies) {
             await expandReplyThreads(p)
-            p.querySelectorAll('.reply-container .comment-item-sub, .sub-comment-list .comment-item').forEach(sub => {
-              const sAuthor = clean(sub.querySelector('.name, .user-name'))
-              const sText = clean(sub.querySelector('.content, .note-text'))
-              const sLikes = parseLikes(sub.querySelector('.count'))
-              const sTime = clean(sub.querySelector('.date, .time'))
+            p.querySelectorAll('.reply-container .comment-item-sub, .sub-comment-list .comment-item, [class*="reply"] [class*="comment-item"]').forEach(sub => {
+              const sAuthor = clean(sub.querySelector('.name, .user-name, [class*="author"] [class*="name"]'))
+              const sText = clean(sub.querySelector('.content, .note-text, .comment-content, [class*="content"], [class*="Text"]'))
+              const sLikes = parseLikes(sub.querySelector('.count, .like-count, [class*="like"] [class*="count"]'))
+              const sTime = clean(sub.querySelector('.date, .time, [class*="date"], [class*="time"]'))
               if (!sText) return
-              results.push({ author: sAuthor, text: sText, likes: sLikes, time: sTime, is_reply: true, reply_to: author })
+              let sCommentId = readIdFrom(sub, '')
+              if (!sCommentId) sCommentId = 'xhs-reply-' + (results.length + 1)
+              results.push({ comment_id: sCommentId, author: sAuthor, text: sText, likes: sLikes, time: sTime, is_reply: true, reply_to: author })
             })
           }
         }
@@ -136,7 +168,7 @@ export const command = cli({
         { name: 'limit', type: 'int', default: 20, help: 'Number of top-level comments (max 50)' },
         { name: 'with-replies', type: 'boolean', default: false, help: 'Include nested replies (楼中楼)' },
     ],
-    columns: ['rank', 'author', 'text', 'likes', 'time', 'is_reply', 'reply_to'],
+    columns: ['rank', 'comment_id', 'author', 'text', 'likes', 'time', 'is_reply', 'reply_to'],
     func: async (page, kwargs) => {
         const limit = parseCommentLimit(kwargs.limit);
         const withReplies = Boolean(kwargs['with-replies']);

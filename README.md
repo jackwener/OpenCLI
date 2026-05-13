@@ -203,10 +203,14 @@ OpenCLI is not only for websites. It can also:
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Seconds to wait for a single browser command |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol endpoint for remote browser or Electron apps |
 | `OPENCLI_CDP_TARGET` | — | Filter CDP targets by URL substring (e.g. `detail.1688.com`) |
+| `BROWSERBASE_API_KEY` | — | API key for validating Browserbase cloud browser sessions |
+| `BROWSERBASE_SESSION_ID` | — | Browserbase session ID for adapter browser commands; equivalent to root `--session <id>` |
 | `OPENCLI_VERBOSE` | `false` | Enable verbose logging (`-v` flag also works) |
 | `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |
 
 `opencli browser *` requires an explicit `<session>` positional, uses a foreground browser window by default, and keeps that session's tab lease until `opencli browser <session> close` or idle cleanup. Browser-backed adapters use a background adapter window and release one-shot tab leases by default. Interactive adapters can declare `siteSession: 'persistent'` to keep a stable site tab for continuity; pass `--site-session ephemeral` for a one-shot tab.
+
+For cloud browsers, create a Browserbase session with the `bb` CLI, set `BROWSERBASE_API_KEY`, then run adapter commands with `opencli --session <browserbase-session-id> <site> <command> ...`.
 
 ## Update
 
@@ -248,13 +252,13 @@ To load the source Browser Bridge extension:
 
 | Site | Commands |
 |------|----------|
-| **xiaohongshu** | `search` `note` `comments` `feed` `user` `download` `publish` `notifications` `creator-notes` `creator-notes-summary` `creator-note-detail` `creator-profile` `creator-stats` |
+| **xiaohongshu** | `search` `note` `comments` `reply` `feed` `user` `download` `publish` `notifications` `creator-notes` `creator-notes-summary` `creator-note-detail` `creator-profile` `creator-stats` |
 | **rednote** | `search` `note` `comments` `user` `download` `feed` `notifications` |
-| **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `me` `subtitle` `video` `user-videos` |
+| **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `reply` `dynamic` `favorite` `following` `me` `subtitle` `video` `user-videos` |
 | **tieba** | `hot` `posts` `search` `read` |
 | **hupu** | `hot` `search` `detail` `mentions` `reply` `like` `unlike` |
-| **twitter** | `trending` `search` `timeline` `tweets` `lists` `list-tweets` `list-add` `list-remove` `bookmarks` `post` `download` `profile` `article` `like` `likes` `notifications` `reply` `reply-dm` `thread` `follow` `unfollow` `followers` `following` `block` `unblock` `bookmark` `unbookmark` `delete` `hide-reply` `accept` |
-| **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `upvoted` `save` `saved` `comment` `subscribe` |
+| **twitter** | `trending` `search` `timeline` `tweets` `lists` `list-tweets` `list-add` `list-remove` `bookmarks` `post` `download` `profile` `article` `like` `likes` `notifications` `get-comments` `reply` `reply-dm` `thread` `follow` `unfollow` `followers` `following` `block` `unblock` `bookmark` `unbookmark` `delete` `hide-reply` `accept` |
+| **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `get-comments` `user` `user-posts` `user-comments` `upvote` `upvoted` `save` `saved` `comment` `reply` `subscribe` |
 | **zhihu** | `hot` `search` `question` `download` `follow` `like` `favorite` `comment` `answer` |
 | **amazon** | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` `rankings` |
 | **1688** | `search` `item` `assets` `download` `store` |

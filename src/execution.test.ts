@@ -518,6 +518,51 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
+  it('uses Browserbase sessions as CDP endpoints for browser adapter commands', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+    const sessionOpts: Array<{ cdpEndpoint?: string; session?: string }> = [];
+    vi.stubEnv('BROWSERBASE_API_KEY', 'bb-key');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({
+        status: 'RUNNING',
+        connectUrl: 'wss://connect.browserbase.example/devtools',
+      })),
+    );
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
+      sessionOpts.push(opts ?? {});
+      return fn(mockPage);
+    });
+
+    try {
+      const cmd = cli({
+        site: 'test-execution',
+        name: 'browserbase-session', access: 'read',
+        description: 'test Browserbase session routing',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => [{ ok: true }],
+      });
+
+      await executeCommand(cmd, {}, false, { browserbaseSession: 'sess_123' });
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://api.browserbase.com/v1/sessions/sess_123',
+        { headers: { 'x-bb-api-key': 'bb-key' } },
+      );
+      expect(sessionOpts[0]).toMatchObject({
+        cdpEndpoint: 'wss://connect.browserbase.example/devtools',
+      });
+      expect(sessionOpts[0]?.session).toMatch(/^site:test-execution:/);
+      expect(closeWindow).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllEnvs();
+      vi.restoreAllMocks();
+    }
+  });
+
   it('does not re-run custom validation when args are already prepared', async () => {
     const validateArgs = vi.fn();
     const cmd: CliCommand = {
