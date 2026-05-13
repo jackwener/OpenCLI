@@ -91,6 +91,7 @@ export default defineConfig({
                 { text: 'NotebookLM', link: '/adapters/browser/notebooklm' },
                 { text: 'WeRead', link: '/adapters/browser/weread' },
                 { text: 'Douban', link: '/adapters/browser/douban' },
+                { text: 'Douyu', link: '/adapters/browser/douyu' },
                 { text: 'Sina Blog', link: '/adapters/browser/sinablog' },
                 { text: 'Substack', link: '/adapters/browser/substack' },
                 { text: 'Pixiv', link: '/adapters/browser/pixiv' },
