@@ -1,9 +1,21 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 
+const CHINA_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+});
+
 /** Format a Unix ms timestamp as the matching `YYYY-MM-DD` in Asia/Shanghai (xueqiu's canonical user timezone for all markets). */
 export function formatChinaDate(ts) {
     if (ts == null) return null;
-    return new Date(ts).toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' });
+    const parts = Object.fromEntries(
+        CHINA_DATE_FORMATTER.formatToParts(new Date(ts))
+            .filter((part) => part.type !== 'literal')
+            .map((part) => [part.type, part.value]),
+    );
+    return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 /**
