@@ -95,7 +95,8 @@ export async function fetchFriendList(page, opts = {}) {
     const pageNum = opts.pageNum ?? 1;
     const jobId = opts.jobId ?? '0';
     const url = `https://${BOSS_DOMAIN}/wapi/zprelation/friend/getBossFriendListV2.json?page=${pageNum}&status=0&jobId=${jobId}`;
-    const data = await bossFetch(page, url);
+    const data = await bossFetch(page, url, { allowNonZero: opts.allowNonZero });
+    if (opts.allowNonZero && data.code !== 0) return data;
     return data.zpData?.friendList || [];
 }
 /**
@@ -115,10 +116,14 @@ export async function findFriendByUid(page, encryptUid, opts = {}) {
     const checkGreetList = opts.checkGreetList ?? false;
     // Search friend list pages
     for (let p = 1; p <= maxPages; p++) {
-        const friends = await fetchFriendList(page, { pageNum: p });
+        const result = await fetchFriendList(page, { pageNum: p, allowNonZero: opts.allowNonZero });
+        if (opts.allowNonZero && !Array.isArray(result)) {
+            return { friend: null, code: result.code };
+        }
+        const friends = Array.isArray(result) ? result : [];
         const found = friends.find((f) => f.encryptUid === encryptUid);
         if (found)
-            return found;
+            return opts.allowNonZero ? { friend: found, code: 0 } : found;
         if (friends.length === 0)
             break;
     }
@@ -127,9 +132,9 @@ export async function findFriendByUid(page, encryptUid, opts = {}) {
         const greetList = await fetchRecommendList(page);
         const found = greetList.find((f) => f.encryptUid === encryptUid);
         if (found)
-            return found;
+            return opts.allowNonZero ? { friend: found, code: 0 } : found;
     }
-    return null;
+    return opts.allowNonZero ? { friend: null, code: 0 } : null;
 }
 // ── UI automation helpers ───────────────────────────────────────────────────
 /**
@@ -220,4 +225,171 @@ export function verbose(msg) {
     if (process.env.OPENCLI_VERBOSE) {
         console.error(`[opencli:boss] ${msg}`);
     }
+}
+// ── Geek-side helpers ────────────────────────────────────────────────────────
+export const IDENTITY_MISMATCH_CODE = 24;
+const GEEK_CHAT_URL = `https://${BOSS_DOMAIN}/web/geek/chat`;
+/**
+ * Navigate to the job-seeker chat page.
+ * Establishes the cookie + JS-global context needed for geek-side API calls.
+ */
+export async function navigateToGeekChat(page, waitSeconds = 2) {
+    await page.goto(GEEK_CHAT_URL);
+    await page.wait({ time: waitSeconds });
+}
+/**
+ * Read the encryptSystemId value required by the geek-side list API.
+ * Strategy (in order):
+ *   1. Vue app state / Pinia stores / $route.query (Option 1 — runtime source)
+ *   2. performance.getEntriesByType('resource') — parse from geekFilterByLabel URL
+ *      that the page itself already issued (Option 2 — most deterministic)
+ *   3. cookie, inline <script> SSR state, known window globals, localStorage (fallbacks)
+ * Returns empty string if nothing is found; the API may still succeed without it.
+ * Caller must have navigated to the geek chat page first.
+ */
+export async function readEncryptSystemId(page) {
+    const result = await page.evaluate(`
+    (() => {
+      // 1. Vue app state / Pinia / $route.query
+      // The chat component reads encryptSystemId from the app runtime to build
+      // its own geekFilterByLabel request, so the value lives in the Vue tree.
+      try {
+        const appEl = document.querySelector('#app') || document.querySelector('[data-v-app]');
+        const vueApp = appEl && (appEl.__vue_app__ || appEl._vei);
+        if (vueApp) {
+          // 1a. Pinia stores (Vue 3 standard state management on BOSS直聘)
+          const pinia = vueApp.config && vueApp.config.globalProperties.$pinia;
+          if (pinia && pinia.state && pinia.state.value) {
+            for (const store of Object.values(pinia.state.value)) {
+              try {
+                const flat = JSON.stringify(store);
+                if (flat.includes('encryptSystemId')) {
+                  const m = flat.match(/"encryptSystemId":"([^"]+)"/);
+                  if (m) return m[1];
+                }
+              } catch (_) {}
+            }
+          }
+          // 1b. Vue Router current route query
+          const router = vueApp.config && vueApp.config.globalProperties.$router;
+          const query = router && router.currentRoute && router.currentRoute.value && router.currentRoute.value.query;
+          if (query && query.encryptSystemId) return query.encryptSystemId;
+        }
+      } catch (_) {}
+      // 2. Performance resource entries — the page already issued geekFilterByLabel
+      // with encryptSystemId in the URL; read it back from the resource timing API.
+      try {
+        const entries = performance.getEntriesByType('resource');
+        for (const entry of entries) {
+          if (!entry.name.includes('geekFilterByLabel')) continue;
+          const u = new URL(entry.name);
+          const v = u.searchParams.get('encryptSystemId');
+          if (v) return v;
+        }
+      } catch (_) {}
+      // 3. cookie
+      try {
+        const m = document.cookie.match(/encryptSystemId=([^;]+)/i);
+        if (m) return decodeURIComponent(m[1]);
+      } catch (_) {}
+      // 4. inline <script> SSR state (Nuxt embeds server state here)
+      try {
+        for (const s of document.querySelectorAll('script:not([src])')) {
+          const t = s.textContent || '';
+          if (!t.includes('encryptSystemId')) continue;
+          const m = t.match(/"encryptSystemId":"([^"]+)"/);
+          if (m) return m[1];
+        }
+      } catch (_) {}
+      // 5. known BOSS / Nuxt window globals
+      const KNOWN = [
+        '__NUXT__', '__INITIAL_STATE__', '__ZP_INFO__', '__BOSS_ZP__',
+        'pageGlobalVar', 'ZP_DATA', '__ZP_DATA__', '__PAGE_DATA__',
+      ];
+      for (const k of KNOWN) {
+        const obj = window[k];
+        if (!obj || typeof obj !== 'object') continue;
+        try {
+          const flat = JSON.stringify(obj);
+          if (!flat.includes('encryptSystemId')) continue;
+          const m = flat.match(/"encryptSystemId":"([^"]+)"/);
+          if (m) return m[1];
+        } catch (_) {}
+      }
+      // 6. localStorage
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          if (k.toLowerCase().includes('encryptsystemid')) {
+            const v = localStorage.getItem(k);
+            if (v) return v;
+          }
+          const v = localStorage.getItem(k) || '';
+          if (v.includes('encryptSystemId')) {
+            const m = v.match(/"encryptSystemId":"([^"]+)"/);
+            if (m) return m[1];
+          }
+        }
+      } catch (_) {}
+      return '';
+    })()
+  `);
+    return result || '';
+}
+/**
+ * Fetch the job-seeker chat list (brief info, no securityId).
+ * Use fetchGeekFriendInfoList to enrich with securityId before calling chatmsg.
+ */
+export async function fetchGeekFriendLabelList(page, opts = {}) {
+    const labelId = opts.labelId ?? 0;
+    const encryptSystemId = opts.encryptSystemId ?? '';
+    const url = `https://${BOSS_DOMAIN}/wapi/zprelation/friend/geekFilterByLabel?labelId=${labelId}&encryptSystemId=${encodeURIComponent(encryptSystemId)}`;
+    const data = await bossFetch(page, url, { allowNonZero: opts.allowNonZero });
+    if (opts.allowNonZero && data.code !== 0) return data;
+    return data.zpData?.friendList || [];
+}
+/**
+ * Enrich a batch of geek friends with full fields including securityId.
+ * Processes in batches of 50 to avoid oversized request bodies.
+ */
+export async function fetchGeekFriendInfoList(page, friendIds = []) {
+    if (!friendIds.length) return [];
+    const BATCH_SIZE = 50;
+    const results = [];
+    for (let i = 0; i < friendIds.length; i += BATCH_SIZE) {
+        const batch = friendIds.slice(i, i + BATCH_SIZE).map(String);
+        const body = `friendIds=${batch.join(',')}`;
+        const data = await bossFetch(page, `https://${BOSS_DOMAIN}/wapi/zprelation/friend/getGeekFriendList.json`, {
+            method: 'POST',
+            body,
+        });
+        results.push(...(data.zpData?.result || []));
+    }
+    return results;
+}
+/**
+ * Find a geek-side friend by encrypted uid.
+ * Merges label-list and enriched data; returns null if not found.
+ */
+export async function findGeekFriendByUid(page, encryptUid, opts = {}) {
+    const labelList = await fetchGeekFriendLabelList(page, { encryptSystemId: opts.encryptSystemId });
+    const candidate = labelList.find((f) => f.encryptFriendId === encryptUid ||
+        String(f.uid) === String(encryptUid) ||
+        String(f.friendId) === String(encryptUid));
+    if (!candidate) return null;
+    const enriched = await fetchGeekFriendInfoList(page, [candidate.friendId]);
+    return { ...candidate, ...(enriched[0] || {}) };
+}
+/**
+ * Fetch message history for a geek-side chat.
+ * friend must have .uid (boss's numeric id) and .securityId.
+ */
+export async function fetchGeekHistoryMsg(page, friend, opts = {}) {
+    const pageNum = opts.page ?? 1;
+    const bossId = friend.uid;
+    const securityId = encodeURIComponent(friend.securityId || '');
+    const url = `https://${BOSS_DOMAIN}/wapi/zpchat/geek/historyMsg?bossId=${bossId}&securityId=${securityId}&page=${pageNum}&c=20&src=0`;
+    const data = await bossFetch(page, url);
+    return data.zpData?.messages || [];
 }

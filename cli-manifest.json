@@ -3484,7 +3484,7 @@
   {
     "site": "boss",
     "name": "chatlist",
-    "description": "BOSS直聘查看聊天列表（招聘端）",
+    "description": "BOSS直聘查看聊天列表（招聘端/求职端）",
     "access": "read",
     "domain": "www.zhipin.com",
     "strategy": "cookie",
@@ -3509,12 +3509,26 @@
         "type": "str",
         "default": "0",
         "required": false,
-        "help": "Filter by job ID (0=all)"
+        "help": "Filter by job ID (0=all, boss side only)"
+      },
+      {
+        "name": "side",
+        "type": "str",
+        "default": "auto",
+        "required": false,
+        "help": "Identity side: auto (default), boss (recruiter), or geek (job-seeker)",
+        "choices": [
+          "auto",
+          "boss",
+          "geek"
+        ]
       }
     ],
     "columns": [
       "name",
+      "company",
       "job",
+      "title",
       "last_msg",
       "last_time",
       "uid",
@@ -3528,7 +3542,7 @@
   {
     "site": "boss",
     "name": "chatmsg",
-    "description": "BOSS直聘查看与候选人的聊天消息",
+    "description": "BOSS直聘查看聊天消息历史（招聘端/求职端）",
     "access": "read",
     "domain": "www.zhipin.com",
     "strategy": "cookie",
@@ -3547,6 +3561,18 @@
         "default": 1,
         "required": false,
         "help": "Page number"
+      },
+      {
+        "name": "side",
+        "type": "str",
+        "default": "auto",
+        "required": false,
+        "help": "Identity side: auto (default), boss (recruiter), or geek (job-seeker)",
+        "choices": [
+          "auto",
+          "boss",
+          "geek"
+        ]
       }
     ],
     "columns": [
