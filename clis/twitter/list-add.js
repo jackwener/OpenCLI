@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { resolveTwitterQueryId } from './shared.js';
 import { parseListsManagement } from './lists.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
@@ -65,6 +65,65 @@ function buildUserByScreenNameUrl(queryId, screenName) {
         + `&features=${encodeURIComponent(feats)}`;
 }
 
+function fatalGraphqlErrors(errors) {
+    const list = Array.isArray(errors) ? errors : [];
+    return list.filter((e) =>
+        !(e?.path || []).join('.').includes('default_banner_media_results')
+        && !/decode/i.test(e?.message || '')
+    );
+}
+
+export function buildListAddMemberRow({ addResult, memberCountBefore, listId, username, userId }) {
+    if (!addResult?.httpOk) {
+        throw new CommandExecutionError(
+            `Failed to add @${username} to list ${listId}: HTTP ${addResult?.status ?? 0}${addResult?.fetchError ? ' (' + addResult.fetchError + ')' : ''}${addResult?.raw ? ' — ' + addResult.raw : ''}`
+        );
+    }
+
+    // X often returns a partial GraphQL error on `default_banner_media_results`
+    // even on successful mutations. Treat only missing main data or non-decode
+    // GraphQL errors as command failures.
+    const hasMemberCount = addResult.mc !== null && addResult.mc !== undefined;
+    const fatalErrors = fatalGraphqlErrors(addResult.errors);
+    if (!hasMemberCount && fatalErrors.length) {
+        const msg = fatalErrors.map((e) => e.message || JSON.stringify(e)).join('; ');
+        throw new CommandExecutionError(`Failed to add @${username} to list ${listId}: ${msg.slice(0, 300)}`);
+    }
+    if (!hasMemberCount) {
+        throw new CommandExecutionError(`Failed to add @${username} to list ${listId}: no member_count in response`);
+    }
+
+    const memberCountAfter = Number(addResult.mc);
+    if (!Number.isFinite(memberCountAfter)) {
+        throw new CommandExecutionError(`Failed to add @${username} to list ${listId}: invalid member_count in response`);
+    }
+
+    if (memberCountAfter < memberCountBefore) {
+        throw new CommandExecutionError(
+            `Failed to add @${username} to list ${listId}: member_count decreased unexpectedly (${memberCountBefore} → ${memberCountAfter})`
+        );
+    }
+
+    const countIncreased = memberCountAfter > memberCountBefore;
+    if (!countIncreased && addResult.isMember !== true) {
+        throw new CommandExecutionError(
+            `Failed to add @${username} to list ${listId}: member_count unchanged (${memberCountBefore} → ${memberCountAfter}) and response did not confirm membership`
+        );
+    }
+
+    const noop = !countIncreased;
+    const verifiedBy = `member_count ${memberCountBefore} → ${memberCountAfter}`;
+    return {
+        listId,
+        username,
+        userId: String(userId),
+        status: noop ? 'noop' : 'success',
+        message: noop
+            ? `@${username} is already a member of list ${listId}`
+            : `Added @${username} to list ${listId} (verified via ${verifiedBy})`,
+    };
+}
+
 cli({
     site: 'twitter',
     name: 'list-add',
@@ -82,10 +141,10 @@ cli({
         const listId = String(kwargs.listId || '').trim();
         const username = String(kwargs.username || '').replace(/^@/, '').trim();
         if (!listId || !/^\d+$/.test(listId)) {
-            throw new CommandExecutionError(`Invalid listId: ${JSON.stringify(kwargs.listId)}. Expected numeric ID (see \`opencli twitter lists\`).`);
+            throw new ArgumentError(`Invalid listId: ${JSON.stringify(kwargs.listId)}. Expected numeric ID.`, 'Example: opencli twitter list-add 123456789 alice');
         }
         if (!username) {
-            throw new CommandExecutionError('Username is required');
+            throw new ArgumentError('twitter list-add username is required', 'Example: opencli twitter list-add 123456789 alice');
         }
         // Strategy.UI does not get a domain URL pre-nav from the framework.
         // This page context is load-bearing for pre-target GraphQL calls below.
@@ -157,7 +216,7 @@ cli({
             variables: { listId, userId: String(userId) },
             queryId: listAddMemberQueryId,
         });
-        const addResultRaw = await page.evaluate(`async () => {
+        const addResultJsonRaw = await page.evaluate(`async () => {
             try {
                 const r = await fetch(${JSON.stringify(addUrl)}, {
                     method: 'POST',
@@ -167,59 +226,38 @@ cli({
                 });
                 const text = await r.text();
                 let body;
-                try { body = JSON.parse(text); } catch { body = { __raw: text.slice(0, 300) }; }
-                return {
-                    httpOk: r.ok,
-                    status: r.status,
-                    mc: body && body.data && body.data.list ? body.data.list.member_count : null,
-                    isMember: body && body.data && body.data.list ? body.data.list.is_member : null,
-                    errors: body && body.errors ? body.errors : null,
-                    raw: body && body.__raw ? body.__raw : null,
-                };
+                let raw = null;
+                try { body = JSON.parse(text); } catch { body = null; raw = text.slice(0, 300); }
+                const list = body && body.data && body.data.list ? body.data.list : null;
+                return JSON.stringify([
+                    r.ok,
+                    r.status,
+                    list ? list.member_count : null,
+                    list ? list.is_member : null,
+                    body && body.errors ? body.errors : null,
+                    raw,
+                    null,
+                ]);
             } catch (e) {
-                return { httpOk: false, status: 0, fetchError: String(e) };
+                return JSON.stringify([false, 0, null, null, null, null, String(e)]);
             }
         }`);
-        // addResultRaw shape: opencli wraps our returned object — for an object-typed return,
-        // it spreads our fields to top-level + adds session. So properties like httpOk/mc/errors
-        // are at top level; no unwrap needed.
-        const addResult = addResultRaw;
-
-        if (!addResult.httpOk) {
-            throw new CommandExecutionError(
-                `Failed to add @${username} to list ${listId}: HTTP ${addResult.status}${addResult.fetchError ? ' (' + addResult.fetchError + ')' : ''}${addResult.raw ? ' — ' + addResult.raw : ''}`
-            );
+        const addResultJson = unwrap(addResultJsonRaw);
+        let addResultTuple;
+        try {
+            addResultTuple = JSON.parse(addResultJson);
+        } catch {
+            throw new CommandExecutionError(`Failed to add @${username} to list ${listId}: malformed mutation response envelope`);
         }
-        // X often returns a partial GraphQL error on `default_banner_media_results` (code 214,
-        // a strato decode warning) even on successful mutations. Treat the call as failed only
-        // when the main `data.list` payload is missing — partial-field errors are non-fatal.
-        const mainFailed = addResult.mc === null && (!addResult.errors || addResult.errors.length === 0);
-        const fatalErrors = (addResult.errors || []).filter((e) =>
-            !(e?.path || []).join('.').includes('default_banner_media_results')
-            && !/decode/i.test(e?.message || '')
-        );
-        if (addResult.mc === null && fatalErrors.length) {
-            const msg = fatalErrors.map((e) => e.message || JSON.stringify(e)).join('; ');
-            throw new CommandExecutionError(`Failed to add @${username} to list ${listId}: ${msg.slice(0, 300)}`);
-        }
-        if (mainFailed) {
-            throw new CommandExecutionError(`Failed to add @${username} to list ${listId}: no member_count in response`);
-        }
+        const addResult = Object.create(null);
+        addResult.httpOk = Boolean(addResultTuple?.[0]);
+        addResult.status = Number(addResultTuple?.[1]) || 0;
+        addResult.mc = addResultTuple?.[2];
+        addResult.isMember = addResultTuple?.[3];
+        addResult.errors = addResultTuple?.[4];
+        addResult.raw = addResultTuple?.[5];
+        addResult.fetchError = addResultTuple?.[6];
 
-        const memberCountAfter = Number(addResult.mc);
-        const noop = Number.isFinite(memberCountAfter) && memberCountAfter === memberCountBefore;
-        const verifiedBy = Number.isFinite(memberCountAfter)
-            ? `member_count ${memberCountBefore} → ${memberCountAfter}`
-            : 'HTTP 200 (member_count not returned)';
-
-        return [{
-            listId,
-            username,
-            userId: String(userId),
-            status: noop ? 'noop' : 'success',
-            message: noop
-                ? `@${username} is already a member of list ${listId} (or X declined silently)`
-                : `Added @${username} to list ${listId} (verified via ${verifiedBy})`,
-        }];
+        return [buildListAddMemberRow({ addResult, memberCountBefore, listId, username, userId })];
     },
 });

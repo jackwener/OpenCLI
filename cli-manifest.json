@@ -23164,7 +23164,9 @@
       "retweets",
       "replies",
       "created_at",
-      "url"
+      "url",
+      "has_media",
+      "media_urls"
     ],
     "type": "js",
     "modulePath": "twitter/list-tweets.js",
