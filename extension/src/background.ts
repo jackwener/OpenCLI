@@ -70,11 +70,22 @@ const _origWarn = console.warn.bind(console);
 const _origError = console.error.bind(console);
 
 function forwardLog(level: 'info' | 'warn' | 'error', args: unknown[]): void {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
   try {
     const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
-    ws.send(JSON.stringify({ type: 'log', level, msg, ts: Date.now() }));
+    safeSend(ws, { type: 'log', level, msg, ts: Date.now() });
   } catch { /* don't recurse */ }
+}
+
+function safeSend(socket: WebSocket | null | undefined, payload: unknown): boolean {
+  if (!socket || socket.readyState === WebSocket.CLOSING || socket.readyState === WebSocket.CLOSED) {
+    return false;
+  }
+  try {
+    socket.send(JSON.stringify(payload));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 console.log = (...args: unknown[]) => { _origLog(...args); forwardLog('info', args); };
@@ -100,16 +111,19 @@ async function connect(): Promise<void> {
     return; // daemon not running — skip WebSocket to avoid console noise
   }
 
+  let thisWs: WebSocket;
   try {
     const contextId = await getCurrentContextId();
-    ws = new WebSocket(DAEMON_WS_URL);
+    thisWs = new WebSocket(DAEMON_WS_URL);
+    ws = thisWs;
     currentContextId = contextId;
   } catch {
     scheduleReconnect();
     return;
   }
 
-  ws.onopen = () => {
+  thisWs.onopen = () => {
+    if (ws !== thisWs) return;
     console.log('[opencli] Connected to daemon');
     reconnectAttempts = 0; // Reset on successful connection
     if (reconnectTimer) {
@@ -117,32 +131,33 @@ async function connect(): Promise<void> {
       reconnectTimer = null;
     }
     // Send version + compatibility range so the daemon can report mismatches to the CLI
-    ws?.send(JSON.stringify({
+    safeSend(thisWs, {
       type: 'hello',
       contextId: currentContextId,
       version: chrome.runtime.getManifest().version,
       compatRange: __OPENCLI_COMPAT_RANGE__,
-    }));
+    });
   };
 
-  ws.onmessage = async (event) => {
+  thisWs.onmessage = async (event) => {
     try {
       const command = JSON.parse(event.data as string) as Command;
       const result = await handleCommand(command);
-      ws?.send(JSON.stringify(result));
+      safeSend(thisWs, result);
     } catch (err) {
       console.error('[opencli] Message handling error:', err);
     }
   };
 
-  ws.onclose = () => {
+  thisWs.onclose = () => {
+    if (ws !== thisWs) return;
     console.log('[opencli] Disconnected from daemon');
     ws = null;
     scheduleReconnect();
   };
 
-  ws.onerror = () => {
-    ws?.close();
+  thisWs.onerror = () => {
+    thisWs.close();
   };
 }
 

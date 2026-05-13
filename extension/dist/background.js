@@ -671,11 +671,21 @@ const _origLog = console.log.bind(console);
 const _origWarn = console.warn.bind(console);
 const _origError = console.error.bind(console);
 function forwardLog(level, args) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
   try {
     const msg = args.map((a) => typeof a === "string" ? a : JSON.stringify(a)).join(" ");
-    ws.send(JSON.stringify({ type: "log", level, msg, ts: Date.now() }));
+    safeSend(ws, { type: "log", level, msg, ts: Date.now() });
   } catch {
+  }
+}
+function safeSend(socket, payload) {
+  if (!socket || socket.readyState === WebSocket.CLOSING || socket.readyState === WebSocket.CLOSED) {
+    return false;
+  }
+  try {
+    socket.send(JSON.stringify(payload));
+    return true;
+  } catch {
+    return false;
   }
 }
 console.log = (...args) => {
@@ -698,44 +708,48 @@ async function connect() {
   } catch {
     return;
   }
+  let thisWs;
   try {
     const contextId = await getCurrentContextId();
-    ws = new WebSocket(DAEMON_WS_URL);
+    thisWs = new WebSocket(DAEMON_WS_URL);
+    ws = thisWs;
     currentContextId = contextId;
   } catch {
     scheduleReconnect();
     return;
   }
-  ws.onopen = () => {
+  thisWs.onopen = () => {
+    if (ws !== thisWs) return;
     console.log("[opencli] Connected to daemon");
     reconnectAttempts = 0;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
-    ws?.send(JSON.stringify({
+    safeSend(thisWs, {
       type: "hello",
       contextId: currentContextId,
       version: chrome.runtime.getManifest().version,
       compatRange: ">=1.7.0"
-    }));
+    });
   };
-  ws.onmessage = async (event) => {
+  thisWs.onmessage = async (event) => {
     try {
       const command = JSON.parse(event.data);
       const result = await handleCommand(command);
-      ws?.send(JSON.stringify(result));
+      safeSend(thisWs, result);
     } catch (err) {
       console.error("[opencli] Message handling error:", err);
     }
   };
-  ws.onclose = () => {
+  thisWs.onclose = () => {
+    if (ws !== thisWs) return;
     console.log("[opencli] Disconnected from daemon");
     ws = null;
     scheduleReconnect();
   };
-  ws.onerror = () => {
-    ws?.close();
+  thisWs.onerror = () => {
+    thisWs.close();
   };
 }
 const MAX_EAGER_ATTEMPTS = 6;
