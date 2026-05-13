@@ -1050,6 +1050,68 @@ describe('background tab isolation', () => {
     expect(chrome.tabGroups.update).not.toHaveBeenCalled();
   });
 
+  it('discovers and reuses an existing OpenCLI Adapter group in another window before creating one', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    tabs.push({
+      id: 77,
+      windowId: 7,
+      url: 'about:blank',
+      title: 'blank',
+      active: true,
+      status: 'complete',
+      groupId: -1,
+    });
+    groups.push({
+      id: 99,
+      windowId: 7,
+      title: 'OpenCLI Adapter',
+      color: 'orange',
+      collapsed: true,
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    expect(tabId).toBe(77);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(7);
+    expect(tabs.find((tab) => tab.id === 77)?.groupId).toBe(99);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 99, tabIds: [77] });
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+  });
+
+  it('discovers and reuses a legacy OpenCLI automation group before creating a duplicate', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    tabs.push({
+      id: 78,
+      windowId: 8,
+      url: 'about:blank',
+      title: 'blank',
+      active: true,
+      status: 'complete',
+      groupId: -1,
+    });
+    groups.push({
+      id: 98,
+      windowId: 8,
+      title: 'OpenCLI',
+      color: 'orange',
+      collapsed: true,
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    expect(tabId).toBe(78);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(8);
+    expect(tabs.find((tab) => tab.id === 78)?.groupId).toBe(98);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 98, tabIds: [78] });
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+  });
+
   it('reuses a persisted automation group id after service worker restart even if the user renamed it', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     groups.push({
