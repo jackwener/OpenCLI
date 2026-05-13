@@ -189,7 +189,8 @@ cli({
         const allTweets = [];
         const seen = new Set();
         let cursor = null;
-        for (let i = 0; i < 5 && allTweets.length < limit; i++) {
+        const maxPages = Math.ceil(limit / 100) + 2;
+        for (let i = 0; i < maxPages && allTweets.length < limit; i++) {
             const fetchCount = Math.min(100, limit - allTweets.length + 10);
             const apiUrl = buildLikesUrl(likesQueryId, userId, fetchCount, cursor);
             const data = await page.evaluate(`async () => {
