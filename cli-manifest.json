@@ -28214,6 +28214,47 @@
   },
   {
     "site": "zhihu",
+    "name": "answer-detail",
+    "description": "知乎单个回答完整内容（按 answer ID 获取）",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Answer ID, full Zhihu answer URL, or typed target (answer:<qid>:<aid>)"
+      },
+      {
+        "name": "max-content",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Optional cap on stripped content length in characters (0 = no truncation, return the full answer)"
+      }
+    ],
+    "columns": [
+      "id",
+      "author",
+      "votes",
+      "comments",
+      "question_id",
+      "question_title",
+      "url",
+      "created_at",
+      "updated_at",
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/answer-detail.js",
+    "sourceFile": "zhihu/answer-detail.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
     "name": "collection",
     "description": "知乎收藏夹内容列表（需要登录）",
     "access": "read",
