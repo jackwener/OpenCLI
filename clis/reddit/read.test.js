@@ -1,13 +1,77 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { parseExpandRounds } from './read.js';
+import { normalizeRedditPostId, parseExpandRounds } from './read.js';
 import './read.js';
 
 function makePage(result) {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
         evaluate: vi.fn().mockResolvedValue(result),
+    };
+}
+
+function redditPostEnvelope(children) {
+    return [
+        {
+            data: {
+                children: [{
+                    data: {
+                        title: 'Post title',
+                        selftext: '',
+                        author: 'op',
+                        score: 10,
+                        is_self: true,
+                    },
+                }],
+            },
+        },
+        { data: { children } },
+    ];
+}
+
+function commentThing(id, body, parent = 't3_abc123', score = 1) {
+    return {
+        kind: 't1',
+        data: {
+            id,
+            name: `t1_${id}`,
+            parent_id: parent,
+            author: id,
+            score,
+            body,
+            replies: '',
+        },
+    };
+}
+
+function moreThing(id, children, parent = 't3_abc123', count = children.length) {
+    return {
+        kind: 'more',
+        data: { id, parent_id: parent, children, count },
+    };
+}
+
+function jsonResponse(payload, status = 200) {
+    return {
+        ok: status >= 200 && status < 300,
+        status,
+        json: vi.fn().mockResolvedValue(payload),
+    };
+}
+
+function makeRuntimePage(fetchImpl) {
+    return {
+        goto: vi.fn().mockResolvedValue(undefined),
+        evaluate: vi.fn(async (script) => {
+            const previousFetch = globalThis.fetch;
+            globalThis.fetch = fetchImpl;
+            try {
+                return await eval(script);
+            } finally {
+                globalThis.fetch = previousFetch;
+            }
+        }),
     };
 }
 
@@ -32,6 +96,30 @@ describe('reddit read adapter', () => {
         expect(rounds.default).toBe(2);
     });
 
+    describe('normalizeRedditPostId', () => {
+        it('accepts bare ids, t3 fullnames, and exact reddit post URLs', () => {
+            expect(normalizeRedditPostId('1AbC23')).toBe('1abc23');
+            expect(normalizeRedditPostId('t3_1AbC23')).toBe('1abc23');
+            expect(normalizeRedditPostId('https://www.reddit.com/r/opencli/comments/1abc23/title_slug/?sort=top')).toBe('1abc23');
+            expect(normalizeRedditPostId('https://www.reddit.com/r/opencli/comments/1abc23/title_slug/okf3s7u/?context=3')).toBe('1abc23');
+            expect(normalizeRedditPostId('https://old.reddit.com/comments/1abc23/title_slug/')).toBe('1abc23');
+        });
+
+        it('rejects invalid or structurally loose post identities before navigation', () => {
+            for (const bad of [
+                '',
+                't1_okf3s7u',
+                'https://reddit.com.evil.com/r/opencli/comments/1abc23/title_slug/',
+                'http://www.reddit.com/r/opencli/comments/1abc23/title_slug/',
+                'https://www.reddit.com/r/opencli/comments/',
+                'https://www.reddit.com/r/opencli/comments/1abc23/title_slug/okf3s7u/evil',
+                'not/a/post',
+            ]) {
+                expect(() => normalizeRedditPostId(bad)).toThrow(ArgumentError);
+            }
+        });
+    });
+
     describe('parseExpandRounds', () => {
         it('returns the default for absent input but throws on out-of-range / non-integer', () => {
             expect(parseExpandRounds(undefined)).toBe(2);
@@ -48,6 +136,14 @@ describe('reddit read adapter', () => {
     it('rejects a bad --expand-rounds BEFORE navigating', async () => {
         const page = makePage({ kind: 'ok', rows: [] });
         await expect(command.func(page, { 'post-id': 'abc123', 'expand-rounds': 99 }))
+            .rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(page.evaluate).not.toHaveBeenCalled();
+    });
+
+    it('rejects a bad post identity BEFORE navigating', async () => {
+        const page = makePage({ kind: 'ok', rows: [] });
+        await expect(command.func(page, { 'post-id': 'https://evil.test/r/x/comments/abc/title/' }))
             .rejects.toBeInstanceOf(ArgumentError);
         expect(page.goto).not.toHaveBeenCalled();
         expect(page.evaluate).not.toHaveBeenCalled();
@@ -105,7 +201,7 @@ describe('reddit read adapter', () => {
         expect(script).toContain('var expandRounds = 2');
         expect(script).toContain('var sort = "top"');
         expect(script).toContain('var limit = 3');
-        expect(script).toContain('var postIdRaw = "xyz"');
+        expect(script).toContain('var postId = "xyz"');
     });
 
     it('embeds expandMore=true and the requested expandRounds when --expand-more is on', async () => {
@@ -122,11 +218,73 @@ describe('reddit read adapter', () => {
         expect(script).toContain("encodeURIComponent(batch.join(','))");
     });
 
-    it('extracts post id from a full reddit URL on the browser side (script contains regex)', async () => {
+    it('normalizes a full reddit URL before building the browser script', async () => {
         const page = makePage({ kind: 'ok', rows: [], expandMeta: { rounds: 0, fetched: 0, capped: false, errors: [] } });
         await command.func(page, { 'post-id': 'https://www.reddit.com/r/python/comments/1abc23/title_slug/' });
         const script = page.evaluate.mock.calls[0][0];
-        expect(script).toContain('postIdRaw.match(/comments\\/([a-z0-9]+)/)');
+        expect(script).toContain('var postId = "1abc23"');
+        expect(script).not.toContain('postIdRaw.match');
+    });
+
+    it('expands morechildren in the original tree position instead of appending to the parent', async () => {
+        const fetchMock = vi.fn(async (url) => {
+            if (String(url).startsWith('/comments/')) {
+                return jsonResponse(redditPostEnvelope([
+                    commentThing('a', 'A'),
+                    moreThing('more_top', ['b', 'c']),
+                    commentThing('d', 'D'),
+                ]));
+            }
+            if (String(url) === '/api/morechildren') {
+                return jsonResponse({
+                    json: {
+                        errors: [],
+                        data: { things: [commentThing('b', 'B'), commentThing('c', 'C')] },
+                    },
+                });
+            }
+            throw new Error(`unexpected URL ${url}`);
+        });
+        const page = makeRuntimePage(fetchMock);
+
+        const result = await command.func(page, {
+            'post-id': 'abc123',
+            'expand-more': true,
+            limit: 10,
+            replies: 10,
+        });
+
+        expect(result.map((row) => row.author)).toEqual(['op', 'a', 'b', 'c', 'd']);
+        expect(fetchMock).toHaveBeenCalledWith(
+            '/api/morechildren',
+            expect.objectContaining({
+                method: 'POST',
+                body: expect.stringContaining('link_id=t3_abc123'),
+            }),
+        );
+    });
+
+    it('fails expand-more when Reddit returns a child that cannot be placed in the requested tree', async () => {
+        const fetchMock = vi.fn(async (url) => {
+            if (String(url).startsWith('/comments/')) {
+                return jsonResponse(redditPostEnvelope([moreThing('more_top', ['b'])]));
+            }
+            if (String(url) === '/api/morechildren') {
+                return jsonResponse({
+                    json: {
+                        errors: [],
+                        data: { things: [commentThing('b', 'B', 't3_other')] },
+                    },
+                });
+            }
+            throw new Error(`unexpected URL ${url}`);
+        });
+        const page = makeRuntimePage(fetchMock);
+
+        await expect(command.func(page, {
+            'post-id': 'abc123',
+            'expand-more': true,
+        })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('uses 5-kind discriminated union keys that DO NOT collide with declared columns', () => {

@@ -14,6 +14,73 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultErr
 const REDDIT_EXPAND_ROUNDS_MIN = 1;
 const REDDIT_EXPAND_ROUNDS_MAX = 5;
 const DEFAULT_EXPAND_ROUNDS = 2;
+const REDDIT_POST_ID_RE = /^[a-z0-9]+$/i;
+
+function normalizeBareRedditPostId(value) {
+    const postId = String(value || '').trim();
+    if (!REDDIT_POST_ID_RE.test(postId)) {
+        throw new ArgumentError(
+            'Post ID must be a Reddit post id, t3_ fullname, or reddit.com post URL.',
+            'Use a bare post id like 1abc123, a fullname like t3_1abc123, or a full Reddit post URL.',
+        );
+    }
+    return postId.toLowerCase();
+}
+
+export function normalizeRedditPostId(value) {
+    const raw = String(value || '').trim();
+    if (!raw) {
+        throw new ArgumentError(
+            'Post ID is required.',
+            'Use a bare post id like 1abc123, a fullname like t3_1abc123, or a full Reddit post URL.',
+        );
+    }
+
+    const fullname = raw.match(/^t3_([a-z0-9]+)$/i);
+    if (fullname) return normalizeBareRedditPostId(fullname[1]);
+
+    if (/^https?:\/\//i.test(raw)) {
+        let parsed;
+        try {
+            parsed = new URL(raw);
+        } catch {
+            throw new ArgumentError(`Invalid Reddit post URL: ${raw}`);
+        }
+        const host = parsed.hostname.toLowerCase();
+        if (parsed.protocol !== 'https:' || (host !== 'reddit.com' && !host.endsWith('.reddit.com'))) {
+            throw new ArgumentError(
+                'Post URL must be an https reddit.com URL.',
+                'Use a URL like https://www.reddit.com/r/sub/comments/1abc123/title_slug/',
+            );
+        }
+        const parts = parsed.pathname.split('/').filter(Boolean);
+        const commentsIndex = parts.indexOf('comments');
+        const postIndex = commentsIndex + 1;
+        if (commentsIndex < 0 || parts.length <= postIndex) {
+            throw new ArgumentError(
+                'Post URL must include the target post id.',
+                'Use a URL like https://www.reddit.com/r/sub/comments/1abc123/title_slug/',
+            );
+        }
+        if (parts.length > postIndex + 3) {
+            throw new ArgumentError(
+                'Post URL must end at the post slug or comment permalink id.',
+                'Remove extra path segments after the post slug or comment id.',
+            );
+        }
+        if (parts.length === postIndex + 3) normalizeBareRedditPostId(parts[postIndex + 2]);
+        return normalizeBareRedditPostId(parts[postIndex]);
+    }
+
+    if (raw.includes('/') || raw.startsWith('t1_')) {
+        throw new ArgumentError(
+            'Post ID must be a Reddit post id, t3_ fullname, or reddit.com post URL.',
+            'Use a bare post id like 1abc123, a fullname like t3_1abc123, or a full Reddit post URL.',
+        );
+    }
+
+    return normalizeBareRedditPostId(raw);
+}
 
 export function parseExpandRounds(raw) {
     if (raw === undefined || raw === null || raw === '') return DEFAULT_EXPAND_ROUNDS;
@@ -72,6 +139,7 @@ cli({
         const maxLength = Math.max(100, kwargs['max-length'] ?? 2000);
         const expandMore = Boolean(kwargs['expand-more']);
         const expandRounds = parseExpandRounds(kwargs['expand-rounds']);
+        const postId = normalizeRedditPostId(kwargs['post-id']);
 
         await page.goto('https://www.reddit.com');
 
@@ -94,9 +162,7 @@ cli({
         // `text`) to sidestep the silent-column-drop audit (PR #1329).
         const result = await page.evaluate(`
       (async function() {
-        var postIdRaw = ${JSON.stringify(kwargs['post-id'])};
-        var urlMatch = postIdRaw.match(/comments\\/([a-z0-9]+)/);
-        var postId = urlMatch ? urlMatch[1] : postIdRaw;
+        var postId = ${JSON.stringify(postId)};
         var linkFullname = 't3_' + postId;
 
         var sort = ${JSON.stringify(sort)};
@@ -251,54 +317,56 @@ cli({
             expandMeta.rounds = r + 1;
             expandMeta.fetched += fetchedThings.length;
 
-            // Re-thread fetched things by parent_id. Parents are either the
-            // post (t3_<postId>) → top-level listing, or another t1 → its
-            // replies.data.children. We must respect Reddit's depth/inline
-            // semantics: if the parent t1 has no replies object yet (because
-            // initial fetch didn't inline replies there), create the shell.
-            function ensureReplies(parentNode) {
-              if (!parentNode.data.replies || typeof parentNode.data.replies !== 'object') {
-                parentNode.data.replies = { kind: 'Listing', data: { children: [] } };
-                return parentNode.data.replies.data.children;
-              }
-              if (!parentNode.data.replies.data) {
-                parentNode.data.replies.data = { children: [] };
-                return parentNode.data.replies.data.children;
-              }
-              if (!Array.isArray(parentNode.data.replies.data.children)) {
-                parentNode.data.replies.data.children = [];
-              }
-              return parentNode.data.replies.data.children;
-            }
-
-            // First: remove old stubs so we can replace with fresh content.
-            // The stubs we collected may have been replaced if their children
-            // overlap; do a safe filter.
-            for (var s = 0; s < stubs.length; s++) {
-              var rec = stubs[s];
-              var idx = rec.hostArr.indexOf(rec.stub);
-              if (idx >= 0) rec.hostArr.splice(idx, 1);
-            }
-
-            // Now insert fetched things.
+            var fetchedById = {};
             for (var t = 0; t < fetchedThings.length; t++) {
               var thing = fetchedThings[t];
               if (!thing || !thing.data) continue;
-              var parentId = thing.data.parent_id;
-              var dest;
-              if (parentId === linkFullname) {
-                dest = topListing;
-              } else if (parentId && parentId.indexOf('t1_') === 0 && t1Index[parentId]) {
-                dest = ensureReplies(t1Index[parentId]);
-              } else {
-                // Orphaned thing whose parent isn't in our tree (depth
-                // boundary). Drop with metadata rather than silently lose.
-                expandMeta.errors.push('orphan: ' + (thing.data.id || '?') + ' parent=' + (parentId || '?'));
-                continue;
+              if (thing.data.id) fetchedById[thing.data.id] = thing;
+              if (thing.data.name) fetchedById[thing.data.name] = thing;
+            }
+
+            var inserted = {};
+            function thingKey(thing) {
+              return thing && thing.data && (thing.data.name || (thing.kind + '_' + thing.data.id));
+            }
+
+            // Replace each collected stub in-place so expansion preserves the
+            // surrounding tree order instead of appending fetched comments at
+            // the end of the parent array.
+            for (var s = 0; s < stubs.length; s++) {
+              var rec = stubs[s];
+              var idx = rec.hostArr.indexOf(rec.stub);
+              if (idx < 0) continue;
+              var expectedParent = rec.hostT1
+                ? (rec.hostT1.data.name || ('t1_' + rec.hostT1.data.id))
+                : linkFullname;
+              var replacements = [];
+              for (var c = 0; c < rec.stub.data.children.length; c++) {
+                var childId = rec.stub.data.children[c];
+                var replacement = fetchedById[childId] || fetchedById['t1_' + childId];
+                if (!replacement || !replacement.data) continue;
+                var key = thingKey(replacement);
+                if (key && inserted[key]) continue;
+                if (replacement.data.parent_id !== expectedParent) {
+                  expandMeta.errors.push('orphan: ' + (replacement.data.id || '?') + ' parent=' + (replacement.data.parent_id || '?'));
+                  continue;
+                }
+                replacements.push(replacement);
+                if (key) inserted[key] = 1;
+                if (replacement.kind === 't1' && replacement.data && replacement.data.id) {
+                  t1Index[replacement.data.name || ('t1_' + replacement.data.id)] = replacement;
+                }
               }
-              dest.push(thing);
-              if (thing.kind === 't1' && thing.data && thing.data.id) {
-                t1Index[thing.data.name || ('t1_' + thing.data.id)] = thing;
+              rec.hostArr.splice(idx, 1, ...replacements);
+            }
+
+            for (var t = 0; t < fetchedThings.length; t++) {
+              var unplaced = fetchedThings[t];
+              var unplacedKey = thingKey(unplaced);
+              if (unplacedKey && inserted[unplacedKey]) continue;
+              if (unplaced && unplaced.data) {
+                expandMeta.errors.push('unplaced: ' + (unplaced.data.id || '?') + ' parent=' + (unplaced.data.parent_id || '?'));
+                continue;
               }
             }
 
@@ -307,6 +375,10 @@ cli({
               var remaining = collectMoreStubs(topListing, null);
               if (remaining.length > 0) expandMeta.capped = true;
             }
+          }
+
+          if (expandMeta.errors.length > 0) {
+            return { kind: 'expand-failed', detail: 'Reddit /api/morechildren returned unplaceable comments: ' + expandMeta.errors.slice(0, 5).join('; '), expandMeta: expandMeta };
           }
         }
 
