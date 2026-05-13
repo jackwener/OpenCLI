@@ -127,12 +127,22 @@ export function normalizeTwitterGraphqlPayload(value) {
 export function sanitizeTwitterOperationMetadata(resolved, fallback) {
     const value = unwrapBrowserResult(resolved);
     const normalizedFallback = normalizeOperationFallback(fallback);
+    // Empty resolved features / fieldToggles must defer to the baked fallback.
+    // The bundle parser can find a queryId but miss `featureSwitches:[...]` (e.g.
+    // a minification change, or the 2500-char snippet window truncating before
+    // the array). When that happens, keysToFlags(undefined) returns {}; if we
+    // kept it, Twitter would receive an empty `features` map and respond 400,
+    // surfacing a misleading "queryId expired" error.
     return {
         queryId: sanitizeQueryId(value?.queryId, normalizedFallback.queryId),
-        features: value?.features && typeof value.features === 'object'
+        features: value?.features
+            && typeof value.features === 'object'
+            && Object.keys(value.features).length > 0
             ? value.features
             : normalizedFallback.features,
-        fieldToggles: value?.fieldToggles && typeof value.fieldToggles === 'object'
+        fieldToggles: value?.fieldToggles
+            && typeof value.fieldToggles === 'object'
+            && Object.keys(value.fieldToggles).length > 0
             ? value.fieldToggles
             : normalizedFallback.fieldToggles,
     };
