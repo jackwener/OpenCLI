@@ -99,6 +99,38 @@ describe('facebook feed', () => {
     expect(payload.rows).toEqual([]);
   });
 
+  it('still considers bounded fallback rows when article nodes are suggestion chrome', () => {
+    const payload = runExtract(`
+      <main role="main">
+        <div role="article">
+          <h2>People you may know</h2>
+          <div dir="auto">Suggested profile card with enough text to look article-like.</div>
+          <button aria-label="Like">Like</button>
+          <button aria-label="Comment">Comment</button>
+        </div>
+        <section>
+          <div>
+            <h2><a href="https://www.facebook.com/dana/posts/456">Dana Poster</a></h2>
+            <div dir="auto">Fallback feed post should still be extracted after suggestion articles are filtered.</div>
+            <a href="https://www.facebook.com/dana/posts/456">Permalink</a>
+            <button aria-label="Like">Like</button>
+            <button aria-label="Comment">Comment</button>
+          </div>
+        </section>
+      </main>
+    `, 1);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.rows).toEqual([{
+      index: 1,
+      author: 'Dana Poster',
+      content: 'Fallback feed post should still be extracted after suggestion articles are filtered.',
+      likes: '-',
+      comments: '-',
+      shares: '-',
+    }]);
+  });
+
   it('reports auth pages from the browser extractor', () => {
     const payload = runExtract('<main role="main">Log in to Facebook</main>', 10, 'https://www.facebook.com/login/');
     expect(payload.status).toBe('auth');

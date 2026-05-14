@@ -147,13 +147,13 @@ function buildFeedExtractScript(limit) {
       if (!author && !content) return null;
       if (!content && !postUrl && kinds.size < 2) return null;
 
-      const likesMatch = fullText.match(/所有心情：([\\d,.\\s]*[\\d万亿KMk]+)/)
-        || fullText.match(/All:\\s*([\\d,.KMk]+)/)
-        || fullText.match(/([\\d,.KMk]+)\\s*(?:likes?|reactions?)/i);
+      const likesMatch = fullText.match(/所有心情：\\s*(\\d[\\d,.\\s万亿KMk]*)/)
+        || fullText.match(/All:\\s*(\\d[\\d,.KMk]*)/)
+        || fullText.match(/(\\d[\\d,.KMk]*)\\s*(?:likes?|reactions?)/i);
       const commentsMatch = fullText.match(/([\\d,.]+\\s*[万亿]?)\\s*条评论/)
-        || fullText.match(/([\\d,.KMk]+)\\s*comments?/i);
+        || fullText.match(/(\\d[\\d,.KMk]*)\\s*comments?/i);
       const sharesMatch = fullText.match(/([\\d,.]+\\s*[万亿]?)\\s*次分享/)
-        || fullText.match(/([\\d,.KMk]+)\\s*shares?/i);
+        || fullText.match(/(\\d[\\d,.KMk]*)\\s*shares?/i);
 
       return {
         index,
@@ -210,7 +210,7 @@ function buildFeedExtractScript(limit) {
     if (isAuthPage()) return { status: 'auth', rows: [], diagnostics: {} };
 
     const primary = primaryContainers();
-    const combined = primary.length >= limit ? primary : dedupe([...primary, ...fallbackContainers()]);
+    const combined = dedupe([...primary, ...fallbackContainers()]);
     const rows = [];
     for (const container of combined) {
       const row = extractPost(container, rows.length + 1);
