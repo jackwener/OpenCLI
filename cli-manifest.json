@@ -9734,6 +9734,47 @@
     "sourceFile": "flathub/search.js"
   },
   {
+    "site": "flomo",
+    "name": "memos",
+    "description": "List your Flomo memos",
+    "access": "read",
+    "domain": "flomoapp.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of memos to fetch (max 200)"
+      },
+      {
+        "name": "slug",
+        "type": "str",
+        "required": false,
+        "help": "Pagination cursor: slug of the last memo from previous page"
+      },
+      {
+        "name": "tz",
+        "type": "str",
+        "default": "8:0",
+        "required": false,
+        "help": "Timezone offset (e.g. 8:0 for Beijing)"
+      }
+    ],
+    "columns": [
+      "content",
+      "slug",
+      "tags",
+      "created_at",
+      "updated_at"
+    ],
+    "type": "js",
+    "modulePath": "flomo/memos.js",
+    "sourceFile": "flomo/memos.js"
+  },
+  {
     "site": "gemini",
     "name": "ask",
     "description": "Send a prompt to Gemini and return only the assistant response",
