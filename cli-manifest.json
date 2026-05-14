@@ -4010,6 +4010,46 @@
     "navigateBefore": false
   },
   {
+    "site": "brave",
+    "name": "search",
+    "description": "Search Brave Search",
+    "access": "read",
+    "domain": "search.brave.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search query"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of results per page (max 18)"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Page offset (0, 1, 2...). Brave returns ~18 results per page"
+      }
+    ],
+    "columns": [
+      "title",
+      "url",
+      "snippet"
+    ],
+    "type": "js",
+    "modulePath": "brave/search.js",
+    "sourceFile": "brave/search.js"
+  },
+  {
     "site": "chaoxing",
     "name": "assignments",
     "description": "学习通作业列表",
@@ -8703,6 +8743,92 @@
     "modulePath": "douyin/videos.js",
     "sourceFile": "douyin/videos.js",
     "navigateBefore": "https://creator.douyin.com"
+  },
+  {
+    "site": "duckduckgo",
+    "name": "search",
+    "description": "Search DuckDuckGo",
+    "access": "read",
+    "domain": "html.duckduckgo.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search query"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of results per page (1-10). For multi-page, use --offset"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Result offset for pagination (0, 10, 20...). Uses XHR POST internally"
+      },
+      {
+        "name": "region",
+        "type": "str",
+        "required": false,
+        "help": "Region code (e.g. jp-jp, us-en, cn-zh). Default: all regions"
+      },
+      {
+        "name": "time",
+        "type": "str",
+        "required": false,
+        "help": "Time range: d (day), w (week), m (month), y (year)"
+      }
+    ],
+    "columns": [
+      "title",
+      "url",
+      "snippet",
+      "displayUrl",
+      "icon",
+      "resultType"
+    ],
+    "type": "js",
+    "modulePath": "duckduckgo/search.js",
+    "sourceFile": "duckduckgo/search.js"
+  },
+  {
+    "site": "duckduckgo",
+    "name": "suggest",
+    "description": "DuckDuckGo search suggestions",
+    "access": "read",
+    "domain": "duckduckgo.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search query prefix"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 8,
+        "required": false,
+        "help": "Max number of suggestions"
+      }
+    ],
+    "columns": [
+      "phrase"
+    ],
+    "type": "js",
+    "modulePath": "duckduckgo/suggest.js",
+    "sourceFile": "duckduckgo/suggest.js"
   },
   {
     "site": "eastmoney",
@@ -26698,6 +26824,46 @@
     "modulePath": "xueqiu/watchlist.js",
     "sourceFile": "xueqiu/watchlist.js",
     "navigateBefore": "https://xueqiu.com"
+  },
+  {
+    "site": "yahoo",
+    "name": "search",
+    "description": "Search Yahoo (powered by Bing)",
+    "access": "read",
+    "domain": "search.yahoo.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search query"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 7,
+        "required": false,
+        "help": "Number of results per page (max 7)"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Page number (1, 2, 3...). Yahoo returns ~7 results per page"
+      }
+    ],
+    "columns": [
+      "title",
+      "url",
+      "snippet"
+    ],
+    "type": "js",
+    "modulePath": "yahoo/search.js",
+    "sourceFile": "yahoo/search.js"
   },
   {
     "site": "yahoo-finance",
