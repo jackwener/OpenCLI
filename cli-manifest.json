@@ -26489,20 +26489,16 @@
         "default": 150,
         "required": false,
         "help": "Snippet length around each match (1-500)"
+      },
+      {
+        "name": "raw",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Output structured rows instead of markdown text"
       }
     ],
-    "columns": [
-      "rank",
-      "book_title",
-      "author",
-      "chapter_idx",
-      "chapter_title",
-      "snippet",
-      "search_idx",
-      "chapter_uid",
-      "book_id",
-      "url"
-    ],
+    "defaultFormat": "md",
     "type": "js",
     "modulePath": "weread/book-search.js",
     "sourceFile": "weread/book-search.js"

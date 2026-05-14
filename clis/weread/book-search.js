@@ -298,6 +298,38 @@ function buildRows(book, matches) {
     });
 }
 
+function formatMarkdownResults(book, query, rows) {
+    const title = book.title || `WeRead book ${book.bookId}`;
+    const lines = [`# ${title}`];
+    if (book.author)
+        lines.push(`- author: ${book.author}`);
+    lines.push(`- book_id: \`${book.bookId}\``);
+    lines.push(`- query: \`${query}\``);
+    lines.push(`- matches: ${rows.length}`);
+    if (book.readerUrl)
+        lines.push(`- url: ${book.readerUrl}`);
+    lines.push('');
+    for (const row of rows) {
+        const chapterLabel = row.chapter_title || `chapter ${row.chapter_uid ?? ''}`.trim();
+        lines.push(`## ${row.rank}. ${chapterLabel}`);
+        const details = [];
+        if (row.chapter_idx !== null)
+            details.push(`chapter_idx: ${row.chapter_idx}`);
+        if (row.chapter_uid !== null)
+            details.push(`chapter_uid: ${row.chapter_uid}`);
+        details.push(`search_idx: ${row.search_idx}`);
+        lines.push('');
+        lines.push(`> ${row.snippet}`);
+        lines.push('');
+        for (const detail of details) {
+            lines.push(`- ${detail}`);
+        }
+        if (row.rank < rows.length)
+            lines.push('');
+    }
+    return lines.join('\n');
+}
+
 cli({
     site: 'weread',
     name: 'book-search',
@@ -306,14 +338,15 @@ cli({
     domain: 'weread.qq.com',
     strategy: Strategy.PUBLIC,
     browser: false,
+    defaultFormat: 'md',
     args: [
         { name: 'book', positional: true, required: true, help: 'Book title keyword, numeric bookId, or reader URL' },
         { name: 'query', positional: true, required: true, help: 'Keyword to search inside the selected book' },
         { name: 'book-rank', type: 'int', default: 1, help: 'Which book search result to use when book is a title keyword' },
         { name: 'limit', type: 'int', default: 20, help: 'Max in-book matches to return (1-100)' },
         { name: 'fragment-size', type: 'int', default: 150, help: 'Snippet length around each match (1-500)' },
+        { name: 'raw', type: 'boolean', default: false, help: 'Output structured rows instead of markdown text' },
     ],
-    columns: ['rank', 'book_title', 'author', 'chapter_idx', 'chapter_title', 'snippet', 'search_idx', 'chapter_uid', 'book_id', 'url'],
     func: async (args) => {
         const bookTarget = normalizeRequiredString(args.book, 'book');
         const query = normalizeRequiredString(args.query, 'query');
@@ -322,13 +355,17 @@ cli({
         const fragmentSize = normalizePositiveInteger(args['fragment-size'], 150, 'fragment-size', MAX_FRAGMENT_SIZE);
         const book = await resolveBookTarget(bookTarget, bookRank);
         const matches = await searchWithinBook(book.bookId, query, limit, fragmentSize);
-        return buildRows(book, matches);
+        const rows = buildRows(book, matches);
+        if (Boolean(args.raw))
+            return rows;
+        return [{ markdown: formatMarkdownResults(book, query, rows) }];
     },
 });
 
 export const __test__ = {
     buildRows,
     extractReaderInitialState,
+    formatMarkdownResults,
     parseReaderMetadata,
     parseSearchHtmlEntries,
     resolveReaderUrlForBook,
