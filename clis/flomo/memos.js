@@ -38,7 +38,7 @@ var command = cli({
     { name: 'since', type: 'int', help: 'Only memos updated after this Unix timestamp (e.g. 1735689600 for 2025)' },
     { name: 'slug', help: '[Experimental] Pagination cursor from previous response' },
   ],
-  columns: ['content', 'slug', 'tags', 'created_at', 'updated_at'],
+  columns: ['content', 'slug', 'tags', 'images', 'created_at', 'updated_at'],
   func: async function(page, kwargs) {
     var limit = Math.max(1, Math.min(Number(kwargs.limit) || 20, 200));
     await page.wait(3).catch(function() {});
@@ -73,10 +73,12 @@ var command = cli({
     }
     var memos = Array.isArray(body.data) ? body.data : [];
     return memos.map(function(m) {
+      var images = Array.isArray(m.files) ? m.files.map(function(f) { return f.thumbnail_url || f.url || ''; }).filter(Boolean) : [];
       return {
         content: (m.content || '').trim(),
         slug: m.slug || '',
         tags: Array.isArray(m.tags) ? m.tags.join(', ') : '',
+        images: images.join(' | '),
         created_at: m.created_at || '',
         updated_at: m.updated_at || '',
       };

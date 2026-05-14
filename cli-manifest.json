@@ -9766,6 +9766,7 @@
       "content",
       "slug",
       "tags",
+      "images",
       "created_at",
       "updated_at"
     ],
