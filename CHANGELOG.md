@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.7.21](https://github.com/jackwener/opencli/compare/v1.7.20...v1.7.21) (2026-05-14)
+
+Adapter polish release: new web search adapters, better Browser Bridge tab group reuse, and social adapters returning to one-shot tab leases. Extension package version is bumped to 1.0.15 for the Browser Bridge fix.
+
+### Features
+
+* **search** — add DuckDuckGo, Brave, and Yahoo web search adapters. ([#1546](https://github.com/jackwener/opencli/issues/1546))
+* **boss** — support job-seeker `chatlist` and `chatmsg` adapters. ([#1539](https://github.com/jackwener/opencli/issues/1539))
+
+### Bug Fixes
+
+* **extension** — reuse existing `OpenCLI Adapter` tab groups before creating new ones, including cross-window discovery, legacy `OpenCLI` title fallback, and deterministic candidate selection. ([#1541](https://github.com/jackwener/opencli/issues/1541))
+* **twitter, reddit** — default browser-backed social adapters back to ephemeral tab leases. Twitter/X and Reddit commands now release their site tab after each run while keeping the shared Adapter window available for reuse; persistent sessions remain reserved for AI/chat-style adapters that need long-lived conversation state. ([#1569](https://github.com/jackwener/opencli/issues/1569))
+* **xiaohongshu, rednote** — unwrap Browser Bridge `page.evaluate` envelopes in search adapters. ([#1561](https://github.com/jackwener/opencli/issues/1561))
+* **facebook/feed** — add fallback extraction for empty article nodes. ([#1538](https://github.com/jackwener/opencli/issues/1538))
+
+### Internal
+
+* **ci** — add Windows native binding lockfile entries for Rolldown/Rollup optional packages. ([#1563](https://github.com/jackwener/opencli/issues/1563))
+* **extension** — add regression coverage for the adapter tab group `groupId` tiebreaker. ([#1566](https://github.com/jackwener/opencli/issues/1566))
+
 ## [1.7.20](https://github.com/jackwener/opencli/compare/v1.7.19...v1.7.20) (2026-05-14)
 
 External CLI surface cleanup + Browser Bridge WebSocket lifecycle hardening. Two BREAKING changes around external CLIs: built-in `tg`/`discord`/`wx` (was `tg-cli`/`discord-cli`/`wx-cli`) now match their real binary names, and Notion's in-tree CDP adapter is replaced by the official `ntn` external CLI.
@@ -16,7 +37,6 @@ External CLI surface cleanup + Browser Bridge WebSocket lifecycle hardening. Two
 
 ### Bug Fixes
 
-* **twitter, reddit** — default browser-backed social adapters back to ephemeral tab leases. Twitter/X and Reddit commands now release their site tab after each run while keeping the shared Adapter window available for reuse; persistent sessions remain reserved for AI/chat-style adapters that need long-lived conversation state.
 * **daemon** — report ambiguous browser command outcomes with a distinct `command_result_unknown` errorCode and `503` when the extension WebSocket drops between command dispatch and result delivery. `sendCommandRaw()` treats this code as hard non-retryable, so write-side commands (`navigate` / `click` / `type` / `eval`) won't be silently re-issued and double-executed. Daemon exposes a `commandResultUnknown` counter on `/status` for future observability. ([#1558](https://github.com/jackwener/opencli/issues/1558))
 * **extension** — keep active daemon WebSocket; stale sockets no longer clobber active connection (`onopen` / `onclose` / `onmessage` are all gated by `ws !== thisWs` short-circuit), and `safeSend` only fires when `readyState === OPEN`. ([#1540](https://github.com/jackwener/opencli/issues/1540))
 * **extension** — coalesce concurrent daemon WebSocket connects via an in-flight promise. Startup / keepalive / reconnect triggering `connect()` during the daemon-probe or context-lookup async gap no longer creates duplicate real WebSocket connections. ([#1554](https://github.com/jackwener/opencli/issues/1554))
