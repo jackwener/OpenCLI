@@ -678,9 +678,7 @@ function forwardLog(level, args) {
   }
 }
 function safeSend(socket, payload) {
-  if (!socket || socket.readyState === WebSocket.CLOSING || socket.readyState === WebSocket.CLOSED) {
-    return false;
-  }
+  if (!socket || socket.readyState !== WebSocket.OPEN) return false;
   try {
     socket.send(JSON.stringify(payload));
     return true;
@@ -734,9 +732,11 @@ async function connect() {
     });
   };
   thisWs.onmessage = async (event) => {
+    if (ws !== thisWs) return;
     try {
       const command = JSON.parse(event.data);
       const result = await handleCommand(command);
+      if (ws !== thisWs) return;
       safeSend(thisWs, result);
     } catch (err) {
       console.error("[opencli] Message handling error:", err);

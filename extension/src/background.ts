@@ -77,9 +77,7 @@ function forwardLog(level: 'info' | 'warn' | 'error', args: unknown[]): void {
 }
 
 function safeSend(socket: WebSocket | null | undefined, payload: unknown): boolean {
-  if (!socket || socket.readyState === WebSocket.CLOSING || socket.readyState === WebSocket.CLOSED) {
-    return false;
-  }
+  if (!socket || socket.readyState !== WebSocket.OPEN) return false;
   try {
     socket.send(JSON.stringify(payload));
     return true;
@@ -140,9 +138,11 @@ async function connect(): Promise<void> {
   };
 
   thisWs.onmessage = async (event) => {
+    if (ws !== thisWs) return;
     try {
       const command = JSON.parse(event.data as string) as Command;
       const result = await handleCommand(command);
+      if (ws !== thisWs) return;
       safeSend(thisWs, result);
     } catch (err) {
       console.error('[opencli] Message handling error:', err);
