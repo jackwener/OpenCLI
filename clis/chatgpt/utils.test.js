@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { __test__, prepareChatGPTImagePaths, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTImages } from './utils.js';
+import { __test__, getVisibleMessages, prepareChatGPTImagePaths, revealChatGPTConversation, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTImages } from './utils.js';
 
 const tempDirs = [];
 
@@ -140,6 +141,154 @@ describe('chatgpt send selectors', () => {
         expect(__test__.SEND_BUTTON_FALLBACK_SELECTORS).toContain('#composer-submit-button:not([disabled])');
         expect(__test__.SEND_BUTTON_LABELS).toEqual(expect.arrayContaining(['Send prompt', 'Send message', 'Send', '发送提示']));
         expect(__test__.CLOSE_SIDEBAR_LABELS).toEqual(expect.arrayContaining(['Close sidebar', '关闭边栏']));
+        expect(__test__.OPEN_SIDEBAR_LABELS).toEqual(expect.arrayContaining(['Open sidebar', '開啟側邊欄', '打开边栏']));
+    });
+});
+
+describe('chatgpt history extraction', () => {
+    it('accepts sidebar links whose visible box is on a child node', async () => {
+        const dom = new JSDOM(`
+            <nav aria-label="聊天歷程紀錄">
+              <div id="history">
+                <a href="/c/6a0522ba-89b4-83a2-9bc2-7a10eb6559c3" aria-label="Synology macOS App統計">
+                  <span>Synology macOS App統計</span>
+                </a>
+              </div>
+            </nav>
+        `, { url: 'https://chatgpt.com/', runScripts: 'dangerously' });
+        const anchor = dom.window.document.querySelector('a');
+        const span = dom.window.document.querySelector('span');
+        anchor.getBoundingClientRect = () => ({ x: 0, y: 0, width: 0, height: 0, top: 0, left: 0, bottom: 0, right: 0 });
+        span.getBoundingClientRect = () => ({ x: 12, y: 20, width: 180, height: 24, top: 20, left: 12, bottom: 44, right: 192 });
+
+        const page = {
+            evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(script))),
+        };
+
+        await expect(__test__.extractConversationLinks(page)).resolves.toEqual([{
+            Index: 1,
+            Id: '6a0522ba-89b4-83a2-9bc2-7a10eb6559c3',
+            Title: 'Synology macOS App統計',
+            Url: 'https://chatgpt.com/c/6a0522ba-89b4-83a2-9bc2-7a10eb6559c3',
+        }]);
+    });
+
+    it('parses ChatGPT conversation links from OpenCLI snapshots', () => {
+        const snapshot = `
+            <div id=history />
+              <ul />
+                <li />
+                  [47]<a tabindex=0 aria-label=Synology macOS App統計 href=/c/6a0522ba-89b4-83a2-9bc2-7a10eb6559c3 />
+                <li />
+                  [48]<a tabindex=0 aria-label="MTP vs DFlash 性能" href=/c/6a0447bb-a1dc-8320-a8bd-0902d2068dea />
+        `;
+
+        expect(__test__.parseConversationLinksFromSnapshot(snapshot)).toEqual([
+            {
+                Index: 1,
+                Id: '6a0522ba-89b4-83a2-9bc2-7a10eb6559c3',
+                Title: 'Synology macOS App統計',
+                Url: 'https://chatgpt.com/c/6a0522ba-89b4-83a2-9bc2-7a10eb6559c3',
+            },
+            {
+                Index: 2,
+                Id: '6a0447bb-a1dc-8320-a8bd-0902d2068dea',
+                Title: 'MTP vs DFlash 性能',
+                Url: 'https://chatgpt.com/c/6a0447bb-a1dc-8320-a8bd-0902d2068dea',
+            },
+        ]);
+    });
+});
+
+describe('chatgpt visible message extraction', () => {
+    it('reads section-based ChatGPT conversation turns in localized UI', async () => {
+        const dom = new JSDOM(`
+            <main>
+              <section data-testid="conversation-turn-1">
+                <h4>你說：</h4>
+                <div data-testid="collapsible-user-message-content">搜尋 synology 官網的下載頁面.</div>
+              </section>
+              <section data-testid="conversation-turn-2">
+                <h4>ChatGPT 說：</h4>
+                <div>
+                  <p>統計結果：23 種 macOS native app</p>
+                  <button aria-label="複製回應">copy</button>
+                </div>
+              </section>
+            </main>
+        `, { url: 'https://chatgpt.com/c/demo', runScripts: 'dangerously' });
+        for (const node of dom.window.document.querySelectorAll('section')) {
+            node.getBoundingClientRect = () => ({ x: 0, y: 0, width: 0, height: 0, top: 0, left: 0, bottom: 0, right: 0 });
+        }
+        for (const node of dom.window.document.querySelectorAll('[data-testid="collapsible-user-message-content"], p')) {
+            node.getBoundingClientRect = () => ({ x: 0, y: 0, width: 300, height: 20, top: 0, left: 0, bottom: 20, right: 300 });
+        }
+
+        const page = {
+            evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(script))),
+        };
+
+        await expect(getVisibleMessages(page)).resolves.toMatchObject([
+            { Index: 1, Role: 'User', Text: expect.stringContaining('搜尋 synology') },
+            { Index: 2, Role: 'Assistant', Text: expect.stringContaining('統計結果') },
+        ]);
+    });
+
+    it('parses localized conversation turns from OpenCLI snapshots', () => {
+        const snapshot = { data: `
+            <section data-testid=conversation-turn-1 />
+              <h4>你說：</h4>
+              <div>搜尋 synology 官網的下載頁面.</div>
+            <section data-testid=conversation-turn-2 />
+              <h4>ChatGPT 說：</h4>
+              <p>判斷標準：最新版本目錄中有 macOS 安裝檔。</p>
+              |table|
+              | # | macOS native app |
+              | 1 | Synology Drive Client |
+              <div aria-label=回覆操作 role=group tabindex=-1 />
+            <div id=thread-bottom-container />
+        ` };
+
+        expect(__test__.parseMessagesFromSnapshot(snapshot)).toEqual([
+            {
+                Index: 1,
+                Role: 'User',
+                Text: '搜尋 synology 官網的下載頁面.',
+                Html: '',
+            },
+            {
+                Index: 2,
+                Role: 'Assistant',
+                Text: [
+                    '判斷標準：最新版本目錄中有 macOS 安裝檔。',
+                    '| # | macOS native app |',
+                    '| 1 | Synology Drive Client |',
+                ].join('\n'),
+                Html: '',
+            },
+        ]);
+    });
+
+    it('scrolls chat containers back to the top when a conversation opens below rendered turns', async () => {
+        const dom = new JSDOM(`
+            <main style="height: 100px; overflow: auto">
+              <div style="height: 1000px"></div>
+            </main>
+        `, { url: 'https://chatgpt.com/c/demo', runScripts: 'dangerously' });
+        const main = dom.window.document.querySelector('main');
+        Object.defineProperty(main, 'clientHeight', { value: 100 });
+        Object.defineProperty(main, 'scrollHeight', { value: 1000 });
+        main.scrollTop = 900;
+
+        const page = {
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(script))),
+        };
+
+        await revealChatGPTConversation(page);
+
+        expect(main.scrollTop).toBe(0);
+        expect(page.wait).toHaveBeenCalledWith(1);
     });
 });
 
