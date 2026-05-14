@@ -1,6 +1,12 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
-import { clampInt } from '../_shared/common.js';
+import {
+  emptySearchResults,
+  requireBoundedInteger,
+  requireRows,
+  requireSearchQuery,
+  runBrowserStep,
+  toHttpsUrl,
+} from '../_shared/search-adapter.js';
 
 function decodeYahooUrl(href) {
   if (!href) return '';
@@ -14,7 +20,7 @@ function decodeYahooUrl(href) {
       }
     }
   }
-  return href;
+  return toHttpsUrl(href, 'https://search.yahoo.com');
 }
 
 function buildExtractorJs(limit) {
@@ -33,8 +39,8 @@ function buildExtractorJs(limit) {
     var title = h3.textContent.trim();
     var href = linkEl.getAttribute('href') || '';
     var snippet = snippetEl ? snippetEl.textContent.trim() : '';
-    if (!title || !href || seen[title]) continue;
-    seen[title] = true;
+    if (!title || !href || seen[href]) continue;
+    seen[href] = true;
     results.push([title, href, snippet]);
   }
   return results;
@@ -54,27 +60,32 @@ const command = cli({
     { name: 'limit', type: 'int', default: 7, help: 'Number of results per page (max 7)' },
     { name: 'page', type: 'int', default: 1, help: 'Page number (1, 2, 3...). Yahoo returns ~7 results per page' },
   ],
-  columns: ['title', 'url', 'snippet'],
+  columns: ['rank', 'title', 'url', 'snippet'],
   func: async (page, kwargs) => {
-    const limit = clampInt(kwargs.limit, 7, 1, 7);
-    const keyword = encodeURIComponent(String(kwargs.keyword));
-    const pageNum = Math.max(1, Number(kwargs.page) || 1);
+    const limit = requireBoundedInteger(kwargs.limit, 7, 1, 7, '--limit');
+    const query = requireSearchQuery(kwargs.keyword);
+    const keyword = encodeURIComponent(query);
+    const pageNum = requireBoundedInteger(kwargs.page, 1, 1, 100, '--page');
     var url = `https://search.yahoo.com/search?p=${keyword}`;
     if (pageNum > 1) url += `&b=${(pageNum - 1) * 7 + 1}`;
-    await page.goto(url);
+    await runBrowserStep('yahoo search navigation', () => page.goto(url));
     try {
       await page.wait({ selector: '.algo', timeout: 10 });
     } catch {
       await page.wait(3).catch(function() {});
     }
-    const raw = await page.evaluate(buildExtractorJs(limit));
-    const results = (raw && Array.isArray(raw)) ? raw : [];
+    const raw = await runBrowserStep('yahoo search extraction', () => page.evaluate(buildExtractorJs(limit)));
+    const results = requireRows(raw, 'yahoo search');
     if (results.length === 0) {
-      throw new CliError('NOT_FOUND', 'No search results found', 'Try a different keyword');
+      throw emptySearchResults('Yahoo', query);
     }
-    return results.map(function(r) {
-      return { title: r[0], url: decodeYahooUrl(r[1]), snippet: r[2] };
-    });
+    const rows = results
+      .map(function(r, index) {
+        return { rank: index + 1 + (pageNum - 1) * 7, title: r[0], url: decodeYahooUrl(r[1]), snippet: r[2] };
+      })
+      .filter((row) => row.url);
+    if (rows.length === 0) throw emptySearchResults('Yahoo', query);
+    return rows;
   },
 });
 

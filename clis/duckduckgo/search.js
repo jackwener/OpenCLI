@@ -1,16 +1,23 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
-import { clampInt } from '../_shared/common.js';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import {
+  emptySearchResults,
+  requireBoundedInteger,
+  requireNonNegativeInteger,
+  requireRows,
+  requireSearchQuery,
+  runBrowserStep,
+  toHttpsUrl,
+} from '../_shared/search-adapter.js';
 
 function decodeDdgUrl(href) {
   if (!href) return '';
   try {
     const url = new URL(href, 'https://duckduckgo.com');
     const uddg = url.searchParams.get('uddg');
-    if (uddg) return decodeURIComponent(uddg);
-    return href;
+    return toHttpsUrl(uddg || href, 'https://duckduckgo.com');
   } catch {
-    return href;
+    return '';
   }
 }
 
@@ -23,6 +30,7 @@ function buildExtractFn(limit) {
     'var se=el.querySelector(".result__snippet");' +
     'var ue=el.querySelector(".result__url");' +
     'var ie=el.querySelector(".result__icon__img");' +
+    'if(cls.indexOf("result--ad")!==-1||cls.indexOf("result--ads")!==-1||cls.indexOf("badge--ad")!==-1)continue;' +
     'if(!te)continue;' +
     'var t=(te.textContent||"").trim();' +
     'var h=te.getAttribute("href")||"";' +
@@ -33,7 +41,7 @@ function buildExtractFn(limit) {
     'if(cls.indexOf("news-result")!==-1)rt="news";' +
     'else if(cls.indexOf("video-result")!==-1)rt="video";' +
     'else if(cls.indexOf("image-result")!==-1)rt="image";' +
-    'if(!t||seen[t])continue;seen[t]=true;' +
+    'if(!t||!h||seen[h])continue;seen[h]=true;' +
     'r.push([t,h,sn,du,ic,rt]);' +
     '}return r;}';
 }
@@ -53,9 +61,9 @@ function buildPaginateJs(limit, keyword, offset, region) {
     'x.onload=function(){' +
     'try{var d=new DOMParser().parseFromString(x.responseText,"text/html");' +
     '$r(' + buildExtractFn(limit) + '(d));' +
-    '}catch(e){$r([])}' +
+    '}catch(e){$r({error:"parse",message:String(e&&e.message||e)})}' +
     '};' +
-    'x.onerror=function(){$r([])};' +
+    'x.onerror=function(){$r({error:"network"})};' +
     'x.send("' + params + '");' +
     '})'
   );
@@ -76,15 +84,21 @@ const command = cli({
     { name: 'region', help: 'Region code (e.g. jp-jp, us-en, cn-zh). Default: all regions' },
     { name: 'time', help: 'Time range: d (day), w (week), m (month), y (year)' },
   ],
-  columns: ['title', 'url', 'snippet', 'displayUrl', 'icon', 'resultType'],
+  columns: ['rank', 'title', 'url', 'snippet', 'displayUrl', 'icon', 'resultType'],
   func: async (page, kwargs) => {
-    const limit = clampInt(kwargs.limit, 10, 1, 10);
-    const keyword = String(kwargs.keyword);
-    const offset = Math.max(0, Number(kwargs.offset) || 0);
+    const limit = requireBoundedInteger(kwargs.limit, 10, 1, 10, '--limit');
+    const keyword = requireSearchQuery(kwargs.keyword);
+    const offset = requireNonNegativeInteger(kwargs.offset, 0, '--offset');
+    if (offset % 10 !== 0) {
+      throw new ArgumentError('--offset must be a multiple of 10 for DuckDuckGo HTML pagination');
+    }
+    if (kwargs.time && !/^(d|w|m|y)$/.test(String(kwargs.time))) {
+      throw new ArgumentError('--time must be one of d, w, m, or y');
+    }
     let url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(keyword)}`;
     if (kwargs.region) url += `&kl=${encodeURIComponent(String(kwargs.region))}`;
     if (kwargs.time) url += `&df=${encodeURIComponent(String(kwargs.time))}`;
-    await page.goto(url);
+    await runBrowserStep('duckduckgo search navigation', () => page.goto(url));
     try {
       await page.wait({ selector: '.result', timeout: 8 });
     } catch {
@@ -92,15 +106,17 @@ const command = cli({
     }
     var raw;
     if (offset === 0) {
-      raw = await page.evaluate(buildExtractorJs(limit));
+      raw = await runBrowserStep('duckduckgo search extraction', () => page.evaluate(buildExtractorJs(limit)));
     } else {
-      raw = await page.evaluate(buildPaginateJs(limit, keyword, offset, kwargs.region));
+      raw = await runBrowserStep('duckduckgo search pagination extraction', () => page.evaluate(buildPaginateJs(limit, keyword, offset, kwargs.region)));
     }
-    if (!raw || raw.length === 0) {
-      throw new CliError('NOT_FOUND', 'No search results found', 'Try a different keyword');
+    const rows = requireRows(raw, 'duckduckgo search');
+    if (rows.length === 0) {
+      throw emptySearchResults('DuckDuckGo', keyword);
     }
-    return raw.map(function(r) {
+    return rows.map(function(r, index) {
       return {
+        rank: index + 1 + offset,
         title: r[0],
         url: decodeDdgUrl(r[1]),
         snippet: r[2],
@@ -108,7 +124,7 @@ const command = cli({
         icon: r[4],
         resultType: r[5],
       };
-    });
+    }).filter((row) => row.url);
   },
 });
 

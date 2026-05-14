@@ -10,9 +10,10 @@
 
 ## What works today
 
-- Uses browser mode to search `search.brave.com` and extract results via DOM queries.
+- Uses browser mode to search `search.brave.com` and extract ranked results via DOM queries.
 - Supports `--offset` for GET-based pagination. Brave returns approximately 18 results per page.
-- Results include title, URL, and snippet.
+- Results include rank, title, URL, and snippet.
+- `--limit` must be between 1 and 18; `--offset` must be a non-negative page offset.
 
 ## Current limitations
 

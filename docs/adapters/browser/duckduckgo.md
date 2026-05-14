@@ -11,7 +11,7 @@
 
 ## What works today
 
-- `duckduckgo search` uses browser mode to search `html.duckduckgo.com` and extract results.
+- `duckduckgo search` uses browser mode to search `html.duckduckgo.com` and extract ranked results.
 - `duckduckgo suggest` uses the public JSON API at `duckduckgo.com/ac/` — no browser needed.
 - `search` supports `--region` (e.g. `jp-jp`, `us-en`, `cn-zh`) and `--time` (`d`, `w`, `m`, `y`) filters.
 - `search` supports `--offset` for pagination via XHR POST (avoids page navigation issues with `form.submit()`).
@@ -19,7 +19,7 @@
 ## Current limitations
 
 - `duckduckgo search` requires browser mode due to anti-bot protections on DuckDuckGo.
-- The HTML version returns a maximum of 10 results per page.
+- The HTML version returns a maximum of 10 results per page; `--limit` must be between 1 and 10.
 - Pagination uses POST-based navigation; results may have some overlap at page boundaries.
 - Snippet extraction is based on the HTML version's DOM structure (`.result__snippet`).
 

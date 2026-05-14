@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
-import { clampInt } from '../_shared/common.js';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { requireBoundedInteger, requireSearchQuery } from '../_shared/search-adapter.js';
 
 const command = cli({
   site: 'duckduckgo',
@@ -16,26 +16,29 @@ const command = cli({
   ],
   columns: ['phrase'],
   func: async (kwargs) => {
-    const limit = clampInt(kwargs.limit, 8, 1, 20);
-    const keyword = encodeURIComponent(String(kwargs.keyword));
+    const limit = requireBoundedInteger(kwargs.limit, 8, 1, 20, '--limit');
+    const keyword = encodeURIComponent(requireSearchQuery(kwargs.keyword));
     const url = `https://duckduckgo.com/ac/?q=${keyword}&type=list`;
     let resp;
     try {
       resp = await fetch(url);
     } catch (err) {
-      throw new CliError('NETWORK_ERROR', `Failed to fetch suggestions: ${err instanceof Error ? err.message : String(err)}`);
+      throw new CommandExecutionError(`DuckDuckGo suggest request failed: ${err instanceof Error ? err.message : String(err)}`);
     }
     if (!resp.ok) {
-      throw new CliError('HTTP_ERROR', `Suggest API returned ${resp.status}`);
+      throw new CommandExecutionError(`DuckDuckGo suggest returned HTTP ${resp.status}`);
     }
     let data;
     try {
       data = await resp.json();
-    } catch {
-      throw new CliError('PARSE_ERROR', 'Failed to parse suggestion response');
+    } catch (err) {
+      throw new CommandExecutionError(`DuckDuckGo suggest returned malformed JSON: ${err?.message ?? err}`);
     }
     const phrases = Array.isArray(data) && data.length > 1 && Array.isArray(data[1]) ? data[1] : [];
-    return phrases.slice(0, limit).map(function(p) { return { phrase: p }; });
+    return phrases
+      .filter((phrase) => typeof phrase === 'string' && phrase.trim())
+      .slice(0, limit)
+      .map(function(p) { return { phrase: p }; });
   },
 });
 

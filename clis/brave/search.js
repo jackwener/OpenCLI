@@ -1,6 +1,13 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
-import { clampInt } from '../_shared/common.js';
+import {
+  emptySearchResults,
+  requireBoundedInteger,
+  requireNonNegativeInteger,
+  requireRows,
+  requireSearchQuery,
+  runBrowserStep,
+  toHttpsUrl,
+} from '../_shared/search-adapter.js';
 
 function buildExtractorJs(limit) {
   return `
@@ -11,7 +18,7 @@ function buildExtractorJs(limit) {
   for (var i = 0; i < items.length; i++) {
     if (results.length >= ${limit}) break;
     var el = items[i];
-    if (el.classList.contains('standalone')) continue;
+    if (el.classList.contains('standalone') || el.classList.contains('ad')) continue;
     var titleEl = el.querySelector('.search-snippet-title');
     var snippetEl = el.querySelector('.generic-snippet .content');
     var linkEl = el.querySelector('.result-content a');
@@ -19,9 +26,9 @@ function buildExtractorJs(limit) {
     var title = titleEl.textContent.trim();
     var href = linkEl ? linkEl.getAttribute('href') || '' : '';
     var snippet = snippetEl ? snippetEl.textContent.trim() : '';
-    if (!title || !href || seen[title]) continue;
+    if (!title || !href || seen[href]) continue;
     if (href.indexOf('/') === 0) continue;
-    seen[title] = true;
+    seen[href] = true;
     results.push([title, href, snippet]);
   }
   return results;
@@ -41,27 +48,32 @@ const command = cli({
     { name: 'limit', type: 'int', default: 10, help: 'Number of results per page (max 18)' },
     { name: 'offset', type: 'int', default: 0, help: 'Page offset (0, 1, 2...). Brave returns ~18 results per page' },
   ],
-  columns: ['title', 'url', 'snippet'],
+  columns: ['rank', 'title', 'url', 'snippet'],
   func: async (page, kwargs) => {
-    const limit = clampInt(kwargs.limit, 10, 1, 18);
-    const keyword = encodeURIComponent(String(kwargs.keyword));
-    const offset = Math.max(0, Number(kwargs.offset) || 0);
+    const limit = requireBoundedInteger(kwargs.limit, 10, 1, 18, '--limit');
+    const query = requireSearchQuery(kwargs.keyword);
+    const keyword = encodeURIComponent(query);
+    const offset = requireNonNegativeInteger(kwargs.offset, 0, '--offset');
     let url = `https://search.brave.com/search?q=${keyword}`;
     if (offset > 0) url += `&offset=${offset}`;
-    await page.goto(url);
+    await runBrowserStep('brave search navigation', () => page.goto(url));
     try {
       await page.wait({ selector: '.snippet', timeout: 10 });
     } catch {
       await page.wait(3).catch(function() {});
     }
-    const raw = await page.evaluate(buildExtractorJs(limit));
-    const results = (raw && Array.isArray(raw)) ? raw : [];
+    const raw = await runBrowserStep('brave search extraction', () => page.evaluate(buildExtractorJs(limit)));
+    const results = requireRows(raw, 'brave search');
     if (results.length === 0) {
-      throw new CliError('NOT_FOUND', 'No search results found', 'Try a different keyword');
+      throw emptySearchResults('Brave', query);
     }
-    return results.map(function(r) {
-      return { title: r[0], url: r[1], snippet: r[2] };
-    });
+    const rows = results
+      .map(function(r, index) {
+        return { rank: index + 1 + offset * 18, title: r[0], url: toHttpsUrl(r[1], 'https://search.brave.com'), snippet: r[2] };
+      })
+      .filter((row) => row.url);
+    if (rows.length === 0) throw emptySearchResults('Brave', query);
+    return rows;
   },
 });
 

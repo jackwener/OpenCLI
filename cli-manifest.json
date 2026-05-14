@@ -4041,6 +4041,7 @@
       }
     ],
     "columns": [
+      "rank",
       "title",
       "url",
       "snippet"
@@ -8788,6 +8789,7 @@
       }
     ],
     "columns": [
+      "rank",
       "title",
       "url",
       "snippet",
@@ -26857,6 +26859,7 @@
       }
     ],
     "columns": [
+      "rank",
       "title",
       "url",
       "snippet"

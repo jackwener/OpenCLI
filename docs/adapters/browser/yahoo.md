@@ -10,9 +10,10 @@
 
 ## What works today
 
-- Uses browser mode to search `search.yahoo.com` and extract results via DOM queries.
+- Uses browser mode to search `search.yahoo.com` and extract ranked results via DOM queries.
 - Supports `--page` for pagination. Yahoo returns approximately 7 results per page.
-- Results include title, URL, and snippet.
+- Results include rank, title, URL, and snippet.
+- `--limit` must be between 1 and 7; `--page` must be a positive integer.
 
 ## Current limitations
 

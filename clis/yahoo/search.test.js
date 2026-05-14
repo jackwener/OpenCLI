@@ -1,7 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 const { __test__ } = await import('./search.js');
 const command = __test__.command;
+
+function createPageMock(evaluateResult = []) {
+  return {
+    goto: vi.fn().mockResolvedValue(undefined),
+    wait: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn().mockResolvedValue(evaluateResult),
+  };
+}
 
 describe('yahoo search', () => {
   it('should register as a valid command', () => {
@@ -29,8 +37,44 @@ describe('yahoo search', () => {
   });
 
   it('should define output columns', () => {
+    expect(command.columns).toContain('rank');
     expect(command.columns).toContain('title');
     expect(command.columns).toContain('url');
     expect(command.columns).toContain('snippet');
+  });
+
+  it('rejects empty query, invalid limit, and invalid page before navigation', async () => {
+    const page = createPageMock();
+    await expect(command.func(page, { keyword: ' ', limit: 5 })).rejects.toMatchObject({ code: 'ARGUMENT' });
+    await expect(command.func(page, { keyword: 'opencli', limit: 8 })).rejects.toMatchObject({ code: 'ARGUMENT' });
+    await expect(command.func(page, { keyword: 'opencli', limit: 5, page: 0 })).rejects.toMatchObject({ code: 'ARGUMENT' });
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it('decodes Yahoo redirect URLs and assigns listing rank', async () => {
+    const page = createPageMock({
+      session: 'site:yahoo',
+      data: [[
+        'OpenCLI',
+        'https://r.search.yahoo.com/_ylt=x/RU=https%3A%2F%2Fgithub.com%2Fjackwener%2FOpenCLI/RK=2/RS=x',
+        'CLI browser tooling',
+      ]],
+    });
+
+    await expect(command.func(page, { keyword: 'opencli', limit: 1, page: 2 })).resolves.toEqual([{
+      rank: 8,
+      title: 'OpenCLI',
+      url: 'https://github.com/jackwener/OpenCLI',
+      snippet: 'CLI browser tooling',
+    }]);
+  });
+
+  it('fails typed instead of silently returning [] for malformed extraction payloads', async () => {
+    const page = createPageMock({ rows: [] });
+
+    await expect(command.func(page, { keyword: 'opencli', limit: 1 })).rejects.toMatchObject({
+      code: 'COMMAND_EXEC',
+      message: expect.stringContaining('payload shape'),
+    });
   });
 });
