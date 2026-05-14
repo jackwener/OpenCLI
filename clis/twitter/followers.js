@@ -84,7 +84,6 @@ cli({
     domain: 'x.com',
     strategy: Strategy.UI,
     browser: true,
-    siteSession: 'persistent',
     args: [
         {
             name: 'user',

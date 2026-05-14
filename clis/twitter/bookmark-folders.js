@@ -77,7 +77,6 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     args: [],
     columns: ['id', 'name', 'items', 'created_at'],
     func: async (page) => {

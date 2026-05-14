@@ -17,7 +17,6 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Number of trends to show' },
     ],

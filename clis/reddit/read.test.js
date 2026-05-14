@@ -78,9 +78,9 @@ function makeRuntimePage(fetchImpl) {
 describe('reddit read adapter', () => {
     const command = getRegistry().get('reddit/read');
 
-    it('opts into the Reddit persistent site session', () => {
+    it('uses an ephemeral Reddit site tab by default', () => {
         expect(command?.browser).toBe(true);
-        expect(command?.siteSession).toBe('persistent');
+        expect(command?.siteSession).toBeUndefined();
         expect(command?.columns).toEqual(['type', 'author', 'score', 'text']);
     });
 

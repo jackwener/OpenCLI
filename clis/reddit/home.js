@@ -23,7 +23,6 @@ cli({
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     args: [
         { name: 'limit', type: 'int', default: 25, help: `Number of posts (1–${REDDIT_HOME_MAX_LIMIT})` },
     ],

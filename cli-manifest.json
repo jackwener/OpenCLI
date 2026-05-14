@@ -19118,8 +19118,7 @@
     "type": "js",
     "modulePath": "reddit/comment.js",
     "sourceFile": "reddit/comment.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19149,8 +19148,7 @@
     "type": "js",
     "modulePath": "reddit/frontpage.js",
     "sourceFile": "reddit/frontpage.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19182,8 +19180,7 @@
     "type": "js",
     "modulePath": "reddit/home.js",
     "sourceFile": "reddit/home.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19252,8 +19249,7 @@
     "type": "js",
     "modulePath": "reddit/popular.js",
     "sourceFile": "reddit/popular.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19330,8 +19326,7 @@
     "type": "js",
     "modulePath": "reddit/read.js",
     "sourceFile": "reddit/read.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19397,8 +19392,7 @@
     "type": "js",
     "modulePath": "reddit/save.js",
     "sourceFile": "reddit/save.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19427,8 +19421,7 @@
     "type": "js",
     "modulePath": "reddit/saved.js",
     "sourceFile": "reddit/saved.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19486,8 +19479,7 @@
     "type": "js",
     "modulePath": "reddit/search.js",
     "sourceFile": "reddit/search.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19537,8 +19529,7 @@
     "type": "js",
     "modulePath": "reddit/subreddit.js",
     "sourceFile": "reddit/subreddit.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19564,8 +19555,7 @@
     "type": "js",
     "modulePath": "reddit/subreddit-info.js",
     "sourceFile": "reddit/subreddit-info.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19598,8 +19588,7 @@
     "type": "js",
     "modulePath": "reddit/subscribe.js",
     "sourceFile": "reddit/subscribe.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19632,8 +19621,7 @@
     "type": "js",
     "modulePath": "reddit/upvote.js",
     "sourceFile": "reddit/upvote.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19662,8 +19650,7 @@
     "type": "js",
     "modulePath": "reddit/upvoted.js",
     "sourceFile": "reddit/upvoted.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19689,8 +19676,7 @@
     "type": "js",
     "modulePath": "reddit/user.js",
     "sourceFile": "reddit/user.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19725,8 +19711,7 @@
     "type": "js",
     "modulePath": "reddit/user-comments.js",
     "sourceFile": "reddit/user-comments.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19762,8 +19747,7 @@
     "type": "js",
     "modulePath": "reddit/user-posts.js",
     "sourceFile": "reddit/user-posts.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "reddit",
@@ -19781,8 +19765,7 @@
     "type": "js",
     "modulePath": "reddit/whoami.js",
     "sourceFile": "reddit/whoami.js",
-    "navigateBefore": "https://reddit.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://reddit.com"
   },
   {
     "site": "rednote",
@@ -22570,8 +22553,7 @@
     "type": "js",
     "modulePath": "twitter/article.js",
     "sourceFile": "twitter/article.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -22671,8 +22653,7 @@
     "type": "js",
     "modulePath": "twitter/bookmark-folder.js",
     "sourceFile": "twitter/bookmark-folder.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -22692,8 +22673,7 @@
     "type": "js",
     "modulePath": "twitter/bookmark-folders.js",
     "sourceFile": "twitter/bookmark-folders.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -22734,8 +22714,7 @@
     "type": "js",
     "modulePath": "twitter/bookmarks.js",
     "sourceFile": "twitter/bookmarks.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -22809,8 +22788,7 @@
     "type": "js",
     "modulePath": "twitter/download.js",
     "sourceFile": "twitter/download.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -22870,8 +22848,7 @@
     "type": "js",
     "modulePath": "twitter/followers.js",
     "sourceFile": "twitter/followers.js",
-    "navigateBefore": true,
-    "siteSession": "persistent"
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -22906,8 +22883,7 @@
     "type": "js",
     "modulePath": "twitter/following.js",
     "sourceFile": "twitter/following.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -23007,8 +22983,7 @@
     "type": "js",
     "modulePath": "twitter/likes.js",
     "sourceFile": "twitter/likes.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -23128,8 +23103,7 @@
     "type": "js",
     "modulePath": "twitter/list-tweets.js",
     "sourceFile": "twitter/list-tweets.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -23158,8 +23132,7 @@
     "type": "js",
     "modulePath": "twitter/lists.js",
     "sourceFile": "twitter/lists.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -23188,8 +23161,7 @@
     "type": "js",
     "modulePath": "twitter/notifications.js",
     "sourceFile": "twitter/notifications.js",
-    "navigateBefore": true,
-    "siteSession": "persistent"
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -23259,8 +23231,7 @@
     "type": "js",
     "modulePath": "twitter/profile.js",
     "sourceFile": "twitter/profile.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -23529,8 +23500,7 @@
     "type": "js",
     "modulePath": "twitter/search.js",
     "sourceFile": "twitter/search.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -23576,8 +23546,7 @@
     "type": "js",
     "modulePath": "twitter/thread.js",
     "sourceFile": "twitter/thread.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -23630,8 +23599,7 @@
     "type": "js",
     "modulePath": "twitter/timeline.js",
     "sourceFile": "twitter/timeline.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -23658,8 +23626,7 @@
     "type": "js",
     "modulePath": "twitter/trending.js",
     "sourceFile": "twitter/trending.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -23709,8 +23676,7 @@
     "type": "js",
     "modulePath": "twitter/tweets.js",
     "sourceFile": "twitter/tweets.js",
-    "navigateBefore": "https://x.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",

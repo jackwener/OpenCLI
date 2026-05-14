@@ -32,7 +32,6 @@ cli({
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     args: [
         { name: 'name', type: 'string', required: true, positional: true, help: 'Subreddit name (no `r/` prefix needed)' },
     ],
