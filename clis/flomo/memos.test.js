@@ -9,8 +9,8 @@ describe('flomo memos', function() {
     expect(command.site).toBe('flomo');
     expect(command.name).toBe('memos');
     expect(command.access).toBe('read');
-    expect(command.browser).toBe(false);
-    expect(command.strategy).toBe('public');
+    expect(command.browser).toBe(true);
+    expect(command.strategy).toBe('cookie');
   });
 
   it('should define limit arg with default 20', function() {

@@ -9739,8 +9739,8 @@
     "description": "List your Flomo memos",
     "access": "read",
     "domain": "flomoapp.com",
-    "strategy": "public",
-    "browser": false,
+    "strategy": "cookie",
+    "browser": true,
     "args": [
       {
         "name": "limit",
@@ -9754,19 +9754,6 @@
         "type": "str",
         "required": false,
         "help": "Pagination cursor: slug of the last memo from previous page"
-      },
-      {
-        "name": "tz",
-        "type": "str",
-        "default": "8:0",
-        "required": false,
-        "help": "Timezone offset (e.g. 8:0 for Beijing)"
-      },
-      {
-        "name": "token",
-        "type": "str",
-        "required": false,
-        "help": "Flomo API token. Falls back to FLOMO_ACCESS_TOKEN env var"
       }
     ],
     "columns": [
@@ -9778,7 +9765,8 @@
     ],
     "type": "js",
     "modulePath": "flomo/memos.js",
-    "sourceFile": "flomo/memos.js"
+    "sourceFile": "flomo/memos.js",
+    "navigateBefore": "https://flomoapp.com/mine"
   },
   {
     "site": "gemini",
