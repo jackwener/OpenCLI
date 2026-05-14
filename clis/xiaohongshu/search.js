@@ -6,7 +6,7 @@
  * Ref: https://github.com/jackwener/opencli/issues/10
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 /**
  * Wait for search results or login wall using MutationObserver (max 5s).
  * Returns 'content' if note items appeared, 'login_wall' if login gate
@@ -68,10 +68,17 @@ export function stripXhsAuthorDateSuffix(value) {
  * both shapes so callers can keep their Array.isArray checks unchanged.
  */
 export function unwrapEvaluateResult(payload) {
-    if (payload && !Array.isArray(payload) && typeof payload === 'object' && Array.isArray(payload.data)) {
+    if (payload && !Array.isArray(payload) && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
         return payload.data;
     }
     return payload;
+}
+function requireSearchRows(payload, phase) {
+    const rows = unwrapEvaluateResult(payload);
+    if (!Array.isArray(rows)) {
+        throw new CommandExecutionError(`Unexpected Xiaohongshu search ${phase} payload shape; expected an array of rows.`);
+    }
+    return rows;
 }
 export function parseLimit(raw) {
     const parsed = Number(raw ?? 20);
@@ -280,7 +287,7 @@ export const command = cli({
         // Wait for search results to render (or login wall to appear).
         // Uses MutationObserver to resolve as soon as content appears,
         // instead of a fixed delay + blind retry.
-        const waitResult = await page.evaluate(WAIT_FOR_CONTENT_JS);
+        const waitResult = unwrapEvaluateResult(await page.evaluate(WAIT_FOR_CONTENT_JS));
         if (waitResult === 'login_wall') {
             throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
         }
@@ -288,25 +295,23 @@ export const command = cli({
         // layout, so scrolling to the bottom can evict the initially visible
         // note cards from the DOM and make extraction return [] even though the
         // browser rendered results correctly.
-        const initialPayload = unwrapEvaluateResult(await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com')));
-        let payload = Array.isArray(initialPayload) ? initialPayload : [];
+        const initialPayload = requireSearchRows(await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com')), 'initial extraction');
+        const payload = [...initialPayload];
         if (payload.length < limit) {
             // Scroll until enough rows are rendered or the lazy-load plateaus.
             // Replaces the previous fixed `autoScroll({ times: 2 })` which capped
             // extraction at ~13 notes regardless of `--limit` (#1471).
             await page.evaluate(buildScrollUntilJs(limit));
-            const scrolledPayload = unwrapEvaluateResult(await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com')));
-            if (Array.isArray(scrolledPayload)) {
-                const seen = new Set(payload.map((item) => item.url).filter(Boolean));
-                for (const item of scrolledPayload) {
-                    if (item?.url && seen.has(item.url))
-                        continue;
-                    if (item?.url)
-                        seen.add(item.url);
-                    payload.push(item);
-                    if (payload.length >= limit)
-                        break;
-                }
+            const scrolledPayload = requireSearchRows(await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com')), 'post-scroll extraction');
+            const seen = new Set(payload.map((item) => item.url).filter(Boolean));
+            for (const item of scrolledPayload) {
+                if (item?.url && seen.has(item.url))
+                    continue;
+                if (item?.url)
+                    seen.add(item.url);
+                payload.push(item);
+                if (payload.length >= limit)
+                    break;
             }
         }
         const data = payload;
