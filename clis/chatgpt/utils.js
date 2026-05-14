@@ -760,6 +760,120 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
     return lastUrls;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Image tool & aspect-ratio helpers.
+//
+// The composer "+" menu toggles the Image tool; once active a "Choose image
+// aspect ratio" button surfaces a menuitemradio list (Auto / Square 1:1 /
+// Portrait 3:4 / Story 9:16 / Landscape 4:3 / Widescreen 16:9). These helpers
+// drive that UI deterministically so the image command can pick a ratio
+// without leaving it to the model to interpret prose.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// User-facing aspect aliases → ChatGPT's exact aria-label on the menu item.
+const ASPECT_ALIAS_TO_ARIA = new Map([
+    ['auto', 'Auto'],
+    ['1:1', 'Square 1:1'],
+    ['square', 'Square 1:1'],
+    ['3:4', 'Portrait 3:4'],
+    ['portrait', 'Portrait 3:4'],
+    ['9:16', 'Story 9:16'],
+    ['story', 'Story 9:16'],
+    ['4:3', 'Landscape 4:3'],
+    ['landscape', 'Landscape 4:3'],
+    ['16:9', 'Widescreen 16:9'],
+    ['widescreen', 'Widescreen 16:9'],
+]);
+
+export const ASPECT_CHOICES = ['auto', '1:1', 'square', '3:4', 'portrait', '9:16', 'story', '4:3', 'landscape', '16:9', 'widescreen'];
+
+export function resolveAspectAriaLabel(value) {
+    if (value === undefined || value === null) return null;
+    const raw = String(value).trim();
+    if (!raw) return null;
+    const lower = raw.toLowerCase();
+    if (ASPECT_ALIAS_TO_ARIA.has(lower)) return ASPECT_ALIAS_TO_ARIA.get(lower);
+    for (const label of ASPECT_ALIAS_TO_ARIA.values()) {
+        if (label.toLowerCase() === lower) return label;
+    }
+    throw new ArgumentError(
+        `Unsupported --aspect "${raw}"`,
+        'Choices: auto, 1:1, 3:4, 9:16, 4:3, 16:9 (aliases: square, portrait, story, landscape, widescreen)',
+    );
+}
+
+// Radix-based menus on chatgpt.com only respond to a real pointer sequence —
+// synthetic `.click()` is swallowed. Inlined into page.evaluate calls below.
+const POINTER_FIRE_SNIPPET = `
+    const firePointerSequence = (el) => {
+        const r = el.getBoundingClientRect();
+        const x = r.left + Math.min(Math.max(r.width / 2, 1), 5);
+        const y = r.top + Math.min(Math.max(r.height / 2, 1), 5);
+        const o = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 0, pointerType: 'mouse', isPrimary: true };
+        el.dispatchEvent(new PointerEvent('pointerdown', o));
+        el.dispatchEvent(new MouseEvent('mousedown', o));
+        el.dispatchEvent(new PointerEvent('pointerup', o));
+        el.dispatchEvent(new MouseEvent('mouseup', o));
+        el.dispatchEvent(new MouseEvent('click', o));
+    };
+`;
+
+export async function isChatGPTImageToolActive(page) {
+    return await page.evaluate(`(() => {
+        const pill = Array.from(document.querySelectorAll('button')).find(b => /^Image, click to remove/i.test(b.getAttribute('aria-label') || ''));
+        return !!pill;
+    })()`);
+}
+
+export async function activateChatGPTImageTool(page) {
+    if (await isChatGPTImageToolActive(page)) return true;
+    const opened = await page.evaluate(`(() => {
+        ${POINTER_FIRE_SNIPPET}
+        const btn = document.querySelector('[data-testid=composer-plus-btn]');
+        if (!btn) return false;
+        firePointerSequence(btn);
+        return true;
+    })()`);
+    if (!opened) return false;
+    await page.wait(0.8);
+    const clicked = await page.evaluate(`(() => {
+        ${POINTER_FIRE_SNIPPET}
+        const target = Array.from(document.querySelectorAll('[role=menuitemradio]'))
+            .find(it => /create image/i.test((it.innerText || '').trim()));
+        if (!target) return false;
+        firePointerSequence(target);
+        return true;
+    })()`);
+    if (!clicked) return false;
+    for (let i = 0; i < 12; i += 1) {
+        await page.wait(0.3);
+        if (await isChatGPTImageToolActive(page)) return true;
+    }
+    return false;
+}
+
+export async function setChatGPTImageAspect(page, ariaLabel) {
+    if (!ariaLabel || ariaLabel === 'Auto') return true;
+    const opened = await page.evaluate(`(() => {
+        ${POINTER_FIRE_SNIPPET}
+        const btn = Array.from(document.querySelectorAll('button')).find(b => (b.getAttribute('aria-label') || '') === 'Choose image aspect ratio');
+        if (!btn) return false;
+        firePointerSequence(btn);
+        return true;
+    })()`);
+    if (!opened) return false;
+    await page.wait(0.6);
+    const picked = await page.evaluate(`(() => {
+        ${POINTER_FIRE_SNIPPET}
+        const target = Array.from(document.querySelectorAll('[role=menuitemradio]'))
+            .find(it => (it.getAttribute('aria-label') || '') === ${JSON.stringify(ariaLabel)});
+        if (!target) return false;
+        firePointerSequence(target);
+        return true;
+    })()`);
+    return picked;
+}
+
 export const __test__ = {
     COMPOSER_SELECTORS,
     SEND_BUTTON_SELECTOR,
@@ -769,6 +883,7 @@ export const __test__ = {
     isSameChatGPTConversation,
     parseChatGPTConversationId,
     imageMimeFromPath,
+    ASPECT_ALIAS_TO_ARIA,
 };
 
 /**

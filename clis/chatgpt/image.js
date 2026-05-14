@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { saveBase64ToFile } from '@jackwener/opencli/utils';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { clearChatGPTDraft, getChatGPTVisibleImageUrls, normalizeBooleanFlag, prepareChatGPTImagePaths, sendChatGPTMessage, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
+import { activateChatGPTImageTool, clearChatGPTDraft, getChatGPTVisibleImageUrls, normalizeBooleanFlag, parseChatGPTConversationId, prepareChatGPTImagePaths, resolveAspectAriaLabel, sendChatGPTMessage, setChatGPTImageAspect, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
 
 const CHATGPT_DOMAIN = 'chatgpt.com';
 
@@ -75,6 +75,8 @@ export const imageCommand = cli({
         { name: 'op', help: 'Output directory (default: ~/Pictures/chatgpt)' },
         { name: 'sd', type: 'boolean', default: false, help: 'Skip download shorthand; only show ChatGPT link' },
         { name: 'timeout', type: 'int', required: false, default: 240, help: 'Max seconds for the overall command (default: 240)' },
+        { name: 'conv', help: 'Continue an existing conversation by id or /c/<id> URL (default: start a new conversation)' },
+        { name: 'aspect', help: 'Image aspect ratio: auto, 1:1, 3:4, 9:16, 4:3, 16:9 (aliases: square, portrait, story, landscape, widescreen). Default: auto' },
     ],
     columns: ['status', 'file', 'link'],
     func: async (page, kwargs) => {
@@ -87,13 +89,22 @@ export const imageCommand = cli({
         if (!Number.isInteger(timeout) || timeout < 1) {
             throw new ArgumentError('--timeout must be a positive integer (seconds)');
         }
+
+        const convInput = kwargs.conv === undefined || kwargs.conv === null ? '' : String(kwargs.conv).trim();
+        const conversationId = convInput ? parseChatGPTConversationId(convInput) : '';
+        const aspectAriaLabel = resolveAspectAriaLabel(kwargs.aspect);
+
         const preparedImages = imagePaths.length ? await prepareChatGPTImagePaths(imagePaths) : { ok: true, paths: [] };
         if (!preparedImages.ok) {
             throw new ArgumentError(preparedImages.reason);
         }
 
-        // Navigate to chatgpt.com/new with full reload to clear React sidebar state
-        await page.goto(`https://${CHATGPT_DOMAIN}/new`, { settleMs: 2000 });
+        // Navigate to /c/<id> when continuing, otherwise /new (full reload to
+        // clear React sidebar state).
+        const targetUrl = conversationId
+            ? `https://${CHATGPT_DOMAIN}/c/${conversationId}`
+            : `https://${CHATGPT_DOMAIN}/new`;
+        await page.goto(targetUrl, { settleMs: 2000 });
         await clearChatGPTDraft(page);
 
         if (imagePaths.length) {
@@ -106,10 +117,33 @@ export const imageCommand = cli({
             if (!upload?.ok) throw new CommandExecutionError(upload?.reason || 'Failed to upload image to ChatGPT');
         }
 
+        // Toggle on the Image tool so the aspect picker surfaces and the
+        // prompt routes deterministically through the image generator
+        // regardless of model auto-routing heuristics.
+        const activated = await activateChatGPTImageTool(page);
+        if (!activated) {
+            throw new CommandExecutionError(
+                'Failed to activate the ChatGPT Image tool',
+                `Open ${await currentChatGPTLink(page)} and verify the "+" menu shows a "Create image" entry.`,
+            );
+        }
+        if (aspectAriaLabel && aspectAriaLabel !== 'Auto') {
+            const picked = await setChatGPTImageAspect(page, aspectAriaLabel);
+            if (!picked) {
+                throw new CommandExecutionError(
+                    `Failed to set image aspect to "${aspectAriaLabel}"`,
+                    `Open ${await currentChatGPTLink(page)} and pick the aspect manually to verify availability.`,
+                );
+            }
+        }
+
         const beforeUrls = await getChatGPTVisibleImageUrls(page);
 
-        // Send an explicit generation/editing prompt so ChatGPT returns image assets.
-        const sent = await sendChatGPTMessage(page, buildPrompt(prompt, imagePaths.length));
+        // When continuing a conversation the user prompt already has context,
+        // so send it verbatim. Fresh chats keep the legacy "Generate an image
+        // of:" / "Edit the attached image:" wrappers for backward compatibility.
+        const promptToSend = conversationId ? prompt : buildPrompt(prompt, imagePaths.length);
+        const sent = await sendChatGPTMessage(page, promptToSend);
         if (!sent) {
             throw new CommandExecutionError(
                 'Failed to send image prompt to ChatGPT',
