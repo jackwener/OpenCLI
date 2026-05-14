@@ -5,6 +5,7 @@ const BOSS_DOMAIN = 'www.zhipin.com';
 const CHAT_URL = `https://${BOSS_DOMAIN}/web/chat/index`;
 const COOKIE_EXPIRED_CODES = new Set([7, 37]);
 const COOKIE_EXPIRED_MSG = 'Cookie 已过期！请在当前 Chrome 浏览器中重新登录 BOSS 直聘。';
+const RECRUITER_ONLY_MSG = '该命令仅支持招聘端（BOSS 端）账号，请使用招聘者账号登录后重试。';
 const DEFAULT_TIMEOUT = 15_000;
 // ── Core helpers ────────────────────────────────────────────────────────────
 /**
@@ -56,8 +57,22 @@ export function checkAuth(data) {
     }
 }
 /**
+ * Map BOSS code=24 ("请切换身份后再试") to a typed AuthRequiredError.
+ * Recruiter-only commands (recommend, joblist, stats, resume, mark,
+ * exchange, invite, greet, batchgreet) have no geek-side equivalent;
+ * surfacing this as a generic COMMAND_EXEC hides what the user must do.
+ * chatlist / chatmsg avoid this path by using `allowNonZero: true` and
+ * branching to the geek-side fetch when they see code 24.
+ */
+function checkRecruiterSide(data) {
+    if (data.code === IDENTITY_MISMATCH_CODE) {
+        throw new AuthRequiredError(BOSS_DOMAIN, RECRUITER_ONLY_MSG);
+    }
+}
+/**
  * Throw if the API response is not code 0.
- * Checks for cookie expiry first, then throws with the provided message.
+ * Checks for cookie expiry first, then identity mismatch, then throws
+ * with the provided message.
  */
 export function assertOk(data, errorPrefix) {
     if (!data || typeof data !== 'object') {
@@ -66,6 +81,7 @@ export function assertOk(data, errorPrefix) {
     if (data.code === 0)
         return;
     checkAuth(data);
+    checkRecruiterSide(data);
     const prefix = errorPrefix ? `${errorPrefix}: ` : '';
     throw new CommandExecutionError(`${prefix}${data.message || 'Unknown error'} (code=${data.code})`);
 }
