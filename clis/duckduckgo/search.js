@@ -30,6 +30,7 @@ function buildExtractFn(limit) {
     'var se=el.querySelector(".result__snippet");' +
     'var ue=el.querySelector(".result__url");' +
     'var ie=el.querySelector(".result__icon__img");' +
+    'var cls=el.className||"";var rt="web";' +
     'if(cls.indexOf("result--ad")!==-1||cls.indexOf("result--ads")!==-1||cls.indexOf("badge--ad")!==-1)continue;' +
     'if(!te)continue;' +
     'var t=(te.textContent||"").trim();' +
@@ -37,7 +38,6 @@ function buildExtractFn(limit) {
     'var sn=se?(se.textContent||"").trim():"";' +
     'var du=ue?(ue.textContent||"").trim():"";' +
     'var ic=ie?(ie.getAttribute("src")||""):"";' +
-    'var cls=el.className||"";var rt="web";' +
     'if(cls.indexOf("news-result")!==-1)rt="news";' +
     'else if(cls.indexOf("video-result")!==-1)rt="video";' +
     'else if(cls.indexOf("image-result")!==-1)rt="image";' +

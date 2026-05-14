@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 
 const { __test__ } = await import('./search.js');
 const command = __test__.command;
@@ -73,6 +74,35 @@ describe('duckduckgo search', () => {
       snippet: 'CLI browser tooling',
       displayUrl: 'github.com/jackwener/OpenCLI',
       icon: '',
+      resultType: 'web',
+    }]);
+  });
+
+  it('executes the DOM extractor, filters ads, and returns canonical rows', async () => {
+    const dom = new JSDOM(`
+      <div class="result result--ad">
+        <a class="result__a" href="https://ads.example/">Sponsored result</a>
+      </div>
+      <div class="result">
+        <a class="result__a" href="/l/?uddg=https%3A%2F%2Fexample.com%2Farticle">Organic result</a>
+        <a class="result__snippet">Organic snippet</a>
+        <span class="result__url">example.com/article</span>
+        <img class="result__icon__img" src="https://icons.duckduckgo.com/ip3/example.com.ico">
+      </div>
+    `);
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn(async (source) => Function('document', `return ${source};`)(dom.window.document)),
+    };
+
+    await expect(command.func(page, { keyword: 'opencli', limit: 5 })).resolves.toEqual([{
+      rank: 1,
+      title: 'Organic result',
+      url: 'https://example.com/article',
+      snippet: 'Organic snippet',
+      displayUrl: 'example.com/article',
+      icon: 'https://icons.duckduckgo.com/ip3/example.com.ico',
       resultType: 'web',
     }]);
   });
