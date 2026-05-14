@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { getSelfUid } from './utils.js';
+import { getSelfUid, unwrapEvaluateResult } from './utils.js';
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -123,7 +123,7 @@ cli({
       await page.wait(1);
     }
 
-    const rawData = await page.evaluate(`
+    const rawData = unwrapEvaluateResult(await page.evaluate(`
       (() => {
         const scrollers = document.querySelectorAll('.wbpro-scroller-item, .vue-recycle-scroller__item-view');
         const out = [];
@@ -145,7 +145,7 @@ cli({
         }
         return out;
       })()
-    `);
+    `));
 
     if (!Array.isArray(rawData) || rawData.length === 0) {
       throw new EmptyResultError('weibo favorites', 'No favorites were visible on the favorites page');

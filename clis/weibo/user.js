@@ -3,6 +3,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './utils.js';
 cli({
     site: 'weibo',
     name: 'user',
@@ -18,7 +19,7 @@ cli({
         await page.goto('https://weibo.com');
         await page.wait(2);
         const id = String(kwargs.id);
-        const data = await page.evaluate(`
+        const data = unwrapEvaluateResult(await page.evaluate(`
       (async () => {
         const id = ${JSON.stringify(id)};
         const isUid = /^\\d+$/.test(id);
@@ -54,7 +55,7 @@ cli({
           ip_location: d.ip_location || '',
         };
       })()
-    `);
+    `));
         if (!data || typeof data !== 'object')
             throw new CommandExecutionError('Failed to fetch user profile');
         if (data.error)

@@ -2,7 +2,7 @@
  * Weibo feed — for-you or following timeline.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { getSelfUid } from './utils.js';
+import { getSelfUid, unwrapEvaluateResult } from './utils.js';
 const TIMELINE_ENDPOINTS = {
     'for-you': 'unreadfriendstimeline',
     following: 'friendstimeline',
@@ -31,7 +31,7 @@ cli({
         await page.goto('https://weibo.com');
         await page.wait(2);
         const uid = await getSelfUid(page);
-        const data = await page.evaluate(`
+        const data = unwrapEvaluateResult(await page.evaluate(`
       (async () => {
         const uid = ${JSON.stringify(uid)};
         const count = ${count};
@@ -63,7 +63,7 @@ cli({
           return item;
         });
       })()
-    `);
+    `));
         if (!Array.isArray(data))
             return [];
         return data;
