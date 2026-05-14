@@ -20,6 +20,12 @@ describe('flomo memos', function() {
     expect(arg.default).toBe(20);
   });
 
+  it('should define since arg for time filter', function() {
+    var arg = command.args.find(function(a) { return a.name === 'since'; });
+    expect(arg).toBeDefined();
+    expect(arg.type).toBe('int');
+  });
+
   it('should define slug arg for pagination', function() {
     var arg = command.args.find(function(a) { return a.name === 'slug'; });
     expect(arg).toBeDefined();

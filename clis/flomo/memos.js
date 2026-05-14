@@ -2,10 +2,10 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
 import { createHash } from 'node:crypto';
 
-function buildSignedUrl(limit, slug) {
+function buildSignedUrl(limit, since, slug) {
   var params = {
     limit: String(limit),
-    latest_updated_at: '0',
+    latest_updated_at: String(since != null ? since : 0),
     tz: '8:0',
     timestamp: String(Math.floor(Date.now() / 1000)),
     api_key: 'flomo_web',
@@ -34,8 +34,9 @@ var command = cli({
   browser: true,
   navigateBefore: 'https://v.flomoapp.com/',
   args: [
-    { name: 'limit', type: 'int', default: 20, help: 'Number of memos to fetch (max 200)' },
-    { name: 'slug', help: 'Pagination cursor: slug of the last memo from previous page' },
+    { name: 'limit', type: 'int', default: 20, help: 'Number of memos (max 200). Use --limit 200 to fetch all' },
+    { name: 'since', type: 'int', help: 'Only memos updated after this Unix timestamp (e.g. 1735689600 for 2025)' },
+    { name: 'slug', help: '[Experimental] Pagination cursor from previous response' },
   ],
   columns: ['content', 'slug', 'tags', 'created_at', 'updated_at'],
   func: async function(page, kwargs) {
@@ -45,7 +46,7 @@ var command = cli({
     if (!token) {
       throw new CliError('AUTH_REQUIRED', 'Not logged in to Flomo', 'Open https://v.flomoapp.com in this browser and log in first');
     }
-    var url = buildSignedUrl(limit, kwargs.slug);
+    var url = buildSignedUrl(limit, kwargs.since, kwargs.slug);
     var resp;
     try {
       resp = await fetch(url, {

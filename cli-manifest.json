@@ -9747,13 +9747,19 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of memos to fetch (max 200)"
+        "help": "Number of memos (max 200). Use --limit 200 to fetch all"
+      },
+      {
+        "name": "since",
+        "type": "int",
+        "required": false,
+        "help": "Only memos updated after this Unix timestamp (e.g. 1735689600 for 2025)"
       },
       {
         "name": "slug",
         "type": "str",
         "required": false,
-        "help": "Pagination cursor: slug of the last memo from previous page"
+        "help": "[Experimental] Pagination cursor from previous response"
       }
     ],
     "columns": [
