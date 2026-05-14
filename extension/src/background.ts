@@ -18,6 +18,7 @@ let reconnectAttempts = 0;
 const CONTEXT_ID_KEY = 'opencli_context_id_v1';
 let currentContextId = 'default';
 let contextIdPromise: Promise<string> | null = null;
+let connectInFlight: Promise<void> | null = null;
 
 async function getCurrentContextId(): Promise<string> {
   if (contextIdPromise) return contextIdPromise;
@@ -92,6 +93,10 @@ console.error = (...args: unknown[]) => { _origError(...args); forwardLog('error
 
 // ─── WebSocket connection ────────────────────────────────────────────
 
+function isDaemonSocketActive(socket: WebSocket | null | undefined = ws): boolean {
+  return socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING;
+}
+
 /**
  * Probe the daemon via its /ping HTTP endpoint before attempting a WebSocket
  * connection.  fetch() failures are silently catchable; new WebSocket() is not
@@ -99,8 +104,17 @@ console.error = (...args: unknown[]) => { _origError(...args); forwardLog('error
  * JS handler can intercept it.  By keeping the probe inside connect() every
  * call site remains unchanged and the guard can never be accidentally skipped.
  */
-async function connect(): Promise<void> {
-  if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
+function connect(): Promise<void> {
+  if (isDaemonSocketActive()) return Promise.resolve();
+  if (connectInFlight) return connectInFlight;
+  connectInFlight = connectAttempt().finally(() => {
+    connectInFlight = null;
+  });
+  return connectInFlight;
+}
+
+async function connectAttempt(): Promise<void> {
+  if (isDaemonSocketActive()) return;
 
   try {
     const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1000) });
@@ -108,10 +122,12 @@ async function connect(): Promise<void> {
   } catch {
     return; // daemon not running — skip WebSocket to avoid console noise
   }
+  if (isDaemonSocketActive()) return;
 
   let thisWs: WebSocket;
   try {
     const contextId = await getCurrentContextId();
+    if (isDaemonSocketActive()) return;
     thisWs = new WebSocket(DAEMON_WS_URL);
     ws = thisWs;
     currentContextId = contextId;

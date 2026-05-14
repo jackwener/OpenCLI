@@ -52,6 +52,16 @@ class MockWebSocket {
   }
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 function createChromeMock() {
   let nextTabId = 10;
   let nextGroupId = 100;
@@ -691,6 +701,31 @@ describe('background tab isolation', () => {
 
     await vi.waitFor(() => {
       expect(secondWs.sent.some((entry) => entry.includes('sessions-after-stale-close'))).toBe(true);
+    });
+  });
+
+  it('coalesces concurrent daemon connection attempts while the probe is in flight', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    const ping = deferred<{ ok: boolean }>();
+    const fetchMock = vi.fn(() => ping.promise);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await import('./background');
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
+    await onAlarmListener({ name: 'keepalive' });
+    await onAlarmListener({ name: 'keepalive' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(MockWebSocket.instances).toHaveLength(0);
+
+    ping.resolve({ ok: true });
+    await vi.waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
     });
   });
 

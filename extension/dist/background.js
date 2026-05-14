@@ -626,6 +626,7 @@ let reconnectAttempts = 0;
 const CONTEXT_ID_KEY = "opencli_context_id_v1";
 let currentContextId = "default";
 let contextIdPromise = null;
+let connectInFlight = null;
 async function getCurrentContextId() {
   if (contextIdPromise) return contextIdPromise;
   contextIdPromise = (async () => {
@@ -698,17 +699,30 @@ console.error = (...args) => {
   _origError(...args);
   forwardLog("error", args);
 };
-async function connect() {
-  if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
+function isDaemonSocketActive(socket = ws) {
+  return socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING;
+}
+function connect() {
+  if (isDaemonSocketActive()) return Promise.resolve();
+  if (connectInFlight) return connectInFlight;
+  connectInFlight = connectAttempt().finally(() => {
+    connectInFlight = null;
+  });
+  return connectInFlight;
+}
+async function connectAttempt() {
+  if (isDaemonSocketActive()) return;
   try {
     const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1e3) });
     if (!res.ok) return;
   } catch {
     return;
   }
+  if (isDaemonSocketActive()) return;
   let thisWs;
   try {
     const contextId = await getCurrentContextId();
+    if (isDaemonSocketActive()) return;
     thisWs = new WebSocket(DAEMON_WS_URL);
     ws = thisWs;
     currentContextId = contextId;
