@@ -47,6 +47,10 @@ describe('weread/book-search', () => {
         vi.unstubAllGlobals();
     });
 
+    it('registers book-search with markdown default output', () => {
+        expect(command?.defaultFormat).toBe('md');
+    });
+
     it('resolves a book by title, reads reader chapter metadata, and searches inside the book', async () => {
         expect(command?.func).toBeTypeOf('function');
         const fetchMock = vi.fn()
@@ -102,16 +106,22 @@ describe('weread/book-search', () => {
         expect(String(fetchMock.mock.calls[3][0])).toContain('keyword=%E8%88%9C');
         expect(result).toEqual([
             {
-                rank: 1,
-                book_title: '史记',
-                author: '司马迁',
-                chapter_idx: 9,
-                chapter_title: '卷一 五帝本纪第一',
-                snippet: '尧、舜二帝举贤任能，天下大治。',
-                search_idx: 1,
-                chapter_uid: 171,
-                book_id: 'book-1',
-                url: 'https://weread.qq.com/web/reader/reader-1',
+                markdown: [
+                    '# 史记',
+                    '- author: 司马迁',
+                    '- book_id: `book-1`',
+                    '- query: `舜`',
+                    '- matches: 1',
+                    '- url: https://weread.qq.com/web/reader/reader-1',
+                    '',
+                    '## 1. 卷一 五帝本纪第一',
+                    '',
+                    '> 尧、舜二帝举贤任能，天下大治。',
+                    '',
+                    '- chapter_idx: 9',
+                    '- chapter_uid: 171',
+                    '- search_idx: 1',
+                ].join('\n'),
             },
         ]);
     });
@@ -141,7 +151,7 @@ describe('weread/book-search', () => {
         }));
         vi.stubGlobal('fetch', fetchMock);
 
-        const result = await command.func({ book: '文明', query: '德', 'book-rank': 2, limit: 3 });
+        const result = await command.func({ book: '文明', query: '德', 'book-rank': 2, limit: 3, raw: true });
 
         expect(String(fetchMock.mock.calls[2][0])).toContain('bookId=right-book');
         expect(String(fetchMock.mock.calls[2][0])).toContain('maxIdx=0');

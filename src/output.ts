@@ -90,7 +90,7 @@ function renderPlain(data: unknown, opts: RenderOptions): void {
     const entries = Object.entries(row);
     if (entries.length === 1) {
       const [key, value] = entries[0];
-      if (key === 'response' || key === 'content' || key === 'text' || key === 'value') {
+      if (key === 'response' || key === 'content' || key === 'markdown' || key === 'text' || key === 'value') {
         console.log(String(value ?? ''));
         return;
       }
@@ -110,6 +110,16 @@ function renderPlain(data: unknown, opts: RenderOptions): void {
 function renderMarkdown(data: unknown, opts: RenderOptions): void {
   const rows = normalizeRows(data);
   if (!rows.length) return;
+  if (rows.length === 1) {
+    const entries = Object.entries(rows[0]);
+    if (entries.length === 1) {
+      const [key, value] = entries[0];
+      if (key === 'content' || key === 'markdown' || key === 'text' || key === 'value') {
+        console.log(String(value ?? ''));
+        return;
+      }
+    }
+  }
   const columns = resolveColumns(rows, opts);
   console.log('| ' + columns.join(' | ') + ' |');
   console.log('| ' + columns.map(() => '---').join(' | ') + ' |');
