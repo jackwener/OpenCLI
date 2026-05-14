@@ -850,5 +850,5 @@ export async function getChatGPTImageAssets(page, urls) {
 
             return results;
         })(${urlsJson})
-    `, urls);
+    `);
 }
