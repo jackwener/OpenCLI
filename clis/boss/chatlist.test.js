@@ -147,6 +147,16 @@ describe('boss chatlist', () => {
         ).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
+    it('treats null Boss API payload as CommandExecutionError', async () => {
+        const page = createPageMock(async (script) => {
+            if (script.includes('getBossFriendListV2')) return null;
+            return {};
+        });
+        await expect(
+            command.func(page, { page: 1, limit: 20, 'job-id': '0', side: 'boss' })
+        ).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('maps expired Boss cookies to AuthRequiredError', async () => {
         const page = createPageMock(async (script) => {
             if (script.includes('getBossFriendListV2')) {

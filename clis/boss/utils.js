@@ -112,6 +112,9 @@ export async function bossFetch(page, url, opts = {}) {
         const message = error instanceof Error ? error.message : String(error);
         throw new CommandExecutionError(`Boss API request failed: ${message}`);
     }
+    if (!data || typeof data !== 'object') {
+        throw new CommandExecutionError('Boss API returned malformed response');
+    }
     // Auto-check auth unless caller opts out
     if (!opts.allowNonZero && data.code !== 0) {
         assertOk(data);
