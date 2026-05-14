@@ -2,7 +2,7 @@
  * Douyin publish — 8-phase pipeline for scheduling video posts.
  *
  * Phases:
- *   1. STS2 credentials
+ *   1. upload auth v5 credentials
  *   2. Apply TOS upload URL
  *   3. TOS multipart upload
  *   4. Cover upload (optional, via ImageX)
@@ -15,10 +15,9 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { getSts2Credentials } from './_shared/sts2.js';
+import { getUploadAuthV5Credentials, applyVideoUploadInner, commitVideoUploadInner } from './_shared/vod-upload.js';
 import { tosUpload } from './_shared/tos-upload.js';
 import { imagexUpload } from './_shared/imagex-upload.js';
-import { pollTranscode } from './_shared/transcode.js';
 import { browserFetch } from './_shared/browser-fetch.js';
 import { generateCreationId } from './_shared/creation-id.js';
 import { validateTiming, toUnixSeconds } from './_shared/timing.js';
@@ -54,6 +53,30 @@ const DEFAULT_COVER_TOOLS_INFO = JSON.stringify({
     initial_cover_uri: '',
     cut_coordinate: '',
 });
+function isFastDetectRetryable(error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes('post_assistant/fast_detect') && (message.includes('Empty response') || message.includes('404') || message.includes('Not Found') || message.includes('Timeout') || message.includes('timed out') || message.includes('Failed to fetch'));
+}
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+async function tryFastDetectFetch(page, method, url, options) {
+    let lastError;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+            return { ok: true, value: await browserFetch(page, method, url, options) };
+        } catch (error) {
+            if (!isFastDetectRetryable(error)) {
+                throw error;
+            }
+            lastError = error;
+            if (attempt < 3) {
+                await sleep(500 * attempt);
+            }
+        }
+    }
+    return { ok: false, error: lastError };
+}
 cli({
     site: 'douyin',
     name: 'publish',
@@ -106,19 +129,13 @@ cli({
                 throw new ArgumentError(`封面文件不存在: ${path.resolve(coverPath)}`);
             }
         }
-        // ── Phase 1: STS2 credentials ───────────────────────────────────────
-        const credentials = await getSts2Credentials(page);
+        // ── Phase 1: upload credentials ────────────────────────────────────
+        const credentials = await getUploadAuthV5Credentials(page);
         // ── Phase 2: Apply TOS upload URL ───────────────────────────────────
-        const vodUrl = `https://vod.bytedanceapi.com/?Action=ApplyVideoUpload&ServiceId=1128&Version=2021-01-01&FileType=video&FileSize=${fileSize}`;
-        const vodJs = `fetch(${JSON.stringify(vodUrl)}, { credentials: 'include' }).then(r => r.json())`;
-        const vodRes = (await page.evaluate(vodJs));
-        const { VideoId: videoId, UploadHosts, StoreInfos } = vodRes.Result.UploadAddress;
-        const tosUrl = `https://${UploadHosts[0]}/${StoreInfos[0].StoreUri}`;
-        const tosUploadInfo = {
-            tos_upload_url: tosUrl,
-            auth: StoreInfos[0].Auth,
-            video_id: videoId,
-        };
+        const tosUploadInfo = await applyVideoUploadInner(fileSize, credentials);
+        let coverUri = '';
+        let coverWidth = 720;
+        let coverHeight = 1280;
         // ── Phase 3: TOS upload ─────────────────────────────────────────────
         await tosUpload({
             filePath: videoPath,
@@ -130,10 +147,16 @@ cli({
             },
         });
         process.stderr.write('\n');
+        process.stderr.write('  提交上传...\n');
+        const committedVideo = await commitVideoUploadInner(tosUploadInfo, credentials);
+        const videoId = committedVideo.video_id;
+        process.stderr.write(`  上传已提交: ${videoId}\n`);
+        coverWidth = committedVideo.width || coverWidth;
+        coverHeight = committedVideo.height || coverHeight;
+        if (!coverUri && committedVideo.poster_uri) {
+            coverUri = committedVideo.poster_uri;
+        }
         // ── Phase 4: Cover upload (optional) ────────────────────────────────
-        let coverUri = '';
-        let coverWidth = 720;
-        let coverHeight = 1280;
         if (kwargs.cover) {
             const resolvedCoverPath = path.resolve(kwargs.cover);
             // 4A: Apply ImageX upload
@@ -161,16 +184,9 @@ cli({
             await page.evaluate(commitJs);
             coverUri = coverStoreUri;
         }
-        // ── Phase 5: Enable video ───────────────────────────────────────────
-        const enableUrl = `https://creator.douyin.com/web/api/media/video/enable/?video_id=${videoId}&aid=1128`;
-        await browserFetch(page, 'GET', enableUrl);
-        // ── Phase 6: Poll transcode ─────────────────────────────────────────
-        const transResult = await pollTranscode(page, videoId);
-        coverWidth = transResult.width;
-        coverHeight = transResult.height;
-        if (!coverUri) {
-            coverUri = transResult.poster_uri;
-        }
+        // The gateway upload flow returns a committed VOD upload result; the legacy
+        // enable/transend endpoints can hang for that flow, so create_v2 consumes
+        // the committed video_id and poster metadata directly.
         // ── Phase 7: Content safety check ───────────────────────────────────
         if (!kwargs.no_safety_check) {
             const safetyUrl = 'https://creator.douyin.com/aweme/v1/post_assistant/fast_detect/pre_check';
@@ -179,25 +195,42 @@ cli({
                 title,
                 desc: caption,
             };
-            await browserFetch(page, 'POST', safetyUrl, { body: safetyBody });
+            const preCheck = await tryFastDetectFetch(page, 'POST', safetyUrl, { body: safetyBody });
+            if (!preCheck.ok) {
+                process.stderr.write('  内容安全预检接口无响应，继续轮询检测结果。\n');
+            }
             const pollUrl = 'https://creator.douyin.com/aweme/v1/post_assistant/fast_detect/poll';
             const deadline = Date.now() + 30_000;
             let safetyPassed = false;
+            let pollUnavailableCount = 0;
             while (Date.now() < deadline) {
-                const pollRes = (await browserFetch(page, 'POST', pollUrl, {
-                    body: safetyBody,
-                }));
-                if (pollRes.status === 0) {
+                const poll = await tryFastDetectFetch(page, 'POST', pollUrl, { body: safetyBody });
+                if (!poll.ok) {
+                    pollUnavailableCount += 1;
+                    if (!preCheck.ok && pollUnavailableCount >= 3) {
+                        break;
+                    }
+                    await sleep(2000);
+                    continue;
+                }
+                pollUnavailableCount = 0;
+                const pollRes = poll.value;
+                if (pollRes.status === 0 || (pollRes.has_done === true && pollRes.detect_result?.reason_code === 0 && (pollRes.detect_list?.length ?? 0) === 0)) {
                     safetyPassed = true;
                     break;
                 }
                 if (pollRes.status === 1) {
                     throw new CommandExecutionError('内容安全检测不通过，请修改后重试', '使用 --no_safety_check 跳过');
                 }
-                await new Promise((r) => setTimeout(r, 2000));
+                await sleep(2000);
             }
             if (!safetyPassed) {
-                throw new CommandExecutionError('内容安全检测超时（30s），请稍后重试', '使用 --no_safety_check 跳过');
+                if (!preCheck.ok && pollUnavailableCount >= 3) {
+                    process.stderr.write('  内容安全预检持续无响应，跳过本地预检，交由 create_v2 后的平台审核。\n');
+                }
+                else {
+                    throw new CommandExecutionError('内容安全检测超时（30s），请稍后重试', '如确认要跳过本地预检，可使用 --no_safety_check；提交后仍会走抖音平台审核');
+                }
             }
         }
         // ── Phase 8: create_v2 publish ──────────────────────────────────────
@@ -266,12 +299,13 @@ cli({
             },
         };
         const publishUrl = `https://creator.douyin.com/web/api/media/aweme/create_v2/?read_aid=2906&${DEVICE_PARAMS}`;
+        process.stderr.write('  创建定时发布...\n');
         const publishRes = (await browserFetch(page, 'POST', publishUrl, {
             body: publishBody,
         }));
-        const awemeId = publishRes.aweme_id;
+        const awemeId = publishRes.aweme_id ?? publishRes.item_id;
         if (!awemeId) {
-            throw new CommandExecutionError(`发布成功但未返回 aweme_id: ${JSON.stringify(publishRes)}`);
+            throw new CommandExecutionError(`发布成功但未返回 aweme_id/item_id: ${JSON.stringify(publishRes)}`);
         }
         const url = `https://www.douyin.com/video/${awemeId}`;
         const publishTimeStr = new Date(timingTs * 1000).toLocaleString('zh-CN', {

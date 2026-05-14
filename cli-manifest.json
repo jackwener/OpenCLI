@@ -8266,7 +8266,7 @@
   {
     "site": "douyin",
     "name": "delete",
-    "description": "删除作品",
+    "description": "删除作品（优先使用创作者后台作品管理；找不到时回退到旧删除接口）",
     "access": "write",
     "domain": "creator.douyin.com",
     "strategy": "cookie",
@@ -8277,7 +8277,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "作品 ID"
+        "help": "作品 ID / item_id"
       }
     ],
     "columns": [
@@ -8286,7 +8286,8 @@
     "type": "js",
     "modulePath": "douyin/delete.js",
     "sourceFile": "douyin/delete.js",
-    "navigateBefore": "https://creator.douyin.com"
+    "navigateBefore": "https://creator.douyin.com",
+    "siteSession": "persistent"
   },
   {
     "site": "douyin",
