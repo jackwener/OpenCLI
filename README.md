@@ -305,6 +305,8 @@ OpenCLI acts as a universal hub for your existing command-line tools — unified
 opencli external register mycli
 ```
 
+**Manual install** — some external CLIs use official shell-script installers rather than shell-free package-manager commands. For `ntn`, install from <https://ntn.dev> first, then run `opencli ntn ...`.
+
 ### Desktop App Adapters
 
 Control Electron desktop apps directly from the terminal. Each adapter has its own detailed documentation:
