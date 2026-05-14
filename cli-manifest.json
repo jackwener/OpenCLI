@@ -9766,7 +9766,7 @@
     "type": "js",
     "modulePath": "flomo/memos.js",
     "sourceFile": "flomo/memos.js",
-    "navigateBefore": "https://flomoapp.com/mine"
+    "navigateBefore": "https://v.flomoapp.com/"
   },
   {
     "site": "gemini",

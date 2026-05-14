@@ -20,22 +20,8 @@ function buildSignedUrl(limit, slug) {
   return 'https://flomoapp.com/api/v1/memo/updated/?' + new URLSearchParams(params).toString();
 }
 
-function buildTokenCheckJs() {
-  return '(function(){var t=window.localStorage.getItem("flomo_token");return t?{ok:true}:{ok:false};})()';
-}
-
-function buildFetchJs(url) {
-  return (
-    '(function(){try{' +
-    'var tkn=window.localStorage.getItem("flomo_token");' +
-    'if(!tkn)return{error:"no_token"};' +
-    'return fetch("' + url + '",{' +
-    'headers:{"Authorization":"Bearer "+tkn,"Accept":"application/json"}' +
-    '}).then(function(r){return r.json();}).then(function(j){' +
-    'if(j.code!==0)return{error:j.message||"err_"+j.code};' +
-    'return{items:j.data||[]};' +
-    '});}catch(e){return Promise.resolve({error:e.message});}})()'
-  );
+function buildGetTokenJs() {
+  return '(function(){try{var m=JSON.parse(localStorage.getItem("me"));return m&&m.access_token?m.access_token:null;}catch(e){return null;}})()';
 }
 
 var command = cli({
@@ -46,7 +32,7 @@ var command = cli({
   domain: 'flomoapp.com',
   strategy: Strategy.COOKIE,
   browser: true,
-  navigateBefore: 'https://flomoapp.com/mine',
+  navigateBefore: 'https://v.flomoapp.com/',
   args: [
     { name: 'limit', type: 'int', default: 20, help: 'Number of memos to fetch (max 200)' },
     { name: 'slug', help: 'Pagination cursor: slug of the last memo from previous page' },
@@ -55,16 +41,36 @@ var command = cli({
   func: async function(page, kwargs) {
     var limit = Math.max(1, Math.min(Number(kwargs.limit) || 20, 200));
     await page.wait(3).catch(function() {});
-    var check = await page.evaluate(buildTokenCheckJs());
-    if (!check || !check.ok) {
-      throw new CliError('AUTH_REQUIRED', 'Not logged in to Flomo', 'Open https://flomoapp.com in your browser, log in, then run this command again');
+    var token = await page.evaluate(buildGetTokenJs());
+    if (!token) {
+      throw new CliError('AUTH_REQUIRED', 'Not logged in to Flomo', 'Open https://v.flomoapp.com in this browser and log in first');
     }
     var url = buildSignedUrl(limit, kwargs.slug);
-    var data = await page.evaluate(buildFetchJs(url));
-    if (!data || data.error) {
-      throw new CliError('API_ERROR', 'Failed to fetch memos: ' + ((data && data.error) || 'unknown'));
+    var resp;
+    try {
+      resp = await fetch(url, {
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json',
+        },
+      });
+    } catch (err) {
+      throw new CliError('NETWORK_ERROR', 'Failed to fetch memos: ' + (err instanceof Error ? err.message : String(err)));
     }
-    var memos = Array.isArray(data.items) ? data.items : [];
+    if (!resp.ok) {
+      throw new CliError('HTTP_ERROR', 'API returned ' + resp.status);
+    }
+    var body;
+    try {
+      body = await resp.json();
+    } catch (_) {
+      throw new CliError('PARSE_ERROR', 'Failed to parse API response');
+    }
+    if (body.code !== 0) {
+      throw new CliError('API_ERROR', body.message || 'API error code ' + body.code);
+    }
+    var memos = Array.isArray(body.data) ? body.data : [];
     return memos.map(function(m) {
       return {
         content: (m.content || '').trim(),
