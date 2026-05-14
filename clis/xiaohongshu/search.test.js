@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { JSDOM } from 'jsdom';
-import { __test__, buildScrollUntilJs, noteIdToDate } from './search.js';
+import { __test__, buildScrollUntilJs, noteIdToDate, unwrapEvaluateResult } from './search.js';
 
 function markVisible(el) {
     el.getBoundingClientRect = () => ({ width: 100, height: 100 });
@@ -266,5 +266,28 @@ describe('noteIdToDate (ObjectID timestamp parsing)', () => {
     it('returns empty string when timestamp is out of range', () => {
         // All zeros → ts = 0
         expect(noteIdToDate('https://www.xiaohongshu.com/search_result/000000000000000000000000')).toBe('');
+    });
+});
+describe('unwrapEvaluateResult (browser-bridge envelope normalization)', () => {
+    it('returns the raw array unchanged when payload is already an array', () => {
+        const arr = [{ title: 'a' }, { title: 'b' }];
+        expect(unwrapEvaluateResult(arr)).toBe(arr);
+    });
+    it('unwraps { session, data: [...] } envelope to the inner array', () => {
+        const arr = [{ title: 'a' }];
+        const env = { session: 'site:xiaohongshu:abc', data: arr };
+        expect(unwrapEvaluateResult(env)).toBe(arr);
+    });
+    it('passes non-envelope objects through unchanged', () => {
+        const obj = { results: [], loginWall: true };
+        expect(unwrapEvaluateResult(obj)).toBe(obj);
+    });
+    it('handles null and undefined safely', () => {
+        expect(unwrapEvaluateResult(null)).toBe(null);
+        expect(unwrapEvaluateResult(undefined)).toBe(undefined);
+    });
+    it('does not unwrap when envelope.data is not an array', () => {
+        const env = { session: 'x', data: { not: 'an array' } };
+        expect(unwrapEvaluateResult(env)).toBe(env);
     });
 });

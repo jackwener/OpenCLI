@@ -60,6 +60,19 @@ export function stripXhsAuthorDateSuffix(value) {
     const stripped = text.replace(/\s*(?:\d{1,2}天前|\d+小时前|\d+分钟前|\d+秒前|刚刚|昨天|前天|\d+周前|\d+个月前|\d{1,2}-\d{1,2}|\d{4}-\d{1,2}-\d{1,2})$/u, '').trim();
     return stripped || text;
 }
+/**
+ * `page.evaluate` may return either the raw IIFE value or a
+ * `{ session, data }` envelope depending on the browser-bridge version.
+ * Adapter code that called `Array.isArray(payload)` directly on the
+ * envelope silently received [] for every search. This helper normalizes
+ * both shapes so callers can keep their Array.isArray checks unchanged.
+ */
+export function unwrapEvaluateResult(payload) {
+    if (payload && !Array.isArray(payload) && typeof payload === 'object' && Array.isArray(payload.data)) {
+        return payload.data;
+    }
+    return payload;
+}
 export function parseLimit(raw) {
     const parsed = Number(raw ?? 20);
     if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
@@ -275,14 +288,14 @@ export const command = cli({
         // layout, so scrolling to the bottom can evict the initially visible
         // note cards from the DOM and make extraction return [] even though the
         // browser rendered results correctly.
-        const initialPayload = await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com'));
+        const initialPayload = unwrapEvaluateResult(await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com')));
         let payload = Array.isArray(initialPayload) ? initialPayload : [];
         if (payload.length < limit) {
             // Scroll until enough rows are rendered or the lazy-load plateaus.
             // Replaces the previous fixed `autoScroll({ times: 2 })` which capped
             // extraction at ~13 notes regardless of `--limit` (#1471).
             await page.evaluate(buildScrollUntilJs(limit));
-            const scrolledPayload = await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com'));
+            const scrolledPayload = unwrapEvaluateResult(await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com')));
             if (Array.isArray(scrolledPayload)) {
                 const seen = new Set(payload.map((item) => item.url).filter(Boolean));
                 for (const item of scrolledPayload) {
