@@ -14,9 +14,9 @@ function decodeYahooUrl(href) {
     var match = href.match(/RU=([^/]+)\/RK=/);
     if (match && match[1]) {
       try {
-        return decodeURIComponent(match[1]);
+        return toHttpsUrl(decodeURIComponent(match[1]), 'https://search.yahoo.com');
       } catch {
-        return href;
+        return toHttpsUrl(href, 'https://search.yahoo.com');
       }
     }
   }

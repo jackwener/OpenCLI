@@ -69,6 +69,20 @@ describe('yahoo search', () => {
     }]);
   });
 
+  it('drops decoded Yahoo redirect targets that are not http(s) URLs', async () => {
+    const page = createPageMock([
+      [
+        'Bad redirect',
+        'https://r.search.yahoo.com/_ylt=x/RU=javascript%3Aalert(1)/RK=2/RS=x',
+        'should not be emitted',
+      ],
+    ]);
+
+    await expect(command.func(page, { keyword: 'opencli', limit: 1 })).rejects.toMatchObject({
+      code: 'EMPTY_RESULT',
+    });
+  });
+
   it('fails typed instead of silently returning [] for malformed extraction payloads', async () => {
     const page = createPageMock({ rows: [] });
 
