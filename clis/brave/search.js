@@ -22,9 +22,9 @@ function buildExtractorJs(limit) {
     if (!title || !href || seen[title]) continue;
     if (href.indexOf('/') === 0) continue;
     seen[title] = true;
-    results.push({ title: title, url: href, snippet: snippet });
+    results.push([title, href, snippet]);
   }
-  return { items: results };
+  return results;
 })()`;
 }
 
@@ -54,12 +54,14 @@ const command = cli({
     } catch {
       await page.wait(3).catch(function() {});
     }
-    const wrapper = await page.evaluate(buildExtractorJs(limit));
-    const results = (wrapper && wrapper.items) || [];
+    const raw = await page.evaluate(buildExtractorJs(limit));
+    const results = (raw && Array.isArray(raw)) ? raw : [];
     if (results.length === 0) {
       throw new CliError('NOT_FOUND', 'No search results found', 'Try a different keyword');
     }
-    return results;
+    return results.map(function(r) {
+      return { title: r[0], url: r[1], snippet: r[2] };
+    });
   },
 });
 
