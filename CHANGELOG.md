@@ -1,14 +1,29 @@
 # Changelog
 
-## Unreleased
+## [1.7.20](https://github.com/jackwener/opencli/compare/v1.7.19...v1.7.20) (2026-05-14)
+
+External CLI surface cleanup + Browser Bridge WebSocket lifecycle hardening. Two BREAKING changes around external CLIs: built-in `tg`/`discord`/`wx` (was `tg-cli`/`discord-cli`/`wx-cli`) now match their real binary names, and Notion's in-tree CDP adapter is replaced by the official `ntn` external CLI.
 
 ### ⚠ BREAKING CHANGES
 
-* **notion** — remove the in-tree `clis/notion/` CDP-on-Desktop adapter (8 commands: status / search / read / new / write / sidebar / favorites / export). Notion has shipped an official CLI at <https://ntn.dev>, which is registered as a first-class external CLI in `external-clis.yaml`. Migration: install `ntn` from <https://ntn.dev> (`curl -fsSL https://ntn.dev | bash`), then use `opencli ntn <command>`. Auto-install is intentionally not configured because the official installer is a shell script while OpenCLI external installs run shell-free command strings. The official CLI uses the public Notion API rather than reverse-engineering the Desktop UI, so it survives Notion app updates and exposes a wider command surface (blocks / databases / properties / comments) than the reverse-engineered adapter could.
+* **notion** — remove the in-tree `clis/notion/` CDP-on-Desktop adapter (8 commands: `status` / `search` / `read` / `new` / `write` / `sidebar` / `favorites` / `export`). Notion has shipped an official CLI at <https://ntn.dev>, registered as a first-class external CLI in `external-clis.yaml`. Migration: install `ntn` from <https://ntn.dev> (`curl -fsSL https://ntn.dev | bash`), then use `opencli ntn <command>`. Auto-install is intentionally not configured because the official installer is a shell script while OpenCLI external installs run shell-free command strings. The official CLI uses the public Notion API rather than reverse-engineering the Desktop UI, so it survives Notion app updates and exposes a wider command surface (blocks / databases / properties / comments) than the reverse-engineered adapter could. ([#1559](https://github.com/jackwener/opencli/issues/1559))
+* **external** — drop the `-cli` suffix from built-in external CLI subcommand names. `opencli tg-cli`, `opencli discord-cli`, `opencli wx-cli` are now `opencli tg`, `opencli discord`, `opencli wx`, matching the real binary names that those tools install as. Root help still shows the package lineage as `tg(tg-cli)` / `discord(discord-cli)` / `wx(wx-cli)`. ([#1544](https://github.com/jackwener/opencli/issues/1544))
+
+### Features
+
+* **twitter** — `bookmarks` and `bookmark-folder` now include media via `extractMedia`, reaching parity with `timeline` / `search`. ([#1555](https://github.com/jackwener/opencli/issues/1555))
+* **twitter/list-tweets** — include media via `extractMedia` (parity with `timeline` / `search`). ([#1464](https://github.com/jackwener/opencli/issues/1464))
 
 ### Bug Fixes
 
-* **external** — distinguish external CLI executable names from distribution/project names in root help. Built-in aliases such as `tg`, `discord`, and `wx` remain the callable `opencli <name> ...` entrypoints while help renders `tg(tg-cli)`, `discord(discord-cli)`, and `wx(wx-cli)` to show their package lineage.
+* **daemon** — report ambiguous browser command outcomes with a distinct `command_result_unknown` errorCode and `503` when the extension WebSocket drops between command dispatch and result delivery. `sendCommandRaw()` treats this code as hard non-retryable, so write-side commands (`navigate` / `click` / `type` / `eval`) won't be silently re-issued and double-executed. Daemon exposes a `commandResultUnknown` counter on `/status` for future observability. ([#1558](https://github.com/jackwener/opencli/issues/1558))
+* **extension** — keep active daemon WebSocket; stale sockets no longer clobber active connection (`onopen` / `onclose` / `onmessage` are all gated by `ws !== thisWs` short-circuit), and `safeSend` only fires when `readyState === OPEN`. ([#1540](https://github.com/jackwener/opencli/issues/1540))
+* **extension** — coalesce concurrent daemon WebSocket connects via an in-flight promise. Startup / keepalive / reconnect triggering `connect()` during the daemon-probe or context-lookup async gap no longer creates duplicate real WebSocket connections. ([#1554](https://github.com/jackwener/opencli/issues/1554))
+* **external** — distinguish external CLI executable names from distribution/project names in root help. Built-in aliases such as `tg`, `discord`, `wx` remain the callable `opencli <name> ...` entrypoints while help renders `tg(tg-cli)`, `discord(discord-cli)`, `wx(wx-cli)` to show their package lineage. ([#1560](https://github.com/jackwener/opencli/issues/1560))
+
+### Docs
+
+* **browser** — clarify named session lifecycle in the Browser Bridge guide. ([#1542](https://github.com/jackwener/opencli/issues/1542))
 
 ## [1.7.19](https://github.com/jackwener/opencli/compare/v1.7.18...v1.7.19) (2026-05-14)
 
