@@ -14,11 +14,11 @@ OpenCLI gives you one surface for three different kinds of automation:
 - **Let AI Agents operate any website** — install the `opencli-adapter-author` skill in your AI agent (Claude Code, Cursor, etc.), and it can navigate, click, type/fill, extract, and inspect any page through your logged-in browser via `opencli browser` primitives.
 - **Write new adapters** end-to-end with `opencli browser` + the `opencli-adapter-author` skill, which guides from first recon through field decoding, code, and `opencli browser verify`.
 
-It also works as a **CLI hub** for local tools such as `gh`, `docker`, `tg`, `discord`, `wx`, and other binaries you register yourself, plus **desktop app adapters** for Electron apps like Cursor, Codex, Antigravity, ChatGPT, and Notion.
+It also works as a **CLI hub** for local tools such as `gh`, `docker`, `tg`, `discord`, `wx`, `ntn` (Notion), and other binaries you register yourself, plus **desktop app adapters** for Electron apps like Cursor, Codex, Antigravity, and ChatGPT.
 
 ## Highlights
 
-- **Desktop App Control** — Drive Electron apps (Cursor, Codex, ChatGPT, Notion, etc.) directly from the terminal via CDP.
+- **Desktop App Control** — Drive Electron apps (Cursor, Codex, ChatGPT, etc.) directly from the terminal via CDP.
 - **Browser Automation for AI Agents** — Install the `opencli-adapter-author` skill, and your AI agent can operate any website: navigate, click, type/fill, extract, screenshot — all through your logged-in Chrome session.
 - **Multi-profile Browser Bridge** — Install the extension in each Chrome profile you want to use, then route commands with `--profile`, `OPENCLI_PROFILE`, or `opencli profile use`.
 - **Website → CLI** — Turn any website into a deterministic CLI: 100+ site surfaces are already registered, or write your own with the `opencli-adapter-author` skill + `opencli browser verify`.
@@ -315,7 +315,6 @@ Control Electron desktop apps directly from the terminal. Each adapter has its o
 | **Antigravity** | Control Antigravity Ultra from terminal | [Doc](./docs/adapters/desktop/antigravity.md) |
 | **ChatGPT App** | Automate ChatGPT macOS desktop app | [Doc](./docs/adapters/desktop/chatgpt-app.md) |
 | **ChatWise** | Multi-LLM client (GPT-4, Claude, Gemini) | [Doc](./docs/adapters/desktop/chatwise.md) |
-| **Notion** | Search, read, write Notion pages | [Doc](./docs/adapters/desktop/notion.md) |
 | **Discord** | Discord Desktop — messages, channels, servers | [Doc](./docs/adapters/desktop/discord.md) |
 | **Doubao** | Control Doubao AI desktop app via CDP | [Doc](./docs/adapters/desktop/doubao-app.md) |
 

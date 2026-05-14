@@ -16,7 +16,7 @@ hero:
 features:
   - icon: 🖥️
     title: Desktop App Control
-    details: Drive Electron apps (Cursor, Codex, ChatGPT, Notion, etc.) directly from the terminal via CDP.
+    details: Drive Electron apps (Cursor, Codex, ChatGPT, etc.) directly from the terminal via CDP.
   - icon: 🌐
     title: Browser Automation
     details: "AI agents get direct browser control: click, type/fill, extract, screenshot — any interaction, fully scriptable."

@@ -148,7 +148,6 @@ export default defineConfig({
                 { text: 'Antigravity', link: '/adapters/desktop/antigravity' },
                 { text: 'ChatGPT', link: '/adapters/desktop/chatgpt' },
                 { text: 'ChatWise', link: '/adapters/desktop/chatwise' },
-                { text: 'Notion', link: '/adapters/desktop/notion' },
                 { text: 'Discord', link: '/adapters/desktop/discord' },
                 { text: 'Doubao App', link: '/adapters/desktop/doubao-app' },
               ],

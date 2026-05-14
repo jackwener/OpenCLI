@@ -16,7 +16,7 @@ hero:
 features:
   - icon: 🖥️
     title: 桌面应用控制
-    details: 通过 CDP 直接在终端驱动 Electron 应用（Cursor、Codex、ChatGPT、Notion 等）。
+    details: 通过 CDP 直接在终端驱动 Electron 应用（Cursor、Codex、ChatGPT 等）。
   - icon: 🌐
     title: 浏览器自动化
     details: AI Agent 直接控制浏览器：点击、输入、提取、截图 — 任何交互，完全可编程。

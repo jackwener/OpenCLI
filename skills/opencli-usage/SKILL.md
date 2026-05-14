@@ -40,7 +40,7 @@ npx tsx src/main.ts <command>               # same surface, no global install
 | `UI` | Same as COOKIE, full DOM interaction. |
 | `LOCAL` | No browser; talks to a local/dev endpoint. |
 
-Electron desktop apps (cursor, codex, chatwise, notion, discord-app, doubao-app, antigravity, chatgpt-app) route through CDP against the running app — same cookie-less flow as a logged-in browser. Make sure the app is running before invoking.
+Electron desktop apps (cursor, codex, chatwise, discord-app, doubao-app, antigravity, chatgpt-app) route through CDP against the running app — same cookie-less flow as a logged-in browser. Make sure the app is running before invoking.
 
 ## Discover what's installed — don't read this file, run a command
 

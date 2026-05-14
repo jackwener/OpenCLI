@@ -14,11 +14,11 @@ OpenCLI 可以用同一套 CLI 做三类事情：
 - **让 AI Agent 操作任意网站**：在你的 AI Agent（Claude Code、Cursor 等）中安装 `opencli-adapter-author` skill，Agent 就能用你的已登录浏览器导航、点击、输入/填充、提取任意网页内容。
 - **把新网站写成 CLI**：用 `opencli browser` 原语 + `opencli-adapter-author` skill，从站点侦察、API 发现、字段解码到 `opencli browser verify` 一条龙。
 
-除了网站能力，OpenCLI 还是一个 **CLI 枢纽**：你可以把 `gh`、`docker`、`tg`、`discord`、`wx` 等本地工具统一注册到 `opencli` 下，也可以通过桌面端适配器控制 Cursor、Codex、Antigravity、ChatGPT、Notion 等 Electron 应用。
+除了网站能力，OpenCLI 还是一个 **CLI 枢纽**：你可以把 `gh`、`docker`、`tg`、`discord`、`wx`、`ntn`（Notion）等本地工具统一注册到 `opencli` 下，也可以通过桌面端适配器控制 Cursor、Codex、Antigravity、ChatGPT 等 Electron 应用。
 
 ## 亮点
 
-- **桌面应用控制** — 通过 CDP 直接在终端驱动 Electron 应用（Cursor、Codex、ChatGPT、Notion 等）。
+- **桌面应用控制** — 通过 CDP 直接在终端驱动 Electron 应用（Cursor、Codex、ChatGPT 等）。
 - **AI Agent 浏览器自动化** — 安装 `opencli-adapter-author` skill，你的 AI Agent 就能操作任意网站：导航、点击、输入/填充、提取、截图——全部通过你的已登录 Chrome 会话完成。
 - **网站 → CLI** — 把任何网站变成确定性 CLI：100+ 站点能力已注册，或用 `opencli-adapter-author` skill + `opencli browser verify` 自己写。
 - **账号安全** — 复用 Chrome/Chromium 登录态，凭证永远不会离开浏览器。
@@ -241,7 +241,6 @@ npm link
 | **chatwise** | `status` `new` `send` `read` `ask` `model` `history` `export` `screenshot` | 桌面端 |
 | **doubao** | `status` `new` `send` `read` `ask` `history` `detail` `meeting-summary` `meeting-transcript` | 浏览器 |
 | **doubao-app** | `status` `new` `send` `read` `ask` `screenshot` `dump` | 桌面端 |
-| **notion** | `status` `search` `read` `new` `write` `sidebar` `favorites` `export` | 桌面端 |
 | **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | 桌面端 |
 | **v2ex** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | 公开 / 浏览器 |
 | **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `comments` `watchlist` `earnings-date` `fund-holdings` `fund-snapshot` | 浏览器 |
@@ -362,7 +361,6 @@ opencli register mycli
 | **Antigravity** | 在终端直接控制 Antigravity Ultra | [Doc](./docs/adapters/desktop/antigravity.md) |
 | **ChatGPT App** | 自动化操作 ChatGPT macOS 桌面客户端 | [Doc](./docs/adapters/desktop/chatgpt-app.md) |
 | **ChatWise** | 多 LLM 客户端（GPT-4、Claude、Gemini） | [Doc](./docs/adapters/desktop/chatwise.md) |
-| **Notion** | 搜索、读取、写入 Notion 页面 | [Doc](./docs/adapters/desktop/notion.md) |
 | **Discord** | Discord 桌面版 — 消息、频道、服务器 | [Doc](./docs/adapters/desktop/discord.md) |
 | **Doubao** | 通过 CDP 控制豆包桌面应用 | [Doc](./docs/adapters/desktop/doubao-app.md) |
 
