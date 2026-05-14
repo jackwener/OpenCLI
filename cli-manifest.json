@@ -9387,7 +9387,7 @@
     "type": "js",
     "modulePath": "facebook/feed.js",
     "sourceFile": "facebook/feed.js",
-    "navigateBefore": "https://www.facebook.com"
+    "navigateBefore": false
   },
   {
     "site": "facebook",
