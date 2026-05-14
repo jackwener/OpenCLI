@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
+import { clampInt } from '../_shared/common.js';
 
 function decodeDdgUrl(href) {
   if (!href) return '';
@@ -77,7 +78,7 @@ const command = cli({
   ],
   columns: ['title', 'url', 'snippet', 'displayUrl', 'icon', 'resultType'],
   func: async (page, kwargs) => {
-    const limit = Math.max(1, Math.min(Number(kwargs.limit) || 10, 10));
+    const limit = clampInt(kwargs.limit, 10, 1, 10);
     const keyword = String(kwargs.keyword);
     const offset = Math.max(0, Number(kwargs.offset) || 0);
     let url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(keyword)}`;

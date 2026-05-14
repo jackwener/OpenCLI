@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
+import { clampInt } from '../_shared/common.js';
 
 const command = cli({
   site: 'duckduckgo',
@@ -15,7 +16,7 @@ const command = cli({
   ],
   columns: ['phrase'],
   func: async (kwargs) => {
-    const limit = Math.max(1, Math.min(Number(kwargs.limit) || 8, 20));
+    const limit = clampInt(kwargs.limit, 8, 1, 20);
     const keyword = encodeURIComponent(String(kwargs.keyword));
     const url = `https://duckduckgo.com/ac/?q=${keyword}&type=list`;
     let resp;

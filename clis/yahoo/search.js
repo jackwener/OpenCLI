@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
+import { clampInt } from '../_shared/common.js';
 
 function decodeYahooUrl(href) {
   if (!href) return '';
@@ -55,7 +56,7 @@ const command = cli({
   ],
   columns: ['title', 'url', 'snippet'],
   func: async (page, kwargs) => {
-    const limit = Math.max(1, Math.min(Number(kwargs.limit) || 7, 7));
+    const limit = clampInt(kwargs.limit, 7, 1, 7);
     const keyword = encodeURIComponent(String(kwargs.keyword));
     const pageNum = Math.max(1, Number(kwargs.page) || 1);
     var url = `https://search.yahoo.com/search?p=${keyword}`;

@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
+import { clampInt } from '../_shared/common.js';
 
 function buildExtractorJs(limit) {
   return `
@@ -42,7 +43,7 @@ const command = cli({
   ],
   columns: ['title', 'url', 'snippet'],
   func: async (page, kwargs) => {
-    const limit = Math.max(1, Math.min(Number(kwargs.limit) || 10, 18));
+    const limit = clampInt(kwargs.limit, 10, 1, 18);
     const keyword = encodeURIComponent(String(kwargs.keyword));
     const offset = Math.max(0, Number(kwargs.offset) || 0);
     let url = `https://search.brave.com/search?q=${keyword}`;
