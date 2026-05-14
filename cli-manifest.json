@@ -27605,6 +27605,32 @@
     "navigateBefore": "https://yollomi.com"
   },
   {
+    "site": "youdao",
+    "name": "note",
+    "description": "Read a public shared Youdao Note",
+    "access": "read",
+    "domain": "share.note.youdao.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full share URL of the Youdao Note"
+      }
+    ],
+    "columns": [
+      "title",
+      "content",
+      "keywords"
+    ],
+    "type": "js",
+    "modulePath": "youdao/note.js",
+    "sourceFile": "youdao/note.js"
+  },
+  {
     "site": "youtube",
     "name": "channel",
     "description": "Get YouTube channel info and recent videos",
