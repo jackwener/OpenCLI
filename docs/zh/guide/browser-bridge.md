@@ -56,13 +56,13 @@ opencli browser my-session state
 opencli browser my-session extract "main"
 ```
 
-browser session 使用交互式 tab lease，默认空闲超时为 10 分钟。完成后可以显式释放：
+OpenCLI 拥有的 browser session 使用交互式 tab lease，默认空闲超时为 10 分钟。完成后可以显式释放：
 
 ```bash
 opencli browser my-session close
 ```
 
-如果要把 OpenCLI 绑定到你已经手动打开的 Chrome tab，请使用 `opencli browser <session> bind`。绑定 session 会一直保持到 `unbind`、tab 关闭、窗口关闭或 daemon 重启。使用 `--window foreground` 可以在可见窗口里观察 OpenCLI 操作；使用 `--window background` 可以让自动化窗口留在后台。
+如果要把 OpenCLI 绑定到你已经手动打开的 Chrome tab，请使用 `opencli browser <session> bind`。绑定 session 没有 owned session 的 idle close 计时器，会一直保持到 `unbind`、tab 关闭、窗口关闭或 daemon 重启。对于 OpenCLI 自己创建的 owned session，使用 `--window foreground` 可以在可见自动化窗口里观察 OpenCLI 操作；使用 `--window background` 可以让这个自动化窗口留在后台。
 
 ## Daemon 生命周期
 

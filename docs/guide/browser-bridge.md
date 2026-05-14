@@ -58,13 +58,13 @@ opencli browser my-session state
 opencli browser my-session extract "main"
 ```
 
-Browser sessions use an interactive tab lease with a 10-minute idle timeout. Release it explicitly when done:
+Owned browser sessions use an interactive tab lease with a 10-minute idle timeout. Release it explicitly when done:
 
 ```bash
 opencli browser my-session close
 ```
 
-Use `opencli browser <session> bind` when you want to attach OpenCLI to a Chrome tab you already opened manually. Bound sessions stay attached until `unbind`, tab close, window close, or daemon restart. Use `--window foreground` to watch OpenCLI work in a visible window, or `--window background` to keep the automation window out of the way.
+Use `opencli browser <session> bind` when you want to attach OpenCLI to a Chrome tab you already opened manually. Bound sessions do not have the owned-session idle close timer; they stay attached until `unbind`, tab close, window close, or daemon restart. For owned sessions, use `--window foreground` to watch OpenCLI work in a visible automation window, or `--window background` to keep that automation window out of the way.
 
 ## How It Works
 
