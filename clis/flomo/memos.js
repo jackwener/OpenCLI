@@ -37,13 +37,14 @@ var command = cli({
     { name: 'limit', type: 'int', default: 20, help: 'Number of memos to fetch (max 200)' },
     { name: 'slug', help: 'Pagination cursor: slug of the last memo from previous page' },
     { name: 'tz', default: '8:0', help: 'Timezone offset (e.g. 8:0 for Beijing)' },
+    { name: 'token', help: 'Flomo API token. Falls back to FLOMO_ACCESS_TOKEN env var' },
   ],
   columns: ['content', 'slug', 'tags', 'created_at', 'updated_at'],
   func: async function(kwargs) {
     var limit = Math.max(1, Math.min(Number(kwargs.limit) || 20, 200));
-    var token = process.env.FLOMO_ACCESS_TOKEN || '';
+    var token = kwargs.token || process.env.FLOMO_ACCESS_TOKEN || '';
     if (!token) {
-      throw new CliError('AUTH_REQUIRED', 'FLOMO_ACCESS_TOKEN is not set', 'Set the FLOMO_ACCESS_TOKEN environment variable. You can find your token in the browser DevTools > Application > Local Storage > flomoapp.com > flomo_token');
+      throw new CliError('AUTH_REQUIRED', 'Flomo token is required', 'Pass --token <token> or set FLOMO_ACCESS_TOKEN env var. Find your token in browser DevTools > Application > Local Storage > flomoapp.com > flomo_token');
     }
     var url = buildUrl(limit, kwargs.slug, null, kwargs.tz);
     var resp;

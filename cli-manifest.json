@@ -9761,6 +9761,12 @@
         "default": "8:0",
         "required": false,
         "help": "Timezone offset (e.g. 8:0 for Beijing)"
+      },
+      {
+        "name": "token",
+        "type": "str",
+        "required": false,
+        "help": "Flomo API token. Falls back to FLOMO_ACCESS_TOKEN env var"
       }
     ],
     "columns": [
