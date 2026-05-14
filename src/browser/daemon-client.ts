@@ -94,6 +94,7 @@ export interface DaemonStatus {
   profileDisconnected?: boolean;
   profiles?: BrowserProfileStatus[];
   pending: number;
+  commandResultUnknown?: number;
   memoryMB: number;
   port: number;
 }
@@ -197,6 +198,9 @@ async function sendCommandRaw(
       const result = (await res.json()) as DaemonResult;
 
       if (!result.ok) {
+        if (result.errorCode === 'command_result_unknown') {
+          throw new BrowserCommandError(result.error ?? 'Browser command result is unknown', result.errorCode, result.errorHint);
+        }
         const isDuplicateCommandId = res.status === 409
           || (result.error ?? '').includes('Duplicate command id');
         if (isDuplicateCommandId && attempt < maxRetries) {
