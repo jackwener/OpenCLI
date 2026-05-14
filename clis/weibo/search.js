@@ -3,7 +3,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { unwrapEvaluateResult } from './utils.js';
+import { requireArrayEvaluateResult, unwrapEvaluateResult } from './utils.js';
 cli({
     site: 'weibo',
     name: 'search',
@@ -22,7 +22,7 @@ cli({
         const keyword = encodeURIComponent(String(kwargs.keyword ?? '').trim());
         await page.goto(`https://s.weibo.com/weibo?q=${keyword}`);
         await page.wait(2);
-        const data = unwrapEvaluateResult(await page.evaluate(`
+        const data = requireArrayEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
       (() => {
         const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
         const absoluteUrl = (href) => {
@@ -68,8 +68,8 @@ cli({
 
         return rows;
       })()
-    `));
-        if (!Array.isArray(data) || data.length === 0) {
+    `)), 'weibo search');
+        if (data.length === 0) {
             throw new CliError('NOT_FOUND', 'No Weibo search results found', 'Try a different keyword or ensure you are logged into weibo.com');
         }
         return data.slice(0, limit).map((item, index) => ({

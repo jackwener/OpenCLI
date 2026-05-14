@@ -1,7 +1,7 @@
 /**
  * Shared Weibo utilities — uid extraction.
  */
-import { AuthRequiredError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 /**
  * `page.evaluate` may return either the raw IIFE value or a
  * `{ session, data }` envelope depending on the browser-bridge version.
@@ -13,6 +13,21 @@ import { AuthRequiredError } from '@jackwener/opencli/errors';
 export function unwrapEvaluateResult(payload) {
     if (payload && !Array.isArray(payload) && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
         return payload.data;
+    }
+    return payload;
+}
+export function requireArrayEvaluateResult(payload, label) {
+    if (!Array.isArray(payload)) {
+        if (payload && typeof payload === 'object' && 'error' in payload) {
+            throw new CommandExecutionError(`${label}: ${String(payload.error)}`);
+        }
+        throw new CommandExecutionError(`${label} returned malformed extraction payload`);
+    }
+    return payload;
+}
+export function requireObjectEvaluateResult(payload, label) {
+    if (!payload || Array.isArray(payload) || typeof payload !== 'object') {
+        throw new CommandExecutionError(`${label} returned malformed extraction payload`);
     }
     return payload;
 }

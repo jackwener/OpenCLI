@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { unwrapEvaluateResult } from './utils.js';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { requireArrayEvaluateResult, requireObjectEvaluateResult, unwrapEvaluateResult } from './utils.js';
 
 describe('unwrapEvaluateResult (browser-bridge envelope normalization)', () => {
     it('returns the raw array unchanged when payload is already an array', () => {
@@ -24,5 +25,12 @@ describe('unwrapEvaluateResult (browser-bridge envelope normalization)', () => {
     it('handles null and undefined safely', () => {
         expect(unwrapEvaluateResult(null)).toBe(null);
         expect(unwrapEvaluateResult(undefined)).toBe(undefined);
+    });
+    it('keeps malformed array/object payloads as typed command failures after unwrap', () => {
+        expect(requireArrayEvaluateResult([{ id: '1' }], 'weibo feed')).toEqual([{ id: '1' }]);
+        expect(() => requireArrayEvaluateResult({ error: 'API error' }, 'weibo feed')).toThrow(CommandExecutionError);
+        expect(() => requireArrayEvaluateResult({ error: 'API error' }, 'weibo feed')).toThrow('weibo feed: API error');
+        expect(requireObjectEvaluateResult({ uid: '42' }, 'weibo me')).toEqual({ uid: '42' });
+        expect(() => requireObjectEvaluateResult([{ uid: '42' }], 'weibo me')).toThrow(CommandExecutionError);
     });
 });

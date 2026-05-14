@@ -2,7 +2,7 @@
  * Weibo comments — get comments on a post.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { unwrapEvaluateResult } from './utils.js';
+import { requireArrayEvaluateResult, unwrapEvaluateResult } from './utils.js';
 cli({
     site: 'weibo',
     name: 'comments',
@@ -20,7 +20,7 @@ cli({
         await page.goto('https://weibo.com');
         await page.wait(2);
         const id = String(kwargs.id);
-        const data = unwrapEvaluateResult(await page.evaluate(`
+        const data = requireArrayEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
       (async () => {
         const id = ${JSON.stringify(id)};
         const count = ${count};
@@ -47,9 +47,7 @@ cli({
           return item;
         });
       })()
-    `));
-        if (!Array.isArray(data))
-            return [];
+    `)), 'weibo comments');
         return data;
     },
 });
