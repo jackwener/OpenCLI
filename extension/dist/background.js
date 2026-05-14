@@ -1014,6 +1014,28 @@ async function focusOwnedWindowIfRequested(windowId, mode) {
   if (typeof updateWindow === "function") await updateWindow(windowId, { focused: true }).catch(() => {
   });
 }
+async function toOwnedContainerDiscoveryCandidate(group) {
+  try {
+    const chromeWindow = await chrome.windows.get(group.windowId);
+    const reusableTabId = await findReusableOwnedContainerTab(group.windowId);
+    return {
+      windowId: group.windowId,
+      groupId: group.id,
+      focused: !!chromeWindow.focused,
+      hasReusableTab: reusableTabId !== void 0
+    };
+  } catch {
+    return null;
+  }
+}
+function selectOwnedContainerDiscoveryCandidate(candidates) {
+  if (candidates.length === 0) return null;
+  return [...candidates].sort((a, b) => {
+    if (a.focused !== b.focused) return a.focused ? -1 : 1;
+    if (a.hasReusableTab !== b.hasReusableTab) return a.hasReusableTab ? -1 : 1;
+    return a.groupId - b.groupId;
+  })[0];
+}
 async function discoverOwnedContainerFromTabGroup(role) {
   const container = ownedContainers[role];
   if (container.groupId !== null) {
@@ -1029,15 +1051,12 @@ async function discoverOwnedContainerFromTabGroup(role) {
   }
   for (const title of getOwnedContainerGroupTitles(role)) {
     const groups = await chrome.tabGroups.query({ title });
-    for (const group of groups) {
-      try {
-        await chrome.windows.get(group.windowId);
-        container.windowId = group.windowId;
-        container.groupId = group.id;
-        return { windowId: group.windowId, groupId: group.id };
-      } catch {
-      }
-    }
+    const candidates = (await Promise.all(groups.map(toOwnedContainerDiscoveryCandidate))).filter((candidate) => candidate !== null);
+    const selected = selectOwnedContainerDiscoveryCandidate(candidates);
+    if (!selected) continue;
+    container.windowId = selected.windowId;
+    container.groupId = selected.groupId;
+    return { windowId: selected.windowId, groupId: selected.groupId };
   }
   return null;
 }
