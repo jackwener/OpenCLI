@@ -26428,6 +26428,269 @@
     "sourceFile": "xiaoyuzhou/transcript.js"
   },
   {
+    "site": "xquik",
+    "name": "search",
+    "description": "Search public X/Twitter posts through Xquik.",
+    "access": "read",
+    "domain": "xquik.com",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "X search query, including operators such as from:user or has:media"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max posts to return (1-200)"
+      },
+      {
+        "name": "queryType",
+        "type": "str",
+        "default": "Latest",
+        "required": false,
+        "help": "Search order: Latest or Top",
+        "choices": [
+          "Latest",
+          "Top"
+        ]
+      },
+      {
+        "name": "cursor",
+        "type": "str",
+        "required": false,
+        "help": "Pagination cursor from a prior response"
+      },
+      {
+        "name": "sinceTime",
+        "type": "str",
+        "required": false,
+        "help": "Only return posts after this ISO 8601 timestamp"
+      },
+      {
+        "name": "untilTime",
+        "type": "str",
+        "required": false,
+        "help": "Only return posts before this ISO 8601 timestamp"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "author",
+      "text",
+      "createdAt",
+      "likes",
+      "replies",
+      "retweets",
+      "views",
+      "url",
+      "nextCursor"
+    ],
+    "type": "js",
+    "modulePath": "xquik/search.js",
+    "sourceFile": "xquik/search.js"
+  },
+  {
+    "site": "xquik",
+    "name": "trends",
+    "description": "Get X/Twitter trending topics by WOEID through Xquik.",
+    "access": "read",
+    "domain": "xquik.com",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "woeid",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Region WOEID, for example 1 worldwide or 23424977 US"
+      },
+      {
+        "name": "count",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number of trends to return (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "description",
+      "query",
+      "woeid"
+    ],
+    "type": "js",
+    "modulePath": "xquik/trends.js",
+    "sourceFile": "xquik/trends.js"
+  },
+  {
+    "site": "xquik",
+    "name": "tweet",
+    "description": "Look up one public X/Twitter post by ID through Xquik.",
+    "access": "read",
+    "domain": "xquik.com",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Numeric post ID"
+      }
+    ],
+    "columns": [
+      "id",
+      "author",
+      "text",
+      "createdAt",
+      "likes",
+      "replies",
+      "retweets",
+      "quotes",
+      "views",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xquik/tweet.js",
+    "sourceFile": "xquik/tweet.js"
+  },
+  {
+    "site": "xquik",
+    "name": "user",
+    "description": "Look up an X/Twitter user profile by username or ID through Xquik.",
+    "access": "read",
+    "domain": "xquik.com",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Username without @, @username, or numeric user ID"
+      }
+    ],
+    "columns": [
+      "id",
+      "username",
+      "name",
+      "followers",
+      "following",
+      "verified",
+      "description",
+      "location",
+      "createdAt",
+      "profileUrl"
+    ],
+    "type": "js",
+    "modulePath": "xquik/user.js",
+    "sourceFile": "xquik/user.js"
+  },
+  {
+    "site": "xquik",
+    "name": "user-search",
+    "description": "Search X/Twitter users by name or username through Xquik.",
+    "access": "read",
+    "domain": "xquik.com",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "User search query"
+      },
+      {
+        "name": "cursor",
+        "type": "str",
+        "required": false,
+        "help": "Pagination cursor from a prior response"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "username",
+      "name",
+      "followers",
+      "following",
+      "verified",
+      "description",
+      "profileUrl"
+    ],
+    "type": "js",
+    "modulePath": "xquik/user-search.js",
+    "sourceFile": "xquik/user-search.js"
+  },
+  {
+    "site": "xquik",
+    "name": "user-tweets",
+    "description": "List recent posts from one X/Twitter user through Xquik.",
+    "access": "read",
+    "domain": "xquik.com",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Username without @, @username, or numeric user ID"
+      },
+      {
+        "name": "cursor",
+        "type": "str",
+        "required": false,
+        "help": "Pagination cursor from a prior response"
+      },
+      {
+        "name": "includeReplies",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Include reply posts"
+      },
+      {
+        "name": "includeParentTweet",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Include parent tweet details for replies"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "author",
+      "text",
+      "createdAt",
+      "likes",
+      "replies",
+      "retweets",
+      "views",
+      "url",
+      "nextCursor"
+    ],
+    "type": "js",
+    "modulePath": "xquik/user-tweets.js",
+    "sourceFile": "xquik/user-tweets.js"
+  },
+  {
     "site": "xueqiu",
     "name": "comments",
     "description": "获取单只股票的讨论动态",

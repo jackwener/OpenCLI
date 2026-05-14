@@ -138,6 +138,7 @@ Run `opencli list` for the live registry.
 | **[oeis](./browser/oeis.md)**                     | `search` `sequence`                                                                                                                            | 🌐 Public    |
 | **[wttr](./browser/wttr.md)**                     | `current` `forecast`                                                                                                                           | 🌐 Public    |
 | **[openfda](./browser/openfda.md)**               | `drug-label` `food-recall`                                                                                                                     | 🌐 Public    |
+| **[xquik](./browser/xquik.md)**                   | `search` `tweet` `user` `user-search` `user-tweets` `trends`                                                                                   | 🔑 Local API |
 
 ## Desktop Adapters
 
