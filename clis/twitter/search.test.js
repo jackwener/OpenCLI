@@ -81,6 +81,7 @@ describe('twitter search command', () => {
                 has_media: false,
                 media_urls: [],
                 card: null,
+                quoted_tweet: null,
             },
         ]);
         expect(page.installInterceptor).toHaveBeenCalledWith('SearchTimeline');
@@ -213,6 +214,7 @@ describe('twitter search command', () => {
                 has_media: false,
                 media_urls: [],
                 card: null,
+                quoted_tweet: null,
             },
         ]);
         // 6 evaluate calls: 2x pushState + 2x pathname check + 1x fallback + 1x pathname check
