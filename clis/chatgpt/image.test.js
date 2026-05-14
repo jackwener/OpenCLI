@@ -1,6 +1,7 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ArgumentError } from '@jackwener/opencli/errors';
 
 const mocks = vi.hoisted(() => ({
     getChatGPTVisibleImageUrls: vi.fn(),
@@ -11,7 +12,23 @@ const mocks = vi.hoisted(() => ({
     waitForChatGPTImages: vi.fn(),
     getChatGPTImageAssets: vi.fn(),
     saveBase64ToFile: vi.fn(),
+    activateChatGPTImageTool: vi.fn(),
+    setChatGPTImageAspect: vi.fn(),
 }));
+
+const ASPECT_ALIASES = new Map([
+    ['auto', 'Auto'],
+    ['1:1', 'Square 1:1'],
+    ['square', 'Square 1:1'],
+    ['3:4', 'Portrait 3:4'],
+    ['portrait', 'Portrait 3:4'],
+    ['9:16', 'Story 9:16'],
+    ['story', 'Story 9:16'],
+    ['4:3', 'Landscape 4:3'],
+    ['landscape', 'Landscape 4:3'],
+    ['16:9', 'Widescreen 16:9'],
+    ['widescreen', 'Widescreen 16:9'],
+]);
 
 vi.mock('./utils.js', () => ({
     clearChatGPTDraft: mocks.clearChatGPTDraft,
@@ -22,11 +39,28 @@ vi.mock('./utils.js', () => ({
         const normalized = String(value).trim().toLowerCase();
         return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
     },
+    parseChatGPTConversationId: (value) => {
+        const raw = String(value ?? '').trim();
+        const m = raw.match(/(?:^|\/c\/)([A-Za-z0-9_-]{8,})(?:[/?#]|$)/);
+        if (m) return m[1];
+        if (/^[A-Za-z0-9_-]{8,}$/.test(raw)) return raw;
+        throw new ArgumentError('invalid conversation id');
+    },
     prepareChatGPTImagePaths: mocks.prepareChatGPTImagePaths,
+    resolveAspectAriaLabel: (value) => {
+        if (value === undefined || value === null) return null;
+        const raw = String(value).trim();
+        if (!raw) return null;
+        const lower = raw.toLowerCase();
+        if (ASPECT_ALIASES.has(lower)) return ASPECT_ALIASES.get(lower);
+        throw new ArgumentError(`Unsupported --aspect "${raw}"`);
+    },
     sendChatGPTMessage: mocks.sendChatGPTMessage,
     uploadChatGPTImages: mocks.uploadChatGPTImages,
     waitForChatGPTImages: mocks.waitForChatGPTImages,
     getChatGPTImageAssets: mocks.getChatGPTImageAssets,
+    activateChatGPTImageTool: mocks.activateChatGPTImageTool,
+    setChatGPTImageAspect: mocks.setChatGPTImageAspect,
 }));
 
 vi.mock('@jackwener/opencli/utils', () => ({
@@ -57,6 +91,8 @@ beforeEach(() => {
         mimeType: 'image/png',
     }]);
     mocks.saveBase64ToFile.mockReset().mockResolvedValue(undefined);
+    mocks.activateChatGPTImageTool.mockReset().mockResolvedValue(true);
+    mocks.setChatGPTImageAspect.mockReset().mockResolvedValue(true);
 });
 
 describe('chatgpt image output paths', () => {
@@ -177,6 +213,137 @@ describe('chatgpt image failure contracts', () => {
         })).rejects.toMatchObject({
             code: 'COMMAND_EXEC',
             message: expect.stringContaining('Failed to export generated ChatGPT image assets'),
+        });
+    });
+
+    it('fails fast when the Image tool cannot be activated', async () => {
+        mocks.activateChatGPTImageTool.mockResolvedValue(false);
+
+        await expect(imageCommand.func(createPage(), {
+            prompt: 'cat',
+            op: '',
+            sd: false,
+            timeout: 240,
+        })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('Failed to activate the ChatGPT Image tool'),
+        });
+        expect(mocks.sendChatGPTMessage).not.toHaveBeenCalled();
+    });
+
+    it('fails fast when the aspect ratio cannot be applied', async () => {
+        mocks.setChatGPTImageAspect.mockResolvedValue(false);
+
+        await expect(imageCommand.func(createPage(), {
+            prompt: 'cat',
+            op: '',
+            sd: false,
+            timeout: 240,
+            aspect: '9:16',
+        })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('Failed to set image aspect to "Story 9:16"'),
+        });
+        expect(mocks.sendChatGPTMessage).not.toHaveBeenCalled();
+    });
+});
+
+describe('chatgpt image conversation continuation', () => {
+    it('navigates to /c/<id> when --conv is supplied and sends the prompt verbatim', async () => {
+        const page = createPage();
+        await imageCommand.func(page, {
+            prompt: 'make it brighter',
+            op: '',
+            sd: true,
+            timeout: 240,
+            conv: '123e4567-e89b-12d3-a456-426614174000',
+        });
+
+        expect(page.goto).toHaveBeenCalledWith(
+            'https://chatgpt.com/c/123e4567-e89b-12d3-a456-426614174000',
+            { settleMs: 2000 },
+        );
+        expect(mocks.sendChatGPTMessage).toHaveBeenCalledWith(expect.anything(), 'make it brighter');
+    });
+
+    it('extracts conversation id from a full /c/<id> URL', async () => {
+        const page = createPage();
+        await imageCommand.func(page, {
+            prompt: 'redo',
+            op: '',
+            sd: true,
+            timeout: 240,
+            conv: 'https://chatgpt.com/c/abcdef-12345678/something',
+        });
+
+        expect(page.goto).toHaveBeenCalledWith(
+            'https://chatgpt.com/c/abcdef-12345678',
+            { settleMs: 2000 },
+        );
+    });
+
+    it('defaults to /new when --conv is omitted and wraps the prompt', async () => {
+        const page = createPage();
+        await imageCommand.func(page, {
+            prompt: 'a happy cat',
+            op: '',
+            sd: true,
+            timeout: 240,
+        });
+
+        expect(page.goto).toHaveBeenCalledWith(
+            'https://chatgpt.com/new',
+            { settleMs: 2000 },
+        );
+        expect(mocks.sendChatGPTMessage).toHaveBeenCalledWith(expect.anything(), 'Generate an image of: a happy cat');
+    });
+});
+
+describe('chatgpt image aspect ratio', () => {
+    it('skips the aspect picker when --aspect is auto', async () => {
+        await imageCommand.func(createPage(), {
+            prompt: 'cat',
+            op: '',
+            sd: true,
+            timeout: 240,
+            aspect: 'auto',
+        });
+        expect(mocks.activateChatGPTImageTool).toHaveBeenCalled();
+        expect(mocks.setChatGPTImageAspect).not.toHaveBeenCalled();
+    });
+
+    it('passes the canonical aria-label to setChatGPTImageAspect for Story 9:16', async () => {
+        await imageCommand.func(createPage(), {
+            prompt: 'cat',
+            op: '',
+            sd: true,
+            timeout: 240,
+            aspect: 'story',
+        });
+        expect(mocks.setChatGPTImageAspect).toHaveBeenCalledWith(expect.anything(), 'Story 9:16');
+    });
+
+    it('also accepts the bare 9:16 alias', async () => {
+        await imageCommand.func(createPage(), {
+            prompt: 'cat',
+            op: '',
+            sd: true,
+            timeout: 240,
+            aspect: '9:16',
+        });
+        expect(mocks.setChatGPTImageAspect).toHaveBeenCalledWith(expect.anything(), 'Story 9:16');
+    });
+
+    it('rejects an unknown aspect value', async () => {
+        await expect(imageCommand.func(createPage(), {
+            prompt: 'cat',
+            op: '',
+            sd: false,
+            timeout: 240,
+            aspect: 'panorama',
+        })).rejects.toMatchObject({
+            code: 'ARGUMENT',
+            message: expect.stringContaining('Unsupported --aspect "panorama"'),
         });
     });
 });
