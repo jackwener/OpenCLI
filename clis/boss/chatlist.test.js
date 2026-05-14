@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './chatlist.js';
 
 const BOSS_FRIEND = {
@@ -107,6 +108,55 @@ describe('boss chatlist', () => {
         expect(rows[0].name).toBe('李四');
         expect(rows[0].company).toBe('字节跳动');
         expect(rows[0].security_id).toBe('');
+    });
+
+    it('rejects invalid --limit before navigating', async () => {
+        const page = createPageMock(async () => ({}));
+        await expect(
+            command.func(page, { page: 1, limit: 0, 'job-id': '0', side: 'geek' })
+        ).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('--side geek reports a true empty chat list as EmptyResultError', async () => {
+        const page = createPageMock(async (script) => {
+            if (script.includes('document.cookie')) return 'test-enc-sys-id';
+            if (script.includes('geekFilterByLabel')) {
+                return { code: 0, zpData: { friendList: [] } };
+            }
+            return {};
+        });
+        await expect(
+            command.func(page, { page: 1, limit: 20, 'job-id': '0', side: 'geek' })
+        ).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('treats malformed geek enrichment payload as CommandExecutionError', async () => {
+        const page = createPageMock(async (script) => {
+            if (script.includes('document.cookie')) return 'test-enc-sys-id';
+            if (script.includes('geekFilterByLabel')) {
+                return { code: 0, zpData: { friendList: [GEEK_LABEL_FRIEND] } };
+            }
+            if (script.includes('getGeekFriendList.json')) {
+                return { code: 0, zpData: {} };
+            }
+            return {};
+        });
+        await expect(
+            command.func(page, { page: 1, limit: 20, 'job-id': '0', side: 'geek' })
+        ).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('maps expired Boss cookies to AuthRequiredError', async () => {
+        const page = createPageMock(async (script) => {
+            if (script.includes('getBossFriendListV2')) {
+                return { code: 7, message: 'Cookie 已过期' };
+            }
+            return {};
+        });
+        await expect(
+            command.func(page, { page: 1, limit: 20, 'job-id': '0', side: 'boss' })
+        ).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
     it('--side auto falls back to geek when recruiter returns code 24', async () => {

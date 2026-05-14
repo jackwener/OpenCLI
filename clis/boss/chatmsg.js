@@ -1,9 +1,11 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import {
     requirePage, navigateToChat, navigateToGeekChat,
     bossFetch, findFriendByUid, findGeekFriendByUid,
     fetchGeekHistoryMsg, readEncryptSystemId,
     assertOk, IDENTITY_MISMATCH_CODE,
+    readPositiveInteger, readRequiredString,
 } from './utils.js';
 
 const TYPE_MAP = {
@@ -36,19 +38,26 @@ function mapGeekMsg(m, friend) {
 
 async function bossChatMsg(page, kwargs, existingFriend) {
     const friend = existingFriend ?? await findFriendByUid(page, kwargs.uid);
-    if (!friend) throw new Error('未找到该候选人');
+    if (!friend) throw new EmptyResultError('boss chatmsg', '未找到该候选人');
+    if (!friend.securityId) throw new CommandExecutionError('该聊天缺少 securityId，无法获取历史消息');
     const gid = friend.uid;
     const securityId = encodeURIComponent(friend.securityId);
     const msgUrl = `https://www.zhipin.com/wapi/zpchat/boss/historyMsg?gid=${gid}&securityId=${securityId}&page=${kwargs.page}&c=20&src=0`;
     const msgData = await bossFetch(page, msgUrl);
-    const messages = msgData.zpData?.messages || msgData.zpData?.historyMsgList || [];
+    const messages = msgData.zpData?.messages ?? msgData.zpData?.historyMsgList;
+    if (!Array.isArray(messages)) {
+        throw new CommandExecutionError('Boss recruiter history response did not include a message list');
+    }
+    if (messages.length === 0) {
+        throw new EmptyResultError('boss chatmsg', 'Boss returned no messages for this chat.');
+    }
     return messages.map((m) => mapBossMsg(m, friend));
 }
 
 async function geekChatMsg(page, kwargs, encryptSystemId) {
     const friend = await findGeekFriendByUid(page, kwargs.uid, { encryptSystemId });
-    if (!friend) throw new Error('未找到该聊天（geek 侧）');
-    if (!friend.securityId) throw new Error('该聊天缺少 securityId，无法获取历史消息');
+    if (!friend) throw new EmptyResultError('boss chatmsg', '未找到该聊天（geek 侧）');
+    if (!friend.securityId) throw new CommandExecutionError('该聊天缺少 securityId，无法获取历史消息');
     const messages = await fetchGeekHistoryMsg(page, friend, { page: kwargs.page });
     return messages.map((m) => mapGeekMsg(m, friend));
 }
@@ -70,24 +79,27 @@ cli({
     columns: ['from', 'type', 'text', 'time'],
     func: async (page, kwargs) => {
         requirePage(page);
+        const uid = readRequiredString(kwargs.uid, 'chatmsg uid');
+        const pageNum = readPositiveInteger(kwargs.page, 'chatmsg --page', 1);
+        const normalizedKwargs = { ...kwargs, uid, page: pageNum };
         const side = kwargs.side || 'auto';
 
         if (side === 'boss') {
             await navigateToChat(page);
-            return await bossChatMsg(page, kwargs);
+            return await bossChatMsg(page, normalizedKwargs);
         }
 
         if (side === 'geek') {
             await navigateToGeekChat(page);
             const encryptSystemId = await readEncryptSystemId(page);
-            return await geekChatMsg(page, kwargs, encryptSystemId);
+            return await geekChatMsg(page, normalizedKwargs, encryptSystemId);
         }
 
         // auto: try recruiter first, fall back to geek when not found or identity mismatch
         await navigateToChat(page);
-        const bossResult = await findFriendByUid(page, kwargs.uid, { allowNonZero: true });
+        const bossResult = await findFriendByUid(page, uid, { allowNonZero: true });
         if (bossResult?.friend) {
-            return await bossChatMsg(page, kwargs, bossResult.friend);
+            return await bossChatMsg(page, normalizedKwargs, bossResult.friend);
         }
         // Not found or identity mismatch — check for hard errors before falling back
         if (bossResult?.code && bossResult.code !== 0 && bossResult.code !== IDENTITY_MISMATCH_CODE) {
@@ -96,10 +108,10 @@ cli({
         // Fall back to geek side
         await navigateToGeekChat(page);
         const encryptSystemId = await readEncryptSystemId(page);
-        const geekFriend = await findGeekFriendByUid(page, kwargs.uid, { encryptSystemId });
-        if (!geekFriend) throw new Error('uid 在招聘端与求职端聊天列表中均未找到');
-        if (!geekFriend.securityId) throw new Error('该聊天缺少 securityId，无法获取历史消息');
-        const messages = await fetchGeekHistoryMsg(page, geekFriend, { page: kwargs.page });
+        const geekFriend = await findGeekFriendByUid(page, uid, { encryptSystemId });
+        if (!geekFriend) throw new EmptyResultError('boss chatmsg', 'uid 在招聘端与求职端聊天列表中均未找到');
+        if (!geekFriend.securityId) throw new CommandExecutionError('该聊天缺少 securityId，无法获取历史消息');
+        const messages = await fetchGeekHistoryMsg(page, geekFriend, { page: pageNum });
         return messages.map((m) => mapGeekMsg(m, geekFriend));
     },
 });

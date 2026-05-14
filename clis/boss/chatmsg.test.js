@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './chatmsg.js';
 
 const BOSS_FRIEND = {
@@ -41,6 +42,22 @@ function createPageMock(evaluateImpl) {
 
 describe('boss chatmsg', () => {
     const command = getRegistry().get('boss/chatmsg');
+
+    it('rejects empty uid before navigating', async () => {
+        const page = createPageMock(async () => ({}));
+        await expect(
+            command.func(page, { uid: ' ', page: 1, side: 'geek' })
+        ).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid --page before navigating', async () => {
+        const page = createPageMock(async () => ({}));
+        await expect(
+            command.func(page, { uid: 'enc-geek-uid', page: 0, side: 'geek' })
+        ).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
 
     it('--side boss preserves existing behavior', async () => {
         const page = createPageMock(async (script) => {
@@ -162,6 +179,52 @@ describe('boss chatmsg', () => {
         });
         await expect(
             command.func(page, { uid: 'unknown-uid', page: 1, side: 'geek' })
-        ).rejects.toThrow('未找到该聊天（geek 侧）');
+        ).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('--side boss maps expired cookies to AuthRequiredError', async () => {
+        const page = createPageMock(async (script) => {
+            if (script.includes('getBossFriendListV2')) {
+                return { code: 7, message: 'Cookie 已过期' };
+            }
+            return {};
+        });
+        await expect(
+            command.func(page, { uid: 'enc-boss-uid', page: 1, side: 'boss' })
+        ).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('--side boss treats missing history list as parser drift', async () => {
+        const page = createPageMock(async (script) => {
+            if (script.includes('getBossFriendListV2')) {
+                return { code: 0, zpData: { friendList: [BOSS_FRIEND] } };
+            }
+            if (script.includes('boss/historyMsg')) {
+                return { code: 0, zpData: {} };
+            }
+            return {};
+        });
+        await expect(
+            command.func(page, { uid: 'enc-boss-uid', page: 1, side: 'boss' })
+        ).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('--side geek reports an empty history as EmptyResultError', async () => {
+        const page = createPageMock(async (script) => {
+            if (script.includes('document.cookie')) return 'test-enc-sys-id';
+            if (script.includes('geekFilterByLabel')) {
+                return { code: 0, zpData: { friendList: [GEEK_FRIEND_LABEL] } };
+            }
+            if (script.includes('getGeekFriendList.json')) {
+                return { code: 0, zpData: { result: [GEEK_FRIEND_ENRICHED] } };
+            }
+            if (script.includes('geek/historyMsg')) {
+                return { code: 0, zpData: { messages: [] } };
+            }
+            return {};
+        });
+        await expect(
+            command.func(page, { uid: 'enc-geek-uid', page: 1, side: 'geek' })
+        ).rejects.toBeInstanceOf(EmptyResultError);
     });
 });

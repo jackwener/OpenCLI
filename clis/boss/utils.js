@@ -1,3 +1,5 @@
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+
 // ── Constants ───────────────────────────────────────────────────────────────
 const BOSS_DOMAIN = 'www.zhipin.com';
 const CHAT_URL = `https://${BOSS_DOMAIN}/web/chat/index`;
@@ -10,7 +12,24 @@ const DEFAULT_TIMEOUT = 15_000;
  */
 export function requirePage(page) {
     if (!page)
-        throw new Error('Browser page required');
+        throw new CommandExecutionError('Browser page required');
+}
+export function readPositiveInteger(raw, name, fallback, max) {
+    const value = raw === undefined || raw === null || raw === '' ? fallback : Number(raw);
+    if (!Number.isInteger(value) || value < 1) {
+        throw new ArgumentError(`boss ${name} must be a positive integer`);
+    }
+    if (max !== undefined && value > max) {
+        throw new ArgumentError(`boss ${name} must be <= ${max}`);
+    }
+    return value;
+}
+export function readRequiredString(raw, name) {
+    const value = String(raw ?? '').trim();
+    if (!value) {
+        throw new ArgumentError(`boss ${name} cannot be empty`);
+    }
+    return value;
 }
 /**
  * Navigate to BOSS chat page and wait for it to settle.
@@ -33,7 +52,7 @@ export async function navigateTo(page, url, waitSeconds = 1) {
  */
 export function checkAuth(data) {
     if (COOKIE_EXPIRED_CODES.has(data.code)) {
-        throw new Error(COOKIE_EXPIRED_MSG);
+        throw new AuthRequiredError(BOSS_DOMAIN, COOKIE_EXPIRED_MSG);
     }
 }
 /**
@@ -41,11 +60,14 @@ export function checkAuth(data) {
  * Checks for cookie expiry first, then throws with the provided message.
  */
 export function assertOk(data, errorPrefix) {
+    if (!data || typeof data !== 'object') {
+        throw new CommandExecutionError(`${errorPrefix ? `${errorPrefix}: ` : ''}Boss API returned malformed response`);
+    }
     if (data.code === 0)
         return;
     checkAuth(data);
     const prefix = errorPrefix ? `${errorPrefix}: ` : '';
-    throw new Error(`${prefix}${data.message || 'Unknown error'} (code=${data.code})`);
+    throw new CommandExecutionError(`${prefix}${data.message || 'Unknown error'} (code=${data.code})`);
 }
 /**
  * Make a credentialed XHR request via page.evaluate().
@@ -80,7 +102,16 @@ export async function bossFetch(page, url, opts = {}) {
       });
     }
   `;
-    const data = await page.evaluate(script);
+    let data;
+    try {
+        data = await page.evaluate(script);
+    } catch (error) {
+        if (error instanceof AuthRequiredError || error instanceof CommandExecutionError) {
+            throw error;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        throw new CommandExecutionError(`Boss API request failed: ${message}`);
+    }
     // Auto-check auth unless caller opts out
     if (!opts.allowNonZero && data.code !== 0) {
         assertOk(data);
@@ -97,7 +128,11 @@ export async function fetchFriendList(page, opts = {}) {
     const url = `https://${BOSS_DOMAIN}/wapi/zprelation/friend/getBossFriendListV2.json?page=${pageNum}&status=0&jobId=${jobId}`;
     const data = await bossFetch(page, url, { allowNonZero: opts.allowNonZero });
     if (opts.allowNonZero && data.code !== 0) return data;
-    return data.zpData?.friendList || [];
+    const list = data.zpData?.friendList;
+    if (!Array.isArray(list)) {
+        throw new CommandExecutionError('Boss friend list response did not include zpData.friendList');
+    }
+    return list;
 }
 /**
  * Fetch the recommended candidates (greetRecSortList).
@@ -105,7 +140,11 @@ export async function fetchFriendList(page, opts = {}) {
 export async function fetchRecommendList(page) {
     const url = `https://${BOSS_DOMAIN}/wapi/zprelation/friend/greetRecSortList`;
     const data = await bossFetch(page, url);
-    return data.zpData?.friendList || [];
+    const list = data.zpData?.friendList;
+    if (!Array.isArray(list)) {
+        throw new CommandExecutionError('Boss recommend response did not include zpData.friendList');
+    }
+    return list;
 }
 /**
  * Find a friend by encryptUid, searching through friend list and optionally greet list.
@@ -347,7 +386,11 @@ export async function fetchGeekFriendLabelList(page, opts = {}) {
     const url = `https://${BOSS_DOMAIN}/wapi/zprelation/friend/geekFilterByLabel?labelId=${labelId}&encryptSystemId=${encodeURIComponent(encryptSystemId)}`;
     const data = await bossFetch(page, url, { allowNonZero: opts.allowNonZero });
     if (opts.allowNonZero && data.code !== 0) return data;
-    return data.zpData?.friendList || [];
+    const list = data.zpData?.friendList;
+    if (!Array.isArray(list)) {
+        throw new CommandExecutionError('Boss geek chat list response did not include zpData.friendList');
+    }
+    return list;
 }
 /**
  * Enrich a batch of geek friends with full fields including securityId.
@@ -364,7 +407,11 @@ export async function fetchGeekFriendInfoList(page, friendIds = []) {
             method: 'POST',
             body,
         });
-        results.push(...(data.zpData?.result || []));
+        const batchResult = data.zpData?.result;
+        if (!Array.isArray(batchResult)) {
+            throw new CommandExecutionError('Boss geek friend enrichment response did not include zpData.result');
+        }
+        results.push(...batchResult);
     }
     return results;
 }
@@ -391,5 +438,12 @@ export async function fetchGeekHistoryMsg(page, friend, opts = {}) {
     const securityId = encodeURIComponent(friend.securityId || '');
     const url = `https://${BOSS_DOMAIN}/wapi/zpchat/geek/historyMsg?bossId=${bossId}&securityId=${securityId}&page=${pageNum}&c=20&src=0`;
     const data = await bossFetch(page, url);
-    return data.zpData?.messages || [];
+    const messages = data.zpData?.messages ?? data.zpData?.historyMsgList;
+    if (!Array.isArray(messages)) {
+        throw new CommandExecutionError('Boss geek history response did not include a message list');
+    }
+    if (messages.length === 0) {
+        throw new EmptyResultError('boss chatmsg', 'Boss returned no messages for this chat.');
+    }
+    return messages;
 }

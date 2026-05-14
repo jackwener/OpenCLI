@@ -1,8 +1,10 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import {
     requirePage, navigateToChat, navigateToGeekChat,
     fetchFriendList, fetchGeekFriendLabelList, fetchGeekFriendInfoList,
     readEncryptSystemId, assertOk, IDENTITY_MISMATCH_CODE,
+    readPositiveInteger,
 } from './utils.js';
 
 function formatMsgTime(ms) {
@@ -26,6 +28,9 @@ function mapBossRow(f) {
 async function buildGeekRows(page, limit) {
     const encryptSystemId = await readEncryptSystemId(page);
     const labelList = await fetchGeekFriendLabelList(page, { encryptSystemId });
+    if (labelList.length === 0) {
+        return [];
+    }
     const slicedLabels = labelList.slice(0, limit);
     const friendIds = slicedLabels.map((f) => f.friendId).filter(Boolean);
     const enriched = await fetchGeekFriendInfoList(page, friendIds);
@@ -63,37 +68,49 @@ cli({
     columns: ['name', 'company', 'job', 'title', 'last_msg', 'last_time', 'uid', 'security_id'],
     func: async (page, kwargs) => {
         requirePage(page);
-        const limit = kwargs.limit || 20;
+        const limit = readPositiveInteger(kwargs.limit, 'chatlist --limit', 20, 100);
+        const pageNum = readPositiveInteger(kwargs.page, 'chatlist --page', 1);
         const side = kwargs.side || 'auto';
 
         if (side === 'boss') {
             await navigateToChat(page);
             const friends = await fetchFriendList(page, {
-                pageNum: kwargs.page || 1,
+                pageNum,
                 jobId: kwargs['job-id'] || '0',
             });
+            if (friends.length === 0)
+                throw new EmptyResultError('boss chatlist', 'No recruiter-side chat sessions were returned.');
             return friends.slice(0, limit).map(mapBossRow);
         }
 
         if (side === 'geek') {
             await navigateToGeekChat(page);
-            return await buildGeekRows(page, limit);
+            const rows = await buildGeekRows(page, limit);
+            if (rows.length === 0)
+                throw new EmptyResultError('boss chatlist', 'No job-seeker-side chat sessions were returned.');
+            return rows;
         }
 
         // auto: try recruiter first, fall back to geek on identity mismatch
         await navigateToChat(page);
         const bossResult = await fetchFriendList(page, {
-            pageNum: kwargs.page || 1,
+            pageNum,
             jobId: kwargs['job-id'] || '0',
             allowNonZero: true,
         });
         if (Array.isArray(bossResult)) {
+            if (bossResult.length === 0)
+                throw new EmptyResultError('boss chatlist', 'No recruiter-side chat sessions were returned.');
             return bossResult.slice(0, limit).map(mapBossRow);
         }
         if (bossResult.code === IDENTITY_MISMATCH_CODE) {
             await navigateToGeekChat(page);
-            return await buildGeekRows(page, limit);
+            const rows = await buildGeekRows(page, limit);
+            if (rows.length === 0)
+                throw new EmptyResultError('boss chatlist', 'No job-seeker-side chat sessions were returned.');
+            return rows;
         }
         assertOk(bossResult);
+        throw new CommandExecutionError('Boss chatlist returned an unexpected response');
     },
 });
