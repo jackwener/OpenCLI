@@ -1,6 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
 import { createHash } from 'node:crypto';
+import { clampInt } from '../_shared/common.js';
 
 function buildSignedUrl(limit, since, slug) {
   var params = {
@@ -40,7 +41,7 @@ var command = cli({
   ],
   columns: ['content', 'slug', 'tags', 'images', 'created_at', 'updated_at'],
   func: async function(page, kwargs) {
-    var limit = Math.max(1, Math.min(Number(kwargs.limit) || 20, 200));
+    var limit = clampInt(kwargs.limit, 20, 1, 200);
     await page.wait(3).catch(function() {});
     var token = await page.evaluate(buildGetTokenJs());
     if (!token) {
