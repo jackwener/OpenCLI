@@ -12,9 +12,10 @@
 
 - Lists memos from your Flomo account using the browser login session.
 - Reads the access token automatically from `localStorage.me.access_token` — no manual token setup required.
-- Supports `--limit` (up to 200 — enough to fetch all memos in one call).
+- Supports `--limit` from 1 to 200. Invalid values fail instead of being silently clamped.
 - Supports `--since <unix_ts>` to filter by update time.
-- Returns memo content (HTML), slug, tags, image URLs, and timestamps.
+- Supports `--slug <cursor>` for pagination from a previous memo page.
+- Returns stable `id` / `url` fields plus memo content (HTML), slug, tags, image URLs, and timestamps.
 
 ## Current limitations
 
@@ -36,6 +37,9 @@ opencli flomo memos --limit 200
 # Filter by time (Unix timestamp)
 opencli flomo memos --since 1735689600
 
+# Continue from a memo cursor
+opencli flomo memos --slug memo_abc123 --limit 50
+
 # JSON output
 opencli flomo memos --limit 200 -f json
 ```
@@ -51,3 +55,4 @@ opencli flomo memos --limit 200 -f json
 - Memo content is stored as HTML (including formatting tags like `<p>`, `<ul>`, `<strong>`, etc.).
 - Image attachments are returned as thumbnail URLs from Flomo's CDN (`static.flomoapp.com`).
 - The `--since` parameter expects a Unix timestamp in seconds (e.g. `1735689600` = 2025-01-01 00:00:00 UTC).
+- `id` is the memo slug returned by Flomo and `url` opens the memo in Flomo's web app when the session has access.

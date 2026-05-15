@@ -9747,22 +9747,24 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of memos (max 200). Use --limit 200 to fetch all"
+        "help": "Number of memos to fetch (1-200)"
       },
       {
         "name": "since",
         "type": "int",
         "required": false,
-        "help": "Only memos updated after this Unix timestamp (e.g. 1735689600 for 2025)"
+        "help": "Only memos updated after this Unix timestamp in seconds"
       },
       {
         "name": "slug",
         "type": "str",
         "required": false,
-        "help": "[Experimental] Pagination cursor from previous response"
+        "help": "Pagination cursor from a previous memo page"
       }
     ],
     "columns": [
+      "id",
+      "url",
       "content",
       "slug",
       "tags",
