@@ -1,10 +1,12 @@
-import { cli } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'tiktok',
     name: 'search',
     access: 'read',
     description: 'Search TikTok videos',
     domain: 'www.tiktok.com',
+    strategy: Strategy.COOKIE,
+    browser: true,
     args: [
         { name: 'query', required: true, positional: true, help: 'Search query' },
         { name: 'limit', type: 'int', default: 10, help: 'Number of results' },
@@ -15,7 +17,7 @@ cli({
         { evaluate: `(async () => {
   const query = \${{ args.query | json }};
   const limit = \${{ args.limit }};
-  const res = await fetch('/api/search/general/full/?keyword=' + encodeURIComponent(query) + '&offset=0&count=' + limit + '&aid=1988', { credentials: 'include' });
+  const res = await fetch('https://www.tiktok.com/api/search/general/full/?keyword=' + encodeURIComponent(query) + '&offset=0&count=' + limit + '&aid=1988', { credentials: 'include' });
   if (!res.ok) throw new Error('Search failed: HTTP ' + res.status);
   const data = await res.json();
   const items = (data.data || []).filter(function(i) { return i.type === 1 && i.item; });

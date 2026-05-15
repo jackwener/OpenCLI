@@ -2024,6 +2024,7 @@
     ],
     "columns": [
       "rank",
+      "comment_id",
       "author",
       "text",
       "likes",
@@ -2378,6 +2379,47 @@
     "type": "js",
     "modulePath": "bilibili/ranking.js",
     "sourceFile": "bilibili/ranking.js",
+    "navigateBefore": "https://www.bilibili.com"
+  },
+  {
+    "site": "bilibili",
+    "name": "reply",
+    "description": "回复 B站视频评论",
+    "access": "write",
+    "domain": "www.bilibili.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "comment-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Comment rpid from bilibili comments output"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Reply text"
+      },
+      {
+        "name": "bvid",
+        "type": "str",
+        "required": true,
+        "help": "Video BV ID (e.g. BV1WtAGzYEBm)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "comment_id",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "bilibili/reply.js",
+    "sourceFile": "bilibili/reply.js",
     "navigateBefore": "https://www.bilibili.com"
   },
   {
@@ -8376,6 +8418,44 @@
   },
   {
     "site": "douyin",
+    "name": "get-comments",
+    "description": "获取抖音视频评论",
+    "access": "read",
+    "domain": "www.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Douyin video URL or aweme_id"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of comments (max 50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "comment_id",
+      "author",
+      "text",
+      "likes",
+      "replies_count",
+      "time"
+    ],
+    "type": "js",
+    "modulePath": "douyin/get-comments.js",
+    "sourceFile": "douyin/get-comments.js",
+    "navigateBefore": "https://www.douyin.com"
+  },
+  {
+    "site": "douyin",
     "name": "hashtag",
     "description": "话题搜索 / AI推荐 / 热点词",
     "access": "read",
@@ -8604,6 +8684,48 @@
     "modulePath": "douyin/publish.js",
     "sourceFile": "douyin/publish.js",
     "navigateBefore": "https://creator.douyin.com"
+  },
+  {
+    "site": "douyin",
+    "name": "reply",
+    "description": "回复抖音视频评论",
+    "access": "write",
+    "domain": "www.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Douyin video URL or aweme_id"
+      },
+      {
+        "name": "comment-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Comment ID (cid from get-comments output)"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Reply text"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "comment_id",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "douyin/reply.js",
+    "sourceFile": "douyin/reply.js",
+    "navigateBefore": "https://www.douyin.com"
   },
   {
     "site": "douyin",
@@ -12455,6 +12577,51 @@
   },
   {
     "site": "instagram",
+    "name": "get-comments",
+    "description": "Get comments on an Instagram post with reply-able IDs",
+    "access": "read",
+    "domain": "www.instagram.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Username of the post author, or a post/reel URL"
+      },
+      {
+        "name": "index",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Post index (1 = most recent)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of comments to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "comment_id",
+      "author",
+      "text",
+      "likes",
+      "replies_count",
+      "time"
+    ],
+    "type": "js",
+    "modulePath": "instagram/get-comments.js",
+    "sourceFile": "instagram/get-comments.js",
+    "navigateBefore": "https://www.instagram.com"
+  },
+  {
+    "site": "instagram",
     "name": "like",
     "description": "Like an Instagram post",
     "access": "write",
@@ -12636,6 +12803,55 @@
   },
   {
     "site": "instagram",
+    "name": "reply",
+    "description": "Reply to a specific Instagram comment",
+    "access": "write",
+    "domain": "www.instagram.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Username of the post author"
+      },
+      {
+        "name": "comment-id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comment ID (pk from get-comments output)"
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Reply text"
+      },
+      {
+        "name": "index",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Post index (1 = most recent)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "comment_id",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "instagram/reply.js",
+    "sourceFile": "instagram/reply.js",
+    "navigateBefore": "https://www.instagram.com"
+  },
+  {
+    "site": "instagram",
     "name": "save",
     "description": "Save (bookmark) an Instagram post",
     "access": "write",
@@ -12739,6 +12955,43 @@
     "type": "js",
     "modulePath": "instagram/search.js",
     "sourceFile": "instagram/search.js",
+    "navigateBefore": "https://www.instagram.com"
+  },
+  {
+    "site": "instagram",
+    "name": "search-posts",
+    "description": "Search Instagram posts by hashtag",
+    "access": "read",
+    "domain": "www.instagram.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Hashtag or keyword to search (without #)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of posts to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "author",
+      "caption",
+      "likes",
+      "comments",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "instagram/search-posts.js",
+    "sourceFile": "instagram/search-posts.js",
     "navigateBefore": "https://www.instagram.com"
   },
   {
@@ -19223,6 +19476,52 @@
   },
   {
     "site": "reddit",
+    "name": "get-comments",
+    "description": "Get comments on a Reddit post with reply-able IDs",
+    "access": "read",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "post-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Post ID (e.g. 1abc123) or full URL"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "best",
+        "required": false,
+        "help": "Comment sort: best, top, new, controversial, old, qa"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of comments to return (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "comment_id",
+      "author",
+      "score",
+      "text",
+      "replies_count",
+      "time"
+    ],
+    "type": "js",
+    "modulePath": "reddit/get-comments.js",
+    "sourceFile": "reddit/get-comments.js",
+    "navigateBefore": "https://reddit.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "reddit",
     "name": "home",
     "description": "Reddit personalized home feed (Best, requires login)",
     "access": "read",
@@ -22087,6 +22386,44 @@
   },
   {
     "site": "tiktok",
+    "name": "get-comments",
+    "description": "Get comments on a TikTok video with reply-able IDs",
+    "access": "read",
+    "domain": "www.tiktok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "TikTok video URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of comments to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "comment_id",
+      "author",
+      "text",
+      "likes",
+      "replies_count",
+      "time"
+    ],
+    "type": "js",
+    "modulePath": "tiktok/get-comments.js",
+    "sourceFile": "tiktok/get-comments.js",
+    "navigateBefore": "https://www.tiktok.com"
+  },
+  {
+    "site": "tiktok",
     "name": "like",
     "description": "Like a TikTok video",
     "access": "write",
@@ -22218,6 +22555,60 @@
     "modulePath": "tiktok/profile.js",
     "sourceFile": "tiktok/profile.js",
     "navigateBefore": "https://www.tiktok.com"
+  },
+  {
+    "site": "tiktok",
+    "name": "reply",
+    "description": "Reply to a specific TikTok comment",
+    "access": "write",
+    "domain": "www.tiktok.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "TikTok video URL"
+      },
+      {
+        "name": "comment-id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comment ID (cid from get-comments output)"
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Reply text"
+      },
+      {
+        "name": "comment-text",
+        "type": "string",
+        "required": false,
+        "help": "Comment text for fuzzy matching if ID fails"
+      },
+      {
+        "name": "comment-author",
+        "type": "string",
+        "required": false,
+        "help": "Comment author for fuzzy matching if ID fails"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "comment_id",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "tiktok/reply.js",
+    "sourceFile": "tiktok/reply.js",
+    "navigateBefore": true
   },
   {
     "site": "tiktok",
@@ -22955,6 +23346,45 @@
     "modulePath": "twitter/following.js",
     "sourceFile": "twitter/following.js",
     "navigateBefore": "https://x.com"
+  },
+  {
+    "site": "twitter",
+    "name": "get-comments",
+    "description": "Get replies to a tweet with reply-able IDs",
+    "access": "read",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "tweet-id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Tweet ID or URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max replies to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "comment_id",
+      "author",
+      "text",
+      "likes",
+      "time",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "twitter/get-comments.js",
+    "sourceFile": "twitter/get-comments.js",
+    "navigateBefore": "https://x.com",
+    "siteSession": "persistent"
   },
   {
     "site": "twitter",
@@ -25937,6 +26367,7 @@
     ],
     "columns": [
       "rank",
+      "comment_id",
       "author",
       "text",
       "likes",
@@ -26280,6 +26711,60 @@
     "type": "js",
     "modulePath": "xiaohongshu/publish.js",
     "sourceFile": "xiaohongshu/publish.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "reply",
+    "description": "回复小红书笔记评论",
+    "access": "write",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "note-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Note ID or full URL"
+      },
+      {
+        "name": "comment-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Comment ID from xiaohongshu comments output"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Reply text"
+      },
+      {
+        "name": "comment-text",
+        "type": "string",
+        "required": false,
+        "help": "Comment text for fuzzy matching if ID fails"
+      },
+      {
+        "name": "comment-author",
+        "type": "string",
+        "required": false,
+        "help": "Comment author for fuzzy matching if ID fails"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "comment_id",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/reply.js",
+    "sourceFile": "xiaohongshu/reply.js",
     "navigateBefore": false
   },
   {
@@ -27663,6 +28148,7 @@
     ],
     "columns": [
       "rank",
+      "comment_id",
       "author",
       "text",
       "likes",
@@ -27798,6 +28284,81 @@
     "type": "js",
     "modulePath": "youtube/playlist.js",
     "sourceFile": "youtube/playlist.js",
+    "navigateBefore": "https://www.youtube.com"
+  },
+  {
+    "site": "youtube",
+    "name": "reply",
+    "description": "Post a comment on a YouTube video",
+    "access": "write",
+    "domain": "www.youtube.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "YouTube video URL or video ID"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Comment text"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "youtube/reply.js",
+    "sourceFile": "youtube/reply.js",
+    "navigateBefore": "https://www.youtube.com"
+  },
+  {
+    "site": "youtube",
+    "name": "reply-comment",
+    "description": "Reply to a specific YouTube comment",
+    "access": "write",
+    "domain": "www.youtube.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "comment-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Comment ID (Ugxxx format from youtube comments output)"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Reply text"
+      },
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "help": "Video URL (needed for context)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "comment_id",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "youtube/reply-comment.js",
+    "sourceFile": "youtube/reply-comment.js",
     "navigateBefore": "https://www.youtube.com"
   },
   {

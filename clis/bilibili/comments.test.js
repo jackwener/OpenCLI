@@ -22,6 +22,7 @@ describe('bilibili comments', () => {
                     {
                         member: { uname: 'Alice' },
                         content: { message: 'Great video!' },
+                        rpid: 654321,
                         like: 42,
                         rcount: 3,
                         ctime: 1700000000,
@@ -38,6 +39,7 @@ describe('bilibili comments', () => {
         expect(result).toEqual([
             {
                 rank: 1,
+                comment_id: '654321',
                 author: 'Alice',
                 text: 'Great video!',
                 likes: 42,

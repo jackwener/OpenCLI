@@ -47,6 +47,40 @@ curl http://127.0.0.1:9222/json/version
 opencli doctor
 ```
 
+## Browserbase Cloud Browser
+
+[Browserbase](https://browserbase.com) provides managed cloud browsers with proxy support, persistent login contexts, and stealth mode. OpenCLI consumes an existing Browserbase session; create and manage sessions with the `bb` CLI.
+
+```bash
+export BROWSERBASE_API_KEY=your_key
+export BROWSERBASE_PROJECT_ID=your_project_id
+
+# Create a session with the Browserbase CLI.
+bb sessions create --json
+```
+
+Run adapter browser commands with either the root `--session` flag or `BROWSERBASE_SESSION_ID`:
+
+```bash
+opencli --session <session-id> reddit get-comments <post-id> --limit 5
+
+export BROWSERBASE_SESSION_ID=<session-id>
+opencli bilibili comments BV1xxx --limit 5
+```
+
+For parallel work, create multiple Browserbase sessions and pass each one to a separate OpenCLI process:
+
+```bash
+S1=$(bb sessions create --proxy us --json | jq -r .id)
+S2=$(bb sessions create --proxy jp --json | jq -r .id)
+
+opencli --session "$S1" reddit get-comments <post-id> &
+opencli --session "$S2" bilibili comments BV1xxx &
+wait
+```
+
+Session selection priority for adapter browser commands is `--session`, then `BROWSERBASE_SESSION_ID`, then `OPENCLI_CDP_ENDPOINT`, then local Browser Bridge.
+
 ## CI/CD Integration
 
 For CI/CD environments, use a real Chrome instance with `xvfb`:
