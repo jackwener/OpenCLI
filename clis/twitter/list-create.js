@@ -22,6 +22,7 @@ cli({
     site: 'twitter',
     name: 'list-create',
     description: 'Create a new Twitter/X list (returns the new list id)',
+    access: 'write',
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,

@@ -23132,6 +23132,7 @@
     "site": "twitter",
     "name": "list-create",
     "description": "Create a new Twitter/X list (returns the new list id)",
+    "access": "write",
     "domain": "x.com",
     "strategy": "cookie",
     "browser": true,
@@ -23247,7 +23248,8 @@
       "replies",
       "created_at",
       "url",
-      "card"
+      "card",
+      "quoted_tweet"
     ],
     "type": "js",
     "modulePath": "twitter/list-tweets.js",
@@ -23647,7 +23649,8 @@
       "url",
       "has_media",
       "media_urls",
-      "card"
+      "card",
+      "quoted_tweet"
     ],
     "type": "js",
     "modulePath": "twitter/search.js",
@@ -23695,7 +23698,8 @@
       "url",
       "has_media",
       "media_urls",
-      "card"
+      "card",
+      "quoted_tweet"
     ],
     "type": "js",
     "modulePath": "twitter/thread.js",
@@ -23751,7 +23755,8 @@
       "url",
       "has_media",
       "media_urls",
-      "card"
+      "card",
+      "quoted_tweet"
     ],
     "type": "js",
     "modulePath": "twitter/timeline.js",
@@ -23830,7 +23835,8 @@
       "views",
       "url",
       "has_media",
-      "media_urls"
+      "media_urls",
+      "quoted_tweet"
     ],
     "type": "js",
     "modulePath": "twitter/tweets.js",
