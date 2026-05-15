@@ -402,11 +402,14 @@ cli({
         };
       })()
     `));
-        if (!segments && (!captionData || typeof captionData === 'string')) {
-            throw new CommandExecutionError(`Failed to get caption info: ${typeof captionData === 'string' ? captionData : 'null response'}`);
+        if (!segments && (!captionData || typeof captionData !== 'object' || Array.isArray(captionData))) {
+            throw new CommandExecutionError(`Failed to get caption info: ${typeof captionData === 'string' ? captionData : 'malformed response'}`);
         }
         if (captionData?.error) {
             throw new CommandExecutionError(`${captionData.error}${captionData.available ? ' (available: ' + captionData.available.join(', ') + ')' : ''}`);
+        }
+        if (!segments && typeof captionData?.captionUrl !== 'string') {
+            throw new CommandExecutionError('Malformed caption info payload');
         }
         // Warn if --lang was specified but not matched
         if (captionData?.requestedLang && !captionData.langMatched && !captionData.langPrefixMatched) {

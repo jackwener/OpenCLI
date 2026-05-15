@@ -179,6 +179,19 @@ describe('youtube transcript caption fetch', () => {
         });
     });
 
+    it('fails typed on malformed caption info payloads before URL construction', async () => {
+        const page = createPageMock('https://www.youtube.com/api/timedtext?v=abc&lang=en');
+        page.evaluate.mockReset();
+        page.evaluate
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce({ session: 'browser:default', data: { rows: [] } });
+
+        await expect(command.func(page, { url: 'abc', mode: 'raw' })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('Malformed caption info payload'),
+        });
+    });
+
     it('fails typed on malformed captured timedtext json3', async () => {
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
