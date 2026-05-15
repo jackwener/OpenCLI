@@ -64,6 +64,72 @@ describe('CDPBridge cookies', () => {
     ]);
   });
 
+  it('normalizes CDP cookie fields and renames `expires` to `expirationDate`', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+
+    const bridge = new CDPBridge();
+    // Real-shape CDP cookie record (excerpt) — `Network.Cookie` uses `expires`,
+    // not `expirationDate`. Consumers that also drive the chrome.cookies
+    // extension transport expect `expirationDate`, so the bridge must rename.
+    vi.spyOn(bridge, 'send').mockResolvedValue({
+      cookies: [{
+        name: 'session',
+        value: 'abc',
+        domain: '.larkoffice.com',
+        path: '/',
+        expires: 1781234567,
+        size: 64,
+        httpOnly: true,
+        secure: true,
+        session: false,
+        sameSite: 'None',
+        priority: 'Medium',
+        sourceScheme: 'Secure',
+        sourcePort: 443,
+      }],
+    });
+
+    const page = await bridge.connect();
+    const cookies = await page.getCookies();
+
+    expect(cookies).toEqual([{
+      name: 'session',
+      value: 'abc',
+      domain: '.larkoffice.com',
+      path: '/',
+      secure: true,
+      httpOnly: true,
+      expirationDate: 1781234567,
+      session: false,
+      sameSite: 'None',
+      size: 64,
+      priority: 'Medium',
+      sourceScheme: 'Secure',
+      sourcePort: 443,
+    }]);
+    // `expires` should not leak through under its CDP name.
+    expect((cookies[0] as unknown as Record<string, unknown>).expires).toBeUndefined();
+  });
+
+  it('omits `expirationDate` for session cookies (CDP signals -1 / 0)', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+
+    const bridge = new CDPBridge();
+    vi.spyOn(bridge, 'send').mockResolvedValue({
+      cookies: [
+        { name: 'a', value: '1', domain: 'example.com', expires: -1, session: true },
+        { name: 'b', value: '2', domain: 'example.com', expires: 0, session: true },
+      ],
+    });
+
+    const page = await bridge.connect();
+    const cookies = await page.getCookies();
+
+    expect(cookies[0]).not.toHaveProperty('expirationDate');
+    expect(cookies[1]).not.toHaveProperty('expirationDate');
+    expect(cookies[0].session).toBe(true);
+  });
+
   it('exposes native input helpers on direct CDP pages', async () => {
     vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
 
