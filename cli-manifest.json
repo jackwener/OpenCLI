@@ -2465,6 +2465,32 @@
   },
   {
     "site": "bilibili",
+    "name": "summary",
+    "description": "获取 B站视频的官方 AI 总结（视频页「AI总结」同款，含分段大纲与时间戳）",
+    "access": "read",
+    "domain": "www.bilibili.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "bvid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Video BV ID / URL / b23.tv short link"
+      }
+    ],
+    "columns": [
+      "time",
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "bilibili/summary.js",
+    "sourceFile": "bilibili/summary.js",
+    "navigateBefore": "https://www.bilibili.com"
+  },
+  {
+    "site": "bilibili",
     "name": "user-videos",
     "description": "查看指定用户的投稿视频",
     "access": "read",
