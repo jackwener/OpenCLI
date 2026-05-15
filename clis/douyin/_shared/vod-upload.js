@@ -1,5 +1,6 @@
 import * as crypto from 'node:crypto';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './evaluate-result.js';
 
 const AUTH_V5_URL = 'https://creator.douyin.com/web/api/media/upload/auth/v5/';
 const VOD_UPLOAD_HOST = 'https://vod.bytedanceapi.com/';
@@ -94,8 +95,18 @@ function extractUserIdFromSessionToken(sessionToken) {
 }
 
 export async function getUploadAuthV5Credentials(page) {
-  const result = await page.evaluate(`fetch(${JSON.stringify(AUTH_V5_URL)}, { credentials: 'include' }).then(r => r.json())`);
-  if (!result || typeof result !== 'object' || result.status_code !== 0 || !result.auth) {
+  const result = unwrapEvaluateResult(await page.evaluate(`fetch(${JSON.stringify(AUTH_V5_URL)}, { credentials: 'include' }).then(r => r.json())`));
+  if (!result || Array.isArray(result) || typeof result !== 'object') {
+    throw new CommandExecutionError(`获取抖音上传授权失败: ${JSON.stringify(result)}`);
+  }
+  if (result.status_code !== 0) {
+    const message = result.status_msg ?? result.message ?? 'unknown error';
+    if (result.status_code === 401 || result.status_code === 403 || /login|cookie|auth|captcha|verify|forbidden|permission|登录|登陆|权限|验证|验证码/i.test(String(message))) {
+      throw new AuthRequiredError('creator.douyin.com', `获取抖音上传授权失败: ${message}`);
+    }
+    throw new CommandExecutionError(`获取抖音上传授权失败: ${JSON.stringify(result)}`);
+  }
+  if (!result.auth) {
     throw new CommandExecutionError(`获取抖音上传授权失败: ${JSON.stringify(result)}`);
   }
   let auth;

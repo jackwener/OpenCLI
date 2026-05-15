@@ -1,11 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getUploadAuthV5Credentials, applyVideoUploadInner } from './vod-upload.js';
 
 describe('douyin vod upload helpers', () => {
   it('parses creator upload auth v5 credentials', async () => {
     const page = { evaluate: async () => ({ status_code: 0, auth: JSON.stringify({ AccessKeyID: 'ak', SecretAccessKey: 'sk', SessionToken: 'token', ExpiredTime: 123, CurrentTime: 100 }) }) };
     await expect(getUploadAuthV5Credentials(page)).resolves.toEqual({ access_key_id: 'ak', secret_access_key: 'sk', session_token: 'token', user_id: '', expired_time: 123, current_time: 100 });
+  });
+
+  it('unwraps browser bridge envelopes around upload auth payloads', async () => {
+    const payload = { status_code: 0, auth: JSON.stringify({ AccessKeyID: 'ak', SecretAccessKey: 'sk', SessionToken: 'token' }) };
+    const page = { evaluate: async () => ({ session: 'site:douyin:test', data: payload }) };
+    await expect(getUploadAuthV5Credentials(page)).resolves.toMatchObject({ access_key_id: 'ak', secret_access_key: 'sk', session_token: 'token' });
+  });
+
+  it('maps upload auth permission errors to AuthRequiredError', async () => {
+    const page = { evaluate: async () => ({ status_code: 401, status_msg: 'login required' }) };
+    await expect(getUploadAuthV5Credentials(page)).rejects.toBeInstanceOf(AuthRequiredError);
   });
 
   it('maps ApplyUploadInner response to TOS upload info', async () => {

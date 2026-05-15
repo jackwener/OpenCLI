@@ -19,6 +19,7 @@ import { getUploadAuthV5Credentials, applyVideoUploadInner, commitVideoUploadInn
 import { tosUpload } from './_shared/tos-upload.js';
 import { imagexUpload } from './_shared/imagex-upload.js';
 import { browserFetch } from './_shared/browser-fetch.js';
+import { requireObjectEvaluateResult } from './_shared/evaluate-result.js';
 import { generateCreationId } from './_shared/creation-id.js';
 import { validateTiming, toUnixSeconds } from './_shared/timing.js';
 import { parseTextExtra, extractHashtagNames } from './_shared/text-extra.js';
@@ -59,6 +60,12 @@ function isFastDetectRetryable(error) {
 }
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function throwIfImagexError(action, payload) {
+    const error = payload?.ResponseMetadata?.Error ?? payload?.Error;
+    if (error) {
+        throw new CommandExecutionError(`${action}失败: ${JSON.stringify(error)}`);
+    }
 }
 async function tryFastDetectFetch(page, method, url, options) {
     let lastError;
@@ -162,13 +169,17 @@ cli({
             // 4A: Apply ImageX upload
             const applyUrl = `${IMAGEX_BASE}/?Action=ApplyImageUpload&ServiceId=${IMAGEX_SERVICE_ID}&Version=2018-08-01&UploadNum=1`;
             const applyJs = `fetch(${JSON.stringify(applyUrl)}, { credentials: 'include' }).then(r => r.json())`;
-            const applyRes = (await page.evaluate(applyJs));
-            const { StoreInfos: imgStoreInfos } = applyRes.Result.UploadAddress;
-            const imgUploadUrl = `https://${imgStoreInfos[0].UploadHost}/${imgStoreInfos[0].StoreUri}`;
+            const applyRes = requireObjectEvaluateResult(await page.evaluate(applyJs), '抖音封面申请上传地址响应异常');
+            throwIfImagexError('抖音封面申请上传地址', applyRes);
+            const imgStoreInfo = applyRes.Result?.UploadAddress?.StoreInfos?.[0];
+            if (!imgStoreInfo?.UploadHost || !imgStoreInfo?.StoreUri) {
+                throw new CommandExecutionError(`抖音封面申请上传地址响应缺少 UploadHost/StoreUri: ${JSON.stringify(applyRes).slice(0, 500)}`);
+            }
+            const imgUploadUrl = `https://${imgStoreInfo.UploadHost}/${imgStoreInfo.StoreUri}`;
             // 4B: Upload image
             const coverStoreUri = await imagexUpload(resolvedCoverPath, {
                 upload_url: imgUploadUrl,
-                store_uri: imgStoreInfos[0].StoreUri,
+                store_uri: imgStoreInfo.StoreUri,
             });
             // 4C: Commit ImageX upload
             const commitUrl = `${IMAGEX_BASE}/?Action=CommitImageUpload&ServiceId=${IMAGEX_SERVICE_ID}&Version=2018-08-01`;
@@ -181,7 +192,8 @@ cli({
           body: ${JSON.stringify(commitBody)}
         }).then(r => r.json())
       `;
-            await page.evaluate(commitJs);
+            const commitRes = requireObjectEvaluateResult(await page.evaluate(commitJs), '抖音封面提交上传响应异常');
+            throwIfImagexError('抖音封面提交上传', commitRes);
             coverUri = coverStoreUri;
         }
         // The gateway upload flow returns a committed VOD upload result; the legacy

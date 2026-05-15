@@ -1,9 +1,21 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { browserFetch } from './_shared/browser-fetch.js';
+import { requireObjectEvaluateResult } from './_shared/evaluate-result.js';
 
 const CREATOR_MANAGE_URL = 'https://creator.douyin.com/creator-micro/content/manage';
 const WORK_LIST_URL = '/janus/douyin/creator/pc/work_list?status=0&count=20&max_cursor=0&scene=star_atlas&device_platform=android&aid=1128';
+
+function readAwemeId(raw) {
+    const value = String(raw ?? '').trim();
+    if (!value) {
+        throw new ArgumentError('douyin delete aweme_id cannot be empty');
+    }
+    if (!/^\d+$/.test(value)) {
+        throw new ArgumentError('douyin delete aweme_id must be a numeric id');
+    }
+    return value;
+}
 
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -13,7 +25,7 @@ async function deleteViaCreatorManage(page, workId) {
     await page.goto(CREATOR_MANAGE_URL);
     await sleep(3000);
     await sleep(3000);
-    const result = await page.evaluate(`
+    const result = requireObjectEvaluateResult(await page.evaluate(`
     (async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       const targetId = ${JSON.stringify(String(workId))};
@@ -80,12 +92,21 @@ async function deleteViaCreatorManage(page, workId) {
       }
       return { ok: false, reason: 'card_not_found', aweme_id: target.item.aweme_id, item_id: target.item.item_id, index: target.index, listCount: target.listCount };
     })()
-  `);
+  `), '抖音后台管理删除响应异常');
 
     if (!result?.ok) {
         throw new CommandExecutionError(`抖音后台管理删除失败: ${JSON.stringify(result)}`);
     }
     return result;
+}
+
+async function findWorkListItem(page, workId) {
+    const data = await browserFetch(page, 'GET', `https://creator.douyin.com${WORK_LIST_URL}`, { timeoutMs: 8000 });
+    const list = data.data?.work_list ?? data.aweme_list ?? data.work_list ?? [];
+    if (!Array.isArray(list)) {
+        throw new CommandExecutionError('抖音作品列表响应缺少 work_list/aweme_list');
+    }
+    return list.find((entry) => String(entry.aweme_id || '') === workId || String(entry.item_id || '') === workId) || null;
 }
 
 cli({
@@ -101,9 +122,10 @@ cli({
     ],
     columns: ['status'],
     func: async (page, kwargs) => {
+        const awemeId = readAwemeId(kwargs.aweme_id);
         try {
-            const deleted = await deleteViaCreatorManage(page, kwargs.aweme_id);
-            return [{ status: `✅ 已通过后台管理删除 ${deleted.aweme_id || kwargs.aweme_id}` }];
+            const deleted = await deleteViaCreatorManage(page, awemeId);
+            return [{ status: `✅ 已通过后台管理删除 ${deleted.aweme_id || awemeId}` }];
         } catch (fallbackError) {
             const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
             if (!fallbackMessage.includes('"reason":"not_found"')) {
@@ -111,8 +133,20 @@ cli({
             }
         }
 
+        const before = await findWorkListItem(page, awemeId);
+        if (!before) {
+            throw new CommandExecutionError(`抖音作品 ${awemeId} 未在作品列表中找到，未执行删除`);
+        }
         const url = 'https://creator.douyin.com/web/api/media/aweme/delete/?aid=1128';
-        await browserFetch(page, 'POST', url, { body: { aweme_id: kwargs.aweme_id }, timeoutMs: 8000 });
-        return [{ status: `✅ 已删除 ${kwargs.aweme_id}` }];
+        await browserFetch(page, 'POST', url, { body: { aweme_id: awemeId }, timeoutMs: 8000 });
+        const deadline = Date.now() + 10_000;
+        while (Date.now() < deadline) {
+            await sleep(500);
+            const after = await findWorkListItem(page, awemeId);
+            if (!after) {
+                return [{ status: `✅ 已删除 ${awemeId}` }];
+            }
+        }
+        throw new CommandExecutionError(`抖音作品 ${awemeId} 删除后仍在作品列表中，删除未确认`);
     },
 });

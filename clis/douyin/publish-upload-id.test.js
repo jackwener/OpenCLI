@@ -99,4 +99,72 @@ describe('douyin publish upload identifier handling', () => {
     expect(mocks.browserFetch.mock.calls.some((call) => String(call[2]).includes('/post_assistant/fast_detect/pre_check'))).toBe(true);
     expect(mocks.browserFetch.mock.calls.some((call) => String(call[2]).includes('/aweme/create_v2/'))).toBe(true);
   });
+
+  it('unwraps Browser Bridge envelopes around cover ImageX evaluate results', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-publish-cover-'));
+    const video = path.join(tmpDir, 'video.mp4');
+    const cover = path.join(tmpDir, 'cover.jpg');
+    fs.writeFileSync(video, Buffer.from('fake-video'));
+    fs.writeFileSync(cover, Buffer.from('fake-cover'));
+    mocks.imagexUpload.mockResolvedValue('cover-store-uri');
+
+    const page = {
+      evaluate: vi.fn()
+        .mockResolvedValueOnce({
+          session: 'site:douyin:test',
+          data: { Result: { UploadAddress: { StoreInfos: [{ UploadHost: 'imagex.example.com', StoreUri: 'cover/key.jpg' }] } } },
+        })
+        .mockResolvedValueOnce({ session: 'site:douyin:test', data: { Result: {} } }),
+    };
+
+    const { getRegistry } = await import('@jackwener/opencli/registry');
+    getRegistry().delete('douyin/publish');
+    await import('./publish.js');
+    const cmd = getRegistry().get('douyin/publish');
+    if (!cmd) throw new Error('douyin publish command not registered');
+
+    await cmd.func(page, {
+      video,
+      cover,
+      title: 'OpenCLI自测',
+      schedule: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+      caption: '',
+      visibility: 'private',
+      no_safety_check: true,
+    });
+
+    expect(mocks.imagexUpload).toHaveBeenCalledWith(cover, {
+      upload_url: 'https://imagex.example.com/cover/key.jpg',
+      store_uri: 'cover/key.jpg',
+    });
+    const createCall = mocks.browserFetch.mock.calls.find((call) => String(call[2]).includes('/aweme/create_v2/'));
+    expect(createCall?.[3]?.body.item.cover.poster).toBe('cover-store-uri');
+  });
+
+  it('throws typed when cover ImageX apply returns the wrong shape', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-publish-cover-bad-'));
+    const video = path.join(tmpDir, 'video.mp4');
+    const cover = path.join(tmpDir, 'cover.jpg');
+    fs.writeFileSync(video, Buffer.from('fake-video'));
+    fs.writeFileSync(cover, Buffer.from('fake-cover'));
+
+    const page = { evaluate: vi.fn().mockResolvedValueOnce({ session: 'site:douyin:test', data: { Result: { UploadAddress: { StoreInfos: [] } } } }) };
+
+    const { getRegistry } = await import('@jackwener/opencli/registry');
+    getRegistry().delete('douyin/publish');
+    await import('./publish.js');
+    const cmd = getRegistry().get('douyin/publish');
+    if (!cmd) throw new Error('douyin publish command not registered');
+
+    await expect(cmd.func(page, {
+      video,
+      cover,
+      title: 'OpenCLI自测',
+      schedule: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+      caption: '',
+      visibility: 'private',
+      no_safety_check: true,
+    })).rejects.toThrow('UploadHost/StoreUri');
+    expect(mocks.imagexUpload).not.toHaveBeenCalled();
+  });
 });
