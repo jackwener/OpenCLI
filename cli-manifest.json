@@ -21350,6 +21350,132 @@
     "sourceFile": "rfc/rfc.js"
   },
   {
+    "site": "rightmove",
+    "name": "search",
+    "description": "Search Rightmove property listings by postcode, outcode, region, bounding box, or drawn polygon",
+    "access": "read",
+    "example": "opencli rightmove search \"SW1A 1AA\" --radius 1 --limit 10 -f yaml",
+    "domain": "www.rightmove.co.uk",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "location",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Rightmove location text, outcode, or postcode (e.g. London, W12, \"SW1A 1AA\")"
+      },
+      {
+        "name": "radius",
+        "type": "float",
+        "default": 0,
+        "required": false,
+        "help": "Radius in miles around a resolved location (0-40)"
+      },
+      {
+        "name": "channel",
+        "type": "string",
+        "default": "buy",
+        "required": false,
+        "help": "Listing channel: buy or rent",
+        "choices": [
+          "buy",
+          "rent"
+        ]
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "highest",
+        "required": false,
+        "help": "Sort order",
+        "choices": [
+          "highest",
+          "lowest",
+          "newest",
+          "oldest"
+        ]
+      },
+      {
+        "name": "min-price",
+        "type": "int",
+        "required": false,
+        "help": "Minimum price"
+      },
+      {
+        "name": "max-price",
+        "type": "int",
+        "required": false,
+        "help": "Maximum price"
+      },
+      {
+        "name": "min-beds",
+        "type": "int",
+        "required": false,
+        "help": "Minimum bedrooms"
+      },
+      {
+        "name": "max-beds",
+        "type": "int",
+        "required": false,
+        "help": "Maximum bedrooms"
+      },
+      {
+        "name": "index",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset (0, 24, 48, ...)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 24,
+        "required": false,
+        "help": "Max rows to return (1-100)"
+      },
+      {
+        "name": "include-sstc",
+        "type": "bool",
+        "default": true,
+        "required": false,
+        "help": "Include sold subject to contract listings"
+      },
+      {
+        "name": "bbox",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Advanced: west,east,north,south bounding box"
+      },
+      {
+        "name": "polygon",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Advanced: encoded polyline, JSON [[lat,lng]], or lat,lng;lat,lng points"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "address",
+      "price",
+      "bedrooms",
+      "bathrooms",
+      "type",
+      "agent",
+      "added",
+      "latitude",
+      "longitude",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rightmove/search.js",
+    "sourceFile": "rightmove/search.js"
+  },
+  {
     "site": "rubygems",
     "name": "gem",
     "description": "Fetch a RubyGems.org gem's metadata (version, downloads, license, links)",
