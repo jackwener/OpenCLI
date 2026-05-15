@@ -1,5 +1,7 @@
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { parseTweetUrl, buildTwitterArticleScopeSource } from './shared.js';
+
 cli({
     site: 'twitter',
     name: 'unbookmark',
@@ -15,21 +17,25 @@ cli({
     func: async (page, kwargs) => {
         if (!page)
             throw new CommandExecutionError('Browser session required for twitter unbookmark');
-        await page.goto(kwargs.url);
+        const target = parseTweetUrl(kwargs.url);
+        await page.goto(target.url);
         await page.wait({ selector: '[data-testid="primaryColumn"]' });
         const result = await page.evaluate(`(async () => {
         try {
+            ${buildTwitterArticleScopeSource(target.id)}
             let attempts = 0;
             let removeBtn = null;
+            let targetArticle = null;
 
             while (attempts < 20) {
-                // Check if not bookmarked
-                const bookmarkBtn = document.querySelector('[data-testid="bookmark"]');
+                targetArticle = findTargetArticle();
+                // Check if not bookmarked (already removed)
+                const bookmarkBtn = targetArticle?.querySelector('[data-testid="bookmark"]');
                 if (bookmarkBtn) {
                     return { ok: true, message: 'Tweet is not bookmarked (already removed).' };
                 }
 
-                removeBtn = document.querySelector('[data-testid="removeBookmark"]');
+                removeBtn = targetArticle?.querySelector('[data-testid="removeBookmark"]') || null;
                 if (removeBtn) break;
 
                 await new Promise(r => setTimeout(r, 500));
@@ -37,14 +43,15 @@ cli({
             }
 
             if (!removeBtn) {
-                return { ok: false, message: 'Could not find Remove Bookmark button. Are you logged in?' };
+                return { ok: false, message: 'Could not find Remove Bookmark button on the requested tweet. Are you logged in?' };
             }
 
             removeBtn.click();
             await new Promise(r => setTimeout(r, 1000));
 
             // Verify
-            const verify = document.querySelector('[data-testid="bookmark"]');
+            const verifyArticle = findTargetArticle() || targetArticle;
+            const verify = verifyArticle?.querySelector('[data-testid="bookmark"]');
             if (verify) {
                 return { ok: true, message: 'Tweet successfully removed from bookmarks.' };
             } else {

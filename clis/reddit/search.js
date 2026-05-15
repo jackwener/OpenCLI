@@ -8,7 +8,7 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'query', type: 'string', required: true, positional: true },
+        { name: 'query', type: 'string', required: true, positional: true, help: 'Reddit search query' },
         {
             name: 'subreddit',
             type: 'string',

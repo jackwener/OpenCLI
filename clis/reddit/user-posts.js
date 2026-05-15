@@ -8,7 +8,7 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'username', type: 'string', required: true, positional: true },
+        { name: 'username', type: 'string', required: true, positional: true, help: 'Reddit username (no `u/` prefix needed)' },
         { name: 'limit', type: 'int', default: 15 },
     ],
     columns: ['title', 'subreddit', 'score', 'comments', 'url'],

@@ -6,21 +6,25 @@
 
 | Command | Description |
 |---------|-------------|
-| `opencli reddit hot` | |
-| `opencli reddit frontpage` | |
-| `opencli reddit popular` | |
-| `opencli reddit search` | |
-| `opencli reddit subreddit` | |
-| `opencli reddit read` | |
-| `opencli reddit user` | |
-| `opencli reddit user-posts` | |
-| `opencli reddit user-comments` | |
-| `opencli reddit upvote` | |
-| `opencli reddit save` | |
-| `opencli reddit comment` | |
-| `opencli reddit subscribe` | |
-| `opencli reddit saved` | |
-| `opencli reddit upvoted` | |
+| `opencli reddit hot` | Hot posts from a subreddit (or frontpage if none) |
+| `opencli reddit frontpage` | Frontpage / r/all listing |
+| `opencli reddit home` | **Personalized Best feed (requires login)** |
+| `opencli reddit popular` | Trending posts on /r/popular |
+| `opencli reddit search` | Search posts |
+| `opencli reddit subreddit` | Posts from a specific subreddit, with sort and time filters |
+| `opencli reddit subreddit-info` | **Subreddit metadata (subscribers, active, NSFW, created, description)** |
+| `opencli reddit read` | Read a post thread with comments |
+| `opencli reddit user` | View a user profile |
+| `opencli reddit user-posts` | A user's submitted posts |
+| `opencli reddit user-comments` | A user's comments |
+| `opencli reddit whoami` | **Show the currently logged-in Reddit identity** |
+| `opencli reddit upvote` | Vote on a post or comment |
+| `opencli reddit save` | Save / unsave a post or comment |
+| `opencli reddit comment` | Comment on a post |
+| `opencli reddit reply` | Reply to a comment |
+| `opencli reddit subscribe` | Join / leave a subreddit |
+| `opencli reddit saved` | List your saved items |
+| `opencli reddit upvoted` | List your upvoted posts |
 
 ## Usage Examples
 
@@ -31,11 +35,26 @@ opencli reddit hot --limit 5
 # Read one subreddit
 opencli reddit subreddit python --limit 10
 
+# Subreddit metadata (subscribers / active / NSFW / created / description)
+opencli reddit subreddit-info AskReddit
+
+# Personalized Best feed (requires login)
+opencli reddit home --limit 10
+
+# Who am I logged in as?
+opencli reddit whoami
+
 # Read a post thread
 opencli reddit read 1abc123 --depth 2
 
+# Read with "more comments" expansion via /api/morechildren.json
+opencli reddit read 1abc123 --depth 3 --expand-more --expand-rounds 3
+
 # Comment on a post
 opencli reddit comment 1abc123 "Great post"
+
+# Reply to a comment
+opencli reddit reply okf3s7u "Thanks for the context"
 
 # JSON output
 opencli reddit hot -f json
@@ -43,6 +62,25 @@ opencli reddit hot -f json
 # Verbose mode
 opencli reddit hot -v
 ```
+
+## Auth-required commands
+
+`whoami`, `home`, `saved`, `upvoted`, `subscribe`, `upvote`, `save`, `comment`,
+and `reply` all require a logged-in `reddit.com` cookie session. When the
+session is missing or expired they raise `AuthRequiredError` (exit code 5)
+instead of silently returning empty rows.
+
+For `subreddit-info`, missing / banned / private / quarantined subreddits raise
+`EmptyResultError` (exit code 6) so the output table never contains a silent
+sentinel row.
+
+For `read`, deleted / quarantined / private posts (HTTP 401/403/404 on
+`/comments/<id>.json`) also raise `EmptyResultError`. `--expand-more` follows
+Reddit's "more comments" stubs by calling `/api/morechildren.json` up to
+`--expand-rounds` times (default 2, max 5). If the morechildren endpoint
+itself rejects the request with 401/403, that's surfaced as
+`AuthRequiredError` because writeable/expand endpoints often require a logged-
+in session even though the post listing is public.
 
 ## Prerequisites
 

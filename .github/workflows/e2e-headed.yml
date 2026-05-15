@@ -1,6 +1,10 @@
 name: E2E Headed Chrome
 
 on:
+  # E2E removed from `pull_request` to keep PR feedback under ~2 minutes; PR-time
+  # protection is the CI workflow (typecheck / unit / lint / adapter / build).
+  # E2E still guards `main` directly, runs nightly, and on release tag push so
+  # protocol/CDP/extension contract regressions are caught before they ship.
   push:
     branches: [main, dev]
     paths:
@@ -13,18 +17,11 @@ on:
       - 'tests/smoke/**'
       - '.github/actions/setup-chrome/**'
       - '.github/workflows/e2e-headed.yml'
-  pull_request:
-    branches: [main, dev]
-    paths:
-      - 'extension/**'
-      - 'src/browser/**'
-      - 'src/daemon.ts'
-      - 'src/execution.ts'
-      - 'src/interceptor.ts'
-      - 'tests/e2e/**'
-      - 'tests/smoke/**'
-      - '.github/actions/setup-chrome/**'
-      - '.github/workflows/e2e-headed.yml'
+    tags: ['v*']
+  schedule:
+    # Daily 08:00 UTC — catch flake / Chrome-version drift even when no commits
+    # touched the watched paths recently.
+    - cron: '0 8 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -59,12 +56,35 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build extension
+        run: npm run build --prefix extension
+
+      - name: Run AX Chrome smoke (Linux, via xvfb)
+        if: runner.os == 'Linux'
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+          OPENCLI_AX_E2E: '1'
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+            npx vitest run --project e2e tests/e2e/browser-ax-chrome.test.ts --reporter=verbose
+
+      - name: Run AX Chrome smoke (macOS / Windows)
+        if: runner.os != 'Linux'
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+          OPENCLI_AX_E2E: '1'
+        run: npx vitest run --project e2e tests/e2e/browser-ax-chrome.test.ts --reporter=verbose
+
       - name: Run E2E tests (Linux, via xvfb)
         if: runner.os == 'Linux'
+        env:
+          OPENCLI_AX_E2E: '0'
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             npx vitest run tests/e2e/ --reporter=verbose
 
       - name: Run E2E tests (macOS / Windows)
         if: runner.os != 'Linux'
+        env:
+          OPENCLI_AX_E2E: '0'
         run: npx vitest run tests/e2e/ --reporter=verbose

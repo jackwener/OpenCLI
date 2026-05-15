@@ -1,33 +1,13 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-function extractTweetId(url) {
-    let pathname = '';
-    try {
-        pathname = new URL(url).pathname;
-    }
-    catch {
-        throw new Error(`Invalid tweet URL: ${url}`);
-    }
-    const match = pathname.match(/\/status\/(\d+)/);
-    if (!match?.[1]) {
-        throw new Error(`Could not extract tweet ID from URL: ${url}`);
-    }
-    return match[1];
-}
+import { parseTweetUrl, buildTwitterArticleScopeSource } from './shared.js';
+
 function buildDeleteScript(tweetId) {
     return `(async () => {
       try {
           const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
-          const tweetId = ${JSON.stringify(tweetId)};
-          const targetArticle = Array.from(document.querySelectorAll('article')).find((article) =>
-              Array.from(article.querySelectorAll('a[href*="/status/"]')).some((link) => {
-                  try {
-                      return new URL(link.href, window.location.origin).pathname.includes('/status/' + tweetId);
-                  } catch {
-                      return false;
-                  }
-              })
-          );
+          ${buildTwitterArticleScopeSource(tweetId)}
+          const targetArticle = findTargetArticle();
 
           if (!targetArticle) {
               return { ok: false, message: 'Could not find the tweet card matching the requested URL.' };
@@ -82,17 +62,14 @@ cli({
     func: async (page, kwargs) => {
         if (!page)
             throw new CommandExecutionError('Browser session required for twitter delete');
-        let tweetId = '';
-        try {
-            tweetId = extractTweetId(kwargs.url);
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            throw new CommandExecutionError(message);
-        }
-        await page.goto(kwargs.url);
+        // parseTweetUrl throws ArgumentError on malformed/off-domain inputs —
+        // this replaces the ad-hoc local extractTweetId which only checked
+        // the path shape and accepted any host (silent: would try to act on
+        // attacker-controlled redirect URLs).
+        const target = parseTweetUrl(kwargs.url);
+        await page.goto(target.url);
         await page.wait({ selector: '[data-testid="primaryColumn"]' }); // Wait for tweet to load completely
-        const result = await page.evaluate(buildDeleteScript(tweetId));
+        const result = await page.evaluate(buildDeleteScript(target.id));
         if (result.ok) {
             // Wait for the deletion request to be processed
             await page.wait(2);
@@ -105,5 +82,4 @@ cli({
 });
 export const __test__ = {
     buildDeleteScript,
-    extractTweetId,
 };

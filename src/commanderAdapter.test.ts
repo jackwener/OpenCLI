@@ -363,7 +363,6 @@ describe('commanderAdapter error envelope output', () => {
     expect(output).toContain('xsec_token');
     expect(output).toContain('--trace=retain-on-failure');
     expect(output).toContain('opencli xiaohongshu note --trace retain-on-failure');
-    expect(output).not.toContain('OPENCLI_DIAGNOSTIC');
 
     stderrSpy.mockRestore();
   });

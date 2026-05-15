@@ -7,8 +7,10 @@
 | Command | Description |
 |---------|-------------|
 | `opencli zhihu hot` | Read Zhihu hot topics |
+| `opencli zhihu recommend` | Read Zhihu home recommendations |
 | `opencli zhihu search` | Search Zhihu content |
 | `opencli zhihu question` | Read question answers by question ID |
+| `opencli zhihu answer-detail <id>` | Read one full answer by answer ID, typed target, or answer URL |
 | `opencli zhihu collections` | List your Zhihu favorite collections |
 | `opencli zhihu collection <collection_id>` | List content from a Zhihu favorite collection |
 | `opencli zhihu download` | Export a Zhihu article to Markdown |
@@ -42,7 +44,10 @@
 ```bash
 # Read flows
 opencli zhihu hot --limit 5
+opencli zhihu recommend --limit 20
 opencli zhihu question 123456 --limit 3
+opencli zhihu answer-detail answer:123456:789012
+opencli zhihu answer-detail "https://www.zhihu.com/question/123456/answer/789012" --max-content 2000
 opencli zhihu collections --limit 20
 opencli zhihu collection 83283292 --limit 20
 opencli zhihu download "https://zhuanlan.zhihu.com/p/998877" --download-images

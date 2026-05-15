@@ -35,8 +35,9 @@ describe('runtime-detect', () => {
   });
 
   it('checks the current minimum supported Node major version', () => {
-    expect(MIN_SUPPORTED_NODE_MAJOR).toBe(21);
-    expect(isSupportedNodeVersion('v20.18.0')).toBe(false);
+    expect(MIN_SUPPORTED_NODE_MAJOR).toBe(20);
+    expect(isSupportedNodeVersion('v19.9.0')).toBe(false);
+    expect(isSupportedNodeVersion('v20.0.0')).toBe(true);
     expect(isSupportedNodeVersion('v21.0.0')).toBe(true);
     expect(isSupportedNodeVersion('v25.0.0')).toBe(true);
   });

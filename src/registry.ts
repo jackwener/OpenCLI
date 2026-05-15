@@ -27,6 +27,7 @@ export type CommandArgs = Record<string, any>;
 export type BrowserCommandFunc = (page: IPage, kwargs: CommandArgs, debug?: boolean) => Promise<unknown>;
 export type NonBrowserCommandFunc = (kwargs: CommandArgs, debug?: boolean) => Promise<unknown>;
 export type CommandAccess = 'read' | 'write';
+export type SiteSessionMode = 'ephemeral' | 'persistent';
 
 interface BaseCliCommand {
   site: string;
@@ -45,10 +46,6 @@ interface BaseCliCommand {
   source?: string;
   footerExtra?: (kwargs: CommandArgs) => string | undefined;
   validateArgs?: (kwargs: CommandArgs) => void;
-  /** Deprecation note shown in help / execution warnings. */
-  deprecated?: boolean | string;
-  /** Preferred replacement command, if any. */
-  replacedBy?: string;
   /**
    * Control pre-navigation and browser-session requirement.
    *
@@ -65,6 +62,8 @@ interface BaseCliCommand {
    * Adapter authors can set this explicitly to override the strategy-based default.
    */
   navigateBefore?: boolean | string;
+  /** Site session lifecycle for adapter commands. */
+  siteSession?: SiteSessionMode;
   /** Override the default CLI output format when the user does not pass -f/--format. */
   defaultFormat?: 'table' | 'plain' | 'json' | 'yaml' | 'yml' | 'md' | 'markdown' | 'csv';
 }
@@ -127,6 +126,7 @@ export function cli(opts: CliOptions): CliCommand {
     aliases: opts.aliases,
     description: opts.description ?? '',
     access: opts.access,
+    example: opts.example,
     domain: opts.domain,
     strategy: opts.strategy,
     browser: opts.browser,
@@ -135,9 +135,8 @@ export function cli(opts: CliOptions): CliCommand {
     func: opts.func,
     pipeline: opts.pipeline,
     footerExtra: opts.footerExtra,
-    deprecated: opts.deprecated,
-    replacedBy: opts.replacedBy,
     navigateBefore: opts.navigateBefore,
+    siteSession: opts.siteSession,
     defaultFormat: opts.defaultFormat,
   };
 
@@ -172,6 +171,7 @@ export function strategyLabel(cmd: CliCommand): string {
  */
 function normalizeCommand(cmd: RawCliCommand): CliCommand {
   assertCommandAccess(cmd);
+  assertSiteSession(cmd);
 
   const strategy = cmd.strategy ?? (cmd.browser === false ? Strategy.PUBLIC : Strategy.COOKIE);
   const browser = cmd.browser ?? (strategy !== Strategy.PUBLIC && strategy !== Strategy.LOCAL);
@@ -197,6 +197,14 @@ function assertCommandAccess(cmd: Pick<RawCliCommand, 'site' | 'name'> & { acces
   if (cmd.access === 'read' || cmd.access === 'write') return;
   const key = `${cmd.site}/${cmd.name}`;
   throw new Error(`Command ${key} must declare access: 'read' | 'write'`);
+}
+
+function assertSiteSession(cmd: Pick<RawCliCommand, 'site' | 'name'> & { siteSession?: unknown }): void {
+  if (cmd.siteSession === undefined) return;
+  const key = `${cmd.site}/${cmd.name}`;
+  if (cmd.siteSession !== 'ephemeral' && cmd.siteSession !== 'persistent') {
+    throw new Error(`Command ${key} siteSession must be one of: ephemeral, persistent`);
+  }
 }
 
 export function registerCommand(cmd: RawCliCommand): void {

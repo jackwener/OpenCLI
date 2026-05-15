@@ -1,12 +1,12 @@
 {
   "name": "@jackwener/opencli",
-  "version": "1.7.12",
+  "version": "1.7.21",
   "publishConfig": {
     "access": "public"
   },
   "description": "Make any website or Electron App your CLI. AI-powered.",
   "engines": {
-    "node": ">=21.0.0"
+    "node": ">=20.0.0"
   },
   "type": "module",
   "main": "dist/src/main.js",
@@ -41,7 +41,8 @@
   "scripts": {
     "dev": "tsx src/main.ts",
     "dev:bun": "bun src/main.ts",
-    "build": "npm run clean-dist && tsc && npm run copy-yaml && npm run build-manifest",
+    "build": "npm run clean-dist && npm run copy-yaml && npm run build-manifest",
+    "prebuild-manifest": "tsc --build",
     "build-manifest": "tsx src/build-manifest.ts",
     "clean-dist": "node scripts/clean-dist.cjs",
     "copy-yaml": "node scripts/copy-yaml.cjs",
@@ -83,7 +84,7 @@
     "js-yaml": "^4.1.0",
     "turndown": "^7.2.2",
     "turndown-plugin-gfm": "^1.0.2",
-    "undici": "^8.0.2",
+    "undici": "^6.25.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

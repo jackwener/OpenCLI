@@ -617,9 +617,17 @@
   },
   {
     "rule": "silent-clamp",
+    "command": "twitter/bookmark-folder",
+    "file": "clis/twitter/bookmark-folder.js",
+    "line": 161,
+    "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
     "command": "twitter/bookmarks",
     "file": "clis/twitter/bookmarks.js",
-    "line": 155,
+    "line": 156,
     "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
     "occurrence": 0
   },
@@ -627,7 +635,7 @@
     "rule": "silent-clamp",
     "command": "twitter/following",
     "file": "clis/twitter/following.js",
-    "line": 209,
+    "line": 215,
     "text": "const fetchCount = Math.min(50, limit - allUsers.length + 10);",
     "occurrence": 0
   },
@@ -635,7 +643,7 @@
     "rule": "silent-clamp",
     "command": "twitter/likes",
     "file": "clis/twitter/likes.js",
-    "line": 194,
+    "line": 195,
     "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
     "occurrence": 0
   },
@@ -643,7 +651,7 @@
     "rule": "silent-clamp",
     "command": "twitter/list-tweets",
     "file": "clis/twitter/list-tweets.js",
-    "line": 167,
+    "line": 168,
     "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
     "occurrence": 0
   },
@@ -651,7 +659,7 @@
     "rule": "silent-clamp",
     "command": "twitter/timeline",
     "file": "clis/twitter/timeline.js",
-    "line": 181,
+    "line": 182,
     "text": "const fetchCount = Math.min(40, limit - allTweets.length + 5); // over-fetch slightly for promoted filtering",
     "occurrence": 0
   },
@@ -659,7 +667,7 @@
     "rule": "silent-clamp",
     "command": "twitter/tweets",
     "file": "clis/twitter/tweets.js",
-    "line": 193,
+    "line": 194,
     "text": "const fetchCount = Math.min(100, limit - all.length + 10);",
     "occurrence": 0
   },
@@ -667,7 +675,7 @@
     "rule": "silent-clamp",
     "command": "twitter/tweets",
     "file": "clis/twitter/tweets.js",
-    "line": 158,
+    "line": 159,
     "text": "const limit = Math.max(1, Math.min(200, kwargs.limit || 20));",
     "occurrence": 0
   },
@@ -1001,14 +1009,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "facebook/notifications",
-    "file": "clis/facebook/notifications.js",
-    "line": 31,
-    "text": "time: time || '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "gitee/search",
     "file": "clis/gitee/search.js",
     "line": 127,
@@ -1193,22 +1193,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "tiktok/explore",
-    "file": "clis/tiktok/explore.js",
-    "line": 27,
-    "text": "views: a.textContent.trim() || '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "tiktok/user",
-    "file": "clis/tiktok/user.js",
-    "line": 32,
-    "text": "views: a.textContent.trim() || '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "twitter/accept",
     "file": "clis/twitter/accept.js",
     "line": 75,
@@ -1227,7 +1211,7 @@
     "rule": "silent-sentinel",
     "command": "twitter/article",
     "file": "clis/twitter/article.js",
-    "line": 104,
+    "line": 105,
     "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
     "occurrence": 0
   },
@@ -1305,17 +1289,9 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "twitter/reply",
-    "file": "clis/twitter/reply.js",
-    "line": 68,
-    "text": "throw new Error(`Unsupported remote image format \"${normalizedContentType || 'unknown'}\". ` +",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "twitter/search",
     "file": "clis/twitter/search.js",
-    "line": 156,
+    "line": 296,
     "text": "author: tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown',",
     "occurrence": 0
   },
@@ -1363,7 +1339,7 @@
     "rule": "silent-sentinel",
     "command": "web/read",
     "file": "clis/web/read.js",
-    "line": 348,
+    "line": 378,
     "text": "lines.push(`  [frame ${frame.index}] ${frame.sameOrigin ? 'same-origin' : 'cross-origin'} ${frame.accessible ? 'accessible' : 'blocked'} text=${frame.textLength || 0} ${frame.src || '-'}`);",
     "occurrence": 0
   },
@@ -1371,7 +1347,7 @@
     "rule": "silent-sentinel",
     "command": "web/read",
     "file": "clis/web/read.js",
-    "line": 360,
+    "line": 390,
     "text": "lines.push(`  ${entry.method} ${entry.status || '-'} ${entry.contentType || '-'} ${entry.url}`);",
     "occurrence": 0
   },
@@ -1379,7 +1355,7 @@
     "rule": "silent-sentinel",
     "command": "web/read",
     "file": "clis/web/read.js",
-    "line": 354,
+    "line": 384,
     "text": "lines.push(`  ${item.scope}: ${selector} (${item.url || '-'})`);",
     "occurrence": 0
   },
@@ -1387,7 +1363,7 @@
     "rule": "silent-sentinel",
     "command": "web/read",
     "file": "clis/web/read.js",
-    "line": 345,
+    "line": 375,
     "text": "lines.push(`url: ${diag.url || '-'}`);",
     "occurrence": 0
   },
@@ -1435,7 +1411,7 @@
     "rule": "silent-sentinel",
     "command": "xiaohongshu/publish",
     "file": "clis/xiaohongshu/publish.js",
-    "line": 516,
+    "line": 529,
     "text": "throw new Error(`Image injection failed: ${upload.error ?? 'unknown'}. ` +",
     "occurrence": 0
   },

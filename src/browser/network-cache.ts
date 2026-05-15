@@ -6,7 +6,7 @@
  * stable references to request bodies after running other commands,
  * so every `browser network` call snapshots its results to disk.
  *
- * Layout: <cacheDir>/browser-network/<workspace>.json
+ * Layout: <cacheDir>/browser-network/<session>.json
  * Entries expire after DEFAULT_TTL_MS (24h).
  */
 
@@ -36,7 +36,7 @@ export interface CachedNetworkEntry {
 
 export interface NetworkCacheFile {
     version: 1;
-    workspace: string;
+    session: string;
     savedAt: string;
     entries: CachedNetworkEntry[];
 }
@@ -45,21 +45,21 @@ function getDefaultCacheDir(): string {
     return process.env.OPENCLI_CACHE_DIR || path.join(os.homedir(), '.opencli', 'cache');
 }
 
-export function getCachePath(workspace: string, baseDir: string = getDefaultCacheDir()): string {
-    const safe = workspace.replace(/[^a-zA-Z0-9_-]+/g, '_');
+export function getCachePath(session: string, baseDir: string = getDefaultCacheDir()): string {
+    const safe = session.replace(/[^a-zA-Z0-9_-]+/g, '_');
     return path.join(baseDir, 'browser-network', `${safe}.json`);
 }
 
 export function saveNetworkCache(
-    workspace: string,
+    session: string,
     entries: CachedNetworkEntry[],
     baseDir?: string,
 ): void {
-    const target = getCachePath(workspace, baseDir);
+    const target = getCachePath(session, baseDir);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     const payload: NetworkCacheFile = {
         version: 1,
-        workspace,
+        session,
         savedAt: new Date().toISOString(),
         entries,
     };
@@ -78,8 +78,8 @@ export interface LoadResult {
     ageMs?: number;
 }
 
-export function loadNetworkCache(workspace: string, opts: LoadOptions = {}): LoadResult {
-    const target = getCachePath(workspace, opts.baseDir);
+export function loadNetworkCache(session: string, opts: LoadOptions = {}): LoadResult {
+    const target = getCachePath(session, opts.baseDir);
     let raw: string;
     try { raw = fs.readFileSync(target, 'utf-8'); }
     catch { return { status: 'missing' }; }

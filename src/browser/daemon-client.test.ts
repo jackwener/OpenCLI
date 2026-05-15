@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  BrowserCommandError,
   fetchDaemonStatus,
   getDaemonHealth,
   requestDaemonShutdown,
@@ -183,6 +184,19 @@ describe('daemon-client', () => {
     expect(body.contextId).toBe('work');
   });
 
+  it('sendCommand uses explicit windowMode before OPENCLI_WINDOW env fallback', async () => {
+    vi.stubEnv('OPENCLI_WINDOW', 'foreground');
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+    } as Response);
+
+    await sendCommand('exec', { code: '1 + 1', windowMode: 'background' });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { windowMode?: string };
+    expect(body.windowMode).toBe('background');
+  });
+
   it('sendCommand retries with a new id when daemon reports a duplicate pending id', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_123);
     const fetchMock = vi.mocked(fetch);
@@ -206,5 +220,27 @@ describe('daemon-client', () => {
       return body.id;
     });
     expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it('sendCommand does not retry command_result_unknown even when the message looks transient', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: () => Promise.resolve({
+        id: 'server',
+        ok: false,
+        errorCode: 'command_result_unknown',
+        error: 'Extension disconnected after command timeout',
+        errorHint: 'Inspect state before retrying.',
+      }),
+    } as Response);
+
+    await expect(sendCommand('exec', { code: 'window.__mutate = true' })).rejects.toMatchObject({
+      name: 'BrowserCommandError',
+      code: 'command_result_unknown',
+      hint: 'Inspect state before retrying.',
+    } satisfies Partial<BrowserCommandError>);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

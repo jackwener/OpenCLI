@@ -8,7 +8,7 @@ cli({
     description: '获取 Bilibili 视频的字幕',
     strategy: Strategy.COOKIE,
     args: [
-        { name: 'bvid', required: true, positional: true },
+        { name: 'bvid', required: true, positional: true, help: 'Bilibili 视频 BV ID（如 BV1xx411c7mD），或视频 URL / b23.tv 短链' },
         { name: 'lang', required: false, help: '字幕语言代码 (如 zh-CN, en-US, ai-zh)，默认取第一个' },
     ],
     columns: ['index', 'from', 'to', 'content'],

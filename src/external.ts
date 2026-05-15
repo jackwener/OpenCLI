@@ -17,8 +17,11 @@ export interface ExternalCliInstall {
 }
 
 export interface ExternalCliConfig {
+  /** User-facing OpenCLI subcommand and, by default, the executable name. */
   name: string;
   binary: string;
+  /** Distribution/project name when it differs from the executable name. */
+  package?: string;
   description?: string;
   homepage?: string;
   tags?: string[];
@@ -84,6 +87,10 @@ export function getInstallCmd(installConfig?: ExternalCliInstall): string | null
   if (platform === 'win32' && installConfig.windows) return installConfig.windows;
   if (installConfig.default) return installConfig.default;
   return null;
+}
+
+export function formatExternalCliLabel(cli: ExternalCliConfig): string {
+  return cli.package && cli.package !== cli.name ? `${cli.name}(${cli.package})` : cli.name;
 }
 
 /**

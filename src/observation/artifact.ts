@@ -174,7 +174,7 @@ function renderSummary(
     `traceId: ${yamlScalar(session.id)}`,
     `status: ${opts.status}`,
     `contextId: ${yamlScalar(session.scope.contextId ?? 'default')}`,
-    `workspace: ${yamlScalar(session.scope.workspace)}`,
+    `session: ${yamlScalar(session.scope.session)}`,
     ...(session.scope.target ? [`target: ${yamlScalar(session.scope.target)}`] : []),
     ...(session.scope.site ? [`site: ${yamlScalar(session.scope.site)}`] : []),
     ...(session.scope.command ? [`command: ${yamlScalar(session.scope.command)}`] : []),

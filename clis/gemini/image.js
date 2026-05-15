@@ -52,6 +52,7 @@ export const imageCommand = cli({
     domain: GEMINI_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     navigateBefore: false,
     defaultFormat: 'plain',
     args: [

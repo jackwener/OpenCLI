@@ -1,5 +1,7 @@
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { parseTweetUrl, buildTwitterArticleScopeSource } from './shared.js';
+
 cli({
     site: 'twitter',
     name: 'like',
@@ -15,21 +17,28 @@ cli({
     func: async (page, kwargs) => {
         if (!page)
             throw new CommandExecutionError('Browser session required for twitter like');
-        await page.goto(kwargs.url);
+        const target = parseTweetUrl(kwargs.url);
+        await page.goto(target.url);
         await page.wait({ selector: '[data-testid="primaryColumn"]' }); // Wait for tweet to load completely
         const result = await page.evaluate(`(async () => {
         try {
-            // Poll for the tweet to render
+            ${buildTwitterArticleScopeSource(target.id)}
+            // Poll for the tweet to render. We scope state probes to the
+            // article matching the requested status id — on conversation
+            // pages multiple articles render and a bare querySelector would
+            // grab the first one (silent: like the wrong tweet).
             let attempts = 0;
             let likeBtn = null;
             let unlikeBtn = null;
-            
+            let targetArticle = null;
+
             while (attempts < 20) {
-                unlikeBtn = document.querySelector('[data-testid="unlike"]');
-                likeBtn = document.querySelector('[data-testid="like"]');
-                
-                if (unlikeBtn || likeBtn) break;
-                
+                targetArticle = findTargetArticle();
+                likeBtn = targetArticle?.querySelector('[data-testid="like"]') || null;
+                unlikeBtn = targetArticle?.querySelector('[data-testid="unlike"]') || null;
+
+                if (likeBtn || unlikeBtn) break;
+
                 await new Promise(r => setTimeout(r, 500));
                 attempts++;
             }
@@ -46,9 +55,10 @@ cli({
             // Click Like
             likeBtn.click();
             await new Promise(r => setTimeout(r, 1000));
-            
-            // Verify success by checking if the 'unlike' button appeared
-            const verifyBtn = document.querySelector('[data-testid="unlike"]');
+
+            // Verify success by checking if the 'unlike' button reappeared
+            const verifyArticle = findTargetArticle() || targetArticle;
+            const verifyBtn = verifyArticle?.querySelector('[data-testid="unlike"]');
             if (verifyBtn) {
                 return { ok: true, message: 'Tweet successfully liked.' };
             } else {

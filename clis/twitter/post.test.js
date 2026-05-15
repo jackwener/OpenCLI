@@ -46,6 +46,11 @@ function makePage(evaluateResults = [], overrides = {}) {
 describe('twitter post command', () => {
     const getCommand = () => getRegistry().get('twitter/post');
 
+    it('registers created tweet id/url columns', () => {
+        const command = getCommand();
+        expect(command?.columns).toEqual(['status', 'message', 'text', 'id', 'url']);
+    });
+
     it('posts text-only tweet successfully through the current compose route', async () => {
         const command = getCommand();
         const page = makePage([
@@ -61,6 +66,31 @@ describe('twitter post command', () => {
         expect(page.goto).toHaveBeenCalledWith('https://x.com/compose/post', { waitUntil: 'load', settleMs: 2500 });
         expect(page.wait).toHaveBeenNthCalledWith(1, { selector: '[data-testid="tweetTextarea_0"]', timeout: 15 });
         expect(page.insertText).toHaveBeenCalledWith('hello world');
+    });
+
+    it('returns the created tweet URL from the success toast when available', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { ok: true },
+            { ok: true },
+            { ok: true },
+            {
+                ok: true,
+                message: 'Tweet posted successfully.',
+                id: '2054239044884693381',
+                url: 'https://x.com/darthjajaj6z/status/2054239044884693381',
+            },
+        ]);
+
+        const result = await command.func(page, { text: 'with url' });
+
+        expect(result).toEqual([{
+            status: 'success',
+            message: 'Tweet posted successfully.',
+            text: 'with url',
+            id: '2054239044884693381',
+            url: 'https://x.com/darthjajaj6z/status/2054239044884693381',
+        }]);
     });
 
     it('returns failed when text area not found', async () => {

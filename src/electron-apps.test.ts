@@ -28,6 +28,7 @@ describe('electron-apps registry', () => {
 
   it('isElectronApp returns false for non-Electron sites', () => {
     expect(isElectronApp('bilibili')).toBe(false);
+    expect(isElectronApp('notion')).toBe(false);
     expect(isElectronApp('unknown-app')).toBe(false);
   });
 

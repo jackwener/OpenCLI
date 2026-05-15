@@ -7,6 +7,9 @@ const WS_RECONNECT_MAX_DELAY = 5e3;
 
 const attached = /* @__PURE__ */ new Set();
 const tabFrameContexts = /* @__PURE__ */ new Map();
+const frameTargets = /* @__PURE__ */ new Map();
+const frameTargetKeys = /* @__PURE__ */ new Map();
+let frameTargetCleanupRegistered = false;
 const CDP_RESPONSE_BODY_CAPTURE_LIMIT = 8 * 1024 * 1024;
 const CDP_REQUEST_BODY_CAPTURE_LIMIT = 1 * 1024 * 1024;
 const networkCaptures = /* @__PURE__ */ new Map();
@@ -180,11 +183,170 @@ async function setFileInputFiles(tabId, files, selector) {
     nodeId: result.nodeId
   });
 }
+function matchesDownloadPattern(item, pattern) {
+  if (!pattern) return true;
+  const haystack = [
+    item.filename,
+    item.url,
+    item.finalUrl,
+    item.mime
+  ].filter(Boolean).join("\n").toLowerCase();
+  return haystack.includes(pattern.toLowerCase());
+}
+function downloadResult(item, startedAt) {
+  return {
+    downloaded: item.state === "complete",
+    id: item.id,
+    filename: item.filename,
+    url: item.url,
+    finalUrl: item.finalUrl,
+    mime: item.mime,
+    totalBytes: item.totalBytes,
+    state: item.state,
+    danger: item.danger,
+    error: item.error,
+    elapsedMs: Date.now() - startedAt
+  };
+}
+async function waitForDownload(pattern = "", timeoutMs = 3e4) {
+  const startedAt = Date.now();
+  const timeout = Math.max(1, timeoutMs);
+  return await new Promise((resolve) => {
+    let done = false;
+    const inProgressIds = /* @__PURE__ */ new Set();
+    const finish = (result) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      chrome.downloads.onCreated.removeListener(onCreated);
+      chrome.downloads.onChanged.removeListener(onChanged);
+      resolve(result);
+    };
+    const inspectById = async (id) => {
+      const items = await chrome.downloads.search({ id });
+      const item = items[0];
+      if (!item || !matchesDownloadPattern(item, pattern)) return;
+      inProgressIds.add(id);
+      if (item.state === "complete" || item.state === "interrupted") finish(downloadResult(item, startedAt));
+    };
+    const onCreated = (item) => {
+      if (!matchesDownloadPattern(item, pattern)) return;
+      inProgressIds.add(item.id);
+      if (item.state === "complete" || item.state === "interrupted") finish(downloadResult(item, startedAt));
+    };
+    const onChanged = (delta) => {
+      if (!delta.id) return;
+      if (!inProgressIds.has(delta.id) && !delta.filename && !delta.url) return;
+      if (delta.filename?.current || delta.url?.current) {
+        void inspectById(delta.id);
+        return;
+      }
+      if (delta.state?.current === "complete" || delta.state?.current === "interrupted") {
+        void inspectById(delta.id);
+      }
+    };
+    const timer = setTimeout(() => {
+      finish({
+        downloaded: false,
+        state: "interrupted",
+        error: `No download matched "${pattern || "*"}" within ${timeout}ms`,
+        elapsedMs: Date.now() - startedAt
+      });
+    }, timeout);
+    chrome.downloads.onCreated.addListener(onCreated);
+    chrome.downloads.onChanged.addListener(onChanged);
+    void chrome.downloads.search({
+      limit: 50,
+      orderBy: ["-startTime"],
+      startedAfter: new Date(startedAt - Math.max(timeout, 1e3)).toISOString()
+    }).then((recent) => {
+      if (done) return;
+      const completed = recent.find((item) => item.state === "complete" && matchesDownloadPattern(item, pattern));
+      if (completed) {
+        finish(downloadResult(completed, startedAt));
+        return;
+      }
+      for (const item of recent) {
+        if (item.state === "in_progress" && matchesDownloadPattern(item, pattern)) inProgressIds.add(item.id);
+      }
+    }).catch((err) => {
+      finish({
+        downloaded: false,
+        state: "interrupted",
+        error: err instanceof Error ? err.message : String(err),
+        elapsedMs: Date.now() - startedAt
+      });
+    });
+  });
+}
+function frameTargetKey(tabId, frameId) {
+  return `${tabId}:${frameId}`;
+}
+function registerFrameTargetCleanup() {
+  if (frameTargetCleanupRegistered) return;
+  frameTargetCleanupRegistered = true;
+  chrome.debugger.onEvent.addListener((_source, method, params) => {
+    if (method === "Target.detachedFromTarget") {
+      const targetId = String(params?.targetId || "");
+      clearFrameTarget(targetId);
+    }
+  });
+}
+function clearFrameTarget(targetId) {
+  if (!targetId) return;
+  const key = frameTargetKeys.get(targetId);
+  if (key) frameTargets.delete(key);
+  frameTargetKeys.delete(targetId);
+}
+async function ensureFrameTarget(tabId, frameId, aggressiveRetry = false, targetUrl) {
+  registerFrameTargetCleanup();
+  await ensureAttached(tabId, aggressiveRetry);
+  const key = frameTargetKey(tabId, frameId);
+  const existing = frameTargets.get(key);
+  if (existing) return existing;
+  await chrome.debugger.sendCommand({ tabId }, "Target.setDiscoverTargets", { discover: true }).catch(() => {
+  });
+  await chrome.debugger.sendCommand({ tabId }, "Target.setAutoAttach", {
+    autoAttach: true,
+    waitForDebuggerOnStart: false,
+    flatten: true,
+    filter: [{ type: "iframe", exclude: false }]
+  }).catch(() => {
+  });
+  const targetId = await resolveFrameTargetId(tabId, frameId, targetUrl);
+  try {
+    await chrome.debugger.attach({ targetId }, "1.3");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!message.includes("Another debugger is already attached")) throw err;
+  }
+  frameTargets.set(key, targetId);
+  frameTargetKeys.set(targetId, key);
+  return targetId;
+}
+async function resolveFrameTargetId(tabId, frameId, targetUrl) {
+  const result = await chrome.debugger.sendCommand({ tabId }, "Target.getTargets").catch(() => null);
+  const targets = result?.targetInfos ?? [];
+  const frameTarget = targets.find((candidate) => {
+    const candidateId = candidate.targetId || candidate.id;
+    return candidate.type === "iframe" && (candidateId === frameId || !!targetUrl && candidate.url === targetUrl);
+  });
+  const targetId = frameTarget?.targetId || frameTarget?.id;
+  if (targetId) return targetId;
+  const candidates = targets.filter((target) => target.type === "iframe").map((target) => `${target.targetId || target.id || "?"} ${target.url || ""}`).join("; ");
+  throw new Error(`No iframe target found for frame ${frameId}${targetUrl ? ` (${targetUrl})` : ""}. Candidates: ${candidates || "none"}`);
+}
+async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, aggressiveRetry = false, _timeoutMs = 3e4, targetUrl) {
+  const targetId = await ensureFrameTarget(tabId, frameId, aggressiveRetry, targetUrl);
+  const target = { targetId };
+  return chrome.debugger.sendCommand(target, method, params);
+}
 async function insertText(tabId, text) {
   await ensureAttached(tabId);
   await chrome.debugger.sendCommand({ tabId }, "Input.insertText", { text });
 }
 function registerFrameTracking() {
+  registerFrameTargetCleanup();
   chrome.debugger.onEvent.addListener((source, method, params) => {
     const tabId = source.tabId;
     if (!tabId) return;
@@ -228,7 +390,17 @@ async function evaluateInFrame(tabId, expression, frameId, aggressiveRetry = fal
   const contexts = tabFrameContexts.get(tabId);
   const contextId = contexts?.get(frameId);
   if (contextId === void 0) {
-    throw new Error(`No execution context found for frame ${frameId}. The frame may not be loaded yet.`);
+    await sendCommandInFrameTarget(tabId, frameId, "Runtime.enable", {}, aggressiveRetry).catch(() => void 0);
+    const result2 = await sendCommandInFrameTarget(tabId, frameId, "Runtime.evaluate", {
+      expression,
+      returnByValue: true,
+      awaitPromise: true
+    }, aggressiveRetry);
+    if (result2.exceptionDetails) {
+      const errMsg = result2.exceptionDetails.exception?.description || result2.exceptionDetails.text || "Eval error";
+      throw new Error(errMsg);
+    }
+    return result2.result?.value;
   }
   const result = await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
     expression,
@@ -298,7 +470,17 @@ async function readNetworkCapture(tabId) {
 function hasActiveNetworkCapture(tabId) {
   return networkCaptures.has(tabId);
 }
+function clearFrameTargetsForTab(tabId) {
+  for (const [key, targetId] of [...frameTargets.entries()]) {
+    if (!key.startsWith(`${tabId}:`)) continue;
+    frameTargets.delete(key);
+    frameTargetKeys.delete(targetId);
+    chrome.debugger.detach({ targetId }).catch(() => {
+    });
+  }
+}
 async function detach(tabId) {
+  clearFrameTargetsForTab(tabId);
   if (!attached.has(tabId)) return;
   attached.delete(tabId);
   networkCaptures.delete(tabId);
@@ -313,13 +495,17 @@ function registerListeners() {
     attached.delete(tabId);
     networkCaptures.delete(tabId);
     tabFrameContexts.delete(tabId);
+    clearFrameTargetsForTab(tabId);
   });
   chrome.debugger.onDetach.addListener((source) => {
     if (source.tabId) {
       attached.delete(source.tabId);
       networkCaptures.delete(source.tabId);
       tabFrameContexts.delete(source.tabId);
+      clearFrameTargetsForTab(source.tabId);
+      return;
     }
+    if (source.targetId) clearFrameTarget(source.targetId);
   });
   chrome.tabs.onUpdated.addListener(async (tabId, info) => {
     if (info.url && !isDebuggableUrl$1(info.url)) {
@@ -440,6 +626,7 @@ let reconnectAttempts = 0;
 const CONTEXT_ID_KEY = "opencli_context_id_v1";
 let currentContextId = "default";
 let contextIdPromise = null;
+let connectInFlight = null;
 async function getCurrentContextId() {
   if (contextIdPromise) return contextIdPromise;
   contextIdPromise = (async () => {
@@ -485,11 +672,19 @@ const _origLog = console.log.bind(console);
 const _origWarn = console.warn.bind(console);
 const _origError = console.error.bind(console);
 function forwardLog(level, args) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
   try {
     const msg = args.map((a) => typeof a === "string" ? a : JSON.stringify(a)).join(" ");
-    ws.send(JSON.stringify({ type: "log", level, msg, ts: Date.now() }));
+    safeSend(ws, { type: "log", level, msg, ts: Date.now() });
   } catch {
+  }
+}
+function safeSend(socket, payload) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+  try {
+    socket.send(JSON.stringify(payload));
+    return true;
+  } catch {
+    return false;
   }
 }
 console.log = (...args) => {
@@ -504,52 +699,71 @@ console.error = (...args) => {
   _origError(...args);
   forwardLog("error", args);
 };
-async function connect() {
-  if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
+function isDaemonSocketActive(socket = ws) {
+  return socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING;
+}
+function connect() {
+  if (isDaemonSocketActive()) return Promise.resolve();
+  if (connectInFlight) return connectInFlight;
+  connectInFlight = connectAttempt().finally(() => {
+    connectInFlight = null;
+  });
+  return connectInFlight;
+}
+async function connectAttempt() {
+  if (isDaemonSocketActive()) return;
   try {
     const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1e3) });
     if (!res.ok) return;
   } catch {
     return;
   }
+  if (isDaemonSocketActive()) return;
+  let thisWs;
   try {
     const contextId = await getCurrentContextId();
-    ws = new WebSocket(DAEMON_WS_URL);
+    if (isDaemonSocketActive()) return;
+    thisWs = new WebSocket(DAEMON_WS_URL);
+    ws = thisWs;
     currentContextId = contextId;
   } catch {
     scheduleReconnect();
     return;
   }
-  ws.onopen = () => {
+  thisWs.onopen = () => {
+    if (ws !== thisWs) return;
     console.log("[opencli] Connected to daemon");
     reconnectAttempts = 0;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
-    ws?.send(JSON.stringify({
+    safeSend(thisWs, {
       type: "hello",
       contextId: currentContextId,
       version: chrome.runtime.getManifest().version,
       compatRange: ">=1.7.0"
-    }));
+    });
   };
-  ws.onmessage = async (event) => {
+  thisWs.onmessage = async (event) => {
+    if (ws !== thisWs) return;
     try {
       const command = JSON.parse(event.data);
       const result = await handleCommand(command);
-      ws?.send(JSON.stringify(result));
+      if (ws !== thisWs) return;
+      safeSend(thisWs, result);
     } catch (err) {
       console.error("[opencli] Message handling error:", err);
     }
   };
-  ws.onclose = () => {
+  thisWs.onclose = () => {
+    if (ws !== thisWs) return;
     console.log("[opencli] Disconnected from daemon");
     ws = null;
     scheduleReconnect();
   };
-  ws.onerror = () => {
-    ws?.close();
+  thisWs.onerror = () => {
+    thisWs.close();
   };
 }
 const MAX_EAGER_ATTEMPTS = 6;
@@ -564,17 +778,22 @@ function scheduleReconnect() {
   }, delay);
 }
 const automationSessions = /* @__PURE__ */ new Map();
-let ownedContainerWindowId = null;
-let ownedContainerGroupId = null;
 const IDLE_TIMEOUT_DEFAULT = 3e4;
 const IDLE_TIMEOUT_INTERACTIVE = 6e5;
 const IDLE_TIMEOUT_NONE = -1;
-const REGISTRY_KEY = "opencli_target_lease_registry_v1";
+const REGISTRY_KEY = "opencli_target_lease_registry_v2";
 const LEASE_IDLE_ALARM_PREFIX = "opencli:lease-idle:";
-const AUTOMATION_TAB_GROUP_TITLE = "OpenCLI";
+const CONTAINER_TAB_GROUP_TITLE = {
+  interactive: "OpenCLI Browser",
+  automation: "OpenCLI Adapter"
+};
+const LEGACY_AUTOMATION_TAB_GROUP_TITLE = "OpenCLI";
 const AUTOMATION_TAB_GROUP_COLOR = "orange";
 let leaseMutationQueue = Promise.resolve();
-let ownedContainerWindowPromise = null;
+const ownedContainers = {
+  interactive: { windowId: null, groupId: null, promise: null },
+  automation: { windowId: null, groupId: null, promise: null }
+};
 class CommandFailure extends Error {
   constructor(code, message, hint) {
     super(message);
@@ -583,29 +802,65 @@ class CommandFailure extends Error {
     this.name = "CommandFailure";
   }
 }
-const workspaceTimeoutOverrides = /* @__PURE__ */ new Map();
-function getIdleTimeout(workspace) {
-  if (workspace.startsWith("bound:")) return IDLE_TIMEOUT_NONE;
-  const override = workspaceTimeoutOverrides.get(workspace);
-  if (override !== void 0) return override;
-  if (workspace.startsWith("browser:") || workspace.startsWith("operate:")) {
-    return IDLE_TIMEOUT_INTERACTIVE;
+const sessionTimeoutOverrides = /* @__PURE__ */ new Map();
+const sessionWindowModeOverrides = /* @__PURE__ */ new Map();
+const sessionLifecycleOverrides = /* @__PURE__ */ new Map();
+const LEASE_KEY_SEPARATOR = "\0";
+function getLeaseKey(session, surface) {
+  return `${surface}${LEASE_KEY_SEPARATOR}${encodeURIComponent(session)}`;
+}
+function getSessionName(session) {
+  const raw = session?.trim();
+  if (!raw) throw new CommandFailure(
+    "session_required",
+    "Browser session is required.",
+    "Pass a browser session name, e.g. opencli browser <session> <command>."
+  );
+  return raw;
+}
+function getCommandSurface(cmd) {
+  return cmd.surface === "adapter" ? "adapter" : "browser";
+}
+function getSurfaceFromKey(key) {
+  return key.split(LEASE_KEY_SEPARATOR, 1)[0] === "adapter" ? "adapter" : "browser";
+}
+function getSessionFromKey(key) {
+  const idx = key.indexOf(LEASE_KEY_SEPARATOR);
+  if (idx === -1) return key;
+  try {
+    return decodeURIComponent(key.slice(idx + 1));
+  } catch {
+    return key.slice(idx + 1);
   }
-  return IDLE_TIMEOUT_DEFAULT;
 }
-let windowFocused = false;
-function getWorkspaceKey(workspace) {
-  return workspace?.trim() || "default";
+function getIdleTimeout(key) {
+  const session = automationSessions.get(key);
+  if (session?.kind === "bound") return IDLE_TIMEOUT_NONE;
+  const adapterPersistent = getSurfaceFromKey(key) === "adapter" && (session?.lifecycle === "persistent" || sessionLifecycleOverrides.get(key) === "persistent");
+  if (adapterPersistent) return IDLE_TIMEOUT_NONE;
+  const override = sessionTimeoutOverrides.get(key);
+  if (override !== void 0) return override;
+  return getSurfaceFromKey(key) === "browser" ? IDLE_TIMEOUT_INTERACTIVE : IDLE_TIMEOUT_DEFAULT;
 }
-function getLeaseLifecycle(workspace) {
-  if (workspace.startsWith("bound:")) return "pinned";
-  if (workspace.startsWith("browser:") || workspace.startsWith("operate:")) return "persistent";
-  return "ephemeral";
+function getLeaseLifecycle(key, kind) {
+  if (kind === "bound") return "pinned";
+  const override = sessionLifecycleOverrides.get(key);
+  if (override) return override;
+  return getSurfaceFromKey(key) === "browser" ? "persistent" : "ephemeral";
 }
-function makeAlarmName(workspace) {
-  return `${LEASE_IDLE_ALARM_PREFIX}${encodeURIComponent(workspace)}`;
+function getOwnedWindowRole(key) {
+  return getSurfaceFromKey(key) === "browser" ? "interactive" : "automation";
 }
-function workspaceFromAlarmName(name) {
+function getWindowRole(key, ownership) {
+  return ownership === "borrowed" ? "borrowed-user" : getOwnedWindowRole(key);
+}
+function getWindowMode(key) {
+  return sessionWindowModeOverrides.get(key) ?? (getOwnedWindowRole(key) === "interactive" ? "foreground" : "background");
+}
+function makeAlarmName(leaseKey) {
+  return `${LEASE_IDLE_ALARM_PREFIX}${encodeURIComponent(leaseKey)}`;
+}
+function leaseKeyFromAlarmName(name) {
   if (!name.startsWith(LEASE_IDLE_ALARM_PREFIX)) return null;
   try {
     return decodeURIComponent(name.slice(LEASE_IDLE_ALARM_PREFIX.length));
@@ -618,22 +873,30 @@ function withLeaseMutation(fn) {
   leaseMutationQueue = run.then(() => void 0, () => void 0);
   return run;
 }
-function makeSession(workspace, session) {
+function makeSession(key, session) {
   const ownership = session.owned ? "owned" : "borrowed";
   return {
     ...session,
     contextId: currentContextId,
     ownership,
-    lifecycle: getLeaseLifecycle(workspace),
-    surface: ownership === "owned" ? "dedicated-container" : "borrowed-user-tab"
+    lifecycle: getLeaseLifecycle(key, session.kind),
+    windowRole: getWindowRole(key, ownership)
   };
 }
 function emptyRegistry() {
   return {
-    version: 1,
+    version: 2,
     contextId: currentContextId,
-    ownedContainerWindowId,
-    ownedContainerGroupId,
+    ownedContainers: {
+      interactive: {
+        windowId: ownedContainers.interactive.windowId,
+        groupId: ownedContainers.interactive.groupId
+      },
+      automation: {
+        windowId: ownedContainers.automation.windowId,
+        groupId: ownedContainers.automation.groupId
+      }
+    },
     leases: {}
   };
 }
@@ -643,12 +906,21 @@ async function readRegistry() {
     if (!local) return emptyRegistry();
     const raw = await local.get(REGISTRY_KEY);
     const stored = raw[REGISTRY_KEY];
-    if (!stored || stored.version !== 1 || typeof stored.leases !== "object") return emptyRegistry();
+    if (!stored || stored.version !== 2 || typeof stored.leases !== "object") return emptyRegistry();
+    const storedContainers = stored.ownedContainers && typeof stored.ownedContainers === "object" ? stored.ownedContainers : emptyRegistry().ownedContainers;
     return {
-      version: 1,
+      version: 2,
       contextId: currentContextId,
-      ownedContainerWindowId: typeof stored.ownedContainerWindowId === "number" ? stored.ownedContainerWindowId : null,
-      ownedContainerGroupId: typeof stored.ownedContainerGroupId === "number" ? stored.ownedContainerGroupId : null,
+      ownedContainers: {
+        interactive: {
+          windowId: typeof storedContainers.interactive?.windowId === "number" ? storedContainers.interactive.windowId : null,
+          groupId: typeof storedContainers.interactive?.groupId === "number" ? storedContainers.interactive.groupId : null
+        },
+        automation: {
+          windowId: typeof storedContainers.automation?.windowId === "number" ? storedContainers.automation.windowId : null,
+          groupId: typeof storedContainers.automation?.groupId === "number" ? storedContainers.automation.groupId : null
+        }
+      },
       leases: stored.leases
     };
   } catch {
@@ -663,29 +935,40 @@ async function writeRegistry(registry) {
 }
 async function persistRuntimeState() {
   const leases = {};
-  for (const [workspace, session] of automationSessions.entries()) {
-    leases[workspace] = {
+  for (const [leaseKey, session] of automationSessions.entries()) {
+    leases[leaseKey] = {
+      session: session.session,
+      surface: session.surface,
+      kind: session.kind,
       windowId: session.windowId,
       owned: session.owned,
       preferredTabId: session.preferredTabId,
       contextId: session.contextId,
       ownership: session.ownership,
       lifecycle: session.lifecycle,
-      surface: session.surface,
+      windowRole: session.windowRole,
       idleDeadlineAt: session.idleDeadlineAt,
       updatedAt: Date.now()
     };
   }
   await writeRegistry({
-    version: 1,
+    version: 2,
     contextId: currentContextId,
-    ownedContainerWindowId,
-    ownedContainerGroupId,
+    ownedContainers: {
+      interactive: {
+        windowId: ownedContainers.interactive.windowId,
+        groupId: ownedContainers.interactive.groupId
+      },
+      automation: {
+        windowId: ownedContainers.automation.windowId,
+        groupId: ownedContainers.automation.groupId
+      }
+    },
     leases
   });
 }
-function scheduleIdleAlarm(workspace, timeout) {
-  const alarmName = makeAlarmName(workspace);
+function scheduleIdleAlarm(leaseKey, timeout) {
+  const alarmName = makeAlarmName(leaseKey);
   try {
     if (timeout > 0) {
       chrome.alarms?.create?.(alarmName, { when: Date.now() + timeout });
@@ -702,20 +985,22 @@ async function safeDetach(tabId) {
   } catch {
   }
 }
-async function removeWorkspaceSession(workspace) {
-  const existing = automationSessions.get(workspace);
+async function removeLeaseSession(leaseKey) {
+  const existing = automationSessions.get(leaseKey);
   if (existing?.idleTimer) clearTimeout(existing.idleTimer);
-  automationSessions.delete(workspace);
-  workspaceTimeoutOverrides.delete(workspace);
-  scheduleIdleAlarm(workspace, IDLE_TIMEOUT_NONE);
+  automationSessions.delete(leaseKey);
+  sessionTimeoutOverrides.delete(leaseKey);
+  sessionWindowModeOverrides.delete(leaseKey);
+  sessionLifecycleOverrides.delete(leaseKey);
+  scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
   await persistRuntimeState();
 }
-function resetWindowIdleTimer(workspace) {
-  const session = automationSessions.get(workspace);
+function resetWindowIdleTimer(leaseKey) {
+  const session = automationSessions.get(leaseKey);
   if (!session) return;
   if (session.idleTimer) clearTimeout(session.idleTimer);
-  const timeout = getIdleTimeout(workspace);
-  scheduleIdleAlarm(workspace, timeout);
+  const timeout = getIdleTimeout(leaseKey);
+  scheduleIdleAlarm(leaseKey, timeout);
   if (timeout <= 0) {
     session.idleTimer = null;
     session.idleDeadlineAt = 0;
@@ -725,29 +1010,89 @@ function resetWindowIdleTimer(workspace) {
   session.idleDeadlineAt = Date.now() + timeout;
   void persistRuntimeState();
   session.idleTimer = setTimeout(async () => {
-    await releaseWorkspaceLease(workspace, "idle timeout");
+    await releaseLease(leaseKey, "idle timeout");
   }, timeout);
 }
-async function getOwnedContainerGroupId(windowId) {
-  if (ownedContainerGroupId !== null) {
+async function getOwnedContainerGroupId(role, windowId) {
+  const container = ownedContainers[role];
+  if (container.groupId !== null) {
     try {
-      const group = await chrome.tabGroups.get(ownedContainerGroupId);
-      if (group.windowId === windowId) return ownedContainerGroupId;
+      const group = await chrome.tabGroups.get(container.groupId);
+      if (group.windowId === windowId) return container.groupId;
     } catch {
     }
-    ownedContainerGroupId = null;
+    container.groupId = null;
   }
-  const groups = await chrome.tabGroups.query({ windowId, title: AUTOMATION_TAB_GROUP_TITLE });
-  const existing = groups[0];
-  if (!existing) return null;
-  ownedContainerGroupId = existing.id;
-  return existing.id;
+  for (const title of getOwnedContainerGroupTitles(role)) {
+    const groups = await chrome.tabGroups.query({ windowId, title });
+    const existing = groups[0];
+    if (existing) {
+      container.groupId = existing.id;
+      return existing.id;
+    }
+  }
+  return null;
 }
-async function ensureOwnedContainerTabGroup(windowId, tabIds) {
+function getOwnedContainerGroupTitles(role) {
+  return role === "automation" ? [CONTAINER_TAB_GROUP_TITLE.automation, LEGACY_AUTOMATION_TAB_GROUP_TITLE] : [CONTAINER_TAB_GROUP_TITLE.interactive];
+}
+async function focusOwnedWindowIfRequested(windowId, mode) {
+  if (mode !== "foreground") return;
+  const updateWindow = chrome.windows.update;
+  if (typeof updateWindow === "function") await updateWindow(windowId, { focused: true }).catch(() => {
+  });
+}
+async function toOwnedContainerDiscoveryCandidate(group) {
+  try {
+    const chromeWindow = await chrome.windows.get(group.windowId);
+    const reusableTabId = await findReusableOwnedContainerTab(group.windowId);
+    return {
+      windowId: group.windowId,
+      groupId: group.id,
+      focused: !!chromeWindow.focused,
+      hasReusableTab: reusableTabId !== void 0
+    };
+  } catch {
+    return null;
+  }
+}
+function selectOwnedContainerDiscoveryCandidate(candidates) {
+  if (candidates.length === 0) return null;
+  return [...candidates].sort((a, b) => {
+    if (a.focused !== b.focused) return a.focused ? -1 : 1;
+    if (a.hasReusableTab !== b.hasReusableTab) return a.hasReusableTab ? -1 : 1;
+    return a.groupId - b.groupId;
+  })[0];
+}
+async function discoverOwnedContainerFromTabGroup(role) {
+  const container = ownedContainers[role];
+  if (container.groupId !== null) {
+    try {
+      const group = await chrome.tabGroups.get(container.groupId);
+      await chrome.windows.get(group.windowId);
+      container.windowId = group.windowId;
+      return { windowId: group.windowId, groupId: group.id };
+    } catch {
+      container.windowId = null;
+      container.groupId = null;
+    }
+  }
+  for (const title of getOwnedContainerGroupTitles(role)) {
+    const groups = await chrome.tabGroups.query({ title });
+    const candidates = (await Promise.all(groups.map(toOwnedContainerDiscoveryCandidate))).filter((candidate) => candidate !== null);
+    const selected = selectOwnedContainerDiscoveryCandidate(candidates);
+    if (!selected) continue;
+    container.windowId = selected.windowId;
+    container.groupId = selected.groupId;
+    return { windowId: selected.windowId, groupId: selected.groupId };
+  }
+  return null;
+}
+async function ensureOwnedContainerTabGroup(role, windowId, tabIds) {
   const ids = [...new Set(tabIds.filter((id) => id !== void 0))];
   if (ids.length === 0) return;
   try {
-    const existingGroupId = await getOwnedContainerGroupId(windowId);
+    const existingGroupId = await getOwnedContainerGroupId(role, windowId);
     if (existingGroupId !== null) {
       const tabs = await chrome.tabs.query({ windowId });
       const alreadyGrouped = new Set(
@@ -757,48 +1102,63 @@ async function ensureOwnedContainerTabGroup(windowId, tabIds) {
       if (missing.length > 0) await chrome.tabs.group({ groupId: existingGroupId, tabIds: missing });
       return;
     }
-    ownedContainerGroupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
-    await chrome.tabGroups.update(ownedContainerGroupId, {
+    const groupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
+    ownedContainers[role].groupId = groupId;
+    await chrome.tabGroups.update(groupId, {
       color: AUTOMATION_TAB_GROUP_COLOR,
-      title: AUTOMATION_TAB_GROUP_TITLE,
+      title: CONTAINER_TAB_GROUP_TITLE[role],
       collapsed: false
     });
   } catch (err) {
-    console.warn(`[opencli] Failed to mark automation tab group: ${err instanceof Error ? err.message : String(err)}`);
+    console.warn(`[opencli] Failed to mark ${role} tab group: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
-async function ensureOwnedContainerWindow(initialUrl) {
-  if (ownedContainerWindowPromise) return ownedContainerWindowPromise;
-  ownedContainerWindowPromise = ensureOwnedContainerWindowUnlocked(initialUrl).finally(() => {
-    ownedContainerWindowPromise = null;
+async function ensureOwnedContainerWindow(role, initialUrl, mode = "background") {
+  const container = ownedContainers[role];
+  if (container.promise) return container.promise;
+  container.promise = ensureOwnedContainerWindowUnlocked(role, initialUrl, mode).finally(() => {
+    container.promise = null;
   });
-  return ownedContainerWindowPromise;
+  return container.promise;
 }
-async function ensureOwnedContainerWindowUnlocked(initialUrl) {
-  if (ownedContainerWindowId !== null) {
+async function ensureOwnedContainerWindowUnlocked(role, initialUrl, mode = "background") {
+  const container = ownedContainers[role];
+  if (container.windowId !== null) {
     try {
-      await chrome.windows.get(ownedContainerWindowId);
-      const initialTabId2 = await findReusableOwnedContainerTab(ownedContainerWindowId);
-      await ensureOwnedContainerTabGroup(ownedContainerWindowId, [initialTabId2]);
+      await chrome.windows.get(container.windowId);
+      await focusOwnedWindowIfRequested(container.windowId, mode);
+      const initialTabId2 = await findReusableOwnedContainerTab(container.windowId);
+      await ensureOwnedContainerTabGroup(role, container.windowId, [initialTabId2]);
       return {
-        windowId: ownedContainerWindowId,
+        windowId: container.windowId,
         initialTabId: initialTabId2
       };
     } catch {
-      ownedContainerWindowId = null;
-      ownedContainerGroupId = null;
+      container.windowId = null;
+      container.groupId = null;
     }
+  }
+  const discovered = await discoverOwnedContainerFromTabGroup(role);
+  if (discovered) {
+    await focusOwnedWindowIfRequested(discovered.windowId, mode);
+    const initialTabId2 = await findReusableOwnedContainerTab(discovered.windowId);
+    await ensureOwnedContainerTabGroup(role, discovered.windowId, [initialTabId2]);
+    await persistRuntimeState();
+    return {
+      windowId: discovered.windowId,
+      initialTabId: initialTabId2
+    };
   }
   const startUrl = initialUrl && isSafeNavigationUrl(initialUrl) ? initialUrl : BLANK_PAGE;
   const win = await chrome.windows.create({
     url: startUrl,
-    focused: windowFocused,
+    focused: mode === "foreground",
     width: 1280,
     height: 900,
     type: "normal"
   });
-  ownedContainerWindowId = win.id;
-  console.log(`[opencli] Created owned automation container window ${ownedContainerWindowId} (start=${startUrl})`);
+  container.windowId = win.id;
+  console.log(`[opencli] Created owned ${role} window ${container.windowId} (start=${startUrl})`);
   const tabs = await chrome.tabs.query({ windowId: win.id });
   const initialTabId = tabs[0]?.id;
   if (initialTabId) {
@@ -819,9 +1179,9 @@ async function ensureOwnedContainerWindowUnlocked(initialUrl) {
       }
     });
   }
-  await ensureOwnedContainerTabGroup(ownedContainerWindowId, [initialTabId]);
+  await ensureOwnedContainerTabGroup(role, container.windowId, [initialTabId]);
   await persistRuntimeState();
-  return { windowId: ownedContainerWindowId, initialTabId };
+  return { windowId: container.windowId, initialTabId };
 }
 async function findReusableOwnedContainerTab(windowId) {
   try {
@@ -841,12 +1201,13 @@ function initialTabIsAvailable(tabId) {
   }
   return true;
 }
-async function createOwnedTabLease(workspace, initialUrl) {
-  return withLeaseMutation(() => createOwnedTabLeaseUnlocked(workspace, initialUrl));
+async function createOwnedTabLease(leaseKey, initialUrl) {
+  return withLeaseMutation(() => createOwnedTabLeaseUnlocked(leaseKey, initialUrl));
 }
-async function createOwnedTabLeaseUnlocked(workspace, initialUrl) {
+async function createOwnedTabLeaseUnlocked(leaseKey, initialUrl) {
   const targetUrl = initialUrl && isSafeNavigationUrl(initialUrl) ? initialUrl : BLANK_PAGE;
-  const { windowId, initialTabId } = await ensureOwnedContainerWindow(targetUrl);
+  const role = getOwnedWindowRole(leaseKey);
+  const { windowId, initialTabId } = await ensureOwnedContainerWindow(role, targetUrl, getWindowMode(leaseKey));
   let tab;
   if (initialTabIsAvailable(initialTabId)) {
     tab = await chrome.tabs.get(initialTabId);
@@ -859,30 +1220,26 @@ async function createOwnedTabLeaseUnlocked(workspace, initialUrl) {
     tab = await chrome.tabs.create({ windowId, url: targetUrl, active: true });
   }
   if (!tab.id) throw new Error("Failed to create tab lease in automation container");
-  await ensureOwnedContainerTabGroup(windowId, [tab.id]);
-  setWorkspaceSession(workspace, {
+  await ensureOwnedContainerTabGroup(role, windowId, [tab.id]);
+  setLeaseSession(leaseKey, {
+    session: getSessionFromKey(leaseKey),
+    surface: getSurfaceFromKey(leaseKey),
+    kind: "owned",
     windowId,
     owned: true,
     preferredTabId: tab.id
   });
-  resetWindowIdleTimer(workspace);
+  resetWindowIdleTimer(leaseKey);
   return { tabId: tab.id, tab };
 }
-async function getAutomationWindow(workspace, initialUrl) {
-  if (workspace.startsWith("bound:") && !automationSessions.has(workspace)) {
-    throw new CommandFailure(
-      "bound_session_missing",
-      `Bound workspace "${workspace}" is not attached to a tab. Run "opencli browser bind --workspace ${workspace}" first.`,
-      "Run bind again, then retry the browser command."
-    );
-  }
-  const existing = automationSessions.get(workspace);
+async function getAutomationWindow(leaseKey, initialUrl) {
+  const existing = automationSessions.get(leaseKey);
   if (existing) {
     if (!existing.owned) {
       throw new CommandFailure(
         "bound_window_operation_blocked",
-        `Workspace "${workspace}" is bound to a user tab and does not own an automation tab lease.`,
-        "Use commands that operate on the bound tab, or unbind and use an automation workspace."
+        `Session "${existing.session}" is bound to a user tab and does not own an OpenCLI tab lease.`,
+        "Use page commands on the bound tab, or unbind the session first."
       );
     }
     try {
@@ -894,36 +1251,43 @@ async function getAutomationWindow(workspace, initialUrl) {
       await chrome.windows.get(existing.windowId);
       return existing.windowId;
     } catch {
-      await removeWorkspaceSession(workspace);
+      await removeLeaseSession(leaseKey);
     }
   }
-  return (await ensureOwnedContainerWindow(initialUrl)).windowId;
+  const role = getOwnedWindowRole(leaseKey);
+  return (await ensureOwnedContainerWindow(role, initialUrl, getWindowMode(leaseKey))).windowId;
 }
 chrome.windows.onRemoved.addListener(async (windowId) => {
-  if (ownedContainerWindowId === windowId) {
-    ownedContainerWindowId = null;
-    ownedContainerGroupId = null;
+  for (const container of Object.values(ownedContainers)) {
+    if (container.windowId === windowId) {
+      container.windowId = null;
+      container.groupId = null;
+    }
   }
-  for (const [workspace, session] of automationSessions.entries()) {
+  for (const [leaseKey, session] of automationSessions.entries()) {
     if (session.windowId === windowId) {
-      console.log(`[opencli] Automation container closed (${workspace})`);
+      console.log(`[opencli] ${session.surface} container closed (session=${session.session})`);
       if (session.idleTimer) clearTimeout(session.idleTimer);
-      automationSessions.delete(workspace);
-      workspaceTimeoutOverrides.delete(workspace);
-      scheduleIdleAlarm(workspace, IDLE_TIMEOUT_NONE);
+      automationSessions.delete(leaseKey);
+      sessionTimeoutOverrides.delete(leaseKey);
+      sessionWindowModeOverrides.delete(leaseKey);
+      sessionLifecycleOverrides.delete(leaseKey);
+      scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
     }
   }
   await persistRuntimeState();
 });
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   evictTab(tabId);
-  for (const [workspace, session] of automationSessions.entries()) {
+  for (const [leaseKey, session] of automationSessions.entries()) {
     if (session.preferredTabId === tabId) {
       if (session.idleTimer) clearTimeout(session.idleTimer);
-      automationSessions.delete(workspace);
-      workspaceTimeoutOverrides.delete(workspace);
-      scheduleIdleAlarm(workspace, IDLE_TIMEOUT_NONE);
-      console.log(`[opencli] Workspace ${workspace} lease detached from tab ${tabId} (tab closed)`);
+      automationSessions.delete(leaseKey);
+      sessionTimeoutOverrides.delete(leaseKey);
+      sessionWindowModeOverrides.delete(leaseKey);
+      sessionLifecycleOverrides.delete(leaseKey);
+      scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
+      console.log(`[opencli] Session ${session.session} detached from tab ${tabId} (tab closed)`);
     }
   }
   await persistRuntimeState();
@@ -934,7 +1298,11 @@ function initialize() {
   initialized = true;
   chrome.alarms.create("keepalive", { periodInMinutes: 0.4 });
   registerListeners();
-  registerFrameTracking();
+  try {
+    const registerFrameTracking$1 = registerFrameTracking;
+    registerFrameTracking$1?.();
+  } catch {
+  }
   void (async () => {
     await getCurrentContextId();
     await reconcileTargetLeaseRegistry();
@@ -948,10 +1316,11 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onStartup.addListener(() => {
   initialize();
 });
+initialize();
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "keepalive") void connect();
-  const workspace = workspaceFromAlarmName(alarm.name);
-  if (workspace) await releaseWorkspaceLease(workspace, "idle alarm");
+  const leaseKey = leaseKeyFromAlarmName(alarm.name);
+  if (leaseKey) await releaseLease(leaseKey, "idle alarm");
 });
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "getStatus") {
@@ -987,42 +1356,49 @@ async function fetchDaemonVersion() {
   }
 }
 async function handleCommand(cmd) {
-  const workspace = getWorkspaceKey(cmd.workspace);
-  windowFocused = cmd.windowFocused === true;
-  if (cmd.idleTimeout != null && cmd.idleTimeout > 0) {
-    workspaceTimeoutOverrides.set(workspace, cmd.idleTimeout * 1e3);
+  const session = getSessionName(cmd.session);
+  const surface = getCommandSurface(cmd);
+  const leaseKey = getLeaseKey(session, surface);
+  if (cmd.windowMode === "foreground" || cmd.windowMode === "background") {
+    sessionWindowModeOverrides.set(leaseKey, cmd.windowMode);
   }
-  resetWindowIdleTimer(workspace);
+  if (surface === "adapter" && (cmd.siteSession === "persistent" || cmd.siteSession === "ephemeral")) {
+    sessionLifecycleOverrides.set(leaseKey, cmd.siteSession);
+  }
+  if (cmd.idleTimeout != null && cmd.idleTimeout > 0) {
+    sessionTimeoutOverrides.set(leaseKey, cmd.idleTimeout * 1e3);
+  }
+  resetWindowIdleTimer(leaseKey);
   try {
     switch (cmd.action) {
       case "exec":
-        return await handleExec(cmd, workspace);
+        return await handleExec(cmd, leaseKey);
       case "navigate":
-        return await handleNavigate(cmd, workspace);
+        return await handleNavigate(cmd, leaseKey);
       case "tabs":
-        return await handleTabs(cmd, workspace);
+        return await handleTabs(cmd, leaseKey);
       case "cookies":
         return await handleCookies(cmd);
       case "screenshot":
-        return await handleScreenshot(cmd, workspace);
+        return await handleScreenshot(cmd, leaseKey);
       case "close-window":
-        return await handleCloseWindow(cmd, workspace);
+        return await handleCloseWindow(cmd, leaseKey);
       case "cdp":
-        return await handleCdp(cmd, workspace);
-      case "sessions":
-        return await handleSessions(cmd);
+        return await handleCdp(cmd, leaseKey);
       case "set-file-input":
-        return await handleSetFileInput(cmd, workspace);
+        return await handleSetFileInput(cmd, leaseKey);
       case "insert-text":
-        return await handleInsertText(cmd, workspace);
+        return await handleInsertText(cmd, leaseKey);
       case "bind":
-        return await handleBind(cmd, workspace);
+        return await handleBind(cmd, leaseKey);
       case "network-capture-start":
-        return await handleNetworkCaptureStart(cmd, workspace);
+        return await handleNetworkCaptureStart(cmd, leaseKey);
       case "network-capture-read":
-        return await handleNetworkCaptureRead(cmd, workspace);
+        return await handleNetworkCaptureRead(cmd, leaseKey);
+      case "wait-download":
+        return await handleWaitDownload(cmd);
       case "frames":
-        return await handleFrames(cmd, workspace);
+        return await handleFrames(cmd, leaseKey);
       default:
         return { id: cmd.id, ok: false, error: `Unknown action: ${cmd.action}` };
     }
@@ -1060,28 +1436,6 @@ function normalizeUrlForComparison(url) {
 function isTargetUrl(currentUrl, targetUrl) {
   return normalizeUrlForComparison(currentUrl) === normalizeUrlForComparison(targetUrl);
 }
-function matchesDomain(url, domain) {
-  if (!url) return false;
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`);
-  } catch {
-    return false;
-  }
-}
-function matchesBindCriteria(tab, cmd) {
-  if (!tab.id || !isDebuggableUrl(tab.url)) return false;
-  if (cmd.matchDomain && !matchesDomain(tab.url, cmd.matchDomain)) return false;
-  if (cmd.matchPathPrefix) {
-    try {
-      const parsed = new URL(tab.url);
-      if (!parsed.pathname.startsWith(cmd.matchPathPrefix)) return false;
-    } catch {
-      return false;
-    }
-  }
-  return true;
-}
 function getUrlOrigin(url) {
   if (!url) return null;
   try {
@@ -1114,12 +1468,12 @@ function enumerateCrossOriginFrames(tree) {
   collect(tree.frameTree, getUrlOrigin(rootUrl));
   return frames;
 }
-function setWorkspaceSession(workspace, session) {
-  const existing = automationSessions.get(workspace);
+function setLeaseSession(leaseKey, session) {
+  const existing = automationSessions.get(leaseKey);
   if (existing?.idleTimer) clearTimeout(existing.idleTimer);
-  const timeout = getIdleTimeout(workspace);
-  automationSessions.set(workspace, {
-    ...makeSession(workspace, session),
+  const timeout = getIdleTimeout(leaseKey);
+  automationSessions.set(leaseKey, {
+    ...makeSession(leaseKey, session),
     idleTimer: null,
     idleDeadlineAt: timeout <= 0 ? 0 : Date.now() + timeout
   });
@@ -1129,8 +1483,8 @@ async function resolveCommandTabId(cmd) {
   if (cmd.page) return resolveTabId$1(cmd.page);
   return void 0;
 }
-async function resolveTab(tabId, workspace, initialUrl) {
-  const existingSession = automationSessions.get(workspace);
+async function resolveTab(tabId, leaseKey, initialUrl) {
+  const existingSession = automationSessions.get(leaseKey);
   if (tabId !== void 0) {
     try {
       const tab = await chrome.tabs.get(tabId);
@@ -1140,7 +1494,7 @@ async function resolveTab(tabId, workspace, initialUrl) {
       if (session && !session.owned) {
         throw new CommandFailure(
           matchesSession ? "bound_tab_not_debuggable" : "bound_tab_mismatch",
-          matchesSession ? `Bound tab for workspace "${workspace}" is not debuggable (${tab.url ?? "unknown URL"}).` : `Target tab is not the tab bound to workspace "${workspace}".`,
+          matchesSession ? `Bound tab for session "${session.session}" is not debuggable (${tab.url ?? "unknown URL"}).` : `Target tab is not the tab bound to session "${session.session}".`,
           'Run "opencli browser bind" again on a debuggable http(s) tab.'
         );
       }
@@ -1161,10 +1515,10 @@ async function resolveTab(tabId, workspace, initialUrl) {
     } catch (err) {
       if (err instanceof CommandFailure) throw err;
       if (existingSession && !existingSession.owned) {
-        automationSessions.delete(workspace);
+        automationSessions.delete(leaseKey);
         throw new CommandFailure(
           "bound_tab_gone",
-          `Bound tab for workspace "${workspace}" no longer exists.`,
+          `Bound tab for session "${existingSession.session}" no longer exists.`,
           'Run "opencli browser bind" again, then retry the command.'
         );
       }
@@ -1180,30 +1534,27 @@ async function resolveTab(tabId, workspace, initialUrl) {
       if (!session.owned) {
         throw new CommandFailure(
           "bound_tab_not_debuggable",
-          `Bound tab for workspace "${workspace}" is not debuggable (${preferredTab.url ?? "unknown URL"}).`,
+          `Bound tab for session "${session.session}" is not debuggable (${preferredTab.url ?? "unknown URL"}).`,
           'Switch the tab to an http(s) page or run "opencli browser bind" on another tab.'
         );
       }
     } catch (err) {
       if (err instanceof CommandFailure) throw err;
-      await removeWorkspaceSession(workspace);
+      await removeLeaseSession(leaseKey);
       if (!session.owned) {
         throw new CommandFailure(
           "bound_tab_gone",
-          `Bound tab for workspace "${workspace}" no longer exists.`,
+          `Bound tab for session "${session.session}" no longer exists.`,
           'Run "opencli browser bind" again, then retry the command.'
         );
       }
-      return createOwnedTabLease(workspace, initialUrl);
+      return createOwnedTabLease(leaseKey, initialUrl);
     }
   }
-  if (!existingSession && workspace.startsWith("bound:")) {
-    await getAutomationWindow(workspace, initialUrl);
-  }
   if (!existingSession || existingSession.owned && existingSession.preferredTabId === null) {
-    return createOwnedTabLease(workspace, initialUrl);
+    return createOwnedTabLease(leaseKey, initialUrl);
   }
-  const windowId = await getAutomationWindow(workspace, initialUrl);
+  const windowId = await getAutomationWindow(leaseKey, initialUrl);
   const tabs = await chrome.tabs.query({ windowId });
   const debuggableTab = tabs.find((t) => t.id && isDebuggableUrl(t.url));
   if (debuggableTab?.id) return { tabId: debuggableTab.id, tab: debuggableTab };
@@ -1226,38 +1577,38 @@ async function pageScopedResult(id, tabId, data) {
   const page = await resolveTargetId(tabId);
   return { id, ok: true, data, page };
 }
-async function resolveTabId(tabId, workspace, initialUrl) {
-  const resolved = await resolveTab(tabId, workspace, initialUrl);
+async function resolveTabId(tabId, leaseKey, initialUrl) {
+  const resolved = await resolveTab(tabId, leaseKey, initialUrl);
   return resolved.tabId;
 }
-async function listAutomationTabs(workspace) {
-  const session = automationSessions.get(workspace);
+async function listAutomationTabs(leaseKey) {
+  const session = automationSessions.get(leaseKey);
   if (!session) return [];
   if (session.preferredTabId !== null) {
     try {
       return [await chrome.tabs.get(session.preferredTabId)];
     } catch {
-      automationSessions.delete(workspace);
+      automationSessions.delete(leaseKey);
       return [];
     }
   }
   try {
     return await chrome.tabs.query({ windowId: session.windowId });
   } catch {
-    automationSessions.delete(workspace);
+    automationSessions.delete(leaseKey);
     return [];
   }
 }
-async function listAutomationWebTabs(workspace) {
-  const tabs = await listAutomationTabs(workspace);
+async function listAutomationWebTabs(leaseKey) {
+  const tabs = await listAutomationTabs(leaseKey);
   return tabs.filter((tab) => isDebuggableUrl(tab.url));
 }
-async function handleExec(cmd, workspace) {
+async function handleExec(cmd, leaseKey) {
   if (!cmd.code) return { id: cmd.id, ok: false, error: "Missing code" };
   const cmdTabId = await resolveCommandTabId(cmd);
-  const tabId = await resolveTabId(cmdTabId, workspace);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
-    const aggressive = workspace.startsWith("browser:") || workspace.startsWith("operate:");
+    const aggressive = getSurfaceFromKey(leaseKey) === "browser";
     if (cmd.frameIndex != null) {
       const tree = await getFrameTree(tabId);
       const frames = enumerateCrossOriginFrames(tree);
@@ -1273,9 +1624,9 @@ async function handleExec(cmd, workspace) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
-async function handleFrames(cmd, workspace) {
+async function handleFrames(cmd, leaseKey) {
   const cmdTabId = await resolveCommandTabId(cmd);
-  const tabId = await resolveTabId(cmdTabId, workspace);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
     const tree = await getFrameTree(tabId);
     return { id: cmd.id, ok: true, data: enumerateCrossOriginFrames(tree) };
@@ -1283,23 +1634,13 @@ async function handleFrames(cmd, workspace) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
-async function handleNavigate(cmd, workspace) {
+async function handleNavigate(cmd, leaseKey) {
   if (!cmd.url) return { id: cmd.id, ok: false, error: "Missing url" };
   if (!isSafeNavigationUrl(cmd.url)) {
     return { id: cmd.id, ok: false, error: "Blocked URL scheme -- only http:// and https:// are allowed" };
   }
-  const session = automationSessions.get(workspace);
-  if (session && !session.owned && cmd.allowBoundNavigation !== true) {
-    return {
-      id: cmd.id,
-      ok: false,
-      errorCode: "bound_navigation_blocked",
-      error: `Workspace "${workspace}" is bound to a user tab; navigation is blocked by default.`,
-      errorHint: "Pass --allow-navigate-bound only if you intentionally want to navigate the bound tab."
-    };
-  }
   const cmdTabId = await resolveCommandTabId(cmd);
-  const resolved = await resolveTab(cmdTabId, workspace, cmd.url);
+  const resolved = await resolveTab(cmdTabId, leaseKey, cmd.url);
   const tabId = resolved.tabId;
   const beforeTab = resolved.tab ?? await chrome.tabs.get(tabId);
   const beforeNormalized = normalizeUrlForComparison(beforeTab.url);
@@ -1350,16 +1691,7 @@ async function handleNavigate(cmd, workspace) {
     }, 15e3);
   });
   let tab = await chrome.tabs.get(tabId);
-  const postNavigationSession = automationSessions.get(workspace);
-  if (postNavigationSession?.owned === false && tab.windowId !== postNavigationSession.windowId) {
-    return {
-      id: cmd.id,
-      ok: false,
-      errorCode: "bound_tab_moved",
-      error: `Bound tab for workspace "${workspace}" moved to another window during navigation.`,
-      errorHint: 'Run "opencli browser bind" again on the intended tab.'
-    };
-  }
+  const postNavigationSession = automationSessions.get(leaseKey);
   if (postNavigationSession && tab.windowId !== postNavigationSession.windowId) {
     console.warn(`[opencli] Tab ${tabId} drifted to window ${tab.windowId} during navigation, moving back to ${postNavigationSession.windowId}`);
     try {
@@ -1371,20 +1703,20 @@ async function handleNavigate(cmd, workspace) {
   }
   return pageScopedResult(cmd.id, tabId, { title: tab.title, url: tab.url, timedOut });
 }
-async function handleTabs(cmd, workspace) {
-  const session = automationSessions.get(workspace);
+async function handleTabs(cmd, leaseKey) {
+  const session = automationSessions.get(leaseKey);
   if (session && !session.owned && cmd.op !== "list") {
     return {
       id: cmd.id,
       ok: false,
       errorCode: "bound_tab_mutation_blocked",
-      error: `Workspace "${workspace}" is bound to a user tab; tab mutation is blocked by default.`,
-      errorHint: "Use an automation workspace for tab new/select/close, or unbind first."
+      error: `Session "${session.session}" is bound to a user tab; tab new/select/close requires an owned OpenCLI session.`,
+      errorHint: "Unbind the session first, or use a different session for owned OpenCLI tabs."
     };
   }
   switch (cmd.op) {
     case "list": {
-      const tabs = await listAutomationWebTabs(workspace);
+      const tabs = await listAutomationWebTabs(leaseKey);
       const data = await Promise.all(tabs.map(async (t, i) => {
         let page;
         try {
@@ -1399,31 +1731,34 @@ async function handleTabs(cmd, workspace) {
       if (cmd.url && !isSafeNavigationUrl(cmd.url)) {
         return { id: cmd.id, ok: false, error: "Blocked URL scheme -- only http:// and https:// are allowed" };
       }
-      if (!automationSessions.has(workspace)) {
-        const created = await createOwnedTabLease(workspace, cmd.url);
+      if (!automationSessions.has(leaseKey)) {
+        const created = await createOwnedTabLease(leaseKey, cmd.url);
         return pageScopedResult(cmd.id, created.tabId, { url: created.tab?.url });
       }
-      const windowId = await getAutomationWindow(workspace);
+      const windowId = await getAutomationWindow(leaseKey);
       const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
       if (!tab.id) return { id: cmd.id, ok: false, error: "Failed to create tab" };
-      await ensureOwnedContainerTabGroup(windowId, [tab.id]);
-      setWorkspaceSession(workspace, {
+      await ensureOwnedContainerTabGroup(getOwnedWindowRole(leaseKey), windowId, [tab.id]);
+      setLeaseSession(leaseKey, {
+        session: getSessionFromKey(leaseKey),
+        surface: getSurfaceFromKey(leaseKey),
+        kind: "owned",
         windowId: tab.windowId,
         owned: true,
         preferredTabId: tab.id
       });
-      resetWindowIdleTimer(workspace);
+      resetWindowIdleTimer(leaseKey);
       return pageScopedResult(cmd.id, tab.id, { url: tab.url });
     }
     case "close": {
       if (cmd.index !== void 0) {
-        const tabs = await listAutomationWebTabs(workspace);
+        const tabs = await listAutomationWebTabs(leaseKey);
         const target = tabs[cmd.index];
         if (!target?.id) return { id: cmd.id, ok: false, error: `Tab index ${cmd.index} not found` };
         const closedPage2 = await resolveTargetId(target.id).catch(() => void 0);
-        const currentSession2 = automationSessions.get(workspace);
+        const currentSession2 = automationSessions.get(leaseKey);
         if (currentSession2?.preferredTabId === target.id) {
-          await releaseWorkspaceLease(workspace, "tab close");
+          await releaseLease(leaseKey, "tab close");
         } else {
           await safeDetach(target.id);
           await chrome.tabs.remove(target.id);
@@ -1431,11 +1766,11 @@ async function handleTabs(cmd, workspace) {
         return { id: cmd.id, ok: true, data: { closed: closedPage2 } };
       }
       const cmdTabId = await resolveCommandTabId(cmd);
-      const tabId = await resolveTabId(cmdTabId, workspace);
+      const tabId = await resolveTabId(cmdTabId, leaseKey);
       const closedPage = await resolveTargetId(tabId).catch(() => void 0);
-      const currentSession = automationSessions.get(workspace);
+      const currentSession = automationSessions.get(leaseKey);
       if (currentSession?.preferredTabId === tabId) {
-        await releaseWorkspaceLease(workspace, "tab close");
+        await releaseLease(leaseKey, "tab close");
       } else {
         await safeDetach(tabId);
         await chrome.tabs.remove(tabId);
@@ -1447,7 +1782,7 @@ async function handleTabs(cmd, workspace) {
         return { id: cmd.id, ok: false, error: "Missing index or page" };
       const cmdTabId = await resolveCommandTabId(cmd);
       if (cmdTabId !== void 0) {
-        const session2 = automationSessions.get(workspace);
+        const session2 = automationSessions.get(leaseKey);
         let tab;
         try {
           tab = await chrome.tabs.get(cmdTabId);
@@ -1460,7 +1795,7 @@ async function handleTabs(cmd, workspace) {
         await chrome.tabs.update(cmdTabId, { active: true });
         return pageScopedResult(cmd.id, cmdTabId, { selected: true });
       }
-      const tabs = await listAutomationWebTabs(workspace);
+      const tabs = await listAutomationWebTabs(leaseKey);
       const target = tabs[cmd.index];
       if (!target?.id) return { id: cmd.id, ok: false, error: `Tab index ${cmd.index} not found` };
       await chrome.tabs.update(target.id, { active: true });
@@ -1489,9 +1824,9 @@ async function handleCookies(cmd) {
   }));
   return { id: cmd.id, ok: true, data };
 }
-async function handleScreenshot(cmd, workspace) {
+async function handleScreenshot(cmd, leaseKey) {
   const cmdTabId = await resolveCommandTabId(cmd);
-  const tabId = await resolveTabId(cmdTabId, workspace);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
     const data = await screenshot(tabId, {
       format: cmd.format,
@@ -1507,6 +1842,7 @@ async function handleScreenshot(cmd, workspace) {
 }
 const CDP_ALLOWLIST = /* @__PURE__ */ new Set([
   // Agent DOM context
+  "Accessibility.enable",
   "Accessibility.getFullAXTree",
   "DOM.enable",
   "DOM.getDocument",
@@ -1532,36 +1868,45 @@ const CDP_ALLOWLIST = /* @__PURE__ */ new Set([
   "Emulation.setDeviceMetricsOverride",
   "Emulation.clearDeviceMetricsOverride"
 ]);
-async function handleCdp(cmd, workspace) {
+async function handleCdp(cmd, leaseKey) {
   if (!cmd.cdpMethod) return { id: cmd.id, ok: false, error: "Missing cdpMethod" };
   if (!CDP_ALLOWLIST.has(cmd.cdpMethod)) {
     return { id: cmd.id, ok: false, error: `CDP method not permitted: ${cmd.cdpMethod}` };
   }
   const cmdTabId = await resolveCommandTabId(cmd);
-  const tabId = await resolveTabId(cmdTabId, workspace);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
-    const aggressive = workspace.startsWith("browser:") || workspace.startsWith("operate:");
+    const aggressive = getSurfaceFromKey(leaseKey) === "browser";
     await ensureAttached(tabId, aggressive);
-    const data = await chrome.debugger.sendCommand(
+    const params = cmd.cdpParams ?? {};
+    const routeFrameId = typeof params.frameId === "string" && params.sessionId === "target" ? params.frameId : void 0;
+    const routeTargetUrl = typeof params.targetUrl === "string" ? params.targetUrl : void 0;
+    const data = routeFrameId ? await sendCommandInFrameTarget(tabId, routeFrameId, cmd.cdpMethod, stripOpenCliFrameRoutingParams(params, true), aggressive, 3e4, routeTargetUrl) : await chrome.debugger.sendCommand(
       { tabId },
       cmd.cdpMethod,
-      cmd.cdpParams ?? {}
+      stripOpenCliFrameRoutingParams(params, false)
     );
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
-async function handleCloseWindow(cmd, workspace) {
-  await releaseWorkspaceLease(workspace, "explicit close");
-  return { id: cmd.id, ok: true, data: { closed: true, workspace } };
+function stripOpenCliFrameRoutingParams(params, stripFrameId) {
+  const { sessionId, frameId, targetUrl, ...rest } = params;
+  if (!stripFrameId && frameId !== void 0) return { ...rest, frameId };
+  return rest;
 }
-async function handleSetFileInput(cmd, workspace) {
+async function handleCloseWindow(cmd, leaseKey) {
+  const sessionName = automationSessions.get(leaseKey)?.session ?? getSessionFromKey(leaseKey);
+  await releaseLease(leaseKey, "explicit close");
+  return { id: cmd.id, ok: true, data: { closed: true, session: sessionName } };
+}
+async function handleSetFileInput(cmd, leaseKey) {
   if (!cmd.files || !Array.isArray(cmd.files) || cmd.files.length === 0) {
     return { id: cmd.id, ok: false, error: "Missing or empty files array" };
   }
   const cmdTabId = await resolveCommandTabId(cmd);
-  const tabId = await resolveTabId(cmdTabId, workspace);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
     await setFileInputFiles(tabId, cmd.files, cmd.selector);
     return pageScopedResult(cmd.id, tabId, { count: cmd.files.length });
@@ -1569,12 +1914,12 @@ async function handleSetFileInput(cmd, workspace) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
-async function handleInsertText(cmd, workspace) {
+async function handleInsertText(cmd, leaseKey) {
   if (typeof cmd.text !== "string") {
     return { id: cmd.id, ok: false, error: "Missing text payload" };
   }
   const cmdTabId = await resolveCommandTabId(cmd);
-  const tabId = await resolveTabId(cmdTabId, workspace);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
     await insertText(tabId, cmd.text);
     return pageScopedResult(cmd.id, tabId, { inserted: true });
@@ -1582,9 +1927,9 @@ async function handleInsertText(cmd, workspace) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
-async function handleNetworkCaptureStart(cmd, workspace) {
+async function handleNetworkCaptureStart(cmd, leaseKey) {
   const cmdTabId = await resolveCommandTabId(cmd);
-  const tabId = await resolveTabId(cmdTabId, workspace);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
     await startNetworkCapture(tabId, cmd.pattern);
     return pageScopedResult(cmd.id, tabId, { started: true });
@@ -1592,9 +1937,9 @@ async function handleNetworkCaptureStart(cmd, workspace) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
-async function handleNetworkCaptureRead(cmd, workspace) {
+async function handleNetworkCaptureRead(cmd, leaseKey) {
   const cmdTabId = await resolveCommandTabId(cmd);
-  const tabId = await resolveTabId(cmdTabId, workspace);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
     const data = await readNetworkCapture(tabId);
     return pageScopedResult(cmd.id, tabId, data);
@@ -1602,88 +1947,112 @@ async function handleNetworkCaptureRead(cmd, workspace) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
-async function releaseWorkspaceLease(workspace, reason = "released") {
-  const session = automationSessions.get(workspace);
+async function handleWaitDownload(cmd) {
+  try {
+    const data = await waitForDownload(cmd.pattern ?? "", cmd.timeoutMs ?? 3e4);
+    return { id: cmd.id, ok: true, data };
+  } catch (err) {
+    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+async function releaseLease(leaseKey, reason = "released") {
+  const session = automationSessions.get(leaseKey);
   if (!session) {
-    workspaceTimeoutOverrides.delete(workspace);
-    scheduleIdleAlarm(workspace, IDLE_TIMEOUT_NONE);
+    sessionTimeoutOverrides.delete(leaseKey);
+    sessionWindowModeOverrides.delete(leaseKey);
+    sessionLifecycleOverrides.delete(leaseKey);
+    scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
     await persistRuntimeState();
     return;
   }
   if (session.idleTimer) clearTimeout(session.idleTimer);
-  scheduleIdleAlarm(workspace, IDLE_TIMEOUT_NONE);
+  scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
   if (session.owned) {
     const tabId = session.preferredTabId;
     if (tabId !== null) {
       const hasOtherOwnedLease = [...automationSessions.entries()].some(
-        ([otherWorkspace, otherSession]) => otherWorkspace !== workspace && otherSession.owned && otherSession.windowId === session.windowId && otherSession.preferredTabId !== null
+        ([otherLease, otherSession]) => otherLease !== leaseKey && otherSession.owned && otherSession.windowId === session.windowId && otherSession.preferredTabId !== null
       );
       await safeDetach(tabId);
       evictTab(tabId);
       if (hasOtherOwnedLease) {
         await chrome.tabs.remove(tabId).catch(() => {
         });
-        console.log(`[opencli] Released owned tab lease ${tabId} (${workspace}, ${reason})`);
+        console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
       } else {
         try {
           const tab = await chrome.tabs.update(tabId, { url: BLANK_PAGE, active: true });
-          await ensureOwnedContainerTabGroup(session.windowId, [tab.id ?? tabId]);
-          console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (${workspace}, ${reason})`);
+          await ensureOwnedContainerTabGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId]);
+          console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
         } catch {
           await chrome.tabs.remove(tabId).catch(() => {
           });
-          console.log(`[opencli] Released owned tab lease ${tabId} (${workspace}, ${reason})`);
+          console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
         }
       }
     } else {
-      console.log(`[opencli] Released legacy owned window lease ${session.windowId} without closing container (${workspace}, ${reason})`);
+      console.log(`[opencli] Released legacy owned window lease ${session.windowId} without closing container (session=${session.session}, surface=${session.surface}, ${reason})`);
     }
   } else if (session.preferredTabId !== null) {
     await safeDetach(session.preferredTabId);
-    console.log(`[opencli] Detached borrowed tab lease ${session.preferredTabId} (${workspace}, ${reason})`);
+    console.log(`[opencli] Detached borrowed tab lease ${session.preferredTabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
   }
-  automationSessions.delete(workspace);
-  workspaceTimeoutOverrides.delete(workspace);
+  automationSessions.delete(leaseKey);
+  sessionTimeoutOverrides.delete(leaseKey);
+  sessionWindowModeOverrides.delete(leaseKey);
+  sessionLifecycleOverrides.delete(leaseKey);
   await persistRuntimeState();
 }
 async function reconcileTargetLeaseRegistry() {
   const registry = await readRegistry();
-  ownedContainerWindowId = registry.ownedContainerWindowId;
-  ownedContainerGroupId = registry.ownedContainerGroupId ?? null;
-  if (ownedContainerWindowId !== null) {
-    try {
-      await chrome.windows.get(ownedContainerWindowId);
-    } catch {
-      ownedContainerWindowId = null;
-      ownedContainerGroupId = null;
+  for (const role of Object.keys(ownedContainers)) {
+    ownedContainers[role].windowId = registry.ownedContainers[role]?.windowId ?? null;
+    ownedContainers[role].groupId = registry.ownedContainers[role]?.groupId ?? null;
+    const windowId = ownedContainers[role].windowId;
+    if (windowId !== null) {
+      try {
+        await chrome.windows.get(windowId);
+      } catch {
+        ownedContainers[role].windowId = null;
+        ownedContainers[role].groupId = null;
+      }
     }
   }
   automationSessions.clear();
-  for (const [workspace, stored] of Object.entries(registry.leases)) {
+  for (const [leaseKey, stored] of Object.entries(registry.leases)) {
     const tabId = stored.preferredTabId;
     if (tabId === null) continue;
     try {
       const tab = await chrome.tabs.get(tabId);
       if (!isDebuggableUrl(tab.url)) continue;
-      const session = makeSession(workspace, {
+      if (stored.lifecycle === "ephemeral" || stored.lifecycle === "persistent" || stored.lifecycle === "pinned") {
+        sessionLifecycleOverrides.set(leaseKey, stored.lifecycle);
+      }
+      const session = makeSession(leaseKey, {
+        session: typeof stored.session === "string" ? stored.session : getSessionFromKey(leaseKey),
+        surface: stored.surface === "adapter" ? "adapter" : getSurfaceFromKey(leaseKey),
+        kind: stored.kind === "bound" || stored.owned === false ? "bound" : "owned",
         windowId: tab.windowId,
         owned: stored.owned,
         preferredTabId: tabId
       });
-      const timeout = getIdleTimeout(workspace);
-      automationSessions.set(workspace, {
+      const timeout = getIdleTimeout(leaseKey);
+      automationSessions.set(leaseKey, {
         ...session,
         idleTimer: null,
         idleDeadlineAt: stored.idleDeadlineAt
       });
-      if (session.owned && ownedContainerWindowId === null) ownedContainerWindowId = tab.windowId;
-      if (session.owned) await ensureOwnedContainerTabGroup(tab.windowId, [tabId]);
+      if (session.owned) {
+        const role = getOwnedWindowRole(leaseKey);
+        if (ownedContainers[role].windowId === null) ownedContainers[role].windowId = tab.windowId;
+        await ensureOwnedContainerTabGroup(role, tab.windowId, [tabId]);
+      }
       const remaining = stored.idleDeadlineAt > 0 ? stored.idleDeadlineAt - Date.now() : timeout;
       if (timeout > 0) {
         if (remaining <= 0) {
-          await releaseWorkspaceLease(workspace, "reconciled idle expiry");
+          await releaseLease(leaseKey, "reconciled idle expiry");
         } else {
-          resetWindowIdleTimer(workspace);
+          resetWindowIdleTimer(leaseKey);
         }
       }
     } catch {
@@ -1691,68 +2060,41 @@ async function reconcileTargetLeaseRegistry() {
   }
   await persistRuntimeState();
 }
-async function handleSessions(cmd) {
-  const now = Date.now();
-  const data = await Promise.all([...automationSessions.entries()].map(async ([workspace, session]) => ({
-    workspace,
-    windowId: session.windowId,
-    owned: session.owned,
-    preferredTabId: session.preferredTabId,
-    contextId: session.contextId,
-    ownership: session.ownership,
-    lifecycle: session.lifecycle,
-    surface: session.surface,
-    tabCount: session.preferredTabId !== null ? await chrome.tabs.get(session.preferredTabId).then((tab) => isDebuggableUrl(tab.url) ? 1 : 0).catch(() => 0) : (await chrome.tabs.query({ windowId: session.windowId })).filter((tab) => isDebuggableUrl(tab.url)).length,
-    idleMsRemaining: session.idleDeadlineAt <= 0 ? null : Math.max(0, session.idleDeadlineAt - now)
-  })));
-  return { id: cmd.id, ok: true, data };
-}
-async function handleBind(cmd, workspace) {
-  if (!workspace.startsWith("bound:")) {
-    return {
-      id: cmd.id,
-      ok: false,
-      errorCode: "invalid_bind_workspace",
-      error: `bind workspace must start with "bound:", got "${workspace}".`,
-      errorHint: 'Use the default "bound:default" or pass --workspace bound:<name>.'
-    };
-  }
-  const existing = automationSessions.get(workspace);
+async function handleBind(cmd, leaseKey) {
+  const existing = automationSessions.get(leaseKey);
   if (existing?.owned) {
-    return {
-      id: cmd.id,
-      ok: false,
-      errorCode: "invalid_bind_workspace",
-      error: `Workspace "${workspace}" already owns an automation tab lease and cannot be rebound to a user tab.`,
-      errorHint: "Use a fresh bound:<name> workspace, or close/unbind the existing session first."
-    };
+    await releaseLease(leaseKey, "rebind");
   }
   const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   const fallbackTabs = await chrome.tabs.query({ lastFocusedWindow: true });
-  const boundTab = activeTabs.find((tab) => matchesBindCriteria(tab, cmd)) ?? fallbackTabs.find((tab) => matchesBindCriteria(tab, cmd));
+  const boundTab = activeTabs.find((tab) => isDebuggableUrl(tab.url)) ?? fallbackTabs.find((tab) => isDebuggableUrl(tab.url));
   if (!boundTab?.id) {
     return {
       id: cmd.id,
       ok: false,
       errorCode: "bound_tab_not_found",
-      error: cmd.matchDomain || cmd.matchPathPrefix ? `No visible tab in the current window matching ${cmd.matchDomain ?? "domain"}${cmd.matchPathPrefix ? ` ${cmd.matchPathPrefix}` : ""}` : "No debuggable tab found in the current window",
-      errorHint: "Focus the target Chrome tab/window or relax --domain / --path-prefix, then retry bind."
+      error: "No debuggable tab found in the current window",
+      errorHint: "Focus the target Chrome tab/window, then retry bind."
     };
   }
-  if (existing && !existing.owned && existing.preferredTabId !== null && existing.preferredTabId !== boundTab.id) {
-    await detach(existing.preferredTabId).catch(() => {
+  const current = automationSessions.get(leaseKey);
+  if (current && !current.owned && current.preferredTabId !== null && current.preferredTabId !== boundTab.id) {
+    await detach(current.preferredTabId).catch(() => {
     });
   }
-  setWorkspaceSession(workspace, {
+  setLeaseSession(leaseKey, {
+    session: getSessionFromKey(leaseKey),
+    surface: getSurfaceFromKey(leaseKey),
+    kind: "bound",
     windowId: boundTab.windowId,
     owned: false,
     preferredTabId: boundTab.id
   });
-  resetWindowIdleTimer(workspace);
-  console.log(`[opencli] Workspace ${workspace} explicitly bound to tab ${boundTab.id} (${boundTab.url})`);
+  resetWindowIdleTimer(leaseKey);
+  console.log(`[opencli] Session ${getSessionFromKey(leaseKey)} explicitly bound to tab ${boundTab.id} (${boundTab.url})`);
   return pageScopedResult(cmd.id, boundTab.id, {
     url: boundTab.url,
     title: boundTab.title,
-    workspace
+    session: getSessionFromKey(leaseKey)
   });
 }

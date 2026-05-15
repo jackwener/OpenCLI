@@ -1,10 +1,11 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { resolveTwitterQueryId, extractMedia } from './shared.js';
+import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 // ── Twitter GraphQL constants ──────────────────────────────────────────
-const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 const HOME_TIMELINE_QUERY_ID = 'c-CzHF1LboFilMpsx4ZCrQ';
 const HOME_LATEST_TIMELINE_QUERY_ID = 'BKB7oi212Fi7kQtCBGE4zA';
+const MAX_PAGINATION_PAGES = 100;
 // Endpoint config: for-you uses GET HomeTimeline, following uses POST HomeLatestTimeline
 const TIMELINE_ENDPOINTS = {
     'for-you': { endpoint: 'HomeTimeline', method: 'GET', fallbackQueryId: HOME_TIMELINE_QUERY_ID },
@@ -137,7 +138,7 @@ cli({
     site: 'twitter',
     name: 'timeline',
     access: 'read',
-    description: 'Fetch Twitter timeline (for-you or following)',
+    description: 'Fetch the logged-in user\'s home timeline (for-you algorithmic feed by default; pass --type following for the chronological feed of accounts you follow)',
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
@@ -146,29 +147,27 @@ cli({
             name: 'type',
             default: 'for-you',
             choices: ['for-you', 'following'],
-            help: 'Timeline type: for-you (algorithmic) or following (chronological)',
+            help: 'Which home-timeline feed to read. Default for-you (algorithmic). Use following for the chronological feed of accounts you follow.',
         },
-        { name: 'limit', type: 'int', default: 20 },
+        { name: 'limit', type: 'int', default: 20, help: 'Maximum number of tweets to return (default 20).' },
+        { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the timeline by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps X\'s native ordering.' },
     ],
     columns: ['id', 'author', 'text', 'likes', 'retweets', 'replies', 'views', 'created_at', 'url', 'has_media', 'media_urls'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 20;
         const timelineType = kwargs.type === 'following' ? 'following' : 'for-you';
         const { endpoint, method, fallbackQueryId } = TIMELINE_ENDPOINTS[timelineType];
-        // Navigate to x.com for cookie context
-        await page.goto('https://x.com');
-        await page.wait(3);
-        // Extract CSRF token
-        const ct0 = await page.evaluate(`() => {
-      return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('ct0='))?.split('=')[1] || null;
-    }`);
+        // Cookie context auto-established by framework pre-nav (Strategy.COOKIE + domain).
+        // Read CSRF token directly from the cookie store via CDP — zero page.evaluate round-trip.
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
         // Dynamically resolve queryId for the selected endpoint
         const queryId = await resolveTwitterQueryId(page, endpoint, fallbackQueryId);
         // Build auth headers
         const headers = JSON.stringify({
-            Authorization: `Bearer ${decodeURIComponent(BEARER_TOKEN)}`,
+            Authorization: `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
             'X-Twitter-Auth-Type': 'OAuth2Session',
             'X-Twitter-Active-User': 'yes',
@@ -177,7 +176,8 @@ cli({
         const allTweets = [];
         const seen = new Set();
         let cursor = null;
-        for (let i = 0; i < 5 && allTweets.length < limit; i++) {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
             const fetchCount = Math.min(40, limit - allTweets.length + 5); // over-fetch slightly for promoted filtering
             const variables = buildTimelineVariables(timelineType, fetchCount, cursor);
             const apiUrl = buildHomeTimelineUrl(queryId, endpoint, variables);
@@ -196,7 +196,8 @@ cli({
                 break;
             cursor = nextCursor;
         }
-        return allTweets.slice(0, limit);
+        const trimmed = allTweets.slice(0, limit);
+        return applyTopByEngagement(trimmed, kwargs['top-by-engagement']);
     },
 });
 export const __test__ = {

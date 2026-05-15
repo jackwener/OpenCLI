@@ -141,7 +141,6 @@ clis/<app>/utils.ts
 可以参考这些现成文档：
 - `docs/adapters/desktop/codex.md`
 - `docs/adapters/desktop/chatwise.md`
-- `docs/adapters/desktop/notion.md`
 - `docs/adapters/desktop/discord.md`
 
 ## 常见问题

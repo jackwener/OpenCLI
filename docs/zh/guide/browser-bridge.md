@@ -25,26 +25,44 @@ opencli doctor            # 检查扩展 + 守护进程连接
 
 ## 多 Tab 定位
 
-浏览器命令默认运行在共享的 `browser:default` workspace 中；如果需要操作指定 tab，可以显式传目标 target。
+浏览器命令必须紧跟一个 `<session>` 位置参数。同一个多步骤流程使用同一个 session；并行任务使用不同 session 隔离。
 
 ```bash
-opencli browser open https://www.baidu.com/
-opencli browser tab list
-opencli browser tab new https://www.baidu.com/
-opencli browser eval --tab <targetId> 'document.title'
-opencli browser tab select <targetId>
-opencli browser get title
-opencli browser tab close <targetId>
+opencli browser baidu open https://www.baidu.com/
+opencli browser baidu tab list
+opencli browser baidu tab new https://www.baidu.com/
+opencli browser baidu eval --tab <targetId> 'document.title'
+opencli browser baidu tab select <targetId>
+opencli browser baidu get title
+opencli browser baidu tab close <targetId>
 ```
 
 规则如下：
 
-- `opencli browser open <url>` 和 `opencli browser tab new [url]` 都会返回 `targetId`。
-- `opencli browser tab list` 会打印当前已存在 tab 的 `targetId`。
+- `opencli browser <session> open <url>` 和 `opencli browser <session> tab new [url]` 都会返回 `targetId`。
+- `opencli browser <session> tab list` 会打印当前已存在 tab 的 `targetId`。
 - `--tab <targetId>` 会把单条 browser 命令路由到对应 tab。
 - `tab new` 只会新建 tab，不会改变默认浏览器目标。
 - `tab select <targetId>` 会把该 tab 设为后续未显式指定 target 的 `opencli browser ...` 命令默认目标。
 - `tab close <targetId>` 会关闭该 tab；如果它正好是当前默认目标，会一并清掉这条默认绑定。
+
+## Session 生命周期
+
+如果你希望多条 `opencli browser` 命令持续操作同一个页面，请使用稳定的 session 名称：
+
+```bash
+opencli browser my-session open https://example.com
+opencli browser my-session state
+opencli browser my-session extract "main"
+```
+
+OpenCLI 拥有的 browser session 使用交互式 tab lease，默认空闲超时为 10 分钟。完成后可以显式释放：
+
+```bash
+opencli browser my-session close
+```
+
+如果要把 OpenCLI 绑定到你已经手动打开的 Chrome tab，请使用 `opencli browser <session> bind`。绑定 session 没有 owned session 的 idle close 计时器，会一直保持到 `unbind`、tab 关闭、窗口关闭或 daemon 重启。对于 OpenCLI 自己创建的 owned session，使用 `--window foreground` 可以在可见自动化窗口里观察 OpenCLI 操作；使用 `--window background` 可以让这个自动化窗口留在后台。
 
 ## Daemon 生命周期
 

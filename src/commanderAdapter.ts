@@ -14,13 +14,17 @@ import { Command } from 'commander';
 import { log } from './logger.js';
 import yaml from 'js-yaml';
 import { type CliCommand, fullName, getRegistry } from './registry.js';
-import { formatRegistryHelpText } from './serialization.js';
 import { render as renderOutput } from './output.js';
 import { executeCommand, prepareCommandArgs } from './execution.js';
 import {
   commandHelpData,
+  formatCommandHelpText,
+  formatCommandListTerm,
   formatSiteCommandDescription,
+  formatSiteHelpText,
+  getRequestedHelpFormat,
   installStructuredHelp,
+  renderStructuredHelp,
   siteHelpData,
 } from './help.js';
 import {
@@ -57,8 +61,22 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
     .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', 'table')
     .option('--trace <mode>', 'Trace capture: off, on, retain-on-failure', 'off')
     .option('-v, --verbose', 'Debug output', false);
+  if (cmd.browser) {
+    subCmd
+      .option('--window <mode>', 'Browser window mode: foreground or background')
+      .option('--site-session <mode>', 'Adapter site session lifecycle: ephemeral or persistent')
+      .option('--keep-tab <bool>', 'Keep the browser tab lease after the command finishes');
+  }
 
-  installStructuredHelp(subCmd, () => commandHelpData(cmd), () => formatRegistryHelpText(cmd));
+  const originalHelpInformation = subCmd.helpInformation.bind(subCmd);
+  subCmd.helpInformation = ((contextOptions?: unknown) => {
+    const format = getRequestedHelpFormat();
+    if (format) return renderStructuredHelp(commandHelpData(cmd), format);
+    // Keep a fallback reference so future Commander upgrades still initialize
+    // internal help state before we render the cleaner grouped command help.
+    void originalHelpInformation(contextOptions as never);
+    return formatCommandHelpText(cmd);
+  }) as Command['helpInformation'];
 
   subCmd.action(async (...actionArgs: unknown[]) => {
     const actionOpts = actionArgs[positionalArgs.length] ?? {};
@@ -95,17 +113,14 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       let format = typeof optionsRecord.format === 'string' ? optionsRecord.format : 'table';
       const formatExplicit = subCmd.getOptionValueSource('format') === 'cli';
       if (verbose) process.env.OPENCLI_VERBOSE = '1';
-      if (cmd.deprecated) {
-        const message = typeof cmd.deprecated === 'string' ? cmd.deprecated : `${fullName(cmd)} is deprecated.`;
-        const replacement = cmd.replacedBy ? ` Use ${cmd.replacedBy} instead.` : '';
-        log.warn(`Deprecated: ${message}${replacement}`);
-      }
-
       const globals = typeof subCmd.optsWithGlobals === 'function' ? subCmd.optsWithGlobals() as Record<string, unknown> : {};
       const result = await executeCommand(cmd, kwargs, verbose, {
         prepared: true,
         ...(typeof globals.profile === 'string' && globals.profile.trim() ? { profile: globals.profile.trim() } : {}),
         ...(typeof optionsRecord.trace === 'string' && optionsRecord.trace !== 'off' ? { trace: optionsRecord.trace } : {}),
+        ...(cmd.browser && typeof optionsRecord.window === 'string' ? { windowMode: optionsRecord.window } : {}),
+        ...(cmd.browser && typeof optionsRecord.siteSession === 'string' ? { siteSession: optionsRecord.siteSession } : {}),
+        ...(cmd.browser && typeof optionsRecord.keepTab === 'string' ? { keepTab: optionsRecord.keepTab } : {}),
       });
       if (result === null || result === undefined) {
         return;
@@ -198,7 +213,17 @@ export function registerAllCommands(
     for (const cmd of commands) {
       registerCommandToProgram(siteCmd, cmd);
     }
-    installStructuredHelp(siteCmd, () => siteHelpData(site, commands));
+    const commandTerms = new Map(commands.map(cmd => [cmd.name, formatCommandListTerm(cmd)]));
+    siteCmd.configureHelp({
+      subcommandTerm: command => commandTerms.get(command.name()) ?? command.name(),
+    });
+    const originalSiteHelpInformation = siteCmd.helpInformation.bind(siteCmd);
+    siteCmd.helpInformation = ((contextOptions?: unknown) => {
+      const format = getRequestedHelpFormat();
+      if (format) return renderStructuredHelp(siteHelpData(site, commands), format);
+      void originalSiteHelpInformation(contextOptions as never);
+      return formatSiteHelpText(site, commands);
+    }) as Command['helpInformation'];
   }
   return [...commandsBySite.keys()].sort((a, b) => a.localeCompare(b));
 }

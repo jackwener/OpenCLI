@@ -18,6 +18,7 @@ export type Action =
   | 'bind'
   | 'network-capture-start'
   | 'network-capture-read'
+  | 'wait-download'
   | 'cdp'
   | 'frames';
 
@@ -30,8 +31,12 @@ export interface Command {
   page?: string;
   /** JS code to evaluate in page context (exec action) */
   code?: string;
-  /** Logical workspace for automation session reuse */
-  workspace?: string;
+  /** Browser session name for tab/page continuity. */
+  session?: string;
+  /** Runtime surface selecting owned container policy. */
+  surface?: 'browser' | 'adapter';
+  /** Adapter site session lifecycle. Persistent site sessions do not idle-expire. */
+  siteSession?: 'ephemeral' | 'persistent';
   /** URL to navigate to (navigate action) */
   url?: string;
   /** Sub-operation for tabs: list, new, close, select */
@@ -40,10 +45,6 @@ export interface Command {
   index?: number;
   /** Cookie domain filter */
   domain?: string;
-  /** Optional hostname/domain to require for current-tab binding */
-  matchDomain?: string;
-  /** Optional pathname prefix to require for current-tab binding */
-  matchPathPrefix?: string;
   /** Screenshot format: png (default) or jpeg */
   format?: 'png' | 'jpeg';
   /** JPEG quality (0-100), only for jpeg format */
@@ -62,16 +63,16 @@ export interface Command {
   text?: string;
   /** URL substring filter pattern for network capture actions */
   pattern?: string;
+  /** Download wait timeout in milliseconds */
+  timeoutMs?: number;
   /** CDP method name for 'cdp' action (e.g. 'Accessibility.getFullAXTree') */
   cdpMethod?: string;
   /** CDP method params for 'cdp' action */
   cdpParams?: Record<string, unknown>;
-  /** When true, the owned automation container is created in the foreground (focused) */
-  windowFocused?: boolean;
-  /** Custom idle timeout in seconds for this workspace session. Overrides the default. */
+  /** Window foreground/background policy for owned Browser Bridge containers. */
+  windowMode?: 'foreground' | 'background';
+  /** Custom idle timeout in seconds for this session. Overrides the default. */
   idleTimeout?: number;
-  /** Explicitly allow navigation inside a borrowed bound tab. */
-  allowBoundNavigation?: boolean;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */
   frameIndex?: number;
   /** Browser profile/context selected by the CLI. Used by the daemon for routing. */

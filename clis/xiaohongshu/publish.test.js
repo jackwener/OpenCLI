@@ -282,6 +282,48 @@ describe('xiaohongshu publish', () => {
             },
         ]);
     });
+    it('falls back to DataTransfer upload when CDP file injection is blocked by Chrome', async () => {
+        const cmd = getRegistry().get('xiaohongshu/publish');
+        expect(cmd?.func).toBeTypeOf('function');
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-publish-'));
+        const imagePath = path.join(tempDir, 'demo.jpg');
+        fs.writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+        const setFileInput = vi.fn().mockRejectedValue(new Error('Chrome Not allowed'));
+        const page = createPageMock([
+            'https://creator.xiaohongshu.com/publish/publish?from=menu_left&target=image',
+            { ok: true, target: '上传图文', text: '上传图文' },
+            { state: 'editor_ready', hasTitleInput: true, hasImageInput: true, hasVideoSurface: false },
+            'input[type="file"][accept*="image"],input[type="file"][accept*=".jpg"],input[type="file"][accept*=".jpeg"],input[type="file"][accept*=".png"],input[type="file"][accept*=".gif"],input[type="file"][accept*=".webp"]',
+            { ok: true, count: 1 },
+            false,
+            true,
+            { ok: true, sel: 'input[maxlength="20"]', kind: 'input' },
+            { ok: true, actual: 'CDP被拒后回退' },
+            { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable' },
+            { ok: true, actual: 'DataTransfer fallback path' },
+            true,
+            'https://creator.xiaohongshu.com/publish/success',
+            '发布成功',
+        ], {
+            setFileInput,
+        });
+        const result = await cmd.func(page, {
+            title: 'CDP被拒后回退',
+            content: 'DataTransfer fallback path',
+            images: imagePath,
+            topics: '',
+            draft: false,
+        });
+        const evaluateCalls = page.evaluate.mock.calls.map((args) => String(args[0]));
+        expect(setFileInput).toHaveBeenCalledWith([imagePath], expect.stringContaining('input[type="file"][accept*="image"]'));
+        expect(evaluateCalls.some((code) => code.includes('dt.items.add(new File'))).toBe(true);
+        expect(result).toEqual([
+            {
+                status: '✅ 发布成功',
+                detail: '"CDP被拒后回退" · 1张图片 · 发布成功',
+            },
+        ]);
+    });
     it('fails fast when only a generic file input exists on the page', async () => {
         const cmd = getRegistry().get('xiaohongshu/publish');
         expect(cmd?.func).toBeTypeOf('function');
@@ -336,8 +378,11 @@ describe('xiaohongshu publish', () => {
             draft: false,
         });
         const evaluateCalls = page.evaluate.mock.calls.map((args) => String(args[0]));
-        expect(evaluateCalls.some((code) => code.includes("const targets = ['上传图文', '图文', '图片']"))).toBe(true);
+        const tabSelectCode = evaluateCalls.find((code) => code.includes("const targets = ['上传图文', '图文', '图片']"));
+        expect(tabSelectCode).toBeTruthy();
+        expect(tabSelectCode.indexOf('if (text === target)')).toBeLessThan(tabSelectCode.indexOf('text.startsWith(target)'));
         expect(evaluateCalls.some((code) => code.includes("No image file input found on page"))).toBe(true);
+        expect(page.goto).toHaveBeenCalledWith(expect.stringContaining('target=image'));
         expect(result).toEqual([
             {
                 status: '✅ 发布成功',

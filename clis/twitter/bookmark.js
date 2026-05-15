@@ -1,5 +1,7 @@
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { parseTweetUrl, buildTwitterArticleScopeSource } from './shared.js';
+
 cli({
     site: 'twitter',
     name: 'bookmark',
@@ -15,22 +17,28 @@ cli({
     func: async (page, kwargs) => {
         if (!page)
             throw new CommandExecutionError('Browser session required for twitter bookmark');
-        await page.goto(kwargs.url);
+        const target = parseTweetUrl(kwargs.url);
+        await page.goto(target.url);
         await page.wait({ selector: '[data-testid="primaryColumn"]' });
         const result = await page.evaluate(`(async () => {
         try {
+            ${buildTwitterArticleScopeSource(target.id)}
+            // Article-scoped: on conversation pages multiple bookmark/remove
+            // buttons render and a bare querySelector would silently bookmark
+            // a different tweet (e.g. the parent of the requested reply).
             let attempts = 0;
             let bookmarkBtn = null;
             let removeBtn = null;
+            let targetArticle = null;
 
             while (attempts < 20) {
-                // Check if already bookmarked
-                removeBtn = document.querySelector('[data-testid="removeBookmark"]');
+                targetArticle = findTargetArticle();
+                removeBtn = targetArticle?.querySelector('[data-testid="removeBookmark"]') || null;
                 if (removeBtn) {
                     return { ok: true, message: 'Tweet is already bookmarked.' };
                 }
 
-                bookmarkBtn = document.querySelector('[data-testid="bookmark"]');
+                bookmarkBtn = targetArticle?.querySelector('[data-testid="bookmark"]') || null;
                 if (bookmarkBtn) break;
 
                 await new Promise(r => setTimeout(r, 500));
@@ -38,14 +46,15 @@ cli({
             }
 
             if (!bookmarkBtn) {
-                return { ok: false, message: 'Could not find Bookmark button. Are you logged in?' };
+                return { ok: false, message: 'Could not find Bookmark button on the requested tweet. Are you logged in?' };
             }
 
             bookmarkBtn.click();
             await new Promise(r => setTimeout(r, 1000));
 
             // Verify
-            const verify = document.querySelector('[data-testid="removeBookmark"]');
+            const verifyArticle = findTargetArticle() || targetArticle;
+            const verify = verifyArticle?.querySelector('[data-testid="removeBookmark"]');
             if (verify) {
                 return { ok: true, message: 'Tweet successfully bookmarked.' };
             } else {

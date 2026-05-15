@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
 
 cli({
@@ -18,12 +19,17 @@ cli({
         const limit = clampInt(kwargs.limit, 10, 1, 20);
         const query = requireNonEmptyQuery(kwargs.query);
         await page.goto(`https://scholar.google.com/scholar?q=${encodeURIComponent(query)}&hl=zh-CN`);
-        await page.wait(3);
-        const data = await page.evaluate(`
+        try {
+            await page.wait({ selector: '.gs_r.gs_or.gs_scl', timeout: 5 });
+        } catch {
+            await page.wait(3);
+        }
+        const wrapper = await page.evaluate(`
       (() => {
         const normalize = v => (v || '').replace(/\\s+/g, ' ').trim();
         const results = [];
-        for (const el of document.querySelectorAll('.gs_r.gs_or.gs_scl')) {
+        const resultCards = Array.from(document.querySelectorAll('.gs_r.gs_or.gs_scl'));
+        for (const el of resultCards) {
           const container = el.querySelector('.gs_ri') || el;
           const titleEl = container.querySelector('.gs_rt a, h3 a');
           const title = normalize(titleEl?.textContent);
@@ -50,9 +56,18 @@ cli({
           });
           if (results.length >= ${limit}) break;
         }
-        return results;
+        return { items: results, resultCount: resultCards.length };
       })()
     `);
-        return Array.isArray(data) ? data : [];
+        if (!wrapper || typeof wrapper !== 'object' || !Array.isArray(wrapper.items)) {
+            throw new CommandExecutionError('Google Scholar search returned an unexpected payload shape');
+        }
+        if (wrapper.items.length === 0) {
+            if (Number(wrapper.resultCount) > 0) {
+                throw new CommandExecutionError('Google Scholar result cards were present but no rows could be extracted');
+            }
+            throw new EmptyResultError('google-scholar/search', 'Try a different query or check whether Google Scholar returned a CAPTCHA.');
+        }
+        return wrapper.items;
     },
 });

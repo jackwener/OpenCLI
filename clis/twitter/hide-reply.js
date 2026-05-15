@@ -1,5 +1,7 @@
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { parseTweetUrl, buildTwitterArticleScopeSource } from './shared.js';
+
 cli({
     site: 'twitter',
     name: 'hide-reply',
@@ -15,28 +17,45 @@ cli({
     func: async (page, kwargs) => {
         if (!page)
             throw new CommandExecutionError('Browser session required for twitter hide-reply');
-        await page.goto(kwargs.url);
+        const target = parseTweetUrl(kwargs.url);
+        await page.goto(target.url);
         await page.wait({ selector: '[data-testid="primaryColumn"]' });
         const result = await page.evaluate(`(async () => {
         try {
+            ${buildTwitterArticleScopeSource(target.id)}
+            const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
+            // Locate the article matching the requested status id, then find
+            // its More menu. Without article scoping we'd grab whatever the
+            // first "More" button on the page is — usually the parent tweet
+            // (silent: hide the wrong reply, or fail silently if the parent
+            // is not a reply you authored).
             let attempts = 0;
+            let targetArticle = null;
             let moreMenu = null;
 
             while (attempts < 20) {
-                moreMenu = document.querySelector('[aria-label="More"]');
-                if (moreMenu) break;
+                targetArticle = findTargetArticle();
+                if (targetArticle) {
+                    const buttons = Array.from(targetArticle.querySelectorAll('button,[role="button"]'));
+                    moreMenu = buttons.find((el) => visible(el) && (el.getAttribute('aria-label') || '').trim() === 'More');
+                    if (moreMenu) break;
+                }
                 await new Promise(r => setTimeout(r, 500));
                 attempts++;
             }
 
+            if (!targetArticle) {
+                return { ok: false, message: 'Could not find the requested reply article on this page.' };
+            }
             if (!moreMenu) {
-                return { ok: false, message: 'Could not find the "More" menu on this tweet. Are you logged in?' };
+                return { ok: false, message: 'Could not find the "More" menu on the requested reply. Are you logged in?' };
             }
 
             moreMenu.click();
             await new Promise(r => setTimeout(r, 1000));
 
-            // Look for the "Hide reply" menu item
+            // Look for the "Hide reply" menu item. Menu items render at the
+            // document root, not inside the article — scope is the open menu.
             const items = document.querySelectorAll('[role="menuitem"]');
             let hideItem = null;
             for (const item of items) {

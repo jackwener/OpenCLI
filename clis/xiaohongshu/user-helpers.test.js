@@ -20,6 +20,9 @@ describe('buildXhsNoteUrl', () => {
     it('includes xsec token when available', () => {
         expect(buildXhsNoteUrl('user123', 'note456', 'token789')).toBe('https://www.xiaohongshu.com/user/profile/user123/note456?xsec_token=token789&xsec_source=pc_user');
     });
+    it('emits a rednote URL when webHost is overridden', () => {
+        expect(buildXhsNoteUrl('user123', 'note456', 'token789', 'www.rednote.com')).toBe('https://www.rednote.com/user/profile/user123/note456?xsec_token=token789&xsec_source=pc_user');
+    });
 });
 describe('extractXhsUserNotes', () => {
     it('normalizes grouped note cards into CLI rows', () => {
@@ -95,5 +98,22 @@ describe('extractXhsUserNotes', () => {
         }, 'fallback-user');
         expect(rows).toHaveLength(1);
         expect(rows[0]?.title).toBe('keep me');
+    });
+    it('emits rednote-hosted URLs when webHost is overridden', () => {
+        const rows = extractXhsUserNotes({
+            noteGroups: [
+                [
+                    {
+                        xsecToken: 'tok',
+                        noteCard: {
+                            noteId: 'note-red',
+                            displayTitle: 'rednote note',
+                            user: { userId: 'user-red' },
+                        },
+                    },
+                ],
+            ],
+        }, 'fallback-user', 'www.rednote.com');
+        expect(rows[0]?.url).toBe('https://www.rednote.com/user/profile/user-red/note-red?xsec_token=tok&xsec_source=pc_user');
     });
 });

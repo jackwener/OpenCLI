@@ -8,11 +8,13 @@ import {
     requireBoundedInt,
     requireForumId,
     requireNonNegativeInt,
+    requireProfileId,
 } from './utils.js';
 import './search.js';
 import './venue.js';
 import './paper.js';
 import './reviews.js';
+import './author.js';
 
 const SAMPLE_NOTE = {
     id: 'abc123XYZ_',
@@ -37,21 +39,24 @@ afterEach(() => {
 });
 
 describe('openreview adapter', () => {
-    it('registers all four commands with the expected columns', () => {
+    it('registers all five commands with the expected columns', () => {
         const search = getRegistry().get('openreview/search');
         const venue = getRegistry().get('openreview/venue');
         const paper = getRegistry().get('openreview/paper');
         const reviews = getRegistry().get('openreview/reviews');
+        const author = getRegistry().get('openreview/author');
 
         expect(search).toBeDefined();
         expect(venue).toBeDefined();
         expect(paper).toBeDefined();
         expect(reviews).toBeDefined();
+        expect(author).toBeDefined();
 
         expect(search.columns).toEqual(['rank', 'id', 'title', 'authors', 'venue', 'pdate', 'url']);
         expect(venue.columns).toEqual(['rank', 'id', 'title', 'authors', 'keywords', 'primary_area', 'pdate', 'pdf', 'url']);
         expect(paper.columns).toEqual(['id', 'title', 'authors', 'keywords', 'venue', 'venueid', 'primary_area', 'abstract', 'pdate', 'pdf', 'url']);
         expect(reviews.columns).toEqual(['type', 'author', 'rating', 'confidence', 'text']);
+        expect(author.columns).toEqual(['rank', 'id', 'title', 'authors', 'venue', 'pdate', 'url']);
     });
 
     it('noteToRow extracts every wrapped v2 field, joins lists, and builds absolute URLs', () => {
@@ -107,6 +112,30 @@ describe('openreview adapter', () => {
         expect(() => requireForumId('has space')).toThrow('not a valid forum id');
         expect(() => requireForumId('a/b')).toThrow('not a valid forum id');
         expect(() => requireForumId('short')).toThrow('not a valid forum id');
+    });
+
+    it('requireProfileId accepts canonical profile ids and rejects malformed input', () => {
+        expect(requireProfileId('~Yoshua_Bengio1')).toBe('~Yoshua_Bengio1');
+        expect(requireProfileId('~Bo_Liu17')).toBe('~Bo_Liu17');
+        expect(requireProfileId('~Geoffrey_Everest_Hinton1')).toBe('~Geoffrey_Everest_Hinton1');
+        expect(requireProfileId('~Anne-Christin_Hauschild1')).toBe('~Anne-Christin_Hauschild1');
+        expect(requireProfileId('~S.Aruna_Deepthi1')).toBe('~S.Aruna_Deepthi1');
+        expect(requireProfileId('~Andrzej_Czyżewski1')).toBe('~Andrzej_Czyżewski1');
+        expect(requireProfileId('~August_Bøgh_Rønberg1')).toBe('~August_Bøgh_Rønberg1');
+        expect(requireProfileId('~Wagner_Meira_Jr.1')).toBe('~Wagner_Meira_Jr.1');
+        expect(() => requireProfileId('')).toThrow('required');
+        expect(() => requireProfileId('   ')).toThrow('required');
+        // Missing leading tilde.
+        expect(() => requireProfileId('Bo_Liu17')).toThrow('not a valid profile id');
+        // Missing trailing disambiguator number.
+        expect(() => requireProfileId('~Bo_Liu')).toThrow('not a valid profile id');
+        // Spaces / non-letter characters break the underscore-joined name.
+        expect(() => requireProfileId('~Bo Liu1')).toThrow('not a valid profile id');
+        // dblp-style PID must not silently fall through.
+        expect(() => requireProfileId('56/953')).toThrow('not a valid profile id');
+        expect(() => requireProfileId('~Bo_Liu1?evil=1')).toThrow('not a valid profile id');
+        expect(() => requireProfileId('~Bo/Liu1')).toThrow('not a valid profile id');
+        expect(() => requireProfileId('~123')).toThrow('not a valid profile id');
     });
 
     it('formatDate handles ms-since-epoch and rejects invalid input', () => {
@@ -341,5 +370,58 @@ describe('openreview adapter', () => {
         const rows = await reviews.func({ forum: 'abc123XYZ_', 'max-length': 500 });
         expect(rows[1].text.length).toBe(500);
         expect(rows[1].text.endsWith('...')).toBe(true);
+    });
+
+    it('author rejects invalid profile ids before calling the network', async () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        const author = getRegistry().get('openreview/author');
+        await expect(author.func({ profile: 'Bo_Liu17', limit: 5 })).rejects.toMatchObject({ code: 'ARGUMENT' });
+        await expect(author.func({ profile: '', limit: 5 })).rejects.toMatchObject({ code: 'ARGUMENT' });
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('author throws EmptyResult when the profile has no submissions', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ notes: [] }), { status: 200 })));
+        const author = getRegistry().get('openreview/author');
+        await expect(author.func({ profile: '~No_Submissions1', limit: 5 })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
+
+    it('author wraps non-200 responses as CommandExecutionError', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('rate limited', { status: 429 })));
+        const author = getRegistry().get('openreview/author');
+        await expect(author.func({ profile: '~Bo_Liu17', limit: 5 })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+    });
+
+    it('author wraps fetch network errors as CommandExecutionError', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNRESET')));
+        const author = getRegistry().get('openreview/author');
+        await expect(author.func({ profile: '~Bo_Liu17', limit: 5 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('Network failure'),
+        });
+    });
+
+    it('author hits /notes?content.authorids and returns rank-ordered rows', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ notes: [SAMPLE_NOTE, SAMPLE_NOTE] }), { status: 200 }));
+        vi.stubGlobal('fetch', fetchMock);
+        const author = getRegistry().get('openreview/author');
+        const rows = await author.func({ profile: '~Bo_Liu17', limit: 50 });
+        expect(rows).toHaveLength(2);
+        expect(rows[0]).toEqual({
+            rank: 1,
+            id: 'abc123XYZ_',
+            title: 'Test Paper Title with spaces',
+            authors: 'Alice Smith, Bob Jones',
+            venue: 'ICLR 2024 oral',
+            pdate: '2024-09-28',
+            url: 'https://openreview.net/forum?id=abc123XYZ_',
+        });
+        expect(rows[1].rank).toBe(2);
+        // Confirm the request shape: canonical authorids filter + cdate sort.
+        const url = fetchMock.mock.calls[0][0];
+        expect(url).toContain('content.authorids=');
+        expect(url).toContain(encodeURIComponent('~Bo_Liu17'));
+        expect(url).toContain('sort=cdate:desc');
     });
 });

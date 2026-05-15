@@ -35,6 +35,10 @@
 | `opencli twitter download` | |
 | `opencli twitter accept` | |
 | `opencli twitter reply-dm` | |
+| `opencli twitter unlike` | |
+| `opencli twitter retweet` | |
+| `opencli twitter unretweet` | |
+| `opencli twitter quote` | |
 
 ## Usage Examples
 
@@ -51,6 +55,13 @@ opencli twitter search "react 19" --filter live
 # Get following/followers list (supports large limits)
 opencli twitter following @elonmusk --limit 200
 opencli twitter followers @elonmusk --limit 100
+
+# Write actions (require login). Idempotent — calling twice is safe.
+opencli twitter like https://x.com/jack/status/20
+opencli twitter unlike https://x.com/jack/status/20
+opencli twitter retweet https://x.com/jack/status/20
+opencli twitter unretweet https://x.com/jack/status/20
+opencli twitter quote https://x.com/jack/status/20 "great take"
 
 # JSON output
 opencli twitter trending -f json

@@ -2443,7 +2443,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Bilibili 视频 BV ID（如 BV1xx411c7mD），或视频 URL / b23.tv 短链"
       },
       {
         "name": "lang",
@@ -3484,7 +3484,7 @@
   {
     "site": "boss",
     "name": "chatlist",
-    "description": "BOSS直聘查看聊天列表（招聘端）",
+    "description": "BOSS直聘查看聊天列表（招聘端/求职端）",
     "access": "read",
     "domain": "www.zhipin.com",
     "strategy": "cookie",
@@ -3509,12 +3509,26 @@
         "type": "str",
         "default": "0",
         "required": false,
-        "help": "Filter by job ID (0=all)"
+        "help": "Filter by job ID (0=all, boss side only)"
+      },
+      {
+        "name": "side",
+        "type": "str",
+        "default": "auto",
+        "required": false,
+        "help": "Identity side: auto (default), boss (recruiter), or geek (job-seeker)",
+        "choices": [
+          "auto",
+          "boss",
+          "geek"
+        ]
       }
     ],
     "columns": [
       "name",
+      "company",
       "job",
+      "title",
       "last_msg",
       "last_time",
       "uid",
@@ -3528,7 +3542,7 @@
   {
     "site": "boss",
     "name": "chatmsg",
-    "description": "BOSS直聘查看与候选人的聊天消息",
+    "description": "BOSS直聘查看聊天消息历史（招聘端/求职端）",
     "access": "read",
     "domain": "www.zhipin.com",
     "strategy": "cookie",
@@ -3547,6 +3561,18 @@
         "default": 1,
         "required": false,
         "help": "Page number"
+      },
+      {
+        "name": "side",
+        "type": "str",
+        "default": "auto",
+        "required": false,
+        "help": "Identity side: auto (default), boss (recruiter), or geek (job-seeker)",
+        "choices": [
+          "auto",
+          "boss",
+          "geek"
+        ]
       }
     ],
     "columns": [
@@ -4010,6 +4036,47 @@
     "navigateBefore": false
   },
   {
+    "site": "brave",
+    "name": "search",
+    "description": "Search Brave Search",
+    "access": "read",
+    "domain": "search.brave.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search query"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of results per page (max 18)"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Page offset (0, 1, 2...). Brave returns ~18 results per page"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "url",
+      "snippet"
+    ],
+    "type": "js",
+    "modulePath": "brave/search.js",
+    "sourceFile": "brave/search.js"
+  },
+  {
     "site": "chaoxing",
     "name": "assignments",
     "description": "学习通作业列表",
@@ -4124,6 +4191,110 @@
   },
   {
     "site": "chatgpt",
+    "name": "ask",
+    "description": "Send a prompt to ChatGPT web and wait for the response",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds to wait for response"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      }
+    ],
+    "columns": [
+      "response"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/ask.js",
+    "sourceFile": "chatgpt/ask.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "detail",
+    "description": "Open a ChatGPT web conversation by ID and read its messages",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID or full /c/<id> URL"
+      },
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/detail.js",
+    "sourceFile": "chatgpt/detail.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "history",
+    "description": "List visible ChatGPT web conversation history from the sidebar",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max conversations to show"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Id",
+      "Title",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/history.js",
+    "sourceFile": "chatgpt/history.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
     "name": "image",
     "description": "Generate images with ChatGPT web and save them locally",
     "access": "write",
@@ -4137,6 +4308,12 @@
         "required": true,
         "positional": true,
         "help": "Image prompt to send to ChatGPT"
+      },
+      {
+        "name": "image",
+        "type": "str",
+        "required": false,
+        "help": "Local image path to attach before prompting; comma-separated paths are supported"
       },
       {
         "name": "op",
@@ -4164,10 +4341,112 @@
       "file",
       "link"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "chatgpt/image.js",
     "sourceFile": "chatgpt/image.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "new",
+    "description": "Start a new ChatGPT web conversation",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/new.js",
+    "sourceFile": "chatgpt/new.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "read",
+    "description": "Read messages in the current ChatGPT web conversation",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/read.js",
+    "sourceFile": "chatgpt/read.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "send",
+    "description": "Send a prompt to ChatGPT web without waiting for the response",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      }
+    ],
+    "columns": [
+      "Status",
+      "InjectedText"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/send.js",
+    "sourceFile": "chatgpt/send.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "status",
+    "description": "Check ChatGPT web page availability and login state",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Login",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/status.js",
+    "sourceFile": "chatgpt/status.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "chatgpt-app",
@@ -4437,6 +4716,23 @@
   },
   {
     "site": "chatwise",
+    "name": "new",
+    "description": "Start a new ChatWise conversation session",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "chatwise/new.js",
+    "sourceFile": "chatwise/new.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "chatwise",
     "name": "read",
     "description": "Read the current ChatWise conversation history",
     "access": "read",
@@ -4450,6 +4746,31 @@
     "type": "js",
     "modulePath": "chatwise/read.js",
     "sourceFile": "chatwise/read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "chatwise",
+    "name": "screenshot",
+    "description": "Capture a snapshot of the current ChatWise window (DOM + Accessibility tree)",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "output",
+        "type": "str",
+        "required": false,
+        "help": "Output file path (default: /tmp/chatwise-snapshot.txt)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "File"
+    ],
+    "type": "js",
+    "modulePath": "chatwise/screenshot.js",
+    "sourceFile": "chatwise/screenshot.js",
     "navigateBefore": true
   },
   {
@@ -4476,6 +4797,25 @@
     "type": "js",
     "modulePath": "chatwise/send.js",
     "sourceFile": "chatwise/send.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "chatwise",
+    "name": "status",
+    "description": "Check active CDP connection to ChatWise Desktop",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Url",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "chatwise/status.js",
+    "sourceFile": "chatwise/status.js",
     "navigateBefore": true
   },
   {
@@ -4540,7 +4880,8 @@
     "type": "js",
     "modulePath": "claude/ask.js",
     "sourceFile": "claude/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "claude",
@@ -4567,7 +4908,8 @@
     "type": "js",
     "modulePath": "claude/detail.js",
     "sourceFile": "claude/detail.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "claude",
@@ -4595,7 +4937,8 @@
     "type": "js",
     "modulePath": "claude/history.js",
     "sourceFile": "claude/history.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "claude",
@@ -4612,7 +4955,8 @@
     "type": "js",
     "modulePath": "claude/new.js",
     "sourceFile": "claude/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "claude",
@@ -4631,7 +4975,8 @@
     "type": "js",
     "modulePath": "claude/read.js",
     "sourceFile": "claude/read.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "claude",
@@ -4665,7 +5010,8 @@
     "type": "js",
     "modulePath": "claude/send.js",
     "sourceFile": "claude/send.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "claude",
@@ -4684,7 +5030,8 @@
     "type": "js",
     "modulePath": "claude/status.js",
     "sourceFile": "claude/status.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "cnki",
@@ -4780,6 +5127,24 @@
     "type": "js",
     "modulePath": "codex/ask.js",
     "sourceFile": "codex/ask.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "dump",
+    "description": "Dump the DOM and Accessibility tree of codex for reverse-engineering",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "action",
+      "files"
+    ],
+    "type": "js",
+    "modulePath": "codex/dump.js",
+    "sourceFile": "codex/dump.js",
     "navigateBefore": true
   },
   {
@@ -4888,6 +5253,23 @@
   },
   {
     "site": "codex",
+    "name": "new",
+    "description": "Start a new Codex conversation session",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "codex/new.js",
+    "sourceFile": "codex/new.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
     "name": "projects",
     "description": "List Codex projects and visible conversations from the sidebar",
     "access": "read",
@@ -4966,6 +5348,31 @@
   },
   {
     "site": "codex",
+    "name": "screenshot",
+    "description": "Capture a snapshot of the current Codex window (DOM + Accessibility tree)",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "output",
+        "type": "str",
+        "required": false,
+        "help": "Output file path (default: /tmp/codex-snapshot.txt)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "File"
+    ],
+    "type": "js",
+    "modulePath": "codex/screenshot.js",
+    "sourceFile": "codex/screenshot.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
     "name": "send",
     "description": "Send text/commands to the current or selected Codex AI composer",
     "access": "write",
@@ -5014,6 +5421,25 @@
     "type": "js",
     "modulePath": "codex/send.js",
     "sourceFile": "codex/send.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "status",
+    "description": "Check active CDP connection to OpenAI Codex App",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Url",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "codex/status.js",
+    "sourceFile": "codex/status.js",
     "navigateBefore": true
   },
   {
@@ -5485,6 +5911,122 @@
   },
   {
     "site": "ctrip",
+    "name": "flight",
+    "description": "搜索携程一程机票（按出发/到达 IATA 三字码 + 日期）",
+    "access": "read",
+    "domain": "flights.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "from",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Departure IATA code (e.g. BJS / PEK)"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Arrival IATA code (e.g. SHA / PVG)"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Departure date (YYYY-MM-DD)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of flights (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "airline",
+      "flightNo",
+      "aircraft",
+      "departureTime",
+      "departureAirport",
+      "arrivalTime",
+      "arrivalAirport",
+      "terminal",
+      "price",
+      "currency",
+      "cabin",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/flight.js",
+    "sourceFile": "ctrip/flight.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
+    "name": "hotel-search",
+    "description": "搜索携程酒店列表（按城市 + 入住/离店日期）",
+    "access": "read",
+    "domain": "hotels.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Numeric Ctrip city ID (use `ctrip search` or `ctrip hotel-suggest` to discover)"
+      },
+      {
+        "name": "checkin",
+        "type": "str",
+        "required": true,
+        "help": "Check-in date (YYYY-MM-DD)"
+      },
+      {
+        "name": "checkout",
+        "type": "str",
+        "required": true,
+        "help": "Check-out date (YYYY-MM-DD)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of hotels (1-30); SSR first page returns ~13 entries"
+      }
+    ],
+    "columns": [
+      "rank",
+      "hotelId",
+      "name",
+      "enName",
+      "star",
+      "score",
+      "scoreLabel",
+      "reviewCount",
+      "cityName",
+      "district",
+      "address",
+      "lat",
+      "lon",
+      "price",
+      "currency",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/hotel-search.js",
+    "sourceFile": "ctrip/hotel-search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
     "name": "hotel-suggest",
     "description": "搜索携程酒店上下文联想：城市、商圈、单酒店匹配",
     "access": "read",
@@ -5630,6 +6172,24 @@
   },
   {
     "site": "cursor",
+    "name": "dump",
+    "description": "Dump the DOM and Accessibility tree of cursor for reverse-engineering",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "action",
+      "files"
+    ],
+    "type": "js",
+    "modulePath": "cursor/dump.js",
+    "sourceFile": "cursor/dump.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "cursor",
     "name": "export",
     "description": "Export the current cursor conversation to a Markdown file",
     "access": "read",
@@ -5717,6 +6277,23 @@
   },
   {
     "site": "cursor",
+    "name": "new",
+    "description": "Start a new Cursor chat or Composer session",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "cursor/new.js",
+    "sourceFile": "cursor/new.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "cursor",
     "name": "read",
     "description": "Read the current Cursor chat/composer conversation history",
     "access": "read",
@@ -5731,6 +6308,31 @@
     "type": "js",
     "modulePath": "cursor/read.js",
     "sourceFile": "cursor/read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "cursor",
+    "name": "screenshot",
+    "description": "Capture a snapshot of the current cursor window (DOM + Accessibility tree)",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "output",
+        "type": "str",
+        "required": false,
+        "help": "Output file path (default: /tmp/cursor-snapshot.txt)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "File"
+    ],
+    "type": "js",
+    "modulePath": "cursor/screenshot.js",
+    "sourceFile": "cursor/screenshot.js",
     "navigateBefore": true
   },
   {
@@ -5757,6 +6359,25 @@
     "type": "js",
     "modulePath": "cursor/send.js",
     "sourceFile": "cursor/send.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "cursor",
+    "name": "status",
+    "description": "Check active CDP connection to Cursor AI Editor",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Url",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "cursor/status.js",
+    "sourceFile": "cursor/status.js",
     "navigateBefore": true
   },
   {
@@ -5982,7 +6603,8 @@
     "type": "js",
     "modulePath": "deepseek/ask.js",
     "sourceFile": "deepseek/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "deepseek",
@@ -6008,7 +6630,8 @@
     "type": "js",
     "modulePath": "deepseek/detail.js",
     "sourceFile": "deepseek/detail.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "deepseek",
@@ -6035,7 +6658,8 @@
     "type": "js",
     "modulePath": "deepseek/history.js",
     "sourceFile": "deepseek/history.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "deepseek",
@@ -6052,7 +6676,8 @@
     "type": "js",
     "modulePath": "deepseek/new.js",
     "sourceFile": "deepseek/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "deepseek",
@@ -6070,7 +6695,8 @@
     "type": "js",
     "modulePath": "deepseek/read.js",
     "sourceFile": "deepseek/read.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "deepseek",
@@ -6110,7 +6736,8 @@
     "type": "js",
     "modulePath": "deepseek/send.js",
     "sourceFile": "deepseek/send.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "deepseek",
@@ -6129,7 +6756,8 @@
     "type": "js",
     "modulePath": "deepseek/status.js",
     "sourceFile": "deepseek/status.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "defillama",
@@ -6413,7 +7041,7 @@
         "name": "city",
         "type": "str",
         "required": false,
-        "help": "城市名（北京/上海/beijing/...）或 cityId 数字。不传则使用 cookie 默认城市"
+        "help": "城市名（北京/上海/汕头/beijing/shantou/...）或 cityId 数字。未在静态表中的城市会通过 dianping.com 在线解析。不传则使用 cookie 默认城市"
       },
       {
         "name": "limit",
@@ -7219,7 +7847,8 @@
     "type": "js",
     "modulePath": "doubao/ask.js",
     "sourceFile": "doubao/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "doubao",
@@ -7245,7 +7874,8 @@
     "type": "js",
     "modulePath": "doubao/detail.js",
     "sourceFile": "doubao/detail.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "doubao",
@@ -7273,7 +7903,8 @@
     "type": "js",
     "modulePath": "doubao/history.js",
     "sourceFile": "doubao/history.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "doubao",
@@ -7306,7 +7937,8 @@
     "type": "js",
     "modulePath": "doubao/meeting-summary.js",
     "sourceFile": "doubao/meeting-summary.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "doubao",
@@ -7339,7 +7971,8 @@
     "type": "js",
     "modulePath": "doubao/meeting-transcript.js",
     "sourceFile": "doubao/meeting-transcript.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "doubao",
@@ -7357,7 +7990,8 @@
     "type": "js",
     "modulePath": "doubao/new.js",
     "sourceFile": "doubao/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "doubao",
@@ -7375,7 +8009,8 @@
     "type": "js",
     "modulePath": "doubao/read.js",
     "sourceFile": "doubao/read.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "doubao",
@@ -7402,7 +8037,8 @@
     "type": "js",
     "modulePath": "doubao/send.js",
     "sourceFile": "doubao/send.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "doubao",
@@ -7422,7 +8058,8 @@
     "type": "js",
     "modulePath": "doubao/status.js",
     "sourceFile": "doubao/status.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "doubao-app",
@@ -7981,7 +8618,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "抖音作品 ID（aweme_id，可从作品 URL 末尾获取）"
       }
     ],
     "columns": [
@@ -8007,7 +8644,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "抖音作品 ID（aweme_id，可从作品 URL 末尾获取）"
       },
       {
         "name": "reschedule",
@@ -8133,6 +8770,93 @@
     "modulePath": "douyin/videos.js",
     "sourceFile": "douyin/videos.js",
     "navigateBefore": "https://creator.douyin.com"
+  },
+  {
+    "site": "duckduckgo",
+    "name": "search",
+    "description": "Search DuckDuckGo",
+    "access": "read",
+    "domain": "html.duckduckgo.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search query"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of results per page (1-10). For multi-page, use --offset"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Result offset for pagination (0, 10, 20...). Uses XHR POST internally"
+      },
+      {
+        "name": "region",
+        "type": "str",
+        "required": false,
+        "help": "Region code (e.g. jp-jp, us-en, cn-zh). Default: all regions"
+      },
+      {
+        "name": "time",
+        "type": "str",
+        "required": false,
+        "help": "Time range: d (day), w (week), m (month), y (year)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "url",
+      "snippet",
+      "displayUrl",
+      "icon",
+      "resultType"
+    ],
+    "type": "js",
+    "modulePath": "duckduckgo/search.js",
+    "sourceFile": "duckduckgo/search.js"
+  },
+  {
+    "site": "duckduckgo",
+    "name": "suggest",
+    "description": "DuckDuckGo search suggestions",
+    "access": "read",
+    "domain": "duckduckgo.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search query prefix"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 8,
+        "required": false,
+        "help": "Max number of suggestions"
+      }
+    ],
+    "columns": [
+      "phrase"
+    ],
+    "type": "js",
+    "modulePath": "duckduckgo/suggest.js",
+    "sourceFile": "duckduckgo/suggest.js"
   },
   {
     "site": "eastmoney",
@@ -8817,7 +9541,7 @@
     "type": "js",
     "modulePath": "facebook/feed.js",
     "sourceFile": "facebook/feed.js",
-    "navigateBefore": "https://www.facebook.com"
+    "navigateBefore": false
   },
   {
     "site": "facebook",
@@ -8992,7 +9716,7 @@
   {
     "site": "facebook",
     "name": "notifications",
-    "description": "Get recent Facebook notifications",
+    "description": "Get recent Facebook notifications (含 unread / time / url / notif_id / notif_type 列)",
     "access": "read",
     "domain": "www.facebook.com",
     "strategy": "cookie",
@@ -9003,18 +9727,22 @@
         "type": "int",
         "default": 15,
         "required": false,
-        "help": "Number of notifications"
+        "help": "Number of notifications (1-100)"
       }
     ],
     "columns": [
       "index",
+      "unread",
       "text",
-      "time"
+      "time",
+      "url",
+      "notif_id",
+      "notif_type"
     ],
     "type": "js",
     "modulePath": "facebook/notifications.js",
     "sourceFile": "facebook/notifications.js",
-    "navigateBefore": "https://www.facebook.com"
+    "navigateBefore": false
   },
   {
     "site": "facebook",
@@ -9193,10 +9921,12 @@
     "columns": [
       "response"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "gemini/ask.js",
     "sourceFile": "gemini/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "gemini",
@@ -9238,10 +9968,12 @@
       "status",
       "url"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "gemini/deep-research.js",
     "sourceFile": "gemini/deep-research.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "gemini",
@@ -9281,10 +10013,12 @@
     "columns": [
       "response"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "gemini/deep-research-result.js",
     "sourceFile": "gemini/deep-research-result.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "gemini",
@@ -9343,10 +10077,12 @@
       "file",
       "link"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "gemini/image.js",
     "sourceFile": "gemini/image.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "gemini",
@@ -9364,7 +10100,8 @@
     "type": "js",
     "modulePath": "gemini/new.js",
     "sourceFile": "gemini/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "gitee",
@@ -9952,13 +10689,6 @@
         "default": false,
         "required": false,
         "help": "Start a new chat before sending (default: false)"
-      },
-      {
-        "name": "web",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Use the explicit grok.com consumer web flow (default: false)"
       }
     ],
     "columns": [
@@ -9967,7 +10697,228 @@
     "type": "js",
     "modulePath": "grok/ask.js",
     "sourceFile": "grok/ask.js",
-    "navigateBefore": "https://grok.com"
+    "navigateBefore": "https://grok.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "detail",
+    "description": "Open a Grok conversation by ID and read its messages",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Session ID (UUID) or full https://grok.com/c/<id> URL"
+      },
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "grok/detail.js",
+    "sourceFile": "grok/detail.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "history",
+    "description": "List recent Grok conversations from the sidebar (requires login)",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max conversations to show (default 20, max 100)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "grok/history.js",
+    "sourceFile": "grok/history.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "image",
+    "description": "Generate images on grok.com and return image URLs",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Image generation prompt"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 240,
+        "required": false,
+        "help": "Max seconds to wait for the image (default: 240)"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending (default: false)"
+      },
+      {
+        "name": "count",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Minimum images to wait for before returning (default: 1)"
+      },
+      {
+        "name": "out",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Directory to save downloaded images (uses browser session to bypass auth)"
+      }
+    ],
+    "columns": [
+      "url",
+      "width",
+      "height",
+      "path"
+    ],
+    "type": "js",
+    "modulePath": "grok/image.js",
+    "sourceFile": "grok/image.js",
+    "navigateBefore": "https://grok.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "new",
+    "description": "Start a new conversation in Grok",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "grok/new.js",
+    "sourceFile": "grok/new.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "read",
+    "description": "Read messages in the current Grok conversation",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "grok/read.js",
+    "sourceFile": "grok/read.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "send",
+    "description": "Fire-and-forget: send a prompt to Grok without waiting for the reply",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send to Grok"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Prompt"
+    ],
+    "type": "js",
+    "modulePath": "grok/send.js",
+    "sourceFile": "grok/send.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "status",
+    "description": "Check Grok page availability, login state, current session and model",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Login",
+      "Model",
+      "SessionId",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "grok/status.js",
+    "sourceFile": "grok/status.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "hackernews",
@@ -10657,10 +11608,10 @@
   {
     "site": "hupu",
     "name": "hot",
-    "description": "虎扑热门帖子",
+    "description": "虎扑首页热门帖子（含 lights / replies / forum / is_hot 列）",
     "access": "read",
     "domain": "bbs.hupu.com",
-    "strategy": "cookie",
+    "strategy": "public",
     "browser": true,
     "args": [
       {
@@ -10668,19 +11619,22 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of hot posts"
+        "help": "Number of threads (1-100)"
       }
     ],
     "columns": [
       "rank",
       "tid",
       "title",
+      "lights",
+      "replies",
+      "forum",
+      "is_hot",
       "url"
     ],
     "type": "js",
     "modulePath": "hupu/hot.js",
-    "sourceFile": "hupu/hot.js",
-    "navigateBefore": "https://bbs.hupu.com"
+    "sourceFile": "hupu/hot.js"
   },
   {
     "site": "hupu",
@@ -12407,7 +13361,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "即刻搜索关键词"
       },
       {
         "name": "limit",
@@ -13715,6 +14669,7 @@
     "columns": [
       "content"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "linux-do/topic-content.js",
     "sourceFile": "linux-do/topic-content.js",
@@ -14445,6 +15400,7 @@
     "columns": [
       "content"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "mubu/doc.js",
     "sourceFile": "mubu/doc.js",
@@ -14768,7 +15724,7 @@
     "aliases": [
       "select"
     ],
-    "description": "Open one NotebookLM notebook in the automation workspace by id or URL",
+    "description": "Open one NotebookLM notebook in the adapter session by id or URL",
     "access": "read",
     "domain": "notebooklm.google.com",
     "strategy": "cookie",
@@ -14950,181 +15906,6 @@
     "modulePath": "notebooklm/summary.js",
     "sourceFile": "notebooklm/summary.js",
     "navigateBefore": false
-  },
-  {
-    "site": "notion",
-    "name": "export",
-    "description": "Export the current Notion page as Markdown",
-    "access": "read",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "output",
-        "type": "str",
-        "required": false,
-        "help": "Output file (default: /tmp/notion-export.md)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "File"
-    ],
-    "type": "js",
-    "modulePath": "notion/export.js",
-    "sourceFile": "notion/export.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "notion",
-    "name": "favorites",
-    "description": "List pages from the Notion Favorites section in the sidebar",
-    "access": "read",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Index",
-      "Title",
-      "Icon"
-    ],
-    "type": "js",
-    "modulePath": "notion/favorites.js",
-    "sourceFile": "notion/favorites.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "notion",
-    "name": "new",
-    "description": "Create a new page in Notion",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "title",
-        "type": "str",
-        "required": false,
-        "positional": true,
-        "help": "Page title (optional)"
-      }
-    ],
-    "columns": [
-      "Status"
-    ],
-    "type": "js",
-    "modulePath": "notion/new.js",
-    "sourceFile": "notion/new.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "notion",
-    "name": "read",
-    "description": "Read the content of the currently open Notion page",
-    "access": "read",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Title",
-      "Content"
-    ],
-    "type": "js",
-    "modulePath": "notion/read.js",
-    "sourceFile": "notion/read.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "notion",
-    "name": "search",
-    "description": "Search pages and databases in Notion via Quick Find (Cmd+P)",
-    "access": "read",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "query",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Search query"
-      }
-    ],
-    "columns": [
-      "Index",
-      "Title"
-    ],
-    "type": "js",
-    "modulePath": "notion/search.js",
-    "sourceFile": "notion/search.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "notion",
-    "name": "sidebar",
-    "description": "List pages and databases from the Notion sidebar",
-    "access": "read",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Index",
-      "Title"
-    ],
-    "type": "js",
-    "modulePath": "notion/sidebar.js",
-    "sourceFile": "notion/sidebar.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "notion",
-    "name": "status",
-    "description": "Check active CDP connection to Notion Desktop",
-    "access": "read",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Status",
-      "Url",
-      "Title"
-    ],
-    "type": "js",
-    "modulePath": "notion/status.js",
-    "sourceFile": "notion/status.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "notion",
-    "name": "write",
-    "description": "Append text content to the currently open Notion page",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "text",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Text to append to the page"
-      }
-    ],
-    "columns": [
-      "Status"
-    ],
-    "type": "js",
-    "modulePath": "notion/write.js",
-    "sourceFile": "notion/write.js",
-    "navigateBefore": true
   },
   {
     "site": "nowcoder",
@@ -16412,6 +17193,43 @@
     "type": "js",
     "modulePath": "openfda/food-recall.js",
     "sourceFile": "openfda/food-recall.js"
+  },
+  {
+    "site": "openreview",
+    "name": "author",
+    "description": "List OpenReview submissions by an author profile id (newest first)",
+    "access": "read",
+    "domain": "openreview.net",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "profile",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "OpenReview profile id (e.g. \"~Yoshua_Bengio1\"). Find it on the author profile URL on openreview.net."
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max submissions (1-1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "authors",
+      "venue",
+      "pdate",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "openreview/author.js",
+    "sourceFile": "openreview/author.js"
   },
   {
     "site": "openreview",
@@ -17793,6 +18611,7 @@
         "help": "Parent folder fid (use directly)"
       }
     ],
+    "defaultFormat": "json",
     "type": "js",
     "modulePath": "quark/mkdir.js",
     "sourceFile": "quark/mkdir.js",
@@ -17836,6 +18655,7 @@
         "help": "Max seconds for the overall command (default: 120)"
       }
     ],
+    "defaultFormat": "json",
     "type": "js",
     "modulePath": "quark/mv.js",
     "sourceFile": "quark/mv.js",
@@ -17864,6 +18684,7 @@
         "help": "New file name"
       }
     ],
+    "defaultFormat": "json",
     "type": "js",
     "modulePath": "quark/rename.js",
     "sourceFile": "quark/rename.js",
@@ -17886,6 +18707,7 @@
         "help": "File IDs to delete (comma-separated)"
       }
     ],
+    "defaultFormat": "json",
     "type": "js",
     "modulePath": "quark/rm.js",
     "sourceFile": "quark/rm.js",
@@ -17950,6 +18772,7 @@
         "help": "Max seconds for the overall command (default: 120)"
       }
     ],
+    "defaultFormat": "json",
     "type": "js",
     "modulePath": "quark/save.js",
     "sourceFile": "quark/save.js",
@@ -17986,6 +18809,7 @@
         "help": "Max directory depth"
       }
     ],
+    "defaultFormat": "json",
     "type": "js",
     "modulePath": "quark/share-tree.js",
     "sourceFile": "quark/share-tree.js",
@@ -18047,10 +18871,46 @@
       "Role",
       "Text"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "qwen/ask.js",
     "sourceFile": "qwen/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "qwen",
+    "name": "detail",
+    "description": "Open a Qianwen conversation by ID and read its messages",
+    "access": "read",
+    "domain": "www.qianwen.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Session ID (32-char hex) or full https://www.qianwen.com/chat/<id> URL"
+      },
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit assistant replies as markdown"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "qwen/detail.js",
+    "sourceFile": "qwen/detail.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "qwen",
@@ -18078,7 +18938,8 @@
     "type": "js",
     "modulePath": "qwen/history.js",
     "sourceFile": "qwen/history.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "qwen",
@@ -18130,10 +18991,12 @@
       "File",
       "Link"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "qwen/image.js",
     "sourceFile": "qwen/image.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "qwen",
@@ -18150,7 +19013,8 @@
     "type": "js",
     "modulePath": "qwen/new.js",
     "sourceFile": "qwen/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "qwen",
@@ -18176,7 +19040,8 @@
     "type": "js",
     "modulePath": "qwen/read.js",
     "sourceFile": "qwen/read.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "qwen",
@@ -18223,7 +19088,8 @@
     "type": "js",
     "modulePath": "qwen/send.js",
     "sourceFile": "qwen/send.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "qwen",
@@ -18244,7 +19110,8 @@
     "type": "js",
     "modulePath": "qwen/status.js",
     "sourceFile": "qwen/status.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "reddit",
@@ -18307,6 +19174,38 @@
     "type": "js",
     "modulePath": "reddit/frontpage.js",
     "sourceFile": "reddit/frontpage.js",
+    "navigateBefore": "https://reddit.com"
+  },
+  {
+    "site": "reddit",
+    "name": "home",
+    "description": "Reddit personalized home feed (Best, requires login)",
+    "access": "read",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of posts (1–100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "subreddit",
+      "score",
+      "comments",
+      "postId",
+      "author",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "reddit/home.js",
+    "sourceFile": "reddit/home.js",
     "navigateBefore": "https://reddit.com"
   },
   {
@@ -18428,6 +19327,20 @@
         "default": 2000,
         "required": false,
         "help": "Max characters per comment body (min 100)"
+      },
+      {
+        "name": "expand-more",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Follow Reddit \"more comments\" stubs by calling /api/morechildren.json"
+      },
+      {
+        "name": "expand-rounds",
+        "type": "int",
+        "default": 2,
+        "required": false,
+        "help": "Max expansion passes when --expand-more is on (1–5; each round can fan out new \"more\" stubs)"
       }
     ],
     "columns": [
@@ -18439,6 +19352,39 @@
     "type": "js",
     "modulePath": "reddit/read.js",
     "sourceFile": "reddit/read.js",
+    "navigateBefore": "https://reddit.com"
+  },
+  {
+    "site": "reddit",
+    "name": "reply",
+    "description": "Reply to a Reddit comment",
+    "access": "write",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "comment-id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comment ID (e.g. okf3s7u) or fullname (t1_xxx)"
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Reply text"
+      }
+    ],
+    "columns": [
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "reddit/reply.js",
+    "sourceFile": "reddit/reply.js",
     "navigateBefore": "https://reddit.com"
   },
   {
@@ -18517,7 +19463,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Reddit search query"
       },
       {
         "name": "subreddit",
@@ -18575,7 +19521,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Subreddit name (no `r/` prefix; e.g. `python`)"
       },
       {
         "name": "sort",
@@ -18609,6 +19555,32 @@
     "type": "js",
     "modulePath": "reddit/subreddit.js",
     "sourceFile": "reddit/subreddit.js",
+    "navigateBefore": "https://reddit.com"
+  },
+  {
+    "site": "reddit",
+    "name": "subreddit-info",
+    "description": "Show metadata for a Reddit subreddit (subscribers, description, created date, NSFW)",
+    "access": "read",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Subreddit name (no `r/` prefix needed)"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "reddit/subreddit-info.js",
+    "sourceFile": "reddit/subreddit-info.js",
     "navigateBefore": "https://reddit.com"
   },
   {
@@ -18720,7 +19692,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Reddit username (no `u/` prefix needed)"
       }
     ],
     "columns": [
@@ -18746,7 +19718,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Reddit username (no `u/` prefix needed)"
       },
       {
         "name": "limit",
@@ -18781,7 +19753,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Reddit username (no `u/` prefix needed)"
       },
       {
         "name": "limit",
@@ -18802,6 +19774,271 @@
     "modulePath": "reddit/user-posts.js",
     "sourceFile": "reddit/user-posts.js",
     "navigateBefore": "https://reddit.com"
+  },
+  {
+    "site": "reddit",
+    "name": "whoami",
+    "description": "Show the currently logged-in Reddit user",
+    "access": "read",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "reddit/whoami.js",
+    "sourceFile": "reddit/whoami.js",
+    "navigateBefore": "https://reddit.com"
+  },
+  {
+    "site": "rednote",
+    "name": "comments",
+    "description": "Read comments from a rednote note (supports nested replies)",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "note-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full rednote note URL with xsec_token"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of top-level comments (max 50)"
+      },
+      {
+        "name": "with-replies",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Include nested replies (楼中楼)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "author",
+      "text",
+      "likes",
+      "time",
+      "is_reply",
+      "reply_to"
+    ],
+    "type": "js",
+    "modulePath": "rednote/comments.js",
+    "sourceFile": "rednote/comments.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "download",
+    "description": "Download images and videos from a rednote note",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "note-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full rednote note URL with xsec_token"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "./rednote-downloads",
+        "required": false,
+        "help": "Output directory"
+      }
+    ],
+    "columns": [
+      "index",
+      "type",
+      "status",
+      "size"
+    ],
+    "type": "js",
+    "modulePath": "rednote/download.js",
+    "sourceFile": "rednote/download.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "feed",
+    "description": "Rednote home feed (reads hydrated Pinia store)",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of items to return"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "author",
+      "likes",
+      "type",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rednote/feed.js",
+    "sourceFile": "rednote/feed.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "note",
+    "description": "Read note body and engagement counts from a rednote note",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "note-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full rednote note URL with xsec_token"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "rednote/note.js",
+    "sourceFile": "rednote/note.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "notifications",
+    "description": "Rednote notifications (mentions/likes/connections)",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "type",
+        "type": "str",
+        "default": "mentions",
+        "required": false,
+        "help": "Notification type: mentions, likes, or connections"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of notifications to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "user",
+      "action",
+      "content",
+      "note",
+      "time"
+    ],
+    "type": "js",
+    "modulePath": "rednote/notifications.js",
+    "sourceFile": "rednote/notifications.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "search",
+    "description": "Search rednote notes",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "author",
+      "likes",
+      "published_at",
+      "url",
+      "author_url"
+    ],
+    "type": "js",
+    "modulePath": "rednote/search.js",
+    "sourceFile": "rednote/search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "user",
+    "description": "Get public notes from a rednote user profile",
+    "access": "read",
+    "domain": "www.rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "User id or profile URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "Number of notes to return"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "type",
+      "likes",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "rednote/user.js",
+    "sourceFile": "rednote/user.js",
+    "navigateBefore": false
   },
   {
     "site": "rest-countries",
@@ -20605,7 +21842,7 @@
   {
     "site": "tiktok",
     "name": "comment",
-    "description": "Comment on a TikTok video",
+    "description": "Post a comment on a TikTok video",
     "access": "write",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20616,20 +21853,20 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "TikTok video URL"
+        "help": "TikTok video URL (https://www.tiktok.com/@user/video/<id>)"
       },
       {
         "name": "text",
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Comment text"
+        "help": "Comment text (≤150 chars)"
       }
     ],
     "columns": [
-      "status",
       "url",
-      "text"
+      "text",
+      "result"
     ],
     "type": "js",
     "modulePath": "tiktok/comment.js",
@@ -20679,7 +21916,7 @@
   {
     "site": "tiktok",
     "name": "explore",
-    "description": "Get trending TikTok videos from explore page",
+    "description": "Get trending TikTok videos from the recommend feed via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20690,14 +21927,22 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of videos"
+        "help": "Number of videos to return (max 120)"
       }
     ],
     "columns": [
-      "rank",
+      "index",
+      "id",
       "author",
-      "views",
-      "url"
+      "url",
+      "cover",
+      "title",
+      "desc",
+      "plays",
+      "likes",
+      "comments",
+      "shares",
+      "createTime"
     ],
     "type": "js",
     "modulePath": "tiktok/explore.js",
@@ -20707,7 +21952,7 @@
   {
     "site": "tiktok",
     "name": "follow",
-    "description": "Follow a TikTok user",
+    "description": "Follow a TikTok user by username",
     "access": "write",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20722,8 +21967,9 @@
       }
     ],
     "columns": [
-      "status",
-      "username"
+      "username",
+      "url",
+      "result"
     ],
     "type": "js",
     "modulePath": "tiktok/follow.js",
@@ -20733,7 +21979,7 @@
   {
     "site": "tiktok",
     "name": "following",
-    "description": "List accounts you follow on TikTok",
+    "description": "List accounts the logged-in user follows on TikTok via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20744,13 +21990,18 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of accounts"
+        "help": "Number of accounts (max 200)"
       }
     ],
     "columns": [
       "index",
       "username",
-      "name"
+      "name",
+      "secUid",
+      "verified",
+      "followers",
+      "following",
+      "url"
     ],
     "type": "js",
     "modulePath": "tiktok/following.js",
@@ -20760,7 +22011,7 @@
   {
     "site": "tiktok",
     "name": "friends",
-    "description": "Get TikTok friend suggestions",
+    "description": "Get TikTok friend / who-to-follow suggestions via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20771,13 +22022,18 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of suggestions"
+        "help": "Number of suggestions (max 100)"
       }
     ],
     "columns": [
       "index",
       "username",
-      "name"
+      "name",
+      "secUid",
+      "verified",
+      "followers",
+      "following",
+      "url"
     ],
     "type": "js",
     "modulePath": "tiktok/friends.js",
@@ -20814,7 +22070,7 @@
   {
     "site": "tiktok",
     "name": "live",
-    "description": "Browse live streams on TikTok",
+    "description": "Browse TikTok live streams via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20825,13 +22081,17 @@
         "type": "int",
         "default": 10,
         "required": false,
-        "help": "Number of streams"
+        "help": "Number of streams (max 60)"
       }
     ],
     "columns": [
       "index",
       "streamer",
+      "name",
+      "title",
       "viewers",
+      "likes",
+      "secUid",
       "url"
     ],
     "type": "js",
@@ -20842,7 +22102,7 @@
   {
     "site": "tiktok",
     "name": "notifications",
-    "description": "Get TikTok notifications (likes, comments, mentions, followers)",
+    "description": "Read TikTok inbox notifications (likes, comments, mentions, followers) via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20853,7 +22113,7 @@
         "type": "int",
         "default": 15,
         "required": false,
-        "help": "Number of notifications"
+        "help": "Number of notifications (max 100)"
       },
       {
         "name": "type",
@@ -20872,7 +22132,10 @@
     ],
     "columns": [
       "index",
-      "text"
+      "id",
+      "from",
+      "text",
+      "createTime"
     ],
     "type": "js",
     "modulePath": "tiktok/notifications.js",
@@ -20979,7 +22242,7 @@
   {
     "site": "tiktok",
     "name": "unfollow",
-    "description": "Unfollow a TikTok user",
+    "description": "Unfollow a TikTok user by username",
     "access": "write",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -20994,8 +22257,9 @@
       }
     ],
     "columns": [
-      "status",
-      "username"
+      "username",
+      "url",
+      "result"
     ],
     "type": "js",
     "modulePath": "tiktok/unfollow.js",
@@ -21058,7 +22322,7 @@
   {
     "site": "tiktok",
     "name": "user",
-    "description": "Get recent videos from a TikTok user",
+    "description": "Get recent videos from a TikTok user via page-context APIs",
     "access": "read",
     "domain": "www.tiktok.com",
     "strategy": "cookie",
@@ -21074,15 +22338,25 @@
       {
         "name": "limit",
         "type": "int",
-        "default": 10,
+        "default": 20,
         "required": false,
-        "help": "Number of videos"
+        "help": "Number of videos to return (max 120)"
       }
     ],
     "columns": [
       "index",
-      "views",
-      "url"
+      "id",
+      "source",
+      "author",
+      "url",
+      "cover",
+      "title",
+      "desc",
+      "plays",
+      "likes",
+      "comments",
+      "shares",
+      "createTime"
     ],
     "type": "js",
     "modulePath": "tiktok/user.js",
@@ -21361,19 +22635,33 @@
   },
   {
     "site": "twitter",
-    "name": "bookmarks",
-    "description": "Fetch Twitter/X bookmarks",
+    "name": "bookmark-folder",
+    "description": "Read the tweets inside a single Twitter/X bookmark folder. Get the folder id from `opencli twitter bookmark-folders`.",
     "access": "read",
     "domain": "x.com",
     "strategy": "cookie",
     "browser": true,
     "args": [
       {
+        "name": "folder-id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Folder id from `opencli twitter bookmark-folders`."
+      },
+      {
         "name": "limit",
         "type": "int",
         "default": 20,
         "required": false,
-        "help": ""
+        "help": "Maximum number of bookmarks to return (default 20)."
+      },
+      {
+        "name": "top-by-engagement",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "When set to N>0, re-rank the folder by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API's native (saved-time) ordering."
       }
     ],
     "columns": [
@@ -21384,7 +22672,70 @@
       "retweets",
       "bookmarks",
       "created_at",
-      "url"
+      "url",
+      "has_media",
+      "media_urls"
+    ],
+    "type": "js",
+    "modulePath": "twitter/bookmark-folder.js",
+    "sourceFile": "twitter/bookmark-folder.js",
+    "navigateBefore": "https://x.com"
+  },
+  {
+    "site": "twitter",
+    "name": "bookmark-folders",
+    "description": "List your Twitter/X bookmark folders (the user-created collections under Bookmarks). Returns folder id, name, item count, and created_at.",
+    "access": "read",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "id",
+      "name",
+      "items",
+      "created_at"
+    ],
+    "type": "js",
+    "modulePath": "twitter/bookmark-folders.js",
+    "sourceFile": "twitter/bookmark-folders.js",
+    "navigateBefore": "https://x.com"
+  },
+  {
+    "site": "twitter",
+    "name": "bookmarks",
+    "description": "Fetch your Twitter/X bookmarks (the logged-in user's saved tweets, newest first)",
+    "access": "read",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum number of bookmarks to return (default 20)."
+      },
+      {
+        "name": "top-by-engagement",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "When set to N>0, re-rank the bookmarks by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API's native (saved-time) ordering."
+      }
+    ],
+    "columns": [
+      "id",
+      "author",
+      "text",
+      "likes",
+      "retweets",
+      "bookmarks",
+      "created_at",
+      "url",
+      "has_media",
+      "media_urls"
     ],
     "type": "js",
     "modulePath": "twitter/bookmarks.js",
@@ -21420,7 +22771,7 @@
   {
     "site": "twitter",
     "name": "download",
-    "description": "下载 Twitter/X 媒体（图片和视频）",
+    "description": "Download Twitter/X media (images and videos). Provide either <username> to scan a profile's media tab, or --tweet-url to download a single tweet.",
     "access": "read",
     "domain": "x.com",
     "strategy": "cookie",
@@ -21431,27 +22782,27 @@
         "type": "str",
         "required": false,
         "positional": true,
-        "help": "Twitter username (downloads from media tab)"
+        "help": "Twitter username (with or without @) to scan their /media tab. Either <username> or --tweet-url is required."
       },
       {
         "name": "tweet-url",
         "type": "str",
         "required": false,
-        "help": "Single tweet URL to download"
+        "help": "Single tweet URL to download. Use this OR <username>, not both required at once."
       },
       {
         "name": "limit",
         "type": "int",
         "default": 10,
         "required": false,
-        "help": "Number of tweets to scan"
+        "help": "Maximum number of media items to download when scanning a profile (default 10). Ignored when --tweet-url is used."
       },
       {
         "name": "output",
         "type": "str",
         "default": "./twitter-downloads",
         "required": false,
-        "help": "Output directory"
+        "help": "Output directory (default ./twitter-downloads). A per-source subdir is created inside."
       }
     ],
     "columns": [
@@ -21494,7 +22845,7 @@
   {
     "site": "twitter",
     "name": "followers",
-    "description": "Get accounts following a Twitter/X user",
+    "description": "Get accounts following a Twitter/X user (defaults to the logged-in user when no user is given)",
     "access": "read",
     "domain": "x.com",
     "strategy": "ui",
@@ -21505,14 +22856,14 @@
         "type": "string",
         "required": false,
         "positional": true,
-        "help": ""
+        "help": "Twitter/X handle (with or without @). Omit to fetch followers of the currently logged-in account."
       },
       {
         "name": "limit",
         "type": "int",
         "default": 50,
         "required": false,
-        "help": ""
+        "help": "Maximum number of follower rows to return (default 50). Must be a positive integer."
       }
     ],
     "columns": [
@@ -21528,7 +22879,7 @@
   {
     "site": "twitter",
     "name": "following",
-    "description": "Get accounts a Twitter/X user is following",
+    "description": "Get accounts a Twitter/X user is following (defaults to the logged-in user when no user is given)",
     "access": "read",
     "domain": "x.com",
     "strategy": "cookie",
@@ -21539,14 +22890,14 @@
         "type": "string",
         "required": false,
         "positional": true,
-        "help": ""
+        "help": "Twitter/X handle (with or without @). Omit to fetch the accounts the currently logged-in user follows."
       },
       {
         "name": "limit",
         "type": "int",
         "default": 50,
         "required": false,
-        "help": ""
+        "help": "Maximum number of following rows to return (default 50). Must be a positive integer."
       }
     ],
     "columns": [
@@ -21615,7 +22966,7 @@
   {
     "site": "twitter",
     "name": "likes",
-    "description": "Fetch liked tweets of a Twitter user",
+    "description": "Fetch liked tweets of a Twitter user (defaults to the logged-in user when no username is given)",
     "access": "read",
     "domain": "x.com",
     "strategy": "cookie",
@@ -21626,14 +22977,21 @@
         "type": "string",
         "required": false,
         "positional": true,
-        "help": "Twitter screen name (without @). Defaults to logged-in user."
+        "help": "Twitter screen name (with or without @). Defaults to the logged-in user when omitted."
       },
       {
         "name": "limit",
         "type": "int",
         "default": 20,
         "required": false,
-        "help": ""
+        "help": "Maximum number of liked tweets to return (default 20)."
+      },
+      {
+        "name": "top-by-engagement",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "When set to N>0, re-rank the liked tweets by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API's native (recency) ordering."
       }
     ],
     "columns": [
@@ -21667,14 +23025,14 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Numeric ID of the list you own (e.g. from `opencli twitter lists`)"
       },
       {
         "name": "username",
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Twitter/X handle to add (with or without @)"
       }
     ],
     "columns": [
@@ -21703,14 +23061,14 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Numeric ID of the list you own (e.g. from `opencli twitter lists`)"
       },
       {
         "name": "username",
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Twitter/X handle to remove (with or without @)"
       }
     ],
     "columns": [
@@ -21739,7 +23097,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Numeric ID of a Twitter/X list (e.g. from `opencli twitter lists`)"
       },
       {
         "name": "limit",
@@ -21747,6 +23105,13 @@
         "default": 50,
         "required": false,
         "help": ""
+      },
+      {
+        "name": "top-by-engagement",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "When set to N>0, re-rank the list timeline by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the list's native (recency) ordering."
       }
     ],
     "columns": [
@@ -21757,7 +23122,9 @@
       "retweets",
       "replies",
       "created_at",
-      "url"
+      "url",
+      "has_media",
+      "media_urls"
     ],
     "type": "js",
     "modulePath": "twitter/list-tweets.js",
@@ -21778,7 +23145,7 @@
         "type": "int",
         "default": 50,
         "required": false,
-        "help": ""
+        "help": "Maximum number of lists to return (default 50)."
       }
     ],
     "columns": [
@@ -21796,7 +23163,7 @@
   {
     "site": "twitter",
     "name": "notifications",
-    "description": "Get Twitter/X notifications",
+    "description": "Get your Twitter/X notifications (the logged-in user's likes/replies/follows feed, newest first)",
     "access": "read",
     "domain": "x.com",
     "strategy": "intercept",
@@ -21807,7 +23174,7 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": ""
+        "help": "Maximum number of notifications to return (default 20)."
       }
     ],
     "columns": [
@@ -21848,7 +23215,9 @@
     "columns": [
       "status",
       "message",
-      "text"
+      "text",
+      "id",
+      "url"
     ],
     "type": "js",
     "modulePath": "twitter/post.js",
@@ -21858,7 +23227,7 @@
   {
     "site": "twitter",
     "name": "profile",
-    "description": "Fetch a Twitter user profile (bio, stats, etc.)",
+    "description": "Fetch a Twitter user profile — bio, stats, etc. (defaults to the logged-in user when no username is given)",
     "access": "read",
     "domain": "x.com",
     "strategy": "cookie",
@@ -21869,7 +23238,7 @@
         "type": "string",
         "required": false,
         "positional": true,
-        "help": "Twitter screen name (without @). Defaults to logged-in user."
+        "help": "Twitter screen name (with or without @). Defaults to the logged-in user when omitted."
       }
     ],
     "columns": [
@@ -21889,6 +23258,52 @@
     "modulePath": "twitter/profile.js",
     "sourceFile": "twitter/profile.js",
     "navigateBefore": "https://x.com"
+  },
+  {
+    "site": "twitter",
+    "name": "quote",
+    "description": "Quote-tweet a specific tweet with your own text, optionally with a local or remote image",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "The URL of the tweet to quote"
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "The text content of your quote"
+      },
+      {
+        "name": "image",
+        "type": "str",
+        "required": false,
+        "help": "Optional local image path to attach to the quote tweet"
+      },
+      {
+        "name": "image-url",
+        "type": "str",
+        "required": false,
+        "help": "Optional remote image URL to download and attach to the quote tweet"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "twitter/quote.js",
+    "sourceFile": "twitter/quote.js",
+    "navigateBefore": true
   },
   {
     "site": "twitter",
@@ -21929,7 +23344,8 @@
     "columns": [
       "status",
       "message",
-      "text"
+      "text",
+      "url"
     ],
     "type": "js",
     "modulePath": "twitter/reply.js",
@@ -21987,11 +23403,37 @@
   },
   {
     "site": "twitter",
+    "name": "retweet",
+    "description": "Retweet a specific tweet",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "The URL of the tweet to retweet"
+      }
+    ],
+    "columns": [
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/retweet.js",
+    "sourceFile": "twitter/retweet.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
     "name": "search",
-    "description": "Search Twitter/X for tweets",
+    "description": "Search Twitter/X for tweets, with optional --from / --has / --exclude / --product filters mapped to X's search operators",
     "access": "read",
     "domain": "x.com",
-    "strategy": "intercept",
+    "strategy": "cookie",
     "browser": true,
     "args": [
       {
@@ -21999,17 +23441,60 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Search query. Raw X operators (e.g. \"exact phrase\", #tag, OR, lang:en, since:YYYY-MM-DD, from:, since:) are passed through unchanged."
       },
       {
         "name": "filter",
         "type": "string",
         "default": "top",
         "required": false,
-        "help": "",
+        "help": "Legacy alias for --product. Kept for backwards compatibility; if --product is set it wins.",
         "choices": [
           "top",
           "live"
+        ]
+      },
+      {
+        "name": "product",
+        "type": "string",
+        "required": false,
+        "help": "Which X search tab to read: top (default), live (Latest), photos, videos. Maps to the f= URL param.",
+        "choices": [
+          "top",
+          "live",
+          "photos",
+          "videos"
+        ]
+      },
+      {
+        "name": "from",
+        "type": "string",
+        "required": false,
+        "help": "Restrict to tweets authored by <user>. Leading @ is stripped. Equivalent to appending `from:<user>` to the query."
+      },
+      {
+        "name": "has",
+        "type": "string",
+        "required": false,
+        "help": "Restrict to tweets that have media|images|videos|links|replies. Maps to X's `filter:<has>` operator.",
+        "choices": [
+          "media",
+          "images",
+          "videos",
+          "links",
+          "replies"
+        ]
+      },
+      {
+        "name": "exclude",
+        "type": "string",
+        "required": false,
+        "help": "Exclude tweets matching <type>: replies|retweets|media|links. Maps to X's `-filter:<x>` operator (retweets → -filter:nativeretweets).",
+        "choices": [
+          "replies",
+          "retweets",
+          "media",
+          "links"
         ]
       },
       {
@@ -22017,7 +23502,14 @@
         "type": "int",
         "default": 15,
         "required": false,
-        "help": ""
+        "help": "Maximum number of tweets to return (default 15). Result count after server-side filtering."
+      },
+      {
+        "name": "top-by-engagement",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "When set to N>0, re-rank the results by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps X's native ordering."
       }
     ],
     "columns": [
@@ -22034,7 +23526,7 @@
     "type": "js",
     "modulePath": "twitter/search.js",
     "sourceFile": "twitter/search.js",
-    "navigateBefore": true
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -22050,7 +23542,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": ""
+        "help": "Tweet numeric ID (e.g. 1234567890) or full status URL"
       },
       {
         "name": "limit",
@@ -22058,6 +23550,13 @@
         "default": 50,
         "required": false,
         "help": ""
+      },
+      {
+        "name": "top-by-engagement",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "When set to N>0, re-rank the thread by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the conversation's structural ordering."
       }
     ],
     "columns": [
@@ -22078,7 +23577,7 @@
   {
     "site": "twitter",
     "name": "timeline",
-    "description": "Fetch Twitter timeline (for-you or following)",
+    "description": "Fetch the logged-in user's home timeline (for-you algorithmic feed by default; pass --type following for the chronological feed of accounts you follow)",
     "access": "read",
     "domain": "x.com",
     "strategy": "cookie",
@@ -22089,7 +23588,7 @@
         "type": "str",
         "default": "for-you",
         "required": false,
-        "help": "Timeline type: for-you (algorithmic) or following (chronological)",
+        "help": "Which home-timeline feed to read. Default for-you (algorithmic). Use following for the chronological feed of accounts you follow.",
         "choices": [
           "for-you",
           "following"
@@ -22100,7 +23599,14 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": ""
+        "help": "Maximum number of tweets to return (default 20)."
+      },
+      {
+        "name": "top-by-engagement",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "When set to N>0, re-rank the timeline by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps X's native ordering."
       }
     ],
     "columns": [
@@ -22151,7 +23657,7 @@
   {
     "site": "twitter",
     "name": "tweets",
-    "description": "Fetch a Twitter user's most recent tweets (chronological, excludes pinned)",
+    "description": "Fetch a Twitter user's most recent tweets (chronological, excludes pinned; defaults to the logged-in user when no username is given)",
     "access": "read",
     "domain": "x.com",
     "strategy": "cookie",
@@ -22160,9 +23666,9 @@
       {
         "name": "username",
         "type": "string",
-        "required": true,
+        "required": false,
         "positional": true,
-        "help": "Twitter screen name (with or without @)"
+        "help": "Twitter screen name (with or without @). Defaults to the logged-in user when omitted."
       },
       {
         "name": "limit",
@@ -22170,6 +23676,13 @@
         "default": 20,
         "required": false,
         "help": "Max tweets to return"
+      },
+      {
+        "name": "top-by-engagement",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "When set to N>0, re-rank the tweets by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the chronological ordering."
       }
     ],
     "columns": [
@@ -22267,6 +23780,58 @@
     "type": "js",
     "modulePath": "twitter/unfollow.js",
     "sourceFile": "twitter/unfollow.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
+    "name": "unlike",
+    "description": "Remove a like from a specific tweet",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "The URL of the tweet to unlike"
+      }
+    ],
+    "columns": [
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/unlike.js",
+    "sourceFile": "twitter/unlike.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
+    "name": "unretweet",
+    "description": "Undo a retweet on a specific tweet",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "The URL of the tweet to unretweet"
+      }
+    ],
+    "columns": [
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/unretweet.js",
+    "sourceFile": "twitter/unretweet.js",
     "navigateBefore": true
   },
   {
@@ -23411,6 +24976,7 @@
         "help": "Output structured rows (chapter/idx/level/text) for programmatic use"
       }
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "weread/ai-outline.js",
     "sourceFile": "weread/ai-outline.js",
@@ -24223,6 +25789,7 @@
     ],
     "columns": [
       "title",
+      "content",
       "content_length",
       "image_count"
     ],
@@ -25329,6 +26896,47 @@
     "modulePath": "xueqiu/watchlist.js",
     "sourceFile": "xueqiu/watchlist.js",
     "navigateBefore": "https://xueqiu.com"
+  },
+  {
+    "site": "yahoo",
+    "name": "search",
+    "description": "Search Yahoo (powered by Bing)",
+    "access": "read",
+    "domain": "search.yahoo.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search query"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 7,
+        "required": false,
+        "help": "Number of results per page (max 7)"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Page number (1, 2, 3...). Yahoo returns ~7 results per page"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "url",
+      "snippet"
+    ],
+    "type": "js",
+    "modulePath": "yahoo/search.js",
+    "sourceFile": "yahoo/search.js"
   },
   {
     "site": "yahoo-finance",
@@ -26463,10 +28071,69 @@
       "Role",
       "Text"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "yuanbao/ask.js",
     "sourceFile": "yuanbao/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "yuanbao",
+    "name": "detail",
+    "description": "Open a Yuanbao conversation by ID and read its messages",
+    "access": "read",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full https://yuanbao.tencent.com/chat/<agentId>/<convId> URL or \"<agentId>/<convId>\" pair (a UUID alone is not enough — Yuanbao requires the agent slug)"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/detail.js",
+    "sourceFile": "yuanbao/detail.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "yuanbao",
+    "name": "history",
+    "description": "List recent Yuanbao conversations from the sidebar (requires login)",
+    "access": "read",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max conversations to list (sidebar virtual scroll caps actual count)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "AgentId",
+      "SessionId",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/history.js",
+    "sourceFile": "yuanbao/history.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "yuanbao",
@@ -26484,7 +28151,85 @@
     "type": "js",
     "modulePath": "yuanbao/new.js",
     "sourceFile": "yuanbao/new.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "yuanbao",
+    "name": "read",
+    "description": "Read messages in the current Yuanbao conversation",
+    "access": "read",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/read.js",
+    "sourceFile": "yuanbao/read.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "yuanbao",
+    "name": "send",
+    "description": "Fire-and-forget: send a prompt to Yuanbao without waiting for the reply",
+    "access": "write",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send to Yuanbao"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Prompt"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/send.js",
+    "sourceFile": "yuanbao/send.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "yuanbao",
+    "name": "status",
+    "description": "Check Yuanbao page availability, login state, current session and model",
+    "access": "read",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Login",
+      "Model",
+      "ModelId",
+      "AgentId",
+      "SessionId",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/status.js",
+    "sourceFile": "yuanbao/status.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "zhihu",
@@ -26535,6 +28280,47 @@
     "type": "js",
     "modulePath": "zhihu/answer.js",
     "sourceFile": "zhihu/answer.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "answer-detail",
+    "description": "知乎单个回答完整内容（按 answer ID 获取）",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Answer ID, full Zhihu answer URL, or typed target (answer:<qid>:<aid>)"
+      },
+      {
+        "name": "max-content",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Optional cap on stripped content length in characters (0 = no truncation, return the full answer)"
+      }
+    ],
+    "columns": [
+      "id",
+      "author",
+      "votes",
+      "comments",
+      "question_id",
+      "question_title",
+      "url",
+      "created_at",
+      "updated_at",
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/answer-detail.js",
+    "sourceFile": "zhihu/answer-detail.js",
     "navigateBefore": "https://www.zhihu.com"
   },
   {
@@ -26871,7 +28657,18 @@
         "type": "int",
         "default": 5,
         "required": false,
-        "help": "Number of answers"
+        "help": "Number of answers (max 1000; use normal-sized requests)"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "default",
+        "required": false,
+        "help": "Answer order: default or created",
+        "choices": [
+          "default",
+          "created"
+        ]
       }
     ],
     "columns": [
@@ -26883,6 +28680,36 @@
     "type": "js",
     "modulePath": "zhihu/question.js",
     "sourceFile": "zhihu/question.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "recommend",
+    "description": "知乎首页推荐",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of items to return (max 1000; use normal-sized requests)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "type",
+      "title",
+      "author",
+      "votes",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/recommend.js",
+    "sourceFile": "zhihu/recommend.js",
     "navigateBefore": "https://www.zhihu.com"
   },
   {

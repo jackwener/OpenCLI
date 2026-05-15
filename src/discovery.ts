@@ -130,11 +130,11 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
         browser: entry.browser,
         args: entry.args ?? [],
         columns: entry.columns,
+        defaultFormat: entry.defaultFormat,
         pipeline: entry.pipeline,
         source: entry.sourceFile ? path.resolve(clisDir, entry.sourceFile) : modulePath,
-        deprecated: entry.deprecated,
-        replacedBy: entry.replacedBy,
         navigateBefore: entry.navigateBefore,
+        siteSession: entry.siteSession,
         _lazy: true,
         _modulePath: modulePath,
       };

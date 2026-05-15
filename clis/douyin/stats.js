@@ -8,7 +8,7 @@ cli({
     domain: 'creator.douyin.com',
     strategy: Strategy.COOKIE,
     args: [
-        { name: 'aweme_id', required: true, positional: true },
+        { name: 'aweme_id', required: true, positional: true, help: '抖音作品 ID（aweme_id，可从作品 URL 末尾获取）' },
     ],
     columns: ['metric', 'value'],
     func: async (page, kwargs) => {

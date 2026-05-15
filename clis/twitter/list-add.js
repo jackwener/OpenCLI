@@ -1,11 +1,14 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { resolveTwitterQueryId } from './shared.js';
 import { parseListsManagement } from './lists.js';
+import { TWITTER_BEARER_TOKEN } from './utils.js';
 
-const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
 const LISTS_MANAGEMENT_QUERY_ID = '78UbkyXwXBD98IgUWXOy9g';
+// 2026-05 fallback — X rotates queryIds; resolveTwitterQueryId() does live lookup,
+// this constant is just the default if live lookup fails.
+const LIST_ADD_MEMBER_QUERY_ID = 'vWPi0CTMoPFsjsL6W4IynQ';
 
 const LISTS_MANAGEMENT_FEATURES = {
     rweb_video_screen_enabled: false,
@@ -62,6 +65,65 @@ function buildUserByScreenNameUrl(queryId, screenName) {
         + `&features=${encodeURIComponent(feats)}`;
 }
 
+function fatalGraphqlErrors(errors) {
+    const list = Array.isArray(errors) ? errors : [];
+    return list.filter((e) =>
+        !(e?.path || []).join('.').includes('default_banner_media_results')
+        && !/decode/i.test(e?.message || '')
+    );
+}
+
+export function buildListAddMemberRow({ addResult, memberCountBefore, listId, username, userId }) {
+    if (!addResult?.httpOk) {
+        throw new CommandExecutionError(
+            `Failed to add @${username} to list ${listId}: HTTP ${addResult?.status ?? 0}${addResult?.fetchError ? ' (' + addResult.fetchError + ')' : ''}${addResult?.raw ? ' — ' + addResult.raw : ''}`
+        );
+    }
+
+    // X often returns a partial GraphQL error on `default_banner_media_results`
+    // even on successful mutations. Treat only missing main data or non-decode
+    // GraphQL errors as command failures.
+    const hasMemberCount = addResult.mc !== null && addResult.mc !== undefined;
+    const fatalErrors = fatalGraphqlErrors(addResult.errors);
+    if (!hasMemberCount && fatalErrors.length) {
+        const msg = fatalErrors.map((e) => e.message || JSON.stringify(e)).join('; ');
+        throw new CommandExecutionError(`Failed to add @${username} to list ${listId}: ${msg.slice(0, 300)}`);
+    }
+    if (!hasMemberCount) {
+        throw new CommandExecutionError(`Failed to add @${username} to list ${listId}: no member_count in response`);
+    }
+
+    const memberCountAfter = Number(addResult.mc);
+    if (!Number.isFinite(memberCountAfter)) {
+        throw new CommandExecutionError(`Failed to add @${username} to list ${listId}: invalid member_count in response`);
+    }
+
+    if (memberCountAfter < memberCountBefore) {
+        throw new CommandExecutionError(
+            `Failed to add @${username} to list ${listId}: member_count decreased unexpectedly (${memberCountBefore} → ${memberCountAfter})`
+        );
+    }
+
+    const countIncreased = memberCountAfter > memberCountBefore;
+    if (!countIncreased && addResult.isMember !== true) {
+        throw new CommandExecutionError(
+            `Failed to add @${username} to list ${listId}: member_count unchanged (${memberCountBefore} → ${memberCountAfter}) and response did not confirm membership`
+        );
+    }
+
+    const noop = !countIncreased;
+    const verifiedBy = `member_count ${memberCountBefore} → ${memberCountAfter}`;
+    return {
+        listId,
+        username,
+        userId: String(userId),
+        status: noop ? 'noop' : 'success',
+        message: noop
+            ? `@${username} is already a member of list ${listId}`
+            : `Added @${username} to list ${listId} (verified via ${verifiedBy})`,
+    };
+}
+
 cli({
     site: 'twitter',
     name: 'list-add',
@@ -71,54 +133,63 @@ cli({
     strategy: Strategy.UI,
     browser: true,
     args: [
-        { name: 'listId', positional: true, type: 'string', required: true },
-        { name: 'username', positional: true, type: 'string', required: true },
+        { name: 'listId', positional: true, type: 'string', required: true, help: 'Numeric ID of the list you own (e.g. from `opencli twitter lists`)' },
+        { name: 'username', positional: true, type: 'string', required: true, help: 'Twitter/X handle to add (with or without @)' },
     ],
     columns: ['listId', 'username', 'userId', 'status', 'message'],
     func: async (page, kwargs) => {
         const listId = String(kwargs.listId || '').trim();
         const username = String(kwargs.username || '').replace(/^@/, '').trim();
         if (!listId || !/^\d+$/.test(listId)) {
-            throw new CommandExecutionError(`Invalid listId: ${JSON.stringify(kwargs.listId)}. Expected numeric ID (see \`opencli twitter lists\`).`);
+            throw new ArgumentError(`Invalid listId: ${JSON.stringify(kwargs.listId)}. Expected numeric ID.`, 'Example: opencli twitter list-add 123456789 alice');
         }
         if (!username) {
-            throw new CommandExecutionError('Username is required');
+            throw new ArgumentError('twitter list-add username is required', 'Example: opencli twitter list-add 123456789 alice');
         }
+        // Strategy.UI does not get a domain URL pre-nav from the framework.
+        // This page context is load-bearing for pre-target GraphQL calls below.
         await page.goto('https://x.com');
         await page.wait(3);
-        const ct0 = await page.evaluate(`() => {
-            return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('ct0='))?.split('=')[1] || null;
-        }`);
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0) throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
 
         const userByScreenNameQueryId = await resolveTwitterQueryId(page, 'UserByScreenName', USER_BY_SCREEN_NAME_QUERY_ID);
 
         const headers = JSON.stringify({
-            'Authorization': `Bearer ${decodeURIComponent(BEARER_TOKEN)}`,
+            'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
             'X-Twitter-Auth-Type': 'OAuth2Session',
             'X-Twitter-Active-User': 'yes',
         });
 
+        // opencli >=1.7.x wraps page.evaluate return values as { session, data }.
+        // Unwrap before use so JSON.stringify of nested values doesn't become "[object Object]".
+        const unwrap = (v) => (v && typeof v === 'object' && 'session' in v && 'data' in v ? v.data : v);
+
         const userLookupUrl = buildUserByScreenNameUrl(userByScreenNameQueryId, username);
-        const userId = await page.evaluate(`async () => {
+        const userIdRaw = await page.evaluate(`async () => {
             const resp = await fetch(${JSON.stringify(userLookupUrl)}, { headers: ${headers}, credentials: 'include' });
             if (!resp.ok) return null;
             const d = await resp.json();
             return d.data?.user?.result?.rest_id || null;
         }`);
+        const userId = unwrap(userIdRaw);
         if (!userId) {
             throw new CommandExecutionError(`Could not resolve user @${username}`);
         }
 
-        // ListsManagementPageTimeline — used both for id→name resolution and post-op verification.
+        // ListsManagementPageTimeline — used for list existence check + before/after member_count.
         const listsQueryId = await resolveTwitterQueryId(page, 'ListsManagementPageTimeline', LISTS_MANAGEMENT_QUERY_ID);
         const listsUrl = `/i/api/graphql/${listsQueryId}/ListsManagementPageTimeline?features=${encodeURIComponent(JSON.stringify(LISTS_MANAGEMENT_FEATURES))}`;
-        const listsData = await page.evaluate(`async () => {
+        const listsDataRaw = await page.evaluate(`async () => {
             const r = await fetch(${JSON.stringify(listsUrl)}, { headers: ${headers}, credentials: 'include' });
             if (!r.ok) return { __error: 'HTTP ' + r.status };
             return await r.json();
         }`);
+        // Don't unwrap listsData: opencli spreads GraphQL response to top-level + adds session;
+        // parseListsManagement reads `.data.viewer.*` from this shape directly.
+        const listsData = listsDataRaw;
         const parsedLists = listsData && !listsData.__error
             ? parseListsManagement(listsData, new Set())
             : [];
@@ -130,209 +201,63 @@ cli({
             throw new CommandExecutionError(`List ${listId} not found among your lists (${parsedLists.length} lists fetched).`);
         }
 
-        // Use UI strategy — programmatically open "Add/Remove from Lists" dialog and toggle the target list.
-        await page.goto(`https://x.com/${username}`);
-        await page.wait({ selector: '[data-testid="primaryColumn"]' });
-        const targetName = targetList.name;
-        const uiResult = await page.evaluate(`(async () => {
-            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-            const findOne = (sel, root = document) => root.querySelector(sel);
-            const waitFor = async (fn, { timeoutMs = 8000, intervalMs = 200 } = {}) => {
-                const t0 = Date.now();
-                while (Date.now() - t0 < timeoutMs) {
-                    const v = fn();
-                    if (v) return v;
-                    await sleep(intervalMs);
-                }
-                return null;
-            };
+        // Direct GraphQL ListAddMember mutation.
+        //
+        // Previously this command opened the X profile, clicked "…" → "Add/remove from Lists",
+        // navigated the dialog and used nativeClick on the Save button. In 2026-05 X replaced
+        // the dialog with a full-page route (/i/lists/add_member), breaking that UI flow.
+        //
+        // The mutation is the same one the UI fires under the hood; calling it directly is
+        // both more reliable and ~10x faster (no goto-profile + scroll-dialog roundtrip).
+        const memberCountBefore = Number(targetList.members) || 0;
+        const listAddMemberQueryId = await resolveTwitterQueryId(page, 'ListAddMember', LIST_ADD_MEMBER_QUERY_ID);
+        const addUrl = `/i/api/graphql/${listAddMemberQueryId}/ListAddMember`;
+        const addBody = JSON.stringify({
+            variables: { listId, userId: String(userId) },
+            queryId: listAddMemberQueryId,
+        });
+        const addResultJsonRaw = await page.evaluate(`async () => {
             try {
-                // Install fetch + XHR interceptors to observe list-membership mutations.
-                const MUTATION_RE = /ListAddMember|ListRemoveMember|lists\\/members\\/(create|destroy)|ListManagement.*Add|ListManagement.*Remove|\\/add_member|\\/remove_member|ListAddMembers|ListRemoveMembers|list.*member.*create|list.*member.*destroy/i;
-                if (!window.__opencliListMutations) {
-                    window.__opencliListMutations = [];
-                    window.__opencliAllRequests = [];
-                    const origFetch = window.fetch.bind(window);
-                    window.fetch = async function(...args) {
-                        const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || '';
-                        const method = (args[1] && args[1].method) || 'GET';
-                        let resp;
-                        try { resp = await origFetch(...args); }
-                        catch (err) {
-                            if (MUTATION_RE.test(url)) window.__opencliListMutations.push({ url, method, status: 0, error: String(err), ts: Date.now(), via: 'fetch' });
-                            throw err;
-                        }
-                        if (method !== 'GET' && method !== 'HEAD') {
-                            window.__opencliAllRequests.push({ url, method, status: resp.status, ts: Date.now(), via: 'fetch' });
-                        }
-                        if (MUTATION_RE.test(url)) {
-                            window.__opencliListMutations.push({ url, method, status: resp.status, ts: Date.now(), via: 'fetch' });
-                        }
-                        return resp;
-                    };
-                    // Also hook XMLHttpRequest
-                    const OrigXhrOpen = XMLHttpRequest.prototype.open;
-                    const OrigXhrSend = XMLHttpRequest.prototype.send;
-                    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-                        this.__opencliMethod = method;
-                        this.__opencliUrl = url;
-                        return OrigXhrOpen.call(this, method, url, ...rest);
-                    };
-                    XMLHttpRequest.prototype.send = function(...args) {
-                        const xhr = this;
-                        xhr.addEventListener('loadend', () => {
-                            const url = xhr.__opencliUrl || '';
-                            const method = xhr.__opencliMethod || 'GET';
-                            if (method !== 'GET' && method !== 'HEAD') {
-                                window.__opencliAllRequests.push({ url, method, status: xhr.status, ts: Date.now(), via: 'xhr' });
-                            }
-                            if (MUTATION_RE.test(url)) {
-                                window.__opencliListMutations.push({ url, method, status: xhr.status, ts: Date.now(), via: 'xhr' });
-                            }
-                        });
-                        return OrigXhrSend.apply(this, args);
-                    };
-                }
-                window.__opencliListMutations.length = 0;
-                window.__opencliAllRequests.length = 0;
-
-                const caret = await waitFor(() => findOne('[data-testid="userActions"]'));
-                if (!caret) return { ok: false, message: 'Could not find user actions (…) button. Are you logged in?' };
-                caret.click();
-                await sleep(600);
-                const menuItems = Array.from(document.querySelectorAll('[role="menuitem"]'));
-                const addToListItem = menuItems.find(el => /add\\/remove|从列表|列表|add to list|add or remove/i.test(el.innerText));
-                if (!addToListItem) {
-                    return { ok: false, message: 'Could not find "Add/remove from Lists" menu item' };
-                }
-                addToListItem.click();
-                await sleep(1200);
-                const dialog = await waitFor(() => findOne('[role="dialog"]'));
-                if (!dialog) return { ok: false, message: 'List selection dialog did not open' };
-
-                const targetName = ${JSON.stringify(targetName)};
-                // Find the real scroll container (virtualized list). Try a few candidates.
-                const scrollCandidates = [
-                    dialog.querySelector('[data-viewportview="true"]'),
-                    dialog.querySelector('[aria-label]')?.parentElement,
-                    ...Array.from(dialog.querySelectorAll('div')).filter(d => d.scrollHeight > d.clientHeight + 10),
-                ].filter(Boolean);
-                let row = null;
-                let scrollEl = scrollCandidates[0] || dialog;
-                for (const se of scrollCandidates) {
-                    if (se.scrollHeight > se.clientHeight + 10) { scrollEl = se; break; }
-                }
-                let lastScrollTop = -1;
-                for (let i = 0; i < 12; i++) {
-                    const cells = Array.from(dialog.querySelectorAll('[data-testid="cellInnerDiv"]'));
-                    row = cells.find(c => (c.innerText || '').split('\\n')[0].trim() === targetName);
-                    if (row) break;
-                    // Incremental scroll within the container
-                    const prev = scrollEl.scrollTop;
-                    scrollEl.scrollTop = prev + Math.max(200, scrollEl.clientHeight - 100);
-                    if (scrollEl.scrollTop === prev) {
-                        // Couldn't scroll further. Give up.
-                        if (scrollEl.scrollTop === lastScrollTop) break;
-                    }
-                    lastScrollTop = scrollEl.scrollTop;
-                    await sleep(500);
-                }
-                if (!row) {
-                    const names = Array.from(dialog.querySelectorAll('[data-testid="cellInnerDiv"]'))
-                        .map(c => (c.innerText || '').split('\\n')[0].trim()).filter(Boolean);
-                    const dialogText = (dialog.innerText || '').slice(0, 500);
-                    return { ok: false, message: 'List "' + targetName + '" not found. Cells: [' + names.join(' | ') + ']. DialogText: ' + dialogText };
-                }
-                const listCell = row.querySelector('[data-testid="listCell"]') || row.querySelector('[role="checkbox"]') || row;
-                const readChecked = () => {
-                    const v = listCell.getAttribute('aria-checked');
-                    return v === 'true' || v === 'false' ? v : null;
-                };
-                await sleep(600);
-                let ariaChecked = readChecked();
-                for (let i = 0; i < 8; i++) {
-                    await sleep(500);
-                    const next = readChecked();
-                    if (next && next === ariaChecked) break;
-                    ariaChecked = next || ariaChecked;
-                }
-                const isMember = ariaChecked === 'true';
-                if (isMember) {
-                    const closeBtn = findOne('[data-testid="app-bar-close"]') || findOne('[aria-label="Close"]');
-                    if (closeBtn) closeBtn.click();
-                    return { ok: true, noop: true };
-                }
-                try { listCell.scrollIntoView({ block: 'center' }); } catch {}
-                await sleep(400);
-                const mutationsBefore = window.__opencliListMutations.length;
-                const rowRect = listCell.getBoundingClientRect();
-                // Find the Save button (top-right of dialog). Match by text "Save" / "Done" / CJK equivalents.
-                const saveButton = Array.from(dialog.querySelectorAll('[role="button"], button')).find(b => {
-                    const txt = (b.innerText || '').trim();
-                    return /^(Save|Done|保存|完成|儲存)$/i.test(txt);
+                const r = await fetch(${JSON.stringify(addUrl)}, {
+                    method: 'POST',
+                    headers: Object.assign({}, ${headers}, { 'Content-Type': 'application/json' }),
+                    credentials: 'include',
+                    body: ${JSON.stringify(addBody)},
                 });
-                const saveRect = saveButton ? saveButton.getBoundingClientRect() : null;
-                return {
-                    ok: true,
-                    needsNativeInteraction: true,
-                    rowClickX: Math.round(rowRect.left + rowRect.width / 2),
-                    rowClickY: Math.round(rowRect.top + rowRect.height / 2),
-                    saveClickX: saveRect ? Math.round(saveRect.left + saveRect.width / 2) : null,
-                    saveClickY: saveRect ? Math.round(saveRect.top + saveRect.height / 2) : null,
-                    saveText: saveButton ? (saveButton.innerText || '').trim() : null,
-                    mutationsBefore,
-                    ariaBefore: ariaChecked,
-                };
+                const text = await r.text();
+                let body;
+                let raw = null;
+                try { body = JSON.parse(text); } catch { body = null; raw = text.slice(0, 300); }
+                const list = body && body.data && body.data.list ? body.data.list : null;
+                return JSON.stringify([
+                    r.ok,
+                    r.status,
+                    list ? list.member_count : null,
+                    list ? list.is_member : null,
+                    body && body.errors ? body.errors : null,
+                    raw,
+                    null,
+                ]);
             } catch (e) {
-                return { ok: false, message: 'UI error: ' + (e?.message || String(e)) };
+                return JSON.stringify([false, 0, null, null, null, null, String(e)]);
             }
-        })()`);
-
-        if (!uiResult.ok) {
-            throw new CommandExecutionError(`Failed to add @${username} to list ${listId}: ${uiResult.message}`);
+        }`);
+        const addResultJson = unwrap(addResultJsonRaw);
+        let addResultTuple;
+        try {
+            addResultTuple = JSON.parse(addResultJson);
+        } catch {
+            throw new CommandExecutionError(`Failed to add @${username} to list ${listId}: malformed mutation response envelope`);
         }
+        const addResult = Object.create(null);
+        addResult.httpOk = Boolean(addResultTuple?.[0]);
+        addResult.status = Number(addResultTuple?.[1]) || 0;
+        addResult.mc = addResultTuple?.[2];
+        addResult.isMember = addResultTuple?.[3];
+        addResult.errors = addResultTuple?.[4];
+        addResult.raw = addResultTuple?.[5];
+        addResult.fetchError = addResultTuple?.[6];
 
-        let verifiedBy = null;
-        if (uiResult.needsNativeInteraction) {
-            if (typeof page.nativeClick !== 'function' || typeof page.nativeKeyPress !== 'function') {
-                throw new CommandExecutionError('Requires up-to-date Chrome extension (nativeClick + nativeKeyPress).');
-            }
-            if (!uiResult.saveClickX) {
-                throw new CommandExecutionError(`Save button not found in dialog (X expected text Save/Done). Dialog structure may have changed.`);
-            }
-            const memberCountBefore = Number(targetList.members) || 0;
-            // 1. Trusted click on row → aria flips false→true (optimistic UI)
-            await page.nativeClick(uiResult.rowClickX, uiResult.rowClickY);
-            await new Promise((r) => setTimeout(r, 800));
-            // 2. Trusted click on Save button → X commits to server
-            await page.nativeClick(uiResult.saveClickX, uiResult.saveClickY);
-            await new Promise((r) => setTimeout(r, 3500));
-            // Ground truth: re-fetch ListsManagementPageTimeline and compare member_count
-            const listsAfter = await page.evaluate(`async () => {
-                const r = await fetch(${JSON.stringify(listsUrl)}, { headers: ${headers}, credentials: 'include' });
-                if (!r.ok) return { __error: 'HTTP ' + r.status };
-                return await r.json();
-            }`);
-            const parsedAfter = listsAfter && !listsAfter.__error
-                ? parseListsManagement(listsAfter, new Set())
-                : [];
-            const afterList = parsedAfter.find((l) => l.id === listId);
-            const memberCountAfter = afterList ? Number(afterList.members) || 0 : -1;
-            if (memberCountAfter > memberCountBefore) {
-                verifiedBy = `member_count ${memberCountBefore} → ${memberCountAfter}`;
-            } else {
-                throw new CommandExecutionError(`Failed to add @${username} to list ${listId}: member_count unchanged (${memberCountBefore} → ${memberCountAfter}). X's UI flipped but did not commit — try reloading page/extension.`);
-            }
-        }
-
-        return [{
-            listId,
-            username,
-            userId: String(userId),
-            status: uiResult.noop ? 'noop' : 'success',
-            message: uiResult.noop
-                ? `@${username} is already a member of list ${listId}`
-                : `Added @${username} to list ${listId} (verified via ${verifiedBy})`,
-        }];
+        return [buildListAddMemberRow({ addResult, memberCountBefore, listId, username, userId })];
     },
 });

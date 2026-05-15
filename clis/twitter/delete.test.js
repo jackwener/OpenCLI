@@ -1,13 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { __test__ } from './delete.js';
 import './delete.js';
 describe('twitter delete command', () => {
-    it('extracts tweet ids from both user and i/status URLs', () => {
-        expect(__test__.extractTweetId('https://x.com/alice/status/2040254679301718161?s=20')).toBe('2040254679301718161');
-        expect(__test__.extractTweetId('https://x.com/i/status/2040318731105313143')).toBe('2040318731105313143');
-    });
     it('targets the matched tweet article instead of the first More button on the page', async () => {
         const cmd = getRegistry().get('twitter/delete');
         expect(cmd?.func).toBeTypeOf('function');
@@ -23,9 +18,17 @@ describe('twitter delete command', () => {
         expect(page.wait).toHaveBeenNthCalledWith(1, { selector: '[data-testid="primaryColumn"]' });
         expect(page.wait).toHaveBeenNthCalledWith(2, 2);
         const script = page.evaluate.mock.calls[0][0];
+        // Article-scoping must come from the shared helper (not an inline
+        // `pathname.includes('/status/' + tweetId)` substring match — see
+        // codex-mini0 #1400 catch where `/status/123` would match
+        // `/status/1234567`). The helper emits `__twHasLinkToTarget` and
+        // `__twGetStatusIdFromHref` plus the canonical anchored regex.
+        expect(script).toContain('__twHasLinkToTarget');
+        expect(script).toContain('__twGetStatusIdFromHref');
         expect(script).toContain("document.querySelectorAll('article')");
-        expect(script).toContain("'/status/' + tweetId");
         expect(script).toContain("targetArticle.querySelectorAll('button,[role=\"button\"]')");
+        // Substring match must NOT appear — exact-id match only.
+        expect(script).not.toContain("'/status/' + tweetId");
         expect(result).toEqual([
             {
                 status: 'success',
@@ -55,7 +58,7 @@ describe('twitter delete command', () => {
         ]);
         expect(page.wait).toHaveBeenCalledTimes(1);
     });
-    it('normalizes invalid tweet URLs into CommandExecutionError', async () => {
+    it('rejects malformed or off-domain URLs with ArgumentError before navigation', async () => {
         const cmd = getRegistry().get('twitter/delete');
         expect(cmd?.func).toBeTypeOf('function');
         const page = {
@@ -63,11 +66,20 @@ describe('twitter delete command', () => {
             wait: vi.fn(),
             evaluate: vi.fn(),
         };
+        // parseTweetUrl bubbles ArgumentError directly (no CommandExecutionError
+        // wrapping); replaces the previous local extractTweetId path that hid
+        // typed-input failures behind a generic CliError.
         await expect(cmd.func(page, {
             url: 'https://x.com/alice/home',
-        })).rejects.toThrow(CommandExecutionError);
+        })).rejects.toThrow(ArgumentError);
         expect(page.goto).not.toHaveBeenCalled();
         expect(page.wait).not.toHaveBeenCalled();
         expect(page.evaluate).not.toHaveBeenCalled();
+    });
+    it('throws CommandExecutionError when no page is provided', async () => {
+        const cmd = getRegistry().get('twitter/delete');
+        await expect(cmd.func(undefined, {
+            url: 'https://x.com/alice/status/2040254679301718161',
+        })).rejects.toThrow(CommandExecutionError);
     });
 });

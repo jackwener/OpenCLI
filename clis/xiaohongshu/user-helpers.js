@@ -27,12 +27,17 @@ export function flattenXhsNoteGroups(noteGroups) {
     }
     return notes;
 }
-export function buildXhsNoteUrl(userId, noteId, xsecToken) {
+/**
+ * Build a signed user-profile note URL on the given web host (defaults to
+ * `www.xiaohongshu.com`). The rednote adapter passes `'www.rednote.com'` so
+ * the same builder works for both sites.
+ */
+export function buildXhsNoteUrl(userId, noteId, xsecToken, webHost = 'www.xiaohongshu.com') {
     const cleanUserId = toCleanString(userId);
     const cleanNoteId = toCleanString(noteId);
     if (!cleanUserId || !cleanNoteId)
         return '';
-    const url = new URL(`https://www.xiaohongshu.com/user/profile/${cleanUserId}/${cleanNoteId}`);
+    const url = new URL(`https://${webHost}/user/profile/${cleanUserId}/${cleanNoteId}`);
     const cleanToken = toCleanString(xsecToken);
     if (cleanToken) {
         url.searchParams.set('xsec_token', cleanToken);
@@ -40,7 +45,11 @@ export function buildXhsNoteUrl(userId, noteId, xsecToken) {
     }
     return url.toString();
 }
-export function extractXhsUserNotes(snapshot, fallbackUserId) {
+/**
+ * Normalise a Pinia user-store snapshot into CLI rows. `webHost` is forwarded
+ * to `buildXhsNoteUrl` so the resulting URLs point at the calling site.
+ */
+export function extractXhsUserNotes(snapshot, fallbackUserId, webHost = 'www.xiaohongshu.com') {
     const notes = flattenXhsNoteGroups(snapshot.noteGroups);
     const rows = [];
     const seen = new Set();
@@ -62,7 +71,7 @@ export function extractXhsUserNotes(snapshot, fallbackUserId) {
             type: toCleanString(noteCard.type),
             likes,
             cover,
-            url: buildXhsNoteUrl(userId || fallbackUserId, noteId, xsecToken),
+            url: buildXhsNoteUrl(userId || fallbackUserId, noteId, xsecToken, webHost),
         });
     }
     return rows;

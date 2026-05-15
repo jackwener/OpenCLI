@@ -91,7 +91,7 @@ opencli browser network --filter author,text,likes
 opencli browser network --detail <key>
 ```
 
-capture 会持久化到 `~/.opencli/cache/browser-network/<workspace>.json`（默认 TTL 24h），所以 `--detail` 即使跨多条其他命令也还在。
+capture 会持久化到 `~/.opencli/cache/browser-network/<session>.json`（默认 TTL 24h），所以 `--detail` 即使跨多条其他命令也还在。
 
 ### 关键 request headers
 
@@ -250,7 +250,9 @@ opencli browser eval "window.__pinia.state.value.someStore.someMethod({...})"
 
 ```javascript
 // func 里
-await page.evaluate(installInterceptorCode, { domain: 'api.xxx.com', path: '/foo' });
+await page.evaluateWithArgs(installInterceptorCode, {
+  config: { domain: 'api.xxx.com', path: '/foo' },
+});
 await page.goto('https://xxx.com/trigger-page');
 // 等页面自己发那条请求
 const intercepted = await page.evaluate('window.__opencli_intercepted');

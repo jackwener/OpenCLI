@@ -8,7 +8,7 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'name', type: 'string', required: true, positional: true },
+        { name: 'name', type: 'string', required: true, positional: true, help: 'Subreddit name (no `r/` prefix; e.g. `python`)' },
         {
             name: 'sort',
             type: 'string',

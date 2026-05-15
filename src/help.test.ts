@@ -25,13 +25,17 @@ describe('classifyAdapter', () => {
 describe('formatRootAdapterHelpText', () => {
   it('renders all three sections in External / App / Site order when populated', () => {
     const text = formatRootAdapterHelpText({
-      external: ['gh', 'docker'],
+      external: [
+        { name: 'gh', label: 'gh' },
+        { name: 'wx', label: 'wx(wx-cli)' },
+      ],
       apps: ['chatwise', 'codex'],
       sites: ['bilibili'],
     });
     expect(text).toContain('External CLIs (2):');
     expect(text).toContain('App adapters (2):');
     expect(text).toContain('Site adapters (1):');
+    expect(text).toContain('wx(wx-cli)');
     expect(text.indexOf('External CLIs')).toBeLessThan(text.indexOf('App adapters'));
     expect(text.indexOf('App adapters')).toBeLessThan(text.indexOf('Site adapters'));
   });

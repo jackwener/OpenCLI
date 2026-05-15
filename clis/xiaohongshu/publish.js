@@ -18,7 +18,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-const PUBLISH_URL = 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
+const PUBLISH_URL = 'https://creator.xiaohongshu.com/publish/publish?from=menu_left&target=image';
 const MAX_IMAGES = 9;
 const MAX_TITLE_LEN = 20;
 const UPLOAD_SETTLE_MS = 3000;
@@ -95,7 +95,7 @@ async function uploadImages(page, absPaths) {
         catch (err) {
             // If set-file-input action is not supported by extension, fall through to legacy
             const msg = err instanceof Error ? err.message : String(err);
-            if (msg.includes('Unknown action') || msg.includes('not supported')) {
+            if (msg.includes('Unknown action') || msg.includes('not supported') || msg.includes('Not allowed')) {
                 // Extension too old — fall through to legacy base64 method
             }
             else {
@@ -351,7 +351,20 @@ async function selectImageTextTab(page) {
           if (!isVisible(node)) continue;
           const text = normalize(node.innerText || node.textContent || '');
           if (!text || text.includes('视频')) continue;
-          if (text === target || text.startsWith(target) || text.includes(target)) {
+          if (text === target) {
+            const clickable = node.closest('button, [role="tab"], [role="button"], a, label') || node;
+            clickable.click();
+            return { ok: true, target, text };
+          }
+        }
+      }
+
+      for (const target of targets) {
+        for (const node of nodes) {
+          if (!isVisible(node)) continue;
+          const text = normalize(node.innerText || node.textContent || '');
+          if (!text || text.includes('视频')) continue;
+          if (text.startsWith(target) || text.includes(target)) {
             const clickable = node.closest('button, [role="tab"], [role="button"], a, label') || node;
             clickable.click();
             return { ok: true, target, text };

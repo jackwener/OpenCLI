@@ -7,7 +7,7 @@
  */
 
 export type Runtime = 'bun' | 'node';
-export const MIN_SUPPORTED_NODE_MAJOR = 21;
+export const MIN_SUPPORTED_NODE_MAJOR = 20;
 
 /** Shape of `globalThis` when running under Bun. */
 interface BunGlobal {

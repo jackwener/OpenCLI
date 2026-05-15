@@ -15,7 +15,7 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'query', type: 'string', required: true, positional: true },
+        { name: 'query', type: 'string', required: true, positional: true, help: '即刻搜索关键词' },
         { name: 'limit', type: 'int', default: 20 },
     ],
     columns: ['id', 'author', 'content', 'likes', 'comments', 'time', 'url'],

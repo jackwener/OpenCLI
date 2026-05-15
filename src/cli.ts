@@ -9,21 +9,20 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Command, InvalidArgumentError } from 'commander';
-import { styleText } from 'node:util';
+import { Command, InvalidArgumentError, Option } from 'commander';
 import { findPackageRoot, getBuiltEntryCandidates } from './package-paths.js';
 import { type CliCommand, fullName, getRegistry, strategyLabel } from './registry.js';
 import { serializeCommand, formatArgSummary } from './serialization.js';
 import { render as renderOutput } from './output.js';
 import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
-import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
+import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled, formatExternalCliLabel } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
-import { classifyAdapter, formatRootAdapterHelpText, installStructuredHelp, rootHelpData, type RootAdapterGroups } from './help.js';
+import { classifyAdapter, formatRootAdapterHelpText, installCommanderNamespaceStructuredHelp, installStructuredHelp, leadingPositionalFromUsage, rootHelpData, type RootAdapterGroups } from './help.js';
 import { EXIT_CODES, getErrorMessage, BrowserConnectError } from './errors.js';
 import { TargetError, type TargetErrorCode } from './browser/target-errors.js';
 import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesResolvedJs, selectResolvedJs, isAutocompleteResolvedJs, type ResolveOptions, type TargetMatchLevel } from './browser/target-resolver.js';
-import { buildFindJs, isFindError, type FindResult, type FindError } from './browser/find.js';
+import { buildFindJs, buildSemanticFindJs, isFindError, type FindResult, type FindError, type SemanticFindOptions } from './browser/find.js';
 import { inferShape } from './browser/shape.js';
 import { assignKeys } from './browser/network-key.js';
 import { DEFAULT_TTL_MS, findEntry, loadNetworkCache, saveNetworkCache, type CachedNetworkEntry } from './browser/network-cache.js';
@@ -36,11 +35,10 @@ import { log } from './logger.js';
 import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
-import type { ScreenshotOptions } from './types.js';
+import type { BrowserDownloadWaitResult, IPage, ScreenshotOptions } from './types.js';
+import type { BrowserWindowMode } from './runtime.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
-const DEFAULT_BROWSER_WORKSPACE = 'browser:default';
-const DEFAULT_BOUND_WORKSPACE = 'bound:default';
 const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"';
 const FOLLOW_POLL_MS = 1_000;
 
@@ -291,12 +289,12 @@ function getBrowserCacheDir(): string {
   return process.env.OPENCLI_CACHE_DIR || path.join(os.homedir(), '.opencli', 'cache');
 }
 
-function getBrowserTargetStatePath(scope: string = DEFAULT_BROWSER_WORKSPACE): string {
-  const safeWorkspace = scope.replace(/[^a-zA-Z0-9_-]+/g, '_');
-  return path.join(getBrowserCacheDir(), 'browser-state', `${safeWorkspace}.json`);
+function getBrowserTargetStatePath(scope: string): string {
+  const safeSession = scope.replace(/[^a-zA-Z0-9_-]+/g, '_');
+  return path.join(getBrowserCacheDir(), 'browser-state', `${safeSession}.json`);
 }
 
-function loadBrowserTargetState(scope: string = DEFAULT_BROWSER_WORKSPACE): BrowserTargetState | null {
+function loadBrowserTargetState(scope: string): BrowserTargetState | null {
   try {
     const raw = fs.readFileSync(getBrowserTargetStatePath(scope), 'utf-8');
     const parsed = JSON.parse(raw) as BrowserTargetState | null;
@@ -306,7 +304,7 @@ function loadBrowserTargetState(scope: string = DEFAULT_BROWSER_WORKSPACE): Brow
   }
 }
 
-function saveBrowserTargetState(defaultPage?: string, scope: string = DEFAULT_BROWSER_WORKSPACE): void {
+function saveBrowserTargetState(defaultPage: string | undefined, scope: string): void {
   const target = getBrowserTargetStatePath(scope);
   if (!defaultPage) {
     fs.rmSync(target, { force: true });
@@ -329,7 +327,7 @@ function hasBrowserTabTarget(tabs: unknown[], targetPage: string): boolean {
 async function resolveBrowserTargetInSession(
   page: import('./types.js').IPage,
   targetPage: string,
-  opts: { scope?: string; source: 'explicit' | 'saved' },
+  opts: { scope: string; source: 'explicit' | 'saved' },
 ): Promise<string | undefined> {
   const candidate = targetPage.trim();
   if (!candidate) return undefined;
@@ -344,7 +342,7 @@ async function resolveBrowserTargetInSession(
     }
     throw new Error(
       `Target tab ${candidate} could not be validated in the current browser session. ` +
-      'The Browser Bridge workspace may have restarted; re-run "opencli browser tab list" and choose a current target.',
+      'The Browser Bridge session may have restarted; re-run "opencli browser tab list" and choose a current target.',
       { cause: err },
     );
   }
@@ -360,33 +358,41 @@ async function resolveBrowserTargetInSession(
 
   throw new Error(
     `Target tab ${candidate} is not part of the current browser session. ` +
-    'The Browser Bridge workspace may have restarted; re-run "opencli browser tab list" and choose a current target.',
+    'The Browser Bridge session may have restarted; re-run "opencli browser tab list" and choose a current target.',
   );
 }
 
-function getBrowserScope(workspace: string, contextId?: string): string {
-  return contextId ? `${contextId}:${workspace}` : workspace;
+function getBrowserScope(session: string, contextId?: string): string {
+  return contextId ? `${contextId}:${session}` : session;
 }
 
-async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scope: string = DEFAULT_BROWSER_WORKSPACE): Promise<string | undefined> {
+async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scope: string): Promise<string | undefined> {
   const defaultPage = loadBrowserTargetState(scope)?.defaultPage?.trim();
   if (!defaultPage) return undefined;
   return resolveBrowserTargetInSession(page, defaultPage, { scope, source: 'saved' });
 }
 
-/** Create a browser page for browser commands. Uses a dedicated browser workspace for session persistence. */
-async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_BROWSER_WORKSPACE, contextId?: string): Promise<import('./types.js').IPage> {
+/** Create a browser page for browser commands. Uses a named browser session for continuity. */
+async function getBrowserPage(
+  session: string,
+  targetPage?: string,
+  contextId?: string,
+  opts: { windowMode?: BrowserWindowMode } = {},
+): Promise<import('./types.js').IPage> {
   const { BrowserBridge } = await import('./browser/index.js');
   const bridge = new BrowserBridge();
-  const envTimeout = process.env.OPENCLI_BROWSER_TIMEOUT;
+  // Internal GC timeout for browser sessions. Not the per-command runtime timeout.
+  const envTimeout = process.env.OPENCLI_BROWSER_IDLE_TIMEOUT;
   const idleTimeout = envTimeout ? parseInt(envTimeout, 10) : undefined;
   const page = await bridge.connect({
     timeout: 30,
-    workspace,
+    session,
+    surface: 'browser',
     ...(contextId && { contextId }),
     ...(idleTimeout && idleTimeout > 0 && { idleTimeout }),
+    windowMode: opts.windowMode ?? getBrowserWindowMode(undefined, 'foreground'),
   });
-  const targetScope = getBrowserScope(workspace, contextId);
+  const targetScope = getBrowserScope(session, contextId);
   const resolvedTargetPage = targetPage
     ? await resolveBrowserTargetInSession(page, targetPage, { scope: targetScope, source: 'explicit' })
     : await resolveStoredBrowserTarget(page, targetScope);
@@ -397,6 +403,20 @@ async function getBrowserPage(targetPage?: string, workspace: string = DEFAULT_B
     page.setActivePage(resolvedTargetPage);
   }
   return page;
+}
+
+function getBrowserWindowMode(command: Command | undefined, defaultMode: BrowserWindowMode): BrowserWindowMode {
+  const optionRaw = getCommandOption(command, 'window');
+  if (optionRaw !== undefined && optionRaw !== '') {
+    if (optionRaw === 'foreground' || optionRaw === 'background') return optionRaw;
+    throw new Error(`--window must be one of: foreground, background. Received: "${String(optionRaw)}"`);
+  }
+  const envRaw = process.env.OPENCLI_WINDOW;
+  if (envRaw !== undefined && envRaw !== '') {
+    if (envRaw === 'foreground' || envRaw === 'background') return envRaw;
+    throw new Error(`OPENCLI_WINDOW must be one of: foreground, background. Received: "${envRaw}"`);
+  }
+  return defaultMode;
 }
 
 function addBrowserTabOption(command: Command): Command {
@@ -419,9 +439,13 @@ function getCommandOption(command: Command | undefined, option: string): unknown
   return undefined;
 }
 
-function getBrowserWorkspace(command?: Command): string {
-  const raw = getCommandOption(command, 'workspace');
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : DEFAULT_BROWSER_WORKSPACE;
+function getBrowserSession(command?: Command): string {
+  // The CLI surface is `opencli browser <session> <subcommand>`. main.ts rewrites
+  // argv to insert `--session <name>` before commander parses it; this helper
+  // reads back the rewritten flag.
+  const raw = getCommandOption(command, 'session');
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  throw new Error('<session> is a required positional argument: opencli browser <session> <command>');
 }
 
 function getBrowserContextId(command?: Command): string | undefined {
@@ -429,14 +453,54 @@ function getBrowserContextId(command?: Command): string | undefined {
   return resolveProfileContextId(typeof raw === 'string' && raw.trim() ? raw.trim() : undefined);
 }
 
-function getPageWorkspace(page: import('./types.js').IPage): string {
-  const workspace = (page as unknown as { workspace?: unknown }).workspace;
-  return typeof workspace === 'string' && workspace.trim() ? workspace.trim() : DEFAULT_BROWSER_WORKSPACE;
+function getPageSession(page: import('./types.js').IPage): string {
+  const session = (page as unknown as { session?: unknown }).session;
+  if (typeof session === 'string' && session.trim()) return session.trim();
+  throw new Error('Browser page is missing a session');
 }
 
 function getPageScope(page: import('./types.js').IPage): string {
   const contextId = (page as unknown as { contextId?: unknown }).contextId;
-  return getBrowserScope(getPageWorkspace(page), typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined);
+  return getBrowserScope(getPageSession(page), typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined);
+}
+
+type SnapshotSource = 'dom' | 'ax';
+
+function snapshotMetricText(snapshot: unknown): string {
+  return typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot, null, 2);
+}
+
+function snapshotMetrics(snapshot: unknown, elapsedMs: number): Record<string, unknown> {
+  const text = snapshotMetricText(snapshot);
+  const interactiveMatch = text.match(/^interactive:\s*(\d+)\s*$/m);
+  return {
+    ok: true,
+    chars: text.length,
+    bytes: Buffer.byteLength(text, 'utf8'),
+    lines: text ? text.split(/\r?\n/).length : 0,
+    approx_tokens: Math.ceil(text.length / 4),
+    refs: (text.match(/(^|\n)\s*\[\d+\]/g) ?? []).length,
+    frame_sections: (text.match(/(^|\n)frame /g) ?? []).length,
+    ...(interactiveMatch ? { interactive: Number(interactiveMatch[1]) } : {}),
+    elapsed_ms: elapsedMs,
+  };
+}
+
+async function snapshotSourceMetrics(page: IPage, source: SnapshotSource): Promise<Record<string, unknown>> {
+  const started = Date.now();
+  try {
+    const snapshot = await page.snapshot({ viewportExpand: 2000, source });
+    return snapshotMetrics(snapshot, Date.now() - started);
+  } catch (err) {
+    return {
+      ok: false,
+      elapsed_ms: Date.now() - started,
+      error: {
+        ...(err instanceof Error && 'code' in err ? { code: String((err as { code?: unknown }).code) } : {}),
+        message: err instanceof Error ? err.message : String(err),
+      },
+    };
+  }
 }
 
 function resolveBrowserTabTarget(targetId?: string, opts?: { tab?: string } | Command): string | undefined {
@@ -541,33 +605,33 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
 
       console.log();
-      console.log(styleText('bold', '  opencli') + styleText('dim', ' — available commands'));
+      console.log('  opencli' + ' — available commands');
       console.log();
       for (const [site, cmds] of sites) {
-        console.log(styleText(['bold', 'cyan'], `  ${site}`));
+        console.log(`  ${site}`);
         for (const cmd of cmds) {
           const label = strategyLabel(cmd);
           const tag = label === 'public'
-            ? styleText('green', '[public]')
-            : styleText('yellow', `[${label}]`);
-          const aliases = cmd.aliases?.length ? styleText('dim', ` (aliases: ${cmd.aliases.join(', ')})`) : '';
-          console.log(`    ${cmd.name} ${tag}${aliases}${cmd.description ? styleText('dim', ` — ${cmd.description}`) : ''}`);
+            ? '[public]'
+            : `[${label}]`;
+          const aliases = cmd.aliases?.length ? ` (aliases: ${cmd.aliases.join(', ')})` : '';
+          console.log(`    ${cmd.name} ${tag}${aliases}${cmd.description ? ` — ${cmd.description}` : ''}`);
         }
         console.log();
       }
 
       const externalClis = loadExternalClis();
       if (externalClis.length > 0) {
-        console.log(styleText(['bold', 'cyan'], '  external CLIs'));
+        console.log('  external CLIs');
         for (const ext of externalClis) {
           const isInstalled = isBinaryInstalled(ext.binary);
-          const tag = isInstalled ? styleText('green', '[installed]') : styleText('yellow', '[auto-install]');
-          console.log(`    ${ext.name} ${tag}${ext.description ? styleText('dim', ` — ${ext.description}`) : ''}`);
+          const tag = isInstalled ? '[installed]' : '[auto-install]';
+          console.log(`    ${ext.name} ${tag}${ext.description ? ` — ${ext.description}` : ''}`);
         }
         console.log();
       }
 
-      console.log(styleText('dim', `  ${commands.length} built-in commands across ${sites.size} sites, ${externalClis.length} external CLIs`));
+      console.log(`  ${commands.length} built-in commands across ${sites.size} sites, ${externalClis.length} external CLIs`);
       console.log();
     });
 
@@ -624,8 +688,24 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   const browser = program
     .command('browser')
-    .option('--workspace <name>', 'Browser workspace to use (default: browser:default; bound tabs use bound:<name>)')
-    .description('Browser control — navigate, click, type, extract, wait (no LLM needed)');
+    // --session is an internal hidden option used by the daemon protocol and direct
+    // program.parseAsync callers (tests). User-facing surface is the <session>
+    // positional; main.ts argv preprocessor rewrites positional -> --session.
+    .addOption(new Option('--session <name>', 'Internal — set automatically from the <session> positional').hideHelp())
+    .option('--window <mode>', 'Browser window mode: foreground or background')
+    .description('Browser control — navigate, click, type, extract, wait (no LLM needed)')
+    .usage('<session> <command> [options]')
+    .addHelpText('after', `
+<session> is a required positional: pass the name of the browser session every subcommand should operate on. Reuse the same name across calls to keep the tab/state alive; pick a different name to isolate parallel browser work.
+
+Examples:
+  $ opencli browser work open https://x.com
+  $ opencli browser work click 12
+  $ opencli browser work state
+  $ opencli browser work bind
+  $ opencli browser work unbind
+`);
+  const originalBrowserDescription = browser.description();
 
   /**
    * Resolve a `<target>` (numeric ref or CSS selector) via the unified resolver.
@@ -698,12 +778,14 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   /** Wrap browser actions with error handling and optional --json output */
   function browserAction(fn: (page: Awaited<ReturnType<typeof getBrowserPage>>, ...args: any[]) => Promise<unknown>) {
     return async (...args: any[]) => {
+      let page: Awaited<ReturnType<typeof getBrowserPage>> | null = null;
       try {
         const command = args.at(-1) instanceof Command ? args.at(-1) as Command : undefined;
         const targetPage = getBrowserTargetId(command);
-        const workspace = getBrowserWorkspace(command);
+        const session = getBrowserSession(command);
         const contextId = getBrowserContextId(command);
-        const page = await getBrowserPage(targetPage, workspace, contextId);
+        const windowMode = getBrowserWindowMode(command, 'foreground');
+        page = await getBrowserPage(session, targetPage, contextId, { windowMode });
         await fn(page, ...args);
       } catch (err) {
         if (err instanceof BrowserConnectError) {
@@ -745,40 +827,18 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   }
 
   browser.command('bind')
-    .option('--domain <host>', 'Only bind a current/visible tab whose hostname matches this domain')
-    .option('--path-prefix <path>', 'Only bind a current/visible tab whose pathname starts with this prefix')
-    .option('--workspace <name>', 'Bound workspace name (must start with bound:)')
-    .description('Bind a bound:* workspace to the current Chrome tab/window')
+    .description('Bind the current Chrome tab/window to the browser session named by <session>')
     .action(async (optsOrCommand, maybeCommand?: Command) => {
       const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
-      const opts = command?.opts() ?? optsOrCommand ?? {};
-      const rawWorkspace = getCommandOption(command, 'workspace');
-      const workspace = typeof rawWorkspace === 'string' && rawWorkspace.trim()
-        ? rawWorkspace.trim()
-        : DEFAULT_BOUND_WORKSPACE;
-      if (!workspace.startsWith('bound:')) {
-        console.log(JSON.stringify({
-          error: {
-            code: 'invalid_bind_workspace',
-            message: `--workspace must start with "bound:", got "${workspace}"`,
-            hint: 'Use the default bound:default or pass --workspace bound:<name>.',
-          },
-        }, null, 2));
-        process.exitCode = EXIT_CODES.USAGE_ERROR;
-        return;
-      }
+      const session = getBrowserSession(command);
       try {
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
         const contextId = getBrowserContextId(command);
-        await bridge.connect({ timeout: 30, workspace, ...(contextId && { contextId }) });
-        const data = await bindTab(workspace, {
-          ...(contextId && { contextId }),
-          ...(typeof opts.domain === 'string' && opts.domain.trim() ? { matchDomain: opts.domain.trim() } : {}),
-          ...(typeof opts.pathPrefix === 'string' && opts.pathPrefix.trim() ? { matchPathPrefix: opts.pathPrefix.trim() } : {}),
-        });
-        saveBrowserTargetState(undefined, getBrowserScope(workspace, contextId));
-        console.log(JSON.stringify({ workspace, ...((data && typeof data === 'object') ? data as Record<string, unknown> : { data }) }, null, 2));
+        await bridge.connect({ timeout: 30, session, surface: 'browser', ...(contextId && { contextId }) });
+        const data = await bindTab(session, { ...(contextId && { contextId }) });
+        saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
+        console.log(JSON.stringify({ session, ...((data && typeof data === 'object') ? data as Record<string, unknown> : { data }) }, null, 2));
       } catch (err) {
         if (err instanceof BrowserCommandError && err.code) {
           console.log(JSON.stringify({
@@ -791,40 +851,23 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         }
         log.error(err instanceof Error ? err.message : String(err));
         if (err instanceof BrowserCommandError && err.hint) log.error(`Hint: ${err.hint}`);
-        process.exitCode = err instanceof BrowserCommandError && err.code === 'invalid_bind_workspace'
-          ? EXIT_CODES.USAGE_ERROR
-          : EXIT_CODES.GENERIC_ERROR;
+        process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
 
   browser.command('unbind')
-    .option('--workspace <name>', 'Bound workspace name to detach')
-    .description('Detach a bound:* workspace without closing the user tab/window')
+    .description('Detach the bound browser session named by <session> without closing the user tab/window')
     .action(async (optsOrCommand, maybeCommand?: Command) => {
       const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
-      const rawWorkspace = getCommandOption(command, 'workspace');
-      const workspace = typeof rawWorkspace === 'string' && rawWorkspace.trim()
-        ? rawWorkspace.trim()
-        : DEFAULT_BOUND_WORKSPACE;
-      if (!workspace.startsWith('bound:')) {
-        console.log(JSON.stringify({
-          error: {
-            code: 'invalid_bind_workspace',
-            message: `--workspace must start with "bound:", got "${workspace}"`,
-            hint: 'Use the default bound:default or pass --workspace bound:<name>.',
-          },
-        }, null, 2));
-        process.exitCode = EXIT_CODES.USAGE_ERROR;
-        return;
-      }
+      const session = getBrowserSession(command);
       try {
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
         const contextId = getBrowserContextId(command);
-        await bridge.connect({ timeout: 30, workspace, ...(contextId && { contextId }) });
-        await sendCommand('close-window', { workspace, ...(contextId && { contextId }) });
-        saveBrowserTargetState(undefined, getBrowserScope(workspace, contextId));
-        console.log(JSON.stringify({ unbound: true, workspace }, null, 2));
+        await bridge.connect({ timeout: 30, session, surface: 'browser', ...(contextId && { contextId }) });
+        await sendCommand('close-window', { session, surface: 'browser', ...(contextId && { contextId }) });
+        saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
+        console.log(JSON.stringify({ unbound: true, session }, null, 2));
       } catch (err) {
         if (err instanceof BrowserCommandError && err.code) {
           console.log(JSON.stringify({
@@ -843,10 +886,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   const browserTab = browser
     .command('tab')
-    .description('Tab management — list, create, and close tabs in the automation window');
+    .description('Tab management — list, create, and close tabs in the browser session');
 
   browserTab.command('list')
-    .description('List tabs in the automation window with target IDs')
+    .description('List tabs in the browser session with target IDs')
     .action(browserAction(async (page) => {
       const tabs = await page.tabs();
       console.log(JSON.stringify(tabs, null, 2));
@@ -919,15 +962,11 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
    */
   const NETWORK_INTERCEPTOR_JS = `(function(){if(window.__opencli_net)return;window.__opencli_net=[];var M=200,B=1048576,F=window.fetch;function capture(url,method,status,text,ct){if(window.__opencli_net.length>=M)return;var full=text?text.length:0,trunc=full>B,stored=trunc?text.slice(0,B):text,body=null;if(stored){if(trunc){body=stored}else{try{body=JSON.parse(stored)}catch(e){body=stored}}}var e={url:url,method:method||'GET',status:status,size:full,ct:ct,body:body,timestamp:Date.now()};if(trunc){e.bodyTruncated=true;e.bodyFullSize=full}window.__opencli_net.push(e)}window.fetch=async function(){var r=await F.apply(this,arguments);try{var ct=r.headers.get('content-type')||'';if(ct.includes('json')||ct.includes('text')){var c=r.clone(),t=await c.text();capture(r.url||(arguments[0]&&arguments[0].url)||String(arguments[0]),(arguments[1]&&arguments[1].method)||'GET',r.status,t,ct)}}catch(e){}return r};var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(m,u){this._om=m;this._ou=u;return O.apply(this,arguments)};X.send=function(){var x=this;x.addEventListener('load',function(){try{var ct=x.getResponseHeader('content-type')||'';if(ct.includes('json')||ct.includes('text')){capture(x._ou,x._om||'GET',x.status,x.responseText||'',ct)}}catch(e){}});return S.apply(this,arguments)}})()`;
 
-  addBrowserTabOption(browser.command('open').argument('<url>').option('--allow-navigate-bound', 'Allow navigating a bound user tab', false).description('Open URL in automation window'))
+  addBrowserTabOption(browser.command('open').argument('<url>').description('Open URL in the browser session'))
     .action(browserAction(async (page, url, opts) => {
       // Start session-level capture before navigation (catches initial requests)
       const hasSessionCapture = await page.startNetworkCapture?.() ?? false;
-      if (opts.allowNavigateBound === true) {
-        await page.goto(url, { allowBoundNavigation: true });
-      } else {
-        await page.goto(url);
-      }
+      await page.goto(url);
       await page.wait(2);
       // Fallback: inject JS interceptor when session capture is unavailable
       if (!hasSessionCapture) {
@@ -939,19 +978,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }, null, 2));
     }));
 
-  addBrowserTabOption(browser.command('back').option('--allow-navigate-bound', 'Allow history navigation in a bound user tab', false).description('Go back in browser history'))
+  addBrowserTabOption(browser.command('back').description('Go back in browser history'))
     .action(browserAction(async (page, opts) => {
-      if (getPageWorkspace(page).startsWith('bound:') && opts.allowNavigateBound !== true) {
-        console.log(JSON.stringify({
-          error: {
-            code: 'bound_navigation_blocked',
-            message: `Workspace "${getPageWorkspace(page)}" is bound to a user tab; history navigation is blocked by default.`,
-            hint: 'Pass --allow-navigate-bound only if you intentionally want to navigate the bound tab.',
-          },
-        }, null, 2));
-        process.exitCode = EXIT_CODES.GENERIC_ERROR;
-        return;
-      }
       await page.evaluate('history.back()');
       await page.wait(2);
       console.log('Navigated back');
@@ -971,9 +999,33 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   // ── Inspect ──
 
-  addBrowserTabOption(browser.command('state').description('Page state: URL, title, interactive elements with [N] indices'))
-    .action(browserAction(async (page) => {
-      const snapshot = await page.snapshot({ viewportExpand: 2000 });
+  addBrowserTabOption(browser.command('state').description('Page state: URL, title, interactive elements with [N] indices')
+    .option('--source <source>', 'Snapshot backend: dom (default) or ax prototype', 'dom')
+    .option('--compare-sources', 'Print DOM vs AX snapshot metrics for observation promotion decisions', false))
+    .action(browserAction(async (page, opts) => {
+      if (opts.compareSources === true) {
+        const [dom, ax] = await Promise.all([
+          snapshotSourceMetrics(page, 'dom'),
+          snapshotSourceMetrics(page, 'ax'),
+        ]);
+        console.log(JSON.stringify({
+          url: await page.getCurrentUrl?.() ?? '',
+          sources: { dom, ax },
+        }, null, 2));
+        return;
+      }
+      const source = String(opts.source ?? 'dom').toLowerCase();
+      if (source !== 'dom' && source !== 'ax') {
+        console.log(JSON.stringify({
+          error: {
+            code: 'invalid_source',
+            message: `--source must be "dom" or "ax", got "${opts.source}"`,
+          },
+        }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const snapshot = await page.snapshot({ viewportExpand: 2000, source: source as 'dom' | 'ax' });
       const url = await page.getCurrentUrl?.() ?? '';
       console.log(`URL: ${url}\n`);
       console.log(typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot, null, 2));
@@ -987,20 +1039,25 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
   addBrowserTabOption(browser.command('screenshot').argument('[path]', 'Save to file (base64 if omitted)'))
     .option('--full-page', 'Capture the full scrollable page, not just the viewport', false)
+    .option('--annotate', 'Overlay visible browser state ref labels on the screenshot', false)
     .option('--width <n>', 'Override viewport width in CSS pixels for this screenshot only', (v: string) => parseScreenshotDim(v, 'width'))
     .option('--height <n>', 'Override viewport height in CSS pixels for this screenshot only (ignored with --full-page)', (v: string) => parseScreenshotDim(v, 'height'))
     .description('Take screenshot')
     .action(browserAction(async (page, path, opts) => {
       const shotOpts: ScreenshotOptions = {
         fullPage: opts.fullPage === true,
+        annotate: opts.annotate === true,
         width: opts.width,
         height: opts.height,
       };
+      const capture = opts.annotate === true
+        ? (page.annotatedScreenshot ?? page.screenshot).bind(page)
+        : page.screenshot.bind(page);
       if (path) {
-        await page.screenshot({ ...shotOpts, path });
+        await capture({ ...shotOpts, path });
         console.log(`Screenshot saved to: ${path}`);
       } else {
-        console.log(await page.screenshot({ ...shotOpts, format: 'png' }));
+        console.log(await capture({ ...shotOpts, format: 'png' }));
       }
     }));
 
@@ -1060,7 +1117,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
       const messages = filter(normalize(await page.consoleMessages(opts.level)));
       console.log(JSON.stringify({
-        workspace: getPageWorkspace(page),
+        session: getPageSession(page),
         captured_at: new Date().toISOString(),
         count: messages.length,
         messages: messages.map((message) => ({
@@ -1148,20 +1205,232 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   // `browser find --css <sel>` lets agents jump straight from a semantic
   // selector to a JSON list of matching elements, without having to parse
   // the free-text state snapshot to recover indices.
+  const addSemanticLocatorOptions = (cmd: Command): Command => cmd
+    .option('--role <role>', 'Semantic role (button, link, textbox, option, etc.)')
+    .option('--name <text>', 'Accessible name contains text (aria-label, label, title, placeholder, or visible text)')
+    .option('--label <text>', 'Associated label contains text')
+    .option('--text <text>', 'Visible text contains text')
+    .option('--testid <id>', 'data-testid / data-test / test-id contains id');
+
+  const addPrefixedSemanticLocatorOptions = (cmd: Command, prefix: string): Command => cmd
+    .option(`--${prefix}-role <role>`, `${prefix} semantic role`)
+    .option(`--${prefix}-name <text>`, `${prefix} accessible name contains text`)
+    .option(`--${prefix}-label <text>`, `${prefix} associated label contains text`)
+    .option(`--${prefix}-text <text>`, `${prefix} visible text contains text`)
+    .option(`--${prefix}-testid <id>`, `${prefix} data-testid / data-test / test-id contains id`);
+
+  const semanticLocatorFromOptions = (opts: Record<string, unknown>): SemanticFindOptions | null => {
+    const locator: SemanticFindOptions = {};
+    for (const key of ['role', 'name', 'label', 'text', 'testid'] as const) {
+      const value = opts[key];
+      if (typeof value === 'string' && value.trim()) locator[key] = value.trim();
+    }
+    return Object.keys(locator).length > 0 ? locator : null;
+  };
+
+  const prefixedSemanticLocatorFromOptions = (opts: Record<string, unknown>, prefix: string): SemanticFindOptions | null => {
+    const locator: SemanticFindOptions = {};
+    const map = {
+      role: `${prefix}Role`,
+      name: `${prefix}Name`,
+      label: `${prefix}Label`,
+      text: `${prefix}Text`,
+      testid: `${prefix}Testid`,
+    } as const;
+    for (const key of ['role', 'name', 'label', 'text', 'testid'] as const) {
+      const value = opts[map[key]];
+      if (typeof value === 'string' && value.trim()) locator[key] = value.trim();
+    }
+    return Object.keys(locator).length > 0 ? locator : null;
+  };
+
+  const semanticTargetFromLocator = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    locator: SemanticFindOptions,
+    mode: 'read' | 'write',
+  ): Promise<string | { target: string; total_matches?: number } | { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } }> => {
+    const result = await page.evaluate(buildSemanticFindJs({ ...locator, limit: 6 })) as FindResult | FindError;
+    if (isFindError(result)) return result;
+    if (mode === 'write' && result.matches_n !== 1) {
+      return {
+        error: {
+          code: 'semantic_ambiguous',
+          message: `Semantic locator matched ${result.matches_n} elements; write actions require a unique target.`,
+          hint: 'Add --name/--label/--text/--testid or use browser find with a narrower locator.',
+          matches_n: result.matches_n,
+          entries: result.entries,
+        },
+      };
+    }
+    const first = result.entries[0];
+    if (!first) {
+      return {
+        error: {
+          code: 'semantic_not_found',
+          message: 'Semantic locator matched 0 elements',
+          hint: 'Try browser state, --source ax, or relax the semantic locator.',
+        },
+      };
+    }
+    const target = String(first.ref);
+    if (mode === 'read') {
+      return {
+        target,
+        ...(result.matches_n > 1 ? { total_matches: result.matches_n } : {}),
+      };
+    }
+    return target;
+  };
+
+  const semanticTargetFromOptions = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    opts: Record<string, unknown>,
+    mode: 'read' | 'write',
+  ): Promise<string | { target: string; total_matches?: number } | { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } } | null> => {
+    const locator = semanticLocatorFromOptions(opts);
+    if (!locator) return null;
+    return semanticTargetFromLocator(page, locator, mode);
+  };
+
+  const resolveExplicitOrSemanticTarget = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    target: unknown,
+    opts: Record<string, unknown>,
+    mode: 'read' | 'write',
+  ): Promise<string | { target: string; total_matches?: number } | { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } }> => {
+    const explicit = typeof target === 'string' && target.trim() ? target.trim() : '';
+    const hasSemantic = !!semanticLocatorFromOptions(opts);
+    if (explicit && hasSemantic) {
+      return {
+        error: {
+          code: 'usage_error',
+          message: 'Pass either <target> or semantic locator flags, not both.',
+        },
+      };
+    }
+    if (explicit) return explicit;
+    const semantic = await semanticTargetFromOptions(page, opts, mode);
+    if (semantic) return semantic;
+    return {
+      error: {
+        code: 'usage_error',
+        message: 'Missing target. Pass a numeric ref/CSS selector, or semantic flags like --role button --name Submit.',
+      },
+    };
+  };
+
+  const printTargetResolutionError = (
+    resolved: { error: { code: string; message: string; hint?: string; matches_n?: number; entries?: FindResult['entries'] } },
+  ): void => {
+    console.log(JSON.stringify(resolved, null, 2));
+    process.exitCode = EXIT_CODES.USAGE_ERROR;
+  };
+
+  const resolveWriteTargetOrPrint = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    target: unknown,
+    opts: Record<string, unknown>,
+  ): Promise<string | null> => {
+    const resolvedTarget = await resolveExplicitOrSemanticTarget(page, target, opts, 'write');
+    if (typeof resolvedTarget === 'string') return resolvedTarget;
+    if ('error' in resolvedTarget) printTargetResolutionError(resolvedTarget);
+    return null;
+  };
+
+  const resolveWriteTargetAndValueOrPrint = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    targetOrValue: unknown,
+    value: unknown,
+    opts: Record<string, unknown>,
+    valueLabel: string,
+  ): Promise<{ target: string; value: string } | null> => {
+    const hasSemantic = !!semanticLocatorFromOptions(opts);
+    if (hasSemantic && value !== undefined) {
+      printTargetResolutionError({
+        error: {
+          code: 'usage_error',
+          message: `When using semantic locator flags, pass only <${valueLabel}> as the positional argument.`,
+        },
+      });
+      return null;
+    }
+    const resolvedValue = hasSemantic ? targetOrValue : value;
+    if (resolvedValue === undefined) {
+      printTargetResolutionError({
+        error: {
+          code: 'usage_error',
+          message: `Missing ${valueLabel}.`,
+          hint: hasSemantic
+            ? `With semantic locator flags, pass the ${valueLabel} as the only positional argument.`
+            : `Pass both a target and ${valueLabel}.`,
+        },
+      });
+      return null;
+    }
+    const resolvedTarget = await resolveWriteTargetOrPrint(page, hasSemantic ? undefined : targetOrValue, opts);
+    if (!resolvedTarget) return null;
+    return { target: resolvedTarget, value: String(resolvedValue) };
+  };
+
+  const resolvePrefixedWriteTargetOrPrint = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    target: unknown,
+    opts: Record<string, unknown>,
+    prefix: string,
+    label: string,
+  ): Promise<string | null> => {
+    const explicit = typeof target === 'string' && target.trim() ? target.trim() : '';
+    const locator = prefixedSemanticLocatorFromOptions(opts, prefix);
+    if (explicit && locator) {
+      printTargetResolutionError({
+        error: {
+          code: 'usage_error',
+          message: `Pass either <${label}> or --${prefix}-* semantic locator flags, not both.`,
+        },
+      });
+      return null;
+    }
+    if (explicit) return explicit;
+    if (locator) {
+      const resolved = await semanticTargetFromLocator(page, locator, 'write');
+      if (typeof resolved === 'string') return resolved;
+      if ('error' in resolved) printTargetResolutionError(resolved);
+      return null;
+    }
+    printTargetResolutionError({
+      error: {
+        code: 'usage_error',
+        message: `Missing ${label}. Pass a numeric ref/CSS selector, or --${prefix}-role/--${prefix}-name semantic flags.`,
+      },
+    });
+    return null;
+  };
+
   addBrowserTabOption(
-    browser.command('find')
+    addSemanticLocatorOptions(browser.command('find'))
       .option('--css <selector>', 'CSS selector (required)')
       .option('--limit <n>', 'Max entries returned', '50')
       .option('--text-max <n>', 'Max chars of trimmed text per entry', '120')
-      .description('Find DOM elements by CSS selector — returns JSON {matches_n, entries[]}'),
+      .description('Find DOM elements by CSS or semantic locator — returns JSON {matches_n, entries[]}'),
   )
     .action(browserAction(async (page, opts) => {
-      if (!opts.css || typeof opts.css !== 'string') {
+      const locator = semanticLocatorFromOptions(opts);
+      if ((!opts.css || typeof opts.css !== 'string') && !locator) {
         console.log(JSON.stringify({
           error: {
             code: 'usage_error',
-            message: '--css <selector> is required',
-            hint: 'Example: opencli browser find --css ".btn.primary"',
+            message: '--css <selector> or a semantic locator flag is required',
+            hint: 'Examples: opencli browser find --css ".btn.primary"; opencli browser find --role button --name Save',
+          },
+        }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      if (opts.css && locator) {
+        console.log(JSON.stringify({
+          error: {
+            code: 'usage_error',
+            message: 'Pass either --css or semantic locator flags, not both.',
           },
         }, null, 2));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
@@ -1179,10 +1448,18 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const result = await page.evaluate(buildFindJs(opts.css, {
-        limit: limit as number | null ?? undefined,
-        textMax: textMax as number | null ?? undefined,
-      })) as FindResult | FindError;
+      const result = await page.evaluate(
+        locator
+          ? buildSemanticFindJs({
+              ...locator,
+              limit: limit as number | null ?? undefined,
+              textMax: textMax as number | null ?? undefined,
+            })
+          : buildFindJs(opts.css, {
+              limit: limit as number | null ?? undefined,
+              textMax: textMax as number | null ?? undefined,
+            }),
+      ) as FindResult | FindError;
       if (isFindError(result)) {
         console.log(JSON.stringify(result, null, 2));
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
@@ -1215,18 +1492,26 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   // match count is exposed via `matches_n`; `--nth <n>` picks a specific one.
   const runGetCommand = async (
     page: Awaited<ReturnType<typeof getBrowserPage>>,
-    target: string,
-    opts: { nth?: string },
+    target: string | undefined,
+    opts: Record<string, unknown> & { nth?: string },
     evalJs: string,
     field: 'text' | 'value' | 'attributes',
   ): Promise<void> => {
+    const resolvedTarget = await resolveExplicitOrSemanticTarget(page, target, opts, 'read');
+    if (typeof resolvedTarget !== 'string' && 'error' in resolvedTarget) {
+      console.log(JSON.stringify(resolvedTarget, null, 2));
+      process.exitCode = EXIT_CODES.USAGE_ERROR;
+      return;
+    }
+    const targetRef = typeof resolvedTarget === 'string' ? resolvedTarget : resolvedTarget.target;
+    const totalMatches = typeof resolvedTarget === 'string' ? undefined : resolvedTarget.total_matches;
     const nth = parseNthFlag(opts.nth);
     if (nth && typeof nth === 'object' && 'error' in nth) {
       console.log(JSON.stringify({ error: { code: 'usage_error', message: nth.error } }, null, 2));
       process.exitCode = EXIT_CODES.USAGE_ERROR;
       return;
     }
-    const { matches_n, match_level } = await resolveRef(page, String(target), {
+    const { matches_n, match_level } = await resolveRef(page, targetRef, {
       firstOnMulti: nth === null,
       ...(typeof nth === 'number' ? { nth } : {}),
     });
@@ -1240,26 +1525,31 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     } else {
       value = raw ?? null;
     }
-    console.log(JSON.stringify({ value, matches_n, match_level }, null, 2));
+    console.log(JSON.stringify({
+      value,
+      matches_n,
+      match_level,
+      ...(totalMatches && totalMatches > 1 ? { total_matches: totalMatches } : {}),
+    }, null, 2));
   };
 
   addBrowserTabOption(
-    get.command('text')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+    addSemanticLocatorOptions(get.command('text'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'Pick the nth match (0-based) when <target> is a multi-match CSS selector')
       .description('Element text content — JSON envelope {value, matches_n}'),
   )
     .action(browserAction(async (page, target, opts) =>
-      runGetCommand(page, String(target), opts ?? {}, getTextResolvedJs(), 'text')));
+      runGetCommand(page, target, opts ?? {}, getTextResolvedJs(), 'text')));
 
   addBrowserTabOption(
-    get.command('value')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+    addSemanticLocatorOptions(get.command('value'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'Pick the nth match (0-based) when <target> is a multi-match CSS selector')
       .description('Input/textarea value — JSON envelope {value, matches_n}'),
   )
     .action(browserAction(async (page, target, opts) =>
-      runGetCommand(page, String(target), opts ?? {}, getValueResolvedJs(), 'value')));
+      runGetCommand(page, target, opts ?? {}, getValueResolvedJs(), 'value')));
 
   addBrowserTabOption(
     get.command('html')
@@ -1384,13 +1674,13 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }));
 
   addBrowserTabOption(
-    get.command('attributes')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+    addSemanticLocatorOptions(get.command('attributes'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'Pick the nth match (0-based) when <target> is a multi-match CSS selector')
       .description('Element attributes — JSON envelope {value, matches_n}'),
   )
     .action(browserAction(async (page, target, opts) =>
-      runGetCommand(page, String(target), opts ?? {}, getAttributesResolvedJs(), 'attributes')));
+      runGetCommand(page, target, opts ?? {}, getAttributesResolvedJs(), 'attributes')));
 
   // ── Interact ──
   //
@@ -1414,31 +1704,78 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     return { opts: {} };
   }
 
+  function resolveUploadFilePaths(rawFiles: unknown): { files: string[] } | { error: { code: string; message: string; hint?: string } } {
+    const inputs = Array.isArray(rawFiles) ? rawFiles : [];
+    if (inputs.length === 0) {
+      return {
+        error: {
+          code: 'usage_error',
+          message: 'At least one file path is required.',
+          hint: 'Example: opencli browser upload "input[type=file]" ./receipt.pdf',
+        },
+      };
+    }
+    const files: string[] = [];
+    for (const input of inputs) {
+      const raw = String(input);
+      const expanded = raw === '~' || raw.startsWith(`~${path.sep}`)
+        ? path.join(os.homedir(), raw.slice(2))
+        : raw;
+      const resolved = path.resolve(expanded);
+      if (!fs.existsSync(resolved)) {
+        return { error: { code: 'file_not_found', message: `File not found: ${resolved}` } };
+      }
+      const stat = fs.statSync(resolved);
+      if (!stat.isFile()) {
+        return { error: { code: 'not_a_file', message: `Not a regular file: ${resolved}` } };
+      }
+      files.push(resolved);
+    }
+    return { files };
+  }
+
+  function parseResolveFlag(raw: unknown, flag: string): { error: string } | { opts: ResolveOptions } {
+    const parsed = parseNthFlag(raw);
+    if (parsed && typeof parsed === 'object' && 'error' in parsed) {
+      return { error: parsed.error.replace('--nth', flag) };
+    }
+    if (typeof parsed === 'number') return { opts: { nth: parsed } };
+    return { opts: {} };
+  }
+
   addBrowserTabOption(
-    browser.command('click')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
+    addSemanticLocatorOptions(browser.command('click'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Click element — JSON envelope {clicked, target, matches_n}'),
   )
     .action(browserAction(async (page, target, opts) => {
+      const resolvedTarget = await resolveExplicitOrSemanticTarget(page, target, opts ?? {}, 'write');
+      if (typeof resolvedTarget !== 'string') {
+        console.log(JSON.stringify(resolvedTarget, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
       const parsed = nthToResolveOpts(opts?.nth);
       if ('error' in parsed) {
         console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const { matches_n, match_level } = await page.click(String(target), parsed.opts);
-      console.log(JSON.stringify({ clicked: true, target: String(target), matches_n, match_level }, null, 2));
+      const { matches_n, match_level } = await page.click(resolvedTarget, parsed.opts);
+      console.log(JSON.stringify({ clicked: true, target: resolvedTarget, matches_n, match_level }, null, 2));
     }));
 
   addBrowserTabOption(
-    browser.command('type')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
-      .argument('<text>', 'Text to type')
+    addSemanticLocatorOptions(browser.command('type'))
+      .argument('[targetOrText]', 'Numeric ref/CSS target, or text when using --role/--name/etc.')
+      .argument('[text]', 'Text to type')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Click element, then type text — JSON envelope {typed, text, target, matches_n, autocomplete}'),
   )
-    .action(browserAction(async (page, target, text, opts) => {
+    .action(browserAction(async (page, targetOrText, text, opts) => {
+      const resolved = await resolveWriteTargetAndValueOrPrint(page, targetOrText, text, opts ?? {}, 'text');
+      if (!resolved) return;
       const parsed = nthToResolveOpts(opts?.nth);
       if ('error' in parsed) {
         console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
@@ -1446,16 +1783,16 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         return;
       }
       // Click first (focuses the field), wait briefly, then type.
-      await page.click(String(target), parsed.opts);
+      await page.click(resolved.target, parsed.opts);
       await page.wait(0.3);
-      const { matches_n, match_level } = await page.typeText(String(target), String(text), parsed.opts);
+      const { matches_n, match_level } = await page.typeText(resolved.target, resolved.value, parsed.opts);
       // __resolved is already set by the resolver call inside page.typeText
       const isAutocomplete = await page.evaluate(isAutocompleteResolvedJs()) as boolean;
       if (isAutocomplete) await page.wait(0.4);
       console.log(JSON.stringify({
         typed: true,
-        text: String(text),
-        target: String(target),
+        text: resolved.value,
+        target: resolved.target,
         matches_n,
         match_level,
         autocomplete: !!isAutocomplete,
@@ -1463,26 +1800,199 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }));
 
   addBrowserTabOption(
-    browser.command('fill')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector')
-      .argument('<text>', 'Text to set exactly')
+    addSemanticLocatorOptions(browser.command('hover'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
-      .description('Set input/textarea/contenteditable text exactly and verify the value — JSON envelope {filled, verified, text, actual}'),
+      .description('Move the mouse over an element — JSON envelope {hovered, target, matches_n}'),
   )
-    .action(browserAction(async (page, target, text, opts) => {
+    .action(browserAction(async (page, target, opts) => {
+      if (typeof page.hover !== 'function') throw new Error('browser hover is not supported by this browser backend');
+      const resolvedTarget = await resolveWriteTargetOrPrint(page, target, opts ?? {});
+      if (!resolvedTarget) return;
       const parsed = nthToResolveOpts(opts?.nth);
       if ('error' in parsed) {
         console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const result = await page.fillText(String(target), String(text), parsed.opts);
+      const { matches_n, match_level } = await page.hover(resolvedTarget, parsed.opts);
+      console.log(JSON.stringify({ hovered: true, target: resolvedTarget, matches_n, match_level }, null, 2));
+    }));
+
+  addBrowserTabOption(
+    addSemanticLocatorOptions(browser.command('focus'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Focus an element — JSON envelope {focused, target, matches_n}'),
+  )
+    .action(browserAction(async (page, target, opts) => {
+      if (typeof page.focus !== 'function') throw new Error('browser focus is not supported by this browser backend');
+      const resolvedTarget = await resolveWriteTargetOrPrint(page, target, opts ?? {});
+      if (!resolvedTarget) return;
+      const parsed = nthToResolveOpts(opts?.nth);
+      if ('error' in parsed) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const { focused, matches_n, match_level } = await page.focus(resolvedTarget, parsed.opts);
+      console.log(JSON.stringify({ focused, target: resolvedTarget, matches_n, match_level }, null, 2));
+    }));
+
+  addBrowserTabOption(
+    addSemanticLocatorOptions(browser.command('dblclick'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Double-click element — JSON envelope {dblclicked, target, matches_n}'),
+  )
+    .action(browserAction(async (page, target, opts) => {
+      if (typeof page.dblClick !== 'function') throw new Error('browser dblclick is not supported by this browser backend');
+      const resolvedTarget = await resolveWriteTargetOrPrint(page, target, opts ?? {});
+      if (!resolvedTarget) return;
+      const parsed = nthToResolveOpts(opts?.nth);
+      if ('error' in parsed) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const { matches_n, match_level } = await page.dblClick(resolvedTarget, parsed.opts);
+      console.log(JSON.stringify({ dblclicked: true, target: resolvedTarget, matches_n, match_level }, null, 2));
+    }));
+
+  const runCheckCommand = async (
+    page: Awaited<ReturnType<typeof getBrowserPage>>,
+    target: unknown,
+    opts: Record<string, unknown>,
+    checked: boolean,
+  ): Promise<void> => {
+    if (typeof page.setChecked !== 'function') throw new Error(`browser ${checked ? 'check' : 'uncheck'} is not supported by this browser backend`);
+    const resolvedTarget = await resolveWriteTargetOrPrint(page, target, opts);
+    if (!resolvedTarget) return;
+    const parsed = nthToResolveOpts(opts?.nth);
+    if ('error' in parsed) {
+      console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+      process.exitCode = EXIT_CODES.USAGE_ERROR;
+      return;
+    }
+    const result = await page.setChecked(resolvedTarget, checked, parsed.opts);
+    console.log(JSON.stringify({
+      checked: result.checked,
+      changed: result.changed,
+      target: resolvedTarget,
+      matches_n: result.matches_n,
+      match_level: result.match_level,
+      ...(result.kind ? { kind: result.kind } : {}),
+    }, null, 2));
+  };
+
+  addBrowserTabOption(
+    addSemanticLocatorOptions(browser.command('check'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Ensure a checkbox/radio/aria-checked control is checked — JSON envelope {checked, changed, target, matches_n}'),
+  )
+    .action(browserAction(async (page, target, opts) => {
+      await runCheckCommand(page, target, opts ?? {}, true);
+    }));
+
+  addBrowserTabOption(
+    addSemanticLocatorOptions(browser.command('uncheck'))
+      .argument('[target]', 'Numeric ref (from browser state / find), CSS selector, or omit when using --role/--name/etc.')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Ensure a checkbox/aria-checked control is unchecked — JSON envelope {checked, changed, target, matches_n}'),
+  )
+    .action(browserAction(async (page, target, opts) => {
+      await runCheckCommand(page, target, opts ?? {}, false);
+    }));
+
+  addBrowserTabOption(
+    addSemanticLocatorOptions(browser.command('upload'))
+      .argument('[targetOrFile]', 'Numeric ref/CSS target, or first file when using --role/--name/etc.')
+      .argument('[files...]', 'Local file path(s) to attach')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Attach local files to a file input — JSON envelope {uploaded, files, file_names, target, matches_n}'),
+  )
+    .action(browserAction(async (page, targetOrFile, files, opts) => {
+      if (typeof page.uploadFiles !== 'function') throw new Error('browser upload is not supported by this browser backend');
+      const hasSemantic = !!semanticLocatorFromOptions(opts ?? {});
+      const target = hasSemantic ? undefined : targetOrFile;
+      const resolvedTarget = await resolveWriteTargetOrPrint(page, target, opts ?? {});
+      if (!resolvedTarget) return;
+      const parsed = nthToResolveOpts(opts?.nth);
+      if ('error' in parsed) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const rawFiles = hasSemantic
+        ? [targetOrFile, ...(Array.isArray(files) ? files : [])].filter((value) => value !== undefined)
+        : files;
+      const resolvedFiles = resolveUploadFilePaths(rawFiles);
+      if ('error' in resolvedFiles) {
+        console.log(JSON.stringify({ error: resolvedFiles.error }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const result = await page.uploadFiles(resolvedTarget, resolvedFiles.files, parsed.opts);
+      console.log(JSON.stringify(result, null, 2));
+    }));
+
+  addBrowserTabOption(
+    addPrefixedSemanticLocatorOptions(
+      addPrefixedSemanticLocatorOptions(browser.command('drag'), 'from'),
+      'to',
+    )
+      .argument('[source]', 'Numeric ref/CSS selector to drag from, or omit with --from-role/--from-name/etc.')
+      .argument('[target]', 'Numeric ref/CSS selector to drop onto, or omit with --to-role/--to-name/etc.')
+      .option('--from-nth <n>', 'When <source> is a multi-match CSS selector, pick the nth match (0-based)')
+      .option('--to-nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Drag one element to another — JSON envelope {dragged, source, target, source_matches_n, target_matches_n}'),
+  )
+    .action(browserAction(async (page, source, target, opts) => {
+      if (typeof page.drag !== 'function') throw new Error('browser drag is not supported by this browser backend');
+      const resolvedSource = await resolvePrefixedWriteTargetOrPrint(page, source, opts ?? {}, 'from', 'source');
+      if (!resolvedSource) return;
+      const resolvedTarget = await resolvePrefixedWriteTargetOrPrint(page, target, opts ?? {}, 'to', 'target');
+      if (!resolvedTarget) return;
+      const from = parseResolveFlag(opts?.fromNth, '--from-nth');
+      if ('error' in from) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: from.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const to = parseResolveFlag(opts?.toNth, '--to-nth');
+      if ('error' in to) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: to.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const result = await page.drag(resolvedSource, resolvedTarget, { from: from.opts, to: to.opts });
+      console.log(JSON.stringify(result, null, 2));
+    }));
+
+  addBrowserTabOption(
+    addSemanticLocatorOptions(browser.command('fill'))
+      .argument('[targetOrText]', 'Numeric ref/CSS target, or text when using --role/--name/etc.')
+      .argument('[text]', 'Text to set exactly')
+      .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
+      .description('Set input/textarea/contenteditable text exactly and verify the value — JSON envelope {filled, verified, text, actual}'),
+  )
+    .action(browserAction(async (page, targetOrText, text, opts) => {
+      const resolved = await resolveWriteTargetAndValueOrPrint(page, targetOrText, text, opts ?? {}, 'text');
+      if (!resolved) return;
+      const parsed = nthToResolveOpts(opts?.nth);
+      if ('error' in parsed) {
+        console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const result = await page.fillText(resolved.target, resolved.value, parsed.opts);
       if (!result.verified) process.exitCode = EXIT_CODES.GENERIC_ERROR;
       console.log(JSON.stringify({
         filled: result.filled,
         verified: result.verified,
-        target: String(target),
-        text: String(text),
+        target: resolved.target,
+        text: resolved.value,
         actual: result.actual,
         length: result.length,
         matches_n: result.matches_n,
@@ -1492,21 +2002,23 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     }));
 
   addBrowserTabOption(
-    browser.command('select')
-      .argument('<target>', 'Numeric ref (from browser state / find) or CSS selector of a <select> element')
-      .argument('<option>', 'Option text (or value) to select')
+    addSemanticLocatorOptions(browser.command('select'))
+      .argument('[targetOrOption]', 'Numeric ref/CSS target, or option text when using --role/--name/etc.')
+      .argument('[option]', 'Option text (or value) to select')
       .option('--nth <n>', 'When <target> is a multi-match CSS selector, pick the nth match (0-based)')
       .description('Select dropdown option — JSON envelope {selected, target, matches_n}'),
   )
-    .action(browserAction(async (page, target, option, opts) => {
+    .action(browserAction(async (page, targetOrOption, option, opts) => {
+      const resolved = await resolveWriteTargetAndValueOrPrint(page, targetOrOption, option, opts ?? {}, 'option');
+      if (!resolved) return;
       const parsed = nthToResolveOpts(opts?.nth);
       if ('error' in parsed) {
         console.log(JSON.stringify({ error: { code: 'usage_error', message: parsed.error } }, null, 2));
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const { matches_n, match_level } = await resolveRef(page, String(target), parsed.opts);
-      const result = await page.evaluate(selectResolvedJs(String(option))) as
+      const { matches_n, match_level } = await resolveRef(page, resolved.target, parsed.opts);
+      const result = await page.evaluate(selectResolvedJs(resolved.value)) as
         | { error?: string; selected?: string; available?: string[] }
         | null;
       if (result?.error) {
@@ -1525,8 +2037,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         return;
       }
       console.log(JSON.stringify({
-        selected: result?.selected ?? String(option),
-        target: String(target),
+        selected: result?.selected ?? resolved.value,
+        target: resolved.target,
         matches_n,
         match_level,
       }, null, 2));
@@ -1597,10 +2109,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   // ── Wait commands ──
 
   addBrowserTabOption(browser.command('wait'))
-    .argument('<type>', 'selector, text, time, or xhr')
-    .argument('[value]', 'CSS selector, text string, seconds, or XHR URL regex')
+    .argument('<type>', 'selector, text, time, xhr, or download')
+    .argument('[value]', 'CSS selector, text string, seconds, XHR URL regex, or download filename/URL pattern')
     .option('--timeout <ms>', 'Timeout in milliseconds', '10000')
-    .description('Wait for selector, text, time, or matching XHR (e.g. wait selector ".loaded", wait text "Success", wait time 3, wait xhr "/api/search")')
+    .description('Wait for selector, text, time, matching XHR, or browser download (e.g. wait selector ".loaded", wait text "Success", wait time 3, wait xhr "/api/search", wait download receipt.pdf)')
     .action(browserAction(async (page, type, value, opts) => {
       const timeout = parseInt(opts.timeout, 10);
       if (type === 'time') {
@@ -1654,8 +2166,35 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         console.log(JSON.stringify({
           matched: { url: matched.url, status: matched.status, contentType: matched.ct },
         }, null, 2));
+      } else if (type === 'download') {
+        if (typeof page.waitForDownload !== 'function') {
+          console.log(JSON.stringify({
+            error: {
+              code: 'download_wait_unavailable',
+              message: 'The active browser backend does not support download lifecycle waits.',
+              hint: 'Use the Browser Bridge extension version 1.0.8 or newer, then retry the command.',
+            },
+          }, null, 2));
+          process.exitCode = EXIT_CODES.GENERIC_ERROR;
+          return;
+        }
+        const result = await page.waitForDownload(String(value ?? ''), timeout) as BrowserDownloadWaitResult;
+        if (!result.downloaded) {
+          const code = result.state === 'interrupted' && result.id !== undefined ? 'download_failed' : 'download_not_seen';
+          console.log(JSON.stringify({
+            error: {
+              code,
+              message: result.error ?? `No download matched "${value ?? '*'}" within ${timeout}ms`,
+              hint: 'Check the pattern against the expected filename or URL; use a longer --timeout if the download starts slowly.',
+            },
+            download: result,
+          }, null, 2));
+          process.exitCode = EXIT_CODES.GENERIC_ERROR;
+          return;
+        }
+        console.log(JSON.stringify(result, null, 2));
       } else {
-        console.error(`Unknown wait type "${type}". Use: selector, text, time, or xhr`);
+        console.error(`Unknown wait type "${type}". Use: selector, text, time, xhr, or download`);
         process.exitCode = EXIT_CODES.USAGE_ERROR;
       }
     }));
@@ -1757,7 +2296,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   // Default output is JSON (agent-native). Each entry carries a stable `key`
   // (GraphQL operationName or `METHOD host+pathname`) so agents can fetch
   // full bodies with `--detail <key>` even after subsequent commands.
-  // Captures are persisted per workspace under ~/.opencli/cache/browser-network/.
+  // Captures are persisted per browser session under ~/.opencli/cache/browser-network/.
 
   addBrowserTabOption(browser.command('network'))
     .option('--detail <key>', 'Emit full body for the entry with this key')
@@ -1773,7 +2312,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .description('Capture network requests as shape previews; retrieve full bodies by key')
     .action(browserAction(async (page, opts) => {
       const ttlMs = parsePositiveIntOption(opts.ttl, 'ttl', DEFAULT_TTL_MS);
-      const workspace = getPageWorkspace(page);
+      const session = getPageSession(page);
       const hasDetail = typeof opts.detail === 'string' && opts.detail.length > 0;
       const hasFilter = typeof opts.filter === 'string';
       const sinceMs = parseDurationMs(opts.since, 'since');
@@ -1813,9 +2352,9 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
       // --detail short-circuits: read from cache only, no live capture needed.
       if (hasDetail) {
-        const res = loadNetworkCache(workspace, { ttlMs });
+        const res = loadNetworkCache(session, { ttlMs });
         if (res.status === 'missing') {
-          emitNetworkError('cache_missing', `No cached capture. Run "browser network" first (in workspace "${workspace}").`);
+          emitNetworkError('cache_missing', `No cached capture. Run "browser network" first (in session "${session}").`);
           return;
         }
         if (res.status === 'expired') {
@@ -1936,7 +2475,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       // via the output envelope rather than erroring out the whole command.
       let cacheWarning: string | null = null;
       try {
-        saveNetworkCache(workspace, cacheEntries);
+        saveNetworkCache(session, cacheEntries);
       } catch (err) {
         cacheWarning = `Could not persist capture cache: ${(err as Error).message}. --detail lookups may miss this capture.`;
       }
@@ -1953,7 +2492,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       const filterDropped = filterFields ? shaped.length - visible.length : 0;
 
       const envelope: Record<string, unknown> = {
-        workspace,
+        session,
         captured_at: new Date().toISOString(),
         count: visible.length,
         filtered_out: filteredOut,
@@ -2023,13 +2562,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           return;
         }
 
-        // Try to detect domain from the last browser session
         let domain = site;
-        try {
-          const page = await getBrowserPage();
-          const url = await page.getCurrentUrl?.();
-          if (url) { try { domain = new URL(url).hostname; } catch {} }
-        } catch { /* no active session */ }
 
         const template = `import { cli, Strategy } from '@jackwener/opencli/registry';
 
@@ -2225,10 +2758,10 @@ cli({
 
   // ── Session ──
 
-  browser.command('close').description('Release the current automation tab lease')
+  browser.command('close').description('Release the current browser session tab lease')
     .action(browserAction(async (page) => {
       await page.closeWindow?.();
-      console.log('Automation tab lease released');
+      console.log('Browser session tab lease released');
     }));
 
   // ── Built-in: doctor / completion ──────────────────────────────────────────
@@ -2236,13 +2769,11 @@ cli({
   program
     .command('doctor')
     .description('Diagnose opencli browser bridge connectivity')
-    .option('--no-live', 'Skip live browser connectivity test')
-    .option('--sessions', 'Show active automation sessions', false)
     .option('-v, --verbose', 'Debug output')
     .action(async (opts) => {
       applyVerbose(opts);
       const { runBrowserDoctor, renderBrowserDoctorReport } = await import('./doctor.js');
-      const report = await runBrowserDoctor({ live: opts.live, sessions: opts.sessions, cliVersion: PKG_VERSION });
+      const report = await runBrowserDoctor({ cliVersion: PKG_VERSION });
       console.log(renderBrowserDoctorReport(report));
     });
 
@@ -2257,6 +2788,8 @@ cli({
   // ── Plugin management ──────────────────────────────────────────────────────
 
   const pluginCmd = program.command('plugin').description('Manage opencli plugins');
+  // Snapshot before applyRootSubcommandSummaries() rewrites .description() to a child-name listing.
+  const originalPluginDescription = pluginCmd.description();
 
   pluginCmd
     .command('install')
@@ -2270,15 +2803,15 @@ cli({
         await discoverPlugins();
         if (Array.isArray(result)) {
           if (result.length === 0) {
-            console.log(styleText('yellow', 'No plugins were installed (all skipped or incompatible).'));
+            console.log('No plugins were installed (all skipped or incompatible).');
           } else {
-            console.log(styleText('green', `\u2705 Installed ${result.length} plugin(s) from monorepo: ${result.join(', ')}`));
+            console.log(`\u2705 Installed ${result.length} plugin(s) from monorepo: ${result.join(', ')}`);
           }
         } else {
-          console.log(styleText('green', `\u2705 Plugin "${result}" installed successfully. Commands are ready to use.`));
+          console.log(`\u2705 Plugin "${result}" installed successfully. Commands are ready to use.`);
         }
       } catch (err) {
-        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        console.error(`Error: ${getErrorMessage(err)}`);
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
@@ -2291,9 +2824,9 @@ cli({
       const { uninstallPlugin } = await import('./plugin.js');
       try {
         uninstallPlugin(name);
-        console.log(styleText('green', `✅ Plugin "${name}" uninstalled.`));
+        console.log(`✅ Plugin "${name}" uninstalled.`);
       } catch (err) {
-        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        console.error(`Error: ${getErrorMessage(err)}`);
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
@@ -2305,12 +2838,12 @@ cli({
     .option('--all', 'Update all installed plugins')
     .action(async (name: string | undefined, opts: { all?: boolean }) => {
       if (!name && !opts.all) {
-        console.error(styleText('red', 'Error: Please specify a plugin name or use the --all flag.'));
+        console.error('Error: Please specify a plugin name or use the --all flag.');
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
       if (name && opts.all) {
-        console.error(styleText('red', 'Error: Cannot specify both a plugin name and --all.'));
+        console.error('Error: Cannot specify both a plugin name and --all.');
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
@@ -2324,27 +2857,27 @@ cli({
         }
 
         let hasErrors = false;
-        console.log(styleText('bold', '  Update Results:'));
+        console.log('  Update Results:');
         for (const result of results) {
           if (result.success) {
-            console.log(`  ${styleText('green', '✓')} ${result.name}`);
+            console.log(`  ✓ ${result.name}`);
             continue;
           }
           hasErrors = true;
-          console.log(`  ${styleText('red', '✗')} ${result.name} — ${styleText('dim', String(result.error))}`);
+          console.log(`  ✗ ${result.name} — ${String(result.error)}`);
         }
 
         if (results.length === 0) {
-          console.log(styleText('dim', '  No plugins installed.'));
+          console.log('  No plugins installed.');
           return;
         }
 
         console.log();
         if (hasErrors) {
-          console.error(styleText('red', 'Completed with some errors.'));
+          console.error('Completed with some errors.');
           process.exitCode = EXIT_CODES.GENERIC_ERROR;
         } else {
-          console.log(styleText('green', '✅ All plugins updated successfully.'));
+          console.log('✅ All plugins updated successfully.');
         }
         return;
       }
@@ -2352,9 +2885,9 @@ cli({
       try {
         updatePlugin(name!);
         await discoverPlugins();
-        console.log(styleText('green', `✅ Plugin "${name}" updated successfully.`));
+        console.log(`✅ Plugin "${name}" updated successfully.`);
       } catch (err) {
-        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        console.error(`Error: ${getErrorMessage(err)}`);
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
@@ -2368,8 +2901,8 @@ cli({
       const { listPlugins } = await import('./plugin.js');
       const plugins = listPlugins();
       if (plugins.length === 0) {
-        console.log(styleText('dim', '  No plugins installed.'));
-        console.log(styleText('dim', '  Install one with: opencli plugin install github:user/repo'));
+        console.log('  No plugins installed.');
+        console.log('  Install one with: opencli plugin install github:user/repo');
         return;
       }
       if (opts.format === 'json') {
@@ -2382,7 +2915,7 @@ cli({
         return;
       }
       console.log();
-      console.log(styleText('bold', '  Installed plugins'));
+      console.log('  Installed plugins');
       console.log();
 
       // Group by monorepo
@@ -2396,26 +2929,26 @@ cli({
       }
 
       for (const p of standalone) {
-        const version = p.version ? styleText('green', ` @${p.version}`) : '';
-        const desc = p.description ? styleText('dim', ` — ${p.description}`) : '';
-        const cmds = p.commands.length > 0 ? styleText('dim', ` (${p.commands.join(', ')})`) : '';
-        const src = p.source ? styleText('dim', ` ← ${p.source}`) : '';
-        console.log(`  ${styleText('cyan', p.name)}${version}${desc}${cmds}${src}`);
+        const version = p.version ? ` @${p.version}` : '';
+        const desc = p.description ? ` — ${p.description}` : '';
+        const cmds = p.commands.length > 0 ? ` (${p.commands.join(', ')})` : '';
+        const src = p.source ? ` ← ${p.source}` : '';
+        console.log(`  ${p.name}${version}${desc}${cmds}${src}`);
       }
 
       for (const [mono, group] of monoGroups) {
         console.log();
-        console.log(styleText(['bold', 'magenta'], `  📦 ${mono}`) + styleText('dim', ' (monorepo)'));
+        console.log(`  📦 ${mono}` + ' (monorepo)');
         for (const p of group) {
-          const version = p.version ? styleText('green', ` @${p.version}`) : '';
-          const desc = p.description ? styleText('dim', ` — ${p.description}`) : '';
-          const cmds = p.commands.length > 0 ? styleText('dim', ` (${p.commands.join(', ')})`) : '';
-          console.log(`    ${styleText('cyan', p.name)}${version}${desc}${cmds}`);
+          const version = p.version ? ` @${p.version}` : '';
+          const desc = p.description ? ` — ${p.description}` : '';
+          const cmds = p.commands.length > 0 ? ` (${p.commands.join(', ')})` : '';
+          console.log(`    ${p.name}${version}${desc}${cmds}`);
         }
       }
 
       console.log();
-      console.log(styleText('dim', `  ${plugins.length} plugin(s) installed`));
+      console.log(`  ${plugins.length} plugin(s) installed`);
       console.log();
     });
 
@@ -2432,25 +2965,27 @@ cli({
           dir: opts.dir,
           description: opts.description,
         });
-        console.log(styleText('green', `✅ Plugin scaffold created at ${result.dir}`));
+        console.log(`✅ Plugin scaffold created at ${result.dir}`);
         console.log();
-        console.log(styleText('bold', '  Files created:'));
+        console.log('  Files created:');
         for (const f of result.files) {
-          console.log(`    ${styleText('cyan', f)}`);
+          console.log(`    ${f}`);
         }
         console.log();
-        console.log(styleText('dim', '  Next steps:'));
-        console.log(styleText('dim', `    cd ${result.dir}`));
-        console.log(styleText('dim', `    opencli plugin install file://${result.dir}`));
-        console.log(styleText('dim', `    opencli ${name} hello`));
+        console.log('  Next steps:');
+        console.log(`    cd ${result.dir}`);
+        console.log(`    opencli plugin install file://${result.dir}`);
+        console.log(`    opencli ${name} hello`);
       } catch (err) {
-        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        console.error(`Error: ${getErrorMessage(err)}`);
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
 
   // ── Built-in: adapter management ─────────────────────────────────────────
   const adapterCmd = program.command('adapter').description('Manage CLI adapters');
+  // Snapshot before applyRootSubcommandSummaries() rewrites .description() to a child-name listing.
+  const originalAdapterDescription = adapterCmd.description();
 
   adapterCmd
     .command('status')
@@ -2498,22 +3033,22 @@ cli({
       try {
         await fs.promises.access(builtinSiteDir);
       } catch {
-        console.error(styleText('red', `Error: Site "${site}" not found in official adapters.`));
+        console.error(`Error: Site "${site}" not found in official adapters.`);
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
 
       try {
         await fs.promises.access(userSiteDir);
-        console.error(styleText('yellow', `Site "${site}" already exists in ~/.opencli/clis/. Use "opencli adapter reset ${site}" first to restore official version.`));
+        console.error(`Site "${site}" already exists in ~/.opencli/clis/. Use "opencli adapter reset ${site}" first to restore official version.`);
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       } catch { /* good, doesn't exist yet */ }
 
       fs.cpSync(builtinSiteDir, userSiteDir, { recursive: true });
-      console.log(styleText('green', `✅ Ejected "${site}" to ~/.opencli/clis/${site}/`));
+      console.log(`✅ Ejected "${site}" to ~/.opencli/clis/${site}/`);
       console.log('You can now edit the adapter files. Changes take effect immediately.');
-      console.log(styleText('yellow', 'Note: Official updates to this adapter will overwrite your changes.'));
+      console.log('Note: Official updates to this adapter will overwrite your changes.');
     });
 
   adapterCmd
@@ -2536,7 +3071,7 @@ cli({
           for (const dir of dirs) {
             fs.rmSync(path.join(userClisDir, dir.name), { recursive: true, force: true });
           }
-          console.log(styleText('green', `✅ Reset ${dirs.length} site(s). All adapters now use official baseline.`));
+          console.log(`✅ Reset ${dirs.length} site(s). All adapters now use official baseline.`);
         } catch {
           console.log('No local sites to reset.');
         }
@@ -2544,7 +3079,7 @@ cli({
       }
 
       if (!site) {
-        console.error(styleText('red', 'Error: Please specify a site name or use --all.'));
+        console.error('Error: Please specify a site name or use --all.');
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
@@ -2553,19 +3088,21 @@ cli({
       try {
         await fs.promises.access(userSiteDir);
       } catch {
-        console.error(styleText('yellow', `Site "${site}" has no local override.`));
+        console.error(`Site "${site}" has no local override.`);
         return;
       }
 
       const isOfficial = fs.existsSync(path.join(BUILTIN_CLIS, site));
       fs.rmSync(userSiteDir, { recursive: true, force: true });
-      console.log(styleText('green', isOfficial
+      console.log(isOfficial
         ? `✅ Reset "${site}". Now using official baseline.`
-        : `✅ Removed custom site "${site}".`));
+        : `✅ Removed custom site "${site}".`);
     });
 
   // ── Built-in: browser profile selection ──────────────────────────────────
   const profileCmd = program.command('profile').description('Manage Browser Bridge Chrome profiles');
+  // Snapshot before applyRootSubcommandSummaries() rewrites .description() to a child-name listing.
+  const originalProfileDescription = profileCmd.description();
 
   profileCmd
     .command('list')
@@ -2575,27 +3112,27 @@ cli({
       const config = loadProfileConfig();
       const profiles = status?.profiles ?? [];
       if (!status) {
-        console.log(styleText('yellow', 'Daemon is not running. Run opencli doctor after opening Chrome.'));
+        console.log('Daemon is not running. Run opencli doctor after opening Chrome.');
         return;
       }
       if (isDaemonStale(status, PKG_VERSION) || !Array.isArray(status.profiles)) {
-        console.log(styleText('yellow', `Daemon ${formatDaemonVersion(status)} is stale for CLI v${PKG_VERSION}.`));
-        console.log(styleText('dim', 'Run: opencli daemon restart'));
+        console.log(`Daemon ${formatDaemonVersion(status)} is stale for CLI v${PKG_VERSION}.`);
+        console.log('Run: opencli daemon restart');
         return;
       }
       if (profiles.length === 0) {
-        console.log(styleText('yellow', 'No Browser Bridge profiles connected.'));
-        console.log(styleText('dim', 'Open a Chrome profile with the OpenCLI extension installed, then run opencli profile list again.'));
+        console.log('No Browser Bridge profiles connected.');
+        console.log('Open a Chrome profile with the OpenCLI extension installed, then run opencli profile list again.');
         return;
       }
 
       const knownContextIds = new Set(profiles.map((profile) => profile.contextId));
-      console.log(styleText('bold', 'Connected Browser Bridge profiles'));
+      console.log('Connected Browser Bridge profiles');
       console.log();
       for (const profile of profiles) {
         const alias = aliasForContextId(config, profile.contextId);
-        const defaultMark = config.defaultContextId === profile.contextId ? styleText('green', ' default') : '';
-        const aliasText = alias ? ` ${styleText('cyan', alias)}` : '';
+        const defaultMark = config.defaultContextId === profile.contextId ? ' default' : '';
+        const aliasText = alias ? ` ${alias}` : '';
         const version = profile.extensionVersion ? ` v${profile.extensionVersion}` : ' version unknown';
         console.log(`  ${profile.contextId}${aliasText}${defaultMark} — connected${version}`);
       }
@@ -2604,14 +3141,14 @@ cli({
         .filter(([, contextId]) => !knownContextIds.has(contextId));
       if (disconnectedAliases.length > 0 || (config.defaultContextId && !knownContextIds.has(config.defaultContextId))) {
         console.log();
-        console.log(styleText('dim', 'Disconnected saved profiles:'));
+        console.log('Disconnected saved profiles:');
         const shown = new Set<string>();
         for (const [alias, contextId] of disconnectedAliases) {
           shown.add(contextId);
-          console.log(styleText('dim', `  ${contextId} ${alias} — not connected`));
+          console.log(`  ${contextId} ${alias} — not connected`);
         }
         if (config.defaultContextId && !shown.has(config.defaultContextId) && !knownContextIds.has(config.defaultContextId)) {
-          console.log(styleText('dim', `  ${config.defaultContextId} — default, not connected`));
+          console.log(`  ${config.defaultContextId} — default, not connected`);
         }
       }
     });
@@ -2624,9 +3161,9 @@ cli({
     .action((contextId: string, alias: string) => {
       try {
         renameProfile(contextId, alias);
-        console.log(`Profile ${contextId} is now aliased as ${styleText('cyan', alias)}.`);
+        console.log(`Profile ${contextId} is now aliased as ${alias}.`);
       } catch (err) {
-        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        console.error(`Error: ${getErrorMessage(err)}`);
         process.exitCode = EXIT_CODES.USAGE_ERROR;
       }
     });
@@ -2638,15 +3175,17 @@ cli({
     .action((profile: string) => {
       try {
         const config = setDefaultProfile(profile);
-        console.log(`Default Browser Bridge profile: ${styleText('cyan', config.defaultContextId ?? profile)}`);
+        console.log(`Default Browser Bridge profile: ${config.defaultContextId ?? profile}`);
       } catch (err) {
-        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        console.error(`Error: ${getErrorMessage(err)}`);
         process.exitCode = EXIT_CODES.USAGE_ERROR;
       }
     });
 
   // ── Built-in: daemon ──────────────────────────────────────────────────────
   const daemonCmd = program.command('daemon').description('Manage the opencli daemon');
+  // Snapshot before applyRootSubcommandSummaries() rewrites .description() to a child-name listing.
+  const originalDaemonDescription = daemonCmd.description();
   daemonCmd
     .command('status')
     .description('Show daemon status')
@@ -2675,7 +3214,7 @@ cli({
     .action((name: string) => {
       const ext = externalClis.find(e => e.name === name);
       if (!ext) {
-        console.error(styleText('red', `External CLI '${name}' not found in registry.`));
+        console.error(`External CLI '${name}' not found in registry.`);
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
@@ -2700,6 +3239,7 @@ cli({
     .action((opts) => {
       const rows = loadExternalClis().map((ext) => ({
         name: ext.name,
+        package: ext.package ?? '',
         binary: ext.binary,
         installed: isBinaryInstalled(ext.binary),
         description: ext.description ?? '',
@@ -2708,7 +3248,7 @@ cli({
       }));
       renderOutput(rows, {
         fmt: opts.format,
-        columns: ['name', 'binary', 'installed', 'description', 'homepage', 'tags'],
+        columns: ['name', 'package', 'binary', 'installed', 'description', 'homepage', 'tags'],
         title: 'opencli/external/list',
         source: 'opencli external list',
       });
@@ -2722,7 +3262,7 @@ cli({
     try {
       executeExternalCli(name, args, externalClis);
     } catch (err) {
-      console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+      console.error(`Error: ${getErrorMessage(err)}`);
       process.exitCode = EXIT_CODES.GENERIC_ERROR;
     }
   }
@@ -2767,6 +3307,10 @@ cli({
   // Classification derives from each adapter's `domain` field — see classifyAdapter.
   // External CLIs are taken from the externalClis registry (passthrough binaries).
   const externalNames = externalClis.map(ext => ext.name);
+  const externalHelpEntries = externalClis.map(ext => ({
+    name: ext.name,
+    label: formatExternalCliLabel(ext),
+  }));
   const siteDomains = new Map<string, string | undefined>();
   for (const [, cmd] of getRegistry()) {
     if (!siteDomains.has(cmd.site)) siteDomains.set(cmd.site, cmd.domain);
@@ -2777,11 +3321,38 @@ cli({
     if (classifyAdapter(siteDomains.get(site)) === 'app') apps.push(site);
     else sites.push(site);
   }
-  const adapterGroups: RootAdapterGroups = { external: externalNames, apps, sites };
+  const adapterGroups: RootAdapterGroups = { external: externalHelpEntries, apps, sites };
   const adapterNameSet = new Set<string>([...externalNames, ...siteNames]);
+  installCommanderNamespaceStructuredHelp(browser, { globalCommand: program, description: originalBrowserDescription });
+  installCommanderNamespaceStructuredHelp(daemonCmd, { globalCommand: program, description: originalDaemonDescription });
+  installCommanderNamespaceStructuredHelp(pluginCmd, { globalCommand: program, description: originalPluginDescription });
+  installCommanderNamespaceStructuredHelp(adapterCmd, { globalCommand: program, description: originalAdapterDescription });
+  installCommanderNamespaceStructuredHelp(profileCmd, { globalCommand: program, description: originalProfileDescription });
   program.configureHelp({
     visibleCommands: (command) => command.commands.filter(child => command !== program || !adapterNameSet.has(child.name())),
   });
+  // When an ancestor command declares a leading positional via `.usage(...)`
+  // (e.g. `browser` -> `<session> <command> [options]`), inject the positional
+  // between that ancestor's name and the next path segment so the help Usage
+  // line is accurate: `Usage: opencli browser <session> click [target] [options]`
+  // instead of `opencli browser click [target] [options]`. Commander does NOT
+  // inherit configureHelp into subcommands, so we walk the descendant tree and
+  // apply the override on each.
+  const ancestorAwareCommandUsage = (cmd: Command): string => {
+    const ancestors: string[] = [];
+    let ancestor: Command | null = cmd.parent;
+    while (ancestor) {
+      const positional = leadingPositionalFromUsage(ancestor);
+      ancestors.unshift(positional ? `${ancestor.name()} ${positional}` : ancestor.name());
+      ancestor = ancestor.parent;
+    }
+    return [...ancestors, cmd.name(), cmd.usage()].filter(Boolean).join(' ').trim();
+  };
+  function applyAncestorAwareUsage(cmd: Command): void {
+    cmd.configureHelp({ commandUsage: ancestorAwareCommandUsage });
+    for (const sub of cmd.commands) applyAncestorAwareUsage(sub);
+  }
+  applyAncestorAwareUsage(browser);
   installStructuredHelp(program, () => rootHelpData(program, adapterGroups), () => formatRootAdapterHelpText(adapterGroups));
 
   // ── Unknown command fallback ──────────────────────────────────────────────
@@ -2790,9 +3361,9 @@ cli({
 
   program.on('command:*', (operands: string[]) => {
     const binary = operands[0];
-    console.error(styleText('red', `error: unknown command '${binary}'`));
+    console.error(`error: unknown command '${binary}'`);
     if (isBinaryInstalled(binary)) {
-      console.error(styleText('dim', `  Tip: '${binary}' exists on your PATH. Use 'opencli external register ${binary}' to add it as an external CLI.`));
+      console.error(`  Tip: '${binary}' exists on your PATH. Use 'opencli external register ${binary}' to add it as an external CLI.`);
     }
     program.outputHelp();
     process.exitCode = EXIT_CODES.USAGE_ERROR;

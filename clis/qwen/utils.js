@@ -1,5 +1,5 @@
 import { htmlToMarkdown } from '@jackwener/opencli/utils';
-import { AuthRequiredError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 
 export const QIANWEN_DOMAIN = 'www.qianwen.com';
 export const QIANWEN_URL = 'https://www.qianwen.com/';
@@ -101,6 +101,30 @@ export async function getCurrentSessionId(page) {
     return match ? match[1] : '';
 }
 
+const QIANWEN_SESSION_ID_RE = /^[a-f0-9]{32}$/i;
+
+export function parseQianwenSessionId(input) {
+    const raw = String(input ?? '').trim();
+    if (!raw) {
+        throw new ArgumentError('id', 'must be a non-empty session ID or qianwen.com chat URL');
+    }
+    // Anchor the right-hand side so a 33+ hex URL does not silently truncate
+    // to its first 32 chars. Acceptable terminators: end-of-string, path slash,
+    // query string, or fragment. Without the boundary,
+    // `https://www.qianwen.com/chat/<33 hex>` would parse as a valid 32-char
+    // ID instead of being rejected — opening the wrong conversation is a
+    // worse failure mode than throwing.
+    const urlMatch = raw.match(/qianwen\.com\/chat\/([a-f0-9]{32})(?:[/?#]|$)/i);
+    const candidate = urlMatch ? urlMatch[1] : raw;
+    if (!QIANWEN_SESSION_ID_RE.test(candidate)) {
+        throw new ArgumentError(
+            'id',
+            `not a valid Qianwen session ID (got "${input}"); expected a 32-char hex ID like "abcd1234ef567890abcd1234ef567890" or a full https://www.qianwen.com/chat/<id> URL`,
+        );
+    }
+    return candidate.toLowerCase();
+}
+
 export async function getModelLabel(page) {
     const result = await page.evaluate(`(() => {
     ${IS_VISIBLE_JS}
@@ -186,24 +210,49 @@ export async function sendMessage(page, prompt) {
 }
 
 export async function getMessageBubbles(page) {
+    // Qianwen's chat DOM marks each turn with two siblings:
+    //   [data-chat-question-wrap]  - user message
+    //   [data-chat-answers-wrap]   - assistant message
+    // The earlier `[data-msgid]` selector matched citation cards inside
+    // assistant responses (which use `data-message-id`), so it would silently
+    // miss the actual chat turns after Qianwen reshipped its frontend.
+    //
+    // We walk both wrap selectors in DOM order to interleave Q/A correctly,
+    // and use the nearest sibling `data-req-id` (anchored on
+    // `.chat-msg-bottom-anchor`) as the stable per-turn identifier so polling
+    // dedupe + waitForAnswer's seenAssistantId tracking still work.
     const result = await page.evaluate(`(() => {
     ${IS_VISIBLE_JS}
-    const bubbles = Array.from(document.querySelectorAll('[data-msgid]'))
-      .filter((node) => node instanceof HTMLElement);
+    const wraps = Array.from(document.querySelectorAll('[data-chat-question-wrap], [data-chat-answers-wrap]'))
+      .filter((node) => node instanceof HTMLElement && isVisible(node));
 
-    const seen = new Set();
+    const findTurnReqId = (node) => {
+      let parent = node.parentElement;
+      while (parent && parent !== document.body) {
+        const reqEl = parent.querySelector('[data-req-id]');
+        if (reqEl && reqEl.getAttribute('data-req-id')) {
+          return reqEl.getAttribute('data-req-id');
+        }
+        parent = parent.parentElement;
+      }
+      return '';
+    };
+
     const out = [];
-    for (const node of bubbles) {
-      const id = node.getAttribute('data-msgid') || '';
-      if (!id || seen.has(id)) continue;
-      seen.add(id);
-      const isAnswer = id.endsWith('-answer');
-      const role = isAnswer ? 'Assistant' : 'User';
+    let positional = 0;
+    for (const node of wraps) {
+      const isAnswer = node.hasAttribute('data-chat-answers-wrap');
+      const reqId = findTurnReqId(node);
+      const baseId = reqId || ('pos-' + positional);
+      const id = baseId + (isAnswer ? '-answer' : '-question');
+      positional += 1;
+
       const contentNode = isAnswer
-        ? (node.querySelector('[class*="markdown"]') || node.querySelector('[class*="content"]') || node)
-        : (node.querySelector('[class*="bubble"]') || node);
+        ? (node.querySelector('#qk-markdown-react') || node.querySelector('[class*="markdown"]') || node)
+        : node;
       const html = (contentNode instanceof HTMLElement) ? (contentNode.innerHTML || '') : '';
       const text = (contentNode instanceof HTMLElement) ? (contentNode.innerText || contentNode.textContent || '') : '';
+      const role = isAnswer ? 'Assistant' : 'User';
       out.push({ id, role, text: (text || '').replace(/\\s+/g, ' ').trim(), html });
     }
     return out;

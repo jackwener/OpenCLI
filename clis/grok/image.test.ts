@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { IPage } from '@jackwener/opencli/types';
+import { ArgumentError } from '@jackwener/opencli/errors';
 import { __test__ } from './image.js';
 
 describe('grok image helpers', () => {
@@ -93,6 +94,25 @@ describe('grok image helpers', () => {
     expect(candidate).toEqual([
       { src: 'https://a.example/fresh.jpg', w: 1024, h: 1024 },
     ]);
+  });
+
+  describe('normalizePositiveInteger', () => {
+    it('returns a parsed positive integer', () => {
+      expect(__test__.normalizePositiveInteger(3, 1, 'count')).toBe(3);
+      expect(__test__.normalizePositiveInteger('5', 1, 'count')).toBe(5);
+    });
+
+    it('falls back to the default when the user did not pass a value', () => {
+      expect(__test__.normalizePositiveInteger(undefined, 1, 'count')).toBe(1);
+      expect(__test__.normalizePositiveInteger(null, 4, 'count')).toBe(4);
+    });
+
+    it('throws ArgumentError instead of silently clamping out-of-range input', () => {
+      expect(() => __test__.normalizePositiveInteger(0, 1, 'count')).toThrow(ArgumentError);
+      expect(() => __test__.normalizePositiveInteger(-1, 1, 'count')).toThrow(ArgumentError);
+      expect(() => __test__.normalizePositiveInteger(1.5, 1, 'count')).toThrow(ArgumentError);
+      expect(() => __test__.normalizePositiveInteger('not-a-number', 1, 'count')).toThrow(ArgumentError);
+    });
   });
 
   it('does not reuse stale images when no new image bubble appears after baseline', () => {

@@ -1,16 +1,16 @@
 /**
- * YouTube transcript — uses InnerTube player API with Android client context.
+ * YouTube transcript — extracts caption tracks from watch page bootstrap data.
  *
- * The Web client's caption URLs require a PoToken (proof of origin) generated
- * by BotGuard at runtime. The Android client returns caption URLs that work
- * without PoToken — same approach used by youtube-transcript-api (Python).
+ * The old Android InnerTube client path stopped reliably returning captions.
+ * We now match youtube/video.js: fetch watch HTML with the browser session and
+ * parse ytInitialPlayerResponse.captions.playerCaptionsTracklistRenderer.
  *
  * Modes:
  *   --mode grouped (default): sentences merged, speaker detection, chapters
  *   --mode raw: every caption segment as-is with precise timestamps
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { parseVideoId, prepareYoutubeApiPage } from './utils.js';
+import { extractJsonAssignmentFromHtml, parseVideoId, prepareYoutubeApiPage } from './utils.js';
 import { groupTranscriptSegments, formatGroupedTranscript, } from './transcript-group.js';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 cli({
@@ -32,27 +32,21 @@ cli({
         await prepareYoutubeApiPage(page);
         const lang = kwargs.lang || '';
         const mode = kwargs.mode || 'grouped';
-        // Step 1: Get caption track URL via Android InnerTube API
+        // Step 1: Get caption track URL from watch page HTML
         const captionData = await page.evaluate(`
       (async () => {
-        const cfg = window.ytcfg?.data_ || {};
-        const apiKey = cfg.INNERTUBE_API_KEY;
-        if (!apiKey) return { error: 'INNERTUBE_API_KEY not found on page' };
+        const extractJsonAssignmentFromHtml = ${extractJsonAssignmentFromHtml.toString()};
 
-        const resp = await fetch('/youtubei/v1/player?key=' + apiKey + '&prettyPrint=false', {
-          method: 'POST',
+        const watchResp = await fetch('/watch?v=' + encodeURIComponent(${JSON.stringify(videoId)}), {
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            context: { client: { clientName: 'ANDROID', clientVersion: '20.10.38' } },
-            videoId: ${JSON.stringify(videoId)}
-          })
         });
+        if (!watchResp.ok) return { error: 'Watch HTML returned HTTP ' + watchResp.status };
 
-        if (!resp.ok) return { error: 'InnerTube player API returned HTTP ' + resp.status };
-        const data = await resp.json();
+        const html = await watchResp.text();
+        const player = extractJsonAssignmentFromHtml(html, 'ytInitialPlayerResponse');
+        if (!player) return { error: 'ytInitialPlayerResponse not found in watch HTML' };
 
-        const renderer = data.captions?.playerCaptionsTracklistRenderer;
+        const renderer = player.captions?.playerCaptionsTracklistRenderer;
         if (!renderer?.captionTracks?.length) {
           return { error: 'No captions available for this video' };
         }
@@ -92,12 +86,37 @@ cli({
             console.error(`Warning: --lang "${captionData.requestedLang}" not found. Using "${captionData.language}" instead. Available: ${captionData.available.join(', ')}`);
         }
         // Step 2: Fetch caption XML and parse segments
+        // Ensure caption URL requests srv3 XML format — YouTube may return empty
+        // responses when no explicit format is specified.
+        const originalCaptionUrl = captionData.captionUrl;
+        let captionUrl = originalCaptionUrl;
+        if (!/[&?]fmt=/.test(originalCaptionUrl)) {
+            captionUrl = originalCaptionUrl + (originalCaptionUrl.includes('?') ? '&' : '?') + 'fmt=srv3';
+        }
         const segments = await page.evaluate(`
       (async () => {
-        const resp = await fetch(${JSON.stringify(captionData.captionUrl)});
-        const xml = await resp.text();
+        async function fetchCaptionXml(url) {
+          const resp = await fetch(url);
+          if (!resp.ok) return { error: 'Caption URL returned HTTP ' + resp.status };
+          return { xml: await resp.text() || '' };
+        }
 
-        if (!xml?.length) {
+        const primaryUrl = ${JSON.stringify(captionUrl)};
+        const originalUrl = ${JSON.stringify(originalCaptionUrl)};
+        let result = await fetchCaptionXml(primaryUrl);
+        if (result.error) return result;
+
+        // If srv3 format returned an empty successful body, retry with the
+        // original URL. Do not hide HTTP/non-OK failures behind fallback.
+        if (!result.xml.length && originalUrl !== primaryUrl) {
+          result = await fetchCaptionXml(originalUrl);
+          if (result.error) {
+            return result;
+          }
+        }
+        const xml = result.xml;
+
+        if (!xml.length) {
           return { error: 'Caption URL returned empty response' };
         }
 

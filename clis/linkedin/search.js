@@ -245,23 +245,20 @@ async function fetchJobCards(page, input) {
     const MAX_BATCH = 25;
     const allJobs = [];
     let offset = input.start;
+    // Read JSESSIONID directly from the cookie store via CDP — zero page.evaluate round-trip
+    const cookies = await page.getCookies({ url: 'https://www.linkedin.com' });
+    const jsession = cookies.find((c) => c.name === 'JSESSIONID')?.value;
+    if (!jsession) {
+        throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn JSESSIONID cookie not found. Please sign in to LinkedIn in the browser.');
+    }
+    const csrf = jsession.replace(/^"|"$/g, '');
     while (allJobs.length < input.limit) {
         const count = Math.min(MAX_BATCH, input.limit - allJobs.length);
         const apiPath = buildVoyagerUrl(input, offset, count);
         const batch = await page.evaluate(`(async () => {
-      const jsession = document.cookie.split(';').map(p => p.trim())
-        .find(p => p.startsWith('JSESSIONID='))?.slice('JSESSIONID='.length);
-      if (!jsession) {
-        return {
-          authRequired: true,
-          error: 'LinkedIn JSESSIONID cookie not found. Please sign in to LinkedIn in the browser.'
-        };
-      }
-
-      const csrf = jsession.replace(/^"|"$/g, '');
       const res = await fetch(${JSON.stringify(apiPath)}, {
         credentials: 'include',
-        headers: { 'csrf-token': csrf, 'x-restli-protocol-version': '2.0.0' },
+        headers: { 'csrf-token': ${JSON.stringify(csrf)}, 'x-restli-protocol-version': '2.0.0' },
       });
       if (res.status === 401 || res.status === 403) {
         const text = await res.text();

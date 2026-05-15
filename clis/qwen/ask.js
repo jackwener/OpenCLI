@@ -24,6 +24,7 @@ cli({
     domain: QIANWEN_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     navigateBefore: false,
     defaultFormat: 'plain',
     args: [

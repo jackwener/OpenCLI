@@ -9,6 +9,9 @@
 const attached = new Set<number>();
 
 const tabFrameContexts = new Map<number, Map<string, number>>();
+const frameTargets = new Map<string, string>();
+const frameTargetKeys = new Map<string, string>();
+let frameTargetCleanupRegistered = false;
 
 // Large cap so agents stop hitting silent JSON.parse failures on real API bodies.
 // See src/browser/cdp.ts CDP_RESPONSE_BODY_CAPTURE_LIMIT for the matching constant
@@ -38,6 +41,20 @@ type NetworkCaptureState = {
   patterns: string[];
   entries: NetworkCaptureEntry[];
   requestToIndex: Map<string, number>;
+};
+
+export type DownloadWaitResult = {
+  downloaded: boolean;
+  id?: number;
+  filename?: string;
+  url?: string;
+  finalUrl?: string;
+  mime?: string;
+  totalBytes?: number;
+  state?: string;
+  danger?: string;
+  error?: string;
+  elapsedMs: number;
 };
 
 const networkCaptures = new Map<number, NetworkCaptureState>();
@@ -292,6 +309,199 @@ export async function setFileInputFiles(
   });
 }
 
+function matchesDownloadPattern(item: chrome.downloads.DownloadItem, pattern: string): boolean {
+  if (!pattern) return true;
+  const haystack = [
+    item.filename,
+    item.url,
+    item.finalUrl,
+    item.mime,
+  ].filter(Boolean).join('\n').toLowerCase();
+  return haystack.includes(pattern.toLowerCase());
+}
+
+function downloadResult(item: chrome.downloads.DownloadItem, startedAt: number): DownloadWaitResult {
+  return {
+    downloaded: item.state === 'complete',
+    id: item.id,
+    filename: item.filename,
+    url: item.url,
+    finalUrl: item.finalUrl,
+    mime: item.mime,
+    totalBytes: item.totalBytes,
+    state: item.state,
+    danger: item.danger,
+    error: item.error,
+    elapsedMs: Date.now() - startedAt,
+  };
+}
+
+export async function waitForDownload(pattern: string = '', timeoutMs: number = 30000): Promise<DownloadWaitResult> {
+  const startedAt = Date.now();
+  const timeout = Math.max(1, timeoutMs);
+
+  return await new Promise<DownloadWaitResult>((resolve) => {
+    let done = false;
+    const inProgressIds = new Set<number>();
+    const finish = (result: DownloadWaitResult) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      chrome.downloads.onCreated.removeListener(onCreated);
+      chrome.downloads.onChanged.removeListener(onChanged);
+      resolve(result);
+    };
+
+    const inspectById = async (id: number) => {
+      const items = await chrome.downloads.search({ id });
+      const item = items[0];
+      if (!item || !matchesDownloadPattern(item, pattern)) return;
+      inProgressIds.add(id);
+      if (item.state === 'complete' || item.state === 'interrupted') finish(downloadResult(item, startedAt));
+    };
+
+    const onCreated = (item: chrome.downloads.DownloadItem) => {
+      if (!matchesDownloadPattern(item, pattern)) return;
+      inProgressIds.add(item.id);
+      if (item.state === 'complete' || item.state === 'interrupted') finish(downloadResult(item, startedAt));
+    };
+    const onChanged = (delta: chrome.downloads.DownloadDelta) => {
+      if (!delta.id) return;
+      if (!inProgressIds.has(delta.id) && !delta.filename && !delta.url) return;
+      if (delta.filename?.current || delta.url?.current) {
+        void inspectById(delta.id);
+        return;
+      }
+      if (delta.state?.current === 'complete' || delta.state?.current === 'interrupted') {
+        void inspectById(delta.id);
+      }
+    };
+    const timer = setTimeout(() => {
+      finish({
+        downloaded: false,
+        state: 'interrupted',
+        error: `No download matched "${pattern || '*'}" within ${timeout}ms`,
+        elapsedMs: Date.now() - startedAt,
+      });
+    }, timeout);
+
+    chrome.downloads.onCreated.addListener(onCreated);
+    chrome.downloads.onChanged.addListener(onChanged);
+
+    void chrome.downloads.search({
+      limit: 50,
+      orderBy: ['-startTime'],
+      startedAfter: new Date(startedAt - Math.max(timeout, 1000)).toISOString(),
+    }).then((recent) => {
+      if (done) return;
+      const completed = recent.find((item) => item.state === 'complete' && matchesDownloadPattern(item, pattern));
+      if (completed) {
+        finish(downloadResult(completed, startedAt));
+        return;
+      }
+      for (const item of recent) {
+        if (item.state === 'in_progress' && matchesDownloadPattern(item, pattern)) inProgressIds.add(item.id);
+      }
+    }).catch((err) => {
+      finish({
+        downloaded: false,
+        state: 'interrupted',
+        error: err instanceof Error ? err.message : String(err),
+        elapsedMs: Date.now() - startedAt,
+      });
+    });
+  });
+}
+
+function frameTargetKey(tabId: number, frameId: string): string {
+  return `${tabId}:${frameId}`;
+}
+
+function registerFrameTargetCleanup(): void {
+  if (frameTargetCleanupRegistered) return;
+  frameTargetCleanupRegistered = true;
+  chrome.debugger.onEvent.addListener((_source, method, params: any) => {
+    if (method === 'Target.detachedFromTarget') {
+      const targetId = String(params?.targetId || '');
+      clearFrameTarget(targetId);
+    }
+  });
+}
+
+function clearFrameTarget(targetId: string): void {
+  if (!targetId) return;
+  const key = frameTargetKeys.get(targetId);
+  if (key) frameTargets.delete(key);
+  frameTargetKeys.delete(targetId);
+}
+
+async function ensureFrameTarget(
+  tabId: number,
+  frameId: string,
+  aggressiveRetry: boolean = false,
+  targetUrl?: string,
+): Promise<string> {
+  registerFrameTargetCleanup();
+  await ensureAttached(tabId, aggressiveRetry);
+  const key = frameTargetKey(tabId, frameId);
+  const existing = frameTargets.get(key);
+  if (existing) return existing;
+
+  await chrome.debugger.sendCommand({ tabId }, 'Target.setDiscoverTargets', { discover: true }).catch(() => {});
+  await chrome.debugger.sendCommand({ tabId }, 'Target.setAutoAttach', {
+    autoAttach: true,
+    waitForDebuggerOnStart: false,
+    flatten: true,
+    filter: [{ type: 'iframe', exclude: false }],
+  }).catch(() => {});
+  const targetId = await resolveFrameTargetId(tabId, frameId, targetUrl);
+  try {
+    await chrome.debugger.attach({ targetId } as chrome.debugger.Debuggee, '1.3');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!message.includes('Another debugger is already attached')) throw err;
+  }
+  frameTargets.set(key, targetId);
+  frameTargetKeys.set(targetId, key);
+  return targetId;
+}
+
+async function resolveFrameTargetId(tabId: number, frameId: string, targetUrl?: string): Promise<string> {
+  const result = await chrome.debugger.sendCommand({ tabId }, 'Target.getTargets').catch(() => null) as
+    | { targetInfos?: Array<{ targetId?: string; id?: string; type?: string; url?: string }> }
+    | null;
+  const targets = result?.targetInfos ?? [];
+  const frameTarget = targets.find((candidate) => {
+    const candidateId = candidate.targetId || candidate.id;
+    return candidate.type === 'iframe'
+      && (
+        candidateId === frameId
+        || (!!targetUrl && candidate.url === targetUrl)
+      );
+  });
+  const targetId = frameTarget?.targetId || frameTarget?.id;
+  if (targetId) return targetId;
+  const candidates = targets
+    .filter((target) => target.type === 'iframe')
+    .map((target) => `${target.targetId || target.id || '?'} ${target.url || ''}`)
+    .join('; ');
+  throw new Error(`No iframe target found for frame ${frameId}${targetUrl ? ` (${targetUrl})` : ''}. Candidates: ${candidates || 'none'}`);
+}
+
+export async function sendCommandInFrameTarget(
+  tabId: number,
+  frameId: string,
+  method: string,
+  params: Record<string, unknown> = {},
+  aggressiveRetry: boolean = false,
+  _timeoutMs: number = 30_000,
+  targetUrl?: string,
+): Promise<unknown> {
+  const targetId = await ensureFrameTarget(tabId, frameId, aggressiveRetry, targetUrl);
+  const target = { targetId } as chrome.debugger.Debuggee;
+  return chrome.debugger.sendCommand(target, method, params);
+}
+
 export async function insertText(
   tabId: number,
   text: string,
@@ -301,6 +511,7 @@ export async function insertText(
 }
 
 export function registerFrameTracking(): void {
+  registerFrameTargetCleanup();
   chrome.debugger.onEvent.addListener((source, method, params: any) => {
     const tabId = source.tabId;
     if (!tabId) return;
@@ -354,7 +565,24 @@ export async function evaluateInFrame(
   const contextId = contexts?.get(frameId);
 
   if (contextId === undefined) {
-    throw new Error(`No execution context found for frame ${frameId}. The frame may not be loaded yet.`);
+    await sendCommandInFrameTarget(tabId, frameId, 'Runtime.enable', {}, aggressiveRetry).catch(() => undefined);
+    const result = await sendCommandInFrameTarget(tabId, frameId, 'Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise: true,
+    }, aggressiveRetry) as {
+      result?: { type: string; value?: unknown; description?: string; subtype?: string };
+      exceptionDetails?: { exception?: { description?: string }; text?: string };
+    };
+
+    if (result.exceptionDetails) {
+      const errMsg = result.exceptionDetails.exception?.description
+        || result.exceptionDetails.text
+        || 'Eval error';
+      throw new Error(errMsg);
+    }
+
+    return result.result?.value;
   }
 
   const result = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
@@ -450,7 +678,17 @@ export function hasActiveNetworkCapture(tabId: number): boolean {
   return networkCaptures.has(tabId);
 }
 
+function clearFrameTargetsForTab(tabId: number): void {
+  for (const [key, targetId] of [...frameTargets.entries()]) {
+    if (!key.startsWith(`${tabId}:`)) continue;
+    frameTargets.delete(key);
+    frameTargetKeys.delete(targetId);
+    chrome.debugger.detach({ targetId } as chrome.debugger.Debuggee).catch(() => {});
+  }
+}
+
 export async function detach(tabId: number): Promise<void> {
+  clearFrameTargetsForTab(tabId);
   if (!attached.has(tabId)) return;
   attached.delete(tabId);
   networkCaptures.delete(tabId);
@@ -463,13 +701,17 @@ export function registerListeners(): void {
     attached.delete(tabId);
     networkCaptures.delete(tabId);
     tabFrameContexts.delete(tabId);
+    clearFrameTargetsForTab(tabId);
   });
   chrome.debugger.onDetach.addListener((source) => {
     if (source.tabId) {
       attached.delete(source.tabId);
       networkCaptures.delete(source.tabId);
       tabFrameContexts.delete(source.tabId);
+      clearFrameTargetsForTab(source.tabId);
+      return;
     }
+    if (source.targetId) clearFrameTarget(source.targetId);
   });
   // Invalidate attached cache when tab URL changes to non-debuggable
   chrome.tabs.onUpdated.addListener(async (tabId, info) => {

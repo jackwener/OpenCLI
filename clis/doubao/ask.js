@@ -9,6 +9,7 @@ export const askCommand = cli({
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'text', required: true, positional: true, help: 'Prompt to send' },

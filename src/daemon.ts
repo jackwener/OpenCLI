@@ -28,6 +28,11 @@ import { log } from './logger.js';
 import { PKG_VERSION } from './version.js';
 import { DEFAULT_CONTEXT_ID } from './browser/profile.js';
 import { recordExtensionVersion } from './update-check.js';
+import {
+  buildCommandDispatchFailure,
+  buildExtensionDisconnectFailure,
+  getResponseCorsHeaders,
+} from './daemon-utils.js';
 
 const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 
@@ -44,10 +49,13 @@ type ExtensionProfileConnection = {
 const extensionProfiles = new Map<string, ExtensionProfileConnection>();
 const pending = new Map<string, {
   contextId: string;
+  action: string;
+  dispatched: boolean;
   resolve: (data: unknown) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
 }>();
+let commandResultUnknownCount = 0;
 // Extension log ring buffer
 interface LogEntry { level: string; msg: string; ts: number; }
 const LOG_BUFFER_SIZE = 200;
@@ -136,12 +144,16 @@ function unregisterExtensionConnection(ws: WebSocket): void {
     for (const [id, p] of pending) {
       if (p.contextId !== contextId) continue;
       clearTimeout(p.timer);
-      p.reject(new DaemonCommandFailure(
-        `Browser profile "${contextId}" disconnected`,
-        'profile_disconnected',
-        'Open that Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
-        503,
-      ));
+      const failure = buildExtensionDisconnectFailure({
+        contextId,
+        action: p.action,
+        dispatched: p.dispatched,
+      });
+      if (failure.countAsCommandResultUnknown) {
+        commandResultUnknownCount++;
+        log.warn(`[daemon] Command result unknown after extension disconnect (id=${id}, action=${p.action}, context=${contextId})`);
+      }
+      p.reject(new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status));
       pending.delete(id);
     }
   }
@@ -174,15 +186,6 @@ function jsonResponse(
 ): void {
   res.writeHead(status, { 'Content-Type': 'application/json', ...extraHeaders });
   res.end(JSON.stringify(data));
-}
-
-export function getResponseCorsHeaders(pathname: string, origin?: string): Record<string, string> | undefined {
-  if (pathname !== '/ping') return undefined;
-  if (!origin || !origin.startsWith('chrome-extension://')) return undefined;
-  return {
-    'Access-Control-Allow-Origin': origin,
-    Vary: 'Origin',
-  };
 }
 
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -257,6 +260,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       profileDisconnected: route.errorCode === 'profile_disconnected',
       profiles,
       pending: pending.size,
+      commandResultUnknown: commandResultUnknownCount,
       memoryMB: Math.round(mem.rss / 1024 / 1024 * 10) / 10,
       port: PORT,
     });
@@ -321,8 +325,34 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           pending.delete(body.id);
           reject(new Error(`Command timeout (${timeoutMs / 1000}s)`));
         }, timeoutMs);
-        pending.set(body.id, { contextId: route.connection!.contextId, resolve, reject, timer });
-        route.connection!.ws.send(JSON.stringify(body));
+        const entry = {
+          contextId: route.connection!.contextId,
+          action: typeof body.action === 'string' ? body.action : 'unknown',
+          dispatched: false,
+          resolve,
+          reject,
+          timer,
+        };
+        pending.set(body.id, entry);
+        const failBeforeDispatch = (err: unknown) => {
+          if (pending.get(body.id) !== entry) return;
+          const failure = buildCommandDispatchFailure(entry.contextId);
+          clearTimeout(timer);
+          pending.delete(body.id);
+          reject(new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status));
+          log.warn(`[daemon] Failed to dispatch command ${body.id}: ${err instanceof Error ? err.message : String(err)}`);
+        };
+        try {
+          route.connection!.ws.send(JSON.stringify(body), (err?: Error) => {
+            if (err && !entry.dispatched) failBeforeDispatch(err);
+          });
+          // Once ws accepts the frame, the command may execute even if the
+          // result is later lost; do not downgrade later disconnects to a
+          // pre-dispatch failure just because no result/ack has arrived yet.
+          entry.dispatched = true;
+        } catch (err) {
+          failBeforeDispatch(err);
+        }
       });
 
       jsonResponse(res, 200, result);

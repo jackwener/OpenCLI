@@ -189,21 +189,13 @@ async function resolveChannelHandle(input, apiKey, context) {
  * Inline SAPISIDHASH helper for use inside page.evaluate() strings.
  * YouTube write APIs (like, subscribe) require:
  *   Authorization: SAPISIDHASH {time}_{SHA1(time + " " + SAPISID + " " + origin)}
+ *
+ * The SAPISID cookie value must be hoisted from the cookie store on the Node side
+ * (via `readYoutubeSapisid(page)`) and passed in here — keeps `crypto.subtle.digest`
+ * (browser Web Crypto) call site, but no `document.cookie` round-trip.
  */
 export const SAPISID_HASH_FN = `
-async function getSapisidHash(origin) {
-  const cookies = document.cookie.split('; ');
-  let sapisid = '';
-  for (const c of cookies) {
-    const eq = c.indexOf('=');
-    if (eq === -1) continue;
-    const name = c.slice(0, eq);
-    const val = c.slice(eq + 1);
-    if (name === '__Secure-3PAPISID' || name === 'SAPISID') {
-      sapisid = val;
-      if (name === '__Secure-3PAPISID') break;
-    }
-  }
+async function getSapisidHash(sapisid, origin) {
   if (!sapisid) return null;
   const time = Math.floor(Date.now() / 1000);
   const msgBuffer = new TextEncoder().encode(time + ' ' + sapisid + ' ' + origin);
@@ -212,3 +204,17 @@ async function getSapisidHash(origin) {
   return 'SAPISIDHASH ' + time + '_' + hashHex;
 }
 `;
+
+/**
+ * Read the YouTube SAPISID cookie via CDP, preferring `__Secure-3PAPISID`
+ * (current first-party cookie) and falling back to the legacy `SAPISID` name.
+ * Returns the cookie value, or null if neither is present.
+ */
+export async function readYoutubeSapisid(page) {
+  const cookies = await page.getCookies({ url: 'https://www.youtube.com' });
+  return (
+    cookies.find((c) => c.name === '__Secure-3PAPISID')?.value
+    || cookies.find((c) => c.name === 'SAPISID')?.value
+    || null
+  );
+}
