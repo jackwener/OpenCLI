@@ -3,12 +3,13 @@ import { EmptyResultError } from '@jackwener/opencli/errors';
 import {
     CHATGPT_DOMAIN,
     CHATGPT_URL,
-    CONVERSATION_MESSAGE_SELECTOR,
+    CONVERSATION_TURN_SELECTOR,
     ensureChatGPTLogin,
     getVisibleMessages,
     messageHtmlToMarkdown,
     normalizeBooleanFlag,
     parseChatGPTConversationId,
+    revealChatGPTConversation,
 } from './utils.js';
 
 export const detailCommand = cli({
@@ -31,12 +32,16 @@ export const detailCommand = cli({
         const wantMarkdown = normalizeBooleanFlag(kwargs.markdown, false);
         await page.goto(`${CHATGPT_URL}/c/${id}`, { settleMs: 2000 });
         try {
-            await page.wait({ selector: CONVERSATION_MESSAGE_SELECTOR, timeout: 10 });
+            await page.wait({ selector: CONVERSATION_TURN_SELECTOR, timeout: 10 });
         } catch {
             // Empty conversation, missing access, or login redirect — handled by ensureChatGPTLogin / EmptyResultError below.
         }
         await ensureChatGPTLogin(page, 'ChatGPT detail requires a logged-in ChatGPT session.');
-        const messages = await getVisibleMessages(page);
+        let messages = await getVisibleMessages(page);
+        if (!messages.length) {
+            await revealChatGPTConversation(page);
+            messages = await getVisibleMessages(page);
+        }
         if (!messages.length) {
             throw new EmptyResultError('chatgpt detail', `No visible ChatGPT messages were found for conversation ${id}.`);
         }

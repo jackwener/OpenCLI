@@ -136,9 +136,11 @@ export async function isOnChatGPT(page) {
 // we only need to know "the composer is ready", not which variant rendered.
 const COMPOSER_WAIT_SELECTOR = '#prompt-textarea, [data-testid="prompt-textarea"]';
 const CONVERSATION_LINK_SELECTOR = 'a[href*="/c/"]';
+const OPEN_SIDEBAR_LABELS = ['Open sidebar', '開啟側邊欄', '打开边栏'];
 // Selector used by detail.js to wait for at least one rendered message bubble
 // after navigating to /c/<id>; mirrors the markup queried by getVisibleMessages.
 export const CONVERSATION_MESSAGE_SELECTOR = '[data-message-author-role], article[data-testid*="conversation-turn"]';
+export const CONVERSATION_TURN_SELECTOR = '[data-message-author-role], article[data-testid*="conversation-turn"], section[data-testid*="conversation-turn"]';
 
 export async function ensureOnChatGPT(page) {
     if (await isOnChatGPT(page)) return false;
@@ -340,12 +342,14 @@ export async function sendChatGPTMessage(page, text) {
 
 export async function getVisibleMessages(page) {
     const result = await page.evaluate(`(() => {
+        const isElement = (el) => el && el.nodeType === Node.ELEMENT_NODE;
         const isVisible = (el) => {
-            if (!(el instanceof HTMLElement)) return false;
+            if (!isElement(el)) return false;
             const style = window.getComputedStyle(el);
             if (style.display === 'none' || style.visibility === 'hidden') return false;
             const rect = el.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0;
+            if (rect.width > 0 && rect.height > 0) return true;
+            return Array.from(el.children || []).some((child) => isVisible(child));
         };
         const normalize = (value) => String(value || '').replace(/\\u00a0/g, ' ').replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim();
         const roleOf = (node) => {
@@ -358,11 +362,14 @@ export async function getVisibleMessages(page) {
             const label = node.getAttribute('aria-label') || '';
             if (/assistant|chatgpt/i.test(label)) return 'Assistant';
             if (/you|user/i.test(label)) return 'User';
+            const heading = (node.querySelector('h1,h2,h3,h4,h5,h6')?.textContent || '').trim();
+            if (/chatgpt|assistant|助理|助手/i.test(heading)) return 'Assistant';
+            if (/^(you|user|你|您)\s*(said|說|说)?[：:]?$/i.test(heading)) return 'User';
             return '';
         };
 
-        let nodes = Array.from(document.querySelectorAll('[data-message-author-role], article[data-testid*="conversation-turn"]'));
-        nodes = nodes.filter((node) => node instanceof HTMLElement && isVisible(node));
+        let nodes = Array.from(document.querySelectorAll(${JSON.stringify(CONVERSATION_TURN_SELECTOR)}));
+        nodes = nodes.filter((node) => isElement(node) && isVisible(node));
 
         const rows = [];
         const seen = new Set();
@@ -386,13 +393,107 @@ export async function getVisibleMessages(page) {
         }
         return rows;
     })()`);
-    if (!Array.isArray(result)) return [];
-    return result.map((item, index) => ({
+    const messages = Array.isArray(result) ? result.map((item, index) => ({
         Index: index + 1,
         Role: item?.role === 'Assistant' ? 'Assistant' : 'User',
         Text: String(item?.text || '').trim(),
         Html: String(item?.html || ''),
-    })).filter((item) => item.Text);
+    })).filter((item) => item.Text) : [];
+    if (messages.length) return messages;
+    return await extractMessagesFromSnapshot(page);
+}
+
+export async function revealChatGPTConversation(page) {
+    await page.evaluate(`(() => {
+        const scrollables = [document.scrollingElement, document.documentElement, document.body]
+            .concat(Array.from(document.querySelectorAll('*')))
+            .filter((node) => node && node.scrollHeight > node.clientHeight + 80);
+        for (const node of scrollables) {
+            try { node.scrollTop = 0; } catch {}
+        }
+    })()`);
+    await page.wait(1);
+}
+
+async function extractMessagesFromSnapshot(page) {
+    if (!page || typeof page.snapshot !== 'function') return [];
+    try {
+        const snapshot = await page.snapshot({ viewportExpand: 2000 });
+        return parseMessagesFromSnapshot(snapshot);
+    } catch {
+        return [];
+    }
+}
+
+function parseMessagesFromSnapshot(snapshot) {
+    const text = snapshotText(snapshot);
+    const lines = text.split(/\r?\n/);
+    const turns = [];
+    let current = null;
+
+    const finish = () => {
+        if (!current) return;
+        const body = normalizeSnapshotMessageText(current.lines.join('\n'));
+        if (current.role && body) {
+            turns.push({
+                Index: turns.length + 1,
+                Role: current.role,
+                Text: body,
+                Html: '',
+            });
+        }
+        current = null;
+    };
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (/<section\b[^>]*data-testid=conversation-turn/i.test(line)) {
+            finish();
+            current = { role: '', lines: [] };
+            continue;
+        }
+        if (!current) continue;
+        if (/<div\b[^>]*id=thread-bottom-container/i.test(line) || /aria-label=回覆操作/.test(line)) {
+            finish();
+            continue;
+        }
+        if (/<h[1-6]>\s*ChatGPT\s*(說|说|said)?[：:]?\s*<\/h[1-6]>/i.test(line)) {
+            current.role = 'Assistant';
+            continue;
+        }
+        if (/<h[1-6]>\s*(你|您|You|User)\s*(說|说|said)?[：:]?\s*<\/h[1-6]>/i.test(line)) {
+            current.role = 'User';
+            continue;
+        }
+        const item = snapshotLineText(line);
+        if (item) current.lines.push(item);
+    }
+    finish();
+    return turns;
+}
+
+function snapshotLineText(line) {
+    let text = String(line || '').trim();
+    if (!text) return '';
+    if (/^---$/.test(text) || /^compounds\b/.test(text) || /^interactive:/.test(text)) return '';
+    if (/<(svg|input|button|label|iframe|dialog)\b/i.test(text)) return '';
+    if (/(顯示更多|顯示較少|已思考|複製回應|更多動作|切換模型|資料來源)/.test(text)) return '';
+    text = text.replace(/^\[\d+\]/, '').trim();
+    text = text.replace(/^\|table\|\s*/, '').trim();
+    text = text.replace(/<[^>]+\/>/g, ' ').replace(/<[^>]+>/g, ' ').trim();
+    text = text.replace(/\s+/g, ' ').trim();
+    if (!text || text === '---') return '';
+    return text;
+}
+
+function normalizeSnapshotMessageText(text) {
+    return String(text || '')
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .join('\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
 }
 
 export function messageHtmlToMarkdown(html) {
@@ -449,8 +550,12 @@ export async function getConversationList(page) {
     await ensureOnChatGPT(page);
 
     const openSidebar = await page.evaluate(`(() => {
+        const labels = ${JSON.stringify(OPEN_SIDEBAR_LABELS)};
         const button = Array.from(document.querySelectorAll('button'))
-            .find((node) => /open sidebar/i.test(node.getAttribute('aria-label') || ''));
+            .find((node) => {
+                const label = node.getAttribute('aria-label') || '';
+                return /open sidebar/i.test(label) || labels.includes(label);
+            });
         if (button instanceof HTMLElement) {
             button.click();
             return true;
@@ -465,7 +570,10 @@ export async function getConversationList(page) {
         }
     }
 
-    let items = await extractConversationLinks(page);
+    let items = await waitForConversationLinks(page, 5);
+    if (!items.length) {
+        items = await extractConversationLinksFromSnapshot(page);
+    }
     if (!items.length) {
         await page.goto(CHATGPT_URL, { settleMs: 2000 });
         try {
@@ -473,23 +581,39 @@ export async function getConversationList(page) {
         } catch {
             // No conversation links visible after fallback goto; extractConversationLinks returns empty.
         }
-        items = await extractConversationLinks(page);
+        items = await waitForConversationLinks(page, 8);
+        if (!items.length) {
+            items = await extractConversationLinksFromSnapshot(page);
+        }
     }
 
     return items;
 }
 
+async function waitForConversationLinks(page, timeoutSeconds) {
+    const deadline = Date.now() + timeoutSeconds * 1000;
+    do {
+        const items = await extractConversationLinks(page);
+        if (items.length) return items;
+        await page.wait(0.25);
+    } while (Date.now() < deadline);
+    return [];
+}
+
 async function extractConversationLinks(page) {
     const items = await page.evaluate(`(() => {
+        const isElement = (el) => el && el.nodeType === Node.ELEMENT_NODE;
         const isVisible = (el) => {
-            if (!(el instanceof HTMLElement)) return false;
+            if (!isElement(el)) return false;
             const style = window.getComputedStyle(el);
             if (style.display === 'none' || style.visibility === 'hidden') return false;
             const rect = el.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0;
+            if (rect.width > 0 && rect.height > 0) return true;
+            return Array.from(el.children || []).some((child) => isVisible(child));
         };
         const links = Array.from(document.querySelectorAll('a[href*="/c/"]'))
-            .filter((link) => link instanceof HTMLAnchorElement && isVisible(link));
+            .filter((link) => link?.tagName?.toLowerCase() === 'a' && isVisible(link));
+        const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
         const seen = new Set();
         const rows = [];
         for (const link of links) {
@@ -497,11 +621,11 @@ async function extractConversationLinks(page) {
             const match = href.match(/\\/c\\/([^/?#]+)/);
             if (!match || seen.has(match[1])) continue;
             seen.add(match[1]);
-            const title = (link.innerText || link.textContent || '').replace(/\\s+/g, ' ').trim() || '(untitled)';
+            const title = normalize(link.getAttribute('aria-label') || link.innerText || link.textContent) || '(untitled)';
             rows.push({
                 Id: match[1],
                 Title: title,
-                Url: href.startsWith('http') ? href : ('${CHATGPT_URL}' + href),
+                Url: link.href || (href.startsWith('http') ? href : ('${CHATGPT_URL}' + href)),
             });
         }
         return rows;
@@ -514,6 +638,54 @@ async function extractConversationLinks(page) {
             Url: String(item?.Url || ''),
         })).filter((item) => item.Id)
         : [];
+}
+
+async function extractConversationLinksFromSnapshot(page) {
+    if (!page || typeof page.snapshot !== 'function') return [];
+    try {
+        const snapshot = await page.snapshot({ viewportExpand: 2000 });
+        return parseConversationLinksFromSnapshot(snapshot);
+    } catch {
+        return [];
+    }
+}
+
+function parseConversationLinksFromSnapshot(snapshot) {
+    const text = snapshotText(snapshot);
+    const rows = [];
+    const seen = new Set();
+    const linkPattern = /<a\b[^>]*\bhref=(?:"([^"]+)"|'([^']+)'|([^\s>]+))[^>]*>/g;
+    let match;
+    while ((match = linkPattern.exec(text)) !== null) {
+        const tag = match[0] || '';
+        const href = match[1] || match[2] || match[3] || '';
+        const idMatch = href.match(/\/c\/([^/?#\s]+)/);
+        if (!idMatch || seen.has(idMatch[1])) continue;
+        seen.add(idMatch[1]);
+        const title = String(readSnapshotAttribute(tag, 'aria-label') || '(untitled)')
+            .replace(/\s+/g, ' ')
+            .trim() || '(untitled)';
+        rows.push({
+            Index: rows.length + 1,
+            Id: idMatch[1],
+            Title: title,
+            Url: href.startsWith('http') ? href : (`${CHATGPT_URL}${href}`),
+        });
+    }
+    return rows;
+}
+
+function snapshotText(snapshot) {
+    if (typeof snapshot === 'string') return snapshot.replace(/\\n/g, '\n');
+    if (typeof snapshot?.data === 'string') return snapshot.data;
+    return JSON.stringify(snapshot || '').replace(/\\n/g, '\n');
+}
+
+function readSnapshotAttribute(tag, name) {
+    const quoted = tag.match(new RegExp(`\\b${name}=(?:"([^"]*)"|'([^']*)')`));
+    if (quoted) return quoted[1] || quoted[2] || '';
+    const unquoted = tag.match(new RegExp(`\\b${name}=([^>]*?)(?=\\s+[\\w:-]+=|\\s*/?>|$)`));
+    return unquoted?.[1] || '';
 }
 
 function imageMimeFromPath(filePath) {
@@ -766,9 +938,15 @@ export const __test__ = {
     SEND_BUTTON_FALLBACK_SELECTORS,
     SEND_BUTTON_LABELS,
     CLOSE_SIDEBAR_LABELS,
+    OPEN_SIDEBAR_LABELS,
     isSameChatGPTConversation,
     parseChatGPTConversationId,
     imageMimeFromPath,
+    extractConversationLinks,
+    parseMessagesFromSnapshot,
+    parseConversationLinksFromSnapshot,
+    snapshotText,
+    readSnapshotAttribute,
 };
 
 /**
