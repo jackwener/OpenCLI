@@ -2298,7 +2298,7 @@
   {
     "site": "bilibili",
     "name": "comment",
-    "description": "在 B站视频下发表评论/回复（官方 API，需登录；发「@AI视频小助理 总结一下」可召唤AI总结视频）",
+    "description": "在 B站视频下发表评论或回复（官方 API，需登录；消息里的 @用户 会被解析为真实提及）",
     "access": "write",
     "domain": "www.bilibili.com",
     "strategy": "cookie",
@@ -2316,7 +2316,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Comment text. Post \"@AI视频小助理 总结一下\" to summon the AI assistant"
+        "help": "Comment text. Any @username in it is resolved to a real mention"
       },
       {
         "name": "parent",
@@ -2346,7 +2346,7 @@
   {
     "site": "bilibili",
     "name": "comments",
-    "description": "获取 B站视频评论（使用官方 API + WBI 签名）",
+    "description": "获取 B站视频评论（官方 API；用 --parent <rpid> 读取某条评论下的「楼中楼」回复）",
     "access": "read",
     "domain": "www.bilibili.com",
     "strategy": "cookie",
@@ -2358,6 +2358,12 @@
         "required": true,
         "positional": true,
         "help": "Video BV ID (e.g. BV1WtAGzYEBm)"
+      },
+      {
+        "name": "parent",
+        "type": "int",
+        "required": false,
+        "help": "rpid of a comment — fetch the replies under it instead of top-level comments"
       },
       {
         "name": "limit",
