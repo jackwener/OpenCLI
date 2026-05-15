@@ -5,6 +5,7 @@
 ### Features
 
 * **external** — add the Longbridge CLI as a built-in external CLI passthrough (`opencli longbridge ...`) for Longbridge OpenAPI market data, account, and trading commands.
+* **external-cli** — render brand alias `name(package)` in `opencli list` and root help when the bare executable name is ambiguous. Built-in entries `ntn` → `ntn(notion)`, `dws` → `dws(DingTalk Workspace)`, `wecom-cli` → `wecom-cli(企业微信)` now self-explain in help output. `package` field is repurposed to cover both upstream distribution names (e.g. `tg-cli`) and human-readable brand labels (e.g. `notion`, `企业微信`).
 
 ## [1.7.21](https://github.com/jackwener/opencli/compare/v1.7.20...v1.7.21) (2026-05-14)
 

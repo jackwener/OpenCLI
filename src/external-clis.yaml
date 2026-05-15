@@ -16,6 +16,7 @@
 
 - name: ntn
   binary: ntn
+  package: notion
   description: "Notion CLI — official Notion API CLI for pages, databases, blocks, search, comments"
   homepage: "https://ntn.dev"
   tags: [notion, notes, knowledge, productivity]
@@ -47,6 +48,7 @@
 
 - name: dws
   binary: dws
+  package: DingTalk Workspace
   description: "DingTalk Workspace CLI — messages, docs, calendar, contacts and more for humans and AI agents"
   homepage: "https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli"
   tags: [dingtalk, collaboration, productivity, ai-agent]
@@ -56,6 +58,7 @@
 
 - name: wecom-cli
   binary: wecom-cli
+  package: 企业微信
   description: "WeCom/企业微信 CLI — contacts, todos, meetings, messages, calendar, docs and smart sheets for AI agents"
   homepage: "https://github.com/WecomTeam/wecom-cli"
   tags: [wecom, wechat-work, collaboration, productivity, ai-agent]

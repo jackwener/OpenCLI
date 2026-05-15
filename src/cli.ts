@@ -626,7 +626,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         for (const ext of externalClis) {
           const isInstalled = isBinaryInstalled(ext.binary);
           const tag = isInstalled ? '[installed]' : '[auto-install]';
-          console.log(`    ${ext.name} ${tag}${ext.description ? ` — ${ext.description}` : ''}`);
+          console.log(`    ${formatExternalCliLabel(ext)} ${tag}${ext.description ? ` — ${ext.description}` : ''}`);
         }
         console.log();
       }

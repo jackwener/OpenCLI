@@ -86,6 +86,13 @@ describe('formatExternalCliLabel', () => {
   it('keeps the label compact when package and name match', () => {
     expect(formatExternalCliLabel({ name: 'docker', binary: 'docker', package: 'docker' })).toBe('docker');
   });
+
+  it('renders a human-readable brand alias for ambiguous executable names', () => {
+    expect(formatExternalCliLabel({ name: 'ntn', binary: 'ntn', package: 'notion' })).toBe('ntn(notion)');
+    expect(formatExternalCliLabel({ name: 'wecom-cli', binary: 'wecom-cli', package: '企业微信' })).toBe(
+      'wecom-cli(企业微信)',
+    );
+  });
 });
 
 describe('installExternalCli', () => {
