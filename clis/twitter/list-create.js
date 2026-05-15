@@ -1,8 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { resolveTwitterQueryId } from './shared.js';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { TWITTER_BEARER_TOKEN } from './utils.js';
 
-const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 const CREATE_LIST_QUERY_ID = 'UQRa0jJ9doxGEIQRea1Y0w';
 const NAME_MAX = 25;
 const DESCRIPTION_MAX = 100;
@@ -22,6 +21,7 @@ cli({
     site: 'twitter',
     name: 'list-create',
     description: 'Create a new Twitter/X list (returns the new list id)',
+    access: 'write',
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
@@ -36,16 +36,16 @@ cli({
         const description = String(kwargs.description || '').trim();
         const modeRaw = String(kwargs.mode || 'public').trim().toLowerCase();
         if (!name) {
-            throw new CommandExecutionError('List name is required');
+            throw new ArgumentError('List name is required', 'Example: opencli twitter list-create "My List"');
         }
         if (name.length > NAME_MAX) {
-            throw new CommandExecutionError(`List name too long: ${name.length} chars (max ${NAME_MAX})`);
+            throw new ArgumentError(`List name too long: ${name.length} chars (max ${NAME_MAX})`);
         }
         if (description.length > DESCRIPTION_MAX) {
-            throw new CommandExecutionError(`Description too long: ${description.length} chars (max ${DESCRIPTION_MAX})`);
+            throw new ArgumentError(`Description too long: ${description.length} chars (max ${DESCRIPTION_MAX})`);
         }
         if (modeRaw !== 'public' && modeRaw !== 'private') {
-            throw new CommandExecutionError(`Invalid mode: ${JSON.stringify(kwargs.mode)}. Expected "public" or "private".`);
+            throw new ArgumentError(`Invalid mode: ${JSON.stringify(kwargs.mode)}. Expected "public" or "private".`);
         }
         const isPrivate = modeRaw === 'private';
 
@@ -62,7 +62,7 @@ cli({
         const queryId = CREATE_LIST_QUERY_ID;
 
         const headers = JSON.stringify({
-            'Authorization': `Bearer ${decodeURIComponent(BEARER_TOKEN)}`,
+            'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
             'X-Twitter-Auth-Type': 'OAuth2Session',
             'X-Twitter-Active-User': 'yes',
@@ -82,29 +82,29 @@ cli({
                 credentials: 'include',
                 body: ${JSON.stringify(body)},
             });
-            const text = await r.text();
-            let json = null;
-            try { json = JSON.parse(text); } catch {}
-            return { ok: r.ok, status: r.status, json, text };
+            const bodyText = await r.text();
+            let bodyJson = null;
+            try { bodyJson = JSON.parse(bodyText); } catch {}
+            return { ok: r.ok, httpStatus: r.status, bodyJson, bodyText };
         }`);
 
         if (!result.ok) {
-            const snippet = (result.text || '').slice(0, 300);
-            throw new CommandExecutionError(`HTTP ${result.status} from CreateList: ${snippet}`);
+            const snippet = (result.bodyText || '').slice(0, 300);
+            throw new CommandExecutionError(`HTTP ${result.httpStatus} from CreateList: ${snippet}`);
         }
         // Note: Twitter sometimes returns a non-fatal `errors` array (e.g. a
         // strato DecodeException from a side-effect serializer) WHILE STILL
         // creating the list. So check for a valid list payload FIRST and
         // only treat errors as fatal if no list came back.
-        const list = result.json?.data?.list;
+        const list = result.bodyJson?.data?.list;
         if (list && (list.id_str || list.id)) {
             // success path — list was created, ignore any side-effect errors
         } else {
-            const errors = result.json?.errors;
+            const errors = result.bodyJson?.errors;
             if (Array.isArray(errors) && errors.length > 0) {
                 throw new CommandExecutionError(`CreateList failed: ${errors[0].message || JSON.stringify(errors[0])}`);
             }
-            throw new CommandExecutionError(`CreateList returned no list payload. Body: ${(result.text || '').slice(0, 300)}`);
+            throw new CommandExecutionError(`CreateList returned no list payload. Body: ${(result.bodyText || '').slice(0, 300)}`);
         }
         const id = String(list.id_str || list.id);
         const mode = typeof list.mode === 'string' && /private/i.test(list.mode) ? 'private' : 'public';
