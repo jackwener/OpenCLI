@@ -104,6 +104,38 @@ export async function fetchJson(page, url) {
     }
   `);
 }
+/**
+ * POST form-encoded params to a Bilibili API endpoint.
+ * Runs inside the logged-in browser context and auto-attaches the bili_jct CSRF token,
+ * which Bilibili requires on every authenticated write request.
+ */
+export async function apiPost(page, path, opts = {}) {
+    const params = opts.params ?? {};
+    const stringified = Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)]));
+    const paramsJs = JSON.stringify(stringified);
+    const urlJs = JSON.stringify(`https://api.bilibili.com${path}`);
+    return page.evaluate(`
+    async () => {
+      const csrf = (document.cookie.match(/bili_jct=([^;]+)/) || [])[1] || "";
+      const body = new URLSearchParams(${paramsJs});
+      body.set("csrf", csrf);
+      const res = await fetch(${urlJs}, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      });
+      // Bilibili write endpoints can return an HTML risk-control page (e.g. HTTP 412)
+      // instead of JSON. Surface that as a structured error rather than a parse crash.
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { code: -1, message: "Non-JSON response (HTTP " + res.status + "): " + text.slice(0, 200) };
+      }
+    }
+  `);
+}
 export async function getSelfUid(page) {
     const nav = await getNavData(page);
     const mid = nav?.data?.mid;
