@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     requireArrayEvaluateResult,
+    requireBooleanEvaluateResult,
     requireObjectEvaluateResult,
     unwrapEvaluateResult,
 } from './utils.js';
@@ -71,6 +72,15 @@ describe('chatgpt page.evaluate envelope helpers', () => {
             expect(() => requireObjectEvaluateResult([], 'chatgpt page state')).toThrowError(CommandExecutionError);
             expect(() => requireObjectEvaluateResult('string', 'chatgpt page state')).toThrowError(CommandExecutionError);
             expect(() => requireObjectEvaluateResult(null, 'chatgpt page state')).toThrowError(CommandExecutionError);
+        });
+    });
+
+    describe('requireBooleanEvaluateResult', () => {
+        it('returns booleans and rejects wrong-shape values', () => {
+            expect(requireBooleanEvaluateResult(true, 'chatgpt generation state')).toBe(true);
+            expect(requireBooleanEvaluateResult(false, 'chatgpt generation state')).toBe(false);
+            expect(() => requireBooleanEvaluateResult({ ok: true }, 'chatgpt generation state'))
+                .toThrowError(CommandExecutionError);
         });
     });
 
