@@ -280,7 +280,7 @@ npm link
 | **reuters** | `search` | 浏览器 |
 | **smzdm** | `search` | 浏览器 |
 | **web** | `read` | 浏览器 |
-| **weibo** | `hot` `search` `feed` `user` `me` `post` `comments` | 浏览器 |
+| **weibo** | `hot` `search` `feed` `user` `user-posts` `me` `post` `comments` | 浏览器 |
 | **yahoo-finance** | `quote` | 浏览器 |
 | **sinafinance** | `news` | 🌐 公开 |
 | **barchart** | `quote` `options` `greeks` `flow` | 浏览器 |
