@@ -59,6 +59,23 @@ describe('parseCommand', () => {
       }
     }
   });
+
+  it('registers Longbridge with safe package-manager installers only', () => {
+    const raw = fs.readFileSync(path.join(__dirname, 'external-clis.yaml'), 'utf8');
+    const entries = (yaml.load(raw) || []) as ExternalCliConfig[];
+    const longbridge = entries.find((entry) => entry.name === 'longbridge');
+
+    expect(longbridge).toMatchObject({
+      binary: 'longbridge',
+      homepage: 'https://open.longbridge.com/zh-CN/docs/cli/',
+      install: {
+        mac: 'brew install --cask longbridge/tap/longbridge-terminal',
+        windows: 'scoop install https://open.longbridge.com/longbridge/longbridge-terminal/longbridge.json',
+      },
+    });
+    expect(longbridge?.install?.linux).toBeUndefined();
+    expect(longbridge?.install?.default).toBeUndefined();
+  });
 });
 
 describe('formatExternalCliLabel', () => {

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **external** — add the Longbridge CLI as a built-in external CLI passthrough (`opencli longbridge ...`) for Longbridge OpenAPI market data, account, and trading commands.
+
 ## [1.7.21](https://github.com/jackwener/opencli/compare/v1.7.20...v1.7.21) (2026-05-14)
 
 Adapter polish release: new web search adapters, better Browser Bridge tab group reuse, and social adapters returning to one-shot tab leases. Extension package version is bumped to 1.0.15 for the Browser Bridge fix.

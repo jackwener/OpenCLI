@@ -36,6 +36,15 @@
   install:
     default: "npm install -g @larksuite/cli"
 
+- name: longbridge
+  binary: longbridge
+  description: "Longbridge CLI — AI-native market data, account management and trading commands for Longbridge OpenAPI"
+  homepage: "https://open.longbridge.com/zh-CN/docs/cli/"
+  tags: [longbridge, finance, trading, market-data, openapi, ai-agent]
+  install:
+    mac: "brew install --cask longbridge/tap/longbridge-terminal"
+    windows: "scoop install https://open.longbridge.com/longbridge/longbridge-terminal/longbridge.json"
+
 - name: dws
   binary: dws
   description: "DingTalk Workspace CLI — messages, docs, calendar, contacts and more for humans and AI agents"
