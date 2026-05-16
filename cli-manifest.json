@@ -27624,7 +27624,11 @@
     "columns": [
       "title",
       "content",
-      "keywords"
+      "summary",
+      "keywords",
+      "created_at",
+      "file_size",
+      "url"
     ],
     "type": "js",
     "modulePath": "youdao/note.js",

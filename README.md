@@ -277,6 +277,7 @@ To load the source Browser Bridge extension:
 | **wanfang** | `search` |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
 | **xiaoyuzhou** | `auth*` `podcast*` `podcast-episodes*` `episode*` `download*` `transcript*` |
+| **youdao** | `note` |
 
 100+ site surfaces in total — **[→ see all supported sites & commands](./docs/adapters/index.md)**
 
