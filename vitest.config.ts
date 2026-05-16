@@ -37,6 +37,7 @@ export default defineConfig({
             'tests/e2e/public-commands.test.ts',
             'tests/e2e/management.test.ts',
             'tests/e2e/output-formats.test.ts',
+            'tests/e2e/plugin-command-args.test.ts',
             'tests/e2e/plugin-management.test.ts',
             'tests/e2e/browser-tabs.test.ts',
             'tests/e2e/article-download-pipeline.test.ts',
