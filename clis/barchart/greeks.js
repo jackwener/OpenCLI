@@ -4,6 +4,7 @@
  * Auth: CSRF token from <meta name="csrf-token"> + session cookies.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 cli({
     site: 'barchart',
     name: 'greeks',
@@ -45,39 +46,47 @@ cli({
             + '&fields=' + fields + '&raw=1';
           if (expDate) url += '&expirationDate=' + encodeURIComponent(expDate);
           const resp = await fetch(url, { credentials: 'include', headers });
-          if (resp.ok) {
-            const d = await resp.json();
-            let items = d?.data || [];
+          if (!resp.ok) {
+            return { ok: false, reason: 'http', status: resp.status, statusText: resp.statusText || '' };
+          }
 
-            if (!expDate) {
-              const expirations = items
-                .map(i => (i.raw || i).expirationDate || null)
-                .filter(Boolean)
-                .sort((a, b) => {
-                  const aTime = Date.parse(a);
-                  const bTime = Date.parse(b);
-                  if (Number.isNaN(aTime) && Number.isNaN(bTime)) return 0;
-                  if (Number.isNaN(aTime)) return 1;
-                  if (Number.isNaN(bTime)) return -1;
-                  return aTime - bTime;
-                });
-              const nearestExpiration = expirations[0];
-              if (nearestExpiration) {
-                items = items.filter(i => ((i.raw || i).expirationDate || null) === nearestExpiration);
-              }
+          const d = await resp.json();
+          let items = d?.data;
+          if (!Array.isArray(items)) {
+            return { ok: false, reason: 'malformed' };
+          }
+
+          if (!expDate) {
+            const expirations = items
+              .map(i => (i.raw || i).expirationDate || null)
+              .filter(Boolean)
+              .sort((a, b) => {
+                const aTime = Date.parse(a);
+                const bTime = Date.parse(b);
+                if (Number.isNaN(aTime) && Number.isNaN(bTime)) return 0;
+                if (Number.isNaN(aTime)) return 1;
+                if (Number.isNaN(bTime)) return -1;
+                return aTime - bTime;
+              });
+            const nearestExpiration = expirations[0];
+            if (nearestExpiration) {
+              items = items.filter(i => ((i.raw || i).expirationDate || null) === nearestExpiration);
             }
+          }
 
-            // Separate calls and puts, sort by distance from current price
-            const calls = items
-              .filter(i => ((i.raw || i).optionType || '').toLowerCase() === 'call')
-              .sort((a, b) => Math.abs((a.raw || a).percentFromLast || 999) - Math.abs((b.raw || b).percentFromLast || 999))
-              .slice(0, limit);
-            const puts = items
-              .filter(i => ((i.raw || i).optionType || '').toLowerCase() === 'put')
-              .sort((a, b) => Math.abs((a.raw || a).percentFromLast || 999) - Math.abs((b.raw || b).percentFromLast || 999))
-              .slice(0, limit);
+          // Separate calls and puts, sort by distance from current price.
+          const calls = items
+            .filter(i => ((i.raw || i).optionType || '').toLowerCase() === 'call')
+            .sort((a, b) => Math.abs((a.raw || a).percentFromLast || 999) - Math.abs((b.raw || b).percentFromLast || 999))
+            .slice(0, limit);
+          const puts = items
+            .filter(i => ((i.raw || i).optionType || '').toLowerCase() === 'put')
+            .sort((a, b) => Math.abs((a.raw || a).percentFromLast || 999) - Math.abs((b.raw || b).percentFromLast || 999))
+            .slice(0, limit);
 
-            return [...calls, ...puts].map(i => {
+          return {
+            ok: true,
+            rows: [...calls, ...puts].map(i => {
               const r = i.raw || i;
               return {
                 type: r.optionType,
@@ -93,16 +102,32 @@ cli({
                 openInterest: r.openInterest,
                 expiration: r.expirationDate,
               };
-            });
-          }
-        } catch(e) {}
-
-        return [];
+            })
+          };
+        } catch(e) {
+          return { ok: false, reason: 'exception', message: e?.message || String(e) };
+        }
       })()
     `);
-        if (!data || !Array.isArray(data))
-            return [];
-        return data.map(r => ({
+        if (!data || data.ok !== true) {
+            if (data?.reason === 'http') {
+                throw new CommandExecutionError(`Barchart greeks request failed: HTTP ${data.status}${data.statusText ? ` ${data.statusText}` : ''}`);
+            }
+            if (data?.reason === 'malformed') {
+                throw new CommandExecutionError('Barchart greeks returned an unreadable options payload');
+            }
+            if (data?.reason === 'exception') {
+                throw new CommandExecutionError(`Barchart greeks request failed: ${data.message || 'unknown error'}`);
+            }
+            throw new CommandExecutionError(`Failed to fetch Barchart greeks for ${symbol}`);
+        }
+        if (!Array.isArray(data.rows)) {
+            throw new CommandExecutionError('Barchart greeks returned an unreadable options payload');
+        }
+        if (data.rows.length === 0) {
+            throw new EmptyResultError('barchart greeks', `No option greeks were returned for ${symbol}. Confirm the symbol, expiration, and Barchart login state.`);
+        }
+        return data.rows.map(r => ({
             type: r.type || '',
             strike: r.strike,
             last: r.last != null ? Number(Number(r.last).toFixed(2)) : null,
