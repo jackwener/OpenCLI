@@ -108,6 +108,23 @@ export interface BrowserProfileStatus {
   lastSeenAt?: number;
 }
 
+export type DaemonExtensionState =
+  | 'connected'
+  | 'no-extension'
+  | 'profile-required'
+  | 'profile-disconnected';
+
+export function connectedProfileCount(status: Pick<DaemonStatus, 'profiles'>): number {
+  return status.profiles?.filter((profile) => profile.extensionConnected).length ?? 0;
+}
+
+export function getDaemonExtensionState(status: DaemonStatus): DaemonExtensionState {
+  if (status.profileRequired) return 'profile-required';
+  if (status.profileDisconnected) return 'profile-disconnected';
+  if (status.extensionConnected) return 'connected';
+  return 'no-extension';
+}
+
 async function requestDaemon(pathname: string, init?: RequestInit & { timeout?: number }): Promise<Response> {
   const { timeout = 2000, headers, ...rest } = init ?? {};
   const controller = new AbortController();
@@ -148,9 +165,10 @@ export type DaemonHealth =
 export async function getDaemonHealth(opts?: { timeout?: number; contextId?: string }): Promise<DaemonHealth> {
   const status = await fetchDaemonStatus(opts);
   if (!status) return { state: 'stopped', status: null };
-  if (status.profileRequired) return { state: 'profile-required', status };
-  if (status.profileDisconnected) return { state: 'profile-disconnected', status };
-  if (!status.extensionConnected) return { state: 'no-extension', status };
+  const extensionState = getDaemonExtensionState(status);
+  if (extensionState === 'profile-required') return { state: 'profile-required', status };
+  if (extensionState === 'profile-disconnected') return { state: 'profile-disconnected', status };
+  if (extensionState === 'no-extension') return { state: 'no-extension', status };
   return { state: 'ready', status };
 }
 

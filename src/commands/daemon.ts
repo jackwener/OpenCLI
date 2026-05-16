@@ -5,32 +5,57 @@
  *   opencli daemon restart — graceful shutdown, then start a fresh daemon
  */
 
-import { fetchDaemonStatus, requestDaemonShutdown } from '../browser/daemon-client.js';
+import {
+  connectedProfileCount,
+  fetchDaemonStatus,
+  getDaemonExtensionState,
+  requestDaemonShutdown,
+  type DaemonStatus,
+} from '../browser/daemon-client.js';
 import { restartDaemon } from '../browser/daemon-lifecycle.js';
+import { resolveProfileContextId } from '../browser/profile.js';
 import { formatDuration } from '../download/progress.js';
 import { log } from '../logger.js';
 import { PKG_VERSION } from '../version.js';
 import { formatDaemonVersion, isDaemonStale } from '../browser/daemon-version.js';
 
+function pluralizeProfile(count: number): string {
+  return count === 1 ? 'profile' : 'profiles';
+}
+
+function formatExtensionLabel(status: DaemonStatus): string {
+  const extensionState = getDaemonExtensionState(status);
+  const profileCount = connectedProfileCount(status);
+
+  if (extensionState === 'profile-required') {
+    return `${profileCount} ${pluralizeProfile(profileCount)} connected, none selected (run: opencli profile use <name>)`;
+  }
+  if (extensionState === 'profile-disconnected') {
+    const selected = status.contextId ? `selected profile "${status.contextId}"` : 'selected profile';
+    const connected = profileCount > 0
+      ? `; ${profileCount} other ${pluralizeProfile(profileCount)} connected`
+      : '';
+    return `${selected} disconnected${connected}`;
+  }
+  if (extensionState === 'no-extension') return 'disconnected';
+  return status.extensionVersion
+    ? `connected (v${status.extensionVersion})`
+    : 'connected (version unknown)';
+}
+
 export async function daemonStatus(): Promise<void> {
-  const status = await fetchDaemonStatus();
+  const status = await fetchDaemonStatus({ contextId: resolveProfileContextId() });
   if (!status) {
     console.log('Daemon: not running');
     return;
   }
-
-  const extensionLabel = !status.extensionConnected
-    ? 'disconnected'
-    : status.extensionVersion
-      ? `connected (v${status.extensionVersion})`
-      : 'connected (version unknown)';
 
   const daemonVersion = formatDaemonVersion(status);
   const stale = isDaemonStale(status, PKG_VERSION);
   console.log(`Daemon: ${stale ? 'stale' : 'running'} (PID ${status.pid})`);
   console.log(`Version: ${daemonVersion}${stale ? ` (CLI v${PKG_VERSION}; run: opencli daemon restart)` : ''}`);
   console.log(`Uptime: ${formatDuration(Math.round(status.uptime * 1000))}`);
-  console.log(`Extension: ${extensionLabel}`);
+  console.log(`Extension: ${formatExtensionLabel(status)}`);
   if (status.profiles && status.profiles.length > 0) {
     console.log(`Profiles: ${status.profiles.map((profile) => {
       const version = profile.extensionVersion ? ` v${profile.extensionVersion}` : '';

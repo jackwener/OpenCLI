@@ -1,15 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetDaemonHealth, mockConnect, mockClose, mockFindShadowedUserAdapters } = vi.hoisted(() => ({
+const { mockGetDaemonHealth, mockConnect, mockClose, mockFindShadowedUserAdapters, mockResolveProfileContextId } = vi.hoisted(() => ({
   mockGetDaemonHealth: vi.fn(),
   mockConnect: vi.fn(),
   mockClose: vi.fn(),
   mockFindShadowedUserAdapters: vi.fn(),
+  mockResolveProfileContextId: vi.fn(),
 }));
 
-vi.mock('./browser/daemon-client.js', () => ({
-  getDaemonHealth: mockGetDaemonHealth,
-}));
+vi.mock('./browser/daemon-client.js', async () => {
+  const actual = await vi.importActual<typeof import('./browser/daemon-client.js')>('./browser/daemon-client.js');
+  return {
+    ...actual,
+    getDaemonHealth: mockGetDaemonHealth,
+  };
+});
 
 vi.mock('./browser/index.js', () => ({
   BrowserBridge: class {
@@ -23,6 +28,14 @@ vi.mock('./adapter-shadow.js', async () => {
   return {
     ...actual,
     findShadowedUserAdapters: mockFindShadowedUserAdapters,
+  };
+});
+
+vi.mock('./browser/profile.js', async () => {
+  const actual = await vi.importActual<typeof import('./browser/profile.js')>('./browser/profile.js');
+  return {
+    ...actual,
+    resolveProfileContextId: mockResolveProfileContextId,
   };
 });
 
@@ -40,6 +53,7 @@ describe('doctor report rendering', () => {
       closeWindow: vi.fn().mockResolvedValue(undefined),
     });
     mockClose.mockResolvedValue(undefined);
+    mockResolveProfileContextId.mockReturnValue(undefined);
   });
 
   it('renders OK-style report when daemon and extension connected', () => {
@@ -125,6 +139,7 @@ describe('doctor report rendering', () => {
     const text = strip(renderBrowserDoctorReport({
       daemonRunning: true,
       extensionConnected: false,
+      extensionState: 'profile-required',
       profiles: [
         { contextId: 'work', extensionConnected: true, extensionVersion: '1.2.3', pending: 0 },
         { contextId: 'personal', extensionConnected: true, extensionVersion: '1.2.3', pending: 0 },
@@ -132,9 +147,27 @@ describe('doctor report rendering', () => {
       issues: [],
     }));
 
+    expect(text).toContain('[WARN] Extension: 2 profiles connected, none selected');
     expect(text).toContain('Profiles:');
     expect(text).toContain('work: connected v1.2.3');
     expect(text).toContain('personal: connected v1.2.3');
+    expect(text).not.toContain('[MISSING] Extension: not connected');
+  });
+
+  it('renders selected profile disconnected separately from no extension', () => {
+    const text = strip(renderBrowserDoctorReport({
+      daemonRunning: true,
+      extensionConnected: false,
+      extensionState: 'profile-disconnected',
+      profiles: [
+        { contextId: 'work', extensionConnected: true, extensionVersion: '1.2.3', pending: 0 },
+      ],
+      issues: ['Selected browser profile is not connected: default.'],
+    }));
+
+    expect(text).toContain('[WARN] Extension: selected profile not connected');
+    expect(text).toContain('work: connected v1.2.3');
+    expect(text).not.toContain('[MISSING] Extension: not connected');
   });
 
   it('renders unstable extension state when live connectivity and status disagree', () => {
@@ -305,8 +338,38 @@ describe('doctor report rendering', () => {
     const report = await runBrowserDoctor();
 
     expect(report.profiles).toHaveLength(2);
+    expect(report.extensionState).toBe('profile-required');
+    expect(report.extensionFlaky).toBe(false);
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('Multiple Chrome profiles are connected'),
+    ]));
+  });
+
+  it('reports a disconnected selected default profile without treating other profiles as no extension', async () => {
+    mockResolveProfileContextId.mockReturnValue('default');
+    const status = {
+      state: 'profile-disconnected' as const,
+      status: {
+        extensionConnected: false,
+        profileDisconnected: true,
+        contextId: 'default',
+        profiles: [
+          { contextId: 'work', extensionConnected: true, pending: 0 },
+        ],
+      },
+    };
+    mockGetDaemonHealth.mockResolvedValue(status);
+    mockConnect.mockRejectedValueOnce(new Error('profile disconnected'));
+
+    const report = await runBrowserDoctor();
+
+    expect(mockGetDaemonHealth).toHaveBeenCalledWith({ contextId: 'default' });
+    expect(report.extensionState).toBe('profile-disconnected');
+    expect(report.extensionConnected).toBe(false);
+    expect(report.extensionFlaky).toBe(false);
+    expect(report.profiles).toHaveLength(1);
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('Selected browser profile is not connected: default'),
     ]));
   });
 });

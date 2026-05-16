@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   BrowserCommandError,
+  connectedProfileCount,
   fetchDaemonStatus,
+  getDaemonExtensionState,
   getDaemonHealth,
   requestDaemonShutdown,
   sendCommand,
@@ -128,6 +130,66 @@ describe('daemon-client', () => {
     } as Response);
 
     await expect(getDaemonHealth()).resolves.toEqual({ state: 'profile-required', status });
+  });
+
+  it('classifies extension route state without collapsing connected profiles into disconnected', () => {
+    expect(getDaemonExtensionState({
+      ok: true,
+      pid: 1,
+      uptime: 0,
+      extensionConnected: false,
+      pending: 0,
+      memoryMB: 1,
+      port: 19825,
+    })).toBe('no-extension');
+
+    expect(getDaemonExtensionState({
+      ok: true,
+      pid: 1,
+      uptime: 0,
+      extensionConnected: false,
+      profileRequired: true,
+      profiles: [
+        { contextId: 'work', extensionConnected: true, pending: 0 },
+        { contextId: 'personal', extensionConnected: true, pending: 0 },
+      ],
+      pending: 0,
+      memoryMB: 1,
+      port: 19825,
+    })).toBe('profile-required');
+
+    expect(getDaemonExtensionState({
+      ok: true,
+      pid: 1,
+      uptime: 0,
+      extensionConnected: false,
+      profileDisconnected: true,
+      contextId: 'default',
+      profiles: [{ contextId: 'work', extensionConnected: true, pending: 0 }],
+      pending: 0,
+      memoryMB: 1,
+      port: 19825,
+    })).toBe('profile-disconnected');
+
+    expect(getDaemonExtensionState({
+      ok: true,
+      pid: 1,
+      uptime: 0,
+      extensionConnected: true,
+      extensionVersion: '1.2.3',
+      pending: 0,
+      memoryMB: 1,
+      port: 19825,
+    })).toBe('connected');
+  });
+
+  it('counts only connected profile entries', () => {
+    expect(connectedProfileCount({
+      profiles: [
+        { contextId: 'work', extensionConnected: true, pending: 0 },
+        { contextId: 'closed', extensionConnected: false, pending: 0 },
+      ],
+    })).toBe(1);
   });
 
   it('fetchDaemonStatus includes contextId in the status query', async () => {

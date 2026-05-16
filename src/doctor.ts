@@ -6,12 +6,12 @@
 
 import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { BrowserBridge } from './browser/index.js';
-import { getDaemonHealth } from './browser/daemon-client.js';
+import { connectedProfileCount, getDaemonExtensionState, getDaemonHealth } from './browser/daemon-client.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
-import type { BrowserProfileStatus } from './browser/daemon-client.js';
-import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
+import type { BrowserProfileStatus, DaemonExtensionState } from './browser/daemon-client.js';
+import { aliasForContextId, loadProfileConfig, resolveProfileContextId } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
 import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
 
@@ -65,6 +65,7 @@ export type DoctorReport = {
   daemonStale?: boolean;
   daemonVersion?: string;
   extensionConnected: boolean;
+  extensionState?: DaemonExtensionState;
   extensionFlaky?: boolean;
   extensionVersion?: string;
   latestExtensionVersion?: string;
@@ -105,11 +106,12 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   const connectivity = await checkConnectivity();
 
   // Single status read *after* connectivity side-effects settle.
-  const health = await getDaemonHealth();
+  const health = await getDaemonHealth({ contextId: resolveProfileContextId() });
   const daemonRunning = health.state !== 'stopped';
+  const extensionState = health.status ? getDaemonExtensionState(health.status) : 'no-extension';
   const extensionConnected = health.state === 'ready';
   const daemonFlaky = connectivity.ok && !daemonRunning;
-  const extensionFlaky = connectivity.ok && daemonRunning && !extensionConnected;
+  const extensionFlaky = connectivity.ok && daemonRunning && (health.state === 'no-extension' || health.state === 'profile-disconnected');
   const daemonStale = isDaemonStale(health.status, opts.cliVersion);
   const profiles = health.status?.profiles;
   const extensionVersion = health.status?.extensionVersion;
@@ -204,6 +206,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     daemonStale,
     daemonVersion: health.status?.daemonVersion,
     extensionConnected,
+    extensionState,
     extensionFlaky,
     extensionVersion,
     latestExtensionVersion,
@@ -233,7 +236,11 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
   lines.push(`${daemonIcon} Daemon: ${daemonLabel}`);
 
   // Extension status
-  const extIcon = report.extensionFlaky || (report.extensionConnected && !report.extensionVersion)
+  const extState = report.extensionState ?? (report.extensionConnected ? 'connected' : 'no-extension');
+  const extIcon = report.extensionFlaky
+    || extState === 'profile-required'
+    || extState === 'profile-disconnected'
+    || (report.extensionConnected && !report.extensionVersion)
     ? '[WARN]'
     : report.extensionConnected ? '[OK]' : '[MISSING]';
   const extUpdateHint = report.extensionVersion && report.latestExtensionVersion && isNewerVersion(report.latestExtensionVersion, report.extensionVersion)
@@ -244,9 +251,14 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
     : report.extensionVersion
       ? ` (v${report.extensionVersion})` + extUpdateHint
       : ' (version unknown)';
+  const profileCount = connectedProfileCount({ profiles: report.profiles });
   const extLabel = report.extensionFlaky
     ? 'unstable (connected during live check, then disconnected)'
-    : report.extensionConnected ? 'connected' : 'not connected';
+    : extState === 'profile-required'
+      ? `${profileCount} ${profileCount === 1 ? 'profile' : 'profiles'} connected, none selected`
+      : extState === 'profile-disconnected'
+        ? 'selected profile not connected'
+        : report.extensionConnected ? 'connected' : 'not connected';
   lines.push(`${extIcon} Extension: ${extLabel}${extVersion}`);
 
   if (report.profiles && report.profiles.length > 0) {

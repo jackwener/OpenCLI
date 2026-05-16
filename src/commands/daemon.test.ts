@@ -4,19 +4,29 @@ const {
   fetchDaemonStatusMock,
   requestDaemonShutdownMock,
   restartDaemonMock,
+  resolveProfileContextIdMock,
 } = vi.hoisted(() => ({
   fetchDaemonStatusMock: vi.fn(),
   requestDaemonShutdownMock: vi.fn(),
   restartDaemonMock: vi.fn(),
+  resolveProfileContextIdMock: vi.fn(),
 }));
 
-vi.mock('../browser/daemon-client.js', () => ({
-  fetchDaemonStatus: fetchDaemonStatusMock,
-  requestDaemonShutdown: requestDaemonShutdownMock,
-}));
+vi.mock('../browser/daemon-client.js', async () => {
+  const actual = await vi.importActual<typeof import('../browser/daemon-client.js')>('../browser/daemon-client.js');
+  return {
+    ...actual,
+    fetchDaemonStatus: fetchDaemonStatusMock,
+    requestDaemonShutdown: requestDaemonShutdownMock,
+  };
+});
 
 vi.mock('../browser/daemon-lifecycle.js', () => ({
   restartDaemon: restartDaemonMock,
+}));
+
+vi.mock('../browser/profile.js', () => ({
+  resolveProfileContextId: resolveProfileContextIdMock,
 }));
 
 import { daemonRestart, daemonStatus, daemonStop } from './daemon.js';
@@ -29,6 +39,8 @@ describe('daemonStatus', () => {
     stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     fetchDaemonStatusMock.mockReset();
     requestDaemonShutdownMock.mockReset();
+    resolveProfileContextIdMock.mockReset();
+    resolveProfileContextIdMock.mockReturnValue(undefined);
   });
 
   afterEach(() => {
@@ -83,6 +95,55 @@ describe('daemonStatus', () => {
     await daemonStatus();
 
     expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('disconnected'));
+  });
+
+  it('shows profile selection required when profiles are connected but no default is selected', async () => {
+    fetchDaemonStatusMock.mockResolvedValue({
+      ok: true,
+      pid: 99,
+      uptime: 120,
+      daemonVersion: PKG_VERSION,
+      extensionConnected: false,
+      profileRequired: true,
+      profiles: [
+        { contextId: 'work', extensionConnected: true, extensionVersion: '1.0.14', pending: 0 },
+        { contextId: 'personal', extensionConnected: true, extensionVersion: '1.0.14', pending: 0 },
+      ],
+      pending: 0,
+      memoryMB: 32,
+      port: 19825,
+    });
+
+    await daemonStatus();
+
+    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('2 profiles connected, none selected'));
+    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('opencli profile use <name>'));
+    expect(stdoutSpy).not.toHaveBeenCalledWith(expect.stringMatching(/^Extension: disconnected$/));
+  });
+
+  it('queries the selected default profile and reports when it is disconnected', async () => {
+    resolveProfileContextIdMock.mockReturnValue('default');
+    fetchDaemonStatusMock.mockResolvedValue({
+      ok: true,
+      pid: 99,
+      uptime: 120,
+      daemonVersion: PKG_VERSION,
+      extensionConnected: false,
+      profileDisconnected: true,
+      contextId: 'default',
+      profiles: [
+        { contextId: 'work', extensionConnected: true, extensionVersion: '1.0.14', pending: 0 },
+      ],
+      pending: 0,
+      memoryMB: 32,
+      port: 19825,
+    });
+
+    await daemonStatus();
+
+    expect(fetchDaemonStatusMock).toHaveBeenCalledWith({ contextId: 'default' });
+    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('selected profile "default" disconnected'));
+    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('1 other profile connected'));
   });
 
   it('shows version unknown when the connected extension does not report one', async () => {
