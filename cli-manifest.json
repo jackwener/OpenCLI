@@ -24214,6 +24214,168 @@
     "navigateBefore": "https://uiverse.io"
   },
   {
+    "site": "upwork",
+    "name": "detail",
+    "aliases": [
+      "job",
+      "view"
+    ],
+    "description": "Read the full Upwork job posting by ciphertext id (e.g. ~022054964136512093518)",
+    "access": "read",
+    "domain": "www.upwork.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Job ciphertext id (~01… / ~02…) or full /jobs/~02… URL"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "type",
+      "budget",
+      "experienceLevel",
+      "workload",
+      "category",
+      "skills",
+      "description",
+      "clientCountry",
+      "clientSpent",
+      "clientHires",
+      "clientRating",
+      "proposalsCount",
+      "publishedOn",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "upwork/detail.js",
+    "sourceFile": "upwork/detail.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "upwork",
+    "name": "feed",
+    "aliases": [
+      "best-matches"
+    ],
+    "description": "Upwork personalized jobs feed (best-matches | most-recent) — requires login",
+    "access": "read",
+    "domain": "www.upwork.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "tab",
+        "type": "str",
+        "default": "best-matches",
+        "required": false,
+        "positional": true,
+        "help": "Feed tab: best-matches | most-recent"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows to return (1-50, capped at one page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "type",
+      "budget",
+      "experienceLevel",
+      "proposalsTier",
+      "skills",
+      "clientCountry",
+      "clientRating",
+      "publishedOn",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "upwork/feed.js",
+    "sourceFile": "upwork/feed.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "upwork",
+    "name": "search",
+    "description": "Upwork keyword job search (logged-in browser session, US site)",
+    "access": "read",
+    "domain": "www.upwork.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Job keyword (skill / title / company)"
+      },
+      {
+        "name": "location",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Country/city filter (e.g. \"United States\", \"Remote\")"
+      },
+      {
+        "name": "category",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Category uid filter (advanced; from job detail `category` slug)"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "recency",
+        "required": false,
+        "help": "Sort: recency | relevance | client_total_charge | client_total_reviews"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Page number (1-based)"
+      },
+      {
+        "name": "per_page",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Rows per page (10-50, capped at one page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "type",
+      "budget",
+      "experienceLevel",
+      "proposalsTier",
+      "skills",
+      "clientCountry",
+      "clientRating",
+      "publishedOn",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "upwork/search.js",
+    "sourceFile": "upwork/search.js",
+    "navigateBefore": false
+  },
+  {
     "site": "v2ex",
     "name": "daily",
     "description": "V2EX 每日签到并领取铜币",
