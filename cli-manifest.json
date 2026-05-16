@@ -25267,6 +25267,63 @@
   },
   {
     "site": "weread",
+    "name": "book-search",
+    "description": "Search within a WeRead book after resolving it by title",
+    "access": "read",
+    "domain": "weread.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "book",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Book title keyword, numeric bookId, or reader URL"
+      },
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Keyword to search inside the selected book"
+      },
+      {
+        "name": "book-rank",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Which book search result to use when book is a title keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max in-book matches to return (1-100)"
+      },
+      {
+        "name": "fragment-size",
+        "type": "int",
+        "default": 150,
+        "required": false,
+        "help": "Snippet length around each match (1-500)"
+      },
+      {
+        "name": "raw",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Output structured rows instead of markdown text"
+      }
+    ],
+    "defaultFormat": "md",
+    "type": "js",
+    "modulePath": "weread/book-search.js",
+    "sourceFile": "weread/book-search.js"
+  },
+  {
+    "site": "weread",
     "name": "highlights",
     "description": "List your highlights (underlines) in a book",
     "access": "read",
