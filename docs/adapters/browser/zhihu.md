@@ -45,6 +45,8 @@
 # Read flows
 opencli zhihu hot --limit 5
 opencli zhihu recommend --limit 20
+opencli zhihu search codex --type answer --limit 20
+opencli zhihu search "Claude Code vs Codex?" --type all --limit 20
 opencli zhihu question 123456 --limit 3
 opencli zhihu answer-detail answer:123456:789012
 opencli zhihu answer-detail "https://www.zhihu.com/question/123456/answer/789012" --max-content 2000
@@ -65,6 +67,12 @@ opencli zhihu answer question:123456 --file ./answer.txt --execute
 # JSON output
 opencli zhihu hot -f json
 ```
+
+## Search Notes
+
+- Quote queries that contain spaces or shell-special characters, for example `opencli zhihu search "Claude Code vs Codex?"`
+- `search --type` supports `all`, `answer`, `article`, and `question`
+- `search --limit` supports up to 1000 results, but normal-sized requests are recommended
 
 ## Prerequisites
 
