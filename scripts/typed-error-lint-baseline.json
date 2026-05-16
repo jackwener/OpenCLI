@@ -881,22 +881,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "51job/hot",
-    "file": "clis/51job/hot.js",
-    "line": 50,
-    "text": "throw new CliError('API_ERROR', `51job hot failed: ${data.message ?? 'unknown'}`);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "51job/search",
-    "file": "clis/51job/search.js",
-    "line": 72,
-    "text": "throw new CliError('API_ERROR', `51job search failed: ${data.message ?? 'unknown'}`);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "apple-podcasts/search",
     "file": "clis/apple-podcasts/search.js",
     "line": 26,
@@ -929,46 +913,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "doubao-app/send",
-    "file": "clis/doubao-app/send.js",
-    "line": 19,
-    "text": "throw new Error('Could not find chat input: ' + (injected?.error || 'unknown'));",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "douyin/draft",
-    "file": "clis/douyin/draft.js",
-    "line": 288,
-    "text": "throw new CommandExecutionError('未检测到抖音草稿恢复提示', `当前页面: ${lastState.href || 'unknown'}`);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "douyin/draft",
-    "file": "clis/douyin/draft.js",
-    "line": 210,
-    "text": "throw new CommandExecutionError('等待抖音封面处理完成超时', lastPanelText || 'unknown');",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "douyin/draft",
-    "file": "clis/douyin/draft.js",
-    "line": 57,
-    "text": "throw new CommandExecutionError('等待抖音草稿编辑页超时', `当前页面: ${lastState.href || 'unknown'}`);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "douyin/draft",
-    "file": "clis/douyin/draft.js",
-    "line": 262,
-    "text": "throw new CommandExecutionError(`点击草稿按钮失败: ${result?.reason || 'unknown'}`);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "gitee/search",
     "file": "clis/gitee/search.js",
     "line": 127,
@@ -997,14 +941,6 @@
     "file": "clis/gitee/trending.js",
     "line": 272,
     "text": "description: project.description !== '-' ? project.description : (mergedDescription || '-'),",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "instagram/note",
-    "file": "clis/instagram/note.js",
-    "line": 219,
-    "text": "throw new CommandExecutionError(`Instagram note publish failed at ${String(result?.stage || 'unknown')}: ${String(result?.text || 'unknown error')}`);",
     "occurrence": 0
   },
   {
@@ -1117,22 +1053,6 @@
     "file": "clis/lesswrong/top.js",
     "line": 25,
     "text": "author: item.user?.displayName ?? 'Unknown',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "linux-do/topic-content",
-    "file": "clis/linux-do/topic-content.js",
-    "line": 121,
-    "text": "throw new CommandExecutionError(result.error || `linux.do request failed: HTTP ${result.status ?? 'unknown'}`);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "powerchina/search",
-    "file": "clis/powerchina/search.js",
-    "line": 149,
-    "text": "throw new Error(`[taxonomy=relay_unavailable] site=powerchina command=search api code=${data.code ?? 'unknown'} msg=${cleanText(data.msg)}`);",
     "occurrence": 0
   },
   {
@@ -1365,14 +1285,6 @@
     "file": "clis/xiaohongshu/download.js",
     "line": 53,
     "text": "result.author = authorEl?.textContent?.trim() || 'unknown';",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "xiaohongshu/publish",
-    "file": "clis/xiaohongshu/publish.js",
-    "line": 529,
-    "text": "throw new Error(`Image injection failed: ${upload.error ?? 'unknown'}. ` +",
     "occurrence": 0
   },
   {

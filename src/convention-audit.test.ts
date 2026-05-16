@@ -249,4 +249,28 @@ describe('convention audit', () => {
 
     expect(violations.map((violation) => violation.command)).toEqual(['demo/catch']);
   });
+
+  it('does not report sentinel fallbacks inside thrown error messages', () => {
+    const root = makeProject([
+      { site: 'demo', name: 'error', access: 'read', columns: ['id'], sourceFile: 'demo/error.js' },
+      { site: 'demo', name: 'row', access: 'read', columns: ['id', 'title'], sourceFile: 'demo/row.js' },
+    ], {
+      'demo/error.js': `
+        export async function run(data) {
+          if (!data.ok) throw new Error(\`demo failed: \${data.message ?? 'unknown'}\`);
+          return [{ id: 1 }];
+        }
+      `,
+      'demo/row.js': `
+        export async function run(item) {
+          return [{ id: item.id, title: item.title ?? 'unknown' }];
+        }
+      `,
+    });
+
+    const report = runConventionAudit({ projectRoot: root });
+    const violations = report.categories.find((item) => item.rule === 'silent-sentinel')!.violations;
+
+    expect(violations.map((violation) => violation.command)).toEqual(['demo/row']);
+  });
 });

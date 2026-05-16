@@ -322,18 +322,26 @@ function auditTypedErrorPatterns(
     }
     const sentinel = /(?:\?\?|\|\|)\s*(['"])(unknown|Unknown|UNKNOWN|N\/A|n\/a|NA|未知|-)\1/.exec(line);
     if (sentinel) {
-      violations.push({
-        rule: 'silent-sentinel',
-        ...command,
-        file: relative,
-        line: index + 1,
-        message: `sentinel fallback ${sentinel[0].trim()} can turn missing data into fake data; prefer dropping the field or throwing a typed error`,
-        details: { text: line.trim() },
-      });
+      if (!isThrowMessageLine(line)) {
+        violations.push({
+          rule: 'silent-sentinel',
+          ...command,
+          file: relative,
+          line: index + 1,
+          message: `sentinel fallback ${sentinel[0].trim()} can turn missing data into fake data; prefer dropping the field or throwing a typed error`,
+          details: { text: line.trim() },
+        });
+      }
     }
     offset += line.length + 1;
   });
   return dedupeViolations(violations);
+}
+
+function isThrowMessageLine(line: string): boolean {
+  // Only single-line `throw new X(...)` diagnostics are ignored. Multi-line
+  // throw expressions with row-like sentinel fallbacks still stay visible.
+  return /\bthrow\s+new\b/.test(line);
 }
 
 function auditWriteDeletePair(entries: ManifestCommand[]): ConventionViolation[] {
