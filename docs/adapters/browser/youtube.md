@@ -34,6 +34,8 @@ opencli youtube subscriptions --limit 30
 opencli youtube search "rust programming" --limit 5
 opencli youtube video "https://www.youtube.com/watch?v=xxx"
 opencli youtube transcript "https://www.youtube.com/watch?v=xxx"
+opencli youtube channel @ChannelHandle --tab shorts --limit 10
+opencli youtube channel "https://www.youtube.com/@ChannelHandle/shorts" --limit 10
 
 # Write commands (requires login)
 opencli youtube like "https://www.youtube.com/watch?v=xxx"
