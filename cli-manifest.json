@@ -14385,10 +14385,7 @@
       "recipient",
       "reason",
       "profile_url",
-      "note_chars",
-      "expected",
-      "actual",
-      "url"
+      "note_chars"
     ],
     "type": "js",
     "modulePath": "linkedin/connect.js",
@@ -14495,19 +14492,7 @@
       "reason",
       "thread_url",
       "message_chars",
-      "expected",
-      "actual",
-      "url",
-      "screenshot",
-      "authRequired",
-      "bodyText",
-      "composerFound",
-      "composerText",
-      "headerNames",
-      "latestMessageHash",
-      "latestMessageText",
-      "searchFailure",
-      "title"
+      "screenshot"
     ],
     "type": "js",
     "modulePath": "linkedin/safe-send.js",

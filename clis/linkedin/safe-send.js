@@ -20,18 +20,26 @@ function normalizeName(value) {
     .toLowerCase();
 }
 
+function isLinkedInHost(hostname) {
+  const host = String(hostname || '').toLowerCase();
+  return host === 'linkedin.com' || host.endsWith('.linkedin.com');
+}
+
 function canonicalizeLinkedInThreadUrl(value) {
   const raw = normalizeWhitespace(value);
   if (!raw) return '';
   try {
     const url = new URL(raw);
-    if (!/linkedin\.com$/i.test(url.hostname) && !/\.linkedin\.com$/i.test(url.hostname)) return raw;
+    if (url.protocol !== 'https:' || url.username || url.password || url.port || !isLinkedInHost(url.hostname)) return '';
+    const match = url.pathname.match(/^\/messaging\/thread\/([^/]+)\/?$/i);
+    if (!match || !match[1]) return '';
+    url.hostname = 'www.linkedin.com';
     url.hash = '';
     url.search = '';
     if (!url.pathname.endsWith('/')) url.pathname += '/';
     return url.toString();
   } catch {
-    return raw;
+    return '';
   }
 }
 
@@ -61,42 +69,48 @@ function assessThreadSafety(probe, expected) {
   const bodyText = String(probe?.bodyText || '');
 
   if (probe?.authRequired) {
-    return { ok: false, reason: 'auth_required', expected: expectedName, actual: actualName, url: actualThreadUrl };
+    return { ok: false, blockReason: 'auth_required', expectedValue: expectedName, actualValue: actualName, observedUrl: actualThreadUrl };
   }
 
   if (probe?.searchFailure || /we didn't find anything|no results found|no results for/i.test(bodyText)) {
-    return { ok: false, reason: 'search_failure_visible', expected: expectedName, actual: actualName, url: actualThreadUrl };
+    return { ok: false, blockReason: 'search_failure_visible', expectedValue: expectedName, actualValue: actualName, observedUrl: actualThreadUrl };
   }
 
   if (expectedThreadUrl && actualThreadUrl && expectedThreadUrl !== actualThreadUrl) {
-    return { ok: false, reason: 'thread_url_mismatch', expected: expectedThreadUrl, actual: actualThreadUrl, url: actualThreadUrl };
+    return { ok: false, blockReason: 'thread_url_mismatch', expectedValue: expectedThreadUrl, actualValue: actualThreadUrl, observedUrl: actualThreadUrl };
   }
 
   if (!actualName || normalizeName(actualName) !== normalizeName(expectedName)) {
-    return { ok: false, reason: 'recipient_header_mismatch', expected: expectedName, actual: actualName, url: actualThreadUrl };
+    return { ok: false, blockReason: 'recipient_header_mismatch', expectedValue: expectedName, actualValue: actualName, observedUrl: actualThreadUrl };
   }
 
   if (!probe?.composerFound) {
-    return { ok: false, reason: 'composer_not_found', expected: expectedName, actual: actualName, url: actualThreadUrl };
+    return { ok: false, blockReason: 'composer_not_found', expectedValue: expectedName, actualValue: actualName, observedUrl: actualThreadUrl };
   }
 
   const expectedLastHash = normalizeWhitespace(expected.expectedLastHash);
   if (expectedLastHash && expectedLastHash !== probe?.latestMessageHash) {
-    return { ok: false, reason: 'latest_message_mismatch', expected: expectedLastHash, actual: probe?.latestMessageHash || '', url: actualThreadUrl };
+    return { ok: false, blockReason: 'latest_message_mismatch', expectedValue: expectedLastHash, actualValue: probe?.latestMessageHash || '', observedUrl: actualThreadUrl };
   }
 
   const expectedLastText = normalizeWhitespace(expected.expectedLastText);
   if (expectedLastText && !textContainsNormalized(bodyText, expectedLastText)) {
-    return { ok: false, reason: 'latest_message_mismatch', expected: expectedLastText, actual: '', url: actualThreadUrl };
+    return { ok: false, blockReason: 'latest_message_mismatch', expectedValue: expectedLastText, actualValue: '', observedUrl: actualThreadUrl };
   }
 
-  return { ok: true, reason: 'verified', expected: expectedName, actual: actualName, url: actualThreadUrl };
+  return { ok: true, blockReason: 'verified', expectedValue: expectedName, actualValue: actualName, observedUrl: actualThreadUrl };
 }
 
 function requireStringArg(args, key, label = key) {
   const value = normalizeWhitespace(args[key]);
   if (!value) throw new ArgumentError(`${label} is required`);
   return value;
+}
+
+function requireLinkedInThreadUrl(value, label) {
+  const url = canonicalizeLinkedInThreadUrl(value);
+  if (!url) throw new ArgumentError(`${label} must be an exact https://www.linkedin.com/messaging/thread/<id>/ URL`);
+  return url;
 }
 
 function buildThreadProbeScript() {
@@ -227,11 +241,11 @@ cli({
     { name: 'send', type: 'bool', default: false, help: 'Actually click Send. Default is dry-run verification only.' },
     { name: 'screenshot', type: 'bool', default: false, help: 'Capture a screenshot during verification' },
   ],
-  columns: ['status', 'recipient', 'reason', 'thread_url', 'message_chars', 'expected', 'actual', 'url', 'screenshot', 'authRequired', 'bodyText', 'composerFound', 'composerText', 'headerNames', 'latestMessageHash', 'latestMessageText', 'searchFailure', 'title'],
+  columns: ['status', 'recipient', 'reason', 'thread_url', 'message_chars', 'screenshot'],
   func: async (page, args) => {
     if (!page) throw new CommandExecutionError('Browser session required for linkedin safe-send');
 
-    const threadUrl = requireStringArg(args, 'thread-url', '--thread-url');
+    const threadUrl = requireLinkedInThreadUrl(requireStringArg(args, 'thread-url', '--thread-url'), '--thread-url');
     const expectedName = requireStringArg(args, 'expected-name', '--expected-name');
     const message = requireStringArg(args, 'message', '--message');
 
@@ -258,19 +272,19 @@ cli({
       expectedLastHash: args['expected-last-hash'],
     });
 
-    if (safety.reason === 'auth_required') {
+    if (safety.blockReason === 'auth_required') {
       throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn safe-send requires an active signed-in LinkedIn browser session.');
     }
 
     if (!safety.ok) {
       const observed = [
-        `Expected ${safety.expected}; actual ${safety.actual || 'not_visible'} at ${safety.url || 'url_not_available'}`,
+        `Expected ${safety.expectedValue}; actual ${safety.actualValue || 'not_visible'} at ${safety.observedUrl || 'url_not_available'}`,
         `Observed headers: ${(beforeProbe.headerNames || []).join(' | ') || 'no_visible_headers'}`,
         `Title: ${beforeProbe.title || 'title_not_available'}`,
         `Body: ${normalizeWhitespace(beforeProbe.bodyText || '').slice(0, 500)}`,
       ].join('\n');
       throw new CommandExecutionError(
-        `LinkedIn safe-send blocked: ${safety.reason}`,
+        `LinkedIn safe-send blocked: ${safety.blockReason}`,
         observed,
       );
     }
@@ -283,9 +297,9 @@ cli({
     if (!args.send) {
       return [{
         status: 'verified_dry_run',
-        recipient: safety.actual,
-        reason: safety.reason,
-        thread_url: safety.url,
+        recipient: safety.actualValue,
+        reason: safety.blockReason,
+        thread_url: safety.observedUrl,
         message_chars: message.length,
         screenshot: screenshot ? 'captured' : '',
       }];
@@ -313,7 +327,7 @@ cli({
       expectedLastHash: args['expected-last-hash'],
     });
     if (!afterFillSafety.ok) {
-      throw new CommandExecutionError(`LinkedIn safe-send blocked after fill: ${afterFillSafety.reason}`);
+      throw new CommandExecutionError(`LinkedIn safe-send blocked after fill: ${afterFillSafety.blockReason}`);
     }
 
     const sent = unwrapEvaluateResult(await page.evaluate(buildClickSendScript()));
@@ -324,9 +338,9 @@ cli({
     await page.wait(0.8 + Math.random() * 1.2);
     return [{
       status: 'sent',
-      recipient: safety.actual,
-      reason: safety.reason,
-      thread_url: safety.url,
+      recipient: safety.actualValue,
+      reason: safety.blockReason,
+      thread_url: safety.observedUrl,
       message_chars: message.length,
       screenshot: screenshot ? 'captured' : '',
     }];

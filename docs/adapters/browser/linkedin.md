@@ -63,11 +63,11 @@ Previously the adapter returned `description: '', apply_url: ''` for both the mi
 
 ### Messaging commands
 
-`inbox` returns `rank`, `thread_url`, `thread_id`, `person_name`, `last_message_preview`, `unread`, and `timestamp`. It scrolls/paginates the inbox and also checks LinkedIn's unread filter because unread threads are not always visible in the default list.
+`inbox` returns `rank`, `thread_url`, `thread_id`, `person_name`, `last_message_preview`, `unread`, and `timestamp`. It loads the LinkedIn messaging page with your browser session, then reuses the page's own `messengerConversations` API request as the row source instead of scraping the virtualized inbox DOM.
 
-`connect` and `safe-send` are write commands but dry-run by default. They only click LinkedIn write actions when `--send` is explicitly passed. `connect` verifies the canonical profile URL and visible profile name before sending. `safe-send` verifies the canonical thread URL, visible recipient name, composer presence, and optional latest-message guard before filling or sending.
+`connect` and `safe-send` are write commands but dry-run by default. They only click LinkedIn write actions when `--send` is explicitly passed. `connect` requires an exact `https://www.linkedin.com/in/<profile>/` URL and verifies the landed profile plus visible name before sending. `safe-send` requires an exact `https://www.linkedin.com/messaging/thread/<id>/` URL and verifies the landed thread, visible recipient name, composer presence, and optional latest-message guard before filling or sending.
 
-`thread-snapshot` opens an exact messaging thread URL, scrolls for available history, and returns a JSON snapshot suitable for caller-side recipient safety checks.
+`thread-snapshot` opens an exact messaging thread URL, validates `--max-scrolls` before navigation, scrolls for available history, and returns a JSON snapshot suitable for caller-side recipient safety checks.
 
 ## Prerequisites
 

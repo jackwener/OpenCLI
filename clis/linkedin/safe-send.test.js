@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import './safe-send.js';
 
 const {
@@ -12,6 +12,7 @@ const {
 } = await import('./safe-send.js').then((m) => m.__test__);
 
 function makeFakePage(probe) {
+  let composerText = probe.composerText || '';
   return {
     goto: vi.fn(async () => undefined),
     wait: vi.fn(async () => undefined),
@@ -19,11 +20,13 @@ function makeFakePage(probe) {
       const text = String(script);
       if (text.includes('__OPENCLI_LINKEDIN_PROBE__')) return probe;
       if (text.includes('__OPENCLI_LINKEDIN_FOCUS_COMPOSER__')) return { ok: true, composerText: '' };
-      if (text.includes('__OPENCLI_LINKEDIN_READ_COMPOSER__')) return { ok: true, composerText: probe.composerText || '' };
+      if (text.includes('__OPENCLI_LINKEDIN_READ_COMPOSER__')) return { ok: true, composerText };
       if (text.includes('__OPENCLI_LINKEDIN_CLICK_SEND__')) return { ok: true, sent: true };
       return undefined;
     }),
-    insertText: vi.fn(async () => undefined),
+    insertText: vi.fn(async (text) => {
+      composerText = text;
+    }),
     pressKey: vi.fn(async () => undefined),
     screenshot: vi.fn(async () => 'base64-screenshot'),
   };
@@ -38,6 +41,9 @@ describe('linkedin safe-send helpers', () => {
   it('canonicalizes thread URLs while dropping query and hash noise', () => {
     expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com/messaging/thread/abc/?foo=1#bar'))
       .toBe('https://www.linkedin.com/messaging/thread/abc/');
+    expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com/messaging/thread/abc/extra')).toBe('');
+    expect(canonicalizeLinkedInThreadUrl('https://evil-linkedin.com/messaging/thread/abc/')).toBe('');
+    expect(canonicalizeLinkedInThreadUrl('http://www.linkedin.com/messaging/thread/abc/')).toBe('');
   });
 
   it('fails closed when LinkedIn search produced no results even if a composer is visible', () => {
@@ -55,7 +61,7 @@ describe('linkedin safe-send helpers', () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(result.reason).toBe('search_failure_visible');
+    expect(result.blockReason).toBe('search_failure_visible');
   });
 
   it('fails closed on recipient header mismatch', () => {
@@ -71,8 +77,8 @@ describe('linkedin safe-send helpers', () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(result.reason).toBe('recipient_header_mismatch');
-    expect(result.actual).toBe('Bora Nicholson');
+    expect(result.blockReason).toBe('recipient_header_mismatch');
+    expect(result.actualValue).toBe('Bora Nicholson');
   });
 
   it('fails closed when the stored latest message is no longer visible', () => {
@@ -88,7 +94,7 @@ describe('linkedin safe-send helpers', () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(result.reason).toBe('latest_message_mismatch');
+    expect(result.blockReason).toBe('latest_message_mismatch');
   });
 
   it('passes only when recipient, thread, latest text, and composer are all verified', () => {
@@ -105,7 +111,7 @@ describe('linkedin safe-send helpers', () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(result.reason).toBe('verified');
+    expect(result.blockReason).toBe('verified');
   });
 });
 
@@ -138,6 +144,21 @@ describe('linkedin safe-send command', () => {
     expect(page.pressKey).not.toHaveBeenCalled();
   });
 
+  it('rejects non-thread URLs before navigating or typing', async () => {
+    const command = getRegistry().get('linkedin/safe-send');
+    const page = makeFakePage({});
+
+    await expect(command.func(page, {
+      'thread-url': 'https://www.linkedin.com/feed/',
+      'expected-name': 'Victoria Munoz',
+      message: 'hello victoria',
+      send: true,
+    })).rejects.toBeInstanceOf(ArgumentError);
+
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(page.insertText).not.toHaveBeenCalled();
+  });
+
   it('dry-runs by default after verification without filling or sending', async () => {
     const command = getRegistry().get('linkedin/safe-send');
     const page = makeFakePage({
@@ -167,7 +188,6 @@ describe('linkedin safe-send command', () => {
       bodyText: 'Lokesh Ramesh\nprovider doc follow ups',
       composerFound: true,
       searchFailure: false,
-      composerText: 'both, but starting hands on',
     });
 
     const rows = await command.func(page, {

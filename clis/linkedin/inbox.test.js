@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import './inbox.js';
 
 const { parseConversations, threadUrl } = await import('./inbox.js').then((m) => m.__test__);
@@ -132,9 +133,12 @@ describe('linkedin inbox adapter', () => {
     expect(c3.person_name).toBe('Cohort 2 group');
   });
 
-  it('returns an empty array when the payload has no conversations', () => {
+  it('returns an empty array when a valid payload has no conversations', () => {
     expect(parseConversations({ included: [] }, SELF)).toEqual([]);
-    expect(parseConversations({}, SELF)).toEqual([]);
-    expect(parseConversations(null, SELF)).toEqual([]);
+  });
+
+  it('fails typed when the normalized payload shape is malformed', () => {
+    expect(() => parseConversations({}, SELF)).toThrow(CommandExecutionError);
+    expect(() => parseConversations(null, SELF)).toThrow(CommandExecutionError);
   });
 });

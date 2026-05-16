@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import './thread-snapshot.js';
+
+const { canonicalizeLinkedInThreadUrl, parseMaxScrolls } = await import('./thread-snapshot.js').then((m) => m.__test__);
 
 function makeFakePage(snapshot) {
   return {
@@ -11,6 +14,22 @@ function makeFakePage(snapshot) {
 }
 
 describe('linkedin thread-snapshot command', () => {
+  it('accepts only exact LinkedIn messaging thread URLs', () => {
+    expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com/messaging/thread/2-abc==/?mini=true#x'))
+      .toBe('https://www.linkedin.com/messaging/thread/2-abc==/');
+    expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com/messaging/thread/2-abc==/extra')).toBe('');
+    expect(canonicalizeLinkedInThreadUrl('https://evil-linkedin.com/messaging/thread/2-abc==/')).toBe('');
+    expect(canonicalizeLinkedInThreadUrl('http://www.linkedin.com/messaging/thread/2-abc==/')).toBe('');
+  });
+
+  it('validates max-scrolls without silent clamping', () => {
+    expect(parseMaxScrolls(undefined)).toBe(30);
+    expect(parseMaxScrolls(0)).toBe(0);
+    expect(parseMaxScrolls(80)).toBe(80);
+    expect(() => parseMaxScrolls(81)).toThrow('--max-scrolls must be an integer between 0 and 80');
+    expect(() => parseMaxScrolls(1.5)).toThrow('--max-scrolls must be an integer between 0 and 80');
+  });
+
   it('registers as a read command for loading full thread context', () => {
     const command = getRegistry().get('linkedin/thread-snapshot');
     expect(command).toBeDefined();
@@ -45,5 +64,26 @@ describe('linkedin thread-snapshot command', () => {
       latest_text: 'safe-send test from hermes. pls ignore :)',
     });
     expect(rows[0].snapshot_json).toContain('damn i just saw ur msg sry sry');
+  });
+
+  it('rejects invalid thread URL before navigation', async () => {
+    const command = getRegistry().get('linkedin/thread-snapshot');
+    const page = makeFakePage({});
+
+    await expect(command.func(page, {
+      'thread-url': 'https://www.linkedin.com/feed/',
+      'max-scrolls': 8,
+    })).rejects.toBeInstanceOf(ArgumentError);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it('fails typed on malformed snapshot payloads', async () => {
+    const command = getRegistry().get('linkedin/thread-snapshot');
+    const page = makeFakePage({ url: 'https://www.linkedin.com/messaging/thread/abc/', headerNames: ['Neha Rudraraju'] });
+
+    await expect(command.func(page, {
+      'thread-url': 'https://www.linkedin.com/messaging/thread/abc/',
+      'max-scrolls': 8,
+    })).rejects.toBeInstanceOf(CommandExecutionError);
   });
 });

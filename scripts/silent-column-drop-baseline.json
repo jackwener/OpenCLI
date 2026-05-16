@@ -531,21 +531,6 @@
     ]
   },
   {
-    "command": "linkedin/connect",
-    "file": "clis/linkedin/connect.js",
-    "missing": [
-      "alreadyConnected",
-      "authRequired",
-      "bodyText",
-      "buttonLabels",
-      "connectAvailable",
-      "connectHref",
-      "name",
-      "pending",
-      "title"
-    ]
-  },
-  {
     "command": "linkedin/timeline",
     "file": "clis/linkedin/timeline.js",
     "missing": [

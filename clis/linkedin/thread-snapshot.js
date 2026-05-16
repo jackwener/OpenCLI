@@ -12,18 +12,26 @@ function unwrapEvaluateResult(payload) {
   return payload;
 }
 
+function isLinkedInHost(hostname) {
+  const host = String(hostname || '').toLowerCase();
+  return host === 'linkedin.com' || host.endsWith('.linkedin.com');
+}
+
 function canonicalizeLinkedInThreadUrl(value) {
   const raw = normalizeWhitespace(value);
   if (!raw) return '';
   try {
     const url = new URL(raw);
-    if (!/linkedin\.com$/i.test(url.hostname) && !/\.linkedin\.com$/i.test(url.hostname)) return raw;
+    if (url.protocol !== 'https:' || url.username || url.password || url.port || !isLinkedInHost(url.hostname)) return '';
+    const match = url.pathname.match(/^\/messaging\/thread\/([^/]+)\/?$/i);
+    if (!match || !match[1]) return '';
+    url.hostname = 'www.linkedin.com';
     url.hash = '';
     url.search = '';
     if (!url.pathname.endsWith('/')) url.pathname += '/';
     return url.toString();
   } catch {
-    return raw;
+    return '';
   }
 }
 
@@ -33,8 +41,23 @@ function requireStringArg(args, key, label = key) {
   return value;
 }
 
+function requireLinkedInThreadUrl(value, label) {
+  const url = canonicalizeLinkedInThreadUrl(value);
+  if (!url) throw new ArgumentError(`${label} must be an exact https://www.linkedin.com/messaging/thread/<id>/ URL`);
+  return url;
+}
+
+function parseMaxScrolls(value) {
+  if (value === undefined || value === null || value === '') return 30;
+  const scrolls = Number(value);
+  if (!Number.isInteger(scrolls) || scrolls < 0 || scrolls > 80) {
+    throw new ArgumentError('--max-scrolls must be an integer between 0 and 80');
+  }
+  return scrolls;
+}
+
 function buildThreadSnapshotScript(maxScrolls) {
-  const scrolls = Number.isFinite(Number(maxScrolls)) ? Math.max(0, Math.min(80, Number(maxScrolls))) : 30;
+  const scrolls = maxScrolls;
   return String.raw`(async () => {
     const marker = '__OPENCLI_LINKEDIN_THREAD_SNAPSHOT__';
     void marker;
@@ -141,16 +164,20 @@ cli({
   columns: ['thread_url', 'recipient', 'message_count', 'latest_text', 'snapshot_json'],
   func: async (page, args) => {
     if (!page) throw new CommandExecutionError('Browser session required for linkedin thread-snapshot');
-    const threadUrl = canonicalizeLinkedInThreadUrl(requireStringArg(args, 'thread-url', '--thread-url'));
+    const threadUrl = requireLinkedInThreadUrl(requireStringArg(args, 'thread-url', '--thread-url'), '--thread-url');
+    const maxScrolls = parseMaxScrolls(args['max-scrolls']);
 
     await page.goto('https://www.linkedin.com/messaging/');
     await page.wait(4);
     await page.goto(threadUrl);
     await page.wait(10);
 
-    const snapshot = unwrapEvaluateResult(await page.evaluate(buildThreadSnapshotScript(args['max-scrolls'])));
+    const snapshot = unwrapEvaluateResult(await page.evaluate(buildThreadSnapshotScript(maxScrolls)));
     if (snapshot?.authRequired) {
       throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn thread-snapshot requires an active signed-in LinkedIn browser session.');
+    }
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot) || !Array.isArray(snapshot.headerNames) || !Array.isArray(snapshot.messages)) {
+      throw new CommandExecutionError('LinkedIn thread-snapshot returned malformed snapshot payload');
     }
 
     const actualUrl = canonicalizeLinkedInThreadUrl(snapshot?.url || '');
@@ -158,14 +185,14 @@ cli({
       throw new CommandExecutionError('LinkedIn thread-snapshot blocked: thread_url_mismatch', `Expected ${threadUrl}; actual ${actualUrl}`);
     }
 
-    const recipient = normalizeWhitespace((snapshot?.headerNames || [])[0] || '');
-    const messageCount = Array.isArray(snapshot?.messages) ? snapshot.messages.length : 0;
+    const recipient = normalizeWhitespace(snapshot.headerNames[0] || '');
+    const messageCount = snapshot.messages.length;
     const normalized = {
-      ...(snapshot || {}),
+      ...snapshot,
       url: actualUrl || threadUrl,
-      headerNames: snapshot?.headerNames || [],
+      headerNames: snapshot.headerNames,
       latestMessageText: normalizeWhitespace(snapshot?.latestMessageText || ''),
-      messages: Array.isArray(snapshot?.messages) ? snapshot.messages : [],
+      messages: snapshot.messages,
     };
 
     return [{
@@ -181,6 +208,7 @@ cli({
 export const __test__ = {
   normalizeWhitespace,
   canonicalizeLinkedInThreadUrl,
+  parseMaxScrolls,
   unwrapEvaluateResult,
   buildThreadSnapshotScript,
 };

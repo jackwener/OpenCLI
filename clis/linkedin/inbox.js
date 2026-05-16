@@ -65,7 +65,10 @@ async function fetchMessagingApi(url, csrf) {
 // messages by URN, which we resolve through a urn->entity index. Exported for
 // unit testing against a captured fixture.
 function parseConversations(normalized, mailboxUrn) {
-  const included = Array.isArray(normalized && normalized.included) ? normalized.included : [];
+  if (!normalized || typeof normalized !== 'object' || Array.isArray(normalized) || !Array.isArray(normalized.included)) {
+    throw new CommandExecutionError('LinkedIn messaging API returned malformed normalized payload: missing included array');
+  }
+  const included = normalized.included;
   const byUrn = new Map();
   for (const o of included) {
     if (o && o.entityUrn) byUrn.set(o.entityUrn, o);

@@ -14,15 +14,21 @@ function normalizeName(value) {
         .toLowerCase();
 }
 
+function isLinkedInHost(hostname) {
+    const host = String(hostname || '').toLowerCase();
+    return host === 'linkedin.com' || host.endsWith('.linkedin.com');
+}
+
 function canonicalizeLinkedInProfileUrl(value) {
     const raw = normalizeWhitespace(value);
     if (!raw) return '';
     try {
         const url = new URL(raw);
-        if (!/linkedin\.com$/i.test(url.hostname) && !/\.linkedin\.com$/i.test(url.hostname)) return raw;
+        if (url.protocol !== 'https:' || url.username || url.password || url.port || !isLinkedInHost(url.hostname)) return '';
+        const match = url.pathname.match(/^\/in\/([^/]+)\/?$/i);
+        if (!match || !match[1]) return '';
         // LinkedIn redirects country subdomains (ca./uk./...) to www.; normalize the
         // host so an expected `ca.linkedin.com/in/x` matches the landed `www.linkedin.com/in/x`.
-        url.protocol = 'https:';
         url.hostname = 'www.linkedin.com';
         url.hash = '';
         url.search = '';
@@ -30,7 +36,7 @@ function canonicalizeLinkedInProfileUrl(value) {
         return url.toString();
     }
     catch {
-        return raw;
+        return '';
     }
 }
 
@@ -38,6 +44,12 @@ function requireStringArg(args, key, label = key) {
     const value = normalizeWhitespace(args[key]);
     if (!value) throw new ArgumentError(`${label} is required`);
     return value;
+}
+
+function requireLinkedInProfileUrl(value, label) {
+    const url = canonicalizeLinkedInProfileUrl(value);
+    if (!url) throw new ArgumentError(`${label} must be an exact https://www.linkedin.com/in/<profile>/ URL`);
+    return url;
 }
 
 function unwrapEvaluateResult(payload) {
@@ -51,23 +63,38 @@ function clampNote(note) {
     return value;
 }
 
+function canonicalizeLinkedInInviteUrl(value) {
+    try {
+        const url = new URL(normalizeWhitespace(value), 'https://www.linkedin.com');
+        if (url.protocol !== 'https:' || url.username || url.password || url.port || !isLinkedInHost(url.hostname)) return '';
+        if (!/^\/preload\/custom-invite\/?$/i.test(url.pathname)) return '';
+        url.hostname = 'www.linkedin.com';
+        url.hash = '';
+        if (!url.pathname.endsWith('/')) url.pathname += '/';
+        return url.toString();
+    }
+    catch {
+        return '';
+    }
+}
+
 function assessProfileSafety(probe, expectedName, expectedProfileUrl) {
     const expected = normalizeWhitespace(expectedName);
     const actual = normalizeWhitespace(probe?.name || '');
     const expectedUrl = canonicalizeLinkedInProfileUrl(expectedProfileUrl);
     const actualUrl = canonicalizeLinkedInProfileUrl(probe?.url || '');
-    if (probe?.authRequired) return { ok: false, reason: 'auth_required', expected, actual, url: actualUrl };
-    if (!actual) return { ok: false, reason: 'profile_name_not_found', expected, actual, url: actualUrl };
+    if (probe?.authRequired) return { ok: false, blockReason: 'auth_required', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
+    if (!actual) return { ok: false, blockReason: 'profile_name_not_found', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
     if (expected && normalizeName(actual) !== normalizeName(expected)) {
-        return { ok: false, reason: 'profile_name_mismatch', expected, actual, url: actualUrl };
+        return { ok: false, blockReason: 'profile_name_mismatch', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
     }
     if (expectedUrl && actualUrl && expectedUrl !== actualUrl) {
-        return { ok: false, reason: 'profile_url_mismatch', expected: expectedUrl, actual: actualUrl, url: actualUrl };
+        return { ok: false, blockReason: 'profile_url_mismatch', expectedValue: expectedUrl, actualValue: actualUrl, observedUrl: actualUrl };
     }
-    if (probe?.alreadyConnected) return { ok: false, reason: 'already_connected', expected, actual, url: actualUrl };
-    if (probe?.pending) return { ok: false, reason: 'connection_pending', expected, actual, url: actualUrl };
-    if (!probe?.connectAvailable) return { ok: false, reason: 'connect_button_not_found', expected, actual, url: actualUrl };
-    return { ok: true, reason: 'verified', expected, actual, url: actualUrl };
+    if (probe?.alreadyConnected) return { ok: false, blockReason: 'already_connected', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
+    if (probe?.pending) return { ok: false, blockReason: 'connection_pending', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
+    if (!probe?.connectAvailable) return { ok: false, blockReason: 'connect_button_not_found', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
+    return { ok: true, blockReason: 'verified', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
 }
 
 function buildProfileProbeScript() {
@@ -188,10 +215,10 @@ cli({
         { name: 'note', type: 'string', required: false, default: '', help: 'Optional connection note, max 300 chars' },
         { name: 'send', type: 'bool', required: false, default: false, help: 'Actually click Send. Default is dry-run verification only.' },
     ],
-    columns: ['status', 'recipient', 'reason', 'profile_url', 'note_chars', 'expected', 'actual', 'url'],
+    columns: ['status', 'recipient', 'reason', 'profile_url', 'note_chars'],
     func: async (page, args) => {
         if (!page) throw new CommandExecutionError('Browser session required for linkedin connect');
-        const profileUrl = canonicalizeLinkedInProfileUrl(requireStringArg(args, 'profile-url', '--profile-url'));
+        const profileUrl = requireLinkedInProfileUrl(requireStringArg(args, 'profile-url', '--profile-url'), '--profile-url');
         const expectedName = requireStringArg(args, 'expected-name', '--expected-name');
         const note = clampNote(args.note || '');
 
@@ -209,23 +236,26 @@ cli({
             probe = await probeProfile(page);
         }
         const safety = assessProfileSafety(probe, expectedName, profileUrl);
-        if (safety.reason === 'auth_required') {
+        if (safety.blockReason === 'auth_required') {
             throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn connect requires an active signed-in LinkedIn browser session.');
         }
         if (!safety.ok) {
             throw new CommandExecutionError(
-                `LinkedIn connect blocked: ${safety.reason}`,
-                `Expected ${safety.expected}; actual ${safety.actual || 'not_visible'} at ${safety.url || 'url_not_available'}\nButtons: ${(probe?.buttonLabels || []).join(' | ')}`,
+                `LinkedIn connect blocked: ${safety.blockReason}`,
+                `Expected ${safety.expectedValue}; actual ${safety.actualValue || 'not_visible'} at ${safety.observedUrl || 'url_not_available'}\nButtons: ${(probe?.buttonLabels || []).join(' | ')}`,
             );
         }
         if (!args.send) {
-            return [{ status: 'verified_dry_run', recipient: safety.actual, reason: safety.reason, profile_url: safety.url, note_chars: note.length }];
+            return [{ status: 'verified_dry_run', recipient: safety.actualValue, reason: safety.blockReason, profile_url: safety.observedUrl, note_chars: note.length }];
         }
         const inviteHref = probe?.connectHref || '';
         if (!inviteHref) {
             throw new CommandExecutionError('LinkedIn connect blocked: connect_link_not_found');
         }
-        const inviteUrl = new URL(inviteHref, 'https://www.linkedin.com').toString();
+        const inviteUrl = canonicalizeLinkedInInviteUrl(inviteHref);
+        if (!inviteUrl) {
+            throw new CommandExecutionError('LinkedIn connect blocked: invalid_connect_link');
+        }
         await page.goto(inviteUrl);
         await page.wait(6);
         let result = unwrapEvaluateResult(await page.evaluate(buildInviteScript(note)));
@@ -239,9 +269,9 @@ cli({
         const after = await probeProfile(page);
         return [{
             status: after?.pending ? 'sent' : (result.status || 'sent'),
-            recipient: safety.actual,
+            recipient: safety.actualValue,
             reason: result.reason || 'connection_request_sent',
-            profile_url: canonicalizeLinkedInProfileUrl(after?.url || safety.url),
+            profile_url: canonicalizeLinkedInProfileUrl(after?.url || safety.observedUrl),
             note_chars: note.length,
         }];
     },
@@ -251,6 +281,7 @@ export const __test__ = {
     normalizeWhitespace,
     normalizeName,
     canonicalizeLinkedInProfileUrl,
+    canonicalizeLinkedInInviteUrl,
     unwrapEvaluateResult,
     clampNote,
     assessProfileSafety,
