@@ -461,8 +461,10 @@ wss.on('connection', (ws: WebSocket) => {
 
 // ─── Start ───────────────────────────────────────────────────────────
 
-httpServer.listen(PORT, '127.0.0.1', () => {
-  log.info(`[daemon] Listening on http://127.0.0.1:${PORT}`);
+const BIND = process.env.OPENCLI_DAEMON_BIND ?? '127.0.0.1';
+
+httpServer.listen(PORT, BIND, () => {
+  log.info(`[daemon] Listening on http://${BIND}:${PORT}`);
 });
 
 httpServer.on('error', (err: NodeJS.ErrnoException) => {
