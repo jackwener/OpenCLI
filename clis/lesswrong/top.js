@@ -22,7 +22,7 @@ cli({
         return posts.map((item, i) => ({
             rank: i + 1,
             title: item.title ?? '',
-            author: item.user?.displayName ?? 'Unknown',
+            author: item.user?.displayName ?? '',
             karma: item.baseScore ?? 0,
             comments: item.commentCount ?? 0,
             url: `https://${DOMAIN}/posts/${item._id}/${item.slug}`,

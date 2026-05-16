@@ -56,7 +56,7 @@ cli({
             rows.push({
                 rank: i + 1,
                 score: item.baseScore ?? 0,
-                author: user?.displayName ?? 'Unknown',
+                author: user?.displayName ?? '',
                 text: raw.length > 500 ? `${raw.slice(0, 500)}...` : raw,
             });
         }
