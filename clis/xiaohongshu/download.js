@@ -39,6 +39,81 @@ export function buildDownloadExtractJs(noteId) {
           seenMedia.add(key);
           result.media.push({ type, url });
         };
+        const cleanImageUrl = (value) => {
+          if (typeof value !== 'string') return '';
+          let src = value.trim();
+          if (!src) return '';
+          if (!(src.includes('xhscdn') || src.includes('xiaohongshu') || src.includes('rednote'))) return '';
+          src = src.split('?')[0];
+          return src.replace(/\\/imageView\\d+\\/\\d+\\/w\\/\\d+/, '');
+        };
+        const imageUrls = new Set();
+        const addImageUrl = (value) => {
+          const src = cleanImageUrl(value);
+          if (src) imageUrls.add(src);
+        };
+        const getImageUrl = (value) => {
+          if (!value) return '';
+          const direct = cleanImageUrl(value);
+          if (direct) return direct;
+          if (typeof value !== 'object') return '';
+          const candidates = [
+            value.urlDefault, value.url_default,
+            value.urlPre, value.url_pre,
+            value.url, value.src,
+            value.originUrl, value.origin_url,
+            value.masterUrl, value.master_url,
+          ];
+          for (const candidate of candidates) {
+            const src = cleanImageUrl(candidate);
+            if (src) return src;
+          }
+          const nestedLists = [value.infoList, value.info_list, value.urlList, value.url_list].filter(Array.isArray);
+          for (const list of nestedLists) {
+            for (const item of list) {
+              const src = getImageUrl(item);
+              if (src) return src;
+            }
+          }
+          return '';
+        };
+        const addImagesFromList = (list) => {
+          if (!Array.isArray(list)) return 0;
+          let added = 0;
+          for (const item of list) {
+            const src = getImageUrl(item);
+            if (!src) continue;
+            const before = imageUrls.size;
+            imageUrls.add(src);
+            if (imageUrls.size > before) added++;
+          }
+          return added;
+        };
+        const noteMatches = (note, key) => {
+          const ids = [
+            key,
+            note?.noteId, note?.note_id, note?.id,
+            note?.noteCard?.noteId, note?.noteCard?.note_id,
+            note?.note_card?.noteId, note?.note_card?.note_id,
+          ].filter(Boolean).map(String);
+          return !result.noteId || ids.includes(result.noteId);
+        };
+        const addImagesFromNote = (note) => {
+          if (!note || typeof note !== 'object') return 0;
+          const imageLists = [
+            note.imageList, note.image_list,
+            note.images, note.image,
+            note.image?.imageList, note.image?.image_list,
+            note.image?.images, note.image?.list,
+            note.noteCard?.imageList, note.noteCard?.image_list,
+            note.note_card?.imageList, note.note_card?.image_list,
+          ];
+          for (const list of imageLists) {
+            const added = Array.isArray(list) ? addImagesFromList(list) : 0;
+            if (added > 0) return added;
+          }
+          return 0;
+        };
         const locationMatch = (location.pathname || '').match(/\\/(?:explore|note|search_result|discovery\\/item)\\/([a-f0-9]+)|\\/user\\/profile\\/[^/?#]+\\/([a-f0-9]+)/i);
         if (locationMatch) {
           result.noteId = locationMatch[1] || locationMatch[2];
@@ -52,27 +127,43 @@ export function buildDownloadExtractJs(noteId) {
         const authorEl = document.querySelector('.username, .author-name, .name');
         result.author = authorEl?.textContent?.trim() || 'unknown';
 
-        // Get images - try multiple selectors
-        const imageSelectors = [
-          '.swiper-slide img',
-          '.carousel-image img',
-          '.note-slider img',
-          '.note-image img',
-          '.image-wrapper img',
-          '#noteContainer .media-container img[src*="xhscdn"]',
-          'img[src*="ci.xiaohongshu.com"]'
-        ];
+        // Prefer page state image arrays because DOM carousel nodes can be
+        // duplicated, hidden, or preloaded out of display order.
+        try {
+          const state = window.__INITIAL_STATE__;
+          const noteData = state?.note?.noteDetailMap || state?.note?.note || {};
+          const entries = [];
+          if (Array.isArray(noteData)) {
+            noteData.forEach((value, index) => entries.push([String(index), value]));
+          } else if (noteData && typeof noteData === 'object') {
+            Object.keys(noteData).forEach(key => entries.push([key, noteData[key]]));
+          }
+          const notes = entries
+            .map(([key, value]) => [key, value?.note || value?.noteCard || value?.note_card || value])
+            .filter(([, note]) => note && typeof note === 'object');
+          const matchingNotes = notes.filter(([key, note]) => noteMatches(note, key));
+          const candidates = matchingNotes.length > 0 ? matchingNotes : (notes.length === 1 ? notes : []);
+          for (const [, note] of candidates) {
+            if (addImagesFromNote(note) > 0) break;
+          }
+        } catch(e) {}
 
-        const imageUrls = new Set();
-        for (const selector of imageSelectors) {
-          document.querySelectorAll(selector).forEach(img => {
-            let src = img.src || img.getAttribute('data-src') || '';
-            if (src && (src.includes('xhscdn') || src.includes('xiaohongshu') || src.includes('rednote'))) {
-              src = src.split('?')[0];
-              src = src.replace(/\\/imageView\\d+\\/\\d+\\/w\\/\\d+/, '');
-              imageUrls.add(src);
-            }
-          });
+        // Fall back to DOM selectors when structured note media is unavailable.
+        if (imageUrls.size === 0) {
+          const imageSelectors = [
+            '.swiper-slide img',
+            '.carousel-image img',
+            '.note-slider img',
+            '.note-image img',
+            '.image-wrapper img',
+            '#noteContainer .media-container img[src*="xhscdn"]',
+            'img[src*="ci.xiaohongshu.com"]'
+          ];
+          for (const selector of imageSelectors) {
+            document.querySelectorAll(selector).forEach(img => {
+              addImageUrl(img.src || img.getAttribute('data-src') || '');
+            });
+          }
         }
 
         // Get video — prefer real URL from page state over blob: URLs
