@@ -31,17 +31,35 @@ const adapterKey = (session: string): string => leaseKey('adapter', session);
 class MockWebSocket {
   static OPEN = 1;
   static CONNECTING = 0;
+  static CLOSED = 3;
+  static instances: MockWebSocket[] = [];
   readyState = MockWebSocket.CONNECTING;
+  sent: string[] = [];
   onopen: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
   onclose: (() => void) | null = null;
   onerror: (() => void) | null = null;
 
-  constructor(_url: string) {}
-  send(_data: string): void {}
+  constructor(_url: string) {
+    MockWebSocket.instances.push(this);
+  }
+  send(data: string): void {
+    this.sent.push(data);
+  }
   close(): void {
+    this.readyState = MockWebSocket.CLOSED;
     this.onclose?.();
   }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 function createChromeMock() {
@@ -158,7 +176,7 @@ function createChromeMock() {
       onEvent: { addListener: vi.fn() } as Listener<(source: any, method: string, params: any) => void>,
     },
     windows: {
-      get: vi.fn(async (windowId: number) => ({ id: windowId })),
+      get: vi.fn(async (windowId: number) => ({ id: windowId, focused: windowId === lastFocusedWindowId })),
       create: vi.fn(async ({ url, focused, width, height, type }: any) => ({ id: 1, url, focused, width, height, type })),
       remove: vi.fn(async (_windowId: number) => {}),
       onRemoved: { addListener: vi.fn() } as Listener<(windowId: number) => void>,
@@ -187,13 +205,22 @@ function createChromeMock() {
     },
   };
 
-  return { chrome, tabs, groups, query, create, update };
+  return {
+    chrome,
+    tabs,
+    groups,
+    query,
+    create,
+    update,
+    setLastFocusedWindowId: (windowId: number) => { lastFocusedWindowId = windowId; },
+  };
 }
 
 describe('background tab isolation', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useRealTimers();
+    MockWebSocket.instances = [];
     vi.stubGlobal('WebSocket', MockWebSocket);
   });
 
@@ -574,7 +601,6 @@ describe('background tab isolation', () => {
         title: 'bilibili',
         url: 'https://www.bilibili.com/',
         timedOut: false,
-        session: 'twitter',
       },
     });
     expect(update).not.toHaveBeenCalled();
@@ -648,6 +674,100 @@ describe('background tab isolation', () => {
         contextId: 'abc123xy',
       }));
     });
+  });
+
+  it('keeps the active daemon connection when a superseded WebSocket closes later', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
+
+    await import('./background');
+    await vi.waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
+    const firstWs = MockWebSocket.instances[0];
+    firstWs.readyState = 3;
+
+    const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
+    await onAlarmListener({ name: 'keepalive' });
+    await vi.waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(2);
+    });
+    const secondWs = MockWebSocket.instances[1];
+    secondWs.readyState = MockWebSocket.OPEN;
+
+    firstWs.onclose?.();
+    secondWs.onmessage?.({
+      data: JSON.stringify({
+        id: 'sessions-after-stale-close',
+        action: 'tabs',
+        op: 'list',
+        session: 'work',
+        surface: 'browser',
+      }),
+    });
+
+    await vi.waitFor(() => {
+      expect(secondWs.sent.some((entry) => entry.includes('sessions-after-stale-close'))).toBe(true);
+    });
+  });
+
+  it('coalesces concurrent daemon connection attempts while the probe is in flight', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    const ping = deferred<{ ok: boolean }>();
+    const fetchMock = vi.fn(() => ping.promise);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await import('./background');
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
+    await onAlarmListener({ name: 'keepalive' });
+    await onAlarmListener({ name: 'keepalive' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(MockWebSocket.instances).toHaveLength(0);
+
+    ping.resolve({ ok: true });
+    await vi.waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
+  });
+
+  it('ignores daemon commands delivered to a superseded WebSocket', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
+
+    await import('./background');
+    await vi.waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
+    const firstWs = MockWebSocket.instances[0];
+    firstWs.readyState = MockWebSocket.OPEN;
+
+    const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
+    firstWs.readyState = MockWebSocket.CLOSED;
+    await onAlarmListener({ name: 'keepalive' });
+    await vi.waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(2);
+    });
+    firstWs.readyState = MockWebSocket.OPEN;
+
+    await firstWs.onmessage?.({
+      data: JSON.stringify({
+        id: 'stale-command',
+        action: 'tabs',
+        op: 'list',
+        session: 'work',
+        surface: 'browser',
+      }),
+    });
+
+    expect(firstWs.sent.some((entry) => entry.includes('stale-command'))).toBe(false);
   });
 
   it('can execute concurrently on two pages in the same session', async () => {
@@ -909,7 +1029,7 @@ describe('background tab isolation', () => {
     const { chrome } = createChromeMock();
     chrome.windows.get = vi.fn(async (windowId: number) => {
       if (windowId === 90 || windowId === 91) throw new Error(`stale window ${windowId}`);
-      return { id: windowId };
+      return { id: windowId, focused: false };
     });
     vi.stubGlobal('chrome', chrome);
 
@@ -1048,6 +1168,215 @@ describe('background tab isolation', () => {
     expect(tabs[0].groupId).toBe(99);
     expect(groups).toHaveLength(1);
     expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 99, tabIds: [1] });
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+  });
+
+  it('discovers and reuses an existing OpenCLI Adapter group in another window before creating one', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    tabs.push({
+      id: 77,
+      windowId: 7,
+      url: 'about:blank',
+      title: 'blank',
+      active: true,
+      status: 'complete',
+      groupId: -1,
+    });
+    groups.push({
+      id: 99,
+      windowId: 7,
+      title: 'OpenCLI Adapter',
+      color: 'orange',
+      collapsed: true,
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    expect(tabId).toBe(77);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(7);
+    expect(tabs.find((tab) => tab.id === 77)?.groupId).toBe(99);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 99, tabIds: [77] });
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+  });
+
+  it('prefers a focused OpenCLI Adapter group when multiple matching groups exist', async () => {
+    const { chrome, tabs, groups, setLastFocusedWindowId } = createChromeMock();
+    setLastFocusedWindowId(8);
+    tabs.push({
+      id: 77,
+      windowId: 7,
+      url: 'about:blank',
+      title: 'blank',
+      active: true,
+      status: 'complete',
+      groupId: -1,
+    });
+    tabs.push({
+      id: 78,
+      windowId: 8,
+      url: 'about:blank',
+      title: 'blank',
+      active: true,
+      status: 'complete',
+      groupId: -1,
+    });
+    groups.push(
+      {
+        id: 99,
+        windowId: 7,
+        title: 'OpenCLI Adapter',
+        color: 'orange',
+        collapsed: true,
+      },
+      {
+        id: 98,
+        windowId: 8,
+        title: 'OpenCLI Adapter',
+        color: 'orange',
+        collapsed: true,
+      },
+    );
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    expect(tabId).toBe(78);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(8);
+    expect(tabs.find((tab) => tab.id === 78)?.groupId).toBe(98);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 98, tabIds: [78] });
+  });
+
+  it('prefers an OpenCLI Adapter group with a reusable debuggable tab when none are focused', async () => {
+    const { chrome, tabs, groups, setLastFocusedWindowId } = createChromeMock();
+    setLastFocusedWindowId(2);
+    tabs.push({
+      id: 77,
+      windowId: 7,
+      url: 'chrome://settings',
+      title: 'settings',
+      active: true,
+      status: 'complete',
+      groupId: -1,
+    });
+    tabs.push({
+      id: 78,
+      windowId: 8,
+      url: 'about:blank',
+      title: 'blank',
+      active: true,
+      status: 'complete',
+      groupId: -1,
+    });
+    groups.push(
+      {
+        id: 97,
+        windowId: 7,
+        title: 'OpenCLI Adapter',
+        color: 'orange',
+        collapsed: true,
+      },
+      {
+        id: 98,
+        windowId: 8,
+        title: 'OpenCLI Adapter',
+        color: 'orange',
+        collapsed: true,
+      },
+    );
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    expect(tabId).toBe(78);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(8);
+    expect(tabs.find((tab) => tab.id === 78)?.groupId).toBe(98);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 98, tabIds: [78] });
+  });
+
+  it('uses the lowest group id as the final OpenCLI Adapter group tiebreaker', async () => {
+    const { chrome, tabs, groups, setLastFocusedWindowId } = createChromeMock();
+    setLastFocusedWindowId(2);
+    tabs.push({
+      id: 77,
+      windowId: 7,
+      url: 'about:blank',
+      title: 'blank',
+      active: true,
+      status: 'complete',
+      groupId: -1,
+    });
+    tabs.push({
+      id: 78,
+      windowId: 8,
+      url: 'about:blank',
+      title: 'blank',
+      active: true,
+      status: 'complete',
+      groupId: -1,
+    });
+    groups.push(
+      {
+        id: 99,
+        windowId: 7,
+        title: 'OpenCLI Adapter',
+        color: 'orange',
+        collapsed: true,
+      },
+      {
+        id: 98,
+        windowId: 8,
+        title: 'OpenCLI Adapter',
+        color: 'orange',
+        collapsed: true,
+      },
+    );
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    expect(tabId).toBe(78);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(8);
+    expect(tabs.find((tab) => tab.id === 78)?.groupId).toBe(98);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 98, tabIds: [78] });
+  });
+
+  it('discovers and reuses a legacy OpenCLI automation group before creating a duplicate', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    tabs.push({
+      id: 78,
+      windowId: 8,
+      url: 'about:blank',
+      title: 'blank',
+      active: true,
+      status: 'complete',
+      groupId: -1,
+    });
+    groups.push({
+      id: 98,
+      windowId: 8,
+      title: 'OpenCLI',
+      color: 'orange',
+      collapsed: true,
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    expect(tabId).toBe(78);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(8);
+    expect(tabs.find((tab) => tab.id === 78)?.groupId).toBe(98);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 98, tabIds: [78] });
     expect(chrome.tabGroups.update).not.toHaveBeenCalled();
   });
 

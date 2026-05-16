@@ -17,7 +17,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { styleText } from 'node:util';
 import { PKG_VERSION } from './version.js';
 
 const CACHE_DIR = path.join(os.homedir(), '.opencli');
@@ -103,8 +102,8 @@ function buildUpdateNotices({ cliVersion, cache, now }: NoticeInputs): NoticeLin
   const lines: NoticeLines = {};
   if (cache.latestVersion && isNewer(cache.latestVersion, cliVersion)) {
     lines.cli =
-      styleText('yellow', `\n  Update available: v${cliVersion} → v${cache.latestVersion}\n`) +
-      styleText('dim', `  Run: npm install -g @jackwener/opencli\n`);
+      `\n  Update available: v${cliVersion} → v${cache.latestVersion}\n` +
+      `  Run: npm install -g @jackwener/opencli\n`;
   }
   const { currentExtensionVersion, latestExtensionVersion, extensionLastSeenAt } = cache;
   if (
@@ -115,8 +114,8 @@ function buildUpdateNotices({ cliVersion, cache, now }: NoticeInputs): NoticeLin
     isNewer(latestExtensionVersion, currentExtensionVersion)
   ) {
     lines.extension =
-      styleText('yellow', `\n  Extension update available: v${currentExtensionVersion} → v${latestExtensionVersion}\n`) +
-      styleText('dim', `  Download: https://github.com/jackwener/opencli/releases\n`);
+      `\n  Extension update available: v${currentExtensionVersion} → v${latestExtensionVersion}\n` +
+      `  Download: https://github.com/jackwener/opencli/releases\n`;
   }
   return lines;
 }

@@ -3,7 +3,17 @@ import { JSDOM } from 'jsdom';
 import { __test__ } from './shared.js';
 import { ArgumentError } from '@jackwener/opencli/errors';
 
-const { extractMedia, extractCard, extractQuotedTweet, parseTweetUrl, buildTwitterArticleScopeSource } = __test__;
+const {
+    extractMedia,
+    extractCard,
+    extractQuotedTweet,
+    parseTweetUrl,
+    buildTwitterArticleScopeSource,
+    unwrapBrowserResult,
+    normalizeTwitterGraphqlPayload,
+    normalizeTwitterScreenName,
+    sanitizeTwitterOperationMetadata,
+} = __test__;
 
 function makeCardTweet({ name, bindings, expandedUrl }) {
     const tweet = {
@@ -20,6 +30,101 @@ function strBinding(key, string_value) {
 function imgBinding(key, url) {
     return { key, value: { type: 'IMAGE', image_value: { url } } };
 }
+
+describe('twitter browser result helpers', () => {
+    it('unwraps Browser Bridge exec envelopes', () => {
+        expect(unwrapBrowserResult({ session: 'site:twitter', data: '123' })).toBe('123');
+        expect(unwrapBrowserResult({ data: { user: true } })).toEqual({ data: { user: true } });
+    });
+
+    it('sanitizes operation metadata after unwrapping Browser Bridge envelopes', () => {
+        const result = sanitizeTwitterOperationMetadata({
+            session: 'site:twitter',
+            data: {
+                queryId: 'abc_123',
+                features: { feature: true },
+                fieldToggles: { field: true },
+            },
+        }, { queryId: 'fallback', features: {}, fieldToggles: {} });
+        expect(result).toEqual({
+            queryId: 'abc_123',
+            features: { feature: true },
+            fieldToggles: { field: true },
+        });
+    });
+
+    it('falls back to baked features / fieldToggles when the bundle parser returns empty maps', () => {
+        const result = sanitizeTwitterOperationMetadata({
+            queryId: 'newQueryId',
+            features: {},
+            fieldToggles: {},
+        }, {
+            queryId: 'fallback',
+            features: { fallback_feature: true },
+            fieldToggles: { fallback_field: true },
+        });
+        expect(result).toEqual({
+            queryId: 'newQueryId',
+            features: { fallback_feature: true },
+            fieldToggles: { fallback_field: true },
+        });
+    });
+
+    it('falls back when resolved features are non-object falsy values', () => {
+        const result = sanitizeTwitterOperationMetadata({
+            queryId: 'newQueryId',
+            features: null,
+            fieldToggles: undefined,
+        }, {
+            queryId: 'fallback',
+            features: { fallback_feature: true },
+            fieldToggles: { fallback_field: true },
+        });
+        expect(result.features).toEqual({ fallback_feature: true });
+        expect(result.fieldToggles).toEqual({ fallback_field: true });
+    });
+
+    it('normalizes GraphQL payloads when the bridge strips the top-level data key', () => {
+        expect(normalizeTwitterGraphqlPayload({ user: { result: {} } })).toEqual({
+            data: { user: { result: {} } },
+        });
+        expect(normalizeTwitterGraphqlPayload({ search_by_raw_query: { search_timeline: {} } })).toEqual({
+            data: { search_by_raw_query: { search_timeline: {} } },
+        });
+        expect(normalizeTwitterGraphqlPayload({ data: { user: {} } })).toEqual({ data: { user: {} } });
+    });
+});
+
+describe('twitter normalizeTwitterScreenName', () => {
+    it('accepts exact handles and exact Twitter/X profile URLs', () => {
+        expect(normalizeTwitterScreenName('@viewer')).toBe('viewer');
+        expect(normalizeTwitterScreenName('/viewer')).toBe('viewer');
+        expect(normalizeTwitterScreenName('https://x.com/viewer')).toBe('viewer');
+        expect(normalizeTwitterScreenName('https://twitter.com/viewer?lang=en')).toBe('viewer');
+        expect(normalizeTwitterScreenName('https://mobile.twitter.com/viewer')).toBe('viewer');
+    });
+
+    it('rejects route collisions, malformed handles, and non-exact profile URLs', () => {
+        const invalid = [
+            '/home',
+            '/viewer/extra',
+            'viewer/extra',
+            'viewer?tab=posts',
+            'https://x.com/home',
+            'https://x.com/viewer/status/1',
+            'http://x.com/viewer',
+            'https://evil.com/viewer',
+            'https://x.com.evil.com/viewer',
+            'https://x.com:444/viewer',
+            'https://user:pass@x.com/viewer',
+            'bad-handle',
+            'abcdefghijklmnop',
+        ];
+        for (const value of invalid) {
+            expect(normalizeTwitterScreenName(value)).toBe('');
+        }
+    });
+});
 
 describe('twitter parseTweetUrl', () => {
     it('accepts exact Twitter/X tweet URLs and preserves query parameters', () => {

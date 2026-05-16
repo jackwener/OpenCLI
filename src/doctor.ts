@@ -4,7 +4,6 @@
  * Simplified for the daemon-based architecture.
  */
 
-import { styleText } from 'node:util';
 import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { BrowserBridge } from './browser/index.js';
 import { getDaemonHealth } from './browser/daemon-client.js';
@@ -216,14 +215,14 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
 }
 
 export function renderBrowserDoctorReport(report: DoctorReport): string {
-  const lines = [styleText('bold', `opencli v${report.cliVersion ?? 'unknown'} doctor`) + styleText('dim', ` (${getRuntimeLabel()})`), ''];
+  const lines = [`opencli v${report.cliVersion ?? 'unknown'} doctor` + ` (${getRuntimeLabel()})`, ''];
 
   // Daemon status
   const daemonIcon = report.daemonFlaky
-    ? styleText('yellow', '[WARN]')
+    ? '[WARN]'
     : report.daemonStale
-      ? styleText('yellow', '[WARN]')
-      : report.daemonRunning ? styleText('green', '[OK]') : styleText('red', '[MISSING]');
+      ? '[WARN]'
+      : report.daemonRunning ? '[OK]' : '[MISSING]';
   const daemonLabel = report.daemonFlaky
     ? 'unstable (running during live check, then stopped)'
     : report.daemonRunning
@@ -235,16 +234,16 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
 
   // Extension status
   const extIcon = report.extensionFlaky || (report.extensionConnected && !report.extensionVersion)
-    ? styleText('yellow', '[WARN]')
-    : report.extensionConnected ? styleText('green', '[OK]') : styleText('yellow', '[MISSING]');
+    ? '[WARN]'
+    : report.extensionConnected ? '[OK]' : '[MISSING]';
   const extUpdateHint = report.extensionVersion && report.latestExtensionVersion && isNewerVersion(report.latestExtensionVersion, report.extensionVersion)
-    ? styleText('yellow', ` → v${report.latestExtensionVersion} available`)
+    ? ` → v${report.latestExtensionVersion} available`
     : '';
   const extVersion = !report.extensionConnected
     ? ''
     : report.extensionVersion
-      ? styleText('dim', ` (v${report.extensionVersion})`) + extUpdateHint
-      : styleText('dim', ' (version unknown)');
+      ? ` (v${report.extensionVersion})` + extUpdateHint
+      : ' (version unknown)';
   const extLabel = report.extensionFlaky
     ? 'unstable (connected during live check, then disconnected)'
     : report.extensionConnected ? 'connected' : 'not connected';
@@ -252,19 +251,19 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
 
   if (report.profiles && report.profiles.length > 0) {
     const config = loadProfileConfig();
-    lines.push('', styleText('bold', 'Profiles:'));
+    lines.push('', 'Profiles:');
     for (const profile of report.profiles) {
       const alias = aliasForContextId(config, profile.contextId);
       const aliasText = alias ? ` (${alias})` : '';
       const defaultText = config.defaultContextId === profile.contextId ? ', default' : '';
       const version = profile.extensionVersion ? `v${profile.extensionVersion}` : 'version unknown';
-      lines.push(styleText('dim', `  • ${profile.contextId}${aliasText}: connected ${version}${defaultText}`));
+      lines.push(`  • ${profile.contextId}${aliasText}: connected ${version}${defaultText}`);
     }
   }
 
   // Connectivity
   if (report.connectivity) {
-    const connIcon = report.connectivity.ok ? styleText('green', '[OK]') : styleText('red', '[FAIL]');
+    const connIcon = report.connectivity.ok ? '[OK]' : '[FAIL]';
     const detail = report.connectivity.ok
       ? `connected in ${(report.connectivity.durationMs / 1000).toFixed(1)}s`
       : `failed (${report.connectivity.error ?? 'unknown'})`;
@@ -272,12 +271,12 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
   }
 
   if (report.issues.length) {
-    lines.push('', styleText('yellow', 'Issues:'));
+    lines.push('', 'Issues:');
     for (const issue of report.issues) {
-      lines.push(styleText('dim', `  • ${issue}`));
+      lines.push(`  • ${issue}`);
     }
   } else if (report.daemonRunning && report.extensionConnected) {
-    lines.push('', styleText('green', 'Everything looks good!'));
+    lines.push('', 'Everything looks good!');
   }
 
   return lines.join('\n');

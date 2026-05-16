@@ -1,6 +1,6 @@
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { resolveTwitterQueryId } from './shared.js';
+import { normalizeTwitterScreenName, resolveTwitterQueryId, unwrapBrowserResult } from './shared.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
 cli({
@@ -11,24 +11,31 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     args: [
         { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (with or without @). Defaults to the logged-in user when omitted.' },
     ],
     columns: ['screen_name', 'name', 'bio', 'location', 'url', 'followers', 'following', 'tweets', 'likes', 'verified', 'created_at'],
     func: async (page, kwargs) => {
-        let username = (kwargs.username || '').replace(/^@/, '');
-        // If no username, detect the logged-in user
+        const rawUsername = String(kwargs.username ?? '').trim();
+        let username = normalizeTwitterScreenName(rawUsername);
+        if (rawUsername && !username) {
+            throw new ArgumentError('twitter profile username must be a valid Twitter/X handle', 'Example: opencli twitter profile @jack');
+        }
+        // If no username, detect the logged-in user.
+        // Bridge wraps primitive page.evaluate returns as { session, data:<value> };
+        // unwrap so the href string is usable downstream.
         if (!username) {
             await page.goto('https://x.com/home');
             await page.wait({ selector: '[data-testid="primaryColumn"]' });
-            const href = await page.evaluate(`() => {
+            const href = unwrapBrowserResult(await page.evaluate(`() => {
         const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
         return link ? link.getAttribute('href') : null;
-      }`);
-            if (!href)
+      }`));
+            if (!href || typeof href !== 'string')
                 throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
-            username = href.replace('/', '');
+            username = normalizeTwitterScreenName(href);
+            if (!username)
+                throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
         }
         // Navigate directly to the user's profile page (gives us cookie context)
         await page.goto(`https://x.com/${username}`);

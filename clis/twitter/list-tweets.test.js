@@ -33,6 +33,8 @@ describe('twitter list-tweets parser', () => {
             url: 'https://x.com/bob/status/99',
             card: null,
             quoted_tweet: null,
+            has_media: false,
+            media_urls: [],
         });
     });
 
@@ -71,6 +73,52 @@ describe('twitter list-tweets parser', () => {
             has_media: true,
             media_urls: ['https://pbs.twimg.com/media/x.jpg'],
         });
+    });
+
+    it('includes photo media URLs from extended_entities', () => {
+        const tweet = extractTimelineTweet({
+            rest_id: '101',
+            legacy: {
+                full_text: 'pic post',
+                extended_entities: {
+                    media: [
+                        { type: 'photo', media_url_https: 'https://pbs.twimg.com/media/abc.jpg' },
+                        { type: 'photo', media_url_https: 'https://pbs.twimg.com/media/def.jpg' },
+                    ],
+                },
+            },
+            core: { user_results: { result: { legacy: { screen_name: 'dave' } } } },
+        }, new Set());
+        expect(tweet?.has_media).toBe(true);
+        expect(tweet?.media_urls).toEqual([
+            'https://pbs.twimg.com/media/abc.jpg',
+            'https://pbs.twimg.com/media/def.jpg',
+        ]);
+    });
+
+    it('extracts mp4 variant URL for video media', () => {
+        const tweet = extractTimelineTweet({
+            rest_id: '102',
+            legacy: {
+                full_text: 'video post',
+                extended_entities: {
+                    media: [{
+                        type: 'video',
+                        media_url_https: 'https://pbs.twimg.com/amplify_video_thumb/thumb.jpg',
+                        video_info: {
+                            variants: [
+                                { content_type: 'application/x-mpegURL', url: 'https://video.twimg.com/playlist.m3u8' },
+                                { content_type: 'video/mp4', bitrate: 832000, url: 'https://video.twimg.com/low.mp4' },
+                                { content_type: 'video/mp4', bitrate: 2176000, url: 'https://video.twimg.com/high.mp4' },
+                            ],
+                        },
+                    }],
+                },
+            },
+            core: { user_results: { result: { legacy: { screen_name: 'erin' } } } },
+        }, new Set());
+        expect(tweet?.has_media).toBe(true);
+        expect(tweet?.media_urls?.[0]).toMatch(/\.mp4$/);
     });
 
     it('prefers long-form note_tweet text over truncated legacy full_text', () => {

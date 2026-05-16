@@ -1,4 +1,23 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+
+const CHINA_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+});
+
+/** Format a Unix ms timestamp as the matching `YYYY-MM-DD` in Asia/Shanghai (xueqiu's canonical user timezone for all markets). */
+export function formatChinaDate(ts) {
+    if (ts == null) return null;
+    const parts = Object.fromEntries(
+        CHINA_DATE_FORMATTER.formatToParts(new Date(ts))
+            .filter((part) => part.type !== 'literal')
+            .map((part) => [part.type, part.value]),
+    );
+    return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
 /**
  * Fetch a xueqiu JSON API from inside the browser context (credentials included).
  * Page must already be navigated to xueqiu.com before calling this function.

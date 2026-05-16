@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
-import { resolveTwitterQueryId } from './shared.js';
+import { extractMedia, resolveTwitterQueryId } from './shared.js';
 
 // Companion to bookmark-folders.js: reads tweets inside a single folder.
 // X exposes folder contents through a separate timeline operation
@@ -11,6 +11,7 @@ import { resolveTwitterQueryId } from './shared.js';
 const OPERATION_NAME = 'BookmarkFolderTimeline';
 const FALLBACK_QUERY_ID = '13H7EUATwethsj_jZ6QQAQ';
 const FOLDER_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+const MAX_PAGINATION_PAGES = 100;
 
 const FEATURES = {
     rweb_video_screen_enabled: false,
@@ -53,7 +54,7 @@ function buildFolderTimelineUrl(queryId, folderId, count, cursor) {
         + `&features=${encodeURIComponent(JSON.stringify(FEATURES))}`;
 }
 
-function extractFolderTweet(result, seen) {
+export function extractFolderTweet(result, seen) {
     if (!result) return null;
     const tw = result.tweet || result;
     const legacy = tw.legacy || {};
@@ -71,6 +72,7 @@ function extractFolderTweet(result, seen) {
         bookmarks: legacy.bookmark_count || 0,
         created_at: legacy.created_at || '',
         url: screenName ? `https://x.com/${screenName}/status/${tw.rest_id}` : `https://x.com/i/status/${tw.rest_id}`,
+        ...extractMedia(legacy),
     };
 }
 
@@ -122,13 +124,12 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     args: [
         { name: 'folder-id', positional: true, type: 'string', required: true, help: 'Folder id from `opencli twitter bookmark-folders`.' },
         { name: 'limit', type: 'int', default: 20, help: 'Maximum number of bookmarks to return (default 20).' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the folder by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API\'s native (saved-time) ordering.' },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'bookmarks', 'created_at', 'url'],
+    columns: ['id', 'author', 'text', 'likes', 'retweets', 'bookmarks', 'created_at', 'url', 'has_media', 'media_urls'],
     func: async (page, kwargs) => {
         const folderId = String(kwargs['folder-id'] || '').trim();
         if (!folderId || !FOLDER_ID_PATTERN.test(folderId)) {
@@ -158,7 +159,8 @@ cli({
         const allTweets = [];
         const seen = new Set();
         let cursor = null;
-        for (let i = 0; i < 5 && allTweets.length < limit; i++) {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
             const fetchCount = Math.min(100, limit - allTweets.length + 10);
             const apiUrl = buildFolderTimelineUrl(queryId, folderId, fetchCount, cursor);
             const data = await page.evaluate(`async () => {
@@ -182,6 +184,7 @@ cli({
 
 export const __test__ = {
     parseBookmarkFolderTimeline,
+    extractFolderTweet,
     buildFolderTimelineUrl,
     FOLDER_ID_PATTERN,
 };

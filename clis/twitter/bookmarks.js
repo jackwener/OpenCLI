@@ -1,7 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { extractMedia } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const BOOKMARKS_QUERY_ID = 'Fy0QMy4q_aZCpkO0PnyLYw';
+const MAX_PAGINATION_PAGES = 100;
 const FEATURES = {
     rweb_video_screen_enabled: false,
     profile_label_improvements_pcf_label_in_post_enabled: true,
@@ -41,7 +43,7 @@ function buildBookmarksUrl(count, cursor) {
         + `?variables=${encodeURIComponent(JSON.stringify(vars))}`
         + `&features=${encodeURIComponent(JSON.stringify(FEATURES))}`;
 }
-function extractBookmarkTweet(result, seen) {
+export function extractBookmarkTweet(result, seen) {
     if (!result)
         return null;
     const tw = result.tweet || result;
@@ -63,9 +65,10 @@ function extractBookmarkTweet(result, seen) {
         bookmarks: legacy.bookmark_count || 0,
         created_at: legacy.created_at || '',
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
+        ...extractMedia(legacy),
     };
 }
-function parseBookmarks(data, seen) {
+export function parseBookmarks(data, seen) {
     const tweets = [];
     let nextCursor = null;
     const instructions = data?.data?.bookmark_timeline_v2?.timeline?.instructions
@@ -105,12 +108,11 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Maximum number of bookmarks to return (default 20).' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the bookmarks by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API\'s native (saved-time) ordering.' },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'bookmarks', 'created_at', 'url'],
+    columns: ['id', 'author', 'text', 'likes', 'retweets', 'bookmarks', 'created_at', 'url', 'has_media', 'media_urls'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 20;
         const cookies = await page.getCookies({ url: 'https://x.com' });
@@ -150,7 +152,8 @@ cli({
         const allTweets = [];
         const seen = new Set();
         let cursor = null;
-        for (let i = 0; i < 5 && allTweets.length < limit; i++) {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
             const fetchCount = Math.min(100, limit - allTweets.length + 10);
             const apiUrl = buildBookmarksUrl(fetchCount, cursor).replace(BOOKMARKS_QUERY_ID, queryId);
             const data = await page.evaluate(`async () => {
@@ -172,3 +175,7 @@ cli({
         return applyTopByEngagement(trimmed, kwargs['top-by-engagement']);
     },
 });
+export const __test__ = {
+    parseBookmarks,
+    extractBookmarkTweet,
+};

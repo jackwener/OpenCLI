@@ -7,7 +7,6 @@ cli({
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     args: [
         { name: 'username', type: 'string', required: true, positional: true, help: 'Reddit username (no `u/` prefix needed)' },
         { name: 'limit', type: 'int', default: 15 },

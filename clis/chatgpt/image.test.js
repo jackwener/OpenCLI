@@ -24,6 +24,12 @@ vi.mock('./utils.js', () => ({
     },
     prepareChatGPTImagePaths: mocks.prepareChatGPTImagePaths,
     sendChatGPTMessage: mocks.sendChatGPTMessage,
+    unwrapEvaluateResult: (payload) => {
+        if (payload && !Array.isArray(payload) && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
+            return payload.data;
+        }
+        return payload;
+    },
     uploadChatGPTImages: mocks.uploadChatGPTImages,
     waitForChatGPTImages: mocks.waitForChatGPTImages,
     getChatGPTImageAssets: mocks.getChatGPTImageAssets,

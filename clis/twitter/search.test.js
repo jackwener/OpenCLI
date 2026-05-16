@@ -2,71 +2,67 @@ import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './search.js';
 
-const { buildSearchQuery, resolveSearchFParam, HAS_CHOICES, EXCLUDE_CHOICES, PRODUCT_CHOICES, EXCLUDE_TO_OPERATOR, PRODUCT_TO_F_PARAM, FROM_USER_PATTERN } = __test__;
+const { buildSearchQuery, resolveSearchFParam, resolveSearchProduct, buildSearchTimelineRequest, parseSearchTimeline, HAS_CHOICES, EXCLUDE_CHOICES, PRODUCT_CHOICES, EXCLUDE_TO_OPERATOR, PRODUCT_TO_F_PARAM, FROM_USER_PATTERN } = __test__;
 describe('twitter search command', () => {
-    it('retries transient SPA navigation failures before giving up', async () => {
+    function makeSearchPage(data) {
+        return {
+            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'csrf' }]),
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce(null) // resolveTwitterQueryId fallback
+                .mockResolvedValueOnce(data),
+        };
+    }
+
+    it('fetches SearchTimeline directly instead of relying on SPA navigation', async () => {
         const command = getRegistry().get('twitter/search');
         expect(command?.func).toBeTypeOf('function');
-        const evaluate = vi.fn()
-            .mockResolvedValueOnce(undefined)
-            .mockResolvedValueOnce('/explore')
-            .mockResolvedValueOnce(undefined)
-            .mockResolvedValueOnce('/search');
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            installInterceptor: vi.fn().mockResolvedValue(undefined),
-            evaluate,
-            autoScroll: vi.fn().mockResolvedValue(undefined),
-            getInterceptedRequests: vi.fn().mockResolvedValue([
-                {
-                    data: {
-                        search_by_raw_query: {
-                            search_timeline: {
-                                timeline: {
-                                    instructions: [
+        const page = makeSearchPage({
+            data: {
+                search_by_raw_query: {
+                    search_timeline: {
+                        timeline: {
+                            instructions: [
+                                {
+                                    type: 'TimelineAddEntries',
+                                    entries: [
                                         {
-                                            type: 'TimelineAddEntries',
-                                            entries: [
-                                                {
-                                                    entryId: 'tweet-1',
-                                                    content: {
-                                                        itemContent: {
-                                                            tweet_results: {
-                                                                result: {
-                                                                    rest_id: '1',
-                                                                    legacy: {
-                                                                        full_text: 'hello world',
-                                                                        favorite_count: 7,
-                                                                        created_at: 'Thu Mar 26 10:30:00 +0000 2026',
-                                                                    },
-                                                                    core: {
-                                                                        user_results: {
-                                                                            result: {
-                                                                                core: {
-                                                                                    screen_name: 'alice',
-                                                                                },
-                                                                            },
+                                            entryId: 'tweet-1',
+                                            content: {
+                                                itemContent: {
+                                                    tweet_results: {
+                                                        result: {
+                                                            rest_id: '1',
+                                                            legacy: {
+                                                                full_text: 'hello world',
+                                                                favorite_count: 7,
+                                                                created_at: 'Thu Mar 26 10:30:00 +0000 2026',
+                                                            },
+                                                            core: {
+                                                                user_results: {
+                                                                    result: {
+                                                                        core: {
+                                                                            screen_name: 'alice',
                                                                         },
                                                                     },
-                                                                    views: {
-                                                                        count: '12',
-                                                                    },
                                                                 },
+                                                            },
+                                                            views: {
+                                                                count: '12',
                                                             },
                                                         },
                                                     },
                                                 },
-                                            ],
+                                            },
                                         },
                                     ],
                                 },
-                            },
+                            ],
                         },
                     },
                 },
-            ]),
-        };
+            },
+        });
         const result = await command.func(page, { query: 'from:alice', filter: 'top', limit: 5 });
         expect(result).toEqual([
             {
@@ -84,110 +80,60 @@ describe('twitter search command', () => {
                 quoted_tweet: null,
             },
         ]);
-        expect(page.installInterceptor).toHaveBeenCalledWith('SearchTimeline');
-        expect(evaluate).toHaveBeenCalledTimes(4);
+        expect(page.getCookies).toHaveBeenCalledWith({ url: 'https://x.com' });
+        expect(page.goto).toHaveBeenCalledWith('https://x.com/home', { waitUntil: 'load', settleMs: 1000 });
+        const searchFetch = page.evaluate.mock.calls[1][0];
+        expect(searchFetch).toContain('/SearchTimeline');
+        expect(searchFetch).toContain("method: 'POST'");
+        expect(searchFetch).toContain('\\"rawQuery\\":\\"from:alice\\"');
     });
-    it('uses f=live in search URL when filter is live', async () => {
+
+    it('uses the requested GraphQL product', async () => {
         const command = getRegistry().get('twitter/search');
-        const evaluate = vi.fn()
-            .mockResolvedValueOnce(undefined)
-            .mockResolvedValueOnce('/search');
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            installInterceptor: vi.fn().mockResolvedValue(undefined),
-            evaluate,
-            autoScroll: vi.fn().mockResolvedValue(undefined),
-            getInterceptedRequests: vi.fn().mockResolvedValue([]),
-        };
-        await command.func(page, { query: 'breaking news', filter: 'live', limit: 5 });
-        const pushStateCall = evaluate.mock.calls[0][0];
-        expect(pushStateCall).toContain('f=live');
-        expect(pushStateCall).toContain(encodeURIComponent('breaking news'));
+        const page = makeSearchPage({ data: { search_by_raw_query: { search_timeline: { timeline: { instructions: [] } } } } });
+        await command.func(page, { query: 'cats', product: 'videos', limit: 5 });
+        expect(page.evaluate.mock.calls[1][0]).toContain('\\"product\\":\\"Videos\\"');
     });
-    it('uses f=top in search URL when filter is top', async () => {
+
+    it('paginates past the old five-page cap until the requested limit is reached', async () => {
         const command = getRegistry().get('twitter/search');
-        const evaluate = vi.fn()
-            .mockResolvedValueOnce(undefined)
-            .mockResolvedValueOnce('/search');
+        let pageIndex = 0;
         const page = {
+            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'csrf' }]),
             goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            installInterceptor: vi.fn().mockResolvedValue(undefined),
-            evaluate,
-            autoScroll: vi.fn().mockResolvedValue(undefined),
-            getInterceptedRequests: vi.fn().mockResolvedValue([]),
-        };
-        await command.func(page, { query: 'test', filter: 'top', limit: 5 });
-        const pushStateCall = evaluate.mock.calls[0][0];
-        expect(pushStateCall).toContain('f=top');
-    });
-    it('falls back to top when filter is omitted', async () => {
-        const command = getRegistry().get('twitter/search');
-        const evaluate = vi.fn()
-            .mockResolvedValueOnce(undefined)
-            .mockResolvedValueOnce('/search');
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            installInterceptor: vi.fn().mockResolvedValue(undefined),
-            evaluate,
-            autoScroll: vi.fn().mockResolvedValue(undefined),
-            getInterceptedRequests: vi.fn().mockResolvedValue([]),
-        };
-        await command.func(page, { query: 'test', limit: 5 });
-        const pushStateCall = evaluate.mock.calls[0][0];
-        expect(pushStateCall).toContain('f=top');
-    });
-    it('falls back to search input when pushState fails twice', async () => {
-        const command = getRegistry().get('twitter/search');
-        expect(command?.func).toBeTypeOf('function');
-        const evaluate = vi.fn()
-            .mockResolvedValueOnce(undefined) // pushState attempt 1
-            .mockResolvedValueOnce('/explore') // pathname check 1 — not /search
-            .mockResolvedValueOnce(undefined) // pushState attempt 2
-            .mockResolvedValueOnce('/explore') // pathname check 2 — still not /search
-            .mockResolvedValueOnce({ ok: true }) // search input fallback succeeds
-            .mockResolvedValueOnce('/search'); // pathname check after fallback
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            installInterceptor: vi.fn().mockResolvedValue(undefined),
-            evaluate,
-            autoScroll: vi.fn().mockResolvedValue(undefined),
-            getInterceptedRequests: vi.fn().mockResolvedValue([
-                {
+            evaluate: vi.fn().mockImplementation(async () => {
+                if (pageIndex === 0) {
+                    pageIndex += 1;
+                    return null;
+                }
+                const id = String(pageIndex);
+                pageIndex += 1;
+                return {
                     data: {
                         search_by_raw_query: {
                             search_timeline: {
                                 timeline: {
                                     instructions: [
                                         {
-                                            type: 'TimelineAddEntries',
                                             entries: [
                                                 {
-                                                    entryId: 'tweet-99',
                                                     content: {
                                                         itemContent: {
                                                             tweet_results: {
                                                                 result: {
-                                                                    rest_id: '99',
-                                                                    legacy: {
-                                                                        full_text: 'fallback works',
-                                                                        favorite_count: 3,
-                                                                        created_at: 'Wed Apr 02 12:00:00 +0000 2026',
-                                                                    },
-                                                                    core: {
-                                                                        user_results: {
-                                                                            result: {
-                                                                                core: { screen_name: 'bob' },
-                                                                            },
-                                                                        },
-                                                                    },
-                                                                    views: { count: '5' },
+                                                                    rest_id: id,
+                                                                    legacy: { full_text: `tweet ${id}`, created_at: 'now' },
+                                                                    core: { user_results: { result: { core: { screen_name: 'alice' } } } },
                                                                 },
                                                             },
                                                         },
+                                                    },
+                                                },
+                                                {
+                                                    content: {
+                                                        entryType: 'TimelineTimelineCursor',
+                                                        cursorType: 'Bottom',
+                                                        value: `cursor-${id}`,
                                                     },
                                                 },
                                             ],
@@ -197,103 +143,13 @@ describe('twitter search command', () => {
                             },
                         },
                     },
-                },
-            ]),
+                };
+            }),
         };
-        const result = await command.func(page, { query: 'test fallback', filter: 'top', limit: 5 });
-        expect(result).toEqual([
-            {
-                id: '99',
-                author: 'bob',
-                bio: '',
-                text: 'fallback works',
-                created_at: 'Wed Apr 02 12:00:00 +0000 2026',
-                likes: 3,
-                views: '5',
-                url: 'https://x.com/i/status/99',
-                has_media: false,
-                media_urls: [],
-                card: null,
-                quoted_tweet: null,
-            },
-        ]);
-        // 6 evaluate calls: 2x pushState + 2x pathname check + 1x fallback + 1x pathname check
-        expect(evaluate).toHaveBeenCalledTimes(6);
-        expect(page.autoScroll).toHaveBeenCalled();
-    });
-    it('clicks the requested product tab after fallback navigation when f= param is absent', async () => {
-        const command = getRegistry().get('twitter/search');
-        expect(command?.func).toBeTypeOf('function');
-        const evaluate = vi.fn()
-            .mockResolvedValueOnce(undefined) // pushState attempt 1
-            .mockResolvedValueOnce('/explore')
-            .mockResolvedValueOnce(undefined) // pushState attempt 2
-            .mockResolvedValueOnce('/explore')
-            .mockResolvedValueOnce({ ok: true }) // search input fallback
-            .mockResolvedValueOnce('/search')
-            .mockResolvedValueOnce(true); // product tab click
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            installInterceptor: vi.fn().mockResolvedValue(undefined),
-            evaluate,
-            autoScroll: vi.fn().mockResolvedValue(undefined),
-            getInterceptedRequests: vi.fn().mockResolvedValue([]),
-        };
-        const result = await command.func(page, { query: 'cats', product: 'photos', limit: 5 });
-        expect(result).toEqual([]);
-        expect(evaluate).toHaveBeenCalledTimes(7);
-        expect(evaluate.mock.calls[6][0]).toContain('Photos');
-        expect(page.autoScroll).toHaveBeenCalled();
-    });
-    it('throws when fallback navigation cannot select the requested product tab', async () => {
-        const command = getRegistry().get('twitter/search');
-        expect(command?.func).toBeTypeOf('function');
-        const evaluate = vi.fn()
-            .mockResolvedValueOnce(undefined) // pushState attempt 1
-            .mockResolvedValueOnce('/explore')
-            .mockResolvedValueOnce(undefined) // pushState attempt 2
-            .mockResolvedValueOnce('/explore')
-            .mockResolvedValueOnce({ ok: true }) // search input fallback
-            .mockResolvedValueOnce('/search')
-            .mockResolvedValueOnce(false); // requested tab missing
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            installInterceptor: vi.fn().mockResolvedValue(undefined),
-            evaluate,
-            autoScroll: vi.fn().mockResolvedValue(undefined),
-            getInterceptedRequests: vi.fn(),
-        };
-        await expect(command.func(page, { query: 'cats', product: 'videos', limit: 5 }))
-            .rejects
-            .toThrow(/could not select the requested product tab: video/);
-        expect(page.autoScroll).not.toHaveBeenCalled();
-        expect(page.getInterceptedRequests).not.toHaveBeenCalled();
-    });
-    it('throws with the final path after both attempts fail', async () => {
-        const command = getRegistry().get('twitter/search');
-        expect(command?.func).toBeTypeOf('function');
-        const evaluate = vi.fn()
-            .mockResolvedValueOnce(undefined) // pushState attempt 1
-            .mockResolvedValueOnce('/explore') // pathname check 1
-            .mockResolvedValueOnce(undefined) // pushState attempt 2
-            .mockResolvedValueOnce('/login') // pathname check 2
-            .mockResolvedValueOnce({ ok: false }); // search input fallback
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            installInterceptor: vi.fn().mockResolvedValue(undefined),
-            evaluate,
-            autoScroll: vi.fn().mockResolvedValue(undefined),
-            getInterceptedRequests: vi.fn(),
-        };
-        await expect(command.func(page, { query: 'from:alice', filter: 'top', limit: 5 }))
-            .rejects
-            .toThrow('Final path: /login');
-        expect(page.autoScroll).not.toHaveBeenCalled();
-        expect(page.getInterceptedRequests).not.toHaveBeenCalled();
-        expect(evaluate).toHaveBeenCalledTimes(5);
+        const result = await command.func(page, { query: 'opencli', limit: 7 });
+        expect(result).toHaveLength(7);
+        expect(result.map((row) => row.id)).toEqual(['1', '2', '3', '4', '5', '6', '7']);
+        expect(page.evaluate).toHaveBeenCalledTimes(8);
     });
 });
 
@@ -417,18 +273,15 @@ describe('twitter search filter helpers', () => {
 });
 
 describe('twitter search end-to-end with new filters', () => {
-    it('encodes the composed query and product=live into the f= URL param', async () => {
+    it('encodes the composed query and product=live into the GraphQL request', async () => {
         const command = getRegistry().get('twitter/search');
         const evaluate = vi.fn()
-            .mockResolvedValueOnce(undefined)
-            .mockResolvedValueOnce('/search');
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce({ data: { search_by_raw_query: { search_timeline: { timeline: { instructions: [] } } } } });
         const page = {
+            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'csrf' }]),
             goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            installInterceptor: vi.fn().mockResolvedValue(undefined),
             evaluate,
-            autoScroll: vi.fn().mockResolvedValue(undefined),
-            getInterceptedRequests: vi.fn().mockResolvedValue([]),
         };
         await command.func(page, {
             query: 'breaking news',
@@ -438,37 +291,26 @@ describe('twitter search end-to-end with new filters', () => {
             product: 'live',
             limit: 5,
         });
-        const pushStateCall = evaluate.mock.calls[0][0];
-        // f=live wins because --product=live trumps the default --filter
-        expect(pushStateCall).toContain('f=live');
-        // composed query should be percent-encoded inside the URL
-        const encoded = encodeURIComponent('breaking news from:alice filter:images -filter:nativeretweets');
-        expect(pushStateCall).toContain(encoded);
+        const searchFetch = evaluate.mock.calls[1][0];
+        expect(searchFetch).toContain('\\"product\\":\\"Latest\\"');
+        expect(searchFetch).toContain('\\"rawQuery\\":\\"breaking news from:alice filter:images -filter:nativeretweets\\"');
     });
     it('throws ArgumentError when query and all filters are empty', async () => {
         const command = getRegistry().get('twitter/search');
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            installInterceptor: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn(),
-            autoScroll: vi.fn().mockResolvedValue(undefined),
-            getInterceptedRequests: vi.fn(),
         };
         await expect(command.func(page, { query: '   ', limit: 5 }))
             .rejects
             .toThrow(/empty/i);
-        expect(page.installInterceptor).not.toHaveBeenCalled();
+        expect(page.goto).not.toHaveBeenCalled();
     });
     it('throws ArgumentError for invalid --from before navigation', async () => {
         const command = getRegistry().get('twitter/search');
         const page = {
             goto: vi.fn(),
-            wait: vi.fn(),
-            installInterceptor: vi.fn(),
             evaluate: vi.fn(),
-            autoScroll: vi.fn(),
-            getInterceptedRequests: vi.fn(),
         };
         await expect(command.func(page, { query: 'hi', from: 'alice filter:links', limit: 5 }))
             .rejects
@@ -479,11 +321,7 @@ describe('twitter search end-to-end with new filters', () => {
         const command = getRegistry().get('twitter/search');
         const page = {
             goto: vi.fn(),
-            wait: vi.fn(),
-            installInterceptor: vi.fn(),
             evaluate: vi.fn(),
-            autoScroll: vi.fn(),
-            getInterceptedRequests: vi.fn(),
         };
         await expect(command.func(page, { query: 'hi', limit: 0 }))
             .rejects
@@ -493,19 +331,16 @@ describe('twitter search end-to-end with new filters', () => {
     it('runs with only filters set (empty <query>)', async () => {
         const command = getRegistry().get('twitter/search');
         const evaluate = vi.fn()
-            .mockResolvedValueOnce(undefined)
-            .mockResolvedValueOnce('/search');
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce({ data: { search_by_raw_query: { search_timeline: { timeline: { instructions: [] } } } } });
         const page = {
+            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'csrf' }]),
             goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            installInterceptor: vi.fn().mockResolvedValue(undefined),
             evaluate,
-            autoScroll: vi.fn().mockResolvedValue(undefined),
-            getInterceptedRequests: vi.fn().mockResolvedValue([]),
         };
         const result = await command.func(page, { query: '', from: 'alice', limit: 5 });
         expect(result).toEqual([]);
-        const pushStateCall = evaluate.mock.calls[0][0];
-        expect(pushStateCall).toContain(encodeURIComponent('from:alice'));
+        const searchFetch = evaluate.mock.calls[1][0];
+        expect(searchFetch).toContain('\\"rawQuery\\":\\"from:alice\\"');
     });
 });

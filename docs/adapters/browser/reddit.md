@@ -47,6 +47,9 @@ opencli reddit whoami
 # Read a post thread
 opencli reddit read 1abc123 --depth 2
 
+# Read with "more comments" expansion via /api/morechildren.json
+opencli reddit read 1abc123 --depth 3 --expand-more --expand-rounds 3
+
 # Comment on a post
 opencli reddit comment 1abc123 "Great post"
 
@@ -70,6 +73,14 @@ instead of silently returning empty rows.
 For `subreddit-info`, missing / banned / private / quarantined subreddits raise
 `EmptyResultError` (exit code 6) so the output table never contains a silent
 sentinel row.
+
+For `read`, deleted / quarantined / private posts (HTTP 401/403/404 on
+`/comments/<id>.json`) also raise `EmptyResultError`. `--expand-more` follows
+Reddit's "more comments" stubs by calling `/api/morechildren.json` up to
+`--expand-rounds` times (default 2, max 5). If the morechildren endpoint
+itself rejects the request with 401/403, that's surfaced as
+`AuthRequiredError` because writeable/expand endpoints often require a logged-
+in session even though the post listing is public.
 
 ## Prerequisites
 

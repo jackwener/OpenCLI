@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
-import './comments.js';
+import { buildCommentsExtractJs, parseXhsLikeCountText } from './comments.js';
 function createPageMock(evaluateResult) {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -25,6 +26,41 @@ function createPageMock(evaluateResult) {
         waitForCapture: vi.fn().mockResolvedValue(undefined),
     };
 }
+
+async function runCommentsExtract(html) {
+    const dom = new JSDOM(html, { url: 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok' });
+    const previousDocument = globalThis.document;
+    const previousLocation = globalThis.location;
+    globalThis.document = dom.window.document;
+    globalThis.location = dom.window.location;
+    try {
+        return await eval(buildCommentsExtractJs(false));
+    } finally {
+        globalThis.document = previousDocument;
+        globalThis.location = previousLocation;
+    }
+}
+
+describe('parseXhsLikeCountText', () => {
+    it('parses exact integer and shortform like counts', () => {
+        expect(parseXhsLikeCountText('0')).toBe(0);
+        expect(parseXhsLikeCountText('42')).toBe(42);
+        expect(parseXhsLikeCountText('1,234')).toBe(1234);
+        expect(parseXhsLikeCountText('1，234+')).toBe(1234);
+        expect(parseXhsLikeCountText('2.1w')).toBe(21000);
+        expect(parseXhsLikeCountText('1.5万')).toBe(15000);
+        expect(parseXhsLikeCountText('1.2k')).toBe(1200);
+        expect(parseXhsLikeCountText('3千')).toBe(3000);
+        expect(parseXhsLikeCountText(' 2.1 w + ')).toBe(21000);
+    });
+
+    it('returns 0 for unknown shapes without overparsing arbitrary text', () => {
+        for (const raw of ['', null, undefined, '赞', 'likes 2.1w', '2w人', '1,23', '1.2.3k', '.', '1.5']) {
+            expect(parseXhsLikeCountText(raw)).toBe(0);
+        }
+    });
+});
+
 describe('xiaohongshu comments', () => {
     const command = getRegistry().get('xiaohongshu/comments');
     it('returns ranked comment rows for signed full URLs', async () => {
@@ -119,6 +155,32 @@ describe('xiaohongshu comments', () => {
         expect(script).toContain("const beforeCount = scroller.querySelectorAll('.parent-comment').length");
         expect(script).toContain("const afterCount = scroller.querySelectorAll('.parent-comment').length");
         expect(script).toContain('if (afterCount <= beforeCount) break');
+    });
+    it('extracts shortform like counts from the shared xiaohongshu/rednote DOM script', async () => {
+        const data = await runCommentsExtract(`
+          <main>
+            <section class="parent-comment">
+              <div class="comment-item">
+                <div class="author-wrapper"><span class="name">Alice</span></div>
+                <div class="content">Great note</div>
+                <span class="count">2.1w</span>
+                <span class="date">today</span>
+              </div>
+            </section>
+            <section class="parent-comment">
+              <div class="comment-item">
+                <span class="user-name">Bob</span>
+                <div class="note-text">Malformed count</div>
+                <span class="count">likes 2.1w</span>
+              </div>
+            </section>
+          </main>
+        `);
+
+        expect(data.results).toEqual([
+            { author: 'Alice', text: 'Great note', likes: 21000, time: 'today', is_reply: false, reply_to: '' },
+            { author: 'Bob', text: 'Malformed count', likes: 0, time: '', is_reply: false, reply_to: '' },
+        ]);
     });
     it('respects the limit for top-level comments', async () => {
         const manyComments = Array.from({ length: 10 }, (_, i) => ({

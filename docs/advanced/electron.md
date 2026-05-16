@@ -4,7 +4,7 @@ description: How to CLI-ify and automate any Electron Desktop Application via CD
 
 # CLI-ifying Electron Applications (Skill Guide)
 
-Based on the successful automation of **Cursor**, **Codex**, **Antigravity**, **ChatWise**, **Notion**, and **Discord** desktop apps, this guide serves as the standard operating procedure (SOP) for adapting ANY Electron-based application into an OpenCLI adapter.
+Based on the successful automation of **Cursor**, **Codex**, **Antigravity**, **ChatWise**, and **Discord** desktop apps, this guide serves as the standard operating procedure (SOP) for adapting ANY Electron-based application into an OpenCLI adapter.
 
 ## Core Concept
 
@@ -108,7 +108,7 @@ Core techniques:
 
 ## Pitfalls & Gotchas
 
-1. **Port conflicts (EADDRINUSE)**: Only one app per port. Use unique ports: Codex=9222, ChatGPT=9224, Cursor=9226, ChatWise=9228, Notion=9230, Discord=9232
+1. **Port conflicts (EADDRINUSE)**: Only one app per port. Use unique ports: Codex=9222, ChatGPT=9224, Cursor=9226, ChatWise=9228, Discord=9232
 2. **IPage abstraction**: OpenCLI wraps the browser page as `IPage` (`src/types.ts`). Use `page.pressKey()` and `page.evaluate()`, NOT direct DOM APIs
 3. **Timing**: Always add `await page.wait(0.5)` to `1.0` after DOM mutations. Returning too early disconnects prematurely
 4. **AppleScript requires Accessibility**: Terminal app must be granted permission in System Settings → Privacy & Security → Accessibility
@@ -121,5 +121,4 @@ Core techniques:
 | ChatGPT | 9224 | CDP / AppleScript |
 | Cursor | 9226 | CDP |
 | ChatWise | 9228 | CDP |
-| Notion | 9230 | CDP |
 | Discord App | 9232 | CDP |

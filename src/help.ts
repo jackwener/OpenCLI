@@ -147,11 +147,16 @@ export function classifyAdapter(domain: string | undefined): AdapterKind {
 
 export interface RootAdapterGroups {
   /** Externally-registered CLIs (docker, gh, vercel, ...) — passthrough binaries */
-  external: readonly string[];
+  external: readonly RootExternalCli[];
   /** Desktop-app adapters (chatgpt-app, chatwise, codex, ...) */
   apps: readonly string[];
   /** Web-site adapters (bilibili, dianping, ...) */
   sites: readonly string[];
+}
+
+export interface RootExternalCli {
+  name: string;
+  label: string;
 }
 
 function formatGroupSection(label: string, names: readonly string[]): string[] {
@@ -167,7 +172,7 @@ export function formatRootAdapterHelpText(groups: RootAdapterGroups): string {
   const total = groups.external.length + groups.apps.length + groups.sites.length;
   if (total === 0) return '';
   const lines: string[] = [''];
-  lines.push(...formatGroupSection('External CLIs', groups.external));
+  lines.push(...formatGroupSection('External CLIs', groups.external.map(cli => cli.label)));
   lines.push(...formatGroupSection('App adapters', groups.apps));
   lines.push(...formatGroupSection('Site adapters', groups.sites));
   lines.push("Run 'opencli list' for full command details, or 'opencli <site> --help' to inspect one site.");
@@ -468,7 +473,7 @@ function compactCommand(cmd: CliCommand): Record<string, unknown> {
 }
 
 export function rootHelpData(program: Command, groups: RootAdapterGroups): Record<string, unknown> {
-  const adapterNames = new Set<string>([...groups.external, ...groups.apps, ...groups.sites]);
+  const adapterNames = new Set<string>([...groups.external.map(cli => cli.name), ...groups.apps, ...groups.sites]);
   const commands = program.commands
     .filter(command => !adapterNames.has(command.name()))
     .map(command => ({
@@ -483,7 +488,8 @@ export function rootHelpData(program: Command, groups: RootAdapterGroups): Recor
     commands,
     external_clis: {
       count: groups.external.length,
-      clis: [...groups.external].sort(sortLocale),
+      clis: groups.external.map(cli => cli.name).sort(sortLocale),
+      display: groups.external.map(cli => cli.label).sort(sortLocale),
     },
     app_adapters: {
       count: groups.apps.length,

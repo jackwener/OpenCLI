@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './bookmark-folder.js';
 
-const { parseBookmarkFolderTimeline, buildFolderTimelineUrl, FOLDER_ID_PATTERN } = __test__;
+const { parseBookmarkFolderTimeline, extractFolderTweet, buildFolderTimelineUrl, FOLDER_ID_PATTERN } = __test__;
 
 describe('twitter bookmark-folder URL builder', () => {
     it('embeds the folder id and count in the variables payload', () => {
@@ -97,6 +97,8 @@ describe('twitter bookmark-folder timeline parser', () => {
                 bookmarks: 3,
                 created_at: 'Tue Mar 17 09:00:00 +0000 2026',
                 url: 'https://x.com/alice/status/1',
+                has_media: false,
+                media_urls: [],
             },
         ]);
         expect(nextCursor).toBe('NEXT_CURSOR');
@@ -246,6 +248,62 @@ describe('twitter bookmark-folder timeline parser', () => {
 
     it('returns empty array + null cursor for unknown envelope', () => {
         expect(parseBookmarkFolderTimeline({}, new Set())).toEqual({ tweets: [], nextCursor: null });
+    });
+
+    it('includes photo media URLs from extended_entities', () => {
+        const tweet = extractFolderTweet({
+            rest_id: '101',
+            legacy: {
+                full_text: 'pic folder tweet',
+                extended_entities: {
+                    media: [
+                        { type: 'photo', media_url_https: 'https://pbs.twimg.com/media/abc.jpg' },
+                        { type: 'photo', media_url_https: 'https://pbs.twimg.com/media/def.jpg' },
+                    ],
+                },
+            },
+            core: { user_results: { result: { legacy: { screen_name: 'eve' } } } },
+        }, new Set());
+        expect(tweet?.has_media).toBe(true);
+        expect(tweet?.media_urls).toEqual([
+            'https://pbs.twimg.com/media/abc.jpg',
+            'https://pbs.twimg.com/media/def.jpg',
+        ]);
+    });
+
+    it('extracts mp4 variant URL for video media', () => {
+        const tweet = extractFolderTweet({
+            rest_id: '102',
+            legacy: {
+                full_text: 'video folder tweet',
+                extended_entities: {
+                    media: [{
+                        type: 'video',
+                        media_url_https: 'https://pbs.twimg.com/amplify_video_thumb/thumb.jpg',
+                        video_info: {
+                            variants: [
+                                { content_type: 'application/x-mpegURL', url: 'https://video.twimg.com/playlist.m3u8' },
+                                { content_type: 'video/mp4', bitrate: 832000, url: 'https://video.twimg.com/low.mp4' },
+                                { content_type: 'video/mp4', bitrate: 2176000, url: 'https://video.twimg.com/high.mp4' },
+                            ],
+                        },
+                    }],
+                },
+            },
+            core: { user_results: { result: { legacy: { screen_name: 'frank' } } } },
+        }, new Set());
+        expect(tweet?.has_media).toBe(true);
+        expect(tweet?.media_urls?.[0]).toMatch(/\.mp4$/);
+    });
+
+    it('returns has_media false / media_urls empty when no media present', () => {
+        const tweet = extractFolderTweet({
+            rest_id: '103',
+            legacy: { full_text: 'text only', favorite_count: 0, retweet_count: 0, bookmark_count: 0 },
+            core: { user_results: { result: { legacy: { screen_name: 'gail' } } } },
+        }, new Set());
+        expect(tweet?.has_media).toBe(false);
+        expect(tweet?.media_urls).toEqual([]);
     });
 });
 

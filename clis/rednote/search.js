@@ -6,8 +6,8 @@
  * 1:1 comparison between the two frontends.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
-import { buildScrollUntilJs, buildSearchExtractJs, noteIdToDate } from '../xiaohongshu/search.js';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { buildScrollUntilJs, buildSearchExtractJs, noteIdToDate, unwrapEvaluateResult } from '../xiaohongshu/search.js';
 
 function parseLimit(raw) {
     const parsed = Number(raw);
@@ -18,6 +18,13 @@ function parseLimit(raw) {
         throw new ArgumentError(`--limit must be between 1 and 100, got ${parsed}`);
     }
     return parsed;
+}
+function requireSearchRows(payload) {
+    const rows = unwrapEvaluateResult(payload);
+    if (!Array.isArray(rows)) {
+        throw new CommandExecutionError('Unexpected Rednote search extraction payload shape; expected an array of rows.');
+    }
+    return rows;
 }
 
 /**
@@ -78,7 +85,7 @@ cli({
         const limit = parseLimit(kwargs.limit ?? 20);
         const keyword = encodeURIComponent(kwargs.query);
         await page.goto(`https://www.rednote.com/search_result?keyword=${keyword}&source=web_search_result_notes`);
-        const waitResult = await page.evaluate(WAIT_FOR_CONTENT_JS);
+        const waitResult = unwrapEvaluateResult(await page.evaluate(WAIT_FOR_CONTENT_JS));
         if (waitResult === 'login_wall') {
             throw new AuthRequiredError('www.rednote.com', 'Rednote search results are blocked behind a login wall');
         }
@@ -87,8 +94,7 @@ cli({
         // `autoScroll({ times: 2 })` capped extraction at ~13 notes regardless
         // of `--limit`.
         await page.evaluate(buildScrollUntilJs(limit));
-        const payload = await page.evaluate(buildSearchExtractJs('www.rednote.com'));
-        const data = Array.isArray(payload) ? payload : [];
+        const data = requireSearchRows(await page.evaluate(buildSearchExtractJs('www.rednote.com')));
         return data
             .filter((item) => item.title)
             .slice(0, limit)

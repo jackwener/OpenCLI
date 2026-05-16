@@ -10,14 +10,13 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command, InvalidArgumentError, Option } from 'commander';
-import { styleText } from 'node:util';
 import { findPackageRoot, getBuiltEntryCandidates } from './package-paths.js';
 import { type CliCommand, fullName, getRegistry, strategyLabel } from './registry.js';
 import { serializeCommand, formatArgSummary } from './serialization.js';
 import { render as renderOutput } from './output.js';
 import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
-import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled } from './external.js';
+import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled, formatExternalCliLabel } from './external.js';
 import { registerAllCommands } from './commanderAdapter.js';
 import { classifyAdapter, formatRootAdapterHelpText, installCommanderNamespaceStructuredHelp, installStructuredHelp, leadingPositionalFromUsage, rootHelpData, type RootAdapterGroups } from './help.js';
 import { EXIT_CODES, getErrorMessage, BrowserConnectError } from './errors.js';
@@ -606,33 +605,33 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
 
       console.log();
-      console.log(styleText('bold', '  opencli') + styleText('dim', ' — available commands'));
+      console.log('  opencli' + ' — available commands');
       console.log();
       for (const [site, cmds] of sites) {
-        console.log(styleText(['bold', 'cyan'], `  ${site}`));
+        console.log(`  ${site}`);
         for (const cmd of cmds) {
           const label = strategyLabel(cmd);
           const tag = label === 'public'
-            ? styleText('green', '[public]')
-            : styleText('yellow', `[${label}]`);
-          const aliases = cmd.aliases?.length ? styleText('dim', ` (aliases: ${cmd.aliases.join(', ')})`) : '';
-          console.log(`    ${cmd.name} ${tag}${aliases}${cmd.description ? styleText('dim', ` — ${cmd.description}`) : ''}`);
+            ? '[public]'
+            : `[${label}]`;
+          const aliases = cmd.aliases?.length ? ` (aliases: ${cmd.aliases.join(', ')})` : '';
+          console.log(`    ${cmd.name} ${tag}${aliases}${cmd.description ? ` — ${cmd.description}` : ''}`);
         }
         console.log();
       }
 
       const externalClis = loadExternalClis();
       if (externalClis.length > 0) {
-        console.log(styleText(['bold', 'cyan'], '  external CLIs'));
+        console.log('  external CLIs');
         for (const ext of externalClis) {
           const isInstalled = isBinaryInstalled(ext.binary);
-          const tag = isInstalled ? styleText('green', '[installed]') : styleText('yellow', '[auto-install]');
-          console.log(`    ${ext.name} ${tag}${ext.description ? styleText('dim', ` — ${ext.description}`) : ''}`);
+          const tag = isInstalled ? '[installed]' : '[auto-install]';
+          console.log(`    ${formatExternalCliLabel(ext)} ${tag}${ext.description ? ` — ${ext.description}` : ''}`);
         }
         console.log();
       }
 
-      console.log(styleText('dim', `  ${commands.length} built-in commands across ${sites.size} sites, ${externalClis.length} external CLIs`));
+      console.log(`  ${commands.length} built-in commands across ${sites.size} sites, ${externalClis.length} external CLIs`);
       console.log();
     });
 
@@ -2804,15 +2803,15 @@ cli({
         await discoverPlugins();
         if (Array.isArray(result)) {
           if (result.length === 0) {
-            console.log(styleText('yellow', 'No plugins were installed (all skipped or incompatible).'));
+            console.log('No plugins were installed (all skipped or incompatible).');
           } else {
-            console.log(styleText('green', `\u2705 Installed ${result.length} plugin(s) from monorepo: ${result.join(', ')}`));
+            console.log(`\u2705 Installed ${result.length} plugin(s) from monorepo: ${result.join(', ')}`);
           }
         } else {
-          console.log(styleText('green', `\u2705 Plugin "${result}" installed successfully. Commands are ready to use.`));
+          console.log(`\u2705 Plugin "${result}" installed successfully. Commands are ready to use.`);
         }
       } catch (err) {
-        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        console.error(`Error: ${getErrorMessage(err)}`);
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
@@ -2825,9 +2824,9 @@ cli({
       const { uninstallPlugin } = await import('./plugin.js');
       try {
         uninstallPlugin(name);
-        console.log(styleText('green', `✅ Plugin "${name}" uninstalled.`));
+        console.log(`✅ Plugin "${name}" uninstalled.`);
       } catch (err) {
-        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        console.error(`Error: ${getErrorMessage(err)}`);
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
@@ -2839,12 +2838,12 @@ cli({
     .option('--all', 'Update all installed plugins')
     .action(async (name: string | undefined, opts: { all?: boolean }) => {
       if (!name && !opts.all) {
-        console.error(styleText('red', 'Error: Please specify a plugin name or use the --all flag.'));
+        console.error('Error: Please specify a plugin name or use the --all flag.');
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
       if (name && opts.all) {
-        console.error(styleText('red', 'Error: Cannot specify both a plugin name and --all.'));
+        console.error('Error: Cannot specify both a plugin name and --all.');
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
@@ -2858,27 +2857,27 @@ cli({
         }
 
         let hasErrors = false;
-        console.log(styleText('bold', '  Update Results:'));
+        console.log('  Update Results:');
         for (const result of results) {
           if (result.success) {
-            console.log(`  ${styleText('green', '✓')} ${result.name}`);
+            console.log(`  ✓ ${result.name}`);
             continue;
           }
           hasErrors = true;
-          console.log(`  ${styleText('red', '✗')} ${result.name} — ${styleText('dim', String(result.error))}`);
+          console.log(`  ✗ ${result.name} — ${String(result.error)}`);
         }
 
         if (results.length === 0) {
-          console.log(styleText('dim', '  No plugins installed.'));
+          console.log('  No plugins installed.');
           return;
         }
 
         console.log();
         if (hasErrors) {
-          console.error(styleText('red', 'Completed with some errors.'));
+          console.error('Completed with some errors.');
           process.exitCode = EXIT_CODES.GENERIC_ERROR;
         } else {
-          console.log(styleText('green', '✅ All plugins updated successfully.'));
+          console.log('✅ All plugins updated successfully.');
         }
         return;
       }
@@ -2886,9 +2885,9 @@ cli({
       try {
         updatePlugin(name!);
         await discoverPlugins();
-        console.log(styleText('green', `✅ Plugin "${name}" updated successfully.`));
+        console.log(`✅ Plugin "${name}" updated successfully.`);
       } catch (err) {
-        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        console.error(`Error: ${getErrorMessage(err)}`);
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
@@ -2902,8 +2901,8 @@ cli({
       const { listPlugins } = await import('./plugin.js');
       const plugins = listPlugins();
       if (plugins.length === 0) {
-        console.log(styleText('dim', '  No plugins installed.'));
-        console.log(styleText('dim', '  Install one with: opencli plugin install github:user/repo'));
+        console.log('  No plugins installed.');
+        console.log('  Install one with: opencli plugin install github:user/repo');
         return;
       }
       if (opts.format === 'json') {
@@ -2916,7 +2915,7 @@ cli({
         return;
       }
       console.log();
-      console.log(styleText('bold', '  Installed plugins'));
+      console.log('  Installed plugins');
       console.log();
 
       // Group by monorepo
@@ -2930,26 +2929,26 @@ cli({
       }
 
       for (const p of standalone) {
-        const version = p.version ? styleText('green', ` @${p.version}`) : '';
-        const desc = p.description ? styleText('dim', ` — ${p.description}`) : '';
-        const cmds = p.commands.length > 0 ? styleText('dim', ` (${p.commands.join(', ')})`) : '';
-        const src = p.source ? styleText('dim', ` ← ${p.source}`) : '';
-        console.log(`  ${styleText('cyan', p.name)}${version}${desc}${cmds}${src}`);
+        const version = p.version ? ` @${p.version}` : '';
+        const desc = p.description ? ` — ${p.description}` : '';
+        const cmds = p.commands.length > 0 ? ` (${p.commands.join(', ')})` : '';
+        const src = p.source ? ` ← ${p.source}` : '';
+        console.log(`  ${p.name}${version}${desc}${cmds}${src}`);
       }
 
       for (const [mono, group] of monoGroups) {
         console.log();
-        console.log(styleText(['bold', 'magenta'], `  📦 ${mono}`) + styleText('dim', ' (monorepo)'));
+        console.log(`  📦 ${mono}` + ' (monorepo)');
         for (const p of group) {
-          const version = p.version ? styleText('green', ` @${p.version}`) : '';
-          const desc = p.description ? styleText('dim', ` — ${p.description}`) : '';
-          const cmds = p.commands.length > 0 ? styleText('dim', ` (${p.commands.join(', ')})`) : '';
-          console.log(`    ${styleText('cyan', p.name)}${version}${desc}${cmds}`);
+          const version = p.version ? ` @${p.version}` : '';
+          const desc = p.description ? ` — ${p.description}` : '';
+          const cmds = p.commands.length > 0 ? ` (${p.commands.join(', ')})` : '';
+          console.log(`    ${p.name}${version}${desc}${cmds}`);
         }
       }
 
       console.log();
-      console.log(styleText('dim', `  ${plugins.length} plugin(s) installed`));
+      console.log(`  ${plugins.length} plugin(s) installed`);
       console.log();
     });
 
@@ -2966,19 +2965,19 @@ cli({
           dir: opts.dir,
           description: opts.description,
         });
-        console.log(styleText('green', `✅ Plugin scaffold created at ${result.dir}`));
+        console.log(`✅ Plugin scaffold created at ${result.dir}`);
         console.log();
-        console.log(styleText('bold', '  Files created:'));
+        console.log('  Files created:');
         for (const f of result.files) {
-          console.log(`    ${styleText('cyan', f)}`);
+          console.log(`    ${f}`);
         }
         console.log();
-        console.log(styleText('dim', '  Next steps:'));
-        console.log(styleText('dim', `    cd ${result.dir}`));
-        console.log(styleText('dim', `    opencli plugin install file://${result.dir}`));
-        console.log(styleText('dim', `    opencli ${name} hello`));
+        console.log('  Next steps:');
+        console.log(`    cd ${result.dir}`);
+        console.log(`    opencli plugin install file://${result.dir}`);
+        console.log(`    opencli ${name} hello`);
       } catch (err) {
-        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        console.error(`Error: ${getErrorMessage(err)}`);
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
     });
@@ -3034,22 +3033,22 @@ cli({
       try {
         await fs.promises.access(builtinSiteDir);
       } catch {
-        console.error(styleText('red', `Error: Site "${site}" not found in official adapters.`));
+        console.error(`Error: Site "${site}" not found in official adapters.`);
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
 
       try {
         await fs.promises.access(userSiteDir);
-        console.error(styleText('yellow', `Site "${site}" already exists in ~/.opencli/clis/. Use "opencli adapter reset ${site}" first to restore official version.`));
+        console.error(`Site "${site}" already exists in ~/.opencli/clis/. Use "opencli adapter reset ${site}" first to restore official version.`);
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       } catch { /* good, doesn't exist yet */ }
 
       fs.cpSync(builtinSiteDir, userSiteDir, { recursive: true });
-      console.log(styleText('green', `✅ Ejected "${site}" to ~/.opencli/clis/${site}/`));
+      console.log(`✅ Ejected "${site}" to ~/.opencli/clis/${site}/`);
       console.log('You can now edit the adapter files. Changes take effect immediately.');
-      console.log(styleText('yellow', 'Note: Official updates to this adapter will overwrite your changes.'));
+      console.log('Note: Official updates to this adapter will overwrite your changes.');
     });
 
   adapterCmd
@@ -3072,7 +3071,7 @@ cli({
           for (const dir of dirs) {
             fs.rmSync(path.join(userClisDir, dir.name), { recursive: true, force: true });
           }
-          console.log(styleText('green', `✅ Reset ${dirs.length} site(s). All adapters now use official baseline.`));
+          console.log(`✅ Reset ${dirs.length} site(s). All adapters now use official baseline.`);
         } catch {
           console.log('No local sites to reset.');
         }
@@ -3080,7 +3079,7 @@ cli({
       }
 
       if (!site) {
-        console.error(styleText('red', 'Error: Please specify a site name or use --all.'));
+        console.error('Error: Please specify a site name or use --all.');
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
@@ -3089,15 +3088,15 @@ cli({
       try {
         await fs.promises.access(userSiteDir);
       } catch {
-        console.error(styleText('yellow', `Site "${site}" has no local override.`));
+        console.error(`Site "${site}" has no local override.`);
         return;
       }
 
       const isOfficial = fs.existsSync(path.join(BUILTIN_CLIS, site));
       fs.rmSync(userSiteDir, { recursive: true, force: true });
-      console.log(styleText('green', isOfficial
+      console.log(isOfficial
         ? `✅ Reset "${site}". Now using official baseline.`
-        : `✅ Removed custom site "${site}".`));
+        : `✅ Removed custom site "${site}".`);
     });
 
   // ── Built-in: browser profile selection ──────────────────────────────────
@@ -3113,27 +3112,27 @@ cli({
       const config = loadProfileConfig();
       const profiles = status?.profiles ?? [];
       if (!status) {
-        console.log(styleText('yellow', 'Daemon is not running. Run opencli doctor after opening Chrome.'));
+        console.log('Daemon is not running. Run opencli doctor after opening Chrome.');
         return;
       }
       if (isDaemonStale(status, PKG_VERSION) || !Array.isArray(status.profiles)) {
-        console.log(styleText('yellow', `Daemon ${formatDaemonVersion(status)} is stale for CLI v${PKG_VERSION}.`));
-        console.log(styleText('dim', 'Run: opencli daemon restart'));
+        console.log(`Daemon ${formatDaemonVersion(status)} is stale for CLI v${PKG_VERSION}.`);
+        console.log('Run: opencli daemon restart');
         return;
       }
       if (profiles.length === 0) {
-        console.log(styleText('yellow', 'No Browser Bridge profiles connected.'));
-        console.log(styleText('dim', 'Open a Chrome profile with the OpenCLI extension installed, then run opencli profile list again.'));
+        console.log('No Browser Bridge profiles connected.');
+        console.log('Open a Chrome profile with the OpenCLI extension installed, then run opencli profile list again.');
         return;
       }
 
       const knownContextIds = new Set(profiles.map((profile) => profile.contextId));
-      console.log(styleText('bold', 'Connected Browser Bridge profiles'));
+      console.log('Connected Browser Bridge profiles');
       console.log();
       for (const profile of profiles) {
         const alias = aliasForContextId(config, profile.contextId);
-        const defaultMark = config.defaultContextId === profile.contextId ? styleText('green', ' default') : '';
-        const aliasText = alias ? ` ${styleText('cyan', alias)}` : '';
+        const defaultMark = config.defaultContextId === profile.contextId ? ' default' : '';
+        const aliasText = alias ? ` ${alias}` : '';
         const version = profile.extensionVersion ? ` v${profile.extensionVersion}` : ' version unknown';
         console.log(`  ${profile.contextId}${aliasText}${defaultMark} — connected${version}`);
       }
@@ -3142,14 +3141,14 @@ cli({
         .filter(([, contextId]) => !knownContextIds.has(contextId));
       if (disconnectedAliases.length > 0 || (config.defaultContextId && !knownContextIds.has(config.defaultContextId))) {
         console.log();
-        console.log(styleText('dim', 'Disconnected saved profiles:'));
+        console.log('Disconnected saved profiles:');
         const shown = new Set<string>();
         for (const [alias, contextId] of disconnectedAliases) {
           shown.add(contextId);
-          console.log(styleText('dim', `  ${contextId} ${alias} — not connected`));
+          console.log(`  ${contextId} ${alias} — not connected`);
         }
         if (config.defaultContextId && !shown.has(config.defaultContextId) && !knownContextIds.has(config.defaultContextId)) {
-          console.log(styleText('dim', `  ${config.defaultContextId} — default, not connected`));
+          console.log(`  ${config.defaultContextId} — default, not connected`);
         }
       }
     });
@@ -3162,9 +3161,9 @@ cli({
     .action((contextId: string, alias: string) => {
       try {
         renameProfile(contextId, alias);
-        console.log(`Profile ${contextId} is now aliased as ${styleText('cyan', alias)}.`);
+        console.log(`Profile ${contextId} is now aliased as ${alias}.`);
       } catch (err) {
-        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        console.error(`Error: ${getErrorMessage(err)}`);
         process.exitCode = EXIT_CODES.USAGE_ERROR;
       }
     });
@@ -3176,9 +3175,9 @@ cli({
     .action((profile: string) => {
       try {
         const config = setDefaultProfile(profile);
-        console.log(`Default Browser Bridge profile: ${styleText('cyan', config.defaultContextId ?? profile)}`);
+        console.log(`Default Browser Bridge profile: ${config.defaultContextId ?? profile}`);
       } catch (err) {
-        console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+        console.error(`Error: ${getErrorMessage(err)}`);
         process.exitCode = EXIT_CODES.USAGE_ERROR;
       }
     });
@@ -3215,7 +3214,7 @@ cli({
     .action((name: string) => {
       const ext = externalClis.find(e => e.name === name);
       if (!ext) {
-        console.error(styleText('red', `External CLI '${name}' not found in registry.`));
+        console.error(`External CLI '${name}' not found in registry.`);
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
@@ -3240,6 +3239,7 @@ cli({
     .action((opts) => {
       const rows = loadExternalClis().map((ext) => ({
         name: ext.name,
+        package: ext.package ?? '',
         binary: ext.binary,
         installed: isBinaryInstalled(ext.binary),
         description: ext.description ?? '',
@@ -3248,7 +3248,7 @@ cli({
       }));
       renderOutput(rows, {
         fmt: opts.format,
-        columns: ['name', 'binary', 'installed', 'description', 'homepage', 'tags'],
+        columns: ['name', 'package', 'binary', 'installed', 'description', 'homepage', 'tags'],
         title: 'opencli/external/list',
         source: 'opencli external list',
       });
@@ -3262,7 +3262,7 @@ cli({
     try {
       executeExternalCli(name, args, externalClis);
     } catch (err) {
-      console.error(styleText('red', `Error: ${getErrorMessage(err)}`));
+      console.error(`Error: ${getErrorMessage(err)}`);
       process.exitCode = EXIT_CODES.GENERIC_ERROR;
     }
   }
@@ -3307,6 +3307,10 @@ cli({
   // Classification derives from each adapter's `domain` field — see classifyAdapter.
   // External CLIs are taken from the externalClis registry (passthrough binaries).
   const externalNames = externalClis.map(ext => ext.name);
+  const externalHelpEntries = externalClis.map(ext => ({
+    name: ext.name,
+    label: formatExternalCliLabel(ext),
+  }));
   const siteDomains = new Map<string, string | undefined>();
   for (const [, cmd] of getRegistry()) {
     if (!siteDomains.has(cmd.site)) siteDomains.set(cmd.site, cmd.domain);
@@ -3317,7 +3321,7 @@ cli({
     if (classifyAdapter(siteDomains.get(site)) === 'app') apps.push(site);
     else sites.push(site);
   }
-  const adapterGroups: RootAdapterGroups = { external: externalNames, apps, sites };
+  const adapterGroups: RootAdapterGroups = { external: externalHelpEntries, apps, sites };
   const adapterNameSet = new Set<string>([...externalNames, ...siteNames]);
   installCommanderNamespaceStructuredHelp(browser, { globalCommand: program, description: originalBrowserDescription });
   installCommanderNamespaceStructuredHelp(daemonCmd, { globalCommand: program, description: originalDaemonDescription });
@@ -3357,9 +3361,9 @@ cli({
 
   program.on('command:*', (operands: string[]) => {
     const binary = operands[0];
-    console.error(styleText('red', `error: unknown command '${binary}'`));
+    console.error(`error: unknown command '${binary}'`);
     if (isBinaryInstalled(binary)) {
-      console.error(styleText('dim', `  Tip: '${binary}' exists on your PATH. Use 'opencli external register ${binary}' to add it as an external CLI.`));
+      console.error(`  Tip: '${binary}' exists on your PATH. Use 'opencli external register ${binary}' to add it as an external CLI.`);
     }
     program.outputHelp();
     process.exitCode = EXIT_CODES.USAGE_ERROR;

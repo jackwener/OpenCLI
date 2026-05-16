@@ -153,7 +153,6 @@ When the adapter is ready, also add:
 Examples to study:
 - `docs/adapters/desktop/codex.md`
 - `docs/adapters/desktop/chatwise.md`
-- `docs/adapters/desktop/notion.md`
 - `docs/adapters/desktop/discord.md`
 
 ## Common failure modes

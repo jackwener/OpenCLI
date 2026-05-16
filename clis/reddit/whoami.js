@@ -9,7 +9,6 @@ cli({
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     args: [],
     columns: ['field', 'value'],
     func: async (page) => {

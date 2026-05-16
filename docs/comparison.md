@@ -71,14 +71,14 @@ OpenCLI occupies a specific niche in the browser automation ecosystem. This guid
 
 ### 5. Desktop App Control
 
-> "I want to script Cursor, ChatGPT, Notion, or other Electron apps from the terminal."
+> "I want to script Cursor, ChatGPT, or other Electron apps from the terminal."
 
 | Tool | Fit | Notes |
 |------|-----|-------|
-| **opencli** | Best | 8 desktop adapters via CDP + AppleScript. The only CLI tool with this capability. |
+| **opencli** | Best | 7 desktop adapters via CDP + AppleScript. The only CLI tool with this capability. |
 | All others | N/A | Browser automation tools cannot control desktop applications. |
 
-**This is unique to opencli.** No other tool in this comparison can send a prompt to ChatGPT desktop, extract code from Cursor, or write to Notion pages via CLI.
+**This is unique to opencli.** No other tool in this comparison can send a prompt to ChatGPT desktop or extract code from Cursor via CLI.
 
 ## Key Trade-offs
 
@@ -88,7 +88,7 @@ OpenCLI occupies a specific niche in the browser automation ecosystem. This guid
 - **Deterministic output** — Same command always returns the same schema. Pipeable, scriptable, CI-friendly.
 - **Speed** — Adapter commands return in seconds, not minutes.
 - **Broad platform coverage** — 100+ registered site surfaces spanning global platforms (Reddit, HackerNews, Twitter, YouTube) and Chinese platforms (Bilibili, Zhihu, Xiaohongshu, Douban, Weibo) with adapters that understand local anti-bot patterns.
-- **Desktop app control** — CDP adapters for Cursor, Codex, Notion, ChatGPT, Discord, and more.
+- **Desktop app control** — CDP adapters for Cursor, Codex, ChatGPT, Discord, and more.
 - **Easy to extend** — Drop a `.js` adapter into the `clis/` folder for auto-registration. Contributing a new site adapter is straightforward.
 
 ### opencli's Limitations

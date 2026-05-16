@@ -25,8 +25,7 @@ OPENCLI_CDP_TARGET=detail.1688.com opencli 1688 item 841141931191 -f json
 
 ### Node API errors
 
-- Make sure you are using **Node.js >= 21**. Some features require `node:util` styleText (stable in Node 21+).
-- Run `node --version` to verify.
+- Make sure you are using **Node.js >= 20**. Run `node --version` to verify.
 
 ### Daemon issues
 

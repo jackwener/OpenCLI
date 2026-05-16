@@ -218,7 +218,10 @@ describe('chatgpt image upload helper', () => {
             setFileInput: vi.fn().mockRejectedValue(new Error('No element found')),
             wait: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => {
-                return Promise.resolve({ ok: true });
+                if (String(script).includes('new DataTransfer()')) {
+                    return Promise.resolve({ ok: true });
+                }
+                return Promise.resolve(true);
             }),
         };
 

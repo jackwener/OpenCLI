@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { JSDOM } from 'jsdom';
-import { __test__, buildScrollUntilJs, noteIdToDate } from './search.js';
+import { __test__, buildScrollUntilJs, noteIdToDate, unwrapEvaluateResult } from './search.js';
 
 function markVisible(el) {
     el.getBoundingClientRect = () => ({ width: 100, height: 100 });
@@ -57,26 +57,37 @@ describe('xiaohongshu search', () => {
         expect(page.evaluate).toHaveBeenCalledTimes(1);
         expect(page.autoScroll).not.toHaveBeenCalled();
     });
+    it('unwraps a browser-bridge envelope before handling login-wall wait result', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock([
+            { session: 'site:xiaohongshu', data: 'login_wall' },
+        ]);
+
+        await expect(cmd.func(page, { query: '特斯拉', limit: 5 })).rejects.toMatchObject({
+            code: 'AUTH_REQUIRED',
+            message: expect.stringContaining('blocked behind a login wall'),
+        });
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
     it('returns ranked results with search_result url and author_url preserved', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         expect(cmd?.func).toBeTypeOf('function');
         const detailUrl = 'https://www.xiaohongshu.com/search_result/68e90be80000000004022e66?xsec_token=test-token&xsec_source=';
         const authorUrl = 'https://www.xiaohongshu.com/user/profile/635a9c720000000018028b40?xsec_token=user-token&xsec_source=pc_search';
+        const rows = [
+            {
+                title: '某鱼买FSD被坑了4万',
+                author: '随风',
+                likes: '261',
+                url: detailUrl,
+                author_url: authorUrl,
+            },
+        ];
         const page = createPageMock([
             // First evaluate: MutationObserver wait (content appeared)
             'content',
-            // Second evaluate: scroll-until-enough (returns final note count)
-            1,
-            // Third evaluate: main DOM extraction (returns array directly)
-            [
-                {
-                    title: '某鱼买FSD被坑了4万',
-                    author: '随风',
-                    likes: '261',
-                    url: detailUrl,
-                    author_url: authorUrl,
-                },
-            ],
+            // Second evaluate: initial DOM extraction (already enough results) through Browser Bridge envelope.
+            { session: 'site:xiaohongshu', data: rows },
         ]);
         const result = await cmd.func(page, { query: '特斯拉', limit: 1 });
         // Should only do one goto (the search page itself), no per-note detail navigation
@@ -93,15 +104,25 @@ describe('xiaohongshu search', () => {
             },
         ]);
     });
+    it('fails typed instead of silently returning [] for malformed extraction payloads', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock([
+            'content',
+            { session: 'site:xiaohongshu', data: { rows: [] } },
+        ]);
+
+        await expect(cmd.func(page, { query: '测试', limit: 1 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('payload shape'),
+        });
+    });
     it('filters out results with no title and respects the limit', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         expect(cmd?.func).toBeTypeOf('function');
         const page = createPageMock([
             // First evaluate: MutationObserver wait (content appeared)
             'content',
-            // Second evaluate: scroll-until-enough (returns final note count)
-            3,
-            // Third evaluate: main DOM extraction (returns array directly)
+            // Second evaluate: initial DOM extraction (already enough valid rows)
             [
                 {
                     title: 'Result A',
@@ -137,17 +158,40 @@ describe('xiaohongshu search', () => {
         const page = createPageMock([
             // First evaluate: MutationObserver wait (content appeared)
             'content',
-            // Second evaluate: scroll-until-enough (no rows rendered)
+            // Second evaluate: initial extraction (no rows rendered)
+            [],
+            // Third evaluate: scroll-until row count
             0,
-            // Third evaluate: extraction (returns empty array)
+            // Fourth evaluate: post-scroll extraction (still no rows)
             [],
         ]);
         const result = (await cmd.func(page, { query: '测试等待', limit: 5 }));
         expect(result).toHaveLength(0);
         // Only one navigation, no retry
         expect(page.goto).toHaveBeenCalledTimes(1);
-        // Three evaluate calls: wait + scroll-until + extraction
-        expect(page.evaluate).toHaveBeenCalledTimes(3);
+        // Four evaluate calls: wait, initial extraction, scroll-until, post-scroll extraction.
+        expect(page.evaluate).toHaveBeenCalledTimes(4);
+    });
+    it('scrolls only when the initial extraction has fewer rows than requested', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        expect(cmd?.func).toBeTypeOf('function');
+        const page = createPageMock([
+            'content',
+            [
+                { title: 'Result A', author: 'UserA', likes: '10', url: 'https://www.xiaohongshu.com/search_result/aaa', author_url: '' },
+            ],
+            3,
+            [
+                { title: 'Result A', author: 'UserA', likes: '10', url: 'https://www.xiaohongshu.com/search_result/aaa', author_url: '' },
+                { title: 'Result B', author: 'UserB', likes: '5', url: 'https://www.xiaohongshu.com/search_result/bbb', author_url: '' },
+            ],
+        ]);
+
+        const result = (await cmd.func(page, { query: '测试等待', limit: 2 }));
+
+        expect(result).toHaveLength(2);
+        expect(result.map((item) => item.title)).toEqual(['Result A', 'Result B']);
+        expect(page.evaluate).toHaveBeenCalledTimes(4);
     });
     it('separates fallback author text from appended relative date', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
@@ -165,8 +209,6 @@ describe('xiaohongshu search', () => {
         markVisible(dom.window.document.querySelector('section.note-item'));
         const page = createPageMock([]);
         page.evaluate.mockImplementationOnce(async () => 'content');
-        // scroll-until-enough returns the final visible row count
-        page.evaluate.mockImplementationOnce(async () => 1);
         page.evaluate.mockImplementationOnce(async (script) => Function('document', 'getComputedStyle', `return (${script})`)(dom.window.document, dom.window.getComputedStyle.bind(dom.window)));
 
         const result = await cmd.func(page, { query: '测试', limit: 1 });
@@ -253,5 +295,31 @@ describe('noteIdToDate (ObjectID timestamp parsing)', () => {
     it('returns empty string when timestamp is out of range', () => {
         // All zeros → ts = 0
         expect(noteIdToDate('https://www.xiaohongshu.com/search_result/000000000000000000000000')).toBe('');
+    });
+});
+describe('unwrapEvaluateResult (browser-bridge envelope normalization)', () => {
+    it('returns the raw array unchanged when payload is already an array', () => {
+        const arr = [{ title: 'a' }, { title: 'b' }];
+        expect(unwrapEvaluateResult(arr)).toBe(arr);
+    });
+    it('unwraps { session, data: [...] } envelope to the inner array', () => {
+        const arr = [{ title: 'a' }];
+        const env = { session: 'site:xiaohongshu:abc', data: arr };
+        expect(unwrapEvaluateResult(env)).toBe(arr);
+    });
+    it('unwraps primitive data from Browser Bridge envelopes', () => {
+        expect(unwrapEvaluateResult({ session: 'site:xiaohongshu:abc', data: 'login_wall' })).toBe('login_wall');
+    });
+    it('passes non-envelope objects through unchanged', () => {
+        const obj = { results: [], loginWall: true };
+        expect(unwrapEvaluateResult(obj)).toBe(obj);
+    });
+    it('handles null and undefined safely', () => {
+        expect(unwrapEvaluateResult(null)).toBe(null);
+        expect(unwrapEvaluateResult(undefined)).toBe(undefined);
+    });
+    it('unwraps non-array envelope data so callers can validate the payload shape', () => {
+        const env = { session: 'x', data: { not: 'an array' } };
+        expect(unwrapEvaluateResult(env)).toEqual({ not: 'an array' });
     });
 });

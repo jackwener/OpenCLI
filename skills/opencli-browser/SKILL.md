@@ -25,6 +25,7 @@ Until `doctor` is green, nothing else will work. Typical failures: Chrome not ru
 ## Session lifecycle
 
 - `opencli browser *` commands require a `<session>` positional immediately after `browser`. Use the same session name for a multi-step flow; use a different name to isolate parallel browser work.
+- Use a stable session name for any multi-command or human-paced browser workflow. Example: `opencli browser fb-yaya-warmup open https://example.com`, then reuse `opencli browser fb-yaya-warmup state`, `extract`, `click`, etc.
 - Owned browser sessions keep a tab lease alive between calls. Release it with `opencli browser <session> close` or let the idle timeout expire.
 - `opencli browser <session> bind` binds the Chrome tab you already have open to that session. Use this for logged-in pages, SSO flows, or pages you manually positioned before handing control to the agent.
 - `--window foreground|background` (or `OPENCLI_WINDOW=foreground|background`) chooses whether OpenCLI creates/focuses a foreground browser window or uses a background browser window for owned sessions.
@@ -59,14 +60,15 @@ Bound sessions have no OpenCLI idle-close timer; the binding lasts until `unbind
 ## Critical rules
 
 1. **Always inspect before you act.** Run `state` or `find` first. Never hard-code a ref or selector from memory across sessions — indices are per-snapshot.
-2. **Prefer numeric ref over CSS once you have it.** Numeric refs survive mild DOM shifts because the CLI fingerprints each tagged element. A CSS selector written by hand will break the first time the site re-renders.
-3. **Read `match_level` after every write.** `exact` = all good. `stable` = the element is the same but some soft attrs drifted — your action still applied. `reidentified` = the original ref was gone and the CLI found a unique replacement; double-check you hit the right element.
-4. **Use the `compound` field for form controls.** Do not regex-guess a date format, do not `state` twice to get the full `<select>` options list. The compound envelope has the format string, full option list up to 50, `options_total` for overflow, and `accept`/`multiple` for `<input type=file>`.
-5. **Verify writes that matter.** After `type <target> <text>`, run `get value <target>`. After `select`, run `get value`. Autocomplete widgets, React controlled inputs, and masked fields all silently eat characters. The CLI cannot detect this for you.
-6. **`state` → action → `state` after a page change.** Navigations, form submits, and SPA route changes invalidate refs. Take a fresh snapshot. Do not reuse refs from before the transition.
-7. **Chain with `&&`.** A chained sequence runs in one shell so refs acquired by the first command stay live for the second. Separate shell invocations lose the session context you just set up.
-8. **`eval` is read-only.** Wrap the JS in an IIFE and return JSON. If you need to *change* the page, use the structured `click` / `type` / `select` / `keys` commands instead — they produce structured output and fingerprints, `eval` does not.
-9. **Prefer `network` to screen-scraping.** If a page you care about fetches its data from a JSON API, the API is almost always more reliable than scraping the rendered DOM. Capture once, inspect the shape, then `--detail <key>` the body you need.
+2. **Prefer site adapters before raw browser driving.** If `opencli <site> <command>` already covers the task, use that adapter command first (`opencli facebook notifications`, `opencli reddit read`, etc.). Use `opencli browser ...` only for gaps, debugging, or one-off UI flows the adapter does not expose.
+3. **Prefer numeric ref over CSS once you have it.** Numeric refs survive mild DOM shifts because the CLI fingerprints each tagged element. A CSS selector written by hand will break the first time the site re-renders.
+4. **Read `match_level` after every write.** `exact` = all good. `stable` = the element is the same but some soft attrs drifted — your action still applied. `reidentified` = the original ref was gone and the CLI found a unique replacement; double-check you hit the right element.
+5. **Use the `compound` field for form controls.** Do not regex-guess a date format, do not `state` twice to get the full `<select>` options list. The compound envelope has the format string, full option list up to 50, `options_total` for overflow, and `accept`/`multiple` for `<input type=file>`.
+6. **Verify writes that matter.** After `type <target> <text>`, run `get value <target>`. After `select`, run `get value`. Autocomplete widgets, React controlled inputs, and masked fields all silently eat characters. The CLI cannot detect this for you.
+7. **`state` → action → `state` after a page change.** Navigations, form submits, and SPA route changes invalidate refs. Take a fresh snapshot. Do not reuse refs from before the transition.
+8. **Chain with `&&` when reusing freshly parsed refs.** A chained sequence runs in one shell so the ref you just read from output can be passed directly to the next command. Separate shell invocations keep the named browser session, but any shell-local variables or copied refs from the previous command can go stale after page changes.
+9. **`eval` is read-only.** Wrap the JS in an IIFE and return JSON. If you need to *change* the page, use the structured `click` / `type` / `select` / `keys` commands instead — they produce structured output and fingerprints, `eval` does not.
+10. **Prefer `network` to screen-scraping.** If a page you care about fetches its data from a JSON API, the API is almost always more reliable than scraping the rendered DOM. Capture once, inspect the shape, then `--detail <key>` the body you need.
 
 ---
 

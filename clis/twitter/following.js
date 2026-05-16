@@ -1,10 +1,11 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { resolveTwitterQueryId, sanitizeQueryId } from './shared.js';
+import { normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, unwrapBrowserResult } from './shared.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 
 const FOLLOWING_QUERY_ID = 'zx6e-TLzRkeDO_a7p4b3JQ';  // Following fallback
 const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
+const MAX_PAGINATION_PAGES = 100;
 
 const FEATURES = {
     rweb_video_screen_enabled: false,
@@ -128,7 +129,7 @@ function parseFollowing(data) {
 }
 
 function normalizeScreenName(value) {
-    return String(value || '').trim().replace(/^\/+/, '').replace(/^@+/, '');
+    return normalizeTwitterScreenName(value);
 }
 
 cli({
@@ -139,7 +140,6 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     args: [
         {
             name: 'user',
@@ -156,7 +156,11 @@ cli({
         if (!Number.isInteger(limit) || limit <= 0) {
             throw new ArgumentError('twitter following --limit must be a positive integer', 'Example: opencli twitter following @elonmusk --limit 200');
         }
-        let targetUser = normalizeScreenName(kwargs.user);
+        const rawUser = String(kwargs.user ?? '').trim();
+        let targetUser = normalizeScreenName(rawUser);
+        if (rawUser && !targetUser) {
+            throw new ArgumentError('twitter following user must be a valid Twitter/X handle', 'Example: opencli twitter following @elonmusk --limit 200');
+        }
 
         const cookies = await page.getCookies({ url: 'https://x.com' });
         const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
@@ -164,13 +168,25 @@ cli({
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
 
         if (!targetUser) {
-            const href = await page.evaluate(() => {
-                const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
-                return link ? link.getAttribute('href') : null;
-            });
-            if (!href)
+            // Force a navigation to the home surface so the AppTabBar sidebar
+            // is rendered; the framework pre-nav lands on bare x.com which
+            // does not always expose AppTabBar_Profile_Link.
+            await page.goto('https://x.com/home');
+            await page.wait({ selector: '[data-testid="primaryColumn"]' });
+            // Bridge wraps primitive page.evaluate returns as { session, data:<value> };
+            // unwrap so the href string is usable downstream.
+            // NOTE: the function-literal form `() => ...` silently drops
+            // primitive return values through the bridge — only the template
+            // string form preserves the `data` field.
+            const href = unwrapBrowserResult(await page.evaluate(`() => {
+        const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
+        return link ? link.getAttribute('href') : null;
+      }`));
+            if (!href || typeof href !== 'string')
                 throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
-            targetUser = normalizeScreenName(href.replace('/', ''));
+            targetUser = normalizeScreenName(href);
+            if (!targetUser)
+                throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
         }
         if (!targetUser) {
             throw new ArgumentError('twitter following user cannot be empty', 'Example: opencli twitter following @elonmusk --limit 200');
@@ -186,12 +202,12 @@ cli({
         };
 
         // Get userId from screen_name
-        const userLookup = await page.evaluate(async (url, headers) => {
+        const userLookup = unwrapBrowserResult(await page.evaluate(async (url, headers) => {
             const resp = await fetch(url, { headers, credentials: 'include' });
             if (!resp.ok) return { error: resp.status };
             const d = await resp.json();
             return { userId: d.data?.user?.result?.rest_id || null };
-        }, buildUserByScreenNameUrl(userByScreenNameQueryId, targetUser), headers);
+        }, buildUserByScreenNameUrl(userByScreenNameQueryId, targetUser), headers));
         if (userLookup?.error === 401 || userLookup?.error === 403) {
             throw new AuthRequiredError('x.com', `Twitter user lookup failed (HTTP ${userLookup.error})`);
         }
@@ -206,14 +222,14 @@ cli({
         const seen = new Set();
         let cursor = null;
 
-        const maxPages = Math.ceil(limit / 50) + 2;
-        for (let i = 0; i < maxPages && allUsers.length < limit; i++) {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && allUsers.length < limit; i++) {
             const fetchCount = Math.min(50, limit - allUsers.length + 10);
             const apiUrl = buildFollowingUrl(followingQueryId, userId, fetchCount, cursor);
-            const data = await page.evaluate(async (url, headers) => {
+            const data = unwrapBrowserResult(await page.evaluate(async (url, headers) => {
                 const r = await fetch(url, { headers, credentials: 'include' });
                 return r.ok ? await r.json() : { error: r.status };
-            }, apiUrl, headers);
+            }, apiUrl, headers));
             if (data?.error) {
                 if (data.error === 401 || data.error === 403)
                     throw new AuthRequiredError('x.com', `Twitter following request failed (HTTP ${data.error})`);

@@ -2,10 +2,11 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { BROWSER_JSON_SNIFF_FN, throwIfLoginWall } from '@jackwener/opencli/utils';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
-import { extractCard, extractQuotedTweet } from './shared.js';
+import { extractCard, extractQuotedTweet, extractMedia } from './shared.js';
 
 const LIST_TWEETS_QUERY_ID = 'RlZzktZY_9wJynoepm8ZsA';
 const OPERATION_NAME = 'ListLatestTweetsTimeline';
+const MAX_PAGINATION_PAGES = 100;
 
 const FEATURES = {
     rweb_video_screen_enabled: false,
@@ -76,6 +77,7 @@ export function extractTimelineTweet(result, seen) {
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
         card: extractCard(tw),
         quoted_tweet: extractQuotedTweet(tw),
+        ...extractMedia(legacy),
     };
 }
 
@@ -118,13 +120,12 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     args: [
         { name: 'listId', positional: true, type: 'string', required: true, help: 'Numeric ID of a Twitter/X list (e.g. from `opencli twitter lists`)' },
         { name: 'limit', type: 'int', default: 50 },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the list timeline by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the list\'s native (recency) ordering.' },
     ],
-    columns: ['id', 'author', 'bio', 'text', 'likes', 'retweets', 'replies', 'created_at', 'url', 'card', 'quoted_tweet'],
+    columns: ['id', 'author', 'bio', 'text', 'likes', 'retweets', 'replies', 'created_at', 'url', 'card', 'quoted_tweet', 'has_media', 'media_urls'],
     func: async (page, kwargs) => {
         const listId = String(kwargs.listId || '').trim();
         if (!listId || !/^\d+$/.test(listId)) {
@@ -135,7 +136,11 @@ cli({
         const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
-        const queryId = await page.evaluate(`async () => {
+        // opencli >=1.7.x wraps primitive page.evaluate returns as { session, data: <value> }.
+        // Without unwrap, the string queryId becomes "[object Object]" when interpolated into the URL,
+        // causing HTTP 400 "queryId may have expired".
+        const unwrap = (v) => (v && typeof v === 'object' && 'session' in v && 'data' in v ? v.data : v);
+        const queryIdRaw = await page.evaluate(`async () => {
             try {
                 const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json');
                 if (ghResp.ok) {
@@ -158,7 +163,8 @@ cli({
                 }
             } catch {}
             return null;
-        }`) || LIST_TWEETS_QUERY_ID;
+        }`);
+        const queryId = unwrap(queryIdRaw) || LIST_TWEETS_QUERY_ID;
         const headers = JSON.stringify({
             'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
@@ -168,7 +174,8 @@ cli({
         const allTweets = [];
         const seen = new Set();
         let cursor = null;
-        for (let i = 0; i < 10 && allTweets.length < limit; i++) {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
             const fetchCount = Math.min(100, limit - allTweets.length + 10);
             const apiUrl = buildUrl(queryId, listId, fetchCount, cursor);
             const data = throwIfLoginWall(await page.evaluate(`async () => {

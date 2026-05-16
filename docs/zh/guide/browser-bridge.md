@@ -46,6 +46,24 @@ opencli browser baidu tab close <targetId>
 - `tab select <targetId>` 会把该 tab 设为后续未显式指定 target 的 `opencli browser ...` 命令默认目标。
 - `tab close <targetId>` 会关闭该 tab；如果它正好是当前默认目标，会一并清掉这条默认绑定。
 
+## Session 生命周期
+
+如果你希望多条 `opencli browser` 命令持续操作同一个页面，请使用稳定的 session 名称：
+
+```bash
+opencli browser my-session open https://example.com
+opencli browser my-session state
+opencli browser my-session extract "main"
+```
+
+OpenCLI 拥有的 browser session 使用交互式 tab lease，默认空闲超时为 10 分钟。完成后可以显式释放：
+
+```bash
+opencli browser my-session close
+```
+
+如果要把 OpenCLI 绑定到你已经手动打开的 Chrome tab，请使用 `opencli browser <session> bind`。绑定 session 没有 owned session 的 idle close 计时器，会一直保持到 `unbind`、tab 关闭、窗口关闭或 daemon 重启。对于 OpenCLI 自己创建的 owned session，使用 `--window foreground` 可以在可见自动化窗口里观察 OpenCLI 操作；使用 `--window background` 可以让这个自动化窗口留在后台。
+
 ## Daemon 生命周期
 
 Daemon 在首次运行浏览器命令时自动启动，之后保持常驻运行。

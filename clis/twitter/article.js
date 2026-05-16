@@ -11,7 +11,6 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     args: [
         { name: 'tweet-id', type: 'string', positional: true, required: true, help: 'Tweet ID or URL containing the article' },
     ],

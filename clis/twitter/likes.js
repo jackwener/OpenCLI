@@ -1,9 +1,10 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { resolveTwitterQueryId, sanitizeQueryId, extractMedia } from './shared.js';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, extractMedia, unwrapBrowserResult } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const LIKES_QUERY_ID = 'RozQdCp4CilQzrcuU0NY5w';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
+const MAX_PAGINATION_PAGES = 100;
 const FEATURES = {
     rweb_video_screen_enabled: false,
     profile_label_improvements_pcf_label_in_post_enabled: true,
@@ -142,7 +143,6 @@ cli({
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     args: [
         { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (with or without @). Defaults to the logged-in user when omitted.' },
         { name: 'limit', type: 'int', default: 20, help: 'Maximum number of liked tweets to return (default 20).' },
@@ -151,20 +151,33 @@ cli({
     columns: ['id', 'author', 'name', 'text', 'likes', 'retweets', 'created_at', 'url', 'has_media', 'media_urls'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 20;
-        let username = (kwargs.username || '').replace(/^@/, '');
+        const rawUsername = String(kwargs.username ?? '').trim();
+        let username = normalizeTwitterScreenName(rawUsername);
+        if (rawUsername && !username) {
+            throw new ArgumentError('twitter likes username must be a valid Twitter/X handle', 'Example: opencli twitter likes @jack --limit 20');
+        }
         const cookies = await page.getCookies({ url: 'https://x.com' });
         const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
-        // If no username provided, detect the logged-in user
+        // If no username provided, detect the logged-in user.
+        // Bridge wraps primitive page.evaluate returns as { session, data:<value> };
+        // unwrap so the href string is usable downstream.
         if (!username) {
-            const href = await page.evaluate(`() => {
+            // Force a navigation to the home surface so the AppTabBar sidebar
+            // is rendered; the framework pre-nav lands on bare x.com which
+            // does not always expose AppTabBar_Profile_Link.
+            await page.goto('https://x.com/home');
+            await page.wait({ selector: '[data-testid="primaryColumn"]' });
+            const href = unwrapBrowserResult(await page.evaluate(`() => {
         const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
         return link ? link.getAttribute('href') : null;
-      }`);
-            if (!href)
+      }`));
+            if (!href || typeof href !== 'string')
                 throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
-            username = href.replace('/', '');
+            username = normalizeTwitterScreenName(href);
+            if (!username)
+                throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
         }
         const likesQueryId = await resolveTwitterQueryId(page, 'Likes', LIKES_QUERY_ID);
         const userByScreenNameQueryId = await resolveTwitterQueryId(page, 'UserByScreenName', USER_BY_SCREEN_NAME_QUERY_ID);
@@ -175,27 +188,28 @@ cli({
             'X-Twitter-Active-User': 'yes',
         });
         // Get userId from screen_name
-        const userId = await page.evaluate(`async () => {
+        const userId = unwrapBrowserResult(await page.evaluate(`async () => {
       const screenName = ${JSON.stringify(username)};
       const url = ${JSON.stringify(buildUserByScreenNameUrl(userByScreenNameQueryId, username))};
       const resp = await fetch(url, { headers: ${headers}, credentials: 'include' });
       if (!resp.ok) return null;
       const d = await resp.json();
       return d.data?.user?.result?.rest_id || null;
-    }`);
+    }`));
         if (!userId) {
             throw new CommandExecutionError(`Could not find user @${username}`);
         }
         const allTweets = [];
         const seen = new Set();
         let cursor = null;
-        for (let i = 0; i < 5 && allTweets.length < limit; i++) {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
             const fetchCount = Math.min(100, limit - allTweets.length + 10);
             const apiUrl = buildLikesUrl(likesQueryId, userId, fetchCount, cursor);
-            const data = await page.evaluate(`async () => {
+            const data = unwrapBrowserResult(await page.evaluate(`async () => {
         const r = await fetch("${apiUrl}", { headers: ${headers}, credentials: 'include' });
         return r.ok ? await r.json() : { error: r.status };
-      }`);
+      }`));
             if (data?.error) {
                 if (allTweets.length === 0)
                     throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch likes. queryId may have expired.`);

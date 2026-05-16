@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { saveBase64ToFile } from '@jackwener/opencli/utils';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { clearChatGPTDraft, getChatGPTVisibleImageUrls, normalizeBooleanFlag, prepareChatGPTImagePaths, sendChatGPTMessage, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
+import { clearChatGPTDraft, getChatGPTVisibleImageUrls, normalizeBooleanFlag, prepareChatGPTImagePaths, sendChatGPTMessage, unwrapEvaluateResult, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
 
 const CHATGPT_DOMAIN = 'chatgpt.com';
 
@@ -54,7 +54,7 @@ function buildPrompt(prompt, imageCount) {
 }
 
 async function currentChatGPTLink(page) {
-    const url = await page.evaluate('window.location.href').catch(() => '');
+    const url = unwrapEvaluateResult(await page.evaluate('window.location.href').catch(() => ''));
     return typeof url === 'string' && url ? url : 'https://chatgpt.com';
 }
 

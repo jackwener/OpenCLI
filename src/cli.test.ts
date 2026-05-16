@@ -192,6 +192,7 @@ describe('createProgram root help descriptions', () => {
       expect(data.site_adapters.sites).toEqual(['bilibili']);
       expect(data.external_clis.count).toBeGreaterThanOrEqual(0);
       expect(Array.isArray(data.external_clis.clis)).toBe(true);
+      expect(Array.isArray(data.external_clis.display)).toBe(true);
       // Adapters must NOT leak into the core commands list
       const commandNames = data.commands.map((cmd: any) => cmd.name);
       expect(commandNames).not.toContain('bilibili');

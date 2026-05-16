@@ -5,7 +5,6 @@
  *   opencli daemon restart — graceful shutdown, then start a fresh daemon
  */
 
-import { styleText } from 'node:util';
 import { fetchDaemonStatus, requestDaemonShutdown } from '../browser/daemon-client.js';
 import { restartDaemon } from '../browser/daemon-lifecycle.js';
 import { formatDuration } from '../download/progress.js';
@@ -16,20 +15,20 @@ import { formatDaemonVersion, isDaemonStale } from '../browser/daemon-version.js
 export async function daemonStatus(): Promise<void> {
   const status = await fetchDaemonStatus();
   if (!status) {
-    console.log(`Daemon: ${styleText('dim', 'not running')}`);
+    console.log('Daemon: not running');
     return;
   }
 
   const extensionLabel = !status.extensionConnected
-    ? styleText('yellow', 'disconnected')
+    ? 'disconnected'
     : status.extensionVersion
-      ? `${styleText('green', 'connected')} ${styleText('dim', `(v${status.extensionVersion})`)}`
-      : `${styleText('yellow', 'connected')} ${styleText('dim', '(version unknown)')}`;
+      ? `connected (v${status.extensionVersion})`
+      : 'connected (version unknown)';
 
   const daemonVersion = formatDaemonVersion(status);
   const stale = isDaemonStale(status, PKG_VERSION);
-  console.log(`Daemon: ${stale ? styleText('yellow', 'stale') : styleText('green', 'running')} (PID ${status.pid})`);
-  console.log(`Version: ${daemonVersion}${stale ? styleText('yellow', ` (CLI v${PKG_VERSION}; run: opencli daemon restart)`) : ''}`);
+  console.log(`Daemon: ${stale ? 'stale' : 'running'} (PID ${status.pid})`);
+  console.log(`Version: ${daemonVersion}${stale ? ` (CLI v${PKG_VERSION}; run: opencli daemon restart)` : ''}`);
   console.log(`Uptime: ${formatDuration(Math.round(status.uptime * 1000))}`);
   console.log(`Extension: ${extensionLabel}`);
   if (status.profiles && status.profiles.length > 0) {

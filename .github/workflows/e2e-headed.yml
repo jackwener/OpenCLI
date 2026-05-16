@@ -1,6 +1,10 @@
 name: E2E Headed Chrome
 
 on:
+  # E2E removed from `pull_request` to keep PR feedback under ~2 minutes; PR-time
+  # protection is the CI workflow (typecheck / unit / lint / adapter / build).
+  # E2E still guards `main` directly, runs nightly, and on release tag push so
+  # protocol/CDP/extension contract regressions are caught before they ship.
   push:
     branches: [main, dev]
     paths:
@@ -13,18 +17,11 @@ on:
       - 'tests/smoke/**'
       - '.github/actions/setup-chrome/**'
       - '.github/workflows/e2e-headed.yml'
-  pull_request:
-    branches: [main, dev]
-    paths:
-      - 'extension/**'
-      - 'src/browser/**'
-      - 'src/daemon.ts'
-      - 'src/execution.ts'
-      - 'src/interceptor.ts'
-      - 'tests/e2e/**'
-      - 'tests/smoke/**'
-      - '.github/actions/setup-chrome/**'
-      - '.github/workflows/e2e-headed.yml'
+    tags: ['v*']
+  schedule:
+    # Daily 08:00 UTC — catch flake / Chrome-version drift even when no commits
+    # touched the watched paths recently.
+    - cron: '0 8 * * *'
   workflow_dispatch:
 
 concurrency:

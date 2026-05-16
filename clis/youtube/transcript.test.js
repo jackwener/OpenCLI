@@ -15,6 +15,7 @@ function createPageMock(captionUrl) {
         evaluate: vi.fn(),
     };
     page.evaluate
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({
         captionUrl,
         language: 'en',
@@ -33,7 +34,10 @@ afterEach(() => {
 });
 
 describe('youtube transcript source contract', () => {
-    it('gets caption tracks from watch page bootstrap data, not Android InnerTube', () => {
+    it('uses the watch player captions module before falling back to watch HTML, not Android InnerTube', () => {
+        expect(transcriptSource).toContain("player.loadModule?.('captions')");
+        expect(transcriptSource).toContain("player.setOption('captions', 'track', track)");
+        expect(transcriptSource).toContain("url.includes('pot=')");
         expect(transcriptSource).toContain("fetch('/watch?v='");
         expect(transcriptSource).toContain("extractJsonAssignmentFromHtml(html, 'ytInitialPlayerResponse')");
         expect(transcriptSource).toContain('playerCaptionsTracklistRenderer');
@@ -48,6 +52,12 @@ describe('youtube transcript source contract', () => {
     it('checks HTTP status before reading caption response body', () => {
         expect(transcriptSource).toContain('resp.ok');
     });
+
+    it('restores page fetch and XHR hooks even when caption probing exits early', () => {
+        expect(transcriptSource).toContain('} finally {');
+        expect(transcriptSource).toContain('globalThis.fetch = originalFetch');
+        expect(transcriptSource).toContain('globalThis.XMLHttpRequest = OriginalXHR');
+    });
 });
 
 describe('youtube transcript caption fetch', () => {
@@ -58,9 +68,51 @@ describe('youtube transcript caption fetch', () => {
 
         const rows = await command.func(page, { url: 'abc', mode: 'raw' });
 
-        expect(page.evaluate.mock.calls[1][0]).toContain('const primaryUrl = "https://www.youtube.com/api/timedtext?v=abc&lang=en&fmt=srv3"');
-        expect(page.evaluate.mock.calls[1][0]).toContain('const originalUrl = "https://www.youtube.com/api/timedtext?v=abc&lang=en"');
+        expect(page.evaluate.mock.calls[2][0]).toContain('const primaryUrl = "https://www.youtube.com/api/timedtext?v=abc&lang=en&fmt=srv3"');
+        expect(page.evaluate.mock.calls[2][0]).toContain('const originalUrl = "https://www.youtube.com/api/timedtext?v=abc&lang=en"');
         expect(rows).toEqual([{ index: 1, start: '1.00s', end: '3.00s', text: 'hello & world' }]);
+    });
+
+    it('uses Browser Bridge envelope-wrapped player caption segments without fallback', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValueOnce({
+                session: 'browser:default',
+                data: [{ start: 2, end: 4.5, text: 'from player captions' }],
+            }),
+        };
+
+        const rows = await command.func(page, { url: 'abc', mode: 'raw' });
+
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+        expect(rows).toEqual([{ index: 1, start: '2.00s', end: '4.50s', text: 'from player captions' }]);
+    });
+
+    it('uses captured timedtext json3 when player selection returns no segments', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            startNetworkCapture: vi.fn().mockResolvedValue(undefined),
+            readNetworkCapture: vi.fn().mockResolvedValue({
+                session: 'browser:default',
+                data: [{
+                    url: 'https://www.youtube.com/api/timedtext?v=abc&lang=en&fmt=json3&pot=token',
+                    responsePreview: JSON.stringify({
+                        events: [
+                            { tStartMs: 1000, dDurationMs: 1500, segs: [{ utf8: 'hello ' }, { utf8: 'capture' }] },
+                        ],
+                    }),
+                }],
+            }),
+            evaluate: vi.fn().mockResolvedValueOnce(null),
+        };
+
+        const rows = await command.func(page, { url: 'abc', mode: 'raw', lang: 'en' });
+
+        expect(page.startNetworkCapture).toHaveBeenCalledWith('/api/timedtext');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+        expect(rows).toEqual([{ index: 1, start: '1.00s', end: '2.50s', text: 'hello capture' }]);
     });
 
     it('does not override an existing caption format', async () => {
@@ -68,8 +120,8 @@ describe('youtube transcript caption fetch', () => {
 
         await command.func(page, { url: 'abc', mode: 'raw' });
 
-        expect(page.evaluate.mock.calls[1][0]).toContain('const primaryUrl = "https://www.youtube.com/api/timedtext?v=abc&lang=en&fmt=vtt"');
-        expect(page.evaluate.mock.calls[1][0]).toContain('const originalUrl = "https://www.youtube.com/api/timedtext?v=abc&lang=en&fmt=vtt"');
+        expect(page.evaluate.mock.calls[2][0]).toContain('const primaryUrl = "https://www.youtube.com/api/timedtext?v=abc&lang=en&fmt=vtt"');
+        expect(page.evaluate.mock.calls[2][0]).toContain('const originalUrl = "https://www.youtube.com/api/timedtext?v=abc&lang=en&fmt=vtt"');
     });
 
     it('falls back to the original URL only after an empty successful srv3 response', async () => {
@@ -77,7 +129,7 @@ describe('youtube transcript caption fetch', () => {
 
         await command.func(page, { url: 'abc', mode: 'raw' });
 
-        const script = page.evaluate.mock.calls[1][0];
+        const script = page.evaluate.mock.calls[2][0];
         expect(script).toContain('if (!result.xml.length && originalUrl !== primaryUrl)');
         expect(script).toContain('result = await fetchCaptionXml(originalUrl)');
         expect(script).toContain('if (result.error) {');
@@ -87,6 +139,7 @@ describe('youtube transcript caption fetch', () => {
         const page = createPageMock('https://www.youtube.com/api/timedtext?v=abc&lang=en');
         page.evaluate.mockReset();
         page.evaluate
+            .mockResolvedValueOnce(null)
             .mockResolvedValueOnce({
             captionUrl: 'https://www.youtube.com/api/timedtext?v=abc&lang=en',
             language: 'en',
@@ -101,6 +154,61 @@ describe('youtube transcript caption fetch', () => {
         await expect(command.func(page, { url: 'abc', mode: 'raw' })).rejects.toMatchObject({
             code: 'COMMAND_EXEC',
             message: expect.stringContaining('HTTP 503'),
+        });
+    });
+
+    it('fails typed on malformed browser extraction payloads', async () => {
+        const page = createPageMock('https://www.youtube.com/api/timedtext?v=abc&lang=en');
+        page.evaluate.mockReset();
+        page.evaluate
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce({
+                captionUrl: 'https://www.youtube.com/api/timedtext?v=abc&lang=en',
+                language: 'en',
+                kind: 'manual',
+                available: ['en'],
+                requestedLang: null,
+                langMatched: false,
+                langPrefixMatched: false,
+            })
+            .mockResolvedValueOnce({ session: 'browser:default', data: { rows: [] } });
+
+        await expect(command.func(page, { url: 'abc', mode: 'raw' })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('Malformed caption XML extraction payload'),
+        });
+    });
+
+    it('fails typed on malformed caption info payloads before URL construction', async () => {
+        const page = createPageMock('https://www.youtube.com/api/timedtext?v=abc&lang=en');
+        page.evaluate.mockReset();
+        page.evaluate
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce({ session: 'browser:default', data: { rows: [] } });
+
+        await expect(command.func(page, { url: 'abc', mode: 'raw' })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('Malformed caption info payload'),
+        });
+    });
+
+    it('fails typed on malformed captured timedtext json3', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            startNetworkCapture: vi.fn().mockResolvedValue(undefined),
+            readNetworkCapture: vi.fn().mockResolvedValue([
+                {
+                    url: 'https://www.youtube.com/api/timedtext?v=abc&lang=en&fmt=json3&pot=token',
+                    responsePreview: '{"events":',
+                },
+            ]),
+            evaluate: vi.fn().mockResolvedValueOnce(null),
+        };
+
+        await expect(command.func(page, { url: 'abc', mode: 'raw', lang: 'en' })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('Malformed json3 timedtext response'),
         });
     });
 });

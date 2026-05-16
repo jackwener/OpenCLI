@@ -1,9 +1,9 @@
 /**
- * YouTube transcript — extracts caption tracks from watch page bootstrap data.
+ * YouTube transcript — extracts caption tracks through the watch player.
  *
- * The old Android InnerTube client path stopped reliably returning captions.
- * We now match youtube/video.js: fetch watch HTML with the browser session and
- * parse ytInitialPlayerResponse.captions.playerCaptionsTracklistRenderer.
+ * YouTube timedtext URLs can require player-generated PO tokens. Load the
+ * watch page, ask the player captions module to select a track, then reuse the
+ * generated json3 timedtext URL before falling back to watch HTML captions.
  *
  * Modes:
  *   --mode grouped (default): sentences merged, speaker detection, chapters
@@ -13,6 +13,97 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { extractJsonAssignmentFromHtml, parseVideoId, prepareYoutubeApiPage } from './utils.js';
 import { groupTranscriptSegments, formatGroupedTranscript, } from './transcript-group.js';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+
+function unwrapBrowserResult(value) {
+    if (value && typeof value === 'object' && 'session' in value && 'data' in value) {
+        return value.data;
+    }
+    return value;
+}
+
+function normalizeSegmentsPayload(value, source, { allowNull = false } = {}) {
+    const payload = unwrapBrowserResult(value);
+    if (payload == null && allowNull)
+        return null;
+    if (Array.isArray(payload))
+        return payload;
+    if (payload && typeof payload === 'object' && payload.error) {
+        throw new CommandExecutionError(String(payload.error));
+    }
+    throw new CommandExecutionError(`Malformed ${source} payload`);
+}
+
+function parseJson3Segments(text) {
+    let data;
+    try {
+        data = JSON.parse(text);
+    }
+    catch (err) {
+        throw new CommandExecutionError(`Malformed json3 timedtext response: ${err?.message || err}`);
+    }
+    if (!Array.isArray(data?.events)) {
+        throw new CommandExecutionError('Malformed json3 timedtext response: missing events array');
+    }
+    const rows = [];
+    for (const event of data.events) {
+        const startMs = Number(event?.tStartMs || 0);
+        const durMs = Number(event?.dDurationMs || 0);
+        const segs = Array.isArray(event?.segs) ? event.segs : [];
+        const line = segs.map(seg => seg?.utf8 || '').join('').replace(/\s+/g, ' ').trim();
+        if (!line)
+            continue;
+        rows.push({
+            start: startMs / 1000,
+            end: (startMs + durMs) / 1000,
+            text: line,
+        });
+    }
+    return rows;
+}
+
+function extractSegmentsFromNetworkCapture(entries, lang) {
+    const payload = unwrapBrowserResult(entries);
+    if (!Array.isArray(payload) || payload.length === 0)
+        return { segments: [] };
+    const wanted = String(lang || '').toLowerCase();
+    const wantedBase = wanted.split('-')[0];
+    const timedtext = payload
+        .filter((entry) => {
+        const url = String(entry?.url || '');
+        if (!url.includes('/api/timedtext'))
+            return false;
+        if (!url.includes('fmt=json3') || !url.includes('pot='))
+            return false;
+        if (!wanted)
+            return true;
+        try {
+            const u = new URL(url);
+            const got = String(u.searchParams.get('lang') || '').toLowerCase();
+            const gotBase = got.split('-')[0];
+            return got === wanted || gotBase === wantedBase || wantedBase === got;
+        }
+        catch {
+            return false;
+        }
+    })
+        .reverse();
+    let malformed = '';
+    for (const entry of timedtext) {
+        const body = typeof entry?.responsePreview === 'string' ? entry.responsePreview : '';
+        if (!body)
+            continue;
+        try {
+            const parsed = parseJson3Segments(body);
+            if (parsed.length > 0)
+                return { segments: parsed };
+        }
+        catch (err) {
+            malformed = err?.message || String(err);
+        }
+    }
+    return malformed ? { error: malformed } : { segments: [] };
+}
+
 cli({
     site: 'youtube',
     name: 'transcript',
@@ -29,11 +120,247 @@ cli({
     // so we let the renderer auto-detect columns from the data keys.
     func: async (page, kwargs) => {
         const videoId = parseVideoId(kwargs.url);
-        await prepareYoutubeApiPage(page);
         const lang = kwargs.lang || '';
         const mode = kwargs.mode || 'grouped';
-        // Step 1: Get caption track URL from watch page HTML
-        const captionData = await page.evaluate(`
+        const watchUrl = 'https://www.youtube.com/watch?v=' + encodeURIComponent(videoId);
+        const canCapture = typeof page.startNetworkCapture === 'function' && typeof page.readNetworkCapture === 'function';
+        if (canCapture) {
+            try {
+                await page.startNetworkCapture('/api/timedtext');
+            }
+            catch {
+                // Best-effort only. The in-page capture and XML fallback still run.
+            }
+        }
+        await page.goto(watchUrl, { waitUntil: 'none' });
+        await page.wait(3);
+        const playerResult = await page.evaluate(`
+      (async () => {
+        const langPref = ${JSON.stringify(lang)};
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        function textFromJson3Event(event) {
+          if (!Array.isArray(event?.segs)) return '';
+          return event.segs.map(seg => seg?.utf8 || '').join('').replace(/\\s+/g, ' ').trim();
+        }
+
+        function parseJson3(text) {
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch (err) {
+            return { error: 'Malformed json3 timedtext response: ' + (err?.message || String(err)) };
+          }
+          if (!Array.isArray(data.events)) {
+            return { error: 'Malformed json3 timedtext response: missing events array' };
+          }
+          const rows = [];
+          for (const event of data.events) {
+            const startMs = Number(event.tStartMs || 0);
+            const durMs = Number(event.dDurationMs || 0);
+            const text = textFromJson3Event(event);
+            if (!text) continue;
+            rows.push({
+              start: startMs / 1000,
+              end: (startMs + durMs) / 1000,
+              text,
+            });
+          }
+          return { rows };
+        }
+
+        function captionTrackToPlayerTrack(track) {
+          if (!track?.languageCode) return null;
+          const name = track.name?.simpleText
+            || (Array.isArray(track.name?.runs) ? track.name.runs.map(run => run?.text || '').join('') : '')
+            || track.languageCode;
+          return {
+            displayName: name,
+            id: null,
+            is_default: false,
+            is_servable: false,
+            is_translateable: !!track.isTranslatable,
+            kind: track.kind || '',
+            languageCode: track.languageCode,
+            languageName: name,
+            name: '',
+            vss_id: track.vssId || ((track.kind === 'asr' ? 'a.' : '.') + track.languageCode),
+          };
+        }
+
+        function getTrackCandidates(player) {
+          const tracklist = player?.getOption?.('captions', 'tracklist');
+          if (Array.isArray(tracklist) && tracklist.length > 0) return tracklist;
+          const captionTracks = player?.getPlayerResponse?.()
+            ?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+          if (!Array.isArray(captionTracks)) return [];
+          return captionTracks.map(captionTrackToPlayerTrack).filter(Boolean);
+        }
+
+        function pickTrack(tracklist) {
+          if (!Array.isArray(tracklist) || tracklist.length === 0) return null;
+          if (langPref) {
+            return tracklist.find(t => t.languageCode === langPref)
+              || tracklist.find(t => t.languageCode?.startsWith(langPref));
+          }
+          return tracklist.find(t => t.languageCode === 'en' && t.kind !== 'asr')
+            || tracklist.find(t => t.languageCode === 'en')
+            || tracklist.find(t => t.kind !== 'asr')
+            || tracklist[0];
+        }
+
+        function findTimedtextUrl(track) {
+          const urls = performance.getEntriesByType('resource')
+            .map(entry => entry.name)
+            .filter(url => url.includes('/api/timedtext') && url.includes('fmt=json3') && url.includes('pot='));
+          if (!urls.length) return '';
+          if (track?.languageCode) {
+            const wanted = String(track.languageCode || '').toLowerCase();
+            const wantedBase = wanted.split('-')[0];
+            const match = [...urls].reverse().find((rawUrl) => {
+              try {
+                const u = new URL(rawUrl, location.origin);
+                const got = String(u.searchParams.get('lang') || '').toLowerCase();
+                const gotBase = got.split('-')[0];
+                return got === wanted || gotBase === wantedBase || wantedBase === got;
+              } catch {
+                return false;
+              }
+            });
+            if (match) return match;
+          }
+          return urls[urls.length - 1];
+        }
+
+        function isJson3TimedtextUrl(url, track) {
+          if (!url || !url.includes('/api/timedtext')) return false;
+          if (!url.includes('fmt=json3')) return false;
+          if (!url.includes('pot=')) return false;
+          if (!track?.languageCode) return true;
+          try {
+            const u = new URL(url, location.origin);
+            const got = String(u.searchParams.get('lang') || '').toLowerCase();
+            const wanted = String(track.languageCode || '').toLowerCase();
+            const gotBase = got.split('-')[0];
+            const wantedBase = wanted.split('-')[0];
+            return got === wanted || gotBase === wantedBase || wantedBase === got;
+          } catch {
+            return false;
+          }
+        }
+
+        const player = document.getElementById('movie_player');
+        if (!player?.getOption || !player?.setOption) {
+          return null;
+        }
+
+        let track = null;
+        for (let i = 0; i < 20; i++) {
+          track = pickTrack(getTrackCandidates(player));
+          if (track) break;
+          await sleep(500);
+        }
+        if (!track) return null;
+
+        const originalFetch = globalThis.fetch;
+        const boundOriginalFetch = originalFetch?.bind(globalThis);
+        const OriginalXHR = globalThis.XMLHttpRequest;
+        let capturedJson3Text = '';
+        try {
+          if (boundOriginalFetch) {
+            globalThis.fetch = async (...args) => {
+              const response = await boundOriginalFetch(...args);
+              try {
+                const req = args[0];
+                const reqUrl = typeof req === 'string' ? req : req?.url || '';
+                if (isJson3TimedtextUrl(reqUrl, track) && response?.ok) {
+                  const text = await response.clone().text();
+                  if (text && !capturedJson3Text) {
+                    capturedJson3Text = text;
+                  }
+                }
+              } catch {}
+              return response;
+            };
+          }
+          if (OriginalXHR) {
+            globalThis.XMLHttpRequest = class TimedtextCaptureXHR extends OriginalXHR {
+              open(method, url, ...rest) {
+                this.__opencliTimedtextUrl = typeof url === 'string' ? url : '';
+                return super.open(method, url, ...rest);
+              }
+              send(...args) {
+                this.addEventListener('load', () => {
+                  try {
+                    const url = this.__opencliTimedtextUrl || this.responseURL || '';
+                    if (!isJson3TimedtextUrl(url, track)) return;
+                    if (this.status < 200 || this.status >= 300) return;
+                    const text = typeof this.responseText === 'string' ? this.responseText : '';
+                    if (text && !capturedJson3Text) {
+                      capturedJson3Text = text;
+                    }
+                  } catch {}
+                });
+                return super.send(...args);
+              }
+            };
+          }
+
+          // Do not clear resource timings: some videos emit a valid timedtext URL
+          // before our polling loop starts; keeping existing entries avoids misses.
+          try { player.loadModule?.('captions'); } catch {}
+          await sleep(500);
+          try { player.setOption('captions', 'track', track); } catch {}
+          try { player.playVideo?.(); } catch {}
+
+          for (let i = 0; i < 30; i++) {
+            await sleep(500);
+            if (capturedJson3Text) {
+              const parsed = parseJson3(capturedJson3Text);
+              if (parsed.error) return { error: parsed.error };
+              if (parsed.rows.length > 0) return parsed.rows;
+            }
+            const url = findTimedtextUrl(track);
+            if (!url) continue;
+            const resp = await fetch(url, { credentials: 'include' });
+            if (!resp.ok) continue;
+            const text = await resp.text();
+            if (!text) continue;
+            const parsed = parseJson3(text);
+            if (parsed.error) return { error: parsed.error };
+            if (parsed.rows.length > 0) return parsed.rows;
+          }
+
+          return null;
+        } finally {
+          try { player?.pauseVideo?.(); } catch {}
+          if (originalFetch) globalThis.fetch = originalFetch;
+          if (OriginalXHR) globalThis.XMLHttpRequest = OriginalXHR;
+        }
+      })()
+    `);
+        let segments = normalizeSegmentsPayload(playerResult, 'player caption extraction', { allowNull: true });
+        if (!segments && canCapture) {
+            try {
+                const captured = extractSegmentsFromNetworkCapture(await page.readNetworkCapture(), lang);
+                if (captured.error) {
+                    throw new CommandExecutionError(captured.error);
+                }
+                if (captured.segments.length > 0) {
+                    segments = captured.segments;
+                }
+            }
+            catch (err) {
+                if (err instanceof CommandExecutionError)
+                    throw err;
+                // Keep existing fallback path when capture is unavailable.
+            }
+        }
+        if (!segments) {
+            await prepareYoutubeApiPage(page);
+        }
+        // Fallback: get caption track URL from watch page HTML
+        const captionData = segments ? null : unwrapBrowserResult(await page.evaluate(`
       (async () => {
         const extractJsonAssignmentFromHtml = ${extractJsonAssignmentFromHtml.toString()};
 
@@ -74,26 +401,30 @@ cli({
           langPrefixMatched: !!(langPref && track.languageCode !== langPref && track.languageCode.startsWith(langPref))
         };
       })()
-    `);
-        if (!captionData || typeof captionData === 'string') {
-            throw new CommandExecutionError(`Failed to get caption info: ${typeof captionData === 'string' ? captionData : 'null response'}`);
+    `));
+        if (!segments && (!captionData || typeof captionData !== 'object' || Array.isArray(captionData))) {
+            throw new CommandExecutionError(`Failed to get caption info: ${typeof captionData === 'string' ? captionData : 'malformed response'}`);
         }
-        if (captionData.error) {
+        if (captionData?.error) {
             throw new CommandExecutionError(`${captionData.error}${captionData.available ? ' (available: ' + captionData.available.join(', ') + ')' : ''}`);
         }
+        if (!segments && typeof captionData?.captionUrl !== 'string') {
+            throw new CommandExecutionError('Malformed caption info payload');
+        }
         // Warn if --lang was specified but not matched
-        if (captionData.requestedLang && !captionData.langMatched && !captionData.langPrefixMatched) {
+        if (captionData?.requestedLang && !captionData.langMatched && !captionData.langPrefixMatched) {
             console.error(`Warning: --lang "${captionData.requestedLang}" not found. Using "${captionData.language}" instead. Available: ${captionData.available.join(', ')}`);
         }
         // Step 2: Fetch caption XML and parse segments
         // Ensure caption URL requests srv3 XML format — YouTube may return empty
         // responses when no explicit format is specified.
-        const originalCaptionUrl = captionData.captionUrl;
-        let captionUrl = originalCaptionUrl;
-        if (!/[&?]fmt=/.test(originalCaptionUrl)) {
-            captionUrl = originalCaptionUrl + (originalCaptionUrl.includes('?') ? '&' : '?') + 'fmt=srv3';
-        }
-        const segments = await page.evaluate(`
+        if (!segments) {
+            const originalCaptionUrl = captionData.captionUrl;
+            let captionUrl = originalCaptionUrl;
+            if (!/[&?]fmt=/.test(originalCaptionUrl)) {
+                captionUrl = originalCaptionUrl + (originalCaptionUrl.includes('?') ? '&' : '?') + 'fmt=srv3';
+            }
+            segments = normalizeSegmentsPayload(await page.evaluate(`
       (async () => {
         async function fetchCaptionXml(url) {
           const resp = await fetch(url);
@@ -181,9 +512,7 @@ cli({
 
         return results;
       })()
-    `);
-        if (!Array.isArray(segments)) {
-            throw new CommandExecutionError(segments?.error || 'Failed to parse caption segments');
+    `), 'caption XML extraction');
         }
         if (segments.length === 0) {
             throw new EmptyResultError('youtube transcript');
@@ -192,7 +521,7 @@ cli({
         let chapters = [];
         if (mode === 'grouped') {
             try {
-                const chapterData = await page.evaluate(`
+                const chapterData = unwrapBrowserResult(await page.evaluate(`
           (async () => {
             const cfg = window.ytcfg?.data_ || {};
             const apiKey = cfg.INNERTUBE_API_KEY;
@@ -256,7 +585,7 @@ cli({
             }
             return chapters;
           })()
-        `);
+        `));
                 if (Array.isArray(chapterData)) {
                     chapters = chapterData;
                 }

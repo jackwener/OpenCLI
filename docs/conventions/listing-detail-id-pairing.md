@@ -63,7 +63,7 @@ call. Many legitimate listings genuinely don't pair:
   search keywords, not addressable entities.
 - **Profile-attribute listings** (`reddit user`, `lesswrong user`,
   `weibo user`) — rows are `[field, value]` pairs of one profile.
-- **UI-only sessions** (`discord-app search`, `notion search` Quick Find)
+- **UI-only sessions** (`discord-app search`, app quick find surfaces)
   — page ids aren't extractable from the rendered DOM.
 - **Comment / reply listings** — sub-resources of a parent thread; the
   detail command fetches the parent, not the comment.

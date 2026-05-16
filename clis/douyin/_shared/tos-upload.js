@@ -56,6 +56,31 @@ function sha256Hex(data) {
     }
     return hash.digest('hex');
 }
+const CRC32_TABLE = new Uint32Array(256).map((_, index) => {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+        value = (value & 1) ? (0xEDB88320 ^ (value >>> 1)) : (value >>> 1);
+    }
+    return value >>> 0;
+});
+function crc32Hex(data) {
+    let crc = 0xffffffff;
+    for (const byte of data) {
+        crc = CRC32_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+    }
+    return ((crc ^ 0xffffffff) >>> 0).toString(16).padStart(8, '0');
+}
+function gatewayBaseUrl(tosUrl) {
+    const parsedUrl = new URL(tosUrl);
+    return `https://${parsedUrl.host}/upload/v1${parsedUrl.pathname}`;
+}
+function gatewayHeaders(auth, uploadHeader, userId = '') {
+    return {
+        Authorization: auth,
+        'X-Storage-U': encodeURIComponent(userId),
+        ...(uploadHeader ?? {}),
+    };
+}
 function extractRegionFromHost(host) {
     // e.g. "tos-cn-i-alisg.volces.com" → "cn-i-alisg"
     // e.g. "tos-cn-beijing.ivolces.com" → "cn-beijing"
@@ -129,6 +154,7 @@ async function tosRequest(opts) {
         method,
         headers,
         body: fetchBody,
+        signal: AbortSignal.timeout(60000),
     });
     const responseBody = await res.text();
     const responseHeaders = {};
@@ -140,86 +166,95 @@ async function tosRequest(opts) {
 function nowDatetime() {
     return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
 }
-// ── Phase 1: Init multipart upload ───────────────────────────────────────────
-async function initMultipartUpload(tosUrl, auth, credentials) {
-    const initUrl = `${tosUrl}?uploads`;
-    const datetime = nowDatetime();
-    // Use the pre-computed auth for INIT, as it comes from ApplyVideoUpload
-    const headers = {
-        Authorization: auth,
-        'x-amz-date': datetime,
-        'x-amz-security-token': credentials.session_token,
-        'content-type': 'application/octet-stream',
-    };
-    const res = await tosRequest({ method: 'POST', url: initUrl, headers });
-    if (res.status !== 200) {
-        throw new CommandExecutionError(`TOS init multipart upload failed with status ${res.status}: ${res.body}`, 'Check that TOS credentials are valid and not expired.');
+function extractUploadId(body) {
+    const xmlMatch = body.match(/<UploadId>([^<]+)<\/UploadId>/i);
+    if (xmlMatch) return xmlMatch[1];
+    try {
+        const json = JSON.parse(body);
+        return json?.payload?.uploadID
+            || json?.payload?.uploadId
+            || json?.payload?.UploadID
+            || json?.payload?.UploadId
+            || json?.data?.uploadid
+            || json?.data?.uploadID
+            || json?.data?.uploadId
+            || json?.data?.UploadID
+            || json?.data?.UploadId
+            || json?.UploadID
+            || json?.UploadId
+            || json?.uploadID
+            || json?.uploadId
+            || null;
     }
-    // Parse UploadId from XML: <UploadId>...</UploadId>
-    const match = res.body.match(/<UploadId>([^<]+)<\/UploadId>/);
-    if (!match) {
+    catch {
+        return null;
+    }
+}
+// ── Phase 1: Init multipart upload ───────────────────────────────────────────
+async function initMultipartUpload(tosUrl, auth, uploadHeader, userId) {
+    const initUrl = `${gatewayBaseUrl(tosUrl)}?uploadmode=part&phase=init`;
+    const res = await tosRequest({
+        method: 'POST',
+        url: initUrl,
+        headers: gatewayHeaders(auth, uploadHeader, userId),
+    });
+    if (res.status !== 200) {
+        throw new CommandExecutionError(`TOS init multipart upload failed with status ${res.status}: ${res.body}`, 'Check that TOS upload authorization is valid and not expired.');
+    }
+    const uploadId = extractUploadId(res.body);
+    if (!uploadId) {
         throw new CommandExecutionError(`TOS init response missing UploadId: ${res.body}`);
     }
-    return match[1];
+    return uploadId;
 }
 // ── Phase 2: Upload a single part ────────────────────────────────────────────
-async function uploadPart(tosUrl, partNumber, uploadId, data, credentials, region) {
-    const parsedUrl = new URL(tosUrl);
-    parsedUrl.searchParams.set('partNumber', String(partNumber));
-    parsedUrl.searchParams.set('uploadId', uploadId);
-    const url = parsedUrl.toString();
-    const datetime = nowDatetime();
-    const headers = computeAws4Headers({
-        method: 'PUT',
-        url,
-        headers: { 'content-type': 'application/octet-stream' },
-        body: data,
-        credentials,
-        service: 'tos',
-        region,
-        datetime,
-    });
-    const res = await tosRequest({ method: 'PUT', url, headers, body: data });
-    if (res.status !== 200) {
-        throw new CommandExecutionError(`TOS upload part ${partNumber} failed with status ${res.status}: ${res.body}`, 'Check that STS2 credentials are valid and not expired.');
+async function uploadPart(tosUrl, partNumber, uploadId, data, auth, uploadHeader, userId) {
+    const crc32 = crc32Hex(data);
+    const url = `${gatewayBaseUrl(tosUrl)}?uploadid=${encodeURIComponent(uploadId)}&part_number=${partNumber}&phase=transfer`;
+    const headers = {
+        ...gatewayHeaders(auth, uploadHeader, userId),
+        'Content-CRC32': crc32,
+        'Content-Type': 'application/octet-stream',
+        'X-Use-Init-Upload-Optimize': '1',
+        'X-Use-Large-Local-Cache': '1',
+    };
+    const res = await tosRequest({ method: 'POST', url, headers, body: data });
+    let parsed;
+    try {
+        parsed = JSON.parse(res.body);
     }
-    const etag = res.headers['etag'];
-    if (!etag) {
-        throw new CommandExecutionError(`TOS upload part ${partNumber} response missing ETag header`);
+    catch {
+        parsed = null;
     }
-    return etag;
+    if (res.status !== 200 || parsed?.code !== 2000) {
+        throw new CommandExecutionError(`TOS upload part ${partNumber} failed with status ${res.status}: ${res.body}`, 'Check that TOS upload authorization is valid and not expired.');
+    }
+    return parsed?.data?.crc32 || crc32;
 }
 // ── Phase 3: Complete multipart upload ───────────────────────────────────────
-async function completeMultipartUpload(tosUrl, uploadId, parts, credentials, region) {
-    const parsedUrl = new URL(tosUrl);
-    parsedUrl.searchParams.set('uploadId', uploadId);
-    const url = parsedUrl.toString();
-    const xmlBody = '<CompleteMultipartUpload>' +
-        parts
-            .sort((a, b) => a.partNumber - b.partNumber)
-            .map(p => `<Part><PartNumber>${p.partNumber}</PartNumber><ETag>${p.etag}</ETag></Part>`)
-            .join('') +
-        '</CompleteMultipartUpload>';
-    const datetime = nowDatetime();
-    const headers = computeAws4Headers({
-        method: 'POST',
-        url,
-        headers: { 'content-type': 'application/xml' },
-        body: xmlBody,
-        credentials,
-        service: 'tos',
-        region,
-        datetime,
-    });
+async function completeMultipartUpload(tosUrl, uploadId, parts, auth, uploadHeader, userId) {
+    const url = `${gatewayBaseUrl(tosUrl)}?uploadmode=part&phase=finish&uploadid=${encodeURIComponent(uploadId)}`;
+    const body = parts
+        .sort((a, b) => a.partNumber - b.partNumber)
+        .map(p => `${p.partNumber}:${p.crc32}`)
+        .join(',');
     const res = await tosRequest({
         method: 'POST',
         url,
-        headers,
-        body: xmlBody,
+        headers: gatewayHeaders(auth, uploadHeader, userId),
+        body,
     });
-    if (res.status !== 200) {
+    let parsed;
+    try {
+        parsed = JSON.parse(res.body);
+    }
+    catch {
+        parsed = null;
+    }
+    if (res.status !== 200 || parsed?.code !== 2000) {
         throw new CommandExecutionError(`TOS complete multipart upload failed with status ${res.status}: ${res.body}`, 'Check that all parts were uploaded successfully.');
     }
+    return parsed?.data?.key || null;
 }
 let _readSyncOverride = null;
 /** @internal — for testing only */
@@ -237,7 +272,7 @@ export async function tosUpload(options) {
     if (fileSize === 0) {
         throw new CommandExecutionError(`Video file is empty: ${filePath}`);
     }
-    const { tos_upload_url: tosUrl, auth } = uploadInfo;
+    const { tos_upload_url: tosUrl, auth, upload_header: uploadHeader, user_id: userId } = uploadInfo;
     const parsedTosUrl = new URL(tosUrl);
     const region = extractRegionFromHost(parsedTosUrl.host);
     const resumePath = getResumeFilePath(filePath);
@@ -251,7 +286,7 @@ export async function tosUpload(options) {
     }
     else {
         // Start fresh
-        uploadId = await initMultipartUpload(tosUrl, auth, credentials);
+        uploadId = await initMultipartUpload(tosUrl, auth, uploadHeader, userId);
         completedParts = [];
         saveResumeState(resumePath, { uploadId, fileSize, parts: completedParts });
     }
@@ -277,8 +312,8 @@ export async function tosUpload(options) {
             if (bytesRead !== chunkSize) {
                 throw new CommandExecutionError(`Short read on part ${partNumber}: expected ${chunkSize} bytes, got ${bytesRead}`);
             }
-            const etag = await uploadPart(tosUrl, partNumber, uploadId, buffer, credentials, region);
-            completedParts.push({ partNumber, etag });
+            const crc32 = await uploadPart(tosUrl, partNumber, uploadId, buffer, auth, uploadHeader, userId);
+            completedParts.push({ partNumber, crc32 });
             saveResumeState(resumePath, { uploadId, fileSize, parts: completedParts });
             uploadedBytes = Math.min(offset + chunkSize, fileSize);
             if (onProgress)
@@ -288,8 +323,9 @@ export async function tosUpload(options) {
     finally {
         fs.closeSync(fd);
     }
-    await completeMultipartUpload(tosUrl, uploadId, completedParts, credentials, region);
+    const completedKey = await completeMultipartUpload(tosUrl, uploadId, completedParts, auth, uploadHeader, userId);
     deleteResumeState(resumePath);
+    return completedKey;
 }
 // ── Internal exports for testing ─────────────────────────────────────────────
-export { PART_SIZE, RESUME_DIR, extractRegionFromHost, getResumeFilePath, loadResumeState, saveResumeState, deleteResumeState, computeAws4Headers, };
+export { PART_SIZE, RESUME_DIR, extractRegionFromHost, getResumeFilePath, loadResumeState, saveResumeState, deleteResumeState, computeAws4Headers, extractUploadId, crc32Hex, gatewayBaseUrl, gatewayHeaders, };

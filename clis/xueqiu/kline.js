@@ -1,6 +1,6 @@
 import { cli } from '@jackwener/opencli/registry';
 import { EmptyResultError } from '@jackwener/opencli/errors';
-import { fetchXueqiuJson } from './utils.js';
+import { fetchXueqiuJson, formatChinaDate } from './utils.js';
 cli({
     site: 'xueqiu',
     name: 'kline',
@@ -31,7 +31,7 @@ cli({
         const colIdx = {};
         columns.forEach((name, i) => { colIdx[name] = i; });
         return d.data.item.map(row => ({
-            date: colIdx.timestamp != null ? new Date(row[colIdx.timestamp]).toISOString().split('T')[0] : null,
+            date: colIdx.timestamp != null ? formatChinaDate(row[colIdx.timestamp]) : null,
             open: row[colIdx.open] ?? null,
             high: row[colIdx.high] ?? null,
             low: row[colIdx.low] ?? null,
