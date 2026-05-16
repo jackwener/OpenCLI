@@ -2,7 +2,9 @@
  * Utility functions for browser operations
  */
 
-type EvaluateFunction = (...args: any[]) => unknown;
+import type { BrowserEvaluateFunction } from '../types.js';
+
+type EvaluateFunction<Args extends unknown[] = unknown[], Result = unknown> = BrowserEvaluateFunction<Args, Result>;
 
 function describeJsonError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -14,6 +16,10 @@ function describeJsonError(err: unknown): string {
  * Functions execute in the browser page context, so they cannot close over
  * Node-side variables. Pass external values as JSON-serializable args instead.
  */
+export function serializeFunctionForEval<Args extends unknown[], Result>(
+  fn: EvaluateFunction<Args, Result>,
+  args?: readonly [...Args],
+): string;
 export function serializeFunctionForEval(fn: EvaluateFunction, args: readonly unknown[] = []): string {
   const source = fn.toString().trim();
   const isFunctionSource = /^(async\s+)?function[\s(]/.test(source)
@@ -59,6 +65,12 @@ export function wrapForEval(js: string): string {
   return code;
 }
 
+export function buildEvaluateExpression(input: string, args?: readonly unknown[]): string;
+export function buildEvaluateExpression<Args extends unknown[], Result>(
+  input: EvaluateFunction<Args, Result>,
+  args?: readonly [...Args],
+): string;
+export function buildEvaluateExpression(input: string | EvaluateFunction, args?: readonly unknown[]): string;
 export function buildEvaluateExpression(input: string | EvaluateFunction, args: readonly unknown[] = []): string {
   if (typeof input === 'function') {
     return serializeFunctionForEval(input, args);
