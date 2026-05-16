@@ -12,10 +12,12 @@ describe('zhihu question', () => {
             // user-requested `--limit 3` is enforced by the dedup loop's
             // `answers.length >= answerLimit` break, not by the fetch URL.
             expect(js).toContain('questions/2021881398772981878/answers?limit=20');
+            expect(js).toContain('content,url,voteup_count');
             expect(js).toContain("credentials: 'include'");
             return {
                 data: [
                     {
+                        id: '2036567240334653053',
                         author: { name: 'alice' },
                         voteup_count: 12,
                         content: 'Hello Zhihu',
@@ -27,13 +29,43 @@ describe('zhihu question', () => {
         await expect(cmd.func(page, { id: '2021881398772981878', limit: 3 })).resolves.toEqual([
             {
                 rank: 1,
+                id: '2036567240334653053',
                 author: 'alice',
                 votes: 12,
+                url: 'https://www.zhihu.com/question/2021881398772981878/answer/2036567240334653053',
                 content: 'Hello Zhihu',
             },
         ]);
         expect(goto).toHaveBeenCalledWith('https://www.zhihu.com/question/2021881398772981878');
         expect(evaluate).toHaveBeenCalledTimes(1);
+    });
+    it('prefers the answer URL when extracting large answer IDs', async () => {
+        const cmd = getRegistry().get('zhihu/question');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({
+                data: [
+                    {
+                        id: 2036567240334653000,
+                        url: 'https://www.zhihu.com/api/v4/answers/2036567240334653053',
+                        author: { name: 'alice' },
+                        voteup_count: 12,
+                        content: '<p>precise id</p>',
+                    },
+                ],
+                paging: { is_end: true },
+            }),
+        };
+        await expect(cmd.func(page, { id: '2021881398772981878', limit: 1 })).resolves.toEqual([
+            {
+                rank: 1,
+                id: '2036567240334653053',
+                author: 'alice',
+                votes: 12,
+                url: 'https://www.zhihu.com/question/2021881398772981878/answer/2036567240334653053',
+                content: 'precise id',
+            },
+        ]);
     });
     it('follows paging.next until the requested limit is reached', async () => {
         const cmd = getRegistry().get('zhihu/question');
@@ -58,9 +90,9 @@ describe('zhihu question', () => {
             });
         const page = { goto, evaluate };
         await expect(cmd.func(page, { id: '2021881398772981878', limit: 3 })).resolves.toEqual([
-            { rank: 1, author: 'alice', votes: 12, content: 'first' },
-            { rank: 2, author: 'bob', votes: 8, content: 'second' },
-            { rank: 3, author: 'carol', votes: 5, content: 'third' },
+            { rank: 1, id: 'a1', author: 'alice', votes: 12, url: 'https://www.zhihu.com/question/2021881398772981878/answer/a1', content: 'first' },
+            { rank: 2, id: 'a2', author: 'bob', votes: 8, url: 'https://www.zhihu.com/question/2021881398772981878/answer/a2', content: 'second' },
+            { rank: 3, id: 'a3', author: 'carol', votes: 5, url: 'https://www.zhihu.com/question/2021881398772981878/answer/a3', content: 'third' },
         ]);
         expect(evaluate).toHaveBeenCalledTimes(2);
         expect(evaluate.mock.calls[1][0]).toContain('offset=80');
@@ -84,7 +116,7 @@ describe('zhihu question', () => {
         });
         const page = { goto, evaluate };
         await expect(cmd.func(page, { id: '2021881398772981878', limit: 1, sort: 'created' })).resolves.toEqual([
-            { rank: 1, author: 'newest', votes: 1, content: 'created order' },
+            { rank: 1, id: 'a1', author: 'newest', votes: 1, url: 'https://www.zhihu.com/question/2021881398772981878/answer/a1', content: 'created order' },
         ]);
         expect(goto).toHaveBeenCalledWith('https://www.zhihu.com/question/2021881398772981878/answers/updated');
     });

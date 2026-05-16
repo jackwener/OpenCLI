@@ -30494,8 +30494,10 @@
     ],
     "columns": [
       "rank",
+      "id",
       "author",
       "votes",
+      "url",
       "content"
     ],
     "type": "js",
