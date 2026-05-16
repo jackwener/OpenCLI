@@ -1205,6 +1205,71 @@ describe('browser tab targeting commands', () => {
     expect(consoleLogSpy.mock.calls.flat().join('\n')).toContain('"url": "https://x.example/embed"');
   });
 
+  it('browser cookies returns the JSON envelope from page.getCookies', async () => {
+    const cookies = [
+      {
+        name: 'session',
+        value: 'abc',
+        domain: '.example.com',
+        path: '/',
+        secure: true,
+        httpOnly: true,
+        sameSite: 'None',
+        expirationDate: 1781234567,
+      },
+      {
+        name: 'theme',
+        value: 'dark',
+        domain: 'example.com',
+        path: '/',
+        session: true,
+      },
+    ];
+    (browserState.page!.getCookies as ReturnType<typeof vi.fn>).mockResolvedValue(cookies);
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'cookies']);
+
+    expect(browserState.page?.getCookies).toHaveBeenCalledWith({});
+    const out = consoleLogSpy.mock.calls.flat().join('\n');
+    expect(out).toContain('"count": 2');
+    expect(out).toContain('"name": "session"');
+    expect(out).toContain('"httpOnly": true');
+    expect(out).toContain('"sameSite": "None"');
+    expect(out).toContain('"expirationDate": 1781234567');
+  });
+
+  it('browser cookies passes --domain and --url through to page.getCookies', async () => {
+    (browserState.page!.getCookies as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    const program = createProgram('', '');
+    await program.parseAsync([
+      'node', 'opencli', 'browser', '--session', 'test', 'cookies',
+      '--domain', 'larkoffice.com',
+      '--url', 'https://internal-api-lark-api-sg.larkoffice.com/im/gateway/',
+    ]);
+
+    expect(browserState.page?.getCookies).toHaveBeenCalledWith({
+      domain: 'larkoffice.com',
+      url: 'https://internal-api-lark-api-sg.larkoffice.com/im/gateway/',
+    });
+    const out = consoleLogSpy.mock.calls.flat().join('\n');
+    expect(out).toContain('"cookies": []');
+    expect(out).toContain('"count": 0');
+  });
+
+  it('browser cookies omits empty filter values from the page.getCookies call', async () => {
+    (browserState.page!.getCookies as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    const program = createProgram('', '');
+    // Commander materializes unset string options as undefined; explicit empty
+    // values should not be forwarded as filters either, since CDP treats them
+    // as literal matches and would silently return zero cookies.
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'cookies', '--domain', '']);
+
+    expect(browserState.page?.getCookies).toHaveBeenCalledWith({});
+  });
+
   it('routes browser eval --frame through frame-targeted evaluation', async () => {
     const program = createProgram('', '');
 
