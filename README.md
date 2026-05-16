@@ -251,7 +251,7 @@ To load the source Browser Bridge extension:
 |------|----------|
 | **xiaohongshu** | `search` `note` `comments` `feed` `user` `download` `publish` `notifications` `creator-notes` `creator-notes-summary` `creator-note-detail` `creator-profile` `creator-stats` |
 | **rednote** | `search` `note` `comments` `user` `download` `feed` `notifications` |
-| **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `me` `subtitle` `video` `user-videos` |
+| **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `me` `subtitle` `summary` `video` `user-videos` |
 | **tieba** | `hot` `posts` `search` `read` |
 | **hupu** | `hot` `search` `detail` `mentions` `reply` `like` `unlike` |
 | **twitter** | `trending` `search` `timeline` `tweets` `lists` `list-tweets` `list-add` `list-remove` `bookmarks` `post` `download` `profile` `article` `like` `likes` `notifications` `reply` `reply-dm` `thread` `follow` `unfollow` `followers` `following` `block` `unblock` `bookmark` `unbookmark` `delete` `hide-reply` `accept` |
