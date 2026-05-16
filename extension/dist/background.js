@@ -783,6 +783,7 @@ const IDLE_TIMEOUT_INTERACTIVE = 6e5;
 const IDLE_TIMEOUT_NONE = -1;
 const REGISTRY_KEY = "opencli_target_lease_registry_v2";
 const LEASE_IDLE_ALARM_PREFIX = "opencli:lease-idle:";
+const DISABLE_TAB_GROUP_KEY = "opencli_disable_automation_tab_group";
 const CONTAINER_TAB_GROUP_TITLE = {
   interactive: "OpenCLI Browser",
   automation: "OpenCLI Adapter"
@@ -1088,9 +1089,20 @@ async function discoverOwnedContainerFromTabGroup(role) {
   }
   return null;
 }
+async function isAutomationTabGroupDisabled() {
+  try {
+    const local = chrome.storage?.local;
+    if (!local) return false;
+    const raw = await local.get(DISABLE_TAB_GROUP_KEY);
+    return raw[DISABLE_TAB_GROUP_KEY] === true;
+  } catch {
+    return false;
+  }
+}
 async function ensureOwnedContainerTabGroup(role, windowId, tabIds) {
   const ids = [...new Set(tabIds.filter((id) => id !== void 0))];
   if (ids.length === 0) return;
+  if (await isAutomationTabGroupDisabled()) return;
   try {
     const existingGroupId = await getOwnedContainerGroupId(role, windowId);
     if (existingGroupId !== null) {
