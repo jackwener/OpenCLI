@@ -1,7 +1,8 @@
 # OpenCLI
 
-> **把网站、浏览器会话、Electron 应用和本地工具，统一变成适合人类与 AI Agent 使用的确定性接口。**  
-> 复用浏览器登录态，先自动化真实操作，再把高频流程沉淀成可复用的 CLI 命令。
+> **把任意网站变成 CLI & 让 AI Agent 操控你的登录态浏览器。**
+> 把网站、浏览器会话、Electron 应用和本地工具，统一变成适合人类与 AI Agent 使用的确定性接口。
+> 或者直接操控你的登录态浏览器做任何事 —— 导航、填表单、点击、抓取、自动化。
 
 [![English](https://img.shields.io/badge/docs-English-1D4ED8?style=flat-square)](./README.md)
 [![npm](https://img.shields.io/npm/v/@jackwener/opencli?style=flat-square)](https://www.npmjs.com/package/@jackwener/opencli)
@@ -111,7 +112,7 @@ npx skills add jackwener/opencli --skill smart-search
 |-------|---------|-------------------|
 | **opencli-adapter-author** | 实时操作任意网站，或为新站点写可复用适配器 | "帮我看看小红书的通知" / "帮我做一个抖音热门的适配器" / "帮我做一个抓取这个页面热帖的命令" |
 | **opencli-autofix** | 内置命令失败时修复已有适配器 | "`opencli zhihu hot` 返回空了，修一下" |
-| **opencli-browser** | 浏览器自动化参考文档 | "用浏览器命令抓取这个页面" |
+| **opencli-browser** | 浏览器自动化参考文档 | "帮我填一下这个表单" / "用浏览器命令抓取这个页面" |
 | **opencli-usage** | 所有命令和站点的快速参考 | "OpenCLI 有哪些 Twitter 相关的命令？" |
 | **smart-search** | 在现有 OpenCLI 能力里搜索 | "帮我找个 B 站热门相关的适配器" |
 

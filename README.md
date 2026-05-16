@@ -1,7 +1,8 @@
 # OpenCLI
 
-> **Turn websites, browser sessions, Electron apps, and local tools into deterministic interfaces for humans and AI agents.**
-> Reuse your logged-in browser, automate live workflows, and crystallize repeated actions into reusable CLI commands.
+> **Convert any website into a CLI & Drive your logged-in browser from AI agents.**
+> Turn websites, browser sessions, Electron apps, and local tools into deterministic interfaces for humans and AI agents.
+> Or drive your logged-in browser to do anything — navigate, fill forms, click, extract, automate.
 
 [![中文文档](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87-0F766E?style=flat-square)](./README.zh-CN.md)
 [![npm](https://img.shields.io/npm/v/@jackwener/opencli?style=flat-square)](https://www.npmjs.com/package/@jackwener/opencli)
@@ -127,7 +128,7 @@ npx skills add jackwener/opencli --skill smart-search
 |-------|------------|-------------------------------|
 | **opencli-adapter-author** | Operate a site in real time, or write a reusable adapter for a new site | "Help me check my Xiaohongshu notifications" / "Write an adapter for douyin trending" / "Make a command that grabs the top posts from this page" |
 | **opencli-autofix** | Repair a broken adapter when a built-in command fails | "`opencli zhihu hot` is returning empty — fix it" |
-| **opencli-browser** | Browser automation reference for AI agents | "Use browser commands to scrape this page" |
+| **opencli-browser** | Browser automation reference for AI agents | "Help me fill out this form" / "Use browser commands to scrape this page" |
 | **opencli-usage** | Quick reference for all OpenCLI commands and sites | "What commands does OpenCLI have for Twitter?" |
 | **smart-search** | Search across existing OpenCLI capabilities | "Find me a Bilibili trending adapter" |
 
