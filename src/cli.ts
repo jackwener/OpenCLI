@@ -144,6 +144,8 @@ async function captureNetworkItems(page: import('./types.js').IPage): Promise<Br
   }
 }
 
+type NetworkCaptureMode = 'native' | 'fallback' | 'unavailable';
+
 /** Drop static-resource / telemetry noise so agents see only API-shaped traffic. */
 function filterNetworkItems(items: BrowserNetworkItem[]): BrowserNetworkItem[] {
   return items.filter((r) => {
@@ -154,6 +156,57 @@ function filterNetworkItems(items: BrowserNetworkItem[]): BrowserNetworkItem[] {
       !/analytics|tracking|telemetry|beacon|pixel|gtag|fbevents/i.test(r.url)
     );
   });
+}
+
+function buildEmptyNetworkHint(input: {
+  rawCount: number;
+  defaultVisibleCount: number;
+  visibleCount: number;
+  captureMode: NetworkCaptureMode;
+  hasFilter: boolean;
+  filterDropped: number;
+  hasFailed: boolean;
+  hasTimeWindow: boolean;
+}): { reason: string; hint: string } | null {
+  if (input.visibleCount > 0) return null;
+
+  if (input.rawCount === 0) {
+    if (input.captureMode === 'fallback') {
+      return {
+        reason: 'capture_empty_fallback',
+        hint: 'Native network capture is unavailable; JS fallback only captures fetch/XHR after it is installed. Reload the page, trigger the action again, then rerun `browser network`.',
+      };
+    }
+    if (input.captureMode === 'unavailable') {
+      return {
+        reason: 'capture_unavailable',
+        hint: 'Could not install native or JS network capture. Check that the browser tab is still reachable, then reload or reopen the page.',
+      };
+    }
+    return {
+      reason: 'capture_empty',
+      hint: 'Capture is active but no requests were observed yet. Trigger the page action or reload the page, then rerun `browser network`.',
+    };
+  }
+
+  if (input.hasFilter && input.defaultVisibleCount > 0 && input.filterDropped > 0) {
+    return {
+      reason: 'filter_empty',
+      hint: 'Requests were captured, but `--filter` removed every visible entry. Run without `--filter` to inspect shapes, or use `--all` if the target was classified as static/noise.',
+    };
+  }
+
+  if (input.hasFailed || input.hasTimeWindow) {
+    return {
+      reason: 'option_empty',
+      hint: 'Requests were captured, but the current options removed every entry. Relax `--failed`, `--since`, or `--until`, or run with `--all` to inspect the raw capture.',
+    };
+  }
+
+  return {
+    reason: 'default_filter_empty',
+    hint: 'Requests were captured, but the default API filter removed all of them. Retry with `browser network --all` to include static resources, telemetry, and non-API responses.',
+  };
 }
 
 /** Exit codes by network error code — usage errors vs runtime failures. */
@@ -2442,7 +2495,24 @@ Examples:
         }
       }
 
-      // Fresh capture path.
+      // Fresh capture path. Arm capture here too: `browser open` normally
+      // starts it before navigation, but agents often call `browser network`
+      // directly against an existing tab/session.
+      let captureMode: NetworkCaptureMode = 'native';
+      let hasSessionCapture = false;
+      try {
+        hasSessionCapture = await page.startNetworkCapture?.() ?? false;
+      } catch {
+        hasSessionCapture = false;
+      }
+      if (!hasSessionCapture) {
+        try {
+          await page.evaluate(NETWORK_INTERCEPTOR_JS);
+          captureMode = 'fallback';
+        } catch {
+          captureMode = 'unavailable';
+        }
+      }
       let rawItems: BrowserNetworkItem[];
       try {
         rawItems = await captureNetworkItems(page);
@@ -2451,7 +2521,8 @@ Examples:
         return;
       }
 
-      let items = opts.all ? rawItems : filterNetworkItems(rawItems);
+      const defaultVisibleItems = opts.all ? rawItems : filterNetworkItems(rawItems);
+      let items = defaultVisibleItems;
       items = filterByTimeWindow(items, { sinceMs, untilMs });
       if (opts.failed) items = items.filter((item) => item.status === 0 || item.status >= 400);
       const filteredOut = rawItems.length - items.length;
@@ -2502,6 +2573,21 @@ Examples:
         envelope.filter_dropped = filterDropped;
       }
       if (cacheWarning) envelope.cache_warning = cacheWarning;
+
+      const empty = buildEmptyNetworkHint({
+        rawCount: rawItems.length,
+        defaultVisibleCount: defaultVisibleItems.length,
+        visibleCount: visible.length,
+        captureMode,
+        hasFilter,
+        filterDropped,
+        hasFailed: opts.failed === true,
+        hasTimeWindow: Boolean(sinceMs || untilMs),
+      });
+      if (empty) {
+        envelope.empty_reason = empty.reason;
+        envelope.empty_hint = empty.hint;
+      }
 
       const truncatedCount = visible.filter((s) => s.entry.body_truncated).length;
       if (truncatedCount > 0) {

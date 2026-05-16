@@ -1596,6 +1596,7 @@ describe('browser network command', () => {
       getActivePage: vi.fn().mockReturnValue('tab-1'),
       tabs: vi.fn().mockResolvedValue([{ page: 'tab-1', active: true }]),
       evaluate: vi.fn().mockResolvedValue(''),
+      startNetworkCapture: vi.fn().mockResolvedValue(true),
       readNetworkCapture: vi.fn().mockResolvedValue([
         {
           url: 'https://x.com/i/api/graphql/qid/UserTweets?v=1',
@@ -1623,12 +1624,78 @@ describe('browser network command', () => {
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
 
     const out = lastJsonLog();
+    expect(browserState.page?.startNetworkCapture).toHaveBeenCalledTimes(1);
     expect(out.count).toBe(1);
     expect(out.filtered_out).toBe(1);
     expect(out.entries[0].key).toBe('UserTweets');
     expect(out.entries[0].shape['$.data.user.rest_id']).toBe('string');
     expect(out.entries[0]).not.toHaveProperty('body');
     expect(fs.existsSync(getNetworkCachePath(cacheDir))).toBe(true);
+  });
+
+  it('installs the JS fallback and explains empty fallback captures when native capture is unsupported', async () => {
+    browserState.page!.startNetworkCapture = vi.fn().mockResolvedValue(false);
+    browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([]);
+    browserState.page!.evaluate = vi.fn().mockResolvedValue('[]');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+
+    const out = lastJsonLog();
+    expect(browserState.page?.evaluate).toHaveBeenCalledWith(expect.stringContaining('__opencli_net'));
+    expect(out.count).toBe(0);
+    expect(out.empty_reason).toBe('capture_empty_fallback');
+    expect(out.empty_hint).toContain('Reload the page');
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('falls back to the JS interceptor when native capture startup fails', async () => {
+    browserState.page!.startNetworkCapture = vi.fn().mockRejectedValue(new Error('Extension disconnected'));
+    browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([]);
+    browserState.page!.evaluate = vi.fn().mockResolvedValue('[]');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+
+    const out = lastJsonLog();
+    expect(browserState.page?.evaluate).toHaveBeenCalledWith(expect.stringContaining('__opencli_net'));
+    expect(out.empty_reason).toBe('capture_empty_fallback');
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('explains truly empty native captures without treating them as errors', async () => {
+    browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([]);
+    browserState.page!.evaluate = vi.fn().mockResolvedValue('[]');
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(0);
+    expect(out.empty_reason).toBe('capture_empty');
+    expect(out.empty_hint).toContain('Trigger the page action');
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('suggests --all when the default network filter removes every captured request', async () => {
+    browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+      {
+        url: 'https://cdn.example.com/app.js',
+        method: 'GET',
+        responseStatus: 200,
+        responseContentType: 'application/javascript',
+        responsePreview: '// js',
+      },
+    ]);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(0);
+    expect(out.filtered_out).toBe(1);
+    expect(out.empty_reason).toBe('default_filter_empty');
+    expect(out.empty_hint).toContain('--all');
   });
 
   it('uses the selected browser session for network cache scope', async () => {
@@ -1857,6 +1924,8 @@ describe('browser network command', () => {
       expect(out.entries).toEqual([]);
       expect(out.filter).toEqual(['author', 'followers']);
       expect(out.filter_dropped).toBe(3);
+      expect(out.empty_reason).toBe('filter_empty');
+      expect(out.empty_hint).toContain('without `--filter`');
     });
 
     it('returns empty entries (not an error) when nothing matches', async () => {
@@ -1866,6 +1935,7 @@ describe('browser network command', () => {
       const out = lastJsonLog();
       expect(out.count).toBe(0);
       expect(out.entries).toEqual([]);
+      expect(out.empty_reason).toBe('filter_empty');
       expect(out).not.toHaveProperty('error');
       expect(process.exitCode).toBeUndefined();
     });
