@@ -1821,7 +1821,7 @@
         "type": "int",
         "default": 10,
         "required": false,
-        "help": "Number of near-the-money strikes per type"
+        "help": "Number of near-the-money strikes per type (1-100)"
       }
     ],
     "columns": [

@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './greeks.js';
+
+const { normalizeExpiration, normalizeSymbol, parseLimit, unwrapBrowserResult } = await import('./greeks.js').then((m) => m.__test__);
 
 function makePage(evaluateResult) {
     return {
@@ -26,6 +28,8 @@ describe('barchart greeks command', () => {
 
     it('maps returned option rows without changing the declared output shape', async () => {
         const page = makePage({
+            session: 'site:barchart',
+            data: {
             ok: true,
             rows: [
                 {
@@ -43,6 +47,7 @@ describe('barchart greeks command', () => {
                     expiration: '2026-06-19',
                 },
             ],
+            },
         });
 
         const rows = await command.func(page, { symbol: 'aapl', limit: 1 });
@@ -65,6 +70,21 @@ describe('barchart greeks command', () => {
                 expiration: '2026-06-19',
             },
         ]);
+    });
+
+    it('validates args before browser navigation and unwraps bridge envelopes', async () => {
+        expect(normalizeSymbol(' aapl ')).toBe('AAPL');
+        expect(normalizeExpiration('2026-06-19')).toBe('2026-06-19');
+        expect(parseLimit(undefined)).toBe(10);
+        expect(parseLimit(100)).toBe(100);
+        expect(unwrapBrowserResult({ session: 'site:barchart', data: { ok: true } })).toEqual({ ok: true });
+
+        await expect(command.func(makePage({ ok: true, rows: [] }), { symbol: '', limit: 1 }))
+            .rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func(makePage({ ok: true, rows: [] }), { symbol: 'AAPL', expiration: '2026-02-30', limit: 1 }))
+            .rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func(makePage({ ok: true, rows: [] }), { symbol: 'AAPL', limit: 101 }))
+            .rejects.toBeInstanceOf(ArgumentError);
     });
 
     it('embeds expiration and limit in the browser-side request script', async () => {
@@ -101,6 +121,8 @@ describe('barchart greeks command', () => {
             .rejects.toBeInstanceOf(CommandExecutionError);
         await expect(command.func(makePage({ ok: false, reason: 'exception', message: 'network down' }), { symbol: 'AAPL' }))
             .rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(command.func(makePage({ ok: false, reason: 'malformed', message: 'options rows did not include call or put identities' }), { symbol: 'AAPL' }))
+            .rejects.toThrow('call or put identities');
         await expect(command.func(makePage(null), { symbol: 'AAPL' }))
             .rejects.toBeInstanceOf(CommandExecutionError);
         await expect(command.func(makePage({ ok: true, rows: 'bad' }), { symbol: 'AAPL' }))
