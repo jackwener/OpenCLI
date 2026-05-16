@@ -173,20 +173,30 @@ cli({
         if (data.rows.length === 0) {
             throw new EmptyResultError('barchart greeks', `No option greeks were returned for ${symbol}. Confirm the symbol, expiration, and Barchart login state.`);
         }
-        return data.rows.map(r => ({
-            type: r.type || '',
-            strike: r.strike,
-            last: r.last != null ? Number(Number(r.last).toFixed(2)) : null,
-            iv: r.iv != null ? Number(Number(r.iv).toFixed(2)) + '%' : null,
-            delta: r.delta != null ? Number(Number(r.delta).toFixed(4)) : null,
-            gamma: r.gamma != null ? Number(Number(r.gamma).toFixed(4)) : null,
-            theta: r.theta != null ? Number(Number(r.theta).toFixed(4)) : null,
-            vega: r.vega != null ? Number(Number(r.vega).toFixed(4)) : null,
-            rho: r.rho != null ? Number(Number(r.rho).toFixed(4)) : null,
-            volume: r.volume,
-            openInterest: r.openInterest,
-            expiration: r.expiration ?? null,
-        }));
+        return data.rows.map(r => {
+            if (!r || typeof r !== 'object' || Array.isArray(r)) {
+                throw new CommandExecutionError('Barchart greeks returned a malformed option row');
+            }
+            const type = String(r.type || '').trim();
+            const expirationValue = String(r.expiration || '').trim();
+            if (!/^(call|put)$/i.test(type) || r.strike === undefined || r.strike === null || r.strike === '' || !expirationValue) {
+                throw new CommandExecutionError('Barchart greeks returned a malformed option row identity');
+            }
+            return {
+                type,
+                strike: r.strike,
+                last: r.last != null ? Number(Number(r.last).toFixed(2)) : null,
+                iv: r.iv != null ? Number(Number(r.iv).toFixed(2)) + '%' : null,
+                delta: r.delta != null ? Number(Number(r.delta).toFixed(4)) : null,
+                gamma: r.gamma != null ? Number(Number(r.gamma).toFixed(4)) : null,
+                theta: r.theta != null ? Number(Number(r.theta).toFixed(4)) : null,
+                vega: r.vega != null ? Number(Number(r.vega).toFixed(4)) : null,
+                rho: r.rho != null ? Number(Number(r.rho).toFixed(4)) : null,
+                volume: r.volume,
+                openInterest: r.openInterest,
+                expiration: expirationValue,
+            };
+        });
     },
 });
 

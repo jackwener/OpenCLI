@@ -127,6 +127,8 @@ describe('barchart greeks command', () => {
             .rejects.toBeInstanceOf(CommandExecutionError);
         await expect(command.func(makePage({ ok: true, rows: 'bad' }), { symbol: 'AAPL' }))
             .rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(command.func(makePage({ ok: true, rows: [{ type: 'Call', strike: null, expiration: '' }] }), { symbol: 'AAPL' }))
+            .rejects.toThrow('malformed option row identity');
     });
 
     it('throws EmptyResultError when Barchart returns no greeks rows', async () => {
