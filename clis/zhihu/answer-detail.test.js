@@ -304,6 +304,14 @@ describe('zhihu answer-detail helpers', () => {
         expect(out).toBe('hi there & you\n\nsecond');
     });
 
+    it('stripHtml decodes numeric entities', () => {
+        expect(helpers.stripHtml('&#34;中文&#34; &#x26; &#39;test&#39;')).toBe('"中文" & \'test\'');
+    });
+
+    it('stripHtml keeps invalid numeric entities unchanged', () => {
+        expect(helpers.stripHtml('bad &#9999999999; entity')).toBe('bad &#9999999999; entity');
+    });
+
     it('stripHtml maps <br> to single newline', () => {
         expect(helpers.stripHtml('a<br>b<br/>c')).toBe('a\nb\nc');
     });
