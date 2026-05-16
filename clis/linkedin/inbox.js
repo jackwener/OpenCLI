@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
 const LINKEDIN_DOMAIN = 'linkedin.com';
 const MESSAGING_URL = 'https://www.linkedin.com/messaging/';
@@ -151,7 +151,14 @@ cli({
     'timestamp',
   ],
   func: async (page, kwargs) => {
-    const limit = Math.max(MIN_LIMIT, Math.min(Number(kwargs.limit) || DEFAULT_LIMIT, MAX_LIMIT));
+    // Validate --limit explicitly rather than silently clamping an out-of-range value.
+    let limit = DEFAULT_LIMIT;
+    if (kwargs.limit !== undefined && kwargs.limit !== null && kwargs.limit !== '') {
+      limit = Number(kwargs.limit);
+      if (!Number.isInteger(limit) || limit < MIN_LIMIT || limit > MAX_LIMIT) {
+        throw new ArgumentError(`--limit must be an integer between ${MIN_LIMIT} and ${MAX_LIMIT}`);
+      }
+    }
     const unreadOnly = Boolean(kwargs['unread-only']);
 
     await page.goto(MESSAGING_URL);
