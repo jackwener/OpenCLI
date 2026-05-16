@@ -46,6 +46,30 @@ describe('bilibili comments', () => {
             },
         ]);
     });
+    it('fetches replies under a comment via /x/v2/reply/reply when --parent is given', async () => {
+        mockApiGet
+            .mockResolvedValueOnce({ data: { aid: 12345 } }) // view endpoint
+            .mockResolvedValueOnce({
+            data: {
+                replies: [
+                    {
+                        member: { uname: 'AI视频小助理' },
+                        content: { message: '视频总结：作者开了一家咖啡馆' },
+                        like: 8,
+                        rcount: 0,
+                        ctime: 1700000000,
+                    },
+                ],
+            },
+        });
+        const result = await command.func({}, { bvid: 'BV1WtAGzYEBm', parent: 777, limit: 5 });
+        expect(mockApiGet).toHaveBeenNthCalledWith(1, {}, '/x/web-interface/view', { params: { bvid: 'BV1WtAGzYEBm' } });
+        expect(mockApiGet).toHaveBeenNthCalledWith(2, {}, '/x/v2/reply/reply', {
+            params: { oid: 12345, type: 1, root: 777, pn: 1, ps: 5 },
+        });
+        expect(result[0].author).toBe('AI视频小助理');
+        expect(result[0].text).toBe('视频总结：作者开了一家咖啡馆');
+    });
     it('throws when aid cannot be resolved', async () => {
         mockApiGet.mockResolvedValueOnce({ data: {} }); // no aid
         await expect(command.func({}, { bvid: 'BVinvalid123', limit: 5 })).rejects.toThrow('Cannot resolve aid for bvid: BVinvalid123');
