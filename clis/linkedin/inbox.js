@@ -85,7 +85,7 @@ function parseConversations(normalized, mailboxUrn) {
     return { name: '', kind: '' };
   };
 
-  const rows = [];
+  const entries = [];
   for (const conv of included) {
     if (!conv || conv.$type !== 'com.linkedin.messenger.Conversation') continue;
     const threadId = String(conv.backendUrn || '').replace(/^urn:li:messagingThread:/, '');
@@ -108,18 +108,23 @@ function parseConversations(normalized, mailboxUrn) {
     let preview = lastMsg && lastMsg.body ? norm(lastMsg.body.text) : '';
     if (!preview) preview = norm(conv.descriptionText || '');
 
-    rows.push({
-      thread_id: threadId,
-      person_name: conv.title ? norm(conv.title) : others.join(', '),
-      last_message_preview: preview.slice(0, 300),
-      unread: Number(conv.unreadCount || 0) > 0 || conv.read === false,
-      counterparty_type: counterpartyKind,
-      category: Array.isArray(conv.categories) ? conv.categories.join(',') : '',
-      timestamp_ms: Number(conv.lastActivityAt || 0),
+    const activityMs = Number(conv.lastActivityAt || 0);
+    entries.push({
+      activityMs,
+      row: {
+        thread_id: threadId,
+        person_name: conv.title ? norm(conv.title) : others.join(', '),
+        last_message_preview: preview.slice(0, 300),
+        unread: Number(conv.unreadCount || 0) > 0 || conv.read === false,
+        counterparty_type: counterpartyKind,
+        category: Array.isArray(conv.categories) ? conv.categories.join(',') : '',
+        timestamp: activityMs ? new Date(activityMs).toISOString() : '',
+      },
     });
   }
-  rows.sort((a, b) => b.timestamp_ms - a.timestamp_ms);
-  return rows;
+  // Most-recent first; the sort key is kept off the returned row.
+  entries.sort((a, b) => b.activityMs - a.activityMs);
+  return entries.map((entry) => entry.row);
 }
 
 cli({
@@ -205,7 +210,7 @@ cli({
       unread: c.unread,
       counterparty_type: c.counterparty_type,
       category: c.category,
-      timestamp: c.timestamp_ms ? new Date(c.timestamp_ms).toISOString() : '',
+      timestamp: c.timestamp,
     }));
   },
 });
