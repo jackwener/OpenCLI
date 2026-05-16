@@ -5,10 +5,12 @@ import { isElectronApp } from './electron-apps.js';
 import { log } from './logger.js';
 
 /**
- * Returns the appropriate browser factory based on site type.
- * Uses CDPBridge for registered Electron apps, otherwise BrowserBridge.
+ * Returns the appropriate browser factory based on site type and CDP endpoint.
+ * Uses CDPBridge when a CDP endpoint is provided (via argument or environment
+ * variable) or for registered Electron apps; otherwise BrowserBridge.
  */
-export function getBrowserFactory(site?: string): new () => IBrowserFactory {
+export function getBrowserFactory(site?: string, cdpEndpoint?: string): new () => IBrowserFactory {
+  if (cdpEndpoint || process.env.OPENCLI_CDP_ENDPOINT?.trim()) return CDPBridge;
   if (site && isElectronApp(site)) return CDPBridge;
   return BrowserBridge;
 }

@@ -246,9 +246,12 @@ export async function executeCommand(
         } else {
           cdpEndpoint = await resolveElectronEndpoint(cmd.site);
         }
+      } else if (process.env.OPENCLI_CDP_ENDPOINT) {
+        // Non-Electron browser commands: honor manual CDP endpoint when set
+        cdpEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
       }
 
-      const BrowserFactory = getBrowserFactory(cmd.site);
+      const BrowserFactory = getBrowserFactory(cmd.site, cdpEndpoint);
       const contextId = resolveProfileContextId(opts.profile);
       const internal = cmd as InternalCliCommand;
       const siteSession = resolveSiteSession(cmd, opts.siteSession);
