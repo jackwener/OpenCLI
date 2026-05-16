@@ -14409,21 +14409,14 @@
         "type": "int",
         "default": 40,
         "required": false,
-        "help": "Maximum conversations to return (max 200)"
-      },
-      {
-        "name": "max-scrolls",
-        "type": "int",
-        "default": 18,
-        "required": false,
-        "help": "Maximum inbox scroll/pagination passes"
+        "help": "Maximum conversations to return (1-100)"
       },
       {
         "name": "unread-only",
         "type": "bool",
         "default": false,
         "required": false,
-        "help": "Return only conversations detected as unread"
+        "help": "Return only conversations with unread messages"
       }
     ],
     "columns": [
@@ -14433,6 +14426,8 @@
       "person_name",
       "last_message_preview",
       "unread",
+      "counterparty_type",
+      "category",
       "timestamp"
     ],
     "type": "js",
