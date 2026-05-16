@@ -140,5 +140,13 @@ describe('linkedin inbox adapter', () => {
   it('fails typed when the normalized payload shape is malformed', () => {
     expect(() => parseConversations({}, SELF)).toThrow(CommandExecutionError);
     expect(() => parseConversations(null, SELF)).toThrow(CommandExecutionError);
+    const malformed = fixture();
+    malformed.included.push({
+      $type: 'com.linkedin.messenger.Conversation',
+      entityUrn: 'urn:li:msg_conversation:MALFORMED',
+      '*conversationParticipants': [],
+      messages: { '*elements': [] },
+    });
+    expect(() => parseConversations(malformed, SELF)).toThrow(CommandExecutionError);
   });
 });

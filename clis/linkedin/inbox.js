@@ -92,6 +92,9 @@ function parseConversations(normalized, mailboxUrn) {
   for (const conv of included) {
     if (!conv || conv.$type !== 'com.linkedin.messenger.Conversation') continue;
     const threadId = String(conv.backendUrn || '').replace(/^urn:li:messagingThread:/, '');
+    if (!threadId) {
+      throw new CommandExecutionError('LinkedIn messaging API returned a conversation without thread id');
+    }
 
     const others = [];
     let counterpartyKind = '';
