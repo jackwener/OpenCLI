@@ -17,7 +17,7 @@ function makeFakePage(probe, sendResult = { ok: true, status: 'sent', reason: 'c
         wait: vi.fn(async () => undefined),
         evaluate: vi.fn(async (script) => {
             const text = String(script);
-            if (text.includes('connection_request_sent')) return sendResult;
+            if (text.includes('custom-message') || text.includes('invite_dialog_not_found')) return sendResult;
             return probe;
         }),
     };
@@ -61,7 +61,7 @@ describe('linkedin connect command', () => {
         const command = getRegistry().get('linkedin/connect');
         expect(command).toBeDefined();
         expect(command.access).toBe('write');
-        const page = makeFakePage({ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: true, buttonLabels: ['Connect'] });
+        const page = makeFakePage({ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: true, connectHref: '/preload/custom-invite/?vanityName=jane', buttonLabels: ['Connect'] });
         const rows = await command.func(page, {
             'profile-url': 'https://www.linkedin.com/in/jane/',
             'expected-name': 'Jane Doe',
@@ -85,7 +85,7 @@ describe('linkedin connect command', () => {
 
     it('sends only when --send is true after verification', async () => {
         const command = getRegistry().get('linkedin/connect');
-        const page = makeFakePage({ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: true, buttonLabels: ['Connect'] });
+        const page = makeFakePage({ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: true, connectHref: '/preload/custom-invite/?vanityName=jane', buttonLabels: ['Connect'] });
         const rows = await command.func(page, {
             'profile-url': 'https://www.linkedin.com/in/jane/',
             'expected-name': 'Jane Doe',

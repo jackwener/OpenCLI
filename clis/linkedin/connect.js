@@ -20,6 +20,10 @@ function canonicalizeLinkedInProfileUrl(value) {
     try {
         const url = new URL(raw);
         if (!/linkedin\.com$/i.test(url.hostname) && !/\.linkedin\.com$/i.test(url.hostname)) return raw;
+        // LinkedIn redirects country subdomains (ca./uk./...) to www.; normalize the
+        // host so an expected `ca.linkedin.com/in/x` matches the landed `www.linkedin.com/in/x`.
+        url.protocol = 'https:';
+        url.hostname = 'www.linkedin.com';
         url.hash = '';
         url.search = '';
         if (!url.pathname.endsWith('/')) url.pathname += '/';
@@ -74,14 +78,25 @@ function buildProfileProbeScript() {
       || /linkedin\.com\/(login|checkpoint|authwall)/i.test(location.href)
       || /captcha|verification required/i.test(text);
     const main = document.querySelector('main') || document.body;
-    const h1 = main?.querySelector('h1');
-    const name = clean(h1?.innerText || h1?.textContent || document.querySelector('.text-heading-xlarge')?.textContent || '');
-    const buttons = Array.from(document.querySelectorAll('button, [role="button"]')).filter((el) => el.offsetParent !== null);
+    // LinkedIn profile pages no longer expose the name in an <h1>; the heading
+    // markup churns, but document.title is a stable "Name | LinkedIn" pattern.
+    const heading = main?.querySelector('h1, .text-heading-xlarge, [class*="heading-xlarge"]');
+    const titleName = clean((document.title || '')
+      .replace(/^\(\d+\+?\)\s*/, '')
+      .replace(/\s*[|｜]\s*LinkedIn\s*$/i, ''));
+    const name = clean(heading?.innerText || heading?.textContent || '') || titleName;
+    const buttons = Array.from(document.querySelectorAll('button, [role="button"], a')).filter((el) => el.offsetParent !== null);
     const buttonLabels = buttons.map((button) => clean(button.innerText || button.textContent || button.getAttribute('aria-label'))).filter(Boolean);
     const lowerLabels = buttonLabels.map((label) => label.toLowerCase());
     const alreadyConnected = lowerLabels.some((label) => label === 'message' || label.includes('1st degree connection'));
     const pending = lowerLabels.some((label) => label === 'pending' || label.includes('pending'));
     const connectAvailable = lowerLabels.some((label) => label === 'connect' || label.startsWith('connect ') || label.includes(' invite '));
+    // The Connect control is an <a> linking to LinkedIn's invitation route
+    // (/preload/custom-invite/?vanityName=...). Capture it so the sender can
+    // navigate straight to the invite dialog.
+    const connectAnchor = buttons.find((el) => el.tagName === 'A'
+      && /^connect$/i.test(clean(el.innerText || el.textContent || el.getAttribute('aria-label'))));
+    const connectHref = connectAnchor ? (connectAnchor.getAttribute('href') || '') : '';
     return {
       url: location.href,
       title: document.title || '',
@@ -90,61 +105,68 @@ function buildProfileProbeScript() {
       alreadyConnected,
       pending,
       connectAvailable,
+      connectHref,
       buttonLabels: buttonLabels.slice(0, 30),
       bodyText: text,
     };
   })()`;
 }
 
-function buildConnectionRequestScript(note) {
+// Runs in-page on LinkedIn's invitation route (/preload/custom-invite/...),
+// where the "Add a note to your invitation?" dialog is already open.
+function buildInviteScript(note) {
     return String.raw`(async () => {
     const note = ${JSON.stringify(note)};
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    const jitter = async (min = 350, max = 950) => sleep(min + Math.floor(Math.random() * (max - min + 1)));
+    const jitter = async (min = 450, max = 1150) => sleep(min + Math.floor(Math.random() * (max - min + 1)));
     const clean = (s) => String(s || '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
-    const visible = (el) => el && el.offsetParent !== null && !el.closest('[aria-hidden="true"]');
+    const visible = (el) => el && el.offsetParent !== null;
     const label = (el) => clean(el?.innerText || el?.textContent || el?.getAttribute('aria-label'));
-    const buttons = () => Array.from(document.querySelectorAll('button, [role="button"]')).filter(visible);
-    const findButton = (patterns) => buttons().find((button) => patterns.some((pattern) => pattern.test(label(button))));
+    const dialog = () => document.querySelector('[role="dialog"]');
+    const dialogButton = (pattern) => {
+      const dlg = dialog();
+      if (!dlg) return null;
+      return Array.from(dlg.querySelectorAll('button, [role="button"]')).filter(visible)
+        .find((button) => pattern.test(label(button)));
+    };
 
-    let connect = findButton([/^connect$/i, /^connect\s+/i]);
-    if (!connect) {
-      const more = findButton([/^more$/i, /more actions/i]);
-      if (more) {
-        more.scrollIntoView({ block: 'center' });
-        await jitter();
-        more.click();
-        await jitter(800, 1400);
-        connect = findButton([/^connect$/i, /^connect\s+/i]);
-      }
+    if (!dialog()) return { ok: false, status: 'blocked', reason: 'invite_dialog_not_found' };
+
+    if (!note) {
+      const sendDirect = dialogButton(/^send without a note$/i) || dialogButton(/^send$/i);
+      if (!sendDirect) return { ok: false, status: 'blocked', reason: 'send_button_not_found' };
+      await jitter();
+      sendDirect.click();
+      await jitter(1400, 2400);
+      return { ok: true, status: 'sent', reason: 'invitation_sent_without_note' };
     }
-    if (!connect) return { ok: false, status: 'blocked', reason: 'connect_button_not_found' };
 
-    connect.scrollIntoView({ block: 'center' });
+    const addNote = dialogButton(/^add a note$/i);
+    if (!addNote) return { ok: false, status: 'blocked', reason: 'add_note_button_not_found' };
     await jitter();
-    connect.click();
-    await jitter(900, 1700);
+    addNote.click();
+    await jitter(800, 1400);
 
-    if (note) {
-      const addNote = findButton([/add a note/i, /^add note$/i]);
-      if (!addNote) return { ok: false, status: 'blocked', reason: 'add_note_button_not_found' };
-      addNote.click();
-      await jitter(700, 1300);
-      const textarea = Array.from(document.querySelectorAll('textarea')).find(visible);
-      if (!textarea) return { ok: false, status: 'blocked', reason: 'note_textarea_not_found' };
-      textarea.focus();
-      textarea.value = note;
-      textarea.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: note }));
-      textarea.dispatchEvent(new Event('change', { bubbles: true }));
-      await jitter(500, 1000);
-    }
+    const textarea = document.querySelector('#custom-message')
+      || Array.from(document.querySelectorAll('textarea')).find(visible);
+    if (!textarea) return { ok: false, status: 'blocked', reason: 'note_textarea_not_found' };
+    textarea.focus();
+    // React tracks textarea values through the native setter; assigning .value
+    // directly would leave component state (and the Send button) unchanged.
+    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+    nativeSetter.call(textarea, note);
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    await jitter(700, 1300);
 
-    const send = findButton([/^send$/i, /^send now$/i, /^done$/i]);
+    const send = dialogButton(/^send$/i);
     if (!send) return { ok: false, status: 'blocked', reason: 'send_button_not_found' };
-    if (send.disabled || send.getAttribute('aria-disabled') === 'true') return { ok: false, status: 'blocked', reason: 'send_button_disabled' };
+    if (send.disabled || send.getAttribute('aria-disabled') === 'true') {
+      return { ok: false, status: 'blocked', reason: 'send_button_disabled' };
+    }
     send.click();
-    await jitter(1200, 2200);
-    return { ok: true, status: 'sent', reason: 'connection_request_sent' };
+    await jitter(1400, 2400);
+    return { ok: true, status: 'sent', reason: 'invitation_sent_with_note' };
   })()`;
 }
 
@@ -174,9 +196,15 @@ cli({
         const note = clampNote(args.note || '');
 
         await page.goto(profileUrl);
-        await page.wait(5);
+        await page.wait(6);
         let probe = await probeProfile(page);
-        for (let attempt = 0; attempt < 5 && !probe?.name; attempt += 1) {
+        // The name resolves early (from document.title), but the profile action
+        // buttons (Connect / Message / Pending) render later. Keep probing until
+        // the action state has resolved, not merely until the name is visible.
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+            const resolved = probe?.name
+                && (probe.connectAvailable || probe.alreadyConnected || probe.pending);
+            if (resolved) break;
             await page.wait(2);
             probe = await probeProfile(page);
         }
@@ -193,11 +221,24 @@ cli({
         if (!args.send) {
             return [{ status: 'verified_dry_run', recipient: safety.actual, reason: safety.reason, profile_url: safety.url, note_chars: note.length }];
         }
-        const result = unwrapEvaluateResult(await page.evaluate(buildConnectionRequestScript(note)));
+        const inviteHref = probe?.connectHref || '';
+        if (!inviteHref) {
+            throw new CommandExecutionError('LinkedIn connect blocked: connect_link_not_found');
+        }
+        const inviteUrl = new URL(inviteHref, 'https://www.linkedin.com').toString();
+        await page.goto(inviteUrl);
+        await page.wait(6);
+        let result = unwrapEvaluateResult(await page.evaluate(buildInviteScript(note)));
+        if (result?.reason === 'invite_dialog_not_found') {
+            await page.wait(5);
+            result = unwrapEvaluateResult(await page.evaluate(buildInviteScript(note)));
+        }
         if (!result?.ok) throw new CommandExecutionError(`LinkedIn connect blocked: ${result?.reason || 'send_failed'}`);
+        await page.goto(profileUrl);
+        await page.wait(5);
         const after = await probeProfile(page);
         return [{
-            status: result.status || 'sent',
+            status: after?.pending ? 'sent' : (result.status || 'sent'),
             recipient: safety.actual,
             reason: result.reason || 'connection_request_sent',
             profile_url: canonicalizeLinkedInProfileUrl(after?.url || safety.url),
