@@ -15,13 +15,15 @@ import {
     AuthRequiredError,
 } from '@jackwener/opencli/errors';
 import {
-    LIST_COLUMNS,
     buildSearchUrl,
-    jobToListRow,
+    isPlainObject,
+    jobsToListRows,
+    LIST_COLUMNS,
     requireBoundedInt,
     requirePositiveInt,
     requireQuery,
     requireSort,
+    unwrapBrowserResult,
 } from './utils.js';
 
 cli({
@@ -56,7 +58,7 @@ cli({
 
         let payload;
         try {
-            payload = await page.evaluate(`(async () => {
+            payload = unwrapBrowserResult(await page.evaluate(`(async () => {
                 const haveState = () => !!(window.__NUXT__ && window.__NUXT__.state && window.__NUXT__.state.jobsSearch);
                 let ready = haveState();
                 for (let i = 0; i < 30; i++) {
@@ -71,11 +73,12 @@ cli({
                     ready,
                     onLogin,
                     challenge,
-                    jobs: state && Array.isArray(state.jobs) ? state.jobs : [],
+                    jobsPresent: !!(state && Object.prototype.hasOwnProperty.call(state, 'jobs')),
+                    jobs: state ? state.jobs : undefined,
                     paging: state && state.paging ? state.paging : null,
                     status: state ? state.status : null,
                 };
-            })()`);
+            })()`));
         }
         catch (e) {
             throw new CommandExecutionError(`Failed to read Upwork search state: ${e?.message ?? e}`, 'The Nuxt state global was not reachable; try again after opening Upwork in the connected browser.');
@@ -90,13 +93,23 @@ cli({
         if (!payload?.ready) {
             throw new CommandExecutionError('Upwork search state (window.__NUXT__.state.jobsSearch) was not present within 15s', 'The page may not have finished hydrating, or the SSR state shape may have changed.');
         }
+        if (!isPlainObject(payload)) {
+            throw new CommandExecutionError('Upwork search returned an unexpected Browser Bridge payload shape');
+        }
+        if (!payload.jobsPresent || !Array.isArray(payload.jobs)) {
+            throw new CommandExecutionError('Upwork search state had an unexpected jobs shape; expected window.__NUXT__.state.jobsSearch.jobs to be an array.');
+        }
 
-        const jobs = Array.isArray(payload.jobs) ? payload.jobs : [];
+        const jobs = payload.jobs;
         if (jobs.length === 0) {
             throw new EmptyResultError('upwork search', `No Upwork jobs matched "${query}"${location ? ` in ${location}` : ''}`);
         }
 
         const offset = (pageNum - 1) * perPage;
-        return jobs.slice(0, perPage).map((j, i) => jobToListRow(j, offset + i + 1));
+        const rows = jobsToListRows(jobs, { offset, limit: perPage });
+        if (rows.length === 0) {
+            throw new CommandExecutionError('Upwork search results did not include any job with a valid ciphertext id; cannot produce round-trippable detail rows.');
+        }
+        return rows;
     },
 });

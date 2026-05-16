@@ -27,6 +27,17 @@ const FEED_TABS = {
 
 const SORT_VALUES = new Set(['recency', 'relevance', 'client_total_charge', 'client_total_reviews']);
 
+export function unwrapBrowserResult(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value) && 'session' in value && 'data' in value) {
+        return value.data;
+    }
+    return value;
+}
+
+export function isPlainObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 function coerceInt(value) {
     if (value === undefined || value === null || value === '') return NaN;
     const n = typeof value === 'number' ? value : Number(value);
@@ -116,6 +127,10 @@ export function feedStateKey(tab) {
 
 export function buildJobUrl(ciphertext) {
     return `${UPWORK_ORIGIN}/jobs/${ciphertext}`;
+}
+
+export function isValidCiphertext(value) {
+    return CIPHERTEXT_PATTERN.test(String(value ?? '').trim());
 }
 
 /**
@@ -252,17 +267,18 @@ export function formatSkills(job) {
 }
 
 /**
- * Normalize a search/feed job entry into the shared LIST_COLUMNS row
- * shape. Defends against Upwork surface drift by treating missing
- * fields as '' / null rather than silently dropping rows.
+ * Normalize a search/feed job entry into the shared LIST_COLUMNS row shape.
+ * Returns null when the row lacks a round-trippable ciphertext identity.
  */
 export function jobToListRow(job, rank) {
+    const id = String(job?.ciphertext ?? '').trim();
+    if (!isValidCiphertext(id)) return null;
     const client = job?.client || {};
     const country = client?.location?.country || '';
     const rating = Number(client?.totalFeedback);
     return {
         rank,
-        id: String(job?.ciphertext ?? '').trim(),
+        id,
         title: stripHighlight(job?.title),
         type: jobType(job?.type),
         budget: formatBudget(job),
@@ -272,8 +288,19 @@ export function jobToListRow(job, rank) {
         clientCountry: country,
         clientRating: Number.isFinite(rating) && rating > 0 ? rating : null,
         publishedOn: job?.publishedOn || job?.createdOn || '',
-        url: job?.ciphertext ? buildJobUrl(job.ciphertext) : '',
+        url: buildJobUrl(id),
     };
+}
+
+export function jobsToListRows(jobs, { offset = 0, limit } = {}) {
+    const rows = [];
+    for (const job of jobs) {
+        const row = jobToListRow(job, offset + rows.length + 1);
+        if (!row) continue;
+        rows.push(row);
+        if (limit && rows.length >= limit) break;
+    }
+    return rows;
 }
 
 export const LIST_COLUMNS = [

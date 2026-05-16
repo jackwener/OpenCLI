@@ -246,6 +246,7 @@ To load the source Browser Bridge extension:
 | **gemini** | `new` `ask` `image` `deep-research` `deep-research-result` |
 | **notebooklm** | `status` `list` `open` `current` `get` `history` `summary` `note-list` `notes-get` `source-list` `source-get` `source-fulltext` `source-guide` |
 | **amazon** | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` `rankings` |
+| **upwork** | `search` `feed` `detail` |
 
 Curated highlights — **[→ see all 100+ supported sites & commands](./docs/adapters/index.md)** (douyin / weibo / spotify / 1688 / quark / nowcoder / google-scholar / hupu / xianyu / weread / weread-official / xiaoyuzhou / and more).
 

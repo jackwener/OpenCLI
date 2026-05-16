@@ -232,6 +232,7 @@ npm link
 | **gemini** | `new` `ask` `image` `deep-research` `deep-research-result` |
 | **notebooklm** | `status` `list` `open` `current` `get` `history` `summary` `note-list` `notes-get` `source-list` `source-get` `source-fulltext` `source-guide` |
 | **amazon** | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` `rankings` |
+| **upwork** | `search` `feed` `detail` |
 
 精选清单 — **[→ 查看全部 100+ 站点和命令](./docs/adapters/index.md)**（小红书 / B站 / 知乎 / Twitter / Reddit / 抖音 / 微博 / 微信读书 / 小宇宙 / 1688 / 夸克 / Spotify / 牛客 / arxiv / Bilibili / 等）。
 

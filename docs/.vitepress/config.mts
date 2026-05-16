@@ -96,6 +96,7 @@ export default defineConfig({
                 { text: 'Google', link: '/adapters/browser/google' },
                 { text: 'IMDb', link: '/adapters/browser/imdb' },
                 { text: 'Indeed', link: '/adapters/browser/indeed' },
+                { text: 'Upwork', link: '/adapters/browser/upwork' },
                 { text: 'Instagram', link: '/adapters/browser/instagram' },
                 { text: 'JD.com', link: '/adapters/browser/jd' },
                 { text: 'Medium', link: '/adapters/browser/medium' },

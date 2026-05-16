@@ -23,9 +23,11 @@ import {
     decodeWorkload,
     formatBudgetFromDetail,
     formatSkills,
+    isPlainObject,
     jobType,
     requireCiphertext,
     stripHighlight,
+    unwrapBrowserResult,
 } from './utils.js';
 
 cli({
@@ -50,7 +52,7 @@ cli({
 
         let payload;
         try {
-            payload = await page.evaluate(`(async () => {
+            payload = unwrapBrowserResult(await page.evaluate(`(async () => {
                 const haveStore = () => !!(window.$nuxt && window.$nuxt.$store && window.$nuxt.$store.state && window.$nuxt.$store.state.jobDetails && window.$nuxt.$store.state.jobDetails.job);
                 let ready = haveStore();
                 for (let i = 0; i < 30; i++) {
@@ -71,7 +73,7 @@ cli({
                     job: s.job ? JSON.parse(JSON.stringify(s.job)) : null,
                     buyer: s.buyer ? JSON.parse(JSON.stringify(s.buyer)) : null,
                 };
-            })()`);
+            })()`));
         }
         catch (e) {
             throw new CommandExecutionError(`Failed to read Upwork job-detail store: ${e?.message ?? e}`, 'The Vuex store was not reachable; try again after opening Upwork in the connected browser.');
@@ -83,8 +85,14 @@ cli({
         if (payload?.challenge) {
             throw new CommandExecutionError('Upwork served a Cloudflare challenge page', 'Open https://www.upwork.com in the connected browser and clear the challenge, then retry.');
         }
+        if (!isPlainObject(payload)) {
+            throw new CommandExecutionError('Upwork detail returned an unexpected Browser Bridge payload shape');
+        }
         if (!payload?.ready || !payload.job) {
             throw new EmptyResultError('upwork detail', `No Upwork job posting found for id "${id}" (may be closed, expired, or private)`);
+        }
+        if (!isPlainObject(payload.job)) {
+            throw new CommandExecutionError('Upwork job-detail store had an unexpected job shape; expected an object.');
         }
 
         const job = payload.job;

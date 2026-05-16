@@ -282,6 +282,12 @@ describe('upwork adapter — jobToListRow', () => {
         };
         expect(jobToListRow(job, 1).publishedOn).toBe('2026-01-01T00:00:00.000Z');
     });
+
+    it('returns null instead of non-round-trippable rows when ciphertext is missing or malformed', () => {
+        expect(jobToListRow({ ciphertext: '', title: 'missing id' }, 1)).toBeNull();
+        expect(jobToListRow({ ciphertext: '12345', title: 'bad id' }, 1)).toBeNull();
+        expect(jobToListRow({ title: 'no id' }, 1)).toBeNull();
+    });
 });
 
 describe('upwork search — func behavior', () => {
@@ -292,9 +298,10 @@ describe('upwork search — func behavior', () => {
             ready: true,
             onLogin: false,
             challenge: false,
+            jobsPresent: true,
             jobs: [
-                { ciphertext: '~02A', title: 'A', type: 2, hourlyBudget: { min: 10, max: 20 }, attrs: [], client: {} },
-                { ciphertext: '~02B', title: 'B', type: 1, amount: { amount: 100 }, attrs: [], client: {} },
+                { ciphertext: '~022054964136512093518', title: 'A', type: 2, hourlyBudget: { min: 10, max: 20 }, attrs: [], client: {} },
+                { ciphertext: '~022055605504980235850', title: 'B', type: 1, amount: { amount: 100 }, attrs: [], client: {} },
             ],
             paging: { total: 2, offset: 0, count: 2 },
         });
@@ -310,7 +317,8 @@ describe('upwork search — func behavior', () => {
     it('uses pageNum/perPage to compute the starting rank', async () => {
         const page = createPageMock({
             ready: true, onLogin: false, challenge: false,
-            jobs: [{ ciphertext: '~02A', title: 'A', type: 2, attrs: [], client: {} }],
+            jobsPresent: true,
+            jobs: [{ ciphertext: '~022054964136512093518', title: 'A', type: 2, attrs: [], client: {} }],
         });
         const rows = await cmd().func(page, { query: 'python', page: 3, per_page: 10 });
         expect(rows[0].rank).toBe(21);
@@ -332,8 +340,42 @@ describe('upwork search — func behavior', () => {
     });
 
     it('throws EmptyResultError when the search returns zero jobs', async () => {
-        const page = createPageMock({ ready: true, onLogin: false, challenge: false, jobs: [], paging: { total: 0 } });
+        const page = createPageMock({ ready: true, onLogin: false, challenge: false, jobsPresent: true, jobs: [], paging: { total: 0 } });
         await expect(cmd().func(page, { query: 'asdfqwerzxcv' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('unwraps Browser Bridge envelopes at the evaluate boundary', async () => {
+        const page = createPageMock({
+            session: 'site:upwork',
+            data: {
+                ready: true,
+                onLogin: false,
+                challenge: false,
+                jobsPresent: true,
+                jobs: [{ ciphertext: '~022054964136512093518', title: 'A', type: 2, attrs: [], client: {} }],
+            },
+        });
+        const rows = await cmd().func(page, { query: 'python' });
+        expect(rows).toHaveLength(1);
+        expect(rows[0].id).toBe('~022054964136512093518');
+    });
+
+    it('treats missing or malformed jobs state as parser drift, not legal empty', async () => {
+        await expect(cmd().func(createPageMock({ ready: true, onLogin: false, challenge: false }), { query: 'python' }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(cmd().func(createPageMock({ ready: true, onLogin: false, challenge: false, jobsPresent: true, jobs: {} }), { query: 'python' }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('fails closed when no search result has a round-trippable job id', async () => {
+        const page = createPageMock({
+            ready: true,
+            onLogin: false,
+            challenge: false,
+            jobsPresent: true,
+            jobs: [{ ciphertext: '', title: 'A' }, { ciphertext: '12345', title: 'B' }],
+        });
+        await expect(cmd().func(page, { query: 'python' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('rejects empty query before opening the page', async () => {
@@ -349,7 +391,8 @@ describe('upwork feed — func behavior', () => {
     it('hits the best-matches URL by default', async () => {
         const page = createPageMock({
             ready: true, onLogin: false, challenge: false,
-            jobs: [{ ciphertext: '~02A', title: 'A', type: 2, attrs: [], client: {} }],
+            jobsPresent: true,
+            jobs: [{ ciphertext: '~022054964136512093518', title: 'A', type: 2, attrs: [], client: {} }],
         });
         const rows = await cmd().func(page, { tab: 'best-matches', limit: 5 });
         expect(rows).toHaveLength(1);
@@ -359,7 +402,8 @@ describe('upwork feed — func behavior', () => {
     it('switches URL for the most-recent tab', async () => {
         const page = createPageMock({
             ready: true, onLogin: false, challenge: false,
-            jobs: [{ ciphertext: '~02A', title: 'A', type: 1, amount: { amount: 50 }, attrs: [], client: {} }],
+            jobsPresent: true,
+            jobs: [{ ciphertext: '~022054964136512093518', title: 'A', type: 1, amount: { amount: 50 }, attrs: [], client: {} }],
         });
         await cmd().func(page, { tab: 'most-recent', limit: 5 });
         expect(page.goto).toHaveBeenCalledWith('https://www.upwork.com/nx/find-work/most-recent');
@@ -371,8 +415,25 @@ describe('upwork feed — func behavior', () => {
     });
 
     it('throws EmptyResultError for an empty feed without sentinel rows', async () => {
-        const page = createPageMock({ ready: true, onLogin: false, challenge: false, jobs: [] });
+        const page = createPageMock({ ready: true, onLogin: false, challenge: false, jobsPresent: true, jobs: [] });
         await expect(cmd().func(page, { tab: 'best-matches' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('unwraps Browser Bridge envelopes and rejects malformed feed jobs state', async () => {
+        const rows = await cmd().func(createPageMock({
+            session: 'site:upwork',
+            data: {
+                ready: true,
+                onLogin: false,
+                challenge: false,
+                jobsPresent: true,
+                jobs: [{ ciphertext: '~022054964136512093518', title: 'A', type: 2, attrs: [], client: {} }],
+            },
+        }), { tab: 'best-matches' });
+        expect(rows[0].id).toBe('~022054964136512093518');
+
+        await expect(cmd().func(createPageMock({ ready: true, onLogin: false, challenge: false, jobsPresent: true, jobs: null }), { tab: 'best-matches' }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
     });
 });
 
@@ -455,6 +516,23 @@ describe('upwork detail — func behavior', () => {
     it('throws EmptyResultError when the store has no job', async () => {
         const page = createPageMock({ ready: false, onLogin: false, challenge: false, job: null });
         await expect(cmd().func(page, { id: '~022054964136512093518' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('unwraps Browser Bridge envelopes and treats wrong-shape job as parser drift', async () => {
+        const rows = await cmd().func(createPageMock({
+            session: 'site:upwork',
+            data: {
+                ready: true,
+                onLogin: false,
+                challenge: false,
+                job: { ciphertext: '~022054964136512093518', title: 'X', type: 1, budget: { amount: 100 } },
+                buyer: {},
+            },
+        }), { id: '~022054964136512093518' });
+        expect(rows[0].id).toBe('~022054964136512093518');
+
+        await expect(cmd().func(createPageMock({ ready: true, onLogin: false, challenge: false, job: [] }), { id: '~022054964136512093518' }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('rejects malformed ciphertext before opening the page', async () => {

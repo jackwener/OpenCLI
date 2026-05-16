@@ -17,12 +17,14 @@ import {
     AuthRequiredError,
 } from '@jackwener/opencli/errors';
 import {
-    LIST_COLUMNS,
     buildFeedUrl,
     feedStateKey,
-    jobToListRow,
+    isPlainObject,
+    jobsToListRows,
+    LIST_COLUMNS,
     requireBoundedInt,
     requireFeedTab,
+    unwrapBrowserResult,
 } from './utils.js';
 
 cli({
@@ -51,7 +53,7 @@ cli({
 
         let payload;
         try {
-            payload = await page.evaluate(`(async () => {
+            payload = unwrapBrowserResult(await page.evaluate(`(async () => {
                 const key = ${JSON.stringify(stateKey)};
                 const haveState = () => !!(window.__NUXT__ && window.__NUXT__.state && window.__NUXT__.state[key]);
                 let ready = haveState();
@@ -67,10 +69,11 @@ cli({
                     ready,
                     onLogin,
                     challenge,
-                    jobs: state && Array.isArray(state.jobs) ? state.jobs : [],
+                    jobsPresent: !!(state && Object.prototype.hasOwnProperty.call(state, 'jobs')),
+                    jobs: state ? state.jobs : undefined,
                     paging: state && state.paging ? state.paging : null,
                 };
-            })()`);
+            })()`));
         }
         catch (e) {
             throw new CommandExecutionError(`Failed to read Upwork feed state: ${e?.message ?? e}`, 'The Nuxt state global was not reachable; try again after opening Upwork in the connected browser.');
@@ -85,12 +88,22 @@ cli({
         if (!payload?.ready) {
             throw new CommandExecutionError(`Upwork feed state (window.__NUXT__.state.${stateKey}) was not present within 15s`, 'The page may not have finished hydrating, or the SSR state shape may have changed.');
         }
+        if (!isPlainObject(payload)) {
+            throw new CommandExecutionError('Upwork feed returned an unexpected Browser Bridge payload shape');
+        }
+        if (!payload.jobsPresent || !Array.isArray(payload.jobs)) {
+            throw new CommandExecutionError(`Upwork feed state had an unexpected jobs shape; expected window.__NUXT__.state.${stateKey}.jobs to be an array.`);
+        }
 
-        const jobs = Array.isArray(payload.jobs) ? payload.jobs : [];
+        const jobs = payload.jobs;
         if (jobs.length === 0) {
             throw new EmptyResultError(`upwork feed ${tab}`, `Upwork ${tab} feed is empty for the current account`);
         }
 
-        return jobs.slice(0, limit).map((j, i) => jobToListRow(j, i + 1));
+        const rows = jobsToListRows(jobs, { limit });
+        if (rows.length === 0) {
+            throw new CommandExecutionError('Upwork feed results did not include any job with a valid ciphertext id; cannot produce round-trippable detail rows.');
+        }
+        return rows;
     },
 });
