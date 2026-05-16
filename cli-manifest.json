@@ -18584,6 +18584,371 @@
     "sourceFile": "pypi/package.js"
   },
   {
+    "site": "qimao",
+    "name": "book",
+    "description": "Read Qimao book details",
+    "access": "read",
+    "domain": "www.qimao.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "book",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Qimao book id or book URL"
+      }
+    ],
+    "columns": [
+      "book_id",
+      "title",
+      "author",
+      "category",
+      "status",
+      "score",
+      "words",
+      "chapters",
+      "characters",
+      "latest_chapter",
+      "updated_at",
+      "url",
+      "cover",
+      "intro"
+    ],
+    "type": "js",
+    "modulePath": "qimao/book.js",
+    "sourceFile": "qimao/book.js"
+  },
+  {
+    "site": "qimao",
+    "name": "browse",
+    "description": "Browse Qimao category listings with filters and sorting",
+    "access": "read",
+    "domain": "www.qimao.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "category",
+        "type": "str",
+        "required": false,
+        "help": "Category name/id, subcategory name/id, or a Qimao classify URL"
+      },
+      {
+        "name": "channel",
+        "type": "str",
+        "required": false,
+        "help": "all, female, male, publish"
+      },
+      {
+        "name": "words",
+        "type": "str",
+        "required": false,
+        "help": "all, lt30w, 30to50w, 50to100w, 100to200w, gt200w"
+      },
+      {
+        "name": "updated-within",
+        "type": "str",
+        "required": false,
+        "help": "all, 3d, 7d, 30d"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "required": false,
+        "help": "all, finished, serial"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "required": false,
+        "help": "click, words, update, favorite"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Starting page number (1-based)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "Max rows to return across pages (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "book_id",
+      "title",
+      "author",
+      "category",
+      "status",
+      "words",
+      "latest_chapter",
+      "updated_at",
+      "url",
+      "intro"
+    ],
+    "type": "js",
+    "modulePath": "qimao/browse.js",
+    "sourceFile": "qimao/browse.js",
+    "navigateBefore": "https://www.qimao.com/shuku/a-a-a-a-a-a-a-click-1/"
+  },
+  {
+    "site": "qimao",
+    "name": "browse-options",
+    "description": "List Qimao browse filter options for programmatic use",
+    "access": "read",
+    "domain": "www.qimao.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "group",
+        "type": "str",
+        "required": false,
+        "help": "Optional group: channel, words, updated-within, status, sort, category1, category2, category"
+      }
+    ],
+    "columns": [
+      "group",
+      "label",
+      "value",
+      "parent_label",
+      "parent_value"
+    ],
+    "type": "js",
+    "modulePath": "qimao/browse-options.js",
+    "sourceFile": "qimao/browse-options.js",
+    "navigateBefore": "https://www.qimao.com/shuku/a-a-a-a-a-a-a-click-1/"
+  },
+  {
+    "site": "qimao",
+    "name": "catalog",
+    "description": "List Qimao chapters for a book",
+    "access": "read",
+    "domain": "www.qimao.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "book",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Qimao book id or book URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max chapters to return (1-500)"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Zero-based chapter offset"
+      }
+    ],
+    "columns": [
+      "index",
+      "chapter_id",
+      "title",
+      "words",
+      "is_vip",
+      "updated_at",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "qimao/catalog.js",
+    "sourceFile": "qimao/catalog.js",
+    "navigateBefore": "https://www.qimao.com"
+  },
+  {
+    "site": "qimao",
+    "name": "rank",
+    "description": "Read Qimao ranking lists",
+    "access": "read",
+    "domain": "www.qimao.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": false,
+        "help": "boy/girl or 男生/女生"
+      },
+      {
+        "name": "type",
+        "type": "str",
+        "required": false,
+        "help": "hot/new/over/collect/update or 大热榜/新书榜/完结榜/收藏榜/更新榜"
+      },
+      {
+        "name": "period",
+        "type": "str",
+        "required": false,
+        "help": "date/month or 日榜/月榜"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows to return (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "book_id",
+      "title",
+      "author",
+      "category1",
+      "category",
+      "status",
+      "words",
+      "latest_chapter",
+      "updated_at",
+      "hot_value",
+      "hot_unit",
+      "url",
+      "intro"
+    ],
+    "type": "js",
+    "modulePath": "qimao/rank.js",
+    "sourceFile": "qimao/rank.js",
+    "navigateBefore": "https://www.qimao.com/paihang/boy/hot/date/"
+  },
+  {
+    "site": "qimao",
+    "name": "rank-options",
+    "description": "List Qimao ranking dimensions for programmatic use",
+    "access": "read",
+    "domain": "www.qimao.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "group",
+        "type": "str",
+        "required": false,
+        "help": "Optional group: channel, type, period"
+      }
+    ],
+    "columns": [
+      "group",
+      "label",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "qimao/rank-options.js",
+    "sourceFile": "qimao/rank-options.js",
+    "navigateBefore": "https://www.qimao.com/paihang/boy/hot/date/"
+  },
+  {
+    "site": "qimao",
+    "name": "read",
+    "description": "Read a Qimao chapter by chapter id or chapter index",
+    "access": "read",
+    "domain": "www.qimao.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "book",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Qimao book id or book URL"
+      },
+      {
+        "name": "chapter-id",
+        "type": "str",
+        "required": false,
+        "help": "Specific Qimao chapter id or chapter URL"
+      },
+      {
+        "name": "chapter-index",
+        "type": "int",
+        "required": false,
+        "help": "1-based chapter index from the catalog"
+      }
+    ],
+    "columns": [
+      "book_id",
+      "book_title",
+      "author",
+      "chapter_id",
+      "index",
+      "chapter_title",
+      "words",
+      "updated_at",
+      "url",
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "qimao/read.js",
+    "sourceFile": "qimao/read.js"
+  },
+  {
+    "site": "qimao",
+    "name": "search",
+    "description": "Search Qimao books by title, author, or character",
+    "access": "read",
+    "domain": "www.qimao.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Book title, author, or character keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Max rows to return (1-50)"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Result page number (1-based)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "book_id",
+      "title",
+      "author",
+      "category",
+      "status",
+      "words",
+      "characters",
+      "latest_chapter",
+      "updated_at",
+      "url",
+      "intro"
+    ],
+    "type": "js",
+    "modulePath": "qimao/search.js",
+    "sourceFile": "qimao/search.js",
+    "navigateBefore": "https://www.qimao.com"
+  },
+  {
     "site": "quark",
     "name": "ls",
     "description": "List files in your Quark Drive",
