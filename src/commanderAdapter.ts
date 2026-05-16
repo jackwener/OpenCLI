@@ -32,6 +32,7 @@ import {
   EXIT_CODES,
   toEnvelope,
 } from './errors.js';
+import { loadWhitelist, isCommandWhitelisted } from './whitelist.js';
 
 /**
  * Register a single CliCommand as a Commander subcommand.
@@ -204,25 +205,36 @@ export function registerAllCommands(
     commandsBySite.set(cmd.site, commands);
   }
 
+  // Load whitelist once before registering commands
+  const whitelist = loadWhitelist();
+
   for (const [site, commands] of commandsBySite) {
+    const whitelistedCommands = whitelist
+      ? commands.filter(cmd => isCommandWhitelisted(cmd.site, cmd.name, whitelist))
+      : commands;
+
+    if (whitelistedCommands.length === 0) {
+      continue;
+    }
+
     let siteCmd = siteGroups.get(site);
     if (!siteCmd) {
       siteCmd = program.command(site);
       siteGroups.set(site, siteCmd);
     }
-    for (const cmd of commands) {
+    for (const cmd of whitelistedCommands) {
       registerCommandToProgram(siteCmd, cmd);
     }
-    const commandTerms = new Map(commands.map(cmd => [cmd.name, formatCommandListTerm(cmd)]));
+    const commandTerms = new Map(whitelistedCommands.map(cmd => [cmd.name, formatCommandListTerm(cmd)]));
     siteCmd.configureHelp({
       subcommandTerm: command => commandTerms.get(command.name()) ?? command.name(),
     });
     const originalSiteHelpInformation = siteCmd.helpInformation.bind(siteCmd);
     siteCmd.helpInformation = ((contextOptions?: unknown) => {
       const format = getRequestedHelpFormat();
-      if (format) return renderStructuredHelp(siteHelpData(site, commands), format);
+      if (format) return renderStructuredHelp(siteHelpData(site, whitelistedCommands), format);
       void originalSiteHelpInformation(contextOptions as never);
-      return formatSiteHelpText(site, commands);
+      return formatSiteHelpText(site, whitelistedCommands);
     }) as Command['helpInformation'];
   }
   return [...commandsBySite.keys()].sort((a, b) => a.localeCompare(b));
