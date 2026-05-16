@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { fetchWebApi, WEREAD_UA, WEREAD_WEB_ORIGIN } from './utils.js';
 function decodeHtmlText(value) {
     return value
@@ -84,18 +85,19 @@ function resolveSearchResultUrl(params) {
 async function loadSearchHtmlEntries(query) {
     const url = new URL('/web/search/books', WEREAD_WEB_ORIGIN);
     url.searchParams.set('keyword', query);
-    let html = '';
+    let resp;
     try {
-        const resp = await fetch(url.toString(), {
+        resp = await fetch(url.toString(), {
             headers: { 'User-Agent': WEREAD_UA },
         });
-        if (!resp.ok)
-            return [];
-        html = await resp.text();
     }
-    catch {
-        return [];
+    catch (error) {
+        throw new CommandExecutionError(`Failed to fetch WeRead search page: ${error instanceof Error ? error.message : String(error)}`);
     }
+    if (!resp.ok) {
+        throw new CommandExecutionError(`WeRead search page request failed: HTTP ${resp.status}`);
+    }
+    const html = await resp.text();
     const items = Array.from(html.matchAll(/<li[^>]*class="wr_bookList_item"[^>]*>([\s\S]*?)<\/li>/g));
     return items.map((match) => {
         const chunk = match[1];
@@ -131,6 +133,12 @@ cli({
             loadSearchHtmlEntries(String(args.query ?? '')),
         ]);
         const books = data?.books ?? [];
+        if (!Array.isArray(books)) {
+            throw new CommandExecutionError('WeRead search API returned an unreadable books payload');
+        }
+        if (books.length === 0) {
+            throw new EmptyResultError('weread search', `No books were returned for query ${args.query}.`);
+        }
         const { exactQueues, titleOnlyQueues } = buildSearchUrlQueues(htmlEntries);
         const apiIdentityCounts = countSearchIdentities(books.map((item) => ({
             title: item.bookInfo?.title ?? '',

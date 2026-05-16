@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* **adapters** — surface the remaining `silent-empty-fallback` adapter failures as typed errors. Douyin user video comment fetch failures, Jike SSR JSON parse failures, and WeRead search-page fetch failures now throw `CommandExecutionError`; true empty Douyin/Jike/WeRead result sets now throw `EmptyResultError`.
+
 ## [1.7.22](https://github.com/jackwener/opencli/compare/v1.7.21...v1.7.22) (2026-05-15)
 
 External CLI ergonomics + two adapter envelope/auth fixes. New `longbridge` external CLI entry; `opencli list` / root help now render human-readable brand labels for executables whose bare name is ambiguous.

@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { fetchDouyinComments, fetchDouyinUserVideos } from './_shared/public-api.js';
 export const MAX_USER_VIDEOS_LIMIT = 20;
 export const USER_VIDEO_COMMENT_CONCURRENCY = 4;
@@ -27,8 +28,11 @@ async function fetchTopComments(page, awemeId, count) {
     try {
         return await fetchDouyinComments(page, awemeId, count);
     }
-    catch {
-        return [];
+    catch (error) {
+        if (error instanceof CliError) {
+            throw error;
+        }
+        throw new CommandExecutionError(`Failed to fetch Douyin comments for video ${awemeId}: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 cli({
@@ -53,6 +57,9 @@ cli({
         await page.goto(`https://www.douyin.com/user/${secUid}`);
         await page.wait(3);
         const awemeList = (await fetchDouyinUserVideos(page, secUid, limit)).slice(0, limit);
+        if (awemeList.length === 0) {
+            throw new EmptyResultError('douyin user-videos', `No videos were returned for sec_uid ${secUid}. Confirm the user exists and the Douyin session is valid.`);
+        }
         const videos = withComments
             ? await mapInBatches(awemeList, USER_VIDEO_COMMENT_CONCURRENCY, async (video) => ({
                 ...video,
