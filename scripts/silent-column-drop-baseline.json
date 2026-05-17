@@ -624,6 +624,14 @@
     "command": "twitter/download",
     "file": "clis/twitter/download.js",
     "missing": [
+      "tweet_id",
+      "url"
+    ]
+  },
+  {
+    "command": "twitter/download",
+    "file": "clis/twitter/download.js",
+    "missing": [
       "url"
     ]
   },

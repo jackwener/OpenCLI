@@ -633,6 +633,14 @@
   },
   {
     "rule": "silent-clamp",
+    "command": "twitter/download",
+    "file": "clis/twitter/download.js",
+    "line": 286,
+    "text": "const fetchCount = Math.min(100, limit - all.length + 10);",
+    "occurrence": 0
+  },
+  {
+    "rule": "silent-clamp",
     "command": "twitter/following",
     "file": "clis/twitter/following.js",
     "line": 227,
