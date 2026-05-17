@@ -54,10 +54,10 @@ cli({
         }
         return [
             { field: 'title', value: data.title },
-            { field: 'author', value: data.author || '-' },
-            { field: 'date', value: data.date || '-' },
+            { field: 'author', value: data.author || '' },
+            { field: 'date', value: data.date || '' },
             { field: 'url', value: `https://36kr.com/p/${articleId}` },
-            { field: 'body', value: data.body || '-' },
+            { field: 'body', value: data.body || '' },
         ];
     },
 });

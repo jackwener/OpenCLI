@@ -41,7 +41,7 @@ cli({
 
         // Get author
         const authorEl = document.querySelector('.AuthorInfo-name, .UserLink-link');
-        result.author = authorEl?.textContent?.trim() || 'unknown';
+        result.author = authorEl?.textContent?.trim() || '';
 
         // Get publish time
         const timeEl = document.querySelector('.ContentItem-time, .Post-Time');

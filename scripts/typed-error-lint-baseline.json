@@ -857,30 +857,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "36kr/article",
-    "file": "clis/36kr/article.js",
-    "line": 57,
-    "text": "{ field: 'author', value: data.author || '-' },",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "36kr/article",
-    "file": "clis/36kr/article.js",
-    "line": 60,
-    "text": "{ field: 'body', value: data.body || '-' },",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "36kr/article",
-    "file": "clis/36kr/article.js",
-    "line": 58,
-    "text": "{ field: 'date', value: data.date || '-' },",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "apple-podcasts/search",
     "file": "clis/apple-podcasts/search.js",
     "line": 26,
@@ -1265,42 +1241,10 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "wikipedia/trending",
-    "file": "clis/wikipedia/trending.js",
-    "line": 32,
-    "text": "description: (a.description ?? '-').slice(0, DESC_MAX_LEN),",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "wikipedia/trending",
-    "file": "clis/wikipedia/trending.js",
-    "line": 31,
-    "text": "title: a.title ?? '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "xiaohongshu/download",
     "file": "clis/xiaohongshu/download.js",
     "line": 53,
     "text": "result.author = authorEl?.textContent?.trim() || 'unknown';",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "xiaoyuzhou/download",
-    "file": "clis/xiaoyuzhou/download.js",
-    "line": 48,
-    "text": "podcast: ep.podcast?.title || '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "xiaoyuzhou/transcript",
-    "file": "clis/xiaoyuzhou/transcript.js",
-    "line": 70,
-    "text": "podcast: episode.podcast?.title || '-',",
     "occurrence": 0
   },
   {
@@ -1349,30 +1293,6 @@
     "file": "clis/yollomi/video.js",
     "line": 51,
     "text": "return [{ status: 'saved', file: path.relative('.', fp), size: fmtBytes(size), credits: credits ?? '-', url: videoUrl }];",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "zhihu/collection",
-    "file": "clis/zhihu/collection.js",
-    "line": 64,
-    "text": "const type = content.type || 'unknown';",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "zhihu/collection",
-    "file": "clis/zhihu/collection.js",
-    "line": 59,
-    "text": "return `${content.type || 'unknown'}:${content.id || content.url || JSON.stringify(content).slice(0, 80)}`;",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "zhihu/download",
-    "file": "clis/zhihu/download.js",
-    "line": 44,
-    "text": "result.author = authorEl?.textContent?.trim() || 'unknown';",
     "occurrence": 0
   },
   {
