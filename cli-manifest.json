@@ -26329,6 +26329,32 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "delete-note",
+    "description": "删除小红书已发布笔记 (creator center UI automation)",
+    "access": "write",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "note-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Note ID (e.g. 6a08ba0b000000000702a893 from xiaohongshu creator-notes / URL)"
+      }
+    ],
+    "columns": [
+      "status",
+      "note_id"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/delete-note.js",
+    "sourceFile": "xiaohongshu/delete-note.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "download",
     "description": "下载小红书笔记中的图片和视频",
     "access": "read",
