@@ -30,7 +30,7 @@ cli({
         });
         const d = await res.json();
         return (d?.data?.children || []).map(c => ({
-          title: c.data.title || c.data.body?.slice(0, 100) || '-',
+          title: c.data.title || c.data.body?.slice(0, 100) || '',
           subreddit: c.data.subreddit_name_prefixed || 'r/' + (c.data.subreddit || '?'),
           score: c.data.score || 0,
           comments: c.data.num_comments || 0,

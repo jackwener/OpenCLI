@@ -881,22 +881,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "apple-podcasts/search",
-    "file": "clis/apple-podcasts/search.js",
-    "line": 26,
-    "text": "episodes: p.trackCount ?? '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "apple-podcasts/search",
-    "file": "clis/apple-podcasts/search.js",
-    "line": 27,
-    "text": "genre: p.primaryGenreName ?? '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "bilibili/download",
     "file": "clis/bilibili/download.js",
     "line": 47,
@@ -909,22 +893,6 @@
     "file": "clis/boss/stats.js",
     "line": 39,
     "text": "const jobName = f.jobName || 'unknown';",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "gitee/search",
-    "file": "clis/gitee/search.js",
-    "line": 127,
-    "text": "description: normalizeText(getFirstText(fields.description)) || '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "gitee/search",
-    "file": "clis/gitee/search.js",
-    "line": 126,
-    "text": "language: normalizeText(getFirstText(fields.langs)) || '-',",
     "occurrence": 0
   },
   {
@@ -1053,22 +1021,6 @@
     "file": "clis/lesswrong/top.js",
     "line": 25,
     "text": "author: item.user?.displayName ?? 'Unknown',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "reddit/saved",
-    "file": "clis/reddit/saved.js",
-    "line": 33,
-    "text": "title: c.data.title || c.data.body?.slice(0, 100) || '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "reddit/upvoted",
-    "file": "clis/reddit/upvoted.js",
-    "line": 33,
-    "text": "title: c.data.title || '-',",
     "occurrence": 0
   },
   {

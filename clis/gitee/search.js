@@ -123,8 +123,8 @@ cli({
             rows.push({
                 rank: rows.length + 1,
                 name,
-                language: normalizeText(getFirstText(fields.langs)) || '-',
-                description: normalizeText(getFirstText(fields.description)) || '-',
+                language: normalizeText(getFirstText(fields.langs)) || '',
+                description: normalizeText(getFirstText(fields.description)) || '',
                 stars: normalizeStars(fields['count.star']),
                 url: repoUrl,
             });

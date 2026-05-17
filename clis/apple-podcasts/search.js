@@ -23,8 +23,8 @@ cli({
             id: p.collectionId,
             title: p.collectionName,
             author: p.artistName,
-            episodes: p.trackCount ?? '-',
-            genre: p.primaryGenreName ?? '-',
+            episodes: p.trackCount ?? '',
+            genre: p.primaryGenreName ?? '',
             url: p.collectionViewUrl || '',
         }));
     },
