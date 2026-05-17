@@ -12,7 +12,7 @@ describe('electron-apps registry', () => {
   it('returns builtin app entry for codex', () => {
     const app = getElectronApp('codex');
     expect(app).toBeDefined();
-    expect(app!.port).toBe(9222);
+    expect(app!.port).toBe(9238);
   });
 
   it('returns undefined for non-Electron sites', () => {
