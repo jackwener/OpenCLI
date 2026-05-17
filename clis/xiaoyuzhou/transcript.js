@@ -67,7 +67,7 @@ cli({
         }
         return [{
                 title: episode.title || 'episode',
-                podcast: episode.podcast?.title || '-',
+                podcast: episode.podcast?.title || '',
                 status: 'success',
                 segments: kwargs.text === false ? '-' : String(segmentCount),
                 json_file: kwargs.json === false ? '-' : jsonPath,

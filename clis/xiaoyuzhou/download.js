@@ -45,7 +45,7 @@ cli({
         });
         return [{
                 title,
-                podcast: ep.podcast?.title || '-',
+                podcast: ep.podcast?.title || '',
                 status: result.success ? 'success' : 'failed',
                 size: result.success ? formatBytes(result.size) : (result.error || 'unknown error'),
                 file: result.success ? destPath : '-',

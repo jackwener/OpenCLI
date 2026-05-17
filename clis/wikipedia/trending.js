@@ -28,8 +28,8 @@ cli({
             throw new CliError('NOT_FOUND', 'No trending articles available', 'Try a different language with --lang');
         return articles.slice(0, limit).map((a, i) => ({
             rank: i + 1,
-            title: a.title ?? '-',
-            description: (a.description ?? '-').slice(0, DESC_MAX_LEN),
+            title: a.title ?? '',
+            description: (a.description ?? '').slice(0, DESC_MAX_LEN),
             views: a.views ?? 0,
         }));
     },

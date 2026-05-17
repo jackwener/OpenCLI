@@ -56,12 +56,12 @@ async function fetchCollectionPage(page, collectionId, offset, limit) {
 
 function itemKey(item) {
   const content = item?.content || {};
-  return `${content.type || 'unknown'}:${content.id || content.url || JSON.stringify(content).slice(0, 80)}`;
+  return `${content.type || ''}:${content.id || content.url || JSON.stringify(content).slice(0, 80)}`;
 }
 
 function mapCollectionItem(item, rank) {
   const content = item.content || {};
-  const type = content.type || 'unknown';
+  const type = content.type || '';
 
   let title = '';
   let excerpt = '';
