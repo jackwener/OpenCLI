@@ -270,6 +270,7 @@ To load the source Browser Bridge extension:
 | **gov-law** | `search` `recent` |
 | **gov-policy** | `search` `recent` |
 | **nowcoder** | `hot` `trending` `topics` `recommend` `creators` `companies` `jobs` `search` `suggest` `experience` `referral` `salary` `papers` `practice` `notifications` `detail` |
+| **upwork** | `search` `feed` `detail` |
 | **wanfang** | `search` |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
 | **xiaoyuzhou** | `auth*` `podcast*` `podcast-episodes*` `episode*` `download*` `transcript*` |
