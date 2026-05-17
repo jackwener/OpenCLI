@@ -34,7 +34,7 @@ cli({
         return [
             {
                 title: post.title ?? '',
-                author: post.user?.displayName ?? 'Unknown',
+                author: post.user?.displayName ?? '',
                 karma: post.baseScore ?? 0,
                 comments: post.commentCount ?? 0,
                 tags: (post.tags ?? []).map((tag) => tag.name ?? '').filter(Boolean).join(', '),
