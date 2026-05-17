@@ -41,6 +41,26 @@ describe('apple-podcasts search command', () => {
             }),
         ]);
     });
+    it('emits empty-string for missing trackCount and primaryGenreName instead of a sentinel', async () => {
+        const cmd = getRegistry().get('apple-podcasts/search');
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                results: [
+                    {
+                        collectionId: 99,
+                        collectionName: 'No-Meta Show',
+                        artistName: 'Anon Host',
+                        collectionViewUrl: 'https://example.com/p/99',
+                    },
+                ],
+            }),
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        const result = await cmd.func({ query: 'no-meta', limit: 1 });
+        expect(result[0].episodes).toBe('');
+        expect(result[0].genre).toBe('');
+    });
 });
 describe('apple-podcasts top command', () => {
     beforeEach(() => {
