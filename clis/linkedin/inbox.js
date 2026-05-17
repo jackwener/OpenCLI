@@ -4,7 +4,7 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultErr
 const LINKEDIN_DOMAIN = 'linkedin.com';
 const MESSAGING_URL = 'https://www.linkedin.com/messaging/';
 const MIN_LIMIT = 1;
-const MAX_LIMIT = 100;
+const MAX_LIMIT = 500;
 const DEFAULT_LIMIT = 40;
 
 // ── Why this command reads an API response instead of scraping the DOM ──
@@ -24,6 +24,89 @@ function unwrapEvaluateResult(payload) {
 
 function threadUrl(threadId) {
   return threadId ? `https://www.linkedin.com/messaging/thread/${threadId}/` : '';
+}
+
+function parseMaxScrolls(value) {
+  if (value === undefined || value === null || value === '') return 30;
+  const scrolls = Number(value);
+  if (!Number.isInteger(scrolls) || scrolls < 0 || scrolls > 80) {
+    throw new ArgumentError('--max-scrolls must be an integer between 0 and 80');
+  }
+  return scrolls;
+}
+
+function installInboxFetchCaptureScript() {
+  return String.raw`(() => {
+    window.__opencli_inbox_pages = Array.isArray(window.__opencli_inbox_pages) ? window.__opencli_inbox_pages : [];
+    if (window.__opencli_inbox_fetch_patched) return { patched: false, count: window.__opencli_inbox_pages.length };
+    const originalFetch = window.fetch;
+    window.__opencli_inbox_fetch_patched = true;
+    window.fetch = async function(...args) {
+      const response = await originalFetch.apply(this, args);
+      try {
+        const request = args[0];
+        const url = typeof request === 'string' ? request : (request && request.url) || '';
+        if (/messengerConversations/i.test(String(url || response.url || ''))) {
+          response.clone().text().then((text) => {
+            if (text) window.__opencli_inbox_pages.push(text);
+          }).catch(() => {});
+        }
+      } catch {}
+      return response;
+    };
+    return { patched: true, count: window.__opencli_inbox_pages.length };
+  })()`;
+}
+
+function scrollInboxConversationListScript() {
+  return String.raw`(() => {
+    const items = Array.from(document.querySelectorAll('.msg-conversation-listitem'));
+    const scrollers = new Set();
+    for (const item of items) {
+      let el = item.parentElement;
+      while (el && el !== document.body && el !== document.documentElement) {
+        if (el.scrollHeight > el.clientHeight) scrollers.add(el);
+        el = el.parentElement;
+      }
+    }
+    for (const el of Array.from(document.querySelectorAll('*'))) {
+      if (el.scrollHeight > el.clientHeight && el.querySelector && el.querySelector('.msg-conversation-listitem')) {
+        scrollers.add(el);
+      }
+    }
+    const fallback = document.scrollingElement || document.documentElement;
+    scrollers.add(fallback);
+    for (const el of scrollers) {
+      el.scrollTop = el.scrollHeight;
+      el.dispatchEvent(new Event('scroll', { bubbles: true }));
+      el.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 1200 }));
+    }
+    window.scrollTo(0, document.body?.scrollHeight || 0);
+    return { scrolled: scrollers.size, items: items.length };
+  })()`;
+}
+
+function getCapturedInboxPagesScript() {
+  return String.raw`(() => Array.isArray(window.__opencli_inbox_pages) ? window.__opencli_inbox_pages.slice() : [])()`;
+}
+
+function mergeConversations(pageJsons, mailboxUrn) {
+  const byThread = new Map();
+  for (const normalized of pageJsons) {
+    let rows = [];
+    try {
+      rows = parseConversations(normalized, mailboxUrn);
+    } catch {
+      continue;
+    }
+    for (const row of rows) {
+      const previous = byThread.get(row.thread_id);
+      if (!previous || Date.parse(row.timestamp || '') > Date.parse(previous.timestamp || '')) {
+        byThread.set(row.thread_id, row);
+      }
+    }
+  }
+  return Array.from(byThread.values()).sort((a, b) => Date.parse(b.timestamp || '') - Date.parse(a.timestamp || ''));
 }
 
 // Runs in-page: locate the messengerConversations request the page already fired.
@@ -142,7 +225,8 @@ cli({
   strategy: Strategy.COOKIE,
   browser: true,
   args: [
-    { name: 'limit', type: 'int', default: DEFAULT_LIMIT, help: 'Maximum conversations to return (1-100)' },
+    { name: 'limit', type: 'int', default: DEFAULT_LIMIT, help: 'Maximum conversations to return (1-500)' },
+    { name: 'max-scrolls', type: 'int', default: 30, help: 'Maximum inbox scroll attempts to lazy-load older conversations (0-80)' },
     { name: 'unread-only', type: 'bool', default: false, help: 'Return only conversations with unread messages' },
   ],
   columns: [
@@ -165,10 +249,12 @@ cli({
         throw new ArgumentError(`--limit must be an integer between ${MIN_LIMIT} and ${MAX_LIMIT}`);
       }
     }
+    const maxScrolls = parseMaxScrolls(kwargs['max-scrolls']);
     const unreadOnly = Boolean(kwargs['unread-only']);
 
     await page.goto(MESSAGING_URL);
     await page.wait(10);
+    await page.evaluate(installInboxFetchCaptureScript());
 
     // Locate the messaging API request the page fired on load; retry once if the
     // SPA was slow to issue it.
@@ -193,8 +279,11 @@ cli({
     }
     const csrf = jsession.replace(/^"|"$/g, '');
 
-    // Widen the page size to the requested limit where the query supports it.
-    const targetUrl = located.url.replace(/count:\d+/, 'count:' + limit);
+    // Widen the page size to the requested limit where the query supports it, and keep
+    // this direct fetch as page 1 in case the fetch patch missed the initial SPA load.
+    const targetUrl = located.url
+      .replace(/count%3A\d+/i, 'count%3A' + limit)
+      .replace(/count:\d+/i, 'count:' + limit);
     const fetched = unwrapEvaluateResult(
       await page.evaluate(`(${fetchMessagingApi.toString()})(${JSON.stringify(targetUrl)}, ${JSON.stringify(csrf)})`),
     );
@@ -208,6 +297,20 @@ cli({
     }
 
     let conversations = parseConversations(fetched.json, located.mailboxUrn || '');
+    for (let i = 0; i < maxScrolls && conversations.length < limit; i += 1) {
+      await page.evaluate(scrollInboxConversationListScript());
+      await page.wait(1.5);
+      const capturedBodies = unwrapEvaluateResult(await page.evaluate(getCapturedInboxPagesScript()));
+      const pageJsons = [fetched.json];
+      for (const body of Array.isArray(capturedBodies) ? capturedBodies : []) {
+        try {
+          pageJsons.push(JSON.parse(body));
+        } catch {
+          // Ignore non-JSON or partial bodies; LinkedIn occasionally emits tracking responses.
+        }
+      }
+      conversations = mergeConversations(pageJsons, located.mailboxUrn || '');
+    }
     if (unreadOnly) conversations = conversations.filter((c) => c.unread);
     if (conversations.length === 0) {
       if (unreadOnly) return [];
@@ -230,5 +333,7 @@ cli({
 
 export const __test__ = {
   parseConversations,
+  parseMaxScrolls,
+  mergeConversations,
   threadUrl,
 };

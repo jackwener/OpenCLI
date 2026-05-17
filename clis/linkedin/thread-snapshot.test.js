@@ -4,7 +4,7 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import './thread-snapshot.js';
 
-const { buildThreadSnapshotScript, canonicalizeLinkedInThreadUrl, cleanPersonName, parseMaxScrolls } = await import('./thread-snapshot.js').then((m) => m.__test__);
+const { buildThreadSnapshotScript, canonicalizeLinkedInThreadUrl, cleanPersonName, mergeThreadMessages, parseMaxScrolls, parseThreadMessages } = await import('./thread-snapshot.js').then((m) => m.__test__);
 
 function makeFakePage(snapshot) {
   return {
@@ -64,6 +64,27 @@ describe('linkedin thread-snapshot command', () => {
       globalThis.document = previousDocument;
       globalThis.location = previousLocation;
     }
+  });
+
+
+
+  it('parses and merges captured messengerMessages pages oldest first', () => {
+    const normalized = {
+      included: [
+        {
+          $type: 'com.linkedin.messenger.MessagingParticipant',
+          entityUrn: 'urn:li:msg_messagingParticipant:P1',
+          participantType: { member: { firstName: { text: 'Neha' }, lastName: { text: 'Rudraraju' } } },
+        },
+        { $type: 'com.linkedin.messenger.Message', entityUrn: 'urn:li:msg_message:M2', createdAt: 2000, '*sender': 'urn:li:msg_messagingParticipant:P1', body: { text: 'second message' } },
+        { $type: 'com.linkedin.messenger.Message', entityUrn: 'urn:li:msg_message:M1', createdAt: 1000, '*sender': 'urn:li:msg_messagingParticipant:P1', body: { text: 'first message' } },
+      ],
+    };
+    const apiMessages = parseThreadMessages(normalized);
+    expect(apiMessages.map((message) => message.text)).toEqual(['first message', 'second message']);
+    expect(apiMessages[0].speaker).toBe('Neha Rudraraju');
+    const merged = mergeThreadMessages(apiMessages, [{ index: 0, speaker: 'Neha Rudraraju', text: 'second message' }]);
+    expect(merged.map((message) => message.text)).toEqual(['first message', 'second message']);
   });
 
   it('accepts only exact LinkedIn messaging thread URLs', () => {

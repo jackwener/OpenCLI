@@ -14432,7 +14432,14 @@
         "type": "int",
         "default": 40,
         "required": false,
-        "help": "Maximum conversations to return (1-100)"
+        "help": "Maximum conversations to return (1-500)"
+      },
+      {
+        "name": "max-scrolls",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Maximum inbox scroll attempts to lazy-load older conversations (0-80)"
       },
       {
         "name": "unread-only",
@@ -14612,6 +14619,26 @@
     "modulePath": "linkedin/search.js",
     "sourceFile": "linkedin/search.js",
     "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "sent-invitations",
+    "description": "List pending LinkedIn sent invitations for CRM reconciliation",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "rank",
+      "name",
+      "profile_url",
+      "invited_date_text"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/sent-invitations.js",
+    "sourceFile": "linkedin/sent-invitations.js",
+    "navigateBefore": true
   },
   {
     "site": "linkedin",

@@ -62,6 +62,120 @@ function parseMaxScrolls(value) {
   return scrolls;
 }
 
+function installThreadFetchCaptureScript() {
+  return String.raw`(() => {
+    window.__opencli_thread_pages = Array.isArray(window.__opencli_thread_pages) ? window.__opencli_thread_pages : [];
+    if (window.__opencli_thread_fetch_patched) return { patched: false, count: window.__opencli_thread_pages.length };
+    const originalFetch = window.fetch;
+    window.__opencli_thread_fetch_patched = true;
+    window.fetch = async function(...args) {
+      const response = await originalFetch.apply(this, args);
+      try {
+        const request = args[0];
+        const url = typeof request === 'string' ? request : (request && request.url) || '';
+        if (/messengerMessages/i.test(String(url || response.url || ''))) {
+          response.clone().text().then((text) => {
+            if (text) window.__opencli_thread_pages.push(text);
+          }).catch(() => {});
+        }
+      } catch {}
+      return response;
+    };
+    return { patched: true, count: window.__opencli_thread_pages.length };
+  })()`;
+}
+
+function scrollThreadMessagePaneScript() {
+  return String.raw`(() => {
+    const candidates = [
+      '.msg-s-message-list-scrollable',
+      '.msg-s-message-list',
+      '.msg-thread',
+      'main [role="main"]',
+      'main'
+    ];
+    let scroller = null;
+    for (const selector of candidates) {
+      const el = document.querySelector(selector);
+      if (el && (el.scrollHeight > el.clientHeight || selector === 'main')) { scroller = el; break; }
+    }
+    scroller = scroller || document.scrollingElement || document.documentElement;
+    scroller.scrollTop = 0;
+    window.scrollTo(0, 0);
+    return { scrollTop: scroller.scrollTop, scrollHeight: scroller.scrollHeight || 0, clientHeight: scroller.clientHeight || 0 };
+  })()`;
+}
+
+function getCapturedThreadPagesScript() {
+  return String.raw`(() => Array.isArray(window.__opencli_thread_pages) ? window.__opencli_thread_pages.slice() : [])()`;
+}
+
+function parseThreadMessages(normalized) {
+  if (!normalized || typeof normalized !== 'object' || Array.isArray(normalized) || !Array.isArray(normalized.included)) return [];
+  const clean = normalizeWhitespace;
+  const byUrn = new Map();
+  for (const entity of normalized.included) {
+    if (entity && entity.entityUrn) byUrn.set(entity.entityUrn, entity);
+  }
+  const participantName = (participant) => {
+    if (!participant) return '';
+    const pt = participant.participantType || {};
+    if (pt.member) return clean([pt.member.firstName?.text, pt.member.lastName?.text].filter(Boolean).join(' '));
+    if (pt.organization?.name) return clean(pt.organization.name.text);
+    if (pt.agent?.name) return clean(pt.agent.name.text);
+    return clean(participant.name?.text || participant.name || '');
+  };
+  const resolveSpeaker = (message) => {
+    const candidates = [message['*sender'], message['*from'], message.sender, message.from, message.actor, message.creator, message.backendAuthorUrn];
+    for (const candidate of candidates) {
+      const urn = typeof candidate === 'string' ? candidate : candidate?.entityUrn;
+      if (!urn) continue;
+      const entity = byUrn.get(urn);
+      const name = participantName(entity);
+      if (name) return name;
+    }
+    return '';
+  };
+  const createdMs = (message) => Number(message.createdAt || message.deliveredAt || message.timestamp || message.sentAt || 0);
+  const rows = [];
+  for (const message of normalized.included) {
+    if (!message || !/\.Message$/i.test(String(message.$type || ''))) continue;
+    const text = clean(message.body?.text || message.attributedBody?.text || message.text || '');
+    if (!text) continue;
+    rows.push({
+      index: rows.length,
+      urn: message.entityUrn || '',
+      timestamp: createdMs(message) ? new Date(createdMs(message)).toISOString() : '',
+      createdAt: createdMs(message),
+      speaker: cleanPersonName(resolveSpeaker(message)),
+      text,
+    });
+  }
+  if (rows.some((row) => row.createdAt)) rows.sort((a, b) => a.createdAt - b.createdAt);
+  return rows.map((row, index) => ({ ...row, index }));
+}
+
+function mergeThreadMessages(apiMessages, domMessages) {
+  const seen = new Set();
+  const merged = [];
+  const add = (message) => {
+    const text = normalizeWhitespace(message?.text || '');
+    if (!text) return;
+    const speakerTextKey = `${normalizeWhitespace(message?.speaker || '')}\n${text}`;
+    const key = normalizeWhitespace(message?.urn || '') || `${speakerTextKey}\n${normalizeWhitespace(message?.timestamp || '')}`;
+    if (seen.has(key) || seen.has(speakerTextKey)) return;
+    seen.add(key);
+    seen.add(speakerTextKey);
+    merged.push({ ...message, text });
+  };
+  for (const message of apiMessages || []) add(message);
+  for (const message of domMessages || []) add(message);
+  if (merged.some((message) => Number(message.createdAt || 0))) {
+    merged.sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));
+  }
+  return merged.map((message, index) => ({ ...message, index }));
+}
+
 function buildThreadSnapshotScript(maxScrolls) {
   const scrolls = maxScrolls;
   return String.raw`(async () => {
@@ -194,8 +308,14 @@ cli({
     await page.wait(4);
     await page.goto(threadUrl);
     await page.wait(10);
+    await page.evaluate(installThreadFetchCaptureScript());
+    for (let i = 0; i < maxScrolls; i += 1) {
+      await page.evaluate(scrollThreadMessagePaneScript());
+      await page.wait(1);
+    }
+    const capturedBodies = unwrapEvaluateResult(await page.evaluate(getCapturedThreadPagesScript()));
 
-    const snapshot = unwrapEvaluateResult(await page.evaluate(buildThreadSnapshotScript(maxScrolls)));
+    const snapshot = unwrapEvaluateResult(await page.evaluate(buildThreadSnapshotScript(0)));
     if (snapshot?.authRequired) {
       throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn thread-snapshot requires an active signed-in LinkedIn browser session.');
     }
@@ -208,14 +328,25 @@ cli({
       throw new CommandExecutionError('LinkedIn thread-snapshot blocked: thread_url_mismatch', `Expected ${threadUrl}; actual ${actualUrl}`);
     }
 
+    const apiMessages = [];
+    for (const body of Array.isArray(capturedBodies) ? capturedBodies : []) {
+      try {
+        apiMessages.push(...parseThreadMessages(JSON.parse(body)));
+      } catch {
+        // Ignore non-JSON or malformed captured bodies.
+      }
+    }
+    const mergedMessages = mergeThreadMessages(apiMessages, snapshot.messages);
+
     const recipient = cleanPersonName(snapshot.headerNames[0] || '');
-    const messageCount = snapshot.messages.length;
+    const messageCount = mergedMessages.length;
     const normalized = {
       ...snapshot,
       url: actualUrl || threadUrl,
       headerNames: snapshot.headerNames,
-      latestMessageText: normalizeWhitespace(snapshot?.latestMessageText || ''),
-      messages: snapshot.messages,
+      latestMessageText: normalizeWhitespace(mergedMessages[mergedMessages.length - 1]?.text || snapshot?.latestMessageText || ''),
+      messages: mergedMessages,
+      capturedApiPageCount: Array.isArray(capturedBodies) ? capturedBodies.length : 0,
     };
 
     return [{
@@ -235,4 +366,6 @@ export const __test__ = {
   parseMaxScrolls,
   unwrapEvaluateResult,
   buildThreadSnapshotScript,
+  parseThreadMessages,
+  mergeThreadMessages,
 };
