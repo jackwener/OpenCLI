@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { __test__ } from './utils.js';
+import { __test__ as priceTest } from './price.js';
 
-const { parseStationBundle, resolveStation, validateDate, buildCookieHeader, parseTrainRecord } = __test__;
+const { parseStationBundle, resolveStation, validateDate, buildCookieHeader, parseTrainRecord, maskEmail, maskMobile, maskChineseName } = __test__;
+const { parsePriceData } = priceTest;
 
-describe('12306 utils — parseStationBundle', () => {
+describe('12306 utils - parseStationBundle', () => {
     it('parses the `@`-delimited station bundle into structured records', () => {
         const bundle = "var station_names ='@bjb|北京北|VAP|beijingbei|bjb|0|0357|北京|||@bji|北京|BJP|beijing|bj|2|0357|北京|||@aoh|上海虹桥|AOH|shanghaihongqiao|shhq|10|7600|上海|||';";
         const stations = parseStationBundle(bundle);
@@ -22,7 +24,7 @@ describe('12306 utils — parseStationBundle', () => {
     });
 });
 
-describe('12306 utils — resolveStation', () => {
+describe('12306 utils - resolveStation', () => {
     const stations = [
         { short: 'bjb', name: '北京北', code: 'VAP', pinyin: 'beijingbei', abbr: 'bjb', city: '北京' },
         { short: 'bji', name: '北京', code: 'BJP', pinyin: 'beijing', abbr: 'bj', city: '北京' },
@@ -58,7 +60,7 @@ describe('12306 utils — resolveStation', () => {
     });
 });
 
-describe('12306 utils — validateDate', () => {
+describe('12306 utils - validateDate', () => {
     it('accepts valid YYYY-MM-DD', () => {
         expect(validateDate('2026-05-22')).toBe('2026-05-22');
     });
@@ -76,7 +78,7 @@ describe('12306 utils — validateDate', () => {
     });
 });
 
-describe('12306 utils — buildCookieHeader', () => {
+describe('12306 utils - buildCookieHeader', () => {
     it('joins set-cookie lines into a single Cookie header', () => {
         const headers = [
             'JSESSIONID=ABC123; Path=/otn',
@@ -92,7 +94,7 @@ describe('12306 utils — buildCookieHeader', () => {
     });
 });
 
-describe('12306 utils — parseTrainRecord', () => {
+describe('12306 utils - parseTrainRecord', () => {
     const stationByCode = new Map([
         ['VNP', { name: '北京南', code: 'VNP' }],
         ['AOH', { name: '上海虹桥', code: 'AOH' }],
@@ -159,5 +161,62 @@ describe('12306 utils — parseTrainRecord', () => {
 
     it('returns null for short records', () => {
         expect(parseTrainRecord('a|b|c', stationByCode)).toBeNull();
+    });
+});
+
+describe('12306 utils - mask helpers', () => {
+    it('masks the local-part of an email', () => {
+        expect(maskEmail('hello@example.com')).toBe('h***o@example.com');
+        expect(maskEmail('ab@x.cn')).toBe('a*@x.cn');
+        expect(maskEmail('a@x.cn')).toBe('a*@x.cn');
+        expect(maskEmail('')).toBe('');
+        expect(maskEmail('not-an-email')).toBe('not-an-email');
+    });
+
+    it('masks Chinese mobile numbers while preserving 12306-side masks', () => {
+        expect(maskMobile('13800001234')).toBe('138****1234');
+        expect(maskMobile('138****1234')).toBe('138****1234');
+        expect(maskMobile('')).toBe('');
+        expect(maskMobile('123')).toBe('**3');
+    });
+
+    it('masks Chinese real names', () => {
+        expect(maskChineseName('张三')).toBe('张*');
+        expect(maskChineseName('李四明')).toBe('李*明');
+        expect(maskChineseName('欧阳锋')).toBe('欧*锋');
+        expect(maskChineseName('张')).toBe('张');
+        expect(maskChineseName('')).toBe('');
+    });
+});
+
+describe('12306 price - parsePriceData', () => {
+    it('returns seat rows sorted by descending price and drops dup numeric codes', () => {
+        const data = {
+            train_no: '24000000G10L',
+            'OT': [],
+            'A9': '¥2158.0',
+            '9': '21580',
+            'P': '¥1163.0',
+            'M': '¥1035.0',
+            'O': '¥626.0',
+            'WZ': '¥626.0',
+            'INVALID': 'not-a-price',
+        };
+        const rows = parsePriceData(data);
+        const codes = rows.map((r) => r.seat_code);
+        expect(codes).not.toContain('9');
+        expect(codes).not.toContain('OT');
+        expect(codes).not.toContain('train_no');
+        expect(codes).not.toContain('INVALID');
+        expect(codes).toEqual(['A9', 'P', 'M', 'O', 'WZ']);
+        expect(rows[0]).toEqual({ seat_code: 'A9', seat_name: '商务座', price: '2158.0', currency: 'CNY' });
+        expect(rows[4]).toEqual({ seat_code: 'WZ', seat_name: '无座', price: '626.0', currency: 'CNY' });
+    });
+
+    it('keeps unknown letter codes with the letter as the name', () => {
+        const data = { 'A9': '¥100.0', 'ZZ': '¥50.0' };
+        const rows = parsePriceData(data);
+        const zz = rows.find((r) => r.seat_code === 'ZZ');
+        expect(zz?.seat_name).toBe('ZZ');
     });
 });
