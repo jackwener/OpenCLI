@@ -2732,6 +2732,7 @@
     "name": "subtitle",
     "description": "获取 Bilibili 视频的字幕",
     "access": "read",
+    "domain": "www.bilibili.com",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -2758,7 +2759,7 @@
     "type": "js",
     "modulePath": "bilibili/subtitle.js",
     "sourceFile": "bilibili/subtitle.js",
-    "navigateBefore": true
+    "navigateBefore": "https://www.bilibili.com"
   },
   {
     "site": "bilibili",

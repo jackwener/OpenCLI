@@ -1,11 +1,12 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError, EmptyResultError, selectorError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { apiGet, resolveBvid } from './utils.js';
 cli({
     site: 'bilibili',
     name: 'subtitle',
     access: 'read',
     description: '获取 Bilibili 视频的字幕',
+    domain: 'www.bilibili.com',
     strategy: Strategy.COOKIE,
     args: [
         { name: 'bvid', required: true, positional: true, help: 'Bilibili 视频 BV ID（如 BV1xx411c7mD），或视频 URL / b23.tv 短链' },
@@ -16,21 +17,22 @@ cli({
         if (!page)
             throw new CommandExecutionError('Browser session required for bilibili subtitle');
         const bvid = await resolveBvid(kwargs.bvid);
-        // 1. 先前往视频详情页 (建立有鉴权的 Session，且这里不需要加载完整个视频)
-        await page.goto(`https://www.bilibili.com/video/${bvid}/`);
-        // 2. 利用 __INITIAL_STATE__ 获取基础信息，拿 CID
-        const cid = await page.evaluate(`(async () => {
-      const state = window.__INITIAL_STATE__ || {};
-      return state?.videoData?.cid;
-    })()`);
-        if (!cid) {
-            throw selectorError('videoData.cid', '无法在页面中提取到当前视频的 CID，请检查页面是否正常加载。');
+        // 1. 通过 view API 拿 cid。
+        //    以前的实现走 page.goto(/video/<bvid>) + window.__INITIAL_STATE__.videoData.cid，
+        //    bangumi 绑定的 bvid（番剧/纪录片/电影/综艺）页面 state 不在 videoData 而在 epList，
+        //    导致 SELECTOR 错。view API 接受任何 bvid（UGC + PGC 都通），且不依赖 DOM 结构。
+        const view = await apiGet(page, '/x/web-interface/view', { params: { bvid } });
+        if (view?.code !== 0) {
+            throw new CommandExecutionError(`获取视频信息失败: ${view?.message ?? 'unknown'} (${view?.code})`);
         }
-        // 3. 在 Node 端使用 apiGet 获取带 Wbi 签名的字幕列表
-        // 之前纯靠 evaluate 里的 fetch 会失败，因为 B 站 /wbi/ 开头的接口强校验 w_rid，未签名直接被风控返回 403 HTML
+        const cid = view?.data?.cid;
+        if (!cid) {
+            throw new CommandExecutionError(`无法从 view API 拿到 cid (bvid=${bvid})`);
+        }
+        // 2. 用带 Wbi 签名的 player/v2 拿字幕列表（之前 evaluate 里 fetch 因为没签名会 403）
         const payload = await apiGet(page, '/x/player/wbi/v2', {
             params: { bvid, cid },
-            signed: true, // 开启 wbi_sign 自动签名
+            signed: true,
         });
         if (payload.code !== 0) {
             throw new CommandExecutionError(`获取视频播放信息失败: ${payload.message} (${payload.code})`);
@@ -43,7 +45,7 @@ cli({
             }
             throw new EmptyResultError('bilibili subtitle', '此视频没有发现外挂或智能字幕。');
         }
-        // 4. 选择目标字幕语言
+        // 3. 选择目标字幕语言
         const target = kwargs.lang
             ? subtitles.find((s) => s.lan === kwargs.lang) || subtitles[0]
             : subtitles[0];
@@ -52,17 +54,17 @@ cli({
             throw new AuthRequiredError('bilibili.com', '[风控拦截/未登录] 获取到的 subtitle_url 为空！请确保 CLI 已成功登录且风控未封锁此账号。');
         }
         const finalUrl = targetSubUrl.startsWith('//') ? 'https:' + targetSubUrl : targetSubUrl;
-        // 5. 解析并拉取 CDN 的 JSON 文件
+        // 4. 解析并拉取 CDN 的 JSON 文件
         const fetchJs = `
       (async () => {
          const url = ${JSON.stringify(finalUrl)};
          const res = await fetch(url);
          const text = await res.text();
-         
+
          if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
             return { error: 'HTML', text: text.substring(0, 100), url };
          }
-         
+
          try {
              const subJson = JSON.parse(text);
              // B站真实返回格式是 { font_size: 0.4, font_color: "#FFFFFF", background_alpha: 0.5, background_color: "#9C27B0", Stroke: "none", type: "json" , body: [{from: 0, to: 0, content: ""}] }
@@ -82,7 +84,7 @@ cli({
         if (!Array.isArray(finalItems)) {
             throw new CommandExecutionError('解析到的字幕列表对象不符合数组格式');
         }
-        // 6. 数据映射
+        // 5. 数据映射
         return finalItems.map((item, idx) => ({
             index: idx + 1,
             from: Number(item.from || 0).toFixed(2) + 's',
