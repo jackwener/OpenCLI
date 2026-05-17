@@ -20,6 +20,7 @@
  * 130   Interrupted by Ctrl-C           (set by tui.ts SIGINT handler)
  */
 import type { ObservationTraceReceipt } from './observation/events.js';
+import { getBrowserLabel } from './browser-label.js';
 
 // ── Exit code table ──────────────────────────────────────────────────────────
 
@@ -107,7 +108,7 @@ export class AuthRequiredError extends CliError {
     super(
       'AUTH_REQUIRED',
       message ?? `Not logged in to ${domain}`,
-      `Please open Chrome or Chromium and log in to https://${domain}`,
+      `Please open ${getBrowserLabel()} and log in to https://${domain}`,
       EXIT_CODES.NOPERM,
     );
     this.domain = domain;

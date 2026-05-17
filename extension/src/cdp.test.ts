@@ -393,3 +393,75 @@ describe('cdp download waits', () => {
     });
   });
 });
+
+describe('Firefox compatibility', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function createFirefoxMock() {
+    const tabs = {
+      get: vi.fn(async (_tabId: number) => ({
+        id: 1, windowId: 1, url: 'https://example.com',
+      })),
+      // executeScript returns the serialized wrapper: {ok:true, v: result}
+      executeScript: vi.fn(async (_tabId: number, _opts: any) => [JSON.stringify({ ok: true, v: 'ok' })]),
+      captureTab: vi.fn(async () => 'data:image/png;base64,FAKEDATA'),
+      onRemoved: { addListener: vi.fn() },
+      onUpdated: { addListener: vi.fn() },
+    };
+    return { tabs };
+  }
+
+  it('uses tabs.executeScript on Firefox', async () => {
+    vi.stubGlobal('__OPENCLI_FIREFOX__', true);
+    const ff = createFirefoxMock();
+    vi.stubGlobal('chrome', { tabs: ff.tabs, debugger: undefined, downloads: {} });
+    vi.stubGlobal('browser', { tabs: ff.tabs });
+
+    const mod = await import('./cdp');
+    const result = await mod.evaluate(1, 'document.title');
+
+    expect(ff.tabs.executeScript).toHaveBeenCalled();
+    expect(result).toBe('ok');
+  });
+
+  it('uses CDP version 1.3 on Chrome (default)', async () => {
+    const { chrome, debuggerApi } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    await mod.evaluate(1, '1');
+
+    expect(debuggerApi.attach).toHaveBeenCalledWith({ tabId: 1 }, '1.3');
+  });
+
+  it('uses tabs.captureTab on Firefox for screenshots', async () => {
+    vi.stubGlobal('__OPENCLI_FIREFOX__', true);
+    const ff = createFirefoxMock();
+    vi.stubGlobal('chrome', { tabs: ff.tabs, debugger: undefined, downloads: {} });
+    vi.stubGlobal('browser', { tabs: ff.tabs });
+
+    const mod = await import('./cdp');
+    const data = await mod.screenshot(1, { fullPage: true, width: 1080 });
+
+    expect(ff.tabs.captureTab).toHaveBeenCalled();
+    expect(data).toBe('FAKEDATA');
+  });
+
+  it('throws for setFileInputFiles on Firefox', async () => {
+    vi.stubGlobal('__OPENCLI_FIREFOX__', true);
+    const ff = createFirefoxMock();
+    vi.stubGlobal('chrome', { tabs: ff.tabs, debugger: undefined, downloads: {} });
+    vi.stubGlobal('browser', { tabs: ff.tabs });
+
+    const mod = await import('./cdp');
+    await expect(mod.setFileInputFiles(1, ['/tmp/test.txt'])).rejects.toThrow(
+      'setFileInputFiles is not supported on Firefox',
+    );
+  });
+});

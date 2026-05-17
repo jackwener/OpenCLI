@@ -1,20 +1,23 @@
 /**
- * OpenCLI — Service Worker (background script).
+ * OpenCLI — Background script (service worker on Chrome, event page on Firefox).
  *
  * Connects to the opencli daemon via WebSocket, receives commands,
- * dispatches them to Chrome APIs (debugger/tabs/cookies), returns results.
+ * dispatches them to browser APIs (debugger/tabs/cookies), returns results.
  */
 
 declare const __OPENCLI_COMPAT_RANGE__: string;
 
 import type { Command, Result } from './protocol';
-import { DAEMON_HOST, DAEMON_PORT, DAEMON_WS_URL, DAEMON_PING_URL, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
+import { DAEMON_HOST, DAEMON_PORT, DAEMON_WS_URL, DAEMON_PING_URL, DAEMON_POLL_REGISTER_URL, DAEMON_POLL_URL, DAEMON_POLL_RESULT_URL, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
 import * as executor from './cdp';
 import * as identity from './identity';
+import { tabGroups as tabGroupsCompat, IS_FIREFOX } from './browser-compat';
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
+let pollingActive = false;
+let pollingRegistered = false;
 const CONTEXT_ID_KEY = 'opencli_context_id_v1';
 let currentContextId = 'default';
 let contextIdPromise: Promise<string> | null = null;
@@ -118,8 +121,13 @@ async function connectAttempt(): Promise<void> {
 
   try {
     const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1000) });
-    if (!res.ok) return; // unexpected response — not our daemon
-  } catch {
+    if (!res.ok) {
+      console.log(`[opencli] Daemon ping returned ${res.status}, skipping`);
+      return;
+    }
+    console.log('[opencli] Daemon ping OK, connecting WebSocket...');
+  } catch (err) {
+    console.log(`[opencli] Daemon ping failed: ${err instanceof Error ? err.message : String(err)}`);
     return; // daemon not running — skip WebSocket to avoid console noise
   }
   if (isDaemonSocketActive()) return;
@@ -185,6 +193,13 @@ async function connectAttempt(): Promise<void> {
 const MAX_EAGER_ATTEMPTS = 6; // 2s, 4s, 8s, 16s, 32s, 60s — then stop
 
 function scheduleReconnect(): void {
+  // On Firefox, use HTTP polling instead of WebSocket
+  if (IS_FIREFOX && !pollingActive) {
+    console.log('[opencli] Firefox detected — switching to HTTP polling mode');
+    pollingActive = true;
+    void startPolling();
+    return;
+  }
   if (reconnectTimer) return;
   reconnectAttempts++;
   if (reconnectAttempts > MAX_EAGER_ATTEMPTS) return; // let keepalive alarm handle it
@@ -193,6 +208,104 @@ function scheduleReconnect(): void {
     reconnectTimer = null;
     void connect();
   }, delay);
+}
+
+// ─── HTTP Polling (Firefox fallback) ─────────────────────────────────
+
+async function registerPolling(): Promise<boolean> {
+  if (pollingRegistered) return true;
+  try {
+    const contextId = await getCurrentContextId();
+    const res = await fetch(DAEMON_POLL_REGISTER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contextId,
+        version: chrome.runtime.getManifest().version,
+        compatRange: __OPENCLI_COMPAT_RANGE__,
+      }),
+    });
+    console.log(`[opencli] Poll register response: ${res.status} ${res.ok}`);
+    if (res.ok) {
+      pollingRegistered = true;
+      console.log('[opencli] Registered with daemon via HTTP polling');
+      return true;
+    }
+    const text = await res.text();
+    console.warn(`[opencli] Poll register failed: ${res.status} ${text}`);
+  } catch (err) {
+    console.warn('[opencli] Poll registration error:', err instanceof Error ? err.message : String(err), err);
+  }
+  return false;
+}
+
+async function startPolling(): Promise<void> {
+  if (!IS_FIREFOX) return;
+
+  // Wait for daemon to be reachable
+  let daemonReady = false;
+  for (let i = 0; i < 10; i++) {
+    try {
+      const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1000) });
+      if (res.ok) { daemonReady = true; break; }
+    } catch { /* not ready */ }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  if (!daemonReady) {
+    console.log('[opencli] Daemon not reachable, retrying polling in 10s...');
+    setTimeout(() => { void startPolling(); }, 10000);
+    return;
+  }
+
+  const registered = await registerPolling();
+  if (!registered) {
+    console.log('[opencli] Poll registration failed, retrying in 5s...');
+    setTimeout(() => { void startPolling(); }, 5000);
+    return;
+  }
+
+  console.log('[opencli] Starting HTTP poll loop');
+  reconnectAttempts = 0;
+
+  // Poll loop
+  const contextId = await getCurrentContextId();
+  while (pollingActive) {
+    try {
+      const res = await fetch(`${DAEMON_POLL_URL}?contextId=${encodeURIComponent(contextId)}`, {
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!res.ok) {
+        if (res.status === 404) {
+          // Not registered — re-register
+          pollingRegistered = false;
+          await registerPolling();
+          continue;
+        }
+        console.warn(`[opencli] Poll returned ${res.status}`);
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      const data = await res.json() as { ok: boolean; command?: Command | null };
+      if (data.command) {
+        const result = await handleCommand(data.command);
+        // Send result back
+        try {
+          await fetch(DAEMON_POLL_RESULT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(result),
+          });
+        } catch (err) {
+          console.warn('[opencli] Failed to send poll result:', err);
+        }
+      }
+    } catch (err) {
+      // Timeout or network error — just retry
+      if (err instanceof Error && !err.message.includes('timeout')) {
+        console.warn('[opencli] Poll error:', err.message);
+      }
+    }
+  }
 }
 
 // ─── Browser target leases ───────────────────────────────────────────
@@ -236,7 +349,7 @@ const CONTAINER_TAB_GROUP_TITLE: Record<OwnedWindowRole, string> = {
   automation: 'OpenCLI Adapter',
 };
 const LEGACY_AUTOMATION_TAB_GROUP_TITLE = 'OpenCLI';
-const AUTOMATION_TAB_GROUP_COLOR: chrome.tabGroups.ColorEnum = 'orange';
+const AUTOMATION_TAB_GROUP_COLOR = 'orange' as string;
 let leaseMutationQueue: Promise<void> = Promise.resolve();
 const ownedContainers: Record<OwnedWindowRole, {
   windowId: number | null;
@@ -515,8 +628,8 @@ async function getOwnedContainerGroupId(role: OwnedWindowRole, windowId: number)
   const container = ownedContainers[role];
   if (container.groupId !== null) {
     try {
-      const group = await chrome.tabGroups.get(container.groupId);
-      if (group.windowId === windowId) return container.groupId;
+      const group = await tabGroupsCompat.get(container.groupId);
+      if (group && group.windowId === windowId) return container.groupId;
     } catch {
       // Group IDs are browser-session state and can disappear when the last tab closes.
     }
@@ -524,7 +637,7 @@ async function getOwnedContainerGroupId(role: OwnedWindowRole, windowId: number)
   }
 
   for (const title of getOwnedContainerGroupTitles(role)) {
-    const groups = await chrome.tabGroups.query({ windowId, title });
+    const groups = await tabGroupsCompat.query({ windowId, title });
     const existing = groups[0];
     if (existing) {
       container.groupId = existing.id;
@@ -553,7 +666,7 @@ async function focusOwnedWindowIfRequested(windowId: number, mode: WindowMode): 
   if (typeof updateWindow === 'function') await updateWindow(windowId, { focused: true }).catch(() => {});
 }
 
-async function toOwnedContainerDiscoveryCandidate(group: chrome.tabGroups.TabGroup): Promise<OwnedContainerDiscoveryCandidate | null> {
+async function toOwnedContainerDiscoveryCandidate(group: { id: number; windowId: number }): Promise<OwnedContainerDiscoveryCandidate | null> {
   try {
     const chromeWindow = await chrome.windows.get(group.windowId);
     const reusableTabId = await findReusableOwnedContainerTab(group.windowId);
@@ -582,10 +695,12 @@ async function discoverOwnedContainerFromTabGroup(role: OwnedWindowRole): Promis
   const container = ownedContainers[role];
   if (container.groupId !== null) {
     try {
-      const group = await chrome.tabGroups.get(container.groupId);
-      await chrome.windows.get(group.windowId);
-      container.windowId = group.windowId;
-      return { windowId: group.windowId, groupId: group.id };
+      const group = await tabGroupsCompat.get(container.groupId);
+      if (group) {
+        await chrome.windows.get(group.windowId);
+        container.windowId = group.windowId;
+        return { windowId: group.windowId, groupId: group.id };
+      }
     } catch {
       container.windowId = null;
       container.groupId = null;
@@ -593,7 +708,7 @@ async function discoverOwnedContainerFromTabGroup(role: OwnedWindowRole): Promis
   }
 
   for (const title of getOwnedContainerGroupTitles(role)) {
-    const groups = await chrome.tabGroups.query({ title });
+    const groups = await tabGroupsCompat.query({ title });
     const candidates = (await Promise.all(groups.map(toOwnedContainerDiscoveryCandidate)))
       .filter((candidate): candidate is OwnedContainerDiscoveryCandidate => candidate !== null);
     const selected = selectOwnedContainerDiscoveryCandidate(candidates);
@@ -607,6 +722,9 @@ async function discoverOwnedContainerFromTabGroup(role: OwnedWindowRole): Promis
 }
 
 async function ensureOwnedContainerTabGroup(role: OwnedWindowRole, windowId: number, tabIds: Array<number | undefined>): Promise<void> {
+  // Firefox does not support chrome.tabs.group / chrome.tabGroups APIs.
+  if (IS_FIREFOX) return;
+
   const ids = [...new Set(tabIds.filter((id): id is number => id !== undefined))];
   if (ids.length === 0) return;
 
@@ -626,7 +744,7 @@ async function ensureOwnedContainerTabGroup(role: OwnedWindowRole, windowId: num
 
     const groupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
     ownedContainers[role].groupId = groupId;
-    await chrome.tabGroups.update(groupId, {
+    await tabGroupsCompat.update(groupId, {
       color: AUTOMATION_TAB_GROUP_COLOR,
       title: CONTAINER_TAB_GROUP_TITLE[role],
       collapsed: false,
@@ -706,6 +824,14 @@ async function ensureOwnedContainerWindowUnlocked(
   });
   container.windowId = win.id!;
   console.log(`[opencli] Created owned ${role} window ${container.windowId} (start=${startUrl})`);
+
+  // On Windows, focused:false doesn't reliably prevent the window from stealing
+  // focus. Minimize background windows to keep them out of the user's way.
+  if (mode === 'background' && IS_FIREFOX) {
+    try {
+      await chrome.windows.update(win.id!, { state: 'minimized' });
+    } catch { /* best-effort */ }
+  }
 
   // Wait for the initial tab to finish loading instead of a fixed 200ms sleep.
   const tabs = await chrome.tabs.query({ windowId: win.id! });
@@ -1688,13 +1814,20 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
         await chrome.tabs.remove(tabId).catch(() => {});
         console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
       } else {
+        // Close the window entirely instead of leaving a blank placeholder.
+        // The container window is re-created on the next command anyway.
         try {
-          const tab = await chrome.tabs.update(tabId, { url: BLANK_PAGE, active: true });
-          await ensureOwnedContainerTabGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId]);
-          console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
+          await chrome.windows.remove(session.windowId);
+          console.log(`[opencli] Closed owned container window ${session.windowId} (session=${session.session}, surface=${session.surface}, ${reason})`);
         } catch {
+          // Window may already be gone — fall back to closing the tab
           await chrome.tabs.remove(tabId).catch(() => {});
           console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
+        }
+        // Clear the cached container reference so a fresh window is created next time
+        const role = getOwnedWindowRole(leaseKey);
+        if (ownedContainers[role]?.windowId === session.windowId) {
+          ownedContainers[role].windowId = null;
         }
       }
     } else {

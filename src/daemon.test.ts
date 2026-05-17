@@ -7,6 +7,7 @@ import {
   buildExtensionDisconnectFailure,
   commandResultUnknownMessage,
   getResponseCorsHeaders,
+  isExtensionOrigin,
 } from './daemon-utils.js';
 
 describe('getResponseCorsHeaders', () => {
@@ -72,5 +73,36 @@ describe('daemon command dispatch', () => {
       status: 503,
       countAsCommandResultUnknown: false,
     });
+  });
+});
+
+describe('isExtensionOrigin', () => {
+  it('accepts chrome-extension:// origins', () => {
+    expect(isExtensionOrigin('chrome-extension://abc123')).toBe(true);
+  });
+
+  it('accepts moz-extension:// origins (Firefox)', () => {
+    expect(isExtensionOrigin('moz-extension://abc123')).toBe(true);
+  });
+
+  it('rejects web origins', () => {
+    expect(isExtensionOrigin('https://example.com')).toBe(false);
+  });
+
+  it('rejects empty string', () => {
+    expect(isExtensionOrigin('')).toBe(false);
+  });
+});
+
+describe('getResponseCorsHeaders for Firefox', () => {
+  it('allows moz-extension:// origin to read /ping', () => {
+    expect(getResponseCorsHeaders('/ping', 'moz-extension://abc123')).toEqual({
+      'Access-Control-Allow-Origin': 'moz-extension://abc123',
+      Vary: 'Origin',
+    });
+  });
+
+  it('does not add CORS headers for command endpoints from Firefox extension', () => {
+    expect(getResponseCorsHeaders('/command', 'moz-extension://abc123')).toBeUndefined();
   });
 });

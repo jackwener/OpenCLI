@@ -8,6 +8,7 @@ import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { BrowserBridge } from './browser/index.js';
 import { getDaemonHealth } from './browser/daemon-client.js';
 import { getErrorMessage } from './errors.js';
+import { getBrowserLabel, getBrowserShortLabel } from './browser-label.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
 import type { BrowserProfileStatus } from './browser/daemon-client.js';
@@ -130,28 +131,35 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   if (extensionFlaky) {
     issues.push(
       'Extension connection is unstable. The live browser test succeeded, but the daemon reported the extension disconnected immediately afterward.\n' +
-      'This usually means the Browser Bridge service worker is reconnecting slowly or Chrome suspended it.',
+      'This usually means the Browser Bridge service worker is reconnecting slowly or the browser suspended it.',
     );
   } else if (daemonRunning && !extensionConnected) {
     if (health.state === 'profile-required') {
       issues.push(
-        'Multiple Chrome profiles are connected to the daemon, but no default profile was selected.\n' +
+        `Multiple ${getBrowserShortLabel()} profiles are connected to the daemon, but no default profile was selected.\n` +
         '  Run opencli profile list, then opencli profile use <name>, or pass --profile <name>.',
       );
     } else if (health.state === 'profile-disconnected') {
       issues.push(
         `Selected browser profile is not connected: ${health.status?.contextId ?? 'unknown'}.\n` +
-        '  Open that Chrome profile and make sure the OpenCLI extension is enabled.',
+        `  Open that ${getBrowserShortLabel()} profile and make sure the OpenCLI extension is enabled.`,
       );
     } else {
-      issues.push(
-        'Daemon is running but the Chrome/Chromium extension is not connected.\n' +
-        'If the extension is already installed, try: opencli daemon restart\n' +
-        'If the extension is not installed:\n' +
-        '  1. Download from https://github.com/jackwener/opencli/releases\n' +
-        '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
-        '  3. Click "Load unpacked" → select the extension folder',
-      );
+      {
+        const browser = getBrowserLabel();
+        const installHint = browser === 'Firefox'
+          ? '  2. Open about:debugging#/runtime/this-firefox\n'
+            + '  3. Click "临时载入附加组件..." → select manifest.json'
+          : '  2. Open chrome://extensions/ → Enable Developer Mode\n'
+            + '  3. Click "Load unpacked" → select the extension folder';
+        issues.push(
+          `Daemon is running but the ${browser} extension is not connected.\n` +
+          'If the extension is already installed, try: opencli daemon restart\n' +
+          'If the extension is not installed:\n' +
+          '  1. Download from https://github.com/jackwener/opencli/releases\n' +
+          installHint,
+        );
+      }
     }
   }
   if (extensionConnected && !extensionVersion) {

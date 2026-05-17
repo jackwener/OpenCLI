@@ -8,7 +8,12 @@
  *   - Cache populated lazily via chrome.debugger.getTargets()
  *   - Evicted on tab close (chrome.tabs.onRemoved)
  *   - Miss triggers full refresh; refresh miss → hard error (no guessing)
+ *
+ * Firefox note: chrome.debugger.getTargets() may not include tabId.
+ * In that case we fall back to matching tabs by URL via chrome.tabs.query().
  */
+
+import { IS_FIREFOX } from './browser-compat';
 
 const targetToTab = new Map<string, number>();
 const tabToTarget = new Map<number, string>();
@@ -57,15 +62,62 @@ export function evictTab(tabId: number): void {
 
 /**
  * Full refresh of targetId ↔ tabId mappings from chrome.debugger.getTargets().
+ *
+ * Firefox fallback: if getTargets() does not return tabId, we attempt to
+ * match targets to tabs by URL. This is less precise but works for the
+ * common case where each tab has a unique URL.
  */
 async function refreshMappings(): Promise<void> {
-  const targets = await chrome.debugger.getTargets();
   targetToTab.clear();
   tabToTarget.clear();
-  for (const t of targets) {
-    if (t.type === 'page' && t.tabId !== undefined) {
-      targetToTab.set(t.id, t.tabId);
-      tabToTarget.set(t.tabId, t.id);
+
+  // Firefox: chrome.debugger is not available — match by URL
+  if (IS_FIREFOX || typeof chrome.debugger === 'undefined') {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (tab.url && tab.id !== undefined) {
+        // Use tab ID as both key and value since we don't have CDP target IDs
+        targetToTab.set(String(tab.id), tab.id);
+        tabToTarget.set(tab.id, String(tab.id));
+      }
+    }
+    return;
+  }
+
+  // Chrome: use chrome.debugger.getTargets()
+  const targets = await chrome.debugger.getTargets();
+  const pageTargets = targets.filter((t) => t.type === 'page');
+  const hasTabIds = pageTargets.some((t) => t.tabId !== undefined);
+
+  if (hasTabIds) {
+    // Chrome path: targets include tabId directly
+    for (const t of pageTargets) {
+      if (t.tabId !== undefined) {
+        targetToTab.set(t.id, t.tabId);
+        tabToTarget.set(t.tabId, t.id);
+      }
+    }
+    return;
+  }
+
+  // Fallback: match by URL
+  if (IS_FIREFOX) {
+    const tabs = await chrome.tabs.query({});
+    const urlToTabId = new Map<string, number>();
+    for (const tab of tabs) {
+      if (tab.url && tab.id !== undefined) {
+        urlToTabId.set(tab.url, tab.id);
+      }
+    }
+    for (const t of pageTargets) {
+      const url = (t as any).url as string | undefined;
+      if (url) {
+        const tabId = urlToTabId.get(url);
+        if (tabId !== undefined) {
+          targetToTab.set(t.id, tabId);
+          tabToTarget.set(tabId, t.id);
+        }
+      }
     }
   }
 }
