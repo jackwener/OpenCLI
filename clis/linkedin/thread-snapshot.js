@@ -253,7 +253,7 @@ function buildThreadSnapshotScript(maxScrolls) {
       const speaker = cleanPersonName(speakerEl?.innerText || speakerEl?.textContent || '');
       if (speaker) currentSpeaker = speaker;
       const bodyEl = el.querySelector('.msg-s-event-listitem__body');
-      const body = clean(bodyEl?.innerText || bodyEl?.textContent || '');
+      const body = clean(bodyEl?.innerText || bodyEl?.textContent || '').replace(/\s*\(edited\)$/i, '');
       if (!body) continue;
       const key = currentSpeaker + '\n' + body;
       if (seen.has(key)) continue;
