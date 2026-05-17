@@ -62,26 +62,34 @@ function parseMaxScrolls(value) {
   return scrolls;
 }
 
-function installThreadFetchCaptureScript() {
-  return String.raw`(() => {
-    window.__opencli_thread_pages = Array.isArray(window.__opencli_thread_pages) ? window.__opencli_thread_pages : [];
-    if (window.__opencli_thread_fetch_patched) return { patched: false, count: window.__opencli_thread_pages.length };
-    const originalFetch = window.fetch;
-    window.__opencli_thread_fetch_patched = true;
-    window.fetch = async function(...args) {
-      const response = await originalFetch.apply(this, args);
-      try {
-        const request = args[0];
-        const url = typeof request === 'string' ? request : (request && request.url) || '';
-        if (/messengerMessages/i.test(String(url || response.url || ''))) {
-          response.clone().text().then((text) => {
-            if (text) window.__opencli_thread_pages.push(text);
-          }).catch(() => {});
-        }
-      } catch {}
-      return response;
+function collectThreadMessageUrlsScript() {
+  return String.raw`(() => Array.from(new Set(
+    performance.getEntriesByType('resource')
+      .map((entry) => entry.name)
+      .filter((url) => /messengerMessages/i.test(url)),
+  )))()`;
+}
+
+function fetchThreadPagesScript(urls, csrf) {
+  return String.raw`(async () => {
+    const urls = ${JSON.stringify(urls)};
+    const headers = {
+      'csrf-token': ${JSON.stringify(csrf)},
+      accept: 'application/vnd.linkedin.normalized+json+2.1',
+      'x-restli-protocol-version': '2.0.0',
     };
-    return { patched: true, count: window.__opencli_thread_pages.length };
+    const out = [];
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { credentials: 'include', headers });
+        if (res.status === 401 || res.status === 403) { out.push({ url, authRequired: true, error: 'HTTP ' + res.status }); continue; }
+        if (!res.ok) { out.push({ url, error: 'HTTP ' + res.status }); continue; }
+        out.push({ url, json: await res.json() });
+      } catch (e) {
+        out.push({ url, error: 'fetch failed: ' + ((e && e.message) || String(e)) });
+      }
+    }
+    return out;
   })()`;
 }
 
@@ -106,10 +114,6 @@ function scrollThreadMessagePaneScript() {
   })()`;
 }
 
-function getCapturedThreadPagesScript() {
-  return String.raw`(() => Array.isArray(window.__opencli_thread_pages) ? window.__opencli_thread_pages.slice() : [])()`;
-}
-
 function parseThreadMessages(normalized) {
   if (!normalized || typeof normalized !== 'object' || Array.isArray(normalized) || !Array.isArray(normalized.included)) return [];
   const clean = normalizeWhitespace;
@@ -126,7 +130,7 @@ function parseThreadMessages(normalized) {
     return clean(participant.name?.text || participant.name || '');
   };
   const resolveSpeaker = (message) => {
-    const candidates = [message['*sender'], message['*from'], message.sender, message.from, message.actor, message.creator, message.backendAuthorUrn];
+    const candidates = [message['*sender'], message['*senderParticipant'], message['*from'], message.sender, message.senderParticipant, message.from, message.actor, message.creator, message.backendAuthorUrn];
     for (const candidate of candidates) {
       const urn = typeof candidate === 'string' ? candidate : candidate?.entityUrn;
       if (!urn) continue;
@@ -171,7 +175,11 @@ function mergeThreadMessages(apiMessages, domMessages) {
   for (const message of apiMessages || []) add(message);
   for (const message of domMessages || []) add(message);
   if (merged.some((message) => Number(message.createdAt || 0))) {
-    merged.sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));
+    merged.sort((a, b) => {
+      const aTime = Number(a.createdAt || 0) || Number.MAX_SAFE_INTEGER;
+      const bTime = Number(b.createdAt || 0) || Number.MAX_SAFE_INTEGER;
+      return aTime - bTime;
+    });
   }
   return merged.map((message, index) => ({ ...message, index }));
 }
@@ -308,12 +316,40 @@ cli({
     await page.wait(4);
     await page.goto(threadUrl);
     await page.wait(10);
-    await page.evaluate(installThreadFetchCaptureScript());
-    for (let i = 0; i < maxScrolls; i += 1) {
-      await page.evaluate(scrollThreadMessagePaneScript());
-      await page.wait(1);
+    await page.evaluate('performance.setResourceTimingBufferSize(3000)');
+
+    const cookies = await page.getCookies({ url: 'https://www.linkedin.com' });
+    const jsession = cookies.find((c) => c.name === 'JSESSIONID')?.value;
+    if (!jsession) {
+      throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn JSESSIONID cookie not found. Please sign in to LinkedIn.');
     }
-    const capturedBodies = unwrapEvaluateResult(await page.evaluate(getCapturedThreadPagesScript()));
+    const csrf = jsession.replace(/^\"|\"$/g, '');
+
+    const fetchedUrls = new Set();
+    const apiPageJsons = [];
+    let stablePasses = 0;
+    for (let i = 0; i <= maxScrolls; i += 1) {
+      if (i > 0) {
+        await page.evaluate(scrollThreadMessagePaneScript());
+        await page.wait(1);
+      }
+      const seenUrls = unwrapEvaluateResult(await page.evaluate(collectThreadMessageUrlsScript()));
+      const newUrls = (Array.isArray(seenUrls) ? seenUrls : []).filter((u) => !fetchedUrls.has(u));
+      if (newUrls.length === 0) {
+        stablePasses += 1;
+        if (i > 0 && stablePasses >= 3) break;
+        continue;
+      }
+      stablePasses = 0;
+      for (const url of newUrls) fetchedUrls.add(url);
+      const fetchedPages = unwrapEvaluateResult(await page.evaluate(fetchThreadPagesScript(newUrls, csrf)));
+      for (const entry of Array.isArray(fetchedPages) ? fetchedPages : []) {
+        if (entry && entry.authRequired) {
+          throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn messengerMessages API authentication failed: ' + (entry.error || 'auth required'));
+        }
+        if (entry && entry.json) apiPageJsons.push(entry.json);
+      }
+    }
 
     const snapshot = unwrapEvaluateResult(await page.evaluate(buildThreadSnapshotScript(0)));
     if (snapshot?.authRequired) {
@@ -329,11 +365,11 @@ cli({
     }
 
     const apiMessages = [];
-    for (const body of Array.isArray(capturedBodies) ? capturedBodies : []) {
+    for (const pageJson of apiPageJsons) {
       try {
-        apiMessages.push(...parseThreadMessages(JSON.parse(body)));
+        apiMessages.push(...parseThreadMessages(pageJson));
       } catch {
-        // Ignore non-JSON or malformed captured bodies.
+        // Ignore malformed captured pages.
       }
     }
     const mergedMessages = mergeThreadMessages(apiMessages, snapshot.messages);
@@ -346,7 +382,7 @@ cli({
       headerNames: snapshot.headerNames,
       latestMessageText: normalizeWhitespace(mergedMessages[mergedMessages.length - 1]?.text || snapshot?.latestMessageText || ''),
       messages: mergedMessages,
-      capturedApiPageCount: Array.isArray(capturedBodies) ? capturedBodies.length : 0,
+      capturedApiPageCount: apiPageJsons.length,
     };
 
     return [{
@@ -366,6 +402,8 @@ export const __test__ = {
   parseMaxScrolls,
   unwrapEvaluateResult,
   buildThreadSnapshotScript,
+  collectThreadMessageUrlsScript,
+  fetchThreadPagesScript,
   parseThreadMessages,
   mergeThreadMessages,
 };

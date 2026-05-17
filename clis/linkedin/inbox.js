@@ -35,26 +35,41 @@ function parseMaxScrolls(value) {
   return scrolls;
 }
 
-function installInboxFetchCaptureScript() {
-  return String.raw`(() => {
-    window.__opencli_inbox_pages = Array.isArray(window.__opencli_inbox_pages) ? window.__opencli_inbox_pages : [];
-    if (window.__opencli_inbox_fetch_patched) return { patched: false, count: window.__opencli_inbox_pages.length };
-    const originalFetch = window.fetch;
-    window.__opencli_inbox_fetch_patched = true;
-    window.fetch = async function(...args) {
-      const response = await originalFetch.apply(this, args);
-      try {
-        const request = args[0];
-        const url = typeof request === 'string' ? request : (request && request.url) || '';
-        if (/messengerConversations/i.test(String(url || response.url || ''))) {
-          response.clone().text().then((text) => {
-            if (text) window.__opencli_inbox_pages.push(text);
-          }).catch(() => {});
-        }
-      } catch {}
-      return response;
+// LinkedIn lazy-loads conversations as the list is scrolled, firing a fresh
+// messengerConversations request per page. We cannot capture those by patching
+// window.fetch: page.evaluate runs in an isolated world (its window.fetch is
+// not the one LinkedIn calls), and LinkedIn's CSP blocks injecting a main-world
+// script. Instead we scroll to make the page fire the requests, read the
+// request URLs back from the Performance API (visible to the isolated world),
+// and re-issue each one ourselves — the same requests the page already made.
+function collectMessagingUrlsScript() {
+  return String.raw`(() => Array.from(new Set(
+    performance.getEntriesByType('resource')
+      .map((entry) => entry.name)
+      .filter((url) => /messengerConversations/i.test(url) && /mailboxUrn/i.test(url)),
+  )))()`;
+}
+
+function fetchMessagingPagesScript(urls, csrf) {
+  return String.raw`(async () => {
+    const urls = ${JSON.stringify(urls)};
+    const headers = {
+      'csrf-token': ${JSON.stringify(csrf)},
+      accept: 'application/vnd.linkedin.normalized+json+2.1',
+      'x-restli-protocol-version': '2.0.0',
     };
-    return { patched: true, count: window.__opencli_inbox_pages.length };
+    const out = [];
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { credentials: 'include', headers });
+        if (res.status === 401 || res.status === 403) { out.push({ url, authRequired: true }); continue; }
+        if (!res.ok) { out.push({ url, error: 'HTTP ' + res.status }); continue; }
+        out.push({ url, json: await res.json() });
+      } catch (e) {
+        out.push({ url, error: 'fetch failed: ' + ((e && e.message) || String(e)) });
+      }
+    }
+    return out;
   })()`;
 }
 
@@ -84,10 +99,6 @@ function scrollInboxConversationListScript() {
     window.scrollTo(0, document.body?.scrollHeight || 0);
     return { scrolled: scrollers.size, items: items.length };
   })()`;
-}
-
-function getCapturedInboxPagesScript() {
-  return String.raw`(() => Array.isArray(window.__opencli_inbox_pages) ? window.__opencli_inbox_pages.slice() : [])()`;
 }
 
 function mergeConversations(pageJsons, mailboxUrn) {
@@ -254,7 +265,9 @@ cli({
 
     await page.goto(MESSAGING_URL);
     await page.wait(10);
-    await page.evaluate(installInboxFetchCaptureScript());
+    // Enlarge the resource-timing buffer so the messengerConversations request
+    // URLs fired during scrolling are not evicted before we collect them.
+    await page.evaluate('performance.setResourceTimingBufferSize(3000)');
 
     // Locate the messaging API request the page fired on load; retry once if the
     // SPA was slow to issue it.
@@ -296,18 +309,29 @@ cli({
       );
     }
 
-    let conversations = parseConversations(fetched.json, located.mailboxUrn || '');
+    const pageJsons = [fetched.json];
+    let conversations = mergeConversations(pageJsons, located.mailboxUrn || '');
+    const fetchedUrls = new Set([targetUrl]);
+    let stablePasses = 0;
     for (let i = 0; i < maxScrolls && conversations.length < limit; i += 1) {
+      // Scroll so LinkedIn lazy-loads the next page, then read the request URLs
+      // it fired from the Performance API and re-issue any we have not fetched.
       await page.evaluate(scrollInboxConversationListScript());
       await page.wait(1.5);
-      const capturedBodies = unwrapEvaluateResult(await page.evaluate(getCapturedInboxPagesScript()));
-      const pageJsons = [fetched.json];
-      for (const body of Array.isArray(capturedBodies) ? capturedBodies : []) {
-        try {
-          pageJsons.push(JSON.parse(body));
-        } catch {
-          // Ignore non-JSON or partial bodies; LinkedIn occasionally emits tracking responses.
-        }
+      const seenUrls = unwrapEvaluateResult(await page.evaluate(collectMessagingUrlsScript()));
+      const newUrls = (Array.isArray(seenUrls) ? seenUrls : []).filter((u) => !fetchedUrls.has(u));
+      if (newUrls.length === 0) {
+        stablePasses += 1;
+        if (stablePasses >= 3) break; // list fully loaded; nothing new is appearing
+        continue;
+      }
+      stablePasses = 0;
+      for (const u of newUrls) fetchedUrls.add(u);
+      const fetchedPages = unwrapEvaluateResult(
+        await page.evaluate(fetchMessagingPagesScript(newUrls, csrf)),
+      );
+      for (const entry of Array.isArray(fetchedPages) ? fetchedPages : []) {
+        if (entry && entry.json) pageJsons.push(entry.json);
       }
       conversations = mergeConversations(pageJsons, located.mailboxUrn || '');
     }
