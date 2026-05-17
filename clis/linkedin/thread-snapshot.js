@@ -78,17 +78,62 @@ function oldestDeliveredAt(messages) {
   return oldest;
 }
 
-function buildOlderThreadPageUrl(recentUrl, deliveredAt) {
-  // The recent messengerMessages request carries variables=(conversationUrn:<urn>)
-  // with the conversationUrn already RestLi-encoded. Reuse that encoded value
-  // verbatim and splice in a deliveredAt anchor; LinkedIn keeps the structural
-  // ( ) , : literal, so only plain integers are appended.
+function buildOlderThreadPageUrl(recentUrl, deliveredAt, discoveredUrl) {
+  if (!Number.isInteger(deliveredAt) || deliveredAt <= 0) return '';
+  // Preferred: an older-history request LinkedIn itself fired after the scroll.
+  // It carries LinkedIn's current persisted-query id, so re-anchoring its
+  // deliveredAt survives LinkedIn rotating that id on a redeploy.
+  if (discoveredUrl && /messengerMessages/.test(discoveredUrl) && /deliveredAt/.test(discoveredUrl)) {
+    return discoveredUrl.replace(/deliveredAt(%3[Aa]|:)\d+/, 'deliveredAt$1' + deliveredAt);
+  }
+  // Fallback: construct from a known query id and the recent request's already
+  // RestLi-encoded conversationUrn (LinkedIn keeps the structural ( ) , : literal).
   const match = String(recentUrl || '').match(/variables=\(conversationUrn:([^&]+)\)/);
   if (!match || !match[1]) return '';
-  if (!Number.isInteger(deliveredAt) || deliveredAt <= 0) return '';
   return MESSAGING_GRAPHQL_BASE + '?queryId=' + OLDER_THREAD_QUERY_ID
     + '&variables=(deliveredAt:' + deliveredAt + ',conversationUrn:' + match[1]
     + ',countBefore:20,countAfter:0)';
+}
+
+function threadPaneCenterScript() {
+  return String.raw`(() => {
+    const panes = Array.from(document.querySelectorAll('*')).filter((el) => {
+      let s;
+      try { s = getComputedStyle(el); } catch (e) { return false; }
+      return (s.overflowY === 'auto' || s.overflowY === 'scroll')
+        && el.scrollHeight > el.clientHeight + 20
+        && typeof el.querySelector === 'function'
+        && el.querySelector('.msg-s-event-listitem');
+    });
+    const pane = panes.sort((a, b) => b.scrollHeight - a.scrollHeight)[0];
+    if (!pane) return null;
+    const rect = pane.getBoundingClientRect();
+    return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
+  })()`;
+}
+
+// LinkedIn lazy-loads older messages (firing its older-history query) only when
+// the thread pane has a real height and gets a genuine scroll. The automation
+// viewport can be tiny, so widen it via CDP and wheel the pane up a few times;
+// the older-history request this triggers is read back from the Performance API
+// to discover LinkedIn's current persisted-query id.
+async function provokeOlderHistoryQuery(page) {
+  if (typeof page.cdp !== 'function') return;
+  try {
+    await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 2000, deviceScaleFactor: 1, mobile: false });
+  } catch {
+    return;
+  }
+  const pane = unwrapEvaluateResult(await page.evaluate(threadPaneCenterScript()));
+  if (!pane || typeof pane.x !== 'number') return;
+  for (let i = 0; i < 6; i += 1) {
+    try {
+      await page.cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: pane.x, y: pane.y, deltaX: 0, deltaY: -600 });
+    } catch {
+      return;
+    }
+    await page.wait(1);
+  }
 }
 
 function collectThreadMessageUrlsScript() {
@@ -333,13 +378,19 @@ cli({
     }
     const csrf = jsession.replace(/^\"|\"$/g, '');
 
-    // Capture the recent messengerMessages request the page fired on load, then
-    // page backward through older history with the deliveredAt-anchored query.
-    const recentUrls = unwrapEvaluateResult(await page.evaluate(collectThreadMessageUrlsScript()));
-    const recentUrl = (Array.isArray(recentUrls) ? recentUrls : [])
+    // Provoke LinkedIn's older-history request so its current persisted-query id
+    // can be discovered, then capture every messengerMessages request the page
+    // has made and page backward through history with the deliveredAt anchor.
+    await provokeOlderHistoryQuery(page);
+    const seenUrls = unwrapEvaluateResult(await page.evaluate(collectThreadMessageUrlsScript()));
+    const messageUrls = Array.isArray(seenUrls) ? seenUrls : [];
+    const recentUrl = messageUrls
       .find((url) => /variables=\(conversationUrn:/.test(url) && !/deliveredAt/.test(url));
+    const discoveredOlderUrl = messageUrls
+      .find((url) => /messengerMessages/.test(url) && /deliveredAt/.test(url));
 
     const apiPageJsons = [];
+    let historyComplete = true;
     const fetchThreadPage = async (pageUrl) => {
       const fetched = unwrapEvaluateResult(await page.evaluate(fetchThreadPagesScript([pageUrl], csrf)));
       const entry = (Array.isArray(fetched) ? fetched : [])[0];
@@ -355,10 +406,10 @@ cli({
         apiPageJsons.push(recentJson);
         let anchor = oldestDeliveredAt(parseThreadMessages(recentJson));
         for (let i = 0; i < maxScrolls && anchor > 0; i += 1) {
-          const olderUrl = buildOlderThreadPageUrl(recentUrl, anchor);
+          const olderUrl = buildOlderThreadPageUrl(recentUrl, anchor, discoveredOlderUrl);
           if (!olderUrl) break;
           const olderJson = await fetchThreadPage(olderUrl);
-          if (!olderJson) break;
+          if (!olderJson) { historyComplete = false; break; }
           const next = oldestDeliveredAt(parseThreadMessages(olderJson));
           if (next <= 0 || next >= anchor) break;
           apiPageJsons.push(olderJson);
@@ -399,6 +450,7 @@ cli({
       latestMessageText: normalizeWhitespace(mergedMessages[mergedMessages.length - 1]?.text || snapshot?.latestMessageText || ''),
       messages: mergedMessages,
       capturedApiPageCount: apiPageJsons.length,
+      historyComplete,
     };
 
     return [{

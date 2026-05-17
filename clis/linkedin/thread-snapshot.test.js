@@ -137,6 +137,9 @@ describe('linkedin thread-snapshot command', () => {
     expect(older).toContain('deliveredAt:1776742893955');
     expect(older).toContain('conversationUrn:urn%3Ali%3Amsg_conversation%3A%28ABC%29');
     expect(older).toContain('countBefore:20,countAfter:0');
+    const discovered = 'https://www.linkedin.com/voyager/api/voyagerMessagingGraphQL/graphql?queryId=messengerMessages.NEWID&variables=(deliveredAt:111,conversationUrn:urn%3Ax,countBefore:20,countAfter:0)';
+    expect(buildOlderThreadPageUrl(recentUrl, 555, discovered)).toContain('queryId=messengerMessages.NEWID');
+    expect(buildOlderThreadPageUrl(recentUrl, 555, discovered)).toContain('deliveredAt:555');
     expect(buildOlderThreadPageUrl('https://example.com/no-conversation-urn', 123)).toBe('');
     expect(buildOlderThreadPageUrl(recentUrl, 0)).toBe('');
     expect(oldestDeliveredAt([{ createdAt: 500 }, { createdAt: 300 }, { createdAt: 0 }])).toBe(300);
@@ -161,7 +164,7 @@ describe('linkedin thread-snapshot command', () => {
       urls: [recentUrl],
       pageFor: (url) => {
         if (/deliveredAt:500,/.test(url)) return olderPage;
-        if (/deliveredAt:300,/.test(url)) return null;
+        if (/deliveredAt:300,/.test(url)) return { included: [] };
         if (url === recentUrl) return recentPage;
         return null;
       },
@@ -183,6 +186,7 @@ describe('linkedin thread-snapshot command', () => {
     });
     expect(rows[0].snapshot_json).toContain('real conversation opener');
     expect(JSON.parse(rows[0].snapshot_json).capturedApiPageCount).toBe(2);
+    expect(JSON.parse(rows[0].snapshot_json).historyComplete).toBe(true);
   });
 
   it('rejects invalid thread URL before navigation', async () => {
