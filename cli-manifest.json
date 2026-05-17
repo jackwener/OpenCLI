@@ -14766,6 +14766,42 @@
   },
   {
     "site": "linkedin",
+    "name": "people-search",
+    "description": "Search standard LinkedIn (not Sales Navigator) for people by keyword. Each invocation consumes against LinkedIn's monthly Commercial Use Limit on people search; throttle accordingly.",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "keywords",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "People search keywords, e.g. \"site reliability engineer berlin\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Maximum people to return (1-10); each query counts toward LinkedIn's monthly CUL"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "headline",
+      "location",
+      "profile_url"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/people-search.js",
+    "sourceFile": "linkedin/people-search.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
     "name": "safe-send",
     "description": "Fail-closed LinkedIn message sender that verifies exact thread, recipient, and latest message before filling/sending",
     "access": "write",
