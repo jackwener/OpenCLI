@@ -27,7 +27,7 @@ function createPageWithFeed(clips) {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
         wait: vi.fn().mockResolvedValue(undefined),
-        evaluate: vi.fn().mockResolvedValue({ status: 200, body: { clips } }),
+        evaluate: vi.fn().mockResolvedValue({ ok: true, clips }),
     };
 }
 

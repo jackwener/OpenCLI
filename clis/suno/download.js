@@ -83,14 +83,15 @@ export const downloadCommand = cli({
                 },
                 body: JSON.stringify({ clip_ids: ['${clipId}'] }),
             });
-            const body = await res.json().catch(() => null);
-            return { status: res.status, body };
+            if (!res.ok) return { ok: false, error: 'HTTP ' + res.status };
+            const payload = await res.json().catch(() => null);
+            return { ok: true, clips: payload?.clips || [] };
         })()`);
 
-        if (feedRes?.status !== 200) {
-            throw new CommandExecutionError(`Suno feed lookup failed (HTTP ${feedRes?.status || '?'}).`);
+        if (!feedRes?.ok) {
+            throw new CommandExecutionError(`Suno feed lookup failed: ${feedRes?.error || 'unknown'}`);
         }
-        const clip = (feedRes.body?.clips || []).find(c => c.id === clipId);
+        const clip = feedRes.clips.find(c => c.id === clipId);
         if (!clip) {
             throw new EmptyResultError('suno download', `Clip ${clipId} not found in your account. Confirm at ${SUNO_URL}/song/${clipId}.`);
         }
