@@ -14527,6 +14527,44 @@
   },
   {
     "site": "linkedin",
+    "name": "salesnav-search",
+    "description": "Search LinkedIn Sales Navigator for people leads by keyword",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "keywords",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "People search keywords, e.g. \"quality manager food manufacturing\""
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "default": 25,
+        "required": false,
+        "help": "Maximum leads to return (1-500, fetched 25 per request)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "title",
+      "company",
+      "location",
+      "degree",
+      "profile_url"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/salesnav-search.js",
+    "sourceFile": "linkedin/salesnav-search.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
     "name": "search",
     "description": "Search LinkedIn jobs",
     "access": "read",
