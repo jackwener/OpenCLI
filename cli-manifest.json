@@ -25844,6 +25844,54 @@
   },
   {
     "site": "xianyu",
+    "name": "inbox",
+    "description": "列出闲鱼最近私信会话",
+    "access": "read",
+    "domain": "www.goofish.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of conversations to return"
+      },
+      {
+        "name": "unread-only",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Return only conversations with unread messages"
+      },
+      {
+        "name": "resolve-ids",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Click each visible conversation to resolve item_id and peer_user_id from the chat URL"
+      }
+    ],
+    "columns": [
+      "rank",
+      "peer_name",
+      "peer_user_id",
+      "item_id",
+      "item_title",
+      "price",
+      "last_message",
+      "unread",
+      "unread_count",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xianyu/inbox.js",
+    "sourceFile": "xianyu/inbox.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xianyu",
     "name": "item",
     "description": "查看闲鱼商品详情",
     "access": "read",
@@ -25872,6 +25920,58 @@
     "type": "js",
     "modulePath": "xianyu/item.js",
     "sourceFile": "xianyu/item.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xianyu",
+    "name": "messages",
+    "description": "读取指定闲鱼私信会话的最近聊天内容",
+    "access": "read",
+    "domain": "www.goofish.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "item_id",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "闲鱼商品 item_id"
+      },
+      {
+        "name": "user_id",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "聊一聊对方的 user_id / peerUserId"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Number of visible messages to return"
+      },
+      {
+        "name": "rank",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Conversation rank from xianyu inbox; clicks the visible row instead of requiring IDs"
+      }
+    ],
+    "columns": [
+      "index",
+      "peer_name",
+      "item_title",
+      "message",
+      "item_id",
+      "peer_user_id",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xianyu/messages.js",
+    "sourceFile": "xianyu/messages.js",
     "navigateBefore": false
   },
   {
@@ -25949,6 +26049,56 @@
     "type": "js",
     "modulePath": "xianyu/publish.js",
     "sourceFile": "xianyu/publish.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xianyu",
+    "name": "reply",
+    "description": "回复指定闲鱼私信会话",
+    "access": "write",
+    "domain": "www.goofish.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "item_id",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "闲鱼商品 item_id"
+      },
+      {
+        "name": "user_id",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "聊一聊对方的 user_id / peerUserId"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "help": "Message text to send"
+      },
+      {
+        "name": "rank",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Conversation rank from xianyu inbox; clicks the visible row instead of requiring IDs"
+      }
+    ],
+    "columns": [
+      "status",
+      "peer_name",
+      "item_title",
+      "price",
+      "location",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "xianyu/reply.js",
+    "sourceFile": "xianyu/reply.js",
     "navigateBefore": false
   },
   {

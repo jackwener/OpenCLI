@@ -764,19 +764,6 @@
     ]
   },
   {
-    "command": "xianyu/chat",
-    "file": "clis/xianyu/chat.js",
-    "missing": [
-      "can_input",
-      "can_send",
-      "item_url",
-      "peer_masked_id",
-      "requiresAuth",
-      "title",
-      "visible_messages"
-    ]
-  },
-  {
     "command": "xianyu/item",
     "file": "clis/xianyu/item.js",
     "missing": [
