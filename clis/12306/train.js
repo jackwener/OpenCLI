@@ -1,5 +1,5 @@
 /**
- * 12306 train stop details — list every station a train calls at,
+ * 12306 train stop details - list every station a train calls at,
  * with arrival / departure / stopover time.
  *
  * Requires the internal `train_no` returned by `12306 trains`

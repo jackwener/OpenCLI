@@ -1,6 +1,156 @@
 [
   {
     "site": "12306",
+    "name": "me",
+    "description": "Show the logged-in 12306 account summary. Sensitive fields (real name, email, mobile, birth date) are masked by default; pass --include-sensitive to opt in.",
+    "access": "read",
+    "domain": "kyfw.12306.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "include-sensitive",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Reveal unmasked real name / email / mobile / birth date. The 12306 ID-number mask is server-side and never decoded."
+      }
+    ],
+    "columns": [
+      "username",
+      "real_name",
+      "email",
+      "mobile",
+      "birth_date",
+      "sex",
+      "country",
+      "user_type",
+      "member",
+      "active"
+    ],
+    "type": "js",
+    "modulePath": "12306/me.js",
+    "sourceFile": "12306/me.js",
+    "navigateBefore": "https://kyfw.12306.cn"
+  },
+  {
+    "site": "12306",
+    "name": "orders",
+    "description": "List in-progress 12306 orders (not yet ridden, refunded, or completed) for the logged-in user",
+    "access": "read",
+    "domain": "kyfw.12306.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "order_id",
+      "order_date",
+      "train_code",
+      "from_station",
+      "to_station",
+      "departure",
+      "passengers",
+      "status",
+      "amount"
+    ],
+    "type": "js",
+    "modulePath": "12306/orders.js",
+    "sourceFile": "12306/orders.js",
+    "navigateBefore": "https://kyfw.12306.cn"
+  },
+  {
+    "site": "12306",
+    "name": "passengers",
+    "description": "List the logged-in user's saved 12306 passengers. Sensitive fields are masked by default; pass --include-sensitive to opt in.",
+    "access": "read",
+    "domain": "kyfw.12306.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max passengers to return (1-50)"
+      },
+      {
+        "name": "include-sensitive",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Reveal unmasked real names and birth dates. The 12306 ID-number / mobile masks are server-side and never decoded."
+      }
+    ],
+    "columns": [
+      "name",
+      "sex",
+      "born_year",
+      "id_type",
+      "id_no",
+      "mobile",
+      "passenger_type",
+      "country"
+    ],
+    "type": "js",
+    "modulePath": "12306/passengers.js",
+    "sourceFile": "12306/passengers.js",
+    "navigateBefore": "https://kyfw.12306.cn"
+  },
+  {
+    "site": "12306",
+    "name": "price",
+    "description": "Look up 12306 ticket prices by seat class for one train on a given date and segment (anonymous, no login required)",
+    "access": "read",
+    "domain": "kyfw.12306.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "train-no",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Internal train_no from `12306 trains` (e.g. 24000000G10L)"
+      },
+      {
+        "name": "from",
+        "type": "str",
+        "required": true,
+        "help": "Origin station (Chinese name, telecode, or pinyin) - must be a stop of this train"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "help": "Destination station - must be a stop of this train"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Departure date in YYYY-MM-DD"
+      },
+      {
+        "name": "seat-types",
+        "type": "str",
+        "default": "OM9PA1A3A4FWZ",
+        "required": false,
+        "help": "Seat-type letters to query (default covers the common classes). Examples: OM9 (二等/一等/商务), A1A3A4 (硬座/硬卧/软卧)."
+      }
+    ],
+    "columns": [
+      "seat_code",
+      "seat_name",
+      "price",
+      "currency"
+    ],
+    "type": "js",
+    "modulePath": "12306/price.js",
+    "sourceFile": "12306/price.js"
+  },
+  {
+    "site": "12306",
     "name": "stations",
     "description": "Search 12306 (China Railway) stations by Chinese name, telecode, or pinyin keyword",
     "access": "read",

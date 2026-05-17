@@ -30,7 +30,7 @@ const STATION_CODE_RE = /^[A-Z]{2,4}$/;
  * Per-record fields (positional):
  *   [0] short pinyin alias  (e.g. `bjb`)
  *   [1] Chinese station name (e.g. `北京北`)
- *   [2] telecode (3-4 uppercase letters, e.g. `VAP`) — this is the
+ *   [2] telecode (3-4 uppercase letters, e.g. `VAP`) - this is the
  *       wire format 12306 uses for `from_station` / `to_station`.
  *   [3] full pinyin           (e.g. `beijingbei`)
  *   [4] short alias           (duplicate of [0] usually)
@@ -168,10 +168,65 @@ export function parseTrainRecord(line, stationByCode) {
     };
 }
 
+/**
+ * Mask helpers for sensitive identity fields rendered by 12306.
+ *
+ * 12306 already masks ID numbers and mobile numbers server-side
+ * (`xxxx***********xxx` / `138****xxxx`); these helpers handle the
+ * remaining fields (email, real Chinese name) so the adapter never
+ * leaks unmasked PII without an explicit `--include-sensitive` opt-in.
+ */
+export function maskEmail(value) {
+    const v = String(value || '').trim();
+    if (!v) return '';
+    const at = v.indexOf('@');
+    if (at <= 0) return v;
+    const local = v.slice(0, at);
+    const domain = v.slice(at);
+    if (local.length <= 2) return local[0] + '*' + domain;
+    return local[0] + '*'.repeat(Math.max(1, local.length - 2)) + local.slice(-1) + domain;
+}
+
+export function maskMobile(value) {
+    const v = String(value || '').trim();
+    if (!v) return '';
+    if (/\*/.test(v)) return v;
+    if (v.length < 7) return v.replace(/.(?=.)/g, '*');
+    return v.slice(0, 3) + '*'.repeat(v.length - 7) + v.slice(-4);
+}
+
+export function maskChineseName(value) {
+    const v = String(value || '').trim();
+    if (!v) return '';
+    if (v.length === 1) return v;
+    if (v.length === 2) return v[0] + '*';
+    return v[0] + '*'.repeat(v.length - 2) + v.slice(-1);
+}
+
+/**
+ * Detect the 12306 login marker by reading `document.cookie` from the
+ * current adapter page. Cannot use `page.getCookies({url})` here:
+ * 12306 sets the auth cookie `tk` and `JSESSIONID` with `Path=/otn`,
+ * and CDP `Network.getCookies` with a bare URL filter excludes
+ * cookies whose path does not match the URL path. `document.cookie`
+ * returns all non-httponly cookies visible to the current page
+ * regardless of path, which is what we need to confirm login.
+ */
+export async function require12306Login(page, AuthRequiredErrorClass) {
+    const docCookie = await page.evaluate(`document.cookie || ''`);
+    const cookieStr = typeof docCookie === 'string' ? docCookie : '';
+    if (!/\btk=/.test(cookieStr) || !/JSESSIONID=/.test(cookieStr)) {
+        throw new AuthRequiredErrorClass('kyfw.12306.cn', 'Not logged into 12306. Sign in at https://kyfw.12306.cn first.');
+    }
+}
+
 export const __test__ = {
     parseStationBundle,
     resolveStation,
     validateDate,
     buildCookieHeader,
     parseTrainRecord,
+    maskEmail,
+    maskMobile,
+    maskChineseName,
 };
