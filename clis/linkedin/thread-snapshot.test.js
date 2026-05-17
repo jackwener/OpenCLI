@@ -4,9 +4,9 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import './thread-snapshot.js';
 
-const { buildThreadSnapshotScript, canonicalizeLinkedInThreadUrl, cleanPersonName, collectThreadMessageUrlsScript, fetchThreadPagesScript, mergeThreadMessages, parseMaxScrolls, parseThreadMessages } = await import('./thread-snapshot.js').then((m) => m.__test__);
+const { buildOlderThreadPageUrl, buildThreadSnapshotScript, canonicalizeLinkedInThreadUrl, cleanPersonName, collectThreadMessageUrlsScript, fetchThreadPagesScript, mergeThreadMessages, oldestDeliveredAt, parseMaxScrolls, parseThreadMessages } = await import('./thread-snapshot.js').then((m) => m.__test__);
 
-function makeFakePage(snapshot, { urls = [], pages = [] } = {}) {
+function makeFakePage(snapshot, { urls = [], pageFor = () => null } = {}) {
   return {
     goto: vi.fn(async () => undefined),
     wait: vi.fn(async () => undefined),
@@ -15,7 +15,11 @@ function makeFakePage(snapshot, { urls = [], pages = [] } = {}) {
       const source = String(script || '');
       if (source.includes('setResourceTimingBufferSize')) return undefined;
       if (source.includes('messengerMessages') && source.includes('getEntriesByType')) return urls;
-      if (source.includes('fetch(url')) return pages.map((json, index) => ({ url: urls[index] || `https://www.linkedin.com/voyager/api/messaging/messengerMessages.${index}`, json }));
+      if (source.includes('fetch(url')) {
+        const match = source.match(/const urls = (\[[\s\S]*?\]);/);
+        const requested = match ? JSON.parse(match[1]) : [];
+        return requested.map((url) => ({ url, json: pageFor(url) })).filter((entry) => entry.json);
+      }
       if (source.includes('__OPENCLI_LINKEDIN_THREAD_SNAPSHOT__')) return snapshot;
       return undefined;
     }),
@@ -127,8 +131,24 @@ describe('linkedin thread-snapshot command', () => {
     expect(command.columns).toEqual(expect.arrayContaining(['thread_url', 'recipient', 'message_count', 'latest_text']));
   });
 
-  it('opens messaging first, then exact thread, and returns extracted messages', async () => {
+  it('builds deliveredAt-anchored older-page URLs and finds the oldest timestamp', () => {
+    const recentUrl = 'https://www.linkedin.com/voyager/api/voyagerMessagingGraphQL/graphql?queryId=messengerMessages.5846eeb7&variables=(conversationUrn:urn%3Ali%3Amsg_conversation%3A%28ABC%29)';
+    const older = buildOlderThreadPageUrl(recentUrl, 1776742893955);
+    expect(older).toContain('deliveredAt:1776742893955');
+    expect(older).toContain('conversationUrn:urn%3Ali%3Amsg_conversation%3A%28ABC%29');
+    expect(older).toContain('countBefore:20,countAfter:0');
+    expect(buildOlderThreadPageUrl('https://example.com/no-conversation-urn', 123)).toBe('');
+    expect(buildOlderThreadPageUrl(recentUrl, 0)).toBe('');
+    expect(oldestDeliveredAt([{ createdAt: 500 }, { createdAt: 300 }, { createdAt: 0 }])).toBe(300);
+    expect(oldestDeliveredAt([])).toBe(0);
+  });
+
+  it('opens messaging first, then pages through full thread history', async () => {
     const command = getRegistry().get('linkedin/thread-snapshot');
+    const recentUrl = 'https://www.linkedin.com/voyager/api/voyagerMessagingGraphQL/graphql?queryId=messengerMessages.5846eeb7&variables=(conversationUrn:urn%3Ali%3Amsg_conversation%3A%28ABC%29)';
+    const participant = { $type: 'com.linkedin.messenger.MessagingParticipant', entityUrn: 'urn:li:msg_messagingParticipant:P1', participantType: { member: { firstName: { text: 'Neha' }, lastName: { text: 'Rudraraju' } } } };
+    const recentPage = { included: [participant, { $type: 'com.linkedin.messenger.Message', entityUrn: 'urn:li:msg_message:M1', deliveredAt: 500, '*senderParticipant': 'urn:li:msg_messagingParticipant:P1', body: { text: 'recent reply' } }] };
+    const olderPage = { included: [participant, { $type: 'com.linkedin.messenger.Message', entityUrn: 'urn:li:msg_message:M0', deliveredAt: 300, '*senderParticipant': 'urn:li:msg_messagingParticipant:P1', body: { text: 'real conversation opener' } }] };
     const page = makeFakePage({
       url: 'https://www.linkedin.com/messaging/thread/abc/',
       headerNames: ['Neha Rudraraju'],
@@ -138,13 +158,13 @@ describe('linkedin thread-snapshot command', () => {
         { index: 1, speaker: 'Me', text: 'safe-send test from hermes. pls ignore :)' },
       ],
     }, {
-      urls: ['https://www.linkedin.com/voyager/api/messaging/messengerMessages?q=thread'],
-      pages: [{
-        included: [
-          { $type: 'com.linkedin.messenger.MessagingParticipant', entityUrn: 'urn:li:msg_messagingParticipant:P1', participantType: { member: { firstName: { text: 'Neha' }, lastName: { text: 'Rudraraju' } } } },
-          { $type: 'com.linkedin.messenger.Message', entityUrn: 'urn:li:msg_message:M0', deliveredAt: 500, '*senderParticipant': 'urn:li:msg_messagingParticipant:P1', body: { text: 'real conversation opener' } },
-        ],
-      }],
+      urls: [recentUrl],
+      pageFor: (url) => {
+        if (/deliveredAt:500,/.test(url)) return olderPage;
+        if (/deliveredAt:300,/.test(url)) return null;
+        if (url === recentUrl) return recentPage;
+        return null;
+      },
     });
 
     const rows = await command.func(page, {
@@ -158,11 +178,11 @@ describe('linkedin thread-snapshot command', () => {
     expect(rows[0]).toMatchObject({
       thread_url: 'https://www.linkedin.com/messaging/thread/abc/',
       recipient: 'Neha Rudraraju',
-      message_count: 3,
+      message_count: 4,
       latest_text: 'safe-send test from hermes. pls ignore :)',
     });
     expect(rows[0].snapshot_json).toContain('real conversation opener');
-    expect(JSON.parse(rows[0].snapshot_json).capturedApiPageCount).toBe(1);
+    expect(JSON.parse(rows[0].snapshot_json).capturedApiPageCount).toBe(2);
   });
 
   it('rejects invalid thread URL before navigation', async () => {

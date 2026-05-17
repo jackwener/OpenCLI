@@ -62,6 +62,35 @@ function parseMaxScrolls(value) {
   return scrolls;
 }
 
+// LinkedIn loads only the most recent ~20 messages of a thread on open. Older
+// history is fetched by replaying the messengerMessages GraphQL query with a
+// deliveredAt anchor: the oldest message seen so far, walked backward until a
+// page returns nothing.
+const MESSAGING_GRAPHQL_BASE = 'https://www.linkedin.com/voyager/api/voyagerMessagingGraphQL/graphql';
+const OLDER_THREAD_QUERY_ID = 'messengerMessages.d8ea76885a52fd5dc5c317078ab7c977';
+
+function oldestDeliveredAt(messages) {
+  let oldest = 0;
+  for (const message of messages || []) {
+    const at = Number(message && message.createdAt);
+    if (at > 0 && (oldest === 0 || at < oldest)) oldest = at;
+  }
+  return oldest;
+}
+
+function buildOlderThreadPageUrl(recentUrl, deliveredAt) {
+  // The recent messengerMessages request carries variables=(conversationUrn:<urn>)
+  // with the conversationUrn already RestLi-encoded. Reuse that encoded value
+  // verbatim and splice in a deliveredAt anchor; LinkedIn keeps the structural
+  // ( ) , : literal, so only plain integers are appended.
+  const match = String(recentUrl || '').match(/variables=\(conversationUrn:([^&]+)\)/);
+  if (!match || !match[1]) return '';
+  if (!Number.isInteger(deliveredAt) || deliveredAt <= 0) return '';
+  return MESSAGING_GRAPHQL_BASE + '?queryId=' + OLDER_THREAD_QUERY_ID
+    + '&variables=(deliveredAt:' + deliveredAt + ',conversationUrn:' + match[1]
+    + ',countBefore:20,countAfter:0)';
+}
+
 function collectThreadMessageUrlsScript() {
   return String.raw`(() => Array.from(new Set(
     performance.getEntriesByType('resource')
@@ -90,27 +119,6 @@ function fetchThreadPagesScript(urls, csrf) {
       }
     }
     return out;
-  })()`;
-}
-
-function scrollThreadMessagePaneScript() {
-  return String.raw`(() => {
-    const candidates = [
-      '.msg-s-message-list-scrollable',
-      '.msg-s-message-list',
-      '.msg-thread',
-      'main [role="main"]',
-      'main'
-    ];
-    let scroller = null;
-    for (const selector of candidates) {
-      const el = document.querySelector(selector);
-      if (el && (el.scrollHeight > el.clientHeight || selector === 'main')) { scroller = el; break; }
-    }
-    scroller = scroller || document.scrollingElement || document.documentElement;
-    scroller.scrollTop = 0;
-    window.scrollTo(0, 0);
-    return { scrollTop: scroller.scrollTop, scrollHeight: scroller.scrollHeight || 0, clientHeight: scroller.clientHeight || 0 };
   })()`;
 }
 
@@ -297,13 +305,13 @@ cli({
   site: 'linkedin',
   name: 'thread-snapshot',
   access: 'read',
-  description: 'Load a LinkedIn messaging thread, scroll for available history, and return a full context snapshot',
+  description: 'Load a LinkedIn messaging thread, page through its full history, and return a context snapshot',
   domain: LINKEDIN_DOMAIN,
   strategy: Strategy.UI,
   browser: true,
   args: [
     { name: 'thread-url', required: true, help: 'Exact LinkedIn messaging thread URL to open and snapshot' },
-    { name: 'max-scrolls', type: 'number', default: 30, help: 'Maximum upward scroll attempts to load older messages' },
+    { name: 'max-scrolls', type: 'number', default: 30, help: 'Maximum older-history pages to fetch (about 20 messages each)' },
     { name: 'json', type: 'bool', default: false, help: 'Return only JSON snapshot string in the snapshot_json field' },
   ],
   columns: ['thread_url', 'recipient', 'message_count', 'latest_text', 'snapshot_json'],
@@ -325,29 +333,37 @@ cli({
     }
     const csrf = jsession.replace(/^\"|\"$/g, '');
 
-    const fetchedUrls = new Set();
+    // Capture the recent messengerMessages request the page fired on load, then
+    // page backward through older history with the deliveredAt-anchored query.
+    const recentUrls = unwrapEvaluateResult(await page.evaluate(collectThreadMessageUrlsScript()));
+    const recentUrl = (Array.isArray(recentUrls) ? recentUrls : [])
+      .find((url) => /variables=\(conversationUrn:/.test(url) && !/deliveredAt/.test(url));
+
     const apiPageJsons = [];
-    let stablePasses = 0;
-    for (let i = 0; i <= maxScrolls; i += 1) {
-      if (i > 0) {
-        await page.evaluate(scrollThreadMessagePaneScript());
-        await page.wait(1);
+    const fetchThreadPage = async (pageUrl) => {
+      const fetched = unwrapEvaluateResult(await page.evaluate(fetchThreadPagesScript([pageUrl], csrf)));
+      const entry = (Array.isArray(fetched) ? fetched : [])[0];
+      if (entry && entry.authRequired) {
+        throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn messengerMessages API authentication failed: ' + (entry.error || 'auth required'));
       }
-      const seenUrls = unwrapEvaluateResult(await page.evaluate(collectThreadMessageUrlsScript()));
-      const newUrls = (Array.isArray(seenUrls) ? seenUrls : []).filter((u) => !fetchedUrls.has(u));
-      if (newUrls.length === 0) {
-        stablePasses += 1;
-        if (i > 0 && stablePasses >= 3) break;
-        continue;
-      }
-      stablePasses = 0;
-      for (const url of newUrls) fetchedUrls.add(url);
-      const fetchedPages = unwrapEvaluateResult(await page.evaluate(fetchThreadPagesScript(newUrls, csrf)));
-      for (const entry of Array.isArray(fetchedPages) ? fetchedPages : []) {
-        if (entry && entry.authRequired) {
-          throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn messengerMessages API authentication failed: ' + (entry.error || 'auth required'));
+      return entry && entry.json ? entry.json : null;
+    };
+
+    if (recentUrl) {
+      const recentJson = await fetchThreadPage(recentUrl);
+      if (recentJson) {
+        apiPageJsons.push(recentJson);
+        let anchor = oldestDeliveredAt(parseThreadMessages(recentJson));
+        for (let i = 0; i < maxScrolls && anchor > 0; i += 1) {
+          const olderUrl = buildOlderThreadPageUrl(recentUrl, anchor);
+          if (!olderUrl) break;
+          const olderJson = await fetchThreadPage(olderUrl);
+          if (!olderJson) break;
+          const next = oldestDeliveredAt(parseThreadMessages(olderJson));
+          if (next <= 0 || next >= anchor) break;
+          apiPageJsons.push(olderJson);
+          anchor = next;
         }
-        if (entry && entry.json) apiPageJsons.push(entry.json);
       }
     }
 
@@ -404,6 +420,8 @@ export const __test__ = {
   buildThreadSnapshotScript,
   collectThreadMessageUrlsScript,
   fetchThreadPagesScript,
+  buildOlderThreadPageUrl,
+  oldestDeliveredAt,
   parseThreadMessages,
   mergeThreadMessages,
 };

@@ -14643,7 +14643,7 @@
   {
     "site": "linkedin",
     "name": "thread-snapshot",
-    "description": "Load a LinkedIn messaging thread, scroll for available history, and return a full context snapshot",
+    "description": "Load a LinkedIn messaging thread, page through its full history, and return a context snapshot",
     "access": "read",
     "domain": "www.linkedin.com",
     "strategy": "ui",
@@ -14660,7 +14660,7 @@
         "type": "number",
         "default": 30,
         "required": false,
-        "help": "Maximum upward scroll attempts to load older messages"
+        "help": "Maximum older-history pages to fetch (about 20 messages each)"
       },
       {
         "name": "json",
