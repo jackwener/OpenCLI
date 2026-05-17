@@ -1,4 +1,5 @@
 import { cli } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 cli({
     site: 'jike',
     name: 'post',
@@ -16,16 +17,16 @@ cli({
         },
     ],
     columns: ['type', 'author', 'content', 'likes', 'time'],
-    pipeline: [
-        { navigate: 'https://m.okjike.com/originalPosts/${{ args.id }}' },
-        { evaluate: `(() => {
+    func: async (page, args) => {
+        await page.goto(`https://m.okjike.com/originalPosts/${args.id}`);
+        const data = await page.evaluate(`(() => {
+  const el = document.querySelector('script[type="application/json"]');
+  if (!el) return { ok: false, reason: 'missing-data-script' };
   try {
-    const el = document.querySelector('script[type="application/json"]');
-    if (!el) return [];
-    const data = JSON.parse(el.textContent);
+    const data = JSON.parse(el.textContent || '{}');
     const pageProps = data?.props?.pageProps || {};
     const post = pageProps.post || {};
-    const comments = pageProps.comments || [];
+    const comments = Array.isArray(pageProps.comments) ? pageProps.comments : [];
 
     const result = [{
       type: 'post',
@@ -47,16 +48,25 @@ cli({
 
     return result;
   } catch (e) {
-    return [];
+    return { ok: false, reason: 'parse-error', message: e?.message || String(e) };
   }
 })()
-` },
-        { map: {
-                type: '${{ item.type }}',
-                author: '${{ item.author }}',
-                content: '${{ item.content }}',
-                likes: '${{ item.likes }}',
-                time: '${{ item.time }}',
-            } },
-    ],
+`);
+        if (Array.isArray(data)) {
+            return data.map((item) => ({
+                type: item.type ?? '',
+                author: item.author ?? '',
+                content: item.content ?? '',
+                likes: item.likes ?? 0,
+                time: item.time ?? '',
+            }));
+        }
+        if (data?.reason === 'missing-data-script') {
+            throw new CommandExecutionError('Jike post page did not expose the expected data script');
+        }
+        if (data?.reason === 'parse-error') {
+            throw new CommandExecutionError(`Failed to parse Jike post data: ${data.message || 'unknown error'}`);
+        }
+        throw new CommandExecutionError('Jike post returned an unreadable payload');
+    },
 });

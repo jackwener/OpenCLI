@@ -1,7 +1,8 @@
 # OpenCLI
 
-> **Turn websites, browser sessions, Electron apps, and local tools into deterministic interfaces for humans and AI agents.**
-> Reuse your logged-in browser, automate live workflows, and crystallize repeated actions into reusable CLI commands.
+> **Convert any website into a CLI & Drive your logged-in browser from AI agents.**
+> Turn websites, browser sessions, Electron apps, and local tools into deterministic interfaces for humans and AI agents.
+> Or drive your logged-in browser to do anything — navigate, fill forms, click, extract, automate.
 
 [![中文文档](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87-0F766E?style=flat-square)](./README.zh-CN.md)
 [![npm](https://img.shields.io/npm/v/@jackwener/opencli?style=flat-square)](https://www.npmjs.com/package/@jackwener/opencli)
@@ -18,15 +19,11 @@ It also works as a **CLI hub** for local tools such as `gh`, `docker`, `longbrid
 
 ## Highlights
 
-- **Desktop App Control** — Drive Electron apps (Cursor, Codex, ChatGPT, etc.) directly from the terminal via CDP.
-- **Browser Automation for AI Agents** — Install the `opencli-adapter-author` skill, and your AI agent can operate any website: navigate, click, type/fill, extract, screenshot — all through your logged-in Chrome session.
-- **Multi-profile Browser Bridge** — Install the extension in each Chrome profile you want to use, then route commands with `--profile`, `OPENCLI_PROFILE`, or `opencli profile use`.
-- **Website → CLI** — Turn any website into a deterministic CLI: 100+ site surfaces are already registered, or write your own with the `opencli-adapter-author` skill + `opencli browser verify`.
-- **Account-safe** — Reuses Chrome/Chromium logged-in state; your credentials never leave the browser.
-- **AI Agent ready** — One skill takes you from site recon through API discovery, field decoding, adapter writing, and verification.
-- **CLI Hub** — Discover, auto-install, and passthrough commands to any external CLI (gh, docker, obsidian, tg, discord, wx, etc).
-- **Zero LLM cost** — No tokens consumed at runtime. Run 10,000 times and pay nothing.
-- **Deterministic** — Same command, same output schema, every time. Pipeable, scriptable, CI-friendly.
+- **Live Browser Automation** — Drive your logged-in Chrome from AI agents: navigate, fill forms, click, extract. Credentials stay in the browser.
+- **Desktop App Control** — Drive Electron apps (Cursor, Codex, ChatGPT) directly via CDP.
+- **Multi-profile Browser Bridge** — Route commands to specific Chrome profiles via `--profile` or `OPENCLI_PROFILE`.
+- **100+ adapters + CLI Hub** — Built-in site commands (bilibili / xiaohongshu / twitter / hackernews / ...) plus external CLI passthrough (`gh`, `docker`, `ntn`, `longbridge`).
+- **Zero LLM cost at runtime** — Deterministic output, no tokens consumed.
 
 ---
 
@@ -127,7 +124,7 @@ npx skills add jackwener/opencli --skill smart-search
 |-------|------------|-------------------------------|
 | **opencli-adapter-author** | Operate a site in real time, or write a reusable adapter for a new site | "Help me check my Xiaohongshu notifications" / "Write an adapter for douyin trending" / "Make a command that grabs the top posts from this page" |
 | **opencli-autofix** | Repair a broken adapter when a built-in command fails | "`opencli zhihu hot` is returning empty — fix it" |
-| **opencli-browser** | Browser automation reference for AI agents | "Use browser commands to scrape this page" |
+| **opencli-browser** | Browser automation reference for AI agents | "Help me fill out this form" / "Use browser commands to scrape this page" |
 | **opencli-usage** | Quick reference for all OpenCLI commands and sites | "What commands does OpenCLI have for Twitter?" |
 | **smart-search** | Search across existing OpenCLI capabilities | "Find me a Bilibili trending adapter" |
 
@@ -250,7 +247,7 @@ To load the source Browser Bridge extension:
 |------|----------|
 | **xiaohongshu** | `search` `note` `comments` `feed` `user` `download` `publish` `notifications` `creator-notes` `creator-notes-summary` `creator-note-detail` `creator-profile` `creator-stats` |
 | **rednote** | `search` `note` `comments` `user` `download` `feed` `notifications` |
-| **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `me` `subtitle` `video` `user-videos` |
+| **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `me` `subtitle` `summary` `video` `user-videos` |
 | **tieba** | `hot` `posts` `search` `read` |
 | **hupu** | `hot` `search` `detail` `mentions` `reply` `like` `unlike` |
 | **twitter** | `trending` `search` `timeline` `tweets` `lists` `list-tweets` `list-add` `list-remove` `bookmarks` `post` `download` `profile` `article` `like` `likes` `notifications` `reply` `reply-dm` `thread` `follow` `unfollow` `followers` `following` `block` `unblock` `bookmark` `unbookmark` `delete` `hide-reply` `accept` |
@@ -276,6 +273,7 @@ To load the source Browser Bridge extension:
 | **wanfang** | `search` |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
 | **xiaoyuzhou** | `auth*` `podcast*` `podcast-episodes*` `episode*` `download*` `transcript*` |
+| **youdao** | `note` |
 
 100+ site surfaces in total — **[→ see all supported sites & commands](./docs/adapters/index.md)**
 

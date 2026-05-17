@@ -139,7 +139,7 @@
     "rule": "silent-clamp",
     "command": "douyin/user-videos",
     "file": "clis/douyin/user-videos.js",
-    "line": 16,
+    "line": 17,
     "text": "return Math.min(DEFAULT_COMMENT_LIMIT, Math.max(1, Math.round(numeric)));",
     "occurrence": 0
   },
@@ -147,7 +147,7 @@
     "rule": "silent-clamp",
     "command": "douyin/user-videos",
     "file": "clis/douyin/user-videos.js",
-    "line": 10,
+    "line": 11,
     "text": "return Math.min(MAX_USER_VIDEOS_LIMIT, Math.max(1, Math.round(numeric)));",
     "occurrence": 0
   },
@@ -411,7 +411,7 @@
     "rule": "silent-clamp",
     "command": "linkedin/search",
     "file": "clis/linkedin/search.js",
-    "line": 249,
+    "line": 256,
     "text": "const count = Math.min(MAX_BATCH, input.limit - allJobs.length);",
     "occurrence": 0
   },
@@ -483,7 +483,7 @@
     "rule": "silent-clamp",
     "command": "reddit/read",
     "file": "clis/reddit/read.js",
-    "line": 157,
+    "line": 479,
     "text": "for (var i = 0; i < Math.min(t1TopLevel.length, limit); i++) {",
     "occurrence": 0
   },
@@ -619,7 +619,7 @@
     "rule": "silent-clamp",
     "command": "twitter/bookmark-folder",
     "file": "clis/twitter/bookmark-folder.js",
-    "line": 161,
+    "line": 164,
     "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
     "occurrence": 0
   },
@@ -627,7 +627,7 @@
     "rule": "silent-clamp",
     "command": "twitter/bookmarks",
     "file": "clis/twitter/bookmarks.js",
-    "line": 156,
+    "line": 157,
     "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
     "occurrence": 0
   },
@@ -635,7 +635,7 @@
     "rule": "silent-clamp",
     "command": "twitter/following",
     "file": "clis/twitter/following.js",
-    "line": 215,
+    "line": 227,
     "text": "const fetchCount = Math.min(50, limit - allUsers.length + 10);",
     "occurrence": 0
   },
@@ -643,7 +643,7 @@
     "rule": "silent-clamp",
     "command": "twitter/likes",
     "file": "clis/twitter/likes.js",
-    "line": 195,
+    "line": 207,
     "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
     "occurrence": 0
   },
@@ -651,7 +651,7 @@
     "rule": "silent-clamp",
     "command": "twitter/list-tweets",
     "file": "clis/twitter/list-tweets.js",
-    "line": 168,
+    "line": 174,
     "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
     "occurrence": 0
   },
@@ -659,7 +659,7 @@
     "rule": "silent-clamp",
     "command": "twitter/timeline",
     "file": "clis/twitter/timeline.js",
-    "line": 182,
+    "line": 181,
     "text": "const fetchCount = Math.min(40, limit - allTweets.length + 5); // over-fetch slightly for promoted filtering",
     "occurrence": 0
   },
@@ -667,7 +667,7 @@
     "rule": "silent-clamp",
     "command": "twitter/tweets",
     "file": "clis/twitter/tweets.js",
-    "line": 194,
+    "line": 286,
     "text": "const fetchCount = Math.min(100, limit - all.length + 10);",
     "occurrence": 0
   },
@@ -675,7 +675,7 @@
     "rule": "silent-clamp",
     "command": "twitter/tweets",
     "file": "clis/twitter/tweets.js",
-    "line": 159,
+    "line": 231,
     "text": "const limit = Math.max(1, Math.min(200, kwargs.limit || 20));",
     "occurrence": 0
   },
@@ -683,7 +683,7 @@
     "rule": "silent-clamp",
     "command": "weibo/comments",
     "file": "clis/weibo/comments.js",
-    "line": 18,
+    "line": 19,
     "text": "const count = Math.min(kwargs.limit || 20, 50);",
     "occurrence": 0
   },
@@ -699,7 +699,7 @@
     "rule": "silent-clamp",
     "command": "weibo/hot",
     "file": "clis/weibo/hot.js",
-    "line": 17,
+    "line": 18,
     "text": "const count = Math.min(kwargs.limit || 30, 50);",
     "occurrence": 0
   },
@@ -707,7 +707,7 @@
     "rule": "silent-clamp",
     "command": "weibo/search",
     "file": "clis/weibo/search.js",
-    "line": 20,
+    "line": 21,
     "text": "const limit = Math.max(1, Math.min(Number(kwargs.limit) || 10, 50));",
     "occurrence": 0
   },
@@ -856,46 +856,6 @@
     "occurrence": 0
   },
   {
-    "rule": "silent-empty-fallback",
-    "command": "douyin/user-videos",
-    "file": "clis/douyin/user-videos.js",
-    "line": 31,
-    "text": "return [];",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-empty-fallback",
-    "command": "jike/post",
-    "file": "clis/jike/post.js",
-    "line": 50,
-    "text": "return [];",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-empty-fallback",
-    "command": "jike/topic",
-    "file": "clis/jike/topic.js",
-    "line": 38,
-    "text": "return [];",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-empty-fallback",
-    "command": "jike/user",
-    "file": "clis/jike/user.js",
-    "line": 37,
-    "text": "return [];",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-empty-fallback",
-    "command": "weread/search",
-    "file": "clis/weread/search.js",
-    "line": 97,
-    "text": "return [];",
-    "occurrence": 0
-  },
-  {
     "rule": "silent-sentinel",
     "command": "36kr/article",
     "file": "clis/36kr/article.js",
@@ -917,22 +877,6 @@
     "file": "clis/36kr/article.js",
     "line": 58,
     "text": "{ field: 'date', value: data.date || '-' },",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "51job/hot",
-    "file": "clis/51job/hot.js",
-    "line": 50,
-    "text": "throw new CliError('API_ERROR', `51job hot failed: ${data.message ?? 'unknown'}`);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "51job/search",
-    "file": "clis/51job/search.js",
-    "line": 72,
-    "text": "throw new CliError('API_ERROR', `51job search failed: ${data.message ?? 'unknown'}`);",
     "occurrence": 0
   },
   {
@@ -969,46 +913,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "doubao-app/send",
-    "file": "clis/doubao-app/send.js",
-    "line": 19,
-    "text": "throw new Error('Could not find chat input: ' + (injected?.error || 'unknown'));",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "douyin/draft",
-    "file": "clis/douyin/draft.js",
-    "line": 288,
-    "text": "throw new CommandExecutionError('未检测到抖音草稿恢复提示', `当前页面: ${lastState.href || 'unknown'}`);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "douyin/draft",
-    "file": "clis/douyin/draft.js",
-    "line": 210,
-    "text": "throw new CommandExecutionError('等待抖音封面处理完成超时', lastPanelText || 'unknown');",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "douyin/draft",
-    "file": "clis/douyin/draft.js",
-    "line": 57,
-    "text": "throw new CommandExecutionError('等待抖音草稿编辑页超时', `当前页面: ${lastState.href || 'unknown'}`);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "douyin/draft",
-    "file": "clis/douyin/draft.js",
-    "line": 262,
-    "text": "throw new CommandExecutionError(`点击草稿按钮失败: ${result?.reason || 'unknown'}`);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "gitee/search",
     "file": "clis/gitee/search.js",
     "line": 127,
@@ -1037,14 +941,6 @@
     "file": "clis/gitee/trending.js",
     "line": 272,
     "text": "description: project.description !== '-' ? project.description : (mergedDescription || '-'),",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "instagram/note",
-    "file": "clis/instagram/note.js",
-    "line": 219,
-    "text": "throw new CommandExecutionError(`Instagram note publish failed at ${String(result?.stage || 'unknown')}: ${String(result?.text || 'unknown error')}`);",
     "occurrence": 0
   },
   {
@@ -1161,22 +1057,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "linux-do/topic-content",
-    "file": "clis/linux-do/topic-content.js",
-    "line": 121,
-    "text": "throw new CommandExecutionError(result.error || `linux.do request failed: HTTP ${result.status ?? 'unknown'}`);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "powerchina/search",
-    "file": "clis/powerchina/search.js",
-    "line": 149,
-    "text": "throw new Error(`[taxonomy=relay_unavailable] site=powerchina command=search api code=${data.code ?? 'unknown'} msg=${cleanText(data.msg)}`);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "reddit/saved",
     "file": "clis/reddit/saved.js",
     "line": 33,
@@ -1211,7 +1091,7 @@
     "rule": "silent-sentinel",
     "command": "twitter/article",
     "file": "clis/twitter/article.js",
-    "line": 105,
+    "line": 109,
     "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
     "occurrence": 0
   },
@@ -1219,7 +1099,7 @@
     "rule": "silent-sentinel",
     "command": "twitter/bookmarks",
     "file": "clis/twitter/bookmarks.js",
-    "line": 53,
+    "line": 55,
     "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
     "occurrence": 0
   },
@@ -1227,7 +1107,7 @@
     "rule": "silent-sentinel",
     "command": "twitter/following",
     "file": "clis/twitter/following.js",
-    "line": 94,
+    "line": 95,
     "text": "name: core.name || legacy.name || 'unknown',",
     "occurrence": 0
   },
@@ -1235,7 +1115,7 @@
     "rule": "silent-sentinel",
     "command": "twitter/following",
     "file": "clis/twitter/following.js",
-    "line": 93,
+    "line": 94,
     "text": "screen_name: core.screen_name || legacy.screen_name || 'unknown',",
     "occurrence": 0
   },
@@ -1243,7 +1123,7 @@
     "rule": "silent-sentinel",
     "command": "twitter/likes",
     "file": "clis/twitter/likes.js",
-    "line": 90,
+    "line": 91,
     "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
     "occurrence": 0
   },
@@ -1251,7 +1131,7 @@
     "rule": "silent-sentinel",
     "command": "twitter/list-tweets",
     "file": "clis/twitter/list-tweets.js",
-    "line": 60,
+    "line": 62,
     "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
     "occurrence": 0
   },
@@ -1291,7 +1171,7 @@
     "rule": "silent-sentinel",
     "command": "twitter/search",
     "file": "clis/twitter/search.js",
-    "line": 296,
+    "line": 217,
     "text": "author: tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown',",
     "occurrence": 0
   },
@@ -1307,7 +1187,7 @@
     "rule": "silent-sentinel",
     "command": "twitter/timeline",
     "file": "clis/twitter/timeline.js",
-    "line": 75,
+    "line": 76,
     "text": "const screenName = u?.legacy?.screen_name || u?.core?.screen_name || 'unknown';",
     "occurrence": 0
   },
@@ -1315,7 +1195,7 @@
     "rule": "silent-sentinel",
     "command": "twitter/tweets",
     "file": "clis/twitter/tweets.js",
-    "line": 92,
+    "line": 161,
     "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
     "occurrence": 0
   },
@@ -1371,7 +1251,7 @@
     "rule": "silent-sentinel",
     "command": "weibo/comments",
     "file": "clis/weibo/comments.js",
-    "line": 32,
+    "line": 33,
     "text": "if (!data.ok) return {error: 'API error: ' + (data.msg || 'unknown')};",
     "occurrence": 0
   },
@@ -1403,16 +1283,8 @@
     "rule": "silent-sentinel",
     "command": "xiaohongshu/download",
     "file": "clis/xiaohongshu/download.js",
-    "line": 65,
+    "line": 53,
     "text": "result.author = authorEl?.textContent?.trim() || 'unknown';",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "xiaohongshu/publish",
-    "file": "clis/xiaohongshu/publish.js",
-    "line": 529,
-    "text": "throw new Error(`Image injection failed: ${upload.error ?? 'unknown'}. ` +",
     "occurrence": 0
   },
   {

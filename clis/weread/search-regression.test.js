@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './search.js';
 describe('weread/search regression', () => {
     beforeEach(() => {
@@ -146,7 +147,7 @@ describe('weread/search regression', () => {
             },
         ]);
     });
-    it('falls back to empty urls when the search html request fails', async () => {
+    it('surfaces search html request failures instead of emitting empty urls', async () => {
         const command = getRegistry().get('weread/search');
         expect(command?.func).toBeTypeOf('function');
         const fetchMock = vi.fn()
@@ -166,16 +167,22 @@ describe('weread/search regression', () => {
         })
             .mockRejectedValueOnce(new Error('network timeout'));
         vi.stubGlobal('fetch', fetchMock);
-        const result = await command.func({ query: 'deep work', limit: 5 });
-        expect(result).toEqual([
-            {
-                rank: 1,
-                title: 'Deep Work',
-                author: 'Cal Newport',
-                bookId: 'abc123',
-                url: '',
-            },
-        ]);
+        await expect(command.func({ query: 'deep work', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+    it('throws EmptyResultError when the public search API returns no books', async () => {
+        const command = getRegistry().get('weread/search');
+        expect(command?.func).toBeTypeOf('function');
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({ books: [] }),
+        })
+            .mockResolvedValueOnce({
+            ok: true,
+            text: () => Promise.resolve('<html></html>'),
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        await expect(command.func({ query: 'definitely-missing-book', limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
     });
     it('binds reader urls with title and author instead of title alone', async () => {
         const command = getRegistry().get('weread/search');

@@ -650,16 +650,6 @@
     ]
   },
   {
-    "command": "twitter/list-add",
-    "file": "clis/twitter/list-add.js",
-    "missing": [
-      "method",
-      "ts",
-      "url",
-      "via"
-    ]
-  },
-  {
     "command": "twitter/list-remove",
     "file": "clis/twitter/list-remove.js",
     "missing": [

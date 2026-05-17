@@ -1,7 +1,8 @@
 # OpenCLI
 
-> **把网站、浏览器会话、Electron 应用和本地工具，统一变成适合人类与 AI Agent 使用的确定性接口。**  
-> 复用浏览器登录态，先自动化真实操作，再把高频流程沉淀成可复用的 CLI 命令。
+> **把任意网站变成 CLI & 让 AI Agent 操控你的登录态浏览器。**
+> 把网站、浏览器会话、Electron 应用和本地工具，统一变成适合人类与 AI Agent 使用的确定性接口。
+> 或者直接操控你的登录态浏览器做任何事 —— 导航、填表单、点击、抓取、自动化。
 
 [![English](https://img.shields.io/badge/docs-English-1D4ED8?style=flat-square)](./README.md)
 [![npm](https://img.shields.io/npm/v/@jackwener/opencli?style=flat-square)](https://www.npmjs.com/package/@jackwener/opencli)
@@ -18,14 +19,11 @@ OpenCLI 可以用同一套 CLI 做三类事情：
 
 ## 亮点
 
-- **桌面应用控制** — 通过 CDP 直接在终端驱动 Electron 应用（Cursor、Codex、ChatGPT 等）。
-- **AI Agent 浏览器自动化** — 安装 `opencli-adapter-author` skill，你的 AI Agent 就能操作任意网站：导航、点击、输入/填充、提取、截图——全部通过你的已登录 Chrome 会话完成。
-- **网站 → CLI** — 把任何网站变成确定性 CLI：100+ 站点能力已注册，或用 `opencli-adapter-author` skill + `opencli browser verify` 自己写。
-- **账号安全** — 复用 Chrome/Chromium 登录态，凭证永远不会离开浏览器。
-- **面向 AI Agent** — 一个 skill 带你走完站点侦察、API 发现、字段解码、适配器编写、验证的全流程。
-- **CLI 枢纽** — 统一发现、自动安装、纯透传任何外部 CLI（gh、docker、obsidian、tg、discord、wx 等）。
-- **零 LLM 成本** — 运行时不消耗模型 token，跑 10,000 次也不花一分钱。
-- **确定性输出** — 相同命令，相同输出结构，每次一致。可管道、可脚本、CI 友好。
+- **登录态浏览器自动化** — 让 AI Agent 驱动你的已登录 Chrome：导航、填表单、点击、提取。凭证永远不离开浏览器。
+- **桌面应用控制** — 通过 CDP 直接驱动 Electron 应用（Cursor、Codex、ChatGPT）。
+- **多 Profile 浏览器桥接** — 通过 `--profile` 或 `OPENCLI_PROFILE` 把命令路由到指定 Chrome profile。
+- **100+ 适配器 + CLI 枢纽** — 内置站点命令（B站 / 小红书 / Twitter / HackerNews / ...）加外部 CLI 透传（`gh`、`docker`、`ntn`、`longbridge`）。
+- **零 LLM 运行成本** — 确定性输出，运行时不消耗 token。
 
 ## 快速开始
 
@@ -111,7 +109,7 @@ npx skills add jackwener/opencli --skill smart-search
 |-------|---------|-------------------|
 | **opencli-adapter-author** | 实时操作任意网站，或为新站点写可复用适配器 | "帮我看看小红书的通知" / "帮我做一个抖音热门的适配器" / "帮我做一个抓取这个页面热帖的命令" |
 | **opencli-autofix** | 内置命令失败时修复已有适配器 | "`opencli zhihu hot` 返回空了，修一下" |
-| **opencli-browser** | 浏览器自动化参考文档 | "用浏览器命令抓取这个页面" |
+| **opencli-browser** | 浏览器自动化参考文档 | "帮我填一下这个表单" / "用浏览器命令抓取这个页面" |
 | **opencli-usage** | 所有命令和站点的快速参考 | "OpenCLI 有哪些 Twitter 相关的命令？" |
 | **smart-search** | 在现有 OpenCLI 能力里搜索 | "帮我找个 B 站热门相关的适配器" |
 
@@ -236,7 +234,7 @@ npm link
 | **tieba** | `hot` `posts` `search` `read` | 浏览器 |
 | **hupu** | `hot` `search` `detail` `mentions` `reply` `like` `unlike` | 浏览器 |
 | **cursor** | `status` `send` `read` `new` `dump` `composer` `model` `extract-code` `ask` `screenshot` `history` `export` | 桌面端 |
-| **bilibili** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `video` `comments` `dynamic` `ranking` `following` `user-videos` `download` | 浏览器 |
+| **bilibili** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `summary` `video` `comments` `dynamic` `ranking` `following` `user-videos` `download` | 浏览器 |
 | **codex** | `status` `send` `read` `new` `dump` `extract-diff` `model` `ask` `screenshot` `projects` `history` `export` | 桌面端 |
 | **chatwise** | `status` `new` `send` `read` `ask` `model` `history` `export` `screenshot` | 桌面端 |
 | **doubao** | `status` `new` `send` `read` `ask` `history` `detail` `meeting-summary` `meeting-transcript` | 浏览器 |
@@ -262,6 +260,7 @@ npm link
 | **zhihu** | `hot` `search` `question` `download` `follow` `like` `favorite` `comment` `answer` | 浏览器 |
 | **weixin** | `download` | 浏览器 |
 | **youtube** | `search` `video` `transcript` `comments` `channel` `playlist` `feed` `history` `watch-later` `subscriptions` `like` `unlike` `subscribe` `unsubscribe` | 浏览器 |
+| **youdao** | `note` | 公开 |
 | **boss** | `search` `detail` `recommend` `joblist` `greet` `batchgreet` `send` `chatlist` `chatmsg` `invite` `mark` `exchange` `resume` `stats` | 浏览器 |
 | **coupang** | `search` `add-to-cart` | 浏览器 |
 | **bbc** | `news` | 公共 API |

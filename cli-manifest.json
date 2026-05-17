@@ -1821,7 +1821,7 @@
         "type": "int",
         "default": 10,
         "required": false,
-        "help": "Number of near-the-money strikes per type"
+        "help": "Number of near-the-money strikes per type (1-100)"
       }
     ],
     "columns": [
@@ -2462,6 +2462,32 @@
     "modulePath": "bilibili/subtitle.js",
     "sourceFile": "bilibili/subtitle.js",
     "navigateBefore": true
+  },
+  {
+    "site": "bilibili",
+    "name": "summary",
+    "description": "获取 B站视频的官方 AI 总结（视频页「AI总结」同款，含分段大纲与时间戳）",
+    "access": "read",
+    "domain": "www.bilibili.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "bvid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Video BV ID / URL / b23.tv short link"
+      }
+    ],
+    "columns": [
+      "time",
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "bilibili/summary.js",
+    "sourceFile": "bilibili/summary.js",
+    "navigateBefore": "https://www.bilibili.com"
   },
   {
     "site": "bilibili",
@@ -14345,6 +14371,162 @@
   },
   {
     "site": "linkedin",
+    "name": "connect",
+    "description": "Fail-closed LinkedIn connection request sender that verifies the exact profile before optionally sending a note",
+    "access": "write",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Exact LinkedIn profile URL to open and verify"
+      },
+      {
+        "name": "expected-name",
+        "type": "string",
+        "required": true,
+        "help": "Expected visible profile name"
+      },
+      {
+        "name": "note",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Optional connection note, max 300 chars"
+      },
+      {
+        "name": "send",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually click Send. Default is dry-run verification only."
+      }
+    ],
+    "columns": [
+      "status",
+      "recipient",
+      "reason",
+      "profile_url",
+      "note_chars"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/connect.js",
+    "sourceFile": "linkedin/connect.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
+    "name": "inbox",
+    "description": "List LinkedIn messaging inbox conversations and unread messages",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 40,
+        "required": false,
+        "help": "Maximum conversations to return (1-100)"
+      },
+      {
+        "name": "unread-only",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Return only conversations with unread messages"
+      }
+    ],
+    "columns": [
+      "rank",
+      "thread_url",
+      "thread_id",
+      "person_name",
+      "last_message_preview",
+      "unread",
+      "counterparty_type",
+      "category",
+      "timestamp"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/inbox.js",
+    "sourceFile": "linkedin/inbox.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "safe-send",
+    "description": "Fail-closed LinkedIn message sender that verifies exact thread, recipient, and latest message before filling/sending",
+    "access": "write",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "thread-url",
+        "type": "str",
+        "required": true,
+        "help": "Exact LinkedIn messaging thread URL to open and verify"
+      },
+      {
+        "name": "expected-name",
+        "type": "str",
+        "required": true,
+        "help": "Expected visible recipient name in the active thread header"
+      },
+      {
+        "name": "message",
+        "type": "str",
+        "required": true,
+        "help": "Message body to send or dry-run"
+      },
+      {
+        "name": "expected-last-text",
+        "type": "str",
+        "required": false,
+        "help": "Substring expected in the currently visible latest conversation context"
+      },
+      {
+        "name": "expected-last-hash",
+        "type": "str",
+        "required": false,
+        "help": "SHA-256 hash of expected latest visible message text"
+      },
+      {
+        "name": "send",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually click Send. Default is dry-run verification only."
+      },
+      {
+        "name": "screenshot",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Capture a screenshot during verification"
+      }
+    ],
+    "columns": [
+      "status",
+      "recipient",
+      "reason",
+      "thread_url",
+      "message_chars",
+      "screenshot"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/safe-send.js",
+    "sourceFile": "linkedin/safe-send.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
     "name": "search",
     "description": "Search LinkedIn jobs",
     "access": "read",
@@ -14430,6 +14612,48 @@
     "modulePath": "linkedin/search.js",
     "sourceFile": "linkedin/search.js",
     "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "thread-snapshot",
+    "description": "Load a LinkedIn messaging thread, scroll for available history, and return a full context snapshot",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "thread-url",
+        "type": "str",
+        "required": true,
+        "help": "Exact LinkedIn messaging thread URL to open and snapshot"
+      },
+      {
+        "name": "max-scrolls",
+        "type": "number",
+        "default": 30,
+        "required": false,
+        "help": "Maximum upward scroll attempts to load older messages"
+      },
+      {
+        "name": "json",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Return only JSON snapshot string in the snapshot_json field"
+      }
+    ],
+    "columns": [
+      "thread_url",
+      "recipient",
+      "message_count",
+      "latest_text",
+      "snapshot_json"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/thread-snapshot.js",
+    "sourceFile": "linkedin/thread-snapshot.js",
+    "navigateBefore": true
   },
   {
     "site": "linkedin",
@@ -27711,6 +27935,36 @@
     "modulePath": "yollomi/video.js",
     "sourceFile": "yollomi/video.js",
     "navigateBefore": "https://yollomi.com"
+  },
+  {
+    "site": "youdao",
+    "name": "note",
+    "description": "Read a public shared Youdao Note",
+    "access": "read",
+    "domain": "share.note.youdao.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full share URL of the Youdao Note"
+      }
+    ],
+    "columns": [
+      "title",
+      "content",
+      "summary",
+      "keywords",
+      "created_at",
+      "file_size",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "youdao/note.js",
+    "sourceFile": "youdao/note.js"
   },
   {
     "site": "youtube",
