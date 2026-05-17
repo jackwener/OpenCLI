@@ -7,6 +7,12 @@ function normalizeWhitespace(value) {
   return String(value ?? '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function cleanPersonName(value) {
+  return normalizeWhitespace(value)
+    .replace(/\s+(?:status is (?:online|reachable|away|offline)\b|active(?:\s+now|\s+\S+)?\b|view profile\b).*$/i, '')
+    .trim();
+}
+
 function unwrapEvaluateResult(payload) {
   if (payload && typeof payload === 'object' && 'data' in payload && 'session' in payload) return payload.data;
   return payload;
@@ -63,6 +69,7 @@ function buildThreadSnapshotScript(maxScrolls) {
     void marker;
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const clean = (s) => String(s || '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
+    const cleanPersonName = (s) => clean(s).replace(/\s+(?:status is (?:online|reachable|away|offline)\b|active(?:\s+now|\s+\S+)?\b|view profile\b).*$/i, '').trim();
     const text = document.body ? (document.body.innerText || '') : '';
     const authRequired = /\b(sign in|log in|join linkedin)\b/i.test(text)
       || /linkedin\.com\/(login|checkpoint|authwall)/i.test(location.href)
@@ -108,7 +115,7 @@ function buildThreadSnapshotScript(maxScrolls) {
     ];
     for (const selector of headerSelectors) {
       for (const el of Array.from(document.querySelectorAll(selector)).slice(0, 8)) {
-        const value = clean(el.innerText || el.textContent || el.getAttribute('aria-label'));
+        const value = cleanPersonName(el.innerText || el.textContent || el.getAttribute('aria-label'));
         if (value && value.length <= 120 && !/^(message|messaging|send|profile|view profile)$/i.test(value)) {
           headerCandidates.push(value);
         }
@@ -117,14 +124,30 @@ function buildThreadSnapshotScript(maxScrolls) {
 
     const seen = new Set();
     const messages = [];
-    const nodes = Array.from(document.querySelectorAll('.msg-s-message-list__event, .msg-s-event-listitem, [data-event-urn], .msg-s-message-list-content'));
+    let currentSpeaker = '';
+    const nodes = Array.from(document.querySelectorAll('.msg-s-event-listitem'));
     for (const [nodeIndex, el] of nodes.entries()) {
-      const raw = clean(el.innerText || el.textContent);
-      if (!raw || seen.has(raw)) continue;
-      seen.add(raw);
-      const lines = raw.split(/\n+/).map(clean).filter(Boolean);
-      const speaker = lines.length > 1 && lines[0].length <= 120 ? lines[0] : '';
-      messages.push({ index: messages.length, nodeIndex, speaker, text: raw });
+      const speakerEl = el.querySelector('.msg-s-message-group__name');
+      const speaker = cleanPersonName(speakerEl?.innerText || speakerEl?.textContent || '');
+      if (speaker) currentSpeaker = speaker;
+      const bodyEl = el.querySelector('.msg-s-event-listitem__body');
+      const body = clean(bodyEl?.innerText || bodyEl?.textContent || '');
+      if (!body) continue;
+      const key = currentSpeaker + '\n' + body;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      messages.push({ index: messages.length, nodeIndex, speaker: currentSpeaker, text: body });
+    }
+    if (messages.length === 0) {
+      const fallbackNodes = Array.from(document.querySelectorAll('.msg-s-message-list__event, [data-event-urn]'));
+      for (const [nodeIndex, el] of fallbackNodes.entries()) {
+        const raw = clean(el.innerText || el.textContent);
+        if (!raw) continue;
+        const key = '\n' + raw;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        messages.push({ index: messages.length, nodeIndex, speaker: '', text: raw });
+      }
     }
 
     const refreshedText = document.body ? (document.body.innerText || '') : '';
@@ -185,7 +208,7 @@ cli({
       throw new CommandExecutionError('LinkedIn thread-snapshot blocked: thread_url_mismatch', `Expected ${threadUrl}; actual ${actualUrl}`);
     }
 
-    const recipient = normalizeWhitespace(snapshot.headerNames[0] || '');
+    const recipient = cleanPersonName(snapshot.headerNames[0] || '');
     const messageCount = snapshot.messages.length;
     const normalized = {
       ...snapshot,
@@ -207,6 +230,7 @@ cli({
 
 export const __test__ = {
   normalizeWhitespace,
+  cleanPersonName,
   canonicalizeLinkedInThreadUrl,
   parseMaxScrolls,
   unwrapEvaluateResult,

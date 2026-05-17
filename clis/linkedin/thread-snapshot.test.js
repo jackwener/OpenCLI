@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import './thread-snapshot.js';
 
-const { canonicalizeLinkedInThreadUrl, parseMaxScrolls } = await import('./thread-snapshot.js').then((m) => m.__test__);
+const { buildThreadSnapshotScript, canonicalizeLinkedInThreadUrl, cleanPersonName, parseMaxScrolls } = await import('./thread-snapshot.js').then((m) => m.__test__);
 
 function makeFakePage(snapshot) {
   return {
@@ -14,6 +15,57 @@ function makeFakePage(snapshot) {
 }
 
 describe('linkedin thread-snapshot command', () => {
+  it('strips LinkedIn presence and profile cruft from person names', () => {
+    expect(cleanPersonName('Eugene Huo Status is online Active now')).toBe('Eugene Huo');
+    expect(cleanPersonName('Eugene Huo active 2h')).toBe('Eugene Huo');
+    expect(cleanPersonName('Eugene Huo View profile')).toBe('Eugene Huo');
+    expect(cleanPersonName('  Eugene\u00a0Huo  ')).toBe('Eugene Huo');
+  });
+
+  it('extracts non-overlapping event-listitem message bodies with carried speakers', async () => {
+    const dom = new JSDOM(`<!doctype html><body>
+      <main>
+        <h1>Eugene Huo Status is online Active now</h1>
+        <div class="msg-s-message-list">
+          <div class="msg-s-event-listitem" data-event-urn="1">
+            <div class="msg-s-message-group__name">Hanzi Li</div>
+            <div class="msg-s-event-listitem__body">hey eugene</div>
+          </div>
+          <div class="msg-s-event-listitem" data-event-urn="2">
+            <div class="msg-s-event-listitem__body">following up with a clean body</div>
+          </div>
+          <div class="msg-s-event-listitem" data-event-urn="3">
+            <div class="msg-s-message-group__name">Eugene Huo</div>
+            <div class="msg-s-event-listitem__body">sounds good</div>
+          </div>
+          <div class="msg-s-message-list__event"><div class="msg-s-event-listitem__body">duplicate selector should not be read</div></div>
+        </div>
+      </main>
+    </body>`, { url: 'https://www.linkedin.com/messaging/thread/abc/' });
+    Object.defineProperty(dom.window.document, 'title', { value: 'Messaging | LinkedIn' });
+    const previousWindow = globalThis.window;
+    const previousDocument = globalThis.document;
+    const previousLocation = globalThis.location;
+    try {
+      globalThis.window = dom.window;
+      globalThis.document = dom.window.document;
+      globalThis.location = dom.window.location;
+      const runSnapshotScript = Function(`return ${buildThreadSnapshotScript(0)}`);
+      const snapshot = await runSnapshotScript();
+      expect(snapshot.headerNames[0]).toBe('Eugene Huo');
+      expect(snapshot.latestMessageText).toBe('sounds good');
+      expect(snapshot.messages).toEqual([
+        { index: 0, nodeIndex: 0, speaker: 'Hanzi Li', text: 'hey eugene' },
+        { index: 1, nodeIndex: 1, speaker: 'Hanzi Li', text: 'following up with a clean body' },
+        { index: 2, nodeIndex: 2, speaker: 'Eugene Huo', text: 'sounds good' },
+      ]);
+    } finally {
+      globalThis.window = previousWindow;
+      globalThis.document = previousDocument;
+      globalThis.location = previousLocation;
+    }
+  });
+
   it('accepts only exact LinkedIn messaging thread URLs', () => {
     expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com/messaging/thread/2-abc==/?mini=true#x'))
       .toBe('https://www.linkedin.com/messaging/thread/2-abc==/');
