@@ -24697,6 +24697,33 @@
   },
   {
     "site": "weibo",
+    "name": "delete",
+    "description": "Delete one of my Weibo posts by id",
+    "access": "write",
+    "domain": "weibo.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Post ID (numeric idstr or mblogid from URL / weibo me / weibo post output)"
+      }
+    ],
+    "columns": [
+      "status",
+      "id",
+      "mblogid"
+    ],
+    "type": "js",
+    "modulePath": "weibo/delete.js",
+    "sourceFile": "weibo/delete.js",
+    "navigateBefore": "https://weibo.com"
+  },
+  {
+    "site": "weibo",
     "name": "favorites",
     "description": "我的微博收藏列表",
     "access": "read",
