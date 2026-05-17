@@ -19,6 +19,18 @@ function stripHtml(html) {
         .replace(/&amp;/g, '&')
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
+        .replace(/&#(\d+);/g, (_, value) => {
+            const codePoint = Number(value);
+            return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10FFFF
+                ? String.fromCodePoint(codePoint)
+                : _;
+        })
+        .replace(/&#x([0-9a-f]+);/gi, (_, value) => {
+            const codePoint = Number.parseInt(value, 16);
+            return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10FFFF
+                ? String.fromCodePoint(codePoint)
+                : _;
+        })
         .replace(/\n{3,}/g, '\n\n')
         .trim();
 }
