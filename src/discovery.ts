@@ -24,6 +24,18 @@ export const USER_OPENCLI_DIR = path.join(os.homedir(), '.opencli');
 export const USER_CLIS_DIR = path.join(USER_OPENCLI_DIR, 'clis');
 /** Plugins directory: ~/.opencli/plugins/ */
 export const PLUGINS_DIR = path.join(USER_OPENCLI_DIR, 'plugins');
+/** Project-local opencli root, resolved against the current working directory at call time. */
+export function projectOpenCliDir(cwd: string = process.cwd()): string {
+  return path.join(cwd, '.opencli');
+}
+/** Project-local CLIs directory: ./.opencli/clis */
+export function projectClisDir(cwd: string = process.cwd()): string {
+  return path.join(projectOpenCliDir(cwd), 'clis');
+}
+/** Project-local plugins directory: ./.opencli/plugins */
+export function projectPluginsDir(cwd: string = process.cwd()): string {
+  return path.join(projectOpenCliDir(cwd), 'plugins');
+}
 /** Matches files that register commands via cli() or lifecycle hooks */
 const PLUGIN_MODULE_PATTERN = /\b(?:cli|onStartup|onBeforeExecute|onAfterExecute)\s*\(/;
 
@@ -86,6 +98,19 @@ export async function ensureUserCliCompatShims(baseDir: string = USER_OPENCLI_DI
  */
 export async function ensureUserAdapters(): Promise<void> {
   await fs.promises.mkdir(USER_CLIS_DIR, { recursive: true });
+}
+
+/**
+ * Set up the package-exports symlink for a project-local `.opencli` directory
+ * so adapters under `./.opencli/clis/` can `import { cli } from '@jackwener/opencli/registry'`.
+ *
+ * Mirrors `ensureUserCliCompatShims` but scoped to a project root. Returns
+ * silently when the project root has no `.opencli/` directory yet.
+ */
+export async function ensureProjectCliCompatShims(cwd: string = process.cwd()): Promise<void> {
+  const baseDir = projectOpenCliDir(cwd);
+  try { await fs.promises.access(baseDir); } catch { return; }
+  await ensureUserCliCompatShims(baseDir);
 }
 
 /**
@@ -154,7 +179,7 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
 async function discoverClisFromFs(dir: string): Promise<void> {
   try { await fs.promises.access(dir); } catch { return; }
   const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-  
+
   const sitePromises = entries
     .filter(entry => entry.isDirectory())
     .map(async (entry) => {
@@ -182,15 +207,18 @@ async function discoverClisFromFs(dir: string): Promise<void> {
 }
 
 /**
- * Discover and register plugins from ~/.opencli/plugins/.
+ * Discover and register plugins from a plugins directory.
+ * Defaults to `~/.opencli/plugins/`; pass a custom directory to load
+ * project-local plugins from `./.opencli/plugins/`.
+ *
  * Each subdirectory is treated as a plugin (site = directory name).
  * Files inside are scanned flat (no nested site subdirs).
  */
-export async function discoverPlugins(): Promise<void> {
-  try { await fs.promises.access(PLUGINS_DIR); } catch { return; }
-  const entries = await fs.promises.readdir(PLUGINS_DIR, { withFileTypes: true });
+export async function discoverPlugins(dir: string = PLUGINS_DIR): Promise<void> {
+  try { await fs.promises.access(dir); } catch { return; }
+  const entries = await fs.promises.readdir(dir, { withFileTypes: true });
   await Promise.all(entries.map(async (entry) => {
-    const pluginDir = path.join(PLUGINS_DIR, entry.name);
+    const pluginDir = path.join(dir, entry.name);
     if (!(await isDiscoverablePluginDir(entry, pluginDir))) return;
     await discoverPluginDir(pluginDir, entry.name);
   }));
