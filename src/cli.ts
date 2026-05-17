@@ -776,8 +776,8 @@ Examples:
   }
 
   /** Wrap browser actions with error handling and optional --json output */
-  function browserAction(fn: (page: Awaited<ReturnType<typeof getBrowserPage>>, ...args: any[]) => Promise<unknown>) {
-    return async (...args: any[]) => {
+  function browserAction<Args extends unknown[]>(fn: (page: Awaited<ReturnType<typeof getBrowserPage>>, ...args: Args) => Promise<unknown>) {
+    return async (...args: Args) => {
       let page: Awaited<ReturnType<typeof getBrowserPage>> | null = null;
       try {
         const command = args.at(-1) instanceof Command ? args.at(-1) as Command : undefined;
