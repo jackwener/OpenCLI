@@ -9,9 +9,29 @@ import { Page } from './page.js';
 import { getDaemonHealth, requestDaemonShutdown } from './daemon-client.js';
 import { DEFAULT_DAEMON_PORT } from '../constants.js';
 import { BrowserConnectError } from '../errors.js';
+import { getBrowserLabel } from '../browser-label.js';
 import { PKG_VERSION } from '../version.js';
 import { resolveProfileContextId } from './profile.js';
 import { resolveDaemonLaunchSpec, spawnDaemonProcess, waitForDaemonStop } from './daemon-lifecycle.js';
+
+function getExtensionInstallHint(): string {
+  const browser = getBrowserLabel();
+  if (browser === 'Firefox') {
+    return (
+      'Make sure Firefox is open and the OpenCLI extension is enabled.\n' +
+      'If not installed:\n' +
+      '  1. Download: https://github.com/jackwener/opencli/releases\n' +
+      '  2. Open about:debugging → This Firefox → Load Temporary Add-on'
+    );
+  }
+  return (
+    'Make sure Chrome/Chromium is open and the extension is enabled.\n' +
+    'If the extension is installed, try: opencli daemon stop && opencli doctor\n' +
+    'If not installed:\n' +
+    '  1. Download: https://github.com/jackwener/opencli/releases\n' +
+    '  2. Open chrome://extensions → Developer Mode → Load unpacked'
+  );
+}
 
 const DAEMON_SPAWN_TIMEOUT = 10000; // 10s to wait for daemon + extension
 
@@ -112,7 +132,7 @@ export class BrowserBridge implements IBrowserFactory {
       const label = contextId ?? health.status.contextId ?? 'unknown';
       throw new BrowserConnectError(
         `Browser profile "${label}" is not connected`,
-        'Open the matching Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
+        'Open the matching browser profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
         'profile-disconnected',
       );
     }
@@ -121,8 +141,7 @@ export class BrowserBridge implements IBrowserFactory {
     if (!staleDaemonReplaced && health.state === 'no-extension') {
       // Same version — wait for extension to connect
       if (process.env.OPENCLI_VERBOSE || process.stderr.isTTY) {
-        process.stderr.write('⏳ Waiting for Chrome/Chromium extension to connect...\n');
-        process.stderr.write('   Make sure Chrome or Chromium is open and the OpenCLI extension is enabled.\n');
+        process.stderr.write(`⏳ Waiting for ${getBrowserLabel()} extension to connect...\n`);
       }
       if (await this._pollUntilReady(timeoutMs, contextId)) return;
       const finalHealth = await getDaemonHealth({ contextId });
@@ -138,17 +157,13 @@ export class BrowserBridge implements IBrowserFactory {
         const label = contextId ?? finalHealth.status.contextId ?? 'unknown';
         throw new BrowserConnectError(
           `Browser profile "${label}" is not connected`,
-          'Open the matching Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
+          'Open the matching browser profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
           'profile-disconnected',
         );
       }
       throw new BrowserConnectError(
         'Browser Bridge extension not connected',
-        'Make sure Chrome/Chromium is open and the extension is enabled.\n' +
-        'If the extension is installed, try: opencli daemon stop && opencli doctor\n' +
-        'If not installed:\n' +
-        '  1. Download: https://github.com/jackwener/opencli/releases\n' +
-        '  2. Open chrome://extensions → Developer Mode → Load unpacked',
+        getExtensionInstallHint(),
         'extension-not-connected',
       );
     }
@@ -176,18 +191,14 @@ export class BrowserBridge implements IBrowserFactory {
       const label = contextId ?? finalHealth.status.contextId ?? 'unknown';
       throw new BrowserConnectError(
         `Browser profile "${label}" is not connected`,
-        'Open the matching Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
+        'Open the matching browser profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
         'profile-disconnected',
       );
     }
     if (finalHealth.state === 'no-extension') {
       throw new BrowserConnectError(
         'Browser Bridge extension not connected',
-        'Make sure Chrome/Chromium is open and the extension is enabled.\n' +
-        'If the extension is installed, try: opencli daemon stop && opencli doctor\n' +
-        'If not installed:\n' +
-        '  1. Download: https://github.com/jackwener/opencli/releases\n' +
-        '  2. Open chrome://extensions → Developer Mode → Load unpacked',
+        getExtensionInstallHint(),
         'extension-not-connected',
       );
     }

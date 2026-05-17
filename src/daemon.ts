@@ -6,7 +6,7 @@
  *   Extension → WebSocket result → daemon → HTTP response → CLI
  *
  * Security (defense-in-depth against browser-based CSRF):
- *   1. Origin check — reject HTTP/WS from non chrome-extension:// origins
+ *   1. Origin check — reject HTTP/WS from non extension origins (chrome-extension:// or moz-extension://)
  *   2. Custom header — require X-OpenCLI header (browsers can't send it
  *      without CORS preflight, which we deny)
  *   3. No CORS headers on command endpoints — only /ping is readable from the
@@ -32,6 +32,7 @@ import {
   buildCommandDispatchFailure,
   buildExtensionDisconnectFailure,
   getResponseCorsHeaders,
+  isExtensionOrigin,
 } from './daemon-utils.js';
 
 const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
@@ -40,7 +41,7 @@ const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_P
 
 type ExtensionProfileConnection = {
   contextId: string;
-  ws: WebSocket;
+  ws: WebSocket | null; // null = HTTP polling mode (Firefox)
   extensionVersion: string | null;
   extensionCompatRange: string | null;
   lastSeenAt: number;
@@ -79,7 +80,9 @@ function pushLog(entry: LogEntry): void {
 }
 
 function activeProfiles(): ExtensionProfileConnection[] {
-  return [...extensionProfiles.values()].filter((entry) => entry.ws.readyState === WebSocket.OPEN);
+  return [...extensionProfiles.values()].filter((entry) =>
+    entry.ws === null || entry.ws.readyState === WebSocket.OPEN
+  );
 }
 
 function resolveExtensionConnection(contextId?: string): {
@@ -91,11 +94,11 @@ function resolveExtensionConnection(contextId?: string): {
   const requestedContextId = typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined;
   if (requestedContextId) {
     const connection = extensionProfiles.get(requestedContextId);
-    if (connection?.ws.readyState === WebSocket.OPEN) return { connection };
+    if (connection && (connection.ws === null || connection.ws.readyState === WebSocket.OPEN)) return { connection };
     return {
       errorCode: 'profile_disconnected',
       error: `Browser profile "${requestedContextId}" is not connected.`,
-      errorHint: 'Open that Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
+      errorHint: 'Open that browser profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
     };
   }
 
@@ -114,16 +117,59 @@ function resolveExtensionConnection(contextId?: string): {
   };
 }
 
-function registerExtensionConnection(ws: WebSocket, rawContextId: unknown): ExtensionProfileConnection {
+// ── HTTP Polling command queue (for Firefox) ──
+const pollCommandQueues = new Map<string, { command: unknown; resolve: () => void }[]>();
+const pollWaiters = new Map<string, { resolve: (cmd: unknown | null) => void; timer: ReturnType<typeof setTimeout> }[]>();
+
+function enqueuePollCommand(contextId: string, command: unknown): void {
+  const waiters = pollWaiters.get(contextId);
+  if (waiters && waiters.length > 0) {
+    const waiter = waiters.shift()!;
+    clearTimeout(waiter.timer);
+    waiter.resolve(command);
+    return;
+  }
+  if (!pollCommandQueues.has(contextId)) pollCommandQueues.set(contextId, []);
+  pollCommandQueues.get(contextId)!.push({ command, resolve: () => {} });
+}
+
+function waitForPollCommand(contextId: string, timeoutMs: number): Promise<unknown | null> {
+  const queue = pollCommandQueues.get(contextId);
+  if (queue && queue.length > 0) {
+    const item = queue.shift()!;
+    return Promise.resolve(item.command);
+  }
+  return new Promise((resolve) => {
+    if (!pollWaiters.has(contextId)) pollWaiters.set(contextId, []);
+    const timer = setTimeout(() => {
+      const waiters = pollWaiters.get(contextId);
+      if (waiters) {
+        const idx = waiters.findIndex((w) => w.resolve === resolve);
+        if (idx >= 0) waiters.splice(idx, 1);
+      }
+      resolve(null);
+    }, timeoutMs);
+    pollWaiters.get(contextId)!.push({ resolve, timer });
+  });
+}
+
+function isPollingConnection(contextId: string): boolean {
+  const conn = extensionProfiles.get(contextId);
+  return conn !== null && conn !== undefined && conn.ws === null;
+}
+
+function registerExtensionConnection(ws: WebSocket | null, rawContextId: unknown): ExtensionProfileConnection {
   const contextId = typeof rawContextId === 'string' && rawContextId.trim()
     ? rawContextId.trim()
     : DEFAULT_CONTEXT_ID;
   const previous = extensionProfiles.get(contextId);
-  if (previous && previous.ws !== ws) {
+  if (previous && ws !== null && previous.ws !== null && previous.ws !== ws) {
     previous.ws.close();
   }
-  const existing = [...extensionProfiles.entries()].find(([, entry]) => entry.ws === ws);
-  if (existing && existing[0] !== contextId) extensionProfiles.delete(existing[0]);
+  if (ws !== null) {
+    const existing = [...extensionProfiles.entries()].find(([, entry]) => entry.ws === ws);
+    if (existing && existing[0] !== contextId) extensionProfiles.delete(existing[0]);
+  }
 
   const current = extensionProfiles.get(contextId);
   const connection: ExtensionProfileConnection = {
@@ -139,7 +185,7 @@ function registerExtensionConnection(ws: WebSocket, rawContextId: unknown): Exte
 
 function unregisterExtensionConnection(ws: WebSocket): void {
   for (const [contextId, connection] of extensionProfiles.entries()) {
-    if (connection.ws !== ws) continue;
+    if (connection.ws !== ws || connection.ws === null) continue;
     extensionProfiles.delete(contextId);
     for (const [id, p] of pending) {
       if (p.contextId !== contextId) continue;
@@ -195,7 +241,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   // legitimate CLI requests pass through.  Chrome Extension connects via
   // WebSocket (which bypasses this HTTP handler entirely).
   const origin = req.headers['origin'] as string | undefined;
-  if (origin && !origin.startsWith('chrome-extension://')) {
+  log.info(`[daemon] ${req.method} ${req.url} origin=${origin ?? 'none'} isExt=${origin ? isExtensionOrigin(origin) : 'n/a'}`);
+  if (origin && !isExtensionOrigin(origin)) {
     jsonResponse(res, 403, { ok: false, error: 'Forbidden: cross-origin request blocked' });
     return;
   }
@@ -221,6 +268,65 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   // is an accepted risk given the daemon is loopback-only and short-lived.
   if (req.method === 'GET' && pathname === '/ping') {
     jsonResponse(res, 200, { ok: true }, getResponseCorsHeaders(pathname, origin));
+    return;
+  }
+
+  // ── HTTP Polling endpoints for Firefox (which blocks WebSocket to localhost) ──
+  // These endpoints allow the Firefox extension to poll for commands via HTTP
+  // instead of maintaining a WebSocket connection.
+
+  if (req.method === 'POST' && pathname === '/ext/poll-register') {
+    const corsHeaders = getResponseCorsHeaders('/ping', origin);
+    const bodyStr = await readBody(req);
+    const body = JSON.parse(bodyStr);
+    if (typeof body.contextId !== 'string' || !body.contextId.trim()) {
+      jsonResponse(res, 400, { ok: false, error: 'Missing contextId' }, corsHeaders);
+      return;
+    }
+    // Register a fake "connection" for polling mode
+    const conn = registerExtensionConnection(null as any, body.contextId.trim());
+    conn.extensionVersion = typeof body.version === 'string' ? body.version : null;
+    conn.extensionCompatRange = typeof body.compatRange === 'string' ? body.compatRange : null;
+    conn.lastSeenAt = Date.now();
+    if (conn.extensionVersion) recordExtensionVersion(conn.extensionVersion);
+    log.info(`[daemon] Extension registered via HTTP polling: ${conn.contextId}`);
+    jsonResponse(res, 200, { ok: true, contextId: conn.contextId }, corsHeaders);
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/ext/poll') {
+    const corsHeaders = getResponseCorsHeaders('/ping', origin);
+    const params = new URL(url, `http://localhost:${PORT}`).searchParams;
+    const contextId = params.get('contextId')?.trim() || 'default';
+    const conn = extensionProfiles.get(contextId);
+    if (!conn) {
+      jsonResponse(res, 404, { ok: false, error: 'Not registered' }, corsHeaders);
+      return;
+    }
+    conn.lastSeenAt = Date.now();
+    // Wait for a command to be dispatched to this context, or timeout
+    const cmd = await waitForPollCommand(contextId, 25000);
+    if (cmd) {
+      jsonResponse(res, 200, { ok: true, command: cmd }, corsHeaders);
+    } else {
+      jsonResponse(res, 200, { ok: true, command: null }, corsHeaders);
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/ext/poll-result') {
+    const corsHeaders = getResponseCorsHeaders('/ping', origin);
+    const bodyStr = await readBody(req);
+    const body = JSON.parse(bodyStr);
+    const entry = pending.get(body.id);
+    if (!entry) {
+      jsonResponse(res, 404, { ok: false, error: 'Unknown command id' }, corsHeaders);
+      return;
+    }
+    clearTimeout(entry.timer);
+    pending.delete(body.id);
+    entry.resolve(body);
+    jsonResponse(res, 200, { ok: true }, corsHeaders);
     return;
   }
 
@@ -342,8 +448,17 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           reject(new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status));
           log.warn(`[daemon] Failed to dispatch command ${body.id}: ${err instanceof Error ? err.message : String(err)}`);
         };
+
+        // Polling mode (Firefox): enqueue command for HTTP poll
+        if (isPollingConnection(route.connection!.contextId)) {
+          enqueuePollCommand(route.connection!.contextId, body);
+          entry.dispatched = true;
+          return;
+        }
+
+        // WebSocket mode (Chrome): send directly
         try {
-          route.connection!.ws.send(JSON.stringify(body), (err?: Error) => {
+          route.connection!.ws!.send(JSON.stringify(body), (err?: Error) => {
             if (err && !entry.dispatched) failBeforeDispatch(err);
           });
           // Once ws accepts the frame, the command may execute even if the
@@ -381,9 +496,9 @@ const wss = new WebSocketServer({
     // Block browser-originated WebSocket connections.  Browsers don't
     // enforce CORS on WebSocket, so a malicious webpage could connect to
     // ws://localhost:19825/ext and impersonate the Extension.  Real Chrome
-    // Extensions send origin chrome-extension://<id>.
+    // Extensions send origin chrome-extension://<id> or moz-extension://<id>.
     const origin = req.headers['origin'] as string | undefined;
-    return !origin || origin.startsWith('chrome-extension://');
+    return !origin || isExtensionOrigin(origin);
   },
 });
 
@@ -482,7 +597,7 @@ function shutdown(): void {
     p.reject(new Error('Daemon shutting down'));
   }
   pending.clear();
-  for (const profile of extensionProfiles.values()) profile.ws.close();
+  for (const profile of extensionProfiles.values()) profile.ws?.close();
   httpServer.close();
   process.exit(EXIT_CODES.SUCCESS);
 }

@@ -8,8 +8,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite build --watch",
+    "dev:firefox": "vite build --watch --mode firefox",
     "build": "vite build",
+    "build:firefox": "node scripts/build-firefox.mjs",
+    "build:all": "vite build && vite build --mode firefox",
     "package:release": "node scripts/package-release.mjs",
+    "package:firefox": "node scripts/package-firefox.mjs",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

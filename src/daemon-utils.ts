@@ -1,10 +1,18 @@
+/**
+ * Check whether a given origin string belongs to a browser extension.
+ * Accepts both chrome-extension:// (Chrome) and moz-extension:// (Firefox).
+ */
+export function isExtensionOrigin(origin: string): boolean {
+  return origin.startsWith('chrome-extension://') || origin.startsWith('moz-extension://');
+}
+
 export const COMMAND_RESULT_UNKNOWN_CODE = 'command_result_unknown';
 
 export const COMMAND_RESULT_UNKNOWN_HINT =
   'Inspect the browser/session state before retrying. Do not blindly retry write commands such as navigate, click, type, or eval.';
 
 export const PROFILE_DISCONNECTED_HINT =
-  'Open that Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.';
+  'Open that browser profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.';
 
 export type DaemonFailureContract = {
   message: string;
@@ -45,9 +53,11 @@ export function buildCommandDispatchFailure(contextId: string): DaemonFailureCon
   };
 }
 
+const CORS_ALLOWED_PATHS = ['/ping', '/ext/poll-register', '/ext/poll', '/ext/poll-result'];
+
 export function getResponseCorsHeaders(pathname: string, origin?: string): Record<string, string> | undefined {
-  if (pathname !== '/ping') return undefined;
-  if (!origin || !origin.startsWith('chrome-extension://')) return undefined;
+  if (!CORS_ALLOWED_PATHS.includes(pathname)) return undefined;
+  if (!origin || !isExtensionOrigin(origin)) return undefined;
   return {
     'Access-Control-Allow-Origin': origin,
     Vary: 'Origin',

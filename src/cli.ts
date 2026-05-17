@@ -557,7 +557,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .name('opencli')
     .description('Make any website your CLI. Zero setup. AI-powered.')
     .version(PKG_VERSION)
-    .option('--profile <name>', 'Chrome profile/context alias for Browser Bridge commands')
+    .option('--profile <name>', 'Browser profile/context alias for Browser Bridge commands')
     .enablePositionalOptions();
 
   // ── Built-in: list ────────────────────────────────────────────────────────
@@ -827,7 +827,7 @@ Examples:
   }
 
   browser.command('bind')
-    .description('Bind the current Chrome tab/window to the browser session named by <session>')
+    .description('Bind the current browser tab/window to the browser session named by <session>')
     .action(async (optsOrCommand, maybeCommand?: Command) => {
       const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
       const session = getBrowserSession(command);
@@ -3100,19 +3100,19 @@ cli({
     });
 
   // ── Built-in: browser profile selection ──────────────────────────────────
-  const profileCmd = program.command('profile').description('Manage Browser Bridge Chrome profiles');
+  const profileCmd = program.command('profile').description('Manage Browser Bridge browser profiles');
   // Snapshot before applyRootSubcommandSummaries() rewrites .description() to a child-name listing.
   const originalProfileDescription = profileCmd.description();
 
   profileCmd
     .command('list')
-    .description('List Chrome profiles connected through the Browser Bridge extension')
+    .description('List browser profiles connected through the Browser Bridge extension')
     .action(async () => {
       const status = await fetchDaemonStatus();
       const config = loadProfileConfig();
       const profiles = status?.profiles ?? [];
       if (!status) {
-        console.log('Daemon is not running. Run opencli doctor after opening Chrome.');
+        console.log('Daemon is not running. Run opencli doctor after opening your browser.');
         return;
       }
       if (isDaemonStale(status, PKG_VERSION) || !Array.isArray(status.profiles)) {
@@ -3122,7 +3122,7 @@ cli({
       }
       if (profiles.length === 0) {
         console.log('No Browser Bridge profiles connected.');
-        console.log('Open a Chrome profile with the OpenCLI extension installed, then run opencli profile list again.');
+        console.log('Open a browser profile with the OpenCLI extension installed, then run opencli profile list again.');
         return;
       }
 
