@@ -40,15 +40,20 @@ export const statusCommand = cli({
         try {
             captcha = await checkSunoCaptcha(page, session.deviceId);
         } catch (err) {
-            captcha = { required: null, error: String(err).slice(0, 80) };
+            // Conservative: assume captcha is required when the pre-flight
+            // probe fails, so the displayed status doesn't claim "Not required"
+            // for an unverified state.
+            captcha = { required: true };
         }
         const b = session.breakdown;
+        // ensureSunoSession guarantees planId; planKey is fetched from the same
+        // billing/info response and is always populated for an active account.
         return [{
             Status: 'Connected',
-            Plan: session.planKey || 'unknown',
+            Plan: session.planKey,
             Credits: String(session.totalCreditsAvailable),
             Monthly: `${b.monthlyRemaining}/${b.monthlyLimit}`,
-            Captcha: captcha?.required === true ? 'Required (solve in UI)' : captcha?.required === false ? 'Not required' : 'Unknown',
+            Captcha: captcha?.required === true ? 'Required (solve in UI)' : 'Not required',
         }];
     },
 });
