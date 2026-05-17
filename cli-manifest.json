@@ -1,5 +1,144 @@
 [
   {
+    "site": "12306",
+    "name": "stations",
+    "description": "Search 12306 (China Railway) stations by Chinese name, telecode, or pinyin keyword",
+    "access": "read",
+    "domain": "kyfw.12306.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Chinese substring (上海), telecode (AOH), or pinyin (shanghai)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum results (1-50)"
+      }
+    ],
+    "columns": [
+      "name",
+      "code",
+      "pinyin",
+      "abbr",
+      "city"
+    ],
+    "type": "js",
+    "modulePath": "12306/stations.js",
+    "sourceFile": "12306/stations.js"
+  },
+  {
+    "site": "12306",
+    "name": "train",
+    "description": "List every station a 12306 train calls at, with arrival / departure / stopover time (anonymous, no login required)",
+    "access": "read",
+    "domain": "kyfw.12306.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "train-no",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Internal train_no from `12306 trains` (e.g. 24000000G10L), not the public code (G1)"
+      },
+      {
+        "name": "from",
+        "type": "str",
+        "required": true,
+        "help": "Origin station for the segment: Chinese name, telecode, or pinyin"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "help": "Destination station for the segment"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Departure date in YYYY-MM-DD"
+      }
+    ],
+    "columns": [
+      "station_no",
+      "station_name",
+      "arrive_time",
+      "start_time",
+      "stopover_time"
+    ],
+    "type": "js",
+    "modulePath": "12306/train.js",
+    "sourceFile": "12306/train.js"
+  },
+  {
+    "site": "12306",
+    "name": "trains",
+    "description": "List trains between two 12306 stations on a given date (anonymous, no login required)",
+    "access": "read",
+    "domain": "kyfw.12306.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "from",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Origin station: Chinese name (北京), telecode (BJP), or pinyin (beijing)"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Destination station: same forms as <from>"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Departure date in YYYY-MM-DD"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Maximum rows (1-100)"
+      }
+    ],
+    "columns": [
+      "code",
+      "from_station",
+      "to_station",
+      "start_time",
+      "arrive_time",
+      "duration",
+      "available",
+      "business_seat",
+      "first_seat",
+      "second_seat",
+      "soft_sleeper",
+      "hard_sleeper",
+      "hard_seat",
+      "no_seat",
+      "train_no"
+    ],
+    "type": "js",
+    "modulePath": "12306/trains.js",
+    "sourceFile": "12306/trains.js"
+  },
+  {
     "site": "1688",
     "name": "assets",
     "description": "列出 1688 商品页可提取的图片/视频素材",
