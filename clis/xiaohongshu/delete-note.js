@@ -26,9 +26,38 @@ function unwrapEvaluateResult(payload) {
     }
     return payload;
 }
+function requireEvaluateString(payload, context) {
+    if (typeof payload !== 'string') {
+        throw new CommandExecutionError(`xiaohongshu/delete-note: malformed ${context} payload`);
+    }
+    return payload;
+}
+function requireEvaluateBoolean(payload, context) {
+    if (typeof payload !== 'boolean') {
+        throw new CommandExecutionError(`xiaohongshu/delete-note: malformed ${context} payload`);
+    }
+    return payload;
+}
+function requireEvaluateObject(payload, context) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw new CommandExecutionError(`xiaohongshu/delete-note: malformed ${context} payload`);
+    }
+    return payload;
+}
+function requireActionResult(payload, context) {
+    const result = requireEvaluateObject(payload, context);
+    if (typeof result.ok !== 'boolean') {
+        throw new CommandExecutionError(`xiaohongshu/delete-note: malformed ${context} payload`);
+    }
+    return result;
+}
 function isXiaohongshuHost(hostname) {
     const host = String(hostname || '').toLowerCase();
     return host === 'xiaohongshu.com' || host.endsWith('.xiaohongshu.com');
+}
+function isSupportedQueryNoteUrl(url) {
+    return url.hostname.toLowerCase() === 'creator.xiaohongshu.com'
+        && url.pathname.replace(/\/+$/, '') === '/statistics/note-detail';
 }
 function normalizeNoteId(input) {
     const raw = String(input ?? '').trim();
@@ -51,7 +80,7 @@ function normalizeNoteId(input) {
         throw new ArgumentError('xiaohongshu/delete-note: note URL must be an exact https://*.xiaohongshu.com URL');
     }
     const queryId = url.searchParams.get('noteId') || url.searchParams.get('note_id');
-    if (queryId && NOTE_ID_RE.test(queryId))
+    if (queryId && NOTE_ID_RE.test(queryId) && isSupportedQueryNoteUrl(url))
         return queryId.toLowerCase();
     const pathMatch = url.pathname.match(/^\/(?:explore|note|search_result|discovery\/item)\/([0-9a-f]{24})\/?$/i)
         || url.pathname.match(/^\/user\/profile\/[^/?#]+\/([0-9a-f]{24})\/?$/i);
@@ -141,12 +170,12 @@ cli({
             await page.goto(NOTE_MANAGER_URL);
             await page.wait({ time: ROW_SETTLE_MS / 1000 });
             // Detect login redirect (creator.xiaohongshu.com bounces to /login on auth failure)
-            const currentUrl = unwrapEvaluateResult(await page.evaluate('() => location.href'));
+            const currentUrl = requireEvaluateString(unwrapEvaluateResult(await page.evaluate('() => location.href')), 'current-url');
             if (typeof currentUrl === 'string' && /\/login(?:[/?#]|$)/i.test(new URL(currentUrl).pathname + new URL(currentUrl).search)) {
                 throw new AuthRequiredError('creator.xiaohongshu.com');
             }
             // Step 1: ensure 已发布 tab is active (delete only exposed there).
-            const tabClicked = unwrapEvaluateResult(await page.evaluate(`
+            const tabClicked = requireEvaluateBoolean(unwrapEvaluateResult(await page.evaluate(`
       () => {
         const isVisible = (el) => !!el && el.offsetParent !== null;
         for (const el of document.querySelectorAll('a, button, [role="tab"], div')) {
@@ -158,7 +187,7 @@ cli({
         }
         return false;
       }
-    `));
+    `)), 'published-tab');
             if (!tabClicked) {
                 throw new CommandExecutionError('xiaohongshu/delete-note: 已发布 tab not found on note-manager; xhs creator UI may have changed.');
             }
@@ -168,7 +197,7 @@ cli({
             // Substring matching on the raw attribute would risk matching unrelated
             // fields whose values happen to share the noteId prefix, so parse the JSON
             // and compare `noteTarget.value.noteId` explicitly.
-            const initResult = unwrapEvaluateResult(await page.evaluate(buildLocateAndMaybeDeleteScript(noteId, execute)));
+            const initResult = requireActionResult(unwrapEvaluateResult(await page.evaluate(buildLocateAndMaybeDeleteScript(noteId, execute))), 'locate-note');
             if (!initResult?.ok) {
                 if (initResult?.kind === 'not_found') {
                     throw new EmptyResultError('xiaohongshu/delete-note', `Note ${noteId} not visible in the 已发布 tab. Verify the note belongs to the logged-in account and has cleared review (审核中 / 未通过 rows have no web delete entry).`);
@@ -183,7 +212,7 @@ cli({
             }
             await page.wait({ time: MODAL_SETTLE_MS / 1000 });
             // Step 3: click "确定" in the `.d-modal-footer` confirmation modal.
-            const confirmResult = unwrapEvaluateResult(await page.evaluate(`
+            const confirmResult = requireActionResult(unwrapEvaluateResult(await page.evaluate(`
       () => {
         const isVisible = (el) => !!el && el.offsetParent !== null;
         const footer = Array.from(document.querySelectorAll('.d-modal-footer')).find(isVisible);
@@ -194,7 +223,7 @@ cli({
         confirmBtn.click();
         return { ok: true };
       }
-    `));
+    `)), 'confirm-modal');
             if (!confirmResult?.ok) {
                 throw new CommandExecutionError(`xiaohongshu/delete-note: confirmation modal step failed (${confirmResult?.kind ?? 'unknown'})`);
             }
@@ -206,7 +235,7 @@ cli({
             let stillPresent = true;
             for (let i = 0; i < VERIFY_ITERATIONS; i++) {
                 await page.wait({ time: VERIFY_POLL_MS / 1000 });
-                const probe = unwrapEvaluateResult(await page.evaluate(buildVerifyGoneScript(noteId)));
+                const probe = requireEvaluateBoolean(unwrapEvaluateResult(await page.evaluate(buildVerifyGoneScript(noteId))), 'verify-gone');
                 if (probe === false) {
                     stillPresent = false;
                     break;

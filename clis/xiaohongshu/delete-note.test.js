@@ -73,7 +73,25 @@ describe('xiaohongshu delete-note command', () => {
     await expect(getCommand().func(page, { 'note-id': 'x' })).rejects.toBeInstanceOf(ArgumentError);
     await expect(getCommand().func(page, { 'note-id': 'https://evil.com/explore/6a08ba0b000000000702a893' })).rejects.toBeInstanceOf(ArgumentError);
     await expect(getCommand().func(page, { 'note-id': 'https://xhslink.com/abc' })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(getCommand().func(page, { 'note-id': `https://www.xiaohongshu.com/anything?noteId=${validId}` })).rejects.toBeInstanceOf(ArgumentError);
     expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it('throws CommandExecutionError for malformed evaluate payloads instead of trusting truthy objects', async () => {
+    await expect(getCommand().func(makePage([
+      { session: 's', data: { href: 'https://creator.xiaohongshu.com/new/note-manager' } },
+    ]), { 'note-id': validId })).rejects.toThrowError(/malformed current-url payload/);
+
+    await expect(getCommand().func(makePage([
+      'https://creator.xiaohongshu.com/new/note-manager',
+      { session: 's', data: { ok: true } },
+    ]), { 'note-id': validId })).rejects.toThrowError(/malformed published-tab payload/);
+
+    await expect(getCommand().func(makePage([
+      'https://creator.xiaohongshu.com/new/note-manager',
+      true,
+      { session: 's', data: { ok: 'yes', clicked: false } },
+    ]), { 'note-id': validId })).rejects.toThrowError(/malformed locate-note payload/);
   });
 
   it('throws AuthRequiredError when redirected to login', async () => {
