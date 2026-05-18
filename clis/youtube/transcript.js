@@ -61,17 +61,24 @@ function parseJson3Segments(text) {
     return rows;
 }
 
+function timedtextUrlMatchesVideo(url, videoId) {
+    if (!videoId)
+        return true;
+    try {
+        const parsed = new URL(url);
+        return parsed.searchParams.get('v') === videoId;
+    }
+    catch {
+        return false;
+    }
+}
+
 function extractSegmentsFromNetworkCapture(entries, lang, videoId) {
     const payload = unwrapBrowserResult(entries);
     if (!Array.isArray(payload) || payload.length === 0)
         return { segments: [] };
     const wanted = String(lang || '').toLowerCase();
     const wantedBase = wanted.split('-')[0];
-    // Scope to the current video — daemon-shared tabs can retain captured
-    // timedtext entries from prior YouTube SPA navigations that match
-    // the same lang, which would otherwise leak the previous video's
-    // captions into this one's transcript.
-    const videoIdMarker = videoId ? 'v=' + encodeURIComponent(videoId) : '';
     const timedtext = payload
         .filter((entry) => {
         const url = String(entry?.url || '');
@@ -79,7 +86,11 @@ function extractSegmentsFromNetworkCapture(entries, lang, videoId) {
             return false;
         if (!url.includes('fmt=json3') || !url.includes('pot='))
             return false;
-        if (videoIdMarker && !url.includes(videoIdMarker))
+        // Scope to the current video — daemon-shared tabs can retain captured
+        // timedtext entries from prior YouTube SPA navigations that match
+        // the same lang. Use exact query-param equality rather than substring
+        // matching so v=<prefix> cannot match v=<prefix><suffix>.
+        if (!timedtextUrlMatchesVideo(url, videoId))
             return false;
         if (!wanted)
             return true;
@@ -149,7 +160,7 @@ cli({
         // entries from prior videos. Without this check a stale same-language
         // URL can be picked up by the polling loop before the current video's
         // fetch hook fires, leaking the predecessor's captions.
-        const videoIdMarker = 'v=' + encodeURIComponent(${JSON.stringify(videoId)});
+        const targetVideoId = ${JSON.stringify(videoId)};
         const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
         function textFromJson3Event(event) {
@@ -180,6 +191,15 @@ cli({
             });
           }
           return { rows };
+        }
+
+        function timedtextUrlMatchesVideo(url) {
+          try {
+            const parsed = new URL(url, location.origin);
+            return parsed.searchParams.get('v') === targetVideoId;
+          } catch {
+            return false;
+          }
         }
 
         function captionTrackToPlayerTrack(track) {
@@ -228,7 +248,7 @@ cli({
             .filter(url => url.includes('/api/timedtext')
                         && url.includes('fmt=json3')
                         && url.includes('pot=')
-                        && url.includes(videoIdMarker));
+                        && timedtextUrlMatchesVideo(url));
           if (!urls.length) return '';
           if (track?.languageCode) {
             const wanted = String(track.languageCode || '').toLowerCase();
@@ -252,7 +272,7 @@ cli({
           if (!url || !url.includes('/api/timedtext')) return false;
           if (!url.includes('fmt=json3')) return false;
           if (!url.includes('pot=')) return false;
-          if (!url.includes(videoIdMarker)) return false;
+          if (!timedtextUrlMatchesVideo(url)) return false;
           if (!track?.languageCode) return true;
           try {
             const u = new URL(url, location.origin);
@@ -423,14 +443,7 @@ cli({
             throw new CommandExecutionError(`Failed to get caption info: ${typeof captionData === 'string' ? captionData : 'malformed response'}`);
         }
         if (captionData?.error) {
-            const msg = `${captionData.error}${captionData.available ? ' (available: ' + captionData.available.join(', ') + ')' : ''}`;
-            // "No captions available" 是合法 empty 数据条件（作者没开字幕 + YT 没自动生成），
-            // 与 bilibili subtitle 的 EmptyResultError 同模式。下游应按 code EMPTY_RESULT 跳过
-            // 重试和 softFail 计数。其它 error（HTTP / parse / 短暂空响应）仍按 fetch 失败抛。
-            if (/no captions available/i.test(captionData.error)) {
-                throw new EmptyResultError('youtube transcript', '该视频没有字幕（作者未开启 + 无自动字幕）。');
-            }
-            throw new CommandExecutionError(msg);
+            throw new CommandExecutionError(`${captionData.error}${captionData.available ? ' (available: ' + captionData.available.join(', ') + ')' : ''}`);
         }
         if (!segments && typeof captionData?.captionUrl !== 'string') {
             throw new CommandExecutionError('Malformed caption info payload');

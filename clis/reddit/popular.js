@@ -10,7 +10,7 @@ cli({
     args: [
         { name: 'limit', type: 'int', default: 20 },
     ],
-    columns: ['rank', 'title', 'subreddit', 'score', 'comments', 'url', 'post_hint', 'url_overridden_by_dest', 'preview_image_url', 'gallery_urls'],
+    columns: ['rank', 'id', 'title', 'subreddit', 'score', 'comments', 'author', 'url', 'created_utc', 'selftext', 'post_hint', 'url_overridden_by_dest', 'preview_image_url', 'gallery_urls'],
     pipeline: [
         { navigate: 'https://www.reddit.com' },
         { evaluate: `(async () => {

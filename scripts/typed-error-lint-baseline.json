@@ -819,7 +819,7 @@
     "rule": "silent-clamp",
     "command": "zhihu/collection",
     "file": "clis/zhihu/collection.js",
-    "line": 141,
+    "line": 154,
     "text": "const currentFetchLimit = Math.min(pageLimit, requestedLimit - collected.length);",
     "occurrence": 0
   },
@@ -827,7 +827,7 @@
     "rule": "silent-clamp",
     "command": "zhihu/collection",
     "file": "clis/zhihu/collection.js",
-    "line": 130,
+    "line": 143,
     "text": "const pageLimit = Math.min(requestedLimit, 20); // 知乎 API 限制每页最大 20",
     "occurrence": 0
   },
@@ -857,22 +857,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "apple-podcasts/search",
-    "file": "clis/apple-podcasts/search.js",
-    "line": 26,
-    "text": "episodes: p.trackCount ?? '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "apple-podcasts/search",
-    "file": "clis/apple-podcasts/search.js",
-    "line": 27,
-    "text": "genre: p.primaryGenreName ?? '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "bilibili/download",
     "file": "clis/bilibili/download.js",
     "line": 47,
@@ -885,22 +869,6 @@
     "file": "clis/boss/stats.js",
     "line": 39,
     "text": "const jobName = f.jobName || 'unknown';",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "gitee/search",
-    "file": "clis/gitee/search.js",
-    "line": 127,
-    "text": "description: normalizeText(getFirstText(fields.description)) || '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "gitee/search",
-    "file": "clis/gitee/search.js",
-    "line": 126,
-    "text": "language: normalizeText(getFirstText(fields.langs)) || '-',",
     "occurrence": 0
   },
   {
@@ -933,22 +901,6 @@
     "file": "clis/jimeng/history.js",
     "line": 30,
     "text": "prompt: params.prompt || item.common_attr?.title || 'N/A',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "reddit/saved",
-    "file": "clis/reddit/saved.js",
-    "line": 33,
-    "text": "title: c.data.title || c.data.body?.slice(0, 100) || '-',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "reddit/upvoted",
-    "file": "clis/reddit/upvoted.js",
-    "line": 33,
-    "text": "title: c.data.title || '-',",
     "occurrence": 0
   },
   {
