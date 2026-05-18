@@ -58,6 +58,18 @@ describe('youtube transcript source contract', () => {
         expect(transcriptSource).toContain('globalThis.fetch = originalFetch');
         expect(transcriptSource).toContain('globalThis.XMLHttpRequest = OriginalXHR');
     });
+
+    it('scopes timedtext URL matching to the current videoId in both in-page paths', () => {
+        // YouTube is an SPA — daemon-shared tabs preserve prior videos'
+        // performance.getEntriesByType('resource') across watch→watch navigations.
+        // Both findTimedtextUrl (resource buffer) and isJson3TimedtextUrl (fetch/XHR
+        // hook) must require the URL contain v=<currentVideoId>, otherwise a
+        // previously-viewed same-language video's captions can be returned.
+        expect(transcriptSource).toContain(
+            "const videoIdMarker = 'v=' + encodeURIComponent(",
+        );
+        expect(transcriptSource).toContain('url.includes(videoIdMarker)');
+    });
 });
 
 describe('youtube transcript caption fetch', () => {
@@ -113,6 +125,47 @@ describe('youtube transcript caption fetch', () => {
         expect(page.startNetworkCapture).toHaveBeenCalledWith('/api/timedtext');
         expect(page.evaluate).toHaveBeenCalledTimes(1);
         expect(rows).toEqual([{ index: 1, start: '1.00s', end: '2.50s', text: 'hello capture' }]);
+    });
+
+    it('ignores captured timedtext entries from a prior video and uses only the current videoId', async () => {
+        // Regression: opencli daemon reuses one Chrome tab across sequential
+        // youtube transcript calls. YouTube's SPA navigation between watch URLs
+        // leaves prior videos' timedtext entries in performance.getEntriesByType
+        // and (rarely) in the CDP capture buffer. Without filtering by videoId,
+        // the same-language predecessor's captions can leak into the current row.
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            startNetworkCapture: vi.fn().mockResolvedValue(undefined),
+            readNetworkCapture: vi.fn().mockResolvedValue({
+                session: 'browser:default',
+                data: [
+                    {
+                        // Stale entry from a prior watch on the shared tab — must be ignored.
+                        url: 'https://www.youtube.com/api/timedtext?v=prev&lang=en&fmt=json3&pot=token',
+                        responsePreview: JSON.stringify({
+                            events: [
+                                { tStartMs: 0, dDurationMs: 1000, segs: [{ utf8: 'WRONG video captions' }] },
+                            ],
+                        }),
+                    },
+                    {
+                        // Current video's captions.
+                        url: 'https://www.youtube.com/api/timedtext?v=abc&lang=en&fmt=json3&pot=token',
+                        responsePreview: JSON.stringify({
+                            events: [
+                                { tStartMs: 2000, dDurationMs: 1000, segs: [{ utf8: 'right captions' }] },
+                            ],
+                        }),
+                    },
+                ],
+            }),
+            evaluate: vi.fn().mockResolvedValueOnce(null),
+        };
+
+        const rows = await command.func(page, { url: 'abc', mode: 'raw', lang: 'en' });
+
+        expect(rows).toEqual([{ index: 1, start: '2.00s', end: '3.00s', text: 'right captions' }]);
     });
 
     it('does not override an existing caption format', async () => {
