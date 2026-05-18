@@ -5,6 +5,7 @@ import './connect.js';
 
 const {
     normalizeName,
+    matchInvitationName,
     canonicalizeLinkedInProfileUrl,
     canonicalizeLinkedInInviteUrl,
     unwrapEvaluateResult,
@@ -24,9 +25,27 @@ function makeFakePage(probe, sendResult = { ok: true, status: 'sent', reason: 'c
     };
 }
 
+function makeSequentialFakePage(values) {
+    let index = 0;
+    return {
+        goto: vi.fn(async () => undefined),
+        wait: vi.fn(async () => undefined),
+        evaluate: vi.fn(async (script) => {
+            const text = String(script);
+            if (text.includes('custom-message') || text.includes('invite_dialog_not_found')) return { ok: true, status: 'sent', reason: 'connection_request_sent' };
+            const value = values[Math.min(index, values.length - 1)];
+            index += 1;
+            return value;
+        }),
+    };
+}
+
 describe('linkedin connect helpers', () => {
     it('normalizes names and profile URLs', () => {
         expect(normalizeName('Jane Doe • 2nd degree connection')).toBe('jane doe');
+        expect(matchInvitationName('Jane Doe, P.Eng.', ' jane   doe ')).toBe(true);
+        expect(matchInvitationName('Jane Q. Doe', 'Jane Doe')).toBe(true);
+        expect(matchInvitationName('Janet Doe', 'Jane Doe')).toBe(false);
         expect(canonicalizeLinkedInProfileUrl('https://www.linkedin.com/in/jane/?mini=true#x'))
             .toBe('https://www.linkedin.com/in/jane/');
         expect(canonicalizeLinkedInProfileUrl('https://ca.linkedin.com/in/jane/?mini=true#x'))
@@ -63,9 +82,18 @@ describe('linkedin connect helpers', () => {
             .toBe('connect_button_not_found');
     });
 
+    it('classifies routine non-connectable profiles separately from unsafe blocks', () => {
+        expect(assessProfileSafety({ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', alreadyConnected: true }, 'Jane Doe', 'https://www.linkedin.com/in/jane/'))
+            .toMatchObject({ ok: false, safety: 'routine_non_connectable', connectable: false, blockReason: 'already_connected' });
+        expect(assessProfileSafety({ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', pending: true }, 'Jane Doe', 'https://www.linkedin.com/in/jane/'))
+            .toMatchObject({ ok: false, safety: 'routine_non_connectable', connectable: false, blockReason: 'connection_pending' });
+        expect(assessProfileSafety({ name: 'Wrong Person', url: 'https://www.linkedin.com/in/wrong/', connectAvailable: true }, 'Jane Doe', 'https://www.linkedin.com/in/jane/'))
+            .toMatchObject({ ok: false, safety: 'unsafe_block', connectable: null, blockReason: 'profile_name_mismatch' });
+    });
+
     it('passes only when profile url, name, and connect affordance all match', () => {
         const result = assessProfileSafety({ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/?mini=true', connectAvailable: true }, 'Jane Doe', 'https://www.linkedin.com/in/jane/');
-        expect(result).toMatchObject({ ok: true, blockReason: 'verified', actualValue: 'Jane Doe' });
+        expect(result).toMatchObject({ ok: true, blockReason: 'verified', actualValue: 'Jane Doe', connectable: true });
     });
 });
 
@@ -80,8 +108,19 @@ describe('linkedin connect command', () => {
             'expected-name': 'Jane Doe',
             note: 'quick note',
         });
-        expect(rows[0]).toMatchObject({ status: 'verified_dry_run', recipient: 'Jane Doe', reason: 'verified' });
+        expect(rows[0]).toMatchObject({ status: 'connectable_dry_run', recipient: 'Jane Doe', reason: 'verified', connectable: true });
         expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns a clean not_connectable dry-run row for routine blocked states', async () => {
+        const command = getRegistry().get('linkedin/connect');
+        const page = makeFakePage({ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', alreadyConnected: true, buttonLabels: ['Message'] });
+        const rows = await command.func(page, {
+            'profile-url': 'https://www.linkedin.com/in/jane/',
+            'expected-name': 'Jane Doe',
+            note: 'quick note',
+        });
+        expect(rows[0]).toMatchObject({ status: 'not_connectable', recipient: 'Jane Doe', reason: 'already_connected', connectable: false });
     });
 
     it('does not send when recipient verification fails', async () => {
@@ -119,16 +158,56 @@ describe('linkedin connect command', () => {
         })).rejects.toThrow('invalid_connect_link');
     });
 
-    it('sends only when --send is true after verification', async () => {
+    it('sends only when --send is true after verification and sent-invitations confirms delivery', async () => {
         const command = getRegistry().get('linkedin/connect');
-        const page = makeFakePage({ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: true, connectHref: '/preload/custom-invite/?vanityName=jane', buttonLabels: ['Connect'] });
+        const page = makeSequentialFakePage([
+            { name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: true, connectHref: '/preload/custom-invite/?vanityName=jane', buttonLabels: ['Connect'] },
+            { found: true, matchedName: 'Jane Doe', matchedUrl: 'https://www.linkedin.com/in/jane/' },
+        ]);
         const rows = await command.func(page, {
             'profile-url': 'https://www.linkedin.com/in/jane/',
             'expected-name': 'Jane Doe',
             note: 'quick note',
             send: true,
         });
-        expect(rows[0]).toMatchObject({ status: 'sent', recipient: 'Jane Doe', reason: 'connection_request_sent' });
-        expect(page.evaluate).toHaveBeenCalledTimes(3);
+        expect(rows[0]).toMatchObject({ status: 'sent_verified', recipient: 'Jane Doe', reason: 'sent_invitation_verified', delivery_verified: true });
+        expect(page.goto).toHaveBeenCalledWith('https://www.linkedin.com/mynetwork/invitation-manager/sent/');
+    });
+
+    it('retries sent-invitations verification before reporting unverified', async () => {
+        const command = getRegistry().get('linkedin/connect');
+        const page = makeSequentialFakePage([
+            { name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: true, connectHref: '/preload/custom-invite/?vanityName=jane', buttonLabels: ['Connect'] },
+            { found: false, matchedName: '', matchedUrl: '', visibleNames: ['Other Person'] },
+            { found: false, matchedName: '', matchedUrl: '', visibleNames: ['Other Person'] },
+            { found: true, matchedName: 'Jane Doe, P.Eng.', matchedUrl: '' },
+        ]);
+        const rows = await command.func(page, {
+            'profile-url': 'https://www.linkedin.com/in/jane/',
+            'expected-name': 'Jane Doe',
+            note: 'quick note',
+            send: true,
+        });
+        expect(rows[0]).toMatchObject({ status: 'sent_verified', recipient: 'Jane Doe', reason: 'sent_invitation_verified', delivery_verified: true, matched_invitation_name: 'Jane Doe, P.Eng.' });
+        expect(page.goto).toHaveBeenCalledWith('https://www.linkedin.com/mynetwork/invitation-manager/sent/');
+        expect(page.evaluate).toHaveBeenCalledTimes(5);
+    });
+
+    it('does not report sent when sent-invitations verification fails after retries', async () => {
+        const command = getRegistry().get('linkedin/connect');
+        const page = makeSequentialFakePage([
+            { name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: true, connectHref: '/preload/custom-invite/?vanityName=jane', buttonLabels: ['Connect'] },
+            { found: false, matchedName: '', matchedUrl: '' },
+            { found: false, matchedName: '', matchedUrl: '' },
+            { found: false, matchedName: '', matchedUrl: '' },
+        ]);
+        const rows = await command.func(page, {
+            'profile-url': 'https://www.linkedin.com/in/jane/',
+            'expected-name': 'Jane Doe',
+            note: 'quick note',
+            send: true,
+        });
+        expect(rows[0]).toMatchObject({ status: 'send_unverified', recipient: 'Jane Doe', reason: 'sent_invitation_not_found_after_retries', delivery_verified: false });
+        expect(page.evaluate).toHaveBeenCalledTimes(5);
     });
 });
