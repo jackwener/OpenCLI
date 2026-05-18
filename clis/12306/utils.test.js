@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './utils.js';
 import { __test__ as priceTest } from './price.js';
+import { __test__ as trainTest } from './train.js';
 import './orders.js';
 
 const { parseStationBundle, resolveStation, validateDate, buildCookieHeader, parseTrainRecord, maskEmail, maskMobile, maskChineseName, unwrapEvaluateResult, requireEvaluateObject, isAuthLikePayload } = __test__;
-const { parsePriceData } = priceTest;
+const { parsePriceData, queryStopsForPrice, queryPrice } = priceTest;
+const { queryStops } = trainTest;
 
 describe('12306 utils - parseStationBundle', () => {
     it('parses the `@`-delimited station bundle into structured records', () => {
@@ -227,6 +229,27 @@ describe('12306 price - parsePriceData', () => {
     });
 });
 
+describe('12306 public API typed boundaries', () => {
+    const nonJsonFetch = async () => ({
+        ok: true,
+        json: async () => {
+            throw new SyntaxError('Unexpected token <');
+        },
+    });
+
+    it('wraps non-JSON train stop bodies as CommandExecutionError', async () => {
+        await expect(queryStops('cookie=1', '24000000G10L', 'BJP', 'AOH', '2026-05-22', nonJsonFetch))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('wraps non-JSON price helper bodies as CommandExecutionError', async () => {
+        await expect(queryStopsForPrice('cookie=1', '24000000G10L', 'BJP', 'AOH', '2026-05-22', nonJsonFetch))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(queryPrice('cookie=1', '24000000G10L', '01', '02', 'OM9', '2026-05-22', nonJsonFetch))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+});
+
 describe('12306 browser evaluate boundaries', () => {
     it('unwraps Browser Bridge {session,data} evaluate envelopes only at the boundary', () => {
         expect(unwrapEvaluateResult({ session: 's1', data: 'JSESSIONID=1; tk=2' })).toBe('JSESSIONID=1; tk=2');
@@ -288,5 +311,21 @@ describe('12306 browser evaluate boundaries', () => {
         };
 
         await expect(command.func(page, {})).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('treats missing order list shape as parser drift but known empty arrays as empty result', async () => {
+        const command = getRegistry().get('12306/orders');
+        const makePage = (payload) => ({
+            goto: async () => {},
+            evaluate: async (script) => {
+                if (script === "document.cookie || ''") return 'JSESSIONID=abc; tk=def';
+                return payload;
+            },
+        });
+
+        await expect(command.func(makePage({ status: true, data: {} }), {}))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(command.func(makePage({ status: true, data: { orderDBList: [] } }), {}))
+            .rejects.toBeInstanceOf(EmptyResultError);
     });
 });

@@ -58,11 +58,18 @@ cli({
         if (json?.status !== true) {
             throw new CommandExecutionError('12306 queryMyOrderNoComplete returned a failure status');
         }
-        const orders = Array.isArray(json?.data?.orderDBList) ? json.data.orderDBList
-            : Array.isArray(json?.data?.orderDTODataList) ? json.data.orderDTODataList
-            : Array.isArray(json?.data?.orders) ? json.data.orders
-            : Array.isArray(json?.data) ? json.data
-            : [];
+        let orders;
+        if (Array.isArray(json?.data?.orderDBList)) {
+            orders = json.data.orderDBList;
+        } else if (Array.isArray(json?.data?.orderDTODataList)) {
+            orders = json.data.orderDTODataList;
+        } else if (Array.isArray(json?.data?.orders)) {
+            orders = json.data.orders;
+        } else if (Array.isArray(json?.data)) {
+            orders = json.data;
+        } else {
+            throw new CommandExecutionError('12306 queryMyOrderNoComplete payload missing order list array');
+        }
         if (orders.length === 0) {
             throw new EmptyResultError('No in-progress 12306 orders on this account');
         }

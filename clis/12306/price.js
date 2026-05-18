@@ -30,9 +30,9 @@ const SEAT_LETTERS = {
     'WZ': '无座',
 };
 
-async function queryStopsForPrice(cookieHeader, trainNo, fromCode, toCode, date) {
+async function queryStopsForPrice(cookieHeader, trainNo, fromCode, toCode, date, fetchImpl = fetch) {
     const url = `https://kyfw.12306.cn/otn/czxx/queryByTrainNo?train_no=${trainNo}&from_station_telecode=${fromCode}&to_station_telecode=${toCode}&depart_date=${date}`;
-    const resp = await fetch(url, {
+    const resp = await fetchImpl(url, {
         headers: {
             'User-Agent': UA,
             'Referer': 'https://kyfw.12306.cn/otn/leftTicket/init',
@@ -40,7 +40,12 @@ async function queryStopsForPrice(cookieHeader, trainNo, fromCode, toCode, date)
         },
     });
     if (!resp.ok) throw new CommandExecutionError(`12306 queryByTrainNo returned HTTP ${resp.status}`);
-    const json = await resp.json();
+    let json;
+    try {
+        json = await resp.json();
+    } catch {
+        throw new CommandExecutionError('12306 queryByTrainNo returned non-JSON body');
+    }
     if (json?.status !== true || !Array.isArray(json?.data?.data)) {
         throw new CommandExecutionError('12306 queryByTrainNo returned an unexpected payload shape');
     }
@@ -56,9 +61,9 @@ function pickStationNos(stops, fromCode, toCode, fromName, toName) {
     return { fromNo: fromStop.station_no, toNo: toStop.station_no };
 }
 
-async function queryPrice(cookieHeader, trainNo, fromNo, toNo, seatTypes, date) {
+async function queryPrice(cookieHeader, trainNo, fromNo, toNo, seatTypes, date, fetchImpl = fetch) {
     const url = `https://kyfw.12306.cn/otn/leftTicket/queryTicketPrice?train_no=${trainNo}&from_station_no=${fromNo}&to_station_no=${toNo}&seat_types=${seatTypes}&train_date=${date}`;
-    const resp = await fetch(url, {
+    const resp = await fetchImpl(url, {
         headers: {
             'User-Agent': UA,
             'Referer': 'https://kyfw.12306.cn/otn/leftTicket/init',
@@ -66,7 +71,12 @@ async function queryPrice(cookieHeader, trainNo, fromNo, toNo, seatTypes, date) 
         },
     });
     if (!resp.ok) throw new CommandExecutionError(`12306 queryTicketPrice returned HTTP ${resp.status}`);
-    const json = await resp.json();
+    let json;
+    try {
+        json = await resp.json();
+    } catch {
+        throw new CommandExecutionError('12306 queryTicketPrice returned non-JSON body');
+    }
     if (json?.status !== true || !json?.data) {
         throw new CommandExecutionError('12306 queryTicketPrice returned an unexpected payload shape');
     }
@@ -153,4 +163,4 @@ cli({
     },
 });
 
-export const __test__ = { parsePriceData, pickStationNos, SEAT_LETTERS };
+export const __test__ = { parsePriceData, pickStationNos, queryStopsForPrice, queryPrice, SEAT_LETTERS };
