@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import { extractXhsUserNotes, normalizeXhsUserId } from './user-helpers.js';
 /**
  * Host-agnostic IIFE that snapshots the user profile's Pinia store. Exported
@@ -56,7 +57,10 @@ export const command = cli({
             previousCount = nextResults.length;
         }
         if (results.length === 0) {
-            throw new Error('No public notes found for this Xiaohongshu user.');
+            // 与 bilibili subtitle 同模式：作者无公开内容是合法 empty 数据条件
+            // （销号 / 私密号 / 全删笔记），不是 fetch 失败。下游应识别 code
+            // EMPTY_RESULT 跳过 rate-limit 启发式、不计入 softFail 阈值。
+            throw new EmptyResultError('xiaohongshu user', '该用户没有公开笔记（可能销号 / 私密 / 全部删除）。');
         }
         return results.slice(0, limit);
     },
