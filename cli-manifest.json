@@ -22236,6 +22236,229 @@
     "sourceFile": "substack/search.js"
   },
   {
+    "site": "suno",
+    "name": "download",
+    "description": "Download an existing Suno clip (MP3 + optional WAV/M4A/video) by id",
+    "access": "write",
+    "domain": "suno.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "clip",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Clip UUID or https://suno.com/song/<id> URL"
+      },
+      {
+        "name": "formats",
+        "type": "str",
+        "required": false,
+        "help": "Comma-separated formats: mp3, m4a, wav, video, cover, metadata. Default: mp3,metadata"
+      },
+      {
+        "name": "op",
+        "type": "str",
+        "required": false,
+        "help": "Output directory (default: ~/Music/suno)"
+      },
+      {
+        "name": "confirm-paid",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Required to allow paid downloads (wav). Without it, paid formats are skipped with a warning."
+      }
+    ],
+    "columns": [
+      "status",
+      "clip",
+      "title",
+      "files",
+      "link"
+    ],
+    "defaultFormat": "plain",
+    "type": "js",
+    "modulePath": "suno/download.js",
+    "sourceFile": "suno/download.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "suno",
+    "name": "generate",
+    "description": "Generate music with Suno (V5.5 chirp-fenix by default) and download clips locally",
+    "access": "write",
+    "domain": "suno.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Simple-mode description (ignored when --lyrics is provided)"
+      },
+      {
+        "name": "lyrics",
+        "type": "str",
+        "required": false,
+        "help": "Custom-mode lyrics (with [Verse]/[Chorus] metatags). Triggers Custom mode."
+      },
+      {
+        "name": "tags",
+        "type": "str",
+        "required": false,
+        "help": "Custom-mode style tags (genre, BPM, instruments...). Used with --lyrics."
+      },
+      {
+        "name": "negative-tags",
+        "type": "str",
+        "required": false,
+        "help": "Custom-mode style exclusions (e.g. \"no vocals, no autotune\"). Used with --lyrics."
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": false,
+        "help": "Song title (default: auto-derived from prompt)"
+      },
+      {
+        "name": "instrumental",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "No vocals"
+      },
+      {
+        "name": "model",
+        "type": "str",
+        "required": false,
+        "help": "Model id: chirp-fenix, chirp-bluejay, chirp-v4, chirp-v3-5. Default: chirp-fenix"
+      },
+      {
+        "name": "weirdness",
+        "type": "str",
+        "required": false,
+        "help": "Creative weirdness slider (0..1). Default: 0.5"
+      },
+      {
+        "name": "style-weight",
+        "type": "str",
+        "required": false,
+        "help": "Style adherence slider (0..1). Default: 0.5"
+      },
+      {
+        "name": "formats",
+        "type": "str",
+        "required": false,
+        "help": "Comma-separated download formats: mp3, m4a, wav, video, cover, metadata. Default: mp3,metadata"
+      },
+      {
+        "name": "op",
+        "type": "str",
+        "required": false,
+        "help": "Output directory (default: ~/Music/suno)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Max seconds to wait for clips to finish (default: 300)"
+      },
+      {
+        "name": "sd",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Skip download; only print clip ids and Suno URLs"
+      },
+      {
+        "name": "confirm-paid",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Required to allow paid downloads (wav). Without it, paid formats are skipped with a warning."
+      }
+    ],
+    "columns": [
+      "status",
+      "clip",
+      "title",
+      "files",
+      "link"
+    ],
+    "defaultFormat": "plain",
+    "type": "js",
+    "modulePath": "suno/generate.js",
+    "sourceFile": "suno/generate.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "suno",
+    "name": "list",
+    "description": "List recent Suno clips in your library (id, title, status, created_at, link)",
+    "access": "read",
+    "domain": "suno.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max clips to list (default: 20)"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset, 0-based (default: 0)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "clip",
+      "title",
+      "status",
+      "created",
+      "link"
+    ],
+    "type": "js",
+    "modulePath": "suno/list.js",
+    "sourceFile": "suno/list.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "suno",
+    "name": "status",
+    "description": "Check Suno login, plan, credit balance, and captcha readiness",
+    "access": "read",
+    "domain": "suno.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Plan",
+      "Credits",
+      "Monthly",
+      "Captcha"
+    ],
+    "type": "js",
+    "modulePath": "suno/status.js",
+    "sourceFile": "suno/status.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
     "site": "taobao",
     "name": "add-cart",
     "description": "淘宝加入购物车",
