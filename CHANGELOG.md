@@ -8,6 +8,7 @@
 
 ### Bug Fixes
 
+* **youtube/transcript** — scope timedtext URL matching to the current `videoId` across the in-page resource-buffer scan (`findTimedtextUrl`), the in-page fetch/XHR hook (`isJson3TimedtextUrl`), and the Node-side CDP capture (`extractSegmentsFromNetworkCapture`). Previously, SPA-style watch→watch navigation kept stale timedtext URLs from prior videos in `performance.getEntriesByType('resource')`, letting the polling loop fetch a same-language predecessor's captions and return them as the current video's transcript. Most likely to hit callers that reuse a single daemon tab to fetch many transcripts back-to-back (e.g. ml-scout).
 * **adapters** — surface the remaining `silent-empty-fallback` adapter failures as typed errors. Douyin user video comment fetch failures, Jike SSR JSON parse failures, and WeRead search-page fetch failures now throw `CommandExecutionError`; true empty Douyin/Jike/WeRead result sets now throw `EmptyResultError`.
 * **browser** — recover `Page.goto()` from stale page identities by clearing the cached targetId and retrying navigation once through the session lease; classify CDP `-32000 Cannot find default execution context` as retryable target navigation.
 * **download** — keep custom media filenames inside the requested output directory by stripping path components and sanitizing generated fallback names.
