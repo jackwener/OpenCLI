@@ -14527,6 +14527,75 @@
   },
   {
     "site": "linkedin",
+    "name": "salesnav-message",
+    "description": "Send or dry-run a LinkedIn Sales Navigator InMail to a lead using the Sales Navigator messaging API",
+    "access": "write",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "recipient",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Sales Navigator lead URL, LinkedIn /in/ URL from salesnav-search, or urn:li:fs_salesProfile:(...)"
+      },
+      {
+        "name": "subject",
+        "type": "string",
+        "required": true,
+        "help": "InMail subject"
+      },
+      {
+        "name": "body",
+        "type": "string",
+        "required": true,
+        "help": "InMail body"
+      },
+      {
+        "name": "send",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually send the InMail. Default is dry-run validation only."
+      },
+      {
+        "name": "copy-to-crm",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Set Sales Navigator copyToCrm on the message request"
+      }
+    ],
+    "columns": [
+      "status",
+      "recipient",
+      "title",
+      "company",
+      "credits_remaining",
+      "credits_before",
+      "credits_after",
+      "sent_in_salesnav",
+      "message_chars",
+      "subject_chars",
+      "recipient_urn",
+      "authRequired",
+      "text",
+      "degree",
+      "inmail_restriction",
+      "open_link",
+      "json",
+      "href",
+      "resourceUrns"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/salesnav-message.js",
+    "sourceFile": "linkedin/salesnav-message.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
     "name": "search",
     "description": "Search LinkedIn jobs",
     "access": "read",
