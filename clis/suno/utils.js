@@ -154,10 +154,15 @@ export async function ensureSunoSession(page) {
     const deviceId = await getSunoDeviceId(page);
     const result = unwrapEvaluateResult(await page.evaluate(`(async () => {
         try {
-            if (!window.Clerk?.session) return { ok: false, error: 'Clerk session unavailable' };
+            if (!window.Clerk?.session) return { ok: false, auth: true, error: 'Clerk session unavailable' };
             const res = await fetch('${STUDIO_API}/api/billing/info/', { headers: ${sunoHeadersJs(deviceId)} });
             if (!res.ok) return { ok: false, status: res.status, body: (await res.text()).slice(0, 300) };
-            const data = await res.json();
+            let data = null;
+            try {
+                data = await res.json();
+            } catch (e) {
+                return { ok: false, error: 'Malformed billing/info JSON: ' + String(e).slice(0, 200) };
+            }
             // Suno tracks credits across three buckets:
             //   - data.credits          : leftover one-time pack credits (often 0)
             //   - monthly subscription  : (monthly_limit - monthly_usage)
@@ -185,7 +190,11 @@ export async function ensureSunoSession(page) {
     })()`));
 
     if (!result || !result.ok) {
-        throw new AuthRequiredError(SUNO_DOMAIN, `Suno session check failed (${result?.status || result?.error || 'unknown'}). Open https://suno.com in Chrome and sign in, then retry.`);
+        const detail = result?.status || result?.error || 'unknown';
+        if (result?.auth || result?.status === 401 || result?.status === 403) {
+            throw new AuthRequiredError(SUNO_DOMAIN, `Suno session check failed (${detail}). Open https://suno.com in Chrome and sign in, then retry.`);
+        }
+        throw new CommandExecutionError(`Suno session check failed (${detail}).`);
     }
     if (!result.planId) {
         throw new CommandExecutionError('Suno billing/info returned no plan id — cannot construct user_tier for generation request.');

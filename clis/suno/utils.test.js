@@ -1,7 +1,7 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     DEFAULT_FORMATS,
     SUPPORTED_FORMATS,
@@ -15,6 +15,7 @@ import {
     sanitizeTitleForFilename,
     unwrapEvaluateResult,
     pollSunoClips,
+    ensureSunoSession,
 } from './utils.js';
 
 describe('suno utils — parseFormats', () => {
@@ -156,6 +157,38 @@ describe('suno utils — unwrapEvaluateResult', () => {
         const payload = { ok: true, clips: [] };
         expect(unwrapEvaluateResult({ session: 'browser:default', data: payload })).toBe(payload);
         expect(unwrapEvaluateResult(payload)).toBe(payload);
+    });
+});
+
+describe('suno utils — ensureSunoSession typed failures', () => {
+    function createSessionPage(sessionCheckResult) {
+        const evaluate = async (script) => {
+            if (script.includes('querySelectorAll')) return undefined;
+            if (script.includes('!!(window.Clerk && window.Clerk.session)')) return true;
+            if (script.includes('suno_device_id')) return 'device-id';
+            if (script.includes('/api/billing/info/')) return sessionCheckResult;
+            throw new Error(`unexpected evaluate script: ${script.slice(0, 80)}`);
+        };
+        return {
+            goto: async () => undefined,
+            wait: async () => undefined,
+            evaluate,
+        };
+    }
+
+    it('maps explicit logged-out session state to AuthRequiredError', async () => {
+        await expect(ensureSunoSession(createSessionPage({
+            ok: false,
+            auth: true,
+            error: 'Clerk session unavailable',
+        }))).rejects.toThrowError(AuthRequiredError);
+    });
+
+    it('does not classify billing/parser drift as logged out', async () => {
+        await expect(ensureSunoSession(createSessionPage({
+            ok: false,
+            error: 'Malformed billing/info JSON: Unexpected token <',
+        }))).rejects.toThrowError(CommandExecutionError);
     });
 });
 
