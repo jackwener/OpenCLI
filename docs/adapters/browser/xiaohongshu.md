@@ -14,6 +14,7 @@
 | `opencli xiaohongshu user` | Get public notes from a user profile |
 | `opencli xiaohongshu download` | Download images and videos from a note |
 | `opencli xiaohongshu publish` | Publish image-text notes (creator center UI automation) |
+| `opencli xiaohongshu delete-note` | Verify or delete a published creator-center note by exact note ID |
 | `opencli xiaohongshu creator-notes` | Creator's note list with per-note metrics |
 | `opencli xiaohongshu creator-note-detail` | Detailed analytics for a single creator note |
 | `opencli xiaohongshu creator-notes-summary` | Combined note list + detail analytics summary |
@@ -40,9 +41,16 @@ opencli xiaohongshu feed
 opencli xiaohongshu notifications
 opencli xiaohongshu download "https://www.xiaohongshu.com/search_result/<id>?xsec_token=..."
 opencli xiaohongshu download "https://xhslink.com/..."
+
+# Verify a published creator note without deleting it (default dry-run)
+opencli xiaohongshu delete-note 6a08ba0b000000000702a893
+
+# Actually delete after the target row and delete action are verified
+opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 ```
 
 > Note: `note` and `comments` now require a full signed note URL with `xsec_token`. `download` accepts either a signed note URL or an `xhslink` short link. Bare note IDs are no longer reliable on xiaohongshu.
+> `delete-note` operates in creator center and accepts a 24-character note ID or exact Xiaohongshu note URL; it defaults to dry-run verification and only deletes with `--execute`.
 
 ## Prerequisites
 

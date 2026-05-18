@@ -13,67 +13,56 @@
  * Requires: logged into creator.xiaohongshu.com in Chrome.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 const NOTE_MANAGER_URL = 'https://creator.xiaohongshu.com/new/note-manager';
 const ROW_SETTLE_MS = 3000;
 const MODAL_SETTLE_MS = 2000;
 const VERIFY_TIMEOUT_MS = 10_000;
 const VERIFY_POLL_MS = 1000;
-cli({
-    site: 'xiaohongshu',
-    name: 'delete-note',
-    access: 'write',
-    description: '删除小红书已发布笔记 (creator center UI automation)',
-    domain: 'creator.xiaohongshu.com',
-    strategy: Strategy.COOKIE,
-    navigateBefore: false,
-    browser: true,
-    args: [
-        {
-            name: 'note-id',
-            required: true,
-            positional: true,
-            help: 'Note ID (e.g. 6a08ba0b000000000702a893 from xiaohongshu creator-notes / URL)',
-        },
-    ],
-    columns: ['status', 'note_id'],
-    func: async (page, kwargs) => {
-        const noteId = String(kwargs['note-id'] ?? '').trim();
-        if (!noteId) {
-            throw new ArgumentError('xiaohongshu/delete-note: note-id cannot be empty');
-        }
-        await page.goto(NOTE_MANAGER_URL);
-        await page.wait({ time: ROW_SETTLE_MS / 1000 });
-        // Detect login redirect (creator.xiaohongshu.com bounces to /login on auth failure)
-        const currentUrl = await page.evaluate('() => location.href');
-        if (typeof currentUrl === 'string' && /\/login(\?|$)/i.test(currentUrl)) {
-            throw new AuthRequiredError('creator.xiaohongshu.com');
-        }
-        // Step 1: ensure 已发布 tab is active (delete only exposed there).
-        const tabClicked = await page.evaluate(`
-      () => {
-        const isVisible = (el) => !!el && el.offsetParent !== null;
-        for (const el of document.querySelectorAll('a, button, [role="tab"], div')) {
-          const text = (el.innerText || el.textContent || '').trim();
-          if (text === '已发布' && isVisible(el)) {
-            el.click();
-            return true;
-          }
-        }
-        return false;
-      }
-    `);
-        if (!tabClicked) {
-            throw new CommandExecutionError('xiaohongshu/delete-note: 已发布 tab not found on note-manager; xhs creator UI may have changed.');
-        }
-        await page.wait({ time: ROW_SETTLE_MS / 1000 });
-        // Step 2: locate the .note row whose data-impression JSON carries the
-        // exact `noteId` field, and click its `<span class="control data-del">`
-        // action. Substring matching on the raw attribute would risk matching
-        // unrelated fields whose values happen to share the noteId prefix, so
-        // parse the JSON and compare `noteTarget.value.noteId` explicitly.
-        const initResult = await page.evaluate(`
-      (targetId => {
+const NOTE_ID_RE = /^[0-9a-f]{24}$/i;
+function unwrapEvaluateResult(payload) {
+    if (payload && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
+        return payload.data;
+    }
+    return payload;
+}
+function isXiaohongshuHost(hostname) {
+    const host = String(hostname || '').toLowerCase();
+    return host === 'xiaohongshu.com' || host.endsWith('.xiaohongshu.com');
+}
+function normalizeNoteId(input) {
+    const raw = String(input ?? '').trim();
+    if (!raw) {
+        throw new ArgumentError('xiaohongshu/delete-note: note-id cannot be empty');
+    }
+    if (NOTE_ID_RE.test(raw))
+        return raw.toLowerCase();
+    if (!/^https:\/\//i.test(raw)) {
+        throw new ArgumentError('xiaohongshu/delete-note: note-id must be a 24-character Xiaohongshu note ID or an exact Xiaohongshu note URL');
+    }
+    let url;
+    try {
+        url = new URL(raw);
+    }
+    catch {
+        throw new ArgumentError('xiaohongshu/delete-note: invalid note URL');
+    }
+    if (url.protocol !== 'https:' || url.username || url.password || url.port || !isXiaohongshuHost(url.hostname)) {
+        throw new ArgumentError('xiaohongshu/delete-note: note URL must be an exact https://*.xiaohongshu.com URL');
+    }
+    const queryId = url.searchParams.get('noteId') || url.searchParams.get('note_id');
+    if (queryId && NOTE_ID_RE.test(queryId))
+        return queryId.toLowerCase();
+    const pathMatch = url.pathname.match(/^\/(?:explore|note|search_result|discovery\/item)\/([0-9a-f]{24})\/?$/i)
+        || url.pathname.match(/^\/user\/profile\/[^/?#]+\/([0-9a-f]{24})\/?$/i);
+    if (pathMatch)
+        return pathMatch[1].toLowerCase();
+    throw new ArgumentError('xiaohongshu/delete-note: note URL must contain a 24-character note ID');
+}
+function buildLocateAndMaybeDeleteScript(noteId, shouldClick) {
+    return `
+      (cfg => {
+        const { targetId, shouldClick } = cfg;
         const isVisible = (el) => !!el && el.offsetParent !== null;
         const matchesNoteId = (impressionRaw) => {
           if (!impressionRaw) return false;
@@ -92,48 +81,19 @@ cli({
             if (!del || !isVisible(del)) {
               return { ok: false, kind: 'no_delete_action', visibleRows: notes.length };
             }
+            if (!shouldClick) {
+              return { ok: true, clicked: false };
+            }
             del.click();
-            return { ok: true };
+            return { ok: true, clicked: true };
           }
         }
         return { ok: false, kind: 'not_found', visibleRows: notes.length };
-      })(${JSON.stringify(noteId)})
-    `);
-        if (!initResult?.ok) {
-            if (initResult?.kind === 'not_found') {
-                throw new EmptyResultError('xiaohongshu/delete-note', `Note ${noteId} not visible in the 已发布 tab. Verify the note belongs to the logged-in account and has cleared review (审核中 / 未通过 rows have no web delete entry).`);
-            }
-            if (initResult?.kind === 'no_delete_action') {
-                throw new CommandExecutionError(`xiaohongshu/delete-note: note ${noteId} row found but no delete action visible; xhs creator UI may have changed.`);
-            }
-            throw new CommandExecutionError('xiaohongshu/delete-note: failed to locate note row');
-        }
-        await page.wait({ time: MODAL_SETTLE_MS / 1000 });
-        // Step 3: click "确定" in the `.d-modal-footer` confirmation modal.
-        const confirmResult = await page.evaluate(`
-      () => {
-        const isVisible = (el) => !!el && el.offsetParent !== null;
-        const footer = Array.from(document.querySelectorAll('.d-modal-footer')).find(isVisible);
-        if (!footer) return { ok: false, kind: 'no_modal' };
-        const buttons = Array.from(footer.querySelectorAll('button, [role="button"]')).filter(isVisible);
-        const confirmBtn = buttons.find((b) => (b.innerText || b.textContent || '').trim() === '确定');
-        if (!confirmBtn) return { ok: false, kind: 'no_confirm', labels: buttons.map(b => (b.innerText || '').trim()) };
-        confirmBtn.click();
-        return { ok: true };
-      }
-    `);
-        if (!confirmResult?.ok) {
-            throw new CommandExecutionError(`xiaohongshu delete-note: confirmation modal step failed (${confirmResult?.kind ?? 'unknown'})`);
-        }
-        // Step 4: poll for row removal (proves the delete actually committed,
-        // not just the modal was clicked). Iteration-bounded rather than
-        // wall-clock so tests with a mocked `page.wait` exhaust the loop
-        // quickly instead of stalling on real time.
-        const VERIFY_ITERATIONS = Math.ceil(VERIFY_TIMEOUT_MS / VERIFY_POLL_MS);
-        let stillPresent = true;
-        for (let i = 0; i < VERIFY_ITERATIONS; i++) {
-            await page.wait({ time: VERIFY_POLL_MS / 1000 });
-            const probe = await page.evaluate(`
+      })(${JSON.stringify({ targetId: noteId, shouldClick })})
+    `;
+}
+function buildVerifyGoneScript(noteId) {
+    return `
         (targetId => {
           const matchesNoteId = (impressionRaw) => {
             if (!impressionRaw) return false;
@@ -148,15 +108,124 @@ cli({
           const notes = Array.from(document.querySelectorAll('.note'));
           return notes.some((n) => matchesNoteId(n.getAttribute('data-impression')));
         })(${JSON.stringify(noteId)})
-      `);
-            if (probe === false) {
-                stillPresent = false;
-                break;
+      `;
+}
+cli({
+    site: 'xiaohongshu',
+    name: 'delete-note',
+    access: 'write',
+    description: '删除小红书已发布笔记 (creator center UI automation)',
+    domain: 'creator.xiaohongshu.com',
+    strategy: Strategy.COOKIE,
+    navigateBefore: false,
+    browser: true,
+    args: [
+        {
+            name: 'note-id',
+            required: true,
+            positional: true,
+            help: 'Note ID (e.g. 6a08ba0b000000000702a893 from xiaohongshu creator-notes / URL)',
+        },
+        {
+            name: 'execute',
+            type: 'boolean',
+            default: false,
+            help: 'Actually click delete + confirm. Default is dry-run target verification only.',
+        },
+    ],
+    columns: ['status', 'note_id', 'message'],
+    func: async (page, kwargs) => {
+        try {
+            const noteId = normalizeNoteId(kwargs['note-id']);
+            const execute = kwargs.execute === true;
+            await page.goto(NOTE_MANAGER_URL);
+            await page.wait({ time: ROW_SETTLE_MS / 1000 });
+            // Detect login redirect (creator.xiaohongshu.com bounces to /login on auth failure)
+            const currentUrl = unwrapEvaluateResult(await page.evaluate('() => location.href'));
+            if (typeof currentUrl === 'string' && /\/login(?:[/?#]|$)/i.test(new URL(currentUrl).pathname + new URL(currentUrl).search)) {
+                throw new AuthRequiredError('creator.xiaohongshu.com');
             }
+            // Step 1: ensure 已发布 tab is active (delete only exposed there).
+            const tabClicked = unwrapEvaluateResult(await page.evaluate(`
+      () => {
+        const isVisible = (el) => !!el && el.offsetParent !== null;
+        for (const el of document.querySelectorAll('a, button, [role="tab"], div')) {
+          const text = (el.innerText || el.textContent || '').trim();
+          if (text === '已发布' && isVisible(el)) {
+            el.click();
+            return true;
+          }
         }
-        if (stillPresent) {
-            throw new CommandExecutionError(`xiaohongshu/delete-note: note ${noteId} still visible after confirm click; deletion may not have committed.`);
+        return false;
+      }
+    `));
+            if (!tabClicked) {
+                throw new CommandExecutionError('xiaohongshu/delete-note: 已发布 tab not found on note-manager; xhs creator UI may have changed.');
+            }
+            await page.wait({ time: ROW_SETTLE_MS / 1000 });
+            // Step 2: locate the .note row whose data-impression JSON carries the
+            // exact `noteId` field. Dry-run stops here; execute clicks delete.
+            // Substring matching on the raw attribute would risk matching unrelated
+            // fields whose values happen to share the noteId prefix, so parse the JSON
+            // and compare `noteTarget.value.noteId` explicitly.
+            const initResult = unwrapEvaluateResult(await page.evaluate(buildLocateAndMaybeDeleteScript(noteId, execute)));
+            if (!initResult?.ok) {
+                if (initResult?.kind === 'not_found') {
+                    throw new EmptyResultError('xiaohongshu/delete-note', `Note ${noteId} not visible in the 已发布 tab. Verify the note belongs to the logged-in account and has cleared review (审核中 / 未通过 rows have no web delete entry).`);
+                }
+                if (initResult?.kind === 'no_delete_action') {
+                    throw new CommandExecutionError(`xiaohongshu/delete-note: note ${noteId} row found but no delete action visible; xhs creator UI may have changed.`);
+                }
+                throw new CommandExecutionError('xiaohongshu/delete-note: failed to locate note row');
+            }
+            if (!execute) {
+                return [{ status: 'dry-run', note_id: noteId, message: 'Target note row and delete action verified. Re-run with --execute to delete.' }];
+            }
+            await page.wait({ time: MODAL_SETTLE_MS / 1000 });
+            // Step 3: click "确定" in the `.d-modal-footer` confirmation modal.
+            const confirmResult = unwrapEvaluateResult(await page.evaluate(`
+      () => {
+        const isVisible = (el) => !!el && el.offsetParent !== null;
+        const footer = Array.from(document.querySelectorAll('.d-modal-footer')).find(isVisible);
+        if (!footer) return { ok: false, kind: 'no_modal' };
+        const buttons = Array.from(footer.querySelectorAll('button, [role="button"]')).filter(isVisible);
+        const confirmBtn = buttons.find((b) => (b.innerText || b.textContent || '').trim() === '确定');
+        if (!confirmBtn) return { ok: false, kind: 'no_confirm', labels: buttons.map(b => (b.innerText || '').trim()) };
+        confirmBtn.click();
+        return { ok: true };
+      }
+    `));
+            if (!confirmResult?.ok) {
+                throw new CommandExecutionError(`xiaohongshu/delete-note: confirmation modal step failed (${confirmResult?.kind ?? 'unknown'})`);
+            }
+            // Step 4: poll for row removal (proves the delete actually committed,
+            // not just the modal was clicked). Iteration-bounded rather than
+            // wall-clock so tests with a mocked `page.wait` exhaust the loop
+            // quickly instead of stalling on real time.
+            const VERIFY_ITERATIONS = Math.ceil(VERIFY_TIMEOUT_MS / VERIFY_POLL_MS);
+            let stillPresent = true;
+            for (let i = 0; i < VERIFY_ITERATIONS; i++) {
+                await page.wait({ time: VERIFY_POLL_MS / 1000 });
+                const probe = unwrapEvaluateResult(await page.evaluate(buildVerifyGoneScript(noteId)));
+                if (probe === false) {
+                    stillPresent = false;
+                    break;
+                }
+            }
+            if (stillPresent) {
+                throw new CommandExecutionError(`xiaohongshu/delete-note: note ${noteId} still visible after confirm click; deletion may not have committed.`);
+            }
+            return [{ status: 'deleted', note_id: noteId, message: 'Delete confirmed and note row disappeared.' }];
         }
-        return [{ status: 'deleted', note_id: noteId }];
+        catch (err) {
+            if (err instanceof CliError)
+                throw err;
+            throw new CommandExecutionError(`xiaohongshu/delete-note failed: ${err?.message ?? String(err)}`);
+        }
     },
 });
+export const __test__ = {
+    normalizeNoteId,
+    buildLocateAndMaybeDeleteScript,
+    buildVerifyGoneScript,
+};

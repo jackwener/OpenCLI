@@ -26342,11 +26342,19 @@
         "required": true,
         "positional": true,
         "help": "Note ID (e.g. 6a08ba0b000000000702a893 from xiaohongshu creator-notes / URL)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually click delete + confirm. Default is dry-run target verification only."
       }
     ],
     "columns": [
       "status",
-      "note_id"
+      "note_id",
+      "message"
     ],
     "type": "js",
     "modulePath": "xiaohongshu/delete-note.js",
