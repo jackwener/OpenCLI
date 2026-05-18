@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 
 const LISTS_QUERY_ID = '78UbkyXwXBD98IgUWXOy9g';
@@ -75,12 +75,19 @@ export function isOwnedSubscribedEntry(entry) {
         && entry.entryId.startsWith(OWNED_SUBSCRIBED_ENTRY_PREFIX);
 }
 
-export function parseListsManagement(data, seen) {
-    const lists = [];
+export function getListsManagementInstructions(data) {
     const instructions = data?.data?.viewer?.list_management_timeline?.timeline?.instructions
         || data?.data?.viewer_v2?.user_results?.result?.list_management_timeline?.timeline?.instructions
         || data?.data?.list_management_timeline?.timeline?.instructions
-        || [];
+        || data?.data?.data?.viewer?.list_management_timeline?.timeline?.instructions
+        || data?.data?.data?.viewer_v2?.user_results?.result?.list_management_timeline?.timeline?.instructions
+        || data?.data?.data?.list_management_timeline?.timeline?.instructions;
+    return Array.isArray(instructions) ? instructions : null;
+}
+
+export function parseListsManagement(data, seen) {
+    const lists = [];
+    const instructions = getListsManagementInstructions(data) || [];
     for (const inst of instructions) {
         for (const entry of inst.entries || []) {
             if (!isOwnedSubscribedEntry(entry)) continue;
@@ -158,7 +165,13 @@ export const command = cli({
             throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch lists. queryId may have expired.`);
         }
         const seen = new Set();
+        if (!getListsManagementInstructions(data)) {
+            throw new CommandExecutionError('Twitter lists returned an unexpected payload shape');
+        }
         const lists = parseListsManagement(data, seen);
+        if (lists.length === 0) {
+            throw new EmptyResultError('twitter lists', 'No owned or subscribed lists found');
+        }
         return lists.slice(0, limit);
     },
 });
