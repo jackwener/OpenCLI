@@ -71,6 +71,12 @@ function profileUrlFromEntityUrn(entityUrn) {
   return match && match[1] ? 'https://www.linkedin.com/in/' + match[1] : '';
 }
 
+function leadUrlFromEntityUrn(entityUrn) {
+  const match = String(entityUrn || '').match(/^urn:li:fs_salesProfile:\(([^,()]+),([^,()]+),([^,()]+)\)$/);
+  if (!match) return '';
+  return `https://www.linkedin.com/sales/lead/${encodeURIComponent(match[1])},${encodeURIComponent(match[2])},${encodeURIComponent(match[3])}`;
+}
+
 function parseLeads(json) {
   const elements = (json && Array.isArray(json.elements)) ? json.elements : [];
   const leads = [];
@@ -88,6 +94,8 @@ function parseLeads(json) {
       location: normalizeWhitespace(el.geoRegion || ''),
       degree: normalizeWhitespace(el.degree || ''),
       profile_url: profileUrlFromEntityUrn(el.entityUrn),
+      lead_url: leadUrlFromEntityUrn(el.entityUrn),
+      recipient_urn: normalizeWhitespace(el.entityUrn || ''),
     });
   }
   return leads;
@@ -105,7 +113,7 @@ cli({
     { name: 'keywords', type: 'string', required: true, positional: true, help: 'People search keywords, e.g. "quality manager food manufacturing"' },
     { name: 'limit', type: 'number', default: 25, help: 'Maximum leads to return (1-500, fetched 25 per request)' },
   ],
-  columns: ['rank', 'name', 'title', 'company', 'location', 'degree', 'profile_url'],
+  columns: ['rank', 'name', 'title', 'company', 'location', 'degree', 'profile_url', 'lead_url', 'recipient_urn'],
   func: async (page, args) => {
     if (!page) throw new CommandExecutionError('Browser session required for linkedin salesnav-search');
     const keywords = requireStringArg(args, 'keywords', '--keywords');
@@ -149,5 +157,6 @@ export const __test__ = {
   parseLimit,
   leadSearchUrl,
   profileUrlFromEntityUrn,
+  leadUrlFromEntityUrn,
   parseLeads,
 };

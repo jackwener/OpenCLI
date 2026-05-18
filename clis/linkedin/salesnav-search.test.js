@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import './salesnav-search.js';
 
-const { parseLimit, leadSearchUrl, profileUrlFromEntityUrn, parseLeads } = await import('./salesnav-search.js').then((m) => m.__test__);
+const { parseLimit, leadSearchUrl, profileUrlFromEntityUrn, leadUrlFromEntityUrn, parseLeads } = await import('./salesnav-search.js').then((m) => m.__test__);
 
 describe('linkedin salesnav-search command', () => {
   it('builds a salesApiLeadSearch URL with encoded keywords and pagination', () => {
@@ -17,6 +17,12 @@ describe('linkedin salesnav-search command', () => {
       .toBe('https://www.linkedin.com/in/ACwAAAJS8TABxyz');
     expect(profileUrlFromEntityUrn('')).toBe('');
     expect(profileUrlFromEntityUrn('not-a-urn')).toBe('');
+  });
+
+  it('derives a Sales Navigator lead URL from the full sales-profile entityUrn', () => {
+    expect(leadUrlFromEntityUrn('urn:li:fs_salesProfile:(ACwAAAJS8TABxyz,NAME_SEARCH,Enlo)'))
+      .toBe('https://www.linkedin.com/sales/lead/ACwAAAJS8TABxyz,NAME_SEARCH,Enlo');
+    expect(leadUrlFromEntityUrn('not-a-urn')).toBe('');
   });
 
   it('validates --limit without silent clamping', () => {
@@ -39,7 +45,15 @@ describe('linkedin salesnav-search command', () => {
     ] };
     const leads = parseLeads(json);
     expect(leads).toHaveLength(2);
-    expect(leads[0]).toMatchObject({ name: 'Jane Q', title: 'QA Manager', company: 'Acme Foods', location: 'Vancouver, BC', profile_url: 'https://www.linkedin.com/in/TOKEN1' });
+    expect(leads[0]).toMatchObject({
+      name: 'Jane Q',
+      title: 'QA Manager',
+      company: 'Acme Foods',
+      location: 'Vancouver, BC',
+      profile_url: 'https://www.linkedin.com/in/TOKEN1',
+      lead_url: 'https://www.linkedin.com/sales/lead/TOKEN1,NAME_SEARCH,abc',
+      recipient_urn: 'urn:li:fs_salesProfile:(TOKEN1,NAME_SEARCH,abc)',
+    });
     expect(leads[1]).toMatchObject({ name: 'No Current', title: 'Past QA Lead', company: 'Old Co' });
   });
 });
