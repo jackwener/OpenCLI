@@ -21,6 +21,7 @@ const FEATURES = {
 cli({
     site: 'twitter',
     name: 'list-create',
+    access: 'write',
     description: 'Create a new Twitter/X list (returns the new list id)',
     access: 'write',
     domain: 'x.com',
