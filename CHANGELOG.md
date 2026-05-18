@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+* **weread-official** — integrate WeRead's official Agent Gateway as the `weread-official` CLI namespace. Pure HTTP, Bearer auth via `WEREAD_API_KEY` (no browser, no cookies). 8 commands cover the official skill bundle: `search`, `shelf`, `book` (info + chapters + progress 3-in-1), `notes` (notebook overview or per-book highlights/thoughts), `review`, `readdata` (weekly/monthly/annually/overall), `discover` (recommend or similar-book), `list-apis`. Adapter surfaces typed errors for all documented failure modes — `AuthRequiredError` on missing/rejected key (errcodes -2010/-2012), `CommandExecutionError` on HTTP/`upgrade_info`/non-zero errcode, `EmptyResultError` on empty payloads. Coexists with the existing cookie-based `weread` adapter.
+
 ### Bug Fixes
 
 * **adapters** — surface the remaining `silent-empty-fallback` adapter failures as typed errors. Douyin user video comment fetch failures, Jike SSR JSON parse failures, and WeRead search-page fetch failures now throw `CommandExecutionError`; true empty Douyin/Jike/WeRead result sets now throw `EmptyResultError`.

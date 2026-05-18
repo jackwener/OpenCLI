@@ -25455,6 +25455,379 @@
     "navigateBefore": "https://weread.qq.com"
   },
   {
+    "site": "weread-official",
+    "name": "book",
+    "description": "Show WeRead book metadata, chapters, and reading progress",
+    "access": "read",
+    "domain": "weread.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "bookId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "WeRead bookId (from `weread-official search`)"
+      },
+      {
+        "name": "no-chapters",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Skip /book/chapterinfo call"
+      },
+      {
+        "name": "no-progress",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Skip /book/getprogress call"
+      }
+    ],
+    "columns": [
+      "section",
+      "idx",
+      "key",
+      "value",
+      "link"
+    ],
+    "type": "js",
+    "modulePath": "weread-official/book.js",
+    "sourceFile": "weread-official/book.js"
+  },
+  {
+    "site": "weread-official",
+    "name": "discover",
+    "description": "Personalized or similar-book recommendations from WeRead",
+    "access": "read",
+    "domain": "weread.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "bookId",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Anchor bookId for similar-book mode; omit for personalized recommendations"
+      },
+      {
+        "name": "count",
+        "type": "int",
+        "default": 12,
+        "required": false,
+        "help": "Page size (default 12)"
+      },
+      {
+        "name": "max-idx",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination cursor (recommend: previous searchIdx; similar: previous idx)"
+      },
+      {
+        "name": "session-id",
+        "type": "str",
+        "required": false,
+        "help": "Carry-forward sessionId for /book/similar paging"
+      }
+    ],
+    "columns": [
+      "rank",
+      "mode",
+      "bookId",
+      "title",
+      "author",
+      "rating",
+      "readingCount",
+      "category",
+      "idx",
+      "reason",
+      "cover",
+      "intro",
+      "link"
+    ],
+    "type": "js",
+    "modulePath": "weread-official/discover.js",
+    "sourceFile": "weread-official/discover.js"
+  },
+  {
+    "site": "weread-official",
+    "name": "list-apis",
+    "description": "List every api_name supported by the WeRead agent gateway",
+    "access": "read",
+    "domain": "weread.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "rank",
+      "apiName",
+      "description",
+      "required",
+      "optional",
+      "extras"
+    ],
+    "type": "js",
+    "modulePath": "weread-official/list-apis.js",
+    "sourceFile": "weread-official/list-apis.js"
+  },
+  {
+    "site": "weread-official",
+    "name": "notes",
+    "description": "List notebooks overview or merged highlights+thoughts for a book",
+    "access": "read",
+    "domain": "weread.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "bookId",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Limit to one book; omit for full notebook overview"
+      },
+      {
+        "name": "count",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Page size for the notebooks overview (1-100)"
+      },
+      {
+        "name": "last-sort",
+        "type": "int",
+        "required": false,
+        "help": "Cursor: pass previous page sort value to fetch the next page (/user/notebooks)"
+      }
+    ],
+    "columns": [
+      "kind",
+      "bookId",
+      "title",
+      "author",
+      "chapter",
+      "reviewCount",
+      "noteCount",
+      "bookmarkCount",
+      "totalNotes",
+      "progress",
+      "finished",
+      "sort",
+      "range",
+      "text",
+      "thought",
+      "star",
+      "createTime",
+      "link"
+    ],
+    "type": "js",
+    "modulePath": "weread-official/notes.js",
+    "sourceFile": "weread-official/notes.js"
+  },
+  {
+    "site": "weread-official",
+    "name": "readdata",
+    "description": "Reading statistics: time, streak, preferences, top books",
+    "access": "read",
+    "domain": "weread.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "mode",
+        "type": "str",
+        "default": "monthly",
+        "required": false,
+        "help": "Stat window: weekly / monthly / annually / overall",
+        "choices": [
+          "weekly",
+          "monthly",
+          "annually",
+          "overall"
+        ]
+      },
+      {
+        "name": "base-time",
+        "type": "int",
+        "required": false,
+        "help": "Optional Unix timestamp inside the target period; default is current period"
+      }
+    ],
+    "columns": [
+      "section",
+      "idx",
+      "key",
+      "value",
+      "detail"
+    ],
+    "type": "js",
+    "modulePath": "weread-official/readdata.js",
+    "sourceFile": "weread-official/readdata.js"
+  },
+  {
+    "site": "weread-official",
+    "name": "review",
+    "description": "Browse public reviews of a WeRead book",
+    "access": "read",
+    "domain": "weread.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "bookId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "WeRead bookId (from `weread-official search`)"
+      },
+      {
+        "name": "type",
+        "type": "str",
+        "default": "all",
+        "required": false,
+        "help": "Review filter (all/recommend/thumbs-down/newest/neutral)",
+        "choices": [
+          "all",
+          "recommend",
+          "thumbs-down",
+          "newest",
+          "neutral"
+        ]
+      },
+      {
+        "name": "count",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Page size (1-100, default 20)"
+      },
+      {
+        "name": "max-idx",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination cursor — pass idx from last row of previous page"
+      },
+      {
+        "name": "synckey",
+        "type": "int",
+        "required": false,
+        "help": "Sync cursor returned by previous response"
+      }
+    ],
+    "columns": [
+      "rank",
+      "idx",
+      "reviewId",
+      "star",
+      "starLabel",
+      "author",
+      "isFinish",
+      "chapter",
+      "content",
+      "createTime",
+      "link"
+    ],
+    "type": "js",
+    "modulePath": "weread-official/review.js",
+    "sourceFile": "weread-official/review.js"
+  },
+  {
+    "site": "weread-official",
+    "name": "search",
+    "description": "Search WeRead store via the official agent gateway",
+    "access": "read",
+    "domain": "weread.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "scope",
+        "type": "str",
+        "default": "ebook",
+        "required": false,
+        "help": "Search type (all/ebook/webnovel/audio/author/fulltext/booklist/mp/article)",
+        "choices": [
+          "all",
+          "ebook",
+          "webnovel",
+          "audio",
+          "author",
+          "fulltext",
+          "booklist",
+          "mp",
+          "article"
+        ]
+      },
+      {
+        "name": "count",
+        "type": "int",
+        "required": false,
+        "help": "Page size (gateway default 15 when omitted)"
+      },
+      {
+        "name": "max-idx",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset, use searchIdx of last item from previous page"
+      }
+    ],
+    "columns": [
+      "rank",
+      "scope",
+      "bookId",
+      "title",
+      "author",
+      "rating",
+      "readingCount",
+      "category",
+      "searchIdx",
+      "cover",
+      "intro",
+      "link"
+    ],
+    "type": "js",
+    "modulePath": "weread-official/search.js",
+    "sourceFile": "weread-official/search.js"
+  },
+  {
+    "site": "weread-official",
+    "name": "shelf",
+    "description": "Sync your WeRead shelf (books + albums + article bookmark entry) via the official gateway",
+    "access": "read",
+    "domain": "weread.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "kind",
+      "id",
+      "title",
+      "author",
+      "category",
+      "secret",
+      "isTop",
+      "finished",
+      "updateTime",
+      "cover",
+      "link"
+    ],
+    "type": "js",
+    "modulePath": "weread-official/shelf.js",
+    "sourceFile": "weread-official/shelf.js"
+  },
+  {
     "site": "wikidata",
     "name": "entity",
     "description": "Fetch a Wikidata entity by Q/P/L id (label, description, aliases, claim summary)",
