@@ -288,7 +288,7 @@ describe('zhihu collection', () => {
       .rejects.toBeInstanceOf(EmptyResultError);
   });
 
-  it('emits empty-string for missing content.type instead of a sentinel', async () => {
+  it('fails typed for missing content.type instead of emitting a blank identity row', async () => {
     const cmd = getRegistry().get('zhihu/collection');
     const evaluate = vi.fn().mockResolvedValue({
       data: [
@@ -306,8 +306,7 @@ describe('zhihu collection', () => {
       paging: { totals: 1 },
     });
     const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate };
-    const result = await cmd.func(page, { id: '83283292', offset: 0, limit: 20 });
-    expect(result).toHaveLength(1);
-    expect(result[0].type).toBe('');
+    await expect(cmd.func(page, { id: '83283292', offset: 0, limit: 20 }))
+      .rejects.toBeInstanceOf(CommandExecutionError);
   });
 });

@@ -62,6 +62,12 @@ function itemKey(item) {
 function mapCollectionItem(item, rank) {
   const content = item.content || {};
   const type = content.type || '';
+  if (!['answer', 'article', 'pin'].includes(type)) {
+    throw new CommandExecutionError(
+      `Zhihu collection returned unsupported content type: ${type || 'missing'}`,
+      'Collection items require a supported content.type so the row identity, title, and URL are not silently blank.',
+    );
+  }
 
   let title = '';
   let excerpt = '';
