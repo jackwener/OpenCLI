@@ -20440,10 +20440,11 @@
         "type": "int",
         "default": 100,
         "required": false,
-        "help": "Max subreddits to return (auto-paginates; hard cap 1000)"
+        "help": "Max subreddits to return (1-1000, auto-paginates)"
       }
     ],
     "columns": [
+      "id",
       "subreddit",
       "title",
       "subscribers",
