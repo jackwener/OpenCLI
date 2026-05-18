@@ -146,13 +146,35 @@ function fetchJsonScript(url, csrf, options = {}) {
       const text = await res.text();
       let json = null;
       try { json = text ? JSON.parse(text) : null; } catch (_) { json = null; }
-      if (res.status === 401 || res.status === 403) return { authRequired: true, status: res.status, text };
-      if (!res.ok) return { error: 'HTTP ' + res.status, status: res.status, text, json };
-      return { status: res.status, json, text };
+      if (res.status === 401 || res.status === 403) return ['auth', res.status, json, text];
+      if (!res.ok) return ['error', res.status, json, text, 'HTTP ' + res.status];
+      return ['ok', res.status, json, text];
     } catch (e) {
-      return { error: 'fetch failed: ' + ((e && e.message) || String(e)) };
+      return ['error', 0, null, '', 'fetch failed: ' + ((e && e.message) || String(e))];
     }
   })()`;
+}
+
+function requireFetchResult(result, label, { requireJson = true } = {}) {
+  if (Array.isArray(result)) {
+    const [kind, status, json, text, error] = result;
+    result = {
+      authRequired: kind === 'auth',
+      error: kind === 'error' ? error || `HTTP ${status}` : '',
+      status,
+      json,
+      text,
+    };
+  }
+  if (result?.authRequired) throw new AuthRequiredError(LINKEDIN_DOMAIN, `${label} auth failed.`);
+  if (result?.error) throw new CommandExecutionError(`${label} failed`, result.error);
+  if (!result || typeof result !== 'object' || Array.isArray(result)) {
+    throw new CommandExecutionError(`${label} returned malformed response`);
+  }
+  if (requireJson && (!result.json || typeof result.json !== 'object' || Array.isArray(result.json))) {
+    throw new CommandExecutionError(`${label} returned malformed response`, 'missing_json');
+  }
+  return result;
 }
 
 function salesPageShowsSentMessage(text, recipientName) {
@@ -221,6 +243,14 @@ function profileSummary(json) {
   };
 }
 
+function requireProfileSummary(json) {
+  const summary = profileSummary(json);
+  if (!summary.recipient) {
+    throw new CommandExecutionError('Sales Navigator profile lookup returned malformed profile data', 'missing_recipient_name');
+  }
+  return summary;
+}
+
 cli({
   site: 'linkedin',
   name: 'salesnav-message',
@@ -236,7 +266,7 @@ cli({
     { name: 'send', type: 'bool', default: false, help: 'Actually send the InMail. Default is dry-run validation only.' },
     { name: 'copy-to-crm', type: 'bool', default: false, help: 'Set Sales Navigator copyToCrm on the message request' },
   ],
-  columns: ['status', 'recipient', 'title', 'company', 'credits_remaining', 'credits_before', 'credits_after', 'sent_in_salesnav', 'message_chars', 'subject_chars', 'recipient_urn', 'authRequired', 'text', 'degree', 'inmail_restriction', 'open_link', 'json', 'href', 'resourceUrns'],
+  columns: ['status', 'recipient', 'title', 'company', 'credits_remaining', 'credits_before', 'credits_after', 'sent_in_salesnav', 'message_chars', 'subject_chars', 'recipient_urn', 'degree', 'inmail_restriction', 'open_link'],
   func: async (page, args) => {
     if (!page) throw new CommandExecutionError('Browser session required for linkedin salesnav-message');
     const recipientArg = requireStringArg(args, 'recipient', '--recipient');
@@ -252,17 +282,14 @@ cli({
     let summary = { recipient: '', title: '', company: '', degree: '', inmail_restriction: '', open_link: false };
     const profileUrl = profileApiUrl(recipient);
     if (profileUrl) {
-      const profileResult = unwrapEvaluateResult(await page.evaluate(fetchJsonScript(profileUrl, csrf)));
-      if (profileResult?.authRequired) throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn Sales Navigator profile API auth failed.');
-      if (profileResult?.error) throw new CommandExecutionError('Sales Navigator profile lookup failed', profileResult.error);
-      summary = profileSummary(profileResult?.json);
+      const profileResult = requireFetchResult(unwrapEvaluateResult(await page.evaluate(fetchJsonScript(profileUrl, csrf))), 'LinkedIn Sales Navigator profile API');
+      summary = requireProfileSummary(profileResult.json);
     }
     if (summary.inmail_restriction && summary.inmail_restriction !== 'NO_RESTRICTION') {
       throw new CommandExecutionError('Sales Navigator InMail blocked by recipient restriction', summary.inmail_restriction);
     }
 
-    const creditsResult = unwrapEvaluateResult(await page.evaluate(fetchJsonScript(CREDITS_URL, csrf)));
-    if (creditsResult?.authRequired) throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn Sales Navigator credits API auth failed.');
+    const creditsResult = requireFetchResult(unwrapEvaluateResult(await page.evaluate(fetchJsonScript(CREDITS_URL, csrf))), 'LinkedIn Sales Navigator credits API');
     const creditsRemaining = extractRemainingCredits(creditsResult?.json);
 
     const payload = buildCreateMessagePayload({ recipientUrn: recipient.entityUrn, subject, body, copyToCrm: args['copy-to-crm'] });
@@ -273,22 +300,26 @@ cli({
         title: summary.title,
         company: summary.company,
         credits_remaining: creditsRemaining,
+        credits_before: creditsRemaining,
+        credits_after: '',
+        sent_in_salesnav: false,
         message_chars: body.length,
         subject_chars: subject.length,
         recipient_urn: recipient.entityUrn,
+        degree: summary.degree,
+        inmail_restriction: summary.inmail_restriction,
+        open_link: summary.open_link,
       }];
     }
 
-    const sendResult = unwrapEvaluateResult(await page.evaluate(fetchJsonScript(MESSAGE_ACTION_URL, csrf, {
+    const sendResult = requireFetchResult(unwrapEvaluateResult(await page.evaluate(fetchJsonScript(MESSAGE_ACTION_URL, csrf, {
       method: 'POST',
       accept: 'application/vnd.linkedin.normalized+json+2.1',
       body: payload,
-    })));
-    if (sendResult?.authRequired) throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn Sales Navigator message API auth failed.');
-    if (sendResult?.error) throw new CommandExecutionError('Sales Navigator InMail send failed', `${sendResult.error}\n${sendResult.text || ''}`);
+    }))), 'LinkedIn Sales Navigator message API', { requireJson: false });
+    void sendResult;
     await page.wait(3);
-    const creditsAfterResult = unwrapEvaluateResult(await page.evaluate(fetchJsonScript(CREDITS_URL, csrf)));
-    if (creditsAfterResult?.authRequired) throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn Sales Navigator credits API auth failed after send.');
+    const creditsAfterResult = requireFetchResult(unwrapEvaluateResult(await page.evaluate(fetchJsonScript(CREDITS_URL, csrf))), 'LinkedIn Sales Navigator credits API after send');
     const creditsAfter = extractRemainingCredits(creditsAfterResult?.json);
     await page.goto(salesLeadUrlFromParts(recipient));
     await page.wait(6);
@@ -307,6 +338,9 @@ cli({
       message_chars: body.length,
       subject_chars: subject.length,
       recipient_urn: recipient.entityUrn,
+      degree: summary.degree,
+      inmail_restriction: summary.inmail_restriction,
+      open_link: summary.open_link,
     }];
   },
 });
@@ -321,5 +355,6 @@ export const __test__ = {
   buildCreateMessagePayload,
   extractRemainingCredits,
   profileSummary,
+  requireProfileSummary,
   salesPageShowsSentMessage,
 };

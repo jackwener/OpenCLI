@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { getRegistry } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import './salesnav-message.js';
 
 const {
@@ -9,8 +11,21 @@ const {
   buildCreateMessagePayload,
   extractRemainingCredits,
   profileSummary,
+  requireProfileSummary,
   salesPageShowsSentMessage,
 } = await import('./salesnav-message.js').then((m) => m.__test__);
+
+function createPageMock(evaluateResults = []) {
+  const evaluate = vi.fn();
+  for (const result of evaluateResults) evaluate.mockResolvedValueOnce(result);
+  evaluate.mockResolvedValue(undefined);
+  return {
+    goto: vi.fn().mockResolvedValue(undefined),
+    wait: vi.fn().mockResolvedValue(undefined),
+    evaluate,
+    getCookies: vi.fn().mockResolvedValue([{ name: 'JSESSIONID', value: '"csrf"', domain: '.linkedin.com' }]),
+  };
+}
 
 describe('linkedin salesnav-message command', () => {
   it('parses Sales Navigator profile urns and lead URLs', () => {
@@ -97,5 +112,61 @@ describe('linkedin salesnav-message command', () => {
       degree: '3',
       open_link: false,
     });
+  });
+
+  it('fails typed when decorated profile data has no recipient identity', () => {
+    expect(() => requireProfileSummary({ data: { defaultPosition: { title: 'FSQA' } } }))
+      .toThrow(CommandExecutionError);
+  });
+
+  it('keeps manifest columns aligned with dry-run rows and fails typed on malformed profile API', async () => {
+    const cmd = getRegistry().get('linkedin/salesnav-message');
+    expect(cmd?.columns).toEqual([
+      'status',
+      'recipient',
+      'title',
+      'company',
+      'credits_remaining',
+      'credits_before',
+      'credits_after',
+      'sent_in_salesnav',
+      'message_chars',
+      'subject_chars',
+      'recipient_urn',
+      'degree',
+      'inmail_restriction',
+      'open_link',
+    ]);
+
+    const goodPage = createPageMock([
+      { status: 200, json: { data: { fullName: 'Jane Doe', defaultPosition: { title: 'QA', companyName: 'Acme' }, degree: 2, inmailRestriction: 'NO_RESTRICTION', memberBadges: { openLink: true } } } },
+      { status: 200, json: { elements: [{ type: 'LSS_INMAIL', value: 12 }] } },
+    ]);
+    const rows = await cmd.func(goodPage, {
+      recipient: 'urn:li:fs_salesProfile:(P1,NAME_SEARCH,T1)',
+      subject: 'Hello',
+      body: 'Quick question',
+    });
+    expect(Object.keys(rows[0]).sort()).toEqual([...cmd.columns].sort());
+    expect(rows[0]).toMatchObject({
+      status: 'validated_dry_run',
+      recipient: 'Jane Doe',
+      credits_remaining: 12,
+      credits_before: 12,
+      credits_after: '',
+      sent_in_salesnav: false,
+      degree: '2',
+      inmail_restriction: 'NO_RESTRICTION',
+      open_link: true,
+    });
+
+    const malformedPage = createPageMock([
+      { status: 200, json: { data: { defaultPosition: { title: 'QA' } } } },
+    ]);
+    await expect(cmd.func(malformedPage, {
+      recipient: 'urn:li:fs_salesProfile:(P1,NAME_SEARCH,T1)',
+      subject: 'Hello',
+      body: 'Quick question',
+    })).rejects.toThrow(CommandExecutionError);
   });
 });

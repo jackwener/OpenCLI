@@ -47,10 +47,14 @@ function parseThreadInput(value) {
     const leadMatch = url.pathname.match(/^\/sales\/lead\/([^,/]+),([^,/]+),([^/]+)\/?$/i);
     if (leadMatch) {
       const urn = `urn:li:fs_salesProfile:(${decodeURIComponent(leadMatch[1])},${decodeURIComponent(leadMatch[2])},${decodeURIComponent(leadMatch[3])})`;
+      if (!parseSalesProfileUrn(urn)) {
+        throw new ArgumentError('Sales Navigator lead URL must contain resolved profileId, authType, and authToken');
+      }
       return ['recipient_urn', urn];
     }
-  } catch {
-    // Fall through to name matching.
+  } catch (err) {
+    if (err instanceof ArgumentError) throw err;
+    // Fall through to name matching for non-URL text.
   }
   return ['name', raw.toLowerCase()];
 }

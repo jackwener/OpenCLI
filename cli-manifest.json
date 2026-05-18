@@ -14639,14 +14639,9 @@
       "message_chars",
       "subject_chars",
       "recipient_urn",
-      "authRequired",
-      "text",
       "degree",
       "inmail_restriction",
-      "open_link",
-      "json",
-      "href",
-      "resourceUrns"
+      "open_link"
     ],
     "type": "js",
     "modulePath": "linkedin/salesnav-message.js",

@@ -18,6 +18,7 @@ describe('linkedin salesnav-thread command', () => {
     expect(parseThreadInput('urn:li:fs_salesProfile:(P1,NAME_SEARCH,T1)')).toEqual(['recipient_urn', 'urn:li:fs_salesProfile:(P1,NAME_SEARCH,T1)']);
     expect(parseThreadInput('Rachael Stolberg')).toEqual(['name', 'rachael stolberg']);
     expect(() => parseThreadInput('urn:li:fs_salesProfile:(P1,undefined,T1)')).toThrow(ArgumentError);
+    expect(() => parseThreadInput('https://www.linkedin.com/sales/lead/P1,undefined,T1')).toThrow(ArgumentError);
   });
 
   it('builds the decorated thread API URL with encoded parentheses and message pagination size', () => {
