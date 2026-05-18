@@ -117,6 +117,21 @@ describe('reddit subscribed adapter', () => {
             .rejects.toBeInstanceOf(CommandExecutionError);
     });
 
+    it('does not synthesize subreddit identity from a non-t5 listing item', async () => {
+        await expect(command.func(makePage({
+            kind: 'ok',
+            entries: [{
+                kind: 't3',
+                data: {
+                    id: 'abc',
+                    display_name: 'notasub',
+                    display_name_prefixed: 'r/notasub',
+                    url: '/r/notasub/',
+                },
+            }],
+        }), { limit: 100 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('respects --limit by slicing the final result', async () => {
         const page = makePage({ kind: 'ok', entries: Array.from({ length: 5 }, (_, i) => subredditThing(String(i))) });
         const result = await command.func(page, { limit: 3 });

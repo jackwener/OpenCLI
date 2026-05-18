@@ -27,9 +27,10 @@ function mapSubredditRow(entry, index) {
     if (!data || typeof data !== 'object') {
         throw new CommandExecutionError(`Reddit subscriptions row ${index + 1} was missing data.`);
     }
-    const id = typeof data.name === 'string' && data.name
-        ? data.name
-        : (typeof data.id === 'string' && data.id ? `t5_${data.id}` : '');
+    const fullname = typeof data.name === 'string' ? data.name : '';
+    const id = fullname.startsWith('t5_')
+        ? fullname
+        : (entry?.kind === 't5' && typeof data.id === 'string' && data.id ? `t5_${data.id}` : '');
     const displayName = typeof data.display_name === 'string' && data.display_name
         ? data.display_name
         : '';
