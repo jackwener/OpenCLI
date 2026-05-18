@@ -3,7 +3,7 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import './inbox.js';
 
-const { parseConversations, threadUrl } = await import('./inbox.js').then((m) => m.__test__);
+const { mergeConversations, parseConversations, parseMaxScrolls, threadUrl } = await import('./inbox.js').then((m) => m.__test__);
 
 const SELF = 'urn:li:fsd_profile:SELF';
 
@@ -99,6 +99,37 @@ describe('linkedin inbox adapter', () => {
         'timestamp',
       ]),
     );
+  });
+
+
+
+  it('validates max-scrolls and raises the inbox limit ceiling to 500', () => {
+    expect(command.args.find((arg) => arg.name === 'limit').help).toContain('1-500');
+    expect(command.args.find((arg) => arg.name === 'max-scrolls')).toBeDefined();
+    expect(parseMaxScrolls(undefined)).toBe(30);
+    expect(parseMaxScrolls(80)).toBe(80);
+    expect(() => parseMaxScrolls(81)).toThrow('--max-scrolls must be an integer between 0 and 80');
+  });
+
+  it('merges paginated conversation pages by thread id and keeps most recent order', () => {
+    const first = fixture();
+    const second = fixture();
+    second.included = second.included.filter((entity) => entity.backendUrn !== 'urn:li:messagingThread:2-aaa==');
+    second.included.push({
+      $type: 'com.linkedin.messenger.Conversation',
+      entityUrn: 'urn:li:msg_conversation:C4',
+      backendUrn: 'urn:li:messagingThread:2-ddd==',
+      unreadCount: 0,
+      read: true,
+      categories: ['INBOX', 'PRIMARY_INBOX'],
+      lastActivityAt: 4000,
+      '*conversationParticipants': ['urn:li:msg_messagingParticipant:P1', 'urn:li:msg_messagingParticipant:SELF'],
+      messages: { '*elements': [] },
+      title: 'Newest page row',
+    });
+
+    const rows = mergeConversations([first, second], SELF);
+    expect(rows.map((row) => row.thread_id)).toEqual(['2-ddd==', '2-bbb==', '2-aaa==', '2-ccc==']);
   });
 
   it('builds a thread URL from a thread id', () => {

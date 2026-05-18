@@ -7,6 +7,12 @@ function normalizeWhitespace(value) {
   return String(value ?? '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function cleanPersonName(value) {
+  return normalizeWhitespace(value)
+    .replace(/\s+(?:status is (?:online|reachable|away|offline)\b|active(?:\s+now|\s+\S+)?\b|view profile\b).*$/i, '')
+    .trim();
+}
+
 function unwrapEvaluateResult(payload) {
   if (payload && typeof payload === 'object' && 'data' in payload && 'session' in payload) return payload.data;
   return payload;
@@ -56,6 +62,181 @@ function parseMaxScrolls(value) {
   return scrolls;
 }
 
+// LinkedIn loads only the most recent ~20 messages of a thread on open. Older
+// history is fetched by replaying the messengerMessages GraphQL query with a
+// deliveredAt anchor: the oldest message seen so far, walked backward until a
+// page returns nothing.
+const MESSAGING_GRAPHQL_BASE = 'https://www.linkedin.com/voyager/api/voyagerMessagingGraphQL/graphql';
+const OLDER_THREAD_QUERY_ID = 'messengerMessages.d8ea76885a52fd5dc5c317078ab7c977';
+
+function oldestDeliveredAt(messages) {
+  let oldest = 0;
+  for (const message of messages || []) {
+    const at = Number(message && message.createdAt);
+    if (at > 0 && (oldest === 0 || at < oldest)) oldest = at;
+  }
+  return oldest;
+}
+
+function buildOlderThreadPageUrl(recentUrl, deliveredAt, discoveredUrl) {
+  if (!Number.isInteger(deliveredAt) || deliveredAt <= 0) return '';
+  // Preferred: an older-history request LinkedIn itself fired after the scroll.
+  // It carries LinkedIn's current persisted-query id, so re-anchoring its
+  // deliveredAt survives LinkedIn rotating that id on a redeploy.
+  if (discoveredUrl && /messengerMessages/.test(discoveredUrl) && /deliveredAt/.test(discoveredUrl)) {
+    return discoveredUrl.replace(/deliveredAt(%3[Aa]|:)\d+/, 'deliveredAt$1' + deliveredAt);
+  }
+  // Fallback: construct from a known query id and the recent request's already
+  // RestLi-encoded conversationUrn (LinkedIn keeps the structural ( ) , : literal).
+  const match = String(recentUrl || '').match(/variables=\(conversationUrn:([^&]+)\)/);
+  if (!match || !match[1]) return '';
+  return MESSAGING_GRAPHQL_BASE + '?queryId=' + OLDER_THREAD_QUERY_ID
+    + '&variables=(deliveredAt:' + deliveredAt + ',conversationUrn:' + match[1]
+    + ',countBefore:20,countAfter:0)';
+}
+
+function threadPaneCenterScript() {
+  return String.raw`(() => {
+    const panes = Array.from(document.querySelectorAll('*')).filter((el) => {
+      let s;
+      try { s = getComputedStyle(el); } catch (e) { return false; }
+      return (s.overflowY === 'auto' || s.overflowY === 'scroll')
+        && el.scrollHeight > el.clientHeight + 20
+        && typeof el.querySelector === 'function'
+        && el.querySelector('.msg-s-event-listitem');
+    });
+    const pane = panes.sort((a, b) => b.scrollHeight - a.scrollHeight)[0];
+    if (!pane) return null;
+    const rect = pane.getBoundingClientRect();
+    return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
+  })()`;
+}
+
+// LinkedIn lazy-loads older messages (firing its older-history query) only when
+// the thread pane has a real height and gets a genuine scroll. The automation
+// viewport can be tiny, so widen it via CDP and wheel the pane up a few times;
+// the older-history request this triggers is read back from the Performance API
+// to discover LinkedIn's current persisted-query id.
+async function provokeOlderHistoryQuery(page) {
+  if (typeof page.cdp !== 'function') return;
+  try {
+    await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 2000, deviceScaleFactor: 1, mobile: false });
+  } catch {
+    return;
+  }
+  const pane = unwrapEvaluateResult(await page.evaluate(threadPaneCenterScript()));
+  if (!pane || typeof pane.x !== 'number') return;
+  for (let i = 0; i < 6; i += 1) {
+    try {
+      await page.cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: pane.x, y: pane.y, deltaX: 0, deltaY: -600 });
+    } catch {
+      return;
+    }
+    await page.wait(1);
+  }
+}
+
+function collectThreadMessageUrlsScript() {
+  return String.raw`(() => Array.from(new Set(
+    performance.getEntriesByType('resource')
+      .map((entry) => entry.name)
+      .filter((url) => /messengerMessages/i.test(url)),
+  )))()`;
+}
+
+function fetchThreadPagesScript(urls, csrf) {
+  return String.raw`(async () => {
+    const urls = ${JSON.stringify(urls)};
+    const headers = {
+      'csrf-token': ${JSON.stringify(csrf)},
+      accept: 'application/vnd.linkedin.normalized+json+2.1',
+      'x-restli-protocol-version': '2.0.0',
+    };
+    const out = [];
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { credentials: 'include', headers });
+        if (res.status === 401 || res.status === 403) { out.push({ url, authRequired: true, error: 'HTTP ' + res.status }); continue; }
+        if (!res.ok) { out.push({ url, error: 'HTTP ' + res.status }); continue; }
+        out.push({ url, json: await res.json() });
+      } catch (e) {
+        out.push({ url, error: 'fetch failed: ' + ((e && e.message) || String(e)) });
+      }
+    }
+    return out;
+  })()`;
+}
+
+function parseThreadMessages(normalized) {
+  if (!normalized || typeof normalized !== 'object' || Array.isArray(normalized) || !Array.isArray(normalized.included)) return [];
+  const clean = normalizeWhitespace;
+  const byUrn = new Map();
+  for (const entity of normalized.included) {
+    if (entity && entity.entityUrn) byUrn.set(entity.entityUrn, entity);
+  }
+  const participantName = (participant) => {
+    if (!participant) return '';
+    const pt = participant.participantType || {};
+    if (pt.member) return clean([pt.member.firstName?.text, pt.member.lastName?.text].filter(Boolean).join(' '));
+    if (pt.organization?.name) return clean(pt.organization.name.text);
+    if (pt.agent?.name) return clean(pt.agent.name.text);
+    return clean(participant.name?.text || participant.name || '');
+  };
+  const resolveSpeaker = (message) => {
+    const candidates = [message['*sender'], message['*senderParticipant'], message['*from'], message.sender, message.senderParticipant, message.from, message.actor, message.creator, message.backendAuthorUrn];
+    for (const candidate of candidates) {
+      const urn = typeof candidate === 'string' ? candidate : candidate?.entityUrn;
+      if (!urn) continue;
+      const entity = byUrn.get(urn);
+      const name = participantName(entity);
+      if (name) return name;
+    }
+    return '';
+  };
+  const createdMs = (message) => Number(message.createdAt || message.deliveredAt || message.timestamp || message.sentAt || 0);
+  const rows = [];
+  for (const message of normalized.included) {
+    if (!message || !/\.Message$/i.test(String(message.$type || ''))) continue;
+    const text = clean(message.body?.text || message.attributedBody?.text || message.text || '');
+    if (!text) continue;
+    rows.push({
+      index: rows.length,
+      urn: message.entityUrn || '',
+      timestamp: createdMs(message) ? new Date(createdMs(message)).toISOString() : '',
+      createdAt: createdMs(message),
+      speaker: cleanPersonName(resolveSpeaker(message)),
+      text,
+    });
+  }
+  if (rows.some((row) => row.createdAt)) rows.sort((a, b) => a.createdAt - b.createdAt);
+  return rows.map((row, index) => ({ ...row, index }));
+}
+
+function mergeThreadMessages(apiMessages, domMessages) {
+  const seen = new Set();
+  const merged = [];
+  const add = (message) => {
+    const text = normalizeWhitespace(message?.text || '');
+    if (!text) return;
+    const speakerTextKey = `${normalizeWhitespace(message?.speaker || '')}\n${text}`;
+    const key = normalizeWhitespace(message?.urn || '') || `${speakerTextKey}\n${normalizeWhitespace(message?.timestamp || '')}`;
+    if (seen.has(key) || seen.has(speakerTextKey)) return;
+    seen.add(key);
+    seen.add(speakerTextKey);
+    merged.push({ ...message, text });
+  };
+  for (const message of apiMessages || []) add(message);
+  for (const message of domMessages || []) add(message);
+  if (merged.some((message) => Number(message.createdAt || 0))) {
+    merged.sort((a, b) => {
+      const aTime = Number(a.createdAt || 0) || Number.MAX_SAFE_INTEGER;
+      const bTime = Number(b.createdAt || 0) || Number.MAX_SAFE_INTEGER;
+      return aTime - bTime;
+    });
+  }
+  return merged.map((message, index) => ({ ...message, index }));
+}
+
 function buildThreadSnapshotScript(maxScrolls) {
   const scrolls = maxScrolls;
   return String.raw`(async () => {
@@ -63,6 +244,7 @@ function buildThreadSnapshotScript(maxScrolls) {
     void marker;
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const clean = (s) => String(s || '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
+    const cleanPersonName = (s) => clean(s).replace(/\s+(?:status is (?:online|reachable|away|offline)\b|active(?:\s+now|\s+\S+)?\b|view profile\b).*$/i, '').trim();
     const text = document.body ? (document.body.innerText || '') : '';
     const authRequired = /\b(sign in|log in|join linkedin)\b/i.test(text)
       || /linkedin\.com\/(login|checkpoint|authwall)/i.test(location.href)
@@ -108,7 +290,7 @@ function buildThreadSnapshotScript(maxScrolls) {
     ];
     for (const selector of headerSelectors) {
       for (const el of Array.from(document.querySelectorAll(selector)).slice(0, 8)) {
-        const value = clean(el.innerText || el.textContent || el.getAttribute('aria-label'));
+        const value = cleanPersonName(el.innerText || el.textContent || el.getAttribute('aria-label'));
         if (value && value.length <= 120 && !/^(message|messaging|send|profile|view profile)$/i.test(value)) {
           headerCandidates.push(value);
         }
@@ -117,14 +299,30 @@ function buildThreadSnapshotScript(maxScrolls) {
 
     const seen = new Set();
     const messages = [];
-    const nodes = Array.from(document.querySelectorAll('.msg-s-message-list__event, .msg-s-event-listitem, [data-event-urn], .msg-s-message-list-content'));
+    let currentSpeaker = '';
+    const nodes = Array.from(document.querySelectorAll('.msg-s-event-listitem'));
     for (const [nodeIndex, el] of nodes.entries()) {
-      const raw = clean(el.innerText || el.textContent);
-      if (!raw || seen.has(raw)) continue;
-      seen.add(raw);
-      const lines = raw.split(/\n+/).map(clean).filter(Boolean);
-      const speaker = lines.length > 1 && lines[0].length <= 120 ? lines[0] : '';
-      messages.push({ index: messages.length, nodeIndex, speaker, text: raw });
+      const speakerEl = el.querySelector('.msg-s-message-group__name');
+      const speaker = cleanPersonName(speakerEl?.innerText || speakerEl?.textContent || '');
+      if (speaker) currentSpeaker = speaker;
+      const bodyEl = el.querySelector('.msg-s-event-listitem__body');
+      const body = clean(bodyEl?.innerText || bodyEl?.textContent || '').replace(/\s*\(edited\)$/i, '');
+      if (!body) continue;
+      const key = currentSpeaker + '\n' + body;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      messages.push({ index: messages.length, nodeIndex, speaker: currentSpeaker, text: body });
+    }
+    if (messages.length === 0) {
+      const fallbackNodes = Array.from(document.querySelectorAll('.msg-s-message-list__event, [data-event-urn]'));
+      for (const [nodeIndex, el] of fallbackNodes.entries()) {
+        const raw = clean(el.innerText || el.textContent);
+        if (!raw) continue;
+        const key = '\n' + raw;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        messages.push({ index: messages.length, nodeIndex, speaker: '', text: raw });
+      }
     }
 
     const refreshedText = document.body ? (document.body.innerText || '') : '';
@@ -152,13 +350,13 @@ cli({
   site: 'linkedin',
   name: 'thread-snapshot',
   access: 'read',
-  description: 'Load a LinkedIn messaging thread, scroll for available history, and return a full context snapshot',
+  description: 'Load a LinkedIn messaging thread, page through its full history, and return a context snapshot',
   domain: LINKEDIN_DOMAIN,
   strategy: Strategy.UI,
   browser: true,
   args: [
     { name: 'thread-url', required: true, help: 'Exact LinkedIn messaging thread URL to open and snapshot' },
-    { name: 'max-scrolls', type: 'number', default: 30, help: 'Maximum upward scroll attempts to load older messages' },
+    { name: 'max-scrolls', type: 'number', default: 30, help: 'Maximum older-history pages to fetch (about 20 messages each)' },
     { name: 'json', type: 'bool', default: false, help: 'Return only JSON snapshot string in the snapshot_json field' },
   ],
   columns: ['thread_url', 'recipient', 'message_count', 'latest_text', 'snapshot_json'],
@@ -171,8 +369,56 @@ cli({
     await page.wait(4);
     await page.goto(threadUrl);
     await page.wait(10);
+    await page.evaluate('performance.setResourceTimingBufferSize(3000)');
 
-    const snapshot = unwrapEvaluateResult(await page.evaluate(buildThreadSnapshotScript(maxScrolls)));
+    const cookies = await page.getCookies({ url: 'https://www.linkedin.com' });
+    const jsession = cookies.find((c) => c.name === 'JSESSIONID')?.value;
+    if (!jsession) {
+      throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn JSESSIONID cookie not found. Please sign in to LinkedIn.');
+    }
+    const csrf = jsession.replace(/^\"|\"$/g, '');
+
+    // Provoke LinkedIn's older-history request so its current persisted-query id
+    // can be discovered, then capture every messengerMessages request the page
+    // has made and page backward through history with the deliveredAt anchor.
+    await provokeOlderHistoryQuery(page);
+    const seenUrls = unwrapEvaluateResult(await page.evaluate(collectThreadMessageUrlsScript()));
+    const messageUrls = Array.isArray(seenUrls) ? seenUrls : [];
+    const recentUrl = messageUrls
+      .find((url) => /variables=\(conversationUrn:/.test(url) && !/deliveredAt/.test(url));
+    const discoveredOlderUrl = messageUrls
+      .find((url) => /messengerMessages/.test(url) && /deliveredAt/.test(url));
+
+    const apiPageJsons = [];
+    let historyComplete = true;
+    const fetchThreadPage = async (pageUrl) => {
+      const fetched = unwrapEvaluateResult(await page.evaluate(fetchThreadPagesScript([pageUrl], csrf)));
+      const entry = (Array.isArray(fetched) ? fetched : [])[0];
+      if (entry && entry.authRequired) {
+        throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn messengerMessages API authentication failed: ' + (entry.error || 'auth required'));
+      }
+      return entry && entry.json ? entry.json : null;
+    };
+
+    if (recentUrl) {
+      const recentJson = await fetchThreadPage(recentUrl);
+      if (recentJson) {
+        apiPageJsons.push(recentJson);
+        let anchor = oldestDeliveredAt(parseThreadMessages(recentJson));
+        for (let i = 0; i < maxScrolls && anchor > 0; i += 1) {
+          const olderUrl = buildOlderThreadPageUrl(recentUrl, anchor, discoveredOlderUrl);
+          if (!olderUrl) break;
+          const olderJson = await fetchThreadPage(olderUrl);
+          if (!olderJson) { historyComplete = false; break; }
+          const next = oldestDeliveredAt(parseThreadMessages(olderJson));
+          if (next <= 0 || next >= anchor) break;
+          apiPageJsons.push(olderJson);
+          anchor = next;
+        }
+      }
+    }
+
+    const snapshot = unwrapEvaluateResult(await page.evaluate(buildThreadSnapshotScript(0)));
     if (snapshot?.authRequired) {
       throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn thread-snapshot requires an active signed-in LinkedIn browser session.');
     }
@@ -185,14 +431,26 @@ cli({
       throw new CommandExecutionError('LinkedIn thread-snapshot blocked: thread_url_mismatch', `Expected ${threadUrl}; actual ${actualUrl}`);
     }
 
-    const recipient = normalizeWhitespace(snapshot.headerNames[0] || '');
-    const messageCount = snapshot.messages.length;
+    const apiMessages = [];
+    for (const pageJson of apiPageJsons) {
+      try {
+        apiMessages.push(...parseThreadMessages(pageJson));
+      } catch {
+        // Ignore malformed captured pages.
+      }
+    }
+    const mergedMessages = mergeThreadMessages(apiMessages, snapshot.messages);
+
+    const recipient = cleanPersonName(snapshot.headerNames[0] || '');
+    const messageCount = mergedMessages.length;
     const normalized = {
       ...snapshot,
       url: actualUrl || threadUrl,
       headerNames: snapshot.headerNames,
-      latestMessageText: normalizeWhitespace(snapshot?.latestMessageText || ''),
-      messages: snapshot.messages,
+      latestMessageText: normalizeWhitespace(mergedMessages[mergedMessages.length - 1]?.text || snapshot?.latestMessageText || ''),
+      messages: mergedMessages,
+      capturedApiPageCount: apiPageJsons.length,
+      historyComplete,
     };
 
     return [{
@@ -207,8 +465,15 @@ cli({
 
 export const __test__ = {
   normalizeWhitespace,
+  cleanPersonName,
   canonicalizeLinkedInThreadUrl,
   parseMaxScrolls,
   unwrapEvaluateResult,
   buildThreadSnapshotScript,
+  collectThreadMessageUrlsScript,
+  fetchThreadPagesScript,
+  buildOlderThreadPageUrl,
+  oldestDeliveredAt,
+  parseThreadMessages,
+  mergeThreadMessages,
 };

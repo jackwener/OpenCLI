@@ -14432,7 +14432,14 @@
         "type": "int",
         "default": 40,
         "required": false,
-        "help": "Maximum conversations to return (1-100)"
+        "help": "Maximum conversations to return (1-500)"
+      },
+      {
+        "name": "max-scrolls",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Maximum inbox scroll attempts to lazy-load older conversations (0-80)"
       },
       {
         "name": "unread-only",
@@ -14527,6 +14534,215 @@
   },
   {
     "site": "linkedin",
+    "name": "salesnav-inbox",
+    "description": "List LinkedIn Sales Navigator message conversations with API pagination",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "number",
+        "default": 40,
+        "required": false,
+        "help": "Maximum conversations to return (1-500)"
+      },
+      {
+        "name": "max-pages",
+        "type": "number",
+        "default": 30,
+        "required": false,
+        "help": "Maximum Sales Navigator API pages to fetch"
+      },
+      {
+        "name": "unread-only",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Return only unread conversations"
+      }
+    ],
+    "columns": [
+      "rank",
+      "thread_id",
+      "thread_url",
+      "person_name",
+      "last_message_snippet",
+      "last_activity_time",
+      "unread",
+      "unread_count",
+      "total_message_count",
+      "archived",
+      "participants",
+      "next_page_starts_at"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/salesnav-inbox.js",
+    "sourceFile": "linkedin/salesnav-inbox.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
+    "name": "salesnav-message",
+    "description": "Send or dry-run a LinkedIn Sales Navigator InMail to a lead using the Sales Navigator messaging API",
+    "access": "write",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "recipient",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Sales Navigator lead URL, LinkedIn /in/ URL from salesnav-search, or urn:li:fs_salesProfile:(...)"
+      },
+      {
+        "name": "subject",
+        "type": "string",
+        "required": true,
+        "help": "InMail subject"
+      },
+      {
+        "name": "body",
+        "type": "string",
+        "required": true,
+        "help": "InMail body"
+      },
+      {
+        "name": "send",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually send the InMail. Default is dry-run validation only."
+      },
+      {
+        "name": "copy-to-crm",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Set Sales Navigator copyToCrm on the message request"
+      }
+    ],
+    "columns": [
+      "status",
+      "recipient",
+      "title",
+      "company",
+      "credits_remaining",
+      "credits_before",
+      "credits_after",
+      "sent_in_salesnav",
+      "message_chars",
+      "subject_chars",
+      "recipient_urn",
+      "authRequired",
+      "text",
+      "degree",
+      "inmail_restriction",
+      "open_link",
+      "json",
+      "href",
+      "resourceUrns"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/salesnav-message.js",
+    "sourceFile": "linkedin/salesnav-message.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
+    "name": "salesnav-search",
+    "description": "Search LinkedIn Sales Navigator for people leads by keyword",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "keywords",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "People search keywords, e.g. \"quality manager food manufacturing\""
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "default": 25,
+        "required": false,
+        "help": "Maximum leads to return (1-500, fetched 25 per request)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "title",
+      "company",
+      "location",
+      "degree",
+      "profile_url",
+      "lead_url",
+      "recipient_urn"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/salesnav-search.js",
+    "sourceFile": "linkedin/salesnav-search.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
+    "name": "salesnav-thread",
+    "description": "Return full Sales Navigator message history for a thread id, Sales Navigator inbox URL, lead URL, recipient urn, or exact recipient name",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "thread-or-recipient",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Sales Navigator inbox URL/thread id, Sales Navigator lead URL, recipient urn, or exact participant name"
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "default": 200,
+        "required": false,
+        "help": "Maximum messages to return (1-500)"
+      },
+      {
+        "name": "max-pages",
+        "type": "number",
+        "default": 30,
+        "required": false,
+        "help": "Maximum inbox pages to scan when resolving a recipient"
+      }
+    ],
+    "columns": [
+      "index",
+      "thread_id",
+      "thread_url",
+      "sender",
+      "text",
+      "timestamp",
+      "subject",
+      "message_id",
+      "sender_urn",
+      "delivered_at",
+      "type",
+      "total_message_count"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/salesnav-thread.js",
+    "sourceFile": "linkedin/salesnav-thread.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
     "name": "search",
     "description": "Search LinkedIn jobs",
     "access": "read",
@@ -14615,8 +14831,28 @@
   },
   {
     "site": "linkedin",
+    "name": "sent-invitations",
+    "description": "List pending LinkedIn sent invitations for CRM reconciliation",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "rank",
+      "name",
+      "profile_url",
+      "invited_date_text"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/sent-invitations.js",
+    "sourceFile": "linkedin/sent-invitations.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
     "name": "thread-snapshot",
-    "description": "Load a LinkedIn messaging thread, scroll for available history, and return a full context snapshot",
+    "description": "Load a LinkedIn messaging thread, page through its full history, and return a context snapshot",
     "access": "read",
     "domain": "www.linkedin.com",
     "strategy": "ui",
@@ -14633,7 +14869,7 @@
         "type": "number",
         "default": 30,
         "required": false,
-        "help": "Maximum upward scroll attempts to load older messages"
+        "help": "Maximum older-history pages to fetch (about 20 messages each)"
       },
       {
         "name": "json",

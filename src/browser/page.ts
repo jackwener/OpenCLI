@@ -148,6 +148,18 @@ export class Page extends BasePage {
     try {
       return await sendCommand('exec', { code, ...this._cmdOpts() });
     } catch (err) {
+      // A "stale page identity" means the cached page handle is dead — the tab
+      // was re-identified (e.g. a SPA client-side navigation re-keyed it). The
+      // tab and its JS state still exist; only our handle is stale. Drop it so
+      // _cmdOpts() omits `page` and the bridge re-resolves the active tab, then
+      // retry. Without this, long-running scroll/evaluate commands die mid-run.
+      const message = err instanceof Error ? err.message : String(err);
+      if (/stale page identity|Page not found/i.test(message)) {
+        this._page = undefined;
+        this._lastUrl = null;
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        return sendCommand('exec', { code, ...this._cmdOpts() });
+      }
       const advice = classifyBrowserError(err);
       if (advice.kind !== 'target-navigation') throw err;
       await new Promise((resolve) => setTimeout(resolve, advice.delayMs));

@@ -4,7 +4,7 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultErr
 const LINKEDIN_DOMAIN = 'linkedin.com';
 const MESSAGING_URL = 'https://www.linkedin.com/messaging/';
 const MIN_LIMIT = 1;
-const MAX_LIMIT = 100;
+const MAX_LIMIT = 500;
 const DEFAULT_LIMIT = 40;
 
 // ── Why this command reads an API response instead of scraping the DOM ──
@@ -24,6 +24,100 @@ function unwrapEvaluateResult(payload) {
 
 function threadUrl(threadId) {
   return threadId ? `https://www.linkedin.com/messaging/thread/${threadId}/` : '';
+}
+
+function parseMaxScrolls(value) {
+  if (value === undefined || value === null || value === '') return 30;
+  const scrolls = Number(value);
+  if (!Number.isInteger(scrolls) || scrolls < 0 || scrolls > 80) {
+    throw new ArgumentError('--max-scrolls must be an integer between 0 and 80');
+  }
+  return scrolls;
+}
+
+// LinkedIn lazy-loads conversations as the list is scrolled, firing a fresh
+// messengerConversations request per page. We cannot capture those by patching
+// window.fetch: page.evaluate runs in an isolated world (its window.fetch is
+// not the one LinkedIn calls), and LinkedIn's CSP blocks injecting a main-world
+// script. Instead we scroll to make the page fire the requests, read the
+// request URLs back from the Performance API (visible to the isolated world),
+// and re-issue each one ourselves — the same requests the page already made.
+function collectMessagingUrlsScript() {
+  return String.raw`(() => Array.from(new Set(
+    performance.getEntriesByType('resource')
+      .map((entry) => entry.name)
+      .filter((url) => /messengerConversations/i.test(url) && /mailboxUrn/i.test(url)),
+  )))()`;
+}
+
+function fetchMessagingPagesScript(urls, csrf) {
+  return String.raw`(async () => {
+    const urls = ${JSON.stringify(urls)};
+    const headers = {
+      'csrf-token': ${JSON.stringify(csrf)},
+      accept: 'application/vnd.linkedin.normalized+json+2.1',
+      'x-restli-protocol-version': '2.0.0',
+    };
+    const out = [];
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { credentials: 'include', headers });
+        if (res.status === 401 || res.status === 403) { out.push({ url, authRequired: true }); continue; }
+        if (!res.ok) { out.push({ url, error: 'HTTP ' + res.status }); continue; }
+        out.push({ url, json: await res.json() });
+      } catch (e) {
+        out.push({ url, error: 'fetch failed: ' + ((e && e.message) || String(e)) });
+      }
+    }
+    return out;
+  })()`;
+}
+
+function scrollInboxConversationListScript() {
+  return String.raw`(() => {
+    const items = Array.from(document.querySelectorAll('.msg-conversation-listitem'));
+    const scrollers = new Set();
+    for (const item of items) {
+      let el = item.parentElement;
+      while (el && el !== document.body && el !== document.documentElement) {
+        if (el.scrollHeight > el.clientHeight) scrollers.add(el);
+        el = el.parentElement;
+      }
+    }
+    for (const el of Array.from(document.querySelectorAll('*'))) {
+      if (el.scrollHeight > el.clientHeight && el.querySelector && el.querySelector('.msg-conversation-listitem')) {
+        scrollers.add(el);
+      }
+    }
+    const fallback = document.scrollingElement || document.documentElement;
+    scrollers.add(fallback);
+    for (const el of scrollers) {
+      el.scrollTop = el.scrollHeight;
+      el.dispatchEvent(new Event('scroll', { bubbles: true }));
+      el.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 1200 }));
+    }
+    window.scrollTo(0, document.body?.scrollHeight || 0);
+    return { scrolled: scrollers.size, items: items.length };
+  })()`;
+}
+
+function mergeConversations(pageJsons, mailboxUrn) {
+  const byThread = new Map();
+  for (const normalized of pageJsons) {
+    let rows = [];
+    try {
+      rows = parseConversations(normalized, mailboxUrn);
+    } catch {
+      continue;
+    }
+    for (const row of rows) {
+      const previous = byThread.get(row.thread_id);
+      if (!previous || Date.parse(row.timestamp || '') > Date.parse(previous.timestamp || '')) {
+        byThread.set(row.thread_id, row);
+      }
+    }
+  }
+  return Array.from(byThread.values()).sort((a, b) => Date.parse(b.timestamp || '') - Date.parse(a.timestamp || ''));
 }
 
 // Runs in-page: locate the messengerConversations request the page already fired.
@@ -142,7 +236,8 @@ cli({
   strategy: Strategy.COOKIE,
   browser: true,
   args: [
-    { name: 'limit', type: 'int', default: DEFAULT_LIMIT, help: 'Maximum conversations to return (1-100)' },
+    { name: 'limit', type: 'int', default: DEFAULT_LIMIT, help: 'Maximum conversations to return (1-500)' },
+    { name: 'max-scrolls', type: 'int', default: 30, help: 'Maximum inbox scroll attempts to lazy-load older conversations (0-80)' },
     { name: 'unread-only', type: 'bool', default: false, help: 'Return only conversations with unread messages' },
   ],
   columns: [
@@ -165,10 +260,14 @@ cli({
         throw new ArgumentError(`--limit must be an integer between ${MIN_LIMIT} and ${MAX_LIMIT}`);
       }
     }
+    const maxScrolls = parseMaxScrolls(kwargs['max-scrolls']);
     const unreadOnly = Boolean(kwargs['unread-only']);
 
     await page.goto(MESSAGING_URL);
     await page.wait(10);
+    // Enlarge the resource-timing buffer so the messengerConversations request
+    // URLs fired during scrolling are not evicted before we collect them.
+    await page.evaluate('performance.setResourceTimingBufferSize(3000)');
 
     // Locate the messaging API request the page fired on load; retry once if the
     // SPA was slow to issue it.
@@ -193,8 +292,11 @@ cli({
     }
     const csrf = jsession.replace(/^"|"$/g, '');
 
-    // Widen the page size to the requested limit where the query supports it.
-    const targetUrl = located.url.replace(/count:\d+/, 'count:' + limit);
+    // Widen the page size to the requested limit where the query supports it, and keep
+    // this direct fetch as page 1 in case the fetch patch missed the initial SPA load.
+    const targetUrl = located.url
+      .replace(/count%3A\d+/i, 'count%3A' + limit)
+      .replace(/count:\d+/i, 'count:' + limit);
     const fetched = unwrapEvaluateResult(
       await page.evaluate(`(${fetchMessagingApi.toString()})(${JSON.stringify(targetUrl)}, ${JSON.stringify(csrf)})`),
     );
@@ -207,7 +309,32 @@ cli({
       );
     }
 
-    let conversations = parseConversations(fetched.json, located.mailboxUrn || '');
+    const pageJsons = [fetched.json];
+    let conversations = mergeConversations(pageJsons, located.mailboxUrn || '');
+    const fetchedUrls = new Set([targetUrl]);
+    let stablePasses = 0;
+    for (let i = 0; i < maxScrolls && conversations.length < limit; i += 1) {
+      // Scroll so LinkedIn lazy-loads the next page, then read the request URLs
+      // it fired from the Performance API and re-issue any we have not fetched.
+      await page.evaluate(scrollInboxConversationListScript());
+      await page.wait(1.5);
+      const seenUrls = unwrapEvaluateResult(await page.evaluate(collectMessagingUrlsScript()));
+      const newUrls = (Array.isArray(seenUrls) ? seenUrls : []).filter((u) => !fetchedUrls.has(u));
+      if (newUrls.length === 0) {
+        stablePasses += 1;
+        if (stablePasses >= 3) break; // list fully loaded; nothing new is appearing
+        continue;
+      }
+      stablePasses = 0;
+      for (const u of newUrls) fetchedUrls.add(u);
+      const fetchedPages = unwrapEvaluateResult(
+        await page.evaluate(fetchMessagingPagesScript(newUrls, csrf)),
+      );
+      for (const entry of Array.isArray(fetchedPages) ? fetchedPages : []) {
+        if (entry && entry.json) pageJsons.push(entry.json);
+      }
+      conversations = mergeConversations(pageJsons, located.mailboxUrn || '');
+    }
     if (unreadOnly) conversations = conversations.filter((c) => c.unread);
     if (conversations.length === 0) {
       if (unreadOnly) return [];
@@ -230,5 +357,7 @@ cli({
 
 export const __test__ = {
   parseConversations,
+  parseMaxScrolls,
+  mergeConversations,
   threadUrl,
 };
