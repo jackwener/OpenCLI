@@ -408,6 +408,35 @@ describe('twitter download helpers', () => {
         await expect(cmd.func(partialPage, { username: 'jack', limit: 2 }))
             .rejects.toBeInstanceOf(CommandExecutionError);
         expect(mockDownloadMedia).not.toHaveBeenCalled();
+
+        const repeatedCursorPage = createPageMock([
+            { queryId: 'UM', features: {}, fieldToggles: {} },
+            { queryId: 'UB', features: {}, fieldToggles: {} },
+            userLookupPayload('42'),
+            userMediaPayload([
+                tweetEntry('A'),
+                {
+                    content: {
+                        entryType: 'TimelineTimelineCursor',
+                        cursorType: 'Bottom',
+                        value: 'cursor-1',
+                    },
+                },
+            ]),
+            userMediaPayload([
+                tweetEntry('B'),
+                {
+                    content: {
+                        entryType: 'TimelineTimelineCursor',
+                        cursorType: 'Bottom',
+                        value: 'cursor-1',
+                    },
+                },
+            ]),
+        ]);
+        await expect(cmd.func(repeatedCursorPage, { username: 'jack', limit: 3 }))
+            .rejects.toThrowError(/same cursor twice/);
+        expect(mockDownloadMedia).not.toHaveBeenCalled();
     });
 
     it('uses typed empty result for profile or tweet media absence', async () => {

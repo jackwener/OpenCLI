@@ -381,6 +381,7 @@ async function downloadUserMedia(page, username, limit, output) {
     const seen = new Set();
     const all = [];
     let cursor = null;
+    let hasMorePages = false;
     for (let i = 0; i < MAX_PAGINATION_PAGES && all.length < limit; i++) {
         const fetchCount = nextUserMediaFetchCount(limit, all.length);
         if (fetchCount === 0) break;
@@ -393,14 +394,21 @@ async function downloadUserMedia(page, username, limit, output) {
         } catch (err) {
           return { ok: false, error: err?.message ?? String(err) };
         }
-      }`)));
+        }`)));
         const { items, nextCursor } = parseUserMedia(data, seen);
         all.push(...items);
-        if (!nextCursor || nextCursor === cursor) break;
+        hasMorePages = Boolean(nextCursor);
+        if (!nextCursor) break;
+        if (nextCursor === cursor) {
+            throw new CommandExecutionError('Twitter UserMedia pagination returned the same cursor twice');
+        }
         cursor = nextCursor;
     }
 
     if (all.length === 0) throw new EmptyResultError(`@${username} has no media`, 'Account may be private, suspended, or have no media posts');
+    if (all.length < limit && hasMorePages) {
+        throw new CommandExecutionError(`Twitter UserMedia pagination reached the ${MAX_PAGINATION_PAGES}-page safety cap before collecting ${limit} media items`);
+    }
 
     const trimmed = all.slice(0, limit);
     return downloadTwitterMedia(trimmed, {
