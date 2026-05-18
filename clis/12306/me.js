@@ -8,7 +8,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { maskEmail, maskMobile, maskChineseName, require12306Login } from './utils.js';
+import { isAuthLikePayload, maskEmail, maskMobile, maskChineseName, require12306Login, requireEvaluateObject } from './utils.js';
 
 const ACCOUNT_INFO_URL = 'https://kyfw.12306.cn/otn/modifyUser/initQueryUserInfoApi';
 
@@ -28,13 +28,26 @@ cli({
         if (!page) throw new CommandExecutionError('Browser session required for 12306 me');
         await page.goto('https://kyfw.12306.cn/otn/view/index.html');
         await require12306Login(page, AuthRequiredError);
-        const json = await page.evaluate(`async () => {
+        const json = requireEvaluateObject(await page.evaluate(`async () => {
       const r = await fetch(${JSON.stringify(ACCOUNT_INFO_URL)}, { credentials: 'include' });
       if (!r.ok) return { __http: r.status };
-      return await r.json();
-    }`);
+      try {
+        return await r.json();
+      } catch (err) {
+        return { __parse: String(err && err.message || err) };
+      }
+    }`), 'account info');
         if (json?.__http) {
+            if ([401, 403].includes(Number(json.__http))) {
+                throw new AuthRequiredError('kyfw.12306.cn', '12306 account info requires a valid login session');
+            }
             throw new CommandExecutionError(`12306 returned HTTP ${json.__http} for account info`);
+        }
+        if (json?.__parse) {
+            throw new CommandExecutionError(`12306 account info returned non-JSON body: ${json.__parse}`);
+        }
+        if (isAuthLikePayload(json)) {
+            throw new AuthRequiredError('kyfw.12306.cn', '12306 account info requires a valid login session');
         }
         if (json?.status !== true || !json?.data?.userDTO) {
             throw new CommandExecutionError('12306 account info payload missing userDTO');

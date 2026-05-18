@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './utils.js';
 import { __test__ as priceTest } from './price.js';
+import './orders.js';
 
-const { parseStationBundle, resolveStation, validateDate, buildCookieHeader, parseTrainRecord, maskEmail, maskMobile, maskChineseName } = __test__;
+const { parseStationBundle, resolveStation, validateDate, buildCookieHeader, parseTrainRecord, maskEmail, maskMobile, maskChineseName, unwrapEvaluateResult, requireEvaluateObject, isAuthLikePayload } = __test__;
 const { parsePriceData } = priceTest;
 
 describe('12306 utils - parseStationBundle', () => {
@@ -21,6 +23,10 @@ describe('12306 utils - parseStationBundle', () => {
         const stations = parseStationBundle(bundle);
         expect(stations).toHaveLength(1);
         expect(stations[0].code).toBe('BJP');
+    });
+
+    it('throws CommandExecutionError when the bundle has no parseable station rows', () => {
+        expect(() => parseStationBundle("var station_names ='@xxx|||||||||';")).toThrow(CommandExecutionError);
     });
 });
 
@@ -218,5 +224,69 @@ describe('12306 price - parsePriceData', () => {
         const rows = parsePriceData(data);
         const zz = rows.find((r) => r.seat_code === 'ZZ');
         expect(zz?.seat_name).toBe('ZZ');
+    });
+});
+
+describe('12306 browser evaluate boundaries', () => {
+    it('unwraps Browser Bridge {session,data} evaluate envelopes only at the boundary', () => {
+        expect(unwrapEvaluateResult({ session: 's1', data: 'JSESSIONID=1; tk=2' })).toBe('JSESSIONID=1; tk=2');
+        expect(unwrapEvaluateResult({ status: true, data: { value: 1 } })).toEqual({ status: true, data: { value: 1 } });
+        expect(requireEvaluateObject({ session: 's1', data: { status: true } }, 'test')).toEqual({ status: true });
+        expect(() => requireEvaluateObject({ session: 's1', data: null }, 'test')).toThrow(CommandExecutionError);
+    });
+
+    it('classifies 12306 login-like API envelopes as auth failures', () => {
+        expect(isAuthLikePayload({ status: false, messages: ['用户未登录'] })).toBe(true);
+        expect(isAuthLikePayload({ status: false, validateMessages: { global: ['请登录后再试'] } })).toBe(true);
+        expect(isAuthLikePayload({ status: false, messages: ['系统繁忙'] })).toBe(false);
+    });
+
+    it('masks passenger names in orders by default and supports explicit sensitive opt-in', async () => {
+        const command = getRegistry().get('12306/orders');
+        const makePage = () => ({
+            goto: async () => {},
+            evaluate: async (script) => {
+                if (script === "document.cookie || ''") return { session: 'browser', data: 'JSESSIONID=abc; tk=def' };
+                return {
+                    session: 'browser',
+                    data: {
+                        status: true,
+                        data: {
+                            orderDBList: [{
+                                sequence_no: 'E123',
+                                order_date: '2026-05-18 10:00',
+                                train_code_page: 'G1',
+                                from_station_name_page: '北京南',
+                                to_station_name_page: '上海虹桥',
+                                start_train_date_page: '2026-05-22 07:00',
+                                ticket_status_name: '未出行',
+                                ticket_total_price_page: '626.0',
+                                tickets: [{ passenger_name: '张三' }, { passenger_name: '李四明' }],
+                            }],
+                        },
+                    },
+                };
+            },
+        });
+
+        await expect(command.func(makePage(), {})).resolves.toMatchObject([
+            { order_id: 'E123', passengers: '张*, 李*明' },
+        ]);
+        await expect(command.func(makePage(), { 'include-sensitive': true })).resolves.toMatchObject([
+            { order_id: 'E123', passengers: '张三, 李四明' },
+        ]);
+    });
+
+    it('maps login-like order payloads to AuthRequiredError instead of parser drift', async () => {
+        const command = getRegistry().get('12306/orders');
+        const page = {
+            goto: async () => {},
+            evaluate: async (script) => {
+                if (script === "document.cookie || ''") return 'JSESSIONID=abc; tk=def';
+                return { status: false, messages: ['用户未登录'] };
+            },
+        };
+
+        await expect(command.func(page, {})).rejects.toBeInstanceOf(AuthRequiredError);
     });
 });

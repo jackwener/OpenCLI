@@ -16,6 +16,7 @@ import { fetchStationBundle, mintSession, resolveStation, validateDate } from '.
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36';
 const TRAIN_NO_RE = /^[0-9A-Z]{8,18}$/;
+const SEAT_TYPES_RE = /^[A-Z0-9]{1,32}$/;
 
 const SEAT_LETTERS = {
     'A9': '商务座',
@@ -126,6 +127,9 @@ cli({
         if (!toArg) throw new ArgumentError('--to station must not be empty');
         const date = validateDate(kwargs.date);
         const seatTypes = String(kwargs['seat-types'] ?? '').trim() || 'OM9PA1A3A4FWZ';
+        if (!SEAT_TYPES_RE.test(seatTypes)) {
+            throw new ArgumentError('--seat-types must contain only 12306 seat letters/digits (A-Z, 0-9)');
+        }
 
         const stations = await fetchStationBundle();
         const fromStation = resolveStation(stations, fromArg);

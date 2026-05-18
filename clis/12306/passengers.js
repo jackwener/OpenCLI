@@ -8,7 +8,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { maskChineseName, require12306Login } from './utils.js';
+import { isAuthLikePayload, maskChineseName, require12306Login, requireEvaluateObject } from './utils.js';
 
 const PASSENGER_QUERY_URL = 'https://kyfw.12306.cn/otn/passengers/query';
 const MAX_PAGE_SIZE = 50;
@@ -41,7 +41,7 @@ cli({
 
         await page.goto('https://kyfw.12306.cn/otn/view/index.html');
         await require12306Login(page, AuthRequiredError);
-        const json = await page.evaluate(`async () => {
+        const json = requireEvaluateObject(await page.evaluate(`async () => {
       const body = "pageIndex=1&pageSize=${MAX_PAGE_SIZE}";
       const r = await fetch(${JSON.stringify(PASSENGER_QUERY_URL)}, {
         method: 'POST',
@@ -49,10 +49,23 @@ cli({
         body, credentials: 'include',
       });
       if (!r.ok) return { __http: r.status };
-      return await r.json();
-    }`);
+      try {
+        return await r.json();
+      } catch (err) {
+        return { __parse: String(err && err.message || err) };
+      }
+    }`), 'passengers');
         if (json?.__http) {
+            if ([401, 403].includes(Number(json.__http))) {
+                throw new AuthRequiredError('kyfw.12306.cn', '12306 passengers requires a valid login session');
+            }
             throw new CommandExecutionError(`12306 returned HTTP ${json.__http} for passengers/query`);
+        }
+        if (json?.__parse) {
+            throw new CommandExecutionError(`12306 passengers returned non-JSON body: ${json.__parse}`);
+        }
+        if (isAuthLikePayload(json)) {
+            throw new AuthRequiredError('kyfw.12306.cn', '12306 passengers requires a valid login session');
         }
         if (json?.status !== true || !Array.isArray(json?.data?.datas)) {
             throw new CommandExecutionError('12306 passengers payload missing data.datas array');

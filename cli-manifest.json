@@ -41,7 +41,15 @@
     "domain": "kyfw.12306.cn",
     "strategy": "cookie",
     "browser": true,
-    "args": [],
+    "args": [
+      {
+        "name": "include-sensitive",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Reveal unmasked passenger names in order rows. Masked by default."
+      }
+    ],
     "columns": [
       "order_id",
       "order_date",

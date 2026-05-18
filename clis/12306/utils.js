@@ -58,6 +58,9 @@ export function parseStationBundle(text) {
             city: parts[7] || '',
         });
     }
+    if (stations.length === 0) {
+        throw new CommandExecutionError('Failed to parse 12306 station_name.js: no station records found');
+    }
     return stations;
 }
 
@@ -203,6 +206,40 @@ export function maskChineseName(value) {
     return v[0] + '*'.repeat(v.length - 2) + v.slice(-1);
 }
 
+export function unwrapEvaluateResult(value) {
+    if (
+        value
+        && typeof value === 'object'
+        && !Array.isArray(value)
+        && Object.prototype.hasOwnProperty.call(value, 'session')
+        && Object.prototype.hasOwnProperty.call(value, 'data')
+    ) {
+        return value.data;
+    }
+    return value;
+}
+
+export function requireEvaluateObject(value, label) {
+    const payload = unwrapEvaluateResult(value);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw new CommandExecutionError(`12306 ${label} returned a malformed browser payload`);
+    }
+    return payload;
+}
+
+export function isAuthLikePayload(payload) {
+    if (!payload || typeof payload !== 'object') return false;
+    const parts = [];
+    if (Array.isArray(payload.messages)) parts.push(...payload.messages);
+    if (payload.message) parts.push(payload.message);
+    if (payload.msg) parts.push(payload.msg);
+    if (payload.validateMessages && typeof payload.validateMessages === 'object') {
+        parts.push(...Object.values(payload.validateMessages).flat());
+    }
+    const text = parts.map((item) => String(item ?? '')).join(' ');
+    return /未登录|登录|请登录|身份|认证|session|Session|login/i.test(text);
+}
+
 /**
  * Detect the 12306 login marker by reading `document.cookie` from the
  * current adapter page. Cannot use `page.getCookies({url})` here:
@@ -213,7 +250,7 @@ export function maskChineseName(value) {
  * regardless of path, which is what we need to confirm login.
  */
 export async function require12306Login(page, AuthRequiredErrorClass) {
-    const docCookie = await page.evaluate(`document.cookie || ''`);
+    const docCookie = unwrapEvaluateResult(await page.evaluate(`document.cookie || ''`));
     const cookieStr = typeof docCookie === 'string' ? docCookie : '';
     if (!/\btk=/.test(cookieStr) || !/JSESSIONID=/.test(cookieStr)) {
         throw new AuthRequiredErrorClass('kyfw.12306.cn', 'Not logged into 12306. Sign in at https://kyfw.12306.cn first.');
@@ -229,4 +266,7 @@ export const __test__ = {
     maskEmail,
     maskMobile,
     maskChineseName,
+    unwrapEvaluateResult,
+    requireEvaluateObject,
+    isAuthLikePayload,
 };
