@@ -583,35 +583,6 @@
     ]
   },
   {
-    "command": "reddit/popular",
-    "file": "clis/reddit/popular.js",
-    "missing": [
-      "author",
-      "created_utc",
-      "id",
-      "selftext"
-    ]
-  },
-  {
-    "command": "reddit/search",
-    "file": "clis/reddit/search.js",
-    "missing": [
-      "created_utc",
-      "id",
-      "selftext"
-    ]
-  },
-  {
-    "command": "reddit/subreddit",
-    "file": "clis/reddit/subreddit.js",
-    "missing": [
-      "created_utc",
-      "id",
-      "selftext",
-      "subreddit"
-    ]
-  },
-  {
     "command": "tieba/search",
     "file": "clis/tieba/search.js",
     "missing": [

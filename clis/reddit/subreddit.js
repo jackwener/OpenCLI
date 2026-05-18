@@ -23,7 +23,7 @@ cli({
         },
         { name: 'limit', type: 'int', default: 15 },
     ],
-    columns: ['title', 'author', 'upvotes', 'comments', 'url', 'post_hint', 'url_overridden_by_dest', 'preview_image_url', 'gallery_urls'],
+    columns: ['id', 'title', 'subreddit', 'author', 'upvotes', 'comments', 'url', 'created_utc', 'selftext', 'post_hint', 'url_overridden_by_dest', 'preview_image_url', 'gallery_urls'],
     pipeline: [
         { navigate: 'https://www.reddit.com' },
         { evaluate: `(async () => {

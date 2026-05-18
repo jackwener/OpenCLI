@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@jackwener/opencli/registry';
 import { extractListEntry, isOwnedSubscribedEntry, parseListsManagement } from './lists.js';
 
 describe('twitter lists parser', () => {
@@ -202,5 +204,50 @@ describe('twitter lists parser', () => {
         };
         const result = parseListsManagement(payload, new Set());
         expect(result).toHaveLength(1);
+    });
+
+    it('fails malformed command payloads as parser drift instead of empty success', async () => {
+        const command = getRegistry().get('twitter/lists');
+        const page = {
+            getCookies: async () => [{ name: 'ct0', value: 'token' }],
+            evaluate: async (script) => {
+                if (script.includes('placeholder.json')) return null;
+                return { data: {} };
+            },
+        };
+
+        await expect(command.func(page, { limit: 10 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('treats a recommendation-only timeline as a true empty result', async () => {
+        const command = getRegistry().get('twitter/lists');
+        const page = {
+            getCookies: async () => [{ name: 'ct0', value: 'token' }],
+            evaluate: async (script) => {
+                if (script.includes('placeholder.json')) return null;
+                return {
+                    data: {
+                        viewer: {
+                            list_management_timeline: {
+                                timeline: {
+                                    instructions: [{
+                                        entries: [{
+                                            entryId: 'list-to-follow-module-1',
+                                            content: {
+                                                items: [{
+                                                    item: { itemContent: { list: { id_str: '9', name: 'Recommended' } } },
+                                                }],
+                                            },
+                                        }],
+                                    }],
+                                },
+                            },
+                        },
+                    },
+                };
+            },
+        };
+
+        await expect(command.func(page, { limit: 10 })).rejects.toBeInstanceOf(EmptyResultError);
     });
 });

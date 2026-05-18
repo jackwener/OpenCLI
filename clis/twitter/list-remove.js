@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { resolveTwitterQueryId } from './shared.js';
-import { parseListsManagement } from './lists.js';
+import { getListsManagementInstructions, parseListsManagement } from './lists.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 
 const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
@@ -274,11 +274,18 @@ cli({
                 if (!r.ok) return { __error: 'HTTP ' + r.status };
                 return await r.json();
             }`);
-            const parsedAfter = listsAfter && !listsAfter.__error
-                ? parseListsManagement(listsAfter, new Set())
-                : [];
+            if (listsAfter && listsAfter.__error) {
+                throw new CommandExecutionError(`Could not verify list removal: ${listsAfter.__error}`);
+            }
+            if (!getListsManagementInstructions(listsAfter)) {
+                throw new CommandExecutionError('Could not verify list removal: unexpected lists payload shape');
+            }
+            const parsedAfter = parseListsManagement(listsAfter, new Set());
             const afterList = parsedAfter.find((l) => l.id === listId);
-            const memberCountAfter = afterList ? Number(afterList.members) || 0 : -1;
+            if (!afterList) {
+                throw new CommandExecutionError(`Could not verify list removal: list ${listId} missing from post-delete payload`);
+            }
+            const memberCountAfter = Number(afterList.members) || 0;
             if (memberCountAfter < memberCountBefore) {
                 verifiedBy = `member_count ${memberCountBefore} → ${memberCountAfter}`;
             } else {

@@ -23,6 +23,7 @@
 | `opencli reddit comment` | Comment on a post |
 | `opencli reddit reply` | Reply to a comment |
 | `opencli reddit subscribe` | Join / leave a subreddit |
+| `opencli reddit subscribed` | List subreddits you are subscribed to |
 | `opencli reddit saved` | List your saved items |
 | `opencli reddit upvoted` | List your upvoted posts |
 
@@ -43,6 +44,9 @@ opencli reddit home --limit 10
 
 # Who am I logged in as?
 opencli reddit whoami
+
+# Subscribed subreddits (requires login)
+opencli reddit subscribed --limit 50
 
 # Read a post thread
 opencli reddit read 1abc123 --depth 2
@@ -65,8 +69,8 @@ opencli reddit hot -v
 
 ## Auth-required commands
 
-`whoami`, `home`, `saved`, `upvoted`, `subscribe`, `upvote`, `save`, `comment`,
-and `reply` all require a logged-in `reddit.com` cookie session. When the
+`whoami`, `home`, `subscribed`, `saved`, `upvoted`, `subscribe`, `upvote`,
+`save`, `comment`, and `reply` all require a logged-in `reddit.com` cookie session. When the
 session is missing or expired they raise `AuthRequiredError` (exit code 5)
 instead of silently returning empty rows.
 

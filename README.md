@@ -12,7 +12,7 @@
 OpenCLI gives you one surface for three different kinds of automation:
 
 - **Use built-in adapters** for sites like Bilibili, Zhihu, Xiaohongshu, Reddit, HackerNews, Twitter/X, and [many more](#built-in-commands).
-- **Let AI Agents operate any website** — install the `opencli-adapter-author` skill in your AI agent (Claude Code, Cursor, etc.), and it can navigate, click, type/fill, extract, and inspect any page through your logged-in browser via `opencli browser` primitives.
+- **Let AI Agents operate any website** — install the `opencli-browser` skill in your AI agent (Claude Code, Cursor, etc.), and it can navigate, click, type/fill, extract, and inspect any page through your logged-in browser via `opencli browser` primitives.
 - **Write new adapters** end-to-end with `opencli browser` + the `opencli-adapter-author` skill, which guides from first recon through field decoding, code, and `opencli browser verify`.
 
 It also works as a **CLI hub** for local tools such as `gh`, `docker`, `longbridge`, `tg`, `discord`, `wx`, `ntn` (Notion), and other binaries you register yourself, plus **desktop app adapters** for Electron apps like Cursor, Codex, Antigravity, and ChatGPT.
@@ -155,7 +155,7 @@ Available browser commands include `open`, `state`, `click`, `type`, `fill`, `se
 
 ### `browser`: AI Agent browser control
 
-`opencli browser` commands are the low-level primitives that AI Agents use to operate websites. You don't run these manually — instead, install the `opencli-adapter-author` skill into your AI agent, describe what you want in natural language, and the agent handles the browser operations.
+`opencli browser` commands are the low-level primitives that AI Agents use to operate websites. You don't run these manually — instead, install the `opencli-browser` skill into your AI agent, describe what you want in natural language, and the agent handles the browser operations.
 
 For example, tell your agent: *"Help me check my Xiaohongshu notifications"* — the agent will use `opencli browser <session> open`, `state`, `click`, etc. under the hood.
 
