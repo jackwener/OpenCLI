@@ -114,7 +114,7 @@ export async function downloadMedia(
       const media = items[i];
       const isVideo = media.type !== 'image';
       const ext = isVideo ? 'mp4' : 'jpg';
-      const filename = media.filename || `${filenamePrefix}_${i + 1}.${ext}`;
+      const filename = resolveMediaFilename(media.filename, filenamePrefix, i + 1, ext);
       const destPath = path.join(outputDir, filename);
 
       const progressBar = tracker.onFileStart(filename, i);
@@ -177,4 +177,12 @@ export async function downloadMedia(
   }
 
   return results;
+}
+
+function resolveMediaFilename(filename: string | undefined, prefix: string, index: number, ext: string): string {
+  const fallback = `${prefix}_${index}.${ext}`;
+  if (!filename) return fallback;
+
+  const basename = path.basename(filename);
+  return basename && basename !== '.' && basename !== '..' ? basename : fallback;
 }
