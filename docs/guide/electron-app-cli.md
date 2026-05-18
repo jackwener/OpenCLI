@@ -35,13 +35,13 @@ If Electron is present, the next step is usually to launch the app with a debugg
 ### 2. Launch it with CDP enabled
 
 ```bash
-/Applications/AppName.app/Contents/MacOS/AppName --remote-debugging-port=9222
+/Applications/AppName.app/Contents/MacOS/AppName --remote-debugging-port=<unique-port>
 ```
 
 Then point OpenCLI at that CDP endpoint:
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
+export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:<unique-port>"
 ```
 
 ### 3. Start with the 5-command pattern

@@ -14,7 +14,7 @@ Electron apps are essentially local Chromium browser instances. By exposing a de
 
 ### Launching the Target App
 ```bash
-/Applications/AppName.app/Contents/MacOS/AppName --remote-debugging-port=9222
+/Applications/AppName.app/Contents/MacOS/AppName --remote-debugging-port=<unique-port>
 ```
 
 ### Verifying Electron
@@ -82,7 +82,7 @@ await page.wait(1); // Wait for re-render
 
 ## Environment Variable
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
+export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:<unique-port>"
 ```
 
 ## Non-Electron Pattern (AppleScript)

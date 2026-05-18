@@ -31,13 +31,13 @@ ls /Applications/AppName.app/Contents/Frameworks/Electron\ Framework.framework
 ### 2. 带 CDP 端口启动应用
 
 ```bash
-/Applications/AppName.app/Contents/MacOS/AppName --remote-debugging-port=9222
+/Applications/AppName.app/Contents/MacOS/AppName --remote-debugging-port=<unique-port>
 ```
 
 然后把 OpenCLI 指到这个端口：
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
+export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:<unique-port>"
 ```
 
 ### 3. 先做 5 个基础命令
