@@ -12,9 +12,10 @@
 | `opencli weibo user` | 用户信息 |
 | `opencli weibo user-posts` | 按用户列出微博，可选日期范围 |
 | `opencli weibo me` | 我的信息 |
-| `opencli weibo post` | 发微博 |
+| `opencli weibo post` | 读取单条微博 |
 | `opencli weibo favorites` | 我的微博收藏列表 |
 | `opencli weibo publish` | 通过网页 UI 直接发布微博，支持最多 9 张图片 |
+| `opencli weibo delete` | 删除登录账号自己的单条微博 |
 | `opencli weibo comments` | 微博评论 |
 
 ## Usage Examples
@@ -52,6 +53,9 @@ opencli weibo publish "Hello from OpenCLI"
 
 # Publish text with images (executes immediately)
 opencli weibo publish "Hello with images" --images /path/a.jpg,/path/b.png
+
+# Delete one of your own posts (executes immediately)
+opencli weibo delete <id>
 ```
 
 ## Listing Columns

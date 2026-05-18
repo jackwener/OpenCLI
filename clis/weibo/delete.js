@@ -4,6 +4,42 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { requireObjectEvaluateResult, unwrapEvaluateResult } from './utils.js';
+
+const WEIBO_HOST_RE = /(^|\.)weibo\.(com|cn)$/i;
+const POST_ID_RE = /^[A-Za-z0-9]{4,32}$/;
+
+function normalizePostId(raw) {
+    const input = String(raw ?? '').trim();
+    if (!input) {
+        throw new ArgumentError('weibo delete: id cannot be empty');
+    }
+
+    let candidate = input;
+    try {
+        const url = new URL(input);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            throw new ArgumentError('weibo delete: URL must use http or https');
+        }
+        if (!WEIBO_HOST_RE.test(url.hostname)) {
+            throw new ArgumentError('weibo delete: URL must be a weibo.com or weibo.cn post URL');
+        }
+        const parts = url.pathname.split('/').filter(Boolean);
+        if (url.hostname.toLowerCase().endsWith('weibo.cn') && parts[0] === 'status') {
+            candidate = parts[1] ?? '';
+        } else {
+            candidate = parts.at(-1) ?? '';
+        }
+    } catch (error) {
+        if (error instanceof ArgumentError) throw error;
+    }
+
+    candidate = String(candidate ?? '').trim();
+    if (!POST_ID_RE.test(candidate)) {
+        throw new ArgumentError('weibo delete: id must be a numeric idstr, mblogid, or Weibo post URL');
+    }
+    return candidate;
+}
+
 cli({
     site: 'weibo',
     name: 'delete',
@@ -21,15 +57,16 @@ cli({
     ],
     columns: ['status', 'id', 'mblogid'],
     func: async (page, kwargs) => {
-        const raw = String(kwargs.id ?? '').trim();
-        if (!raw) {
-            throw new ArgumentError('weibo delete: id cannot be empty');
+        if (!page) {
+            throw new CommandExecutionError('Browser session required for weibo delete');
         }
+        const raw = String(kwargs.id ?? '').trim();
+        const id = normalizePostId(raw);
         await page.goto('https://weibo.com');
         await page.wait(2);
         const result = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
       (async () => {
-        const input = ${JSON.stringify(raw)};
+        const input = ${JSON.stringify(id)};
         const readCookie = (name) => {
           const pair = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(name + '='));
           return pair ? decodeURIComponent(pair.slice(name.length + 1)) : '';
@@ -81,7 +118,34 @@ cli({
         if (destroyBody.ok !== 1) {
           return { ok: false, error: 'api', msg: destroyBody.msg || destroyBody.message || 'destroy returned non-ok', id: idstr };
         }
-        return { ok: true, id: idstr, mblogid };
+        // Step 3: postcondition evidence. A write command cannot report success
+        // until the target no longer resolves after the delete API returns ok.
+        const verifyResp = await fetch('/ajax/statuses/show?id=' + encodeURIComponent(idstr), { credentials: 'include' });
+        if (verifyResp.status === 401 || verifyResp.status === 403) {
+          return { ok: false, error: 'auth', status: verifyResp.status };
+        }
+        if (verifyResp.status === 404) {
+          return { ok: true, id: idstr, mblogid };
+        }
+        if (!verifyResp.ok) {
+          return { ok: false, error: 'verify_http', status: verifyResp.status, id: idstr };
+        }
+        let verifyBody = null;
+        try {
+          verifyBody = await verifyResp.json();
+        } catch {
+          return { ok: false, error: 'verify_malformed', msg: 'verify returned non-JSON response', id: idstr };
+        }
+        if (!verifyBody || typeof verifyBody !== 'object') {
+          return { ok: false, error: 'verify_malformed', msg: 'verify returned malformed response', id: idstr };
+        }
+        if (String(verifyBody.idstr || '') === idstr) {
+          return { ok: false, error: 'still_exists', id: idstr, mblogid: verifyBody.mblogid || mblogid };
+        }
+        if (!verifyBody.idstr || verifyBody.ok === 0) {
+          return { ok: true, id: idstr, mblogid };
+        }
+        return { ok: false, error: 'verify_mismatch', msg: 'verify returned a different post id', id: idstr };
       })()
     `)), 'weibo delete');
         if (result.error === 'auth') {
@@ -90,11 +154,11 @@ cli({
         if (result.error === 'not_found') {
             throw new EmptyResultError('weibo delete', `Post not found for id "${String(result.input ?? raw)}". Verify the post still exists and belongs to the logged-in account.`);
         }
-        if (result.error === 'show_http' || result.error === 'destroy_http') {
+        if (result.error === 'show_http' || result.error === 'destroy_http' || result.error === 'verify_http') {
             throw new CommandExecutionError(`weibo delete: HTTP ${result.status}`);
         }
-        if (result.error === 'api') {
-            throw new CommandExecutionError(`weibo delete: ${String(result.msg)}`);
+        if (result.error === 'api' || result.error === 'verify_malformed' || result.error === 'verify_mismatch' || result.error === 'still_exists') {
+            throw new CommandExecutionError(`weibo delete: ${String(result.msg ?? result.error)}`);
         }
         if (!result.ok) {
             throw new CommandExecutionError('weibo delete returned an unexpected response');
@@ -102,3 +166,7 @@ cli({
         return [{ status: 'deleted', id: String(result.id ?? ''), mblogid: String(result.mblogid ?? '') }];
     },
 });
+
+export const __test__ = {
+    normalizePostId,
+};

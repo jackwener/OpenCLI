@@ -22,12 +22,29 @@ describe('weibo delete command', () => {
       { status: 'deleted', id: '5197123456789012', mblogid: 'Px2yQfXYZ' },
     ]);
     expect(page.goto).toHaveBeenCalledWith('https://weibo.com');
+    const script = page.evaluate.mock.calls[0][0];
+    expect(script.match(/\/ajax\/statuses\/show/g)).toHaveLength(2);
+    expect(script).toContain('/ajax/statuses/destroy');
+    expect(script).toContain('still_exists');
+  });
+
+  it('normalizes supported Weibo post URLs before evaluating delete flow', async () => {
+    const page = makePage({ ok: true, id: '5197123456789012', mblogid: 'Px2yQfXYZ' });
+    const result = await getCommand().func(page, { id: 'https://weibo.com/1234567890/Px2yQfXYZ?refer_flag=1001030103_' });
+
+    expect(result).toEqual([
+      { status: 'deleted', id: '5197123456789012', mblogid: 'Px2yQfXYZ' },
+    ]);
+    expect(page.evaluate.mock.calls[0][0]).toContain('const input = "Px2yQfXYZ"');
   });
 
   it('throws ArgumentError when id is empty or whitespace', async () => {
     const page = makePage({ ok: true, id: '0' });
     await expect(getCommand().func(page, { id: '   ' })).rejects.toBeInstanceOf(ArgumentError);
     await expect(getCommand().func(page, { id: '' })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(getCommand().func(page, { id: 'https://example.com/123/Px2yQfXYZ' })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(getCommand().func(page, { id: 'javascript:alert(1)' })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(getCommand().func(page, { id: '../not-a-post' })).rejects.toBeInstanceOf(ArgumentError);
     expect(page.goto).not.toHaveBeenCalled();
   });
 
@@ -56,12 +73,22 @@ describe('weibo delete command', () => {
     await expect(getCommand().func(page, { id: '5197123456789012' })).rejects.toThrowError(/无权限删除/);
   });
 
+  it('throws CommandExecutionError when postcondition verification still sees the target', async () => {
+    const page = makePage({ error: 'still_exists', id: '5197123456789012', mblogid: 'Px2yQfXYZ' });
+    await expect(getCommand().func(page, { id: '5197123456789012' })).rejects.toBeInstanceOf(CommandExecutionError);
+  });
+
+  it('throws CommandExecutionError when postcondition verification is malformed', async () => {
+    const page = makePage({ error: 'verify_malformed', msg: 'verify returned malformed response', id: '5197123456789012' });
+    await expect(getCommand().func(page, { id: '5197123456789012' })).rejects.toThrowError(/verify returned malformed response/);
+  });
+
   it('unwraps the browser-bridge { session, data } envelope', async () => {
     const page = makePage({
       session: 'site:weibo:abc',
-      data: { ok: true, id: '42', mblogid: 'M42' },
+      data: { ok: true, id: '42', mblogid: 'M420' },
     });
-    const result = await getCommand().func(page, { id: 'M42' });
-    expect(result).toEqual([{ status: 'deleted', id: '42', mblogid: 'M42' }]);
+    const result = await getCommand().func(page, { id: 'M420' });
+    expect(result).toEqual([{ status: 'deleted', id: '42', mblogid: 'M420' }]);
   });
 });
