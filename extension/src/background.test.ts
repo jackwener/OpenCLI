@@ -108,7 +108,10 @@ function createChromeMock() {
       query,
       create,
       update,
-      remove: vi.fn(async (_tabId: number) => {}),
+      remove: vi.fn(async (tabId: number) => {
+        const index = tabs.findIndex((entry) => entry.id === tabId);
+        if (index >= 0) tabs.splice(index, 1);
+      }),
       get: vi.fn(async (tabId: number) => {
         const tab = tabs.find((entry) => entry.id === tabId);
         if (!tab) throw new Error(`Unknown tab ${tabId}`);
@@ -137,6 +140,22 @@ function createChromeMock() {
           tab.groupId = groupId;
         }
         return groupId;
+      }),
+      ungroup: vi.fn(async (tabIds: number | number[]) => {
+        const ids = Array.isArray(tabIds) ? tabIds : [tabIds];
+        const changedGroupIds = new Set<number>();
+        for (const tabId of ids) {
+          const tab = tabs.find((entry) => entry.id === tabId);
+          if (!tab) throw new Error(`Unknown tab ${tabId}`);
+          if (tab.groupId !== undefined && tab.groupId !== -1) changedGroupIds.add(tab.groupId);
+          tab.groupId = -1;
+        }
+        for (const groupId of changedGroupIds) {
+          if (!tabs.some((entry) => entry.groupId === groupId)) {
+            const index = groups.findIndex((entry) => entry.id === groupId);
+            if (index >= 0) groups.splice(index, 1);
+          }
+        }
       }),
       onUpdated: { addListener: vi.fn(), removeListener: vi.fn() } as Listener<(id: number, info: chrome.tabs.TabChangeInfo) => void>,
       onRemoved: { addListener: vi.fn() } as Listener<(tabId: number) => void>,
@@ -869,6 +888,7 @@ describe('background tab isolation', () => {
     const closeSecond = await mod.__test__.handleCommand({ id: 'close-second', action: 'close-window', session: 'second', surface: 'adapter' });
     expect(closeSecond).toEqual(expect.objectContaining({ ok: true }));
     expect(chrome.tabs.remove).toHaveBeenCalledWith(10);
+    expect(chrome.tabs.ungroup).not.toHaveBeenCalled();
     expect(chrome.tabs.update).not.toHaveBeenCalledWith(10, { url: 'about:blank', active: true });
     expect(chrome.windows.remove).not.toHaveBeenCalled();
     expect(mod.__test__.getSession(adapterKey('first'))).not.toBeNull();
@@ -877,6 +897,32 @@ describe('background tab isolation', () => {
     await mod.__test__.handleCommand({ id: 'close-first', action: 'close-window', session: 'first', surface: 'adapter' });
     expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank' });
     expect(chrome.windows.remove).not.toHaveBeenCalled();
+  });
+
+  it('ungroups the final owned tab before removing it so Chrome does not leave an empty tab group', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    expect(tabs.find((tab) => tab.id === 1)?.groupId).toBe(100);
+    expect(groups).toHaveLength(1);
+
+    chrome.tabs.update.mockRejectedValueOnce(new Error('tab cannot become placeholder'));
+
+    const result = await mod.__test__.handleCommand({
+      id: 'close-twitter',
+      action: 'close-window',
+      session: 'twitter',
+      surface: 'adapter',
+    });
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.tabs.ungroup).toHaveBeenCalledWith(1);
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+    expect(tabs.some((tab) => tab.id === 1)).toBe(false);
+    expect(groups).toHaveLength(0);
   });
 
   it('releases the current owned tab lease when tabs close targets it', async () => {

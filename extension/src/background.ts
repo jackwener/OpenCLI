@@ -636,6 +636,33 @@ async function ensureOwnedContainerTabGroup(role: OwnedWindowRole, windowId: num
   }
 }
 
+async function ungroupOwnedTabIfLastInGroup(role: OwnedWindowRole, windowId: number, tabId: number): Promise<void> {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const groupId = tab.groupId;
+    if (groupId === undefined || groupId === chrome.tabGroups.TAB_GROUP_ID_NONE) return;
+
+    const group = await chrome.tabGroups.get(groupId);
+    if (group.windowId !== windowId) return;
+    if (!getOwnedContainerGroupTitles(role).includes(group.title ?? '')) return;
+
+    const tabs = await chrome.tabs.query({ windowId });
+    const groupedTabs = tabs.filter((entry) => entry.groupId === groupId);
+    if (groupedTabs.length > 1) return;
+
+    await chrome.tabs.ungroup(tabId);
+    if (ownedContainers[role].groupId === groupId) ownedContainers[role].groupId = null;
+  } catch {
+    // Best-effort cleanup only. Tab close/release must not fail because Chrome
+    // discarded transient group state first.
+  }
+}
+
+async function removeOwnedContainerTab(role: OwnedWindowRole, windowId: number, tabId: number): Promise<void> {
+  await ungroupOwnedTabIfLastInGroup(role, windowId, tabId);
+  await chrome.tabs.remove(tabId);
+}
+
 /**
  * Ensure the owned window for the requested role exists.
  *
@@ -1448,7 +1475,7 @@ async function handleTabs(cmd: Command, leaseKey: string): Promise<Result> {
           await releaseLease(leaseKey, 'tab close');
         } else {
           await safeDetach(target.id);
-          await chrome.tabs.remove(target.id);
+          await removeOwnedContainerTab(getOwnedWindowRole(leaseKey), target.windowId, target.id);
         }
         return { id: cmd.id, ok: true, data: { closed: closedPage } };
       }
@@ -1459,8 +1486,9 @@ async function handleTabs(cmd: Command, leaseKey: string): Promise<Result> {
       if (currentSession?.preferredTabId === tabId) {
         await releaseLease(leaseKey, 'tab close');
       } else {
+        const tab = await chrome.tabs.get(tabId);
         await safeDetach(tabId);
-        await chrome.tabs.remove(tabId);
+        await removeOwnedContainerTab(getOwnedWindowRole(leaseKey), tab.windowId, tabId);
       }
       return { id: cmd.id, ok: true, data: { closed: closedPage } };
     }
@@ -1676,6 +1704,7 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
   if (session.owned) {
     const tabId = session.preferredTabId;
     if (tabId !== null) {
+      const role = getOwnedWindowRole(leaseKey);
       const hasOtherOwnedLease = [...automationSessions.entries()].some(([otherLease, otherSession]) =>
         otherLease !== leaseKey &&
         otherSession.owned &&
@@ -1685,15 +1714,15 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
       await safeDetach(tabId);
       identity.evictTab(tabId);
       if (hasOtherOwnedLease) {
-        await chrome.tabs.remove(tabId).catch(() => {});
+        await removeOwnedContainerTab(role, session.windowId, tabId).catch(() => {});
         console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
       } else {
         try {
           const tab = await chrome.tabs.update(tabId, { url: BLANK_PAGE, active: true });
-          await ensureOwnedContainerTabGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId]);
+          await ensureOwnedContainerTabGroup(role, session.windowId, [tab.id ?? tabId]);
           console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
         } catch {
-          await chrome.tabs.remove(tabId).catch(() => {});
+          await removeOwnedContainerTab(role, session.windowId, tabId).catch(() => {});
           console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
         }
       }
