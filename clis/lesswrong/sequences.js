@@ -22,7 +22,7 @@ cli({
         return sequences.map((item, i) => ({
             rank: i + 1,
             title: item.title ?? '',
-            author: item.user?.displayName ?? 'Unknown',
+            author: item.user?.displayName ?? '',
         }));
     },
 });

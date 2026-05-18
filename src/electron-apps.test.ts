@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getElectronApp, isElectronApp, loadApps } from './electron-apps.js';
+import { builtinApps, getElectronApp, isElectronApp, loadApps } from './electron-apps.js';
 
 describe('electron-apps registry', () => {
   it('returns builtin app entry for cursor', () => {
@@ -12,7 +12,14 @@ describe('electron-apps registry', () => {
   it('returns builtin app entry for codex', () => {
     const app = getElectronApp('codex');
     expect(app).toBeDefined();
-    expect(app!.port).toBe(9222);
+    expect(app!.port).toBe(9238);
+  });
+
+  it('keeps builtin Electron app CDP ports unique and off the browser-bridge port', () => {
+    const ports = Object.values(builtinApps).map((app) => app.port);
+
+    expect(new Set(ports).size).toBe(ports.length);
+    expect(ports).not.toContain(9222);
   });
 
   it('returns undefined for non-Electron sites', () => {

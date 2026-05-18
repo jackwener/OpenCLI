@@ -32,7 +32,7 @@
 | `opencli twitter block` | |
 | `opencli twitter unblock` | |
 | `opencli twitter hide-reply` | |
-| `opencli twitter download` | |
+| `opencli twitter download` | Download media from a profile via GraphQL UserMedia pagination, or from one tweet URL |
 | `opencli twitter accept` | |
 | `opencli twitter reply-dm` | |
 | `opencli twitter unlike` | |
@@ -55,6 +55,12 @@ opencli twitter search "react 19" --filter live
 # Get following/followers list (supports large limits)
 opencli twitter following @elonmusk --limit 200
 opencli twitter followers @elonmusk --limit 100
+
+# Download profile media with cursor pagination
+opencli twitter download @elonmusk --limit 50 --output ./twitter-media
+
+# Download media from a single tweet
+opencli twitter download --tweet-url https://x.com/jack/status/20 --output ./twitter-media
 
 # Write actions (require login). Idempotent — calling twice is safe.
 opencli twitter like https://x.com/jack/status/20

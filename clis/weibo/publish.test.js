@@ -61,10 +61,10 @@ describe('weibo publish command', () => {
         { ok: true },
         { found: true, visible: true, rectTop: 100 },
         { ok: true, label: '发送' },
+        { ok: true, message: '发送成功' },
       ],
       evaluateWithArgsResults: [
         { ok: true, valueLength: 5 },
-        { ok: true, message: '发送成功' },
       ],
     });
 
@@ -72,6 +72,9 @@ describe('weibo publish command', () => {
 
     expect(result).toEqual([{ status: 'success', message: '发送成功', text: 'hello' }]);
     expect(page.goto).toHaveBeenCalledWith('https://weibo.com', { waitUntil: 'load', settleMs: 2000 });
+    expect(page.evaluate.mock.calls[2][0]).toContain('有什么新鲜事');
+    expect(page.evaluate.mock.calls[2][0]).toContain('textarea._input_13iqr_8');
+    expect(page.evaluateWithArgs.mock.calls[0][0]).toContain('有什么新鲜事');
   });
 
   it('uploads up to nine images before publishing', async () => {
@@ -83,11 +86,11 @@ describe('weibo publish command', () => {
         { found: true, visible: true, rectTop: 100 },
         true,
         { ok: true, label: '发送' },
+        { ok: true, message: '发送成功' },
       ],
       evaluateWithArgsResults: [
         { ok: true, count: 2 },
         { ok: true, valueLength: 11 },
-        { ok: true, message: '发送成功' },
       ],
     });
 
@@ -149,10 +152,10 @@ describe('weibo publish command', () => {
         { ok: true },
         { found: true, visible: true, rectTop: 100 },
         { ok: true, label: '发送' },
+        { ok: false, message: '内容违规' },
       ],
       evaluateWithArgsResults: [
         { ok: true, valueLength: 5 },
-        { ok: false, message: '内容违规' },
       ],
     });
 
@@ -161,22 +164,28 @@ describe('weibo publish command', () => {
 
   it('does not treat editor close as positive publish proof', async () => {
     const command = getCommand();
+    // Step 8 polls up to SUBMIT_TIMEOUT_MS / SUBMIT_POLL_MS iterations
+    // (= 20000 / 500 = 40 in upstream). Derive the window programmatically
+    // so the test stays aligned with the implementation if the timeout
+    // changes, and override the makePage default { ok: true } fallback that
+    // would otherwise satisfy the success-marker break.
+    const SUBMIT_POLL_ITERATIONS = Math.ceil(20_000 / 500);
     const page = makePage({
       evaluateResults: [
         '123456',
         { ok: true },
         { found: true, visible: true, rectTop: 100 },
         { ok: true, label: '发送' },
+        ...Array(SUBMIT_POLL_ITERATIONS).fill(null),
       ],
       evaluateWithArgsResults: [
         { ok: true, valueLength: 5 },
-        null,
       ],
     });
 
     await expect(command.func(page, { text: 'hello' })).rejects.toBeInstanceOf(CommandExecutionError);
 
-    const submitScript = page.evaluateWithArgs.mock.calls.at(-1)[0];
+    const submitScript = page.evaluate.mock.calls.at(-1)[0];
     expect(submitScript).not.toContain('Editor closed after publish');
     expect(submitScript).toContain('发布成功');
   });

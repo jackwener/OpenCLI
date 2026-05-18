@@ -14,7 +14,7 @@ Electron apps are essentially local Chromium browser instances. By exposing a de
 
 ### Launching the Target App
 ```bash
-/Applications/AppName.app/Contents/MacOS/AppName --remote-debugging-port=9222
+/Applications/AppName.app/Contents/MacOS/AppName --remote-debugging-port=<unique-port>
 ```
 
 ### Verifying Electron
@@ -82,7 +82,7 @@ await page.wait(1); // Wait for re-render
 
 ## Environment Variable
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
+export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:<unique-port>"
 ```
 
 ## Non-Electron Pattern (AppleScript)
@@ -108,7 +108,7 @@ Core techniques:
 
 ## Pitfalls & Gotchas
 
-1. **Port conflicts (EADDRINUSE)**: Only one app per port. Use unique ports: Codex=9222, ChatGPT=9224, Cursor=9226, ChatWise=9228, Discord=9232
+1. **Port conflicts (EADDRINUSE)**: Only one app per port. Use unique ports matching the builtin registry: Codex=9238, Doubao=9225, Cursor=9226, ChatWise=9228, Discord=9232, Antigravity=9234, ChatGPT=9236. Avoid `9222`, the default Chrome DevTools port the opencli browser bridge already binds.
 2. **IPage abstraction**: OpenCLI wraps the browser page as `IPage` (`src/types.ts`). Use `page.pressKey()` and `page.evaluate()`, NOT direct DOM APIs
 3. **Timing**: Always add `await page.wait(0.5)` to `1.0` after DOM mutations. Returning too early disconnects prematurely
 4. **AppleScript requires Accessibility**: Terminal app must be granted permission in System Settings → Privacy & Security → Accessibility
@@ -117,8 +117,10 @@ Core techniques:
 
 | App | Port | Mode |
 |-----|------|------|
-| Codex | 9222 | CDP |
-| ChatGPT | 9224 | CDP / AppleScript |
+| Codex | 9238 | CDP |
+| Doubao | 9225 | CDP |
 | Cursor | 9226 | CDP |
 | ChatWise | 9228 | CDP |
 | Discord App | 9232 | CDP |
+| Antigravity | 9234 | CDP |
+| ChatGPT | 9236 | CDP / AppleScript |

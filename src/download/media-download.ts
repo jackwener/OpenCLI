@@ -16,6 +16,7 @@ import {
   checkYtdlp,
   getTempDir,
   exportCookiesToNetscape,
+  sanitizeFilename,
 } from './index.js';
 import type { BrowserCookie } from '../types.js';
 import { DownloadProgressTracker, formatBytes } from './progress.js';
@@ -114,7 +115,7 @@ export async function downloadMedia(
       const media = items[i];
       const isVideo = media.type !== 'image';
       const ext = isVideo ? 'mp4' : 'jpg';
-      const filename = media.filename || `${filenamePrefix}_${i + 1}.${ext}`;
+      const filename = resolveMediaFilename(media.filename, filenamePrefix, i + 1, ext);
       const destPath = path.join(outputDir, filename);
 
       const progressBar = tracker.onFileStart(filename, i);
@@ -177,4 +178,19 @@ export async function downloadMedia(
   }
 
   return results;
+}
+
+function resolveMediaFilename(filename: string | undefined, prefix: string, index: number, ext: string): string {
+  const safePrefix = sanitizePathSegment(path.basename(path.win32.basename(prefix))) || 'download';
+  const fallback = `${safePrefix}_${index}.${ext}`;
+  if (!filename) return fallback;
+
+  const basename = path.basename(path.win32.basename(filename));
+  const safeName = sanitizePathSegment(basename);
+  return safeName || fallback;
+}
+
+function sanitizePathSegment(value: string): string {
+  const sanitized = sanitizeFilename(value);
+  return sanitized && sanitized !== '.' && sanitized !== '..' ? sanitized : '';
 }

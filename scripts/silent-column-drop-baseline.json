@@ -635,21 +635,6 @@
     ]
   },
   {
-    "command": "twitter/download",
-    "file": "clis/twitter/download.js",
-    "missing": [
-      "poster",
-      "url"
-    ]
-  },
-  {
-    "command": "twitter/download",
-    "file": "clis/twitter/download.js",
-    "missing": [
-      "url"
-    ]
-  },
-  {
     "command": "twitter/list-remove",
     "file": "clis/twitter/list-remove.js",
     "missing": [
@@ -783,19 +768,6 @@
     "file": "clis/weread/book.js",
     "missing": [
       "url"
-    ]
-  },
-  {
-    "command": "xianyu/chat",
-    "file": "clis/xianyu/chat.js",
-    "missing": [
-      "can_input",
-      "can_send",
-      "item_url",
-      "peer_masked_id",
-      "requiresAuth",
-      "title",
-      "visible_messages"
     ]
   },
   {
@@ -955,13 +927,6 @@
     "file": "clis/zhihu/hot.js",
     "missing": [
       "url"
-    ]
-  },
-  {
-    "command": "zhihu/search",
-    "file": "clis/zhihu/search.js",
-    "missing": [
-      "excerpt"
     ]
   },
   {

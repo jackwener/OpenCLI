@@ -30,8 +30,15 @@ const SUBMIT_POLL_MS = 500;
 const SUBMIT_TIMEOUT_MS = 20_000;
 const SUPPORTED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
 
-// Weibo PC UI selectors
-const TEXTAREA_SELECTOR = 'textarea._input_13iqr_8';
+// Weibo PC UI selectors. The CSS-module hash drifts on every frontend
+// rebuild (#1602), so match on the stable placeholder text and keep the
+// legacy hash as a last-resort fallback. Callers pick the LAST visible
+// match because the compose modal renders on top of the home-feed strip.
+const TEXTAREA_SELECTORS = [
+    'textarea[placeholder*="有什么新鲜事"]',
+    'textarea[placeholder*="新鲜事"]',
+    'textarea._input_13iqr_8',
+];
 const FILE_INPUT_SELECTOR = 'input[type="file"][class*="_file_"]';
 
 function validateText(text) {
@@ -125,12 +132,19 @@ cli({
         let editorFound = false;
         for (let i = 0; i < Math.ceil(COMPOSE_TIMEOUT_MS / COMPOSE_POLL_MS); i++) {
             const result = await page.evaluate(`
-                () => {
-                    const ta = document.querySelector('textarea._input_13iqr_8');
-                    if (!ta) return { found: false };
-                    const visible = ta.offsetParent !== null;
-                    return { found: true, visible, rectTop: visible ? ta.getBoundingClientRect().top : -1 };
-                }
+                (selectors => {
+                    // Pick the LAST visible match across all selectors so
+                    // the modal (rendered on top of the home-feed strip)
+                    // wins over earlier matches. See TEXTAREA_SELECTORS.
+                    let last = null;
+                    for (const sel of selectors) {
+                        for (const t of document.querySelectorAll(sel)) {
+                            if (t.offsetParent !== null) last = t;
+                        }
+                    }
+                    if (!last) return { found: false };
+                    return { found: true, visible: true, rectTop: last.getBoundingClientRect().top };
+                })(${JSON.stringify(TEXTAREA_SELECTORS)})
             `);
             if (result?.found && result.visible && result.rectTop >= 0) {
                 editorFound = true;
@@ -187,9 +201,14 @@ cli({
         // IMPORTANT: Using nativeSetter preserves the textarea's reactive/internal state.
         // Direct ta.value= assignment bypasses Weibo's Vue reactivity and causes "undefined" content.
         const insertResult = await page.evaluateWithArgs(`
-            (() => {
-                const ta = document.querySelector('textarea._input_13iqr_8');
-                if (!ta || ta.offsetParent === null) return { ok: false, message: 'textarea not visible' };
+            ((selectors) => {
+                let ta = null;
+                for (const sel of selectors) {
+                    for (const t of document.querySelectorAll(sel)) {
+                        if (t.offsetParent !== null) ta = t;
+                    }
+                }
+                if (!ta) return { ok: false, message: 'textarea not visible' };
                 ta.focus();
                 const nativeSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
                 if (nativeSetter) {
@@ -200,7 +219,7 @@ cli({
                 ta.dispatchEvent(new Event('input', { bubbles: true }));
                 ta.dispatchEvent(new Event('change', { bubbles: true }));
                 return { ok: true, valueLength: ta.value.length };
-            })()
+            })(${JSON.stringify(TEXTAREA_SELECTORS)})
         `, { textContent: text });
 
         if (!insertResult?.ok) {
@@ -233,10 +252,14 @@ cli({
         }
 
         // Step 8: Wait for success/failure result
+        // Use page.evaluate (not evaluateWithArgs): the IIFE doesn't reference
+        // any outer args, and evaluateWithArgs would re-declare its const
+        // bindings each loop iteration in the same page context, throwing
+        // "Identifier already declared" after the first iteration.
         let finalResult = null;
         for (let i = 0; i < Math.ceil(SUBMIT_TIMEOUT_MS / SUBMIT_POLL_MS); i++) {
             await page.wait({ time: SUBMIT_POLL_MS / 1000 });
-            finalResult = await page.evaluateWithArgs(`
+            finalResult = await page.evaluate(`
                 (() => {
                     const successMarkers = ['发布成功', '已发布', '发送成功'];
                     const errorMarkers = ['发布失败', '发送失败', '内容违规', '请稍后再试', '频繁'];
@@ -257,7 +280,7 @@ cli({
                     }
                     return null;
                 })()
-            `, { maxIterations: Math.ceil(SUBMIT_TIMEOUT_MS / SUBMIT_POLL_MS), currentIndex: i });
+            `);
             if (finalResult !== null) break;
         }
 

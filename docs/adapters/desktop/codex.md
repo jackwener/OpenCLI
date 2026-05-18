@@ -8,13 +8,13 @@ Control the **OpenAI Codex Desktop App** headless or headfully via Chrome DevToo
 2. Launch it via the terminal and expose the remote debugging port:
    ```bash
    # macOS
-   /Applications/Codex.app/Contents/MacOS/Codex --remote-debugging-port=9222
+   /Applications/Codex.app/Contents/MacOS/Codex --remote-debugging-port=9238
    ```
 
 ## Setup
 
 ```bash
-export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
+export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9238"
 ```
 
 ## Commands

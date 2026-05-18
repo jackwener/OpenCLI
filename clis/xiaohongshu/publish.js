@@ -22,6 +22,14 @@ const PUBLISH_URL = 'https://creator.xiaohongshu.com/publish/publish?from=menu_l
 const MAX_IMAGES = 9;
 const MAX_TITLE_LEN = 20;
 const UPLOAD_SETTLE_MS = 3000;
+/**
+ * XHS creator center wraps the publish/save button in an `<xhs-publish-btn>`
+ * web component backed by a CLOSED shadow root. Host-level `.click()` does
+ * not dispatch into the internal handler. Invoke these instance methods on
+ * the host element to trigger publish / save-draft directly (#1606).
+ */
+const PUBLISH_METHOD_NAMES = ['_onPublish', 'onPublish', '_onSubmit', '_handlePublish'];
+const DRAFT_METHOD_NAMES = ['_onSave', '_onSaveDraft', '_onDraft'];
 /** Selectors for the title field, ordered by priority across current UI variants. */
 const TITLE_SELECTORS = [
     // Some creator-center variants expose the title as contenteditable,
@@ -610,26 +618,58 @@ cli({
         }
         // ── Step 7: Publish or save draft ─────────────────────────────────────────
         const actionLabels = isDraft ? ['暂存离开', '存草稿'] : ['发布', '发布笔记'];
-        const btnClicked = await page.evaluate(`
-      (labels => {
+        const invokeResult = await page.evaluate(`
+      (cfg => {
+        const { isDraftMode, publishNames, draftNames, labels } = cfg;
+        const isVisible = (el) => {
+          if (!el || el.offsetParent === null) return false;
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        };
+        // Path 1: web component method invoke on <xhs-publish-btn>.
+        const hosts = Array.from(document.querySelectorAll('xhs-publish-btn')).filter(isVisible);
+        const wanted = isDraftMode ? draftNames : publishNames;
+        // Try every host + every candidate; do NOT bail on the first throw
+        // (multiple hosts can exist, and a later name may succeed).
+        let lastMethodError = null;
+        for (const host of hosts) {
+          for (const name of wanted) {
+            if (typeof host[name] !== 'function') continue;
+            try {
+              host[name]();
+              return { ok: true, via: 'method', name };
+            } catch (err) {
+              lastMethodError = String(err && err.message || err);
+            }
+          }
+        }
+        // Path 2: legacy <button>/[role=button] text-match click fallback.
         const buttons = document.querySelectorAll('button, [role="button"]');
         for (const btn of buttons) {
           const text = (btn.innerText || btn.textContent || '').trim();
           if (
             labels.some(l => text === l || text.includes(l)) &&
-            btn.offsetParent !== null &&
+            isVisible(btn) &&
             !btn.disabled
           ) {
             btn.click();
-            return true;
+            return { ok: true, via: 'click', text };
           }
         }
-        return false;
-      })(${JSON.stringify(actionLabels)})
+        return { ok: false, via: 'none', hosts: hosts.length, lastMethodError };
+      })(${JSON.stringify({
+            isDraftMode: isDraft,
+            publishNames: PUBLISH_METHOD_NAMES,
+            draftNames: DRAFT_METHOD_NAMES,
+            labels: actionLabels,
+        })})
     `);
-        if (!btnClicked) {
+        if (!invokeResult?.ok) {
             await page.screenshot({ path: '/tmp/xhs_publish_submit_debug.png' });
-            throw new Error(`Could not find "${actionLabels[0]}" button. ` +
+            const viaClause = invokeResult?.via ? ` (via=${invokeResult.via})` : '';
+            const errorClause = invokeResult?.error ? `, error=${invokeResult.error}` : '';
+            const lastMethodClause = invokeResult?.lastMethodError ? `, lastMethodError=${invokeResult.lastMethodError}` : '';
+            throw new Error(`Could not trigger "${actionLabels[0]}" action${viaClause}${errorClause}${lastMethodClause}. ` +
                 'Debug screenshot: /tmp/xhs_publish_submit_debug.png');
         }
         // ── Step 8: Verify success ─────────────────────────────────────────────────

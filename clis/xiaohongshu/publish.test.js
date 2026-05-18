@@ -76,8 +76,10 @@ describe('xiaohongshu publish', () => {
                     ? { ok: true, sel: '[contenteditable="true"][placeholder*="标题"]', kind: 'contenteditable', actual: '标题走原生输入' }
                     : { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable', actual: '正文也走原生输入' };
             }
+            if (code.includes('xhs-publish-btn'))
+                return { ok: true, via: 'click', text: '发布' };
             if (code.includes('labels.some'))
-                return true;
+                return false;
             if (code.includes('for (const el of document.querySelectorAll'))
                 return '发布成功';
             throw new Error(`Unhandled evaluate call: ${code.slice(0, 120)}`);
@@ -128,8 +130,10 @@ describe('xiaohongshu publish', () => {
                 return { ok: false, actual: '' };
             if (code.includes('(function(selectors, text)'))
                 return { ok: true, sel: '[contenteditable="true"][placeholder*="标题"]', kind: 'contenteditable', actual: '' };
+            if (code.includes('xhs-publish-btn'))
+                return { ok: true, via: 'click', text: '发布' };
             if (code.includes('labels.some'))
-                return true;
+                return false;
             if (code.includes('for (const el of document.querySelectorAll'))
                 return '发布成功';
             throw new Error(`Unhandled evaluate call: ${code.slice(0, 120)}`);
@@ -177,8 +181,10 @@ describe('xiaohongshu publish', () => {
                     ? { ok: true, actual: '原生失败后回退' }
                     : { ok: true, actual: '正文也回退' };
             }
+            if (code.includes('xhs-publish-btn'))
+                return { ok: true, via: 'click', text: '发布' };
             if (code.includes('labels.some'))
-                return true;
+                return false;
             if (code.includes('for (const el of document.querySelectorAll'))
                 return '发布成功';
             throw new Error(`Unhandled evaluate call: ${code.slice(0, 120)}`);
@@ -227,8 +233,10 @@ describe('xiaohongshu publish', () => {
                 return code.includes('input[maxlength')
                     ? { ok: false, actual: '' }
                     : { ok: true, actual: '正文' };
+            if (code.includes('xhs-publish-btn'))
+                return { ok: true, via: 'click', text: '发布' };
             if (code.includes('labels.some'))
-                return true;
+                return false;
             if (code.includes('for (const el of document.querySelectorAll'))
                 return '发布成功';
             throw new Error(`Unhandled evaluate call: ${code.slice(0, 120)}`);
@@ -259,7 +267,7 @@ describe('xiaohongshu publish', () => {
             { ok: true, actual: 'CDP上传优先' },
             { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable' },
             { ok: true, actual: '优先走 setFileInput 主路径' },
-            true,
+            { ok: true, via: 'click', text: '发布' },
             'https://creator.xiaohongshu.com/publish/success',
             '发布成功',
         ], {
@@ -301,7 +309,7 @@ describe('xiaohongshu publish', () => {
             { ok: true, actual: 'CDP被拒后回退' },
             { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable' },
             { ok: true, actual: 'DataTransfer fallback path' },
-            true,
+            { ok: true, via: 'click', text: '发布' },
             'https://creator.xiaohongshu.com/publish/success',
             '发布成功',
         ], {
@@ -366,7 +374,7 @@ describe('xiaohongshu publish', () => {
             { ok: true, actual: 'DeepSeek别乱问' },
             { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable' },
             { ok: true, actual: '一篇真实一点的小红书正文' },
-            true,
+            { ok: true, via: 'click', text: '发布' },
             'https://creator.xiaohongshu.com/publish/success',
             '发布成功',
         ]);
@@ -389,6 +397,49 @@ describe('xiaohongshu publish', () => {
                 detail: '"DeepSeek别乱问" · 1张图片 · 发布成功',
             },
         ]);
+    });
+    it('uses the shadow-DOM method-invoke path when xhs-publish-btn handler succeeds', async () => {
+        // Mirrors the previous "selects the image-text tab and publishes successfully"
+        // mock sequence but returns `via: 'method', name: '_onPublish'` for the publish
+        // trigger evaluate, exercising the shadow-DOM web-component handler path
+        // (the primary #1606 fix). Without this case the fix's main path is uncovered.
+        const cmd = getRegistry().get('xiaohongshu/publish');
+        expect(cmd?.func).toBeTypeOf('function');
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-publish-'));
+        const imagePath = path.join(tempDir, 'demo.jpg');
+        fs.writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+        const page = createPageMock([
+            'https://creator.xiaohongshu.com/publish/publish?from=menu_left',
+            { ok: true, target: '上传图文', text: '上传图文' },
+            { state: 'editor_ready', hasTitleInput: true, hasImageInput: true, hasVideoSurface: false },
+            { ok: true, count: 1 },
+            false,
+            true, // waitForEditForm: editor appeared
+            { ok: true, sel: 'input[maxlength="20"]', kind: 'input' },
+            { ok: true, actual: 'shadow-dom-test' },
+            { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable' },
+            { ok: true, actual: '走 method-invoke 路径' },
+            { ok: true, via: 'method', name: '_onPublish' }, // shadow-DOM handler success
+            'https://creator.xiaohongshu.com/publish/success',
+            '发布成功',
+        ]);
+        const result = await cmd.func(page, {
+            title: 'shadow-dom-test',
+            content: '走 method-invoke 路径',
+            images: imagePath,
+            topics: '',
+            draft: false,
+        });
+        expect(result).toEqual([
+            {
+                status: '✅ 发布成功',
+                detail: '"shadow-dom-test" · 1张图片 · 发布成功',
+            },
+        ]);
+        // The publish-trigger evaluate must have been the shadow-DOM probe (contains
+        // 'xhs-publish-btn'), not the legacy `button.click()` fallback alone.
+        const evaluateCalls = page.evaluate.mock.calls.map((args) => String(args[0]));
+        expect(evaluateCalls.some((code) => code.includes('xhs-publish-btn'))).toBe(true);
     });
     it('fails early with a clear error when still on the video page', async () => {
         const cmd = getRegistry().get('xiaohongshu/publish');
@@ -431,7 +482,7 @@ describe('xiaohongshu publish', () => {
             { ok: true, actual: '延迟切换也能过' },
             { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable' },
             { ok: true, actual: '图文页切换慢一点也继续等' },
-            true,
+            { ok: true, via: 'click', text: '发布' },
             'https://creator.xiaohongshu.com/publish/success',
             '发布成功',
         ]);
@@ -479,8 +530,10 @@ describe('xiaohongshu publish', () => {
                     ? { ok: true, actual: '停留在发布页也算成功' }
                     : { ok: true, actual: '草稿成功提示' };
             }
+            if (code.includes('xhs-publish-btn'))
+                return { ok: true, via: 'click', text: '发布' };
             if (code.includes('labels.some'))
-                return true;
+                return false;
             if (code.includes('for (const el of document.querySelectorAll')) {
                 return code.includes('保存成功') ? '保存成功' : '';
             }
@@ -529,8 +582,10 @@ describe('xiaohongshu publish', () => {
                     ? { ok: true, actual: '发布提示不该复用草稿成功' }
                     : { ok: true, actual: '发布成功提示' };
             }
+            if (code.includes('xhs-publish-btn'))
+                return { ok: true, via: 'click', text: '发布' };
             if (code.includes('labels.some'))
-                return true;
+                return false;
             if (code.includes('for (const el of document.querySelectorAll')) {
                 return code.includes('保存成功') ? '保存成功' : '';
             }
