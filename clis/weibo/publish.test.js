@@ -72,6 +72,9 @@ describe('weibo publish command', () => {
 
     expect(result).toEqual([{ status: 'success', message: '发送成功', text: 'hello' }]);
     expect(page.goto).toHaveBeenCalledWith('https://weibo.com', { waitUntil: 'load', settleMs: 2000 });
+    expect(page.evaluate.mock.calls[2][0]).toContain('有什么新鲜事');
+    expect(page.evaluate.mock.calls[2][0]).toContain('textarea._input_13iqr_8');
+    expect(page.evaluateWithArgs.mock.calls[0][0]).toContain('有什么新鲜事');
   });
 
   it('uploads up to nine images before publishing', async () => {
@@ -83,11 +86,11 @@ describe('weibo publish command', () => {
         { found: true, visible: true, rectTop: 100 },
         true,
         { ok: true, label: '发送' },
+        { ok: true, message: '发送成功' },
       ],
       evaluateWithArgsResults: [
         { ok: true, count: 2 },
         { ok: true, valueLength: 11 },
-        { ok: true, message: '发送成功' },
       ],
     });
 
