@@ -613,21 +613,6 @@
     ]
   },
   {
-    "command": "twitter/download",
-    "file": "clis/twitter/download.js",
-    "missing": [
-      "poster",
-      "url"
-    ]
-  },
-  {
-    "command": "twitter/download",
-    "file": "clis/twitter/download.js",
-    "missing": [
-      "url"
-    ]
-  },
-  {
     "command": "twitter/list-remove",
     "file": "clis/twitter/list-remove.js",
     "missing": [

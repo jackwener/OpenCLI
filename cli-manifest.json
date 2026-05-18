@@ -23040,7 +23040,7 @@
   {
     "site": "twitter",
     "name": "download",
-    "description": "Download Twitter/X media (images and videos). Provide either <username> to scan a profile's media tab, or --tweet-url to download a single tweet.",
+    "description": "Download Twitter/X media (images and videos). Provide either <username> to fetch every media item from their profile via the GraphQL UserMedia endpoint with cursor pagination, or --tweet-url to download a single tweet.",
     "access": "read",
     "domain": "x.com",
     "strategy": "cookie",
@@ -23051,7 +23051,7 @@
         "type": "str",
         "required": false,
         "positional": true,
-        "help": "Twitter username (with or without @) to scan their /media tab. Either <username> or --tweet-url is required."
+        "help": "Twitter username (with or without @) to scan their profile media. Either <username> or --tweet-url is required."
       },
       {
         "name": "tweet-url",
@@ -23076,6 +23076,8 @@
     ],
     "columns": [
       "index",
+      "tweet_id",
+      "url",
       "type",
       "status",
       "size"
