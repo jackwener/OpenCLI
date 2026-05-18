@@ -13845,6 +13845,55 @@
     "navigateBefore": "https://ke.com"
   },
   {
+    "site": "leadcontact",
+    "name": "reveal",
+    "description": "Reveal email and phone contact data from app.leadcontact.ai by LinkedIn URL or name plus company",
+    "access": "write",
+    "domain": "app.leadcontact.ai",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "linkedin",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn profile URL to search in LeadContact"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": false,
+        "help": "Lead full name. Required with --company when --linkedin is omitted"
+      },
+      {
+        "name": "company",
+        "type": "string",
+        "required": false,
+        "help": "Lead company. Required with --name when --linkedin is omitted"
+      }
+    ],
+    "columns": [
+      "status",
+      "name",
+      "company",
+      "linkedin_url",
+      "emails",
+      "phones",
+      "phone_type",
+      "leadcontact_found",
+      "clicked_reveal",
+      "reveal_count",
+      "credits_text",
+      "href",
+      "actions",
+      "error"
+    ],
+    "type": "js",
+    "modulePath": "leadcontact/reveal.js",
+    "sourceFile": "leadcontact/reveal.js",
+    "navigateBefore": "https://app.leadcontact.ai/finder"
+  },
+  {
     "site": "lesswrong",
     "name": "comments",
     "description": "Top comments on a post",
