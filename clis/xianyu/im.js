@@ -1,14 +1,34 @@
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 export const DEFAULT_INBOX_LIMIT = 20;
 export const MAX_INBOX_LIMIT = 100;
 export const DEFAULT_MESSAGE_LIMIT = 50;
 export const MAX_MESSAGE_LIMIT = 200;
 
-export function normalizeLimit(value, defaultValue = DEFAULT_INBOX_LIMIT, maxValue = MAX_INBOX_LIMIT) {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return defaultValue;
-    return Math.min(maxValue, Math.max(1, Math.floor(n)));
+export function normalizeLimit(value, defaultValue = DEFAULT_INBOX_LIMIT, maxValue = MAX_INBOX_LIMIT, label = 'limit') {
+    const raw = String(value ?? '').trim();
+    if (!raw) return defaultValue;
+    if (!/^\d+$/.test(raw)) {
+        throw new ArgumentError(`xianyu ${label} must be an integer between 1 and ${maxValue}`);
+    }
+    const n = Number(raw);
+    if (!Number.isSafeInteger(n) || n < 1 || n > maxValue) {
+        throw new ArgumentError(`xianyu ${label} must be an integer between 1 and ${maxValue}`);
+    }
+    return n;
+}
+
+export function normalizeRank(value) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return 0;
+    if (!/^\d+$/.test(raw)) {
+        throw new ArgumentError('xianyu rank must be a positive integer from xianyu inbox');
+    }
+    const n = Number(raw);
+    if (!Number.isSafeInteger(n) || n < 1) {
+        throw new ArgumentError('xianyu rank must be a positive integer from xianyu inbox');
+    }
+    return n;
 }
 
 export function requireText(value, label) {
@@ -17,6 +37,21 @@ export function requireText(value, label) {
         throw new ArgumentError(`${label} cannot be empty`);
     }
     return text;
+}
+
+export function requireEvaluateObject(payload, label) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw new CommandExecutionError(`Xianyu ${label} returned malformed browser payload`);
+    }
+    return payload;
+}
+
+export function requireClickResult(payload, label) {
+    const result = requireEvaluateObject(payload, label);
+    if (result.ok !== true) {
+        throw new CommandExecutionError(`Xianyu ${label} failed: ${result.reason || 'unknown-reason'}`);
+    }
+    return result;
 }
 
 export function buildChatUrl(itemId, peerUserId) {
@@ -228,6 +263,22 @@ export function buildExtractChatStateEvaluate(limit = DEFAULT_MESSAGE_LIMIT) {
 export function buildSendMessageEvaluate(text) {
     return `
     (async () => {
+      const clean = (value) => String(value ?? '').replace(/\\s+/g, ' ').trim();
+      const readMessages = () => {
+        const messageRoot = document.querySelector('#message-list-scrollable') || document.querySelector('[class*="message-list"]');
+        let messages = Array.from((messageRoot || document).querySelectorAll('[class*="message-row"]'))
+          .map((row) => clean(row.querySelector('[class*="message-text"]')?.textContent || ''))
+          .filter(Boolean);
+        if (!messages.length) {
+          messages = Array.from(
+            (messageRoot || document).querySelectorAll('[class*="message"], [class*="msg"], [class*="bubble"]')
+          ).map((el) => clean(el.textContent || '')).filter(Boolean);
+        }
+        return messages
+          .filter((item) => !['发送', '闲鱼号', '立即购买', '鍙戦€?', '闂查奔鍙?', '绔嬪嵆璐拱'].includes(item))
+          .filter((item) => !/^消息\\d*\\+?$/.test(item) && !/^娑堟伅\\d*\\+?$/.test(item));
+      };
+
       const textarea = document.querySelector('textarea');
       if (!textarea || textarea.disabled) {
         return { ok: false, reason: 'input-not-found' };
@@ -238,6 +289,7 @@ export function buildSendMessageEvaluate(text) {
         return { ok: false, reason: 'textarea-setter-not-found' };
       }
 
+      const beforeMessages = readMessages();
       textarea.click();
       textarea.focus();
       setter.call(textarea, ${JSON.stringify(text)});
@@ -257,7 +309,14 @@ export function buildSendMessageEvaluate(text) {
       }
 
       sendButton.click();
-      return { ok: true };
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 100));
+        const afterMessages = readMessages();
+        if (afterMessages.length > beforeMessages.length && afterMessages.at(-1) === ${JSON.stringify(text)}) {
+          return { ok: true };
+        }
+      }
+      return { ok: false, reason: 'send-postcondition-timeout' };
     })()
   `;
 }

@@ -1,4 +1,4 @@
-import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
     buildClickInboxConversationEvaluate,
@@ -8,6 +8,8 @@ import {
     DEFAULT_INBOX_LIMIT,
     MAX_INBOX_LIMIT,
     normalizeLimit,
+    requireClickResult,
+    requireEvaluateObject,
 } from './im.js';
 
 cli({
@@ -26,7 +28,7 @@ cli({
     ],
     columns: ['rank', 'peer_name', 'peer_user_id', 'item_id', 'item_title', 'price', 'last_message', 'unread', 'unread_count', 'url'],
     func: async (page, kwargs) => {
-        const limit = normalizeLimit(kwargs.limit, DEFAULT_INBOX_LIMIT, MAX_INBOX_LIMIT);
+        const limit = normalizeLimit(kwargs.limit, DEFAULT_INBOX_LIMIT, MAX_INBOX_LIMIT, 'inbox --limit');
         const unreadOnly = Boolean(kwargs['unread-only']);
         const resolveIds = Boolean(kwargs['resolve-ids']);
         let currentUrl = '';
@@ -41,15 +43,18 @@ cli({
             await page.goto(buildInboxUrl());
         }
         await page.wait(4);
-        const payload = await page.evaluate(buildExtractInboxEvaluate(limit));
+        const payload = requireEvaluateObject(await page.evaluate(buildExtractInboxEvaluate(limit)), 'inbox');
         if (payload?.requiresAuth) {
             throw new AuthRequiredError('www.goofish.com', 'Xianyu inbox requires a logged-in browser session');
         }
         if (payload?.blocked) {
-            throw new EmptyResultError('xianyu inbox', 'Xianyu inbox is blocked by verification or risk control');
+            throw new AuthRequiredError('www.goofish.com', 'Xianyu inbox is blocked by verification or risk control');
         }
-        const items = Array.isArray(payload?.items) ? payload.items : [];
-        if (!items.length && !payload?.empty) {
+        if (!Array.isArray(payload.items)) {
+            throw new CommandExecutionError('Xianyu inbox returned malformed conversation list');
+        }
+        const items = payload.items;
+        if (!items.length) {
             throw new EmptyResultError('xianyu inbox', 'No Xianyu inbox conversations were found');
         }
         let conversations = items.slice(0, limit);
@@ -61,10 +66,9 @@ cli({
                 if (item.item_id && item.peer_user_id) continue;
                 const rowIndex = Number(item.row_index);
                 if (!Number.isInteger(rowIndex) || rowIndex < 0) continue;
-                const clicked = await page.evaluate(buildClickInboxConversationEvaluate(rowIndex));
-                if (!clicked?.ok) continue;
+                requireClickResult(await page.evaluate(buildClickInboxConversationEvaluate(rowIndex)), 'inbox resolve-ids click');
                 await page.wait(1);
-                const current = await page.evaluate(buildReadCurrentConversationUrlEvaluate());
+                const current = requireEvaluateObject(await page.evaluate(buildReadCurrentConversationUrlEvaluate()), 'inbox current-url');
                 item.item_id = current?.item_id || item.item_id || '';
                 item.peer_user_id = current?.peer_user_id || item.peer_user_id || '';
                 item.url = current?.url || item.url || '';

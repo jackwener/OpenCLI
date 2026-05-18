@@ -41,6 +41,7 @@ describe('xianyu chat helpers', () => {
         const result = await runBrowserScript(`
             <main>
               <textarea></textarea>
+              <div id="message-list-scrollable"></div>
             </main>
         `, __test__.buildSendMessageEvaluate('还在吗？'), {
             beforeEval(window) {
@@ -53,6 +54,10 @@ describe('xianyu chat helpers', () => {
                     button.textContent = '发 送';
                     button.addEventListener('click', () => {
                         sendClicked = true;
+                        const row = window.document.createElement('div');
+                        row.className = 'message-row';
+                        row.innerHTML = '<div class="message-text">还在吗？</div>';
+                        window.document.querySelector('#message-list-scrollable').append(row);
                     });
                     window.document.body.append(button);
                 });

@@ -6,7 +6,10 @@ import {
     buildExtractInboxEvaluate,
     buildSendMessageEvaluate,
     normalizeLimit,
+    normalizeRank,
 } from './im.js';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import './messages.js';
 import './reply.js';
 import { getRegistry } from '@jackwener/opencli/registry';
 
@@ -17,11 +20,17 @@ async function runBrowserScript(html, script, { url = 'https://www.goofish.com/i
 }
 
 describe('xianyu im shared helpers', () => {
-    it('normalizes limits with an explicit upper bound', () => {
+    it('strictly validates limits and ranks before browser side effects', () => {
         expect(normalizeLimit(undefined, 20, 100)).toBe(20);
-        expect(normalizeLimit(0, 20, 100)).toBe(1);
-        expect(normalizeLimit(3.8, 20, 100)).toBe(3);
-        expect(normalizeLimit(999, 20, 100)).toBe(100);
+        expect(normalizeLimit('', 20, 100)).toBe(20);
+        expect(normalizeLimit('100', 20, 100)).toBe(100);
+        expect(() => normalizeLimit(0, 20, 100)).toThrow(ArgumentError);
+        expect(() => normalizeLimit(3.8, 20, 100)).toThrow(ArgumentError);
+        expect(() => normalizeLimit(999, 20, 100)).toThrow(ArgumentError);
+        expect(normalizeRank(undefined)).toBe(0);
+        expect(normalizeRank(1)).toBe(1);
+        expect(() => normalizeRank(0)).toThrow(ArgumentError);
+        expect(() => normalizeRank('1.5')).toThrow(ArgumentError);
     });
 
     it('extracts recent inbox conversations from visible IM rows', async () => {
@@ -182,19 +191,63 @@ describe('xianyu im shared helpers', () => {
         expect(command?.columns).toEqual(['status', 'peer_name', 'item_title', 'price', 'location', 'message']);
     });
 
-    it('builds chat URLs and can send through the shared helper', async () => {
+    it('builds chat URLs and requires post-submit message evidence', async () => {
         expect(buildChatUrl('10001', '90001')).toBe('https://www.goofish.com/im?itemId=10001&peerUserId=90001');
 
         let clicked = false;
-        const result = await runBrowserScript('<textarea></textarea><button>发送</button>', buildSendMessageEvaluate('你好'), {
+        const result = await runBrowserScript(`
+            <textarea></textarea>
+            <button>发送</button>
+            <div id="message-list-scrollable"></div>
+        `, buildSendMessageEvaluate('你好'), {
             beforeEval(window) {
                 window.document.querySelector('button').addEventListener('click', () => {
                     clicked = true;
+                    const row = window.document.createElement('div');
+                    row.className = 'message-row';
+                    row.innerHTML = '<div class="message-text">你好</div>';
+                    window.document.querySelector('#message-list-scrollable').append(row);
                 });
             },
         });
 
         expect(result).toEqual({ ok: true });
         expect(clicked).toBe(true);
+
+        await expect(runBrowserScript('<textarea></textarea><button>发送</button>', buildSendMessageEvaluate('没证据'), {
+            beforeEval(window) {
+                window.setTimeout = (fn) => {
+                    fn();
+                    return 0;
+                };
+            },
+        }))
+            .resolves.toEqual({ ok: false, reason: 'send-postcondition-timeout' });
+    });
+
+    it('requires an explicit conversation target for messages and reply', async () => {
+        const messages = getRegistry().get('xianyu/messages');
+        const reply = getRegistry().get('xianyu/reply');
+        const page = {
+            goto: () => { throw new Error('should not navigate'); },
+            wait: () => {},
+            evaluate: () => ({}),
+        };
+
+        await expect(messages.func(page, { limit: 1 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(reply.func(page, { text: 'hello' })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(messages.func(page, { item_id: '10001', user_id: '90001', rank: 1 })).rejects.toBeInstanceOf(ArgumentError);
+    });
+
+    it('treats malformed evaluate payloads as command failures', async () => {
+        const messages = getRegistry().get('xianyu/messages');
+        const page = {
+            goto: () => {},
+            wait: () => {},
+            evaluate: () => null,
+        };
+
+        await expect(messages.func(page, { item_id: '10001', user_id: '90001', limit: 1 }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
     });
 });

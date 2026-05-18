@@ -1,6 +1,6 @@
-import { AuthRequiredError, selectorError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, selectorError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { buildChatUrl, buildClickInboxConversationEvaluate, buildExtractChatStateEvaluate, buildSendMessageEvaluate, requireText } from './im.js';
+import { buildChatUrl, buildClickInboxConversationEvaluate, buildExtractChatStateEvaluate, buildSendMessageEvaluate, normalizeRank, requireClickResult, requireEvaluateObject, requireText } from './im.js';
 import { normalizeNumericId } from './utils.js';
 
 cli({
@@ -20,10 +20,21 @@ cli({
     ],
     columns: ['status', 'peer_name', 'item_title', 'price', 'location', 'message'],
     func: async (page, kwargs) => {
-        const hasIds = kwargs.item_id != null && kwargs.item_id !== '' && kwargs.user_id != null && kwargs.user_id !== '';
+        const hasItemId = kwargs.item_id != null && kwargs.item_id !== '';
+        const hasUserId = kwargs.user_id != null && kwargs.user_id !== '';
+        const rank = normalizeRank(kwargs.rank);
+        if (rank > 0 && (hasItemId || hasUserId)) {
+            throw new ArgumentError('xianyu reply accepts either item_id/user_id or --rank, not both');
+        }
+        if (rank === 0 && hasItemId !== hasUserId) {
+            throw new ArgumentError('xianyu reply requires both item_id and user_id, or --rank from xianyu inbox');
+        }
+        if (rank === 0 && !hasItemId && !hasUserId) {
+            throw new ArgumentError('xianyu reply requires item_id/user_id or --rank from xianyu inbox');
+        }
+        const hasIds = hasItemId && hasUserId;
         const itemId = hasIds ? normalizeNumericId(kwargs.item_id, 'item_id', '1038951278192') : '';
         const userId = hasIds ? normalizeNumericId(kwargs.user_id, 'user_id', '3650092411') : '';
-        const rank = Number(kwargs.rank || 0);
         const text = requireText(kwargs.text, 'xianyu reply --text');
         const url = hasIds ? buildChatUrl(itemId, userId) : '';
         if (hasIds) {
@@ -34,27 +45,20 @@ cli({
             }
         }
         await page.wait(2);
-        if (Number.isInteger(rank) && rank > 0) {
-            const clicked = await page.evaluate(buildClickInboxConversationEvaluate(rank - 1));
-            if (clicked?.ok) await page.wait(2);
+        if (rank > 0) {
+            requireClickResult(await page.evaluate(buildClickInboxConversationEvaluate(rank - 1)), 'reply rank click');
+            await page.wait(2);
         }
-        let state = await page.evaluate(buildExtractChatStateEvaluate());
+        const state = requireEvaluateObject(await page.evaluate(buildExtractChatStateEvaluate()), 'reply');
         if (state?.requiresAuth) {
             throw new AuthRequiredError('www.goofish.com', 'Xianyu reply requires a logged-in browser session');
         }
         if (!state?.can_input) {
-            const clicked = await page.evaluate(buildClickInboxConversationEvaluate(0));
-            if (clicked?.ok) {
-                await page.wait(2);
-                state = await page.evaluate(buildExtractChatStateEvaluate());
-            }
-        }
-        if (!state?.can_input) {
             throw selectorError('闲鱼聊天输入框', '未找到可用的聊天输入框，请确认该会话页已正确加载');
         }
-        const sent = await page.evaluate(buildSendMessageEvaluate(text));
+        const sent = requireEvaluateObject(await page.evaluate(buildSendMessageEvaluate(text)), 'reply send');
         if (!sent?.ok) {
-            throw selectorError('闲鱼发送按钮', `消息发送失败：${sent?.reason || 'unknown-reason'}`);
+            throw new CommandExecutionError(`Xianyu reply did not observe the sent message: ${sent?.reason || 'unknown-reason'}`);
         }
         await page.wait(1);
         return [{

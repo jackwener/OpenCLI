@@ -1,4 +1,4 @@
-import { AuthRequiredError, EmptyResultError, selectorError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
     buildChatUrl,
@@ -7,6 +7,9 @@ import {
     DEFAULT_MESSAGE_LIMIT,
     MAX_MESSAGE_LIMIT,
     normalizeLimit,
+    normalizeRank,
+    requireClickResult,
+    requireEvaluateObject,
 } from './im.js';
 import { normalizeNumericId } from './utils.js';
 
@@ -27,11 +30,22 @@ cli({
     ],
     columns: ['index', 'peer_name', 'item_title', 'message', 'item_id', 'peer_user_id', 'url'],
     func: async (page, kwargs) => {
-        const hasIds = kwargs.item_id != null && kwargs.item_id !== '' && kwargs.user_id != null && kwargs.user_id !== '';
+        const hasItemId = kwargs.item_id != null && kwargs.item_id !== '';
+        const hasUserId = kwargs.user_id != null && kwargs.user_id !== '';
+        const rank = normalizeRank(kwargs.rank);
+        if (rank > 0 && (hasItemId || hasUserId)) {
+            throw new ArgumentError('xianyu messages accepts either item_id/user_id or --rank, not both');
+        }
+        if (rank === 0 && hasItemId !== hasUserId) {
+            throw new ArgumentError('xianyu messages requires both item_id and user_id, or --rank from xianyu inbox');
+        }
+        if (rank === 0 && !hasItemId && !hasUserId) {
+            throw new ArgumentError('xianyu messages requires item_id/user_id or --rank from xianyu inbox');
+        }
+        const hasIds = hasItemId && hasUserId;
         const itemId = hasIds ? normalizeNumericId(kwargs.item_id, 'item_id', '1038951278192') : '';
         const userId = hasIds ? normalizeNumericId(kwargs.user_id, 'user_id', '3650092411') : '';
-        const rank = Number(kwargs.rank || 0);
-        const limit = normalizeLimit(kwargs.limit, DEFAULT_MESSAGE_LIMIT, MAX_MESSAGE_LIMIT);
+        const limit = normalizeLimit(kwargs.limit, DEFAULT_MESSAGE_LIMIT, MAX_MESSAGE_LIMIT, 'messages --limit');
         let url = '';
         if (hasIds) {
             url = buildChatUrl(itemId, userId);
@@ -42,25 +56,18 @@ cli({
             }
         }
         await page.wait(2);
-        if (Number.isInteger(rank) && rank > 0) {
-            const clicked = await page.evaluate(buildClickInboxConversationEvaluate(rank - 1));
-            if (clicked?.ok) await page.wait(2);
+        if (rank > 0) {
+            requireClickResult(await page.evaluate(buildClickInboxConversationEvaluate(rank - 1)), 'messages rank click');
+            await page.wait(2);
         }
-        let state = await page.evaluate(buildExtractChatStateEvaluate(limit));
+        const state = requireEvaluateObject(await page.evaluate(buildExtractChatStateEvaluate(limit)), 'messages');
         if (state?.requiresAuth) {
             throw new AuthRequiredError('www.goofish.com', 'Xianyu messages requires a logged-in browser session');
         }
-        if (!Array.isArray(state?.messages) || state.messages.length === 0) {
-            const clicked = await page.evaluate(buildClickInboxConversationEvaluate(0));
-            if (clicked?.ok) {
-                await page.wait(2);
-                state = await page.evaluate(buildExtractChatStateEvaluate(limit));
-            }
+        if (!Array.isArray(state.messages)) {
+            throw new CommandExecutionError('Xianyu messages returned malformed message list');
         }
-        if (!state?.can_input && !Array.isArray(state?.messages)) {
-            throw selectorError('闲鱼聊天消息列表', '未找到可用的聊天消息列表，请确认该会话页已正确加载');
-        }
-        const messages = Array.isArray(state?.messages) ? state.messages : [];
+        const messages = state.messages;
         if (!messages.length) {
             throw new EmptyResultError('xianyu messages', 'No visible messages were found in this Xianyu conversation');
         }
@@ -80,4 +87,5 @@ export const __test__ = {
     buildChatUrl,
     buildExtractChatStateEvaluate,
     normalizeLimit,
+    normalizeRank,
 };

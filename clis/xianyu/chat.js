@@ -1,6 +1,6 @@
-import { AuthRequiredError, selectorError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError, selectorError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { buildChatUrl, buildClickInboxConversationEvaluate, buildExtractChatStateEvaluate, buildSendMessageEvaluate } from './im.js';
+import { buildChatUrl, buildExtractChatStateEvaluate, buildSendMessageEvaluate, requireEvaluateObject } from './im.js';
 import { normalizeNumericId } from './utils.js';
 
 cli({
@@ -25,16 +25,9 @@ cli({
         const text = String(kwargs.text || '').trim();
         await page.goto(url);
         await page.wait(2);
-        let state = await page.evaluate(buildExtractChatStateEvaluate());
+        const state = requireEvaluateObject(await page.evaluate(buildExtractChatStateEvaluate()), 'chat');
         if (state?.requiresAuth) {
             throw new AuthRequiredError('www.goofish.com', 'Xianyu chat requires a logged-in browser session');
-        }
-        if (!state?.can_input) {
-            const clicked = await page.evaluate(buildClickInboxConversationEvaluate(0));
-            if (clicked?.ok) {
-                await page.wait(2);
-                state = await page.evaluate(buildExtractChatStateEvaluate());
-            }
         }
         if (!state?.can_input) {
             throw selectorError('闲鱼聊天输入框', '未找到可用的聊天输入框，请确认该会话页已正确加载');
@@ -53,9 +46,9 @@ cli({
                 item_url: state.item_url || '',
             }];
         }
-        const sent = await page.evaluate(buildSendMessageEvaluate(text));
+        const sent = requireEvaluateObject(await page.evaluate(buildSendMessageEvaluate(text)), 'chat send');
         if (!sent?.ok) {
-            throw selectorError('闲鱼发送按钮', `消息发送失败：${sent?.reason || 'unknown-reason'}`);
+            throw new CommandExecutionError(`Xianyu chat did not observe the sent message: ${sent?.reason || 'unknown-reason'}`);
         }
         await page.wait(1);
         return [{
