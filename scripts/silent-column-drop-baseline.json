@@ -936,13 +936,6 @@
     ]
   },
   {
-    "command": "zhihu/search",
-    "file": "clis/zhihu/search.js",
-    "missing": [
-      "excerpt"
-    ]
-  },
-  {
     "command": "zsxq/groups",
     "file": "clis/zsxq/groups.js",
     "missing": [

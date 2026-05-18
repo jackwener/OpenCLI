@@ -29077,7 +29077,20 @@
         "type": "int",
         "default": 10,
         "required": false,
-        "help": "Number of results"
+        "help": "Number of results (max 1000; use normal-sized requests)"
+      },
+      {
+        "name": "type",
+        "type": "str",
+        "default": "all",
+        "required": false,
+        "help": "Result type: all, answer, article, or question",
+        "choices": [
+          "all",
+          "answer",
+          "article",
+          "question"
+        ]
       }
     ],
     "columns": [
