@@ -26,10 +26,11 @@ cli({
         const articles = data?.mostread?.articles;
         if (!articles?.length)
             throw new CliError('NOT_FOUND', 'No trending articles available', 'Try a different language with --lang');
-        if (articles.some((article) => !String(article?.title || '').trim())) {
+        const selectedArticles = articles.slice(0, limit);
+        if (selectedArticles.some((article) => !String(article?.title || '').trim())) {
             throw new CliError('PARSE_ERROR', 'Wikipedia trending returned an article without title', 'Trending rows require a title so they can be opened with wikipedia page.');
         }
-        return articles.slice(0, limit).map((a, i) => ({
+        return selectedArticles.map((a, i) => ({
             rank: i + 1,
             title: a.title,
             description: (a.description ?? '').slice(0, DESC_MAX_LEN),

@@ -96,6 +96,13 @@ function mapCollectionItem(item, rank) {
     votes = content.reaction_count || 0;
   }
 
+  if (!String(title || '').trim() || !String(url || '').trim() || url.includes('undefined')) {
+    throw new CommandExecutionError(
+      'Zhihu collection returned a malformed item without title or URL identity',
+      'Collection item rows require type, title, and URL so malformed payloads do not become blank listing rows.',
+    );
+  }
+
   return {
     rank,
     type,

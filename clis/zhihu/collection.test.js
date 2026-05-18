@@ -309,4 +309,28 @@ describe('zhihu collection', () => {
     await expect(cmd.func(page, { id: '83283292', offset: 0, limit: 20 }))
       .rejects.toBeInstanceOf(CommandExecutionError);
   });
+
+  it('fails typed for supported collection items missing title/url identity', async () => {
+    const cmd = getRegistry().get('zhihu/collection');
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockResolvedValue({
+        data: [
+          {
+            content: {
+              type: 'answer',
+              id: 555,
+              question: { id: 666, title: '' },
+              author: { name: 'a' },
+              voteup_count: 1,
+              content: '<p>x</p>',
+            },
+          },
+        ],
+        paging: { totals: 1 },
+      }),
+    };
+    await expect(cmd.func(page, { id: '83283292', offset: 0, limit: 20 }))
+      .rejects.toBeInstanceOf(CommandExecutionError);
+  });
 });

@@ -39,4 +39,19 @@ describe('wikipedia trending', () => {
         });
         await expect(command.func({ limit: 5, lang: 'en' })).rejects.toMatchObject({ code: 'PARSE_ERROR' });
     });
+
+    it('validates only rows selected by --limit', async () => {
+        const command = getRegistry().get('wikipedia/trending');
+        wikiFetchMock.mockResolvedValueOnce({
+            mostread: {
+                articles: [
+                    { title: 'Selected', views: 100 },
+                    { views: 50 },
+                ],
+            },
+        });
+        await expect(command.func({ limit: 1, lang: 'en' })).resolves.toEqual([
+            { rank: 1, title: 'Selected', description: '', views: 100 },
+        ]);
+    });
 });
