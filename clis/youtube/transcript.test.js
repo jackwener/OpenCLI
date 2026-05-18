@@ -65,10 +65,9 @@ describe('youtube transcript source contract', () => {
         // Both findTimedtextUrl (resource buffer) and isJson3TimedtextUrl (fetch/XHR
         // hook) must require the URL contain v=<currentVideoId>, otherwise a
         // previously-viewed same-language video's captions can be returned.
-        expect(transcriptSource).toContain(
-            "const videoIdMarker = 'v=' + encodeURIComponent(",
-        );
-        expect(transcriptSource).toContain('url.includes(videoIdMarker)');
+        expect(transcriptSource).toContain('const targetVideoId = ');
+        expect(transcriptSource).toContain("parsed.searchParams.get('v') === targetVideoId");
+        expect(transcriptSource).toContain('timedtextUrlMatchesVideo(url)');
     });
 });
 
@@ -146,6 +145,15 @@ describe('youtube transcript caption fetch', () => {
                         responsePreview: JSON.stringify({
                             events: [
                                 { tStartMs: 0, dDurationMs: 1000, segs: [{ utf8: 'WRONG video captions' }] },
+                            ],
+                        }),
+                    },
+                    {
+                        // Prefix collision: substring matching for "v=abc" would accept this.
+                        url: 'https://www.youtube.com/api/timedtext?v=abcd&lang=en&fmt=json3&pot=token',
+                        responsePreview: JSON.stringify({
+                            events: [
+                                { tStartMs: 1000, dDurationMs: 1000, segs: [{ utf8: 'WRONG prefix captions' }] },
                             ],
                         }),
                     },
