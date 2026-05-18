@@ -8,6 +8,7 @@
 |---------|-------------|
 | `opencli linkedin connect` | Send a fail-closed connection request after verifying the exact profile |
 | `opencli linkedin inbox` | List LinkedIn messaging inbox conversations and unread status |
+| `opencli linkedin people-search` | Search standard LinkedIn for people by keyword (SSR DOM scrape). Each query counts toward LinkedIn's monthly Commercial Use Limit |
 | `opencli linkedin safe-send` | Verify exact recipient/thread context before optionally sending a message |
 | `opencli linkedin salesnav-inbox` | List Sales Navigator message conversations with API pagination |
 | `opencli linkedin salesnav-message` | Validate or send a Sales Navigator InMail to an exact lead |
@@ -35,6 +36,9 @@ opencli linkedin timeline --limit 5
 
 # List recent inbox conversations, including unread status
 opencli linkedin inbox --limit 20 -f json
+
+# Search for people by keyword (consumes 1 CUL search query)
+opencli linkedin people-search "site reliability engineer berlin" --limit 5
 
 # Verify a profile before sending a connection request; add --send to actually send
 opencli linkedin connect https://www.linkedin.com/in/example/ --expected-name "Jane Doe" --note "quick note" --send
