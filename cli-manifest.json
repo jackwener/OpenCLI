@@ -5238,6 +5238,143 @@
     "navigateBefore": true
   },
   {
+    "site": "chess",
+    "name": "analyze",
+    "description": "Open a Chess.com game in the browser analysis board",
+    "access": "read",
+    "domain": "www.chess.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "game-url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Full game URL, e.g. https://www.chess.com/game/live/168842570216"
+      }
+    ],
+    "columns": [
+      "kind",
+      "game_id",
+      "analysis_url"
+    ],
+    "type": "js",
+    "modulePath": "chess/analyze.js",
+    "sourceFile": "chess/analyze.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "chess",
+    "name": "game",
+    "description": "Chess.com single-game detail (white, black, result, ECO, time control) by full game URL",
+    "access": "read",
+    "domain": "www.chess.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "game-url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Full game URL, e.g. https://www.chess.com/game/live/168842570216"
+      }
+    ],
+    "columns": [
+      "kind",
+      "game_id",
+      "date",
+      "white",
+      "white_rating",
+      "black",
+      "black_rating",
+      "result",
+      "winner_color",
+      "termination",
+      "eco",
+      "time_control",
+      "rated",
+      "ply_count",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "chess/analyze.js",
+    "sourceFile": "chess/analyze.js"
+  },
+  {
+    "site": "chess",
+    "name": "games",
+    "description": "Chess.com recent games for a player, newest first",
+    "access": "read",
+    "domain": "api.chess.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Chess.com username"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of recent games (1-100)"
+      }
+    ],
+    "columns": [
+      "date",
+      "time_class",
+      "rated",
+      "my_color",
+      "my_rating",
+      "my_result",
+      "opponent",
+      "opponent_rating",
+      "accuracy_white",
+      "accuracy_black",
+      "eco",
+      "opening_name",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "chess/games.js",
+    "sourceFile": "chess/games.js"
+  },
+  {
+    "site": "chess",
+    "name": "stats",
+    "description": "Chess.com player ratings + win/loss record across game kinds",
+    "access": "read",
+    "domain": "api.chess.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Chess.com username (case-insensitive)"
+      }
+    ],
+    "columns": [
+      "kind",
+      "rating_current",
+      "rating_best",
+      "wins",
+      "losses",
+      "draws"
+    ],
+    "type": "js",
+    "modulePath": "chess/stats.js",
+    "sourceFile": "chess/stats.js"
+  },
+  {
     "site": "claude",
     "name": "ask",
     "description": "Send a prompt to Claude and get the response",
