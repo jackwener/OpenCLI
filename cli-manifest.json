@@ -15219,6 +15219,112 @@
     "navigateBefore": "https://www.linkedin.com"
   },
   {
+    "site": "linkedin-learning",
+    "name": "course",
+    "description": "Get LinkedIn Learning course detail by slug or course URL",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "slug",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Course slug (e.g. agentic-ai-build-your-first-agentic-ai-system) or full /learning/<slug> URL"
+      }
+    ],
+    "columns": [
+      "title",
+      "slug",
+      "description",
+      "difficulty",
+      "duration_sec",
+      "videos_count",
+      "rating",
+      "rating_count",
+      "released",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "linkedin-learning/course.js",
+    "sourceFile": "linkedin-learning/course.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin-learning",
+    "name": "search",
+    "description": "Search LinkedIn Learning courses, videos, and learning paths by keyword",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "keywords",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Search keywords, e.g. \"AI agent\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Maximum results to return (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "type",
+      "title",
+      "instructor",
+      "difficulty",
+      "duration_sec",
+      "rating",
+      "rating_count",
+      "viewers",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "linkedin-learning/search.js",
+    "sourceFile": "linkedin-learning/search.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin-learning",
+    "name": "trending",
+    "description": "Browse LinkedIn Learning recommended courses across personalized carousels",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Maximum results to return (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "group",
+      "type",
+      "title",
+      "difficulty",
+      "viewers",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "linkedin-learning/trending.js",
+    "sourceFile": "linkedin-learning/trending.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
     "site": "linux-do",
     "name": "categories",
     "description": "linux.do 分类列表",
