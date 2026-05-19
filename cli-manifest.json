@@ -3764,6 +3764,101 @@
     "sourceFile": "bluesky/user.js"
   },
   {
+    "site": "booking",
+    "name": "search",
+    "description": "Search Booking.com hotels by destination and dates (server-rendered card scrape).",
+    "access": "read",
+    "example": "opencli booking search Tokyo --checkin 2026-06-15 --checkout 2026-06-17 -f yaml",
+    "domain": "www.booking.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "destination",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Destination keyword (city, district, or hotel name)"
+      },
+      {
+        "name": "checkin",
+        "type": "str",
+        "required": true,
+        "help": "Check-in date YYYY-MM-DD"
+      },
+      {
+        "name": "checkout",
+        "type": "str",
+        "required": true,
+        "help": "Check-out date YYYY-MM-DD"
+      },
+      {
+        "name": "adults",
+        "type": "int",
+        "default": 2,
+        "required": false,
+        "help": "Number of adults (1-30)"
+      },
+      {
+        "name": "rooms",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Number of rooms (1-30)"
+      },
+      {
+        "name": "children",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Number of children (0-10)"
+      },
+      {
+        "name": "currency",
+        "type": "str",
+        "required": false,
+        "help": "Force result currency (e.g. USD, JPY, CNY)"
+      },
+      {
+        "name": "lang",
+        "type": "str",
+        "required": false,
+        "help": "Force result language (e.g. en-us, zh-cn, ja)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Max rows to return (1-100; Booking pages 25 per request)"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Result offset for pagination (multiple of 25)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "country",
+      "slug",
+      "star_rating",
+      "review_score",
+      "review_count",
+      "price_amount",
+      "price_currency",
+      "distance",
+      "recommended_room",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "booking/search.js",
+    "sourceFile": "booking/search.js"
+  },
+  {
     "site": "boss",
     "name": "batchgreet",
     "description": "BOSS直聘批量向推荐候选人发送招呼",

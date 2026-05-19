@@ -69,6 +69,7 @@ export default defineConfig({
                 { text: '51job', link: '/adapters/browser/51job' },
                 { text: 'PowerChina', link: '/adapters/browser/powerchina' },
                 { text: 'Ctrip', link: '/adapters/browser/ctrip' },
+                { text: 'Booking.com', link: '/adapters/browser/booking' },
                 { text: 'Reuters', link: '/adapters/browser/reuters' },
                 { text: 'SMZDM', link: '/adapters/browser/smzdm' },
                 { text: 'Jike', link: '/adapters/browser/jike' },
