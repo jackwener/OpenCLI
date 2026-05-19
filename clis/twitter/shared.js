@@ -351,6 +351,73 @@ export function extractCard(tweet) {
     return out;
 }
 
+/**
+ * Extract the quoted tweet from a tweet's GraphQL response.
+ *
+ * A quote tweet is a tweet that embeds and comments on another tweet (distinct
+ * from a reply or retweet). The author writes new commentary and the embedded
+ * tweet renders as a card-like preview under the new tweet.
+ *
+ * GraphQL surfaces this as `tweet.quoted_status_result.result`, which contains
+ * the same `legacy / core / card / note_tweet` shape as the outer tweet — so
+ * we reuse `extractMedia` / `extractCard` on the nested object. Detection is
+ * gated by `legacy.is_quote_status === true` (plus the presence of the nested
+ * result) so we don't return junk on plain replies that share field shapes.
+ *
+ * Returns `null` when:
+ *   - the tweet is not a quote, OR
+ *   - the nested `quoted_status_result.result` is missing/empty/tombstoned.
+ *
+ * Only goes ONE level deep — a quote-of-a-quote returns its level-1 quoted
+ * tweet without further nesting. Recursing would explode payload size on
+ * threads where every reply re-quotes the original.
+ *
+ * The output shape is a deliberately small subset of the main tweet shape
+ * (id/author/name/text/created_at/url + media + card). Consumers that need
+ * counts or full author bio of the quoted tweet can re-fetch the quoted id
+ * via `twitter thread <id>` — keeping this slim avoids ballooning every
+ * timeline/list/search response by 2-3x.
+ */
+export function extractQuotedTweet(tweet) {
+    const legacy = tweet?.legacy;
+    if (!legacy?.is_quote_status) return null;
+    const q = tweet?.quoted_status_result?.result
+        ?? tweet?.legacy?.quoted_status_result?.result;
+    // `result` can be a tombstone (`__typename: 'TweetTombstone'`) or
+    // `'TweetUnavailable'` when the quoted tweet was deleted / privacy-restricted —
+    // it has no `legacy`, so the downstream null-check covers both cases.
+    if (!q) return null;
+    // Nested `tweet` wrapper appears on TweetWithVisibilityResults — same
+    // shim that callers already do at the top level (`tw.tweet || tw`).
+    const qTw = q.tweet || q;
+    const qLegacy = qTw.legacy || {};
+    // `rest_id` is required — tombstoned / unavailable wrappers have neither
+    // rest_id nor legacy. Don't fall back to outer `legacy.quoted_status_id_str`:
+    // the id alone can't substitute for missing content (author/text/media all
+    // empty), so emitting a stub object would mislead downstream renderers into
+    // drawing an empty "quoted tweet" preview.
+    if (!qTw.rest_id) return null;
+    const qUser = qTw.core?.user_results?.result;
+    const qScreenName = qUser?.legacy?.screen_name || qUser?.core?.screen_name || 'unknown';
+    const qDisplayName = qUser?.legacy?.name || qUser?.core?.name || '';
+    const qNoteText = qTw.note_tweet?.note_tweet_results?.result?.text;
+    const qText = qNoteText || qLegacy.full_text || '';
+    const qMedia = extractMedia(qLegacy);
+    const qCard = extractCard(qTw);
+    const out = {
+        id: qTw.rest_id,
+        author: qScreenName,
+        name: qDisplayName,
+        text: qText,
+        created_at: qLegacy.created_at || '',
+        url: `https://x.com/${qScreenName}/status/${qTw.rest_id}`,
+        has_media: qMedia.has_media,
+        media_urls: qMedia.media_urls,
+    };
+    if (qCard) out.card = qCard;
+    return out;
+}
+
 export const __test__ = {
     sanitizeQueryId,
     sanitizeTwitterOperationMetadata,
@@ -359,6 +426,7 @@ export const __test__ = {
     normalizeTwitterScreenName,
     extractMedia,
     extractCard,
+    extractQuotedTweet,
     parseTweetUrl,
     buildTwitterArticleScopeSource,
 };

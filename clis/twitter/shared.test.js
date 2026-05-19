@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 import { __test__ } from './shared.js';
 import { ArgumentError } from '@jackwener/opencli/errors';
 
-const { extractMedia, extractCard, parseTweetUrl, buildTwitterArticleScopeSource, unwrapBrowserResult, normalizeTwitterGraphqlPayload, normalizeTwitterScreenName, sanitizeTwitterOperationMetadata } = __test__;
+const { extractMedia, extractCard, extractQuotedTweet, parseTweetUrl, buildTwitterArticleScopeSource, unwrapBrowserResult, normalizeTwitterGraphqlPayload, normalizeTwitterScreenName, sanitizeTwitterOperationMetadata } = __test__;
 
 function makeCardTweet({ name, bindings, expandedUrl, urls }) {
     const tweet = {
@@ -512,5 +512,185 @@ describe('twitter extractCard', () => {
         };
         const card = extractCard(tweet);
         expect(card).toBeNull();
+    });
+});
+
+describe('twitter extractQuotedTweet', () => {
+    it('returns null on plain tweets (is_quote_status absent or false)', () => {
+        expect(extractQuotedTweet({})).toBeNull();
+        expect(extractQuotedTweet({ legacy: {} })).toBeNull();
+        expect(extractQuotedTweet({ legacy: { is_quote_status: false } })).toBeNull();
+        // is_quote_status true but no nested result (deleted / restricted): still null
+        expect(extractQuotedTweet({
+            legacy: { is_quote_status: true, quoted_status_id_str: '99' },
+        })).toBeNull();
+    });
+
+    it('returns null on tombstoned / unavailable quoted tweets', () => {
+        // GraphQL emits TweetTombstone / TweetUnavailable when the quoted tweet
+        // is deleted, suspended, or privacy-restricted. The wrapper has no
+        // `legacy` / `rest_id` — null-coalesces in the helper cover this.
+        const tweet = {
+            legacy: { is_quote_status: true, quoted_status_id_str: '99' },
+            quoted_status_result: { result: { __typename: 'TweetTombstone' } },
+        };
+        expect(extractQuotedTweet(tweet)).toBeNull();
+    });
+
+    it('extracts a minimal quoted tweet shape with author, text, url', () => {
+        const tweet = {
+            legacy: { is_quote_status: true, quoted_status_id_str: '2040254679301718161' },
+            quoted_status_result: {
+                result: {
+                    rest_id: '2040254679301718161',
+                    legacy: {
+                        full_text: '罗某官二代背景考',
+                        created_at: 'Wed May 13 22:00:00 +0000 2026',
+                    },
+                    core: {
+                        user_results: {
+                            result: { legacy: { screen_name: 'alice', name: 'Alice' } },
+                        },
+                    },
+                },
+            },
+        };
+        expect(extractQuotedTweet(tweet)).toEqual({
+            id: '2040254679301718161',
+            author: 'alice',
+            name: 'Alice',
+            text: '罗某官二代背景考',
+            created_at: 'Wed May 13 22:00:00 +0000 2026',
+            url: 'https://x.com/alice/status/2040254679301718161',
+            has_media: false,
+            media_urls: [],
+        });
+    });
+
+    it('extracts media from the quoted tweet via extractMedia', () => {
+        const tweet = {
+            legacy: { is_quote_status: true },
+            quoted_status_result: {
+                result: {
+                    rest_id: '99',
+                    legacy: {
+                        full_text: '日本电车实录',
+                        extended_entities: {
+                            media: [
+                                { type: 'photo', media_url_https: 'https://pbs.twimg.com/media/a.jpg' },
+                                { type: 'photo', media_url_https: 'https://pbs.twimg.com/media/b.jpg' },
+                            ],
+                        },
+                    },
+                    core: { user_results: { result: { legacy: { screen_name: 'rwayne' } } } },
+                },
+            },
+        };
+        const q = extractQuotedTweet(tweet);
+        expect(q.has_media).toBe(true);
+        expect(q.media_urls).toEqual([
+            'https://pbs.twimg.com/media/a.jpg',
+            'https://pbs.twimg.com/media/b.jpg',
+        ]);
+    });
+
+    it('extracts the quoted tweet card when present', () => {
+        const tweet = {
+            legacy: { is_quote_status: true },
+            quoted_status_result: {
+                result: {
+                    rest_id: '100',
+                    legacy: {
+                        full_text: '',
+                        entities: {
+                            urls: [{ url: 'https://t.co/abc', expanded_url: 'https://github.com/x/y' }],
+                        },
+                    },
+                    core: { user_results: { result: { legacy: { screen_name: 'bob' } } } },
+                    card: {
+                        legacy: {
+                            name: 'summary_large_image',
+                            binding_values: [
+                                { key: 'title', value: { type: 'STRING', string_value: 'x/y' } },
+                                { key: 'card_url', value: { type: 'STRING', string_value: 'https://t.co/abc' } },
+                            ],
+                        },
+                    },
+                },
+            },
+        };
+        const q = extractQuotedTweet(tweet);
+        expect(q.card).toEqual({
+            name: 'summary_large_image',
+            title: 'x/y',
+            url: 'https://github.com/x/y',
+            domain: 'github.com',
+        });
+    });
+
+    it('prefers long-form note_tweet text over truncated legacy full_text', () => {
+        const tweet = {
+            legacy: { is_quote_status: true },
+            quoted_status_result: {
+                result: {
+                    rest_id: '101',
+                    legacy: { full_text: 'short…' },
+                    note_tweet: { note_tweet_results: { result: { text: 'full long body of the quoted tweet' } } },
+                    core: { user_results: { result: { legacy: { screen_name: 'carol' } } } },
+                },
+            },
+        };
+        expect(extractQuotedTweet(tweet)?.text).toBe('full long body of the quoted tweet');
+    });
+
+    it('unwraps TweetWithVisibilityResults — quoted_status_result.result.tweet shim', () => {
+        // Mirrors the top-level `tw.tweet || tw` shim that callers do for sensitive content.
+        const tweet = {
+            legacy: { is_quote_status: true },
+            quoted_status_result: {
+                result: {
+                    __typename: 'TweetWithVisibilityResults',
+                    tweet: {
+                        rest_id: '102',
+                        legacy: { full_text: 'sensitive content quoted' },
+                        core: { user_results: { result: { legacy: { screen_name: 'dave' } } } },
+                    },
+                },
+            },
+        };
+        const q = extractQuotedTweet(tweet);
+        expect(q?.id).toBe('102');
+        expect(q?.author).toBe('dave');
+        expect(q?.text).toBe('sensitive content quoted');
+    });
+
+    it('does NOT recurse — a quote of a quote drops the inner-inner quote', () => {
+        // Avoid payload explosion on threads where every reply re-quotes the root.
+        // Level-1 quote is preserved; level-2 (a quote inside the quoted tweet)
+        // is intentionally not surfaced.
+        const tweet = {
+            legacy: { is_quote_status: true },
+            quoted_status_result: {
+                result: {
+                    rest_id: '200',
+                    legacy: {
+                        full_text: 'level-1 quote text',
+                        is_quote_status: true,
+                    },
+                    core: { user_results: { result: { legacy: { screen_name: 'l1' } } } },
+                    quoted_status_result: {
+                        result: {
+                            rest_id: '300',
+                            legacy: { full_text: 'level-2 should be dropped' },
+                            core: { user_results: { result: { legacy: { screen_name: 'l2' } } } },
+                        },
+                    },
+                },
+            },
+        };
+        const q = extractQuotedTweet(tweet);
+        expect(q?.id).toBe('200');
+        expect(q?.text).toBe('level-1 quote text');
+        expect(q).not.toHaveProperty('quoted_tweet');
     });
 });

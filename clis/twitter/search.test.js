@@ -76,6 +76,7 @@ describe('twitter search command', () => {
                 has_media: false,
                 media_urls: [],
                 card: null,
+                quoted_tweet: null,
             },
         ]);
         expect(page.getCookies).toHaveBeenCalledWith({ url: 'https://x.com' });

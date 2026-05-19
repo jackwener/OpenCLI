@@ -1,6 +1,6 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { resolveTwitterQueryId, extractMedia, extractCard } from './shared.js';
+import { resolveTwitterQueryId, extractMedia, extractCard, extractQuotedTweet } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 // ── Twitter GraphQL constants ──────────────────────────────────────────
 const HOME_TIMELINE_QUERY_ID = 'c-CzHF1LboFilMpsx4ZCrQ';
@@ -88,6 +88,7 @@ function extractTweet(result, seen) {
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
         ...extractMedia(l),
         card: extractCard(tw),
+        quoted_tweet: extractQuotedTweet(tw),
     };
 }
 function parseHomeTimeline(data, seen) {
@@ -153,7 +154,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Maximum number of tweets to return (default 20).' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the timeline by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps X\'s native ordering.' },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'replies', 'views', 'created_at', 'url', 'has_media', 'media_urls', 'card'],
+    columns: ['id', 'author', 'text', 'likes', 'retweets', 'replies', 'views', 'created_at', 'url', 'has_media', 'media_urls', 'card', 'quoted_tweet'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 20;
         const timelineType = kwargs.type === 'following' ? 'following' : 'for-you';

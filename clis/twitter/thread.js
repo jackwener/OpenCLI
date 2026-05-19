@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { extractMedia, extractCard } from './shared.js';
+import { extractMedia, extractCard, extractQuotedTweet } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 // ── Twitter GraphQL constants ──────────────────────────────────────────
 const TWEET_DETAIL_QUERY_ID = 'nBS-WpgA6ZG0CyNHD517JQ';
@@ -57,6 +57,7 @@ function extractTweet(r, seen) {
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
         ...extractMedia(l),
         card: extractCard(tw),
+        quoted_tweet: extractQuotedTweet(tw),
     };
 }
 function parseTweetDetail(data, seen) {
@@ -106,7 +107,7 @@ cli({
         { name: 'limit', type: 'int', default: 50 },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the thread by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the conversation\'s structural ordering.' },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'url', 'has_media', 'media_urls', 'card'],
+    columns: ['id', 'author', 'text', 'likes', 'retweets', 'url', 'has_media', 'media_urls', 'card', 'quoted_tweet'],
     func: async (page, kwargs) => {
         let tweetId = kwargs['tweet-id'];
         const urlMatch = tweetId.match(/\/status\/(\d+)/);
