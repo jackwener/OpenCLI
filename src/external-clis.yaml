@@ -99,3 +99,11 @@
   tags: [wechat, messaging, search, export, ai-agent]
   install:
     default: "npm install -g @jackwener/wx-cli"
+
+- name: wrangler
+  binary: wrangler
+  description: "Cloudflare Wrangler — deploy Workers, manage R2/D1/KV, publish Pages"
+  homepage: "https://developers.cloudflare.com/workers/wrangler/"
+  tags: [cloudflare, workers, serverless, edge, deployment]
+  install:
+    default: "npm install -g wrangler"
