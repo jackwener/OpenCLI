@@ -175,6 +175,13 @@ function consumeKnownOption(argv: readonly string[], index: number, options: Rea
   const eq = token.indexOf('=');
   const key = eq === -1 ? token : token.slice(0, eq);
   const mode = options.get(key);
+  if (!mode && eq === -1 && token.startsWith('-') && !token.startsWith('--') && token.length > 2) {
+    const shortKey = token.slice(0, 2);
+    const shortMode = options.get(shortKey);
+    if (shortMode === 'required') {
+      return { values: [token], nextIndex: index + 1 };
+    }
+  }
   if (!mode) return null;
   if (eq !== -1 || mode === 'none') return { values: [token], nextIndex: index + 1 };
   const next = argv[index + 1];

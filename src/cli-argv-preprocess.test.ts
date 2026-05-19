@@ -161,6 +161,13 @@ describe('escapeLeadingDashPositional', () => {
       .toEqual(['boss', 'detail', '-f', 'json', '--', '-xyz']);
   });
 
+  it('preserves attached short option values like commander does', () => {
+    expect(escapeLeadingDashPositional(['boss', 'detail', '-fjson', '-xyz'], manifest))
+      .toEqual(['boss', 'detail', '-fjson', '--', '-xyz']);
+    expect(escapeLeadingDashPositional(['boss', 'detail', '-xyz', '-fjson'], manifest))
+      .toEqual(['boss', 'detail', '-fjson', '--', '-xyz']);
+  });
+
   it('handles known options before a dash-leading positional', () => {
     expect(escapeLeadingDashPositional(['boss', 'detail', '--format', 'json', '--trace=on', '-xyz'], manifest))
       .toEqual(['boss', 'detail', '--format', 'json', '--trace=on', '--', '-xyz']);
