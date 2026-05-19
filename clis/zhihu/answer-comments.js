@@ -83,13 +83,10 @@ function memberName(author) {
     return author?.member?.name || author?.name || '';
 }
 
-function memberKey(author) {
-    const member = author?.member || author || {};
-    return member.id || member.url_token || member.name || '';
-}
-
 function normalizeCommentId(value) {
-    return value == null ? '' : String(value);
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return String(value);
+    return '';
 }
 
 function normalizeCommentUrl(url, questionId, answerId, commentId) {
@@ -118,84 +115,54 @@ function normalizeCommentsApiUrl(url, answerId) {
 
 function buildRows(comments, { answerId, questionId, topLevelLimit, repliesLimit }) {
     const rows = [];
-    const latestByAuthor = new Map();
-    const repliesByRoot = new Map();
-    const includedRoots = new Set();
     let topLevelCount = 0;
+    let currentCommentRank = 0;
+    let currentReplyCount = 0;
     let reachedTopLevelLimit = false;
     let malformedComments = 0;
 
     for (const comment of comments) {
+        if (!comment || typeof comment !== 'object' || Array.isArray(comment)) {
+            malformedComments += 1;
+            continue;
+        }
         const id = normalizeCommentId(comment.id);
         if (!id) {
             malformedComments += 1;
             continue;
         }
         const author = memberName(comment.author);
-        const authorKey = memberKey(comment.author);
         const replyToAuthor = memberName(comment.reply_to_author);
-        const replyToKey = memberKey(comment.reply_to_author);
-        const parent = replyToKey ? latestByAuthor.get(replyToKey) : null;
-        const isTopLevel = !replyToKey || !parent;
-        let include = false;
-        let meta = null;
+        const isReply = Boolean(replyToAuthor);
 
-        if (isTopLevel) {
+        if (!isReply) {
             if (topLevelCount >= topLevelLimit) {
                 reachedTopLevelLimit = true;
-            } else {
-                topLevelCount += 1;
-                include = true;
-                includedRoots.add(id);
-                repliesByRoot.set(id, 0);
-                meta = { id, rootId: id, depth: 0, commentRank: topLevelCount, replyRank: 0 };
+                break;
             }
+            topLevelCount += 1;
+            currentCommentRank = topLevelCount;
+            currentReplyCount = 0;
+        } else if (!currentCommentRank || currentReplyCount >= repliesLimit) {
+            continue;
         } else {
-            const rootId = parent.rootId;
-            const replyCount = repliesByRoot.get(rootId) ?? 0;
-            if (includedRoots.has(rootId) && replyCount < repliesLimit) {
-                const nextReplyRank = replyCount + 1;
-                repliesByRoot.set(rootId, nextReplyRank);
-                include = true;
-                meta = {
-                    id,
-                    rootId,
-                    depth: parent.depth + 1,
-                    commentRank: parent.commentRank,
-                    replyRank: nextReplyRank,
-                    parentId: parent.id,
-                };
-            } else {
-                meta = {
-                    id,
-                    rootId,
-                    depth: parent.depth + 1,
-                    commentRank: parent.commentRank,
-                    replyRank: 0,
-                    parentId: parent.id,
-                };
-            }
+            currentReplyCount += 1;
         }
 
-        if (meta && authorKey) latestByAuthor.set(authorKey, meta);
-        if (include && meta) {
-            rows.push({
-                rank: rows.length + 1,
-                comment_rank: meta.commentRank,
-                reply_rank: meta.replyRank,
-                depth: meta.depth,
-                id,
-                parent_id: meta.parentId || '',
-                author: author || 'anonymous',
-                reply_to: replyToAuthor,
-                likes: normalizeCount(comment.vote_count),
-                created_at: normalizeUnixSeconds(comment.created_time),
-                url: normalizeCommentUrl(comment.url, questionId, answerId, id),
-                content: stripHtml(comment.content || ''),
-            });
-        }
-
-        if (reachedTopLevelLimit && isTopLevel) break;
+        rows.push({
+            rank: rows.length + 1,
+            comment_rank: currentCommentRank,
+            reply_rank: isReply ? currentReplyCount : 0,
+            depth: 0,
+            id,
+            parent_id: '',
+            author: author || 'anonymous',
+            reply_to: replyToAuthor,
+            likes: normalizeCount(comment.vote_count),
+            created_at: normalizeUnixSeconds(comment.created_time),
+            url: normalizeCommentUrl(comment.url, questionId, answerId, id),
+            content: stripHtml(comment.content || ''),
+        });
     }
     return { rows, topLevelCount, reachedTopLevelLimit, malformedComments };
 }

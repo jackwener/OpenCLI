@@ -80,7 +80,7 @@ opencli zhihu hot -f json
 
 - `answer-comments --limit` counts top-level comments
 - `answer-comments --replies-limit` expands up to that many replies per top-level comment
-- Comment rows are flattened in Zhihu order; use `depth`, `parent_id`, `comment_rank`, and `reply_rank` to rebuild the thread
+- Comment rows are flattened in Zhihu order. Zhihu's comments API does not expose stable parent comment ids here, so `parent_id` stays empty and `depth` does not claim nested-thread evidence; use `reply_to`, `comment_rank`, and `reply_rank` only as display hints within the flat stream.
 
 ## Prerequisites
 

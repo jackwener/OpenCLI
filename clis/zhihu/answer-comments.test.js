@@ -88,9 +88,9 @@ describe('zhihu answer-comments', () => {
                 rank: 2,
                 comment_rank: 1,
                 reply_rank: 1,
-                depth: 1,
+                depth: 0,
                 id: 'r1',
-                parent_id: 'c1',
+                parent_id: '',
                 author: 'bob',
                 reply_to: 'alice',
                 likes: 1,
@@ -227,6 +227,20 @@ describe('zhihu answer-comments', () => {
         await expect(cmd.func(page, { id: '1', limit: 1, 'replies-limit': 0 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
+    it('rejects null comment items and non-primitive comment ids', async () => {
+        const cmd = getRegistry().get('zhihu/answer-comments');
+        const basePage = (data) => ({
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({ data, paging: { is_end: true } }),
+        });
+        await expect(cmd.func(basePage([null]), { id: '1', limit: 1, 'replies-limit': 0 }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(cmd.func(basePage([{ id: { value: 'c1' }, content: 'object id' }]), { id: '1', limit: 1, 'replies-limit': 0 }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(cmd.func(basePage([{ id: true, content: 'boolean id' }]), { id: '1', limit: 1, 'replies-limit': 0 }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('rejects invalid inputs before navigation', async () => {
         const cmd = getRegistry().get('zhihu/answer-comments');
         const page = { goto: vi.fn(), evaluate: vi.fn() };
@@ -258,7 +272,7 @@ describe('zhihu answer-comments helpers', () => {
         expect(helpers.normalizeCommentsApiUrl('https://evil.example/api/v4/answers/123/comments?offset=20', '123')).toBe('');
     });
 
-    it('buildRows reconstructs nested reply depth from previously seen authors', () => {
+    it('buildRows keeps replies flat without guessing parent comment ids', () => {
         const rows = helpers.buildRows([
             { id: 'c1', author: { member: { id: 'u1', name: 'alice' } }, content: 'top' },
             { id: 'r1', author: { member: { id: 'u2', name: 'bob' } }, reply_to_author: { member: { id: 'u1', name: 'alice' } }, content: 'reply' },
@@ -266,8 +280,8 @@ describe('zhihu answer-comments helpers', () => {
         ], { answerId: 'a1', questionId: 'q1', topLevelLimit: 1, repliesLimit: 5 }).rows;
         expect(rows.map((row) => [row.id, row.parent_id, row.depth, row.comment_rank, row.reply_rank])).toEqual([
             ['c1', '', 0, 1, 0],
-            ['r1', 'c1', 1, 1, 1],
-            ['r2', 'r1', 2, 1, 2],
+            ['r1', '', 0, 1, 1],
+            ['r2', '', 0, 1, 2],
         ]);
     });
 });
