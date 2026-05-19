@@ -1,19 +1,53 @@
 # Changelog
 
-## Unreleased
+## [1.8.0](https://github.com/jackwener/opencli/compare/v1.7.22...v1.8.0) (2026-05-20)
+
+Substantial release: a new official-API adapter (`weread-official`), wider LinkedIn / Twitter / Reddit / Zhihu coverage, the 12306 / Suno / Xianyu inbox additions, security and reliability fixes for the Browser Bridge and media downloads, plus a 20% README shrink. Node 20 compatibility is restored after an automated `undici` bump regression.
+
+### ⚠ BREAKING CHANGES
+
+* **skills** — remove the `smart-search` skill. Use `opencli-usage` for command/site reference, `opencli-browser` for ad-hoc browser operation, and `opencli-adapter-author` for writing new adapters.
 
 ### Features
 
 * **weread-official** — integrate WeRead's official Agent Gateway as the `weread-official` CLI namespace. Pure HTTP, Bearer auth via `WEREAD_API_KEY` (no browser, no cookies). 8 commands cover the official skill bundle: `search`, `shelf`, `book` (info + chapters + progress 3-in-1), `notes` (notebook overview or per-book highlights/thoughts), `review`, `readdata` (weekly/monthly/annually/overall), `discover` (recommend or similar-book), `list-apis`. Adapter surfaces typed errors for all documented failure modes — `AuthRequiredError` on missing/rejected key (errcodes -2010/-2012), `CommandExecutionError` on HTTP/`upgrade_info`/non-zero errcode, `EmptyResultError` on empty payloads. Coexists with the existing cookie-based `weread` adapter.
+* **12306** — add full read adapter (`stations` / `trains` / `train` / `price` / `me` / `passengers` / `orders`). ([#1637](https://github.com/jackwener/opencli/issues/1637))
+* **xianyu** — add `inbox`, `messages`, and `reply` commands. ([#1639](https://github.com/jackwener/opencli/issues/1639))
+* **suno** — add Suno.com music-generation adapter. ([#1638](https://github.com/jackwener/opencli/issues/1638))
+* **linkedin** — consolidate messaging and Sales Navigator commands (`connect`, `inbox`, `safe-send`, `salesnav-search`, `salesnav-inbox`, `salesnav-message`, `salesnav-thread`, `sent-invitations`, `thread-snapshot`, `timeline`). ([#1647](https://github.com/jackwener/opencli/issues/1647))
+* **linkedin/people-search** — add a dedicated people-search command. ([#1649](https://github.com/jackwener/opencli/issues/1649))
+* **linkedin-learning** — add `search` / `trending` / `course` read commands. ([#1657](https://github.com/jackwener/opencli/issues/1657))
+* **twitter** — rewrite the download-profile path on GraphQL UserMedia with cursor pagination. ([#1636](https://github.com/jackwener/opencli/issues/1636))
+* **twitter** — add `list-create` (GraphQL CreateList mutation). ([#1656](https://github.com/jackwener/opencli/issues/1656))
+* **twitter** — add `device-follow` notification-stream command.
+* **twitter** — expose `card.binding_values` on read commands for inline link-preview metadata. ([#1660](https://github.com/jackwener/opencli/issues/1660))
+* **twitter** — expose `quoted_tweet` on read commands. ([#1667](https://github.com/jackwener/opencli/issues/1667))
+* **twitter** — expose `bio` on read commands.
+* **reddit/subscribed** — new `subscribed` command + listing-level `id` / `created_utc` / `selftext` exposure. ([#1651](https://github.com/jackwener/opencli/issues/1651))
+* **reddit** — expose `post_hint` / `url` / `preview` / `gallery` media routes on listing commands. ([#1676](https://github.com/jackwener/opencli/issues/1676))
+* **zhihu** — add answer-comments reader; include answer links in question results.
+* **chatgpt** — detect generated image surfaces (CSS background and canvas, not just `<img>`) so image generation works after UI drift. ([#1677](https://github.com/jackwener/opencli/issues/1677))
+* **external** — add Cloudflare Wrangler as a built-in external CLI passthrough. ([#1679](https://github.com/jackwener/opencli/pull/1679))
 
 ### Bug Fixes
 
-* **youtube/transcript** — scope timedtext URL matching to the current `videoId` across the in-page resource-buffer scan (`findTimedtextUrl`), the in-page fetch/XHR hook (`isJson3TimedtextUrl`), and the Node-side CDP capture (`extractSegmentsFromNetworkCapture`). Previously, SPA-style watch→watch navigation kept stale timedtext URLs from prior videos in `performance.getEntriesByType('resource')`, letting the polling loop fetch a same-language predecessor's captions and return them as the current video's transcript. Most likely to hit callers that reuse a single daemon tab to fetch many transcripts back-to-back (e.g. ml-scout).
-* **adapters** — surface the remaining `silent-empty-fallback` adapter failures as typed errors. Douyin user video comment fetch failures, Jike SSR JSON parse failures, and WeRead search-page fetch failures now throw `CommandExecutionError`; true empty Douyin/Jike/WeRead result sets now throw `EmptyResultError`.
+* **deps** — restore Node 20 runtime compatibility by pinning runtime `undici` back to the 6.x line (an automated dependabot bump to 8.x had moved the engines floor to Node ≥22.19, silently breaking the published Node 20 promise), and clear the docs build audit chain by overriding VitePress' Vite/PostCSS transitive dependencies to patched versions. ([#1673](https://github.com/jackwener/opencli/issues/1673))
+* **download** — keep custom media filenames inside the requested output directory by stripping POSIX/Windows path components and sanitizing the generated fallback prefix. Prevents remote-controlled fields (e.g. video titles used as filename) from escaping the output directory via `../`. ([#1642](https://github.com/jackwener/opencli/pull/1642))
+* **browser** — recover `Page.goto()` from stale page identities by clearing the cached targetId and retrying navigation once through the session lease; classify CDP `-32000 Cannot find default execution context` as retryable target navigation. ([#1645](https://github.com/jackwener/opencli/issues/1645))
+* **cli** — escape leading-dash positional values via the argv preprocessor so users can pass tokens starting with `-` without commander mis-classifying them as flags. ([#1658](https://github.com/jackwener/opencli/issues/1658))
 * **chatgpt/image** — fix ChatGPT web image generation after UI drift by letting the composer locator continue into the caller's readiness check and detecting generated images rendered as CSS backgrounds or canvases, not just plain `<img>` elements.
-* **browser** — recover `Page.goto()` from stale page identities by clearing the cached targetId and retrying navigation once through the session lease; classify CDP `-32000 Cannot find default execution context` as retryable target navigation.
-* **deps** — restore Node 20 runtime compatibility by pinning runtime `undici` back to the 6.x line, and clear the docs build audit chain by overriding VitePress' Vite/PostCSS transitive dependencies to patched versions.
-* **download** — keep custom media filenames inside the requested output directory by stripping path components and sanitizing generated fallback names.
+* **adapters** — surface the remaining `silent-empty-fallback` adapter failures as typed errors (Douyin user video comments, Jike SSR JSON parse, WeRead search-page fetch). True empty Douyin/Jike/WeRead result sets now throw `EmptyResultError`.
+* **adapters** — drop silent-sentinel row fallbacks across Apple Podcasts / Reddit / Gitee. ([#1634](https://github.com/jackwener/opencli/issues/1634))
+* **adapters** — migrate legal empty-data branches to `EmptyResultError` for `xhs` / YouTube and 5 follow-up commands. ([#1674](https://github.com/jackwener/opencli/issues/1674), [#1678](https://github.com/jackwener/opencli/issues/1678))
+* **lesswrong** — drop the `"Unknown"` silent sentinel in the author column; missing authors now propagate as `null`. ([#1611](https://github.com/jackwener/opencli/issues/1611))
+* **youtube/transcript** — scope timedtext URL matching to the current `videoId` across the in-page resource-buffer scan, the in-page fetch/XHR hook, and the Node-side CDP capture. SPA-style watch→watch navigation no longer returns a predecessor video's captions. ([#1655](https://github.com/jackwener/opencli/issues/1655))
+* **twitter/lists** — skip the "Discover new Lists" recommendation block so it is no longer treated as one of the user's lists. ([#1652](https://github.com/jackwener/opencli/issues/1652))
+* **zhihu** — harden search pagination. ([#1615](https://github.com/jackwener/opencli/issues/1615))
+* **zhihu** — decode numeric HTML entities in `answer-detail`. ([#1629](https://github.com/jackwener/opencli/issues/1629))
+
+### Docs
+
+* **readme** — major shrink and reframing: tagline rephrased around "Browser Use", Highlights and Update sections folded into adjacent content, Built-in Commands curated to 11 popular sites, CLI Hub table reduced to a name enumeration, Desktop App Adapters collapsed to a one-liner, skill-attribution references audited against `SKILL.md` frontmatter, "For AI Agents (Developer Guide)" merged into "Writing a new adapter". Net: EN 410 → 326 (-20%), ZH 455 → 371 (-18%). ([#1654](https://github.com/jackwener/opencli/pull/1654), [#1666](https://github.com/jackwener/opencli/pull/1666), [#1679](https://github.com/jackwener/opencli/pull/1679), [#1681](https://github.com/jackwener/opencli/pull/1681))
 
 ### Internal
 
