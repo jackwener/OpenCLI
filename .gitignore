@@ -20,7 +20,6 @@ docs/.vitepress/cache
 .windsurf
 .claude
 .cortex
-.gstack
 
 # Database files
 *.db
