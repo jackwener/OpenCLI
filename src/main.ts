@@ -149,9 +149,19 @@ if (getCompIdx !== -1) {
 // can't combine a parent positional with subcommand dispatch) sees the internal
 // `--session <name>` flag form. Also refuses the retired `opencli browser
 // --session foo ...` user form with a friendly usage error.
-const { rewriteBrowserArgv, BrowserSessionArgvError } = await import('./cli-argv-preprocess.js');
+const { rewriteBrowserArgv, BrowserSessionArgvError, escapeLeadingDashPositional } = await import('./cli-argv-preprocess.js');
 try {
-  const rewritten = rewriteBrowserArgv(process.argv.slice(2));
+  let rewritten = rewriteBrowserArgv(process.argv.slice(2));
+  // Insert a `--` separator before a required positional whose value starts
+  // with `-` (e.g. BOSS 直聘 securityId tokens; #1160). Skipped when the
+  // manifest is unavailable so the user-cli / dev paths still work.
+  try {
+    const manifestPath = getCliManifestPath(BUILTIN_CLIS);
+    if (fs.existsSync(manifestPath)) {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+      if (Array.isArray(manifest)) rewritten = escapeLeadingDashPositional(rewritten, manifest);
+    }
+  } catch { /* manifest unavailable; skip the dash escape */ }
   process.argv.splice(2, process.argv.length - 2, ...rewritten);
 } catch (err) {
   if (err instanceof BrowserSessionArgvError) {

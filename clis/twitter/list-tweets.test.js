@@ -35,6 +35,7 @@ describe('twitter list-tweets parser', () => {
             quoted_tweet: null,
             has_media: false,
             media_urls: [],
+            card: null,
         });
     });
 

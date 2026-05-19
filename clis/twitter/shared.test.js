@@ -15,10 +15,14 @@ const {
     sanitizeTwitterOperationMetadata,
 } = __test__;
 
-function makeCardTweet({ name, bindings, expandedUrl }) {
+function makeCardTweet({ name, bindings, expandedUrl, urls }) {
     const tweet = {
         card: { legacy: { name, binding_values: bindings } },
     };
+    if (urls !== undefined) {
+        tweet.legacy = { entities: { urls } };
+        return tweet;
+    }
     if (expandedUrl !== undefined) {
         tweet.legacy = { entities: { urls: [{ expanded_url: expandedUrl }] } };
     }
@@ -368,7 +372,7 @@ describe('twitter extractCard', () => {
                 imgBinding('photo_image_full_size_large', 'https://pbs.twimg.com/card_img/photo_large.jpg'),
                 imgBinding('summary_photo_image_large', 'https://pbs.twimg.com/card_img/summary_large.jpg'),
             ],
-            expandedUrl: 'https://github.com/jackwener/OpenCLI',
+            urls: [{ url: 'https://t.co/abc', expanded_url: 'https://github.com/jackwener/OpenCLI' }],
         });
         expect(extractCard(tweet)).toEqual({
             name: 'summary_large_image',
@@ -401,9 +405,10 @@ describe('twitter extractCard', () => {
             name: 'promo_image_convo',
             bindings: [
                 strBinding('title', 'YouTube video'),
+                strBinding('card_url', 'https://t.co/youtube'),
                 imgBinding('photo_image_full_size_large', 'https://pbs.twimg.com/card_img/yt.jpg'),
             ],
-            expandedUrl: 'https://www.youtube.com/watch?v=abc',
+            urls: [{ url: 'https://t.co/youtube', expanded_url: 'https://www.youtube.com/watch?v=abc' }],
         });
         const card = extractCard(tweet);
         expect(card.url).toBe('https://www.youtube.com/watch?v=abc');
@@ -425,14 +430,48 @@ describe('twitter extractCard', () => {
         expect(card.domain).toBe('arxiv.org');
     });
 
+    it('matches card_url to the correct URL entity instead of assuming the first tweet URL', () => {
+        const tweet = makeCardTweet({
+            name: 'summary_large_image',
+            bindings: [
+                strBinding('title', 'OpenCLI release'),
+                strBinding('card_url', 'https://t.co/card123'),
+            ],
+            urls: [
+                { url: 'https://t.co/unrelated', expanded_url: 'https://example.com/unrelated' },
+                { url: 'https://t.co/card123', expanded_url: 'https://github.com/jackwener/OpenCLI/releases' },
+            ],
+        });
+        const card = extractCard(tweet);
+        expect(card.url).toBe('https://github.com/jackwener/OpenCLI/releases');
+        expect(card.domain).toBe('github.com');
+    });
+
+    it('falls back to card_url itself when no matching URL entity is present', () => {
+        const tweet = makeCardTweet({
+            name: 'summary_large_image',
+            bindings: [
+                strBinding('title', 'Unmatched card'),
+                strBinding('card_url', 'https://t.co/card123'),
+            ],
+            urls: [
+                { url: 'https://t.co/unrelated', expanded_url: 'https://example.com/unrelated' },
+            ],
+        });
+        const card = extractCard(tweet);
+        expect(card.url).toBe('https://t.co/card123');
+        expect(card.domain).toBe('t.co');
+    });
+
     it('omits missing fields rather than emitting undefined values', () => {
         const tweet = makeCardTweet({
             name: 'summary',
             bindings: [
                 strBinding('title', 'Just a title'),
                 strBinding('description', 'Just a description'),
+                strBinding('card_url', 'https://t.co/example'),
             ],
-            expandedUrl: 'https://example.com/x',
+            urls: [{ url: 'https://t.co/example', expanded_url: 'https://example.com/x' }],
         });
         const card = extractCard(tweet);
         expect('image_url' in card).toBe(false);
@@ -459,8 +498,11 @@ describe('twitter extractCard', () => {
     it('does not throw on a malformed expanded_url; domain is simply omitted', () => {
         const tweet = makeCardTweet({
             name: 'summary',
-            bindings: [strBinding('title', 'broken url card')],
-            expandedUrl: 'not a url',
+            bindings: [
+                strBinding('title', 'broken url card'),
+                strBinding('card_url', 'https://t.co/broken'),
+            ],
+            urls: [{ url: 'https://t.co/broken', expanded_url: 'not a url' }],
         });
         const card = extractCard(tweet);
         expect(card.url).toBe('not a url');
@@ -473,12 +515,7 @@ describe('twitter extractCard', () => {
             legacy: { entities: { urls: [{ expanded_url: 'https://example.com/' }] } },
         };
         const card = extractCard(tweet);
-        // No title/description means the URL alone keeps the card alive
-        expect(card).toEqual({
-            name: 'summary',
-            url: 'https://example.com/',
-            domain: 'example.com',
-        });
+        expect(card).toBeNull();
     });
 });
 
