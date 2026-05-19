@@ -30,6 +30,13 @@ function entry(tweetId) {
     };
 }
 
+function nonTweetEntry(id = 'cursor-bottom') {
+    return {
+        entryId: id,
+        content: { item: { content: {} } },
+    };
+}
+
 function payload(tweets, users, entries) {
     return {
         globalObjects: { tweets, users },
@@ -143,6 +150,7 @@ describe('twitter device-follow', () => {
             rows: [],
             entryCount: 0,
             unmatchedTweetEntries: 0,
+            malformedEntries: 0,
         });
     });
 
@@ -157,6 +165,17 @@ describe('twitter device-follow', () => {
             rows: [],
             entryCount: 1,
             unmatchedTweetEntries: 1,
+            malformedEntries: 0,
+        });
+    });
+
+    it('parseDeviceFollow tracks non-empty entries without tweet identity as parser drift', () => {
+        const parsed = parseDeviceFollow(payload({}, {}, [nonTweetEntry()]), new Set());
+        expect(parsed).toMatchObject({
+            rows: [],
+            entryCount: 1,
+            unmatchedTweetEntries: 0,
+            malformedEntries: 1,
         });
     });
 
@@ -193,6 +212,19 @@ describe('twitter device-follow', () => {
         await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
+    it('throws CommandExecutionError on browser fetch/json exceptions', async () => {
+        const cmd = getRegistry().get('twitter/device-follow');
+        const cookies = [{ name: 'ct0', value: 'token' }];
+        await expect(cmd.func({
+            getCookies: vi.fn().mockResolvedValue(cookies),
+            evaluate: vi.fn().mockResolvedValue({ errorKind: 'non_json', detail: 'Unexpected token <' }),
+        }, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(cmd.func({
+            getCookies: vi.fn().mockResolvedValue(cookies),
+            evaluate: vi.fn().mockResolvedValue({ errorKind: 'exception', detail: 'network failed' }),
+        }, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('throws EmptyResultError for a valid empty device-follow stream', async () => {
         const cmd = getRegistry().get('twitter/device-follow');
         const page = {
@@ -212,6 +244,10 @@ describe('twitter device-follow', () => {
         await expect(cmd.func({
             getCookies: vi.fn().mockResolvedValue(cookies),
             evaluate: vi.fn().mockResolvedValue(payload({ '1': tweet('1', 'u1') }, {}, [entry('1')])),
+        }, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(cmd.func({
+            getCookies: vi.fn().mockResolvedValue(cookies),
+            evaluate: vi.fn().mockResolvedValue(payload({}, {}, [nonTweetEntry()])),
         }, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 

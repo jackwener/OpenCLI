@@ -97,18 +97,23 @@ function parseDeviceFollow(payload, seen) {
     if (!entries) return null;
     const rows = [];
     let unmatchedTweetEntries = 0;
+    let malformedEntries = 0;
     for (const entry of entries) {
         const hasTweetEntry = Boolean(entry?.content?.item?.content?.tweet?.id);
+        if (!hasTweetEntry) {
+            malformedEntries++;
+            continue;
+        }
         const joined = joinEntryToTweet(entry, tweets, users);
         if (!joined) {
-            if (hasTweetEntry) unmatchedTweetEntries++;
+            unmatchedTweetEntries++;
             continue;
         }
         if (seen.has(joined.tweetId)) continue;
         seen.add(joined.tweetId);
         rows.push(shapeRow(joined));
     }
-    return { rows, entryCount: entries.length, unmatchedTweetEntries };
+    return { rows, entryCount: entries.length, unmatchedTweetEntries, malformedEntries };
 }
 
 cli({
@@ -138,9 +143,24 @@ cli({
             'X-Twitter-Active-User': 'yes',
         });
         const data = await page.evaluate(`async () => {
-        const r = await fetch("${apiUrl}", { method: "GET", headers: ${headers}, credentials: 'include' });
-        return r.ok ? await r.json() : { error: r.status };
+        try {
+          const r = await fetch("${apiUrl}", { method: "GET", headers: ${headers}, credentials: 'include' });
+          if (!r.ok) return { error: r.status };
+          try {
+            return await r.json();
+          } catch (e) {
+            return { errorKind: 'non_json', detail: String(e && e.message || e) };
+          }
+        } catch (e) {
+          return { errorKind: 'exception', detail: String(e && e.message || e) };
+        }
       }`);
+        if (data?.errorKind === 'non_json') {
+            throw new CommandExecutionError(`Twitter device-follow returned non-JSON response: ${data.detail || 'unknown parse error'}`);
+        }
+        if (data?.errorKind === 'exception') {
+            throw new CommandExecutionError(`Twitter device-follow fetch failed: ${data.detail || 'unknown error'}`);
+        }
         if (data?.error) {
             if (data.error === 401 || data.error === 403) {
                 throw new AuthRequiredError('x.com', `Twitter device-follow returned HTTP ${data.error}`);
@@ -151,7 +171,7 @@ cli({
         if (!parsed) {
             throw new CommandExecutionError('Twitter device-follow response was missing the expected timeline/globalObjects shape.');
         }
-        if (parsed.unmatchedTweetEntries > 0) {
+        if (parsed.malformedEntries > 0 || parsed.unmatchedTweetEntries > 0) {
             throw new CommandExecutionError('Twitter device-follow entries could not be joined to tweet/user objects.');
         }
         if (parsed.rows.length === 0) {
