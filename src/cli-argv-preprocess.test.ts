@@ -145,7 +145,7 @@ import { escapeLeadingDashPositional } from './cli-argv-preprocess.js';
 
 describe('escapeLeadingDashPositional', () => {
   const manifest = [
-    { site: 'boss', name: 'detail', args: [{ name: 'security-id', positional: true, required: true }] },
+    { site: 'boss', name: 'detail', browser: true, args: [{ name: 'security-id', positional: true, required: true }, { name: 'retry', positional: false, valueRequired: true }] },
     { site: 'boss', name: 'search', args: [{ name: 'query', positional: true, required: false }, { name: 'limit', positional: false }] },
     { site: 'twitter', name: 'follow', args: [{ name: 'username', positional: true, required: true }] },
     { site: 'twitter', name: 'lists', args: [{ name: 'limit', positional: false }] },
@@ -158,7 +158,27 @@ describe('escapeLeadingDashPositional', () => {
 
   it('preserves trailing flags after the dash-leading positional', () => {
     expect(escapeLeadingDashPositional(['boss', 'detail', '-xyz', '-f', 'json'], manifest))
-      .toEqual(['boss', 'detail', '--', '-xyz', '-f', 'json']);
+      .toEqual(['boss', 'detail', '-f', 'json', '--', '-xyz']);
+  });
+
+  it('handles known options before a dash-leading positional', () => {
+    expect(escapeLeadingDashPositional(['boss', 'detail', '--format', 'json', '--trace=on', '-xyz'], manifest))
+      .toEqual(['boss', 'detail', '--format', 'json', '--trace=on', '--', '-xyz']);
+  });
+
+  it('keeps adapter and browser options parseable when they follow the positional', () => {
+    expect(escapeLeadingDashPositional(['boss', 'detail', '-xyz', '--retry', '2', '--window', 'foreground'], manifest))
+      .toEqual(['boss', 'detail', '--retry', '2', '--window', 'foreground', '--', '-xyz']);
+  });
+
+  it('protects negative numeric positionals too', () => {
+    expect(escapeLeadingDashPositional(['boss', 'detail', '-42'], manifest))
+      .toEqual(['boss', 'detail', '--', '-42']);
+  });
+
+  it('leaves unknown dash options untouched instead of hiding them behind --', () => {
+    expect(escapeLeadingDashPositional(['boss', 'detail', '--unknown', 'value'], manifest))
+      .toEqual(['boss', 'detail', '--unknown', 'value']);
   });
 
   it('does not touch positional values that do not start with -', () => {
