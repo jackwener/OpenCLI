@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './device-follow.js';
 
 const { buildDeviceFollowUrl, extractEntries, joinEntryToTweet, shapeRow, parseDeviceFollow, parseLimit } = await import('./device-follow.js').then((m) => m.__test__);
@@ -67,8 +67,8 @@ describe('twitter device-follow', () => {
     });
 
     it('extractEntries tolerates missing or empty instructions', () => {
-        expect(extractEntries(undefined)).toEqual([]);
-        expect(extractEntries({})).toEqual([]);
+        expect(extractEntries(undefined)).toBeNull();
+        expect(extractEntries({})).toBeNull();
         expect(extractEntries({ instructions: [] })).toEqual([]);
         expect(extractEntries({ instructions: [{ addEntries: { entries: [] } }] })).toEqual([]);
     });
@@ -106,10 +106,9 @@ describe('twitter device-follow', () => {
         });
     });
 
-    it('shapeRow falls back to "unknown" author when user resolution fails', () => {
-        const row = shapeRow({ tweetId: '7', tweet: tweet('7', 'missing'), user: null });
-        expect(row.author).toBe('unknown');
-        expect(row.url).toBe('https://x.com/unknown/status/7');
+    it('joinEntryToTweet requires a resolved user screen_name before emitting a row URL', () => {
+        expect(joinEntryToTweet(entry('1'), { '1': tweet('1', 'missing') }, {})).toBeNull();
+        expect(joinEntryToTweet(entry('1'), { '1': tweet('1', 'u1') }, { u1: { id_str: 'u1' } })).toBeNull();
     });
 
     it('shapeRow uses tweet.text when full_text is absent', () => {
@@ -124,9 +123,9 @@ describe('twitter device-follow', () => {
             [entry('1'), entry('2')],
         );
         const rows = parseDeviceFollow(p, new Set());
-        expect(rows.map((r) => r.author)).toEqual(['alice', 'bob']);
-        expect(rows.every((r) => r.views === null)).toBe(true);
-        expect(rows[0].url).toBe('https://x.com/alice/status/1');
+        expect(rows?.rows.map((r) => r.author)).toEqual(['alice', 'bob']);
+        expect(rows?.rows.every((r) => r.views === null)).toBe(true);
+        expect(rows?.rows[0].url).toBe('https://x.com/alice/status/1');
     });
 
     it('parseDeviceFollow dedupes via the seen set', () => {
@@ -135,12 +134,30 @@ describe('twitter device-follow', () => {
             { u1: user('u1', 'alice') },
             [entry('1'), entry('1')],
         );
-        expect(parseDeviceFollow(p, new Set())).toHaveLength(1);
+        expect(parseDeviceFollow(p, new Set())?.rows).toHaveLength(1);
     });
 
-    it('parseDeviceFollow returns [] for the empty-stream shape', () => {
+    it('parseDeviceFollow returns typed empty metadata for the empty-stream shape', () => {
         const empty = { globalObjects: {}, timeline: { instructions: [{ addEntries: { entries: [] } }] } };
-        expect(parseDeviceFollow(empty, new Set())).toEqual([]);
+        expect(parseDeviceFollow(empty, new Set())).toEqual({
+            rows: [],
+            entryCount: 0,
+            unmatchedTweetEntries: 0,
+        });
+    });
+
+    it('parseDeviceFollow returns null for malformed top-level shape', () => {
+        expect(parseDeviceFollow({}, new Set())).toBeNull();
+        expect(parseDeviceFollow({ globalObjects: {}, timeline: {} }, new Set())).toBeNull();
+    });
+
+    it('parseDeviceFollow tracks tweet entries that cannot join to required user identity', () => {
+        const parsed = parseDeviceFollow(payload({ '1': tweet('1', 'u1') }, {}, [entry('1')]), new Set());
+        expect(parsed).toMatchObject({
+            rows: [],
+            entryCount: 1,
+            unmatchedTweetEntries: 1,
+        });
     });
 
     it('registers with the canonical twitter row columns (minus has_media/media_urls/card)', () => {
@@ -164,7 +181,38 @@ describe('twitter device-follow', () => {
             getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'token' }]),
             evaluate: vi.fn().mockResolvedValue({ error: 401 }),
         };
+        await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('throws CommandExecutionError on non-auth non-2xx response', async () => {
+        const cmd = getRegistry().get('twitter/device-follow');
+        const page = {
+            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn().mockResolvedValue({ error: 500 }),
+        };
         await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('throws EmptyResultError for a valid empty device-follow stream', async () => {
+        const cmd = getRegistry().get('twitter/device-follow');
+        const page = {
+            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn().mockResolvedValue(payload({}, {}, [])),
+        };
+        await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('throws CommandExecutionError for malformed or unjoinable device-follow payloads', async () => {
+        const cmd = getRegistry().get('twitter/device-follow');
+        const cookies = [{ name: 'ct0', value: 'token' }];
+        await expect(cmd.func({
+            getCookies: vi.fn().mockResolvedValue(cookies),
+            evaluate: vi.fn().mockResolvedValue({}),
+        }, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(cmd.func({
+            getCookies: vi.fn().mockResolvedValue(cookies),
+            evaluate: vi.fn().mockResolvedValue(payload({ '1': tweet('1', 'u1') }, {}, [entry('1')])),
+        }, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('returns parsed rows when the fetch succeeds', async () => {

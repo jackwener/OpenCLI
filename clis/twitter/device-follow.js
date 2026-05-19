@@ -8,7 +8,7 @@
  * Endpoint discovery and field-mapping originally proposed by @traddo
  * in issue #1628.
  */
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 
@@ -51,9 +51,9 @@ function buildDeviceFollowUrl(count) {
 }
 
 function extractEntries(timeline) {
-    const instructions = Array.isArray(timeline?.instructions) ? timeline.instructions : [];
+    if (!timeline || !Array.isArray(timeline.instructions)) return null;
     const out = [];
-    for (const inst of instructions) {
+    for (const inst of timeline.instructions) {
         const entries = inst?.addEntries?.entries;
         if (Array.isArray(entries)) out.push(...entries);
     }
@@ -66,11 +66,12 @@ function joinEntryToTweet(entry, tweets, users) {
     const tw = tweets?.[tweetId];
     if (!tw) return null;
     const user = users?.[tw.user_id_str] || null;
+    if (typeof user?.screen_name !== 'string' || !user.screen_name) return null;
     return { tweetId, tweet: tw, user };
 }
 
 function shapeRow({ tweetId, tweet, user }) {
-    const screenName = user?.screen_name || 'unknown';
+    const screenName = user.screen_name;
     return {
         id: tweetId,
         author: screenName,
@@ -88,17 +89,26 @@ function shapeRow({ tweetId, tweet, user }) {
 }
 
 function parseDeviceFollow(payload, seen) {
+    if (!payload?.globalObjects || typeof payload.globalObjects !== 'object') return null;
     const tweets = payload?.globalObjects?.tweets || {};
     const users = payload?.globalObjects?.users || {};
+    if (typeof tweets !== 'object' || typeof users !== 'object') return null;
+    const entries = extractEntries(payload?.timeline);
+    if (!entries) return null;
     const rows = [];
-    for (const entry of extractEntries(payload?.timeline)) {
+    let unmatchedTweetEntries = 0;
+    for (const entry of entries) {
+        const hasTweetEntry = Boolean(entry?.content?.item?.content?.tweet?.id);
         const joined = joinEntryToTweet(entry, tweets, users);
-        if (!joined) continue;
+        if (!joined) {
+            if (hasTweetEntry) unmatchedTweetEntries++;
+            continue;
+        }
         if (seen.has(joined.tweetId)) continue;
         seen.add(joined.tweetId);
         rows.push(shapeRow(joined));
     }
-    return rows;
+    return { rows, entryCount: entries.length, unmatchedTweetEntries };
 }
 
 cli({
@@ -132,9 +142,22 @@ cli({
         return r.ok ? await r.json() : { error: r.status };
       }`);
         if (data?.error) {
+            if (data.error === 401 || data.error === 403) {
+                throw new AuthRequiredError('x.com', `Twitter device-follow returned HTTP ${data.error}`);
+            }
             throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch device-follow notification stream.`);
         }
-        const rows = parseDeviceFollow(data, new Set());
+        const parsed = parseDeviceFollow(data, new Set());
+        if (!parsed) {
+            throw new CommandExecutionError('Twitter device-follow response was missing the expected timeline/globalObjects shape.');
+        }
+        if (parsed.unmatchedTweetEntries > 0) {
+            throw new CommandExecutionError('Twitter device-follow entries could not be joined to tweet/user objects.');
+        }
+        if (parsed.rows.length === 0) {
+            throw new EmptyResultError('twitter device-follow', 'No device-follow notification tweets found.');
+        }
+        const rows = parsed.rows;
         const trimmed = rows.slice(0, limit);
         return applyTopByEngagement(trimmed, kwargs['top-by-engagement']);
     },

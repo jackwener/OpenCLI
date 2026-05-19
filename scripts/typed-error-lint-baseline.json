@@ -937,14 +937,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "twitter/device-follow",
-    "file": "clis/twitter/device-follow.js",
-    "line": 73,
-    "text": "const screenName = user?.screen_name || 'unknown';",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "twitter/following",
     "file": "clis/twitter/following.js",
     "line": 95,
