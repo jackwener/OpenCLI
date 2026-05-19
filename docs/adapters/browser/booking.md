@@ -43,7 +43,7 @@ opencli booking search Tokyo --checkin 2026-06-15 --checkout 2026-06-17 -f json
 | `review_score` | float \| null | Aggregate guest score on a 1.0–10.0 scale (e.g. `8.6`) |
 | `review_count` | int \| null | Number of reviews backing the score |
 | `price_amount` | float \| null | Final per-stay price as a plain number, in `price_currency` |
-| `price_currency` | string \| null | ISO 4217 currency code. Pass `--currency USD` (or similar) to force a stable code |
+| `price_currency` | string \| null | ISO 4217 currency code. Pass `--currency USD` (or similar) to set Booking's `selected_currency` and force a stable output code |
 | `distance` | string \| null | Distance-from-centre string (locale-formatted, e.g. `3.4 km from centre` / `离中心地区3.4千米`) |
 | `recommended_room` | string \| null | Recommended room type + bed config + amenity/urgency hints, concatenated as Booking ships them |
 | `url` | string | Canonical `https://www.booking.com/hotel/<country>/<slug>.html` |
@@ -69,7 +69,9 @@ The URL path encodes the requested locale (`searchresults.<lang>.html`) and
 session cookies can still override hotel name strings to the user's preferred
 language even when `--lang en-us` is set. The `slug`, `url`, `country`, and
 numeric fields stay stable regardless — prefer `slug` (not `name`) as the
-round-trip key.
+round-trip key. When `--currency` is provided and Booking renders a price,
+the adapter reports that requested ISO code instead of guessing from ambiguous
+symbols such as `$` or `¥`.
 
 ## Anti-bot
 

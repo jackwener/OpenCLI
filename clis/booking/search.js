@@ -39,8 +39,14 @@ function normalizeDate(value, label) {
   if (!DATE_RE.test(v)) {
     throw new ArgumentError(`${label} must be YYYY-MM-DD, got ${JSON.stringify(value)}`);
   }
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) {
+  const [year, month, day] = v.split('-').map(Number);
+  const d = new Date(Date.UTC(year, month - 1, day));
+  if (
+    Number.isNaN(d.getTime()) ||
+    d.getUTCFullYear() !== year ||
+    d.getUTCMonth() !== month - 1 ||
+    d.getUTCDate() !== day
+  ) {
     throw new ArgumentError(`${label} is not a valid calendar date: ${v}`);
   }
   return v;
@@ -100,8 +106,12 @@ const EXTRACTOR = `
 
     // Detect blocking / captcha pages: no cards but body shows a verification prompt.
     if (cards.length === 0) {
-      const text = (document.body && document.body.innerText) || '';
-      const blocked = /captcha|verify\\s*you\\s*are|access\\s*denied|forbidden/i.test(text);
+      const text = [
+        (document.title || ''),
+        (document.body && document.body.innerText) || '',
+        (location && location.pathname) || '',
+      ].join(' ');
+      const blocked = /captcha|challenge|verify\\s*you\\s*are|access\\s*denied|forbidden|robot|unusual\\s*traffic/i.test(text);
       const totalEl = document.querySelector('h1');
       const totalText = trim(totalEl && totalEl.textContent);
       return { ok: true, items: [], blocked, totalText };
@@ -266,28 +276,53 @@ cli({
       throw new CommandExecutionError('Booking.com served a verification / captcha page; retry later or change profile');
     }
 
-    const items = Array.isArray(raw.items) ? raw.items : [];
+    if (raw.ok !== true) {
+      throw new CommandExecutionError('Booking.com extractor returned an invalid status');
+    }
+    if (!Array.isArray(raw.items)) {
+      throw new CommandExecutionError('Booking.com extractor returned malformed items');
+    }
+
+    const items = raw.items;
     if (items.length === 0) {
+      const totalText = String(raw.totalText || '').trim();
       throw new EmptyResultError(
         `booking search ${JSON.stringify(destination)}`,
-        'No hotels rendered. Try a broader destination, different dates, or check the URL in a browser.',
+        totalText
+          ? `No hotels rendered (${totalText}). Try a broader destination, different dates, or check the URL in a browser.`
+          : 'No hotels rendered. Try a broader destination, different dates, or check the URL in a browser.',
       );
     }
 
-    return items.slice(0, limit).map((it, i) => ({
-      rank: offset + i + 1,
-      name: it.name,
-      country: it.country,
-      slug: it.slug,
-      star_rating: it.star_rating,
-      review_score: it.review_score,
-      review_count: it.review_count,
-      price_amount: it.price_amount,
-      price_currency: it.price_currency,
-      distance: it.distance,
-      recommended_room: it.recommended_room,
-      url: it.url,
-    }));
+    return items.slice(0, limit).map((it, i) => {
+      if (!it || typeof it !== 'object') {
+        throw new CommandExecutionError('Booking.com extractor returned malformed hotel row');
+      }
+      const name = String(it.name || '').trim();
+      const country = String(it.country || '').trim();
+      const slug = String(it.slug || '').trim();
+      const urlValue = String(it.url || '').trim();
+      const expectedUrl = country && slug
+        ? `https://www.booking.com/hotel/${country}/${slug}.html`
+        : '';
+      if (!name || !/^[a-z]{2}$/.test(country) || !slug || urlValue !== expectedUrl) {
+        throw new CommandExecutionError('Booking.com hotel row is missing stable name/url identity');
+      }
+      return {
+        rank: offset + i + 1,
+        name,
+        country,
+        slug,
+        star_rating: it.star_rating,
+        review_score: it.review_score,
+        review_count: it.review_count,
+        price_amount: it.price_amount,
+        price_currency: it.price_amount == null ? '' : (currency || it.price_currency || ''),
+        distance: it.distance,
+        recommended_room: it.recommended_room,
+        url: urlValue,
+      };
+    });
   },
 });
 

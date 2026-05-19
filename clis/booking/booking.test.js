@@ -46,6 +46,7 @@ describe('booking helpers — normalizeDate', () => {
         expect(() => normalizeDate('', 'checkin')).toThrow(ArgumentError);
         expect(() => normalizeDate('06/15/2026', 'checkin')).toThrow(ArgumentError);
         expect(() => normalizeDate('2026-13-40', 'checkin')).toThrow(ArgumentError);
+        expect(() => normalizeDate('2026-02-31', 'checkin')).toThrow(ArgumentError);
     });
 });
 
@@ -204,6 +205,43 @@ describe('booking search — typed errors (no silent fallback)', () => {
         await expect(search.func(blockedPage, { destination: 'Tokyo', checkin: '2026-06-15', checkout: '2026-06-17' })).rejects.toThrow(CommandExecutionError);
     });
 
+    it('throws CommandExecutionError when extractor payload is malformed instead of treating it as empty', async () => {
+        const search = getRegistry().get('booking/search');
+        const malformedPage = {
+            goto: async () => {},
+            wait: async () => {},
+            evaluate: async () => ({ ok: true, blocked: false, totalText: 'Tokyo hotels' }),
+        };
+        await expect(search.func(malformedPage, { destination: 'Tokyo', checkin: '2026-06-15', checkout: '2026-06-17' })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('throws CommandExecutionError when rendered cards lack stable hotel URL identity', async () => {
+        const search = getRegistry().get('booking/search');
+        const driftPage = {
+            goto: async () => {},
+            wait: async () => {},
+            evaluate: async () => ({
+                ok: true,
+                blocked: false,
+                totalText: 'Tokyo hotels',
+                items: [{
+                    name: 'Unlinked Hotel',
+                    country: '',
+                    slug: '',
+                    url: '',
+                    distance: '',
+                    review_score: null,
+                    review_count: null,
+                    star_rating: null,
+                    price_currency: '',
+                    price_amount: null,
+                    recommended_room: '',
+                }],
+            }),
+        };
+        await expect(search.func(driftPage, { destination: 'Tokyo', checkin: '2026-06-15', checkout: '2026-06-17' })).rejects.toThrow(CommandExecutionError);
+    });
+
     it('unwraps {session, data} envelope from CDP bridge before validating', async () => {
         const search = getRegistry().get('booking/search');
         const envelopePage = {
@@ -236,6 +274,34 @@ describe('booking search — typed errors (no silent fallback)', () => {
         expect(rows[0].rank).toBe(1);
         expect(rows[0].slug).toBe('test-hotel');
         expect(rows[0].url).toBe('https://www.booking.com/hotel/jp/test-hotel.html');
+    });
+
+    it('uses requested selected_currency as the output source when price is present', async () => {
+        const search = getRegistry().get('booking/search');
+        const currencyPage = {
+            goto: async () => {},
+            wait: async () => {},
+            evaluate: async () => ({
+                ok: true,
+                blocked: false,
+                totalText: '',
+                items: [{
+                    name: 'Currency Hotel',
+                    country: 'cn',
+                    slug: 'currency-hotel',
+                    url: 'https://www.booking.com/hotel/cn/currency-hotel.html',
+                    distance: '',
+                    review_score: null,
+                    review_count: null,
+                    star_rating: null,
+                    price_currency: 'JPY',
+                    price_amount: 880,
+                    recommended_room: '',
+                }],
+            }),
+        };
+        const rows = await search.func(currencyPage, { destination: 'Shanghai', checkin: '2026-06-15', checkout: '2026-06-17', currency: 'CNY' });
+        expect(rows[0].price_currency).toBe('CNY');
     });
 
     it('respects offset for rank numbering when paginating', async () => {
