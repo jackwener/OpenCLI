@@ -74,7 +74,6 @@ function buildComposerLocatorScript() {
       };
 
       findComposer.toString = () => 'findComposer';
-      return { findComposer, markerAttr };
     `;
 }
 
@@ -721,28 +720,74 @@ export async function getChatGPTVisibleImageUrls(page) {
                 return rect.width > 32 && rect.height > 32;
             };
 
+            const urls = [];
+            const seen = new Set();
+            const normalizeUrl = (value) => {
+                const raw = String(value || '').trim();
+                if (!raw || raw === 'none') return '';
+                if (/^(?:https?:|blob:|data:)/i.test(raw)) return raw;
+                try {
+                    return new URL(raw, window.location.href).href;
+                } catch {
+                    return raw;
+                }
+            };
+            const addUrl = (value) => {
+                const src = normalizeUrl(value);
+                if (!src || seen.has(src)) return;
+                seen.add(src);
+                urls.push(src);
+            };
+            const isDecorative = (el, src = '') => {
+                const alt = (el.getAttribute('alt') || '').toLowerCase();
+                const cls = String(el.className || '').toLowerCase();
+                const testId = (el.getAttribute('data-testid') || '').toLowerCase();
+                const label = (el.getAttribute('aria-label') || '').toLowerCase();
+                const text = [alt, cls, testId, label, src.toLowerCase()].join(' ');
+                return /avatar|profile|logo|icon/.test(text);
+            };
+
             const imgs = Array.from(document.querySelectorAll('img')).filter(img =>
                 img instanceof HTMLImageElement && isVisible(img)
             );
 
-            const urls = [];
-            const seen = new Set();
-
             for (const img of imgs) {
                 const src = img.currentSrc || img.src || '';
-                const alt = (img.getAttribute('alt') || '').toLowerCase();
-                const cls = (img.className || '').toLowerCase();
                 const width = img.naturalWidth || img.width || 0;
                 const height = img.naturalHeight || img.height || 0;
 
                 if (!src) continue;
-                if (alt.includes('avatar') || alt.includes('profile') || alt.includes('logo') || alt.includes('icon')) continue;
-                if (cls.includes('avatar') || cls.includes('profile') || cls.includes('icon')) continue;
+                if (isDecorative(img, src)) continue;
                 if (width < 128 && height < 128) continue;
-                if (seen.has(src)) continue;
+                addUrl(src);
+            }
 
-                seen.add(src);
-                urls.push(src);
+            // ChatGPT occasionally renders generated images as CSS background
+            // thumbnails instead of plain <img> nodes. Treat visible, large
+            // background images as generated-image candidates too.
+            for (const el of Array.from(document.querySelectorAll('[style*="background-image"], [style*="background"]'))) {
+                if (!(el instanceof HTMLElement) || !isVisible(el) || isDecorative(el)) continue;
+                const rect = el.getBoundingClientRect();
+                if (rect.width < 128 && rect.height < 128) continue;
+                const backgroundImage = window.getComputedStyle(el).backgroundImage || '';
+                for (const match of backgroundImage.matchAll(/url\\((['"]?)(.*?)\\1\\)/g)) {
+                    const src = match[2];
+                    if (!src || isDecorative(el, src)) continue;
+                    addUrl(src);
+                }
+            }
+
+            // Some image experiences render to a canvas. Returning the data URL
+            // lets the downstream asset exporter save it without needing a DOM
+            // selector to rediscover the canvas.
+            for (const canvas of Array.from(document.querySelectorAll('canvas'))) {
+                if (!(canvas instanceof HTMLCanvasElement) || !isVisible(canvas) || isDecorative(canvas)) continue;
+                const width = canvas.width || canvas.getBoundingClientRect().width || 0;
+                const height = canvas.height || canvas.getBoundingClientRect().height || 0;
+                if (width < 128 && height < 128) continue;
+                try {
+                    addUrl(canvas.toDataURL('image/png'));
+                } catch { }
             }
             return urls;
         })()
@@ -807,6 +852,7 @@ export const __test__ = {
     SEND_BUTTON_FALLBACK_SELECTORS,
     SEND_BUTTON_LABELS,
     CLOSE_SIDEBAR_LABELS,
+    buildComposerLocatorScript,
     isSameChatGPTConversation,
     parseChatGPTConversationId,
     imageMimeFromPath,
@@ -850,6 +896,26 @@ export async function getChatGPTImageAssets(page, urls) {
                 if (img) {
                     width = img.naturalWidth || img.width || 0;
                     height = img.naturalHeight || img.height || 0;
+                } else {
+                    const backgroundEl = Array.from(document.querySelectorAll('[style*="background-image"], [style*="background"]')).find(el => {
+                        if (!(el instanceof HTMLElement)) return false;
+                        const backgroundImage = window.getComputedStyle(el).backgroundImage || '';
+                        return Array.from(backgroundImage.matchAll(/url\\((['"]?)(.*?)\\1\\)/g)).some(match => {
+                            const raw = String(match[2] || '').trim();
+                            if (!raw) return false;
+                            if (raw === targetUrl) return true;
+                            try {
+                                return new URL(raw, window.location.href).href === targetUrl;
+                            } catch {
+                                return false;
+                            }
+                        });
+                    });
+                    if (backgroundEl) {
+                        const rect = backgroundEl.getBoundingClientRect();
+                        width = Math.round(rect.width || 0);
+                        height = Math.round(rect.height || 0);
+                    }
                 }
 
                 try {

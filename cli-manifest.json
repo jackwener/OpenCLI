@@ -20111,7 +20111,11 @@
       "comments",
       "postId",
       "author",
-      "url"
+      "url",
+      "post_hint",
+      "url_overridden_by_dest",
+      "preview_image_url",
+      "gallery_urls"
     ],
     "type": "js",
     "modulePath": "reddit/home.js",
@@ -23961,6 +23965,46 @@
     "modulePath": "twitter/delete.js",
     "sourceFile": "twitter/delete.js",
     "navigateBefore": true
+  },
+  {
+    "site": "twitter",
+    "name": "device-follow",
+    "description": "Read the /i/timeline device-follow notification stream (tweets aggregated under a bell-icon \"new posts from @userA and N others\" notification)",
+    "access": "read",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum number of tweets to return (1-200, default 20)"
+      },
+      {
+        "name": "top-by-engagement",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "When set to N>0, re-rank by weighted engagement and return the top N. Default 0 keeps upstream ordering."
+      }
+    ],
+    "columns": [
+      "id",
+      "author",
+      "text",
+      "likes",
+      "retweets",
+      "replies",
+      "views",
+      "created_at",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "twitter/device-follow.js",
+    "sourceFile": "twitter/device-follow.js",
+    "navigateBefore": "https://x.com"
   },
   {
     "site": "twitter",
@@ -30132,6 +30176,56 @@
     "type": "js",
     "modulePath": "zhihu/answer.js",
     "sourceFile": "zhihu/answer.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "answer-comments",
+    "description": "知乎回答评论列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Answer ID, full Zhihu answer URL, or typed target (answer:<qid>:<aid>)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of top-level comments (max 1000)"
+      },
+      {
+        "name": "replies-limit",
+        "type": "int",
+        "default": 3,
+        "required": false,
+        "help": "Number of replies to include per top-level comment (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "comment_rank",
+      "reply_rank",
+      "depth",
+      "id",
+      "parent_id",
+      "author",
+      "reply_to",
+      "likes",
+      "created_at",
+      "url",
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/answer-comments.js",
+    "sourceFile": "zhihu/answer-comments.js",
     "navigateBefore": "https://www.zhihu.com"
   },
   {

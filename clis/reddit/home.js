@@ -15,6 +15,35 @@ export function parseRedditHomeLimit(raw) {
     return n;
 }
 
+export function decodeRedditHtml(value) {
+    if (typeof value !== 'string' || !value) return '';
+    return value
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#x27;/gi, "'")
+        .replace(/&#39;/g, "'");
+}
+
+export function extractRedditMedia(d) {
+    const galleryUrls = [];
+    const items = d?.gallery_data?.items;
+    const meta = d?.media_metadata;
+    if (Array.isArray(items) && meta && typeof meta === 'object') {
+        for (const item of items) {
+            const url = meta[item?.media_id]?.s?.u;
+            if (typeof url === 'string' && url) galleryUrls.push(decodeRedditHtml(url));
+        }
+    }
+    return {
+        post_hint: typeof d?.post_hint === 'string' ? d.post_hint : '',
+        url_overridden_by_dest: decodeRedditHtml(d?.url_overridden_by_dest || ''),
+        preview_image_url: decodeRedditHtml(d?.preview?.images?.[0]?.source?.url || ''),
+        gallery_urls: galleryUrls,
+    };
+}
+
 cli({
     site: 'reddit',
     name: 'home',
@@ -26,7 +55,7 @@ cli({
     args: [
         { name: 'limit', type: 'int', default: 25, help: `Number of posts (1–${REDDIT_HOME_MAX_LIMIT})` },
     ],
-    columns: ['rank', 'title', 'subreddit', 'score', 'comments', 'postId', 'author', 'url'],
+    columns: ['rank', 'title', 'subreddit', 'score', 'comments', 'postId', 'author', 'url', 'post_hint', 'url_overridden_by_dest', 'preview_image_url', 'gallery_urls'],
     func: async (page, kwargs) => {
         const limit = parseRedditHomeLimit(kwargs.limit);
         await page.goto('https://www.reddit.com');
@@ -103,6 +132,7 @@ cli({
                 postId: d.id,
                 author: typeof d.author === 'string' ? d.author : null,
                 url: d.permalink ? 'https://www.reddit.com' + d.permalink : null,
+                ...extractRedditMedia(d),
             });
         }
         if (rows.length === 0) {

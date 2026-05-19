@@ -2,10 +2,10 @@
  * Behavioral tests for the extractRedditMedia helper.
  *
  * The helper is duplicated inline inside each adapter's browser-side evaluate()
- * source (see popular.js / hot.js / search.js / frontpage.js / subreddit.js /
- * read.js). Per-adapter tests grep that the same function-name + spread call
- * is present. This file pins the helper's behavior against representative
- * Reddit-JSON fixtures.
+ * source (see popular.js / hot.js / search.js / frontpage.js / subreddit.js).
+ * Per-adapter tests grep that the same function-name + spread call is present.
+ * This file pins the helper's behavior against representative Reddit-JSON
+ * fixtures.
  */
 import { describe, expect, it } from 'vitest';
 

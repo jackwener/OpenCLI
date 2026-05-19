@@ -7,7 +7,8 @@ describe('reddit search adapter', () => {
 
   it('exposes the full search-result shape including the 4 media columns', () => {
     expect(command?.columns).toEqual([
-      'title', 'subreddit', 'author', 'score', 'comments', 'url',
+      'id', 'title', 'subreddit', 'author', 'score', 'comments', 'url',
+      'created_utc', 'selftext',
       'post_hint', 'url_overridden_by_dest', 'preview_image_url', 'gallery_urls',
     ]);
   });

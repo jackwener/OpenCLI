@@ -7,7 +7,8 @@ describe('reddit popular adapter', () => {
 
   it('exposes the full post-list shape including the 4 media columns', () => {
     expect(command?.columns).toEqual([
-      'rank', 'title', 'subreddit', 'score', 'comments', 'url',
+      'rank', 'id', 'title', 'subreddit', 'score', 'comments', 'author', 'url',
+      'created_utc', 'selftext',
       'post_hint', 'url_overridden_by_dest', 'preview_image_url', 'gallery_urls',
     ]);
   });

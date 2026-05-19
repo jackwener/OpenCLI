@@ -17,6 +17,7 @@ describe('reddit frontpage adapter', () => {
     // so gallery_urls (array-valued) can be set directly in evaluate.
     expect(command?.pipeline?.[1]?.evaluate).toContain('function extractRedditMedia');
     expect(command?.pipeline?.[1]?.evaluate).toContain('...extractRedditMedia(c.data)');
+    expect(command?.pipeline?.[1]?.evaluate).toContain('/r/all.json?limit=${{ args.limit }}&raw_json=1');
     expect(command?.pipeline?.[2]?.map).toMatchObject({
       title: '${{ item.title }}',
       subreddit: '${{ item.subreddit }}',
