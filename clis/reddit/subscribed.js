@@ -1,5 +1,6 @@
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { BROWSER_JSON_SNIFF_FN, throwIfLoginWall } from '@jackwener/opencli/utils';
 
 export const REDDIT_SUBSCRIBED_MAX_LIMIT = 1000;
 
@@ -69,15 +70,21 @@ cli({
             throw new CommandExecutionError('Browser session required');
         await page.goto('https://www.reddit.com');
         const result = unwrapEvaluateResult(await page.evaluate(`(async () => {
+      ${BROWSER_JSON_SNIFF_FN}
       try {
-        const meRes = await fetch('/api/me.json?raw_json=1', { credentials: 'include' });
-        if (meRes.status === 401 || meRes.status === 403) {
-          return { kind: 'auth', detail: 'Reddit /api/me.json returned HTTP ' + meRes.status };
+        // fetchJsonOrLoginWall sniffs HTML responses (login wall / WAF / rate-limit
+        // page) and returns a structured { __loginWall, status, url, ... } sentinel
+        // instead of letting JSON.parse blow up with "Unexpected token '<'".
+        const me = await fetchJsonOrLoginWall('/api/me.json?raw_json=1', { credentials: 'include' });
+        if (me && me.__loginWall) {
+          return { kind: 'login-wall', sentinel: me, where: '/api/me.json' };
         }
-        if (!meRes.ok) {
-          return { kind: 'http', httpStatus: meRes.status, where: '/api/me.json' };
+        if (me && me.error === 401 || me && me.error === 403) {
+          return { kind: 'auth', detail: 'Reddit /api/me.json returned HTTP ' + me.error };
         }
-        const me = await meRes.json();
+        if (me && me.error) {
+          return { kind: 'http', httpStatus: me.error, where: '/api/me.json' };
+        }
         const username = me?.data?.name || me?.name;
         if (!username) return { kind: 'auth', detail: 'Not logged in to reddit.com (no identity in /api/me.json)' };
 
@@ -92,12 +99,14 @@ cli({
           const url = '/subreddits/mine/subscriptions.json?limit=' + pageLimit
             + '&raw_json=1'
             + (after ? '&after=' + encodeURIComponent(after) : '');
-          const res = await fetch(url, { credentials: 'include' });
-          if (res.status === 401 || res.status === 403) {
-            return { kind: 'auth', detail: 'Reddit subscriptions endpoint returned HTTP ' + res.status };
+          const d = await fetchJsonOrLoginWall(url, { credentials: 'include' });
+          if (d && d.__loginWall) {
+            return { kind: 'login-wall', sentinel: d, where: url };
           }
-          if (!res.ok) return { kind: 'http', httpStatus: res.status, where: url };
-          const d = await res.json();
+          if (d && (d.error === 401 || d.error === 403)) {
+            return { kind: 'auth', detail: 'Reddit subscriptions endpoint returned HTTP ' + d.error };
+          }
+          if (d && d.error) return { kind: 'http', httpStatus: d.error, where: url };
           const children = d?.data?.children;
           if (!Array.isArray(children)) {
             return { kind: 'malformed', detail: 'Reddit subscriptions payload was missing data.children.' };
@@ -128,6 +137,10 @@ cli({
         return { kind: 'exception', detail: String(e && e.message || e) };
       }
     })()`));
+        if (result?.kind === 'login-wall') {
+            // Convert the browser-side sentinel into a typed LoginWallError on the Node side.
+            throwIfLoginWall(result.sentinel, { url: result.where });
+        }
         if (result?.kind === 'auth') {
             throw new AuthRequiredError('reddit.com', result.detail);
         }
