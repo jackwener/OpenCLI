@@ -57,6 +57,7 @@ describe('twitter timeline helpers', () => {
                                                                 result: {
                                                                     legacy: {
                                                                         screen_name: 'alice',
+                                                                        description: 'Timeline author bio',
                                                                     },
                                                                 },
                                                             },
@@ -90,6 +91,7 @@ describe('twitter timeline helpers', () => {
         expect(result.tweets[0]).toMatchObject({
             id: '1',
             author: 'alice',
+            bio: 'Timeline author bio',
             text: 'hello',
             likes: 3,
             retweets: 2,

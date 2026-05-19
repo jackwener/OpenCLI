@@ -15,7 +15,7 @@ describe('twitter list-tweets parser', () => {
             core: {
                 user_results: {
                     result: {
-                        legacy: { screen_name: 'bob', name: 'Bob' },
+                        legacy: { screen_name: 'bob', name: 'Bob', description: 'List author bio' },
                     },
                 },
             },
@@ -24,7 +24,7 @@ describe('twitter list-tweets parser', () => {
             id: '99',
             author: 'bob',
             name: 'Bob',
-            bio: '',
+            bio: 'List author bio',
             text: 'hello list',
             likes: 3,
             retweets: 1,
