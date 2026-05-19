@@ -75,6 +75,14 @@ function normalizeLang(value) {
   return v;
 }
 
+function hasPositiveResultCount(text) {
+  const value = String(text || '').replace(/\u00a0/g, ' ');
+  const resultCount = value.match(/\b([1-9][0-9,.\s]*)\s+(?:properties|property|stays|stay|hotels|hotel)\b/i);
+  if (!resultCount) return false;
+  const digits = resultCount[1].replace(/\D/g, '');
+  return Boolean(digits) && Number(digits) > 0;
+}
+
 function buildSearchUrl({
   destination,
   checkin,
@@ -286,6 +294,11 @@ cli({
     const items = raw.items;
     if (items.length === 0) {
       const totalText = String(raw.totalText || '').trim();
+      if (hasPositiveResultCount(totalText)) {
+        throw new CommandExecutionError(
+          `Booking.com page declared results but no property cards were parsed: ${totalText}`,
+        );
+      }
       throw new EmptyResultError(
         `booking search ${JSON.stringify(destination)}`,
         totalText
@@ -332,6 +345,7 @@ export const __test__ = {
   normalizeDate,
   normalizeCurrency,
   normalizeLang,
+  hasPositiveResultCount,
   buildSearchUrl,
   EXTRACTOR,
 };

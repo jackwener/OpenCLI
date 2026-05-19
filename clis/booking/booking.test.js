@@ -4,7 +4,15 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import './search.js';
 import { __test__ } from './search.js';
 
-const { normalizePositiveInt, normalizeNonNegativeInt, normalizeDate, normalizeCurrency, normalizeLang, buildSearchUrl } = __test__;
+const {
+    normalizePositiveInt,
+    normalizeNonNegativeInt,
+    normalizeDate,
+    normalizeCurrency,
+    normalizeLang,
+    hasPositiveResultCount,
+    buildSearchUrl,
+} = __test__;
 
 describe('booking helpers — normalizePositiveInt (no silent clamp)', () => {
     it('returns default when value is undefined/null/empty', () => {
@@ -121,6 +129,18 @@ describe('booking helpers — buildSearchUrl', () => {
     });
 });
 
+describe('booking helpers — hasPositiveResultCount', () => {
+    it('detects positive Booking result-count evidence', () => {
+        expect(hasPositiveResultCount('Tokyo: 1,234 properties found')).toBe(true);
+        expect(hasPositiveResultCount('1 stay found')).toBe(true);
+    });
+
+    it('does not treat no-results text as positive evidence', () => {
+        expect(hasPositiveResultCount('No properties found')).toBe(false);
+        expect(hasPositiveResultCount('0 properties found')).toBe(false);
+    });
+});
+
 describe('booking adapter registry shape', () => {
     it('search is registered as read with id-shaped column for round-trip', () => {
         const search = getRegistry().get('booking/search');
@@ -190,9 +210,19 @@ describe('booking search — typed errors (no silent fallback)', () => {
         const emptyPage = {
             goto: async () => {},
             wait: async () => {},
-            evaluate: async () => ({ ok: true, items: [], blocked: false, totalText: '' }),
+            evaluate: async () => ({ ok: true, items: [], blocked: false, totalText: 'No properties found' }),
         };
         await expect(search.func(emptyPage, { destination: 'Tokyo', checkin: '2026-06-15', checkout: '2026-06-17' })).rejects.toThrow(EmptyResultError);
+    });
+
+    it('throws CommandExecutionError when result-count evidence exists but no cards were parsed', async () => {
+        const search = getRegistry().get('booking/search');
+        const driftPage = {
+            goto: async () => {},
+            wait: async () => {},
+            evaluate: async () => ({ ok: true, items: [], blocked: false, totalText: 'Tokyo: 1,234 properties found' }),
+        };
+        await expect(search.func(driftPage, { destination: 'Tokyo', checkin: '2026-06-15', checkout: '2026-06-17' })).rejects.toThrow(CommandExecutionError);
     });
 
     it('throws CommandExecutionError when captcha is detected', async () => {
