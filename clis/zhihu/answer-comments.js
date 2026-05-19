@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
 function decodeEntity(codePoint) {
     return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10FFFF
@@ -99,6 +99,23 @@ function normalizeCommentUrl(url, questionId, answerId, commentId) {
     return typeof url === 'string' ? url : '';
 }
 
+function normalizeCommentsApiUrl(url, answerId) {
+    if (typeof url !== 'string' || !url) return '';
+    try {
+        const parsed = new URL(url);
+        const expectedWwwPath = `/api/v4/answers/${answerId}/comments`;
+        const expectedApiPath = `/answers/${answerId}/comments`;
+        if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port) return '';
+        if (parsed.hostname === 'www.zhihu.com' && parsed.pathname === expectedWwwPath) return parsed.toString();
+        if (parsed.hostname === 'api.zhihu.com' && parsed.pathname === expectedApiPath) {
+            return `https://www.zhihu.com${expectedWwwPath}${parsed.search}`;
+        }
+    } catch {
+        return '';
+    }
+    return '';
+}
+
 function buildRows(comments, { answerId, questionId, topLevelLimit, repliesLimit }) {
     const rows = [];
     const latestByAuthor = new Map();
@@ -106,9 +123,14 @@ function buildRows(comments, { answerId, questionId, topLevelLimit, repliesLimit
     const includedRoots = new Set();
     let topLevelCount = 0;
     let reachedTopLevelLimit = false;
+    let malformedComments = 0;
 
     for (const comment of comments) {
         const id = normalizeCommentId(comment.id);
+        if (!id) {
+            malformedComments += 1;
+            continue;
+        }
         const author = memberName(comment.author);
         const authorKey = memberKey(comment.author);
         const replyToAuthor = memberName(comment.reply_to_author);
@@ -175,7 +197,7 @@ function buildRows(comments, { answerId, questionId, topLevelLimit, repliesLimit
 
         if (reachedTopLevelLimit && isTopLevel) break;
     }
-    return { rows, topLevelCount, reachedTopLevelLimit };
+    return { rows, topLevelCount, reachedTopLevelLimit, malformedComments };
 }
 
 const MAX_LIMIT = 1000;
@@ -253,6 +275,9 @@ cli({
                 if (status === 401 || status === 403) {
                     throw new AuthRequiredError('www.zhihu.com', 'Failed to fetch Zhihu answer comments');
                 }
+                if (status === 404) {
+                    throw new EmptyResultError('zhihu answer-comments', `No Zhihu answer comments resource was found for ${answerId}.`);
+                }
                 throw new CommandExecutionError(
                     status
                         ? `Zhihu answer comments request failed (HTTP ${status})`
@@ -266,7 +291,7 @@ cli({
                     'Try again later or rerun with -v for more detail',
                 );
             }
-            if (!Array.isArray(data.data)) {
+            if (!Array.isArray(data.data) || !data.paging || typeof data.paging !== 'object') {
                 throw new CommandExecutionError(
                     'Zhihu answer comments returned a malformed payload',
                     'Try again later or rerun with -v for more detail',
@@ -274,12 +299,34 @@ cli({
             }
             fetched.push(...data.data);
             const built = buildRows(fetched, { answerId, questionId, topLevelLimit, repliesLimit });
-            if (built.reachedTopLevelLimit || data.paging?.is_end) return built.rows;
-            url = typeof data.paging?.next === 'string' ? data.paging.next : '';
+            if (built.malformedComments > 0) {
+                throw new CommandExecutionError('Zhihu answer comments contained rows without comment ids');
+            }
+            if (built.reachedTopLevelLimit || data.paging?.is_end) {
+                if (built.rows.length === 0) {
+                    throw new EmptyResultError('zhihu answer-comments', `No comments found for answer ${answerId}.`);
+                }
+                return built.rows;
+            }
+            const next = normalizeCommentsApiUrl(data.paging?.next, answerId);
+            if (!next) {
+                throw new CommandExecutionError('Zhihu answer comments pagination returned malformed next URL');
+            }
+            if (visited.has(next)) {
+                throw new CommandExecutionError('Zhihu answer comments pagination returned a repeated next URL');
+            }
+            url = next;
         }
 
-        return buildRows(fetched, { answerId, questionId, topLevelLimit, repliesLimit }).rows;
+        const built = buildRows(fetched, { answerId, questionId, topLevelLimit, repliesLimit });
+        if (built.malformedComments > 0) {
+            throw new CommandExecutionError('Zhihu answer comments contained rows without comment ids');
+        }
+        if (built.rows.length === 0) {
+            throw new EmptyResultError('zhihu answer-comments', `No comments found for answer ${answerId}.`);
+        }
+        return built.rows;
     },
 });
 
-export const __test__ = { stripHtml, parseAnswerTarget, buildRows };
+export const __test__ = { stripHtml, parseAnswerTarget, normalizeCommentsApiUrl, buildRows };

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './answer-comments.js';
 import { __test__ as helpers } from './answer-comments.js';
 
@@ -144,9 +144,15 @@ describe('zhihu answer-comments', () => {
         const cmd = getRegistry().get('zhihu/answer-comments');
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
-            evaluate: vi.fn().mockResolvedValue({ data: [], paging: { is_end: true } }),
+            evaluate: vi.fn().mockResolvedValue({
+                data: [
+                    { id: 'c1', author: { member: { id: 'u1', name: 'alice' } }, content: 'typed target comment' },
+                ],
+                paging: { is_end: true },
+            }),
         };
-        await expect(cmd.func(page, { id: 'answer:2022852734622114542:2036567240334653053', limit: 1, 'replies-limit': 0 })).resolves.toEqual([]);
+        await expect(cmd.func(page, { id: 'answer:2022852734622114542:2036567240334653053', limit: 1, 'replies-limit': 0 }))
+            .resolves.toMatchObject([{ id: 'c1', url: 'https://www.zhihu.com/question/2022852734622114542/answer/2036567240334653053#comment-c1' }]);
         expect(page.goto).toHaveBeenCalledWith('https://www.zhihu.com/answer/2036567240334653053');
     });
 
@@ -159,11 +165,64 @@ describe('zhihu answer-comments', () => {
         await expect(cmd.func(page, { id: '1', limit: 1, 'replies-limit': 0 })).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
+    it('maps 404 not found to EmptyResultError', async () => {
+        const cmd = getRegistry().get('zhihu/answer-comments');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({ __httpError: 404 }),
+        };
+        await expect(cmd.func(page, { id: '1', limit: 1, 'replies-limit': 0 })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
     it('maps malformed responses to CommandExecutionError', async () => {
         const cmd = getRegistry().get('zhihu/answer-comments');
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn().mockResolvedValue({ data: {} }),
+        };
+        await expect(cmd.func(page, { id: '1', limit: 1, 'replies-limit': 0 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('maps valid empty comments to EmptyResultError', async () => {
+        const cmd = getRegistry().get('zhihu/answer-comments');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({ data: [], paging: { is_end: true } }),
+        };
+        await expect(cmd.func(page, { id: '1', limit: 1, 'replies-limit': 0 })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('rejects malformed pagination next URLs and repeated next URLs', async () => {
+        const cmd = getRegistry().get('zhihu/answer-comments');
+        const malformedNextPage = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({
+                data: [{ id: 'c1', author: { member: { id: 'u1', name: 'alice' } }, content: 'first' }],
+                paging: { is_end: false, next: 'https://evil.example/api/v4/answers/1/comments?offset=20' },
+            }),
+        };
+        await expect(cmd.func(malformedNextPage, { id: '1', limit: 2, 'replies-limit': 0 }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+
+        const repeatedNextPage = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({
+                data: [{ id: 'c1', author: { member: { id: 'u1', name: 'alice' } }, content: 'first' }],
+                paging: { is_end: false, next: 'https://www.zhihu.com/api/v4/answers/1/comments?order=normal&limit=20&offset=0&status=open' },
+            }),
+        };
+        await expect(cmd.func(repeatedNextPage, { id: '1', limit: 2, 'replies-limit': 0 }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('rejects comment rows without stable comment id anchors', async () => {
+        const cmd = getRegistry().get('zhihu/answer-comments');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({
+                data: [{ author: { member: { id: 'u1', name: 'alice' } }, content: 'missing id' }],
+                paging: { is_end: true },
+            }),
         };
         await expect(cmd.func(page, { id: '1', limit: 1, 'replies-limit': 0 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
@@ -188,6 +247,15 @@ describe('zhihu answer-comments helpers', () => {
         expect(helpers.parseAnswerTarget('https://www.zhihu.com/question/10/answer/123')).toEqual({ answerId: '123', questionId: '10' });
         expect(helpers.parseAnswerTarget('https://zhihu.com/answer/123?utm=1')).toEqual({ answerId: '123', questionId: '' });
         expect(helpers.parseAnswerTarget('https://example.com/question/10/answer/123')).toBeNull();
+    });
+
+    it('normalizeCommentsApiUrl only accepts same-answer Zhihu comments API URLs', () => {
+        expect(helpers.normalizeCommentsApiUrl('https://www.zhihu.com/api/v4/answers/123/comments?offset=20', '123'))
+            .toBe('https://www.zhihu.com/api/v4/answers/123/comments?offset=20');
+        expect(helpers.normalizeCommentsApiUrl('https://api.zhihu.com/answers/123/comments?offset=20', '123'))
+            .toBe('https://www.zhihu.com/api/v4/answers/123/comments?offset=20');
+        expect(helpers.normalizeCommentsApiUrl('https://www.zhihu.com/api/v4/answers/999/comments?offset=20', '123')).toBe('');
+        expect(helpers.normalizeCommentsApiUrl('https://evil.example/api/v4/answers/123/comments?offset=20', '123')).toBe('');
     });
 
     it('buildRows reconstructs nested reply depth from previously seen authors', () => {
