@@ -30105,6 +30105,56 @@
   },
   {
     "site": "zhihu",
+    "name": "answer-comments",
+    "description": "知乎回答评论列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Answer ID, full Zhihu answer URL, or typed target (answer:<qid>:<aid>)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of top-level comments (max 1000)"
+      },
+      {
+        "name": "replies-limit",
+        "type": "int",
+        "default": 3,
+        "required": false,
+        "help": "Number of replies to include per top-level comment (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "comment_rank",
+      "reply_rank",
+      "depth",
+      "id",
+      "parent_id",
+      "author",
+      "reply_to",
+      "likes",
+      "created_at",
+      "url",
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/answer-comments.js",
+    "sourceFile": "zhihu/answer-comments.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
     "name": "answer-detail",
     "description": "知乎单个回答完整内容（按 answer ID 获取）",
     "access": "read",
